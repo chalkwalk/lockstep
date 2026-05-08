@@ -1,0 +1,4 @@
+*~
+.vimsupport/
+__pycache__/
+*.pyc
