@@ -25,6 +25,8 @@ namespace lockstep
         PageBar pageBar_;
         ManipulationZone manipulationZone_;
         StepGrid stepGrid_;
+        juce::TextButton loadButton_{ "Load Sample" };
+        std::unique_ptr<juce::FileChooser> fileChooser_;
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LockstepEditor)
     };

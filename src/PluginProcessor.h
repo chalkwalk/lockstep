@@ -8,6 +8,7 @@
 #include "io/EditContext.h"
 #include "io/MidiInput.h"
 #include "machine/IMachine.h"
+#include "machine/SamplePool.h"
 
 namespace lockstep
 {
@@ -42,11 +43,13 @@ namespace lockstep
 
         juce::AudioProcessorValueTreeState& apvts() { return apvts_; }
         const Sequence& sequence() const { return sequence_; }
+        SamplePool& samplePool() { return samplePool_; }
 
         using juce::AudioProcessor::processBlock;
 
     private:
         juce::AudioProcessorValueTreeState apvts_;
+        SamplePool samplePool_;
         Sequence sequence_;
         Clock clock_;
         EditContext editContext_;

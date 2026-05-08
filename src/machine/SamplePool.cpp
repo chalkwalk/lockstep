@@ -1,14 +1,48 @@
 #include "SamplePool.h"
+#include "state/Hash.h"
 
 namespace lockstep
 {
-    SamplePool::SamplePool() = default;
+    SamplePool::SamplePool()
+    {
+        formatManager_.registerBasicFormats();
+    }
+
     SamplePool::~SamplePool() = default;
 
-    const SampleRef* SamplePool::get(int index) const
+    int SamplePool::load(const juce::String& path)
     {
-        if (index < 0 || index >= static_cast<int>(refs_.size()))
+        juce::File file(path);
+        std::unique_ptr<juce::AudioFormatReader> reader(
+            formatManager_.createReaderFor(file));
+
+        if (reader == nullptr)
+            return -1;
+
+        auto sample = std::make_unique<Sample>();
+        sample->sampleRate = reader->sampleRate;
+        sample->ref.path = path.toStdString();
+
+        const auto numChannels = static_cast<int>(reader->numChannels);
+        const auto numSamples  = static_cast<int>(reader->lengthInSamples);
+
+        sample->pcm.setSize(numChannels, numSamples);
+        reader->read(&sample->pcm, 0, numSamples, 0, true, true);
+
+        // Hash the raw float data; real xxHash32 lands in M7.
+        sample->ref.hashXX32 = Hash::xx32(
+            sample->pcm.getReadPointer(0),
+            static_cast<std::size_t>(numSamples) * sizeof(float));
+
+        const int index = static_cast<int>(samples_.size());
+        samples_.push_back(std::move(sample));
+        return index;
+    }
+
+    const Sample* SamplePool::get(int index) const
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size()))
             return nullptr;
-        return &refs_[static_cast<std::size_t>(index)];
+        return samples_[static_cast<std::size_t>(index)].get();
     }
 }

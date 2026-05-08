@@ -50,7 +50,7 @@ block."
 Make the sampler actually produce sound. One-shot sample playback per
 trigger, AHDSR envelope, 1–2 ms choke micro-fade.
 
-- [ ] **M1.1** Sample loader: drag-and-drop / file dialog onto the
+- [x] **M1.1** Sample loader: drag-and-drop / file dialog onto the
       sample pool. Decoded PCM stored in `SamplePool`, hashed with
       `xx32`.
 - [ ] **M1.2** Voice playback: linear interpolation, monophonic per

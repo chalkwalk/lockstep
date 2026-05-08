@@ -29,6 +29,7 @@ target_link_libraries(lockstep_core
     PUBLIC
         juce::juce_audio_utils
         juce::juce_audio_processors
+        juce::juce_audio_formats
         juce::juce_audio_basics
         juce::juce_dsp
         juce::juce_core
@@ -38,7 +39,9 @@ target_compile_definitions(lockstep_core
     PUBLIC
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
-        JUCE_VST3_CAN_REPLACE_VST2=0)
+        JUCE_VST3_CAN_REPLACE_VST2=0
+        JUCE_USE_FLAC=1
+        JUCE_USE_OGGVORBIS=1)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_options(lockstep_core PRIVATE
