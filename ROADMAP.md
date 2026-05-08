@@ -7,8 +7,8 @@ milestone changes, update **Active focus** below.
 
 For architecture see `DESIGN.md`.
 
-**Active focus:** M1 — Audible sampler.
-**Last completed:** M0 — Skeleton + buildable empty plugin.
+**Active focus:** M2 — Polymetric clocking + multi-track.
+**Last completed:** M1 — Audible sampler.
 
 ## Locked design decisions for the roadmap
 
@@ -45,7 +45,7 @@ block."
 - [x] Verified: standalone launches, plugin loads in Reaper/Bitwig,
       APVTS round-trips through host save/load.
 
-### M1 — Audible sampler  [pending]
+### M1 — Audible sampler  [complete]
 
 Make the sampler actually produce sound. One-shot sample playback per
 trigger, AHDSR envelope, 1–2 ms choke micro-fade.
@@ -59,7 +59,7 @@ trigger, AHDSR envelope, 1–2 ms choke micro-fade.
       micro-fade on the current voice before retrigger (no clicks).
 - [x] **M1.4** Output stage: DC blocker, soft-clip safety limiter,
       parameter smoothing on `output_gain`.
-- [ ] **M1.5** Self-test: standalone, play a 16-step pattern with a
+- [x] **M1.5** Self-test: standalone, play a 16-step pattern with a
       kick on every step. Confirm no clicks, stable amplitude.
 
 ### M2 — Polymetric clocking + multi-track  [pending]
@@ -154,4 +154,5 @@ Lift `IMachine` into a CLAP/VST3 sub-host.
 
 ## Play-test notes
 
-(Empty — populated from M1 onwards. Newest entry on top, dated.)
+**2026-05-08 — M1.5:** 16-step pattern, kick on every step. No clicks,
+stable amplitude. Choke micro-fade working. M1 complete.
