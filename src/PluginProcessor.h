@@ -54,7 +54,8 @@ namespace lockstep
         Clock clock_;
         EditContext editContext_;
         MidiInput midiInput_;
-        std::unique_ptr<IMachine> machine_;
+        std::array<std::unique_ptr<IMachine>, kNumTracks> machines_;
+        std::array<double, kNumTracks> nextTriggerPos_{};
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LockstepProcessor)
     };

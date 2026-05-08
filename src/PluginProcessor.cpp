@@ -21,9 +21,22 @@ namespace lockstep
 
     LockstepProcessor::LockstepProcessor()
         : juce::AudioProcessor(BusesPropertiesAccessor::make()),
-          apvts_(*this, nullptr, "Lockstep", createParameterLayout()),
-          machine_(std::make_unique<SamplerMachine>())
+          apvts_(*this, nullptr, "Lockstep", createParameterLayout())
     {
+        nextTriggerPos_.fill(0.0);
+
+        for (auto& m : machines_)
+            m = std::make_unique<SamplerMachine>(samplePool_);
+
+        // Seed each track's base params from the machine's declared defaults.
+        for (std::size_t t = 0; t < kNumTracks; ++t)
+        {
+            for (int s = 0; s < kNumParamSlots; ++s)
+            {
+                sequence_.tracks[t].baseParams[static_cast<std::size_t>(s)] =
+                    machines_[t]->getParamMetadata(s).defaultValue;
+            }
+        }
     }
 
     LockstepProcessor::~LockstepProcessor() = default;
@@ -31,8 +44,12 @@ namespace lockstep
     void LockstepProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     {
         clock_.prepare(sampleRate);
-        machine_->prepare(sampleRate, samplesPerBlock);
-        machine_->reset();
+        for (auto& m : machines_)
+        {
+            m->prepare(sampleRate, samplesPerBlock);
+            m->reset();
+        }
+        nextTriggerPos_.fill(0.0);
     }
 
     void LockstepProcessor::releaseResources() {}
@@ -57,23 +74,44 @@ namespace lockstep
 
         midiInput_.process(midi, editContext_);
 
-        const auto& tracks = sequence_.tracks;
         const double samplesPerStep = clock_.samplesPerStep();
-        const auto pos = clock_.samplePosition();
+        const auto   pos            = clock_.samplePosition();
 
-        for (std::size_t i = 0; i < tracks.size(); ++i)
+        const double blockStart = static_cast<double>(pos);
+        const double blockEnd   = blockStart + static_cast<double>(buffer.getNumSamples());
+
+        for (std::size_t i = 0; i < kNumTracks; ++i)
         {
-            const auto& track = tracks[i];
-            int stepIndex = 0;
-            if (samplesPerStep > 0.0 && track.length > 0)
+            const auto& track = sequence_.tracks[i];
+
+            if (samplesPerStep <= 0.0 || track.length <= 0)
+                continue;
+
+            const double effectiveSPS =
+                samplesPerStep * static_cast<double>(track.divider <= 0 ? 1 : track.divider);
+
+            // Walk nextTriggerPos_[i] forward through this block, firing any
+            // step boundaries that fall within [blockStart, blockEnd).
+            int triggerAt = -1;
+            int stepIndex = static_cast<int>(
+                static_cast<std::int64_t>(blockStart / effectiveSPS) % track.length);
+
+            while (nextTriggerPos_[i] < blockEnd)
             {
-                const auto totalSteps = static_cast<std::int64_t>(
-                    static_cast<double>(pos) / (samplesPerStep * static_cast<double>(track.divider <= 0 ? 1 : track.divider)));
-                stepIndex = static_cast<int>(((totalSteps % track.length) + track.length) % track.length);
+                if (nextTriggerPos_[i] >= blockStart)
+                {
+                    const auto stepNum = static_cast<std::int64_t>(
+                        nextTriggerPos_[i] / effectiveSPS);
+                    stepIndex = static_cast<int>(stepNum % track.length);
+
+                    if (track.steps[static_cast<std::size_t>(stepIndex)].trig)
+                        triggerAt = static_cast<int>(nextTriggerPos_[i] - blockStart);
+                }
+                nextTriggerPos_[i] += effectiveSPS;
             }
 
             const auto frame = StateResolver::resolve(track, stepIndex);
-            machine_->process(frame, buffer);
+            machines_[i]->process(triggerAt, frame, buffer);
         }
 
         const float gainDb = apvts_.getRawParameterValue(ParamIDs::outputGain)->load();

@@ -53,7 +53,7 @@ trigger, AHDSR envelope, 1–2 ms choke micro-fade.
 - [x] **M1.1** Sample loader: drag-and-drop / file dialog onto the
       sample pool. Decoded PCM stored in `SamplePool`, hashed with
       `xx32`.
-- [ ] **M1.2** Voice playback: linear interpolation, monophonic per
+- [x] **M1.2** Voice playback: linear interpolation, monophonic per
       track, AHDSR amplitude envelope.
 - [ ] **M1.3** Choke: new trigger on a busy track schedules a 1–2 ms
       micro-fade on the current voice before retrigger (no clicks).

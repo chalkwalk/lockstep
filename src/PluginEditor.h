@@ -27,6 +27,7 @@ namespace lockstep
         StepGrid stepGrid_;
         juce::TextButton loadButton_{ "Load Sample" };
         std::unique_ptr<juce::FileChooser> fileChooser_;
+        juce::String sampleStatus_{ "No samples loaded" };
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LockstepEditor)
     };

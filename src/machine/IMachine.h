@@ -32,7 +32,10 @@ namespace lockstep
         // The sequencer resolves Override-ELSE-Base into a single ParamFrame
         // per block and hands it across the boundary. The machine writes
         // additively into `buffer`.
-        virtual void process(const ParamFrame& params, juce::AudioBuffer<float>& buffer) = 0;
+        // triggerAtSample: sample offset within buffer where a new step trig fires,
+        // or -1 if no trig this block.
+        virtual void process(int triggerAtSample, const ParamFrame& params,
+                             juce::AudioBuffer<float>& buffer) = 0;
 
         virtual ParamMetadata getParamMetadata(int slot) const = 0;
     };
