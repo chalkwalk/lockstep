@@ -1,0 +1,58 @@
+#pragma once
+
+#include <juce_audio_processors/juce_audio_processors.h>
+#include <memory>
+
+#include "core/Clock.h"
+#include "core/Sequence.h"
+#include "io/EditContext.h"
+#include "io/MidiInput.h"
+#include "machine/IMachine.h"
+
+namespace lockstep
+{
+    class LockstepProcessor : public juce::AudioProcessor
+    {
+    public:
+        LockstepProcessor();
+        ~LockstepProcessor() override;
+
+        void prepareToPlay(double sampleRate, int samplesPerBlock) override;
+        void releaseResources() override;
+        bool isBusesLayoutSupported(const BusesLayout& layouts) const override;
+        void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) override;
+
+        juce::AudioProcessorEditor* createEditor() override;
+        bool hasEditor() const override { return true; }
+
+        const juce::String getName() const override { return "Lockstep"; }
+        bool acceptsMidi() const override                    { return true; }
+        bool producesMidi() const override                   { return false; }
+        bool isMidiEffect() const override                   { return false; }
+        double getTailLengthSeconds() const override         { return 0.0; }
+
+        int getNumPrograms() override                        { return 1; }
+        int getCurrentProgram() override                     { return 0; }
+        void setCurrentProgram(int) override                 {}
+        const juce::String getProgramName(int) override      { return {}; }
+        void changeProgramName(int, const juce::String&) override {}
+
+        void getStateInformation(juce::MemoryBlock& dest) override;
+        void setStateInformation(const void* data, int sizeInBytes) override;
+
+        juce::AudioProcessorValueTreeState& apvts() { return apvts_; }
+        const Sequence& sequence() const { return sequence_; }
+
+        using juce::AudioProcessor::processBlock;
+
+    private:
+        juce::AudioProcessorValueTreeState apvts_;
+        Sequence sequence_;
+        Clock clock_;
+        EditContext editContext_;
+        MidiInput midiInput_;
+        std::unique_ptr<IMachine> machine_;
+
+        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LockstepProcessor)
+    };
+}

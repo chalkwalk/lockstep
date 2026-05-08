@@ -1,4 +1,21 @@
 *~
+.*.un~
 .vimsupport/
 __pycache__/
 *.pyc
+
+# Build artifacts
+build/
+build*/
+*.o
+*.obj
+
+# Editor / IDE
+.vscode/
+.idea/
+.cache/
+compile_commands.json
+
+# OS
+.DS_Store
+Thumbs.db
