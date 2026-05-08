@@ -57,6 +57,10 @@ namespace lockstep
         std::array<std::unique_ptr<IMachine>, kNumTracks> machines_;
         std::array<double, kNumTracks> nextTriggerPos_{};
 
+        juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> gainSmoothed_;
+        std::array<float, 2> dcX1_{};  // per-channel DC blocker: previous input
+        std::array<float, 2> dcY1_{};  // per-channel DC blocker: previous output
+
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LockstepProcessor)
     };
 }

@@ -57,7 +57,7 @@ trigger, AHDSR envelope, 1–2 ms choke micro-fade.
       track, AHDSR amplitude envelope.
 - [x] **M1.3** Choke: new trigger on a busy track schedules a 1–2 ms
       micro-fade on the current voice before retrigger (no clicks).
-- [ ] **M1.4** Output stage: DC blocker, soft-clip safety limiter,
+- [x] **M1.4** Output stage: DC blocker, soft-clip safety limiter,
       parameter smoothing on `output_gain`.
 - [ ] **M1.5** Self-test: standalone, play a 16-step pattern with a
       kick on every step. Confirm no clicks, stable amplitude.

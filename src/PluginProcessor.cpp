@@ -5,6 +5,8 @@
 #include "core/StateResolver.h"
 #include "machine/SamplerMachine.h"
 #include "state/PluginState.h"
+#include <algorithm>
+#include <cmath>
 
 namespace lockstep
 {
@@ -50,9 +52,21 @@ namespace lockstep
             m->reset();
         }
         nextTriggerPos_.fill(0.0);
+
+        gainSmoothed_.reset(sampleRate, 0.05);  // 50 ms ramp
+        const float initGainDb = apvts_.getRawParameterValue(ParamIDs::outputGain)->load();
+        gainSmoothed_.setCurrentAndTargetValue(
+            juce::Decibels::decibelsToGain(initGainDb, -60.0f));
+
+        dcX1_.fill(0.0f);
+        dcY1_.fill(0.0f);
     }
 
-    void LockstepProcessor::releaseResources() {}
+    void LockstepProcessor::releaseResources()
+    {
+        dcX1_.fill(0.0f);
+        dcY1_.fill(0.0f);
+    }
 
     bool LockstepProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
     {
@@ -114,8 +128,35 @@ namespace lockstep
             machines_[i]->process(triggerAt, frame, buffer);
         }
 
-        const float gainDb = apvts_.getRawParameterValue(ParamIDs::outputGain)->load();
-        buffer.applyGain(juce::Decibels::decibelsToGain(gainDb, -60.0f));
+        // Output stage: smoothed gain → DC blocker → soft-clip
+        const float targetGainDb = apvts_.getRawParameterValue(ParamIDs::outputGain)->load();
+        gainSmoothed_.setTargetValue(
+            juce::Decibels::decibelsToGain(targetGainDb, -60.0f));
+
+        const int numOut      = buffer.getNumChannels();
+        const int numSamples  = buffer.getNumSamples();
+        const int numDcChans  = std::min(numOut, static_cast<int>(dcX1_.size()));
+
+        for (int i = 0; i < numSamples; ++i)
+        {
+            const float gain = gainSmoothed_.getNextValue();
+            for (int ch = 0; ch < numOut; ++ch)
+            {
+                float s = buffer.getSample(ch, i) * gain;
+
+                if (ch < numDcChans)
+                {
+                    const float x1 = dcX1_[static_cast<std::size_t>(ch)];
+                    const float y1 = dcY1_[static_cast<std::size_t>(ch)];
+                    const float y  = s - x1 + 0.999f * y1;
+                    dcX1_[static_cast<std::size_t>(ch)] = s;
+                    dcY1_[static_cast<std::size_t>(ch)] = y;
+                    s = y;
+                }
+
+                buffer.setSample(ch, i, std::tanh(s));
+            }
+        }
 
         clock_.advance(buffer.getNumSamples());
     }
