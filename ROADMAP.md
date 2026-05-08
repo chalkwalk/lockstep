@@ -55,7 +55,7 @@ trigger, AHDSR envelope, 1–2 ms choke micro-fade.
       `xx32`.
 - [x] **M1.2** Voice playback: linear interpolation, monophonic per
       track, AHDSR amplitude envelope.
-- [ ] **M1.3** Choke: new trigger on a busy track schedules a 1–2 ms
+- [x] **M1.3** Choke: new trigger on a busy track schedules a 1–2 ms
       micro-fade on the current voice before retrigger (no clicks).
 - [ ] **M1.4** Output stage: DC blocker, soft-clip safety limiter,
       parameter smoothing on `output_gain`.

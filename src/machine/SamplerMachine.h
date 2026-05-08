@@ -2,6 +2,7 @@
 
 #include "IMachine.h"
 #include "SamplePool.h"
+#include "VoiceChoke.h"
 
 namespace lockstep
 {
@@ -47,12 +48,16 @@ namespace lockstep
             int    releaseSamples = 0;
         };
 
-        void  triggerVoice(const ParamFrame& params);
+        void  triggerVoice(const ParamFrame& params); // routes to startVoice or arms choke
+        void  startVoice(const ParamFrame& params);   // unconditional voice init
         void  advanceStage(Voice& v);
         float nextEnvSample(Voice& v);
 
         SamplePool& pool_;
-        double sampleRate_ = 0.0;
-        Voice  voice_;
+        double      sampleRate_ = 0.0;
+        Voice       voice_;
+        VoiceChoke  choke_;
+        bool        hasPendingTrigger_ = false;
+        ParamFrame  pendingParams_{};
     };
 }

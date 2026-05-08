@@ -11,28 +11,31 @@ namespace lockstep
     void SamplerMachine::prepare(double sampleRate, int maxBlockSize)
     {
         sampleRate_ = sampleRate;
+        choke_.prepare(sampleRate_, 1.5f);
         juce::ignoreUnused(maxBlockSize);
     }
 
     void SamplerMachine::reset()
     {
-        voice_ = Voice{};
+        voice_             = Voice{};
+        hasPendingTrigger_ = false;
+        choke_.prepare(sampleRate_, 1.5f); // resets fadeRemaining
     }
 
     // -------------------------------------------------------------------------
 
-    void SamplerMachine::triggerVoice(const ParamFrame& params)
+    void SamplerMachine::startVoice(const ParamFrame& params)
     {
         const auto msToSamples = [this](float ms) {
             return static_cast<int>(static_cast<double>(ms) * 0.001 * sampleRate_);
         };
 
-        voice_.active        = true;
-        voice_.position      = 0.0;
-        voice_.sampleIndex   = static_cast<int>(params[static_cast<std::size_t>(kSlotSampleId)]);
-        voice_.level         = params[static_cast<std::size_t>(kSlotLevel)];
-        voice_.rate          = std::pow(2.0, static_cast<double>(
-                                   params[static_cast<std::size_t>(kSlotPitch)]) / 12.0);
+        voice_.active         = true;
+        voice_.position       = 0.0;
+        voice_.sampleIndex    = static_cast<int>(params[static_cast<std::size_t>(kSlotSampleId)]);
+        voice_.level          = params[static_cast<std::size_t>(kSlotLevel)];
+        voice_.rate           = std::pow(2.0, static_cast<double>(
+                                    params[static_cast<std::size_t>(kSlotPitch)]) / 12.0);
         voice_.attackSamples  = msToSamples(params[static_cast<std::size_t>(kSlotAttack)]);
         voice_.holdSamples    = msToSamples(params[static_cast<std::size_t>(kSlotHold)]);
         voice_.decaySamples   = msToSamples(params[static_cast<std::size_t>(kSlotDecay)]);
@@ -50,6 +53,20 @@ namespace lockstep
         {
             voice_.stageRemaining = voice_.attackSamples;
         }
+    }
+
+    void SamplerMachine::triggerVoice(const ParamFrame& params)
+    {
+        if (voice_.active)
+        {
+            // Voice is busy: arm pending and start (or extend) the choke fade.
+            pendingParams_     = params;
+            hasPendingTrigger_ = true;
+            if (!choke_.isFading())
+                choke_.trigger();
+            return;
+        }
+        startVoice(params);
     }
 
     void SamplerMachine::advanceStage(Voice& v)
@@ -145,7 +162,7 @@ namespace lockstep
     void SamplerMachine::process(int triggerAtSample, const ParamFrame& params,
                                  juce::AudioBuffer<float>& buffer)
     {
-        if (!voice_.active && triggerAtSample < 0)
+        if (!voice_.active && !choke_.isFading() && !hasPendingTrigger_ && triggerAtSample < 0)
             return;
 
         // Sample pointer is resolved after each trigger so sampleIndex is current.
@@ -159,6 +176,24 @@ namespace lockstep
             if (triggerAtSample >= 0 && i == triggerAtSample)
             {
                 triggerVoice(params);
+                if (!choke_.isFading())
+                {
+                    // No choke needed (was idle): update sample pointer now.
+                    sample = pool_.get(voice_.sampleIndex);
+                    if (sample == nullptr)
+                    {
+                        voice_.active = false;
+                        break;
+                    }
+                }
+            }
+
+            // Apply choke fade to current voice output; start pending once done.
+            const float chokeGain = choke_.isFading() ? choke_.nextGain() : 1.0f;
+            if (!choke_.isFading() && hasPendingTrigger_)
+            {
+                hasPendingTrigger_ = false;
+                startVoice(pendingParams_);
                 sample = pool_.get(voice_.sampleIndex);
                 if (sample == nullptr)
                 {
@@ -204,7 +239,7 @@ namespace lockstep
                 }
             }
 
-            const float out = audioOut * env * voice_.level;
+            const float out = audioOut * env * voice_.level * chokeGain;
             for (int ch = 0; ch < numOut; ++ch)
                 buffer.addSample(ch, i, out);
         }
