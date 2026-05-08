@@ -27,6 +27,14 @@ namespace lockstep
     {
         nextTriggerPos_.fill(0.0);
 
+        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+        {
+            trackLengthParams_[static_cast<std::size_t>(t)]  =
+                apvts_.getRawParameterValue(ParamIDs::trackLength(t));
+            trackDividerParams_[static_cast<std::size_t>(t)] =
+                apvts_.getRawParameterValue(ParamIDs::trackDivider(t));
+        }
+
         for (auto& m : machines_)
             m = std::make_unique<SamplerMachine>(samplePool_);
 
@@ -98,17 +106,22 @@ namespace lockstep
         {
             const auto& track = sequence_.tracks[i];
 
-            if (samplesPerStep <= 0.0 || track.length <= 0)
+            const int trackLen =
+                static_cast<int>(trackLengthParams_[i]->load());
+            const int trackDiv =
+                static_cast<int>(trackDividerParams_[i]->load());
+
+            if (samplesPerStep <= 0.0 || trackLen <= 0)
                 continue;
 
             const double effectiveSPS =
-                samplesPerStep * static_cast<double>(track.divider <= 0 ? 1 : track.divider);
+                samplesPerStep * static_cast<double>(trackDiv <= 0 ? 1 : trackDiv);
 
             // Walk nextTriggerPos_[i] forward through this block, firing any
             // step boundaries that fall within [blockStart, blockEnd).
             int triggerAt = -1;
             int stepIndex = static_cast<int>(
-                static_cast<std::int64_t>(blockStart / effectiveSPS) % track.length);
+                static_cast<std::int64_t>(blockStart / effectiveSPS) % trackLen);
 
             while (nextTriggerPos_[i] < blockEnd)
             {
@@ -116,7 +129,7 @@ namespace lockstep
                 {
                     const auto stepNum = static_cast<std::int64_t>(
                         nextTriggerPos_[i] / effectiveSPS);
-                    stepIndex = static_cast<int>(stepNum % track.length);
+                    stepIndex = static_cast<int>(stepNum % trackLen);
 
                     if (track.steps[static_cast<std::size_t>(stepIndex)].trig)
                         triggerAt = static_cast<int>(nextTriggerPos_[i] - blockStart);

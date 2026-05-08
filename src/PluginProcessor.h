@@ -57,6 +57,10 @@ namespace lockstep
         std::array<std::unique_ptr<IMachine>, kNumTracks> machines_;
         std::array<double, kNumTracks> nextTriggerPos_{};
 
+        // Cached APVTS raw-value pointers for per-track structural params (audio-thread safe).
+        std::array<std::atomic<float>*, kNumTracks> trackLengthParams_{};
+        std::array<std::atomic<float>*, kNumTracks> trackDividerParams_{};
+
         juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> gainSmoothed_;
         std::array<float, 2> dcX1_{};  // per-channel DC blocker: previous input
         std::array<float, 2> dcY1_{};  // per-channel DC blocker: previous output

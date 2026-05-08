@@ -66,7 +66,7 @@ trigger, AHDSR envelope, 1–2 ms choke micro-fade.
 
 Promote tracks to first-class polymetric citizens.
 
-- [ ] **M2.1** Per-track step length [1..64] and divider exposed on the
+- [x] **M2.1** Per-track step length [1..64] and divider exposed on the
       track and persisted in state.
 - [ ] **M2.2** Step-grid pagination for patterns > 16 steps.
 - [ ] **M2.3** Modulo-against-shared-position step resolution verified
