@@ -15,10 +15,19 @@ namespace lockstep
     {
         for (int i = 0; i < static_cast<int>(kNumTracks); ++i)
         {
-            trackBtns_[static_cast<std::size_t>(i)].setButtonText(juce::String(i + 1));
-            trackBtns_[static_cast<std::size_t>(i)].setClickingTogglesState(false);
-            trackBtns_[static_cast<std::size_t>(i)].onClick = [this, i] { setActiveTrack(i); };
-            addAndMakeVisible(trackBtns_[static_cast<std::size_t>(i)]);
+            const auto ti = static_cast<std::size_t>(i);
+
+            trackBtns_[ti].setButtonText(juce::String(i + 1));
+            trackBtns_[ti].setClickingTogglesState(false);
+            trackBtns_[ti].onClick = [this, i] { setActiveTrack(i); };
+            addAndMakeVisible(trackBtns_[ti]);
+
+            muteBtns_[ti].setButtonText("M");
+            muteBtns_[ti].setClickingTogglesState(true);
+            addAndMakeVisible(muteBtns_[ti]);
+            muteAttachments_[ti] =
+                std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+                    processor_.apvts(), ParamIDs::trackMute(i), muteBtns_[ti]);
         }
         trackBtns_[0].setToggleState(true, juce::dontSendNotification);
 
@@ -92,8 +101,8 @@ namespace lockstep
     {
         auto bounds = getLocalBounds();
 
-        // ---- Track selector row is laid out via resized(); just fill BG. ----
-        bounds.removeFromTop(kTrackRowH);
+        // ---- Track selector + mute rows are laid out via resized(). ----
+        bounds.removeFromTop(kTrackRowH + kMuteRowH);
 
         // ---- Step cell area ----
         const auto navArea  = bounds.removeFromBottom(kNavRowH);
@@ -183,8 +192,13 @@ namespace lockstep
         auto trackRow = bounds.removeFromTop(kTrackRowH);
         const int btnW = trackRow.getWidth() / static_cast<int>(kNumTracks);
         for (std::size_t i = 0; i < kNumTracks; ++i)
-            trackBtns_[i].setBounds(
-                trackRow.removeFromLeft(btnW).reduced(1, 2));
+            trackBtns_[i].setBounds(trackRow.removeFromLeft(btnW).reduced(1, 2));
+
+        // Mute row (one small toggle per track)
+        auto muteRow = bounds.removeFromTop(kMuteRowH);
+        const int muteW = muteRow.getWidth() / static_cast<int>(kNumTracks);
+        for (std::size_t i = 0; i < kNumTracks; ++i)
+            muteBtns_[i].setBounds(muteRow.removeFromLeft(muteW).reduced(1, 1));
 
         // Nav + length row at the bottom
         auto navRow = bounds.removeFromBottom(kNavRowH).reduced(0, 2);

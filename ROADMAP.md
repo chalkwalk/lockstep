@@ -7,8 +7,8 @@ milestone changes, update **Active focus** below.
 
 For architecture see `DESIGN.md`.
 
-**Active focus:** M2 — Polymetric clocking + multi-track.
-**Last completed:** M1 — Audible sampler.
+**Active focus:** M3 — P-Lock editing model.
+**Last completed:** M2 — Polymetric clocking + multi-track.
 
 ## Locked design decisions for the roadmap
 
@@ -71,7 +71,7 @@ Promote tracks to first-class polymetric citizens.
 - [x] **M2.2** Step-grid pagination for patterns > 16 steps.
 - [x] **M2.3** Modulo-against-shared-position step resolution verified
       with mismatched lengths (7 vs 16 phasing test).
-- [ ] **M2.4** Eight tracks routable to one stereo bus (sub-bus split
+- [x] **M2.4** Eight tracks routable to one stereo bus (sub-bus split
       lands later).
 
 ### M3 — P-Lock editing model  [pending]

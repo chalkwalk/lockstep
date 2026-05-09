@@ -27,6 +27,11 @@ namespace lockstep
                 juce::ParameterID{ ParamIDs::trackDivider(t), 1 },
                 "Track " + juce::String(t + 1) + " Divider",
                 1, 16, 1));
+
+            layout.add(std::make_unique<juce::AudioParameterBool>(
+                juce::ParameterID{ ParamIDs::trackMute(t), 1 },
+                "Track " + juce::String(t + 1) + " Mute",
+                false));
         }
 
         return layout;

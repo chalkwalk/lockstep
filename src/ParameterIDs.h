@@ -10,4 +10,5 @@ namespace lockstep::ParamIDs
     // Per-track structural parameters (sequencer, not DSP).
     inline std::string trackLength(int t)  { return "track_" + std::to_string(t) + "_length"; }
     inline std::string trackDivider(int t) { return "track_" + std::to_string(t) + "_divider"; }
+    inline std::string trackMute(int t)    { return "track_" + std::to_string(t) + "_mute"; }
 }

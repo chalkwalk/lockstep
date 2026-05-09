@@ -29,10 +29,10 @@ namespace lockstep
 
         for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
         {
-            trackLengthParams_[static_cast<std::size_t>(t)]  =
-                apvts_.getRawParameterValue(ParamIDs::trackLength(t));
-            trackDividerParams_[static_cast<std::size_t>(t)] =
-                apvts_.getRawParameterValue(ParamIDs::trackDivider(t));
+            const auto ti = static_cast<std::size_t>(t);
+            trackLengthParams_[ti]  = apvts_.getRawParameterValue(ParamIDs::trackLength(t));
+            trackDividerParams_[ti] = apvts_.getRawParameterValue(ParamIDs::trackDivider(t));
+            trackMuteParams_[ti]    = apvts_.getRawParameterValue(ParamIDs::trackMute(t));
         }
 
         for (auto& m : machines_)
@@ -111,7 +111,8 @@ namespace lockstep
             const int trackDiv =
                 static_cast<int>(trackDividerParams_[i]->load());
 
-            if (samplesPerStep <= 0.0 || trackLen <= 0)
+            const bool muted = trackMuteParams_[i]->load() >= 0.5f;
+            if (samplesPerStep <= 0.0 || trackLen <= 0 || muted)
                 continue;
 
             const double effectiveSPS =

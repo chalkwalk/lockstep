@@ -61,6 +61,7 @@ namespace lockstep
         // Cached APVTS raw-value pointers for per-track structural params (audio-thread safe).
         std::array<std::atomic<float>*, kNumTracks> trackLengthParams_{};
         std::array<std::atomic<float>*, kNumTracks> trackDividerParams_{};
+        std::array<std::atomic<float>*, kNumTracks> trackMuteParams_{};
 
         juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> gainSmoothed_;
         std::array<float, 2> dcX1_{};  // per-channel DC blocker: previous input

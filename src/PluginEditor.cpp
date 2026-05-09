@@ -75,7 +75,7 @@ namespace lockstep
 
         pageBar_.setBounds(bounds.removeFromTop(40).reduced(8, 4));
         keyboard_.setBounds(bounds.removeFromBottom(72).reduced(8, 4));
-        stepGrid_.setBounds(bounds.removeFromBottom(160).reduced(8, 4));
+        stepGrid_.setBounds(bounds.removeFromBottom(180).reduced(8, 4));
         manipulationZone_.setBounds(bounds.reduced(8, 4));
     }
 }

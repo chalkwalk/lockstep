@@ -45,6 +45,10 @@ namespace lockstep
         int stepPage_    = 0;
 
         std::array<juce::TextButton, kNumTracks> trackBtns_;
+        std::array<juce::ToggleButton, kNumTracks> muteBtns_;
+        std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>,
+                   kNumTracks> muteAttachments_;
+
         juce::TextButton prevBtn_{ "<" };
         juce::TextButton nextBtn_{ ">" };
 
@@ -52,6 +56,7 @@ namespace lockstep
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> lengthAttachment_;
 
         static constexpr int kTrackRowH = 22;
+        static constexpr int kMuteRowH  = 16;
         static constexpr int kNavRowH   = 26;
     };
 }
