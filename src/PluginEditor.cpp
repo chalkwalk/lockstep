@@ -47,6 +47,7 @@ namespace lockstep
 
         setSize(720, 440);
         setWantsKeyboardFocus(true);
+        addKeyListener(this);
     }
 
     LockstepEditor::~LockstepEditor() = default;
@@ -66,10 +67,9 @@ namespace lockstep
         juce::ignoreUnused(processor_);
     }
 
-    bool LockstepEditor::keyPressed(const juce::KeyPress& key)
+    bool LockstepEditor::keyPressed(const juce::KeyPress& key, juce::Component*)
     {
         const int rawCode = key.getKeyCode();
-        // Normalise letters to uppercase so the overlay table matches.
         const int code = (rawCode >= 'a' && rawCode <= 'z')
                              ? rawCode - ('a' - 'A')
                              : rawCode;
@@ -77,14 +77,23 @@ namespace lockstep
         const auto mapping = qwerty_.resolve(code);
         if (mapping.action == QwertyOverlay::Action::Step)
         {
-            heldStepKey_ = rawCode;
-            processor_.editContext().hold(stepGrid_.getActiveTrack(), mapping.stepIndex);
+            if (heldStepKey_ != rawCode)
+            {
+                // First press (not a key-repeat): toggle the trig and hold.
+                heldStepKey_ = rawCode;
+                const int track = stepGrid_.getActiveTrack();
+                processor_.editContext().hold(track, mapping.stepIndex);
+                auto& step = processor_.sequence()
+                    .tracks[static_cast<std::size_t>(track)]
+                    .steps[static_cast<std::size_t>(mapping.stepIndex)];
+                step.trig = !step.trig;
+            }
             return true;
         }
         return false;
     }
 
-    bool LockstepEditor::keyStateChanged(bool isKeyDown)
+    bool LockstepEditor::keyStateChanged(bool isKeyDown, juce::Component*)
     {
         if (!isKeyDown && heldStepKey_ != -1
             && !juce::KeyPress::isKeyCurrentlyDown(heldStepKey_))

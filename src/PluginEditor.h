@@ -10,7 +10,8 @@
 
 namespace lockstep
 {
-    class LockstepEditor : public juce::AudioProcessorEditor
+    class LockstepEditor : public juce::AudioProcessorEditor,
+                           public juce::KeyListener
     {
     public:
         explicit LockstepEditor(LockstepProcessor& processor);
@@ -18,8 +19,10 @@ namespace lockstep
 
         void paint(juce::Graphics& g) override;
         void resized() override;
-        bool keyPressed(const juce::KeyPress& key) override;
-        bool keyStateChanged(bool isKeyDown) override;
+
+        // juce::KeyListener — intercepts keys from all child components.
+        bool keyPressed(const juce::KeyPress& key, juce::Component* originator) override;
+        bool keyStateChanged(bool isKeyDown, juce::Component* originator) override;
 
     private:
         LockstepProcessor& processor_;

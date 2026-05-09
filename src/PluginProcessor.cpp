@@ -46,6 +46,8 @@ namespace lockstep
                 sequence_.tracks[t].baseParams[static_cast<std::size_t>(s)] =
                     machines_[t]->getParamMetadata(s).defaultValue;
             }
+            // Track N defaults to sample index N so each track sounds distinct.
+            sequence_.tracks[t].baseParams[0] = static_cast<float>(t);
         }
     }
 
