@@ -19,8 +19,10 @@ namespace lockstep
 
         void paint(juce::Graphics& g) override;
         void resized() override;
+        void parentHierarchyChanged() override;
 
-        // juce::KeyListener — intercepts keys from all child components.
+        // juce::KeyListener — registered on the top-level window so focus
+        // changes among child components cannot break key-up routing.
         bool keyPressed(const juce::KeyPress& key, juce::Component* originator) override;
         bool keyStateChanged(bool isKeyDown, juce::Component* originator) override;
         using juce::Component::keyPressed;
@@ -30,6 +32,7 @@ namespace lockstep
         LockstepProcessor& processor_;
         QwertyOverlay qwerty_;
         int heldStepKey_ = -1;
+        juce::Component* keyListenerTarget_ = nullptr;
 
         juce::MidiKeyboardState keyboardState_;
         juce::MidiKeyboardComponent keyboard_{ keyboardState_, juce::MidiKeyboardComponent::horizontalKeyboard };

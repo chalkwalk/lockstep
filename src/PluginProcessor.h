@@ -53,6 +53,9 @@ namespace lockstep
         // P-Lock; otherwise it updates the track's base params.
         void writeParam(int track, int slot, float value);
 
+        // Remove the P-Lock override for one slot on a specific step.
+        void clearParam(int track, int step, int slot);
+
         // Metadata for a slot from the machine on the given track.
         ParamMetadata paramMetadata(int track, int slot) const;
 

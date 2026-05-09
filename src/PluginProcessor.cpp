@@ -203,6 +203,15 @@ namespace lockstep
         }
     }
 
+    void LockstepProcessor::clearParam(int track, int step, int slot)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        if (step  < 0 || step  >= kMaxStepsPerTrack)             return;
+        if (slot  < 0 || slot  >= kNumParamSlots)                return;
+        sequence_.tracks[static_cast<std::size_t>(track)]
+            .steps[static_cast<std::size_t>(step)].overrides.clear(slot);
+    }
+
     ParamMetadata LockstepProcessor::paramMetadata(int track, int slot) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks))

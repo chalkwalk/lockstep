@@ -25,6 +25,7 @@ namespace lockstep
                                   meta.isStepped ? 1.0 : 0.0);
             sliders_[si].setSliderStyle(juce::Slider::LinearVertical);
             sliders_[si].setTextBoxStyle(juce::Slider::TextBoxBelow, false, 48, 14);
+            sliders_[si].setWantsKeyboardFocus(false);
             sliders_[si].onDragStart = [this, i]
             {
                 processor_.editContext().setActiveSlot(i);
@@ -36,6 +37,16 @@ namespace lockstep
                                           static_cast<float>(sliders_[static_cast<std::size_t>(i)].getValue()));
             };
             addAndMakeVisible(sliders_[si]);
+
+            clearBtns_[si].setButtonText("x");
+            clearBtns_[si].setWantsKeyboardFocus(false);
+            clearBtns_[si].onClick = [this, i]
+            {
+                const auto& ctx = processor_.editContext();
+                if (ctx.isActiveForEditing())
+                    processor_.clearParam(ctx.heldTrackIndex(), ctx.heldStepIndex(), i);
+            };
+            addAndMakeVisible(clearBtns_[si]);
         }
 
         startTimerHz(30);
@@ -84,6 +95,14 @@ namespace lockstep
                     labelText += " *";
             }
             labels_[si].setText(labelText, juce::dontSendNotification);
+
+            // Clear button: enabled only when holding a step that has a lock on this slot.
+            const bool stepHeld = ctx.isActiveForEditing() && ctx.heldTrackIndex() == track;
+            const int  heldStep = ctx.heldStepIndex();
+            const bool hasLock  = stepHeld && heldStep >= 0
+                && t.steps[static_cast<std::size_t>(heldStep)].overrides.has(i);
+            clearBtns_[si].setEnabled(hasLock);
+            clearBtns_[si].setAlpha(hasLock ? 1.0f : 0.3f);
         }
         updatingFromTimer_ = false;
 
@@ -118,9 +137,11 @@ namespace lockstep
 
         for (int i = 0; i < kNumSlots; ++i)
         {
+            const auto si = static_cast<std::size_t>(i);
             auto col = bounds.removeFromLeft(slotW).reduced(2, 0);
-            labels_[static_cast<std::size_t>(i)].setBounds(col.removeFromBottom(16));
-            sliders_[static_cast<std::size_t>(i)].setBounds(col);
+            clearBtns_[si].setBounds(col.removeFromTop(16));
+            labels_[si].setBounds(col.removeFromBottom(16));
+            sliders_[si].setBounds(col);
         }
     }
 }

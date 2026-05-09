@@ -7,8 +7,8 @@ milestone changes, update **Active focus** below.
 
 For architecture see `DESIGN.md`.
 
-**Active focus:** M3 — P-Lock editing model.
-**Last completed:** M2 — Polymetric clocking + multi-track.
+**Active focus:** M4 — Trig conditions.
+**Last completed:** M3 — P-Lock editing model.
 
 ## Locked design decisions for the roadmap
 
@@ -84,7 +84,7 @@ Bring the Override-ELSE-Base model to life as an editing surface.
       the EditContext flag.
 - [x] **M3.3** Visual indicator: held step + locked parameters render
       distinctly in the Step Grid.
-- [ ] **M3.4** "Clear lock" gesture (push-encoder while held step is
+- [x] **M3.4** "Clear lock" gesture (push-encoder while held step is
       active) removes the override for that slot.
 
 ### M4 — Trig conditions  [pending]

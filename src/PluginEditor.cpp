@@ -48,10 +48,28 @@ namespace lockstep
 
         setSize(720, 440);
         setWantsKeyboardFocus(true);
-        addKeyListener(this);
+        // Key listener is registered on the top-level window in
+        // parentHierarchyChanged(), not here, so focus changes among child
+        // components cannot interrupt key-up routing.
     }
 
-    LockstepEditor::~LockstepEditor() = default;
+    LockstepEditor::~LockstepEditor()
+    {
+        if (keyListenerTarget_ != nullptr)
+            keyListenerTarget_->removeKeyListener(this);
+    }
+
+    void LockstepEditor::parentHierarchyChanged()
+    {
+        auto* newTop = getTopLevelComponent();
+        if (newTop == keyListenerTarget_)
+            return;
+        if (keyListenerTarget_ != nullptr)
+            keyListenerTarget_->removeKeyListener(this);
+        keyListenerTarget_ = newTop;
+        if (keyListenerTarget_ != nullptr && keyListenerTarget_ != this)
+            keyListenerTarget_->addKeyListener(this);
+    }
 
     void LockstepEditor::paint(juce::Graphics& g)
     {
@@ -89,6 +107,16 @@ namespace lockstep
             }
             return true;
         }
+        if (mapping.action == QwertyOverlay::Action::Clear)
+        {
+            const auto& ctx = processor_.editContext();
+            if (ctx.isActiveForEditing() && ctx.activeSlot() >= 0)
+                processor_.clearParam(ctx.heldTrackIndex(),
+                                      ctx.heldStepIndex(),
+                                      ctx.activeSlot());
+            return true;
+        }
+
         return false;
     }
 

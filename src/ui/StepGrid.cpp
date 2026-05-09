@@ -22,11 +22,13 @@ namespace lockstep
 
             trackBtns_[ti].setButtonText(juce::String(i + 1));
             trackBtns_[ti].setClickingTogglesState(false);
+            trackBtns_[ti].setWantsKeyboardFocus(false);
             trackBtns_[ti].onClick = [this, i] { setActiveTrack(i); };
             addAndMakeVisible(trackBtns_[ti]);
 
             muteBtns_[ti].setButtonText("M");
             muteBtns_[ti].setClickingTogglesState(true);
+            muteBtns_[ti].setWantsKeyboardFocus(false);
             addAndMakeVisible(muteBtns_[ti]);
             muteAttachments_[ti] =
                 std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
@@ -35,12 +37,15 @@ namespace lockstep
         trackBtns_[0].setToggleState(true, juce::dontSendNotification);
 
         prevBtn_.onClick = [this] { prevPage(); repaint(); };
+        prevBtn_.setWantsKeyboardFocus(false);
         nextBtn_.onClick = [this] { nextPage(); repaint(); };
+        nextBtn_.setWantsKeyboardFocus(false);
         addAndMakeVisible(prevBtn_);
         addAndMakeVisible(nextBtn_);
 
         lengthSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
         lengthSlider_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 34, 18);
+        lengthSlider_.setWantsKeyboardFocus(false);
         addAndMakeVisible(lengthSlider_);
 
         rebuildLengthAttachment();
