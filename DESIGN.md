@@ -153,33 +153,79 @@ matrix:
 | Standalone  | Internal      | (none)            |
 | Standalone  | MIDI clock    | Locked / Auto     |
 
-### 4.4 Trig Conditions
+### 4.4 Trig Conditions and Scope
 
-Per-step conditional firing combines:
+Conditional firing follows the same Override-ELSE-Base model as
+parameters: each `Track` carries a `baseCond : TrigCondition` and each
+`Step` may override it. When a step's condition is trivial (probability =
+100%, iteration = 1:1, no prev-dep), the track's base condition is used
+instead. This allows track-level stochastic or phrase-gated behaviour
+without per-step authoring.
 
-- **Probability** (1–100%);
-- **Iteration rules** (e.g. fire on iteration 1 of every 4
-  playthroughs);
-- **Previous-dependency** (fire only if the previous step did / did
-  not fire).
+Three condition types, and where they make sense:
 
-The data model carries these from M0; the evaluator and prev-state
-machine land in M4.
+**Probability (1–100%).** Meaningful at both levels. Track-level
+probability mutes the entire track stochastically on a per-loop basis —
+useful for fills or variation patterns. Step-level probability applies
+to individual trigs only.
+
+**Iteration rule (m:n).** Fire on loop m of every n pattern repeats. The
+iteration counter is the absolute step counter divided by track length,
+so it increments every complete pattern cycle. Both levels are valid
+musically, though track-level m:n ("whole track fires on the 1st pass of
+every 4") tends to be the more immediately useful mapping. Step-level
+m:n addresses individual trig density over multiple loops.
+
+**Previous-step dependency.** Fire only if the preceding step in the
+same track's sequence did (or did not) fire. This is inherently a
+step-local concept: "the previous step" has no unambiguous meaning at
+track level. The `baseCond` field carries a `prevDependency` value for
+structural completeness, but it is always rendered as disabled in the
+manipulation zone unless a step is held — at which point it activates
+and targets `step.condition`. See §6.1 for the COND section layout.
+
+### 4.5 Deterministic evaluation and step-state preview
+
+The probability check is a pure function of `(trackIndex, absoluteStep)`
+— the same pair always produces the same result, reproducibly across
+plays (`TrigEvaluator::deterministicPercent`). The m:n check is
+similarly pure (`absoluteStep / trackLen % denominator`). This means
+the fire state of every step visible in the grid can be pre-computed for
+the current pattern loop and displayed before the sequencer reaches those
+steps:
+
+- **Certain fire** — step cell at full brightness.
+- **Certain skip** — step cell significantly dimmed.
+- **Probabilistic** — step cell at intermediate brightness proportional
+  to its probability, giving a visual density read across the pattern.
+
+Prev-dep steps chain from other steps, so uncertainty propagates: a step
+dependent on a 50%-probability predecessor is itself shown as uncertain.
+The preview walks the step sequence forward, accumulating certainty, and
+rerenders at the start of each pattern loop (not every audio block).
+
+This predictive display is a first-class feature, not an afterthought:
+users need to *see* what conditional logic will do before they commit to
+a variation.
 
 ## 5. Input Layer
 
 All parameter writes travel through the **EditContext** before
-landing:
+landing. The target depends on both the active section type and
+whether a step is currently held:
 
-- If `ActiveForEditing` is **true** (a step is held — by QWERTY, by
-  MIDI note, or by hardware), incoming writes go to that step's
-  `PLock` (Step Override).
-- Otherwise, writes go to the Track Base.
+| Active section | No step held | Step held |
+|---|---|---|
+| Machine section | Track Base (`baseParams`) | Step PLock (`overrides`) |
+| Track meta — COND | Track Base Condition (`baseCond`) | Step Condition (`step.condition`) |
+| Track meta — TRACK | Track structural fields | (no step-level override) |
+| Track meta — GLOBAL | Global APVTS params | (no step-level override) |
 
 This rule is **input-source-agnostic**: encoder, QWERTY, MIDI CC, and
 future hardware controls all resolve through the same gate. A CC
-arriving while a step is held writes a P-Lock on that step exactly
-as a UI encoder twist would.
+arriving while a step is held writes a step-level override on that
+step exactly as a UI encoder twist would — regardless of whether the
+active section targets machine params or sequencer conditions.
 
 ### 5.1 MIDI CC ingestion
 
@@ -196,13 +242,13 @@ Two CC pathways:
 
 Each CC mapping carries a **scope** that determines its target:
 
-- **Master** — fixed, mapping is to a master parameter (e.g. master
+- **Global** — fixed, mapping is to a global parameter (e.g. output
   gain, swing). Always agnostic of the focus state.
 - **Track[N]** — fixed, mapping is to slot S on track N. Useful when
   a hardware surface dedicates physical knobs to specific tracks.
 - **SelectedTrack** — follows the current focus. If focus is Track 3,
   the CC drives slot S on track 3; switch focus and the same CC
-  retargets. If focus is Master, the CC is a no-op.
+  retargets. If focus is Global, the CC is a no-op.
 
 Transport controls (Play / Stop / Record) are not CC-mappable
 through this surface; they bind to dedicated MIDI realtime / MMC
@@ -210,7 +256,7 @@ messages. Mappings are project-saved.
 
 ### 5.3 Focus state and contextual encoders
 
-Selection is a **first-class focus state**, one of `{Master,
+Selection is a **first-class focus state**, one of `{Global,
 Track1..8}`. The focus determines what the contextual encoders
 manipulate and what `SelectedTrack`-scoped CCs target.
 
@@ -255,11 +301,18 @@ gesture. See M7.4.
 
 ### 5.5 QWERTY overlay
 
-The QWERTY overlay translates raw scancodes into one of: a step in
-the 2×8 grid (bottom two rows), a page selector (top row + Shift
-modifier for pages 1–12), or a transport command. The same physical
-keys are the ones a future hardware controller's mechanical grid
-will mirror.
+The QWERTY overlay translates raw scancodes into actions:
+
+- **Bottom two rows (A–K, Z–,):** steps 1–16 in the 2×8 grid.
+- **Top row (3–8):** section selection — keys select machine sections
+  and cycle pages within them. With Shift (key 1) held, the same keys
+  select track meta sections.
+- **Key 2:** navigation (grid cursor up).
+- **Space:** Play / Stop.
+- **R / T / Y / U / I:** Record arm / Tap tempo / Copy / Paste / Clear.
+
+The same physical keys will be mirrored 1:1 by the hardware
+controller's mechanical grid.
 
 ## 6. UI Philosophy
 
@@ -269,18 +322,61 @@ hardware surface 1:1:
 - **The Manipulation Zone.** Exactly 4 primary parameters visible at
   any time. Their labels, ranges, and visualisations come from the
   active Machine's metadata.
-- **The Section Bar.** Six section buttons (keys `3`–`8`) group the 48
-  parameter slots into machine-defined sections, each with 1–n pages of
-  4. Re-pressing a section key cycles pages within that section.
-  Holding Shift (`1`) then pressing a section key selects a master
-  section (global/per-track controls outside the 48-slot machine
-  frame). Section labels and page counts are declared by the machine,
-  not hardcoded in the UI.
+- **The Section Bar.** Six section buttons (keys `3`–`8`) with two
+  layers accessed via Shift (`1`):
+
+  *Machine sections (no Shift):* group the 48 parameter slots into
+  machine-defined sections, each with 1–n pages of 4. Re-pressing a
+  key cycles pages within that section. Section labels and page counts
+  are declared by the machine, not hardcoded in the UI.
+
+  *Track meta sections (Shift held):* sequencer and structural controls
+  for the current track, machine-independent. The six meta slots have a
+  fixed layout:
+
+  | Shift + key | Meta section | Contents |
+  |---|---|---|
+  | 3 | COND | Trig conditions (prob, m:n, prev-dep) |
+  | 4 | TRACK | Length, divider, gate default |
+  | 5–7 | — | Reserved for future use |
+  | 8 | GLOBAL | Output gain, sync mode, clock settings |
+
+  Each section button cell shows its machine-section label at the top
+  and its track-meta label at the bottom. The active layer determines
+  which label renders prominently and which colour highlights the cell
+  (teal for machine sections, amber for track meta).
 - **The Step Grid.** A 2×8 visual matrix mirroring the bottom two
   QWERTY rows. Sequences longer than 16 paginate via dedicated keys.
+  Cells carry a condition-state preview (§4.5): certain-fire,
+  certain-skip, and probabilistic states are each rendered distinctly
+  so conditional logic is visible at a glance without running the
+  sequencer.
+
+### 6.1 COND meta section — manipulation zone layout
+
+When the COND track meta section is active, the four encoder slots
+show the trig condition controls for the current track:
+
+```
+[ Prob %  ] [ m:n Num ] [ m:n Den ] [ Prev-dep ]
+```
+
+- **No step held:** values read from `Track::baseCond`. Prev-dep is
+  rendered but disabled (dimmed, not writeable). Prob and m:n govern
+  the whole track.
+- **Step held:** all four controls become active and read from
+  `Step::condition` (with Override-ELSE-Base fallback to `baseCond`).
+  Prev-dep is now writeable. The EditContext routes writes to
+  `step.condition` exactly as it routes machine-param writes to
+  `step.overrides`.
+
+This is the canonical editing surface for conditional trigs: users
+can set a track-wide default condition (no hold needed) and then
+override individual steps by holding them — the same gesture as
+P-Locking a machine parameter.
 
 The aim is that an experienced user holds an editing context (a step
-held, a page selected) and resolves all parameter changes in the
+held, a section selected) and resolves all parameter changes in the
 Manipulation Zone without ever leaving the keyboard.
 
 ## 7. Host Serialization

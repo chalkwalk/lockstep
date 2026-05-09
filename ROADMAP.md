@@ -28,7 +28,7 @@ For architecture see `DESIGN.md`.
   UI encoders, future hardware) route through `EditContext` identically.
   No source-specific paths. A held step receives P-Locks from any
   source — encoder twist, CC, or note-on — with no distinction.
-- **Focus is first-class state.** Selection is one of `{Master,
+- **Focus is first-class state.** Selection is one of `{Global,
   Track1..8}` and is what `SelectedTrack`-scoped CCs and the
   contextual encoders follow.
 - **Auto-sync degradation.** In Auto mode, MIDI clock dropout =
@@ -97,7 +97,7 @@ Bring the Override-ELSE-Base model to life as an editing surface.
 - [x] **M3.4** "Clear lock" gesture (push-encoder while held step is
       active) removes the override for that slot.
 
-### M4 — Trig conditions  [pending]
+### M4 — Trig conditions  [complete]
 
 Wire up the conditional firing rules carried in `TrigCondition` since
 M0.
@@ -107,6 +107,11 @@ M0.
 - [x] **M4.2** Iteration rules (`m:n`) with a per-track iteration
       counter that survives loops.
 - [x] **M4.3** Previous-dependency state machine.
+- [ ] **M4.4** Track-level base condition: add `baseCond : TrigCondition`
+      to `Track`. The evaluator falls through to it when a step's
+      condition is trivial, mirroring the Override-ELSE-Base rule.
+      Probability and m:n are the primary UI-exposed fields; prev-dep
+      is present in the struct but not surfaced in the track-level UI.
 
 ### M5 — MIDI ingestion layer  [pending]
 
@@ -146,18 +151,35 @@ The keyboard-first editor.
 - [ ] **M6.2** ManipulationZone: 4 live parameter widgets driven by
       machine metadata, attached to the resolved frame.
 - [ ] **M6.3** SectionBar: 6 section buttons (keys 3–8) with per-
-      machine labels and multi-press page cycling; Shift for master
-      sections. Replaces the flat 12-page model.
+      machine labels and multi-press page cycling; Shift for track meta
+      sections. Fixed meta layout: COND (Shift+3), TRACK (Shift+4),
+      reserved (Shift+5–7), GLOBAL (Shift+8). Replaces the flat
+      12-page model.
 - [ ] **M6.4** Sampler parameter layout: assign concrete section labels
       (Source / Env / etc.), expose the note slot and gate slot in the
       relevant sections so they are editable via the manipulation zone.
-- [ ] **M6.5** Sampler gate length slot: machine reads `kSlotGate` (ms)
+- [ ] **M6.5** COND track meta section: wire the manipulation zone to
+      show `[Prob] [m:n Num] [m:n Den] [Prev-dep]` when Shift+3 is
+      active. No step held → reads/writes `Track::baseCond`; Prev-dep
+      dimmed. Step held → reads/writes `step.condition` via EditContext;
+      Prev-dep active. Requires M4.4 (`Track::baseCond` data model).
+- [ ] **M6.6** TRACK and GLOBAL track meta sections: wire Shift+4
+      (length, divider, gate default) and Shift+8 (output gain, sync
+      mode) into the manipulation zone.
+- [ ] **M6.7** Sampler gate length slot: machine reads `kSlotGate` (ms)
       and triggers envelope release at `triggerTime + gate_samples` when
       gate > 0; gate = 0 retains current behaviour (release on retrigger
       only). P-lockable per step like any other slot.
-- [ ] **M6.6** StepGrid: 2×8 with paginate keys; trig toggle, hold
-      gesture; lock indicators.
-- [ ] **M6.7** Transport (Play/Stop/Rec) bound to dedicated keys.
+- [ ] **M6.8** StepGrid: 2×8 with paginate keys; trig toggle, hold
+      gesture; P-lock indicators.
+- [ ] **M6.9** Step-state preview: pre-compute fire/skip/probabilistic
+      state for every visible step at the start of each pattern loop
+      (using `TrigEvaluator::deterministicPercent` and the m:n check,
+      both pure functions of the current absolute counter). Render
+      as cell brightness levels: full = certain fire, dim = certain
+      skip, intermediate = probabilistic (scaled to the probability
+      value). Propagate uncertainty through prev-dep chains.
+- [ ] **M6.10** Transport (Play/Stop/Rec) bound to dedicated keys.
 
 ### M7 — Pattern recording  [pending]
 
