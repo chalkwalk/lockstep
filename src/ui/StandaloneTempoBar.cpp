@@ -31,7 +31,7 @@ namespace lockstep
 
     juce::String StandaloneTempoBar::positionText() const
     {
-        const double ppq = clock_.ppqAtBlockStart();
+        const double ppq = clock_.cumulativePpq();
         // Assumes 4/4 time (the only time signature seq_play targets for now).
         const int bar  = static_cast<int>(ppq / 4.0) + 1;
         const int beat = static_cast<int>(std::fmod(ppq, 4.0)) + 1;

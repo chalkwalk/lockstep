@@ -3,6 +3,7 @@
 #include "Parameters.h"
 #include "ParameterIDs.h"
 #include "core/StateResolver.h"
+#include "core/TrigEvaluator.h"
 #include "machine/SamplerMachine.h"
 #include "state/PluginState.h"
 #include <algorithm>
@@ -100,13 +101,19 @@ namespace lockstep
 
         midiInput_.process(midi, editContext_);
 
-        clock_.update(getPlayHead(), buffer.getNumSamples());
+        // The JUCE AudioProcessorPlayer (standalone wrapper) always provides a
+        // PlayHead, but its getPosition() sets only timeInSamples/timeInSeconds
+        // with no isPlaying, no BPM, and no PPQ position. Passing it to
+        // Clock::update() would lock us in the "DAW present but stopped" branch
+        // and freeze PPQ forever. In standalone we synthesise PPQ locally, so
+        // pass nullptr to skip the playhead entirely.
+        const bool isStandalone =
+            (wrapperType == juce::AudioProcessor::wrapperType_Standalone);
+        clock_.update(isStandalone ? nullptr : getPlayHead(), buffer.getNumSamples());
 
         // ---- Mode-based "is the sequencer running?" gate ------------------
         const auto mode = static_cast<SyncMode>(
             syncModeParam_ ? static_cast<int>(syncModeParam_->load()) : 0);
-        const bool isStandalone =
-            (wrapperType == juce::AudioProcessor::wrapperType_Standalone);
 
         bool sequencerRunning = false;
         if (mode == SyncMode::Locked)
@@ -210,7 +217,9 @@ namespace lockstep
                     stepIndex = static_cast<int>(
                         stepNum % static_cast<std::int64_t>(trackLen));
 
-                    if (track.steps[static_cast<std::size_t>(stepIndex)].trig)
+                    const auto& step = track.steps[static_cast<std::size_t>(stepIndex)];
+                    if (step.trig
+                        && TrigEvaluator::shouldFire(step.condition, i, stepNum))
                     {
                         const double offset =
                             (nextTriggerPpq_[i] - blockStart) * samplesPerPpq;

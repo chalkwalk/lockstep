@@ -1,5 +1,6 @@
 #include "Clock.h"
 #include <algorithm>
+#include <cstring>
 
 namespace lockstep
 {
@@ -7,12 +8,12 @@ namespace lockstep
 
     void Clock::prepare(double sampleRate)
     {
-        sampleRate_ = sampleRate;
-        samplePosition_ = 0;
-        localPpq_       = 0.0;
-        ppqBlockStart_  = 0.0;
-        ppqBlockEnd_    = 0.0;
-        ppqJumped_      = false;
+        sampleRate_    = sampleRate;
+        localPpq_      = 0.0;
+        ppqBlockStart_ = 0.0;
+        ppqBlockEnd_   = 0.0;
+        ppqJumped_     = false;
+        ppqUi_.store(0, std::memory_order_relaxed);
     }
 
     void Clock::update(juce::AudioPlayHead* playHead, int blockSize)
@@ -39,29 +40,29 @@ namespace lockstep
             hostPlaying_ = false;
             if (const auto maybeBpm = info->getBpm(); maybeBpm.hasValue())
                 bpm_ = std::max(1.0, *maybeBpm);
-            // ppqBlockStart_ stays at last value
+            // ppqBlockStart_ stays at last value.
         }
         else
         {
-            // No playhead (standalone or no-host context).
+            // No playhead (standalone). Synthesise PPQ only when playing.
             hostPlaying_ = false;
             bpm_ = localBpm_;
             ppqBlockStart_ = localPpq_;
 
-            if (inPluginPlaying_ && sampleRate_ > 0.0)
+            if (inPluginPlaying_.load(std::memory_order_relaxed) && sampleRate_ > 0.0)
                 localPpq_ += static_cast<double>(blockSize) * bpm_ / (sampleRate_ * 60.0);
         }
 
-        // End of this block (used as prevBlockEnd next call).
         ppqBlockEnd_ = ppqBlockStart_
             + static_cast<double>(blockSize) * bpm_ / (sampleRate_ * 60.0);
 
-        // Detect backward jump (DAW loop, locator drag).
         if (ppqBlockStart_ < prevBlockEnd - 1e-6)
             ppqJumped_ = true;
 
-        // Legacy sample counter for the StepGrid playhead display.
-        samplePosition_.fetch_add(blockSize, std::memory_order_relaxed);
+        // Publish ppqBlockStart_ to the UI thread via the atomic.
+        std::uint64_t bits;
+        std::memcpy(&bits, &ppqBlockStart_, sizeof(bits));
+        ppqUi_.store(bits, std::memory_order_relaxed);
     }
 
     void Clock::setLocalBpm(double bpm)
@@ -76,6 +77,7 @@ namespace lockstep
         ppqBlockStart_ = 0.0;
         ppqBlockEnd_   = 0.0;
         ppqJumped_     = true;
+        ppqUi_.store(0, std::memory_order_relaxed);
     }
 
     double Clock::samplesPerPpq() const
@@ -83,11 +85,5 @@ namespace lockstep
         if (bpm_ <= 0.0 || sampleRate_ <= 0.0)
             return 0.0;
         return (sampleRate_ * 60.0) / bpm_;
-    }
-
-    double Clock::samplesPerStep() const
-    {
-        // 16th note = 0.25 PPQ = one step at the base grid.
-        return samplesPerPpq() * 0.25;
     }
 }

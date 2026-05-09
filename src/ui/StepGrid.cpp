@@ -116,20 +116,20 @@ namespace lockstep
         const auto navArea  = bounds.removeFromBottom(kNavRowH);
         const auto cellArea = bounds;
 
-        // Compute playhead.
+        // Compute playhead from PPQ — thread-safe via cumulativePpq().
         const int trackLen = trackLength();
         const auto& clk = processor_.clock();
-        const double sps = clk.samplesPerStep();
         auto* divP = processor_.apvts().getRawParameterValue(
             ParamIDs::trackDivider(activeTrack_));
         const int div = divP ? std::max(1, static_cast<int>(divP->load())) : 1;
-        const double effectiveSPS = sps * static_cast<double>(div);
+        // 16th note = 0.25 PPQ; divider scales coarser.
+        const double divisionPpq = 0.25 * static_cast<double>(div);
 
         int playheadAbs = -1;
-        if (effectiveSPS > 0.0 && trackLen > 0)
+        if (divisionPpq > 0.0 && trackLen > 0)
         {
             const auto stepNum = static_cast<std::int64_t>(
-                static_cast<double>(clk.samplePosition()) / effectiveSPS);
+                clk.cumulativePpq() / divisionPpq);
             playheadAbs = static_cast<int>(stepNum % trackLen);
         }
 

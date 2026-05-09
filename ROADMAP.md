@@ -92,7 +92,7 @@ Bring the Override-ELSE-Base model to life as an editing surface.
 Wire up the conditional firing rules carried in `TrigCondition` since
 M0.
 
-- [ ] **M4.1** Probability evaluator (deterministic seed per pattern
+- [x] **M4.1** Probability evaluator (deterministic seed per pattern
       so behaviour is reproducible across plays).
 - [ ] **M4.2** Iteration rules (`m:n`) with a per-track iteration
       counter that survives loops.
