@@ -3,6 +3,7 @@
 #include <juce_audio_utils/juce_audio_utils.h>
 
 #include "PluginProcessor.h"
+#include "io/QwertyOverlay.h"
 #include "ui/ManipulationZone.h"
 #include "ui/PageBar.h"
 #include "ui/StepGrid.h"
@@ -17,9 +18,14 @@ namespace lockstep
 
         void paint(juce::Graphics& g) override;
         void resized() override;
+        bool keyPressed(const juce::KeyPress& key) override;
+        bool keyStateChanged(bool isKeyDown) override;
 
     private:
         LockstepProcessor& processor_;
+        QwertyOverlay qwerty_;
+        int heldStepKey_ = -1;
+
         juce::MidiKeyboardState keyboardState_;
         juce::MidiKeyboardComponent keyboard_{ keyboardState_, juce::MidiKeyboardComponent::horizontalKeyboard };
         PageBar pageBar_;

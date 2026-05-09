@@ -7,7 +7,7 @@ namespace lockstep
 {
     struct Step
     {
-        bool trig = true;
+        bool trig = false;
         TrigCondition condition;
         PLock overrides;
     };

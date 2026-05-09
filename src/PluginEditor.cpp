@@ -46,6 +46,7 @@ namespace lockstep
         };
 
         setSize(720, 440);
+        setWantsKeyboardFocus(true);
     }
 
     LockstepEditor::~LockstepEditor() = default;
@@ -63,6 +64,36 @@ namespace lockstep
         g.drawText(sampleStatus_, getLocalBounds().removeFromTop(56).removeFromBottom(20).reduced(12, 0),
                    juce::Justification::centredLeft);
         juce::ignoreUnused(processor_);
+    }
+
+    bool LockstepEditor::keyPressed(const juce::KeyPress& key)
+    {
+        const int rawCode = key.getKeyCode();
+        // Normalise letters to uppercase so the overlay table matches.
+        const int code = (rawCode >= 'a' && rawCode <= 'z')
+                             ? rawCode - ('a' - 'A')
+                             : rawCode;
+
+        const auto mapping = qwerty_.resolve(code);
+        if (mapping.action == QwertyOverlay::Action::Step)
+        {
+            heldStepKey_ = rawCode;
+            processor_.editContext().hold(stepGrid_.getActiveTrack(), mapping.stepIndex);
+            return true;
+        }
+        return false;
+    }
+
+    bool LockstepEditor::keyStateChanged(bool isKeyDown)
+    {
+        if (!isKeyDown && heldStepKey_ != -1
+            && !juce::KeyPress::isKeyCurrentlyDown(heldStepKey_))
+        {
+            processor_.editContext().release();
+            heldStepKey_ = -1;
+            return true;
+        }
+        return false;
     }
 
     void LockstepEditor::resized()

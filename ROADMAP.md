@@ -78,7 +78,7 @@ Promote tracks to first-class polymetric citizens.
 
 Bring the Override-ELSE-Base model to life as an editing surface.
 
-- [ ] **M3.1** Hold-step gesture: holding a step (QWERTY or MIDI)
+- [x] **M3.1** Hold-step gesture: holding a step (QWERTY or MIDI)
       sets `EditContext::active = true` against that step.
 - [ ] **M3.2** Parameter writes routed to the correct layer based on
       the EditContext flag.

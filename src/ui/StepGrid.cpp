@@ -2,6 +2,7 @@
 #include "../PluginProcessor.h"
 #include "../ParameterIDs.h"
 #include <algorithm>
+#include <cstddef>
 
 namespace lockstep
 {
@@ -206,5 +207,61 @@ namespace lockstep
         nextBtn_.setBounds(navRow.removeFromLeft(28).reduced(1));
         navRow.removeFromLeft(100);  // space for page info text drawn in paint
         lengthSlider_.setBounds(navRow.reduced(2, 0));
+    }
+
+    // -------------------------------------------------------------------------
+
+    int StepGrid::stepCellAt(juce::Point<int> pos) const
+    {
+        auto bounds = getLocalBounds();
+        bounds.removeFromTop(kTrackRowH + kMuteRowH);
+        bounds.removeFromBottom(kNavRowH);
+        const auto cellArea = bounds;
+
+        if (!cellArea.contains(pos))
+            return -1;
+
+        const int cellW = cellArea.getWidth()  / kCols;
+        const int cellH = cellArea.getHeight() / kRows;
+        if (cellW <= 0 || cellH <= 0)
+            return -1;
+
+        const int col = (pos.getX() - cellArea.getX()) / cellW;
+        const int row = (pos.getY() - cellArea.getY()) / cellH;
+
+        if (col < 0 || col >= kCols || row < 0 || row >= kRows)
+            return -1;
+
+        const int absIdx = stepPage_ * kPageSteps + row * kCols + col;
+        return absIdx < trackLength() ? absIdx : -1;
+    }
+
+    void StepGrid::mouseDown(const juce::MouseEvent& e)
+    {
+        const int absIdx = stepCellAt(e.getPosition());
+        if (absIdx >= 0)
+        {
+            mouseHeldStep_ = absIdx;
+            processor_.editContext().hold(activeTrack_, absIdx);
+        }
+    }
+
+    void StepGrid::mouseUp(const juce::MouseEvent& e)
+    {
+        if (mouseHeldStep_ < 0)
+            return;
+
+        processor_.editContext().release();
+
+        // Quick tap on the same cell toggles the trig.
+        if (stepCellAt(e.getPosition()) == mouseHeldStep_)
+        {
+            auto& step = processor_.sequence()
+                .tracks[static_cast<std::size_t>(activeTrack_)]
+                .steps[static_cast<std::size_t>(mouseHeldStep_)];
+            step.trig = !step.trig;
+        }
+
+        mouseHeldStep_ = -1;
     }
 }

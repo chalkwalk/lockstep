@@ -42,9 +42,11 @@ namespace lockstep
         void setStateInformation(const void* data, int sizeInBytes) override;
 
         juce::AudioProcessorValueTreeState& apvts() { return apvts_; }
+        Sequence& sequence() { return sequence_; }
         const Sequence& sequence() const { return sequence_; }
         const Clock& clock() const { return clock_; }
         SamplePool& samplePool() { return samplePool_; }
+        EditContext& editContext() { return editContext_; }
 
         using juce::AudioProcessor::processBlock;
 

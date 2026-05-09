@@ -29,6 +29,8 @@ namespace lockstep
         void paint(juce::Graphics& g) override;
         void resized() override;
         void timerCallback() override;
+        void mouseDown(const juce::MouseEvent& e) override;
+        void mouseUp(const juce::MouseEvent& e) override;
 
         static constexpr int kPageSteps = 16;
         static constexpr int kCols      = 8;
@@ -39,6 +41,7 @@ namespace lockstep
         int  numPages() const;
         void clampPage();
         void rebuildLengthAttachment();
+        int  stepCellAt(juce::Point<int> pos) const;  // returns absIdx or -1
 
         LockstepProcessor& processor_;
         int activeTrack_ = 0;
@@ -58,5 +61,7 @@ namespace lockstep
         static constexpr int kTrackRowH = 22;
         static constexpr int kMuteRowH  = 16;
         static constexpr int kNavRowH   = 26;
+
+        int mouseHeldStep_ = -1;
     };
 }
