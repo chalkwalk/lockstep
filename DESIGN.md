@@ -68,6 +68,19 @@ designed for trip-hop / drum-machine workflows:
 - **Slicing.** Samples may carry an array of slice points. The slice
   index is exposed as a P-lockable parameter, enabling per-step
   retrigger of slice positions.
+- **Melodic pitch.** A dedicated *note* slot (MIDI note number 0–127)
+  determines playback rate relative to a per-sample root note. This
+  makes the pitch-recording gesture (§5.4) first-class: holding a step
+  and playing a key P-Locks the note slot of that step to the key's
+  MIDI pitch. The existing semitone-offset slot becomes a fine-tune
+  layer on top of the note slot. Root note is stored per sample-pool
+  entry and defaults to 60 (middle C).
+- **Gate length.** A *gate* slot (0 ms – full step duration, stored in
+  ms) sets the point at which the voice transitions to its AHDSR
+  release phase, independent of choke or retrigger. Gate = 0 means the
+  release is triggered only by a subsequent trigger on the same track
+  (the current behaviour). Gate > 0 imposes an explicit timed release,
+  enabling staccato and legato articulations per step via P-Lock.
 - **DSP.** Linear/cubic interpolation for pitch, an AHDSR amplitude
   envelope, and a multi-mode state-variable filter (LP/BP/HP/Notch).
 
@@ -216,12 +229,29 @@ Two channel modes, exposed as a global setting:
   N. Channels 9..16 are ignored. Live focus changes do not affect
   note routing in this mode.
 
-A note-on triggers the destination track's machine. The baseline
-sampler does not currently use note pitch (sample/slice/pitch are
-slot-driven); a future "key-as-PLock" recording mode — where each
-note key writes a distinct P-Lock to the held step, e.g. to play in
-a kick/snare pattern across one track — is anticipated and lives
-behind record arm (M7).
+A note-on triggers the destination track's machine.
+
+Two distinct note-driven P-Lock gestures exist, separated by intent
+and by whether record arm is active:
+
+**Pitch recording gesture (live, no record arm required).** When a
+step is held (EditContext active), a note-on from any source writes
+the note's MIDI pitch to the pitch slot of that step as a P-Lock.
+This is the same single-input-gate rule applied to note events — no
+different in principle from turning an encoder while holding a step.
+For a monophonic machine (e.g. the baseline sampler), the last
+note-on received within the hold gesture wins. For a polyphonic
+machine, multiple simultaneous notes can map onto a chord-capable
+slot set; the exact encoding is machine-defined. This is the primary
+mechanism for melodic step entry and for building chord patterns when
+polyphonic machines are available (§12).
+
+**Key-as-PLock for drum patterns (record arm, M7).** With record arm
+engaged, individual note keys write P-Lock values — not pitches but
+*parameter values* — derived from the key index, e.g. routing
+different pad keys to different sample IDs across one drum track.
+This is a recording-mode-specific gesture, not a live editing
+gesture. See M7.4.
 
 ### 5.5 QWERTY overlay
 
@@ -239,9 +269,13 @@ hardware surface 1:1:
 - **The Manipulation Zone.** Exactly 4 primary parameters visible at
   any time. Their labels, ranges, and visualisations come from the
   active Machine's metadata.
-- **The Page Bar.** 12 logical pages of 4 parameters each (= 48 slots,
-  the IMachine contract). Page selection swaps the visible quadrant
-  instantly via `Shift` + a numeric-row key.
+- **The Section Bar.** Six section buttons (keys `3`–`8`) group the 48
+  parameter slots into machine-defined sections, each with 1–n pages of
+  4. Re-pressing a section key cycles pages within that section.
+  Holding Shift (`1`) then pressing a section key selects a master
+  section (global/per-track controls outside the 48-slot machine
+  frame). Section labels and page counts are declared by the machine,
+  not hardcoded in the UI.
 - **The Step Grid.** A 2×8 visual matrix mirroring the bottom two
   QWERTY rows. Sequences longer than 16 paginate via dedicated keys.
 
@@ -323,8 +357,11 @@ v0.1 is the "first usable" milestone. It includes:
 - MIDI ingestion: abs/rel CC with soft-takeover, scoped mappings
   (Master / Track[N] / SelectedTrack), Omni and Per-Track channel
   modes, four contextual encoders, MIDI clock + sync modes in
-  standalone, edit-context routing of all input sources.
-- QWERTY overlay + Manipulation Zone + Page Bar + Step Grid wired up.
+  standalone, edit-context routing of all input sources including
+  note-on pitch recording gesture (held-step + key = pitch P-Lock).
+- QWERTY overlay + Manipulation Zone + Section Bar + Step Grid wired up.
+- Gate length as a P-lockable machine slot; machine enforces timed
+  release when gate > 0.
 - Pattern recording (live note/CC capture into trigs and P-Locks).
 - State serialization including P-Lock data and sample references.
 
@@ -334,6 +371,14 @@ without restructuring.
 
 ## 12. Open Questions / Future Work
 
+- **Chord / polyphonic step entry.** The pitch-recording gesture (§5.4)
+  is defined for monophonic machines as "last note wins." For
+  polyphonic machines, multiple simultaneous notes should populate a
+  chord. The `PLock` model currently stores one `float` per slot; chord
+  encoding (e.g. a set of note slots per step, or a compact bitmask
+  slot) is deferred until the first polyphonic machine is designed.
+  Conceptually the gesture is already correct — only the storage
+  encoding needs resolving.
 - Per-track voice count above 1 (e.g. for sampler chord stabs) —
   currently strict track-monophony.
 - MIDI-out machine for sequencing external gear from inside the same

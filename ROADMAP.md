@@ -24,9 +24,10 @@ For architecture see `DESIGN.md`.
   keyboard. The mouse is a second-class citizen.
 - **Override-ELSE-Base** is the single resolution rule. No reset
   sentinel values, no per-parameter precedence flags.
-- **Single input gate.** All input sources (MIDI CC, QWERTY, UI
-  encoders, future hardware) route through `EditContext` identically.
-  No source-specific paths.
+- **Single input gate.** All input sources (MIDI CC, MIDI note, QWERTY,
+  UI encoders, future hardware) route through `EditContext` identically.
+  No source-specific paths. A held step receives P-Locks from any
+  source — encoder twist, CC, or note-on — with no distinction.
 - **Focus is first-class state.** Selection is one of `{Master,
   Track1..8}` and is what `SelectedTrack`-scoped CCs and the
   contextual encoders follow.
@@ -125,9 +126,15 @@ The full input abstraction described in DESIGN.md §4.3 + §5.
       always drive the current focus quadrant. Focus is a first-class
       state `{Master, Track1..8}`.
 - [ ] **M5.7** Note-on triggers the destination track's machine
-      (focus-routed in Omni, channel-routed in Per-Track). Note pitch
-      currently unused by the baseline sampler.
-- [ ] **M5.8** Standalone MIDI clock input drives the internal
+      (focus-routed in Omni, channel-routed in Per-Track).
+- [ ] **M5.8** Pitch recording gesture: note-on while a step is held
+      (EditContext active) writes the note's MIDI pitch to the machine's
+      note slot as a P-Lock on that step. No record arm required —
+      same single-input-gate rule as encoder P-Locking. For
+      monophonic machines, last note-on within the hold wins. Requires
+      the baseline sampler to expose a note slot (0–127) and root-note
+      concept (see DESIGN.md §3).
+- [ ] **M5.9** Standalone MIDI clock input drives the internal
       timeline. Sync modes (Locked / Auto) with freewheel-on-clock-
       dropout and freeze-on-transport-stop semantics.
 
@@ -138,10 +145,19 @@ The keyboard-first editor.
 - [ ] **M6.1** Real `QwertyOverlay::resolve` mapping.
 - [ ] **M6.2** ManipulationZone: 4 live parameter widgets driven by
       machine metadata, attached to the resolved frame.
-- [ ] **M6.3** PageBar: 12-page selector with Shift+number-row.
-- [ ] **M6.4** StepGrid: 2×8 with paginate keys; trig toggle, hold
+- [ ] **M6.3** SectionBar: 6 section buttons (keys 3–8) with per-
+      machine labels and multi-press page cycling; Shift for master
+      sections. Replaces the flat 12-page model.
+- [ ] **M6.4** Sampler parameter layout: assign concrete section labels
+      (Source / Env / etc.), expose the note slot and gate slot in the
+      relevant sections so they are editable via the manipulation zone.
+- [ ] **M6.5** Sampler gate length slot: machine reads `kSlotGate` (ms)
+      and triggers envelope release at `triggerTime + gate_samples` when
+      gate > 0; gate = 0 retains current behaviour (release on retrigger
+      only). P-lockable per step like any other slot.
+- [ ] **M6.6** StepGrid: 2×8 with paginate keys; trig toggle, hold
       gesture; lock indicators.
-- [ ] **M6.5** Transport (Play/Stop/Rec) bound to dedicated keys.
+- [ ] **M6.7** Transport (Play/Stop/Rec) bound to dedicated keys.
 
 ### M7 — Pattern recording  [pending]
 
