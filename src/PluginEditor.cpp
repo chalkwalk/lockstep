@@ -4,7 +4,8 @@ namespace lockstep
 {
     LockstepEditor::LockstepEditor(LockstepProcessor& proc)
         : juce::AudioProcessorEditor(&proc),
-          processor_(proc)
+          processor_(proc),
+          stepGrid_(proc)
     {
         addAndMakeVisible(pageBar_);
         addAndMakeVisible(manipulationZone_);

@@ -68,7 +68,7 @@ Promote tracks to first-class polymetric citizens.
 
 - [x] **M2.1** Per-track step length [1..64] and divider exposed on the
       track and persisted in state.
-- [ ] **M2.2** Step-grid pagination for patterns > 16 steps.
+- [x] **M2.2** Step-grid pagination for patterns > 16 steps.
 - [ ] **M2.3** Modulo-against-shared-position step resolution verified
       with mismatched lengths (7 vs 16 phasing test).
 - [ ] **M2.4** Eight tracks routable to one stereo bus (sub-bus split

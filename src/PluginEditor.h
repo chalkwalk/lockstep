@@ -24,7 +24,7 @@ namespace lockstep
         juce::MidiKeyboardComponent keyboard_{ keyboardState_, juce::MidiKeyboardComponent::horizontalKeyboard };
         PageBar pageBar_;
         ManipulationZone manipulationZone_;
-        StepGrid stepGrid_;
+        StepGrid stepGrid_;  // initialized in ctor init-list with processor_
         juce::TextButton loadButton_{ "Load Sample" };
         std::unique_ptr<juce::FileChooser> fileChooser_;
         juce::String sampleStatus_{ "No samples loaded" };
