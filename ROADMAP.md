@@ -7,8 +7,8 @@ milestone changes, update **Active focus** below.
 
 For architecture see `DESIGN.md`.
 
-**Active focus:** M4 — Trig conditions.
-**Last completed:** M3 — P-Lock editing model.
+**Active focus:** M5 — MIDI ingestion layer.
+**Last completed:** M4 — Trig conditions.
 
 ## Locked design decisions for the roadmap
 
@@ -96,7 +96,7 @@ M0.
       so behaviour is reproducible across plays).
 - [x] **M4.2** Iteration rules (`m:n`) with a per-track iteration
       counter that survives loops.
-- [ ] **M4.3** Previous-dependency state machine.
+- [x] **M4.3** Previous-dependency state machine.
 
 ### M5 — MIDI ingestion layer  [pending]
 

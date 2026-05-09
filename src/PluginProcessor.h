@@ -72,6 +72,7 @@ namespace lockstep
         MidiInput midiInput_;
         std::array<std::unique_ptr<IMachine>, kNumTracks> machines_;
         std::array<double, kNumTracks> nextTriggerPpq_{};
+        std::array<bool, kNumTracks>   lastStepFired_{};   // prev-dependency state
         double anchorPpq_ = 0.0;         // Auto mode: PPQ at last in-plugin Play press
         bool   wasInPluginPlaying_ = false;  // Auto mode: rising-edge detection
 

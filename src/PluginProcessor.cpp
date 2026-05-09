@@ -182,6 +182,7 @@ namespace lockstep
                 const double divPpq = 0.25 * static_cast<double>(div <= 0 ? 1 : div);
                 if (divPpq > 0.0)
                     nextTriggerPpq_[i] = std::floor(blockStart / divPpq) * divPpq;
+                lastStepFired_[i] = false;
             }
         }
 
@@ -218,13 +219,17 @@ namespace lockstep
                         stepNum % static_cast<std::int64_t>(trackLen));
 
                     const auto& step = track.steps[static_cast<std::size_t>(stepIndex)];
-                    if (step.trig
-                        && TrigEvaluator::shouldFire(step.condition, i, stepNum, trackLen))
+                    const bool fired =
+                        step.trig
+                        && TrigEvaluator::shouldFire(step.condition, i, stepNum,
+                                                      trackLen, lastStepFired_[i]);
+                    if (fired)
                     {
                         const double offset =
                             (nextTriggerPpq_[i] - blockStart) * samplesPerPpq;
                         triggerAt = std::max(0, static_cast<int>(offset));
                     }
+                    lastStepFired_[i] = fired;
                 }
                 nextTriggerPpq_[i] += divPpq;
             }

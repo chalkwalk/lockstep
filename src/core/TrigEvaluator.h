@@ -21,10 +21,12 @@ namespace lockstep::TrigEvaluator
     // absoluteStep  — track-local step counter (nextTriggerPpq / divPpq), not
     //                 the pattern-wrapped index.
     // trackLen      — active track length; used to derive pattern iteration.
+    // prevFired     — whether the immediately preceding step slot fired.
     inline bool shouldFire(const TrigCondition& cond,
                             std::size_t trackIdx,
                             std::int64_t absoluteStep,
-                            int trackLen)
+                            int trackLen,
+                            bool prevFired)
     {
         // Iteration rule: {numerator, denominator} → fire on iteration
         // `numerator` of every `denominator` loops (1-indexed, so numerator=1
@@ -40,6 +42,12 @@ namespace lockstep::TrigEvaluator
                 return false;
             }
         }
+
+        // Previous-dependency gate.
+        // 1 = fire only if the preceding step fired.
+        // 2 = fire only if the preceding step did NOT fire.
+        if (cond.prevDependency == 1 && !prevFired) { return false; }
+        if (cond.prevDependency == 2 &&  prevFired) { return false; }
 
         // Probability check.
         if (cond.probabilityPercent >= 100) { return true; }
