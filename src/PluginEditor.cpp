@@ -83,7 +83,9 @@ namespace lockstep
                 // First press (not a key-repeat): engage hold. Trig toggle
                 // happens on release, unless a P-Lock is applied during hold.
                 heldStepKey_ = rawCode;
-                processor_.editContext().hold(stepGrid_.getActiveTrack(), mapping.stepIndex);
+                const int absStep = stepGrid_.currentPage() * StepGrid::kPageSteps
+                                    + mapping.stepIndex;
+                processor_.editContext().hold(stepGrid_.getActiveTrack(), absStep);
             }
             return true;
         }

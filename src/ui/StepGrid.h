@@ -22,6 +22,7 @@ namespace lockstep
 
         void setActiveTrack(int t);
         int  getActiveTrack() const { return activeTrack_; }
+        int  currentPage()    const { return stepPage_; }
 
         void nextPage();
         void prevPage();
