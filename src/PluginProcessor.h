@@ -44,6 +44,7 @@ namespace lockstep
         juce::AudioProcessorValueTreeState& apvts() { return apvts_; }
         Sequence& sequence() { return sequence_; }
         const Sequence& sequence() const { return sequence_; }
+        Clock&       clock()       { return clock_; }
         const Clock& clock() const { return clock_; }
         SamplePool& samplePool() { return samplePool_; }
         EditContext& editContext() { return editContext_; }
@@ -69,7 +70,7 @@ namespace lockstep
         EditContext editContext_;
         MidiInput midiInput_;
         std::array<std::unique_ptr<IMachine>, kNumTracks> machines_;
-        std::array<double, kNumTracks> nextTriggerPos_{};
+        std::array<double, kNumTracks> nextTriggerPpq_{};
 
         // Cached APVTS raw-value pointers for per-track structural params (audio-thread safe).
         std::array<std::atomic<float>*, kNumTracks> trackLengthParams_{};

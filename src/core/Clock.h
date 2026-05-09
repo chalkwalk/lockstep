@@ -1,43 +1,66 @@
 #pragma once
 
+#include <juce_audio_processors/juce_audio_processors.h>
 #include <atomic>
 #include <cstdint>
 
 namespace lockstep
 {
-    // Polymetric clock. Tracks query the clock for "what step am I on right
-    // now?" — each track has its own length and divider, so step indices are
-    // computed via modulo against a shared sample-position counter.
+    // Transport clock. Polls the DAW playhead when available; synthesises PPQ
+    // from localBpm_ when running standalone or in Auto mode. All audio-thread
+    // values are mirrored to atomics so the UI thread can read safely.
     class Clock
     {
     public:
         Clock();
 
+        // Called once per prepareToPlay.
         void prepare(double sampleRate);
 
-        // Advance by `numSamples` of host time. The processor calls this once
-        // per processBlock.
-        void advance(int numSamples);
+        // Called once at the start of each processBlock. Reads the DAW
+        // playhead (if present) and advances the local PPQ accumulator
+        // (standalone / Auto). Sets ppqAtBlockStart / ppqAtBlockEnd for the
+        // block, and ppqJumped if the timeline moved backward (DAW loop/jog).
+        void update(juce::AudioPlayHead* playHead, int blockSize);
 
-        // Set the master tempo (BPM). Polymetric track behaviour layers on
-        // top via per-track step length and divider; the clock itself is
-        // tempo-relative, not bar-relative.
-        void setBpm(double bpm);
+        // ---- Block-scope accessors (audio thread, set by update()) ----------
+        double ppqAtBlockStart() const { return ppqBlockStart_; }
+        double ppqAtBlockEnd()   const { return ppqBlockEnd_; }
+        bool   ppqJumped()       const { return ppqJumped_; }
 
-        double bpm() const { return bpm_; }
+        // ---- Effective clock state ------------------------------------------
+        double bpm()           const { return bpm_; }
+        double samplesPerPpq() const;
+        double sampleRate()    const { return sampleRate_; }
+
+        bool hostPlaying()     const { return hostPlaying_; }
+        bool inPluginPlaying() const { return inPluginPlaying_; }
+        void setInPluginPlaying(bool p) { inPluginPlaying_ = p; }
+
+        // ---- Standalone / Auto mode controls --------------------------------
+        void setLocalBpm(double bpm);
+        void resetPhase();
+
+        // ---- Legacy UI accessors (UI thread, approximate) -------------------
+        // Kept for the StepGrid playhead display until it migrates to PPQ.
         std::int64_t samplePosition() const
         {
             return samplePosition_.load(std::memory_order_relaxed);
         }
-        double sampleRate() const { return sampleRate_; }
-
-        // Samples per 16th note at the current tempo. The base step grid is
-        // 16ths; per-track dividers scale this.
-        double samplesPerStep() const;
+        double samplesPerStep() const;  // 16th note at current BPM
 
     private:
-        double sampleRate_ = 0.0;
-        double bpm_ = 120.0;
-        std::atomic<std::int64_t> samplePosition_{0};
+        double sampleRate_      = 0.0;
+        double bpm_             = 120.0;
+        double localBpm_        = 120.0;
+        bool   hostPlaying_     = false;
+        bool   inPluginPlaying_ = true;   // Stage 1 default: behaves like current free-run
+
+        double ppqBlockStart_ = 0.0;
+        double ppqBlockEnd_   = 0.0;
+        double localPpq_      = 0.0;      // standalone PPQ accumulator
+        bool   ppqJumped_     = false;
+
+        std::atomic<std::int64_t> samplePosition_{0};  // legacy UI display
     };
 }

@@ -25,7 +25,7 @@ namespace lockstep
         : juce::AudioProcessor(BusesPropertiesAccessor::make()),
           apvts_(*this, nullptr, "Lockstep", createParameterLayout())
     {
-        nextTriggerPos_.fill(0.0);
+        nextTriggerPpq_.fill(0.0);
 
         for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
         {
@@ -61,7 +61,7 @@ namespace lockstep
             m->prepare(sampleRate, samplesPerBlock);
             m->reset();
         }
-        nextTriggerPos_.fill(0.0);
+        nextTriggerPpq_.fill(0.0);
 
         gainSmoothed_.reset(sampleRate, 0.05);  // 50 ms ramp
         const float initGainDb = apvts_.getRawParameterValue(ParamIDs::outputGain)->load();
@@ -98,46 +98,65 @@ namespace lockstep
 
         midiInput_.process(midi, editContext_);
 
-        const double samplesPerStep = clock_.samplesPerStep();
-        const auto   pos            = clock_.samplePosition();
+        clock_.update(getPlayHead(), buffer.getNumSamples());
 
-        const double blockStart = static_cast<double>(pos);
-        const double blockEnd   = blockStart + static_cast<double>(buffer.getNumSamples());
+        const double blockStart    = clock_.ppqAtBlockStart();
+        const double blockEnd      = clock_.ppqAtBlockEnd();
+        const double samplesPerPpq = clock_.samplesPerPpq();
+
+        // If the DAW looped or the user hit Reset, snap all per-track cursors
+        // to the step boundary just at/before the new block start.
+        if (clock_.ppqJumped())
+        {
+            for (std::size_t i = 0; i < kNumTracks; ++i)
+            {
+                const int div = static_cast<int>(trackDividerParams_[i]->load());
+                const double divPpq = 0.25 * static_cast<double>(div <= 0 ? 1 : div);
+                if (divPpq > 0.0)
+                    nextTriggerPpq_[i] = std::floor(blockStart / divPpq) * divPpq;
+            }
+        }
 
         for (std::size_t i = 0; i < kNumTracks; ++i)
         {
             const auto& track = sequence_.tracks[i];
 
-            const int trackLen =
-                static_cast<int>(trackLengthParams_[i]->load());
-            const int trackDiv =
-                static_cast<int>(trackDividerParams_[i]->load());
+            const int trackLen = static_cast<int>(trackLengthParams_[i]->load());
+            const int trackDiv = static_cast<int>(trackDividerParams_[i]->load());
+            const bool muted   = trackMuteParams_[i]->load() >= 0.5f;
 
-            const bool muted = trackMuteParams_[i]->load() >= 0.5f;
-            if (samplesPerStep <= 0.0 || trackLen <= 0 || muted)
+            // 16th note = 0.25 PPQ; divider scales the grid coarser.
+            const double divPpq = 0.25 * static_cast<double>(trackDiv <= 0 ? 1 : trackDiv);
+
+            if (divPpq <= 0.0 || samplesPerPpq <= 0.0 || trackLen <= 0 || muted)
                 continue;
 
-            const double effectiveSPS =
-                samplesPerStep * static_cast<double>(trackDiv <= 0 ? 1 : trackDiv);
+            // If the cursor has fallen far behind (cold start, late join),
+            // snap it to the step boundary at/before blockStart so we don't
+            // burn CPU catching up sample-by-sample.
+            if (nextTriggerPpq_[i] < blockStart - divPpq)
+                nextTriggerPpq_[i] = std::floor(blockStart / divPpq) * divPpq;
 
-            // Walk nextTriggerPos_[i] forward through this block, firing any
-            // step boundaries that fall within [blockStart, blockEnd).
             int triggerAt = -1;
-            int stepIndex = static_cast<int>(
-                static_cast<std::int64_t>(blockStart / effectiveSPS) % trackLen);
+            int stepIndex = 0;
 
-            while (nextTriggerPos_[i] < blockEnd)
+            while (nextTriggerPpq_[i] < blockEnd)
             {
-                if (nextTriggerPos_[i] >= blockStart)
+                if (nextTriggerPpq_[i] >= blockStart)
                 {
                     const auto stepNum = static_cast<std::int64_t>(
-                        nextTriggerPos_[i] / effectiveSPS);
-                    stepIndex = static_cast<int>(stepNum % trackLen);
+                        nextTriggerPpq_[i] / divPpq);
+                    stepIndex = static_cast<int>(
+                        stepNum % static_cast<std::int64_t>(trackLen));
 
                     if (track.steps[static_cast<std::size_t>(stepIndex)].trig)
-                        triggerAt = static_cast<int>(nextTriggerPos_[i] - blockStart);
+                    {
+                        const double offset =
+                            (nextTriggerPpq_[i] - blockStart) * samplesPerPpq;
+                        triggerAt = std::max(0, static_cast<int>(offset));
+                    }
                 }
-                nextTriggerPos_[i] += effectiveSPS;
+                nextTriggerPpq_[i] += divPpq;
             }
 
             const auto frame = StateResolver::resolve(track, stepIndex);
@@ -149,9 +168,9 @@ namespace lockstep
         gainSmoothed_.setTargetValue(
             juce::Decibels::decibelsToGain(targetGainDb, -60.0f));
 
-        const int numOut      = buffer.getNumChannels();
-        const int numSamples  = buffer.getNumSamples();
-        const int numDcChans  = std::min(numOut, static_cast<int>(dcX1_.size()));
+        const int numOut     = buffer.getNumChannels();
+        const int numSamples = buffer.getNumSamples();
+        const int numDcChans = std::min(numOut, static_cast<int>(dcX1_.size()));
 
         for (int i = 0; i < numSamples; ++i)
         {
@@ -173,8 +192,6 @@ namespace lockstep
                 buffer.setSample(ch, i, std::tanh(s));
             }
         }
-
-        clock_.advance(buffer.getNumSamples());
     }
 
     void LockstepProcessor::writeParam(int track, int slot, float value)
