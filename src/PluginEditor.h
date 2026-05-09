@@ -23,6 +23,8 @@ namespace lockstep
         // juce::KeyListener — intercepts keys from all child components.
         bool keyPressed(const juce::KeyPress& key, juce::Component* originator) override;
         bool keyStateChanged(bool isKeyDown, juce::Component* originator) override;
+        using juce::Component::keyPressed;
+        using juce::Component::keyStateChanged;
 
     private:
         LockstepProcessor& processor_;
@@ -32,8 +34,8 @@ namespace lockstep
         juce::MidiKeyboardState keyboardState_;
         juce::MidiKeyboardComponent keyboard_{ keyboardState_, juce::MidiKeyboardComponent::horizontalKeyboard };
         PageBar pageBar_;
-        ManipulationZone manipulationZone_;
-        StepGrid stepGrid_;  // initialized in ctor init-list with processor_
+        StepGrid stepGrid_;
+        ManipulationZone manipulationZone_;  // after stepGrid_ — ctor takes StepGrid&
         juce::TextButton loadButton_{ "Load Sample" };
         std::unique_ptr<juce::FileChooser> fileChooser_;
         juce::String sampleStatus_{ "No samples loaded" };

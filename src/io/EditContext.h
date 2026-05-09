@@ -17,6 +17,7 @@ namespace lockstep
             active_ = true;
             heldTrack_ = trackIndex;
             heldStep_  = stepIndex;
+            paramWritten_ = false;
         }
 
         void release()
@@ -24,11 +25,17 @@ namespace lockstep
             active_ = false;
             heldTrack_ = -1;
             heldStep_ = -1;
+            paramWritten_ = false;
         }
+
+        // Called by the parameter-write path when a P-Lock is applied.
+        void markParamWritten() { paramWritten_ = true; }
+        bool wasParamWritten() const { return paramWritten_; }
 
     private:
         bool active_ = false;
         int  heldTrack_ = -1;
         int  heldStep_ = -1;
+        bool paramWritten_ = false;
     };
 }

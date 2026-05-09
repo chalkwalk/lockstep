@@ -5,7 +5,8 @@ namespace lockstep
     LockstepEditor::LockstepEditor(LockstepProcessor& proc)
         : juce::AudioProcessorEditor(&proc),
           processor_(proc),
-          stepGrid_(proc)
+          stepGrid_(proc),
+          manipulationZone_(proc, stepGrid_)
     {
         addAndMakeVisible(pageBar_);
         addAndMakeVisible(manipulationZone_);
@@ -79,14 +80,10 @@ namespace lockstep
         {
             if (heldStepKey_ != rawCode)
             {
-                // First press (not a key-repeat): toggle the trig and hold.
+                // First press (not a key-repeat): engage hold. Trig toggle
+                // happens on release, unless a P-Lock is applied during hold.
                 heldStepKey_ = rawCode;
-                const int track = stepGrid_.getActiveTrack();
-                processor_.editContext().hold(track, mapping.stepIndex);
-                auto& step = processor_.sequence()
-                    .tracks[static_cast<std::size_t>(track)]
-                    .steps[static_cast<std::size_t>(mapping.stepIndex)];
-                step.trig = !step.trig;
+                processor_.editContext().hold(stepGrid_.getActiveTrack(), mapping.stepIndex);
             }
             return true;
         }
@@ -98,7 +95,21 @@ namespace lockstep
         if (!isKeyDown && heldStepKey_ != -1
             && !juce::KeyPress::isKeyCurrentlyDown(heldStepKey_))
         {
+            const auto& ctx = processor_.editContext();
+            const int track = ctx.heldTrackIndex();
+            const int step  = ctx.heldStepIndex();
+            const bool shouldToggle = !ctx.wasParamWritten();
+
             processor_.editContext().release();
+
+            if (shouldToggle && track >= 0 && step >= 0)
+            {
+                auto& s = processor_.sequence()
+                    .tracks[static_cast<std::size_t>(track)]
+                    .steps[static_cast<std::size_t>(step)];
+                s.trig = !s.trig;
+            }
+
             heldStepKey_ = -1;
             return true;
         }

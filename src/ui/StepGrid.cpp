@@ -251,10 +251,11 @@ namespace lockstep
         if (mouseHeldStep_ < 0)
             return;
 
+        const bool shouldToggle = !processor_.editContext().wasParamWritten()
+                                  && stepCellAt(e.getPosition()) == mouseHeldStep_;
         processor_.editContext().release();
 
-        // Quick tap on the same cell toggles the trig.
-        if (stepCellAt(e.getPosition()) == mouseHeldStep_)
+        if (shouldToggle)
         {
             auto& step = processor_.sequence()
                 .tracks[static_cast<std::size_t>(activeTrack_)]

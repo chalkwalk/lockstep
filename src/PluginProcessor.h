@@ -48,6 +48,14 @@ namespace lockstep
         SamplePool& samplePool() { return samplePool_; }
         EditContext& editContext() { return editContext_; }
 
+        // Route a parameter write to the correct layer. If EditContext is
+        // active for the given track, the value lands in the held step's
+        // P-Lock; otherwise it updates the track's base params.
+        void writeParam(int track, int slot, float value);
+
+        // Metadata for a slot from the machine on the given track.
+        ParamMetadata paramMetadata(int track, int slot) const;
+
         using juce::AudioProcessor::processBlock;
 
     private:

@@ -80,7 +80,7 @@ Bring the Override-ELSE-Base model to life as an editing surface.
 
 - [x] **M3.1** Hold-step gesture: holding a step (QWERTY or MIDI)
       sets `EditContext::active = true` against that step.
-- [ ] **M3.2** Parameter writes routed to the correct layer based on
+- [x] **M3.2** Parameter writes routed to the correct layer based on
       the EditContext flag.
 - [ ] **M3.3** Visual indicator: held step + locked parameters render
       distinctly in the Step Grid.

@@ -177,6 +177,39 @@ namespace lockstep
         clock_.advance(buffer.getNumSamples());
     }
 
+    void LockstepProcessor::writeParam(int track, int slot, float value)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks))
+            return;
+        if (slot < 0 || slot >= kNumParamSlots)
+            return;
+
+        const auto ti = static_cast<std::size_t>(track);
+
+        if (editContext_.isActiveForEditing()
+            && editContext_.heldTrackIndex() == track)
+        {
+            const int step = editContext_.heldStepIndex();
+            if (step >= 0 && step < kMaxStepsPerTrack)
+            {
+                sequence_.tracks[ti].steps[static_cast<std::size_t>(step)]
+                    .overrides.set(slot, value);
+                editContext_.markParamWritten();
+            }
+        }
+        else
+        {
+            sequence_.tracks[ti].baseParams[static_cast<std::size_t>(slot)] = value;
+        }
+    }
+
+    ParamMetadata LockstepProcessor::paramMetadata(int track, int slot) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks))
+            return {};
+        return machines_[static_cast<std::size_t>(track)]->getParamMetadata(slot);
+    }
+
     juce::AudioProcessorEditor* LockstepProcessor::createEditor()
     {
         return new LockstepEditor(*this);
