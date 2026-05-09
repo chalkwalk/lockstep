@@ -10,6 +10,8 @@ namespace lockstep
     static const juce::Colour kColInactive { 0xFF2D3741u };  // dark, in-range
     static const juce::Colour kColOutRange { 0xFF1C2026u };  // near-black
     static const juce::Colour kColPlayhead { 0xFFFFCC44u };  // amber highlight
+    static const juce::Colour kColHeld     { 0xFFFFFFFFu };  // held-step border
+    static const juce::Colour kColPLock    { 0xFF3EC8C8u };  // P-Lock dot
 
     StepGrid::StepGrid(LockstepProcessor& processor)
         : processor_(processor)
@@ -140,8 +142,18 @@ namespace lockstep
                 const int localIdx = row * kCols + col;
                 const int absIdx   = baseStep + localIdx;
                 const bool inRange = absIdx < trackLen;
+                const auto& ctx    = processor_.editContext();
+                const bool isHeld  = inRange
+                    && ctx.isActiveForEditing()
+                    && ctx.heldTrackIndex() == activeTrack_
+                    && ctx.heldStepIndex()  == absIdx;
                 const bool hasTrig = inRange
                     && track.steps[static_cast<std::size_t>(absIdx)].trig;
+                const int  activeSlot    = ctx.activeSlot();
+                const bool hasLock = inRange
+                    && !track.steps[static_cast<std::size_t>(absIdx)].overrides.empty();
+                const bool hasActiveLock = hasLock && activeSlot >= 0
+                    && track.steps[static_cast<std::size_t>(absIdx)].overrides.has(activeSlot);
                 const bool isHead  = (absIdx == playheadAbs);
 
                 const int x = cellArea.getX() + col * cellW;
@@ -164,6 +176,29 @@ namespace lockstep
                     g.fillRoundedRectangle(cell.toFloat(), 3.0f);
                     g.setColour(juce::Colour::fromRGB(70, 85, 100));
                     g.drawRoundedRectangle(cell.toFloat(), 3.0f, 1.0f);
+                }
+
+                // P-Lock dot — teal square in top-right corner (generic).
+                if (hasLock)
+                {
+                    g.setColour(kColPLock);
+                    g.fillRect(juce::Rectangle<int>(cell.getRight() - 5,
+                                                    cell.getY() + 2, 4, 4));
+                }
+
+                // Active-slot P-Lock border — teal outline when this step is
+                // locked to the currently-touched parameter.
+                if (hasActiveLock)
+                {
+                    g.setColour(kColPLock);
+                    g.drawRoundedRectangle(cell.toFloat(), 3.0f, 2.0f);
+                }
+
+                // Held-step border — drawn on top of everything else.
+                if (isHeld)
+                {
+                    g.setColour(kColHeld);
+                    g.drawRoundedRectangle(cell.toFloat(), 3.0f, 2.0f);
                 }
 
                 // Step number

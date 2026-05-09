@@ -82,7 +82,7 @@ Bring the Override-ELSE-Base model to life as an editing surface.
       sets `EditContext::active = true` against that step.
 - [x] **M3.2** Parameter writes routed to the correct layer based on
       the EditContext flag.
-- [ ] **M3.3** Visual indicator: held step + locked parameters render
+- [x] **M3.3** Visual indicator: held step + locked parameters render
       distinctly in the Step Grid.
 - [ ] **M3.4** "Clear lock" gesture (push-encoder while held step is
       active) removes the override for that slot.

@@ -11,6 +11,9 @@ namespace lockstep
         bool isActiveForEditing() const { return active_; }
         int  heldStepIndex() const      { return heldStep_; }
         int  heldTrackIndex() const     { return heldTrack_; }
+        int  activeSlot() const         { return activeSlot_; }
+
+        void setActiveSlot(int slot)    { activeSlot_ = slot; }
 
         void hold(int trackIndex, int stepIndex)
         {
@@ -37,5 +40,6 @@ namespace lockstep
         int  heldTrack_ = -1;
         int  heldStep_ = -1;
         bool paramWritten_ = false;
+        int  activeSlot_ = -1;
     };
 }

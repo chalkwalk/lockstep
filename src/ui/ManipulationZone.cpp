@@ -25,6 +25,10 @@ namespace lockstep
                                   meta.isStepped ? 1.0 : 0.0);
             sliders_[si].setSliderStyle(juce::Slider::LinearVertical);
             sliders_[si].setTextBoxStyle(juce::Slider::TextBoxBelow, false, 48, 14);
+            sliders_[si].onDragStart = [this, i]
+            {
+                processor_.editContext().setActiveSlot(i);
+            };
             sliders_[si].onValueChange = [this, i]
             {
                 if (!updatingFromTimer_)
