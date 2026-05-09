@@ -24,6 +24,15 @@ For architecture see `DESIGN.md`.
   keyboard. The mouse is a second-class citizen.
 - **Override-ELSE-Base** is the single resolution rule. No reset
   sentinel values, no per-parameter precedence flags.
+- **Single input gate.** All input sources (MIDI CC, QWERTY, UI
+  encoders, future hardware) route through `EditContext` identically.
+  No source-specific paths.
+- **Focus is first-class state.** Selection is one of `{Master,
+  Track1..8}` and is what `SelectedTrack`-scoped CCs and the
+  contextual encoders follow.
+- **Auto-sync degradation.** In Auto mode, MIDI clock dropout =
+  freewheel; explicit transport stop (DAW stop / MIDI Stop / MMC) =
+  freeze.
 
 ## Milestones
 
@@ -100,14 +109,27 @@ M0.
 
 ### M5 — MIDI ingestion layer  [pending]
 
-The full input abstraction described in DESIGN.md §5.
+The full input abstraction described in DESIGN.md §4.3 + §5.
 
 - [ ] **M5.1** Absolute CC with soft-takeover, per-parameter mapping.
 - [ ] **M5.2** Relative CC delta arithmetic, configurable scale.
 - [ ] **M5.3** EditContext interception: writes during a held step
-      land in the Step Override.
+      land in the Step Override. Rule applies to CC, encoder, and
+      QWERTY input identically.
 - [ ] **M5.4** MIDI Learn UX (right-click a parameter → "wiggle a
-      controller").
+      controller"). Each mapping carries a scope:
+      `{Master | Track[N] | SelectedTrack}`. Mappings project-saved.
+- [ ] **M5.5** Channel modes: Omni→Selected and Per-Track. Global
+      setting; channels 9–16 ignored in Per-Track.
+- [ ] **M5.6** Four contextual encoders: configurable CC inputs that
+      always drive the current focus quadrant. Focus is a first-class
+      state `{Master, Track1..8}`.
+- [ ] **M5.7** Note-on triggers the destination track's machine
+      (focus-routed in Omni, channel-routed in Per-Track). Note pitch
+      currently unused by the baseline sampler.
+- [ ] **M5.8** Standalone MIDI clock input drives the internal
+      timeline. Sync modes (Locked / Auto) with freewheel-on-clock-
+      dropout and freeze-on-transport-stop semantics.
 
 ### M6 — QWERTY overlay + Manipulation Zone UI  [pending]
 
@@ -121,36 +143,54 @@ The keyboard-first editor.
       gesture; lock indicators.
 - [ ] **M6.5** Transport (Play/Stop/Rec) bound to dedicated keys.
 
-### M7 — State serialization with P-Locks and sample refs  [pending]
+### M7 — Pattern recording  [pending]
+
+Live capture of MIDI input into trigs and P-Locks. Depends on the
+QWERTY+MZ UI (M6) for the transport indicator and step affordances.
+
+- [ ] **M7.1** Record-arm transport state, visible in the transport
+      bar.
+- [ ] **M7.2** Note-on while recording writes a trig at the nearest
+      step on the destination track (quantised to track grid).
+- [ ] **M7.3** CC while recording on a held step writes a P-Lock;
+      otherwise updates the track base. (Same EditContext rule;
+      record arm doesn't bypass it, it just makes capture sticky.)
+- [ ] **M7.4** "Key-as-PLock" mode: with record on, each note key
+      writes a distinct P-Lock value to the held step (drum-pattern
+      play-in across one track).
+
+### M8 — State serialization with P-Locks and sample refs  [pending]
 
 Replace the M0 minimal serializer with the full payload.
 
-- [ ] **M7.1** Sequence + PLock data serialized into the plugin state
+- [ ] **M8.1** Sequence + PLock data serialized into the plugin state
       blob (still XML or value-tree, no binary in this milestone).
-- [ ] **M7.2** Sample-pool entries persisted as `{path, xxHash32}`;
+- [ ] **M8.2** Sample-pool entries persisted as `{path, xxHash32}`;
       missing-file UX on load (relink dialog).
-- [ ] **M7.3** Real `Hash::xx32` implementation.
-- [ ] **M7.4** Forward-compatible `kCurrentVersion` upgrade path with
+- [ ] **M8.3** Real `Hash::xx32` implementation.
+- [ ] **M8.4** Forward-compatible `kCurrentVersion` upgrade path with
       a guard test.
+- [ ] **M8.5** CC mappings (with scope), channel mode, focus state,
+      and clock/sync settings persisted alongside the sequence.
 
-### M8 — Phase 3 sub-hosting  [pending]
+### M9 — Phase 3 sub-hosting  [pending]
 
 Lift `IMachine` into a CLAP/VST3 sub-host.
 
-- [ ] **M8.1** Scan an application-specific directory; enumerate
+- [ ] **M9.1** Scan an application-specific directory; enumerate
       conformant plugins (0/2 or 2/2 buses, exactly 48 parameters).
-- [ ] **M8.2** Bridge `ParamFrame` ↔ host parameter tree per block.
-- [ ] **M8.3** UX for assigning a Machine to a track.
+- [ ] **M9.2** Bridge `ParamFrame` ↔ host parameter tree per block.
+- [ ] **M9.3** UX for assigning a Machine to a track.
 
-### M9 — Polish, CI, beta  [pending]
+### M10 — Polish, CI, beta  [pending]
 
-- [ ] **M9.1** GitHub Actions multi-platform CI (Linux/macOS/Windows).
-- [ ] **M9.2** Performance pass: voice CPU profile, choke-fade SIMD
+- [ ] **M10.1** GitHub Actions multi-platform CI (Linux/macOS/Windows).
+- [ ] **M10.2** Performance pass: voice CPU profile, choke-fade SIMD
       review, voice cap configuration.
-- [ ] **M9.3** Factory patch library.
-- [ ] **M9.4** Final product name (replace "Lockstep"), bundle IDs,
+- [ ] **M10.3** Factory patch library.
+- [ ] **M10.4** Final product name (replace "Lockstep"), bundle IDs,
       icons, About box.
-- [ ] **M9.5** First public beta build.
+- [ ] **M10.5** First public beta build.
 
 ## Play-test notes
 

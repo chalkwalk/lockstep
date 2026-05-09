@@ -103,7 +103,44 @@ step indices are computed via modulo arithmetic, so two tracks with
 lengths 7 and 16 phase against each other naturally without any
 master-bar concept.
 
-### 4.3 Trig Conditions
+### 4.3 Clock sources and sync modes
+
+Lockstep maintains a single internal timeline (bar / beat / tick)
+regardless of where the clock comes from. The timeline can be driven
+by:
+
+- **Internal** — the plugin's own tempo. Available in standalone and
+  plugin contexts.
+- **DAW transport** — when running as a plugin, the host's playhead
+  drives the timeline.
+- **MIDI clock** — when running standalone, an incoming MIDI clock
+  stream can drive the timeline. MIDI clock as a plugin input is not
+  supported; the DAW is the host's timeline authority.
+
+For external sources two sync modes apply:
+
+- **Locked.** The sequencer's position is slaved to the external
+  timeline beat-for-beat.
+- **Auto.** The sequencer follows when the external timeline is
+  running and degrades distinctly depending on *how* the timeline
+  stops:
+    - **MIDI clock dropout** → freewheel at the last known tempo;
+      resync on clock return. (Live continuity.)
+    - **Explicit transport stop** (DAW stop, MIDI Stop / MMC) →
+      freeze the sequencer.
+
+When the only source is Internal, no sync mode applies — Locked vs
+Auto is a property of "is there an external timeline?" The full
+matrix:
+
+| Context     | Source        | Modes available   |
+|-------------|---------------|-------------------|
+| Plugin      | Internal      | (none)            |
+| Plugin      | DAW transport | Locked / Auto     |
+| Standalone  | Internal      | (none)            |
+| Standalone  | MIDI clock    | Locked / Auto     |
+
+### 4.4 Trig Conditions
 
 Per-step conditional firing combines:
 
@@ -126,7 +163,14 @@ landing:
   `PLock` (Step Override).
 - Otherwise, writes go to the Track Base.
 
-The two MIDI ingestion pathways are:
+This rule is **input-source-agnostic**: encoder, QWERTY, MIDI CC, and
+future hardware controls all resolve through the same gate. A CC
+arriving while a step is held writes a P-Lock on that step exactly
+as a UI encoder twist would.
+
+### 5.1 MIDI CC ingestion
+
+Two CC pathways:
 
 - **Absolute CC (0–127) with Soft-Takeover.** The incoming value must
   cross the current internal value before it starts driving the
@@ -135,10 +179,57 @@ The two MIDI ingestion pathways are:
 - **Relative CC (delta arithmetic).** Endless-encoder messages bypass
   takeover and apply +/- integer deltas directly.
 
-The QWERTY overlay translates raw scancodes into one of: a step in the
-2×8 grid (bottom two rows), a page selector (top row + Shift modifier
-for pages 1–12), or a transport command. The same physical keys are
-the ones a future hardware controller's mechanical grid will mirror.
+### 5.2 CC mapping scopes
+
+Each CC mapping carries a **scope** that determines its target:
+
+- **Master** — fixed, mapping is to a master parameter (e.g. master
+  gain, swing). Always agnostic of the focus state.
+- **Track[N]** — fixed, mapping is to slot S on track N. Useful when
+  a hardware surface dedicates physical knobs to specific tracks.
+- **SelectedTrack** — follows the current focus. If focus is Track 3,
+  the CC drives slot S on track 3; switch focus and the same CC
+  retargets. If focus is Master, the CC is a no-op.
+
+Transport controls (Play / Stop / Record) are not CC-mappable
+through this surface; they bind to dedicated MIDI realtime / MMC
+messages. Mappings are project-saved.
+
+### 5.3 Focus state and contextual encoders
+
+Selection is a **first-class focus state**, one of `{Master,
+Track1..8}`. The focus determines what the contextual encoders
+manipulate and what `SelectedTrack`-scoped CCs target.
+
+Four **contextual encoders** parallel the 4-slot Manipulation Zone:
+they are configurable CC inputs that always drive the current focus
+quadrant. Switching focus reassigns what they manipulate without the
+user remapping anything.
+
+### 5.4 MIDI note routing
+
+Two channel modes, exposed as a global setting:
+
+- **Omni → Selected.** All channels accepted; notes trigger the
+  currently focused track. If focus is Master, notes are ignored.
+- **Per-Track Channel.** MIDI channel N (1..8) hard-routes to track
+  N. Channels 9..16 are ignored. Live focus changes do not affect
+  note routing in this mode.
+
+A note-on triggers the destination track's machine. The baseline
+sampler does not currently use note pitch (sample/slice/pitch are
+slot-driven); a future "key-as-PLock" recording mode — where each
+note key writes a distinct P-Lock to the held step, e.g. to play in
+a kick/snare pattern across one track — is anticipated and lives
+behind record arm (M7).
+
+### 5.5 QWERTY overlay
+
+The QWERTY overlay translates raw scancodes into one of: a step in
+the 2×8 grid (bottom two rows), a page selector (top row + Shift
+modifier for pages 1–12), or a transport command. The same physical
+keys are the ones a future hardware controller's mechanical grid
+will mirror.
 
 ## 6. UI Philosophy
 
@@ -229,8 +320,12 @@ v0.1 is the "first usable" milestone. It includes:
 - Polymetric clocking, multi-track sequencing, base parameter pages.
 - P-Lock editing model with the Override-ELSE-Base resolver.
 - Trig conditions (probability, 1:N, prev-dep) honoured at runtime.
-- MIDI ingestion (abs/rel CC, soft-takeover, edit-context routing).
+- MIDI ingestion: abs/rel CC with soft-takeover, scoped mappings
+  (Master / Track[N] / SelectedTrack), Omni and Per-Track channel
+  modes, four contextual encoders, MIDI clock + sync modes in
+  standalone, edit-context routing of all input sources.
 - QWERTY overlay + Manipulation Zone + Page Bar + Step Grid wired up.
+- Pattern recording (live note/CC capture into trigs and P-Locks).
 - State serialization including P-Lock data and sample references.
 
 Sub-hosting (Phase 3) and the hardware companion (Phase 4) are
