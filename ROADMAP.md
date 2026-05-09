@@ -94,7 +94,7 @@ M0.
 
 - [x] **M4.1** Probability evaluator (deterministic seed per pattern
       so behaviour is reproducible across plays).
-- [ ] **M4.2** Iteration rules (`m:n`) with a per-track iteration
+- [x] **M4.2** Iteration rules (`m:n`) with a per-track iteration
       counter that survives loops.
 - [ ] **M4.3** Previous-dependency state machine.
 

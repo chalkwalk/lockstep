@@ -219,7 +219,7 @@ namespace lockstep
 
                     const auto& step = track.steps[static_cast<std::size_t>(stepIndex)];
                     if (step.trig
-                        && TrigEvaluator::shouldFire(step.condition, i, stepNum))
+                        && TrigEvaluator::shouldFire(step.condition, i, stepNum, trackLen))
                     {
                         const double offset =
                             (nextTriggerPpq_[i] - blockStart) * samplesPerPpq;

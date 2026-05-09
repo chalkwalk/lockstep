@@ -1,6 +1,7 @@
 #pragma once
 
 #include "TrigCondition.h"
+#include <algorithm>
 #include <cstdint>
 
 namespace lockstep::TrigEvaluator
@@ -17,14 +18,32 @@ namespace lockstep::TrigEvaluator
     }
 
     // Returns true if the step should fire. Call only when step.trig is true.
-    // absoluteStep is the track-local step counter (nextTriggerPpq / divPpq),
-    // not the pattern-wrapped index.
+    // absoluteStep  — track-local step counter (nextTriggerPpq / divPpq), not
+    //                 the pattern-wrapped index.
+    // trackLen      — active track length; used to derive pattern iteration.
     inline bool shouldFire(const TrigCondition& cond,
                             std::size_t trackIdx,
-                            std::int64_t absoluteStep)
+                            std::int64_t absoluteStep,
+                            int trackLen)
     {
+        // Iteration rule: {numerator, denominator} → fire on iteration
+        // `numerator` of every `denominator` loops (1-indexed, so numerator=1
+        // fires on iterations 0, D, 2D, …).
+        // denominator=1 is the default (every loop) and bypasses the check.
+        if (cond.iterDenominator > 1)
+        {
+            const auto len   = static_cast<std::int64_t>(std::max(trackLen, 1));
+            const auto denom = static_cast<std::int64_t>(cond.iterDenominator);
+            const auto iter  = absoluteStep / len;
+            if (iter % denom != static_cast<std::int64_t>(cond.iterNumerator) - 1)
+            {
+                return false;
+            }
+        }
+
+        // Probability check.
         if (cond.probabilityPercent >= 100) { return true; }
-        if (cond.probabilityPercent == 0)  { return false; }
+        if (cond.probabilityPercent == 0)   { return false; }
         return deterministicPercent(trackIdx, absoluteStep)
                < static_cast<int>(cond.probabilityPercent);
     }
