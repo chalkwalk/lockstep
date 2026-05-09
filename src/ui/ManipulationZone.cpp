@@ -11,29 +11,21 @@ namespace lockstep
         for (int i = 0; i < kNumSlots; ++i)
         {
             const auto si = static_cast<std::size_t>(i);
-            const auto meta = processor_.paramMetadata(0, i);
 
-            const juce::String labelText = meta.label.empty()
-                                              ? juce::String(i)
-                                              : juce::String(meta.label);
-            labels_[si].setText(labelText, juce::dontSendNotification);
             labels_[si].setJustificationType(juce::Justification::centred);
             addAndMakeVisible(labels_[si]);
 
-            sliders_[si].setRange(static_cast<double>(meta.minValue),
-                                  static_cast<double>(meta.maxValue),
-                                  meta.isStepped ? 1.0 : 0.0);
             sliders_[si].setSliderStyle(juce::Slider::LinearVertical);
             sliders_[si].setTextBoxStyle(juce::Slider::TextBoxBelow, false, 48, 14);
             sliders_[si].setWantsKeyboardFocus(false);
             sliders_[si].onDragStart = [this, i]
             {
-                processor_.editContext().setActiveSlot(i);
+                processor_.editContext().setActiveSlot(slotOffset_ + i);
             };
             sliders_[si].onValueChange = [this, i]
             {
                 if (!updatingFromTimer_)
-                    processor_.writeParam(grid_.getActiveTrack(), i,
+                    processor_.writeParam(grid_.getActiveTrack(), slotOffset_ + i,
                                           static_cast<float>(sliders_[static_cast<std::size_t>(i)].getValue()));
             };
             addAndMakeVisible(sliders_[si]);
@@ -44,12 +36,21 @@ namespace lockstep
             {
                 const auto& ctx = processor_.editContext();
                 if (ctx.isActiveForEditing())
-                    processor_.clearParam(ctx.heldTrackIndex(), ctx.heldStepIndex(), i);
+                    processor_.clearParam(ctx.heldTrackIndex(), ctx.heldStepIndex(),
+                                          slotOffset_ + i);
             };
             addAndMakeVisible(clearBtns_[si]);
         }
 
         startTimerHz(30);
+    }
+
+    void ManipulationZone::setSlotOffset(int offset)
+    {
+        slotOffset_ = offset;
+        // refreshSliders() will pick up the new offset on the next timer tick,
+        // but force an immediate refresh so the display snaps instantly.
+        refreshSliders();
     }
 
     ManipulationZone::~ManipulationZone() = default;
@@ -71,27 +72,36 @@ namespace lockstep
         updatingFromTimer_ = true;
         for (int i = 0; i < kNumSlots; ++i)
         {
-            const auto si = static_cast<std::size_t>(i);
-            float value = t.baseParams[si];
+            const auto si   = static_cast<std::size_t>(i);
+            const int  slot = slotOffset_ + i;
+            const auto slotSz = static_cast<std::size_t>(slot);
+
+            const auto meta = processor_.paramMetadata(track, slot);
+
+            // Update range when the slot changes (e.g. after a section switch).
+            sliders_[si].setRange(static_cast<double>(meta.minValue),
+                                  static_cast<double>(meta.maxValue),
+                                  meta.isStepped ? 1.0 : 0.0);
+
+            float value = t.baseParams[slotSz];
 
             if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == track)
             {
                 const int step = ctx.heldStepIndex();
                 if (step >= 0)
-                    value = t.steps[static_cast<std::size_t>(step)].overrides.get(i, value);
+                    value = t.steps[static_cast<std::size_t>(step)].overrides.get(slot, value);
             }
 
             sliders_[si].setValue(static_cast<double>(value), juce::dontSendNotification);
 
-            // Update label to show P-Lock indicator when an override exists.
-            const auto meta = processor_.paramMetadata(track, i);
+            // Update label; append '*' when a P-Lock override exists for this slot.
             juce::String labelText = meta.label.empty()
-                                         ? juce::String(i)
+                                         ? juce::String(slot)
                                          : juce::String(meta.label);
             if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == track)
             {
                 const int step = ctx.heldStepIndex();
-                if (step >= 0 && t.steps[static_cast<std::size_t>(step)].overrides.has(i))
+                if (step >= 0 && t.steps[static_cast<std::size_t>(step)].overrides.has(slot))
                     labelText += " *";
             }
             labels_[si].setText(labelText, juce::dontSendNotification);
@@ -100,7 +110,7 @@ namespace lockstep
             const bool stepHeld = ctx.isActiveForEditing() && ctx.heldTrackIndex() == track;
             const int  heldStep = ctx.heldStepIndex();
             const bool hasLock  = stepHeld && heldStep >= 0
-                && t.steps[static_cast<std::size_t>(heldStep)].overrides.has(i);
+                && t.steps[static_cast<std::size_t>(heldStep)].overrides.has(slot);
             clearBtns_[si].setEnabled(hasLock);
             clearBtns_[si].setAlpha(hasLock ? 1.0f : 0.3f);
         }

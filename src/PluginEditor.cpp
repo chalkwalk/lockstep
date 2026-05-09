@@ -8,7 +8,8 @@ namespace lockstep
           processor_(proc),
           transport_(proc.clock()),
           stepGrid_(proc),
-          manipulationZone_(proc, stepGrid_)
+          manipulationZone_(proc, stepGrid_),
+          sectionBar_(proc, stepGrid_, uiState_)
     {
         addAndMakeVisible(transport_);
 
@@ -31,8 +32,14 @@ namespace lockstep
         proc.apvts().addParameterListener(ParamIDs::syncMode, this);
         updateTransportGhosting();
 
-        addAndMakeVisible(pageBar_);
+        // Wire section-change callback → update ManipulationZone slot offset.
+        sectionBar_.onSectionChanged = [this](int /*section*/, int /*page*/, int firstSlot)
+        {
+            manipulationZone_.setSlotOffset(firstSlot);
+        };
+
         addAndMakeVisible(manipulationZone_);
+        addAndMakeVisible(sectionBar_);
         addAndMakeVisible(stepGrid_);
         addAndMakeVisible(keyboard_);
         addAndMakeVisible(loadButton_);
@@ -139,6 +146,31 @@ namespace lockstep
                              : rawCode;
 
         const auto mapping = qwerty_.resolve(code);
+
+        if (mapping.action == QwertyOverlay::Action::Shift)
+        {
+            uiState_.shiftHeld = true;
+            sectionBar_.repaint();
+            return true;
+        }
+
+        if (mapping.action == QwertyOverlay::Action::SelectSection)
+        {
+            const int sectionIndex = mapping.stepIndex;
+            if (uiState_.shiftHeld)
+            {
+                // Shift+section: toggle master section.
+                uiState_.masterSection =
+                    (uiState_.masterSection == sectionIndex) ? -1 : sectionIndex;
+                sectionBar_.repaint();
+            }
+            else
+            {
+                sectionBar_.selectSection(sectionIndex);
+            }
+            return true;
+        }
+
         if (mapping.action == QwertyOverlay::Action::Step)
         {
             if (heldStepKey_ != rawCode)
@@ -167,6 +199,14 @@ namespace lockstep
 
     bool LockstepEditor::keyStateChanged(bool isKeyDown, juce::Component*)
     {
+        // Track shift-key release (key '1').
+        if (!isKeyDown && uiState_.shiftHeld
+            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('1')))
+        {
+            uiState_.shiftHeld = false;
+            sectionBar_.repaint();
+        }
+
         if (!isKeyDown && heldStepKey_ != -1
             && !juce::KeyPress::isKeyCurrentlyDown(heldStepKey_))
         {
@@ -208,9 +248,13 @@ namespace lockstep
 
         bounds.removeFromTop(4);  // small gap
 
-        pageBar_.setBounds(bounds.removeFromTop(40).reduced(8, 4));
+        // Encoder strip (ManipulationZone) at the top, mirroring the hardware encoder row.
+        manipulationZone_.setBounds(bounds.removeFromTop(96).reduced(8, 4));
+
+        // Section bar below the encoders.
+        sectionBar_.setBounds(bounds.removeFromTop(48).reduced(8, 2));
+
         keyboard_.setBounds(bounds.removeFromBottom(72).reduced(8, 4));
-        stepGrid_.setBounds(bounds.removeFromBottom(180).reduced(8, 4));
-        manipulationZone_.setBounds(bounds.reduced(8, 4));
+        stepGrid_.setBounds(bounds.reduced(8, 4));
     }
 }

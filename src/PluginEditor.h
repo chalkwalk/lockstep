@@ -5,9 +5,10 @@
 
 #include "PluginProcessor.h"
 #include "io/QwertyOverlay.h"
+#include "state/UiState.h"
 #include "ui/InPluginTransport.h"
 #include "ui/ManipulationZone.h"
-#include "ui/PageBar.h"
+#include "ui/SectionBar.h"
 #include "ui/StandaloneTempoBar.h"
 #include "ui/StepGrid.h"
 
@@ -38,6 +39,7 @@ namespace lockstep
     private:
         LockstepProcessor& processor_;
         QwertyOverlay qwerty_;
+        UiState uiState_;
         int heldStepKey_ = -1;
         juce::Component* keyListenerTarget_ = nullptr;
 
@@ -45,9 +47,9 @@ namespace lockstep
         juce::MidiKeyboardComponent keyboard_{ keyboardState_, juce::MidiKeyboardComponent::horizontalKeyboard };
         InPluginTransport transport_;
         std::unique_ptr<StandaloneTempoBar> tempoBar_;
-        PageBar pageBar_;
         StepGrid stepGrid_;
         ManipulationZone manipulationZone_;  // after stepGrid_ — ctor takes StepGrid&
+        SectionBar sectionBar_;              // after manipulationZone_ and stepGrid_
         juce::ComboBox syncModeBox_;
         std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> syncModeAttachment_;
         juce::TextButton loadButton_{ "Load Sample" };

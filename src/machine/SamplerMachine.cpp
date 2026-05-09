@@ -262,4 +262,26 @@ namespace lockstep
         default:            return {};
         }
     }
+
+    // -------------------------------------------------------------------------
+    // Section taxonomy: 6 sections x 2 pages x 4 slots = 48 slots.
+    // Labels are placeholders — they will be named once the full param set firms up.
+
+    int SamplerMachine::numTrackSections() const { return kNumSections; }
+
+    SectionInfo SamplerMachine::trackSection(int index) const
+    {
+        // Each section owns 8 consecutive slots (2 pages × 4).
+        static const std::array<SectionInfo, kNumSections> kSections {{
+            { "A", "", 2, 0  },
+            { "B", "", 2, 8  },
+            { "C", "", 2, 16 },
+            { "D", "", 2, 24 },
+            { "E", "", 2, 32 },
+            { "F", "", 2, 40 },
+        }};
+        if (index < 0 || index >= kNumSections)
+            return {};
+        return kSections[static_cast<std::size_t>(index)];
+    }
 }

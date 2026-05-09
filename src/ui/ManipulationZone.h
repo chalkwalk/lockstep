@@ -21,6 +21,11 @@ namespace lockstep
         void resized() override;
         void timerCallback() override;
 
+        // Set the base slot offset within the 48-slot frame.
+        // Slot i in the zone maps to absolute slot (slotOffset_ + i).
+        void setSlotOffset(int offset);
+        [[nodiscard]] int slotOffset() const { return slotOffset_; }
+
     private:
         static constexpr int kNumSlots = 4;
 
@@ -28,6 +33,7 @@ namespace lockstep
 
         LockstepProcessor& processor_;
         StepGrid& grid_;
+        int slotOffset_ = 0;
 
         std::array<juce::Slider,     kNumSlots> sliders_;
         std::array<juce::Label,      kNumSlots> labels_;

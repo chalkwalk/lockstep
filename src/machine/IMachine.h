@@ -21,6 +21,16 @@ namespace lockstep
         bool isStepped = false;
     };
 
+    // Describes one logical grouping of consecutive pages within the 48-slot frame.
+    // Machines declare their section taxonomy; the UI renders it generically.
+    struct SectionInfo
+    {
+        std::string primaryLabel;   // top text on the section button
+        std::string secondaryLabel; // bottom text (master-side function, may be empty)
+        int pageCount = 1;          // number of 4-slot pages in this section (≥1)
+        int firstSlot = 0;          // slot index of (page 0, slot 0) in the ParamFrame
+    };
+
     class IMachine
     {
     public:
@@ -38,5 +48,16 @@ namespace lockstep
                              juce::AudioBuffer<float>& buffer) = 0;
 
         virtual ParamMetadata getParamMetadata(int slot) const = 0;
+
+        // Section taxonomy: machines declare how their 48 slots are grouped.
+        // numTrackSections() must equal kNumSections (6). Sum of
+        // trackSection(i).pageCount * kParamsPerPage must equal kNumParamSlots.
+        static constexpr int kNumSections = 6;
+        virtual int         numTrackSections() const { return 0; }
+        virtual SectionInfo trackSection(int /*index*/) const { return {}; }
+
+        // Optional: master sections (shift side). Default: none.
+        virtual int         numMasterSections() const { return 0; }
+        virtual SectionInfo masterSection(int /*index*/) const { return {}; }
     };
 }

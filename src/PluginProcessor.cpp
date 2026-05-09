@@ -311,6 +311,20 @@ namespace lockstep
         return machines_[static_cast<std::size_t>(track)]->getParamMetadata(slot);
     }
 
+    int LockstepProcessor::numTrackSections(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks))
+            return 0;
+        return machines_[static_cast<std::size_t>(track)]->numTrackSections();
+    }
+
+    SectionInfo LockstepProcessor::trackSection(int track, int sectionIndex) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks))
+            return {};
+        return machines_[static_cast<std::size_t>(track)]->trackSection(sectionIndex);
+    }
+
     juce::AudioProcessorEditor* LockstepProcessor::createEditor()
     {
         return new LockstepEditor(*this);

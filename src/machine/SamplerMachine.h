@@ -17,6 +17,8 @@ namespace lockstep
         void process(int triggerAtSample, const ParamFrame& params,
                      juce::AudioBuffer<float>& buffer) override;
         ParamMetadata getParamMetadata(int slot) const override;
+        int           numTrackSections() const override;
+        SectionInfo   trackSection(int index) const override;
 
     private:
         // Slot assignments (Page 0 = sample, Page 1+2 = envelope)

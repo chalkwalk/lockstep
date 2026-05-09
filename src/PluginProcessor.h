@@ -61,6 +61,10 @@ namespace lockstep
         // Metadata for a slot from the machine on the given track.
         ParamMetadata paramMetadata(int track, int slot) const;
 
+        // Section taxonomy from the machine on the given track.
+        int         numTrackSections(int track) const;
+        SectionInfo trackSection(int track, int sectionIndex) const;
+
         using juce::AudioProcessor::processBlock;
 
     private:

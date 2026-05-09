@@ -76,7 +76,7 @@ target_sources(Lockstep
         PluginEditor.cpp
         ui/InPluginTransport.cpp
         ui/ManipulationZone.cpp
-        ui/PageBar.cpp
+        ui/SectionBar.cpp
         ui/StandaloneTempoBar.cpp
         ui/StepGrid.cpp)
 
