@@ -74,8 +74,10 @@ target_sources(Lockstep
     PRIVATE
         PluginProcessor.cpp
         PluginEditor.cpp
+        ui/InPluginTransport.cpp
         ui/ManipulationZone.cpp
         ui/PageBar.cpp
+        ui/StandaloneTempoBar.cpp
         ui/StepGrid.cpp)
 
 target_link_libraries(Lockstep

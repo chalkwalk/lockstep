@@ -1,11 +1,14 @@
 #pragma once
 
 #include <juce_audio_utils/juce_audio_utils.h>
+#include <memory>
 
 #include "PluginProcessor.h"
 #include "io/QwertyOverlay.h"
+#include "ui/InPluginTransport.h"
 #include "ui/ManipulationZone.h"
 #include "ui/PageBar.h"
+#include "ui/StandaloneTempoBar.h"
 #include "ui/StepGrid.h"
 
 namespace lockstep
@@ -36,6 +39,8 @@ namespace lockstep
 
         juce::MidiKeyboardState keyboardState_;
         juce::MidiKeyboardComponent keyboard_{ keyboardState_, juce::MidiKeyboardComponent::horizontalKeyboard };
+        InPluginTransport transport_;
+        std::unique_ptr<StandaloneTempoBar> tempoBar_;
         PageBar pageBar_;
         StepGrid stepGrid_;
         ManipulationZone manipulationZone_;  // after stepGrid_ — ctor takes StepGrid&

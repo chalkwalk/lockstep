@@ -54,7 +54,7 @@ namespace lockstep
         double bpm_             = 120.0;
         double localBpm_        = 120.0;
         bool   hostPlaying_     = false;
-        bool   inPluginPlaying_ = true;   // Stage 1 default: behaves like current free-run
+        bool   inPluginPlaying_ = false;   // Stage 2 default: start stopped; press Play to go
 
         double ppqBlockStart_ = 0.0;
         double ppqBlockEnd_   = 0.0;

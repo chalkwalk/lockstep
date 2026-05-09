@@ -5,9 +5,19 @@ namespace lockstep
     LockstepEditor::LockstepEditor(LockstepProcessor& proc)
         : juce::AudioProcessorEditor(&proc),
           processor_(proc),
+          transport_(proc.clock()),
           stepGrid_(proc),
           manipulationZone_(proc, stepGrid_)
     {
+        addAndMakeVisible(transport_);
+
+        if (juce::PluginHostType::getPluginLoadedAs()
+                == juce::AudioProcessor::wrapperType_Standalone)
+        {
+            tempoBar_ = std::make_unique<StandaloneTempoBar>(proc.clock());
+            addAndMakeVisible(tempoBar_.get());
+        }
+
         addAndMakeVisible(pageBar_);
         addAndMakeVisible(manipulationZone_);
         addAndMakeVisible(stepGrid_);
@@ -74,14 +84,11 @@ namespace lockstep
     void LockstepEditor::paint(juce::Graphics& g)
     {
         g.fillAll(juce::Colour::fromRGB(20, 22, 26));
-        g.setColour(juce::Colours::white);
-        g.setFont(juce::Font(juce::FontOptions(18.0f)));
-        auto header = getLocalBounds().removeFromTop(36).reduced(12, 0);
-        g.drawText("Lockstep - Skeleton", header, juce::Justification::centredLeft);
 
         g.setFont(juce::Font(juce::FontOptions(12.0f)));
         g.setColour(juce::Colour::fromRGB(140, 160, 180));
-        g.drawText(sampleStatus_, getLocalBounds().removeFromTop(56).removeFromBottom(20).reduced(12, 0),
+        g.drawText(sampleStatus_,
+                   getLocalBounds().removeFromTop(36).reduced(12, 0),
                    juce::Justification::centredLeft);
         juce::ignoreUnused(processor_);
     }
@@ -149,10 +156,18 @@ namespace lockstep
     void LockstepEditor::resized()
     {
         auto bounds = getLocalBounds();
+
+        // Header row: transport + sample status label
         auto header = bounds.removeFromTop(36);
-        header.removeFromLeft(200);
-        loadButton_.setBounds(header.reduced(4));
-        bounds.removeFromTop(20);                                      // status line
+        transport_.setBounds(header.removeFromLeft(108).reduced(4));
+        loadButton_.setBounds(header.removeFromRight(160).reduced(4));
+        // remaining header area is drawn as status text in paint()
+
+        // Optional standalone tempo bar directly below the header
+        if (tempoBar_)
+            tempoBar_->setBounds(bounds.removeFromTop(28).reduced(8, 2));
+
+        bounds.removeFromTop(4);  // small gap
 
         pageBar_.setBounds(bounds.removeFromTop(40).reduced(8, 4));
         keyboard_.setBounds(bounds.removeFromBottom(72).reduced(8, 4));
