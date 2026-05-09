@@ -69,7 +69,7 @@ Promote tracks to first-class polymetric citizens.
 - [x] **M2.1** Per-track step length [1..64] and divider exposed on the
       track and persisted in state.
 - [x] **M2.2** Step-grid pagination for patterns > 16 steps.
-- [ ] **M2.3** Modulo-against-shared-position step resolution verified
+- [x] **M2.3** Modulo-against-shared-position step resolution verified
       with mismatched lengths (7 vs 16 phasing test).
 - [ ] **M2.4** Eight tracks routable to one stereo bus (sub-bus split
       lands later).
@@ -156,3 +156,8 @@ Lift `IMachine` into a CLAP/VST3 sub-host.
 
 **2026-05-08 — M1.5:** 16-step pattern, kick on every step. No clicks,
 stable amplitude. Choke micro-fade working. M1 complete.
+
+**M2.3 test procedure:** Load one sample. Set track 1 length to 16, track 2
+length to 7 via the length sliders in the step grid. Switch between tracks
+with the T1/T2 buttons and observe the amber playhead cycling at different
+rates. Phasing is also audible if both tracks share pool index 0.

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 
 namespace lockstep
@@ -24,7 +25,10 @@ namespace lockstep
         void setBpm(double bpm);
 
         double bpm() const { return bpm_; }
-        std::int64_t samplePosition() const { return samplePosition_; }
+        std::int64_t samplePosition() const
+        {
+            return samplePosition_.load(std::memory_order_relaxed);
+        }
         double sampleRate() const { return sampleRate_; }
 
         // Samples per 16th note at the current tempo. The base step grid is
@@ -34,6 +38,6 @@ namespace lockstep
     private:
         double sampleRate_ = 0.0;
         double bpm_ = 120.0;
-        std::int64_t samplePosition_ = 0;
+        std::atomic<std::int64_t> samplePosition_{0};
     };
 }

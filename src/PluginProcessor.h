@@ -43,6 +43,7 @@ namespace lockstep
 
         juce::AudioProcessorValueTreeState& apvts() { return apvts_; }
         const Sequence& sequence() const { return sequence_; }
+        const Clock& clock() const { return clock_; }
         SamplePool& samplePool() { return samplePool_; }
 
         using juce::AudioProcessor::processBlock;

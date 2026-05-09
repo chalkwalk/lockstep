@@ -1,36 +1,63 @@
 #include "StepGrid.h"
 #include "../PluginProcessor.h"
 #include "../ParameterIDs.h"
+#include <algorithm>
 
 namespace lockstep
 {
+    static const juce::Colour kColActive   { 0xFF50B478u };  // green trig
+    static const juce::Colour kColInactive { 0xFF2D3741u };  // dark, in-range
+    static const juce::Colour kColOutRange { 0xFF1C2026u };  // near-black
+    static const juce::Colour kColPlayhead { 0xFFFFCC44u };  // amber highlight
+
     StepGrid::StepGrid(LockstepProcessor& processor)
         : processor_(processor)
     {
+        for (int i = 0; i < static_cast<int>(kNumTracks); ++i)
+        {
+            trackBtns_[static_cast<std::size_t>(i)].setButtonText(juce::String(i + 1));
+            trackBtns_[static_cast<std::size_t>(i)].setClickingTogglesState(false);
+            trackBtns_[static_cast<std::size_t>(i)].onClick = [this, i] { setActiveTrack(i); };
+            addAndMakeVisible(trackBtns_[static_cast<std::size_t>(i)]);
+        }
+        trackBtns_[0].setToggleState(true, juce::dontSendNotification);
+
         prevBtn_.onClick = [this] { prevPage(); repaint(); };
         nextBtn_.onClick = [this] { nextPage(); repaint(); };
         addAndMakeVisible(prevBtn_);
         addAndMakeVisible(nextBtn_);
+
+        lengthSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
+        lengthSlider_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 34, 18);
+        addAndMakeVisible(lengthSlider_);
+
+        rebuildLengthAttachment();
+        startTimerHz(30);
     }
+
+    StepGrid::~StepGrid() = default;
 
     void StepGrid::setActiveTrack(int t)
     {
-        activeTrack_ = juce::jlimit(0, static_cast<int>(kNumTracks) - 1, t);
-        stepPage_ = 0;
+        const int clamped = juce::jlimit(0, static_cast<int>(kNumTracks) - 1, t);
+        if (clamped == activeTrack_)
+            return;
+
+        for (auto& b : trackBtns_)
+            b.setToggleState(false, juce::dontSendNotification);
+        trackBtns_[static_cast<std::size_t>(clamped)].setToggleState(
+            true, juce::dontSendNotification);
+
+        activeTrack_ = clamped;
+        stepPage_    = 0;
+        rebuildLengthAttachment();
         repaint();
     }
 
-    void StepGrid::nextPage()
-    {
-        ++stepPage_;
-        clampPage();
-    }
+    void StepGrid::nextPage() { ++stepPage_; clampPage(); }
+    void StepGrid::prevPage() { --stepPage_; clampPage(); }
 
-    void StepGrid::prevPage()
-    {
-        --stepPage_;
-        clampPage();
-    }
+    void StepGrid::timerCallback() { repaint(); }
 
     int StepGrid::trackLength() const
     {
@@ -49,77 +76,121 @@ namespace lockstep
         stepPage_ = juce::jlimit(0, juce::jmax(0, numPages() - 1), stepPage_);
     }
 
+    void StepGrid::rebuildLengthAttachment()
+    {
+        lengthAttachment_.reset();
+        lengthAttachment_ = std::make_unique<
+            juce::AudioProcessorValueTreeState::SliderAttachment>(
+                processor_.apvts(),
+                ParamIDs::trackLength(activeTrack_),
+                lengthSlider_);
+    }
+
+    // -------------------------------------------------------------------------
+
     void StepGrid::paint(juce::Graphics& g)
     {
-        const auto bounds = getLocalBounds();
+        auto bounds = getLocalBounds();
 
-        // Header row: track + page info.
-        const auto header = bounds.withHeight(18);
-        g.setColour(juce::Colour::fromRGB(100, 120, 140));
-        g.setFont(juce::Font(juce::FontOptions(11.0f)));
-        const int pages = numPages();
-        g.drawText("Track " + juce::String(activeTrack_ + 1)
-                       + "   Page " + juce::String(stepPage_ + 1)
-                       + " / "      + juce::String(pages),
-                   header.reduced(4, 0), juce::Justification::centredLeft);
+        // ---- Track selector row is laid out via resized(); just fill BG. ----
+        bounds.removeFromTop(kTrackRowH);
 
-        // Step cells.
-        const auto gridArea = bounds.withTrimmedTop(18).withTrimmedBottom(24);
-        const int cellW = gridArea.getWidth()  / kCols;
-        const int cellH = gridArea.getHeight() / kRows;
+        // ---- Step cell area ----
+        const auto navArea  = bounds.removeFromBottom(kNavRowH);
+        const auto cellArea = bounds;
+
+        // Compute playhead.
+        const int trackLen = trackLength();
+        const auto& clk = processor_.clock();
+        const double sps = clk.samplesPerStep();
+        auto* divP = processor_.apvts().getRawParameterValue(
+            ParamIDs::trackDivider(activeTrack_));
+        const int div = divP ? std::max(1, static_cast<int>(divP->load())) : 1;
+        const double effectiveSPS = sps * static_cast<double>(div);
+
+        int playheadAbs = -1;
+        if (effectiveSPS > 0.0 && trackLen > 0)
+        {
+            const auto stepNum = static_cast<std::int64_t>(
+                static_cast<double>(clk.samplePosition()) / effectiveSPS);
+            playheadAbs = static_cast<int>(stepNum % trackLen);
+        }
+
         const int baseStep = stepPage_ * kPageSteps;
-        const int len = trackLength();
-
         const auto& track =
             processor_.sequence().tracks[static_cast<std::size_t>(activeTrack_)];
+
+        const int cellW = cellArea.getWidth()  / kCols;
+        const int cellH = cellArea.getHeight() / kRows;
 
         for (int row = 0; row < kRows; ++row)
         {
             for (int col = 0; col < kCols; ++col)
             {
-                const int localIdx  = row * kCols + col;
-                const int absIdx    = baseStep + localIdx;
-                const bool inRange  = absIdx < len;
-                const bool hasTrig  = inRange
+                const int localIdx = row * kCols + col;
+                const int absIdx   = baseStep + localIdx;
+                const bool inRange = absIdx < trackLen;
+                const bool hasTrig = inRange
                     && track.steps[static_cast<std::size_t>(absIdx)].trig;
+                const bool isHead  = (absIdx == playheadAbs);
 
-                const int x = gridArea.getX() + col * cellW;
-                const int y = gridArea.getY() + row * cellH;
+                const int x = cellArea.getX() + col * cellW;
+                const int y = cellArea.getY() + row * cellH;
                 const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
-                if (hasTrig)
+                if (!inRange)
                 {
-                    g.setColour(juce::Colour::fromRGB(80, 180, 120));
+                    g.setColour(kColOutRange);
                     g.fillRoundedRectangle(cell.toFloat(), 3.0f);
                 }
-                else if (inRange)
+                else if (hasTrig)
                 {
-                    g.setColour(juce::Colour::fromRGB(45, 55, 65));
+                    g.setColour(isHead ? kColPlayhead : kColActive);
+                    g.fillRoundedRectangle(cell.toFloat(), 3.0f);
+                }
+                else
+                {
+                    g.setColour(isHead ? kColPlayhead.withAlpha(0.55f) : kColInactive);
                     g.fillRoundedRectangle(cell.toFloat(), 3.0f);
                     g.setColour(juce::Colour::fromRGB(70, 85, 100));
                     g.drawRoundedRectangle(cell.toFloat(), 3.0f, 1.0f);
                 }
-                else
-                {
-                    g.setColour(juce::Colour::fromRGB(28, 32, 38));
-                    g.fillRoundedRectangle(cell.toFloat(), 3.0f);
-                }
 
-                // Step number hint (1-indexed).
-                g.setColour(inRange ? juce::Colour::fromRGB(100, 120, 140)
-                                    : juce::Colour::fromRGB(45, 50, 58));
+                // Step number
+                g.setColour(inRange ? juce::Colour::fromRGB(110, 130, 150)
+                                    : juce::Colour::fromRGB(40, 46, 54));
                 g.setFont(juce::Font(juce::FontOptions(9.0f)));
                 g.drawText(juce::String(absIdx + 1), cell, juce::Justification::centred);
             }
         }
+
+        // ---- Nav row info text (page / length) drawn to the left of buttons ----
+        const int pages = numPages();
+        g.setColour(juce::Colour::fromRGB(100, 120, 140));
+        g.setFont(juce::Font(juce::FontOptions(10.0f)));
+        const auto infoRect = navArea.withTrimmedLeft(64).withTrimmedRight(120);
+        g.drawText(
+            "Page " + juce::String(stepPage_ + 1) + " / " + juce::String(pages)
+                + "     Length:",
+            infoRect, juce::Justification::centredLeft);
     }
 
     void StepGrid::resized()
     {
-        const auto bounds  = getLocalBounds();
-        const auto btnRow  = bounds.withTrimmedTop(bounds.getHeight() - 22).reduced(2, 2);
-        const int  btnW    = 32;
-        prevBtn_.setBounds(btnRow.withWidth(btnW));
-        nextBtn_.setBounds(btnRow.withRightX(btnRow.getRight()).withWidth(btnW));
+        auto bounds = getLocalBounds();
+
+        // Track selector row
+        auto trackRow = bounds.removeFromTop(kTrackRowH);
+        const int btnW = trackRow.getWidth() / static_cast<int>(kNumTracks);
+        for (std::size_t i = 0; i < kNumTracks; ++i)
+            trackBtns_[i].setBounds(
+                trackRow.removeFromLeft(btnW).reduced(1, 2));
+
+        // Nav + length row at the bottom
+        auto navRow = bounds.removeFromBottom(kNavRowH).reduced(0, 2);
+        prevBtn_.setBounds(navRow.removeFromLeft(28).reduced(1));
+        nextBtn_.setBounds(navRow.removeFromLeft(28).reduced(1));
+        navRow.removeFromLeft(100);  // space for page info text drawn in paint
+        lengthSlider_.setBounds(navRow.reduced(2, 0));
     }
 }

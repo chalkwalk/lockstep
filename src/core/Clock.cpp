@@ -12,7 +12,7 @@ namespace lockstep
 
     void Clock::advance(int numSamples)
     {
-        samplePosition_ += numSamples;
+        samplePosition_.fetch_add(numSamples, std::memory_order_relaxed);
     }
 
     void Clock::setBpm(double bpm)
