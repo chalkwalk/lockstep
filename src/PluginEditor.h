@@ -14,7 +14,8 @@
 namespace lockstep
 {
     class LockstepEditor : public juce::AudioProcessorEditor,
-                           public juce::KeyListener
+                           public juce::KeyListener,
+                           public juce::AudioProcessorValueTreeState::Listener
     {
     public:
         explicit LockstepEditor(LockstepProcessor& processor);
@@ -31,6 +32,9 @@ namespace lockstep
         using juce::Component::keyPressed;
         using juce::Component::keyStateChanged;
 
+        // juce::AudioProcessorValueTreeState::Listener
+        void parameterChanged(const juce::String& paramID, float newValue) override;
+
     private:
         LockstepProcessor& processor_;
         QwertyOverlay qwerty_;
@@ -44,9 +48,13 @@ namespace lockstep
         PageBar pageBar_;
         StepGrid stepGrid_;
         ManipulationZone manipulationZone_;  // after stepGrid_ — ctor takes StepGrid&
+        juce::ComboBox syncModeBox_;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> syncModeAttachment_;
         juce::TextButton loadButton_{ "Load Sample" };
         std::unique_ptr<juce::FileChooser> fileChooser_;
         juce::String sampleStatus_{ "No samples loaded" };
+
+        void updateTransportGhosting();
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LockstepEditor)
     };

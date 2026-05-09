@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "ParameterIDs.h"
 
 namespace lockstep
 {
@@ -17,6 +18,18 @@ namespace lockstep
             tempoBar_ = std::make_unique<StandaloneTempoBar>(proc.clock());
             addAndMakeVisible(tempoBar_.get());
         }
+
+        // Sync mode ComboBox + APVTS attachment
+        syncModeBox_.addItem("Locked", 1);
+        syncModeBox_.addItem("Auto",   2);
+        syncModeBox_.setWantsKeyboardFocus(false);
+        addAndMakeVisible(syncModeBox_);
+        syncModeAttachment_ =
+            std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
+                proc.apvts(), ParamIDs::syncMode, syncModeBox_);
+
+        proc.apvts().addParameterListener(ParamIDs::syncMode, this);
+        updateTransportGhosting();
 
         addAndMakeVisible(pageBar_);
         addAndMakeVisible(manipulationZone_);
@@ -65,8 +78,33 @@ namespace lockstep
 
     LockstepEditor::~LockstepEditor()
     {
+        processor_.apvts().removeParameterListener(ParamIDs::syncMode, this);
         if (keyListenerTarget_ != nullptr)
             keyListenerTarget_->removeKeyListener(this);
+    }
+
+    void LockstepEditor::parameterChanged(const juce::String& paramID, float /*newValue*/)
+    {
+        if (paramID == ParamIDs::syncMode)
+            juce::MessageManager::callAsync([this] { updateTransportGhosting(); });
+    }
+
+    void LockstepEditor::updateTransportGhosting()
+    {
+        const bool isStandalone =
+            (juce::PluginHostType::getPluginLoadedAs()
+             == juce::AudioProcessor::wrapperType_Standalone);
+        const auto* modeParam =
+            processor_.apvts().getRawParameterValue(ParamIDs::syncMode);
+        const bool isLocked = modeParam && static_cast<int>(modeParam->load()) == 0;
+        const bool ghost    = isLocked && !isStandalone;
+
+        transport_.setGhosted(ghost);
+
+        // When switching from Locked+hosted to Auto, wire up a Play click
+        // that first resets phase then enables in-plugin playback — this
+        // makes Auto mode start from step 0, not from wherever the DAW is.
+        // (InPluginTransport already calls setInPluginPlaying; no extra wiring needed.)
     }
 
     void LockstepEditor::parentHierarchyChanged()
@@ -157,11 +195,12 @@ namespace lockstep
     {
         auto bounds = getLocalBounds();
 
-        // Header row: transport + sample status label
+        // Header row: transport | sync mode box | [status text area] | load button
         auto header = bounds.removeFromTop(36);
         transport_.setBounds(header.removeFromLeft(108).reduced(4));
+        syncModeBox_.setBounds(header.removeFromLeft(80).reduced(4));
         loadButton_.setBounds(header.removeFromRight(160).reduced(4));
-        // remaining header area is drawn as status text in paint()
+        // Remaining header area is drawn as status text in paint()
 
         // Optional standalone tempo bar directly below the header
         if (tempoBar_)

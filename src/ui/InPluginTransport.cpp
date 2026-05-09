@@ -32,7 +32,17 @@ namespace lockstep
     void InPluginTransport::onPlayClick()
     {
         if (ghosted_)
-            return;  // Stage 3 will show a popup here.
+        {
+            juce::AlertWindow::showAsync(
+                juce::MessageBoxOptions()
+                    .withTitle("DAW transport is in control")
+                    .withMessage("In Locked mode the sequencer follows the DAW timeline.\n"
+                                 "Use the DAW transport to start/stop, or switch the\n"
+                                 "mode selector to Auto for in-plugin playback.")
+                    .withButton("OK"),
+                nullptr);
+            return;
+        }
         clock_.setInPluginPlaying(!clock_.inPluginPlaying());
         syncPlayLabel();
     }
@@ -40,7 +50,17 @@ namespace lockstep
     void InPluginTransport::onResetClick()
     {
         if (ghosted_)
+        {
+            juce::AlertWindow::showAsync(
+                juce::MessageBoxOptions()
+                    .withTitle("DAW transport is in control")
+                    .withMessage("In Locked mode the sequencer follows the DAW timeline.\n"
+                                 "Use the DAW transport to start/stop, or switch the\n"
+                                 "mode selector to Auto for in-plugin playback.")
+                    .withButton("OK"),
+                nullptr);
             return;
+        }
         clock_.resetPhase();
     }
 

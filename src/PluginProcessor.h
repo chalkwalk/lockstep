@@ -5,6 +5,7 @@
 
 #include "core/Clock.h"
 #include "core/Sequence.h"
+#include "core/SyncMode.h"
 #include "io/EditContext.h"
 #include "io/MidiInput.h"
 #include "machine/IMachine.h"
@@ -71,6 +72,11 @@ namespace lockstep
         MidiInput midiInput_;
         std::array<std::unique_ptr<IMachine>, kNumTracks> machines_;
         std::array<double, kNumTracks> nextTriggerPpq_{};
+        double anchorPpq_ = 0.0;         // Auto mode: PPQ at last in-plugin Play press
+        bool   wasInPluginPlaying_ = false;  // Auto mode: rising-edge detection
+
+        // Raw pointer to the syncMode choice parameter, cached in ctor.
+        std::atomic<float>* syncModeParam_ = nullptr;
 
         // Cached APVTS raw-value pointers for per-track structural params (audio-thread safe).
         std::array<std::atomic<float>*, kNumTracks> trackLengthParams_{};

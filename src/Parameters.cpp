@@ -15,6 +15,12 @@ namespace lockstep
             juce::NormalisableRange<float>(-60.0f, 6.0f, 0.01f),
             0.0f));
 
+        layout.add(std::make_unique<juce::AudioParameterChoice>(
+            juce::ParameterID{ ParamIDs::syncMode, 1 },
+            "Sync Mode",
+            juce::StringArray{ "Locked", "Auto" },
+            0));
+
         for (int t = 0; t < kNumTracks; ++t)
         {
             layout.add(std::make_unique<juce::AudioParameterInt>(

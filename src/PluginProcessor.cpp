@@ -27,6 +27,8 @@ namespace lockstep
     {
         nextTriggerPpq_.fill(0.0);
 
+        syncModeParam_ = apvts_.getRawParameterValue(ParamIDs::syncMode);
+
         for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
         {
             const auto ti = static_cast<std::size_t>(t);
@@ -100,8 +102,67 @@ namespace lockstep
 
         clock_.update(getPlayHead(), buffer.getNumSamples());
 
-        const double blockStart    = clock_.ppqAtBlockStart();
-        const double blockEnd      = clock_.ppqAtBlockEnd();
+        // ---- Mode-based "is the sequencer running?" gate ------------------
+        const auto mode = static_cast<SyncMode>(
+            syncModeParam_ ? static_cast<int>(syncModeParam_->load()) : 0);
+        const bool isStandalone =
+            (wrapperType == juce::AudioProcessor::wrapperType_Standalone);
+
+        bool sequencerRunning = false;
+        if (mode == SyncMode::Locked)
+        {
+            // Locked + hosted → DAW transport controls; Locked + standalone → in-plugin Play.
+            sequencerRunning = isStandalone ? clock_.inPluginPlaying() : clock_.hostPlaying();
+        }
+        else  // Auto
+        {
+            sequencerRunning = clock_.inPluginPlaying();
+            // Rising edge: record anchor PPQ so Auto mode starts from step 0.
+            if (sequencerRunning && !wasInPluginPlaying_)
+            {
+                anchorPpq_ = clock_.ppqAtBlockStart();
+                nextTriggerPpq_.fill(anchorPpq_);
+            }
+        }
+        wasInPluginPlaying_ = clock_.inPluginPlaying();
+
+        if (!sequencerRunning)
+        {
+            // Keep audio path (gain smoothing, DC blocker) running so it doesn't freeze.
+            const float targetGainDb = apvts_.getRawParameterValue(ParamIDs::outputGain)->load();
+            gainSmoothed_.setTargetValue(
+                juce::Decibels::decibelsToGain(targetGainDb, -60.0f));
+
+            const int numOut     = buffer.getNumChannels();
+            const int numSamples = buffer.getNumSamples();
+            const int numDcChans = std::min(numOut, static_cast<int>(dcX1_.size()));
+
+            for (int i = 0; i < numSamples; ++i)
+            {
+                const float gain = gainSmoothed_.getNextValue();
+                for (int ch = 0; ch < numOut; ++ch)
+                {
+                    float s = buffer.getSample(ch, i) * gain;
+                    if (ch < numDcChans)
+                    {
+                        const float x1 = dcX1_[static_cast<std::size_t>(ch)];
+                        const float y1 = dcY1_[static_cast<std::size_t>(ch)];
+                        const float y  = s - x1 + 0.999f * y1;
+                        dcX1_[static_cast<std::size_t>(ch)] = s;
+                        dcY1_[static_cast<std::size_t>(ch)] = y;
+                        s = y;
+                    }
+                    buffer.setSample(ch, i, std::tanh(s));
+                }
+            }
+            return;
+        }
+
+        // ---- PPQ window for step detection --------------------------------
+        // In Auto mode, offset PPQ by the anchor so step 0 aligns with Play press.
+        const double ppqOffset = (mode == SyncMode::Auto) ? anchorPpq_ : 0.0;
+        const double blockStart    = clock_.ppqAtBlockStart() - ppqOffset;
+        const double blockEnd      = clock_.ppqAtBlockEnd()   - ppqOffset;
         const double samplesPerPpq = clock_.samplesPerPpq();
 
         // If the DAW looped or the user hit Reset, snap all per-track cursors
