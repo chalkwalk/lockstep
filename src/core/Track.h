@@ -15,6 +15,7 @@ namespace lockstep
         int length = 16;       // 1..kMaxStepsPerTrack
         int divider = 1;       // clock divider; 1 = base 16th grid
         ParamFrame baseParams{}; // track-level "default" values
+        TrigCondition baseCond{};  // track-level condition; step condition overrides if non-trivial
 
         std::array<Step, kMaxStepsPerTrack> steps{};
     };

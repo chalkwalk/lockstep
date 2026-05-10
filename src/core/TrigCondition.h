@@ -21,5 +21,17 @@ namespace lockstep
         // 2 = fire only if previous step did NOT fire. (Encoding finalised
         // when the evaluator lands.)
         std::uint8_t prevDependency = 0;
+
+        // True when the condition imposes no restriction — equivalent to
+        // the default-constructed value. Used for Override-ELSE-Base
+        // fallthrough: if a step's condition is trivial, the track's
+        // baseCond is used instead.
+        [[nodiscard]] bool isTrivial() const
+        {
+            return probabilityPercent >= 100
+                && iterNumerator == 1
+                && iterDenominator == 1
+                && prevDependency == 0;
+        }
     };
 }

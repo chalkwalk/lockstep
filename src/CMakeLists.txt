@@ -16,6 +16,7 @@ add_library(lockstep_core STATIC
     machine/VoiceChoke.cpp
     io/AbsoluteCC.cpp
     io/RelativeCC.cpp
+    io/CCMappingTable.cpp
     io/MidiInput.cpp
     io/QwertyOverlay.cpp
     state/Hash.cpp

@@ -107,7 +107,7 @@ M0.
 - [x] **M4.2** Iteration rules (`m:n`) with a per-track iteration
       counter that survives loops.
 - [x] **M4.3** Previous-dependency state machine.
-- [ ] **M4.4** Track-level base condition: add `baseCond : TrigCondition`
+- [x] **M4.4** Track-level base condition: add `baseCond : TrigCondition`
       to `Track`. The evaluator falls through to it when a step's
       condition is trivial, mirroring the Override-ELSE-Base rule.
       Probability and m:n are the primary UI-exposed fields; prev-dep
@@ -117,7 +117,7 @@ M0.
 
 The full input abstraction described in DESIGN.md §4.3 + §5.
 
-- [ ] **M5.1** Absolute CC with soft-takeover, per-parameter mapping.
+- [x] **M5.1** Absolute CC with soft-takeover, per-parameter mapping.
 - [ ] **M5.2** Relative CC delta arithmetic, configurable scale.
 - [ ] **M5.3** EditContext interception: writes during a held step
       land in the Step Override. Rule applies to CC, encoder, and

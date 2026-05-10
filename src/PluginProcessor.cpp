@@ -99,7 +99,20 @@ namespace lockstep
             buffer.clear(ch, 0, buffer.getNumSamples());
         buffer.clear();
 
-        midiInput_.process(midi, editContext_);
+        CCMidiContext ccCtx;
+        ccCtx.table      = &ccMappingTable_;
+        ccCtx.focusTrack = focusTrack_;
+        ccCtx.getCurrentTrackValue = [this](int t, int s) -> float {
+            return sequence_.tracks[static_cast<std::size_t>(t)]
+                       .baseParams[static_cast<std::size_t>(s)];
+        };
+        ccCtx.getMetadata = [this](int t, int s) {
+            return paramMetadata(t, s);
+        };
+        ccCtx.writeTrackParam = [this](int t, int s, float v) {
+            writeParam(t, s, v);
+        };
+        midiInput_.process(midi, editContext_, ccCtx);
 
         // The JUCE AudioProcessorPlayer (standalone wrapper) always provides a
         // PlayHead, but its getPosition() sets only timeInSamples/timeInSeconds
@@ -219,9 +232,12 @@ namespace lockstep
                         stepNum % static_cast<std::int64_t>(trackLen));
 
                     const auto& step = track.steps[static_cast<std::size_t>(stepIndex)];
+                    const TrigCondition& cond = step.condition.isTrivial()
+                                                    ? track.baseCond
+                                                    : step.condition;
                     const bool fired =
                         step.trig
-                        && TrigEvaluator::shouldFire(step.condition, i, stepNum,
+                        && TrigEvaluator::shouldFire(cond, i, stepNum,
                                                       trackLen, lastStepFired_[i]);
                     if (fired)
                     {

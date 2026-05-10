@@ -6,6 +6,7 @@
 #include "core/Clock.h"
 #include "core/Sequence.h"
 #include "core/SyncMode.h"
+#include "io/CCMappingTable.h"
 #include "io/EditContext.h"
 #include "io/MidiInput.h"
 #include "machine/IMachine.h"
@@ -49,6 +50,10 @@ namespace lockstep
         const Clock& clock() const { return clock_; }
         SamplePool& samplePool() { return samplePool_; }
         EditContext& editContext() { return editContext_; }
+        CCMappingTable& ccMappingTable() { return ccMappingTable_; }
+
+        int  focusTrack() const       { return focusTrack_; }
+        void setFocusTrack(int track) { focusTrack_ = track; }
 
         // Route a parameter write to the correct layer. If EditContext is
         // active for the given track, the value lands in the held step's
@@ -73,6 +78,8 @@ namespace lockstep
         Sequence sequence_;
         Clock clock_;
         EditContext editContext_;
+        CCMappingTable ccMappingTable_;
+        int focusTrack_ = -1;  // -1 = Global; 0-7 = Track
         MidiInput midiInput_;
         std::array<std::unique_ptr<IMachine>, kNumTracks> machines_;
         std::array<double, kNumTracks> nextTriggerPpq_{};
