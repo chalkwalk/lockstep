@@ -1,4 +1,5 @@
 #include "CCMappingTable.h"
+#include "RelativeCC.h"
 #include <algorithm>
 
 namespace lockstep
@@ -32,8 +33,6 @@ namespace lockstep
         const std::function<ParamMetadata(int, int)>& getMetadata,
         const std::function<void(int, int, float)>&   writeTrackParam)
     {
-        const float incomingNorm = static_cast<float>(rawValue) / 127.0f;
-
         for (auto& m : mappings_)
         {
             if (m.ccNumber != ccNumber)
@@ -55,14 +54,34 @@ namespace lockstep
             if (targetTrack < 0 || m.slot < 0)
                 continue;
 
-            const auto meta = getMetadata(targetTrack, m.slot);
-            const float range = meta.maxValue - meta.minValue;
+            const auto  meta         = getMetadata(targetTrack, m.slot);
+            const float range        = meta.maxValue - meta.minValue;
             const float currentActual = getCurrentTrackValue(targetTrack, m.slot);
-            const float currentNorm = (range > 0.0f)
+            const float currentNorm  = (range > 0.0f)
                 ? (currentActual - meta.minValue) / range
                 : 0.0f;
 
-            const float resultNorm   = m.router.route(currentNorm, incomingNorm);
+            float resultNorm;
+            if (m.isRelative)
+            {
+                int delta;
+                if (m.encoding == RelativeCCEncoding::BinOffset)
+                    delta = rawValue - 64;
+                else // TwosComplement
+                    delta = (rawValue > 63) ? rawValue - 128 : rawValue;
+
+                if (delta == 0)
+                    continue;
+
+                resultNorm = RelativeCCRouter{}.apply(currentNorm, delta, m.scale);
+                resultNorm = std::clamp(resultNorm, 0.0f, 1.0f);
+            }
+            else
+            {
+                const float incomingNorm = static_cast<float>(rawValue) / 127.0f;
+                resultNorm = m.router.route(currentNorm, incomingNorm);
+            }
+
             const float resultActual = meta.minValue + resultNorm * range;
             writeTrackParam(targetTrack, m.slot, resultActual);
         }
