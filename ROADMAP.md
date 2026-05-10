@@ -119,7 +119,7 @@ The full input abstraction described in DESIGN.md §4.3 + §5.
 
 - [x] **M5.1** Absolute CC with soft-takeover, per-parameter mapping.
 - [x] **M5.2** Relative CC delta arithmetic, configurable scale.
-- [ ] **M5.3** EditContext interception: writes during a held step
+- [x] **M5.3** EditContext interception: writes during a held step
       land in the Step Override. Rule applies to CC, encoder, and
       QWERTY input identically.
 - [ ] **M5.4** MIDI Learn UX (right-click a parameter → "wiggle a

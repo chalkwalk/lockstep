@@ -103,8 +103,20 @@ namespace lockstep
         ccCtx.table      = &ccMappingTable_;
         ccCtx.focusTrack = focusTrack_;
         ccCtx.getCurrentTrackValue = [this](int t, int s) -> float {
-            return sequence_.tracks[static_cast<std::size_t>(t)]
-                       .baseParams[static_cast<std::size_t>(s)];
+            const auto ti = static_cast<std::size_t>(t);
+            const float base = sequence_.tracks[ti].baseParams[static_cast<std::size_t>(s)];
+            // When a step is held on this track, read from its P-Lock (if present)
+            // so soft-takeover and relative-delta both operate against the value
+            // actually being edited, not the track base.
+            if (editContext_.isActiveForEditing()
+                && editContext_.heldTrackIndex() == t)
+            {
+                const int step = editContext_.heldStepIndex();
+                if (step >= 0 && step < kMaxStepsPerTrack)
+                    return sequence_.tracks[ti]
+                        .steps[static_cast<std::size_t>(step)].overrides.get(s, base);
+            }
+            return base;
         };
         ccCtx.getMetadata = [this](int t, int s) {
             return paramMetadata(t, s);
