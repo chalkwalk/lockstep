@@ -24,15 +24,20 @@ namespace lockstep
         int sampleSelectSlot() const override { return kSlotSampleId; }
 
     private:
-        // Slot assignments (Page 0 = sample, Page 1+2 = envelope)
+        // Section 0 "Source" — page 0 (slots 0–3)
         static constexpr int kSlotSampleId  = 0;
-        static constexpr int kSlotPitch     = 1;
+        static constexpr int kSlotPitch     = 1;  // note slot: semitone offset from MIDI 60
         static constexpr int kSlotLevel     = 2;
-        static constexpr int kSlotAttack    = 4;
-        static constexpr int kSlotHold      = 5;
-        static constexpr int kSlotDecay     = 6;
-        static constexpr int kSlotSustain   = 7;
-        static constexpr int kSlotRelease   = 8;
+        static constexpr int kSlotGate      = 3;  // gate length ms; 0 = hold until retrigger
+        // Section 0 page 1 (slots 4–7): spare
+
+        // Section 1 "Env" — page 0 (slots 8–11), page 1 slot 12
+        static constexpr int kSlotAttack    = 8;
+        static constexpr int kSlotHold      = 9;
+        static constexpr int kSlotDecay     = 10;
+        static constexpr int kSlotSustain   = 11;
+        static constexpr int kSlotRelease   = 12;
+        // Slots 13–47: spare (sections 1 page 1 tail + sections 2–5)
 
         enum class Stage { Idle, Attack, Hold, Decay, Sustain, Release };
 

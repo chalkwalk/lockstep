@@ -249,37 +249,38 @@ namespace lockstep
 
     ParamMetadata SamplerMachine::getParamMetadata(int slot) const
     {
+        using U = ParamMetadata::Unit;
         switch (slot)
         {
-        using U = ParamMetadata::Unit;
+        // Source section (slots 0–3)
         case kSlotSampleId: return { "Sample",   0.0f,   127.0f,   0.0f, true,  U::None      };
         case kSlotPitch:    return { "Pitch",   -24.0f,   24.0f,   0.0f, false, U::Semitones };
-        case kSlotLevel:    return { "Level",    0.0f,    1.0f,    1.0f, false, U::Percent   };
-        case kSlotAttack:   return { "Attack",   0.0f, 5000.0f,    2.0f, false, U::Ms        };
-        case kSlotHold:     return { "Hold",     0.0f, 2000.0f,    0.0f, false, U::Ms        };
-        case kSlotDecay:    return { "Decay",    0.0f, 5000.0f,  500.0f, false, U::Ms        };
-        case kSlotSustain:  return { "Sustain",  0.0f,    1.0f,   0.5f, false, U::Percent   };
-        case kSlotRelease:  return { "Release",  0.0f, 5000.0f,  200.0f, false, U::Ms        };
+        case kSlotLevel:    return { "Level",    0.0f,     1.0f,   1.0f, false, U::Percent   };
+        case kSlotGate:     return { "Gate",     0.0f, 10000.0f,   0.0f, false, U::Ms        };
+        // Env section (slots 8–12)
+        case kSlotAttack:   return { "Attack",   0.0f,  5000.0f,   2.0f, false, U::Ms        };
+        case kSlotHold:     return { "Hold",     0.0f,  2000.0f,   0.0f, false, U::Ms        };
+        case kSlotDecay:    return { "Decay",    0.0f,  5000.0f, 500.0f, false, U::Ms        };
+        case kSlotSustain:  return { "Sustain",  0.0f,     1.0f,  0.5f, false, U::Percent   };
+        case kSlotRelease:  return { "Release",  0.0f,  5000.0f, 200.0f, false, U::Ms        };
         default:            return {};
         }
     }
 
     // -------------------------------------------------------------------------
-    // Section taxonomy: 6 sections x 2 pages x 4 slots = 48 slots.
-    // Labels are placeholders — they will be named once the full param set firms up.
+    // Section taxonomy: 6 sections × 2 pages × 4 slots = 48 slots.
 
     int SamplerMachine::numTrackSections() const { return kNumSections; }
 
     SectionInfo SamplerMachine::trackSection(int index) const
     {
-        // Each section owns 8 consecutive slots (2 pages × 4).
         static const std::array<SectionInfo, kNumSections> kSections {{
-            { "A", "", 2, 0  },
-            { "B", "", 2, 8  },
-            { "C", "", 2, 16 },
-            { "D", "", 2, 24 },
-            { "E", "", 2, 32 },
-            { "F", "", 2, 40 },
+            { "Source", "", 2, 0  },
+            { "Env",    "", 2, 8  },
+            { "Mod",    "", 2, 16 },
+            { "FX",     "", 2, 24 },
+            { "Route",  "", 2, 32 },
+            { "Util",   "", 2, 40 },
         }};
         if (index < 0 || index >= kNumSections)
             return {};
