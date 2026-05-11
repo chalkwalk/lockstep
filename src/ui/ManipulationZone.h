@@ -37,6 +37,8 @@ namespace lockstep
         static constexpr int kNumSlots = 4;
 
         void refreshSliders();
+        void refreshCondSliders();
+        void writeCondField(int field, float value);
         void showMappingMenu(int slotIndex);
 
         LockstepProcessor& processor_;
