@@ -14,11 +14,14 @@ namespace lockstep
 
     struct ParamMetadata
     {
+        enum class Unit { None, Ms, Semitones, Percent };
+
         std::string label;     // shown in the Manipulation Zone
         float minValue = 0.0f;
         float maxValue = 1.0f;
         float defaultValue = 0.0f;
         bool isStepped = false;
+        Unit unit = Unit::None;
     };
 
     // Describes one logical grouping of consecutive pages within the 48-slot frame.

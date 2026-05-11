@@ -44,6 +44,7 @@ namespace lockstep
 
         std::array<juce::Slider,     kNumSlots> sliders_;
         std::array<juce::Label,      kNumSlots> labels_;
+        std::array<juce::Label,      kNumSlots> valueLabels_;
         std::array<juce::TextButton, kNumSlots> clearBtns_;
         bool updatingFromTimer_ = false;
     };

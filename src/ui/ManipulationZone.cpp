@@ -2,6 +2,7 @@
 #include "../PluginProcessor.h"
 #include "StepGrid.h"
 #include <algorithm>
+#include <cmath>
 
 namespace lockstep
 {
@@ -12,11 +13,16 @@ namespace lockstep
         {
             const auto si = static_cast<std::size_t>(i);
 
+            valueLabels_[si].setJustificationType(juce::Justification::centredLeft);
+            valueLabels_[si].setFont(juce::Font(juce::FontOptions(11.0f)));
+            addAndMakeVisible(valueLabels_[si]);
+
             labels_[si].setJustificationType(juce::Justification::centred);
+            labels_[si].setFont(juce::Font(juce::FontOptions(10.0f)));
             addAndMakeVisible(labels_[si]);
 
-            sliders_[si].setSliderStyle(juce::Slider::LinearVertical);
-            sliders_[si].setTextBoxStyle(juce::Slider::TextBoxBelow, false, 48, 14);
+            sliders_[si].setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+            sliders_[si].setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
             sliders_[si].setWantsKeyboardFocus(false);
             sliders_[si].onDragStart = [this, i]
             {
@@ -140,6 +146,29 @@ namespace lockstep
         refreshSliders();
     }
 
+    static juce::String formatValue(float v, ParamMetadata::Unit unit, bool isStepped)
+    {
+        if (isStepped)
+            return juce::String(static_cast<int>(std::round(v)));
+
+        switch (unit)
+        {
+            case ParamMetadata::Unit::Ms:
+                return v < 10.0f ? juce::String(v, 1) + " ms"
+                                 : juce::String(static_cast<int>(v)) + " ms";
+            case ParamMetadata::Unit::Semitones:
+            {
+                const int st = static_cast<int>(std::round(v));
+                return (st >= 0 ? "+" : "") + juce::String(st) + " st";
+            }
+            case ParamMetadata::Unit::Percent:
+                return juce::String(static_cast<int>(v * 100.0f)) + "%";
+            case ParamMetadata::Unit::None:
+            default:
+                return juce::String(v, 2);
+        }
+    }
+
     void ManipulationZone::refreshSliders()
     {
         const int track = grid_.getActiveTrack();
@@ -152,8 +181,8 @@ namespace lockstep
         updatingFromTimer_ = true;
         for (int i = 0; i < kNumSlots; ++i)
         {
-            const auto si   = static_cast<std::size_t>(i);
-            const int  slot = slotOffset_ + i;
+            const auto si     = static_cast<std::size_t>(i);
+            const int  slot   = slotOffset_ + i;
             const auto slotSz = static_cast<std::size_t>(slot);
 
             const auto meta = processor_.paramMetadata(track, slot);
@@ -164,30 +193,28 @@ namespace lockstep
 
             float value = t.baseParams[slotSz];
 
-            if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == track)
+            const bool stepHeld = ctx.isActiveForEditing() && ctx.heldTrackIndex() == track;
+            const int  heldStep = ctx.heldStepIndex();
+            bool hasLock = false;
+
+            if (stepHeld && heldStep >= 0)
             {
-                const int step = ctx.heldStepIndex();
-                if (step >= 0)
-                    value = t.steps[static_cast<std::size_t>(step)].overrides.get(slot, value);
+                value   = t.steps[static_cast<std::size_t>(heldStep)].overrides.get(slot, value);
+                hasLock = t.steps[static_cast<std::size_t>(heldStep)].overrides.has(slot);
             }
 
             sliders_[si].setValue(static_cast<double>(value), juce::dontSendNotification);
 
-            juce::String labelText = meta.label.empty()
-                                         ? juce::String(slot)
-                                         : juce::String(meta.label);
-            if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == track)
-            {
-                const int step = ctx.heldStepIndex();
-                if (step >= 0 && t.steps[static_cast<std::size_t>(step)].overrides.has(slot))
-                    labelText += " *";
-            }
-            labels_[si].setText(labelText, juce::dontSendNotification);
+            juce::String valueText = formatValue(value, meta.unit, meta.isStepped);
+            if (hasLock)
+                valueText += " *";
+            valueLabels_[si].setText(valueText, juce::dontSendNotification);
 
-            const bool stepHeld = ctx.isActiveForEditing() && ctx.heldTrackIndex() == track;
-            const int  heldStep = ctx.heldStepIndex();
-            const bool hasLock  = stepHeld && heldStep >= 0
-                && t.steps[static_cast<std::size_t>(heldStep)].overrides.has(slot);
+            const juce::String nameText = meta.label.empty()
+                                              ? juce::String(slot)
+                                              : juce::String(meta.label);
+            labels_[si].setText(nameText, juce::dontSendNotification);
+
             clearBtns_[si].setEnabled(hasLock);
             clearBtns_[si].setAlpha(hasLock ? 1.0f : 0.3f);
         }
@@ -289,8 +316,16 @@ namespace lockstep
         {
             const auto si = static_cast<std::size_t>(i);
             auto col = bounds.removeFromLeft(slotW).reduced(2, 0);
-            clearBtns_[si].setBounds(col.removeFromTop(16));
+
+            // Top row: value display left, clear button right.
+            auto topRow = col.removeFromTop(16);
+            clearBtns_[si].setBounds(topRow.removeFromRight(18));
+            valueLabels_[si].setBounds(topRow);
+
+            // Bottom row: parameter name.
             labels_[si].setBounds(col.removeFromBottom(16));
+
+            // Middle: rotary knob.
             sliders_[si].setBounds(col);
         }
     }

@@ -251,14 +251,15 @@ namespace lockstep
     {
         switch (slot)
         {
-        case kSlotSampleId: return { "Sample",  0.0f,   127.0f,  0.0f, true  };
-        case kSlotPitch:    return { "Pitch",  -24.0f,   24.0f,  0.0f, false };
-        case kSlotLevel:    return { "Level",   0.0f,    1.0f,   1.0f, false };
-        case kSlotAttack:   return { "Attack",  0.0f, 5000.0f,   2.0f, false };
-        case kSlotHold:     return { "Hold",    0.0f, 2000.0f,   0.0f, false };
-        case kSlotDecay:    return { "Decay",   0.0f, 5000.0f, 500.0f, false };
-        case kSlotSustain:  return { "Sustain", 0.0f,    1.0f,   0.5f, false };
-        case kSlotRelease:  return { "Release", 0.0f, 5000.0f, 200.0f, false };
+        using U = ParamMetadata::Unit;
+        case kSlotSampleId: return { "Sample",   0.0f,   127.0f,   0.0f, true,  U::None      };
+        case kSlotPitch:    return { "Pitch",   -24.0f,   24.0f,   0.0f, false, U::Semitones };
+        case kSlotLevel:    return { "Level",    0.0f,    1.0f,    1.0f, false, U::Percent   };
+        case kSlotAttack:   return { "Attack",   0.0f, 5000.0f,    2.0f, false, U::Ms        };
+        case kSlotHold:     return { "Hold",     0.0f, 2000.0f,    0.0f, false, U::Ms        };
+        case kSlotDecay:    return { "Decay",    0.0f, 5000.0f,  500.0f, false, U::Ms        };
+        case kSlotSustain:  return { "Sustain",  0.0f,    1.0f,   0.5f, false, U::Percent   };
+        case kSlotRelease:  return { "Release",  0.0f, 5000.0f,  200.0f, false, U::Ms        };
         default:            return {};
         }
     }
