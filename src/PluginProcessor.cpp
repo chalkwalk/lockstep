@@ -28,6 +28,9 @@ namespace lockstep
     {
         nextTriggerPpq_.fill(0.0);
 
+        for (auto& s : mzSlots_)
+            s.store(-1, std::memory_order_relaxed);
+
         syncModeParam_ = apvts_.getRawParameterValue(ParamIDs::syncMode);
 
         for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
@@ -55,6 +58,41 @@ namespace lockstep
     }
 
     LockstepProcessor::~LockstepProcessor() = default;
+
+    void LockstepProcessor::setMZSlots(int slotOffset)
+    {
+        for (int i = 0; i < 4; ++i)
+            mzSlots_[static_cast<std::size_t>(i)].store(slotOffset + i,
+                                                         std::memory_order_relaxed);
+    }
+
+    void LockstepProcessor::startLearn(CCScope scope, int trackIndex,
+                                        int slot, int mzPosition)
+    {
+        learnRequest_.scope      = scope;
+        learnRequest_.trackIndex = trackIndex;
+        learnRequest_.slot       = slot;
+        learnRequest_.mzPosition = mzPosition;
+        learnActive_.store(true, std::memory_order_release);
+    }
+
+    void LockstepProcessor::cancelLearn()
+    {
+        learnActive_.store(false, std::memory_order_release);
+    }
+
+    WidgetMappingInfo LockstepProcessor::queryWidgetMapping(int slot, int mzPosition) const
+    {
+        for (const auto& m : ccMappingTable_.mappings())
+        {
+            if (m.scope == CCScope::Contextual && m.mzPosition == mzPosition)
+                return { true, CCScope::Contextual, -1, m.slot, m.mzPosition, m.ccNumber };
+            if ((m.scope == CCScope::Track || m.scope == CCScope::SelectedTrack)
+                && m.slot == slot)
+                return { true, m.scope, m.trackIndex, m.slot, -1, m.ccNumber };
+        }
+        return {};
+    }
 
     void LockstepProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     {
@@ -99,9 +137,15 @@ namespace lockstep
             buffer.clear(ch, 0, buffer.getNumSamples());
         buffer.clear();
 
+        // Snapshot MZ slot mapping for audio-thread use.
+        std::array<int, 4> mzSlotSnapshot;
+        for (std::size_t i = 0; i < 4; ++i)
+            mzSlotSnapshot[i] = mzSlots_[i].load(std::memory_order_relaxed);
+
         CCMidiContext ccCtx;
         ccCtx.table      = &ccMappingTable_;
         ccCtx.focusTrack = focusTrack_;
+        ccCtx.mzSlots    = mzSlotSnapshot;
         ccCtx.getCurrentTrackValue = [this](int t, int s) -> float {
             const auto ti = static_cast<std::size_t>(t);
             const float base = sequence_.tracks[ti].baseParams[static_cast<std::size_t>(s)];
@@ -124,6 +168,20 @@ namespace lockstep
         ccCtx.writeTrackParam = [this](int t, int s, float v) {
             writeParam(t, s, v);
         };
+        if (learnActive_.load(std::memory_order_acquire))
+        {
+            ccCtx.onLearnCapture = [this](int ccNum)
+            {
+                CCMapping m;
+                m.ccNumber   = ccNum;
+                m.scope      = learnRequest_.scope;
+                m.trackIndex = learnRequest_.trackIndex;
+                m.slot       = learnRequest_.slot;
+                m.mzPosition = learnRequest_.mzPosition;
+                ccMappingTable_.addMapping(std::move(m));
+                learnActive_.store(false, std::memory_order_release);
+            };
+        }
         midiInput_.process(midi, editContext_, ccCtx);
 
         // The JUCE AudioProcessorPlayer (standalone wrapper) always provides a

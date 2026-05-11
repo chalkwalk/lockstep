@@ -3,6 +3,7 @@
 #include "CCMappingTable.h"
 #include "../machine/IMachine.h"
 #include <juce_audio_basics/juce_audio_basics.h>
+#include <array>
 #include <functional>
 
 namespace lockstep
@@ -13,10 +14,16 @@ namespace lockstep
     struct CCMidiContext
     {
         CCMappingTable* table = nullptr;
-        int focusTrack = -1;  // -1 = Global focus; 0-7 = Track
+        int focusTrack = -1;                    // -1 = Global; 0-7 = Track
+        std::array<int, 4> mzSlots { -1, -1, -1, -1 };
+
         std::function<float(int, int)>          getCurrentTrackValue;
         std::function<ParamMetadata(int, int)>  getMetadata;
         std::function<void(int, int, float)>    writeTrackParam;
+
+        // When set, the next CC received is passed here instead of dispatched.
+        // Cleared by the callback itself (via the learn-complete path).
+        std::function<void(int ccNumber)>       onLearnCapture;
     };
 
     class MidiInput

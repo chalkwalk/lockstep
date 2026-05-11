@@ -9,7 +9,8 @@ namespace lockstep
     {
         Global,       // targets a global APVTS parameter by ID
         Track,        // targets a fixed track by index
-        SelectedTrack // targets whichever track is currently focused
+        SelectedTrack,// targets whichever track is currently focused
+        Contextual    // follows focus track + Manipulation Zone display position
     };
 
     // How a relative CC encodes its direction.
@@ -27,6 +28,7 @@ namespace lockstep
         CCScope scope = CCScope::Track;
         int trackIndex = 0;     // used when scope == Track
         int slot = -1;          // machine param slot (Track / SelectedTrack)
+        int mzPosition = -1;    // 0-3: MZ display position (Contextual scope only)
         std::string apvtsID;    // used when scope == Global
 
         // --- Absolute mode (default) ---

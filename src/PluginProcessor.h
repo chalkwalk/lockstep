@@ -1,6 +1,7 @@
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <atomic>
 #include <memory>
 
 #include "core/Clock.h"
@@ -14,6 +15,17 @@
 
 namespace lockstep
 {
+    // Info returned when querying whether a ManipulationZone widget has a CC mapping.
+    struct WidgetMappingInfo
+    {
+        bool    exists     = false;
+        CCScope scope      = CCScope::Track;
+        int     trackIndex = -1;  // for Track scope badge label
+        int     slot       = -1;
+        int     mzPosition = -1;
+        int     ccNumber   = -1;
+    };
+
     class LockstepProcessor : public juce::AudioProcessor
     {
     public:
@@ -55,6 +67,20 @@ namespace lockstep
         int  focusTrack() const       { return focusTrack_; }
         void setFocusTrack(int track) { focusTrack_ = track; }
 
+        // Called from ManipulationZone (UI thread) when its slot offset changes.
+        // Records which absolute slot each of the 4 display positions currently shows.
+        void setMZSlots(int slotOffset);
+
+        // MIDI Learn: arms the next CC received as a mapping.
+        // slot and mzPosition are mutually exclusive (only one applies per scope).
+        void startLearn(CCScope scope, int trackIndex, int slot, int mzPosition = -1);
+        void cancelLearn();
+        bool isLearning() const { return learnActive_.load(std::memory_order_acquire); }
+
+        // Query whether a ManipulationZone widget column has a CC mapping.
+        // slot is the absolute slot index; mzPosition is the widget's display position (0-3).
+        WidgetMappingInfo queryWidgetMapping(int slot, int mzPosition) const;
+
         // Route a parameter write to the correct layer. If EditContext is
         // active for the given track, the value lands in the held step's
         // P-Lock; otherwise it updates the track's base params.
@@ -80,24 +106,39 @@ namespace lockstep
         EditContext editContext_;
         CCMappingTable ccMappingTable_;
         int focusTrack_ = -1;  // -1 = Global; 0-7 = Track
+
+        // Current slot index for each MZ display position.
+        // Written by the UI thread, read by the audio thread (atomic).
+        std::array<std::atomic<int>, 4> mzSlots_;
+
+        // Pending MIDI Learn request. UI thread writes fields then raises
+        // learnActive_ (release); audio thread reads after acquire.
+        struct PendingLearnRequest
+        {
+            CCScope scope      = CCScope::Track;
+            int trackIndex     = -1;
+            int slot           = -1;
+            int mzPosition     = -1;
+        };
+        std::atomic<bool>  learnActive_ { false };
+        PendingLearnRequest learnRequest_;
+
         MidiInput midiInput_;
         std::array<std::unique_ptr<IMachine>, kNumTracks> machines_;
         std::array<double, kNumTracks> nextTriggerPpq_{};
-        std::array<bool, kNumTracks>   lastStepFired_{};   // prev-dependency state
-        double anchorPpq_ = 0.0;         // Auto mode: PPQ at last in-plugin Play press
-        bool   wasInPluginPlaying_ = false;  // Auto mode: rising-edge detection
+        std::array<bool, kNumTracks>   lastStepFired_{};
+        double anchorPpq_ = 0.0;
+        bool   wasInPluginPlaying_ = false;
 
-        // Raw pointer to the syncMode choice parameter, cached in ctor.
         std::atomic<float>* syncModeParam_ = nullptr;
 
-        // Cached APVTS raw-value pointers for per-track structural params (audio-thread safe).
         std::array<std::atomic<float>*, kNumTracks> trackLengthParams_{};
         std::array<std::atomic<float>*, kNumTracks> trackDividerParams_{};
         std::array<std::atomic<float>*, kNumTracks> trackMuteParams_{};
 
         juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> gainSmoothed_;
-        std::array<float, 2> dcX1_{};  // per-channel DC blocker: previous input
-        std::array<float, 2> dcY1_{};  // per-channel DC blocker: previous output
+        std::array<float, 2> dcX1_{};
+        std::array<float, 2> dcY1_{};
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LockstepProcessor)
     };

@@ -122,7 +122,7 @@ The full input abstraction described in DESIGN.md §4.3 + §5.
 - [x] **M5.3** EditContext interception: writes during a held step
       land in the Step Override. Rule applies to CC, encoder, and
       QWERTY input identically.
-- [ ] **M5.4** MIDI Learn UX (right-click a parameter → "wiggle a
+- [x] **M5.4** MIDI Learn UX (right-click a parameter → "wiggle a
       controller"). Each mapping carries a scope:
       `{Master | Track[N] | SelectedTrack}`. Mappings project-saved.
 - [ ] **M5.5** Channel modes: Omni→Selected and Per-Track. Global
