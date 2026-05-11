@@ -127,7 +127,7 @@ The full input abstraction described in DESIGN.md §4.3 + §5.
       `{Master | Track[N] | SelectedTrack}`. Mappings project-saved.
 - [x] **M5.5** Channel modes: Omni→Selected and Per-Track. Global
       setting; channels 9–16 ignored in Per-Track.
-- [ ] **M5.6** Four contextual encoders: configurable CC inputs that
+- [x] **M5.6** Four contextual encoders: configurable CC inputs that
       always drive the current focus quadrant. Focus is a first-class
       state `{Master, Track1..8}`.
 - [ ] **M5.7** Note-on triggers the destination track's machine

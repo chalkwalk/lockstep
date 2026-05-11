@@ -35,6 +35,7 @@ namespace lockstep
                     processor_.apvts(), ParamIDs::trackMute(i), muteBtns_[ti]);
         }
         trackBtns_[0].setToggleState(true, juce::dontSendNotification);
+        processor_.setFocusTrack(activeTrack_);  // sync initial focus (track 0)
 
         prevBtn_.onClick = [this] { prevPage(); repaint(); };
         prevBtn_.setWantsKeyboardFocus(false);
@@ -66,6 +67,7 @@ namespace lockstep
             true, juce::dontSendNotification);
 
         activeTrack_ = clamped;
+        processor_.setFocusTrack(clamped);
         stepPage_    = 0;
         rebuildLengthAttachment();
         repaint();
