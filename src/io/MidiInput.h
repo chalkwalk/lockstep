@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CCMappingTable.h"
+#include "../core/ChannelMode.h"
 #include "../machine/IMachine.h"
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <array>
@@ -16,6 +17,7 @@ namespace lockstep
         CCMappingTable* table = nullptr;
         int focusTrack = -1;                    // -1 = Global; 0-7 = Track
         std::array<int, 4> mzSlots { -1, -1, -1, -1 };
+        ChannelMode channelMode = ChannelMode::Omni;
 
         std::function<float(int, int)>          getCurrentTrackValue;
         std::function<ParamMetadata(int, int)>  getMetadata;

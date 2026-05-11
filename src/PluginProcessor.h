@@ -4,6 +4,7 @@
 #include <atomic>
 #include <memory>
 
+#include "core/ChannelMode.h"
 #include "core/Clock.h"
 #include "core/Sequence.h"
 #include "core/SyncMode.h"
@@ -130,7 +131,8 @@ namespace lockstep
         double anchorPpq_ = 0.0;
         bool   wasInPluginPlaying_ = false;
 
-        std::atomic<float>* syncModeParam_ = nullptr;
+        std::atomic<float>* syncModeParam_    = nullptr;
+        std::atomic<float>* channelModeParam_ = nullptr;
 
         std::array<std::atomic<float>*, kNumTracks> trackLengthParams_{};
         std::array<std::atomic<float>*, kNumTracks> trackDividerParams_{};

@@ -21,6 +21,12 @@ namespace lockstep
             juce::StringArray{ "Locked", "Auto" },
             0));
 
+        layout.add(std::make_unique<juce::AudioParameterChoice>(
+            juce::ParameterID{ ParamIDs::channelMode, 1 },
+            "Channel Mode",
+            juce::StringArray{ "Omni", "Per-Track" },
+            0));
+
         for (int t = 0; t < kNumTracks; ++t)
         {
             layout.add(std::make_unique<juce::AudioParameterInt>(

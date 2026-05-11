@@ -125,7 +125,7 @@ The full input abstraction described in DESIGN.md §4.3 + §5.
 - [x] **M5.4** MIDI Learn UX (right-click a parameter → "wiggle a
       controller"). Each mapping carries a scope:
       `{Master | Track[N] | SelectedTrack}`. Mappings project-saved.
-- [ ] **M5.5** Channel modes: Omni→Selected and Per-Track. Global
+- [x] **M5.5** Channel modes: Omni→Selected and Per-Track. Global
       setting; channels 9–16 ignored in Per-Track.
 - [ ] **M5.6** Four contextual encoders: configurable CC inputs that
       always drive the current focus quadrant. Focus is a first-class

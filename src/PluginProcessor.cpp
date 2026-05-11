@@ -31,7 +31,8 @@ namespace lockstep
         for (auto& s : mzSlots_)
             s.store(-1, std::memory_order_relaxed);
 
-        syncModeParam_ = apvts_.getRawParameterValue(ParamIDs::syncMode);
+        syncModeParam_    = apvts_.getRawParameterValue(ParamIDs::syncMode);
+        channelModeParam_ = apvts_.getRawParameterValue(ParamIDs::channelMode);
 
         for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
         {
@@ -143,9 +144,12 @@ namespace lockstep
             mzSlotSnapshot[i] = mzSlots_[i].load(std::memory_order_relaxed);
 
         CCMidiContext ccCtx;
-        ccCtx.table      = &ccMappingTable_;
-        ccCtx.focusTrack = focusTrack_;
-        ccCtx.mzSlots    = mzSlotSnapshot;
+        ccCtx.table       = &ccMappingTable_;
+        ccCtx.focusTrack  = focusTrack_;
+        ccCtx.mzSlots     = mzSlotSnapshot;
+        ccCtx.channelMode = channelModeParam_
+            ? static_cast<ChannelMode>(static_cast<int>(channelModeParam_->load()))
+            : ChannelMode::Omni;
         ccCtx.getCurrentTrackValue = [this](int t, int s) -> float {
             const auto ti = static_cast<std::size_t>(t);
             const float base = sequence_.tracks[ti].baseParams[static_cast<std::size_t>(s)];

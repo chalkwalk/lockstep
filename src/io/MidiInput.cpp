@@ -12,6 +12,11 @@ namespace lockstep
         for (const auto metadata : midi)
         {
             const auto msg = metadata.getMessage();
+
+            // In Per-Track mode, channels 9-16 carry no sequencer meaning.
+            if (cc.channelMode == ChannelMode::PerTrack && msg.getChannel() > 8)
+                continue;
+
             if (!msg.isController())
                 continue;
 
