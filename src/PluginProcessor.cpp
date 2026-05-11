@@ -98,6 +98,7 @@ namespace lockstep
     void LockstepProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     {
         clock_.prepare(sampleRate);
+        midiClockReceiver_.reset();
         for (auto& m : machines_)
         {
             m->prepare(sampleRate, samplesPerBlock);
@@ -137,6 +138,40 @@ namespace lockstep
         for (int ch = totalIn; ch < totalOut; ++ch)
             buffer.clear(ch, 0, buffer.getNumSamples());
         buffer.clear();
+
+        // --- MIDI clock scanning (before any other processing) ---------------
+        const bool isStandalone =
+            (wrapperType == juce::AudioProcessor::wrapperType_Standalone);
+        const auto mcBlock = midiClockReceiver_.advance(
+            midi, buffer.getNumSamples(), getSampleRate());
+
+        if (isStandalone && mcBlock.hasClock)
+        {
+            const auto mode = static_cast<SyncMode>(
+                syncModeParam_ ? static_cast<int>(syncModeParam_->load()) : 0);
+
+            if (mcBlock.didStart)
+            {
+                clock_.resetPhase();
+                clock_.setInPluginPlaying(true);
+                anchorPpq_ = 0.0;
+                nextTriggerPpq_.fill(0.0);
+                lastStepFired_.fill(false);
+            }
+            if (mcBlock.didStop)
+            {
+                clock_.setInPluginPlaying(false);
+            }
+            // In Locked mode, dropout from the external clock stops the sequencer.
+            // In Auto mode, dropout freewheels at the last known BPM.
+            if (mode == SyncMode::Locked && mcBlock.dropout)
+            {
+                clock_.setInPluginPlaying(false);
+            }
+            // Keep localBpm synced for seamless Auto freewheel.
+            if (mcBlock.bpm > 0.0)
+                clock_.setLocalBpm(mcBlock.bpm);
+        }
 
         // Snapshot MZ slot mapping for audio-thread use.
         std::array<int, 4> mzSlotSnapshot;
@@ -235,9 +270,19 @@ namespace lockstep
         // Clock::update() would lock us in the "DAW present but stopped" branch
         // and freeze PPQ forever. In standalone we synthesise PPQ locally, so
         // pass nullptr to skip the playhead entirely.
-        const bool isStandalone =
-            (wrapperType == juce::AudioProcessor::wrapperType_Standalone);
-        clock_.update(isStandalone ? nullptr : getPlayHead(), buffer.getNumSamples());
+        //
+        // Build MIDI clock input for Clock: active when standalone, clock present,
+        // running, and not in dropout (dropout → freewheel via localBpm instead).
+        Clock::MidiClockInput midiClockIn;
+        if (isStandalone && mcBlock.hasClock && mcBlock.running && !mcBlock.dropout)
+        {
+            midiClockIn.active   = true;
+            midiClockIn.ppqStart = mcBlock.ppqStart;
+            midiClockIn.ppqEnd   = mcBlock.ppqEnd;
+            midiClockIn.bpm      = mcBlock.bpm;
+        }
+        clock_.update(isStandalone ? nullptr : getPlayHead(),
+                      buffer.getNumSamples(), midiClockIn);
 
         // ---- Mode-based "is the sequencer running?" gate ------------------
         const auto mode = static_cast<SyncMode>(

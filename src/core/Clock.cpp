@@ -18,6 +18,13 @@ namespace lockstep
 
     void Clock::update(juce::AudioPlayHead* playHead, int blockSize)
     {
+        MidiClockInput empty{};
+        update(playHead, blockSize, empty);
+    }
+
+    void Clock::update(juce::AudioPlayHead* playHead, int blockSize,
+                       MidiClockInput midiClock)
+    {
         ppqJumped_ = false;
         const double prevBlockEnd = ppqBlockEnd_;
 
@@ -44,13 +51,28 @@ namespace lockstep
         }
         else
         {
-            // No playhead (standalone). Synthesise PPQ only when playing.
+            // No playhead (standalone).
             hostPlaying_ = false;
-            bpm_ = localBpm_;
-            ppqBlockStart_ = localPpq_;
 
-            if (inPluginPlaying_.load(std::memory_order_relaxed) && sampleRate_ > 0.0)
-                localPpq_ += static_cast<double>(blockSize) * bpm_ / (sampleRate_ * 60.0);
+            if (midiClock.active)
+            {
+                // MIDI clock is the timing source.
+                ppqBlockStart_ = midiClock.ppqStart;
+                // Sync localPpq_ so freewheel (Auto dropout) continues seamlessly.
+                localPpq_ = midiClock.ppqEnd;
+                if (midiClock.bpm > 0.0)
+                    bpm_ = midiClock.bpm;
+                else
+                    bpm_ = localBpm_;
+            }
+            else
+            {
+                // No MIDI clock (or freewheel / Locked dropout): synthesise from localBpm_.
+                bpm_           = localBpm_;
+                ppqBlockStart_ = localPpq_;
+                if (inPluginPlaying_.load(std::memory_order_relaxed) && sampleRate_ > 0.0)
+                    localPpq_ += static_cast<double>(blockSize) * bpm_ / (sampleRate_ * 60.0);
+            }
         }
 
         ppqBlockEnd_ = ppqBlockStart_

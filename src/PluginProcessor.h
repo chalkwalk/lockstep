@@ -10,6 +10,7 @@
 #include "core/SyncMode.h"
 #include "io/CCMappingTable.h"
 #include "io/EditContext.h"
+#include "io/MidiClockReceiver.h"
 #include "io/MidiInput.h"
 #include "machine/IMachine.h"
 #include "machine/SamplePool.h"
@@ -125,6 +126,7 @@ namespace lockstep
         PendingLearnRequest learnRequest_;
 
         MidiInput midiInput_;
+        MidiClockReceiver midiClockReceiver_;
         std::array<std::unique_ptr<IMachine>, kNumTracks> machines_;
         std::array<double, kNumTracks> nextTriggerPpq_{};
         std::array<bool, kNumTracks>   lastStepFired_{};

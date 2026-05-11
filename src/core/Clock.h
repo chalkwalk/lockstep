@@ -20,6 +20,17 @@ namespace lockstep
     public:
         Clock();
 
+        // Optional MIDI clock state; passed by processBlock when clock is present.
+        // When active, the standalone PPQ branch uses the MIDI-derived values
+        // instead of synthesising from localBpm_.
+        struct MidiClockInput
+        {
+            bool   active   = false;  // caller has a valid MIDI clock signal this block
+            double ppqStart = 0.0;
+            double ppqEnd   = 0.0;
+            double bpm      = 0.0;   // 0 = unknown; when > 0, bpm_ is updated
+        };
+
         // Called once per prepareToPlay.
         void prepare(double sampleRate);
 
@@ -28,6 +39,7 @@ namespace lockstep
         // (standalone / Auto). Sets ppqAtBlockStart / ppqAtBlockEnd for the
         // block, and ppqJumped if the timeline moved backward (DAW loop/jog).
         void update(juce::AudioPlayHead* playHead, int blockSize);
+        void update(juce::AudioPlayHead* playHead, int blockSize, MidiClockInput midiClock);
 
         // ---- Block-scope accessors (audio thread only, set by update()) ----
         double ppqAtBlockStart() const { return ppqBlockStart_; }
