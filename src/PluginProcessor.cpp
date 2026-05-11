@@ -191,9 +191,24 @@ namespace lockstep
         // Last note-on per track wins (monophonic machines; choke handles the rest).
         std::array<int, kNumTracks> midiTriggers;
         midiTriggers.fill(-1);
-        ccCtx.onNoteOn = [&midiTriggers](int track, int sampleOffset, int /*note*/)
+        ccCtx.onNoteOn = [this, &midiTriggers](int track, int sampleOffset, int midiNote)
         {
             midiTriggers[static_cast<std::size_t>(track)] = sampleOffset;
+
+            const auto ti = static_cast<std::size_t>(track);
+            const auto& trk = sequence_.tracks[ti];
+            const int slot = (trk.noteMode == NoteMode::Pitch)
+                ? machines_[ti]->pitchSlot()
+                : machines_[ti]->sampleSelectSlot();
+
+            if (slot >= 0)
+            {
+                const auto meta = paramMetadata(track, slot);
+                const float raw = (trk.noteMode == NoteMode::Pitch)
+                    ? static_cast<float>(midiNote - 60)
+                    : static_cast<float>(std::max(0, midiNote - 60));
+                writeParam(track, slot, std::clamp(raw, meta.minValue, meta.maxValue));
+            }
         };
 
         midiInput_.process(midi, editContext_, ccCtx);
@@ -204,9 +219,13 @@ namespace lockstep
         {
             if (midiTriggers[i] < 0) continue;
             if (trackMuteParams_[i]->load() >= 0.5f) continue;
-            // Use base params (step index -1 → no overrides); M5.8 will write
-            // the pitch P-Lock before this path when a step is held.
-            const auto frame = StateResolver::resolve(sequence_.tracks[i], -1);
+            // If a step on this track is held, resolve with that step so any
+            // pitch/sample P-Lock just written by note-on is included in the frame.
+            int resolveStep = -1;
+            if (editContext_.isActiveForEditing()
+                && editContext_.heldTrackIndex() == static_cast<int>(i))
+                resolveStep = editContext_.heldStepIndex();
+            const auto frame = StateResolver::resolve(sequence_.tracks[i], resolveStep);
             machines_[i]->process(midiTriggers[i], frame, buffer);
         }
 

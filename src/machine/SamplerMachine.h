@@ -20,6 +20,9 @@ namespace lockstep
         int           numTrackSections() const override;
         SectionInfo   trackSection(int index) const override;
 
+        int pitchSlot()        const override { return kSlotPitch; }
+        int sampleSelectSlot() const override { return kSlotSampleId; }
+
     private:
         // Slot assignments (Page 0 = sample, Page 1+2 = envelope)
         static constexpr int kSlotSampleId  = 0;

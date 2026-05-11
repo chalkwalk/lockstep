@@ -132,13 +132,14 @@ The full input abstraction described in DESIGN.md §4.3 + §5.
       state `{Master, Track1..8}`.
 - [x] **M5.7** Note-on triggers the destination track's machine
       (focus-routed in Omni, channel-routed in Per-Track).
-- [ ] **M5.8** Pitch recording gesture: note-on while a step is held
+- [x] **M5.8** Pitch recording gesture: note-on while a step is held
       (EditContext active) writes the note's MIDI pitch to the machine's
       note slot as a P-Lock on that step. No record arm required —
       same single-input-gate rule as encoder P-Locking. For
-      monophonic machines, last note-on within the hold wins. Requires
-      the baseline sampler to expose a note slot (0–127) and root-note
-      concept (see DESIGN.md §3).
+      monophonic machines, last note-on within the hold wins.
+      Track::noteMode {Pitch, SampleSelect} selects whether note-on
+      writes kSlotPitch (semitone offset from MIDI 60) or kSlotSampleId
+      (pool index, note 60 = 0).
 - [ ] **M5.9** Standalone MIDI clock input drives the internal
       timeline. Sync modes (Locked / Auto) with freewheel-on-clock-
       dropout and freeze-on-transport-stop semantics.
