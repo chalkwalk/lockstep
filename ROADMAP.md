@@ -130,7 +130,7 @@ The full input abstraction described in DESIGN.md §4.3 + §5.
 - [x] **M5.6** Four contextual encoders: configurable CC inputs that
       always drive the current focus quadrant. Focus is a first-class
       state `{Master, Track1..8}`.
-- [ ] **M5.7** Note-on triggers the destination track's machine
+- [x] **M5.7** Note-on triggers the destination track's machine
       (focus-routed in Omni, channel-routed in Per-Track).
 - [ ] **M5.8** Pitch recording gesture: note-on while a step is held
       (EditContext active) writes the note's MIDI pitch to the machine's

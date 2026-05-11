@@ -52,6 +52,8 @@ namespace lockstep
         SectionBar sectionBar_;              // after manipulationZone_ and stepGrid_
         juce::ComboBox syncModeBox_;
         std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> syncModeAttachment_;
+        juce::ComboBox channelModeBox_;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> channelModeAttachment_;
         juce::TextButton loadButton_{ "Load Sample" };
         std::unique_ptr<juce::FileChooser> fileChooser_;
         juce::String sampleStatus_{ "No samples loaded" };

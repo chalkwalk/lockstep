@@ -26,6 +26,11 @@ namespace lockstep
         // When set, the next CC received is passed here instead of dispatched.
         // Cleared by the callback itself (via the learn-complete path).
         std::function<void(int ccNumber)>       onLearnCapture;
+
+        // Called for each note-on after channel-mode routing resolves the target track.
+        // Args: (targetTrack 0-7, sampleOffset within block, midiNoteNumber 0-127).
+        // Not called when focus is Global in Omni mode.
+        std::function<void(int, int, int)>      onNoteOn;
     };
 
     class MidiInput

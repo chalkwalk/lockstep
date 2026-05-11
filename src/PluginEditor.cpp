@@ -29,6 +29,15 @@ namespace lockstep
             std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
                 proc.apvts(), ParamIDs::syncMode, syncModeBox_);
 
+        // Channel mode ComboBox + APVTS attachment
+        channelModeBox_.addItem("Omni",      1);
+        channelModeBox_.addItem("Per-Track", 2);
+        channelModeBox_.setWantsKeyboardFocus(false);
+        addAndMakeVisible(channelModeBox_);
+        channelModeAttachment_ =
+            std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
+                proc.apvts(), ParamIDs::channelMode, channelModeBox_);
+
         proc.apvts().addParameterListener(ParamIDs::syncMode, this);
         updateTransportGhosting();
 
@@ -239,6 +248,7 @@ namespace lockstep
         auto header = bounds.removeFromTop(36);
         transport_.setBounds(header.removeFromLeft(108).reduced(4));
         syncModeBox_.setBounds(header.removeFromLeft(80).reduced(4));
+        channelModeBox_.setBounds(header.removeFromLeft(90).reduced(4));
         loadButton_.setBounds(header.removeFromRight(160).reduced(4));
         // Remaining header area is drawn as status text in paint()
 

@@ -17,6 +17,21 @@ namespace lockstep
             if (cc.channelMode == ChannelMode::PerTrack && msg.getChannel() > 8)
                 continue;
 
+            // --- Note-on routing ---
+            if (msg.isNoteOn() && cc.onNoteOn)
+            {
+                int targetTrack = -1;
+                if (cc.channelMode == ChannelMode::PerTrack)
+                    targetTrack = msg.getChannel() - 1;  // ch 1-8 → track 0-7
+                else
+                    targetTrack = cc.focusTrack;  // -1 (Global focus) → ignored below
+
+                if (targetTrack >= 0)
+                    cc.onNoteOn(targetTrack, metadata.samplePosition,
+                                msg.getNoteNumber());
+                continue;
+            }
+
             if (!msg.isController())
                 continue;
 

@@ -186,7 +186,29 @@ namespace lockstep
                 learnActive_.store(false, std::memory_order_release);
             };
         }
+
+        // Collect per-track MIDI note-on triggers for this block.
+        // Last note-on per track wins (monophonic machines; choke handles the rest).
+        std::array<int, kNumTracks> midiTriggers;
+        midiTriggers.fill(-1);
+        ccCtx.onNoteOn = [&midiTriggers](int track, int sampleOffset, int /*note*/)
+        {
+            midiTriggers[static_cast<std::size_t>(track)] = sampleOffset;
+        };
+
         midiInput_.process(midi, editContext_, ccCtx);
+
+        // Fire MIDI-triggered machines now, before the sequencer transport gate,
+        // so notes play even when the transport is stopped.
+        for (std::size_t i = 0; i < kNumTracks; ++i)
+        {
+            if (midiTriggers[i] < 0) continue;
+            if (trackMuteParams_[i]->load() >= 0.5f) continue;
+            // Use base params (step index -1 → no overrides); M5.8 will write
+            // the pitch P-Lock before this path when a step is held.
+            const auto frame = StateResolver::resolve(sequence_.tracks[i], -1);
+            machines_[i]->process(midiTriggers[i], frame, buffer);
+        }
 
         // The JUCE AudioProcessorPlayer (standalone wrapper) always provides a
         // PlayHead, but its getPosition() sets only timeInSamples/timeInSeconds
@@ -222,6 +244,14 @@ namespace lockstep
 
         if (!sequencerRunning)
         {
+            // Continue rendering any voices triggered via MIDI while transport is stopped.
+            for (std::size_t i = 0; i < kNumTracks; ++i)
+            {
+                if (trackMuteParams_[i]->load() >= 0.5f) continue;
+                const auto frame = StateResolver::resolve(sequence_.tracks[i], -1);
+                machines_[i]->process(-1, frame, buffer);
+            }
+
             // Keep audio path (gain smoothing, DC blocker) running so it doesn't freeze.
             const float targetGainDb = apvts_.getRawParameterValue(ParamIDs::outputGain)->load();
             gainSmoothed_.setTargetValue(
