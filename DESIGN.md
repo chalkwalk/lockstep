@@ -379,6 +379,22 @@ The aim is that an experienced user holds an editing context (a step
 held, a section selected) and resolves all parameter changes in the
 Manipulation Zone without ever leaving the keyboard.
 
+### 6.2 Step Grid / QWERTY overlay display modes
+
+The Step Grid and Section Bar can render in one of three overlay modes,
+selectable as a persistent user preference (stored in global settings,
+not in the project state):
+
+| Mode | Name | Description |
+|---|---|---|
+| 0 | **Staggered** | Renders a realistic keyboard silhouette with the physical row stagger of a standard QWERTY layout. UI elements (step cells, section buttons) are positioned to sit on top of their corresponding keys. Key legends (letters, numbers) are visible beneath the UI layer. Intended for new users building muscle memory: the on-screen layout is an exact 1:1 map of the physical keyboard in front of them. |
+| 1 | **Ortholinear** | Same keys and UI elements, but arranged in a uniform grid with no row offset. Key legends remain visible. Useful once muscle memory is established: the layout is compact and symmetric, and the legends still provide reference for occasional use without a hardware surface. |
+| 2 | **Clean** | Ortholinear grid with no key legends shown — only the UI elements. Intended for hardware surface users, where the controller has no printed legends and showing them in software adds no value. |
+
+The three modes share an identical key→action mapping (`QwertyOverlay::resolve` is unaffected); only the visual rendering changes.
+
+The active mode is exposed as a right-click / settings option on the Step Grid or via a small mode-cycle button in the global UI chrome. It is not P-lockable and does not affect playback or MIDI routing.
+
 ## 7. Host Serialization
 
 Plugin state carries:

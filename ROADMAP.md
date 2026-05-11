@@ -140,7 +140,7 @@ The full input abstraction described in DESIGN.md §4.3 + §5.
       Track::noteMode {Pitch, SampleSelect} selects whether note-on
       writes kSlotPitch (semitone offset from MIDI 60) or kSlotSampleId
       (pool index, note 60 = 0).
-- [ ] **M5.9** Standalone MIDI clock input drives the internal
+- [x] **M5.9** Standalone MIDI clock input drives the internal
       timeline. Sync modes (Locked / Auto) with freewheel-on-clock-
       dropout and freeze-on-transport-stop semantics.
 
@@ -181,6 +181,12 @@ The keyboard-first editor.
       skip, intermediate = probabilistic (scaled to the probability
       value). Propagate uncertainty through prev-dep chains.
 - [ ] **M6.10** Transport (Play/Stop/Rec) bound to dedicated keys.
+- [ ] **M6.11** Step Grid overlay display modes: Staggered (realistic key silhouette
+      with row offset, key legends visible — training mode), Ortholinear (uniform
+      grid, legends visible — muscle-memory mode), Clean (uniform grid, no legends —
+      hardware surface mode). Mode is a persistent global preference, not project
+      state; cycle button in UI chrome or right-click on the grid. Key mapping
+      (`QwertyOverlay::resolve`) is identical in all three modes.
 
 ### M7 — Pattern recording  [pending]
 
