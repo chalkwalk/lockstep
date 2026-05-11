@@ -63,7 +63,24 @@ namespace lockstep
     {
         slotOffset_ = offset;
         processor_.setMZSlots(slotOffset_);
+        setMetaSection(-1);   // restores widget visibility, then refreshSliders() below
         refreshSliders();
+    }
+
+    void ManipulationZone::setMetaSection(int metaSection)
+    {
+        metaSection_ = metaSection;
+
+        const bool showMachineParts = (metaSection_ < 0);
+        for (std::size_t i = 0; i < kNumSlots; ++i)
+        {
+            sliders_[i].setVisible(showMachineParts);
+            valueLabels_[i].setVisible(showMachineParts);
+            clearBtns_[i].setVisible(showMachineParts);
+            labels_[i].setVisible(showMachineParts);
+        }
+
+        repaint();
     }
 
     void ManipulationZone::mouseDown(const juce::MouseEvent& e)
@@ -229,6 +246,27 @@ namespace lockstep
         g.fillAll();
         g.setColour(juce::Colour::fromRGB(60, 70, 85));
         g.drawRect(getLocalBounds(), 1);
+
+        if (metaSection_ >= 0)
+        {
+            // Meta section placeholder — replaced by real widgets at M6.5/M6.6.
+            static constexpr std::array<const char*, IMachine::kNumSections> kMetaNames = {
+                "COND", "TRACK", "", "", "", "GLOBAL"
+            };
+            const juce::Colour amber = juce::Colour::fromRGB(255, 180, 50);
+            g.setColour(amber.withAlpha(0.12f));
+            g.fillAll();
+            g.setColour(amber);
+            g.drawRect(getLocalBounds(), 1);
+            g.setFont(juce::Font(juce::FontOptions(14.0f)).boldened());
+            const auto name = metaSection_ < IMachine::kNumSections
+                                  ? juce::String(kMetaNames[static_cast<std::size_t>(metaSection_)])
+                                  : juce::String(metaSection_);
+            g.drawText(name + "  —  coming in M6.5 / M6.6",
+                       getLocalBounds().reduced(12, 0),
+                       juce::Justification::centredLeft);
+            return;
+        }
 
         const auto& ctx = processor_.editContext();
         if (ctx.isActiveForEditing())

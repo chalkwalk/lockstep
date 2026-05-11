@@ -68,10 +68,14 @@ namespace lockstep
 
         // Fetch section info (from the active track's machine)
         const auto info = processor_.trackSection(activeTrack, sectionIndex);
-        const juce::String primaryLabel   = info.primaryLabel.empty()
-                                                ? juce::String(sectionIndex)
-                                                : juce::String(info.primaryLabel);
-        const juce::String secondaryLabel = juce::String(info.secondaryLabel);
+        const juce::String primaryLabel = info.primaryLabel.empty()
+                                              ? juce::String(sectionIndex)
+                                              : juce::String(info.primaryLabel);
+        // Secondary label is the fixed meta-layer name, not the machine's secondaryLabel.
+        const bool reserved = isReservedMeta(sectionIndex);
+        const juce::String secondaryLabel =
+            reserved ? juce::String::charToString(0x2014)  // em dash for reserved
+                     : juce::String(kMetaLabels[static_cast<std::size_t>(sectionIndex)]);
 
         // Text areas: top half = primary, bottom half = secondary (minus dot row)
         const int dotRowH  = 8;
@@ -86,12 +90,12 @@ namespace lockstep
         g.setFont(juce::Font(juce::FontOptions(isTrackActive ? 11.0f : 9.0f)));
         g.drawText(primaryLabel, topArea, juce::Justification::centredBottom);
 
-        // Secondary label
-        const float secondaryAlpha = isMasterActive ? 1.0f : 0.25f;
+        // Secondary label (meta layer name; dimmed when machine layer is active,
+        // further dimmed for reserved slots that have no meta function).
+        const float secondaryAlpha = isMasterActive ? 1.0f : (reserved ? 0.12f : 0.25f);
         g.setColour(juce::Colours::white.withAlpha(secondaryAlpha));
         g.setFont(juce::Font(juce::FontOptions(isMasterActive ? 11.0f : 9.0f)));
-        if (secondaryLabel.isNotEmpty())
-            g.drawText(secondaryLabel, bottomArea, juce::Justification::centredTop);
+        g.drawText(secondaryLabel, bottomArea, juce::Justification::centredTop);
 
         // Divider line between primary and secondary text
         g.setColour(juce::Colours::white.withAlpha(0.12f));
@@ -154,14 +158,9 @@ namespace lockstep
             return;
 
         if (uiState_.shiftHeld)
-        {
-            uiState_.masterSection = (uiState_.masterSection == section) ? -1 : section;
-            repaint();
-        }
+            selectMetaSection(section);
         else
-        {
             selectSection(section);
-        }
     }
 
     bool SectionBar::selectSection(int sectionIndex)
@@ -196,6 +195,18 @@ namespace lockstep
         repaint();
         notifyChanged(sectionIndex, activeTrack);
         return true;
+    }
+
+    void SectionBar::selectMetaSection(int sectionIndex)
+    {
+        if (isReservedMeta(sectionIndex))
+            return;
+
+        uiState_.masterSection = (uiState_.masterSection == sectionIndex) ? -1 : sectionIndex;
+        repaint();
+
+        if (onMetaSectionChanged)
+            onMetaSectionChanged(uiState_.masterSection);
     }
 
     void SectionBar::notifyChanged(int sectionIndex, int activeTrack)

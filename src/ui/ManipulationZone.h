@@ -29,6 +29,10 @@ namespace lockstep
         void setSlotOffset(int offset);
         [[nodiscard]] int slotOffset() const { return slotOffset_; }
 
+        // Switch the zone into a meta-section display mode (-1 = normal machine params).
+        // Meta content (COND/TRACK/GLOBAL widgets) fills in at M6.5/M6.6.
+        void setMetaSection(int metaSection);
+
     private:
         static constexpr int kNumSlots = 4;
 
@@ -37,7 +41,8 @@ namespace lockstep
 
         LockstepProcessor& processor_;
         StepGrid& grid_;
-        int slotOffset_ = 0;
+        int slotOffset_   = 0;
+        int metaSection_  = -1;  // -1 = normal machine params; 0/1/5 = COND/TRACK/GLOBAL
 
         // Index of the slot column currently in "listening for CC" state, or -1.
         int learningSlotIndex_ = -1;

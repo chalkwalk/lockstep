@@ -24,9 +24,16 @@ namespace lockstep
         // Returns true if the state changed.
         bool selectSection(int sectionIndex);
 
-        // Callback: fired whenever the active first slot changes.
+        // Called when Shift+section is pressed. Ignores reserved meta slots (indices 2–4).
+        void selectMetaSection(int sectionIndex);
+
+        // Callback: fired whenever the active machine-section first slot changes.
         // Arguments: (sectionIndex, pageIndex, firstSlot)
         std::function<void(int, int, int)> onSectionChanged;
+
+        // Callback: fired when the active meta section changes.
+        // Argument: masterSection index (0–5), or -1 when deselected.
+        std::function<void(int)> onMetaSectionChanged;
 
     private:
         static constexpr int kFixedCells  = 2;   // SHIFT + NAV
@@ -49,6 +56,18 @@ namespace lockstep
         LockstepProcessor& processor_;
         StepGrid&          grid_;
         UiState&           uiState_;
+
+        // Fixed meta-section labels for the shift layer, indexed by section (0–5).
+        // Empty string = reserved (Shift press is a no-op for that index).
+        static constexpr std::array<const char*, IMachine::kNumSections> kMetaLabels = {
+            "COND", "TRACK", "", "", "", "GLOBAL"
+        };
+
+        [[nodiscard]] static bool isReservedMeta(int sectionIndex)
+        {
+            if (sectionIndex < 0 || sectionIndex >= IMachine::kNumSections) return true;
+            return kMetaLabels[static_cast<std::size_t>(sectionIndex)][0] == '\0';
+        }
 
         // Colour palette — matches the rest of the UI.
         static const juce::Colour kColourTrackActive;  // teal

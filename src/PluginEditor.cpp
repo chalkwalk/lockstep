@@ -41,10 +41,14 @@ namespace lockstep
         proc.apvts().addParameterListener(ParamIDs::syncMode, this);
         updateTransportGhosting();
 
-        // Wire section-change callback → update ManipulationZone slot offset.
+        // Wire section-change callbacks → update ManipulationZone.
         sectionBar_.onSectionChanged = [this](int /*section*/, int /*page*/, int firstSlot)
         {
             manipulationZone_.setSlotOffset(firstSlot);
+        };
+        sectionBar_.onMetaSectionChanged = [this](int metaSection)
+        {
+            manipulationZone_.setMetaSection(metaSection);
         };
 
         addAndMakeVisible(manipulationZone_);
@@ -168,12 +172,8 @@ namespace lockstep
                 return true;
 
             case QwertyOverlay::Action::SelectMetaSection:
-            {
-                const int idx = mapping.stepIndex;
-                uiState_.masterSection = (uiState_.masterSection == idx) ? -1 : idx;
-                sectionBar_.repaint();
+                sectionBar_.selectMetaSection(mapping.stepIndex);
                 return true;
-            }
 
             case QwertyOverlay::Action::Step:
                 if (heldStepKey_ != rawCode)
