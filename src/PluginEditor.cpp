@@ -154,56 +154,82 @@ namespace lockstep
                              ? rawCode - ('a' - 'A')
                              : rawCode;
 
-        const auto mapping = qwerty_.resolve(code);
+        const auto mapping = qwerty_.resolve(code, uiState_.shiftHeld);
 
-        if (mapping.action == QwertyOverlay::Action::Shift)
+        switch (mapping.action)
         {
-            uiState_.shiftHeld = true;
-            sectionBar_.repaint();
-            return true;
-        }
-
-        if (mapping.action == QwertyOverlay::Action::SelectSection)
-        {
-            const int sectionIndex = mapping.stepIndex;
-            if (uiState_.shiftHeld)
-            {
-                // Shift+section: toggle master section.
-                uiState_.masterSection =
-                    (uiState_.masterSection == sectionIndex) ? -1 : sectionIndex;
+            case QwertyOverlay::Action::Shift:
+                uiState_.shiftHeld = true;
                 sectionBar_.repaint();
-            }
-            else
-            {
-                sectionBar_.selectSection(sectionIndex);
-            }
-            return true;
-        }
+                return true;
 
-        if (mapping.action == QwertyOverlay::Action::Step)
-        {
-            if (heldStepKey_ != rawCode)
-            {
-                // First press (not a key-repeat): engage hold. Trig toggle
-                // happens on release, unless a P-Lock is applied during hold.
-                heldStepKey_ = rawCode;
-                const int absStep = stepGrid_.currentPage() * StepGrid::kPageSteps
-                                    + mapping.stepIndex;
-                processor_.editContext().hold(stepGrid_.getActiveTrack(), absStep);
-            }
-            return true;
-        }
-        if (mapping.action == QwertyOverlay::Action::Clear)
-        {
-            const auto& ctx = processor_.editContext();
-            if (ctx.isActiveForEditing() && ctx.activeSlot() >= 0)
-                processor_.clearParam(ctx.heldTrackIndex(),
-                                      ctx.heldStepIndex(),
-                                      ctx.activeSlot());
-            return true;
-        }
+            case QwertyOverlay::Action::SelectSection:
+                sectionBar_.selectSection(mapping.stepIndex);
+                return true;
 
-        return false;
+            case QwertyOverlay::Action::SelectMetaSection:
+            {
+                const int idx = mapping.stepIndex;
+                uiState_.masterSection = (uiState_.masterSection == idx) ? -1 : idx;
+                sectionBar_.repaint();
+                return true;
+            }
+
+            case QwertyOverlay::Action::Step:
+                if (heldStepKey_ != rawCode)
+                {
+                    // First press (not a key-repeat): engage hold. Trig toggle
+                    // happens on release, unless a P-Lock is applied during hold.
+                    heldStepKey_ = rawCode;
+                    const int absStep = stepGrid_.currentPage() * StepGrid::kPageSteps
+                                        + mapping.stepIndex;
+                    processor_.editContext().hold(stepGrid_.getActiveTrack(), absStep);
+                }
+                return true;
+
+            case QwertyOverlay::Action::NavLeft:
+                stepGrid_.prevPage();
+                return true;
+
+            case QwertyOverlay::Action::NavRight:
+                stepGrid_.nextPage();
+                return true;
+
+            case QwertyOverlay::Action::NavUp:
+                stepGrid_.setActiveTrack(std::max(0, stepGrid_.getActiveTrack() - 1));
+                return true;
+
+            case QwertyOverlay::Action::NavDown:
+                stepGrid_.setActiveTrack(
+                    std::min(static_cast<int>(kNumTracks) - 1,
+                             stepGrid_.getActiveTrack() + 1));
+                return true;
+
+            case QwertyOverlay::Action::PlayStop:
+                processor_.clock().setInPluginPlaying(!processor_.clock().inPluginPlaying());
+                return true;
+
+            case QwertyOverlay::Action::Clear:
+            {
+                const auto& ctx = processor_.editContext();
+                if (ctx.isActiveForEditing() && ctx.activeSlot() >= 0)
+                    processor_.clearParam(ctx.heldTrackIndex(),
+                                          ctx.heldStepIndex(),
+                                          ctx.activeSlot());
+                return true;
+            }
+
+            // Reserved: implementations land in later milestones.
+            case QwertyOverlay::Action::RecordArm:
+            case QwertyOverlay::Action::TapTempo:
+            case QwertyOverlay::Action::Copy:
+            case QwertyOverlay::Action::Paste:
+                return true;
+
+            case QwertyOverlay::Action::None:
+            default:
+                return false;
+        }
     }
 
     bool LockstepEditor::keyStateChanged(bool isKeyDown, juce::Component*)

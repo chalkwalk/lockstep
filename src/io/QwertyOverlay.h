@@ -32,9 +32,10 @@ namespace lockstep
             NavLeft,
             NavRight,
 
-            Step,             // valid stepIndex in 0..15
+            Step,                // valid stepIndex in 0..15
 
-            SelectSection,    // stepIndex holds section index 0..5
+            SelectSection,       // stepIndex holds machine section index 0..5
+            SelectMetaSection,   // stepIndex holds meta section index 0..5 (Shift held)
 
             RecordArm,
             TapTempo,
@@ -52,8 +53,9 @@ namespace lockstep
         };
 
         // Accepts a JUCE KeyPress key code (uppercase ASCII for letter and
-        // digit keys, 0x20 for space). Physical-position stability across
-        // non-QWERTY layouts is an M6 concern.
-        [[nodiscard]] Mapping resolve(int keyCode) const;
+        // digit keys, 0x20 for space) and the current shift state.
+        // Physical-position stability across non-QWERTY layouts is a
+        // known limitation; the mapping assumes a standard QWERTY layout.
+        [[nodiscard]] Mapping resolve(int keyCode, bool shiftHeld) const;
     };
 }

@@ -60,15 +60,19 @@ namespace lockstep
         } };
     }
 
-    // Kept as a non-static member so user-defined remapping state can land
-    // here in M6 without churning call sites.
-    QwertyOverlay::Mapping QwertyOverlay::resolve(int keyCode) const  // NOLINT(readability-convert-member-functions-to-static)
+    // Non-static so user-defined remapping state can be added without churning call sites.
+    QwertyOverlay::Mapping QwertyOverlay::resolve(int keyCode, bool shiftHeld) const  // NOLINT(readability-convert-member-functions-to-static)
     {
         for (const auto& e : kTable)
         {
             if (e.keyCode == keyCode)
             {
-                return { e.action, e.stepIndex };
+                Mapping m { e.action, e.stepIndex };
+                if (shiftHeld && m.action == Action::SelectSection)
+                {
+                    m.action = Action::SelectMetaSection;
+                }
+                return m;
             }
         }
         return {};
