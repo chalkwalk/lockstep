@@ -495,6 +495,20 @@ namespace lockstep
         return machines_[static_cast<std::size_t>(track)]->getParamMetadata(slot);
     }
 
+    int LockstepProcessor::pitchSlot(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks))
+            return -1;
+        return machines_[static_cast<std::size_t>(track)]->pitchSlot();
+    }
+
+    int LockstepProcessor::gateSlot(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks))
+            return -1;
+        return machines_[static_cast<std::size_t>(track)]->gateSlot();
+    }
+
     int LockstepProcessor::numTrackSections(int track) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks))

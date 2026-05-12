@@ -1,4 +1,5 @@
 #include "ManipulationZone.h"
+#include "../ParameterIDs.h"
 #include "../PluginProcessor.h"
 #include "../core/TrigCondition.h"
 #include "StepGrid.h"
@@ -27,7 +28,7 @@ namespace lockstep
             sliders_[si].setWantsKeyboardFocus(false);
             sliders_[si].onDragStart = [this, i]
             {
-                if (metaSection_ != 0)  // not COND — no slot concept for conditions
+                if (metaSection_ < 0)  // machine params only
                     processor_.editContext().setActiveSlot(slotOffset_ + i);
             };
             sliders_[si].onValueChange = [this, i]
@@ -35,10 +36,14 @@ namespace lockstep
                 if (updatingFromTimer_) return;
                 const float v = static_cast<float>(
                     sliders_[static_cast<std::size_t>(i)].getValue());
-                if (metaSection_ == 0)
-                    writeCondField(i, v);
-                else
-                    processor_.writeParam(grid_.getActiveTrack(), slotOffset_ + i, v);
+                switch (metaSection_)
+                {
+                    case 0:  writeCondField(i, v);   break;
+                    case 1:  writeTrackField(i, v);  break;
+                    case 5:  writeGlobalField(i, v); break;
+                    default: processor_.writeParam(grid_.getActiveTrack(),
+                                                   slotOffset_ + i, v); break;
+                }
             };
             sliders_[si].addMouseListener(static_cast<juce::MouseListener*>(this), false);
             addAndMakeVisible(sliders_[si]);
@@ -77,15 +82,14 @@ namespace lockstep
     {
         metaSection_ = metaSection;
 
-        // COND (0) reuses the 4 sliders. Everything else that's still a
-        // placeholder hides the sliders and falls through to the paint() text.
-        const bool showSliders = (metaSection_ < 0 || metaSection_ == 0);
+        // Reserved meta slots (2–4) can't be selected (guarded in SectionBar),
+        // so in practice sliders are always shown.
         for (std::size_t i = 0; i < kNumSlots; ++i)
         {
-            sliders_[i].setVisible(showSliders);
-            valueLabels_[i].setVisible(showSliders);
-            clearBtns_[i].setVisible(showSliders);
-            labels_[i].setVisible(showSliders);
+            sliders_[i].setVisible(true);
+            valueLabels_[i].setVisible(true);
+            clearBtns_[i].setVisible(true);
+            labels_[i].setVisible(true);
         }
 
         repaint();
@@ -93,7 +97,7 @@ namespace lockstep
 
     void ManipulationZone::mouseDown(const juce::MouseEvent& e)
     {
-        if (!e.mods.isRightButtonDown() || metaSection_ == 0)
+        if (!e.mods.isRightButtonDown() || metaSection_ >= 0)
             return;
 
         for (int i = 0; i < kNumSlots; ++i)
@@ -196,10 +200,12 @@ namespace lockstep
 
     void ManipulationZone::refreshSliders()
     {
-        if (metaSection_ == 0)
+        switch (metaSection_)
         {
-            refreshCondSliders();
-            return;
+            case 0: refreshCondSliders();   return;
+            case 1: refreshTrackSliders();  return;
+            case 5: refreshGlobalSliders(); return;
+            default: break;
         }
 
         const int track = grid_.getActiveTrack();
@@ -361,6 +367,166 @@ namespace lockstep
         }
     }
 
+    // -------------------------------------------------------------------------
+    // TRACK meta section (masterSection == 1)
+
+    void ManipulationZone::refreshTrackSliders()
+    {
+        const int track = grid_.getActiveTrack();
+        if (track < 0 || track >= static_cast<int>(kNumTracks))
+            return;
+
+        const auto& t = processor_.sequence().tracks[static_cast<std::size_t>(track)];
+        const float length  = processor_.apvts()
+            .getRawParameterValue(ParamIDs::trackLength(track))->load();
+        const float divider = processor_.apvts()
+            .getRawParameterValue(ParamIDs::trackDivider(track))->load();
+        const int gateSlot  = processor_.gateSlot(track);
+        const float gate    = gateSlot >= 0
+                                  ? t.baseParams[static_cast<std::size_t>(gateSlot)]
+                                  : 0.0f;
+        const float noteMode = static_cast<float>(static_cast<int>(t.noteMode));
+
+        struct TrackFieldDef { const char* label; float lo; float hi; bool stepped; };
+        static constexpr std::array<TrackFieldDef, kNumSlots> kDefs = {{
+            { "Length",  1.0f,  64.0f,    true  },
+            { "Divider", 1.0f,  16.0f,    true  },
+            { "Gate",    0.0f, 10000.0f,  false },
+            { "Note",    0.0f,   1.0f,    true  },
+        }};
+        const std::array<float, kNumSlots> vals = { length, divider, gate, noteMode };
+
+        updatingFromTimer_ = true;
+        for (int i = 0; i < kNumSlots; ++i)
+        {
+            const auto si = static_cast<std::size_t>(i);
+            sliders_[si].setRange(static_cast<double>(kDefs[si].lo),
+                                  static_cast<double>(kDefs[si].hi),
+                                  kDefs[si].stepped ? 1.0 : 0.0);
+            sliders_[si].setValue(static_cast<double>(vals[si]), juce::dontSendNotification);
+            sliders_[si].setEnabled(true);
+            sliders_[si].setAlpha(1.0f);
+
+            juce::String valueText;
+            if (i == 2)
+                valueText = vals[si] < 10.0f
+                    ? juce::String(vals[si], 1) + " ms"
+                    : juce::String(static_cast<int>(vals[si])) + " ms";
+            else if (i == 3)
+                valueText = (static_cast<int>(vals[si]) == 0) ? "Pitch" : "Sample";
+            else
+                valueText = juce::String(static_cast<int>(vals[si]));
+
+            valueLabels_[si].setText(valueText, juce::dontSendNotification);
+            labels_[si].setText(kDefs[si].label, juce::dontSendNotification);
+            clearBtns_[si].setEnabled(false);
+            clearBtns_[si].setAlpha(0.0f);
+        }
+        updatingFromTimer_ = false;
+        repaint();
+    }
+
+    void ManipulationZone::writeTrackField(int field, float value)
+    {
+        const int track = grid_.getActiveTrack();
+        if (track < 0 || track >= static_cast<int>(kNumTracks))
+            return;
+
+        // Suppress trig toggle if a step is held while editing track params.
+        const auto& ctx = processor_.editContext();
+        if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == track)
+            processor_.editContext().markParamWritten();
+
+        const auto writeApvts = [this](const juce::String& id, float v, float lo, float hi)
+        {
+            auto* p = processor_.apvts().getParameter(id);
+            if (p) p->setValueNotifyingHost(std::clamp((v - lo) / (hi - lo), 0.0f, 1.0f));
+        };
+
+        auto& t = processor_.sequence().tracks[static_cast<std::size_t>(track)];
+        switch (field)
+        {
+            case 0: writeApvts(ParamIDs::trackLength(track),  value, 1.0f, 64.0f);    break;
+            case 1: writeApvts(ParamIDs::trackDivider(track), value, 1.0f, 16.0f);    break;
+            case 2: { const int gs = processor_.gateSlot(track);
+                      if (gs >= 0) t.baseParams[static_cast<std::size_t>(gs)] = value; } break;
+            case 3: t.noteMode = (value >= 0.5f) ? NoteMode::SampleSelect
+                                                  : NoteMode::Pitch;          break;
+            default: break;
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // GLOBAL meta section (masterSection == 5)
+
+    void ManipulationZone::refreshGlobalSliders()
+    {
+        const float gain = processor_.apvts()
+            .getRawParameterValue(ParamIDs::outputGain)->load();
+        const float sync = processor_.apvts()
+            .getRawParameterValue(ParamIDs::syncMode)->load();
+        const float chan = processor_.apvts()
+            .getRawParameterValue(ParamIDs::channelMode)->load();
+
+        struct GlobalFieldDef { const char* label; float lo; float hi; bool stepped; bool enabled; };
+        static constexpr std::array<GlobalFieldDef, kNumSlots> kDefs = {{
+            { "Gain",  -60.0f,  6.0f, false, true  },
+            { "Sync",    0.0f,  1.0f, true,  true  },
+            { "Chan",    0.0f,  1.0f, true,  true  },
+            { "—",       0.0f,  1.0f, false, false },
+        }};
+        const std::array<float, kNumSlots> vals = { gain, sync, chan, 0.0f };
+
+        updatingFromTimer_ = true;
+        for (int i = 0; i < kNumSlots; ++i)
+        {
+            const auto si = static_cast<std::size_t>(i);
+            sliders_[si].setRange(static_cast<double>(kDefs[si].lo),
+                                  static_cast<double>(kDefs[si].hi),
+                                  kDefs[si].stepped ? 1.0 : 0.0);
+            sliders_[si].setValue(static_cast<double>(vals[si]), juce::dontSendNotification);
+            sliders_[si].setEnabled(kDefs[si].enabled);
+            sliders_[si].setAlpha(kDefs[si].enabled ? 1.0f : 0.2f);
+
+            juce::String valueText;
+            if (i == 0)
+            {
+                const float g = vals[si];
+                valueText = (g >= 0.0f ? "+" : "") + juce::String(g, 1) + " dB";
+            }
+            else if (i == 1)
+                valueText = (static_cast<int>(vals[si]) == 0) ? "Locked" : "Auto";
+            else if (i == 2)
+                valueText = (static_cast<int>(vals[si]) == 0) ? "Omni" : "Per-Trk";
+            else
+                valueText = "—";
+
+            valueLabels_[si].setText(valueText, juce::dontSendNotification);
+            labels_[si].setText(kDefs[si].label, juce::dontSendNotification);
+            clearBtns_[si].setEnabled(false);
+            clearBtns_[si].setAlpha(0.0f);
+        }
+        updatingFromTimer_ = false;
+        repaint();
+    }
+
+    void ManipulationZone::writeGlobalField(int field, float value)
+    {
+        const auto writeApvts = [this](const juce::String& id, float v, float lo, float hi)
+        {
+            auto* p = processor_.apvts().getParameter(id);
+            if (p) p->setValueNotifyingHost(std::clamp((v - lo) / (hi - lo), 0.0f, 1.0f));
+        };
+
+        switch (field)
+        {
+            case 0: writeApvts(ParamIDs::outputGain,  value, -60.0f, 6.0f); break;
+            case 1: writeApvts(ParamIDs::syncMode,    value,   0.0f, 1.0f); break;
+            case 2: writeApvts(ParamIDs::channelMode, value,   0.0f, 1.0f); break;
+            default: break;
+        }
+    }
+
     void ManipulationZone::paint(juce::Graphics& g)
     {
         g.setColour(juce::Colour::fromRGB(28, 32, 38));
@@ -368,29 +534,9 @@ namespace lockstep
         g.setColour(juce::Colour::fromRGB(60, 70, 85));
         g.drawRect(getLocalBounds(), 1);
 
-        if (metaSection_ > 0)  // placeholder for TRACK (1) and GLOBAL (5); COND (0) uses sliders
+        if (metaSection_ >= 0)
         {
-            static constexpr std::array<const char*, IMachine::kNumSections> kMetaNames = {
-                "COND", "TRACK", "", "", "", "GLOBAL"
-            };
-            const juce::Colour amber = juce::Colour::fromRGB(255, 180, 50);
-            g.setColour(amber.withAlpha(0.12f));
-            g.fillAll();
-            g.setColour(amber);
-            g.drawRect(getLocalBounds(), 1);
-            g.setFont(juce::Font(juce::FontOptions(14.0f)).boldened());
-            const auto name = metaSection_ < IMachine::kNumSections
-                                  ? juce::String(kMetaNames[static_cast<std::size_t>(metaSection_)])
-                                  : juce::String(metaSection_);
-            g.drawText(name + "  —  coming in M6.6",
-                       getLocalBounds().reduced(12, 0),
-                       juce::Justification::centredLeft);
-            return;
-        }
-
-        if (metaSection_ == 0)
-        {
-            // COND amber tint — sliders handle the rest.
+            // Amber tint for all meta sections — sliders handle the content.
             g.setColour(juce::Colour::fromRGB(255, 180, 50).withAlpha(0.06f));
             g.fillAll();
         }
@@ -411,8 +557,8 @@ namespace lockstep
 
     void ManipulationZone::paintOverChildren(juce::Graphics& g)
     {
-        if (metaSection_ == 0)
-            return;  // COND mode: no CC badges or learn overlays
+        if (metaSection_ >= 0)
+            return;  // meta sections: no CC badges or learn overlays
 
         const int track   = grid_.getActiveTrack();
         const int slotW   = getWidth() / kNumSlots;

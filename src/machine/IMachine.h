@@ -55,6 +55,7 @@ namespace lockstep
         // Slot indices for MIDI note-mode routing. Returns -1 if not applicable.
         virtual int pitchSlot()        const { return -1; }
         virtual int sampleSelectSlot() const { return -1; }
+        virtual int gateSlot()         const { return -1; }
 
         // Section taxonomy: machines declare how their 48 slots are grouped.
         // numTrackSections() must equal kNumSections (6). Sum of

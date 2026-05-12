@@ -22,6 +22,7 @@ namespace lockstep
 
         int pitchSlot()        const override { return kSlotPitch; }
         int sampleSelectSlot() const override { return kSlotSampleId; }
+        int gateSlot()         const override { return kSlotGate; }
 
     private:
         // Section 0 "Source" — page 0 (slots 0–3)

@@ -38,7 +38,11 @@ namespace lockstep
 
         void refreshSliders();
         void refreshCondSliders();
+        void refreshTrackSliders();
+        void refreshGlobalSliders();
         void writeCondField(int field, float value);
+        void writeTrackField(int field, float value);
+        void writeGlobalField(int field, float value);
         void showMappingMenu(int slotIndex);
 
         LockstepProcessor& processor_;
