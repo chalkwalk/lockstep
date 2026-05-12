@@ -48,10 +48,10 @@ namespace lockstep
 
         // The sequencer resolves Override-ELSE-Base into a single ParamFrame
         // per block and hands it across the boundary. The machine writes
-        // additively into `buffer`.
-        // triggerAtSample: sample offset within buffer where a new step trig fires,
-        // or -1 if no trig this block. (Replaced by MidiBuffer in MA.5.)
-        virtual void process(int triggerAtSample, const ParamFrame& params,
+        // additively into `buffer`. `events` carries note-on/off from the
+        // sequencer and from external MIDI (already routed to this track).
+        virtual void process(const juce::MidiBuffer& events,
+                             const ParamFrame& params,
                              juce::AudioBuffer<float>& buffer) = 0;
 
         // Schema — immutable after construction. Queried on the UI thread.

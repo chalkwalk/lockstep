@@ -172,32 +172,32 @@ built against an interface we're about to throw away. M6.1–M6.6 will
 need light retouch to track the new schema (variable section/page
 counts, `paramSpec(i)` instead of `getParamMetadata(i)`, etc.).
 
-- [ ] **MA.1** Replace `IMachine` slot constants with a per-machine
+- [x] **MA.1** Replace `IMachine` slot constants with a per-machine
       `ParamSpec` list: stable `id` (string), `label`, range,
       default, stepped flag, unit, owning section index. Drop the
       48-slot `kNumParamSlots`, `kNumPages`, `kParamsPerPage`
       constants. Remove `pitchSlot()` / `sampleSelectSlot()` /
       `gateSlot()` hints.
-- [ ] **MA.2** Make `ParamFrame` machine-sized: a `std::vector<float>`
+- [x] **MA.2** Make `ParamFrame` machine-sized: a `std::vector<float>`
       owned by the sequencer's resolver, sized to the machine's
       `numParams()` at machine attachment. Pass to `process()` as
       `std::span<const float>` (or equivalent).
-- [ ] **MA.3** Hybrid slot identity. Add an id↔index map on each
+- [x] **MA.3** Hybrid slot identity. Add an id↔index map on each
       machine. P-Lock storage stays integer-keyed at runtime; the
       serializer translates id↔index on load/save. Unknown ids on
       load are dropped with a log entry.
-- [ ] **MA.4** Per-machine voice topology. `IMachine::maxVoices()`
-      with default `1`. Choke micro-fade becomes a sequencer-side
-      action gated on `maxVoices() == 1`. Move the existing
-      `VoiceChoke` out of `SamplerMachine` into the sequencer (or a
-      shared helper) and invoke it before emitting retrigger note-ons
-      for monophonic machines.
-- [ ] **MA.5** Replace the `process(triggerAtSample, params, buffer)`
+- [x] **MA.4** Per-machine voice topology. `IMachine::maxVoices()`
+      with default `1`. `IMachine::isVoiceActive()` query. Per-track
+      `VoiceChoke` array scaffolded in `LockstepProcessor` (wired in
+      MA.10). `SamplerMachine` retains its internal choke for the
+      current code path.
+- [x] **MA.5** Replace the `process(triggerAtSample, params, buffer)`
       signature with `process(MidiBuffer events, ParamFrame params,
-      AudioBuffer<float> buffer)`. Sequencer constructs the per-track
-      MidiBuffer each block: one note-on per fired trig, one note-off
-      `gate` samples later. External MIDI is mixed into the same
-      buffer per the routing rules (Omni / Per-Track).
+      AudioBuffer<float> buffer)`. Sequencer injects a note-on per
+      fired trig into the per-track MidiBuffer; external MIDI is
+      mixed in via `onNoteOn`/`onNoteOff` callbacks. Note-off from
+      external MIDI triggers Release on a sustaining voice. Sequencer
+      note-off deferred to MA.6 (gate is not yet a sequencer field).
 - [ ] **MA.6** Add per-track sequencer-scope trig fields:
       `defaultNote`, `defaultVelocity`, `gateLength`. Add the
       corresponding per-step optional overrides

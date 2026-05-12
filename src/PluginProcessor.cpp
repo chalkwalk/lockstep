@@ -226,14 +226,13 @@ namespace lockstep
             };
         }
 
-        // Collect per-track MIDI note-on triggers for this block.
-        // Last note-on per track wins (monophonic machines; choke handles the rest).
-        std::array<int, kNumTracks> midiTriggers;
-        midiTriggers.fill(-1);
-        ccCtx.onNoteOn = [this, &midiTriggers](int track, int sampleOffset, int midiNote)
-        {
-            midiTriggers[static_cast<std::size_t>(track)] = sampleOffset;
+        // Per-track MIDI buffers populated from external MIDI and sequencer trigs.
+        std::array<juce::MidiBuffer, kNumTracks> trackMidi;
 
+        // Route external note-on: write P-Lock then inject into the track's buffer.
+        ccCtx.onNoteOn = [this, &trackMidi](int track, int sampleOffset,
+                                             int midiNote, int velocity)
+        {
             const auto ti = static_cast<std::size_t>(track);
             const auto& trk = sequence_.tracks[ti];
             const int slot = (trk.noteMode == NoteMode::Pitch)
@@ -248,25 +247,22 @@ namespace lockstep
                     : static_cast<float>(std::max(0, midiNote - 60));
                 writeParam(track, slot, std::clamp(raw, spec.minValue, spec.maxValue));
             }
+
+            trackMidi[ti].addEvent(
+                juce::MidiMessage::noteOn(1, midiNote,
+                                          static_cast<juce::uint8>(velocity)),
+                sampleOffset);
+        };
+
+        // Route external note-off directly into the track's buffer.
+        ccCtx.onNoteOff = [&trackMidi](int track, int sampleOffset, int midiNote)
+        {
+            trackMidi[static_cast<std::size_t>(track)].addEvent(
+                juce::MidiMessage::noteOff(1, midiNote),
+                sampleOffset);
         };
 
         midiInput_.process(midi, editContext_, ccCtx);
-
-        // Fire MIDI-triggered machines now, before the sequencer transport gate,
-        // so notes play even when the transport is stopped.
-        for (std::size_t i = 0; i < kNumTracks; ++i)
-        {
-            if (midiTriggers[i] < 0) continue;
-            if (trackMuteParams_[i]->load() >= 0.5f) continue;
-            // If a step on this track is held, resolve with that step so any
-            // pitch/sample P-Lock just written by note-on is included in the frame.
-            int resolveStep = -1;
-            if (editContext_.isActiveForEditing()
-                && editContext_.heldTrackIndex() == static_cast<int>(i))
-                resolveStep = editContext_.heldStepIndex();
-            const auto frame = StateResolver::resolve(sequence_.tracks[i], resolveStep);
-            machines_[i]->process(midiTriggers[i], frame, buffer);
-        }
 
         // The JUCE AudioProcessorPlayer (standalone wrapper) always provides a
         // PlayHead, but its getPosition() sets only timeInSamples/timeInSeconds
@@ -312,12 +308,19 @@ namespace lockstep
 
         if (!sequencerRunning)
         {
-            // Continue rendering any voices triggered via MIDI while transport is stopped.
+            // Render voice tails and any externally-triggered notes.
+            // trackMidi already contains note events routed from external MIDI.
             for (std::size_t i = 0; i < kNumTracks; ++i)
             {
                 if (trackMuteParams_[i]->load() >= 0.5f) continue;
-                const auto frame = StateResolver::resolve(sequence_.tracks[i], -1);
-                machines_[i]->process(-1, frame, buffer);
+                // Resolve against the held step so P-Locks written by the note-on
+                // are included in the frame, falling back to -1 (base only).
+                int resolveStep = -1;
+                if (editContext_.isActiveForEditing()
+                    && editContext_.heldTrackIndex() == static_cast<int>(i))
+                    resolveStep = editContext_.heldStepIndex();
+                const auto frame = StateResolver::resolve(sequence_.tracks[i], resolveStep);
+                machines_[i]->process(trackMidi[i], frame, buffer);
             }
 
             // Keep audio path (gain smoothing, DC blocker) running so it doesn't freeze.
@@ -422,8 +425,17 @@ namespace lockstep
                 nextTriggerPpq_[i] += divPpq;
             }
 
+            // Inject sequencer note-on into the track buffer.
+            // Default note/velocity are placeholders until MA.6 adds sequencer trig fields.
+            if (triggerAt >= 0)
+            {
+                trackMidi[i].addEvent(
+                    juce::MidiMessage::noteOn(1, 60, static_cast<juce::uint8>(100)),
+                    triggerAt);
+            }
+
             const auto frame = StateResolver::resolve(track, stepIndex);
-            machines_[i]->process(triggerAt, frame, buffer);
+            machines_[i]->process(trackMidi[i], frame, buffer);
         }
 
         // Output stage: smoothed gain → DC blocker → soft-clip

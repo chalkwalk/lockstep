@@ -17,8 +17,8 @@ namespace lockstep
             if (cc.channelMode == ChannelMode::PerTrack && msg.getChannel() > 8)
                 continue;
 
-            // --- Note-on routing ---
-            if (msg.isNoteOn() && cc.onNoteOn)
+            // --- Note routing (on and off) ---
+            if (msg.isNoteOnOrOff())
             {
                 int targetTrack = -1;
                 if (cc.channelMode == ChannelMode::PerTrack)
@@ -27,8 +27,14 @@ namespace lockstep
                     targetTrack = cc.focusTrack;  // -1 (Global focus) → ignored below
 
                 if (targetTrack >= 0)
-                    cc.onNoteOn(targetTrack, metadata.samplePosition,
-                                msg.getNoteNumber());
+                {
+                    if (msg.isNoteOn() && cc.onNoteOn)
+                        cc.onNoteOn(targetTrack, metadata.samplePosition,
+                                    msg.getNoteNumber(), msg.getVelocity());
+                    else if (msg.isNoteOff() && cc.onNoteOff)
+                        cc.onNoteOff(targetTrack, metadata.samplePosition,
+                                     msg.getNoteNumber());
+                }
                 continue;
             }
 

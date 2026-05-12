@@ -159,26 +159,52 @@ namespace lockstep
 
     // -------------------------------------------------------------------------
 
-    void SamplerMachine::process(int triggerAtSample, const ParamFrame& params,
+    void SamplerMachine::process(const juce::MidiBuffer& events,
+                                 const ParamFrame& params,
                                  juce::AudioBuffer<float>& buffer)
     {
-        if (!voice_.active && !choke_.isFading() && !hasPendingTrigger_ && triggerAtSample < 0)
+        // Scan events: last note-on wins (monophonic), first note-off triggers release.
+        int triggerAt = -1;
+        int releaseAt = -1;
+        for (const auto& meta : events)
+        {
+            const auto msg = meta.getMessage();
+            if (msg.isNoteOn())
+                triggerAt = meta.samplePosition;
+            else if (msg.isNoteOff() && releaseAt < 0)
+                releaseAt = meta.samplePosition;
+        }
+
+        const int numBlockSamples = buffer.getNumSamples();
+        if (triggerAt >= 0)
+            triggerAt = std::clamp(triggerAt, 0, numBlockSamples - 1);
+        if (releaseAt >= 0)
+            releaseAt = std::clamp(releaseAt, 0, numBlockSamples - 1);
+
+        if (!voice_.active && !choke_.isFading() && !hasPendingTrigger_ && triggerAt < 0)
             return;
 
         // Sample pointer is resolved after each trigger so sampleIndex is current.
         const Sample* sample = voice_.active ? pool_.get(voice_.sampleIndex) : nullptr;
 
-        const int numOut          = buffer.getNumChannels();
-        const int numBlockSamples = buffer.getNumSamples();
+        const int numOut = buffer.getNumChannels();
 
         for (int i = 0; i < numBlockSamples; ++i)
         {
-            if (triggerAtSample >= 0 && i == triggerAtSample)
+            // Note-off: if sustaining, start the release phase.
+            if (releaseAt >= 0 && i == releaseAt)
+            {
+                if (voice_.active && voice_.stage == Stage::Sustain)
+                    advanceStage(voice_);
+                releaseAt = -1;
+            }
+
+            // Note-on: trigger the voice at the scheduled offset.
+            if (triggerAt >= 0 && i == triggerAt)
             {
                 triggerVoice(params);
                 if (!choke_.isFading())
                 {
-                    // No choke needed (was idle): update sample pointer now.
                     sample = pool_.get(voice_.sampleIndex);
                     if (sample == nullptr)
                     {
@@ -186,9 +212,10 @@ namespace lockstep
                         break;
                     }
                 }
+                triggerAt = -1;
             }
 
-            // Apply choke fade to current voice output; start pending once done.
+            // Apply choke fade; start the pending voice once the fade completes.
             const float chokeGain = choke_.isFading() ? choke_.nextGain() : 1.0f;
             if (!choke_.isFading() && hasPendingTrigger_)
             {
@@ -204,7 +231,7 @@ namespace lockstep
 
             if (!voice_.active)
             {
-                if (triggerAtSample < 0 || i > triggerAtSample)
+                if (triggerAt < 0)
                     break;
                 continue;
             }

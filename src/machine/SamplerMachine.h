@@ -14,7 +14,8 @@ namespace lockstep
 
         void prepare(double sampleRate, int maxBlockSize) override;
         void reset() override;
-        void process(int triggerAtSample, const ParamFrame& params,
+        void process(const juce::MidiBuffer& events,
+                     const ParamFrame& params,
                      juce::AudioBuffer<float>& buffer) override;
 
         // Schema — dense indices 0..kNumSlots-1

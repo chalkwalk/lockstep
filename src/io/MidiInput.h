@@ -28,9 +28,13 @@ namespace lockstep
         std::function<void(int ccNumber)>       onLearnCapture;
 
         // Called for each note-on after channel-mode routing resolves the target track.
-        // Args: (targetTrack 0-7, sampleOffset within block, midiNoteNumber 0-127).
+        // Args: (targetTrack 0-7, sampleOffset, midiNote 0-127, velocity 1-127).
         // Not called when focus is Global in Omni mode.
-        std::function<void(int, int, int)>      onNoteOn;
+        std::function<void(int, int, int, int)> onNoteOn;
+
+        // Called for each note-off after routing.
+        // Args: (targetTrack 0-7, sampleOffset, midiNote 0-127).
+        std::function<void(int, int, int)>      onNoteOff;
     };
 
     class MidiInput
