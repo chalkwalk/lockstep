@@ -32,14 +32,14 @@ namespace lockstep
         //             (used to resolve Contextual mappings at call time).
         //
         // getCurrentTrackValue: returns the current actual value for (track, slot).
-        // getMetadata:          returns ParamMetadata for (track, slot).
+        // getMetadata:          returns ParamSpec for (track, slot).
         // writeTrackParam:      called with (track, slot, newActualValue).
         void dispatch(int ccNumber,
                       int rawValue,
                       int focusTrack,
                       const std::array<int, 4>&                        mzSlots,
                       const std::function<float(int, int)>&            getCurrentTrackValue,
-                      const std::function<ParamMetadata(int, int)>&    getMetadata,
+                      const std::function<ParamSpec(int, int)>&        getMetadata,
                       const std::function<void(int, int, float)>&      writeTrackParam);
 
         const std::vector<CCMapping>& mappings() const { return mappings_; }

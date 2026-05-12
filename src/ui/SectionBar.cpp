@@ -67,10 +67,10 @@ namespace lockstep
         }
 
         // Fetch section info (from the active track's machine)
-        const auto info = processor_.trackSection(activeTrack, sectionIndex);
-        const juce::String primaryLabel = info.primaryLabel.empty()
+        const auto info = processor_.section(activeTrack, sectionIndex);
+        const juce::String primaryLabel = info.label.isEmpty()
                                               ? juce::String(sectionIndex)
-                                              : juce::String(info.primaryLabel);
+                                              : info.label;
         // Secondary label is the fixed meta-layer name, not the machine's secondaryLabel.
         const bool reserved = isReservedMeta(sectionIndex);
         const juce::String secondaryLabel =
@@ -143,7 +143,7 @@ namespace lockstep
         paintFixedCell(g, cellBounds(0), "SHF", uiState_.shiftHeld);
         paintFixedCell(g, cellBounds(1), juce::String::charToString(0x25B2), false); // ▲
 
-        for (int s = 0; s < IMachine::kNumSections; ++s)
+        for (int s = 0; s < IMachine::kMaxSections; ++s)
             paintSectionCell(g, cellBounds(kFixedCells + s), s, activeTrack);
     }
 
@@ -168,7 +168,7 @@ namespace lockstep
         const int activeTrack = grid_.getActiveTrack();
         if (activeTrack < 0 || activeTrack >= static_cast<int>(kNumTracks))
             return false;
-        if (sectionIndex < 0 || sectionIndex >= IMachine::kNumSections)
+        if (sectionIndex < 0 || sectionIndex >= IMachine::kMaxSections)
             return false;
 
         const auto ti = static_cast<std::size_t>(activeTrack);
@@ -181,7 +181,7 @@ namespace lockstep
         if (!wasInMasterMode && uiState_.trackSection[ti] == sectionIndex)
         {
             // Same section, not switching from master: advance page, wrap around.
-            const auto info = processor_.trackSection(activeTrack, sectionIndex);
+            const auto info = processor_.section(activeTrack, sectionIndex);
             const int pageCount = info.pageCount > 0 ? info.pageCount : 1;
             uiState_.trackPage[ti][si] = (uiState_.trackPage[ti][si] + 1) % pageCount;
         }
@@ -215,7 +215,7 @@ namespace lockstep
             return;
         const auto ti = static_cast<std::size_t>(activeTrack);
         const auto si = static_cast<std::size_t>(sectionIndex);
-        const auto info = processor_.trackSection(activeTrack, sectionIndex);
+        const auto info = processor_.section(activeTrack, sectionIndex);
         const int page = uiState_.trackPage[ti][si];
         const int firstSlot = info.firstSlot + 4 * page;
         onSectionChanged(sectionIndex, page, firstSlot);

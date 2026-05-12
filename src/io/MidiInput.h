@@ -20,7 +20,7 @@ namespace lockstep
         ChannelMode channelMode = ChannelMode::Omni;
 
         std::function<float(int, int)>          getCurrentTrackValue;
-        std::function<ParamMetadata(int, int)>  getMetadata;
+        std::function<ParamSpec(int, int)>      getMetadata;
         std::function<void(int, int, float)>    writeTrackParam;
 
         // When set, the next CC received is passed here instead of dispatched.

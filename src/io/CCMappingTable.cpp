@@ -32,7 +32,7 @@ namespace lockstep
         int focusTrack,
         const std::array<int, 4>&                      mzSlots,
         const std::function<float(int, int)>&           getCurrentTrackValue,
-        const std::function<ParamMetadata(int, int)>&   getMetadata,
+        const std::function<ParamSpec(int, int)>&        getMetadata,
         const std::function<void(int, int, float)>&     writeTrackParam)
     {
         for (auto& m : mappings_)

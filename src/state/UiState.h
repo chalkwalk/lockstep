@@ -2,18 +2,18 @@
 
 #include <array>
 #include "../core/Sequence.h"   // kNumTracks
-#include "../machine/IMachine.h"  // kNumSections
+#include "../machine/IMachine.h"  // kMaxSections
 
 namespace lockstep
 {
     // UI-local selection state. Not persisted. Not accessed from the audio thread.
     struct UiState
     {
-        // Per-track active section (0 .. kNumSections-1).
+        // Per-track active section (0 .. kMaxSections-1).
         std::array<int, kNumTracks> trackSection{};
 
         // Per-track, per-section active page index (0 .. pageCount-1).
-        std::array<std::array<int, IMachine::kNumSections>, kNumTracks> trackPage{};
+        std::array<std::array<int, IMachine::kMaxSections>, kNumTracks> trackPage{};
 
         // Shift key (key '1') is currently held.
         bool shiftHeld = false;

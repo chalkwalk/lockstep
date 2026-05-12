@@ -48,10 +48,11 @@ namespace lockstep
         // Seed each track's base params from the machine's declared defaults.
         for (std::size_t t = 0; t < kNumTracks; ++t)
         {
-            for (int s = 0; s < kNumParamSlots; ++s)
+            const int np = machines_[t]->numParams();
+            for (int s = 0; s < np; ++s)
             {
                 sequence_.tracks[t].baseParams[static_cast<std::size_t>(s)] =
-                    machines_[t]->getParamMetadata(s).defaultValue;
+                    machines_[t]->paramSpec(s).defaultValue;
             }
             // Track N defaults to sample index N so each track sounds distinct.
             sequence_.tracks[t].baseParams[0] = static_cast<float>(t);
@@ -202,7 +203,7 @@ namespace lockstep
             return base;
         };
         ccCtx.getMetadata = [this](int t, int s) {
-            return paramMetadata(t, s);
+            return paramSpec(t, s);
         };
         ccCtx.writeTrackParam = [this](int t, int s, float v) {
             writeParam(t, s, v);
@@ -238,11 +239,11 @@ namespace lockstep
 
             if (slot >= 0)
             {
-                const auto meta = paramMetadata(track, slot);
+                const auto spec = paramSpec(track, slot);
                 const float raw = (trk.noteMode == NoteMode::Pitch)
                     ? static_cast<float>(midiNote - 60)
                     : static_cast<float>(std::max(0, midiNote - 60));
-                writeParam(track, slot, std::clamp(raw, meta.minValue, meta.maxValue));
+                writeParam(track, slot, std::clamp(raw, spec.minValue, spec.maxValue));
             }
         };
 
@@ -488,11 +489,52 @@ namespace lockstep
             .steps[static_cast<std::size_t>(step)].overrides.clear(slot);
     }
 
-    ParamMetadata LockstepProcessor::paramMetadata(int track, int slot) const
+    int LockstepProcessor::numParams(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks))
+            return 0;
+        return machines_[static_cast<std::size_t>(track)]->numParams();
+    }
+
+    ParamSpec LockstepProcessor::paramSpec(int track, int index) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return {};
-        return machines_[static_cast<std::size_t>(track)]->getParamMetadata(slot);
+        return machines_[static_cast<std::size_t>(track)]->paramSpec(index);
+    }
+
+    int LockstepProcessor::numSections(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks))
+            return 0;
+        return machines_[static_cast<std::size_t>(track)]->numSections();
+    }
+
+    // Computes SectionInfo including firstSlot and pageCount from the machine's ParamSpec list.
+    SectionInfo LockstepProcessor::section(int track, int sectionIndex) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks))
+            return {};
+        auto* m = machines_[static_cast<std::size_t>(track)].get();
+        SectionInfo info = m->section(sectionIndex);
+        // Compute firstSlot and slotCount from the ParamSpec list so callers
+        // don't have to query paramSpec() themselves.
+        info.firstSlot = -1;
+        int count = 0;
+        const int np = m->numParams();
+        for (int i = 0; i < np; ++i)
+        {
+            if (m->paramSpec(i).sectionIndex == sectionIndex)
+            {
+                if (info.firstSlot < 0)
+                    info.firstSlot = i;
+                ++count;
+            }
+        }
+        if (info.firstSlot < 0) info.firstSlot = 0;
+        info.pageCount = (count + kParamsPerPage - 1) / kParamsPerPage;
+        if (info.pageCount < 1) info.pageCount = 1;
+        return info;
     }
 
     int LockstepProcessor::pitchSlot(int track) const
@@ -500,27 +542,6 @@ namespace lockstep
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return -1;
         return machines_[static_cast<std::size_t>(track)]->pitchSlot();
-    }
-
-    int LockstepProcessor::gateSlot(int track) const
-    {
-        if (track < 0 || track >= static_cast<int>(kNumTracks))
-            return -1;
-        return machines_[static_cast<std::size_t>(track)]->gateSlot();
-    }
-
-    int LockstepProcessor::numTrackSections(int track) const
-    {
-        if (track < 0 || track >= static_cast<int>(kNumTracks))
-            return 0;
-        return machines_[static_cast<std::size_t>(track)]->numTrackSections();
-    }
-
-    SectionInfo LockstepProcessor::trackSection(int track, int sectionIndex) const
-    {
-        if (track < 0 || track >= static_cast<int>(kNumTracks))
-            return {};
-        return machines_[static_cast<std::size_t>(track)]->trackSection(sectionIndex);
     }
 
     juce::AudioProcessorEditor* LockstepProcessor::createEditor()

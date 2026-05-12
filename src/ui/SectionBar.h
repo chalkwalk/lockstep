@@ -37,7 +37,7 @@ namespace lockstep
 
     private:
         static constexpr int kFixedCells  = 2;   // SHIFT + NAV
-        static constexpr int kTotalCells  = kFixedCells + IMachine::kNumSections;
+        static constexpr int kTotalCells  = kFixedCells + IMachine::kMaxSections;
 
         // Returns the cell rectangle for a given cell index (0 = SHIFT, 1 = NAV, 2..7 = sections).
         [[nodiscard]] juce::Rectangle<int> cellBounds(int cellIndex) const;
@@ -59,13 +59,13 @@ namespace lockstep
 
         // Fixed meta-section labels for the shift layer, indexed by section (0–5).
         // Empty string = reserved (Shift press is a no-op for that index).
-        static constexpr std::array<const char*, IMachine::kNumSections> kMetaLabels = {
+        static constexpr std::array<const char*, IMachine::kMaxSections> kMetaLabels = {
             "COND", "TRACK", "", "", "", "GLOBAL"
         };
 
         [[nodiscard]] static bool isReservedMeta(int sectionIndex)
         {
-            if (sectionIndex < 0 || sectionIndex >= IMachine::kNumSections) return true;
+            if (sectionIndex < 0 || sectionIndex >= IMachine::kMaxSections) return true;
             return kMetaLabels[static_cast<std::size_t>(sectionIndex)][0] == '\0';
         }
 

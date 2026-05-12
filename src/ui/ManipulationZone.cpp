@@ -175,24 +175,24 @@ namespace lockstep
         refreshSliders();
     }
 
-    static juce::String formatValue(float v, ParamMetadata::Unit unit, bool isStepped)
+    static juce::String formatValue(float v, ParamSpec::Unit unit, bool isStepped)  // NOLINT
     {
         if (isStepped)
             return juce::String(static_cast<int>(std::round(v)));
 
         switch (unit)
         {
-            case ParamMetadata::Unit::Ms:
+            case ParamSpec::Unit::Ms:
                 return v < 10.0f ? juce::String(v, 1) + " ms"
                                  : juce::String(static_cast<int>(v)) + " ms";
-            case ParamMetadata::Unit::Semitones:
+            case ParamSpec::Unit::Semitones:
             {
                 const int st = static_cast<int>(std::round(v));
                 return (st >= 0 ? "+" : "") + juce::String(st) + " st";
             }
-            case ParamMetadata::Unit::Percent:
+            case ParamSpec::Unit::Percent:
                 return juce::String(static_cast<int>(v * 100.0f)) + "%";
-            case ParamMetadata::Unit::None:
+            case ParamSpec::Unit::None:
             default:
                 return juce::String(v, 2);
         }
@@ -222,7 +222,7 @@ namespace lockstep
             const int  slot   = slotOffset_ + i;
             const auto slotSz = static_cast<std::size_t>(slot);
 
-            const auto meta = processor_.paramMetadata(track, slot);
+            const auto meta = processor_.paramSpec(track, slot);
 
             sliders_[si].setRange(static_cast<double>(meta.minValue),
                                   static_cast<double>(meta.maxValue),
@@ -247,9 +247,9 @@ namespace lockstep
                 valueText += " *";
             valueLabels_[si].setText(valueText, juce::dontSendNotification);
 
-            const juce::String nameText = meta.label.empty()
+            const juce::String nameText = meta.label.isEmpty()
                                               ? juce::String(slot)
-                                              : juce::String(meta.label);
+                                              : meta.label;
             labels_[si].setText(nameText, juce::dontSendNotification);
 
             clearBtns_[si].setEnabled(hasLock);
@@ -381,10 +381,7 @@ namespace lockstep
             .getRawParameterValue(ParamIDs::trackLength(track))->load();
         const float divider = processor_.apvts()
             .getRawParameterValue(ParamIDs::trackDivider(track))->load();
-        const int gateSlot  = processor_.gateSlot(track);
-        const float gate    = gateSlot >= 0
-                                  ? t.baseParams[static_cast<std::size_t>(gateSlot)]
-                                  : 0.0f;
+        const float gate = t.baseParams[3]; // slot 3 = sampler gate; moves to sequencer in MA.6
         const float noteMode = static_cast<float>(static_cast<int>(t.noteMode));
 
         struct TrackFieldDef { const char* label; float lo; float hi; bool stepped; };
@@ -448,8 +445,7 @@ namespace lockstep
         {
             case 0: writeApvts(ParamIDs::trackLength(track),  value, 1.0f, 64.0f);    break;
             case 1: writeApvts(ParamIDs::trackDivider(track), value, 1.0f, 16.0f);    break;
-            case 2: { const int gs = processor_.gateSlot(track);
-                      if (gs >= 0) t.baseParams[static_cast<std::size_t>(gs)] = value; } break;
+            case 2: t.baseParams[3] = value; break; // slot 3 = sampler gate; MA.6
             case 3: t.noteMode = (value >= 0.5f) ? NoteMode::SampleSelect
                                                   : NoteMode::Pitch;          break;
             default: break;

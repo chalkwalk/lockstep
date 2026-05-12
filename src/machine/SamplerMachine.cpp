@@ -247,43 +247,39 @@ namespace lockstep
 
     // -------------------------------------------------------------------------
 
-    ParamMetadata SamplerMachine::getParamMetadata(int slot) const
+    ParamSpec SamplerMachine::paramSpec(int index) const
     {
-        using U = ParamMetadata::Unit;
-        switch (slot)
+        using U = ParamSpec::Unit;
+        switch (index)
         {
-        // Source section (slots 0–3)
-        case kSlotSampleId: return { "Sample",   0.0f,   127.0f,   0.0f, true,  U::None      };
-        case kSlotPitch:    return { "Pitch",   -24.0f,   24.0f,   0.0f, false, U::Semitones };
-        case kSlotLevel:    return { "Level",    0.0f,     1.0f,   1.0f, false, U::Percent   };
-        case kSlotGate:     return { "Gate",     0.0f, 10000.0f,   0.0f, false, U::Ms        };
-        // Env section (slots 8–12)
-        case kSlotAttack:   return { "Attack",   0.0f,  5000.0f,   2.0f, false, U::Ms        };
-        case kSlotHold:     return { "Hold",     0.0f,  2000.0f,   0.0f, false, U::Ms        };
-        case kSlotDecay:    return { "Decay",    0.0f,  5000.0f, 500.0f, false, U::Ms        };
-        case kSlotSustain:  return { "Sustain",  0.0f,     1.0f,  0.5f, false, U::Percent   };
-        case kSlotRelease:  return { "Release",  0.0f,  5000.0f, 200.0f, false, U::Ms        };
+        // Section 0 "Source"
+        case kSlotSampleId: return { "sample_id",  "Sample",  0.0f,   127.0f,   0.0f, true,  U::None,      0 };
+        case kSlotPitch:    return { "pitch",       "Pitch",  -24.0f,  24.0f,   0.0f, false, U::Semitones, 0 };
+        case kSlotLevel:    return { "level",       "Level",   0.0f,    1.0f,   1.0f, false, U::Percent,   0 };
+        case kSlotGate:     return { "gate",        "Gate",    0.0f, 10000.0f,  0.0f, false, U::Ms,        0 };
+        // Section 1 "Env"
+        case kSlotAttack:   return { "attack",      "Attack",  0.0f,  5000.0f,  2.0f, false, U::Ms,        1 };
+        case kSlotHold:     return { "hold",        "Hold",    0.0f,  2000.0f,  0.0f, false, U::Ms,        1 };
+        case kSlotDecay:    return { "decay",       "Decay",   0.0f,  5000.0f, 500.0f,false, U::Ms,        1 };
+        case kSlotSustain:  return { "sustain",     "Sustain", 0.0f,    1.0f,   0.5f, false, U::Percent,   1 };
+        case kSlotRelease:  return { "release",     "Release", 0.0f,  5000.0f, 200.0f,false, U::Ms,        1 };
         default:            return {};
         }
     }
 
     // -------------------------------------------------------------------------
-    // Section taxonomy: 6 sections × 2 pages × 4 slots = 48 slots.
 
-    int SamplerMachine::numTrackSections() const { return kNumSections; }
-
-    SectionInfo SamplerMachine::trackSection(int index) const
+    SectionInfo SamplerMachine::section(int index) const
     {
-        static const std::array<SectionInfo, kNumSections> kSections {{
-            { "Source", "", 2, 0  },
-            { "Env",    "", 2, 8  },
-            { "Mod",    "", 2, 16 },
-            { "FX",     "", 2, 24 },
-            { "Route",  "", 2, 32 },
-            { "Util",   "", 2, 40 },
-        }};
-        if (index < 0 || index >= kNumSections)
-            return {};
-        return kSections[static_cast<std::size_t>(index)];
+        switch (index)
+        {
+        case 0: return { "Source" };
+        case 1: return { "Env"    };
+        case 2: return { "Mod"    };
+        case 3: return { "FX"     };
+        case 4: return { "Route"  };
+        case 5: return { "Util"   };
+        default: return {};
+        }
     }
 }

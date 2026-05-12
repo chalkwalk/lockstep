@@ -91,16 +91,14 @@ namespace lockstep
         // Remove the P-Lock override for one slot on a specific step.
         void clearParam(int track, int step, int slot);
 
-        // Metadata for a slot from the machine on the given track.
-        ParamMetadata paramMetadata(int track, int slot) const;
+        // Schema query helpers — forward to the machine on the given track.
+        int         numParams(int track)              const;
+        ParamSpec   paramSpec(int track, int index)   const;
+        int         numSections(int track)            const;
+        SectionInfo section(int track, int sectionIndex) const;
 
-        // Named slot indices from the machine on the given track (-1 if not applicable).
+        // MIDI note routing hints (retired in MA.7).
         int pitchSlot(int track) const;
-        int gateSlot(int track)  const;
-
-        // Section taxonomy from the machine on the given track.
-        int         numTrackSections(int track) const;
-        SectionInfo trackSection(int track, int sectionIndex) const;
 
         using juce::AudioProcessor::processBlock;
 
