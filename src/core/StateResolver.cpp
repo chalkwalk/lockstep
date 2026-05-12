@@ -13,7 +13,7 @@ namespace lockstep::StateResolver
         if (step.overrides.empty())
             return frame;
 
-        for (int slot = 0; slot < kNumParamSlots; ++slot)
+        for (int slot = 0; slot < static_cast<int>(frame.size()); ++slot)
         {
             if (step.overrides.has(slot))
                 frame[static_cast<std::size_t>(slot)] = step.overrides.get(slot, frame[static_cast<std::size_t>(slot)]);

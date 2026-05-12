@@ -49,6 +49,7 @@ namespace lockstep
         for (std::size_t t = 0; t < kNumTracks; ++t)
         {
             const int np = machines_[t]->numParams();
+            sequence_.tracks[t].baseParams.assign(static_cast<std::size_t>(np), 0.0f);
             for (int s = 0; s < np; ++s)
             {
                 sequence_.tracks[t].baseParams[static_cast<std::size_t>(s)] =
@@ -458,7 +459,8 @@ namespace lockstep
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return;
-        if (slot < 0 || slot >= kNumParamSlots)
+        const int np = numParams(track);
+        if (slot < 0 || slot >= np)
             return;
 
         const auto ti = static_cast<std::size_t>(track);
@@ -484,7 +486,7 @@ namespace lockstep
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
         if (step  < 0 || step  >= kMaxStepsPerTrack)             return;
-        if (slot  < 0 || slot  >= kNumParamSlots)                return;
+        if (slot  < 0 || slot  >= numParams(track))              return;
         sequence_.tracks[static_cast<std::size_t>(track)]
             .steps[static_cast<std::size_t>(step)].overrides.clear(slot);
     }

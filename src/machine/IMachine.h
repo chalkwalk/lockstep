@@ -1,15 +1,15 @@
 #pragma once
 
 #include <string>
+#include <vector>
 #include <juce_audio_basics/juce_audio_basics.h>
 
 namespace lockstep
 {
-    // Still 48 until MA.2 makes ParamFrame machine-sized.
-    inline constexpr int kNumParamSlots = 48;
     inline constexpr int kParamsPerPage = 4;   // MZ display width — UI constant, not a machine limit
 
-    using ParamFrame = std::array<float, kNumParamSlots>;
+    // Variable-length parameter frame, sized to the machine's numParams() at attachment.
+    using ParamFrame = std::vector<float>;
 
     // Per-slot descriptor declared by each machine.
     // id is stable across releases (used as the serialisation key).

@@ -215,15 +215,30 @@ namespace lockstep
         const auto& ctx = processor_.editContext();
         const auto& t   = processor_.sequence().tracks[static_cast<std::size_t>(track)];
 
+        const int numMachineParams = processor_.numParams(track);
         updatingFromTimer_ = true;
         for (int i = 0; i < kNumSlots; ++i)
         {
-            const auto si     = static_cast<std::size_t>(i);
-            const int  slot   = slotOffset_ + i;
+            const auto si   = static_cast<std::size_t>(i);
+            const int  slot = slotOffset_ + i;
+
+            // Slot beyond this machine's schema — blank out the cell.
+            if (slot >= numMachineParams)
+            {
+                sliders_[si].setEnabled(false);
+                sliders_[si].setAlpha(0.0f);
+                labels_[si].setText({}, juce::dontSendNotification);
+                valueLabels_[si].setText({}, juce::dontSendNotification);
+                clearBtns_[si].setEnabled(false);
+                clearBtns_[si].setAlpha(0.0f);
+                continue;
+            }
+
             const auto slotSz = static_cast<std::size_t>(slot);
+            const auto meta   = processor_.paramSpec(track, slot);
 
-            const auto meta = processor_.paramSpec(track, slot);
-
+            sliders_[si].setEnabled(true);
+            sliders_[si].setAlpha(1.0f);
             sliders_[si].setRange(static_cast<double>(meta.minValue),
                                   static_cast<double>(meta.maxValue),
                                   meta.isStepped ? 1.0 : 0.0);
