@@ -7,23 +7,40 @@ milestone changes, update **Active focus** below.
 
 For architecture see `DESIGN.md`.
 
-**Active focus:** M5 — MIDI ingestion layer.
-**Last completed:** M4 — Trig conditions.
+**Active focus:** MA — Architecture pivot (variable-schema machines + MIDI boundary).
+**Last completed:** M6.6 — TRACK and GLOBAL meta sections wired into MZ
+(against the legacy 48-slot interface; will be re-touched during MA).
 
 ## Locked design decisions for the roadmap
 
 (Captured here so future-you doesn't re-litigate them.)
 
-- **48-slot IMachine contract is sacred.** Exactly 12 pages × 4
-  parameters. The sequencer never grows engine-specific knowledge.
-- **Track monophony.** Every track has one ringing voice; retrigger is
-  a 1–2 ms micro-fade, never an instantaneous cut.
+- **`IMachine` is a C++ base class, not a sub-plugin format.** A new
+  engine is added by subclassing in-tree. No CLAP/VST3 sub-hosting
+  layer, no IPC. (Wrapping arbitrary plugins is one possible machine
+  someone could write later — see DESIGN.md §9 — not a planned phase.)
+- **Variable parameter schema, declared per machine.** No fixed slot
+  count. Each machine declares its own `ParamSpec` list. The MZ still
+  shows 4 at a time and the section bar still has 6 buttons; both
+  paginate within whatever the machine declares.
+- **Hybrid slot identity.** Integer index at runtime, stable string id
+  on disk. P-Lock and CC-mapping serialization survives slot
+  reordering across machine releases.
+- **MIDI buffer + ParamFrame at the machine boundary.** The sequencer
+  translates trig events into MIDI note-on/off (per §4.6 of DESIGN);
+  machines receive `(MidiBuffer, ParamFrame, AudioBuffer)`. External
+  MIDI is mixed into the same buffer.
+- **Voice topology is per-machine.** A machine declares `maxVoices()`;
+  `1` triggers sequencer-managed choke (1–2 ms micro-fade), `n>1` =
+  self-managed polyphony, `0` = unbounded / MIDI-out.
 - **No PCM in plugin state.** Sample references use path + `xxHash32`;
   raw audio bytes never enter the DAW save payload.
 - **QWERTY-first UI.** The full editing flow is reachable from the
   keyboard. The mouse is a second-class citizen.
 - **Override-ELSE-Base** is the single resolution rule. No reset
-  sentinel values, no per-parameter precedence flags.
+  sentinel values, no per-parameter precedence flags. Applies to both
+  machine ParamFrames and sequencer-scope per-step trig fields
+  (note / velocity / gate / condition).
 - **Single input gate.** All input sources (MIDI CC, MIDI note, QWERTY,
   UI encoders, future hardware) route through `EditContext` identically.
   No source-specific paths. A held step receives P-Locks from any
@@ -144,6 +161,74 @@ The full input abstraction described in DESIGN.md §4.3 + §5.
       timeline. Sync modes (Locked / Auto) with freewheel-on-clock-
       dropout and freeze-on-transport-stop semantics.
 
+### MA — Architecture pivot: variable-schema machines + MIDI boundary  [pending]
+
+A non-negotiable refactor that lands before the rest of M6. The legacy
+48-slot `IMachine`, the fixed `std::array<float, 48>` ParamFrame, and
+the trigger-int call signature were leaking engine-specific assumptions
+into the sequencer. Recommendation: complete this milestone before
+finishing M6.7–M6.11, since the remaining UI work would otherwise be
+built against an interface we're about to throw away. M6.1–M6.6 will
+need light retouch to track the new schema (variable section/page
+counts, `paramSpec(i)` instead of `getParamMetadata(i)`, etc.).
+
+- [ ] **MA.1** Replace `IMachine` slot constants with a per-machine
+      `ParamSpec` list: stable `id` (string), `label`, range,
+      default, stepped flag, unit, owning section index. Drop the
+      48-slot `kNumParamSlots`, `kNumPages`, `kParamsPerPage`
+      constants. Remove `pitchSlot()` / `sampleSelectSlot()` /
+      `gateSlot()` hints.
+- [ ] **MA.2** Make `ParamFrame` machine-sized: a `std::vector<float>`
+      owned by the sequencer's resolver, sized to the machine's
+      `numParams()` at machine attachment. Pass to `process()` as
+      `std::span<const float>` (or equivalent).
+- [ ] **MA.3** Hybrid slot identity. Add an id↔index map on each
+      machine. P-Lock storage stays integer-keyed at runtime; the
+      serializer translates id↔index on load/save. Unknown ids on
+      load are dropped with a log entry.
+- [ ] **MA.4** Per-machine voice topology. `IMachine::maxVoices()`
+      with default `1`. Choke micro-fade becomes a sequencer-side
+      action gated on `maxVoices() == 1`. Move the existing
+      `VoiceChoke` out of `SamplerMachine` into the sequencer (or a
+      shared helper) and invoke it before emitting retrigger note-ons
+      for monophonic machines.
+- [ ] **MA.5** Replace the `process(triggerAtSample, params, buffer)`
+      signature with `process(MidiBuffer events, ParamFrame params,
+      AudioBuffer<float> buffer)`. Sequencer constructs the per-track
+      MidiBuffer each block: one note-on per fired trig, one note-off
+      `gate` samples later. External MIDI is mixed into the same
+      buffer per the routing rules (Omni / Per-Track).
+- [ ] **MA.6** Add per-track sequencer-scope trig fields:
+      `defaultNote`, `defaultVelocity`, `gateLength`. Add the
+      corresponding per-step optional overrides
+      (`noteOverride`, `velocityOverride`, `gateOverride`). Resolver
+      applies Override-ELSE-Base to each.
+- [ ] **MA.7** Drop `Track::noteMode` and the corresponding
+      `kSlotPitch`/`kSlotSampleId` routing logic. Pitch-recording
+      gesture now writes to `step.noteOverride` (sequencer-scope)
+      regardless of machine. The sample-select-via-key gesture moves
+      to record-arm mode and targets a per-track-configured machine
+      slot (M7.4).
+- [ ] **MA.8** Update `SectionBar` for variable section count
+      (≤6) and variable page count per section (paginate by 4).
+      Disable any trailing buttons the machine doesn't use.
+- [ ] **MA.9** Update `ManipulationZone` to read schema from
+      `paramSpec(i)` and to handle variable page counts. Re-wire the
+      meta sections per the new fixed layout: COND (Shift+3),
+      TRIG (Shift+4, new — note/vel/gate), TRACK (Shift+5,
+      length/divider — moved from Shift+4), reserved (Shift+6–7),
+      GLOBAL (Shift+8).
+- [ ] **MA.10** Sampler machine cleanup: remove `kSlotGate` (gate is
+      now sequencer-scope), keep `pitch_offset` as a fine-tune slot,
+      respond to incoming MIDI note-on by starting a voice at the
+      requested pitch, respond to note-off by entering release.
+      Voice retains all current DSP (interpolation, AHDSR, sample
+      pool lookup); only the trigger entry point changes.
+- [ ] **MA.11** Verify M1–M5 features still work end-to-end: load a
+      sample, sequence a 16-step pattern, P-Lock a slot, hear it
+      play back through the new MIDI boundary. Standalone smoke test
+      with the choke fade audibly intact on retriggers.
+
 ### M6 — QWERTY overlay + Manipulation Zone UI  [pending]
 
 The keyboard-first editor.
@@ -164,13 +249,18 @@ The keyboard-first editor.
       active. No step held → reads/writes `Track::baseCond`; Prev-dep
       dimmed. Step held → reads/writes `step.condition` via EditContext;
       Prev-dep active. Requires M4.4 (`Track::baseCond` data model).
-- [ ] **M6.6** TRACK and GLOBAL track meta sections: wire Shift+4
-      (length, divider, gate default) and Shift+8 (output gain, sync
-      mode) into the manipulation zone.
-- [ ] **M6.7** Sampler gate length slot: machine reads `kSlotGate` (ms)
-      and triggers envelope release at `triggerTime + gate_samples` when
-      gate > 0; gate = 0 retains current behaviour (release on retrigger
-      only). P-lockable per step like any other slot.
+- [ ] **M6.6** TRACK and GLOBAL track meta sections: wire Shift+5
+      (length, divider) and Shift+8 (output gain, sync mode) into the
+      manipulation zone. (Originally landed against Shift+4 / legacy
+      schema; MA.9 re-pins to Shift+5 to free Shift+4 for TRIG.)
+- [ ] **M6.7** TRIG track meta section (Shift+4): wire `[Note]
+      [Velocity] [Gate]` plus one spare slot. No step held →
+      reads/writes `Track::defaultNote` / `defaultVelocity` /
+      `gateLength`. Step held → reads/writes `step.noteOverride` /
+      `velocityOverride` / `gateOverride` via EditContext, with
+      Override-ELSE-Base fallback to track defaults. Replaces the
+      legacy "sampler gate length slot" task — gate is now
+      sequencer-scope per MA.6.
 - [ ] **M6.8** StepGrid: 2×8 with paginate keys; trig toggle, hold
       gesture; P-lock indicators.
 - [ ] **M6.9** Step-state preview: pre-compute fire/skip/probabilistic
@@ -218,14 +308,18 @@ Replace the M0 minimal serializer with the full payload.
 - [ ] **M8.5** CC mappings (with scope), channel mode, focus state,
       and clock/sync settings persisted alongside the sequence.
 
-### M9 — Phase 3 sub-hosting  [pending]
+### M9 — Plugin-wrapper machine (deferred indefinitely)
 
-Lift `IMachine` into a CLAP/VST3 sub-host.
+Originally scoped as a CLAP/VST3 sub-hosting phase against the
+48-slot contract. With the variable-schema `IMachine` boundary in
+place (MA), wrapping arbitrary plugins reduces to writing one
+specific `IMachine` subclass — a `WrapperMachine` that loads a host
+plugin via `juce::AudioPluginFormatManager`, exposes its parameter
+tree as the schema, and forwards MIDI/audio across.
 
-- [ ] **M9.1** Scan an application-specific directory; enumerate
-      conformant plugins (0/2 or 2/2 buses, exactly 48 parameters).
-- [ ] **M9.2** Bridge `ParamFrame` ↔ host parameter tree per block.
-- [ ] **M9.3** UX for assigning a Machine to a track.
+This is now an optional contributor project, not a planned phase.
+No core sequencer changes are required to support it. See DESIGN.md
+§9 for the design sketch.
 
 ### M10 — Polish, CI, beta  [pending]
 

@@ -27,60 +27,78 @@ Two non-negotiable design pillars:
 The project is GPLv3, cross-platform (Linux, macOS, Windows), and
 compiles to CLAP and VST3 from a single C++/JUCE codebase.
 
-## 2. The Encapsulation Boundary (`IMachine`)
+## 2. The Machine Boundary (`IMachine`)
 
 The sequencer talks to every sound engine through a single C++ virtual
-interface, `lockstep::IMachine`. The interface is deliberately narrow:
+base class, `lockstep::IMachine`. A contributor adds a new engine by
+inheriting from `IMachine` and implementing its half-dozen virtuals;
+no sub-plugin format, no IPC, no sandbox.
 
-- **Parameter Schema Contract.** Exactly **48 parameter slots**, laid
-  out as **12 logical pages × 4 parameters per page**. Slot indices
-  (0..47) are the *only* thing the sequencer knows about; the engine
-  attaches semantics. This keeps the P-Lock storage and editing model
-  completely engine-agnostic.
-- **Headless Operation.** Machines ship no UI. The sequencer's
-  Manipulation Zone queries each slot's metadata (label, range,
-  default, stepped/continuous) at display time and synthesises the
-  controls itself.
-- **State Ingestion.** At the start of each audio block the sequencer
-  resolves a `ParamFrame` (a `std::array<float, 48>`) per active track
-  and hands it across the boundary. The engine renders additively into
-  the supplied output buffer.
+The boundary is deliberately narrow but deliberately *not* fixed-shape
+— each machine declares its own parameter schema and voice topology:
 
-A baseline sampler (§3) implements `IMachine` natively in v0. Phase 3
-generalises this to a `juce::AudioPluginFormatManager`-backed sub-host
-(§9) that can load arbitrary CLAP/VST3 plugins as Machines, provided
-they honour the same 48-slot contract.
+- **Parameter Schema (variable, machine-declared).** A machine declares
+  any number of parameter slots. Each slot is a `ParamSpec` carrying:
+  a stable string id, a display label, range, default, stepped flag,
+  unit hint, and the section index it belongs to. Slot count and
+  layout are entirely the machine's choice. The sequencer's P-Lock
+  storage, MZ rendering, and CC mapping are all driven by the schema
+  the machine reports.
+- **Hybrid slot identity.** At runtime, P-Locks and CC routes use
+  integer indices for speed. On disk, they serialize as the slot's
+  string id. On load, ids are resolved back to indices, so a machine
+  author can reorder or insert slots between releases without breaking
+  saved patches.
+- **MIDI events + ParamFrame at runtime.** Each block, the machine
+  receives `(juce::MidiBuffer events, std::span<const float> params,
+  juce::AudioBuffer<float>& buffer)`. The MIDI buffer carries
+  sequencer-emitted note-on/off (one note-on per fired trig, one
+  note-off scheduled `gate` samples later — see §4.6) plus any external
+  MIDI passed through. `params` is the resolved `ParamFrame`, sized to
+  match the machine's schema.
+- **Per-machine voice topology.** A machine declares `maxVoices()`:
+  `1` = monophonic with sequencer-managed choke (the baseline
+  sampler), `n>1` = polyphonic with self-managed voice stealing,
+  `0` = unbounded / MIDI-out style. Track monophony is therefore a
+  property of the chosen machine, not a universal sequencer rule.
+- **Headless.** Machines ship no UI. The sequencer's Manipulation Zone
+  queries each slot's metadata at display time and synthesises the
+  controls itself. A machine that wants a custom visualisation (e.g. a
+  wavetable view) is out of v0.1 scope.
+
+The 48-slot fixed taxonomy that earlier drafts of this document
+described has been retired: it leaked engine-specific assumptions into
+the sequencer (slots-per-page = 4, sections = 6, total = 48) without
+any corresponding payoff. The MZ still shows 4 slots at a time for
+keyboard ergonomics, and the section bar still has 6 buttons; both
+paginate within whatever the machine declares.
 
 ## 3. The Baseline Sampler Machine
 
-The first engine to satisfy `IMachine` is a robust monophonic sampler
+The first engine to inherit `IMachine` is a monophonic sampler
 designed for trip-hop / drum-machine workflows:
 
-- **Track Monophony.** Each track has exactly one ringing voice at a
-  time. New triggers on the same track choke the previous voice via a
-  short (1–2 ms) micro-fade, never an instantaneous cut. Voices ring
-  out under their AHDSR envelope; they are not bound to MIDI note-off.
-- **Sample Pool.** Patches reference samples by id (an index into a
-  user-curated pool); the id is one of the 48 P-lockable parameters,
+- **Voice topology.** `maxVoices() = 1`, so the sequencer schedules
+  the 1–2 ms choke micro-fade on retrigger; the sampler itself doesn't
+  manage voice stealing. Voices ring out under their AHDSR envelope
+  until the sequencer-emitted note-off triggers release (see §4.6).
+- **Sample pool.** Patches reference samples by id (an index into a
+  user-curated pool). The id is one of the sampler's P-lockable slots,
   so a step can switch which sample plays. Sample-pool entries store a
   path plus an `xxHash32` of the PCM payload so projects survive moves
-  and renames.
+  and renames. The pool is plugin-global; other machines may ignore
+  it or, eventually, expose their own resource pools the same way.
 - **Slicing.** Samples may carry an array of slice points. The slice
-  index is exposed as a P-lockable parameter, enabling per-step
-  retrigger of slice positions.
-- **Melodic pitch.** A dedicated *note* slot (MIDI note number 0–127)
-  determines playback rate relative to a per-sample root note. This
-  makes the pitch-recording gesture (§5.4) first-class: holding a step
-  and playing a key P-Locks the note slot of that step to the key's
-  MIDI pitch. The existing semitone-offset slot becomes a fine-tune
-  layer on top of the note slot. Root note is stored per sample-pool
-  entry and defaults to 60 (middle C).
-- **Gate length.** A *gate* slot (0 ms – full step duration, stored in
-  ms) sets the point at which the voice transitions to its AHDSR
-  release phase, independent of choke or retrigger. Gate = 0 means the
-  release is triggered only by a subsequent trigger on the same track
-  (the current behaviour). Gate > 0 imposes an explicit timed release,
-  enabling staccato and legato articulations per step via P-Lock.
+  index is exposed as a P-lockable slot, enabling per-step retrigger
+  of slice positions.
+- **Pitch handling.** Incoming MIDI note number drives playback rate
+  relative to a per-sample root note (stored per pool entry, default
+  60). A separate `pitch_offset` slot adds a fine-tune semitone offset
+  on top, P-lockable per step for vibrato-style modulation. Pitch
+  recording is handled at the sequencer layer (§5.4), not by the
+  machine — held-step + note-on writes the note number into the step's
+  trig override, which the sequencer then emits as the trig's
+  note-on next time the step fires.
 - **DSP.** Linear/cubic interpolation for pitch, an AHDSR amplitude
   envelope, and a multi-mode state-variable filter (LP/BP/HP/Notch).
 
@@ -88,19 +106,29 @@ designed for trip-hop / drum-machine workflows:
 
 ### 4.1 Override-ELSE-Base resolution
 
-Every parameter has two storage layers:
+Every value with both a track-scope default and a step-scope override
+follows the same rule:
 
 ```
 Effective Value = Step Override [if present] ELSE Track Base
 ```
 
-The Track Base is the patch-level default for that slot. The Step
-Override is a sparse, per-step entry stored in a `PLock` map keyed by
-slot index. When a step has no override for a slot, the resolver falls
-through to the base — there is no "reset" sentinel value to manage.
+This applies to two parallel layers:
 
-This rule is the only way values reach the engine. Everything in the UI
-and ingestion layers ultimately reduces to writing into one of the two
+- **Machine ParamFrame.** Track Base is `Track::baseParams` (one float
+  per machine slot). Step Override is `Step::paramOverrides`, a sparse
+  map keyed by slot index.
+- **Sequencer trig fields.** Track Base carries `defaultNote`,
+  `defaultVelocity`, `gateLength`, and `baseCond`. Step Override
+  carries `noteOverride`, `velocityOverride`, `gateOverride`, and
+  `condition` — each independently optional. When a step's override
+  for a given field is absent, the resolver falls through to the
+  track-scope default.
+
+There is no "reset" sentinel value to manage; presence/absence in the
+override is the only signal. This rule is the only way values reach
+either the trig event stream or the engine. Everything in the UI and
+ingestion layers ultimately reduces to writing into one of the two
 layers.
 
 ### 4.2 Polymetric clocking
@@ -208,6 +236,37 @@ This predictive display is a first-class feature, not an afterthought:
 users need to *see* what conditional logic will do before they commit to
 a variation.
 
+### 4.6 Trig events: the sequencer→machine note stream
+
+When a step fires, the sequencer translates it into a MIDI event pair
+on the track's MIDI buffer:
+
+- **Note-on** at the trigger sample, with note number = effective
+  `note` and velocity = effective `velocity` (resolved per §4.1).
+- **Note-off** scheduled `gate` samples after note-on, where `gate` is
+  the effective `gateLength` for the step. Gate is stored as a count
+  of samples derived from the track's clock divider and the global
+  tempo, so it scales with tempo automatically. A sentinel value of 0
+  suppresses the note-off (machine plays to envelope completion or
+  until the next retrigger chokes).
+
+Note-offs that fall after the end of the current block are queued and
+re-emitted at the right sample of a future block. Retriggers on a
+monophonic machine don't need an explicit note-off: the sequencer
+emits a new note-on, the machine's `maxVoices() = 1` declaration tells
+the sequencer to insert the choke micro-fade in front of it, and the
+new voice supersedes the old.
+
+This model means machines never see "trig" as a concept — they only
+see MIDI. A polyphonic machine handles overlapping note-ons naturally;
+a MIDI-out machine forwards events verbatim; the sampler interprets
+note-on as "start a voice at this pitch, this velocity."
+
+External MIDI (from the host or a hardware controller) is mixed into
+the same buffer the sequencer writes to, so the machine sees one
+unified event stream. Routing rules (Omni vs Per-Track, focus follows)
+determine which track's buffer external MIDI lands on.
+
 ## 5. Input Layer
 
 All parameter writes travel through the **EditContext** before
@@ -216,9 +275,10 @@ whether a step is currently held:
 
 | Active section | No step held | Step held |
 |---|---|---|
-| Machine section | Track Base (`baseParams`) | Step PLock (`overrides`) |
+| Machine section | Track Base (`baseParams`) | Step PLock (`paramOverrides`) |
 | Track meta — COND | Track Base Condition (`baseCond`) | Step Condition (`step.condition`) |
-| Track meta — TRACK | Track structural fields | (no step-level override) |
+| Track meta — TRIG | Track defaults (`defaultNote`, `defaultVelocity`, `gateLength`) | Step trig overrides (`noteOverride`, `velocityOverride`, `gateOverride`) |
+| Track meta — TRACK | Track structural fields (length, divider) | (no step-level override) |
 | Track meta — GLOBAL | Global APVTS params | (no step-level override) |
 
 This rule is **input-source-agnostic**: encoder, QWERTY, MIDI CC, and
@@ -269,35 +329,34 @@ user remapping anything.
 
 Two channel modes, exposed as a global setting:
 
-- **Omni → Selected.** All channels accepted; notes trigger the
-  currently focused track. If focus is Master, notes are ignored.
+- **Omni → Selected.** All channels accepted; notes route to the
+  currently focused track's MIDI buffer. If focus is Global, notes
+  are ignored.
 - **Per-Track Channel.** MIDI channel N (1..8) hard-routes to track
-  N. Channels 9..16 are ignored. Live focus changes do not affect
-  note routing in this mode.
+  N's MIDI buffer. Channels 9..16 are ignored. Live focus changes do
+  not affect note routing in this mode.
 
-A note-on triggers the destination track's machine.
+A note-on routed to a track is appended to that track's MIDI buffer
+for the current block and reaches the machine through the standard
+event stream (§4.6). The sequencer does not interpret note numbers
+itself — they pass through to the machine.
 
-Two distinct note-driven P-Lock gestures exist, separated by intent
-and by whether record arm is active:
-
-**Pitch recording gesture (live, no record arm required).** When a
-step is held (EditContext active), a note-on from any source writes
-the note's MIDI pitch to the pitch slot of that step as a P-Lock.
-This is the same single-input-gate rule applied to note events — no
-different in principle from turning an encoder while holding a step.
-For a monophonic machine (e.g. the baseline sampler), the last
-note-on received within the hold gesture wins. For a polyphonic
-machine, multiple simultaneous notes can map onto a chord-capable
-slot set; the exact encoding is machine-defined. This is the primary
-mechanism for melodic step entry and for building chord patterns when
-polyphonic machines are available (§12).
+The pitch-recording gesture is the one exception: when a step is held
+(EditContext active), an incoming note-on is *consumed* by the
+sequencer instead of being passed through. The note number is written
+to the held step's `noteOverride` field; the next time that step
+fires, it will emit a note-on with that number. For a monophonic
+machine (`maxVoices() = 1`) the last note-on within the hold wins;
+for a polyphonic machine the overrides accumulate into a chord (the
+exact encoding for chord storage is deferred — see §12).
 
 **Key-as-PLock for drum patterns (record arm, M7).** With record arm
-engaged, individual note keys write P-Lock values — not pitches but
-*parameter values* — derived from the key index, e.g. routing
-different pad keys to different sample IDs across one drum track.
-This is a recording-mode-specific gesture, not a live editing
-gesture. See M7.4.
+engaged, individual note keys write P-Lock values to a chosen machine
+slot — typically the sampler's `sample_id` slot — derived from the
+key index, e.g. routing different pad keys to different sample IDs
+across one drum track. This is a recording-mode-specific gesture, not
+a live editing gesture, and the target slot is a per-track config
+choice rather than a hardcoded behaviour. See M7.4.
 
 ### 5.5 QWERTY overlay
 
@@ -321,24 +380,28 @@ hardware surface 1:1:
 
 - **The Manipulation Zone.** Exactly 4 primary parameters visible at
   any time. Their labels, ranges, and visualisations come from the
-  active Machine's metadata.
+  active Machine's metadata. When a section contains more than 4
+  slots, repeated section-key presses cycle pages of 4 within it.
 - **The Section Bar.** Six section buttons (keys `3`–`8`) with two
   layers accessed via Shift (`1`):
 
-  *Machine sections (no Shift):* group the 48 parameter slots into
-  machine-defined sections, each with 1–n pages of 4. Re-pressing a
-  key cycles pages within that section. Section labels and page counts
-  are declared by the machine, not hardcoded in the UI.
+  *Machine sections (no Shift):* the machine declares its section
+  taxonomy — any number of sections (capped at 6 to fit the top row),
+  each containing any number of slots. The UI paginates by 4 within a
+  section. Section labels are declared by the machine, not hardcoded.
+  A machine with fewer than 6 sections leaves the trailing buttons
+  empty/disabled.
 
   *Track meta sections (Shift held):* sequencer and structural controls
-  for the current track, machine-independent. The six meta slots have a
-  fixed layout:
+  for the current track, machine-independent. The six meta slots have
+  a fixed layout:
 
   | Shift + key | Meta section | Contents |
   |---|---|---|
   | 3 | COND | Trig conditions (prob, m:n, prev-dep) |
-  | 4 | TRACK | Length, divider, gate default |
-  | 5–7 | — | Reserved for future use |
+  | 4 | TRIG  | Default note, default velocity, gate length |
+  | 5 | TRACK | Length, divider |
+  | 6–7 | — | Reserved for future use |
   | 8 | GLOBAL | Output gain, sync mode, clock settings |
 
   Each section button cell shows its machine-section label at the top
@@ -375,6 +438,15 @@ can set a track-wide default condition (no hold needed) and then
 override individual steps by holding them — the same gesture as
 P-Locking a machine parameter.
 
+The TRIG meta section (Shift+4) follows the same pattern for the
+sequencer-emitted note stream: `[Note] [Velocity] [Gate]` plus one
+spare slot. No step held → reads/writes `Track::defaultNote` /
+`defaultVelocity` / `gateLength`. Step held → reads/writes
+`step.noteOverride` / `velocityOverride` / `gateOverride` (with
+Override-ELSE-Base fallback). This is the keyboard-and-MZ surface for
+melodic step entry when the user prefers explicit numeric entry over
+the live pitch-recording gesture (§5.4).
+
 The aim is that an experienced user holds an editing context (a step
 held, a section selected) and resolves all parameter changes in the
 Manipulation Zone without ever leaving the keyboard.
@@ -400,8 +472,15 @@ The active mode is exposed as a right-click / settings option on the Step Grid o
 Plugin state carries:
 
 - the APVTS (host-visible parameters);
-- the full Sequence (tracks, base frames, P-Lock maps);
+- the full Sequence (tracks, base frames, P-Lock maps, trig defaults
+  and per-step trig overrides, per-track machine identity);
 - sample-pool **references** (path + `xxHash32`), never PCM payloads.
+
+P-Lock and CC-mapping serialization uses the slot's stable string id,
+not its runtime integer index. On load, ids are resolved against the
+current schema of the named machine; unknown ids are dropped with a
+log entry. This lets a machine author insert or reorder slots between
+releases without invalidating saved patches.
 
 Excluding raw PCM is deliberate: it keeps DAW auto-saves cheap and
 prevents the audio thread from blocking on background save activity.
@@ -413,33 +492,37 @@ payload lands when P-Locks become first-class (M7).
 
 ## 8. Voice Lifecycle and Choke
 
-Track monophony plus tail-ringing voices implies a bounded but
-non-trivial voice manager:
+For machines that declare `maxVoices() = 1`, the sequencer manages
+voice lifecycle via a 1–2 ms choke micro-fade:
 
-- A new trigger on a track schedules a 1–2 ms linear micro-fade on
-  whichever voice that track currently owns, then steals it for the
-  new trigger.
-- Voices that finish their AHDSR release without being stolen are
-  reclaimed automatically.
+- Before emitting a note-on for a retrigger, the sequencer asks the
+  machine to fade out its current voice over 1–2 ms, then emits the
+  new note-on at the appropriate sample.
+- Voices that finish their envelope without being stolen are reclaimed
+  by the machine internally; the sequencer doesn't track this.
 - Cross-track triggers do not interact; each track is its own choke
   group.
 
-## 9. Phase 3 — Modular Sub-Hosting
+For machines that declare `maxVoices() > 1`, the sequencer emits
+note-ons (and scheduled note-offs) without choke; the machine handles
+its own voice stealing if note-ons exceed `maxVoices()`. The
+sequencer's behaviour is therefore uniform — it always emits MIDI —
+and the machine's voice declaration determines whether choke fades
+are inserted in front of retriggers.
 
-The native `IMachine` contract is the foundation; Phase 3 adds a sub-
-host so third-party DSP can satisfy the same contract. The plan:
+## 9. Future direction: wrapping arbitrary plugins
 
-- The plugin scans an application-specific directory for sandboxed
-  CLAP/VST3 binaries.
-- A sub-plugin must conform to a strict shape: 0/2 or 2/2 audio buses,
-  exactly 48 host-exposed parameters, no proprietary UI window.
-- A `juce::AudioPluginFormatManager` instance instantiates the sub-
-  plugins and routes the resolved `ParamFrame` into their parameter
-  tree each block.
+An earlier draft of this document called out a Phase 3 milestone for
+hosting CLAP/VST3 plugins as Machines, with a 48-parameter contract
+they would need to satisfy. With the variable-schema `IMachine`
+boundary now in place (§2), wrapping an arbitrary plugin reduces to
+writing one specific `IMachine` subclass — a `WrapperMachine` that
+loads the host plugin via `juce::AudioPluginFormatManager`, exposes
+its parameter tree as the schema, and forwards MIDI and audio across.
 
-This lets specialised DSP nodes — 4-op FM, modal synthesis, dedicated
-MIDI CC transmitters — be developed and tested in any DAW as ordinary
-plugins, then dropped into Lockstep to be driven by its P-Lock engine.
+This is no longer a separate phase; it is one possible machine among
+many, deferred until there is a demonstrated need. No core sequencer
+changes are required to support it.
 
 ## 10. Phase 4 — Open-Source Hardware Companion
 
@@ -462,40 +545,52 @@ document):
 
 v0.1 is the "first usable" milestone. It includes:
 
-- The single sampler Machine implementing `IMachine` end-to-end.
-- Polymetric clocking, multi-track sequencing, base parameter pages.
-- P-Lock editing model with the Override-ELSE-Base resolver.
+- The single sampler Machine inheriting `IMachine` end-to-end, driven
+  by sequencer-emitted MIDI events.
+- Polymetric clocking, multi-track sequencing, base parameter frames.
+- P-Lock editing model with the Override-ELSE-Base resolver, applied
+  to both machine ParamFrames and sequencer-scope trig fields
+  (note / velocity / gate).
 - Trig conditions (probability, 1:N, prev-dep) honoured at runtime.
 - MIDI ingestion: abs/rel CC with soft-takeover, scoped mappings
   (Master / Track[N] / SelectedTrack), Omni and Per-Track channel
   modes, four contextual encoders, MIDI clock + sync modes in
   standalone, edit-context routing of all input sources including
-  note-on pitch recording gesture (held-step + key = pitch P-Lock).
-- QWERTY overlay + Manipulation Zone + Section Bar + Step Grid wired up.
-- Gate length as a P-lockable machine slot; machine enforces timed
-  release when gate > 0.
+  the note-on pitch recording gesture (held-step + key writes the
+  step's `noteOverride`).
+- QWERTY overlay + Manipulation Zone + Section Bar + Step Grid wired
+  up, with section/page taxonomy driven by the active machine's
+  declared schema.
+- Per-track gate length scheduling (sequencer emits note-off at
+  `triggerSample + gate_samples`).
 - Pattern recording (live note/CC capture into trigs and P-Locks).
-- State serialization including P-Lock data and sample references.
+- State serialization including P-Lock data, trig overrides, and
+  sample references; slot identity stored as stable string ids.
 
-Sub-hosting (Phase 3) and the hardware companion (Phase 4) are
-explicitly out of v0.1 scope; the architecture is built to absorb them
-without restructuring.
+The hardware companion (§10) and arbitrary-plugin wrapping (§9) are
+out of v0.1 scope; the architecture is built to absorb them without
+restructuring.
 
 ## 12. Open Questions / Future Work
 
-- **Chord / polyphonic step entry.** The pitch-recording gesture (§5.4)
-  is defined for monophonic machines as "last note wins." For
-  polyphonic machines, multiple simultaneous notes should populate a
-  chord. The `PLock` model currently stores one `float` per slot; chord
-  encoding (e.g. a set of note slots per step, or a compact bitmask
-  slot) is deferred until the first polyphonic machine is designed.
-  Conceptually the gesture is already correct — only the storage
-  encoding needs resolving.
-- Per-track voice count above 1 (e.g. for sampler chord stabs) —
-  currently strict track-monophony.
-- MIDI-out machine for sequencing external gear from inside the same
-  pattern grid.
-- MPE-aware Machines — the boundary is currently ParamFrame only; a
-  per-step expression layer may follow.
+- **Chord / polyphonic step entry.** The pitch-recording gesture
+  (§5.4) writes a single `noteOverride` per step, which suits
+  monophonic machines (last note wins). For polyphonic machines, a
+  step should be able to fire a chord. The on-disk encoding is
+  deferred — likely a `noteOverride` widened to a small list — until
+  the first polyphonic machine is designed. The gesture itself is
+  already correct.
+- **MIDI-out machine** for sequencing external gear from inside the
+  same pattern grid. With the MIDI-buffer boundary (§4.6) this is a
+  straightforward `IMachine` subclass that emits the events received
+  to a MIDI output port instead of producing audio.
+- **MPE-aware machines.** The boundary is `(MidiBuffer, ParamFrame)`,
+  so per-event expression already has a transport (MIDI poly-pressure,
+  pitch-bend per channel). Sequencer support for authoring expression
+  per step is a separate UX project.
+- **Per-machine resource pools.** The sample pool is plugin-global
+  today. A future synth machine might want its own wavetable pool,
+  IR pool, etc. Generalising "resource pool" across machines is
+  deferred.
 - Bundled sample library / factory-patch shape.
 - Final product name to replace "Lockstep".
