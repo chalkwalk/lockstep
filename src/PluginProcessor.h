@@ -14,6 +14,7 @@
 #include "io/MidiInput.h"
 #include "machine/IMachine.h"
 #include "machine/SamplePool.h"
+#include "machine/VoiceChoke.h"
 
 namespace lockstep
 {
@@ -136,6 +137,9 @@ namespace lockstep
         MidiInput midiInput_;
         MidiClockReceiver midiClockReceiver_;
         std::array<std::unique_ptr<IMachine>, kNumTracks> machines_;
+        // Per-track choke faders for monophonic re-trigger (MA.4).
+        // Sequencer uses these in MA.5 when emitting MIDI note-ons.
+        std::array<VoiceChoke, kNumTracks> trackChokes_;
         std::array<double, kNumTracks> nextTriggerPpq_{};
         std::array<bool, kNumTracks>   lastStepFired_{};
         double anchorPpq_ = 0.0;

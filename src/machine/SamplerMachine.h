@@ -23,6 +23,8 @@ namespace lockstep
         int       numSections()        const override { return kNumSections; }
         SectionInfo section(int index) const override;
 
+        bool isVoiceActive() const override;
+
         // MIDI note routing hints (retired in MA.7)
         int pitchSlot()        const override { return kSlotPitch; }
         int sampleSelectSlot() const override { return kSlotSampleId; }

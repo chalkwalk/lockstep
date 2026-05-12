@@ -106,6 +106,8 @@ namespace lockstep
             m->prepare(sampleRate, samplesPerBlock);
             m->reset();
         }
+        for (auto& choke : trackChokes_)
+            choke.prepare(sampleRate, 1.5f);
         nextTriggerPpq_.fill(0.0);
 
         gainSmoothed_.reset(sampleRate, 0.05);  // 50 ms ramp

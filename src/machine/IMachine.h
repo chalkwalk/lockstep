@@ -68,6 +68,11 @@ namespace lockstep
         // n>1 = self-managed polyphony, 0 = unbounded / MIDI-out.
         virtual int maxVoices() const { return 1; }
 
+        // Returns true if this machine is currently producing audio (voice active,
+        // fading, or pending). Used by the sequencer to decide whether to apply
+        // a choke fade before re-triggering a monophonic machine.
+        virtual bool isVoiceActive() const { return false; }
+
         // MIDI note routing hints — in use until MA.7 retires noteMode.
         // Returns the slot index (dense) that receives the MIDI note number
         // as a P-Lock, or -1 if not applicable.

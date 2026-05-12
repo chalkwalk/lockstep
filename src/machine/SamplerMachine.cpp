@@ -245,6 +245,11 @@ namespace lockstep
         }
     }
 
+    bool SamplerMachine::isVoiceActive() const
+    {
+        return voice_.active || choke_.isFading() || hasPendingTrigger_;
+    }
+
     // -------------------------------------------------------------------------
 
     ParamSpec SamplerMachine::paramSpec(int index) const
