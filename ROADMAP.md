@@ -198,7 +198,7 @@ counts, `paramSpec(i)` instead of `getParamMetadata(i)`, etc.).
       mixed in via `onNoteOn`/`onNoteOff` callbacks. Note-off from
       external MIDI triggers Release on a sustaining voice. Sequencer
       note-off deferred to MA.6 (gate is not yet a sequencer field).
-- [ ] **MA.6** Add per-track sequencer-scope trig fields:
+- [x] **MA.6** Add per-track sequencer-scope trig fields:
       `defaultNote`, `defaultVelocity`, `gateLength`. Add the
       corresponding per-step optional overrides
       (`noteOverride`, `velocityOverride`, `gateOverride`). Resolver

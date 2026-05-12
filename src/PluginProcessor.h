@@ -140,6 +140,14 @@ namespace lockstep
         // Per-track choke faders for monophonic re-trigger (MA.4).
         // Sequencer uses these in MA.5 when emitting MIDI note-ons.
         std::array<VoiceChoke, kNumTracks> trackChokes_;
+
+        // Pending sequencer-scheduled note-offs that spill past the current block boundary.
+        struct PendingNoteOff
+        {
+            int samplesRemaining = -1;  // -1 = none; else samples from start of next block
+            int noteNumber       = 60;
+        };
+        std::array<PendingNoteOff, kNumTracks> pendingNoteOffs_{};
         std::array<double, kNumTracks> nextTriggerPpq_{};
         std::array<bool, kNumTracks>   lastStepFired_{};
         double anchorPpq_ = 0.0;

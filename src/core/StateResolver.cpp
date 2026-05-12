@@ -20,4 +20,21 @@ namespace lockstep::StateResolver
         }
         return frame;
     }
+
+    TrigFields resolveTrig(const Track& track, int stepIndex)
+    {
+        TrigFields result;
+        result.note     = track.trigDefaults.note;
+        result.velocity = track.trigDefaults.velocity;
+        result.gateMs   = track.trigDefaults.gateMs;
+
+        if (stepIndex < 0 || stepIndex >= kMaxStepsPerTrack)
+            return result;
+
+        const auto& ov = track.steps[static_cast<std::size_t>(stepIndex)].trigOverride;
+        if (ov.hasNote)     result.note     = ov.note;
+        if (ov.hasVelocity) result.velocity = ov.velocity;
+        if (ov.hasGate)     result.gateMs   = ov.gateMs;
+        return result;
+    }
 }

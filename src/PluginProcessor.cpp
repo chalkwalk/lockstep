@@ -108,6 +108,8 @@ namespace lockstep
         }
         for (auto& choke : trackChokes_)
             choke.prepare(sampleRate, 1.5f);
+        for (auto& pnf : pendingNoteOffs_)
+            pnf.samplesRemaining = -1;
         nextTriggerPpq_.fill(0.0);
 
         gainSmoothed_.reset(sampleRate, 0.05);  // 50 ms ramp
@@ -228,6 +230,25 @@ namespace lockstep
 
         // Per-track MIDI buffers populated from external MIDI and sequencer trigs.
         std::array<juce::MidiBuffer, kNumTracks> trackMidi;
+
+        // Emit note-offs that were scheduled beyond the previous block's boundary.
+        const int numBlockSamples = buffer.getNumSamples();
+        for (std::size_t i = 0; i < kNumTracks; ++i)
+        {
+            auto& pnf = pendingNoteOffs_[i];
+            if (pnf.samplesRemaining < 0) continue;
+            if (pnf.samplesRemaining < numBlockSamples)
+            {
+                trackMidi[i].addEvent(
+                    juce::MidiMessage::noteOff(1, pnf.noteNumber),
+                    pnf.samplesRemaining);
+                pnf.samplesRemaining = -1;
+            }
+            else
+            {
+                pnf.samplesRemaining -= numBlockSamples;
+            }
+        }
 
         // Route external note-on: write P-Lock then inject into the track's buffer.
         ccCtx.onNoteOn = [this, &trackMidi](int track, int sampleOffset,
@@ -372,6 +393,8 @@ namespace lockstep
                     nextTriggerPpq_[i] = std::floor(blockStart / divPpq) * divPpq;
                 lastStepFired_[i] = false;
             }
+            for (auto& pnf : pendingNoteOffs_)
+                pnf.samplesRemaining = -1;
         }
 
         for (std::size_t i = 0; i < kNumTracks; ++i)
@@ -425,13 +448,37 @@ namespace lockstep
                 nextTriggerPpq_[i] += divPpq;
             }
 
-            // Inject sequencer note-on into the track buffer.
-            // Default note/velocity are placeholders until MA.6 adds sequencer trig fields.
+            // Inject sequencer note-on with resolved trig fields (note/velocity/gate).
             if (triggerAt >= 0)
             {
+                const auto trig = StateResolver::resolveTrig(track, stepIndex);
+
+                // Cancel any stale pending note-off; the new note-on supersedes it
+                // (the internal choke handles the audio fade).
+                pendingNoteOffs_[i].samplesRemaining = -1;
+
+                const auto vel = static_cast<juce::uint8>(
+                    std::clamp(trig.velocity, 1, 127));
                 trackMidi[i].addEvent(
-                    juce::MidiMessage::noteOn(1, 60, static_cast<juce::uint8>(100)),
+                    juce::MidiMessage::noteOn(1, trig.note, vel),
                     triggerAt);
+
+                if (trig.gateMs > 0.0f)
+                {
+                    const int gateSamples = static_cast<int>(
+                        trig.gateMs * 0.001f * static_cast<float>(getSampleRate()));
+                    const int noteOffAt = triggerAt + gateSamples;
+                    if (noteOffAt < numBlockSamples)
+                    {
+                        trackMidi[i].addEvent(
+                            juce::MidiMessage::noteOff(1, trig.note),
+                            noteOffAt);
+                    }
+                    else
+                    {
+                        pendingNoteOffs_[i] = { noteOffAt - numBlockSamples, trig.note };
+                    }
+                }
             }
 
             const auto frame = StateResolver::resolve(track, stepIndex);

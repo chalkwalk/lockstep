@@ -5,10 +5,23 @@
 
 namespace lockstep
 {
+    // Resolved sequencer-scope trig values for one step event.
+    // Produced by resolveTrig(); handed to the sequencer when emitting note-on/off.
+    struct TrigFields
+    {
+        int   note     = 60;
+        int   velocity = 100;
+        float gateMs   = 0.0f;  // 0 = no gate, play to natural AHDSR end
+    };
+
     // Effective Value = Step Override State [if exists] ELSE Track Base State.
     // The resolver merges the two into a single ParamFrame the IMachine sees.
     namespace StateResolver
     {
         ParamFrame resolve(const Track& track, int stepIndex);
+
+        // Resolves sequencer-scope trig fields (note / velocity / gate) for one
+        // fired step using Override-ELSE-Base against the track's TrigDefaults.
+        TrigFields resolveTrig(const Track& track, int stepIndex);
     }
 }
