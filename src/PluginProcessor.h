@@ -97,6 +97,12 @@ namespace lockstep
         int         numSections(int track)            const;
         SectionInfo section(int track, int sectionIndex) const;
 
+        // Slot identity bridge — forwarded to the machine on the given track.
+        // Used by the M8 serializer to translate between runtime indices and
+        // stable string ids. Returns {} / -1 for out-of-range inputs.
+        juce::String idForSlot(int track, int index)       const;
+        int slotForId(int track, const juce::String& id)   const;
+
         // MIDI note routing hints (retired in MA.7).
         int pitchSlot(int track) const;
 

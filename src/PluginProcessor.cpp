@@ -539,6 +539,20 @@ namespace lockstep
         return info;
     }
 
+    juce::String LockstepProcessor::idForSlot(int track, int index) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks))
+            return {};
+        return machines_[static_cast<std::size_t>(track)]->idForSlot(index);
+    }
+
+    int LockstepProcessor::slotForId(int track, const juce::String& id) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks))
+            return -1;
+        return machines_[static_cast<std::size_t>(track)]->slotForId(id);
+    }
+
     int LockstepProcessor::pitchSlot(int track) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks))

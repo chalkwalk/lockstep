@@ -73,5 +73,27 @@ namespace lockstep
         // as a P-Lock, or -1 if not applicable.
         virtual int pitchSlot()        const { return -1; }
         virtual int sampleSelectSlot() const { return -1; }
+
+        // -----------------------------------------------------------------------
+        // Slot identity bridge for serialization.
+        // Runtime P-Lock storage uses integer indices; on-disk representation
+        // uses stable string ids so slot reordering between releases doesn't break
+        // saved patches. Unknown ids on load → drop with a log warning.
+        // Both methods are non-virtual and resolve via the virtual schema accessors.
+
+        [[nodiscard]] juce::String idForSlot(int index) const
+        {
+            if (index < 0 || index >= numParams()) return {};
+            return paramSpec(index).id;
+        }
+
+        // Returns -1 if no slot with the given id is found.
+        [[nodiscard]] int slotForId(const juce::String& id) const
+        {
+            const int n = numParams();
+            for (int i = 0; i < n; ++i)
+                if (paramSpec(i).id == id) return i;
+            return -1;
+        }
     };
 }

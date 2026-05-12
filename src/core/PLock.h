@@ -5,9 +5,14 @@
 
 namespace lockstep
 {
-    // Sparse per-step parameter override. Keyed by slot index (0..47).
+    // Sparse per-step parameter override. Keyed by dense slot index (runtime).
     // Absent entries fall through to the track's base value during
     // Override-ELSE-Base resolution.
+    //
+    // Serialization contract (applied by M8's PluginState serializer):
+    //   - Write: iterate via forEach, emit (machine.idForSlot(slot), value) pairs.
+    //   - Read:  for each (id, value) pair, resolve slot = machine.slotForId(id);
+    //            if slot == -1, log a warning and skip (unknown id — safe to drop).
     class PLock
     {
     public:
@@ -24,6 +29,15 @@ namespace lockstep
         void clearAll()                 { overrides_.clear(); }
 
         bool empty() const { return overrides_.empty(); }
+
+        // Iterate all overrides. Callback signature: void(int slot, float value).
+        // Used by the serializer to enumerate entries for id-keyed output.
+        template<typename Fn>
+        void forEach(Fn&& fn) const
+        {
+            for (const auto& [slot, value] : overrides_)
+                fn(slot, value);
+        }
 
     private:
         std::unordered_map<int, float> overrides_;
