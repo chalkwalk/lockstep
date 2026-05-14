@@ -17,6 +17,9 @@ namespace lockstep
         explicit SamplePoolOverlay(LockstepProcessor& processor);
         ~SamplePoolOverlay() override;
 
+        // Wired by the editor so the overlay knows which track is active.
+        std::function<int()> getActiveTrack;
+
         // Called by the editor when it wants to close the overlay.
         std::function<void()> onClose;
 
@@ -28,6 +31,8 @@ namespace lockstep
         int  getNumRows() override;
         void paintListBoxItem(int rowNumber, juce::Graphics& g,
                               int width, int height, bool rowIsSelected) override;
+        void listBoxItemClicked(int rowNumber, const juce::MouseEvent& e) override;
+        void listBoxItemDoubleClicked(int rowNumber, const juce::MouseEvent& e) override;
 
     private:
         LockstepProcessor& processor_;

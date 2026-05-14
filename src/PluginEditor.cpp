@@ -132,6 +132,7 @@ namespace lockstep
         addAndMakeVisible(poolBtn_);
 
         poolOverlay_.onClose = [this] { poolOverlay_.setVisible(false); };
+        poolOverlay_.getActiveTrack = [this]() { return stepGrid_.getActiveTrack(); };
         addChildComponent(poolOverlay_);
 
         manipulationZone_.onOpenPoolManager = [this]

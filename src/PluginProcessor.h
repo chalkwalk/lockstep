@@ -92,6 +92,11 @@ namespace lockstep
         // Remove the P-Lock override for one slot on a specific step.
         void clearParam(int track, int step, int slot);
 
+        // Trigger a one-shot preview of the sample at poolIndex on the given track.
+        // Safe to call from the message thread; the audio thread consumes the request
+        // on the next processBlock call and injects a note-on + scheduled note-off.
+        void triggerPreview(int poolIndex, int track);
+
         // Sample pool helpers — message-thread only.
         // sampleShortName returns the filename stem for a given pool index, or "(none)".
         juce::String sampleShortName(int poolIndex) const;
@@ -138,6 +143,18 @@ namespace lockstep
         };
         std::atomic<bool>  learnActive_ { false };
         PendingLearnRequest learnRequest_;
+
+        // Preview request: message thread writes both fields (track first, then
+        // poolIndex with release ordering); audio thread consumes with acq_rel exchange.
+        std::atomic<int> previewPoolIndex_ { -1 };
+        std::atomic<int> previewReqTrack_  { 0 };
+
+        // Preview playback state — audio thread only (no atomics needed).
+        bool previewActive_           = false;
+        int  previewTrack_            = 0;
+        int  previewSampleIndex_      = -1;
+        int  previewNoteOffRemaining_ = -1;  // samples until note-off; -1 = inactive
+        int  previewNote_             = 60;
 
         MidiInput midiInput_;
         MidiClockReceiver midiClockReceiver_;

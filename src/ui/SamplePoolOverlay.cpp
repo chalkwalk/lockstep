@@ -128,6 +128,25 @@ namespace lockstep
                    juce::Justification::centredRight);
     }
 
+    void SamplePoolOverlay::listBoxItemClicked(int rowNumber, const juce::MouseEvent& /*e*/)
+    {
+        if (rowNumber < 0 || rowNumber >= processor_.samplePool().size())
+            return;
+        const int track = getActiveTrack ? getActiveTrack() : 0;
+        processor_.triggerPreview(rowNumber, std::max(0, track));
+    }
+
+    void SamplePoolOverlay::listBoxItemDoubleClicked(int rowNumber, const juce::MouseEvent& /*e*/)
+    {
+        if (rowNumber < 0 || rowNumber >= processor_.samplePool().size())
+            return;
+        const int track = getActiveTrack ? getActiveTrack() : 0;
+        if (track < 0) return;
+        const int sampleSlot = processor_.slotForId(track, "sample_id");
+        if (sampleSlot < 0) return;
+        processor_.writeParam(track, sampleSlot, static_cast<float>(rowNumber));
+    }
+
     void SamplePoolOverlay::paint(juce::Graphics& g)
     {
         g.setColour(juce::Colour::fromRGB(18, 22, 28).withAlpha(0.97f));
@@ -135,11 +154,15 @@ namespace lockstep
         g.setColour(juce::Colour::fromRGB(255, 180, 50));
         g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(0.5f), 4.0f, 1.5f);
 
+        auto titleArea = getLocalBounds().removeFromTop(24).reduced(8, 0);
         g.setFont(juce::Font(juce::FontOptions(11.0f)).boldened());
         g.setColour(juce::Colour::fromRGB(255, 180, 50));
-        g.drawText("SAMPLE POOL",
-                   getLocalBounds().removeFromTop(24).reduced(8, 0),
-                   juce::Justification::centredLeft);
+        g.drawText("SAMPLE POOL", titleArea, juce::Justification::centredLeft);
+
+        g.setFont(juce::Font(juce::FontOptions(10.0f)));
+        g.setColour(juce::Colour::fromRGB(120, 140, 160));
+        g.drawText("click: preview    dbl-click: assign to track  (p-lock if step held)",
+                   titleArea, juce::Justification::centredRight);
     }
 
     void SamplePoolOverlay::resized()

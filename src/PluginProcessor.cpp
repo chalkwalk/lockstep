@@ -292,6 +292,42 @@ namespace lockstep
 
         midiInput_.process(midi, editContext_, ccCtx);
 
+        // Consume any pending preview request from the UI thread.
+        // Inject note-on immediately and schedule a note-off 400 ms out.
+        const int newPreview = previewPoolIndex_.exchange(-1, std::memory_order_acq_rel);
+        if (newPreview >= 0)
+        {
+            // Cancel an in-flight preview note-off before re-triggering.
+            if (previewNoteOffRemaining_ >= 0)
+                trackMidi[static_cast<std::size_t>(previewTrack_)].addEvent(
+                    juce::MidiMessage::noteOff(1, previewNote_), 0);
+
+            previewActive_           = true;
+            previewTrack_            = previewReqTrack_.load(std::memory_order_acquire);
+            previewSampleIndex_      = newPreview;
+            previewNoteOffRemaining_ = static_cast<int>(getSampleRate() * 0.4);
+            previewNote_             = 60;
+            trackMidi[static_cast<std::size_t>(previewTrack_)].addEvent(
+                juce::MidiMessage::noteOn(1, previewNote_,
+                                          static_cast<juce::uint8>(100)), 0);
+        }
+        // Advance preview note-off countdown; fire when the window arrives.
+        if (previewNoteOffRemaining_ >= 0)
+        {
+            if (previewNoteOffRemaining_ < numBlockSamples)
+            {
+                trackMidi[static_cast<std::size_t>(previewTrack_)].addEvent(
+                    juce::MidiMessage::noteOff(1, previewNote_),
+                    previewNoteOffRemaining_);
+                previewNoteOffRemaining_ = -1;
+                previewActive_           = false;
+            }
+            else
+            {
+                previewNoteOffRemaining_ -= numBlockSamples;
+            }
+        }
+
         // The JUCE AudioProcessorPlayer (standalone wrapper) always provides a
         // PlayHead, but its getPosition() sets only timeInSamples/timeInSeconds
         // with no isPlaying, no BPM, and no PPQ position. Passing it to
@@ -355,7 +391,13 @@ namespace lockstep
                 if (editContext_.isActiveForEditing()
                     && editContext_.heldTrackIndex() == static_cast<int>(i))
                     resolveStep = editContext_.heldStepIndex();
-                const auto frame = StateResolver::resolve(sequence_.tracks[i], resolveStep);
+                auto frame = StateResolver::resolve(sequence_.tracks[i], resolveStep);
+                if (previewActive_ && static_cast<int>(i) == previewTrack_)
+                {
+                    const int ss = slotForId(static_cast<int>(i), "sample_id");
+                    if (ss >= 0 && static_cast<std::size_t>(ss) < frame.size())
+                        frame[static_cast<std::size_t>(ss)] = static_cast<float>(previewSampleIndex_);
+                }
                 machines_[i]->process(trackMidi[i], frame, buffer);
             }
 
@@ -498,7 +540,13 @@ namespace lockstep
                 }
             }
 
-            const auto frame = StateResolver::resolve(track, stepIndex);
+            auto frame = StateResolver::resolve(track, stepIndex);
+            if (previewActive_ && static_cast<int>(i) == previewTrack_)
+            {
+                const int ss = slotForId(static_cast<int>(i), "sample_id");
+                if (ss >= 0 && static_cast<std::size_t>(ss) < frame.size())
+                    frame[static_cast<std::size_t>(ss)] = static_cast<float>(previewSampleIndex_);
+            }
             machines_[i]->process(trackMidi[i], frame, buffer);
         }
 
@@ -629,6 +677,12 @@ namespace lockstep
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return -1;
         return machines_[static_cast<std::size_t>(track)]->slotForId(id);
+    }
+
+    void LockstepProcessor::triggerPreview(int poolIndex, int track)
+    {
+        previewReqTrack_.store(track, std::memory_order_relaxed);
+        previewPoolIndex_.store(poolIndex, std::memory_order_release);
     }
 
     juce::String LockstepProcessor::sampleShortName(int poolIndex) const
