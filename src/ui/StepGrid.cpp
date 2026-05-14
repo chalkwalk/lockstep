@@ -6,12 +6,69 @@
 
 namespace lockstep
 {
-    static const juce::Colour kColActive   { 0xFF50B478u };  // green trig
-    static const juce::Colour kColInactive { 0xFF2D3741u };  // dark, in-range
-    static const juce::Colour kColOutRange { 0xFF1C2026u };  // near-black
+    static const juce::Colour kColActive   { 0xFF50B478u };  // green trig — certain fire
+    static const juce::Colour kColTrigDim  { 0xFF1C3D28u };  // dark green — blocked / low-prob trig
+    static const juce::Colour kColInactive { 0xFF2D3741u };  // dark, in-range, no trig
+    static const juce::Colour kColOutRange { 0xFF1C2026u };  // near-black, out of track length
     static const juce::Colour kColPlayhead { 0xFFFFCC44u };  // amber highlight
     static const juce::Colour kColHeld     { 0xFFFFFFFFu };  // held-step border
     static const juce::Colour kColPLock    { 0xFF3EC8C8u };  // P-Lock dot
+
+    // Pre-computes a fire-probability in [0,1] for each slot on the visible page.
+    // Steps with trig=false → 0. Scans from step 0 so prev-dep chains propagate
+    // correctly even when pageBase > 0.
+    static std::array<float, StepGrid::kPageSteps>
+    computePagePreview(const Track& track,
+                       int          trackLen,
+                       std::int64_t loopBase,
+                       int          pageBase) noexcept
+    {
+        std::array<float, StepGrid::kPageSteps> out{};
+        const int limit = std::min(pageBase + StepGrid::kPageSteps, trackLen);
+
+        float prevProb = 0.5f;  // unknown prior from previous loop's last step
+
+        for (int i = 0; i < limit; ++i)
+        {
+            const auto& step = track.steps[static_cast<std::size_t>(i)];
+            float prob = 0.0f;
+
+            if (step.trig)
+            {
+                const auto& cond = step.condition.isTrivial()
+                                       ? track.baseCond : step.condition;
+
+                // m:n gate — deterministic for the current loop iteration.
+                bool iterPass = true;
+                if (cond.iterDenominator > 1)
+                {
+                    const auto len   = static_cast<std::int64_t>(std::max(trackLen, 1));
+                    const auto denom = static_cast<std::int64_t>(cond.iterDenominator);
+                    const auto iter  = (loopBase + static_cast<std::int64_t>(i)) / len;
+                    iterPass = (iter % denom
+                                == static_cast<std::int64_t>(cond.iterNumerator) - 1);
+                }
+
+                if (iterPass)
+                {
+                    prob = std::clamp(
+                        static_cast<float>(cond.probabilityPercent) / 100.0f,
+                        0.0f, 1.0f);
+
+                    // Propagate prev-dep uncertainty.
+                    if      (cond.prevDependency == 1) prob *= prevProb;
+                    else if (cond.prevDependency == 2) prob *= (1.0f - prevProb);
+                }
+            }
+
+            prevProb = prob;
+
+            if (i >= pageBase)
+                out[static_cast<std::size_t>(i - pageBase)] = prob;
+        }
+
+        return out;
+    }
 
     StepGrid::StepGrid(LockstepProcessor& processor)
         : processor_(processor)
@@ -130,16 +187,21 @@ namespace lockstep
         const double divisionPpq = 0.25 * static_cast<double>(div);
 
         int playheadAbs = -1;
+        std::int64_t loopBase = 0;
         if (divisionPpq > 0.0 && trackLen > 0)
         {
             const auto stepNum = static_cast<std::int64_t>(
                 clk.cumulativePpq() / divisionPpq);
             playheadAbs = static_cast<int>(stepNum % trackLen);
+            loopBase    = (stepNum / static_cast<std::int64_t>(trackLen))
+                          * static_cast<std::int64_t>(trackLen);
         }
 
         const int baseStep = stepPage_ * kPageSteps;
         const auto& track =
             processor_.sequence().tracks[static_cast<std::size_t>(activeTrack_)];
+
+        const auto preview = computePagePreview(track, trackLen, loopBase, baseStep);
 
         const int cellW = cellArea.getWidth()  / kCols;
         const int cellH = cellArea.getHeight() / kRows;
@@ -176,7 +238,10 @@ namespace lockstep
                 }
                 else if (hasTrig)
                 {
-                    g.setColour(isHead ? kColPlayhead : kColActive);
+                    const float prob = preview[static_cast<std::size_t>(localIdx)];
+                    const juce::Colour trigColour =
+                        kColTrigDim.interpolatedWith(kColActive, prob);
+                    g.setColour(isHead ? kColPlayhead : trigColour);
                     g.fillRoundedRectangle(cell.toFloat(), 3.0f);
                 }
                 else

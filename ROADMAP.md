@@ -7,9 +7,8 @@ milestone changes, update **Active focus** below.
 
 For architecture see `DESIGN.md`.
 
-**Active focus:** MA — Architecture pivot (variable-schema machines + MIDI boundary).
-**Last completed:** M6.6 — TRACK and GLOBAL meta sections wired into MZ
-(against the legacy 48-slot interface; will be re-touched during MA).
+**Active focus:** M6 — QWERTY overlay + Manipulation Zone UI.
+**Last completed:** M6.7 — TRIG meta section (note/velocity/gate) wired into MZ.
 
 ## Locked design decisions for the roadmap
 
@@ -241,19 +240,19 @@ The keyboard-first editor.
       sections. Fixed meta layout: COND (Shift+3), TRACK (Shift+4),
       reserved (Shift+5–7), GLOBAL (Shift+8). Replaces the flat
       12-page model.
-- [ ] **M6.4** Sampler parameter layout: assign concrete section labels
+- [x] **M6.4** Sampler parameter layout: assign concrete section labels
       (Source / Env / etc.), expose the note slot and gate slot in the
       relevant sections so they are editable via the manipulation zone.
-- [ ] **M6.5** COND track meta section: wire the manipulation zone to
+- [x] **M6.5** COND track meta section: wire the manipulation zone to
       show `[Prob] [m:n Num] [m:n Den] [Prev-dep]` when Shift+3 is
       active. No step held → reads/writes `Track::baseCond`; Prev-dep
       dimmed. Step held → reads/writes `step.condition` via EditContext;
       Prev-dep active. Requires M4.4 (`Track::baseCond` data model).
-- [ ] **M6.6** TRACK and GLOBAL track meta sections: wire Shift+5
+- [x] **M6.6** TRACK and GLOBAL track meta sections: wire Shift+5
       (length, divider) and Shift+8 (output gain, sync mode) into the
       manipulation zone. (Originally landed against Shift+4 / legacy
       schema; MA.9 re-pins to Shift+5 to free Shift+4 for TRIG.)
-- [ ] **M6.7** TRIG track meta section (Shift+4): wire `[Note]
+- [x] **M6.7** TRIG track meta section (Shift+4): wire `[Note]
       [Velocity] [Gate]` plus one spare slot. No step held →
       reads/writes `Track::defaultNote` / `defaultVelocity` /
       `gateLength`. Step held → reads/writes `step.noteOverride` /
@@ -261,9 +260,9 @@ The keyboard-first editor.
       Override-ELSE-Base fallback to track defaults. Replaces the
       legacy "sampler gate length slot" task — gate is now
       sequencer-scope per MA.6.
-- [ ] **M6.8** StepGrid: 2×8 with paginate keys; trig toggle, hold
+- [x] **M6.8** StepGrid: 2×8 with paginate keys; trig toggle, hold
       gesture; P-lock indicators.
-- [ ] **M6.9** Step-state preview: pre-compute fire/skip/probabilistic
+- [x] **M6.9** Step-state preview: pre-compute fire/skip/probabilistic
       state for every visible step at the start of each pattern loop
       (using `TrigEvaluator::deterministicPercent` and the m:n check,
       both pure functions of the current absolute counter). Render
