@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 
 namespace lockstep
@@ -33,6 +34,9 @@ namespace lockstep
         // Meta content (COND/TRACK/GLOBAL widgets) fills in at M6.5/M6.6.
         void setMetaSection(int metaSection);
 
+        // Called when the user clicks "Manage pool..." from the sample picker menu.
+        std::function<void()> onOpenPoolManager;
+
     private:
         static constexpr int kNumSlots = 4;
 
@@ -46,6 +50,7 @@ namespace lockstep
         void writeTrackField(int field, float value);
         void writeGlobalField(int field, float value);
         void showMappingMenu(int slotIndex);
+        void showSamplePicker(int absoluteSlot);
 
         LockstepProcessor& processor_;
         StepGrid& grid_;
@@ -59,6 +64,7 @@ namespace lockstep
         std::array<juce::Label,      kNumSlots> labels_;
         std::array<juce::Label,      kNumSlots> valueLabels_;
         std::array<juce::TextButton, kNumSlots> clearBtns_;
+        juce::TextButton samplePickerBtn_;  // replaces sliders_[i] when a sample slot is in view
         bool updatingFromTimer_ = false;
     };
 }

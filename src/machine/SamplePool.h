@@ -37,6 +37,13 @@ namespace lockstep
         int size() const { return static_cast<int>(samples_.size()); }
         const Sample* get(int index) const;
 
+        // Remove the entry at index, shifting higher entries down.
+        // Callers must remap all references before calling. Message-thread only.
+        bool remove(int index);
+
+        // Swap two entries. Callers must remap all references before calling.
+        bool swap(int a, int b);
+
     private:
         juce::AudioFormatManager formatManager_;
         std::vector<std::unique_ptr<Sample>> samples_;

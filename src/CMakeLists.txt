@@ -79,6 +79,7 @@ target_sources(Lockstep
         ui/FunctionBar.cpp
         ui/InPluginTransport.cpp
         ui/ManipulationZone.cpp
+        ui/SamplePoolOverlay.cpp
         ui/SectionBar.cpp
         ui/StandaloneTempoBar.cpp
         ui/StepGrid.cpp)

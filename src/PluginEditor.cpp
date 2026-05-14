@@ -9,6 +9,7 @@ namespace lockstep
           transport_(proc.clock()),
           stepGrid_(proc, uiState_),
           manipulationZone_(proc, stepGrid_),
+          poolOverlay_(proc),
           sectionBar_(proc, stepGrid_, uiState_),
           functionBar_(proc, uiState_)
     {
@@ -120,38 +121,23 @@ namespace lockstep
         addAndMakeVisible(functionBar_);
         addAndMakeVisible(stepGrid_);
         addAndMakeVisible(keyboard_);
-        addAndMakeVisible(loadButton_);
 
-        loadButton_.onClick = [this]
+        poolBtn_.setWantsKeyboardFocus(false);
+        poolBtn_.onClick = [this]
         {
-            fileChooser_ = std::make_unique<juce::FileChooser>(
-                "Load Sample",
-                juce::File::getSpecialLocation(juce::File::userMusicDirectory),
-                "*.wav;*.aiff;*.aif;*.flac;*.ogg");
+            poolOverlay_.setVisible(!poolOverlay_.isVisible());
+            if (poolOverlay_.isVisible())
+                poolOverlay_.toFront(false);
+        };
+        addAndMakeVisible(poolBtn_);
 
-            fileChooser_->launchAsync(
-                juce::FileBrowserComponent::openMode
-                    | juce::FileBrowserComponent::canSelectFiles,
-                [this](const juce::FileChooser& fc)
-                {
-                    const auto results = fc.getResults();
-                    if (results.isEmpty())
-                        return;
+        poolOverlay_.onClose = [this] { poolOverlay_.setVisible(false); };
+        addChildComponent(poolOverlay_);
 
-                    const int idx = processor_.samplePool().load(results[0].getFullPathName());
-                    if (idx >= 0)
-                    {
-                        const int n = processor_.samplePool().size();
-                        sampleStatus_ = juce::String(n) + " sample"
-                            + (n == 1 ? "" : "s") + " loaded  |  last: "
-                            + results[0].getFileName();
-                    }
-                    else
-                    {
-                        sampleStatus_ = "Load failed: " + results[0].getFileName();
-                    }
-                    repaint();
-                });
+        manipulationZone_.onOpenPoolManager = [this]
+        {
+            poolOverlay_.setVisible(true);
+            poolOverlay_.toFront(false);
         };
 
         setSize(880, 480);
@@ -207,13 +193,68 @@ namespace lockstep
     void LockstepEditor::paint(juce::Graphics& g)
     {
         g.fillAll(juce::Colour::fromRGB(20, 22, 26));
-
-        g.setFont(juce::Font(juce::FontOptions(12.0f)));
-        g.setColour(juce::Colour::fromRGB(140, 160, 180));
-        g.drawText(sampleStatus_,
-                   getLocalBounds().removeFromTop(36).reduced(12, 0),
-                   juce::Justification::centredLeft);
         juce::ignoreUnused(processor_);
+    }
+
+    void LockstepEditor::paintOverChildren(juce::Graphics& g)
+    {
+        if (!isDraggingFiles_)
+            return;
+        g.setColour(juce::Colour::fromRGB(255, 180, 50).withAlpha(0.12f));
+        g.fillAll();
+        g.setColour(juce::Colour::fromRGB(255, 180, 50).withAlpha(0.7f));
+        g.drawRect(getLocalBounds().reduced(4), 2);
+        g.setFont(juce::Font(juce::FontOptions(16.0f)).boldened());
+        g.drawText("Drop to add to pool",
+                   getLocalBounds(),
+                   juce::Justification::centred);
+    }
+
+    // -------------------------------------------------------------------------
+    // FileDragAndDropTarget
+
+    static bool isAudioFile(const juce::String& path)
+    {
+        const juce::String ext = juce::File(path).getFileExtension().toLowerCase();
+        return ext == ".wav" || ext == ".aiff" || ext == ".aif"
+            || ext == ".flac" || ext == ".ogg";
+    }
+
+    bool LockstepEditor::isInterestedInFileDrag(const juce::StringArray& files)
+    {
+        for (const auto& f : files)
+            if (isAudioFile(f)) return true;
+        return false;
+    }
+
+    void LockstepEditor::fileDragEnter(const juce::StringArray& /*files*/, int /*x*/, int /*y*/)
+    {
+        isDraggingFiles_ = true;
+        repaint();
+    }
+
+    void LockstepEditor::fileDragExit(const juce::StringArray& /*files*/)
+    {
+        isDraggingFiles_ = false;
+        repaint();
+    }
+
+    void LockstepEditor::filesDropped(const juce::StringArray& files, int /*x*/, int /*y*/)
+    {
+        isDraggingFiles_ = false;
+        int loaded = 0;
+        for (const auto& path : files)
+        {
+            if (!isAudioFile(path)) continue;
+            if (processor_.samplePool().load(path) >= 0)
+                ++loaded;
+        }
+        if (loaded > 0)
+        {
+            poolOverlay_.setVisible(true);
+            poolOverlay_.toFront(false);
+        }
+        repaint();
     }
 
     bool LockstepEditor::keyPressed(const juce::KeyPress& key, juce::Component*)
@@ -370,7 +411,7 @@ namespace lockstep
         syncModeBox_.setBounds(header.removeFromLeft(80).reduced(4));
         channelModeBox_.setBounds(header.removeFromLeft(90).reduced(4));
         displayModeBtn_.setBounds(header.removeFromLeft(46).reduced(4));
-        loadButton_.setBounds(header.removeFromRight(160).reduced(4));
+        poolBtn_.setBounds(header.removeFromRight(80).reduced(4));
 
         // Layout (top → bottom):
         //   [header already removed]
@@ -415,5 +456,7 @@ namespace lockstep
             tempoBar_->setBounds(bounds.removeFromTop(28).reduced(8, 2));
         bounds.removeFromTop(2);
         manipulationZone_.setBounds(bounds.reduced(8, 4));
+        poolOverlay_.setBounds(manipulationZone_.getBounds()
+            .withBottom(stepGrid_.getBounds().getY()));
     }
 }

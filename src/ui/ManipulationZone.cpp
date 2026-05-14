@@ -61,6 +61,15 @@ namespace lockstep
             addAndMakeVisible(clearBtns_[si]);
         }
 
+        samplePickerBtn_.setWantsKeyboardFocus(false);
+        samplePickerBtn_.onClick = [this]
+        {
+            const int track = grid_.getActiveTrack();
+            if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+            showSamplePicker(slotOffset_);
+        };
+        addChildComponent(samplePickerBtn_);
+
         processor_.setMZSlots(slotOffset_);
         startTimerHz(30);
     }
@@ -84,7 +93,9 @@ namespace lockstep
         metaSection_ = metaSection;
 
         // Reserved meta slots (2–4) can't be selected (guarded in SectionBar),
-        // so in practice sliders are always shown.
+        // so in practice sliders are always shown. Hide the sample picker —
+        // refreshSliders() will restore it if still needed.
+        samplePickerBtn_.setVisible(false);
         for (std::size_t i = 0; i < kNumSlots; ++i)
         {
             sliders_[i].setVisible(true);
@@ -249,8 +260,11 @@ namespace lockstep
             const auto slotSz = static_cast<std::size_t>(slot);
             const auto meta   = processor_.paramSpec(track, slot);
 
-            sliders_[si].setEnabled(true);
-            sliders_[si].setAlpha(1.0f);
+            // Sample slot: replace rotary with a name button + picker popup.
+            const bool isSampleSlot = (meta.id == "sample_id");
+
+            sliders_[si].setEnabled(!isSampleSlot);
+            sliders_[si].setAlpha(isSampleSlot ? 0.0f : 1.0f);
             sliders_[si].setRange(static_cast<double>(meta.minValue),
                                   static_cast<double>(meta.maxValue),
                                   meta.isStepped ? 1.0 : 0.0);
@@ -269,10 +283,23 @@ namespace lockstep
 
             sliders_[si].setValue(static_cast<double>(value), juce::dontSendNotification);
 
-            juce::String valueText = formatValue(value, meta.unit, meta.isStepped);
-            if (hasLock)
-                valueText += " *";
-            valueLabels_[si].setText(valueText, juce::dontSendNotification);
+            if (isSampleSlot)
+            {
+                const int poolIdx = static_cast<int>(value);
+                const juce::String shortName = processor_.sampleShortName(poolIdx);
+                samplePickerBtn_.setButtonText(shortName);
+                samplePickerBtn_.setVisible(true);
+                const juce::String idxStr = juce::String(poolIdx) + ": ";
+                valueLabels_[si].setText(idxStr + shortName + (hasLock ? " *" : ""), juce::dontSendNotification);
+            }
+            else
+            {
+                if (i == 0) samplePickerBtn_.setVisible(false);
+                juce::String valueText = formatValue(value, meta.unit, meta.isStepped);
+                if (hasLock)
+                    valueText += " *";
+                valueLabels_[si].setText(valueText, juce::dontSendNotification);
+            }
 
             const juce::String nameText = meta.label.isEmpty()
                                               ? juce::String(slot)
@@ -630,6 +657,38 @@ namespace lockstep
         repaint();
     }
 
+    void ManipulationZone::showSamplePicker(int absoluteSlot)
+    {
+        const int track = grid_.getActiveTrack();
+        const int poolSize = processor_.samplePool().size();
+
+        juce::PopupMenu menu;
+        if (poolSize == 0)
+        {
+            menu.addItem(0, "(pool is empty)", false);
+        }
+        else
+        {
+            for (int i = 0; i < poolSize; ++i)
+                menu.addItem(i + 1, juce::String(i) + "  " + processor_.sampleShortName(i));
+        }
+        menu.addSeparator();
+        menu.addItem(1000, "Manage pool...");
+
+        menu.showMenuAsync(
+            juce::PopupMenu::Options().withTargetComponent(samplePickerBtn_),
+            [this, track, absoluteSlot](int result)
+            {
+                if (result == 1000)
+                {
+                    if (onOpenPoolManager) onOpenPoolManager();
+                    return;
+                }
+                if (result < 1) return;
+                processor_.writeParam(track, absoluteSlot, static_cast<float>(result - 1));
+            });
+    }
+
     void ManipulationZone::writeGlobalField(int field, float value)
     {
         const auto writeApvts = [this](const juce::String& id, float v, float lo, float hi)
@@ -759,8 +818,10 @@ namespace lockstep
             // Bottom row: parameter name.
             labels_[si].setBounds(col.removeFromBottom(16));
 
-            // Middle: rotary knob.
+            // Middle: rotary knob (and sample picker occupies the same area as slot 0).
             sliders_[si].setBounds(col);
+            if (i == 0)
+                samplePickerBtn_.setBounds(col.reduced(2, 4));
         }
     }
 }

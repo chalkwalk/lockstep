@@ -92,6 +92,14 @@ namespace lockstep
         // Remove the P-Lock override for one slot on a specific step.
         void clearParam(int track, int step, int slot);
 
+        // Sample pool helpers — message-thread only.
+        // sampleShortName returns the filename stem for a given pool index, or "(none)".
+        juce::String sampleShortName(int poolIndex) const;
+        // removeSample remaps all sequence sample references before erasing the entry.
+        void removeSample(int poolIndex);
+        // swapSamples remaps references and swaps two pool entries (reorder).
+        void swapSamples(int a, int b);
+
         // Schema query helpers — forward to the machine on the given track.
         int         numParams(int track)              const;
         ParamSpec   paramSpec(int track, int index)   const;

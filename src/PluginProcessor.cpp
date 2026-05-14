@@ -631,6 +631,71 @@ namespace lockstep
         return machines_[static_cast<std::size_t>(track)]->slotForId(id);
     }
 
+    juce::String LockstepProcessor::sampleShortName(int poolIndex) const
+    {
+        const auto* s = samplePool_.get(poolIndex);
+        if (s == nullptr) return "(none)";
+        return juce::File(juce::String(s->ref.path)).getFileNameWithoutExtension();
+    }
+
+    void LockstepProcessor::removeSample(int idx)
+    {
+        if (idx < 0 || idx >= samplePool_.size())
+            return;
+        const int newMax = samplePool_.size() - 2;  // max valid index after removal
+        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+        {
+            const int sampleSlot = slotForId(t, "sample_id");
+            if (sampleSlot < 0) continue;
+            const auto slotSz = static_cast<std::size_t>(sampleSlot);
+            auto& track = sequence_.tracks[static_cast<std::size_t>(t)];
+
+            if (slotSz < track.baseParams.size())
+            {
+                const int cur = static_cast<int>(track.baseParams[slotSz]);
+                if (cur == idx)      track.baseParams[slotSz] = static_cast<float>(std::max(0, std::min(cur, newMax)));
+                else if (cur > idx)  track.baseParams[slotSz] = static_cast<float>(cur - 1);
+            }
+
+            for (auto& step : track.steps)
+            {
+                if (!step.overrides.has(sampleSlot)) continue;
+                const int cur = static_cast<int>(step.overrides.get(sampleSlot, 0.0f));
+                if (cur == idx)      step.overrides.set(sampleSlot, static_cast<float>(std::max(0, std::min(cur, newMax))));
+                else if (cur > idx)  step.overrides.set(sampleSlot, static_cast<float>(cur - 1));
+            }
+        }
+        samplePool_.remove(idx);
+    }
+
+    void LockstepProcessor::swapSamples(int a, int b)
+    {
+        if (a == b || a < 0 || b < 0) return;
+        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+        {
+            const int sampleSlot = slotForId(t, "sample_id");
+            if (sampleSlot < 0) continue;
+            const auto slotSz = static_cast<std::size_t>(sampleSlot);
+            auto& track = sequence_.tracks[static_cast<std::size_t>(t)];
+
+            if (slotSz < track.baseParams.size())
+            {
+                const int cur = static_cast<int>(track.baseParams[slotSz]);
+                if (cur == a)       track.baseParams[slotSz] = static_cast<float>(b);
+                else if (cur == b)  track.baseParams[slotSz] = static_cast<float>(a);
+            }
+
+            for (auto& step : track.steps)
+            {
+                if (!step.overrides.has(sampleSlot)) continue;
+                const int cur = static_cast<int>(step.overrides.get(sampleSlot, 0.0f));
+                if (cur == a)       step.overrides.set(sampleSlot, static_cast<float>(b));
+                else if (cur == b)  step.overrides.set(sampleSlot, static_cast<float>(a));
+            }
+        }
+        samplePool_.swap(a, b);
+    }
+
     juce::AudioProcessorEditor* LockstepProcessor::createEditor()
     {
         return new LockstepEditor(*this);

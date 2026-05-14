@@ -39,6 +39,24 @@ namespace lockstep
         return index;
     }
 
+    bool SamplePool::remove(int index)
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size()))
+            return false;
+        samples_.erase(samples_.begin() + static_cast<std::ptrdiff_t>(index));
+        return true;
+    }
+
+    bool SamplePool::swap(int a, int b)
+    {
+        const int n = static_cast<int>(samples_.size());
+        if (a < 0 || a >= n || b < 0 || b >= n || a == b)
+            return false;
+        std::swap(samples_[static_cast<std::size_t>(a)],
+                  samples_[static_cast<std::size_t>(b)]);
+        return true;
+    }
+
     const Sample* SamplePool::get(int index) const
     {
         if (index < 0 || index >= static_cast<int>(samples_.size()))
