@@ -212,7 +212,7 @@ counts, `paramSpec(i)` instead of `getParamMetadata(i)`, etc.).
 - [x] **MA.8** Update `SectionBar` for variable section count
       (≤6) and variable page count per section (paginate by 4).
       Disable any trailing buttons the machine doesn't use.
-- [ ] **MA.9** Update `ManipulationZone` to read schema from
+- [x] **MA.9** Update `ManipulationZone` to read schema from
       `paramSpec(i)` and to handle variable page counts. Re-wire the
       meta sections per the new fixed layout: COND (Shift+3),
       TRIG (Shift+4, new — note/vel/gate), TRACK (Shift+5,

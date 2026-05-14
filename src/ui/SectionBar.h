@@ -59,8 +59,9 @@ namespace lockstep
 
         // Fixed meta-section labels for the shift layer, indexed by section (0–5).
         // Empty string = reserved (Shift press is a no-op for that index).
+        // Layout: COND(0) TRIG(1) TRACK(2) —(3) —(4) GLOBAL(5)
         static constexpr std::array<const char*, IMachine::kMaxSections> kMetaLabels = {
-            "COND", "TRACK", "", "", "", "GLOBAL"
+            "COND", "TRIG", "TRACK", "", "", "GLOBAL"
         };
 
         [[nodiscard]] static bool isReservedMeta(int sectionIndex)

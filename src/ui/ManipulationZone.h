@@ -38,9 +38,11 @@ namespace lockstep
 
         void refreshSliders();
         void refreshCondSliders();
+        void refreshTrigSliders();
         void refreshTrackSliders();
         void refreshGlobalSliders();
         void writeCondField(int field, float value);
+        void writeTrigField(int field, float value);
         void writeTrackField(int field, float value);
         void writeGlobalField(int field, float value);
         void showMappingMenu(int slotIndex);
@@ -48,7 +50,7 @@ namespace lockstep
         LockstepProcessor& processor_;
         StepGrid& grid_;
         int slotOffset_   = 0;
-        int metaSection_  = -1;  // -1 = normal machine params; 0/1/5 = COND/TRACK/GLOBAL
+        int metaSection_  = -1;  // -1 = normal machine params; 0/1/2/5 = COND/TRIG/TRACK/GLOBAL
 
         // Index of the slot column currently in "listening for CC" state, or -1.
         int learningSlotIndex_ = -1;

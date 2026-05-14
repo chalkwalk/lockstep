@@ -39,7 +39,8 @@ namespace lockstep
                 switch (metaSection_)
                 {
                     case 0:  writeCondField(i, v);   break;
-                    case 1:  writeTrackField(i, v);  break;
+                    case 1:  writeTrigField(i, v);   break;
+                    case 2:  writeTrackField(i, v);  break;
                     case 5:  writeGlobalField(i, v); break;
                     default: processor_.writeParam(grid_.getActiveTrack(),
                                                    slotOffset_ + i, v); break;
@@ -203,7 +204,8 @@ namespace lockstep
         switch (metaSection_)
         {
             case 0: refreshCondSliders();   return;
-            case 1: refreshTrackSliders();  return;
+            case 1: refreshTrigSliders();   return;
+            case 2: refreshTrackSliders();  return;
             case 5: refreshGlobalSliders(); return;
             default: break;
         }
@@ -383,29 +385,42 @@ namespace lockstep
     }
 
     // -------------------------------------------------------------------------
-    // TRACK meta section (masterSection == 1)
+    // TRIG meta section (masterSection == 1): sequencer-scope note/vel/gate
 
-    void ManipulationZone::refreshTrackSliders()
+    void ManipulationZone::refreshTrigSliders()
     {
         const int track = grid_.getActiveTrack();
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return;
 
-        const auto& t = processor_.sequence().tracks[static_cast<std::size_t>(track)];
-        const float length  = processor_.apvts()
-            .getRawParameterValue(ParamIDs::trackLength(track))->load();
-        const float divider = processor_.apvts()
-            .getRawParameterValue(ParamIDs::trackDivider(track))->load();
-        const float gate = t.baseParams[3]; // slot 3 = sampler gate; moves to sequencer in MA.6
+        const auto& ctx = processor_.editContext();
+        const auto& t   = processor_.sequence().tracks[static_cast<std::size_t>(track)];
 
-        struct TrackFieldDef { const char* label; float lo; float hi; bool stepped; bool active; };
-        static constexpr std::array<TrackFieldDef, kNumSlots> kDefs = {{
-            { "Length",  1.0f,  64.0f,    true,  true  },
-            { "Divider", 1.0f,  16.0f,    true,  true  },
-            { "Gate",    0.0f, 10000.0f,  false, true  },
-            { "",        0.0f,   1.0f,    false, false },
+        const bool stepHeld = ctx.isActiveForEditing() && ctx.heldTrackIndex() == track;
+        const int  heldStep = ctx.heldStepIndex();
+        const auto* trig = (stepHeld && heldStep >= 0)
+            ? &t.steps[static_cast<std::size_t>(heldStep)].trigOverride
+            : nullptr;
+
+        // Override-ELSE-Base per field.
+        const int   note     = (trig && trig->hasNote)     ? trig->note     : t.trigDefaults.note;
+        const int   velocity = (trig && trig->hasVelocity) ? trig->velocity : t.trigDefaults.velocity;
+        const float gateMs   = (trig && trig->hasGate)     ? trig->gateMs   : t.trigDefaults.gateMs;
+        const bool  hasNote  = trig && trig->hasNote;
+        const bool  hasVel   = trig && trig->hasVelocity;
+        const bool  hasGate  = trig && trig->hasGate;
+
+        struct TrigFieldDef { const char* label; float lo; float hi; bool stepped; bool active; };
+        static constexpr std::array<TrigFieldDef, kNumSlots> kDefs = {{
+            { "Note",     0.0f,   127.0f, true,  true  },
+            { "Vel",      1.0f,   127.0f, true,  true  },
+            { "Gate",     0.0f, 10000.0f, false, true  },
+            { "",         0.0f,     1.0f, false, false },
         }};
-        const std::array<float, kNumSlots> vals = { length, divider, gate, 0.0f };
+        const std::array<float, kNumSlots> vals  = { static_cast<float>(note),
+                                                     static_cast<float>(velocity),
+                                                     gateMs, 0.0f };
+        const std::array<bool,  kNumSlots> locks = { hasNote, hasVel, hasGate, false };
 
         updatingFromTimer_ = true;
         for (int i = 0; i < kNumSlots; ++i)
@@ -419,12 +434,103 @@ namespace lockstep
             sliders_[si].setAlpha(kDefs[si].active ? 1.0f : 0.0f);
 
             juce::String valueText;
-            if (i == 2)
-                valueText = vals[si] < 10.0f
-                    ? juce::String(vals[si], 1) + " ms"
-                    : juce::String(static_cast<int>(vals[si])) + " ms";
-            else if (kDefs[si].active)
-                valueText = juce::String(static_cast<int>(vals[si]));
+            if (kDefs[si].active)
+            {
+                if (i == 2)
+                    valueText = vals[si] < 10.0f
+                        ? juce::String(vals[si], 1) + " ms"
+                        : juce::String(static_cast<int>(vals[si])) + " ms";
+                else
+                    valueText = juce::String(static_cast<int>(vals[si]));
+                if (locks[si])
+                    valueText += " *";
+            }
+
+            valueLabels_[si].setText(valueText, juce::dontSendNotification);
+            labels_[si].setText(kDefs[si].label, juce::dontSendNotification);
+            clearBtns_[si].setEnabled(kDefs[si].active && locks[si]);
+            clearBtns_[si].setAlpha(locks[si] ? 1.0f : 0.3f);
+        }
+        updatingFromTimer_ = false;
+        repaint();
+    }
+
+    void ManipulationZone::writeTrigField(int field, float value)
+    {
+        const int track = grid_.getActiveTrack();
+        if (track < 0 || track >= static_cast<int>(kNumTracks))
+            return;
+
+        const auto& ctx = processor_.editContext();
+        const bool held = ctx.isActiveForEditing() && ctx.heldTrackIndex() == track;
+        const int  step = ctx.heldStepIndex();
+
+        auto& t = processor_.sequence().tracks[static_cast<std::size_t>(track)];
+
+        if (held && step >= 0)
+        {
+            auto& trig = t.steps[static_cast<std::size_t>(step)].trigOverride;
+            switch (field)
+            {
+                case 0: trig.hasNote     = true;
+                        trig.note        = std::clamp(static_cast<int>(value), 0, 127);   break;
+                case 1: trig.hasVelocity = true;
+                        trig.velocity    = std::clamp(static_cast<int>(value), 1, 127);   break;
+                case 2: trig.hasGate     = true;
+                        trig.gateMs      = std::max(0.0f, value);                         break;
+                default: break;
+            }
+            processor_.editContext().markParamWritten();
+        }
+        else
+        {
+            switch (field)
+            {
+                case 0: t.trigDefaults.note     = std::clamp(static_cast<int>(value), 0, 127);  break;
+                case 1: t.trigDefaults.velocity = std::clamp(static_cast<int>(value), 1, 127);  break;
+                case 2: t.trigDefaults.gateMs   = std::max(0.0f, value);                        break;
+                default: break;
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // TRACK meta section (masterSection == 2)
+
+    void ManipulationZone::refreshTrackSliders()
+    {
+        const int track = grid_.getActiveTrack();
+        if (track < 0 || track >= static_cast<int>(kNumTracks))
+            return;
+
+        const float length  = processor_.apvts()
+            .getRawParameterValue(ParamIDs::trackLength(track))->load();
+        const float divider = processor_.apvts()
+            .getRawParameterValue(ParamIDs::trackDivider(track))->load();
+
+        struct TrackFieldDef { const char* label; float lo; float hi; bool stepped; bool active; };
+        static constexpr std::array<TrackFieldDef, kNumSlots> kDefs = {{
+            { "Length",  1.0f,  64.0f,  true,  true  },
+            { "Divider", 1.0f,  16.0f,  true,  true  },
+            { "",        0.0f,   1.0f,  false, false },
+            { "",        0.0f,   1.0f,  false, false },
+        }};
+        const std::array<float, kNumSlots> vals = { length, divider, 0.0f, 0.0f };
+
+        updatingFromTimer_ = true;
+        for (int i = 0; i < kNumSlots; ++i)
+        {
+            const auto si = static_cast<std::size_t>(i);
+            sliders_[si].setRange(static_cast<double>(kDefs[si].lo),
+                                  static_cast<double>(kDefs[si].hi),
+                                  kDefs[si].stepped ? 1.0 : 0.0);
+            sliders_[si].setValue(static_cast<double>(vals[si]), juce::dontSendNotification);
+            sliders_[si].setEnabled(kDefs[si].active);
+            sliders_[si].setAlpha(kDefs[si].active ? 1.0f : 0.0f);
+
+            const juce::String valueText = kDefs[si].active
+                ? juce::String(static_cast<int>(vals[si]))
+                : juce::String{};
 
             valueLabels_[si].setText(valueText, juce::dontSendNotification);
             labels_[si].setText(kDefs[si].label, juce::dontSendNotification);
@@ -452,12 +558,10 @@ namespace lockstep
             if (p) p->setValueNotifyingHost(std::clamp((v - lo) / (hi - lo), 0.0f, 1.0f));
         };
 
-        auto& t = processor_.sequence().tracks[static_cast<std::size_t>(track)];
         switch (field)
         {
-            case 0: writeApvts(ParamIDs::trackLength(track),  value, 1.0f, 64.0f);    break;
-            case 1: writeApvts(ParamIDs::trackDivider(track), value, 1.0f, 16.0f);    break;
-            case 2: t.baseParams[3] = value; break; // slot 3 = sampler gate; MA.6
+            case 0: writeApvts(ParamIDs::trackLength(track),  value, 1.0f, 64.0f); break;
+            case 1: writeApvts(ParamIDs::trackDivider(track), value, 1.0f, 16.0f); break;
             default: break;
         }
     }
