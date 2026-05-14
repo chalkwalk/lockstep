@@ -233,8 +233,8 @@ counts, `paramSpec(i)` instead of `getParamMetadata(i)`, etc.).
 
 The keyboard-first editor.
 
-- [ ] **M6.1** Real `QwertyOverlay::resolve` mapping.
-- [ ] **M6.2** ManipulationZone: 4 live parameter widgets driven by
+- [x] **M6.1** Real `QwertyOverlay::resolve` mapping.
+- [x] **M6.2** ManipulationZone: 4 live parameter widgets driven by
       machine metadata, attached to the resolved frame.
 - [ ] **M6.3** SectionBar: 6 section buttons (keys 3–8) with per-
       machine labels and multi-press page cycling; Shift for track meta

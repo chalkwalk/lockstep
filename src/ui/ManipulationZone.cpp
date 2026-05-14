@@ -218,14 +218,24 @@ namespace lockstep
         const auto& t   = processor_.sequence().tracks[static_cast<std::size_t>(track)];
 
         const int numMachineParams = processor_.numParams(track);
+
+        // Determine the active section from the first visible slot so we can
+        // blank trailing cells that belong to a different section.
+        const int activeSectionIndex = (slotOffset_ < numMachineParams)
+            ? processor_.paramSpec(track, slotOffset_).sectionIndex
+            : -1;
+
         updatingFromTimer_ = true;
         for (int i = 0; i < kNumSlots; ++i)
         {
             const auto si   = static_cast<std::size_t>(i);
             const int  slot = slotOffset_ + i;
 
-            // Slot beyond this machine's schema — blank out the cell.
-            if (slot >= numMachineParams)
+            // Slot beyond this machine's schema, or belonging to a different
+            // section than the page anchor — blank out the cell.
+            const bool outOfSection = (slot < numMachineParams)
+                && (processor_.paramSpec(track, slot).sectionIndex != activeSectionIndex);
+            if (slot >= numMachineParams || outOfSection)
             {
                 sliders_[si].setEnabled(false);
                 sliders_[si].setAlpha(0.0f);

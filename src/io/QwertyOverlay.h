@@ -13,7 +13,7 @@ namespace lockstep
     //     A  S  D  F  G  H  J  K     A-K   = steps 1-8
     //      Z  X  C  V  B  N  M  ,    Z-,   = steps 9-16
     //
-    //   3-8 = SelectSection 0-5 (stepIndex holds the section index)
+    //   3-8 = SelectSection 0-5; Shift+3-8 = meta (COND/TRIG/TRACK/—/—/GLOBAL)
     //   R   = Record arm          T = Tap tempo
     //   Y/U/I = Copy / Paste / Clear
     //   Space = Play/Stop
