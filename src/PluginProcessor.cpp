@@ -589,6 +589,17 @@ namespace lockstep
         if (slot < 0 || slot >= np)
             return;
 
+        // Clamp sample index to the actual pool size so a full-throw CC can
+        // never select a beyond-pool entry on tracks with a sample slot.
+        if (idForSlot(track, slot) == "sample_id")
+        {
+            const int poolSize = samplePool_.size();
+            if (poolSize > 0)
+                value = std::min(value, static_cast<float>(poolSize - 1));
+            else
+                value = 0.0f;
+        }
+
         const auto ti = static_cast<std::size_t>(track);
 
         if (editContext_.isActiveForEditing()

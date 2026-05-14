@@ -62,6 +62,7 @@ namespace lockstep
         }
 
         samplePickerBtn_.setWantsKeyboardFocus(false);
+        samplePickerBtn_.addMouseListener(static_cast<juce::MouseListener*>(this), false);
         samplePickerBtn_.onClick = [this]
         {
             const int track = grid_.getActiveTrack();
@@ -111,6 +112,12 @@ namespace lockstep
     {
         if (!e.mods.isRightButtonDown() || metaSection_ >= 0)
             return;
+
+        if (e.eventComponent == &samplePickerBtn_)
+        {
+            showMappingMenu(0);
+            return;
+        }
 
         for (int i = 0; i < kNumSlots; ++i)
         {

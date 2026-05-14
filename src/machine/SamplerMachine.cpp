@@ -293,7 +293,7 @@ namespace lockstep
         switch (index)
         {
         // Section 0 "Source"
-        case kSlotSampleId: return { "sample_id", "Sample",   0.0f,   127.0f,   0.0f, true,  U::None,      0 };
+        case kSlotSampleId: return { "sample_id", "Sample",   0.0f,    63.0f,   0.0f, true,  U::None,      0 };
         case kSlotPitch:    return { "pitch",      "Pitch",  -24.0f,   24.0f,   0.0f, false, U::Semitones, 0 };
         case kSlotLevel:    return { "level",      "Level",   0.0f,     1.0f,   1.0f, false, U::Percent,   0 };
         // Section 1 "Env"
