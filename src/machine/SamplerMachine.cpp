@@ -24,18 +24,21 @@ namespace lockstep
 
     // -------------------------------------------------------------------------
 
-    void SamplerMachine::startVoice(const ParamFrame& params)
+    void SamplerMachine::startVoice(int midiNote, const ParamFrame& params)
     {
         const auto msToSamples = [this](float ms) {
             return static_cast<int>(static_cast<double>(ms) * 0.001 * sampleRate_);
         };
 
+        const double pitchOffset = static_cast<double>(
+            params[static_cast<std::size_t>(kSlotPitch)]);
+        const double semitones   = static_cast<double>(midiNote - 60) + pitchOffset;
+
         voice_.active         = true;
         voice_.position       = 0.0;
         voice_.sampleIndex    = static_cast<int>(params[static_cast<std::size_t>(kSlotSampleId)]);
         voice_.level          = params[static_cast<std::size_t>(kSlotLevel)];
-        voice_.rate           = std::pow(2.0, static_cast<double>(
-                                    params[static_cast<std::size_t>(kSlotPitch)]) / 12.0);
+        voice_.rate           = std::pow(2.0, semitones / 12.0);
         voice_.attackSamples  = msToSamples(params[static_cast<std::size_t>(kSlotAttack)]);
         voice_.holdSamples    = msToSamples(params[static_cast<std::size_t>(kSlotHold)]);
         voice_.decaySamples   = msToSamples(params[static_cast<std::size_t>(kSlotDecay)]);
@@ -55,18 +58,19 @@ namespace lockstep
         }
     }
 
-    void SamplerMachine::triggerVoice(const ParamFrame& params)
+    void SamplerMachine::triggerVoice(int midiNote, const ParamFrame& params)
     {
         if (voice_.active)
         {
             // Voice is busy: arm pending and start (or extend) the choke fade.
+            pendingNote_       = midiNote;
             pendingParams_     = params;
             hasPendingTrigger_ = true;
             if (!choke_.isFading())
                 choke_.trigger();
             return;
         }
-        startVoice(params);
+        startVoice(midiNote, params);
     }
 
     void SamplerMachine::advanceStage(Voice& v)
@@ -164,13 +168,17 @@ namespace lockstep
                                  juce::AudioBuffer<float>& buffer)
     {
         // Scan events: last note-on wins (monophonic), first note-off triggers release.
-        int triggerAt = -1;
-        int releaseAt = -1;
+        int triggerAt  = -1;
+        int triggerNote = 60;
+        int releaseAt  = -1;
         for (const auto& meta : events)
         {
             const auto msg = meta.getMessage();
             if (msg.isNoteOn())
-                triggerAt = meta.samplePosition;
+            {
+                triggerAt   = meta.samplePosition;
+                triggerNote = msg.getNoteNumber();
+            }
             else if (msg.isNoteOff() && releaseAt < 0)
                 releaseAt = meta.samplePosition;
         }
@@ -202,7 +210,7 @@ namespace lockstep
             // Note-on: trigger the voice at the scheduled offset.
             if (triggerAt >= 0 && i == triggerAt)
             {
-                triggerVoice(params);
+                triggerVoice(triggerNote, params);
                 if (!choke_.isFading())
                 {
                     sample = pool_.get(voice_.sampleIndex);
@@ -220,7 +228,7 @@ namespace lockstep
             if (!choke_.isFading() && hasPendingTrigger_)
             {
                 hasPendingTrigger_ = false;
-                startVoice(pendingParams_);
+                startVoice(pendingNote_, pendingParams_);
                 sample = pool_.get(voice_.sampleIndex);
                 if (sample == nullptr)
                 {
@@ -285,16 +293,15 @@ namespace lockstep
         switch (index)
         {
         // Section 0 "Source"
-        case kSlotSampleId: return { "sample_id",  "Sample",  0.0f,   127.0f,   0.0f, true,  U::None,      0 };
-        case kSlotPitch:    return { "pitch",       "Pitch",  -24.0f,  24.0f,   0.0f, false, U::Semitones, 0 };
-        case kSlotLevel:    return { "level",       "Level",   0.0f,    1.0f,   1.0f, false, U::Percent,   0 };
-        case kSlotGate:     return { "gate",        "Gate",    0.0f, 10000.0f,  0.0f, false, U::Ms,        0 };
+        case kSlotSampleId: return { "sample_id", "Sample",   0.0f,   127.0f,   0.0f, true,  U::None,      0 };
+        case kSlotPitch:    return { "pitch",      "Pitch",  -24.0f,   24.0f,   0.0f, false, U::Semitones, 0 };
+        case kSlotLevel:    return { "level",      "Level",   0.0f,     1.0f,   1.0f, false, U::Percent,   0 };
         // Section 1 "Env"
-        case kSlotAttack:   return { "attack",      "Attack",  0.0f,  5000.0f,  2.0f, false, U::Ms,        1 };
-        case kSlotHold:     return { "hold",        "Hold",    0.0f,  2000.0f,  0.0f, false, U::Ms,        1 };
-        case kSlotDecay:    return { "decay",       "Decay",   0.0f,  5000.0f, 500.0f,false, U::Ms,        1 };
-        case kSlotSustain:  return { "sustain",     "Sustain", 0.0f,    1.0f,   0.5f, false, U::Percent,   1 };
-        case kSlotRelease:  return { "release",     "Release", 0.0f,  5000.0f, 200.0f,false, U::Ms,        1 };
+        case kSlotAttack:   return { "attack",     "Attack",  0.0f,  5000.0f,   2.0f, false, U::Ms,        1 };
+        case kSlotHold:     return { "hold",       "Hold",    0.0f,  2000.0f,   0.0f, false, U::Ms,        1 };
+        case kSlotDecay:    return { "decay",      "Decay",   0.0f,  5000.0f, 500.0f, false, U::Ms,        1 };
+        case kSlotSustain:  return { "sustain",    "Sustain", 0.0f,     1.0f,   0.5f, false, U::Percent,   1 };
+        case kSlotRelease:  return { "release",    "Release", 0.0f,  5000.0f, 200.0f, false, U::Ms,        1 };
         default:            return {};
         }
     }
@@ -307,10 +314,6 @@ namespace lockstep
         {
         case 0: return { "Source" };
         case 1: return { "Env"    };
-        case 2: return { "Mod"    };
-        case 3: return { "FX"     };
-        case 4: return { "Route"  };
-        case 5: return { "Util"   };
         default: return {};
         }
     }

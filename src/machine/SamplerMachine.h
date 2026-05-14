@@ -31,17 +31,16 @@ namespace lockstep
         static constexpr int kSlotSampleId  = 0;
         static constexpr int kSlotPitch     = 1;  // fine-tune semitone offset
         static constexpr int kSlotLevel     = 2;
-        static constexpr int kSlotGate      = 3;  // gate ms (moves to sequencer in MA.6)
 
         // Section 1 "Env"
-        static constexpr int kSlotAttack    = 4;
-        static constexpr int kSlotHold      = 5;
-        static constexpr int kSlotDecay     = 6;
-        static constexpr int kSlotSustain   = 7;
-        static constexpr int kSlotRelease   = 8;
+        static constexpr int kSlotAttack    = 3;
+        static constexpr int kSlotHold      = 4;
+        static constexpr int kSlotDecay     = 5;
+        static constexpr int kSlotSustain   = 6;
+        static constexpr int kSlotRelease   = 7;
 
-        static constexpr int kNumSlots    = 9;
-        static constexpr int kNumSections = 6;
+        static constexpr int kNumSlots    = 8;
+        static constexpr int kNumSections = 2;  // Source + Env
 
         enum class Stage { Idle, Attack, Hold, Decay, Sustain, Release };
 
@@ -62,8 +61,8 @@ namespace lockstep
             int    releaseSamples = 0;
         };
 
-        void  triggerVoice(const ParamFrame& params);
-        void  startVoice(const ParamFrame& params);
+        void  triggerVoice(int midiNote, const ParamFrame& params);
+        void  startVoice(int midiNote, const ParamFrame& params);
         void  advanceStage(Voice& v);
         float nextEnvSample(Voice& v);
 
@@ -72,6 +71,7 @@ namespace lockstep
         Voice       voice_;
         VoiceChoke  choke_;
         bool        hasPendingTrigger_ = false;
+        int         pendingNote_   = 60;
         ParamFrame  pendingParams_{};
     };
 }

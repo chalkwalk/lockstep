@@ -218,7 +218,7 @@ counts, `paramSpec(i)` instead of `getParamMetadata(i)`, etc.).
       TRIG (Shift+4, new — note/vel/gate), TRACK (Shift+5,
       length/divider — moved from Shift+4), reserved (Shift+6–7),
       GLOBAL (Shift+8).
-- [ ] **MA.10** Sampler machine cleanup: remove `kSlotGate` (gate is
+- [x] **MA.10** Sampler machine cleanup: remove `kSlotGate` (gate is
       now sequencer-scope), keep `pitch_offset` as a fine-tune slot,
       respond to incoming MIDI note-on by starting a voice at the
       requested pitch, respond to note-off by entering release.
