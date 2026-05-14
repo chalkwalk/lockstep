@@ -224,7 +224,7 @@ counts, `paramSpec(i)` instead of `getParamMetadata(i)`, etc.).
       requested pitch, respond to note-off by entering release.
       Voice retains all current DSP (interpolation, AHDSR, sample
       pool lookup); only the trigger entry point changes.
-- [ ] **MA.11** Verify M1–M5 features still work end-to-end: load a
+- [x] **MA.11** Verify M1–M5 features still work end-to-end: load a
       sample, sequence a 16-step pattern, P-Lock a slot, hear it
       play back through the new MIDI boundary. Standalone smoke test
       with the choke fade audibly intact on retriggers.
