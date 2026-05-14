@@ -4,6 +4,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "../PluginProcessor.h"
 #include "../state/UiState.h"
+#include "GridDisplayMode.h"
 
 namespace lockstep
 {
@@ -12,13 +13,14 @@ namespace lockstep
     // Renders the 8-cell control row: [SHIFT] [NAV] [Section 0..5].
     // Reads display state from UiState; fires onSectionChanged when the active
     // (section, page, firstSlot) changes so the editor can update the encoder strip.
-    class SectionBar : public juce::Component
+    class SectionBar : public juce::Component, public juce::Timer
     {
     public:
         SectionBar(LockstepProcessor& processor, StepGrid& grid, UiState& uiState);
 
         void paint(juce::Graphics& g) override;
         void mouseDown(const juce::MouseEvent& e) override;
+        void timerCallback() override { repaint(); }
 
         // Called by the editor's key handler when a section key (0–5) is pressed.
         // Returns true if the state changed.
@@ -30,6 +32,7 @@ namespace lockstep
         // Called when the active track changes so the bar redraws and re-fires
         // onSectionChanged with the new track's current section/page.
         void syncToActiveTrack();
+        void setDisplayMode(GridDisplayMode mode);
 
         // Callback: fired whenever the active machine-section first slot changes.
         // Arguments: (sectionIndex, pageIndex, firstSlot)
@@ -60,6 +63,7 @@ namespace lockstep
         LockstepProcessor& processor_;
         StepGrid&          grid_;
         UiState&           uiState_;
+        GridDisplayMode    displayMode_ = GridDisplayMode::Ortholinear;
 
         // Fixed meta-section labels for the shift layer, indexed by section (0–5).
         // Empty string = reserved (Shift press is a no-op for that index).

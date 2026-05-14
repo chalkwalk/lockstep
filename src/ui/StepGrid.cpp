@@ -132,6 +132,12 @@ namespace lockstep
             onActiveTrackChanged(activeTrack_);
     }
 
+    void StepGrid::setDisplayMode(GridDisplayMode mode)
+    {
+        displayMode_ = mode;
+        repaint();
+    }
+
     void StepGrid::nextPage() { ++stepPage_; clampPage(); }
     void StepGrid::prevPage() { --stepPage_; clampPage(); }
 
@@ -203,11 +209,32 @@ namespace lockstep
 
         const auto preview = computePagePreview(track, trackLen, loopBase, baseStep);
 
-        const int cellW = cellArea.getWidth()  / kCols;
+        static constexpr const char* kKeyLetters[kPageSteps] = {
+            "A","S","D","F","G","H","J","K",
+            "Z","X","C","V","B","N","M",","
+        };
+
+        const bool showKeyLetters = (displayMode_ != GridDisplayMode::Clean);
+        int cellW, staggerA, staggerZ;
+        if (displayMode_ == GridDisplayMode::Staggered)
+        {
+            const int hu = staggerHalfUnit(cellArea.getWidth());
+            cellW    = staggerCellW(hu);
+            staggerA = staggerOffsetA(hu);
+            staggerZ = staggerOffsetZ(hu);
+        }
+        else
+        {
+            cellW    = cellArea.getWidth() / kCols;
+            staggerA = 0;
+            staggerZ = 0;
+        }
         const int cellH = cellArea.getHeight() / kRows;
 
         for (int row = 0; row < kRows; ++row)
         {
+            const int rowStagger = (row == 0) ? staggerA : staggerZ;
+
             for (int col = 0; col < kCols; ++col)
             {
                 const int localIdx = row * kCols + col;
@@ -227,7 +254,7 @@ namespace lockstep
                     && track.steps[static_cast<std::size_t>(absIdx)].overrides.has(activeSlot);
                 const bool isHead  = (absIdx == playheadAbs);
 
-                const int x = cellArea.getX() + col * cellW;
+                const int x = cellArea.getX() + rowStagger + col * cellW;
                 const int y = cellArea.getY() + row * cellH;
                 const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
@@ -275,6 +302,16 @@ namespace lockstep
                     g.drawRoundedRectangle(cell.toFloat(), 3.0f, 2.0f);
                 }
 
+                // Key letter — top-left corner, omitted in CLN mode.
+                if (showKeyLetters && inRange)
+                {
+                    g.setFont(juce::Font(juce::FontOptions(8.0f)));
+                    g.setColour(juce::Colour::fromRGB(88, 108, 128));
+                    g.drawText(kKeyLetters[static_cast<std::size_t>(localIdx)],
+                               cell.withHeight(10).reduced(2, 0),
+                               juce::Justification::topLeft);
+                }
+
                 // Step number
                 g.setColour(inRange ? juce::Colour::fromRGB(110, 130, 150)
                                     : juce::Colour::fromRGB(40, 46, 54));
@@ -287,7 +324,7 @@ namespace lockstep
         const int pages = numPages();
         g.setColour(juce::Colour::fromRGB(100, 120, 140));
         g.setFont(juce::Font(juce::FontOptions(10.0f)));
-        const auto infoRect = navArea.withTrimmedLeft(64).withTrimmedRight(120);
+        const auto infoRect = navArea.withTrimmedLeft(96).withTrimmedRight(120);
         g.drawText(
             "Page " + juce::String(stepPage_ + 1) + " / " + juce::String(pages)
                 + "     Length:",
@@ -314,7 +351,7 @@ namespace lockstep
         auto navRow = bounds.removeFromBottom(kNavRowH).reduced(0, 2);
         prevBtn_.setBounds(navRow.removeFromLeft(28).reduced(1));
         nextBtn_.setBounds(navRow.removeFromLeft(28).reduced(1));
-        navRow.removeFromLeft(100);  // space for page info text drawn in paint
+        navRow.removeFromLeft(64);   // space for page info text drawn in paint
         lengthSlider_.setBounds(navRow.reduced(2, 0));
     }
 
@@ -330,15 +367,32 @@ namespace lockstep
         if (!cellArea.contains(pos))
             return -1;
 
-        const int cellW = cellArea.getWidth()  / kCols;
+        int cellW, staggerA, staggerZ;
+        if (displayMode_ == GridDisplayMode::Staggered)
+        {
+            const int hu = staggerHalfUnit(cellArea.getWidth());
+            cellW    = staggerCellW(hu);
+            staggerA = staggerOffsetA(hu);
+            staggerZ = staggerOffsetZ(hu);
+        }
+        else
+        {
+            cellW    = cellArea.getWidth() / kCols;
+            staggerA = 0;
+            staggerZ = 0;
+        }
         const int cellH = cellArea.getHeight() / kRows;
         if (cellW <= 0 || cellH <= 0)
             return -1;
 
-        const int col = (pos.getX() - cellArea.getX()) / cellW;
         const int row = (pos.getY() - cellArea.getY()) / cellH;
+        if (row < 0 || row >= kRows)
+            return -1;
 
-        if (col < 0 || col >= kCols || row < 0 || row >= kRows)
+        const int rowStagger = (row == 0) ? staggerA : staggerZ;
+
+        const int col = (pos.getX() - cellArea.getX() - rowStagger) / cellW;
+        if (col < 0 || col >= kCols)
             return -1;
 
         const int absIdx = stepPage_ * kPageSteps + row * kCols + col;

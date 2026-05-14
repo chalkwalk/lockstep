@@ -11,15 +11,18 @@ namespace lockstep
     SectionBar::SectionBar(LockstepProcessor& processor, StepGrid& grid, UiState& uiState)
         : processor_(processor), grid_(grid), uiState_(uiState)
     {
+        startTimerHz(20);
     }
 
     // -------------------------------------------------------------------------
 
     juce::Rectangle<int> SectionBar::cellBounds(int cellIndex) const
     {
-        const int w    = getWidth();
-        const int h    = getHeight();
-        const int cellW = w / kTotalCells;
+        const int w     = getWidth();
+        const int h     = getHeight();
+        const int cellW = (displayMode_ == GridDisplayMode::Staggered)
+                              ? staggerCellW(staggerHalfUnit(w))
+                              : w / kTotalCells;
         return { cellIndex * cellW, 0, cellW, h };
     }
 
@@ -149,17 +152,36 @@ namespace lockstep
         const int activeTrack = grid_.getActiveTrack();
 
         paintFixedCell(g, cellBounds(0), "SHF", uiState_.shiftHeld);
-        paintFixedCell(g, cellBounds(1), juce::String::charToString(0x25B2), false); // ▲
+        paintFixedCell(g, cellBounds(1), juce::String::charToString(0x25B2),
+                       juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('2'))); // ▲
 
         for (int s = 0; s < IMachine::kMaxSections; ++s)
             paintSectionCell(g, cellBounds(kFixedCells + s), s, activeTrack);
+
+        // Key-number annotations (1–8) in STG and ORL modes.
+        if (displayMode_ != GridDisplayMode::Clean)
+        {
+            static constexpr const char* kKeyLabels[kTotalCells] = {
+                "1", "2", "3", "4", "5", "6", "7", "8"
+            };
+            g.setFont(juce::Font(juce::FontOptions(8.0f)));
+            g.setColour(juce::Colour::fromRGB(75, 92, 108));
+            for (int i = 0; i < kTotalCells; ++i)
+            {
+                g.drawText(kKeyLabels[i],
+                           cellBounds(i).withHeight(10).reduced(2, 0),
+                           juce::Justification::topLeft);
+            }
+        }
     }
 
     // -------------------------------------------------------------------------
 
     void SectionBar::mouseDown(const juce::MouseEvent& e)
     {
-        const int cellW = getWidth() / kTotalCells;
+        const int cellW = (displayMode_ == GridDisplayMode::Staggered)
+                              ? staggerCellW(staggerHalfUnit(getWidth()))
+                              : getWidth() / kTotalCells;
         const int cellIndex = e.x / cellW;
         const int section = cellToSection(cellIndex);
         if (section < 0)
@@ -217,6 +239,12 @@ namespace lockstep
 
         if (onMetaSectionChanged)
             onMetaSectionChanged(uiState_.masterSection);
+    }
+
+    void SectionBar::setDisplayMode(GridDisplayMode mode)
+    {
+        displayMode_ = mode;
+        repaint();
     }
 
     void SectionBar::syncToActiveTrack()

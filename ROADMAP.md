@@ -7,8 +7,8 @@ milestone changes, update **Active focus** below.
 
 For architecture see `DESIGN.md`.
 
-**Active focus:** M6 — QWERTY overlay + Manipulation Zone UI.
-**Last completed:** M6.7 — TRIG meta section (note/velocity/gate) wired into MZ.
+**Active focus:** M7 — Pattern recording.
+**Last completed:** M6 — QWERTY overlay + Manipulation Zone UI. All M6.1–M6.11 complete.
 
 ## Locked design decisions for the roadmap
 
@@ -269,8 +269,8 @@ The keyboard-first editor.
       as cell brightness levels: full = certain fire, dim = certain
       skip, intermediate = probabilistic (scaled to the probability
       value). Propagate uncertainty through prev-dep chains.
-- [ ] **M6.10** Transport (Play/Stop/Rec) bound to dedicated keys.
-- [ ] **M6.11** Step Grid overlay display modes: Staggered (realistic key silhouette
+- [x] **M6.10** Transport (Play/Stop/Rec) bound to dedicated keys.
+- [x] **M6.11** Step Grid overlay display modes: Staggered (realistic key silhouette
       with row offset, key legends visible — training mode), Ortholinear (uniform
       grid, legends visible — muscle-memory mode), Clean (uniform grid, no legends —
       hardware surface mode). Mode is a persistent global preference, not project

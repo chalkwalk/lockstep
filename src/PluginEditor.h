@@ -6,6 +6,8 @@
 #include "PluginProcessor.h"
 #include "io/QwertyOverlay.h"
 #include "state/UiState.h"
+#include "ui/FunctionBar.h"
+#include "ui/GridDisplayMode.h"
 #include "ui/InPluginTransport.h"
 #include "ui/ManipulationZone.h"
 #include "ui/SectionBar.h"
@@ -50,10 +52,17 @@ namespace lockstep
         StepGrid stepGrid_;
         ManipulationZone manipulationZone_;  // after stepGrid_ — ctor takes StepGrid&
         SectionBar sectionBar_;              // after manipulationZone_ and stepGrid_
+        FunctionBar functionBar_;            // Q-row key display
+
+        GridDisplayMode gridMode_ = GridDisplayMode::Ortholinear;
+        juce::ApplicationProperties appProps_;
+
+        void applyDisplayMode(GridDisplayMode mode);
         juce::ComboBox syncModeBox_;
         std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> syncModeAttachment_;
         juce::ComboBox channelModeBox_;
         std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> channelModeAttachment_;
+        juce::TextButton displayModeBtn_{ "ORL" };  // cycles Staggered/Ortholinear/Clean
         juce::TextButton loadButton_{ "Load Sample" };
         std::unique_ptr<juce::FileChooser> fileChooser_;
         juce::String sampleStatus_{ "No samples loaded" };

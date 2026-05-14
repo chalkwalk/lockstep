@@ -1,10 +1,12 @@
 #pragma once
 
 #include <array>
+#include <functional>
 #include <memory>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "../core/Sequence.h"
+#include "GridDisplayMode.h"
 
 namespace lockstep
 {
@@ -24,8 +26,13 @@ namespace lockstep
         int  getActiveTrack() const { return activeTrack_; }
         int  currentPage()    const { return stepPage_; }
 
+        void setDisplayMode(GridDisplayMode mode);
+        GridDisplayMode displayMode() const { return displayMode_; }
+
         // Fired after activeTrack_ changes; argument is the new track index.
         std::function<void(int)> onActiveTrackChanged;
+        // Fired when the user cycles the display mode.
+        std::function<void(GridDisplayMode)> onDisplayModeChanged;
 
         void nextPage();
         void prevPage();
@@ -55,6 +62,8 @@ namespace lockstep
         std::array<juce::ToggleButton, kNumTracks> muteBtns_;
         std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>,
                    kNumTracks> muteAttachments_;
+
+        GridDisplayMode displayMode_ = GridDisplayMode::Ortholinear;
 
         juce::TextButton prevBtn_{ "<" };
         juce::TextButton nextBtn_{ ">" };

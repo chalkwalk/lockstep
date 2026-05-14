@@ -9,8 +9,22 @@ namespace lockstep
           transport_(proc.clock()),
           stepGrid_(proc),
           manipulationZone_(proc, stepGrid_),
-          sectionBar_(proc, stepGrid_, uiState_)
+          sectionBar_(proc, stepGrid_, uiState_),
+          functionBar_(proc, uiState_)
     {
+        // Load persisted display mode.
+        {
+            juce::PropertiesFile::Options o;
+            o.applicationName     = "Lockstep";
+            o.filenameSuffix      = ".xml";
+            o.folderName          = "Lockstep";
+            o.osxLibrarySubFolder = "Application Support";
+            appProps_.setStorageParameters(o);
+        }
+        if (auto* prefs = appProps_.getUserSettings())
+            gridMode_ = static_cast<GridDisplayMode>(
+                prefs->getIntValue("gridMode", static_cast<int>(GridDisplayMode::Ortholinear)));
+        applyDisplayMode(gridMode_);
         addAndMakeVisible(transport_);
 
         if (juce::PluginHostType::getPluginLoadedAs()
@@ -58,8 +72,21 @@ namespace lockstep
             sectionBar_.syncToActiveTrack();
         };
 
+        stepGrid_.onDisplayModeChanged = [this](GridDisplayMode mode)
+        {
+            applyDisplayMode(mode);
+        };
+
+        displayModeBtn_.setWantsKeyboardFocus(false);
+        displayModeBtn_.onClick = [this]
+        {
+            applyDisplayMode(static_cast<GridDisplayMode>(
+                (static_cast<int>(gridMode_) + 1) % 3));
+        };
+        addAndMakeVisible(displayModeBtn_);
         addAndMakeVisible(manipulationZone_);
         addAndMakeVisible(sectionBar_);
+        addAndMakeVisible(functionBar_);
         addAndMakeVisible(stepGrid_);
         addAndMakeVisible(keyboard_);
         addAndMakeVisible(loadButton_);
@@ -96,7 +123,7 @@ namespace lockstep
                 });
         };
 
-        setSize(720, 440);
+        setSize(880, 480);
         setWantsKeyboardFocus(true);
         // Key listener is registered on the top-level window in
         // parentHierarchyChanged(), not here, so focus changes among child
@@ -220,6 +247,11 @@ namespace lockstep
                 processor_.clock().setInPluginPlaying(!processor_.clock().inPluginPlaying());
                 return true;
 
+            case QwertyOverlay::Action::Stop:
+                processor_.clock().setInPluginPlaying(false);
+                processor_.clock().resetPhase();
+                return true;
+
             case QwertyOverlay::Action::Clear:
             {
                 const auto& ctx = processor_.editContext();
@@ -230,8 +262,11 @@ namespace lockstep
                 return true;
             }
 
-            // Reserved: implementations land in later milestones.
             case QwertyOverlay::Action::RecordArm:
+                processor_.clock().setRecordArmed(!processor_.clock().isRecordArmed());
+                return true;
+
+            // Reserved: implementations land in later milestones.
             case QwertyOverlay::Action::TapTempo:
             case QwertyOverlay::Action::Copy:
             case QwertyOverlay::Action::Paste:
@@ -277,15 +312,33 @@ namespace lockstep
         return false;
     }
 
+    void LockstepEditor::applyDisplayMode(GridDisplayMode mode)
+    {
+        gridMode_ = mode;
+        stepGrid_.setDisplayMode(mode);
+        functionBar_.setDisplayMode(mode);
+        sectionBar_.setDisplayMode(mode);
+
+        static constexpr const char* kModeLabels[] = { "STG", "ORL", "CLN" };
+        displayModeBtn_.setButtonText(kModeLabels[static_cast<int>(mode)]);
+
+        if (auto* prefs = appProps_.getUserSettings())
+        {
+            prefs->setValue("gridMode", static_cast<int>(mode));
+            prefs->saveIfNeeded();
+        }
+    }
+
     void LockstepEditor::resized()
     {
         auto bounds = getLocalBounds();
 
         // Header row: transport | sync mode box | [status text area] | load button
         auto header = bounds.removeFromTop(36);
-        transport_.setBounds(header.removeFromLeft(108).reduced(4));
+        transport_.setBounds(header.removeFromLeft(148).reduced(4));
         syncModeBox_.setBounds(header.removeFromLeft(80).reduced(4));
         channelModeBox_.setBounds(header.removeFromLeft(90).reduced(4));
+        displayModeBtn_.setBounds(header.removeFromLeft(46).reduced(4));
         loadButton_.setBounds(header.removeFromRight(160).reduced(4));
         // Remaining header area is drawn as status text in paint()
 
@@ -300,6 +353,9 @@ namespace lockstep
 
         // Section bar below the encoders.
         sectionBar_.setBounds(bounds.removeFromTop(48).reduced(8, 2));
+
+        // Function bar (Q row) between section bar and step grid.
+        functionBar_.setBounds(bounds.removeFromTop(36).reduced(8, 2));
 
         keyboard_.setBounds(bounds.removeFromBottom(72).reduced(8, 4));
         stepGrid_.setBounds(bounds.reduced(8, 4));

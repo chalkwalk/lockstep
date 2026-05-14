@@ -76,6 +76,7 @@ target_sources(Lockstep
     PRIVATE
         PluginProcessor.cpp
         PluginEditor.cpp
+        ui/FunctionBar.cpp
         ui/InPluginTransport.cpp
         ui/ManipulationZone.cpp
         ui/SectionBar.cpp

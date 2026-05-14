@@ -45,7 +45,8 @@ namespace lockstep
             Paste,
             Clear,
 
-            PlayStop
+            PlayStop,
+            Stop          // stop + reset to start (Escape)
         };
 
         struct Mapping

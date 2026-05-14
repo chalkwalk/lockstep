@@ -62,6 +62,15 @@ namespace lockstep
             inPluginPlaying_.store(p, std::memory_order_relaxed);
         }
 
+        bool isRecordArmed() const
+        {
+            return recordArmed_.load(std::memory_order_relaxed);
+        }
+        void setRecordArmed(bool armed)
+        {
+            recordArmed_.store(armed, std::memory_order_relaxed);
+        }
+
         // ---- Standalone / Auto mode controls (UI thread) -------------------
         void setLocalBpm(double bpm);
         void resetPhase();
@@ -90,6 +99,7 @@ namespace lockstep
 
         // Cross-thread state.
         std::atomic<bool>          inPluginPlaying_{false};
+        std::atomic<bool>          recordArmed_{false};
         std::atomic<std::uint64_t> ppqUi_{0};  // double bits of ppqBlockStart_
     };
 }

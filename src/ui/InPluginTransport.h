@@ -27,12 +27,14 @@ namespace lockstep
         bool ghosted_ = false;
 
         juce::TextButton playBtn_  { "Play" };
-        juce::TextButton resetBtn_ { "Reset" };
+        juce::TextButton resetBtn_ { "Stop" };
+        juce::TextButton recBtn_   { "Rec" };
 
         void timerCallback() override;
         void onPlayClick();
         void onResetClick();
         void syncPlayLabel();
+        void syncRecColour();
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(InPluginTransport)
     };

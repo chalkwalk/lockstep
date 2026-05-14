@@ -17,7 +17,7 @@ namespace lockstep
 
         constexpr int code(char c) { return static_cast<int>(c); }
 
-        constexpr std::array<Entry, 33> kTable = { {
+        constexpr std::array<Entry, 34> kTable = { {
             { code('1'), A::Shift,           -1 },
 
             { code('2'), A::NavUp,           -1 },
@@ -57,6 +57,7 @@ namespace lockstep
             { code('I'), A::Clear,           -1 },
 
             { code(' '), A::PlayStop,        -1 },
+            { 27,        A::Stop,            -1 },  // Escape
         } };
     }
 
@@ -72,6 +73,8 @@ namespace lockstep
                     m.action = Action::SelectMetaSection;
                 else if (shiftHeld && m.action == Action::Step && m.stepIndex < 8)
                     m.action = Action::SelectTrack;
+                else if (shiftHeld && m.action == Action::PlayStop)
+                    m.action = Action::Stop;
                 return m;
             }
         }
