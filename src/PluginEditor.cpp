@@ -202,6 +202,10 @@ namespace lockstep
                 stepGrid_.nextPage();
                 return true;
 
+            case QwertyOverlay::Action::SelectTrack:
+                stepGrid_.setActiveTrack(mapping.stepIndex);
+                return true;
+
             case QwertyOverlay::Action::NavUp:
                 stepGrid_.setActiveTrack(std::max(0, stepGrid_.getActiveTrack() - 1));
                 return true;

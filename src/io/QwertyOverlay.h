@@ -37,6 +37,8 @@ namespace lockstep
             SelectSection,       // stepIndex holds machine section index 0..5
             SelectMetaSection,   // stepIndex holds meta section index 0..5 (Shift held)
 
+            SelectTrack,         // stepIndex holds track index 0..7 (Shift + step row 1)
+
             RecordArm,
             TapTempo,
             Copy,

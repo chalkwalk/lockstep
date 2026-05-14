@@ -69,9 +69,9 @@ namespace lockstep
             {
                 Mapping m { e.action, e.stepIndex };
                 if (shiftHeld && m.action == Action::SelectSection)
-                {
                     m.action = Action::SelectMetaSection;
-                }
+                else if (shiftHeld && m.action == Action::Step && m.stepIndex < 8)
+                    m.action = Action::SelectTrack;
                 return m;
             }
         }
