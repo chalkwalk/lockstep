@@ -17,4 +17,5 @@ namespace lockstep::ParamIDs
     inline std::string trackLength(int t)  { return "track_" + std::to_string(t) + "_length"; }
     inline std::string trackDivider(int t) { return "track_" + std::to_string(t) + "_divider"; }
     inline std::string trackMute(int t)    { return "track_" + std::to_string(t) + "_mute"; }
+    inline std::string trackSolo(int t)   { return "track_" + std::to_string(t) + "_solo"; }
 }

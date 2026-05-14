@@ -6,6 +6,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "../core/Sequence.h"
+#include "../state/UiState.h"
 #include "GridDisplayMode.h"
 
 namespace lockstep
@@ -19,7 +20,7 @@ namespace lockstep
     class StepGrid : public juce::Component, public juce::Timer
     {
     public:
-        explicit StepGrid(LockstepProcessor& processor);
+        StepGrid(LockstepProcessor& processor, UiState& uiState);
         ~StepGrid() override;
 
         void setActiveTrack(int t);
@@ -55,13 +56,10 @@ namespace lockstep
         int  stepCellAt(juce::Point<int> pos) const;  // returns absIdx or -1
 
         LockstepProcessor& processor_;
+        UiState&           uiState_;
         int activeTrack_ = 0;
         int stepPage_    = 0;
 
-        std::array<juce::TextButton, kNumTracks> trackBtns_;
-        std::array<juce::ToggleButton, kNumTracks> muteBtns_;
-        std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>,
-                   kNumTracks> muteAttachments_;
 
         GridDisplayMode displayMode_ = GridDisplayMode::Ortholinear;
 
@@ -71,8 +69,6 @@ namespace lockstep
         juce::Slider     lengthSlider_;
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> lengthAttachment_;
 
-        static constexpr int kTrackRowH = 22;
-        static constexpr int kMuteRowH  = 16;
         static constexpr int kNavRowH   = 26;
 
         int mouseHeldStep_ = -1;

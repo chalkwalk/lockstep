@@ -95,18 +95,19 @@ namespace lockstep
                            juce::Justification::topLeft);
             }
 
-            // Primary function — centre (always shown)
+            // Primary function — centre; dimmed when shift is held.
+            const float primAlpha = (isPressed || !uiState_.shiftHeld) ? 1.0f : 0.35f;
             const juce::Colour labelColour = isPressed
                 ? juce::Colours::white
-                : juce::Colour::fromRGB(160, 185, 210);
+                : juce::Colour::fromRGB(160, 185, 210).withAlpha(primAlpha);
             g.setFont(juce::Font(juce::FontOptions(10.0f)));
             g.setColour(labelColour);
             g.drawText(def.primLabel, cell, juce::Justification::centred);
 
-            // Shift function — bottom (always shown when non-empty)
+            // Shift function — bottom; bright when shift held, dim otherwise.
             if (def.shiftLabel[0] != '\0')
             {
-                const float alpha = uiState_.shiftHeld ? 1.0f : 0.3f;
+                const float alpha = uiState_.shiftHeld ? 1.0f : 0.25f;
                 g.setFont(juce::Font(juce::FontOptions(8.0f)));
                 g.setColour(juce::Colour::fromRGB(180, 200, 220).withAlpha(alpha));
                 g.drawText(def.shiftLabel,

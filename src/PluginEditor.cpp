@@ -7,7 +7,7 @@ namespace lockstep
         : juce::AudioProcessorEditor(&proc),
           processor_(proc),
           transport_(proc.clock()),
-          stepGrid_(proc),
+          stepGrid_(proc, uiState_),
           manipulationZone_(proc, stepGrid_),
           sectionBar_(proc, stepGrid_, uiState_),
           functionBar_(proc, uiState_)
@@ -65,10 +65,41 @@ namespace lockstep
             manipulationZone_.setMetaSection(metaSection);
         };
 
-        // When the active track changes, repaint the SectionBar (labels/state change
-        // per track) and re-sync the MZ slot offset to the new track's active section.
-        stepGrid_.onActiveTrackChanged = [this](int /*newTrack*/)
+        // Track header: selector + mute/solo — placed directly below MZ in resized().
+        for (int i = 0; i < static_cast<int>(kNumTracks); ++i)
         {
+            const auto ti = static_cast<std::size_t>(i);
+
+            trackBtns_[ti].setButtonText(juce::String(i + 1));
+            trackBtns_[ti].setClickingTogglesState(false);
+            trackBtns_[ti].setWantsKeyboardFocus(false);
+            trackBtns_[ti].onClick = [this, i] { stepGrid_.setActiveTrack(i); };
+            addAndMakeVisible(trackBtns_[ti]);
+
+            muteBtns_[ti].setButtonText("M");
+            muteBtns_[ti].setWantsKeyboardFocus(false);
+            addAndMakeVisible(muteBtns_[ti]);
+            muteAttachments_[ti] =
+                std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+                    proc.apvts(), ParamIDs::trackMute(i), muteBtns_[ti]);
+
+            soloBtns_[ti].setButtonText("S");
+            soloBtns_[ti].setWantsKeyboardFocus(false);
+            addAndMakeVisible(soloBtns_[ti]);
+            soloAttachments_[ti] =
+                std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+                    proc.apvts(), ParamIDs::trackSolo(i), soloBtns_[ti]);
+        }
+        trackBtns_[0].setToggleState(true, juce::dontSendNotification);
+
+        // When the active track changes, update button toggle states, repaint
+        // the SectionBar, and re-sync the MZ slot offset.
+        stepGrid_.onActiveTrackChanged = [this](int newTrack)
+        {
+            for (auto& b : trackBtns_)
+                b.setToggleState(false, juce::dontSendNotification);
+            trackBtns_[static_cast<std::size_t>(newTrack)].setToggleState(
+                true, juce::dontSendNotification);
             sectionBar_.syncToActiveTrack();
         };
 
@@ -340,24 +371,49 @@ namespace lockstep
         channelModeBox_.setBounds(header.removeFromLeft(90).reduced(4));
         displayModeBtn_.setBounds(header.removeFromLeft(46).reduced(4));
         loadButton_.setBounds(header.removeFromRight(160).reduced(4));
-        // Remaining header area is drawn as status text in paint()
 
-        // Optional standalone tempo bar directly below the header
-        if (tempoBar_)
-            tempoBar_->setBounds(bounds.removeFromTop(28).reduced(8, 2));
-
-        bounds.removeFromTop(4);  // small gap
-
-        // Encoder strip (ManipulationZone) at the top, mirroring the hardware encoder row.
-        manipulationZone_.setBounds(bounds.removeFromTop(96).reduced(8, 4));
-
-        // Section bar below the encoders.
-        sectionBar_.setBounds(bounds.removeFromTop(48).reduced(8, 2));
-
-        // Function bar (Q row) between section bar and step grid.
-        functionBar_.setBounds(bounds.removeFromTop(36).reduced(8, 2));
+        // Layout (top → bottom):
+        //   [header already removed]
+        //   tempo bar (standalone only, 28 px)
+        //   ManipulationZone (flexible — fills space between tempo bar and track header)
+        //   track selector row (22 px)
+        //   mute + solo row    (22 px)
+        //   section bar        (44 px)
+        //   function bar       (44 px)
+        //   step grid          (114 px)
+        //   keyboard           (72 px)
+        //
+        // Strategy: claim keyboard and StepGrid from the bottom so MZ can be flexible,
+        // then fill top-down for tempo/MZ/track-header, bottom-up for SB/FB.
+        static constexpr int kKeyRowAlloc = 44;   // 40 px effective after reduced(8,2)
+        static constexpr int kStepGridH   = 2 * (kKeyRowAlloc - 4) + 26 + 8; // 114 px
 
         keyboard_.setBounds(bounds.removeFromBottom(72).reduced(8, 4));
-        stepGrid_.setBounds(bounds.reduced(8, 4));
+        stepGrid_.setBounds(bounds.removeFromBottom(kStepGridH).reduced(8, 4));
+        functionBar_.setBounds(bounds.removeFromBottom(kKeyRowAlloc).reduced(8, 2));
+        sectionBar_.setBounds(bounds.removeFromBottom(kKeyRowAlloc).reduced(8, 2));
+        {
+            auto msRow = bounds.removeFromBottom(22).reduced(8, 2);
+            const int colW = msRow.getWidth() / static_cast<int>(kNumTracks);
+            for (std::size_t i = 0; i < kNumTracks; ++i)
+            {
+                auto col  = msRow.removeFromLeft(colW);
+                auto mute = col.removeFromLeft(col.getWidth() / 2);
+                muteBtns_[i].setBounds(mute.reduced(1, 1));
+                soloBtns_[i].setBounds(col.reduced(1, 1));
+            }
+        }
+        {
+            auto trackRow = bounds.removeFromBottom(22).reduced(8, 2);
+            const int colW = trackRow.getWidth() / static_cast<int>(kNumTracks);
+            for (std::size_t i = 0; i < kNumTracks; ++i)
+                trackBtns_[i].setBounds(trackRow.removeFromLeft(colW).reduced(1, 1));
+        }
+
+        // Tempo bar sits at the top of the remaining strip; MZ fills the rest.
+        if (tempoBar_)
+            tempoBar_->setBounds(bounds.removeFromTop(28).reduced(8, 2));
+        bounds.removeFromTop(2);
+        manipulationZone_.setBounds(bounds.reduced(8, 4));
     }
 }

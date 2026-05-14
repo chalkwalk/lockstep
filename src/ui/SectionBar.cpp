@@ -95,15 +95,17 @@ namespace lockstep
         auto topArea    = r.withHeight(textAreaH).reduced(2, 0);
         auto bottomArea = r.withTrimmedTop(textAreaH).withTrimmedBottom(dotRowH).reduced(2, 0);
 
-        // Primary label
-        const float primaryAlpha = isMasterActive ? 0.2f : 1.0f;
+        // Primary label — dimmed when shift is held (secondary layer is about to activate).
+        const float primaryAlpha = isMasterActive ? 0.2f
+                                 : uiState_.shiftHeld ? 0.3f : 1.0f;
         g.setColour(juce::Colours::white.withAlpha(primaryAlpha));
         g.setFont(juce::Font(juce::FontOptions(isTrackActive ? 11.0f : 9.0f)));
         g.drawText(primaryLabel, topArea, juce::Justification::centredBottom);
 
-        // Secondary label (meta layer name; dimmed when machine layer is active,
-        // further dimmed for reserved slots that have no meta function).
-        const float secondaryAlpha = isMasterActive ? 1.0f : (reserved ? 0.12f : 0.25f);
+        // Secondary label (meta layer name); bright when shift held or master active.
+        const float secondaryAlpha = isMasterActive ? 1.0f
+                                   : uiState_.shiftHeld ? (reserved ? 0.2f : 1.0f)
+                                   : (reserved ? 0.12f : 0.25f);
         g.setColour(juce::Colours::white.withAlpha(secondaryAlpha));
         g.setFont(juce::Font(juce::FontOptions(isMasterActive ? 11.0f : 9.0f)));
         g.drawText(secondaryLabel, bottomArea, juce::Justification::centredTop);

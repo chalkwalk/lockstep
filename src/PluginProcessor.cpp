@@ -40,6 +40,7 @@ namespace lockstep
             trackLengthParams_[ti]  = apvts_.getRawParameterValue(ParamIDs::trackLength(t));
             trackDividerParams_[ti] = apvts_.getRawParameterValue(ParamIDs::trackDivider(t));
             trackMuteParams_[ti]    = apvts_.getRawParameterValue(ParamIDs::trackMute(t));
+            trackSoloParams_[ti]    = apvts_.getRawParameterValue(ParamIDs::trackSolo(t));
         }
 
         for (auto& m : machines_)
@@ -333,13 +334,21 @@ namespace lockstep
         }
         wasInPluginPlaying_ = clock_.inPluginPlaying();
 
+        // Pre-compute solo state once: if any track is soloed, non-soloed tracks
+        // are silenced (even if their mute button is off).
+        bool anySoloed = false;
+        for (std::size_t i = 0; i < kNumTracks; ++i)
+            if (trackSoloParams_[i]->load() >= 0.5f) { anySoloed = true; break; }
+
         if (!sequencerRunning)
         {
             // Render voice tails and any externally-triggered notes.
             // trackMidi already contains note events routed from external MIDI.
             for (std::size_t i = 0; i < kNumTracks; ++i)
             {
-                if (trackMuteParams_[i]->load() >= 0.5f) continue;
+                const bool muted  = trackMuteParams_[i]->load() >= 0.5f;
+                const bool soloed = trackSoloParams_[i]->load() >= 0.5f;
+                if (muted || (anySoloed && !soloed)) continue;
                 // Resolve against the held step so P-Locks written by the note-on
                 // are included in the frame, falling back to -1 (base only).
                 int resolveStep = -1;
@@ -410,11 +419,13 @@ namespace lockstep
             const int trackLen = static_cast<int>(trackLengthParams_[i]->load());
             const int trackDiv = static_cast<int>(trackDividerParams_[i]->load());
             const bool muted   = trackMuteParams_[i]->load() >= 0.5f;
+            const bool soloed  = trackSoloParams_[i]->load() >= 0.5f;
+            const bool silent  = muted || (anySoloed && !soloed);
 
             // 16th note = 0.25 PPQ; divider scales the grid coarser.
             const double divPpq = 0.25 * static_cast<double>(trackDiv <= 0 ? 1 : trackDiv);
 
-            if (divPpq <= 0.0 || samplesPerPpq <= 0.0 || trackLen <= 0 || muted)
+            if (divPpq <= 0.0 || samplesPerPpq <= 0.0 || trackLen <= 0 || silent)
                 continue;
 
             // If the cursor has fallen far behind (cold start, late join),

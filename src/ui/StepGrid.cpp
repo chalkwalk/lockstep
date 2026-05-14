@@ -70,28 +70,9 @@ namespace lockstep
         return out;
     }
 
-    StepGrid::StepGrid(LockstepProcessor& processor)
-        : processor_(processor)
+    StepGrid::StepGrid(LockstepProcessor& processor, UiState& uiState)
+        : processor_(processor), uiState_(uiState)
     {
-        for (int i = 0; i < static_cast<int>(kNumTracks); ++i)
-        {
-            const auto ti = static_cast<std::size_t>(i);
-
-            trackBtns_[ti].setButtonText(juce::String(i + 1));
-            trackBtns_[ti].setClickingTogglesState(false);
-            trackBtns_[ti].setWantsKeyboardFocus(false);
-            trackBtns_[ti].onClick = [this, i] { setActiveTrack(i); };
-            addAndMakeVisible(trackBtns_[ti]);
-
-            muteBtns_[ti].setButtonText("M");
-            muteBtns_[ti].setClickingTogglesState(true);
-            muteBtns_[ti].setWantsKeyboardFocus(false);
-            addAndMakeVisible(muteBtns_[ti]);
-            muteAttachments_[ti] =
-                std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
-                    processor_.apvts(), ParamIDs::trackMute(i), muteBtns_[ti]);
-        }
-        trackBtns_[0].setToggleState(true, juce::dontSendNotification);
         processor_.setFocusTrack(activeTrack_);  // sync initial focus (track 0)
 
         prevBtn_.onClick = [this] { prevPage(); repaint(); };
@@ -117,11 +98,6 @@ namespace lockstep
         const int clamped = juce::jlimit(0, static_cast<int>(kNumTracks) - 1, t);
         if (clamped == activeTrack_)
             return;
-
-        for (auto& b : trackBtns_)
-            b.setToggleState(false, juce::dontSendNotification);
-        trackBtns_[static_cast<std::size_t>(clamped)].setToggleState(
-            true, juce::dontSendNotification);
 
         activeTrack_ = clamped;
         processor_.setFocusTrack(clamped);
@@ -176,8 +152,6 @@ namespace lockstep
     {
         auto bounds = getLocalBounds();
 
-        // ---- Track selector + mute rows are laid out via resized(). ----
-        bounds.removeFromTop(kTrackRowH + kMuteRowH);
 
         // ---- Step cell area ----
         const auto navArea  = bounds.removeFromBottom(kNavRowH);
@@ -312,11 +286,38 @@ namespace lockstep
                                juce::Justification::topLeft);
                 }
 
-                // Step number
-                g.setColour(inRange ? juce::Colour::fromRGB(110, 130, 150)
-                                    : juce::Colour::fromRGB(40, 46, 54));
+                // Row 0 cells have a secondary function: Shift+key selects track.
+                const bool hasTrackSelect = inRange && (row == 0);
+                const bool shiftHeld = uiState_.shiftHeld;
+
+                // Split row-0 cells: step number in upper portion, track label in lower.
+                // Row-1 cells use the full cell for the step number.
+                static constexpr int kTrackLabelH = 11;
+                const auto stepNumArea = (hasTrackSelect)
+                    ? cell.withTrimmedBottom(kTrackLabelH)
+                    : cell;
+
+                // Step number — dimmed when shift is held on a track-select cell.
+                const float stepNumAlpha = (hasTrackSelect && shiftHeld) ? 0.35f : 1.0f;
+                g.setColour((inRange ? juce::Colour::fromRGB(110, 130, 150)
+                                     : juce::Colour::fromRGB(40, 46, 54))
+                                .withMultipliedAlpha(stepNumAlpha));
                 g.setFont(juce::Font(juce::FontOptions(9.0f)));
-                g.drawText(juce::String(absIdx + 1), cell, juce::Justification::centred);
+                g.drawText(juce::String(absIdx + 1), stepNumArea, juce::Justification::centred);
+
+                // Track-select label — always visible; bright when shift held.
+                if (hasTrackSelect)
+                {
+                    static constexpr const char* kTrackLabels[kCols] = {
+                        "T1","T2","T3","T4","T5","T6","T7","T8"
+                    };
+                    const float trackAlpha = shiftHeld ? 1.0f : 0.3f;
+                    g.setFont(juce::Font(juce::FontOptions(8.0f)));
+                    g.setColour(juce::Colour::fromRGB(160, 185, 210).withAlpha(trackAlpha));
+                    g.drawText(kTrackLabels[col],
+                               cell.withTrimmedTop(cell.getHeight() - kTrackLabelH).reduced(2, 0),
+                               juce::Justification::centredBottom);
+                }
             }
         }
 
@@ -335,18 +336,6 @@ namespace lockstep
     {
         auto bounds = getLocalBounds();
 
-        // Track selector row
-        auto trackRow = bounds.removeFromTop(kTrackRowH);
-        const int btnW = trackRow.getWidth() / static_cast<int>(kNumTracks);
-        for (std::size_t i = 0; i < kNumTracks; ++i)
-            trackBtns_[i].setBounds(trackRow.removeFromLeft(btnW).reduced(1, 2));
-
-        // Mute row (one small toggle per track)
-        auto muteRow = bounds.removeFromTop(kMuteRowH);
-        const int muteW = muteRow.getWidth() / static_cast<int>(kNumTracks);
-        for (std::size_t i = 0; i < kNumTracks; ++i)
-            muteBtns_[i].setBounds(muteRow.removeFromLeft(muteW).reduced(1, 1));
-
         // Nav + length row at the bottom
         auto navRow = bounds.removeFromBottom(kNavRowH).reduced(0, 2);
         prevBtn_.setBounds(navRow.removeFromLeft(28).reduced(1));
@@ -360,7 +349,6 @@ namespace lockstep
     int StepGrid::stepCellAt(juce::Point<int> pos) const
     {
         auto bounds = getLocalBounds();
-        bounds.removeFromTop(kTrackRowH + kMuteRowH);
         bounds.removeFromBottom(kNavRowH);
         const auto cellArea = bounds;
 

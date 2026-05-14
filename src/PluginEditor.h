@@ -49,6 +49,13 @@ namespace lockstep
         juce::MidiKeyboardComponent keyboard_{ keyboardState_, juce::MidiKeyboardComponent::horizontalKeyboard };
         InPluginTransport transport_;
         std::unique_ptr<StandaloneTempoBar> tempoBar_;
+        std::array<juce::TextButton,   kNumTracks> trackBtns_;
+        std::array<juce::ToggleButton, kNumTracks> muteBtns_;
+        std::array<juce::ToggleButton, kNumTracks> soloBtns_;
+        std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>,
+                   kNumTracks> muteAttachments_;
+        std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>,
+                   kNumTracks> soloAttachments_;
         StepGrid stepGrid_;
         ManipulationZone manipulationZone_;  // after stepGrid_ — ctor takes StepGrid&
         SectionBar sectionBar_;              // after manipulationZone_ and stepGrid_
