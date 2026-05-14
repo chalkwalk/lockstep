@@ -209,7 +209,7 @@ counts, `paramSpec(i)` instead of `getParamMetadata(i)`, etc.).
       regardless of machine. The sample-select-via-key gesture moves
       to record-arm mode and targets a per-track-configured machine
       slot (M7.4).
-- [ ] **MA.8** Update `SectionBar` for variable section count
+- [x] **MA.8** Update `SectionBar` for variable section count
       (≤6) and variable page count per section (paginate by 4).
       Disable any trailing buttons the machine doesn't use.
 - [ ] **MA.9** Update `ManipulationZone` to read schema from

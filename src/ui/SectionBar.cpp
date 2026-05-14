@@ -48,6 +48,14 @@ namespace lockstep
                                       int sectionIndex,
                                       int activeTrack) const
     {
+        // Trailing buttons that the machine doesn't use are rendered as empty/disabled.
+        if (sectionIndex >= processor_.numSections(activeTrack))
+        {
+            g.setColour(kColourInactive.withAlpha(0.4f));
+            g.fillRect(r.reduced(2, 2));
+            return;
+        }
+
         const bool isMasterActive = (uiState_.masterSection == sectionIndex);
         const bool isTrackActive  = (uiState_.masterSection == -1
                                      && uiState_.trackSection[static_cast<std::size_t>(activeTrack)] == sectionIndex);
@@ -169,6 +177,8 @@ namespace lockstep
         if (activeTrack < 0 || activeTrack >= static_cast<int>(kNumTracks))
             return false;
         if (sectionIndex < 0 || sectionIndex >= IMachine::kMaxSections)
+            return false;
+        if (sectionIndex >= processor_.numSections(activeTrack))
             return false;
 
         const auto ti = static_cast<std::size_t>(activeTrack);
