@@ -203,7 +203,7 @@ counts, `paramSpec(i)` instead of `getParamMetadata(i)`, etc.).
       corresponding per-step optional overrides
       (`noteOverride`, `velocityOverride`, `gateOverride`). Resolver
       applies Override-ELSE-Base to each.
-- [ ] **MA.7** Drop `Track::noteMode` and the corresponding
+- [x] **MA.7** Drop `Track::noteMode` and the corresponding
       `kSlotPitch`/`kSlotSampleId` routing logic. Pitch-recording
       gesture now writes to `step.noteOverride` (sequencer-scope)
       regardless of machine. The sample-select-via-key gesture moves

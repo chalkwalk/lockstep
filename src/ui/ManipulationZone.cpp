@@ -397,16 +397,15 @@ namespace lockstep
         const float divider = processor_.apvts()
             .getRawParameterValue(ParamIDs::trackDivider(track))->load();
         const float gate = t.baseParams[3]; // slot 3 = sampler gate; moves to sequencer in MA.6
-        const float noteMode = static_cast<float>(static_cast<int>(t.noteMode));
 
-        struct TrackFieldDef { const char* label; float lo; float hi; bool stepped; };
+        struct TrackFieldDef { const char* label; float lo; float hi; bool stepped; bool active; };
         static constexpr std::array<TrackFieldDef, kNumSlots> kDefs = {{
-            { "Length",  1.0f,  64.0f,    true  },
-            { "Divider", 1.0f,  16.0f,    true  },
-            { "Gate",    0.0f, 10000.0f,  false },
-            { "Note",    0.0f,   1.0f,    true  },
+            { "Length",  1.0f,  64.0f,    true,  true  },
+            { "Divider", 1.0f,  16.0f,    true,  true  },
+            { "Gate",    0.0f, 10000.0f,  false, true  },
+            { "",        0.0f,   1.0f,    false, false },
         }};
-        const std::array<float, kNumSlots> vals = { length, divider, gate, noteMode };
+        const std::array<float, kNumSlots> vals = { length, divider, gate, 0.0f };
 
         updatingFromTimer_ = true;
         for (int i = 0; i < kNumSlots; ++i)
@@ -416,17 +415,15 @@ namespace lockstep
                                   static_cast<double>(kDefs[si].hi),
                                   kDefs[si].stepped ? 1.0 : 0.0);
             sliders_[si].setValue(static_cast<double>(vals[si]), juce::dontSendNotification);
-            sliders_[si].setEnabled(true);
-            sliders_[si].setAlpha(1.0f);
+            sliders_[si].setEnabled(kDefs[si].active);
+            sliders_[si].setAlpha(kDefs[si].active ? 1.0f : 0.0f);
 
             juce::String valueText;
             if (i == 2)
                 valueText = vals[si] < 10.0f
                     ? juce::String(vals[si], 1) + " ms"
                     : juce::String(static_cast<int>(vals[si])) + " ms";
-            else if (i == 3)
-                valueText = (static_cast<int>(vals[si]) == 0) ? "Pitch" : "Sample";
-            else
+            else if (kDefs[si].active)
                 valueText = juce::String(static_cast<int>(vals[si]));
 
             valueLabels_[si].setText(valueText, juce::dontSendNotification);
@@ -461,8 +458,6 @@ namespace lockstep
             case 0: writeApvts(ParamIDs::trackLength(track),  value, 1.0f, 64.0f);    break;
             case 1: writeApvts(ParamIDs::trackDivider(track), value, 1.0f, 16.0f);    break;
             case 2: t.baseParams[3] = value; break; // slot 3 = sampler gate; MA.6
-            case 3: t.noteMode = (value >= 0.5f) ? NoteMode::SampleSelect
-                                                  : NoteMode::Pitch;          break;
             default: break;
         }
     }

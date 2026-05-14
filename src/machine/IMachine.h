@@ -73,12 +73,6 @@ namespace lockstep
         // a choke fade before re-triggering a monophonic machine.
         virtual bool isVoiceActive() const { return false; }
 
-        // MIDI note routing hints — in use until MA.7 retires noteMode.
-        // Returns the slot index (dense) that receives the MIDI note number
-        // as a P-Lock, or -1 if not applicable.
-        virtual int pitchSlot()        const { return -1; }
-        virtual int sampleSelectSlot() const { return -1; }
-
         // -----------------------------------------------------------------------
         // Slot identity bridge for serialization.
         // Runtime P-Lock storage uses integer indices; on-disk representation

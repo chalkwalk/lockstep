@@ -250,23 +250,29 @@ namespace lockstep
             }
         }
 
-        // Route external note-on: write P-Lock then inject into the track's buffer.
+        // Route external note-on: record note into sequencer-scope fields,
+        // then inject into the track's MIDI buffer.
         ccCtx.onNoteOn = [this, &trackMidi](int track, int sampleOffset,
                                              int midiNote, int velocity)
         {
             const auto ti = static_cast<std::size_t>(track);
-            const auto& trk = sequence_.tracks[ti];
-            const int slot = (trk.noteMode == NoteMode::Pitch)
-                ? machines_[ti]->pitchSlot()
-                : machines_[ti]->sampleSelectSlot();
+            const int note = std::clamp(midiNote, 0, 127);
 
-            if (slot >= 0)
+            if (editContext_.isActiveForEditing()
+                && editContext_.heldTrackIndex() == track)
             {
-                const auto spec = paramSpec(track, slot);
-                const float raw = (trk.noteMode == NoteMode::Pitch)
-                    ? static_cast<float>(midiNote - 60)
-                    : static_cast<float>(std::max(0, midiNote - 60));
-                writeParam(track, slot, std::clamp(raw, spec.minValue, spec.maxValue));
+                const int step = editContext_.heldStepIndex();
+                if (step >= 0 && step < kMaxStepsPerTrack)
+                {
+                    auto& trig = sequence_.tracks[ti].steps[static_cast<std::size_t>(step)].trigOverride;
+                    trig.hasNote = true;
+                    trig.note    = note;
+                    editContext_.markParamWritten();
+                }
+            }
+            else
+            {
+                sequence_.tracks[ti].trigDefaults.note = note;
             }
 
             trackMidi[ti].addEvent(
@@ -612,13 +618,6 @@ namespace lockstep
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return -1;
         return machines_[static_cast<std::size_t>(track)]->slotForId(id);
-    }
-
-    int LockstepProcessor::pitchSlot(int track) const
-    {
-        if (track < 0 || track >= static_cast<int>(kNumTracks))
-            return -1;
-        return machines_[static_cast<std::size_t>(track)]->pitchSlot();
     }
 
     juce::AudioProcessorEditor* LockstepProcessor::createEditor()

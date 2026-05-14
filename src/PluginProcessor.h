@@ -104,9 +104,6 @@ namespace lockstep
         juce::String idForSlot(int track, int index)       const;
         int slotForId(int track, const juce::String& id)   const;
 
-        // MIDI note routing hints (retired in MA.7).
-        int pitchSlot(int track) const;
-
         using juce::AudioProcessor::processBlock;
 
     private:

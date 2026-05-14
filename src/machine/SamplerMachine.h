@@ -26,10 +26,6 @@ namespace lockstep
 
         bool isVoiceActive() const override;
 
-        // MIDI note routing hints (retired in MA.7)
-        int pitchSlot()        const override { return kSlotPitch; }
-        int sampleSelectSlot() const override { return kSlotSampleId; }
-
     private:
         // Dense slot layout — Section 0 "Source"
         static constexpr int kSlotSampleId  = 0;

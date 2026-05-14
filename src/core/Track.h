@@ -8,12 +8,6 @@ namespace lockstep
 {
     inline constexpr int kMaxStepsPerTrack = 64;
 
-    enum class NoteMode
-    {
-        Pitch,        // MIDI note controls pitch: note 60 = 0 semitones, chromatic
-        SampleSelect, // MIDI note selects sample from pool: note 60 = index 0
-    };
-
     // Track-level defaults for sequencer-scope trig fields.
     // Resolved against per-step TrigOverride via Override-ELSE-Base.
     struct TrigDefaults
@@ -32,7 +26,6 @@ namespace lockstep
         ParamFrame baseParams{}; // track-level "default" values
         TrigCondition baseCond{};  // track-level condition; step condition overrides if non-trivial
         TrigDefaults trigDefaults{};
-        NoteMode noteMode = NoteMode::Pitch;
 
         std::array<Step, kMaxStepsPerTrack> steps{};
     };
