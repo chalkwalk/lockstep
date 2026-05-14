@@ -24,6 +24,9 @@ namespace lockstep
         int  getActiveTrack() const { return activeTrack_; }
         int  currentPage()    const { return stepPage_; }
 
+        // Fired after activeTrack_ changes; argument is the new track index.
+        std::function<void(int)> onActiveTrackChanged;
+
         void nextPage();
         void prevPage();
 

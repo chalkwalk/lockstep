@@ -27,6 +27,10 @@ namespace lockstep
         // Called when Shift+section is pressed. Ignores reserved meta slots (indices 2–4).
         void selectMetaSection(int sectionIndex);
 
+        // Called when the active track changes so the bar redraws and re-fires
+        // onSectionChanged with the new track's current section/page.
+        void syncToActiveTrack();
+
         // Callback: fired whenever the active machine-section first slot changes.
         // Arguments: (sectionIndex, pageIndex, firstSlot)
         std::function<void(int, int, int)> onSectionChanged;

@@ -71,6 +71,8 @@ namespace lockstep
         stepPage_    = 0;
         rebuildLengthAttachment();
         repaint();
+        if (onActiveTrackChanged)
+            onActiveTrackChanged(activeTrack_);
     }
 
     void StepGrid::nextPage() { ++stepPage_; clampPage(); }

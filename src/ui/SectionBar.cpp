@@ -219,6 +219,18 @@ namespace lockstep
             onMetaSectionChanged(uiState_.masterSection);
     }
 
+    void SectionBar::syncToActiveTrack()
+    {
+        repaint();
+        const int track = grid_.getActiveTrack();
+        if (track < 0 || track >= static_cast<int>(kNumTracks))
+            return;
+        // Re-fire onSectionChanged so the MZ slotOffset stays in sync with the
+        // new track's currently active section and page.
+        if (uiState_.masterSection < 0)
+            notifyChanged(uiState_.trackSection[static_cast<std::size_t>(track)], track);
+    }
+
     void SectionBar::notifyChanged(int sectionIndex, int activeTrack)
     {
         if (!onSectionChanged)

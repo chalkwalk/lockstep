@@ -51,6 +51,13 @@ namespace lockstep
             manipulationZone_.setMetaSection(metaSection);
         };
 
+        // When the active track changes, repaint the SectionBar (labels/state change
+        // per track) and re-sync the MZ slot offset to the new track's active section.
+        stepGrid_.onActiveTrackChanged = [this](int /*newTrack*/)
+        {
+            sectionBar_.syncToActiveTrack();
+        };
+
         addAndMakeVisible(manipulationZone_);
         addAndMakeVisible(sectionBar_);
         addAndMakeVisible(stepGrid_);

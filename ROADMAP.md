@@ -236,7 +236,7 @@ The keyboard-first editor.
 - [x] **M6.1** Real `QwertyOverlay::resolve` mapping.
 - [x] **M6.2** ManipulationZone: 4 live parameter widgets driven by
       machine metadata, attached to the resolved frame.
-- [ ] **M6.3** SectionBar: 6 section buttons (keys 3–8) with per-
+- [x] **M6.3** SectionBar: 6 section buttons (keys 3–8) with per-
       machine labels and multi-press page cycling; Shift for track meta
       sections. Fixed meta layout: COND (Shift+3), TRACK (Shift+4),
       reserved (Shift+5–7), GLOBAL (Shift+8). Replaces the flat
