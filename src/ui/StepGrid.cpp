@@ -232,6 +232,7 @@ namespace lockstep
                 const int y = cellArea.getY() + row * cellH;
                 const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
+                // Layer 1: base state (step on/off)
                 if (!inRange)
                 {
                     g.setColour(kColOutRange);
@@ -239,18 +240,34 @@ namespace lockstep
                 }
                 else if (hasTrig)
                 {
-                    const float prob = preview[static_cast<std::size_t>(localIdx)];
-                    const juce::Colour trigColour =
-                        kColTrigDim.interpolatedWith(kColActive, prob);
-                    g.setColour(isHead ? kColPlayhead : trigColour);
+                    g.setColour(kColActive);
                     g.fillRoundedRectangle(cell.toFloat(), 3.0f);
                 }
                 else
                 {
-                    g.setColour(isHead ? kColPlayhead.withAlpha(0.55f) : kColInactive);
+                    g.setColour(kColInactive);
                     g.fillRoundedRectangle(cell.toFloat(), 3.0f);
                     g.setColour(juce::Colour::fromRGB(70, 85, 100));
                     g.drawRoundedRectangle(cell.toFloat(), 3.0f, 1.0f);
+                }
+
+                // Layer 2: conditional trig — semi-transparent dark overlay,
+                // fades out as probability approaches 1.
+                if (inRange && hasTrig)
+                {
+                    const float prob = preview[static_cast<std::size_t>(localIdx)];
+                    if (prob < 1.0f)
+                    {
+                        g.setColour(kColTrigDim.withAlpha(1.0f - prob));
+                        g.fillRoundedRectangle(cell.toFloat(), 3.0f);
+                    }
+                }
+
+                // Layer 3: playhead — pale yellow tint composited over whatever is below.
+                if (isHead)
+                {
+                    g.setColour(kColPlayhead.withAlpha(0.45f));
+                    g.fillRoundedRectangle(cell.toFloat(), 3.0f);
                 }
 
                 // P-Lock dot — teal square in top-right corner (generic).
