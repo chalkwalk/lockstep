@@ -286,7 +286,7 @@ QWERTY+MZ UI (M6) for the transport indicator and step affordances.
       bar.
 - [x] **M7.2** Note-on while recording writes a trig at the nearest
       step on the destination track (quantised to track grid).
-- [ ] **M7.3** CC while recording on a held step writes a P-Lock;
+- [x] **M7.3** CC while recording on a held step writes a P-Lock;
       otherwise updates the track base. (Same EditContext rule;
       record arm doesn't bypass it, it just makes capture sticky.)
 - [ ] **M7.4** "Key-as-PLock" mode: with record on, each note key
