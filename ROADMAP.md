@@ -284,7 +284,7 @@ QWERTY+MZ UI (M6) for the transport indicator and step affordances.
 
 - [x] **M7.1** Record-arm transport state, visible in the transport
       bar.
-- [ ] **M7.2** Note-on while recording writes a trig at the nearest
+- [x] **M7.2** Note-on while recording writes a trig at the nearest
       step on the destination track (quantised to track grid).
 - [ ] **M7.3** CC while recording on a held step writes a P-Lock;
       otherwise updates the track base. (Same EditContext rule;

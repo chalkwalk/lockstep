@@ -152,11 +152,12 @@ namespace lockstep
         const auto mcBlock = midiClockReceiver_.advance(
             midi, buffer.getNumSamples(), getSampleRate());
 
+        // Hoist mode so both the MIDI clock handler and the sequencer gate share it.
+        const auto mode = static_cast<SyncMode>(
+            syncModeParam_ ? static_cast<int>(syncModeParam_->load()) : 0);
+
         if (isStandalone && mcBlock.hasClock)
         {
-            const auto mode = static_cast<SyncMode>(
-                syncModeParam_ ? static_cast<int>(syncModeParam_->load()) : 0);
-
             if (mcBlock.didStart)
             {
                 clock_.resetPhase();
@@ -166,18 +167,74 @@ namespace lockstep
                 lastStepFired_.fill(false);
             }
             if (mcBlock.didStop)
-            {
                 clock_.setInPluginPlaying(false);
-            }
             // In Locked mode, dropout from the external clock stops the sequencer.
             // In Auto mode, dropout freewheels at the last known BPM.
             if (mode == SyncMode::Locked && mcBlock.dropout)
-            {
                 clock_.setInPluginPlaying(false);
-            }
             // Keep localBpm synced for seamless Auto freewheel.
             if (mcBlock.bpm > 0.0)
                 clock_.setLocalBpm(mcBlock.bpm);
+        }
+
+        // Update clock now so PPQ is known before MIDI note routing below.
+        // The JUCE AudioProcessorPlayer (standalone wrapper) always provides a
+        // PlayHead, but its getPosition() sets only timeInSamples/timeInSeconds
+        // with no isPlaying, no BPM, and no PPQ position. Passing it to
+        // Clock::update() would lock us in the "DAW present but stopped" branch
+        // and freeze PPQ forever. In standalone we synthesise PPQ locally, so
+        // pass nullptr to skip the playhead entirely.
+        Clock::MidiClockInput midiClockIn;
+        if (isStandalone && mcBlock.hasClock && mcBlock.running && !mcBlock.dropout)
+        {
+            midiClockIn.active   = true;
+            midiClockIn.ppqStart = mcBlock.ppqStart;
+            midiClockIn.ppqEnd   = mcBlock.ppqEnd;
+            midiClockIn.bpm      = mcBlock.bpm;
+        }
+        clock_.update(isStandalone ? nullptr : getPlayHead(),
+                      buffer.getNumSamples(), midiClockIn);
+
+        // ---- Mode-based "is the sequencer running?" gate ------------------
+        bool sequencerRunning = false;
+        if (mode == SyncMode::Locked)
+        {
+            // Locked + hosted → DAW transport controls; Locked + standalone → in-plugin Play.
+            sequencerRunning = isStandalone ? clock_.inPluginPlaying() : clock_.hostPlaying();
+        }
+        else  // Auto
+        {
+            sequencerRunning = clock_.inPluginPlaying();
+            // Rising edge: record anchor PPQ so Auto mode starts from step 0.
+            if (sequencerRunning && !wasInPluginPlaying_)
+            {
+                anchorPpq_ = clock_.ppqAtBlockStart();
+                nextTriggerPpq_.fill(anchorPpq_);
+            }
+        }
+        wasInPluginPlaying_ = clock_.inPluginPlaying();
+
+        // ---- PPQ window for step detection --------------------------------
+        // In Auto mode, offset PPQ by the anchor so step 0 aligns with Play press.
+        const double ppqOffset     = (mode == SyncMode::Auto) ? anchorPpq_ : 0.0;
+        const double blockStart    = clock_.ppqAtBlockStart() - ppqOffset;
+        const double blockEnd      = clock_.ppqAtBlockEnd()   - ppqOffset;
+        const double samplesPerPpq = clock_.samplesPerPpq();
+
+        // If the DAW looped or the user hit Reset, snap all per-track cursors
+        // to the step boundary just at/before the new block start.
+        if (clock_.ppqJumped())
+        {
+            for (std::size_t i = 0; i < kNumTracks; ++i)
+            {
+                const int div = static_cast<int>(trackDividerParams_[i]->load());
+                const double divPpq = 0.25 * static_cast<double>(div <= 0 ? 1 : div);
+                if (divPpq > 0.0)
+                    nextTriggerPpq_[i] = std::floor(blockStart / divPpq) * divPpq;
+                lastStepFired_[i] = false;
+            }
+            for (auto& pnf : pendingNoteOffs_)
+                pnf.samplesRemaining = -1;
         }
 
         // Snapshot MZ slot mapping for audio-thread use.
@@ -251,29 +308,59 @@ namespace lockstep
             }
         }
 
-        // Route external note-on: record note into sequencer-scope fields,
+        // Route external note-on: record into sequencer-scope fields,
         // then inject into the track's MIDI buffer.
-        ccCtx.onNoteOn = [this, &trackMidi](int track, int sampleOffset,
-                                             int midiNote, int velocity)
+        const bool recArmed = clock_.isRecordArmed();
+        ccCtx.onNoteOn = [this, &trackMidi, blockStart, samplesPerPpq,
+                          sequencerRunning, recArmed]
+                         (int track, int sampleOffset, int midiNote, int velocity)
         {
-            const auto ti = static_cast<std::size_t>(track);
-            const int note = std::clamp(midiNote, 0, 127);
+            const auto ti   = static_cast<std::size_t>(track);
+            const int  note = std::clamp(midiNote, 0, 127);
 
-            if (editContext_.isActiveForEditing()
-                && editContext_.heldTrackIndex() == track)
+            if (recArmed && sequencerRunning
+                     && !editContext_.isActiveForEditing())
             {
-                const int step = editContext_.heldStepIndex();
-                if (step >= 0 && step < kMaxStepsPerTrack)
+                // M7.2: Quantize note-on to nearest step boundary, write trig.
+                const int trackDiv = static_cast<int>(trackDividerParams_[ti]->load());
+                const double divPpq = 0.25 * static_cast<double>(trackDiv <= 0 ? 1 : trackDiv);
+                const int trackLen  = static_cast<int>(trackLengthParams_[ti]->load());
+                if (divPpq > 0.0 && trackLen > 0 && samplesPerPpq > 0.0)
                 {
-                    auto& trig = sequence_.tracks[ti].steps[static_cast<std::size_t>(step)].trigOverride;
-                    trig.hasNote = true;
-                    trig.note    = note;
-                    editContext_.markParamWritten();
+                    const double noteOnPpq = blockStart
+                        + static_cast<double>(sampleOffset) / samplesPerPpq;
+                    const auto nearestNum = static_cast<std::int64_t>(
+                        std::round(noteOnPpq / divPpq));
+                    const int stepIdx = static_cast<int>(
+                        ((nearestNum % static_cast<std::int64_t>(trackLen))
+                         + trackLen) % trackLen);
+                    auto& s = sequence_.tracks[ti].steps[static_cast<std::size_t>(stepIdx)];
+                    s.trig = true;
+                    s.trigOverride.hasNote = true;
+                    s.trigOverride.note    = note;
                 }
             }
             else
             {
-                sequence_.tracks[ti].trigDefaults.note = note;
+                // M5.8: Without record arm — write note override to held step, or
+                // update the track default.
+                if (editContext_.isActiveForEditing()
+                    && editContext_.heldTrackIndex() == track)
+                {
+                    const int step = editContext_.heldStepIndex();
+                    if (step >= 0 && step < kMaxStepsPerTrack)
+                    {
+                        auto& trig = sequence_.tracks[ti]
+                            .steps[static_cast<std::size_t>(step)].trigOverride;
+                        trig.hasNote = true;
+                        trig.note    = note;
+                        editContext_.markParamWritten();
+                    }
+                }
+                else
+                {
+                    sequence_.tracks[ti].trigDefaults.note = note;
+                }
             }
 
             trackMidi[ti].addEvent(
@@ -327,48 +414,6 @@ namespace lockstep
                 previewNoteOffRemaining_ -= numBlockSamples;
             }
         }
-
-        // The JUCE AudioProcessorPlayer (standalone wrapper) always provides a
-        // PlayHead, but its getPosition() sets only timeInSamples/timeInSeconds
-        // with no isPlaying, no BPM, and no PPQ position. Passing it to
-        // Clock::update() would lock us in the "DAW present but stopped" branch
-        // and freeze PPQ forever. In standalone we synthesise PPQ locally, so
-        // pass nullptr to skip the playhead entirely.
-        //
-        // Build MIDI clock input for Clock: active when standalone, clock present,
-        // running, and not in dropout (dropout → freewheel via localBpm instead).
-        Clock::MidiClockInput midiClockIn;
-        if (isStandalone && mcBlock.hasClock && mcBlock.running && !mcBlock.dropout)
-        {
-            midiClockIn.active   = true;
-            midiClockIn.ppqStart = mcBlock.ppqStart;
-            midiClockIn.ppqEnd   = mcBlock.ppqEnd;
-            midiClockIn.bpm      = mcBlock.bpm;
-        }
-        clock_.update(isStandalone ? nullptr : getPlayHead(),
-                      buffer.getNumSamples(), midiClockIn);
-
-        // ---- Mode-based "is the sequencer running?" gate ------------------
-        const auto mode = static_cast<SyncMode>(
-            syncModeParam_ ? static_cast<int>(syncModeParam_->load()) : 0);
-
-        bool sequencerRunning = false;
-        if (mode == SyncMode::Locked)
-        {
-            // Locked + hosted → DAW transport controls; Locked + standalone → in-plugin Play.
-            sequencerRunning = isStandalone ? clock_.inPluginPlaying() : clock_.hostPlaying();
-        }
-        else  // Auto
-        {
-            sequencerRunning = clock_.inPluginPlaying();
-            // Rising edge: record anchor PPQ so Auto mode starts from step 0.
-            if (sequencerRunning && !wasInPluginPlaying_)
-            {
-                anchorPpq_ = clock_.ppqAtBlockStart();
-                nextTriggerPpq_.fill(anchorPpq_);
-            }
-        }
-        wasInPluginPlaying_ = clock_.inPluginPlaying();
 
         // Pre-compute solo state once: if any track is soloed, non-soloed tracks
         // are silenced (even if their mute button is off).
@@ -429,29 +474,6 @@ namespace lockstep
                 }
             }
             return;
-        }
-
-        // ---- PPQ window for step detection --------------------------------
-        // In Auto mode, offset PPQ by the anchor so step 0 aligns with Play press.
-        const double ppqOffset = (mode == SyncMode::Auto) ? anchorPpq_ : 0.0;
-        const double blockStart    = clock_.ppqAtBlockStart() - ppqOffset;
-        const double blockEnd      = clock_.ppqAtBlockEnd()   - ppqOffset;
-        const double samplesPerPpq = clock_.samplesPerPpq();
-
-        // If the DAW looped or the user hit Reset, snap all per-track cursors
-        // to the step boundary just at/before the new block start.
-        if (clock_.ppqJumped())
-        {
-            for (std::size_t i = 0; i < kNumTracks; ++i)
-            {
-                const int div = static_cast<int>(trackDividerParams_[i]->load());
-                const double divPpq = 0.25 * static_cast<double>(div <= 0 ? 1 : div);
-                if (divPpq > 0.0)
-                    nextTriggerPpq_[i] = std::floor(blockStart / divPpq) * divPpq;
-                lastStepFired_[i] = false;
-            }
-            for (auto& pnf : pendingNoteOffs_)
-                pnf.samplesRemaining = -1;
         }
 
         for (std::size_t i = 0; i < kNumTracks; ++i)
