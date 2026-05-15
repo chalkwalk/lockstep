@@ -71,6 +71,15 @@ namespace lockstep
             recordArmed_.store(armed, std::memory_order_relaxed);
         }
 
+        bool isMetronomeEnabled() const
+        {
+            return metronomeEnabled_.load(std::memory_order_relaxed);
+        }
+        void setMetronomeEnabled(bool enabled)
+        {
+            metronomeEnabled_.store(enabled, std::memory_order_relaxed);
+        }
+
         // ---- Standalone / Auto mode controls (UI thread) -------------------
         void setLocalBpm(double bpm);
         void resetPhase();
@@ -100,6 +109,7 @@ namespace lockstep
         // Cross-thread state.
         std::atomic<bool>          inPluginPlaying_{false};
         std::atomic<bool>          recordArmed_{false};
+        std::atomic<bool>          metronomeEnabled_{false};
         std::atomic<std::uint64_t> ppqUi_{0};  // double bits of ppqBlockStart_
     };
 }

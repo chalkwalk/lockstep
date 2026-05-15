@@ -101,6 +101,7 @@ namespace lockstep
     void LockstepProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     {
         clock_.prepare(sampleRate);
+        metronome_.prepare(sampleRate);
         midiClockReceiver_.reset();
         for (auto& m : machines_)
         {
@@ -235,6 +236,7 @@ namespace lockstep
             }
             for (auto& pnf : pendingNoteOffs_)
                 pnf.samplesRemaining = -1;
+            metronome_.reset();
         }
 
         // Snapshot MZ slot mapping for audio-thread use.
@@ -588,6 +590,9 @@ namespace lockstep
             }
             machines_[i]->process(trackMidi[i], frame, buffer);
         }
+
+        if (clock_.isMetronomeEnabled())
+            metronome_.process(blockStart, blockEnd, samplesPerPpq, buffer);
 
         // Output stage: smoothed gain → DC blocker → soft-clip
         const float targetGainDb = apvts_.getRawParameterValue(ParamIDs::outputGain)->load();

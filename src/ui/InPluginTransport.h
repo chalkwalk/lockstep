@@ -26,15 +26,17 @@ namespace lockstep
         Clock& clock_;
         bool ghosted_ = false;
 
-        juce::TextButton playBtn_  { "Play" };
-        juce::TextButton resetBtn_ { "Stop" };
-        juce::TextButton recBtn_   { "Rec" };
+        juce::TextButton playBtn_   { "Play" };
+        juce::TextButton resetBtn_  { "Stop" };
+        juce::TextButton recBtn_    { "Rec" };
+        juce::TextButton metroBtn_  { "Click" };
 
         void timerCallback() override;
         void onPlayClick();
         void onResetClick();
         void syncPlayLabel();
         void syncRecColour();
+        void syncMetroColour();
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(InPluginTransport)
     };

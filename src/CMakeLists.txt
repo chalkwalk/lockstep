@@ -10,6 +10,7 @@ endif()
 add_library(lockstep_core STATIC
     Parameters.cpp
     core/Clock.cpp
+    core/Metronome.cpp
     core/StateResolver.cpp
     machine/SamplerMachine.cpp
     machine/SamplePool.cpp

@@ -19,6 +19,11 @@ namespace lockstep
         recBtn_.onClick = [this] { clock_.setRecordArmed(!clock_.isRecordArmed()); };
         addAndMakeVisible(recBtn_);
 
+        metroBtn_.setClickingTogglesState(false);
+        metroBtn_.setWantsKeyboardFocus(false);
+        metroBtn_.onClick = [this] { clock_.setMetronomeEnabled(!clock_.isMetronomeEnabled()); };
+        addAndMakeVisible(metroBtn_);
+
         startTimerHz(15);
     }
 
@@ -33,6 +38,7 @@ namespace lockstep
     {
         syncPlayLabel();
         syncRecColour();
+        syncMetroColour();
     }
 
     void InPluginTransport::onPlayClick()
@@ -89,6 +95,19 @@ namespace lockstep
                                       .findColour(juce::TextButton::textColourOffId));
     }
 
+    void InPluginTransport::syncMetroColour()
+    {
+        const bool on = clock_.isMetronomeEnabled();
+        metroBtn_.setColour(juce::TextButton::buttonColourId,
+                            on ? juce::Colour::fromRGB(60, 140, 200)
+                               : juce::LookAndFeel::getDefaultLookAndFeel()
+                                     .findColour(juce::TextButton::buttonColourId));
+        metroBtn_.setColour(juce::TextButton::textColourOffId,
+                            on ? juce::Colours::white
+                               : juce::LookAndFeel::getDefaultLookAndFeel()
+                                     .findColour(juce::TextButton::textColourOffId));
+    }
+
     void InPluginTransport::paint(juce::Graphics& g)
     {
         juce::ignoreUnused(g);
@@ -100,5 +119,6 @@ namespace lockstep
         playBtn_.setBounds(b.removeFromLeft(54).reduced(1));
         resetBtn_.setBounds(b.removeFromLeft(46).reduced(1));
         recBtn_.setBounds(b.removeFromLeft(38).reduced(1));
+        metroBtn_.setBounds(b.removeFromLeft(46).reduced(1));
     }
 }

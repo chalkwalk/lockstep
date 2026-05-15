@@ -6,6 +6,7 @@
 
 #include "core/ChannelMode.h"
 #include "core/Clock.h"
+#include "core/Metronome.h"
 #include "core/Sequence.h"
 #include "core/SyncMode.h"
 #include "io/CCMappingTable.h"
@@ -156,6 +157,7 @@ namespace lockstep
         int  previewNoteOffRemaining_ = -1;  // samples until note-off; -1 = inactive
         int  previewNote_             = 60;
 
+        Metronome metronome_;
         MidiInput midiInput_;
         MidiClockReceiver midiClockReceiver_;
         std::array<std::unique_ptr<IMachine>, kNumTracks> machines_;
