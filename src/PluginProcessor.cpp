@@ -318,7 +318,24 @@ namespace lockstep
             const auto ti   = static_cast<std::size_t>(track);
             const int  note = std::clamp(midiNote, 0, 127);
 
-            if (recArmed && sequencerRunning
+            if (recArmed && editContext_.isActiveForEditing()
+                && editContext_.heldTrackIndex() == track)
+            {
+                // M7.4: Key-as-PLock — each note key writes a distinct pool index
+                // to the sample_id slot of the held step (drum play-in mode).
+                const int sampleSlot = slotForId(track, "sample_id");
+                if (sampleSlot >= 0 && samplePool_.size() > 0)
+                {
+                    const int poolIdx = std::clamp(midiNote - 60, 0,
+                                                   samplePool_.size() - 1);
+                    writeParam(track, sampleSlot, static_cast<float>(poolIdx));
+                }
+                // Enable the trig on the held step.
+                const int step = editContext_.heldStepIndex();
+                if (step >= 0 && step < kMaxStepsPerTrack)
+                    sequence_.tracks[ti].steps[static_cast<std::size_t>(step)].trig = true;
+            }
+            else if (recArmed && sequencerRunning
                      && !editContext_.isActiveForEditing())
             {
                 // M7.2: Quantize note-on to nearest step boundary, write trig.

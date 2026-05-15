@@ -7,8 +7,8 @@ milestone changes, update **Active focus** below.
 
 For architecture see `DESIGN.md`.
 
-**Active focus:** M7 — Pattern recording.
-**Last completed:** M6 — QWERTY overlay + Manipulation Zone UI. All M6.1–M6.11 complete.
+**Active focus:** M8 — State serialization.
+**Last completed:** M7 — Pattern recording. All M7.1–M7.4 complete.
 
 ## Locked design decisions for the roadmap
 
@@ -289,7 +289,7 @@ QWERTY+MZ UI (M6) for the transport indicator and step affordances.
 - [x] **M7.3** CC while recording on a held step writes a P-Lock;
       otherwise updates the track base. (Same EditContext rule;
       record arm doesn't bypass it, it just makes capture sticky.)
-- [ ] **M7.4** "Key-as-PLock" mode: with record on, each note key
+- [x] **M7.4** "Key-as-PLock" mode: with record on, each note key
       writes a distinct P-Lock value to the held step (drum-pattern
       play-in across one track).
 
