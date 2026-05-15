@@ -282,7 +282,7 @@ The keyboard-first editor.
 Live capture of MIDI input into trigs and P-Locks. Depends on the
 QWERTY+MZ UI (M6) for the transport indicator and step affordances.
 
-- [ ] **M7.1** Record-arm transport state, visible in the transport
+- [x] **M7.1** Record-arm transport state, visible in the transport
       bar.
 - [ ] **M7.2** Note-on while recording writes a trig at the nearest
       step on the destination track (quantised to track grid).
