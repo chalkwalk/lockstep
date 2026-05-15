@@ -408,7 +408,7 @@ namespace lockstep
 
         // Header row: transport | sync mode box | [status text area] | load button
         auto header = bounds.removeFromTop(36);
-        transport_.setBounds(header.removeFromLeft(148).reduced(4));
+        transport_.setBounds(header.removeFromLeft(200).reduced(4));
         syncModeBox_.setBounds(header.removeFromLeft(80).reduced(4));
         channelModeBox_.setBounds(header.removeFromLeft(90).reduced(4));
         displayModeBtn_.setBounds(header.removeFromLeft(46).reduced(4));
