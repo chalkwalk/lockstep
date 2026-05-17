@@ -344,7 +344,7 @@ Replace the M0 minimal serializer with the full payload.
 - [x] **M8.2** Sample-pool entries persisted as `{path, xxHash32}`;
       missing-file UX on load (relink dialog).
 - [x] **M8.3** Real `Hash::xx32` implementation.
-- [ ] **M8.4** Forward-compatible `kCurrentVersion` upgrade path with
+- [x] **M8.4** Forward-compatible `kCurrentVersion` upgrade path with
       a guard test.
 - [ ] **M8.5** CC mappings (with scope), channel mode, focus state,
       and clock/sync settings persisted alongside the sequence.

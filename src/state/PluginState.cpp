@@ -331,6 +331,55 @@ namespace lockstep::PluginState
     }
 
     // -------------------------------------------------------------------------
+    // Version upgrade chain
+    //
+    // Each upgrade_vN_to_vM function receives a tree at version N and returns
+    // a tree at version M. applyUpgrades() calls them in order so that any
+    // historical version round-trips into the current format before the
+    // read-back functions run.
+    //
+    // To add a future version bump:
+    //   1. Increment kCurrentVersion in PluginState.h.
+    //   2. Add upgrade_v1_to_v2 (or vN_to_vN+1) here.
+    //   3. Add the corresponding `if (version < N) tree = upgrade_v(N-1)_to_vN(tree);`
+    //      line in applyUpgrades().
+    //   4. Add a new test case in PluginStateUpgradeTest below.
+
+    // v0 → v1
+    // v0 format: root type "Lockstep" (bare APVTS tree), no version attribute.
+    // v1 format: root type "LockstepState", version=1, with "Lockstep" (APVTS),
+    //            "SamplePool", and "Sequence" children.
+    juce::ValueTree upgrade_v0_to_v1(const juce::ValueTree& v0)
+    {
+        juce::ValueTree v1("LockstepState");
+        v1.setProperty("version", 1, nullptr);
+        v1.appendChild(v0.createCopy(), nullptr);
+        // No SamplePool or Sequence in v0; those nodes are absent,
+        // so the readers leave the pool empty and the sequence at defaults.
+        return v1;
+    }
+
+    juce::ValueTree applyUpgrades(juce::ValueTree tree)
+    {
+        // Determine the version. v0 has root type "Lockstep" and no version attribute.
+        int version = 0;
+        if (tree.getType() == juce::Identifier("LockstepState"))
+            version = static_cast<int>(tree.getProperty("version", 0));
+
+        if (version > kCurrentVersion)
+            DBG("PluginState: state version " + juce::String(version)
+                + " is newer than this build (supports up to v"
+                + juce::String(kCurrentVersion) + "); loading anyway");
+
+        // Apply each upgrade in order. Upgrades are idempotent with respect
+        // to the chain: each runs only when needed by the version guard.
+        if (version < 1) tree = upgrade_v0_to_v1(tree);
+        // if (version < 2) tree = upgrade_v1_to_v2(tree);
+
+        return tree;
+    }
+
+    // -------------------------------------------------------------------------
     // Public API
 
     void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc)
@@ -359,22 +408,92 @@ namespace lockstep::PluginState
         auto root = juce::ValueTree::fromXml(*xml);
         if (!root.isValid()) return;
 
-        // v0 compat: root type was the bare APVTS tree ("Lockstep").
-        if (root.getType() != juce::Identifier("LockstepState"))
-        {
-            proc.apvts().replaceState(root);
-            return;
-        }
+        root = applyUpgrades(root);
 
-        // Restore APVTS parameters. The child type matches the APVTS valueTreeType
-        // passed to the constructor ("Lockstep").
+        // Restore APVTS parameters. The child type matches the valueTreeType
+        // passed to AudioProcessorValueTreeState ("Lockstep").
         const auto apvtsChild = root.getChildWithName("Lockstep");
         if (apvtsChild.isValid())
             proc.apvts().replaceState(apvtsChild);
 
-        // Sample pool must be restored before sequence, so that pool indices
-        // referenced in baseParams and P-Locks resolve to the right entries.
+        // Sample pool must be restored before sequence so that pool indices
+        // referenced by P-Locks and baseParams resolve to the right entries.
         readSamplePool(root, proc);
         readSequence(root, proc);
     }
-}
+
+} // namespace lockstep::PluginState
+
+// ---------------------------------------------------------------------------
+// Upgrade-chain guard test (debug builds only)
+//
+// Registered with the global JUCE unit-test runner under the "PluginState"
+// category. The processor constructor runs this category in debug mode so
+// failures surface immediately at load time.
+#if JUCE_DEBUG
+namespace
+{
+    using namespace lockstep;
+
+    class PluginStateUpgradeTest : public juce::UnitTest
+    {
+    public:
+        PluginStateUpgradeTest()
+            : juce::UnitTest("Upgrade chain", "PluginState") {}
+
+        void runTest() override
+        {
+            beginTest("v0 -> v1: bare APVTS tree is wrapped correctly");
+            {
+                juce::ValueTree v0("Lockstep");
+                v0.setProperty("someParam", 0.5, nullptr);
+
+                const auto v1 = lockstep::PluginState::applyUpgrades(v0);
+
+                expect(v1.getType() == juce::Identifier("LockstepState"),
+                       "root type must be LockstepState");
+                expectEquals(static_cast<int>(v1.getProperty("version", -1)), 1,
+                             "version must be 1");
+                expect(v1.getChildWithName("Lockstep").isValid(),
+                       "upgraded tree must contain APVTS child");
+                expect(!v1.getChildWithName("SamplePool").isValid(),
+                       "v0 upgrades must not invent a SamplePool node");
+                expect(!v1.getChildWithName("Sequence").isValid(),
+                       "v0 upgrades must not invent a Sequence node");
+            }
+
+            beginTest("v1 passthrough: current format unchanged");
+            {
+                juce::ValueTree v1("LockstepState");
+                v1.setProperty("version", 1, nullptr);
+                v1.appendChild(juce::ValueTree("Lockstep"), nullptr);
+                v1.appendChild(juce::ValueTree("SamplePool"), nullptr);
+                v1.appendChild(juce::ValueTree("Sequence"), nullptr);
+
+                const auto result = lockstep::PluginState::applyUpgrades(v1);
+
+                expect(result.getType() == juce::Identifier("LockstepState"),
+                       "root type preserved");
+                expectEquals(static_cast<int>(result.getProperty("version", -1)), 1,
+                             "version preserved");
+                expect(result.getChildWithName("Lockstep").isValid(),    "APVTS child present");
+                expect(result.getChildWithName("SamplePool").isValid(),  "SamplePool child present");
+                expect(result.getChildWithName("Sequence").isValid(),    "Sequence child present");
+            }
+
+            beginTest("future version: valid tree returned without crash");
+            {
+                juce::ValueTree future("LockstepState");
+                future.setProperty("version", lockstep::PluginState::kCurrentVersion + 1, nullptr);
+                future.appendChild(juce::ValueTree("Lockstep"), nullptr);
+
+                const auto result = lockstep::PluginState::applyUpgrades(future);
+
+                expect(result.isValid(), "future version must return a valid tree");
+                expect(result.getChildWithName("Lockstep").isValid(),
+                       "APVTS child must be intact");
+            }
+        }
+    } gUpgradeTest;
+} // anonymous namespace
+#endif

@@ -15,5 +15,9 @@ namespace lockstep
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);
+
+        // Exposed for testing: normalises any historical state tree to the
+        // current version by applying each upgrade function in sequence.
+        juce::ValueTree applyUpgrades(juce::ValueTree tree);
     }
 }

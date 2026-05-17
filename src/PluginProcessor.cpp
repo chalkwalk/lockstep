@@ -46,6 +46,15 @@ namespace lockstep
         for (auto& m : machines_)
             m = std::make_unique<SamplerMachine>(samplePool_);
 
+        // Verify the state upgrade chain every time the plugin loads in debug mode.
+       #if JUCE_DEBUG
+        {
+            juce::UnitTestRunner runner;
+            runner.setAssertOnFailure(false);
+            runner.runTestsInCategory("PluginState");
+        }
+       #endif
+
         // Seed each track's base params from the machine's declared defaults.
         for (std::size_t t = 0; t < kNumTracks; ++t)
         {
