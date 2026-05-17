@@ -812,12 +812,12 @@ namespace lockstep
 
     void LockstepProcessor::getStateInformation(juce::MemoryBlock& dest)
     {
-        PluginState::writeTo(dest, apvts_);
+        PluginState::writeTo(dest, *this);
     }
 
     void LockstepProcessor::setStateInformation(const void* data, int sizeInBytes)
     {
-        PluginState::readFrom(data, sizeInBytes, apvts_);
+        PluginState::readFrom(data, sizeInBytes, *this);
     }
 }
 
