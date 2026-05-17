@@ -805,6 +805,11 @@ namespace lockstep
         samplePool_.swap(a, b);
     }
 
+    bool LockstepProcessor::relinkSample(int index, const juce::String& newPath)
+    {
+        return samplePool_.relink(index, newPath);
+    }
+
     juce::AudioProcessorEditor* LockstepProcessor::createEditor()
     {
         return new LockstepEditor(*this);

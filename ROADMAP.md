@@ -339,11 +339,11 @@ QWERTY+MZ UI (M6) for the transport indicator and step affordances.
 
 Replace the M0 minimal serializer with the full payload.
 
-- [ ] **M8.1** Sequence + PLock data serialized into the plugin state
+- [x] **M8.1** Sequence + PLock data serialized into the plugin state
       blob (still XML or value-tree, no binary in this milestone).
-- [ ] **M8.2** Sample-pool entries persisted as `{path, xxHash32}`;
+- [x] **M8.2** Sample-pool entries persisted as `{path, xxHash32}`;
       missing-file UX on load (relink dialog).
-- [ ] **M8.3** Real `Hash::xx32` implementation.
+- [x] **M8.3** Real `Hash::xx32` implementation.
 - [ ] **M8.4** Forward-compatible `kCurrentVersion` upgrade path with
       a guard test.
 - [ ] **M8.5** CC mappings (with scope), channel mode, focus state,

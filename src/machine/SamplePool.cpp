@@ -39,6 +39,50 @@ namespace lockstep
         return index;
     }
 
+    int SamplePool::addMissing(const SampleRef& ref)
+    {
+        auto sample = std::make_unique<Sample>();
+        sample->ref     = ref;
+        sample->missing = true;
+        // pcm left empty; SamplerMachine produces silence for zero-length buffers.
+        const int index = static_cast<int>(samples_.size());
+        samples_.push_back(std::move(sample));
+        return index;
+    }
+
+    bool SamplePool::relink(int index, const juce::String& newPath)
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size()))
+            return false;
+
+        juce::File file(newPath);
+        std::unique_ptr<juce::AudioFormatReader> reader(
+            formatManager_.createReaderFor(file));
+        if (!reader) return false;
+
+        auto& s = samples_[static_cast<std::size_t>(index)];
+        s->sampleRate = reader->sampleRate;
+        s->ref.path   = newPath.toStdString();
+
+        const int numChannels = static_cast<int>(reader->numChannels);
+        const int numSamples  = static_cast<int>(reader->lengthInSamples);
+        s->pcm.setSize(numChannels, numSamples);
+        reader->read(&s->pcm, 0, numSamples, 0, true, true);
+
+        s->ref.hashXX32 = Hash::xx32(
+            s->pcm.getReadPointer(0),
+            static_cast<std::size_t>(numSamples) * sizeof(float));
+        s->missing = false;
+        return true;
+    }
+
+    bool SamplePool::isMissing(int index) const
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size()))
+            return false;
+        return samples_[static_cast<std::size_t>(index)]->missing;
+    }
+
     bool SamplePool::remove(int index)
     {
         if (index < 0 || index >= static_cast<int>(samples_.size()))

@@ -30,9 +30,40 @@ namespace lockstep
                     for (const auto& f : fc.getResults())
                         processor_.samplePool().load(f.getFullPathName());
                     list_.updateContent();
+                    updateButtonStates();
                 });
         };
         addAndMakeVisible(loadBtn_);
+
+        relinkBtn_.setWantsKeyboardFocus(false);
+        relinkBtn_.setEnabled(false);
+        relinkBtn_.onClick = [this]
+        {
+            const int row = list_.getSelectedRow();
+            if (row < 0 || !processor_.samplePool().isMissing(row))
+                return;
+            const auto* s = processor_.samplePool().get(row);
+            const juce::File startDir = s
+                ? juce::File(juce::String(s->ref.path)).getParentDirectory()
+                : juce::File::getSpecialLocation(juce::File::userMusicDirectory);
+
+            fileChooser_ = std::make_unique<juce::FileChooser>(
+                "Relink Sample",
+                startDir,
+                "*.wav;*.aiff;*.aif;*.flac;*.ogg");
+            fileChooser_->launchAsync(
+                juce::FileBrowserComponent::openMode
+                    | juce::FileBrowserComponent::canSelectFiles,
+                [this, row](const juce::FileChooser& fc)
+                {
+                    const auto results = fc.getResults();
+                    if (results.isEmpty()) return;
+                    processor_.relinkSample(row, results[0].getFullPathName());
+                    list_.updateContent();
+                    updateButtonStates();
+                });
+        };
+        addAndMakeVisible(relinkBtn_);
 
         removeBtn_.setWantsKeyboardFocus(false);
         removeBtn_.onClick = [this]
@@ -88,6 +119,18 @@ namespace lockstep
     void SamplePoolOverlay::timerCallback()
     {
         list_.updateContent();
+        updateButtonStates();
+    }
+
+    void SamplePoolOverlay::updateButtonStates()
+    {
+        const int row = list_.getSelectedRow();
+        const bool hasSel  = (row >= 0 && row < processor_.samplePool().size());
+        const bool missing = hasSel && processor_.samplePool().isMissing(row);
+        relinkBtn_.setEnabled(missing);
+        removeBtn_.setEnabled(hasSel);
+        upBtn_.setEnabled(hasSel && row > 0);
+        downBtn_.setEnabled(hasSel && row < processor_.samplePool().size() - 1);
     }
 
     int SamplePoolOverlay::getNumRows()
@@ -108,21 +151,24 @@ namespace lockstep
         if (sample == nullptr)
             return;
 
+        const bool isMissing = sample->missing;
         const juce::File f(juce::String(sample->ref.path));
-        const juce::String index   = juce::String(rowNumber) + ".  ";
-        const juce::String name    = f.getFileNameWithoutExtension();
-        const juce::String dirHint = f.getParentDirectory().getFileName();
+        const juce::String indexStr = juce::String(rowNumber) + ".  ";
+        const juce::String name     = f.getFileNameWithoutExtension();
+        const juce::String dirHint  = isMissing ? "MISSING" : f.getParentDirectory().getFileName();
 
         const int textY = (height - 13) / 2;
 
         g.setFont(juce::Font(juce::FontOptions(12.0f)).boldened());
-        g.setColour(juce::Colours::white);
-        g.drawText(index + name,
+        g.setColour(isMissing ? juce::Colour::fromRGB(255, 160, 50)
+                              : juce::Colours::white);
+        g.drawText(indexStr + name,
                    juce::Rectangle<int>(6, textY, width - 12, 14),
                    juce::Justification::centredLeft);
 
         g.setFont(juce::Font(juce::FontOptions(10.0f)));
-        g.setColour(juce::Colour::fromRGB(120, 140, 160));
+        g.setColour(isMissing ? juce::Colour::fromRGB(200, 100, 30)
+                              : juce::Colour::fromRGB(120, 140, 160));
         g.drawText(dirHint,
                    juce::Rectangle<int>(6, textY, width - 12, 14),
                    juce::Justification::centredRight);
@@ -130,8 +176,11 @@ namespace lockstep
 
     void SamplePoolOverlay::listBoxItemClicked(int rowNumber, const juce::MouseEvent& /*e*/)
     {
+        updateButtonStates();
         if (rowNumber < 0 || rowNumber >= processor_.samplePool().size())
             return;
+        if (processor_.samplePool().isMissing(rowNumber))
+            return;  // no preview for missing samples
         const int track = getActiveTrack ? getActiveTrack() : 0;
         processor_.triggerPreview(rowNumber, std::max(0, track));
     }
@@ -180,6 +229,8 @@ namespace lockstep
         upBtn_.setBounds(btnRow.removeFromRight(26).reduced(1));
         btnRow.removeFromRight(4);
         removeBtn_.setBounds(btnRow.removeFromRight(60).reduced(1));
+        relinkBtn_.setBounds(btnRow.removeFromRight(70).reduced(1));
+        btnRow.removeFromRight(4);
         loadBtn_.setBounds(btnRow.removeFromLeft(70).reduced(1));
 
         bounds.removeFromBottom(4);

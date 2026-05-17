@@ -3,6 +3,7 @@
 #include "../core/Sequence.h"
 #include "../core/TrigCondition.h"
 #include <cstdint>
+#include <cstdio>
 
 namespace lockstep::PluginState
 {
@@ -267,6 +268,69 @@ namespace lockstep::PluginState
     }
 
     // -------------------------------------------------------------------------
+    // Sample pool
+
+    static juce::String hashToHex(std::uint32_t h)
+    {
+        char buf[9];
+        std::snprintf(buf, sizeof(buf), "%08X", h);
+        return juce::String(buf);
+    }
+
+    static std::uint32_t hexToHash(const juce::String& s)
+    {
+        return static_cast<std::uint32_t>(s.getHexValue32());
+    }
+
+    static void writeSamplePool(juce::ValueTree& root, LockstepProcessor& proc)
+    {
+        juce::ValueTree poolNode("SamplePool");
+        const auto& pool = proc.samplePool();
+        for (int i = 0; i < pool.size(); ++i)
+        {
+            const auto* s = pool.get(i);
+            if (!s) continue;
+            juce::ValueTree entry("Entry");
+            entry.setProperty("i",    i,                               nullptr);
+            entry.setProperty("path", juce::String(s->ref.path),       nullptr);
+            entry.setProperty("hash", hashToHex(s->ref.hashXX32),      nullptr);
+            poolNode.appendChild(entry, nullptr);
+        }
+        root.appendChild(poolNode, nullptr);
+    }
+
+    static void readSamplePool(const juce::ValueTree& root, LockstepProcessor& proc)
+    {
+        const auto poolNode = root.getChildWithName("SamplePool");
+        if (!poolNode.isValid()) return;
+
+        for (auto entry : poolNode)
+        {
+            const juce::String path = entry.getProperty("path").toString();
+            const juce::String hex  = entry.getProperty("hash").toString();
+            const std::uint32_t savedHash = hexToHash(hex);
+
+            const int loaded = proc.samplePool().load(path);
+            if (loaded >= 0)
+            {
+                // Warn if hash differs — file changed since last save, but still usable.
+                const auto* s = proc.samplePool().get(loaded);
+                if (s && s->ref.hashXX32 != savedHash)
+                    DBG("PluginState: hash mismatch for '" + path + "' (file may have changed)");
+            }
+            else
+            {
+                // File not found — insert a placeholder so pool indices remain intact.
+                SampleRef ref;
+                ref.path     = path.toStdString();
+                ref.hashXX32 = savedHash;
+                proc.samplePool().addMissing(ref);
+                DBG("PluginState: missing sample '" + path + "'");
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // Public API
 
     void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc)
@@ -276,6 +340,9 @@ namespace lockstep::PluginState
 
         // APVTS state (parameters: gain, sync mode, channel mode, track lengths etc.)
         root.appendChild(proc.apvts().copyState(), nullptr);
+
+        // Sample pool ({path, hash} refs — no PCM bytes)
+        writeSamplePool(root, proc);
 
         // Sequence (trigs, P-Locks, base params, conditions)
         writeSequence(root, proc);
@@ -305,6 +372,9 @@ namespace lockstep::PluginState
         if (apvtsChild.isValid())
             proc.apvts().replaceState(apvtsChild);
 
+        // Sample pool must be restored before sequence, so that pool indices
+        // referenced in baseParams and P-Locks resolve to the right entries.
+        readSamplePool(root, proc);
         readSequence(root, proc);
     }
 }

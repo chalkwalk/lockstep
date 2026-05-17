@@ -19,6 +19,7 @@ namespace lockstep
         SampleRef ref;
         juce::AudioBuffer<float> pcm;
         double sampleRate = 0.0;
+        bool   missing    = false;  // true when the file could not be found on load
     };
 
     // Holds decoded PCM for every sample loaded into the session.
@@ -32,9 +33,22 @@ namespace lockstep
 
         // Decode the file at path and append it to the pool.
         // Returns the index of the new entry, or -1 on failure.
+        // Message-thread only.
         int load(const juce::String& path);
 
-        int size() const { return static_cast<int>(samples_.size()); }
+        // Append a placeholder entry for a file that could not be found.
+        // Preserves the pool index so P-Lock references remain valid.
+        // Message-thread only.
+        int addMissing(const SampleRef& ref);
+
+        // Replace a missing (or any) entry in-place with the decoded file at newPath.
+        // Does not shift indices; call when the sequencer is stopped to avoid races.
+        // Returns false if the file cannot be read.
+        // Message-thread only.
+        bool relink(int index, const juce::String& newPath);
+
+        int  size()              const { return static_cast<int>(samples_.size()); }
+        bool isMissing(int index) const;
         const Sample* get(int index) const;
 
         // Remove the entry at index, shifting higher entries down.

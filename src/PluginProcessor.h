@@ -105,6 +105,9 @@ namespace lockstep
         void removeSample(int poolIndex);
         // swapSamples remaps references and swaps two pool entries (reorder).
         void swapSamples(int a, int b);
+        // relinkSample replaces a missing (or any) pool entry in-place with a newly loaded file.
+        // Call only when the sequencer is stopped to avoid audio-thread data races.
+        bool relinkSample(int index, const juce::String& newPath);
 
         // Schema query helpers — forward to the machine on the given track.
         int         numParams(int track)              const;

@@ -37,11 +37,14 @@ namespace lockstep
     private:
         LockstepProcessor& processor_;
         juce::ListBox list_{ "pool", this };
-        juce::TextButton loadBtn_{ "Load..." };
-        juce::TextButton removeBtn_{ "Remove" };
-        juce::TextButton upBtn_{ "^" };
-        juce::TextButton downBtn_{ "v" };
-        juce::TextButton closeBtn_{ "X" };
+        juce::TextButton loadBtn_  { "Load..."  };
+        juce::TextButton relinkBtn_{ "Relink..." };
+        juce::TextButton removeBtn_{ "Remove"   };
+        juce::TextButton upBtn_    { "^"         };
+        juce::TextButton downBtn_  { "v"         };
+        juce::TextButton closeBtn_ { "X"         };
         std::unique_ptr<juce::FileChooser> fileChooser_;
+
+        void updateButtonStates();
     };
 }
