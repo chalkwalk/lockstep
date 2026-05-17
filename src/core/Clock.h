@@ -81,8 +81,9 @@ namespace lockstep
         }
 
         // ---- Standalone / Auto mode controls (UI thread) -------------------
-        void setLocalBpm(double bpm);
-        void resetPhase();
+        void   setLocalBpm(double bpm);
+        double localBpm() const { return localBpm_; }
+        void   resetPhase();
 
         // ---- UI-safe PPQ read (atomic, UI thread) --------------------------
         // Returns the PPQ at the start of the last processed audio block.

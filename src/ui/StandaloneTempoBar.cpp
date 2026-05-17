@@ -7,7 +7,7 @@ namespace lockstep
         : clock_(clock)
     {
         bpmSlider_.setRange(20.0, 300.0, 0.1);
-        bpmSlider_.setValue(120.0, juce::dontSendNotification);
+        bpmSlider_.setValue(clock_.localBpm(), juce::dontSendNotification);
         bpmSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
         bpmSlider_.setTextBoxStyle(juce::Slider::TextBoxLeft, false, 52, 18);
         bpmSlider_.setWantsKeyboardFocus(false);

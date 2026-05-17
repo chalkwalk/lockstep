@@ -331,6 +331,112 @@ namespace lockstep::PluginState
     }
 
     // -------------------------------------------------------------------------
+    // CC mappings + focus track + local BPM
+
+    static const char* scopeToStr(CCScope s)
+    {
+        switch (s)
+        {
+        case CCScope::Global:        return "Global";
+        case CCScope::Track:         return "Track";
+        case CCScope::SelectedTrack: return "SelectedTrack";
+        case CCScope::Contextual:    return "Contextual";
+        }
+        return "Track";
+    }
+
+    static CCScope strToScope(const juce::String& s)
+    {
+        if (s == "Global")        return CCScope::Global;
+        if (s == "SelectedTrack") return CCScope::SelectedTrack;
+        if (s == "Contextual")    return CCScope::Contextual;
+        return CCScope::Track;
+    }
+
+    static void writeMiscState(juce::ValueTree& root, LockstepProcessor& proc)
+    {
+        // CC mappings — slot indices converted to stable string IDs.
+        juce::ValueTree ccNode("CCMappings");
+        for (const auto& m : proc.ccMappingTable().mappings())
+        {
+            juce::ValueTree mNode("M");
+            mNode.setProperty("cc",    m.ccNumber,               nullptr);
+            mNode.setProperty("scope", scopeToStr(m.scope),      nullptr);
+            mNode.setProperty("track", m.trackIndex,             nullptr);
+            mNode.setProperty("mz",    m.mzPosition,             nullptr);
+            mNode.setProperty("apvts", juce::String(m.apvtsID),  nullptr);
+            mNode.setProperty("rel",   m.isRelative ? 1 : 0,     nullptr);
+            mNode.setProperty("scale", static_cast<double>(m.scale), nullptr);
+            mNode.setProperty("enc",   static_cast<int>(m.encoding), nullptr);
+
+            // Resolve the slot to a stable string ID so renames survive.
+            // For SelectedTrack scope, track 0 is used as the schema reference.
+            juce::String slotId;
+            if (m.scope == CCScope::Track || m.scope == CCScope::SelectedTrack)
+            {
+                const int refTrack = (m.scope == CCScope::Track) ? m.trackIndex : 0;
+                slotId = proc.idForSlot(refTrack, m.slot);
+            }
+            mNode.setProperty("slotId", slotId, nullptr);
+
+            ccNode.appendChild(mNode, nullptr);
+        }
+        root.appendChild(ccNode, nullptr);
+
+        // Focus track + standalone BPM.
+        juce::ValueTree miscNode("Misc");
+        miscNode.setProperty("focusTrack", proc.focusTrack(), nullptr);
+        miscNode.setProperty("localBpm",   proc.clock().localBpm(), nullptr);
+        root.appendChild(miscNode, nullptr);
+    }
+
+    static void readMiscState(const juce::ValueTree& root, LockstepProcessor& proc)
+    {
+        const auto ccNode = root.getChildWithName("CCMappings");
+        if (ccNode.isValid())
+        {
+            proc.ccMappingTable().clear();
+            for (auto mNode : ccNode)
+            {
+                CCMapping m;
+                m.ccNumber   = static_cast<int>(mNode.getProperty("cc",  -1));
+                m.scope      = strToScope(mNode.getProperty("scope").toString());
+                m.trackIndex = static_cast<int>(mNode.getProperty("track", 0));
+                m.mzPosition = static_cast<int>(mNode.getProperty("mz",   -1));
+                m.apvtsID    = mNode.getProperty("apvts").toString().toStdString();
+                m.isRelative = (static_cast<int>(mNode.getProperty("rel", 0)) != 0);
+                m.scale      = getFloat(mNode, "scale", 1.0f / 128.0f);
+                m.encoding   = static_cast<RelativeCCEncoding>(
+                                   static_cast<int>(mNode.getProperty("enc", 0)));
+
+                // Resolve slot ID back to a runtime integer.
+                const juce::String slotId = mNode.getProperty("slotId").toString();
+                if (!slotId.isEmpty())
+                {
+                    const int refTrack = (m.scope == CCScope::Track) ? m.trackIndex : 0;
+                    m.slot = proc.slotForId(refTrack, slotId);
+                    if (m.slot < 0)
+                    {
+                        DBG("PluginState: unknown CC slot id '" + slotId + "' -- skipping mapping");
+                        continue;
+                    }
+                }
+
+                if (m.ccNumber >= 0)
+                    proc.ccMappingTable().addMapping(std::move(m));
+            }
+        }
+
+        const auto miscNode = root.getChildWithName("Misc");
+        if (miscNode.isValid())
+        {
+            proc.setFocusTrack(static_cast<int>(miscNode.getProperty("focusTrack", -1)));
+            const double bpm = static_cast<double>(miscNode.getProperty("localBpm", 120.0));
+            proc.clock().setLocalBpm(bpm);
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // Version upgrade chain
     //
     // Each upgrade_vN_to_vM function receives a tree at version N and returns
@@ -396,6 +502,9 @@ namespace lockstep::PluginState
         // Sequence (trigs, P-Locks, base params, conditions)
         writeSequence(root, proc);
 
+        // CC mappings, focus track, standalone BPM
+        writeMiscState(root, proc);
+
         if (auto xml = root.createXml())
             juce::AudioProcessor::copyXmlToBinary(*xml, dest);
     }
@@ -420,6 +529,7 @@ namespace lockstep::PluginState
         // referenced by P-Locks and baseParams resolve to the right entries.
         readSamplePool(root, proc);
         readSequence(root, proc);
+        readMiscState(root, proc);
     }
 
 } // namespace lockstep::PluginState
@@ -466,9 +576,11 @@ namespace
             {
                 juce::ValueTree v1("LockstepState");
                 v1.setProperty("version", 1, nullptr);
-                v1.appendChild(juce::ValueTree("Lockstep"), nullptr);
-                v1.appendChild(juce::ValueTree("SamplePool"), nullptr);
-                v1.appendChild(juce::ValueTree("Sequence"), nullptr);
+                v1.appendChild(juce::ValueTree("Lockstep"),    nullptr);
+                v1.appendChild(juce::ValueTree("SamplePool"),  nullptr);
+                v1.appendChild(juce::ValueTree("Sequence"),    nullptr);
+                v1.appendChild(juce::ValueTree("CCMappings"),  nullptr);
+                v1.appendChild(juce::ValueTree("Misc"),        nullptr);
 
                 const auto result = lockstep::PluginState::applyUpgrades(v1);
 
@@ -476,9 +588,11 @@ namespace
                        "root type preserved");
                 expectEquals(static_cast<int>(result.getProperty("version", -1)), 1,
                              "version preserved");
-                expect(result.getChildWithName("Lockstep").isValid(),    "APVTS child present");
-                expect(result.getChildWithName("SamplePool").isValid(),  "SamplePool child present");
-                expect(result.getChildWithName("Sequence").isValid(),    "Sequence child present");
+                expect(result.getChildWithName("Lockstep").isValid(),   "APVTS child present");
+                expect(result.getChildWithName("SamplePool").isValid(), "SamplePool child present");
+                expect(result.getChildWithName("Sequence").isValid(),   "Sequence child present");
+                expect(result.getChildWithName("CCMappings").isValid(), "CCMappings child present");
+                expect(result.getChildWithName("Misc").isValid(),       "Misc child present");
             }
 
             beginTest("future version: valid tree returned without crash");

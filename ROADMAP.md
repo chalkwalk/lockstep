@@ -7,9 +7,8 @@ milestone changes, update **Active focus** below.
 
 For architecture see `DESIGN.md`.
 
-**Active focus:** M8 — State serialization (ships v0; v1 with the
-Project/Bank/Pattern/Part hierarchy lands in MC).
-**Last completed:** M7 — Pattern recording. All M7.1–M7.4 complete.
+**Active focus:** MB — UI/Input rethink (scope-and-verb grammar).
+**Last completed:** M8 — State serialization. All M8.1–M8.5 complete.
 
 After M8 the roadmap pivots from "core sequencer is usable" to
 "performance instrument is usable" — see new milestones MB–MH below.
@@ -346,7 +345,7 @@ Replace the M0 minimal serializer with the full payload.
 - [x] **M8.3** Real `Hash::xx32` implementation.
 - [x] **M8.4** Forward-compatible `kCurrentVersion` upgrade path with
       a guard test.
-- [ ] **M8.5** CC mappings (with scope), channel mode, focus state,
+- [x] **M8.5** CC mappings (with scope), channel mode, focus state,
       and clock/sync settings persisted alongside the sequence.
 
 ### MB — UI / Input rethink: scope-and-verb grammar  [pending]
