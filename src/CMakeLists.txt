@@ -20,6 +20,7 @@ add_library(lockstep_core STATIC
     io/CCMappingTable.cpp
     io/MidiClockReceiver.cpp
     io/MidiInput.cpp
+    io/EditMode.cpp
     io/QwertyOverlay.cpp
     state/Hash.cpp
     state/PluginState.cpp)

@@ -4,6 +4,8 @@
 #include <memory>
 
 #include "PluginProcessor.h"
+#include "io/ControllerEvent.h"
+#include "io/EditMode.h"
 #include "io/QwertyOverlay.h"
 #include "state/UiState.h"
 #include "ui/FunctionBar.h"
@@ -50,6 +52,7 @@ namespace lockstep
     private:
         LockstepProcessor& processor_;
         QwertyOverlay qwerty_;
+        EditMode      editMode_;
         UiState uiState_;
         int heldStepKey_ = -1;
         juce::Component* keyListenerTarget_ = nullptr;

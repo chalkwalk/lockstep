@@ -139,6 +139,10 @@ namespace lockstep
             poolOverlay_.toFront(false);
         };
 
+        // Wire verb dispatch callback (real handlers land in MB.3 and later milestones).
+        editMode_.onVerbDispatched = [](EditMode::PrimaryScope /*scope*/,
+                                        ControllerButton /*verb*/) {};
+
         setSize(880, 480);
         setWantsKeyboardFocus(true);
     }
@@ -266,20 +270,24 @@ namespace lockstep
         {
             case ControllerButton::Func:
                 uiState_.funcHeld = true;
+                editMode_.onScopeEvent(ev);
                 sectionBar_.repaint();
                 functionBar_.repaint();
                 return true;
 
             case ControllerButton::TrackScope:
                 uiState_.trackHeld = true;
+                editMode_.onScopeEvent(ev);
                 return true;
 
             case ControllerButton::MuteScope:
                 uiState_.muteHeld = true;
+                editMode_.onScopeEvent(ev);
                 return true;
 
             case ControllerButton::FillScope:
                 uiState_.fillHeld = true;
+                editMode_.onScopeEvent(ev);
                 return true;
 
             case ControllerButton::Section:
@@ -298,6 +306,7 @@ namespace lockstep
                     const int absStep = stepGrid_.currentPage() * StepGrid::kPageSteps
                                         + ev.index;
                     processor_.editContext().hold(stepGrid_.getActiveTrack(), absStep);
+                    editMode_.setTrigHeld(true);
                 }
                 return true;
             }
@@ -347,14 +356,16 @@ namespace lockstep
                 processor_.clock().setRecordArmed(!processor_.clock().isRecordArmed());
                 return true;
 
-            // Scope verbs dispatched through EditMode (MB.3 wires the handlers).
+            // Scope verbs dispatched through EditMode.
             case ControllerButton::VerbRecord:
             case ControllerButton::VerbPlay:
+                editMode_.onVerb(ev.button);
                 return true;
 
-            // Checkpoint verbs — reserved for MB.3/MD.
+            // Checkpoint verbs.
             case ControllerButton::Yes:
             case ControllerButton::No:
+                editMode_.onVerb(ev.button);
                 return true;
 
             // Trig grid modes — reserved for MB.5.
@@ -385,32 +396,33 @@ namespace lockstep
             && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('1')))
         {
             uiState_.funcHeld = false;
+            editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::Func });
             sectionBar_.repaint();
             functionBar_.repaint();
             handled = true;
         }
 
         if (!isKeyDown && uiState_.trackHeld
-            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('Q'))
-            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('q')))
+            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('Q')))
         {
             uiState_.trackHeld = false;
+            editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::TrackScope });
             handled = true;
         }
 
         if (!isKeyDown && uiState_.muteHeld
-            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('A'))
-            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('a')))
+            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('A')))
         {
             uiState_.muteHeld = false;
+            editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::MuteScope });
             handled = true;
         }
 
         if (!isKeyDown && uiState_.fillHeld
-            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('Z'))
-            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('z')))
+            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('Z')))
         {
             uiState_.fillHeld = false;
+            editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::FillScope });
             handled = true;
         }
 
@@ -434,6 +446,7 @@ namespace lockstep
             }
 
             heldStepKey_ = -1;
+            editMode_.setTrigHeld(false);
             handled = true;
         }
 
