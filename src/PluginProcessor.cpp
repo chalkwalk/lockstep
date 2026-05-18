@@ -947,6 +947,34 @@ namespace lockstep
         s.trigOverride = TrigOverride{};
     }
 
+    void LockstepProcessor::pushCheckpoint()
+    {
+        const int key = activeBankIdx_ * kPatternsPerBank + activePatternIdx_;
+        auto& stack = checkpoints_[key];
+        stack.push_back({ activePattern(), activePart() });
+        if (static_cast<int>(stack.size()) > kMaxCheckpoints)
+            stack.erase(stack.begin());  // evict oldest
+    }
+
+    bool LockstepProcessor::popCheckpoint()
+    {
+        const int key = activeBankIdx_ * kPatternsPerBank + activePatternIdx_;
+        auto it = checkpoints_.find(key);
+        if (it == checkpoints_.end() || it->second.empty()) return false;
+        const auto& entry = it->second.back();
+        activePattern() = entry.savedPattern;
+        activePart()    = entry.savedPart;
+        it->second.pop_back();
+        return true;
+    }
+
+    int LockstepProcessor::checkpointDepth() const
+    {
+        const int key = activeBankIdx_ * kPatternsPerBank + activePatternIdx_;
+        const auto it = checkpoints_.find(key);
+        return (it != checkpoints_.end()) ? static_cast<int>(it->second.size()) : 0;
+    }
+
     int LockstepProcessor::numParams(int track) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks))

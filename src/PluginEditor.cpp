@@ -255,9 +255,10 @@ namespace lockstep
                 bx += 56 + kGap;
             }
 
-            if (checkpointDepth_ > 0)
+            const int checkpointDepth = processor_.checkpointDepth();
+            if (checkpointDepth > 0)
             {
-                const juce::String ckLabel = "CK:" + juce::String(checkpointDepth_);
+                const juce::String ckLabel = "CK:" + juce::String(checkpointDepth);
                 const auto r = juce::Rectangle<int>(bx, by, 38, kBadgeH);
                 g.setColour(juce::Colour(0xFF40A080u));
                 g.fillRoundedRectangle(r.toFloat(), 3.0f);
@@ -550,11 +551,11 @@ namespace lockstep
                 return true;
 
             case ControllerButton::Snapshot:
-                checkpointDepth_ = std::min(checkpointDepth_ + 1, 8);
+                processor_.pushCheckpoint();
                 repaint();
                 return true;
             case ControllerButton::Restore:
-                checkpointDepth_ = std::max(checkpointDepth_ - 1, 0);
+                processor_.popCheckpoint();
                 repaint();
                 return true;
 
@@ -686,7 +687,7 @@ namespace lockstep
             && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('2')))
         {
             if (!uiState_.patternScopeUsed)
-                checkpointDepth_ = std::min(checkpointDepth_ + 1, 8);
+                processor_.pushCheckpoint();
             uiState_.patternScopeHeld = false;
             uiState_.patternScopeUsed = false;
             editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::PatternScope });

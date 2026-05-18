@@ -66,7 +66,6 @@ namespace lockstep
         static constexpr double kDoublePressMsThreshold = 350.0;
 
         Clipboard clipboard_;
-        int       checkpointDepth_ = 0;  // stub: real stack in MD
 
         // MD.7/MD.8: deferred pattern mute track indices — collected while Func
         // is held inside mute mode; applied atomically on Func release.

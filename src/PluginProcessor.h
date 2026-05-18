@@ -4,8 +4,10 @@
 #include <atomic>
 #include <deque>
 #include <functional>
+#include <map>
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "core/ChannelMode.h"
 #include "core/Clock.h"
@@ -128,6 +130,12 @@ namespace lockstep
         void setControlAllActive(bool v) { controlAllActive_ = v; }
         bool controlAllActive()    const { return controlAllActive_; }
 
+        // MD.11: Checkpoint stack — RAM-only LIFO of (Pattern, Part) snapshots.
+        // Per active pattern, capped at kMaxCheckpoints (oldest evicted on overflow).
+        void pushCheckpoint();
+        bool popCheckpoint();    // returns false if stack empty for the active pattern
+        int  checkpointDepth() const;
+
         // MD.9: Fill scope state — set by the UI thread, read by the audio thread.
         void setFillActive(bool v) { fillActive_.store(v, std::memory_order_relaxed); }
         bool fillActive()    const { return fillActive_.load(std::memory_order_relaxed); }
@@ -209,6 +217,11 @@ namespace lockstep
         CCMappingTable ccMappingTable_;
         int  focusTrack_       = -1;   // -1 = Global; 0-7 = Track
         bool controlAllActive_ = false;
+
+        // MD.11: per-pattern checkpoint stacks; key = bankIdx * kPatternsPerBank + patIdx.
+        struct CheckpointEntry { Pattern savedPattern; Part savedPart; };
+        static constexpr int kMaxCheckpoints = 8;
+        std::map<int, std::vector<CheckpointEntry>> checkpoints_;
         std::atomic<bool> fillActive_ { false };
 
         // Current slot index for each MZ display position.
