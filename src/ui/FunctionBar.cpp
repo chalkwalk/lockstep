@@ -59,6 +59,8 @@ namespace lockstep
         }
         const int h = getHeight();
 
+        const auto gridMode = uiState_.trigGridMode;
+
         for (int i = 0; i < kNumKeys; ++i)
         {
             const auto& def  = kDefs[static_cast<std::size_t>(i)];
@@ -67,10 +69,16 @@ namespace lockstep
 
             const bool isPressed  = juce::KeyPress::isKeyCurrentlyDown(def.keyCode);
             const bool isRecArmed = (def.keyCode == 'T') && processor_.clock().isRecordArmed();
+            // Trig-mode active indicator: Y=KEY, U=RTG, I=POL.
+            const bool isModeActive = (def.keyCode == 'Y' && gridMode == TrigGridMode::Keyboard)
+                                   || (def.keyCode == 'U' && gridMode == TrigGridMode::Retrig)
+                                   || (def.keyCode == 'I' && gridMode == TrigGridMode::SoundPool);
 
             juce::Colour bg;
             if (isPressed)
                 bg = juce::Colour::fromRGB(80, 120, 165);
+            else if (isModeActive)
+                bg = juce::Colour::fromRGB(90, 55, 30);   // amber tint for active mode
             else if (isRecArmed)
                 bg = juce::Colour::fromRGB(90, 35, 35);
             else if (def.isNav)
