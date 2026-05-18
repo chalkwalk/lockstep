@@ -400,6 +400,7 @@ namespace lockstep
 
             case ControllerButton::TrackScope:
                 uiState_.trackHeld = true;
+                processor_.setControlAllActive(true);  // MD.10: active until a track is selected
                 editMode_.onScopeEvent(ev);
                 repaint();
                 return true;
@@ -472,6 +473,7 @@ namespace lockstep
 
             case ControllerButton::SelectTrack:
                 stepGrid_.setActiveTrack(ev.index);
+                processor_.setControlAllActive(false);  // specific track chosen; disable control-all
                 return true;
 
             case ControllerButton::NavUp:
@@ -654,6 +656,7 @@ namespace lockstep
             && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('Q')))
         {
             uiState_.trackHeld = false;
+            processor_.setControlAllActive(false);  // MD.10
             editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::TrackScope });
             repaint();
             handled = true;

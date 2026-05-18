@@ -835,6 +835,39 @@ namespace lockstep
                 value = 0.0f;
         }
 
+        // MD.10 Control-All: when active and no step is held on the source track,
+        // broadcast to every track whose schema has the same slot id.
+        if (controlAllActive_
+            && !(editContext_.isActiveForEditing()
+                 && editContext_.heldTrackIndex() == track))
+        {
+            const juce::String srcId = idForSlot(track, slot);
+            if (srcId.isEmpty()) return;
+            for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+            {
+                const int dstSlot = slotForId(t, srcId);
+                if (dstSlot < 0) continue;
+                const auto ti = static_cast<std::size_t>(t);
+                if (editContext_.isActiveForEditing()
+                    && editContext_.heldTrackIndex() == t)
+                {
+                    const int step = editContext_.heldStepIndex();
+                    if (step >= 0 && step < kMaxStepsPerTrack)
+                    {
+                        sequence().tracks[ti].steps[static_cast<std::size_t>(step)]
+                            .overrides.set(dstSlot, value);
+                        editContext_.markParamWritten();
+                    }
+                }
+                else
+                {
+                    sequence().tracks[ti].baseParams[static_cast<std::size_t>(dstSlot)] = value;
+                    activePart().tracks[ti].baseParams[static_cast<std::size_t>(dstSlot)] = value;
+                }
+            }
+            return;
+        }
+
         const auto ti = static_cast<std::size_t>(track);
 
         if (editContext_.isActiveForEditing()
