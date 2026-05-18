@@ -64,6 +64,10 @@ namespace lockstep
         virtual int         numSections()        const { return 0; }
         virtual SectionInfo section(int /*index*/) const { return {}; }
 
+        // Stable string ID used for serialization and factory dispatch.
+        // Format: "lockstep.<engine>.<version>", e.g. "lockstep.sampler.v1".
+        [[nodiscard]] virtual const char* machineId() const = 0;
+
         // Voice topology hint. 1 = monophonic with sequencer-managed choke,
         // n>1 = self-managed polyphony, 0 = unbounded / MIDI-out.
         virtual int maxVoices() const { return 1; }
