@@ -5,6 +5,7 @@
 #include "core/StateResolver.h"
 #include "core/TrigEvaluator.h"
 #include "machine/SamplerMachine.h"
+#include "machine/StubMachine.h"
 #include "state/PluginState.h"
 #include <algorithm>
 #include <cmath>
@@ -1040,6 +1041,17 @@ namespace lockstep
         return new LockstepEditor(*this);
     }
 
+    // Install machines whose IDs match the active Part's PartTrack machineIds.
+    // Called from setStateInformation (sequencer is stopped during state load).
+    // Unsupported IDs receive a silent StubMachine that preserves data.
+    static std::unique_ptr<IMachine> makeMachineForId(const std::string& id,
+                                                       SamplePool& pool)
+    {
+        if (id == SamplerMachine::kMachineId || id.empty())
+            return std::make_unique<SamplerMachine>(pool);
+        return std::make_unique<StubMachine>(id);
+    }
+
     void LockstepProcessor::getStateInformation(juce::MemoryBlock& dest)
     {
         PluginState::writeTo(dest, *this);
@@ -1048,6 +1060,18 @@ namespace lockstep
     void LockstepProcessor::setStateInformation(const void* data, int sizeInBytes)
     {
         PluginState::readFrom(data, sizeInBytes, *this);
+
+        // Reinstall machines from the active Part's stored machineIds so that
+        // any Part loaded from disk with an unknown machine ID gets StubMachine.
+        const auto& part = activePart();
+        for (std::size_t t = 0; t < kNumTracks; ++t)
+        {
+            const auto& mid = part.tracks[t].machineId;
+            if (machines_[t] && machines_[t]->machineId() == mid) continue;
+            machines_[t] = makeMachineForId(mid, samplePool_);
+            if (getSampleRate() > 0.0)
+                machines_[t]->prepare(getSampleRate(), getBlockSize());
+        }
     }
 }
 

@@ -7,8 +7,8 @@ milestone changes, update **Active focus** below.
 
 For architecture see `DESIGN.md`.
 
-**Active focus:** MC — Project/Bank/Pattern/Part hierarchy.
-**Last completed:** MB — UI/Input rethink (scope-and-verb grammar). All MB.1–MB.8 complete.
+**Active focus:** MD — Performance modifier cluster.
+**Last completed:** MC — Project/Bank/Pattern/Part hierarchy. All MC.1–MC.7 complete.
 
 After M8 the roadmap pivots from "core sequencer is usable" to
 "performance instrument is usable" — see new milestones MB–MH below.
@@ -396,7 +396,7 @@ otherwise need to be rewritten as each feature was added.
 - [x] **MB.8** Documentation pass: update DESIGN §13 verb/scope tables
       with the final chosen keys; update CLAUDE.md glossary.
 
-### MC — Project / Bank / Pattern / Part hierarchy + v1 state  [pending]
+### MC — Project / Bank / Pattern / Part hierarchy + v1 state  [complete]
 
 Foundational for almost every later feature. Lifts the current
 single-pattern model into the Octatrack-style hierarchy described in
@@ -431,9 +431,12 @@ DESIGN.md §4.7.
       Chain self-advances via callAsync each time a queued switch fires.
       Interruptible by a new PatternScope + step (clears chain).
       CHN:N (loop) / CHN1:N (single-shot) chrome badge.
-- [ ] **MC.7** Unknown-machine fallback on load: an unknown machine id
-      in a Part resolves to a silent stub that preserves base params
-      and trigs, with a relink/replace dialog offered.
+- [x] **MC.7** Unknown-machine fallback on load: unknown machine IDs in
+      a Part resolve to StubMachine (silent, numParams=0, data preserved).
+      setStateInformation reinstalls machines from the active Part's
+      machineIds, falling back to StubMachine for unrecognised IDs.
+      Relink/replace dialog is a stub (offered at ME when machine
+      catalogue expands).
 
 ### MD — Performance modifier cluster  [pending]
 
