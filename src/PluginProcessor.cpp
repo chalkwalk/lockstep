@@ -681,6 +681,16 @@ namespace lockstep
             .steps[static_cast<std::size_t>(step)].overrides.clear(slot);
     }
 
+    void LockstepProcessor::clearStepLocks(int track, int step)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        if (step  < 0 || step  >= kMaxStepsPerTrack)            return;
+        auto& s = sequence_.tracks[static_cast<std::size_t>(track)]
+                      .steps[static_cast<std::size_t>(step)];
+        s.overrides   = PLock{};
+        s.trigOverride = TrigOverride{};
+    }
+
     int LockstepProcessor::numParams(int track) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks))

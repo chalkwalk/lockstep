@@ -4,6 +4,7 @@
 #include <memory>
 
 #include "PluginProcessor.h"
+#include "io/ClipboardType.h"
 #include "io/ControllerEvent.h"
 #include "io/EditMode.h"
 #include "io/QwertyOverlay.h"
@@ -54,7 +55,9 @@ namespace lockstep
         QwertyOverlay qwerty_;
         EditMode      editMode_;
         UiState uiState_;
-        int heldStepKey_ = -1;
+        int           heldStepKey_    = -1;
+        ClipboardType clipboardType_  = ClipboardType::None;
+        int           checkpointDepth_ = 0;  // stub: real stack in MD
         juce::Component* keyListenerTarget_ = nullptr;
 
         juce::MidiKeyboardState keyboardState_;
@@ -87,6 +90,10 @@ namespace lockstep
         bool isDraggingFiles_ = false;
 
         void updateTransportGhosting();
+
+        // Verb dispatch: called from the EditMode onVerbDispatched callback with the
+        // resolved primary scope and the pressed verb key.
+        void dispatchVerb(EditMode::PrimaryScope scope, ControllerButton verb);
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LockstepEditor)
     };

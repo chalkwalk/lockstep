@@ -139,9 +139,12 @@ namespace lockstep
             poolOverlay_.toFront(false);
         };
 
-        // Wire verb dispatch callback (real handlers land in MB.3 and later milestones).
-        editMode_.onVerbDispatched = [](EditMode::PrimaryScope /*scope*/,
-                                        ControllerButton /*verb*/) {};
+        // Wire verb dispatch to this editor's handler.
+        editMode_.onVerbDispatched = [this](EditMode::PrimaryScope scope,
+                                             ControllerButton verb)
+        {
+            dispatchVerb(scope, verb);
+        };
 
         setSize(880, 480);
         setWantsKeyboardFocus(true);
@@ -343,14 +346,8 @@ namespace lockstep
                 return true;
 
             case ControllerButton::VerbStop:
-            {
-                const auto& ctx = processor_.editContext();
-                if (ctx.isActiveForEditing() && ctx.activeSlot() >= 0)
-                    processor_.clearParam(ctx.heldTrackIndex(),
-                                          ctx.heldStepIndex(),
-                                          ctx.activeSlot());
+                editMode_.onVerb(ev.button);
                 return true;
-            }
 
             case ControllerButton::RecordArm:
                 processor_.clock().setRecordArmed(!processor_.clock().isRecordArmed());
@@ -513,5 +510,101 @@ namespace lockstep
         manipulationZone_.setBounds(bounds.reduced(8, 4));
         poolOverlay_.setBounds(manipulationZone_.getBounds()
             .withBottom(stepGrid_.getBounds().getY()));
+    }
+
+    // -------------------------------------------------------------------------
+    // Verb dispatch (MB.3)
+
+    void LockstepEditor::dispatchVerb(EditMode::PrimaryScope scope, ControllerButton verb)
+    {
+        using PS = EditMode::PrimaryScope;
+        using CB = ControllerButton;
+
+        switch (scope)
+        {
+            case PS::Trig:
+            {
+                const auto& ctx = processor_.editContext();
+                if (!ctx.isActiveForEditing()) break;
+                const int track = ctx.heldTrackIndex();
+                const int step  = ctx.heldStepIndex();
+
+                if (verb == CB::VerbStop)
+                {
+                    // Clear all P-Locks and trig overrides on the held step.
+                    processor_.clearStepLocks(track, step);
+                }
+                else if (verb == CB::VerbRecord)
+                {
+                    // Stub: copy step into clipboard (MD implements full copy).
+                    clipboardType_ = ClipboardType::Step;
+                }
+                else if (verb == CB::VerbPlay)
+                {
+                    // Stub: paste clipboard onto step (MD implements full paste).
+                }
+                break;
+            }
+
+            case PS::Track:
+            {
+                if (verb == CB::VerbRecord)      { clipboardType_ = ClipboardType::Track; }
+                else if (verb == CB::VerbPlay)   { /* stub: paste track */ }
+                else if (verb == CB::VerbStop)   { /* stub: clear track */ }
+                break;
+            }
+
+            case PS::Pattern:
+            {
+                if (verb == CB::VerbRecord)      { clipboardType_ = ClipboardType::Pattern; }
+                else if (verb == CB::VerbPlay)   { /* stub: paste pattern */ }
+                else if (verb == CB::VerbStop)   { /* stub: clear pattern */ }
+                break;
+            }
+
+            case PS::Section:
+            {
+                if (verb == CB::VerbRecord)      { clipboardType_ = ClipboardType::Section; }
+                else if (verb == CB::VerbPlay)   { /* stub: paste section */ }
+                else if (verb == CB::VerbStop)   { /* stub: clear section */ }
+                break;
+            }
+
+            case PS::Func:
+            {
+                // Func + Yes/No = checkpoint push/pop (MD implements real stack).
+                if (verb == CB::Yes)
+                {
+                    checkpointDepth_ = std::min(checkpointDepth_ + 1, 8);
+                }
+                else if (verb == CB::No)
+                {
+                    checkpointDepth_ = std::max(checkpointDepth_ - 1, 0);
+                }
+                break;
+            }
+
+            case PS::Mute:
+            case PS::Fill:
+                // Verb with mute/fill scope reserved for MD.
+                break;
+
+            case PS::None:
+            {
+                // VerbStop with no scope: clear the active-slot P-Lock (legacy behaviour).
+                if (verb == CB::VerbStop)
+                {
+                    const auto& ctx = processor_.editContext();
+                    if (ctx.isActiveForEditing() && ctx.activeSlot() >= 0)
+                        processor_.clearParam(ctx.heldTrackIndex(),
+                                              ctx.heldStepIndex(),
+                                              ctx.activeSlot());
+                }
+                break;
+            }
+
+            default:
+                break;
+        }
     }
 }

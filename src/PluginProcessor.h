@@ -93,6 +93,9 @@ namespace lockstep
         // Remove the P-Lock override for one slot on a specific step.
         void clearParam(int track, int step, int slot);
 
+        // Remove all P-Lock overrides and trig overrides for a step.
+        void clearStepLocks(int track, int step);
+
         // Trigger a one-shot preview of the sample at poolIndex on the given track.
         // Safe to call from the message thread; the audio thread consumes the request
         // on the next processBlock call and injects a note-on + scheduled note-off.
