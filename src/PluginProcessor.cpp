@@ -566,7 +566,8 @@ namespace lockstep
             // trackMidi already contains note events routed from external MIDI.
             for (std::size_t i = 0; i < kNumTracks; ++i)
             {
-                const bool muted  = trackMuteParams_[i]->load() >= 0.5f;
+                const bool muted  = (trackMuteParams_[i]->load() >= 0.5f)
+                                   || activePattern().patternMutes[i];
                 const bool soloed = trackSoloParams_[i]->load() >= 0.5f;
                 if (muted || (anySoloed && !soloed)) continue;
                 // Resolve against the held step so P-Locks written by the note-on
@@ -687,7 +688,10 @@ namespace lockstep
 
             const int trackLen = static_cast<int>(trackLengthParams_[i]->load());
             const int trackDiv = static_cast<int>(trackDividerParams_[i]->load());
-            const bool muted   = trackMuteParams_[i]->load() >= 0.5f;
+            // MD.6/MD.7: combined mute = global (APVTS) || pattern mute.
+            const bool globalMuted  = trackMuteParams_[i]->load() >= 0.5f;
+            const bool patternMuted = activePattern().patternMutes[i];
+            const bool muted   = globalMuted || patternMuted;
             const bool soloed  = trackSoloParams_[i]->load() >= 0.5f;
             const bool silent  = muted || (anySoloed && !soloed);
 
@@ -859,6 +863,45 @@ namespace lockstep
         if (slot  < 0 || slot  >= numParams(track))              return;
         sequence().tracks[static_cast<std::size_t>(track)]
             .steps[static_cast<std::size_t>(step)].overrides.clear(slot);
+    }
+
+    // -------------------------------------------------------------------------
+    // MD.6/MD.7: Mute helpers
+
+    bool LockstepProcessor::getGlobalMute(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
+        const auto* p = trackMuteParams_[static_cast<std::size_t>(track)];
+        return p && p->load() >= 0.5f;
+    }
+
+    void LockstepProcessor::setGlobalMute(int track, bool muted)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        if (auto* p = apvts_.getParameter(ParamIDs::trackMute(track)))
+            p->setValueNotifyingHost(muted ? 1.0f : 0.0f);
+    }
+
+    void LockstepProcessor::toggleGlobalMute(int track)
+    {
+        setGlobalMute(track, !getGlobalMute(track));
+    }
+
+    bool LockstepProcessor::getPatternMute(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
+        return activePattern().patternMutes[static_cast<std::size_t>(track)];
+    }
+
+    void LockstepProcessor::setPatternMute(int track, bool muted)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        activePattern().patternMutes[static_cast<std::size_t>(track)] = muted;
+    }
+
+    void LockstepProcessor::togglePatternMute(int track)
+    {
+        setPatternMute(track, !getPatternMute(track));
     }
 
     void LockstepProcessor::clearStepLocks(int track, int step)

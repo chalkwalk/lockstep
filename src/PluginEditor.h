@@ -67,6 +67,10 @@ namespace lockstep
 
         ClipboardType clipboardType_  = ClipboardType::None;
         int           checkpointDepth_ = 0;  // stub: real stack in MD
+
+        // MD.7/MD.8: deferred pattern mute track indices — collected while Func
+        // is held inside mute mode; applied atomically on Func release.
+        std::vector<int> deferredPatternMutes_;
         juce::Component* keyListenerTarget_ = nullptr;
 
         juce::MidiKeyboardState keyboardState_;

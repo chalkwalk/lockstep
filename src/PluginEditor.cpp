@@ -576,9 +576,27 @@ namespace lockstep
                 return true;
             }
 
-            // Mute toggle (Mute+step) — reserved for MD.
+            // MD.6/MD.7: Mute toggle.
+            // A+step (no Func) → immediate global mute toggle.
+            // Func+A+step → deferred pattern mute (applied atomically on Func release).
             case ControllerButton::ToggleMute:
+            {
+                const int trackIdx = ev.index;
+                if (trackIdx < 0 || trackIdx >= static_cast<int>(kNumTracks))
+                    return true;
+                if (uiState_.funcHeld)
+                {
+                    // Deferred pattern mute (MD.7 + MD.8).
+                    deferredPatternMutes_.push_back(trackIdx);
+                }
+                else
+                {
+                    // Immediate global mute (MD.6).
+                    processor_.toggleGlobalMute(trackIdx);
+                }
+                repaint();
                 return true;
+            }
 
             case ControllerButton::MetronomeToggle:
                 processor_.clock().setMetronomeEnabled(!processor_.clock().isMetronomeEnabled());
@@ -607,6 +625,11 @@ namespace lockstep
         if (!isKeyDown && uiState_.funcHeld
             && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('1')))
         {
+            // MD.7/MD.8: apply deferred pattern mute toggles atomically.
+            for (const int t : deferredPatternMutes_)
+                processor_.togglePatternMute(t);
+            deferredPatternMutes_.clear();
+
             uiState_.funcHeld = false;
             editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::Func });
             sectionBar_.repaint();

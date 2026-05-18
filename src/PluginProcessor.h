@@ -126,6 +126,17 @@ namespace lockstep
         void setFillActive(bool v) { fillActive_.store(v, std::memory_order_relaxed); }
         bool fillActive()    const { return fillActive_.load(std::memory_order_relaxed); }
 
+        // MD.6: Global mutes — per-track, live in the APVTS (trackMute params).
+        // getGlobalMute reads the APVTS param; setGlobalMute writes through APVTS.
+        bool getGlobalMute(int track) const;
+        void setGlobalMute(int track, bool muted);
+        void toggleGlobalMute(int track);
+
+        // MD.7: Pattern mutes — per-track, live in the active Pattern.
+        bool getPatternMute(int track) const;
+        void setPatternMute(int track, bool muted);
+        void togglePatternMute(int track);
+
         // Called from ManipulationZone (UI thread) when its slot offset changes.
         // Records which absolute slot each of the 4 display positions currently shows.
         void setMZSlots(int slotOffset);

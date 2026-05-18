@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include "Sequence.h"
 
 namespace lockstep
@@ -14,5 +15,9 @@ namespace lockstep
     {
         Sequence sequence{};  // per-track steps, conditions, trig defaults
         int      partRef = 0; // index into Bank::parts
+
+        // MD.7: Pattern-scope mute mask. Per-track. Saved with the pattern.
+        // Runtime mute = globalMute[i] || patternMutes[i].
+        std::array<bool, kNumTracks> patternMutes{};
     };
 }

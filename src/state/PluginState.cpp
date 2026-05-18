@@ -112,6 +112,14 @@ namespace lockstep::PluginState
                 patNode.setProperty("i",       pi,              nullptr);
                 patNode.setProperty("partRef", pattern.partRef, nullptr);
 
+                // MD.7: pattern mute mask — serialize as a bitfield.
+                int muteMask = 0;
+                for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+                    if (pattern.patternMutes[static_cast<std::size_t>(t)])
+                        muteMask |= (1 << t);
+                if (muteMask != 0)
+                    patNode.setProperty("pmutes", muteMask, nullptr);
+
                 bool patHasContent = false;
                 for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
                 {
@@ -380,6 +388,14 @@ namespace lockstep::PluginState
                     pattern.partRef = std::clamp(
                         static_cast<int>(child.getProperty("partRef", 0)),
                         0, static_cast<int>(kPartsPerBank) - 1);
+
+                    // MD.7: restore pattern mute mask from bitfield.
+                    {
+                        const int pmutes = static_cast<int>(child.getProperty("pmutes", 0));
+                        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+                            pattern.patternMutes[static_cast<std::size_t>(t)] =
+                                ((pmutes >> t) & 1) != 0;
+                    }
 
                     for (auto trackNode : child)
                     {
