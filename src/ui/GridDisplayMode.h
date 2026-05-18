@@ -17,12 +17,20 @@ namespace lockstep
     //
     // Row stagger (in half-units):  number=0, Q=1, A=2, Z=3
     // Key width = 2 half-units
-    // Total span = 3 (max stagger) + 8×2 (key columns) = 19 half-units
+    // Total span = 3 (max stagger) + 9×2 (key columns) = 21 half-units
     //
     // Visually: Q left-edge sits halfway between keys 1 and 2,
-    //           Z left-edge sits between Q and W (one key right of Q),
     //           A left-edge sits halfway between Q and Z.
-    inline constexpr int kStaggerHalfUnits = 19;
+    //           Z left-edge sits one key right of Q.
+    inline constexpr int kStaggerHalfUnits = 21;
+
+    // Clean-mode geometry: horizontal gap between the modifier column (col 0)
+    // and the remaining columns, applied in all four rows.
+    inline constexpr int kClnColGap = 6;
+
+    // Clean-mode geometry: vertical gap between the upper pair of rows (1-2,
+    // SectionBar + FunctionBar) and the lower pair (3-4, StepGrid).
+    inline constexpr int kClnRowGap = 6;
 
     // Half-unit size in pixels for a component of the given width.
     inline int staggerHalfUnit(int componentWidth) noexcept

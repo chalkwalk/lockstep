@@ -14,8 +14,10 @@ namespace lockstep
             bool        isNav;      // nav key (different base colour)
         };
 
-        // W E R T Y U I O  (8 keys in function row of 9x4 layout)
+        // Q W E R T Y U I O  (9 keys in function row of 9x4 layout)
+        // Q is the TrackScope modifier (left column); W-O are function keys.
         constexpr std::array<QKeyDef, FunctionBar::kNumKeys> kDefs = {{
+            { 'Q', "Q", "TRK", "",    false },  // TrackScope modifier
             { 'W', "W", "<",   "",    true  },  // NavLeft
             { 'E', "E", "v",   "",    true  },  // NavDown
             { 'R', "R", ">",   "",    true  },  // NavRight
@@ -52,6 +54,11 @@ namespace lockstep
             cellW   = staggerCellW(hu);
             leftPad = staggerOffsetQ(hu);
         }
+        else if (mode_ == GridDisplayMode::Clean)
+        {
+            cellW   = (getWidth() - kClnColGap) / kNumKeys;
+            leftPad = 0;
+        }
         else
         {
             cellW   = getWidth() / kNumKeys;
@@ -63,8 +70,15 @@ namespace lockstep
 
         for (int i = 0; i < kNumKeys; ++i)
         {
-            const auto& def  = kDefs[static_cast<std::size_t>(i)];
-            const int   x    = leftPad + i * cellW;
+            const auto& def = kDefs[static_cast<std::size_t>(i)];
+
+            // In CLN mode: key 0 (Q) is at leftPad + 0, keys 1+ have an extra gap.
+            int x;
+            if (mode_ == GridDisplayMode::Clean && i >= 1)
+                x = leftPad + cellW + kClnColGap + (i - 1) * cellW;
+            else
+                x = leftPad + i * cellW;
+
             const auto  cell = juce::Rectangle<int>(x, 0, cellW, h).reduced(2, 2);
 
             const bool isPressed  = juce::KeyPress::isKeyCurrentlyDown(def.keyCode);
@@ -74,13 +88,19 @@ namespace lockstep
                                    || (def.keyCode == 'U' && gridMode == TrigGridMode::Retrig)
                                    || (def.keyCode == 'I' && gridMode == TrigGridMode::SoundPool);
 
+            const bool isTrackMod = (def.keyCode == 'Q') && uiState_.trackHeld;
+
             juce::Colour bg;
             if (isPressed)
                 bg = juce::Colour::fromRGB(80, 120, 165);
+            else if (isTrackMod)
+                bg = juce::Colour::fromRGB(30, 80, 60);   // teal tint when Track held
             else if (isModeActive)
                 bg = juce::Colour::fromRGB(90, 55, 30);   // amber tint for active mode
             else if (isRecArmed)
                 bg = juce::Colour::fromRGB(90, 35, 35);
+            else if (def.keyCode == 'Q')
+                bg = juce::Colour::fromRGB(28, 38, 50);   // modifier: slightly different dark
             else if (def.isNav)
                 bg = juce::Colour::fromRGB(30, 50, 70);
             else

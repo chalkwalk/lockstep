@@ -18,8 +18,15 @@ namespace lockstep
 
     juce::Rectangle<int> SectionBar::cellBounds(int cellIndex) const
     {
-        const int w     = getWidth();
-        const int h     = getHeight();
+        const int w = getWidth();
+        const int h = getHeight();
+        if (displayMode_ == GridDisplayMode::Clean)
+        {
+            const int cellW = (w - kClnColGap) / kTotalCells;
+            const int x = (cellIndex == 0) ? 0
+                          : cellW + kClnColGap + (cellIndex - 1) * cellW;
+            return { x, 0, cellW, h };
+        }
         const int cellW = (displayMode_ == GridDisplayMode::Staggered)
                               ? staggerCellW(staggerHalfUnit(w))
                               : w / kTotalCells;
@@ -28,7 +35,9 @@ namespace lockstep
 
     int SectionBar::cellToSection(int cellIndex)
     {
-        if (cellIndex < kFixedCells) return -1;
+        // Fixed cells at start (0, 1) and tail (last cell) return -1.
+        if (cellIndex < kFixedCells || cellIndex >= kTotalCells - kTailCells)
+            return -1;
         return cellIndex - kFixedCells;
     }
 
@@ -155,16 +164,31 @@ namespace lockstep
 
         paintFixedCell(g, cellBounds(0), "FNC", uiState_.funcHeld);
         paintFixedCell(g, cellBounds(1), juce::String::charToString(0x25B2),
-                       juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('2'))); // ▲
+                       juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('2'))); // NavUp
 
         for (int s = 0; s < IMachine::kMaxSections; ++s)
             paintSectionCell(g, cellBounds(kFixedCells + s), s, activeTrack);
 
-        // Key-number annotations (1–8) in STG and ORL modes.
+        // PlayStop cell (key 9, last cell).
+        {
+            const bool isPlaying = processor_.clock().inPluginPlaying();
+            const bool keyDown   = juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('9'));
+            const auto r = cellBounds(kTotalCells - 1);
+            g.setColour(keyDown   ? juce::Colour::fromRGB(80, 120, 165)
+                       : isPlaying ? juce::Colour::fromRGB(30, 90, 40)
+                                   : juce::Colour::fromRGB(40, 50, 60));
+            g.fillRect(r.reduced(2, 2));
+            g.setColour(isPlaying ? juce::Colour::fromRGB(80, 200, 100)
+                                  : juce::Colour::fromRGB(100, 120, 140));
+            g.setFont(juce::Font(juce::FontOptions(10.0f)));
+            g.drawText(isPlaying ? "STP" : "PLY", r, juce::Justification::centred);
+        }
+
+        // Key-number annotations (1–9) in STG and ORL modes.
         if (displayMode_ != GridDisplayMode::Clean)
         {
             static constexpr const char* kKeyLabels[kTotalCells] = {
-                "1", "2", "3", "4", "5", "6", "7", "8"
+                "1", "2", "3", "4", "5", "6", "7", "8", "9"
             };
             g.setFont(juce::Font(juce::FontOptions(8.0f)));
             g.setColour(juce::Colour::fromRGB(75, 92, 108));
@@ -181,11 +205,18 @@ namespace lockstep
 
     void SectionBar::mouseDown(const juce::MouseEvent& e)
     {
-        const int cellW = (displayMode_ == GridDisplayMode::Staggered)
-                              ? staggerCellW(staggerHalfUnit(getWidth()))
-                              : getWidth() / kTotalCells;
-        const int cellIndex = e.x / cellW;
-        const int section = cellToSection(cellIndex);
+        // Hit-test: find which cell was clicked.
+        // In CLN mode the gap shifts cells 1+ rightward, so check all cells.
+        int cellIndex = -1;
+        for (int i = 0; i < kTotalCells; ++i)
+        {
+            if (cellBounds(i).contains(e.getPosition()))
+            {
+                cellIndex = i;
+                break;
+            }
+        }
+        const int section = (cellIndex >= 0) ? cellToSection(cellIndex) : -1;
         if (section < 0)
             return;
 

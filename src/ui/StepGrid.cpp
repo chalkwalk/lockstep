@@ -183,12 +183,19 @@ namespace lockstep
 
         const auto preview = computePagePreview(track, trackLen, loopBase, baseStep);
 
+        // Corrected key letters: A and Z are modifier keys, not step keys.
         static constexpr const char* kKeyLetters[kPageSteps] = {
-            "A","S","D","F","G","H","J","K",
-            "Z","X","C","V","B","N","M",","
+            "S","D","F","G","H","J","K","L",
+            "X","C","V","B","N","M",",","."
         };
 
-        const bool showKeyLetters = (displayMode_ != GridDisplayMode::Clean);
+        // 9-column grid: col 0 = modifier (A/Z), cols 1..8 = steps.
+        static constexpr int kTotalGridCols = kCols + 1;
+
+        const bool showKeyLetters  = (displayMode_ != GridDisplayMode::Clean);
+        const bool useClnGap       = (displayMode_ == GridDisplayMode::Clean);
+
+        // Geometry — shared modifier and step cell width in all modes.
         int cellW, staggerA, staggerZ;
         if (displayMode_ == GridDisplayMode::Staggered)
         {
@@ -197,18 +204,66 @@ namespace lockstep
             staggerA = staggerOffsetA(hu);
             staggerZ = staggerOffsetZ(hu);
         }
-        else
+        else if (useClnGap)
         {
-            cellW    = cellArea.getWidth() / kCols;
+            cellW    = (cellArea.getWidth() - kClnColGap) / kTotalGridCols;
+            staggerA = 0;
+            staggerZ = 0;
+        }
+        else  // Ortholinear
+        {
+            cellW    = cellArea.getWidth() / kTotalGridCols;
             staggerA = 0;
             staggerZ = 0;
         }
         const int cellH = cellArea.getHeight() / kRows;
 
+        // Returns the x-position for a column (0 = modifier, 1..8 = steps) in a given row.
+        auto colX = [&](int row, int col) -> int
+        {
+            const int stagger = (row == 0) ? staggerA : staggerZ;
+            if (useClnGap && col >= 1)
+                return cellArea.getX() + stagger + cellW + kClnColGap + (col - 1) * cellW;
+            return cellArea.getX() + stagger + col * cellW;
+        };
+
+        // ---- Modifier column (A = MuteScope, Z = FillScope) ----
         for (int row = 0; row < kRows; ++row)
         {
-            const int rowStagger = (row == 0) ? staggerA : staggerZ;
+            const int x = colX(row, 0);
+            const int y = cellArea.getY() + row * cellH;
+            const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
+            const bool isModHeld = (row == 0) ? uiState_.muteHeld : uiState_.fillHeld;
+            const bool modKeyDown = juce::KeyPress::isKeyCurrentlyDown(
+                (row == 0) ? static_cast<int>('A') : static_cast<int>('Z'));
+
+            g.setColour(modKeyDown ? juce::Colour::fromRGB(80, 120, 165)
+                        : isModHeld ? (row == 0 ? juce::Colour(0xFF702020u)
+                                                : juce::Colour(0xFF502870u))
+                                    : juce::Colour::fromRGB(25, 32, 42));
+            g.fillRoundedRectangle(cell.toFloat(), 3.0f);
+            g.setColour(juce::Colour::fromRGB(48, 58, 70));
+            g.drawRoundedRectangle(cell.toFloat(), 3.0f, 1.0f);
+
+            if (showKeyLetters)
+            {
+                g.setFont(juce::Font(juce::FontOptions(8.0f)));
+                g.setColour(juce::Colour::fromRGB(65, 80, 95));
+                g.drawText((row == 0) ? "A" : "Z",
+                           cell.withHeight(10).reduced(2, 0),
+                           juce::Justification::topLeft);
+            }
+            const juce::Colour labelColour = isModHeld ? juce::Colours::white
+                                                       : juce::Colour::fromRGB(80, 100, 120);
+            g.setFont(juce::Font(juce::FontOptions(10.0f)));
+            g.setColour(labelColour);
+            g.drawText((row == 0) ? "MUT" : "FIL", cell, juce::Justification::centred);
+        }
+
+        // ---- Step cells (S..L in row 0, X..period in row 1) ----
+        for (int row = 0; row < kRows; ++row)
+        {
             for (int col = 0; col < kCols; ++col)
             {
                 const int localIdx = row * kCols + col;
@@ -228,7 +283,8 @@ namespace lockstep
                     && track.steps[static_cast<std::size_t>(absIdx)].overrides.has(activeSlot);
                 const bool isHead  = (absIdx == playheadAbs);
 
-                const int x = cellArea.getX() + rowStagger + col * cellW;
+                // col+1 because col 0 is the modifier.
+                const int x = colX(row, col + 1);
                 const int y = cellArea.getY() + row * cellH;
                 const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
@@ -251,8 +307,7 @@ namespace lockstep
                     g.drawRoundedRectangle(cell.toFloat(), 3.0f, 1.0f);
                 }
 
-                // Layer 2: conditional trig — semi-transparent dark overlay,
-                // fades out as probability approaches 1.
+                // Layer 2: conditional trig overlay.
                 if (inRange && hasTrig)
                 {
                     const float prob = preview[static_cast<std::size_t>(localIdx)];
@@ -263,14 +318,14 @@ namespace lockstep
                     }
                 }
 
-                // Layer 3: playhead — pale yellow tint composited over whatever is below.
+                // Layer 3: playhead tint.
                 if (isHead)
                 {
                     g.setColour(kColPlayhead.withAlpha(0.45f));
                     g.fillRoundedRectangle(cell.toFloat(), 3.0f);
                 }
 
-                // P-Lock dot — teal square in top-right corner (generic).
+                // P-Lock dot.
                 if (hasLock)
                 {
                     g.setColour(kColPLock);
@@ -278,22 +333,19 @@ namespace lockstep
                                                     cell.getY() + 2, 4, 4));
                 }
 
-                // Active-slot P-Lock border — teal outline when this step is
-                // locked to the currently-touched parameter.
                 if (hasActiveLock)
                 {
                     g.setColour(kColPLock);
                     g.drawRoundedRectangle(cell.toFloat(), 3.0f, 2.0f);
                 }
 
-                // Held-step border — drawn on top of everything else.
                 if (isHeld)
                 {
                     g.setColour(kColHeld);
                     g.drawRoundedRectangle(cell.toFloat(), 3.0f, 2.0f);
                 }
 
-                // Key letter — top-left corner, omitted in CLN mode.
+                // Key letter.
                 if (showKeyLetters && inRange)
                 {
                     g.setFont(juce::Font(juce::FontOptions(8.0f)));
@@ -303,18 +355,13 @@ namespace lockstep
                                juce::Justification::topLeft);
                 }
 
-                // Row 0 cells have a secondary function: Shift+key selects track.
+                // Row 0: step number + track-select label (Track-scope Func layer).
                 const bool hasTrackSelect = inRange && (row == 0);
                 const bool shiftHeld = uiState_.funcHeld;
 
-                // Split row-0 cells: step number in upper portion, track label in lower.
-                // Row-1 cells use the full cell for the step number.
                 static constexpr int kTrackLabelH = 11;
-                const auto stepNumArea = (hasTrackSelect)
-                    ? cell.withTrimmedBottom(kTrackLabelH)
-                    : cell;
+                const auto stepNumArea = hasTrackSelect ? cell.withTrimmedBottom(kTrackLabelH) : cell;
 
-                // Step number — dimmed when shift is held on a track-select cell.
                 const float stepNumAlpha = (hasTrackSelect && shiftHeld) ? 0.35f : 1.0f;
                 g.setColour((inRange ? juce::Colour::fromRGB(110, 130, 150)
                                      : juce::Colour::fromRGB(40, 46, 54))
@@ -322,7 +369,6 @@ namespace lockstep
                 g.setFont(juce::Font(juce::FontOptions(9.0f)));
                 g.drawText(juce::String(absIdx + 1), stepNumArea, juce::Justification::centred);
 
-                // Track-select label — always visible; bright when shift held.
                 if (hasTrackSelect)
                 {
                     static constexpr const char* kTrackLabels[kCols] = {
@@ -387,6 +433,9 @@ namespace lockstep
         if (!cellArea.contains(pos))
             return -1;
 
+        static constexpr int kTotalGridCols = kCols + 1;
+        const bool useClnGap = (displayMode_ == GridDisplayMode::Clean);
+
         int cellW, staggerA, staggerZ;
         if (displayMode_ == GridDisplayMode::Staggered)
         {
@@ -395,9 +444,15 @@ namespace lockstep
             staggerA = staggerOffsetA(hu);
             staggerZ = staggerOffsetZ(hu);
         }
+        else if (useClnGap)
+        {
+            cellW    = (cellArea.getWidth() - kClnColGap) / kTotalGridCols;
+            staggerA = 0;
+            staggerZ = 0;
+        }
         else
         {
-            cellW    = cellArea.getWidth() / kCols;
+            cellW    = cellArea.getWidth() / kTotalGridCols;
             staggerA = 0;
             staggerZ = 0;
         }
@@ -410,12 +465,27 @@ namespace lockstep
             return -1;
 
         const int rowStagger = (row == 0) ? staggerA : staggerZ;
+        const int relX = pos.getX() - cellArea.getX() - rowStagger;
 
-        const int col = (pos.getX() - cellArea.getX() - rowStagger) / cellW;
-        if (col < 0 || col >= kCols)
+        int col;
+        if (useClnGap)
+        {
+            if (relX < 0)              return -1;
+            if (relX < cellW)          col = 0;  // modifier column
+            else if (relX < cellW + kClnColGap) return -1;  // in the gap
+            else                       col = 1 + (relX - cellW - kClnColGap) / cellW;
+        }
+        else
+        {
+            col = relX / cellW;
+        }
+
+        // col 0 = modifier (A/Z); not a step cell.
+        if (col <= 0 || col >= kTotalGridCols)
             return -1;
 
-        const int absIdx = stepPage_ * kPageSteps + row * kCols + col;
+        const int stepCol = col - 1;
+        const int absIdx  = stepPage_ * kPageSteps + row * kCols + stepCol;
         return absIdx < trackLength() ? absIdx : -1;
     }
 

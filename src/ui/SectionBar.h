@@ -43,13 +43,16 @@ namespace lockstep
         std::function<void(int)> onMetaSectionChanged;
 
     private:
-        static constexpr int kFixedCells  = 2;   // SHIFT + NAV
-        static constexpr int kTotalCells  = kFixedCells + IMachine::kMaxSections;
+        // Fixed cells: 0=FNC(1), 1=NavUp(2); trailing: 8=PlayStop(9).
+        static constexpr int kFixedCells  = 2;
+        static constexpr int kTailCells   = 1;   // PlayStop
+        static constexpr int kTotalCells  = kFixedCells + IMachine::kMaxSections + kTailCells;
 
-        // Returns the cell rectangle for a given cell index (0 = SHIFT, 1 = NAV, 2..7 = sections).
+        // Returns the cell rectangle for a given cell index.
+        // In Clean mode the modifier column (index 0) is separated from the rest by kClnColGap.
         [[nodiscard]] juce::Rectangle<int> cellBounds(int cellIndex) const;
 
-        // Returns the section index (0–5) for a cell index ≥ 2, or -1 for fixed cells.
+        // Returns the section index (0–5) for section cells, or -1 for fixed/tail cells.
         [[nodiscard]] static int cellToSection(int cellIndex);
 
         void paintFixedCell(juce::Graphics& g, const juce::Rectangle<int>& r,

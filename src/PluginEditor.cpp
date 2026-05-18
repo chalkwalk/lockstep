@@ -146,7 +146,7 @@ namespace lockstep
             dispatchVerb(scope, verb);
         };
 
-        setSize(880, 480);
+        setSize(990, 480);
         setWantsKeyboardFocus(true);
     }
 
@@ -591,6 +591,8 @@ namespace lockstep
 
         keyboard_.setBounds(bounds.removeFromBottom(72).reduced(8, 4));
         stepGrid_.setBounds(bounds.removeFromBottom(kStepGridH).reduced(8, 4));
+        if (gridMode_ == GridDisplayMode::Clean)
+            bounds.removeFromBottom(kClnRowGap);
         functionBar_.setBounds(bounds.removeFromBottom(kKeyRowAlloc).reduced(8, 2));
         sectionBar_.setBounds(bounds.removeFromBottom(kKeyRowAlloc).reduced(8, 2));
         {

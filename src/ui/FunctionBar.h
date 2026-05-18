@@ -19,7 +19,7 @@ namespace lockstep
 
         void paint(juce::Graphics& g) override;
 
-        static constexpr int kNumKeys = 8;
+        static constexpr int kNumKeys = 9;
 
     private:
         LockstepProcessor& processor_;
