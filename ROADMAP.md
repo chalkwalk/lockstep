@@ -7,8 +7,8 @@ milestone changes, update **Active focus** below.
 
 For architecture see `DESIGN.md`.
 
-**Active focus:** MB — UI/Input rethink (scope-and-verb grammar).
-**Last completed:** M8 — State serialization. All M8.1–M8.5 complete.
+**Active focus:** MC — Project/Bank/Pattern/Part hierarchy.
+**Last completed:** MB — UI/Input rethink (scope-and-verb grammar). All MB.1–MB.8 complete.
 
 After M8 the roadmap pivots from "core sequencer is usable" to
 "performance instrument is usable" — see new milestones MB–MH below.
@@ -348,7 +348,7 @@ Replace the M0 minimal serializer with the full payload.
 - [x] **M8.5** CC mappings (with scope), channel mode, focus state,
       and clock/sync settings persisted alongside the sequence.
 
-### MB — UI / Input rethink: scope-and-verb grammar  [pending]
+### MB — UI / Input rethink: scope-and-verb grammar  [complete]
 
 The performance feature cluster (MD onward) needs a clear, consistent
 input model before the individual gestures land. This milestone is the
@@ -358,42 +358,42 @@ performance feature lands against a stable controller protocol.
 Recommendation: complete MB before any of MD–MH. The UI work would
 otherwise need to be rewritten as each feature was added.
 
-- [ ] **MB.1** Controller protocol layer. Introduce a `ControllerEvent`
+- [x] **MB.1** Controller protocol layer. Introduce a `ControllerEvent`
       stream (button-down, button-up, encoder-delta, value-change)
       between the QWERTY/MIDI/UI sources and the rest of the editor.
       All later modifiers (`Func`, `Track`, `Pattern`, `Trig`-hold,
       section keys, `Mute`, `Fill`) emit through this stream.
       Hardware-controller integration later wires its own producer
       onto the same stream — no parallel code path.
-- [ ] **MB.2** Persistent scope-button state. Track the held-set of
+- [x] **MB.2** Persistent scope-button state. Track the held-set of
       scope buttons in an `EditMode` state machine: which scope
       buttons are currently held, which (if any) is the primary, and
       what target set they imply (steps, tracks, sections, patterns).
-- [ ] **MB.3** Verb keys. Bind `Record` / `Play` / `Stop` / `Yes` / `No`
+- [x] **MB.3** Verb keys. Bind `Record` / `Play` / `Stop` / `Yes` / `No`
       to dispatch through `EditMode`: at press time, the current scope
       set determines which handler the verb invokes (copy / paste /
       clear / checkpoint).
-- [ ] **MB.4** Multi-step holds. The trig grid already supports a
+- [x] **MB.4** Multi-step holds. The trig grid already supports a
       single held step; extend to N held steps with deterministic
       ordering by press order. EditContext exposes the held-set, not
       just a single held index.
-- [ ] **MB.5** Step Grid mode overlay. The trig grid becomes a *modal*
+- [x] **MB.5** Step Grid mode overlay. The trig grid becomes a *modal*
       surface (default = step toggle, plus chord-entered modes for
       Keyboard / Retrig / Sound Pool — see MG). Define the mode-enter /
       mode-exit chord and the mode-indicator UI now, even if the
       individual modes' behaviour lands in MG.
-- [ ] **MB.6** Visual chrome for scope state. Transport bar shows
+- [x] **MB.6** Visual chrome for scope state. Transport bar shows
       currently-held scope buttons, current clipboard type, checkpoint
       stack depth, mute mode (Global / Pattern), Fill state, and
       queued-pattern / chain state. All states discoverable at a
       glance without entering a menu.
-- [ ] **MB.7** QWERTY layout for new scopes. Pick concrete keys for
+- [x] **MB.7** QWERTY layout for new scopes. Pick concrete keys for
       `Func`, `Track`, `Pattern`, `Mute`, `Fill`, and the
       mode-chord keys. Keep them within reach of the bottom-two-row
       trig grid for one-handed performance. (Constraint: must remain
       mappable onto the planned reduced-key hardware layout — pillar
       1, DESIGN §1.)
-- [ ] **MB.8** Documentation pass: update DESIGN §13 verb/scope tables
+- [x] **MB.8** Documentation pass: update DESIGN §13 verb/scope tables
       with the final chosen keys; update CLAUDE.md glossary.
 
 ### MC — Project / Bank / Pattern / Part hierarchy + v1 state  [pending]

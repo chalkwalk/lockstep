@@ -474,15 +474,42 @@ choice rather than a hardcoded behaviour. See M7.4.
 
 ### 5.5 QWERTY overlay
 
-The QWERTY overlay translates raw scancodes into actions:
+The QWERTY overlay uses a **9×4** layout.  The leftmost column of
+each row holds a dedicated modifier key; the remaining 8 columns
+carry function keys (top two rows) or step keys (bottom two rows).
 
-- **Bottom two rows (A–K, Z–,):** steps 1–16 in the 2×8 grid.
-- **Top row (3–8):** section selection — keys select machine sections
-  and cycle pages within them. With Shift (key 1) held, the same keys
-  select track meta sections.
-- **Key 2:** navigation (grid cursor up).
-- **Space:** Play / Stop.
-- **R / T / Y / U / I:** Record arm / Tap tempo / Copy / Paste / Clear.
+```
+Row 1:  1=Func   2=NavUp  3=Sec0  4=Sec1  5=Sec2  6=Sec3  7=Sec4  8=Sec5  9=PlayStop
+Row 2:  Q=Track  W=NavLft E=NavDn R=NavRt T=RecArm Y=Verb: U=Verb: I=Verb: O=TapTempo
+                                                    Rec      Play     Stop
+Row 3:  A=Mute   S=Step0  D=Step1 F=Step2 G=Step3 H=Step4 J=Step5 K=Step6 L=Step7
+Row 4:  Z=Fill   X=Step8  C=Step9 V=St10  B=St11  N=St12  M=St13  ,=St14  .=St15
+```
+
+The `Func` layer (hold key 1) remaps certain keys:
+
+```
+Func+2    = PatternScope         Func+3–8 = MetaSection0–5
+Func+T    = Yes                  Func+O   = No
+Func+Y    = TrigModeKeyboard     Func+U   = TrigModeRetrig   Func+I = TrigModeSoundPool
+Func+9    = StopReset
+```
+
+The `Track` layer (hold Q) remaps the step row to track-select:
+
+```
+Track+S–L = SelectTrack 0–7
+```
+
+The `Mute` layer (hold A) remaps the step row to mute-toggle:
+
+```
+Mute+S–L  = ToggleMute 0–7
+```
+
+The overlay emits `ControllerEvent` structs (button-down, button-up,
+encoder-delta) that are source-agnostic — hardware controllers wire
+onto the same stream.
 
 The same physical keys will be mirrored 1:1 by the hardware
 controller's mechanical grid.
@@ -497,9 +524,9 @@ hardware surface 1:1:
   active Machine's metadata. When a section contains more than 4
   slots, repeated section-key presses cycle pages of 4 within it.
 - **The Section Bar.** Six section buttons (keys `3`–`8`) with two
-  layers accessed via Shift (`1`):
+  layers accessed via `Func` (`1`):
 
-  *Machine sections (no Shift):* the six section buttons follow a
+  *Machine sections (no Func):* the six section buttons follow a
   **canonical-reserved + machine-extension** rule. Sections 1–6 on
   the section bar are reserved for a fixed canonical taxonomy:
 
@@ -731,27 +758,29 @@ declares "what am I about to operate on?"), then press a **verb** key
 encoder. The grammar is the same regardless of whether the scope is
 a step, a track, a section, or a pattern.
 
-The scope buttons are persistent first-class modifiers, complementing
-the existing `Shift` and `Func`:
+The scope buttons are persistent first-class modifiers.  Each has a
+dedicated key in the 9×4 QWERTY layout (see §5.5):
 
-| Scope button | Selects | Held alongside |
-|---|---|---|
-| `Func` | Modifier for verb keys (Yes/No/Record/Stop/Play). | The verb. |
-| `Track` | One or more track slots. | Verb, or an encoder. |
-| `Pattern` | One pattern (or, in chain mode, several). | Verb, or a pattern key. |
-| `Trig` (hold a step) | The held step(s); multi-step hold is allowed. | Verb, encoder, or note key. |
-| Section key (3–8) | The held section's slots. | Verb. |
-| `Mute` | The mute mask. | Track keys. |
-| `Fill` | "While I'm holding this, fill conditions evaluate true." | (no verb needed — it's the state itself). |
+| Scope button | QWERTY key | Selects | Held alongside |
+|---|---|---|---|
+| `Func` | `1` (top-left) | Modifier for verb keys and meta sections. | The verb. |
+| `Track` | `Q` (left col) | One or more track slots. | Verb, or an encoder. |
+| `Pattern` | `Func+2` | One pattern (or, in chain mode, several). | Verb, or a pattern key. |
+| `Trig` (hold a step) | `S–L` / `X–.` | The held step(s); multi-step hold is allowed. | Verb, encoder, or note key. |
+| Section key | `3–8` | The held section's slots. | Verb. |
+| `Mute` | `A` (left col) | The mute mask. | Track keys. |
+| `Fill` | `Z` (left col) | "While I'm holding this, fill conditions evaluate true." | (no verb needed — it's the state itself). |
 
 The verb set is small and uniform:
 
-| Verb | QWERTY | Meaning |
-|---|---|---|
-| Record | (Rec) | Capture the scope into the clipboard. |
-| Stop | (Stop) | Clear the scope. |
-| Play | (Play) | Paste the clipboard into the scope. |
-| Yes / No | (Yes / No) | Push / pop a checkpoint (with `Func`); confirm / cancel modal dialogs. |
+| Verb | QWERTY key | Func-layer key | Meaning |
+|---|---|---|---|
+| Record | `Y` | — | Capture the scope into the clipboard. |
+| Play | `U` | — | Paste the clipboard into the scope. |
+| Stop | `I` | — | Clear the scope. |
+| Yes | `Func+T` | — | Push a checkpoint / confirm dialog. |
+| No | `Func+O` | — | Pop a checkpoint / cancel dialog. |
+| RecordArm | `T` | — | Toggle sequencer record-arm state. |
 
 The same grammar drives §13.2 Copy/Paste/Clear, §13.3 Performance
 Mutes, and the Checkpoint stack in §13.6. The verbs never mean
