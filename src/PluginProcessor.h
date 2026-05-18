@@ -122,6 +122,10 @@ namespace lockstep
         int  focusTrack() const       { return focusTrack_; }
         void setFocusTrack(int track) { focusTrack_ = track; }
 
+        // MD.9: Fill scope state — set by the UI thread, read by the audio thread.
+        void setFillActive(bool v) { fillActive_.store(v, std::memory_order_relaxed); }
+        bool fillActive()    const { return fillActive_.load(std::memory_order_relaxed); }
+
         // Called from ManipulationZone (UI thread) when its slot offset changes.
         // Records which absolute slot each of the 4 display positions currently shows.
         void setMZSlots(int slotOffset);
@@ -187,6 +191,7 @@ namespace lockstep
         EditContext editContext_;
         CCMappingTable ccMappingTable_;
         int focusTrack_ = -1;  // -1 = Global; 0-7 = Track
+        std::atomic<bool> fillActive_ { false };
 
         // Current slot index for each MZ display position.
         // Written by the UI thread, read by the audio thread (atomic).

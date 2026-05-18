@@ -411,6 +411,7 @@ namespace lockstep
 
             case ControllerButton::FillScope:
                 uiState_.fillHeld = true;
+                processor_.setFillActive(true);
                 editMode_.onScopeEvent(ev);
                 repaint();
                 return true;
@@ -636,6 +637,7 @@ namespace lockstep
             && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('Z')))
         {
             uiState_.fillHeld = false;
+            processor_.setFillActive(false);
             editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::FillScope });
             repaint();
             handled = true;

@@ -22,12 +22,18 @@ namespace lockstep::TrigEvaluator
     //                 the pattern-wrapped index.
     // trackLen      — active track length; used to derive pattern iteration.
     // prevFired     — whether the immediately preceding step slot fired.
+    // fillActive    — whether the Fill scope is currently held (MD.9).
     inline bool shouldFire(const TrigCondition& cond,
                             std::size_t trackIdx,
                             std::int64_t absoluteStep,
                             int trackLen,
-                            bool prevFired)
+                            bool prevFired,
+                            bool fillActive = false)
     {
+        // Fill rule gate (MD.9): conjoined with all other conditions.
+        if (cond.fillRule == FillRule::OnlyFill  && !fillActive) { return false; }
+        if (cond.fillRule == FillRule::NeverFill &&  fillActive) { return false; }
+
         // Iteration rule: {numerator, denominator} → fire on iteration
         // `numerator` of every `denominator` loops (1-indexed, so numerator=1
         // fires on iterations 0, D, 2D, …).

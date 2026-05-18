@@ -341,19 +341,24 @@ namespace lockstep
         const TrigCondition& display   = (stepCond && !stepCond->isTrivial())
             ? *stepCond : baseCond;
 
+        // Slot 3: Fill rule when no step held (track-level), Prev-dep when step held.
+        // Fill rule is editable at both levels; Prev-dep only makes sense at step level.
+        const bool slot3IsPrev = stepHeld;
+
         struct CondFieldDef { const char* label; float lo; float hi; };
-        static constexpr std::array<CondFieldDef, kNumSlots> kDefs = {{
+        const std::array<CondFieldDef, kNumSlots> kDefs = {{
             { "Prob",  1.0f, 100.0f },
             { "m Num", 1.0f,   8.0f },
             { "m Den", 1.0f,   8.0f },
-            { "Prev",  0.0f,   2.0f },
+            { slot3IsPrev ? "Prev" : "Fill", 0.0f, slot3IsPrev ? 2.0f : 2.0f },
         }};
 
         const std::array<float, kNumSlots> vals = {
             static_cast<float>(display.probabilityPercent),
             static_cast<float>(display.iterNumerator),
             static_cast<float>(display.iterDenominator),
-            static_cast<float>(display.prevDependency),
+            slot3IsPrev ? static_cast<float>(display.prevDependency)
+                        : static_cast<float>(display.fillRule),
         };
 
         updatingFromTimer_ = true;
@@ -363,20 +368,22 @@ namespace lockstep
             sliders_[si].setRange(static_cast<double>(kDefs[si].lo),
                                   static_cast<double>(kDefs[si].hi), 1.0);
             sliders_[si].setValue(static_cast<double>(vals[si]), juce::dontSendNotification);
-
-            // Prev-dep (field 3) is only editable when a step is held.
-            const bool prevDepField  = (i == 3);
-            const bool enabled       = !prevDepField || stepHeld;
-            sliders_[si].setEnabled(enabled);
-            sliders_[si].setAlpha(enabled ? 1.0f : 0.35f);
+            sliders_[si].setEnabled(true);
+            sliders_[si].setAlpha(1.0f);
 
             juce::String valueText;
             if (i == 0)
                 valueText = juce::String(static_cast<int>(vals[si])) + "%";
-            else if (i == 3)
+            else if (i == 3 && slot3IsPrev)
             {
                 const int pd = static_cast<int>(vals[si]);
                 valueText = (pd == 0) ? "off" : (pd == 1 ? "fired" : "!fired");
+            }
+            else if (i == 3 && !slot3IsPrev)
+            {
+                const int fr = static_cast<int>(vals[si]);
+                valueText = (fr == 0) ? "always"
+                          : (fr == 1) ? "fill only" : "no fill";
             }
             else
                 valueText = juce::String(static_cast<int>(vals[si]));
@@ -401,9 +408,6 @@ namespace lockstep
         const bool held  = ctx.isActiveForEditing() && ctx.heldTrackIndex() == track;
         const int  step  = ctx.heldStepIndex();
 
-        if (field == 3 && !held)  // Prev-dep only writable when a step is held
-            return;
-
         auto& t = processor_.sequence().tracks[static_cast<std::size_t>(track)];
         TrigCondition& target = (held && step >= 0)
             ? t.steps[static_cast<std::size_t>(step)].condition
@@ -423,7 +427,14 @@ namespace lockstep
             case 0: target.probabilityPercent = u8(value); break;
             case 1: target.iterNumerator      = u8(value); break;
             case 2: target.iterDenominator    = u8(value); break;
-            case 3: target.prevDependency     = u8(value); break;
+            case 3:
+                // Slot 3: Prev-dep when step held, Fill rule otherwise.
+                if (held && step >= 0)
+                    target.prevDependency = u8(value);
+                else
+                    target.fillRule = static_cast<FillRule>(
+                        std::clamp(static_cast<int>(std::round(value)), 0, 2));
+                break;
             default: break;
         }
     }

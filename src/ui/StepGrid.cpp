@@ -1,27 +1,32 @@
 #include "StepGrid.h"
 #include "../PluginProcessor.h"
 #include "../ParameterIDs.h"
+#include "../core/TrigCondition.h"
 #include <algorithm>
 #include <cstddef>
 
 namespace lockstep
 {
-    static const juce::Colour kColActive   { 0xFF50B478u };  // green trig — certain fire
-    static const juce::Colour kColTrigDim  { 0xFF1C3D28u };  // dark green — blocked / low-prob trig
-    static const juce::Colour kColInactive { 0xFF2D3741u };  // dark, in-range, no trig
-    static const juce::Colour kColOutRange { 0xFF1C2026u };  // near-black, out of track length
-    static const juce::Colour kColPlayhead { 0xFFFFCC44u };  // amber highlight
-    static const juce::Colour kColHeld     { 0xFFFFFFFFu };  // held-step border
-    static const juce::Colour kColPLock    { 0xFF3EC8C8u };  // P-Lock dot
+    static const juce::Colour kColActive    { 0xFF50B478u };  // green trig — certain fire
+    static const juce::Colour kColTrigDim   { 0xFF1C3D28u };  // dark green — blocked / low-prob trig
+    static const juce::Colour kColFillOnly  { 0xFF7B4EC0u };  // violet — OnlyFill trig
+    static const juce::Colour kColNeverFill { 0xFF1C3D28u };  // same dim — NeverFill suppressed
+    static const juce::Colour kColInactive  { 0xFF2D3741u };  // dark, in-range, no trig
+    static const juce::Colour kColOutRange  { 0xFF1C2026u };  // near-black, out of track length
+    static const juce::Colour kColPlayhead  { 0xFFFFCC44u };  // amber highlight
+    static const juce::Colour kColHeld      { 0xFFFFFFFFu };  // held-step border
+    static const juce::Colour kColPLock     { 0xFF3EC8C8u };  // P-Lock dot
 
     // Pre-computes a fire-probability in [0,1] for each slot on the visible page.
     // Steps with trig=false → 0. Scans from step 0 so prev-dep chains propagate
     // correctly even when pageBase > 0.
+    // fillActive: whether the Fill scope is currently held (MD.9).
     static std::array<float, StepGrid::kPageSteps>
     computePagePreview(const Track& track,
                        int          trackLen,
                        std::int64_t loopBase,
-                       int          pageBase) noexcept
+                       int          pageBase,
+                       bool         fillActive) noexcept
     {
         std::array<float, StepGrid::kPageSteps> out{};
         const int limit = std::min(pageBase + StepGrid::kPageSteps, trackLen);
@@ -38,6 +43,11 @@ namespace lockstep
                 const auto& cond = step.condition.isTrivial()
                                        ? track.baseCond : step.condition;
 
+                // Fill rule gate (MD.9).
+                bool fillPass = true;
+                if (cond.fillRule == FillRule::OnlyFill  && !fillActive) fillPass = false;
+                if (cond.fillRule == FillRule::NeverFill &&  fillActive) fillPass = false;
+
                 // m:n gate — deterministic for the current loop iteration.
                 bool iterPass = true;
                 if (cond.iterDenominator > 1)
@@ -49,7 +59,7 @@ namespace lockstep
                                 == static_cast<std::int64_t>(cond.iterNumerator) - 1);
                 }
 
-                if (iterPass)
+                if (fillPass && iterPass)
                 {
                     prob = std::clamp(
                         static_cast<float>(cond.probabilityPercent) / 100.0f,
@@ -181,7 +191,8 @@ namespace lockstep
         const auto& track =
             processor_.sequence().tracks[static_cast<std::size_t>(activeTrack_)];
 
-        const auto preview = computePagePreview(track, trackLen, loopBase, baseStep);
+        const bool fillActive = processor_.fillActive();
+        const auto preview = computePagePreview(track, trackLen, loopBase, baseStep, fillActive);
 
         // Corrected key letters: A and Z are modifier keys, not step keys.
         static constexpr const char* kKeyLetters[kPageSteps] = {
@@ -288,6 +299,15 @@ namespace lockstep
                 const int y = cellArea.getY() + row * cellH;
                 const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
+                // Determine fill rule for this step (for coloring).
+                FillRule stepFillRule = FillRule::Always;
+                if (inRange && hasTrig)
+                {
+                    const auto& rawCond = track.steps[static_cast<std::size_t>(absIdx)].condition;
+                    const auto& cond = rawCond.isTrivial() ? track.baseCond : rawCond;
+                    stepFillRule = cond.fillRule;
+                }
+
                 // Layer 1: base state (step on/off)
                 if (!inRange)
                 {
@@ -296,7 +316,15 @@ namespace lockstep
                 }
                 else if (hasTrig)
                 {
-                    g.setColour(kColActive);
+                    // OnlyFill steps: violet when fill not held (won't fire), green when held.
+                    // NeverFill steps: dim when fill held (won't fire), green when not held.
+                    const bool fillSuppressed =
+                        (stepFillRule == FillRule::OnlyFill  && !fillActive)
+                     || (stepFillRule == FillRule::NeverFill &&  fillActive);
+                    const juce::Colour baseCol =
+                        (stepFillRule == FillRule::OnlyFill && !fillActive) ? kColFillOnly
+                                                                             : kColActive;
+                    g.setColour(fillSuppressed ? kColTrigDim : baseCol);
                     g.fillRoundedRectangle(cell.toFloat(), 3.0f);
                 }
                 else
@@ -307,7 +335,7 @@ namespace lockstep
                     g.drawRoundedRectangle(cell.toFloat(), 3.0f, 1.0f);
                 }
 
-                // Layer 2: conditional trig overlay.
+                // Layer 2: conditional trig overlay (probability dimming).
                 if (inRange && hasTrig)
                 {
                     const float prob = preview[static_cast<std::size_t>(localIdx)];

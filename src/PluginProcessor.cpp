@@ -721,8 +721,9 @@ namespace lockstep
                                                     : step.condition;
                     const bool fired =
                         step.trig
-                        && TrigEvaluator::shouldFire(cond, i, stepNum,
-                                                      trackLen, lastStepFired_[i]);
+                        && TrigEvaluator::shouldFire(cond, i, stepNum, trackLen,
+                                                      lastStepFired_[i],
+                                                      fillActive_.load(std::memory_order_relaxed));
                     if (fired)
                     {
                         const double offset =

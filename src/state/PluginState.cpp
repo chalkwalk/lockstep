@@ -35,6 +35,8 @@ namespace lockstep::PluginState
         v.setProperty("n",  static_cast<int>(c.iterNumerator),      nullptr);
         v.setProperty("d",  static_cast<int>(c.iterDenominator),    nullptr);
         v.setProperty("pd", static_cast<int>(c.prevDependency),     nullptr);
+        if (c.fillRule != FillRule::Always)
+            v.setProperty("fr", static_cast<int>(c.fillRule), nullptr);
         return v;
     }
 
@@ -49,6 +51,8 @@ namespace lockstep::PluginState
             static_cast<int>(v.getProperty("d",   1)));
         c.prevDependency  = static_cast<std::uint8_t>(
             static_cast<int>(v.getProperty("pd",  0)));
+        const int fr = static_cast<int>(v.getProperty("fr", 0));
+        c.fillRule = static_cast<FillRule>(std::clamp(fr, 0, 2));
         return c;
     }
 
