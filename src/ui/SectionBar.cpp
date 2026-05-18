@@ -97,14 +97,14 @@ namespace lockstep
 
         // Primary label — dimmed when shift is held (secondary layer is about to activate).
         const float primaryAlpha = isMasterActive ? 0.2f
-                                 : uiState_.shiftHeld ? 0.3f : 1.0f;
+                                 : uiState_.funcHeld ? 0.3f : 1.0f;
         g.setColour(juce::Colours::white.withAlpha(primaryAlpha));
         g.setFont(juce::Font(juce::FontOptions(isTrackActive ? 11.0f : 9.0f)));
         g.drawText(primaryLabel, topArea, juce::Justification::centredBottom);
 
         // Secondary label (meta layer name); bright when shift held or master active.
         const float secondaryAlpha = isMasterActive ? 1.0f
-                                   : uiState_.shiftHeld ? (reserved ? 0.2f : 1.0f)
+                                   : uiState_.funcHeld ? (reserved ? 0.2f : 1.0f)
                                    : (reserved ? 0.12f : 0.25f);
         g.setColour(juce::Colours::white.withAlpha(secondaryAlpha));
         g.setFont(juce::Font(juce::FontOptions(isMasterActive ? 11.0f : 9.0f)));
@@ -153,7 +153,7 @@ namespace lockstep
 
         const int activeTrack = grid_.getActiveTrack();
 
-        paintFixedCell(g, cellBounds(0), "SHF", uiState_.shiftHeld);
+        paintFixedCell(g, cellBounds(0), "FNC", uiState_.funcHeld);
         paintFixedCell(g, cellBounds(1), juce::String::charToString(0x25B2),
                        juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('2'))); // ▲
 
@@ -189,7 +189,7 @@ namespace lockstep
         if (section < 0)
             return;
 
-        if (uiState_.shiftHeld)
+        if (uiState_.funcHeld)
             selectMetaSection(section);
         else
             selectSection(section);

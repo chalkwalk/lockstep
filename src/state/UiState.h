@@ -15,8 +15,11 @@ namespace lockstep
         // Per-track, per-section active page index (0 .. pageCount-1).
         std::array<std::array<int, IMachine::kMaxSections>, kNumTracks> trackPage{};
 
-        // Shift key (key '1') is currently held.
-        bool shiftHeld = false;
+        // Left-column modifier key states (updated by PluginEditor key events).
+        bool funcHeld  = false;  // key 1
+        bool trackHeld = false;  // key Q
+        bool muteHeld  = false;  // key A
+        bool fillHeld  = false;  // key Z
 
         // Active master section (-1 = none).
         int masterSection = -1;

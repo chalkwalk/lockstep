@@ -1,64 +1,33 @@
 #pragma once
 
-#include <cstdint>
+#include "ControllerEvent.h"
 
 namespace lockstep
 {
-    // The QWERTY overlay maps the upper-left 8x4 block of the keyboard onto
-    // the Lockstep grid, mirroring the eventual hardware layout so muscle
-    // memory transfers when users move to the dedicated controller.
+    // Translates raw JUCE key codes into ControllerEvents for the 9x4 layout.
     //
-    //   1  2  3  4  5  6  7  8       1     = Shift
-    //    Q  W  E  R  T  Y  U  I      2/Q/W/E = nav up/left/down/right
-    //     A  S  D  F  G  H  J  K     A-K   = steps 1-8
-    //      Z  X  C  V  B  N  M  ,    Z-,   = steps 9-16
+    // Physical layout (columns 1-9, rows 1-4):
     //
-    //   3-8 = SelectSection 0-5; Shift+3-8 = meta (COND/TRIG/TRACK/—/—/GLOBAL)
-    //   R   = Record arm          T = Tap tempo
-    //   Y/U/I = Copy / Paste / Clear
-    //   Space = Play/Stop
+    //   [Fnc][Nav][Sc0][Sc1][Sc2][Sc3][Sc4][Sc5][Ply]   <- row 1
+    //   [Trk][ < ][ v ][ > ][Rec][ Cp][ Pt][ Cl][Tap]   <- row 2
+    //   [Mut][St1][St2][St3][St4][St5][St6][St7][St8]    <- row 3
+    //   [Fil][St9][S10][S11][S12][S13][S14][S15][S16]    <- row 4
     //
-    // Shift (key 1) + section key = master section select.
+    //   Left column (1/Q/A/Z) = dedicated modifier strip (Func/Track/Mute/Fill).
+    //   Func layer: Func+2=PatternScope, Func+3-8=MetaSections, Func+9=StopReset,
+    //               Func+T=Yes, Func+O=No,
+    //               Func+Y/U/I=TrigModeKeyboard/Retrig/SoundPool.
+    //   Track layer: Track+S-L = SelectTrack 0-7.
+    //   Mute layer:  Mute+S-L  = ToggleMute 0-7.
     class QwertyOverlay
     {
     public:
-        enum class Action : std::uint8_t
-        {
-            None,
-            Shift,
-
-            NavUp,
-            NavDown,
-            NavLeft,
-            NavRight,
-
-            Step,                // valid stepIndex in 0..15
-
-            SelectSection,       // stepIndex holds machine section index 0..5
-            SelectMetaSection,   // stepIndex holds meta section index 0..5 (Shift held)
-
-            SelectTrack,         // stepIndex holds track index 0..7 (Shift + step row 1)
-
-            RecordArm,
-            TapTempo,
-            Copy,
-            Paste,
-            Clear,
-
-            PlayStop,
-            Stop          // stop + reset to start (Escape)
-        };
-
-        struct Mapping
-        {
-            Action action = Action::None;
-            int stepIndex = -1;
-        };
-
-        // Accepts a JUCE KeyPress key code (uppercase ASCII for letter and
-        // digit keys, 0x20 for space) and the current shift state.
-        // Physical-position stability across non-QWERTY layouts is a
-        // known limitation; the mapping assumes a standard QWERTY layout.
-        [[nodiscard]] Mapping resolve(int keyCode, bool shiftHeld) const;
+        // Accepts a JUCE KeyPress key code (uppercase ASCII for letter/digit keys)
+        // and the current modifier-key states.  Returns a ControllerEvent::Type of
+        // ButtonDown; the caller sets ButtonUp on key release for the same button.
+        [[nodiscard]] ControllerEvent resolve(int keyCode,
+                                              bool funcHeld,
+                                              bool trackHeld,
+                                              bool muteHeld) const;
     };
 }

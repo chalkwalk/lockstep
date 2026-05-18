@@ -305,7 +305,7 @@ namespace lockstep
 
                 // Row 0 cells have a secondary function: Shift+key selects track.
                 const bool hasTrackSelect = inRange && (row == 0);
-                const bool shiftHeld = uiState_.shiftHeld;
+                const bool shiftHeld = uiState_.funcHeld;
 
                 // Split row-0 cells: step number in upper portion, track label in lower.
                 // Row-1 cells use the full cell for the step number.

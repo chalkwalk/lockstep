@@ -56,7 +56,7 @@ namespace lockstep
         proc.apvts().addParameterListener(ParamIDs::syncMode, this);
         updateTransportGhosting();
 
-        // Wire section-change callbacks → update ManipulationZone.
+        // Wire section-change callbacks -> update ManipulationZone.
         sectionBar_.onSectionChanged = [this](int /*section*/, int /*page*/, int firstSlot)
         {
             manipulationZone_.setSlotOffset(firstSlot);
@@ -66,7 +66,7 @@ namespace lockstep
             manipulationZone_.setMetaSection(metaSection);
         };
 
-        // Track header: selector + mute/solo — placed directly below MZ in resized().
+        // Track header: selector + mute/solo.
         for (int i = 0; i < static_cast<int>(kNumTracks); ++i)
         {
             const auto ti = static_cast<std::size_t>(i);
@@ -93,8 +93,6 @@ namespace lockstep
         }
         trackBtns_[0].setToggleState(true, juce::dontSendNotification);
 
-        // When the active track changes, update button toggle states, repaint
-        // the SectionBar, and re-sync the MZ slot offset.
         stepGrid_.onActiveTrackChanged = [this](int newTrack)
         {
             for (auto& b : trackBtns_)
@@ -143,9 +141,6 @@ namespace lockstep
 
         setSize(880, 480);
         setWantsKeyboardFocus(true);
-        // Key listener is registered on the top-level window in
-        // parentHierarchyChanged(), not here, so focus changes among child
-        // components cannot interrupt key-up routing.
     }
 
     LockstepEditor::~LockstepEditor()
@@ -170,13 +165,7 @@ namespace lockstep
             processor_.apvts().getRawParameterValue(ParamIDs::syncMode);
         const bool isLocked = modeParam && static_cast<int>(modeParam->load()) == 0;
         const bool ghost    = isLocked && !isStandalone;
-
         transport_.setGhosted(ghost);
-
-        // When switching from Locked+hosted to Auto, wire up a Play click
-        // that first resets phase then enables in-plugin playback — this
-        // makes Auto mode start from step 0, not from wherever the DAW is.
-        // (InPluginTransport already calls setInPluginPlaying; no extra wiring needed.)
     }
 
     void LockstepEditor::parentHierarchyChanged()
@@ -258,74 +247,93 @@ namespace lockstep
         repaint();
     }
 
+    // -------------------------------------------------------------------------
+    // Key handling (9x4 layout)
+
     bool LockstepEditor::keyPressed(const juce::KeyPress& key, juce::Component*)
     {
         const int rawCode = key.getKeyCode();
-        const int code = (rawCode >= 'a' && rawCode <= 'z')
-                             ? rawCode - ('a' - 'A')
-                             : rawCode;
+        const int uCode   = (rawCode >= 'a' && rawCode <= 'z')
+                                ? rawCode - ('a' - 'A')
+                                : rawCode;
 
-        const auto mapping = qwerty_.resolve(code, uiState_.shiftHeld);
+        const auto ev = qwerty_.resolve(uCode,
+                                        uiState_.funcHeld,
+                                        uiState_.trackHeld,
+                                        uiState_.muteHeld);
 
-        switch (mapping.action)
+        switch (ev.button)
         {
-            case QwertyOverlay::Action::Shift:
-                uiState_.shiftHeld = true;
+            case ControllerButton::Func:
+                uiState_.funcHeld = true;
                 sectionBar_.repaint();
+                functionBar_.repaint();
                 return true;
 
-            case QwertyOverlay::Action::SelectSection:
-                sectionBar_.selectSection(mapping.stepIndex);
+            case ControllerButton::TrackScope:
+                uiState_.trackHeld = true;
                 return true;
 
-            case QwertyOverlay::Action::SelectMetaSection:
-                sectionBar_.selectMetaSection(mapping.stepIndex);
+            case ControllerButton::MuteScope:
+                uiState_.muteHeld = true;
                 return true;
 
-            case QwertyOverlay::Action::Step:
+            case ControllerButton::FillScope:
+                uiState_.fillHeld = true;
+                return true;
+
+            case ControllerButton::Section:
+                sectionBar_.selectSection(ev.index);
+                return true;
+
+            case ControllerButton::MetaSection:
+                sectionBar_.selectMetaSection(ev.index);
+                return true;
+
+            case ControllerButton::Step:
+            {
                 if (heldStepKey_ != rawCode)
                 {
-                    // First press (not a key-repeat): engage hold. Trig toggle
-                    // happens on release, unless a P-Lock is applied during hold.
                     heldStepKey_ = rawCode;
                     const int absStep = stepGrid_.currentPage() * StepGrid::kPageSteps
-                                        + mapping.stepIndex;
+                                        + ev.index;
                     processor_.editContext().hold(stepGrid_.getActiveTrack(), absStep);
                 }
                 return true;
+            }
 
-            case QwertyOverlay::Action::NavLeft:
-                stepGrid_.prevPage();
+            case ControllerButton::SelectTrack:
+                stepGrid_.setActiveTrack(ev.index);
                 return true;
 
-            case QwertyOverlay::Action::NavRight:
-                stepGrid_.nextPage();
-                return true;
-
-            case QwertyOverlay::Action::SelectTrack:
-                stepGrid_.setActiveTrack(mapping.stepIndex);
-                return true;
-
-            case QwertyOverlay::Action::NavUp:
+            case ControllerButton::NavUp:
                 stepGrid_.setActiveTrack(std::max(0, stepGrid_.getActiveTrack() - 1));
                 return true;
 
-            case QwertyOverlay::Action::NavDown:
+            case ControllerButton::NavDown:
                 stepGrid_.setActiveTrack(
                     std::min(static_cast<int>(kNumTracks) - 1,
                              stepGrid_.getActiveTrack() + 1));
                 return true;
 
-            case QwertyOverlay::Action::PlayStop:
+            case ControllerButton::NavLeft:
+                stepGrid_.prevPage();
+                return true;
+
+            case ControllerButton::NavRight:
+                stepGrid_.nextPage();
+                return true;
+
+            case ControllerButton::PlayStop:
                 processor_.clock().setInPluginPlaying(!processor_.clock().inPluginPlaying());
                 return true;
 
-            case QwertyOverlay::Action::Stop:
+            case ControllerButton::StopReset:
                 processor_.clock().setInPluginPlaying(false);
                 processor_.clock().resetPhase();
                 return true;
 
-            case QwertyOverlay::Action::Clear:
+            case ControllerButton::VerbStop:
             {
                 const auto& ctx = processor_.editContext();
                 if (ctx.isActiveForEditing() && ctx.activeSlot() >= 0)
@@ -335,17 +343,34 @@ namespace lockstep
                 return true;
             }
 
-            case QwertyOverlay::Action::RecordArm:
+            case ControllerButton::RecordArm:
                 processor_.clock().setRecordArmed(!processor_.clock().isRecordArmed());
                 return true;
 
-            // Reserved: implementations land in later milestones.
-            case QwertyOverlay::Action::TapTempo:
-            case QwertyOverlay::Action::Copy:
-            case QwertyOverlay::Action::Paste:
+            // Scope verbs dispatched through EditMode (MB.3 wires the handlers).
+            case ControllerButton::VerbRecord:
+            case ControllerButton::VerbPlay:
                 return true;
 
-            case QwertyOverlay::Action::None:
+            // Checkpoint verbs — reserved for MB.3/MD.
+            case ControllerButton::Yes:
+            case ControllerButton::No:
+                return true;
+
+            // Trig grid modes — reserved for MB.5.
+            case ControllerButton::TrigModeKeyboard:
+            case ControllerButton::TrigModeRetrig:
+            case ControllerButton::TrigModeSoundPool:
+                return true;
+
+            // Mute toggle (Mute+step) — reserved for MD.
+            case ControllerButton::ToggleMute:
+                return true;
+
+            case ControllerButton::TapTempo:
+            case ControllerButton::PatternScope:
+                return true;
+
             default:
                 return false;
         }
@@ -353,14 +378,43 @@ namespace lockstep
 
     bool LockstepEditor::keyStateChanged(bool isKeyDown, juce::Component*)
     {
-        // Track shift-key release (key '1').
-        if (!isKeyDown && uiState_.shiftHeld
+        bool handled = false;
+
+        // Left-column modifier key releases.
+        if (!isKeyDown && uiState_.funcHeld
             && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('1')))
         {
-            uiState_.shiftHeld = false;
+            uiState_.funcHeld = false;
             sectionBar_.repaint();
+            functionBar_.repaint();
+            handled = true;
         }
 
+        if (!isKeyDown && uiState_.trackHeld
+            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('Q'))
+            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('q')))
+        {
+            uiState_.trackHeld = false;
+            handled = true;
+        }
+
+        if (!isKeyDown && uiState_.muteHeld
+            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('A'))
+            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('a')))
+        {
+            uiState_.muteHeld = false;
+            handled = true;
+        }
+
+        if (!isKeyDown && uiState_.fillHeld
+            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('Z'))
+            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('z')))
+        {
+            uiState_.fillHeld = false;
+            handled = true;
+        }
+
+        // Step key release: toggle trig or commit P-Lock hold.
         if (!isKeyDown && heldStepKey_ != -1
             && !juce::KeyPress::isKeyCurrentlyDown(heldStepKey_))
         {
@@ -380,9 +434,10 @@ namespace lockstep
             }
 
             heldStepKey_ = -1;
-            return true;
+            handled = true;
         }
-        return false;
+
+        return handled;
     }
 
     void LockstepEditor::applyDisplayMode(GridDisplayMode mode)
@@ -406,7 +461,7 @@ namespace lockstep
     {
         auto bounds = getLocalBounds();
 
-        // Header row: transport | sync mode box | [status text area] | load button
+        // Header row: transport | sync mode box | channel mode | display mode | pool button
         auto header = bounds.removeFromTop(36);
         transport_.setBounds(header.removeFromLeft(200).reduced(4));
         syncModeBox_.setBounds(header.removeFromLeft(80).reduced(4));
@@ -414,21 +469,8 @@ namespace lockstep
         displayModeBtn_.setBounds(header.removeFromLeft(46).reduced(4));
         poolBtn_.setBounds(header.removeFromRight(80).reduced(4));
 
-        // Layout (top → bottom):
-        //   [header already removed]
-        //   tempo bar (standalone only, 28 px)
-        //   ManipulationZone (flexible — fills space between tempo bar and track header)
-        //   track selector row (22 px)
-        //   mute + solo row    (22 px)
-        //   section bar        (44 px)
-        //   function bar       (44 px)
-        //   step grid          (114 px)
-        //   keyboard           (72 px)
-        //
-        // Strategy: claim keyboard and StepGrid from the bottom so MZ can be flexible,
-        // then fill top-down for tempo/MZ/track-header, bottom-up for SB/FB.
-        static constexpr int kKeyRowAlloc = 44;   // 40 px effective after reduced(8,2)
-        static constexpr int kStepGridH   = 2 * (kKeyRowAlloc - 4) + 26 + 8; // 114 px
+        static constexpr int kKeyRowAlloc = 44;
+        static constexpr int kStepGridH   = 2 * (kKeyRowAlloc - 4) + 26 + 8;
 
         keyboard_.setBounds(bounds.removeFromBottom(72).reduced(8, 4));
         stepGrid_.setBounds(bounds.removeFromBottom(kStepGridH).reduced(8, 4));
@@ -452,7 +494,6 @@ namespace lockstep
                 trackBtns_[i].setBounds(trackRow.removeFromLeft(colW).reduced(1, 1));
         }
 
-        // Tempo bar sits at the top of the remaining strip; MZ fills the rest.
         if (tempoBar_)
             tempoBar_->setBounds(bounds.removeFromTop(28).reduced(8, 2));
         bounds.removeFromTop(2);

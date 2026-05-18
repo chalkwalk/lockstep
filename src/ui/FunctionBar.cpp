@@ -8,22 +8,22 @@ namespace lockstep
         struct QKeyDef
         {
             int         keyCode;
-            const char* keyLabel;    // physical key letter
-            const char* primLabel;   // primary function (short)
-            const char* shiftLabel;  // Shift function ("" = reserved)
-            bool        isNav;       // nav key (different base colour)
+            const char* keyLabel;   // physical key letter
+            const char* primLabel;  // primary function
+            const char* funcLabel;  // Func-layer function ("" = no secondary)
+            bool        isNav;      // nav key (different base colour)
         };
 
-        // Q W E R T Y U I
+        // W E R T Y U I O  (8 keys in function row of 9x4 layout)
         constexpr std::array<QKeyDef, FunctionBar::kNumKeys> kDefs = {{
-            { 'Q', "Q", "<",   "",  true  },   // NavLeft
-            { 'W', "W", "v",   "",  true  },   // NavDown
-            { 'E', "E", ">",   "",  true  },   // NavRight
-            { 'R', "R", "REC", "",  false },
-            { 'T', "T", "TAP", "",  false },
-            { 'Y', "Y", "CPY", "",  false },
-            { 'U', "U", "PST", "",  false },
-            { 'I', "I", "CLR", "",  false },
+            { 'W', "W", "<",   "",    true  },  // NavLeft
+            { 'E', "E", "v",   "",    true  },  // NavDown
+            { 'R', "R", ">",   "",    true  },  // NavRight
+            { 'T', "T", "REC", "YES", false },  // RecordArm / Yes
+            { 'Y', "Y", "CPY", "KEY", false },  // VerbRecord / TrigModeKeyboard
+            { 'U', "U", "PST", "RTG", false },  // VerbPlay   / TrigModeRetrig
+            { 'I', "I", "CLR", "POL", false },  // VerbStop   / TrigModeSoundPool
+            { 'O', "O", "TAP", "NO",  false },  // TapTempo   / No
         }};
     }
 
@@ -43,7 +43,6 @@ namespace lockstep
     {
         g.fillAll(juce::Colour::fromRGB(20, 22, 26));
 
-        // CLN hides key letters but still shows function labels.
         const bool showKeyLetters = (mode_ != GridDisplayMode::Clean);
 
         int leftPad, cellW;
@@ -58,18 +57,17 @@ namespace lockstep
             cellW   = getWidth() / kNumKeys;
             leftPad = 0;
         }
-        const int  h           = getHeight();
+        const int h = getHeight();
 
         for (int i = 0; i < kNumKeys; ++i)
         {
-            const auto& def = kDefs[static_cast<std::size_t>(i)];
-            const int   x   = leftPad + i * cellW;
+            const auto& def  = kDefs[static_cast<std::size_t>(i)];
+            const int   x    = leftPad + i * cellW;
             const auto  cell = juce::Rectangle<int>(x, 0, cellW, h).reduced(2, 2);
 
             const bool isPressed  = juce::KeyPress::isKeyCurrentlyDown(def.keyCode);
-            const bool isRecArmed = (def.keyCode == 'R') && processor_.clock().isRecordArmed();
+            const bool isRecArmed = (def.keyCode == 'T') && processor_.clock().isRecordArmed();
 
-            // Background
             juce::Colour bg;
             if (isPressed)
                 bg = juce::Colour::fromRGB(80, 120, 165);
@@ -85,7 +83,6 @@ namespace lockstep
             g.setColour(juce::Colour::fromRGB(55, 68, 82));
             g.drawRoundedRectangle(cell.toFloat(), 3.0f, 1.0f);
 
-            // Key letter — top-left, omitted in CLN mode
             if (showKeyLetters)
             {
                 g.setFont(juce::Font(juce::FontOptions(8.0f)));
@@ -95,8 +92,8 @@ namespace lockstep
                            juce::Justification::topLeft);
             }
 
-            // Primary function — centre; dimmed when shift is held.
-            const float primAlpha = (isPressed || !uiState_.shiftHeld) ? 1.0f : 0.35f;
+            // Primary label — dimmed when Func is held (Func-layer is about to activate).
+            const float primAlpha = (isPressed || !uiState_.funcHeld) ? 1.0f : 0.35f;
             const juce::Colour labelColour = isPressed
                 ? juce::Colours::white
                 : juce::Colour::fromRGB(160, 185, 210).withAlpha(primAlpha);
@@ -104,13 +101,13 @@ namespace lockstep
             g.setColour(labelColour);
             g.drawText(def.primLabel, cell, juce::Justification::centred);
 
-            // Shift function — bottom; bright when shift held, dim otherwise.
-            if (def.shiftLabel[0] != '\0')
+            // Func-layer label — bottom; bright when Func held, dim otherwise.
+            if (def.funcLabel[0] != '\0')
             {
-                const float alpha = uiState_.shiftHeld ? 1.0f : 0.25f;
+                const float alpha = uiState_.funcHeld ? 1.0f : 0.25f;
                 g.setFont(juce::Font(juce::FontOptions(8.0f)));
                 g.setColour(juce::Colour::fromRGB(180, 200, 220).withAlpha(alpha));
-                g.drawText(def.shiftLabel,
+                g.drawText(def.funcLabel,
                            cell.withTrimmedTop(cell.getHeight() - 11).reduced(2, 0),
                            juce::Justification::centredBottom);
             }
