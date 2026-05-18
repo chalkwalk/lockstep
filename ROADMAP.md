@@ -5,17 +5,24 @@ sub-tasks are checkboxes so the state of the project is visible on
 every return to the repo. Tick items as they land. When the active
 milestone changes, update **Active focus** below.
 
-For architecture see `DESIGN.md`.
+For architecture see `DESIGN.md`. For the guiding principles every
+feature must satisfy, see `PRINCIPLES.md`. **Before adding a
+milestone here, confirm it is expressible within those principles
+and within the existing scope+verb grammar (DESIGN §13).**
 
 **Active focus:** ME — Canonical sections + post-machine FLTR/AMP + role tags.
 **Last completed:** MD — Performance modifier cluster. All MD.1–MD.11 complete.
 
 After M8 the roadmap pivots from "core sequencer is usable" to
-"performance instrument is usable" — see new milestones MB–MH below.
-The framing comes from DESIGN.md §1 + §13: Lockstep is for both
-bringing existing material on stage **and** improvising new material
-from a blank pool. The performance-feature milestones are written
-with both workflows as equal targets.
+"performance instrument is usable" — see milestones MB–MI below
+for the core performance feature surface, then MJ–MP for the
+depth pass (pattern/part management, sampler depth, sequencer
+refinement, 16-levels, sampling+resampling, audition, UI polish).
+The framing comes from DESIGN.md §1 + §13 and `PRINCIPLES.md`:
+Lockstep is for both bringing existing material on stage **and**
+improvising new material from a blank pool. Every milestone is
+written with both workflows as equal targets, and every milestone
+must satisfy the ten principles.
 
 ## Locked design decisions for the roadmap
 
@@ -91,6 +98,95 @@ with both workflows as equal targets.
   hardware controller is a denser physical mapping of the same key
   layout. Anything the hardware does must already be doable from
   software QWERTY. (DESIGN §1, pillar 1.)
+- **No "design mode" vs "performance mode".** The gestures that
+  manipulate pre-authored material are the same gestures that
+  improvise new material from a blank pool. Workflows that imply
+  a mode switch are redesigned to fit the live grammar.
+  (`PRINCIPLES.md` §3.)
+- **No hidden randomness in the editing surface.** Trig conditions
+  (probability, m:n) are the only sanctioned RNG; audio-side
+  smoothing/voice-steal randomness is fine. Editing actions are
+  deterministic. (`PRINCIPLES.md` §9.)
+- **Beginner mode = more chrome, never less grammar.** Granular
+  feedback toggles add annotation; they never remove or simplify
+  the underlying gestures. Replaces the earlier "3 UI modes"
+  sketch. (`PRINCIPLES.md` §1, §8; DESIGN §6.2.)
+- **16-levels eligibility = role-tagged subset.** The trig-grid
+  16-levels mode targets a closed eligible subset of role tags
+  (`velocity`, `pitch`, `cutoff`, `resonance`, `attack`, `decay`,
+  …). Machines opt in by tagging slots with the canonical roles.
+  (DESIGN §20.)
+- **Microtiming = per-step P-lockable offset, ±50% of step.**
+  Stored in `Step::microOffset` as a signed fraction. Realtime
+  record writes it; the `Quantize` verb zeros offsets in scope.
+  (DESIGN §19.)
+- **Sampling input = plugin audio input only.** No system mic /
+  device input. Resampling reuses the same flow with a track or
+  master tap as source. (DESIGN §22.)
+- **Sample-name generator = 4 curated + 1 hash-derived.** On
+  capture the UI offers five candidate names; user picks or
+  refines. Curated wordlists are bundled with the build.
+  (DESIGN §22.)
+- **Coarse-adjust = `Func` + encoder.** Coarse step is derived from
+  the slot's unit hint by default, overridable per `ParamSpec`.
+  (DESIGN §25.)
+- **MZ size is a single constant.** The "four slots per page" value
+  appears exactly once in code. Growing it to 8 (planned hardware
+  encoder count) is a one-line change. (DESIGN §26.)
+- **State-colour taxonomy is canonical; specific colours are not.**
+  The set of distinguishable UI states is reserved up front so
+  hardware LEDs mirror software for free; specific RGB values are a
+  later visual pass. (DESIGN §24.)
+- **Audio routing = explicit source-select, topo-sorted, no cycles.**
+  An input-consuming machine declares an `input_source`
+  (`None | External | Track N | Master`); the engine topologically
+  sorts track processing each block and **refuses cyclic routing at
+  assignment time**. Feedback loops are a deliberate non-feature.
+  `input_source = Master` is the one sanctioned prior-block tap.
+  (DESIGN §27.)
+- **Recorder buffers = volatile entries in the unified sample pool.**
+  RAM-only, not serialised, badged `REC`; any audio-source slot can
+  point at a volatile buffer or a persistent sample identically. The
+  §22 naming flow doubles as freeze-to-disk promotion. (DESIGN §28.)
+- **Overwrite in Recorder, overdub in Looper.** Recorder trigs
+  overwrite a buffer (stateless resampling); overdub looping is a
+  state machine encapsulated in a dedicated Looper machine (the
+  Octatrack pickup equivalent), driven by existing verbs. No overdub
+  state on the trig path. (DESIGN §29.)
+- **Three special trig types.** Trigless/lock-only (`Func+step`,
+  apply locks without retrigger), one-shot (fire once, RAM arm state,
+  auto-rearm on (re)entry + Func arm-all/disarm-all), recorder trig
+  (capture `rec_length`/RLEN into a buffer). One-shot composes with
+  recorder trig. (DESIGN §30.)
+- **Scenes morph parameters only, never trigs.** The fader lerps
+  continuous slots / snaps stepped slots; it never rewrites the trig
+  grid. "Fluid mute" = scene-assigning the AMP `Level` slot, with a
+  `Scene+Mute` convenience gesture. (DESIGN §17.2, §17.3.)
+- **Morph-aware editing (PolyBrute-style), 1:1 normalised.** A bare
+  encoder turn on an *already-assigned* scene slot writes through the
+  fader position, normalised so the heard value tracks the gesture
+  1:1. Coexists with (does not replace) the explicit `Scene A/B`
+  assignment gesture; no auto-assign at endpoints. (DESIGN §17.6.)
+- **Cue = additive monitor send, never solo.** `Cue` scope: `Cue+track`
+  adds an audio track to the cue bus (stays in main mix, post-FLTR/AMP
+  tap); `Cue+Scene` previews a scene on the cue bus without moving the
+  fader; `Cue+(MIDI track)` copies events to a cue MIDI destination.
+  No cue output configured = no-op, never reinterpreted as solo.
+  (DESIGN §31.)
+- **AMP gate source `{Envelope | Held-open}`.** General per-track AMP
+  property. `Envelope` = trig-gated (default). `Held-open` keeps the
+  amplitude stage continuously open — the basis of continuous Thru and
+  of drones. Subsumes the Octatrack Thru-vs-Neighbour split: Thru is
+  the one input-consuming machine, source chosen by `input_source`,
+  gated-vs-open chosen by AMP gate source. (DESIGN §14, §29.)
+- **Foundation-owned effects: `IEffect`, 2 inserts/track + 2 master.**
+  Effects reuse the `ParamSpec`/`role`/P-Lock infrastructure and fill
+  the canonical FX section (key 8). Per-track inserts are fixed,
+  post-AMP, **Part-scope**. Two master effects each switch between
+  **Insert** and **Send** mode (per-track Send A/B levels in the AMP
+  output mix). Master FX state is **Project-scope (provisional)**.
+  Effect identity is a stable string id with stub fallback. (DESIGN
+  §32.)
 
 ## Milestones
 
@@ -499,11 +595,16 @@ across machine types.
       cycles through both canonical-pages-within-section and the
       machine's declared extension pages on that section.
 - [ ] **ME.4** Per-track post-machine FLTR block: multi-mode SVF
-      (LP/BP/HP/Notch), Cutoff, Resonance, Drive, Env→Cutoff. Lives
-      in `Part::track[i].fltrState`.
+      (LP/BP/HP/Notch) with selectable 12 dB / 24 dB slope, Cutoff,
+      Resonance, Drive, Env→Cutoff. Lives in
+      `Part::track[i].fltrState`. Slope is a stepped slot
+      (`{12dB, 24dB}`); P-lockable per step. Default 24 dB.
 - [ ] **ME.5** Per-track post-machine AMP block: AHDSR responding to
-      sequencer-emitted note-on/off; Pan; Level. Lives in
-      `Part::track[i].ampState`.
+      sequencer-emitted note-on/off; Pan; Level; **gate source**
+      (`{Envelope | Held-open}`, default Envelope — Held-open keeps
+      the amp stage open for Thru/drones, DESIGN §14). Lives in
+      `Part::track[i].ampState`. (Send A / Send B output-mix levels
+      are added with the FX system, MV.)
 - [ ] **ME.6** Machine opt-out: `IMachine::hasInternalFilter()` /
       `hasInternalAmp()` bypass the corresponding block. Section key
       for that section is repurposed to the machine's own slots.
@@ -580,6 +681,10 @@ parity) is done.
 - [ ] **MH.5** Define and version-stamp a "machine pack" file format
       so individual machines can ship and be discovered without
       bloating the core.
+- [ ] **MH.6** StaticMachine — disk-streaming sampler for long-form
+      audio (DESIGN §29). Shares Flex's overlapping slot vocabulary
+      (start/end, level) minus the RAM-only manipulations streaming
+      can't cheaply support. Audio never decoded wholesale into RAM.
 
 ### MI — Scenes and crossfader  [pending]
 
@@ -617,6 +722,359 @@ for scene assignment.
       axis — assignment scope buttons only.
 - [ ] **MI.7** P-Lock dominance test: a P-locked slot bypasses the
       scene mix on that step, on both audio and MIDI-out tracks.
+- [ ] **MI.8** Morph-aware editing (DESIGN §17.6). A bare encoder turn
+      on an already-assigned scene slot writes through the live fader
+      position, normalised so the heard value tracks 1:1
+      (`da = Δ(1−f)/D, db = Δf/D, D=(1−f)²+f²`). Stepped slots write
+      to the resolved side. Unassigned slots edit base as before; no
+      auto-assign. P-Locks still dominate.
+- [ ] **MI.9** Fluid mute. `Scene + Mute` on a track captures
+      `Level → silence` into the held scene (sugar over assigning the
+      AMP Level slot), so the fader fades the track in/out rather than
+      snapping. Binary mutes (MD) stay separate and instantaneous.
+
+### MJ — Pattern/Part Management UI  [pending]
+
+DESIGN §23. MC introduced the Project/Bank/Pattern/Part data model
+and the queue-and-switch gesture; MJ is the performance-time
+*management* layer that sits on top.
+
+- [ ] **MJ.1** Pattern + Part naming. Each carries a user-editable
+      short name (≤16 chars). On-disk in the project; default is
+      bank-letter + slot-index. Live rename via a small inline
+      editor (no modal dialog).
+- [ ] **MJ.2** Pattern + Part colouring + tags. Each carries one
+      colour (small fixed palette tied to §24 taxonomy) and an
+      optional tag string. Both surface in the management browser
+      and in the chrome (queued-pattern chip shows colour + name).
+- [ ] **MJ.3** Browser overlay. A `Func + ?` (chord TBD,
+      consistent with §13 grammar) opens a non-modal pattern /
+      part browser: list of banks → patterns → parts with
+      names / colours / tags, navigable while playback continues.
+      Selecting a pattern triggers the existing queue gesture; no
+      new verb introduced.
+- [ ] **MJ.4** Copy / move / duplicate across banks. The existing
+      `Pattern + Record` (copy) and `Pattern + Play` (paste)
+      verbs gain a destination-bank prefix gesture: hold
+      `Pattern + bank_letter` after copy to choose where the
+      paste lands. Move = paste-then-clear-source variant. Same
+      rules apply to Parts via `Func + W` (existing fork
+      gesture).
+- [ ] **MJ.5** Pattern / Part queue cue. While in the browser,
+      `Yes` cues the highlighted pattern (queue without playing
+      immediately); `No` cancels the cue. Live continuity
+      preserved.
+
+### MK — Sampler depth  [pending]
+
+DESIGN §3.1. Adds first-class sample trim and loop to the baseline
+sampler. Machine-internal — no sequencer changes.
+
+- [ ] **MK.1** Sampler schema additions: `start_sample`,
+      `end_sample`, `loop_start`, `loop_end` (all stepped at
+      sample boundaries; P-lockable). Defaults: full sample, no
+      loop region.
+- [ ] **MK.2** Playback model: play `[start_sample, end_sample)`
+      once; if a loop region is set, on reaching `loop_end`,
+      wrap to `loop_start` and continue until the AHDSR envelope
+      reaches zero. Note-off triggers release; the loop continues
+      through release until envelope-zero.
+- [ ] **MK.3** Loop seam crossfade: fixed small crossfade
+      (≤4 ms) at `loop_end → loop_start` to suppress clicks. No
+      user control in v1.
+- [ ] **MK.4** Sample-pool waveform display (manipulation zone or
+      dedicated panel): visualises sample with draggable
+      start / end / loop markers. Editing markers writes the
+      corresponding slots through the normal EditContext.
+
+### ML — Sequencer refinement: microtiming + swing + quantize  [pending]
+
+DESIGN §19. Captures live timing nuance and provides a uniform
+quantize verb.
+
+- [ ] **ML.1** `Step::microOffset : float ∈ [-0.5, +0.5]`
+      (fraction of step length). Resolver shifts trig sample
+      position by `microOffset × step_samples`. Stored
+      per-step; serialised as part of the trig override map.
+- [ ] **ML.2** Realtime record writes `microOffset` automatically:
+      a note-on arriving between step boundaries records to the
+      nearest step with the residual delta stored as the
+      offset. The existing M7 record path is the integration
+      point.
+- [ ] **ML.3** Per-track `swing` parameter, range `[0, 1]`,
+      default `0.5` (no swing). At `0.5 < swing ≤ 1`, every
+      odd-indexed step within the track grid is delayed by
+      `(swing - 0.5) × step_samples`. Lives on `Track`, not
+      `Part` (it's a sequencer-scope feel, not a kit-scope
+      feel). UI in TRACK meta section.
+- [ ] **ML.4** `Quantize` verb. Mapped onto the existing verb
+      set: `<scope> + Stop` already clears overrides; introduce
+      `<scope> + No` as the quantize verb (zero microOffsets
+      in scope without touching trigs / P-Locks). Step, Track,
+      and Pattern scopes supported. Section / Mute / Fill
+      scopes: no-op.
+- [ ] **ML.5** Step-grid preview: a step with a nonzero
+      `microOffset` renders with a small left / right tick
+      indicator showing direction of nudge. Visible at all
+      times (not gated by held step).
+
+### MM — 16-levels trig-grid mode  [pending]
+
+DESIGN §20. Extends MG's modal trig-grid surface. Lands after MG.
+
+- [ ] **MM.1** Eligibility set: a closed subset of `ParamSpec::role`
+      values that 16-levels can target (`velocity`, `pitch.coarse`,
+      `cutoff`, `resonance`, `attack`, `decay`, `release`,
+      `lfo.depth`, `level`, `pan`, `drive`). Stored as a constant
+      next to the role enum.
+- [ ] **MM.2** Mode-enter chord consistent with MG.6. While
+      active, the trig grid does not toggle trigs; pressing key
+      `i ∈ [0..15]` writes value `i / 15` of the parameter's
+      range to:
+        - the focused track's base (no step held), or
+        - the held step's P-Lock (step held), or
+        - the next emitted step (record-arm + no step held).
+- [ ] **MM.3** Parameter selector: while in 16-levels mode, the
+      currently-bound role is shown in chrome; hold the mode
+      chord + encoder to cycle through the eligible roles
+      present on the focused track's machine. Defaults to
+      `velocity`.
+- [ ] **MM.4** MIDI-out parity: works identically against
+      MIDI-out tracks where the bound role tags a `cc[i]` slot.
+
+### MN — Sampling and resampling  [pending]
+
+DESIGN §22.
+
+- [ ] **MN.1** Audio-input capture: a Sampling overlay (chord
+      TBD, consistent with §13 grammar) opens a capture
+      surface. Input source picker = `{Plugin audio input,
+      Track 1..N, Master}`. System / device input is
+      explicitly **not** an option.
+- [ ] **MN.2** Free-form capture: start / stop verbs are the
+      existing `Record` / `Stop` within the Sampling scope.
+      Capture writes to a temporary buffer; on stop, the user
+      enters the naming flow (MN.5).
+- [ ] **MN.3** Capture-N-bars: an alternate within the Sampling
+      scope. Hold `Sampling + length-key` (1 / 2 / 4 / 8) and
+      arm; capture starts at the next bar boundary and ends
+      precisely after N bars. Useful for grabbing loops live.
+- [ ] **MN.4** Resample taps. `Track + Sampling` selects the
+      named track as source; `Pattern + Sampling` selects the
+      master. Both reuse the MN.2 / MN.3 capture paths verbatim.
+- [ ] **MN.5** Naming flow. On capture completion the UI offers
+      five candidate names: four `adjective-noun` pairs from a
+      bundled wordlist (`assets/wordlist.json` checked into the
+      repo) and one consonant-vowel pseudo-word derived from
+      the sample's content hash. Two encoders scroll through
+      the adjective and noun lists alphabetically; a third
+      encoder picks the candidate; `Yes` accepts, `No` cancels.
+      Typed entry via QWERTY also accepted.
+- [ ] **MN.6** Pool integration: accepted captures land in the
+      project sample pool with the chosen name, the path
+      pointing to a project-relative `samples/recorded/`
+      folder, and the standard `xxHash32` ref. Behaves
+      identically to drag-and-dropped samples thereafter.
+
+### MO — Audition and cross-track record  [pending]
+
+DESIGN §21. Refines the live-capture story.
+
+- [ ] **MO.1** Preview gestures (no record):
+        - `Trig + Yes` (held step + Yes verb) → fires that
+          step's resolved trig once, off the sequencer's
+          schedule, audible immediately.
+        - `Track + Yes` (Track scope held, no track-key) →
+          fires the focused track's base trig once.
+      Both bypass the sequencer event stream (one-shot
+      injected into the track's MidiBuffer directly).
+- [ ] **MO.2** Per-track record arms in Per-Track-MIDI channel
+      mode. Each track carries a `recordArmed` boolean; only
+      armed tracks capture live MIDI. UI on TRACK meta
+      section. Default armed = focused track.
+- [ ] **MO.3** Arm-all gesture (Per-Track-MIDI mode):
+      `Func + RecordArm` (`Func + T`) toggles every track's
+      arm in lockstep. The chord cleanly composes; the
+      existing `T` keeps its track-grouping meaning.
+- [ ] **MO.4** Omni mode: arming is global (the existing M7
+      record-arm). Note-on always captures to the focused
+      track only. Match the existing behaviour; document the
+      asymmetry as a consequence of Omni's design.
+- [ ] **MO.5** Step-as-keyboard live record: while MG.1's
+      Keyboard mode is active and record-arm is on, each
+      keypress writes the corresponding note onto the next
+      emitted step on the focused (or armed-set) track's
+      pattern. Composes with MG.2 / MG.3 / MG.5 identically.
+
+### MP — UI polish: layout, palette, toggles, coarse-adjust  [pending]
+
+DESIGN §24, §25, §26.
+
+- [ ] **MP.1** Vertical layout. The main editor window grows
+      vertically so that StepGrid cells, SectionBar cells, and
+      the manipulation-zone quadrants are square — matching the
+      eventual hardware key caps. ManipulationZone moves above
+      the StepGrid; on-screen MIDI keyboard moves to a
+      collapsible drawer. Layout constants centralised in one
+      header.
+- [ ] **MP.2** State-colour palette. Implement the §24 state
+      taxonomy: a `StateColor` enum and a single resolver that
+      maps each state to a colour. StepGrid, SectionBar, chrome
+      badges, and (future) hardware LED packets all consume
+      the same enum. Specific colours are a later visual pass;
+      MP.2 ships with placeholder colours that are
+      *distinguishable* but not yet "designed".
+- [ ] **MP.3** Granular feedback toggles. A small Settings
+      panel (`Func + ,`?) exposes individual toggles:
+      `show-scope-help`, `show-pending-paste-preview`,
+      `show-key-legend`, `show-mode-banner`,
+      `show-microtiming-ticks`, `show-fillrule-preview`, etc.
+      Each toggle defaults to "on" so first-run UX is the
+      beginner experience. Persisted in global settings, not
+      project state. Replaces the M6.11 three-overlay-mode
+      sketch (Staggered / Ortholinear / Clean are recovered
+      as preset bundles of toggles).
+- [ ] **MP.4** Coarse-adjust modifier. `Func` held while
+      turning an encoder snaps writes for that block to the
+      slot's coarse step. Coarse step is unit-derived by
+      default (time → musical division, hz / cutoff → octave,
+      generic float → `0.1`, int → `1`); `ParamSpec` may
+      override per slot. Wire through both encoder turns and
+      relative-CC deltas.
+- [ ] **MP.5** Manipulation Zone size constant. Replace every
+      hard-coded `4` denoting MZ slot count with a single
+      `lockstep::kMZSlots` constant. Verify a clean build with
+      `kMZSlots = 8`; revert to `4` for shipping. Documents the
+      hardware-grow path without committing UI to it yet.
+
+### MQ — Special trig types  [pending]
+
+DESIGN §30. Core-sequencer trig-grammar additions. Small and
+high-value; trigless in particular could be pulled earlier (e.g.
+alongside ME) if convenient — it has no machine dependencies.
+
+- [ ] **MQ.1** Trigless / lock-only trig. Per-step tri-state
+      `off → note → lock-only`, cycled by `Func + step`. A lock-only
+      step applies its P-Locks/overrides to the sounding voice with no
+      note-on emitted. New `StateColor` for lock-only cells.
+- [ ] **MQ.2** One-shot trig. `TrigCondition` variant; RAM-only
+      armed/spent state. Auto-rearm on pattern (re)entry and on
+      transport stop→start.
+- [ ] **MQ.3** One-shot arm-all / disarm-all per track, on the Func
+      command layer (chord TBD, sibling to `Func+W` fork). Armed vs.
+      spent announced in chrome.
+- [ ] **MQ.4** Step-state preview integration: lock-only steps render
+      distinctly; spent one-shots dim; armed one-shots read as their
+      condition otherwise.
+
+### MR — Audio-input boundary + routing + Thru machine  [pending]
+
+DESIGN §27, §29. The engine work that lets a machine consume audio.
+Gates MS/MT. The largest engine change in this cluster.
+
+- [ ] **MR.1** Add the optional audio-input path to the machine
+      boundary: the sequencer fills `buffer` from the machine's
+      declared `input_source` before `process()`.
+- [ ] **MR.2** `input_source` slot (`None | External | Track N |
+      Master`) with per-machine declaration. External = plugin audio
+      input bus.
+- [ ] **MR.3** Per-block topological sort of track processing so
+      sources compute before consumers. Reject cyclic routing at
+      assignment time with a chrome message.
+- [ ] **MR.4** Master prior-block tap: `input_source = Master` reads
+      the previous block's master sum (the one sanctioned 1-block tap).
+- [ ] **MR.5** ThruMachine: passes `input_source` through at unity so
+      the canonical post-machine FLTR/AMP/FX (§14) process external or
+      inter-track audio. Verify a Thru track filters an external input
+      and a sibling track's output.
+- [ ] **MR.6** MIDI-out parity check: MIDI-out tracks declare no input
+      source and are excluded from the routing graph cleanly.
+
+### MS — Recorder buffers + recorder trigs  [pending]
+
+DESIGN §28, §29, §30. Depends on MR (audio-input boundary).
+
+- [ ] **MS.1** Volatile pool entries: RAM-only, `REC`-badged,
+      not serialised. Unified address space with persistent samples so
+      any audio-source slot can reference either kind.
+- [ ] **MS.2** Fixed set of volatile buffer slots in the project
+      (~8, exact count TBD).
+- [ ] **MS.3** RecorderMachine: `input_source`, `target_buffer`,
+      `rec_length` (RLEN, P-lockable, default = track loop length).
+      Overwrite-only capture.
+- [ ] **MS.4** Recorder trig (MQ-style trig variant): captures
+      `rec_length` into `target_buffer` on fire. Plain = re-capture
+      each loop; one-shot recorder trig = capture once then spent.
+- [ ] **MS.5** Freeze-to-disk: run a volatile entry through the §22.3
+      naming flow to promote it to a persistent file-backed sample.
+- [ ] **MS.6** Looper-record path round-trip test: Recorder writes
+      buffer B; a Flex/Static track plays buffer B (no routing cycle,
+      since buffer read/write is not an audio edge).
+
+### MT — Looper machine (overdub)  [pending]
+
+DESIGN §29. The pickup-machine equivalent: encapsulated overdub
+state machine. Depends on MS (volatile buffers).
+
+- [ ] **MT.1** LooperMachine skeleton: owns a loop buffer + state
+      (empty → record → play → overdub → stop → clear).
+- [ ] **MT.2** Verb-driven control while the track is focused:
+      `Record` cycles record → overdub, `Play` plays, `Stop` stops; a
+      clear gesture empties the loop. No new grammar.
+- [ ] **MT.3** Overdub (sound-on-sound) mixing with click-free loop
+      seams; optional decay/feedback on overdub layers.
+- [ ] **MT.4** Transport-synced loop length option (snap loop to bar /
+      pattern length) alongside free-length looping.
+
+### MU — Cue bus and monitoring  [pending]
+
+DESIGN §31. Adds the monitor bus and the `Cue` scope. Relates to
+MO (audition) and MI (scene preview); lands after MF for MIDI cue.
+
+- [ ] **MU.1** Cue/monitor output bus: standalone audio device ch 3–4;
+      plugin second stereo output bus. Chrome shows "cue unavailable"
+      when unwired.
+- [ ] **MU.2** `Cue` scope button (QWERTY key TBD, hardware mapping
+      preserved). `Cue + track` = additive monitor send, post-FLTR/
+      AMP/Level tap; track stays in main mix.
+- [ ] **MU.3** `Cue + Scene` previews a scene on the cue bus without
+      moving the live fader (cued tracks resolve twice for that block).
+- [ ] **MU.4** Cue MIDI destination + `Cue + (MIDI-out track)` copies
+      events to it, main destination untouched. No cue MIDI dest =
+      no-op with chrome note. (Depends on MF.)
+
+### MV — Insert and master effects (FX system)  [pending]
+
+DESIGN §32. Fills the canonical FX section (key 8). Depends only on
+ME (canonical sections + post-machine FLTR/AMP) and the §14 signal
+path, so it can land any time after ME — it is independent of the
+MQ–MU recorder/cue cluster.
+
+- [ ] **MV.1** `IEffect` interface reusing `ParamSpec` / `role` /
+      P-Lock infrastructure; stable string id with bypassed-stub
+      fallback on unknown id. A small starter catalogue (e.g. delay,
+      reverb, EQ) to exercise it.
+- [ ] **MV.2** Per-track insert chain: two fixed slots, post-AMP
+      (`… → AMP → FX1 → FX2 → track sum`). State in
+      `Part::track[i].insertFX[2]` (identity + base params); P-Locks
+      live with the Pattern as for any slot.
+- [ ] **MV.3** FX canonical section rendering: generic renderer of the
+      loaded effect's schema; repeated key-8 press paginates slot-1
+      pages then slot-2 pages (extension-section mechanism from ME.3).
+      Effect-load gesture to assign a catalogue effect to a slot.
+- [ ] **MV.4** Two master effect slots (post track-sum, pre master
+      gain), each with mode `{Insert | Send}`. Master FX edited under
+      the `Master` focus state. State **Project-scope (provisional)**.
+- [ ] **MV.5** Send routing: per-track Send A / Send B levels in the
+      AMP output mix (P-lockable); Send-mode master slots act as
+      return buses summed back into master. Insert-mode processes the
+      master in-line.
+- [ ] **MV.6** Performance-grammar parity: effect params P-lockable,
+      scene-assignable + morph-aware (§17.6), Control-All by id/role,
+      and FX-section copy/paste/clear copies effect *identity* + params
+      (extends §13.2 section-copy). Verify on a Thru track end-to-end.
+- [ ] **MV.7** MIDI-out tracks carry no inserts/sends; their FX section
+      remains the ME.7 MIDI CC bank. No special-casing elsewhere.
 
 ### M9 — Plugin-wrapper machine (deferred indefinitely)
 
