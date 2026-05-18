@@ -14,8 +14,7 @@ namespace lockstep
     //   [Fil][St9][S10][S11][S12][S13][S14][S15][S16]    <- row 4
     //
     //   Left column (1/Q/A/Z) = dedicated modifier strip (Func/Track/Mute/Fill).
-    //   Func layer: Func+2(Rec)=Yes(snapshot), Func+T(Ply)=No(restore),
-    //               Func+W=No, Func+R=Yes, Func+E=StopReset,
+    //   Func layer: Func+2(Rec)=Snapshot, Func+T(Ply)=Restore, Func+E=StopReset,
     //               Func+4-9=MetaSections,
     //               Func+Y/U/I=TrigModeKeyboard/Retrig/SoundPool.
     //   Track layer: Track+S-L = SelectTrack 0-7.

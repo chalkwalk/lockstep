@@ -13,8 +13,8 @@ namespace lockstep
     //   Trig (held step) > Section > Track > Pattern > Mute > Fill > Func
     //
     // The primary scope is the last scope button pressed that is still held.
-    // Verb keys (VerbRecord, VerbPlay, VerbStop, Yes, No) dispatch through
-    // onVerb which carries the current primary scope.
+    // Verb keys (VerbRecord, VerbPlay, VerbStop) dispatch through onVerb which
+    // carries the current primary scope. Snapshot/Restore bypass EditMode entirely.
     class EditMode
     {
     public:

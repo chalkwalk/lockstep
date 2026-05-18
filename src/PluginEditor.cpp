@@ -435,10 +435,13 @@ namespace lockstep
                 editMode_.onVerb(ev.button);
                 return true;
 
-            // Checkpoint verbs.
-            case ControllerButton::Yes:
-            case ControllerButton::No:
-                editMode_.onVerb(ev.button);
+            case ControllerButton::Snapshot:
+                checkpointDepth_ = std::min(checkpointDepth_ + 1, 8);
+                repaint();
+                return true;
+            case ControllerButton::Restore:
+                checkpointDepth_ = std::max(checkpointDepth_ - 1, 0);
+                repaint();
                 return true;
 
             // Trig grid mode selection (Func+Y/U/I). Pressing the active mode
@@ -680,22 +683,8 @@ namespace lockstep
             }
 
             case PS::Func:
-            {
-                // Func + Yes/No = checkpoint push/pop (MD implements real stack).
-                if (verb == CB::Yes)
-                {
-                    checkpointDepth_ = std::min(checkpointDepth_ + 1, 8);
-                }
-                else if (verb == CB::No)
-                {
-                    checkpointDepth_ = std::max(checkpointDepth_ - 1, 0);
-                }
-                break;
-            }
-
             case PS::Mute:
             case PS::Fill:
-                // Verb with mute/fill scope reserved for MD.
                 break;
 
             case PS::None:

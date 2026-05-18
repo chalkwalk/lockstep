@@ -18,9 +18,9 @@ namespace lockstep
         // Q is the TrackScope modifier (left column); W-O are function keys.
         constexpr std::array<QKeyDef, FunctionBar::kNumKeys> kDefs = {{
             { 'Q', "Q", "TRK", "",    false },  // TrackScope modifier
-            { 'W', "W", "<",   "NO",  true  },  // NavLeft  / No
+            { 'W', "W", "<",   "",    true  },  // NavLeft
             { 'E', "E", "v",   "",    true  },  // NavDown
-            { 'R', "R", ">",   "YES", true  },  // NavRight / Yes
+            { 'R', "R", ">",   "",    true  },  // NavRight
             { 'T', "T", "PLY", "RST", false },  // PlayStop / Restore (checkpoint pop)
             { 'Y', "Y", "CPY", "KEY", false },  // VerbRecord / TrigModeKeyboard
             { 'U', "U", "PST", "RTG", false },  // VerbPlay   / TrigModeRetrig

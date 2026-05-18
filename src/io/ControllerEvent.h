@@ -28,9 +28,9 @@ namespace lockstep
         VerbPlay,         // U: paste / apply clipboard to scope
         VerbStop,         // I: clear scope
 
-        // Confirmation verbs used with Func for checkpoint and modal dialogs.
-        Yes,              // Func+T: push checkpoint / confirm
-        No,               // Func+O: pop checkpoint / cancel
+        // Checkpoint operations — direct actions, not scope-qualified verbs.
+        Snapshot,         // Func+2(Rec): push checkpoint
+        Restore,          // Func+T(Ply): pop checkpoint
 
         // Trig-grid mode chords: held = mode active, exit on release.
         TrigModeKeyboard, // Func+Y: 16 trig keys -> chromatic keyboard
@@ -54,10 +54,10 @@ namespace lockstep
         ToggleMute,
 
         // Transport / utility.
-        RecordArm,  // T (Func not held)
+        RecordArm,  // key 2 (Func not held)
         TapTempo,   // O (Func not held)
-        PlayStop,   // key 9
-        StopReset,  // Func+9
+        PlayStop,   // T (Func not held)
+        StopReset,  // Func+E
     };
 
     // A single normalised input event from any source (QWERTY, MIDI CC, UI encoder,
