@@ -1,5 +1,6 @@
 #include "PluginEditor.h"
 #include "ParameterIDs.h"
+#include <algorithm>
 
 namespace lockstep
 {
@@ -215,7 +216,7 @@ namespace lockstep
             // Clipboard badge
             const char* cbLabel = nullptr;
             juce::Colour cbColour{ 0xFFFFFFFFu };
-            switch (clipboardType_)
+            switch (clipboard_.type)
             {
                 case ClipboardType::None:    break;
                 case ClipboardType::Step:    cbLabel = "CPY:STP"; cbColour = juce::Colour(0xFF50B0C8u); break;
@@ -418,6 +419,12 @@ namespace lockstep
 
             case ControllerButton::Section:
                 sectionBar_.selectSection(ev.index);
+                // Track section key hold for Section-scope verb dispatch (MD.3).
+                if (heldSectionRawCode_ < 0)
+                {
+                    heldSectionRawCode_ = rawCode;
+                    editMode_.setSectionHeld(true);
+                }
                 return true;
 
             case ControllerButton::MetaSection:
@@ -598,6 +605,11 @@ namespace lockstep
                 return true;
             }
 
+            case ControllerButton::ForkPart:
+                processor_.forkActivePart();
+                repaint();
+                return true;
+
             case ControllerButton::MetronomeToggle:
                 processor_.clock().setMetronomeEnabled(!processor_.clock().isMetronomeEnabled());
                 return true;
@@ -676,6 +688,15 @@ namespace lockstep
             uiState_.patternScopeUsed = false;
             editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::PatternScope });
             repaint();
+            handled = true;
+        }
+
+        // Section key release: clear section-held scope.
+        if (heldSectionRawCode_ >= 0
+            && !juce::KeyPress::isKeyCurrentlyDown(heldSectionRawCode_))
+        {
+            heldSectionRawCode_ = -1;
+            editMode_.setSectionHeld(false);
             handled = true;
         }
 
@@ -793,56 +814,186 @@ namespace lockstep
 
         switch (scope)
         {
+            // -----------------------------------------------------------------------
+            // MD.2  Step copy / paste / clear
+            // -----------------------------------------------------------------------
             case PS::Trig:
             {
                 const auto& ctx = processor_.editContext();
                 if (!ctx.isActiveForEditing()) break;
                 const int track = ctx.heldTrackIndex();
-                const int step  = ctx.heldStepIndex();
+                auto& trk = processor_.sequence().tracks[static_cast<std::size_t>(track)];
 
-                if (verb == CB::VerbStop)
+                if (verb == CB::VerbRecord)
                 {
-                    // Clear all P-Locks and trig overrides on the held step.
-                    processor_.clearStepLocks(track, step);
-                }
-                else if (verb == CB::VerbRecord)
-                {
-                    // Stub: copy step into clipboard (MD implements full copy).
-                    clipboardType_ = ClipboardType::Step;
+                    const auto& held = ctx.heldSteps();
+                    if (held.empty()) break;
+                    int anchor = *std::min_element(held.begin(), held.end());
+                    clipboard_.stepEntries.clear();
+                    for (int idx : held)
+                    {
+                        if (idx < 0 || idx >= kMaxStepsPerTrack) continue;
+                        clipboard_.stepEntries.push_back(
+                            { idx - anchor, trk.steps[static_cast<std::size_t>(idx)] });
+                    }
+                    std::sort(clipboard_.stepEntries.begin(), clipboard_.stepEntries.end(),
+                              [](const StepClipEntry& a, const StepClipEntry& b)
+                              { return a.relOffset < b.relOffset; });
+                    clipboard_.type = ClipboardType::Step;
                 }
                 else if (verb == CB::VerbPlay)
                 {
-                    // Stub: paste clipboard onto step (MD implements full paste).
+                    if (clipboard_.type != ClipboardType::Step) break;
+                    const int anchor  = ctx.heldStepIndex();
+                    const int trkLen  = trk.length;
+                    for (const auto& entry : clipboard_.stepEntries)
+                    {
+                        int dst = (anchor + entry.relOffset);
+                        dst = ((dst % trkLen) + trkLen) % trkLen;
+                        trk.steps[static_cast<std::size_t>(dst)] = entry.data;
+                    }
                 }
-                break;
-            }
-
-            case PS::Track:
-            {
-                if (verb == CB::VerbRecord)      { clipboardType_ = ClipboardType::Track; }
-                else if (verb == CB::VerbPlay)   { /* stub: paste track */ }
-                else if (verb == CB::VerbStop)   { /* stub: clear track */ }
-                break;
-            }
-
-            case PS::Pattern:
-            {
-                if (verb == CB::VerbRecord)
+                else if (verb == CB::VerbStop)
                 {
-                    // Fork the active Part if it is shared; otherwise copy pattern.
-                    if (!processor_.forkActivePart())
-                        clipboardType_ = ClipboardType::Pattern;
+                    for (int idx : ctx.heldSteps())
+                    {
+                        processor_.clearStepLocks(track, idx);
+                        auto& s = trk.steps[static_cast<std::size_t>(idx)];
+                        s.trig      = false;
+                        s.condition = TrigCondition{};
+                    }
                 }
-                else if (verb == CB::VerbPlay)   { /* stub: paste pattern */ }
-                else if (verb == CB::VerbStop)   { /* stub: clear pattern */ }
                 break;
             }
 
+            // -----------------------------------------------------------------------
+            // MD.3  Section copy / paste / clear
+            // -----------------------------------------------------------------------
             case PS::Section:
             {
-                if (verb == CB::VerbRecord)      { clipboardType_ = ClipboardType::Section; }
-                else if (verb == CB::VerbPlay)   { /* stub: paste section */ }
-                else if (verb == CB::VerbStop)   { /* stub: clear section */ }
+                const int activeTrack = stepGrid_.getActiveTrack();
+                const int secIdx      = uiState_.trackSection[static_cast<std::size_t>(activeTrack)];
+                auto& trk = processor_.sequence()
+                                .tracks[static_cast<std::size_t>(activeTrack)];
+                const int trkLen    = trk.length;
+                const int numSlots  = processor_.numParams(activeTrack);
+
+                if (verb == CB::VerbRecord)
+                {
+                    clipboard_.sectionSlots.clear();
+                    clipboard_.sectionTrackLength = trkLen;
+                    for (int sl = 0; sl < numSlots; ++sl)
+                    {
+                        if (processor_.paramSpec(activeTrack, sl).sectionIndex != secIdx)
+                            continue;
+                        SectionClipSlot entry;
+                        entry.slot = sl;
+                        entry.perStep.reserve(static_cast<std::size_t>(trkLen));
+                        for (int st = 0; st < trkLen; ++st)
+                        {
+                            const auto& plock = trk.steps[static_cast<std::size_t>(st)].overrides;
+                            const bool  has   = plock.has(sl);
+                            entry.perStep.push_back({ has, has ? plock.get(sl, 0.0f) : 0.0f });
+                        }
+                        clipboard_.sectionSlots.push_back(std::move(entry));
+                    }
+                    clipboard_.type = ClipboardType::Section;
+                }
+                else if (verb == CB::VerbPlay)
+                {
+                    if (clipboard_.type != ClipboardType::Section) break;
+                    for (const auto& entry : clipboard_.sectionSlots)
+                    {
+                        const int steps = std::min(static_cast<int>(entry.perStep.size()), trkLen);
+                        for (int st = 0; st < steps; ++st)
+                        {
+                            auto& plock = trk.steps[static_cast<std::size_t>(st)].overrides;
+                            if (entry.perStep[static_cast<std::size_t>(st)].first)
+                                plock.set(entry.slot, entry.perStep[static_cast<std::size_t>(st)].second);
+                            else
+                                plock.clear(entry.slot);
+                        }
+                    }
+                }
+                else if (verb == CB::VerbStop)
+                {
+                    for (int sl = 0; sl < numSlots; ++sl)
+                    {
+                        if (processor_.paramSpec(activeTrack, sl).sectionIndex != secIdx)
+                            continue;
+                        for (int st = 0; st < trkLen; ++st)
+                            trk.steps[static_cast<std::size_t>(st)].overrides.clear(sl);
+                    }
+                }
+                break;
+            }
+
+            // -----------------------------------------------------------------------
+            // MD.4  Track copy / paste / clear
+            // -----------------------------------------------------------------------
+            case PS::Track:
+            {
+                const int activeTrack = stepGrid_.getActiveTrack();
+                auto& trk = processor_.sequence()
+                                .tracks[static_cast<std::size_t>(activeTrack)];
+
+                if (verb == CB::VerbRecord)
+                {
+                    clipboard_.clipTrack = trk;
+                    clipboard_.type      = ClipboardType::Track;
+                }
+                else if (verb == CB::VerbPlay)
+                {
+                    if (clipboard_.type != ClipboardType::Track) break;
+                    trk = clipboard_.clipTrack;
+                }
+                else if (verb == CB::VerbStop)
+                {
+                    // Reset all steps; preserve length, divider, and base params.
+                    for (auto& s : trk.steps)
+                    {
+                        s.trig       = false;
+                        s.condition  = TrigCondition{};
+                        s.overrides  = PLock{};
+                        s.trigOverride = TrigOverride{};
+                    }
+                }
+                break;
+            }
+
+            // -----------------------------------------------------------------------
+            // MD.5  Pattern copy / paste / clear  (Pattern+Record = copy, not fork)
+            // -----------------------------------------------------------------------
+            case PS::Pattern:
+            {
+                auto& pat = processor_.activePattern();
+
+                if (verb == CB::VerbRecord)
+                {
+                    clipboard_.clipSequence    = pat.sequence;
+                    clipboard_.clipPatternMutes = pat.patternMutes;
+                    clipboard_.type            = ClipboardType::Pattern;
+                }
+                else if (verb == CB::VerbPlay)
+                {
+                    if (clipboard_.type != ClipboardType::Pattern) break;
+                    pat.sequence     = clipboard_.clipSequence;
+                    pat.patternMutes = clipboard_.clipPatternMutes;
+                }
+                else if (verb == CB::VerbStop)
+                {
+                    for (auto& trk : pat.sequence.tracks)
+                    {
+                        for (auto& s : trk.steps)
+                        {
+                            s.trig       = false;
+                            s.condition  = TrigCondition{};
+                            s.overrides  = PLock{};
+                            s.trigOverride = TrigOverride{};
+                        }
+                    }
+                    pat.patternMutes.fill(false);
+                }
                 break;
             }
 
@@ -853,7 +1004,7 @@ namespace lockstep
 
             case PS::None:
             {
-                // VerbStop with no scope: clear the active-slot P-Lock (legacy behaviour).
+                // VerbStop with no scope: clear the active-slot P-Lock.
                 if (verb == CB::VerbStop)
                 {
                     const auto& ctx = processor_.editContext();

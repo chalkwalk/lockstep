@@ -53,6 +53,9 @@ namespace lockstep
         // Mute toggle for a specific track; index carries the track index (0-7).
         ToggleMute,
 
+        // Fork the active Part (make it unique). Gesture: Func+W. (MD.5)
+        ForkPart,
+
         // Transport / utility.
         RecordArm,       // key 2 (Func not held)
         TapTempo,        // O (Func not held)

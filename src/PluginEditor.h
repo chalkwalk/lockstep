@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "PluginProcessor.h"
-#include "io/ClipboardType.h"
+#include "io/Clipboard.h"
 #include "io/ControllerEvent.h"
 #include "io/EditMode.h"
 #include "io/QwertyOverlay.h"
@@ -65,12 +65,13 @@ namespace lockstep
         bool   playKeyHeld_                  = false;
         static constexpr double kDoublePressMsThreshold = 350.0;
 
-        ClipboardType clipboardType_  = ClipboardType::None;
-        int           checkpointDepth_ = 0;  // stub: real stack in MD
+        Clipboard clipboard_;
+        int       checkpointDepth_ = 0;  // stub: real stack in MD
 
         // MD.7/MD.8: deferred pattern mute track indices — collected while Func
         // is held inside mute mode; applied atomically on Func release.
         std::vector<int> deferredPatternMutes_;
+        int              heldSectionRawCode_ = -1;
         juce::Component* keyListenerTarget_ = nullptr;
 
         juce::MidiKeyboardState keyboardState_;
