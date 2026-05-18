@@ -79,6 +79,16 @@ namespace lockstep
         // Syncs Track.baseParams from the new Part when the Part reference changes.
         void setActivePattern(int bankIdx, int patternIdx);
 
+        // Fork the active Part: copy it into the first free Part slot so the
+        // active pattern no longer shares its Part with any other pattern.
+        // Returns true on success; false if the Part is not shared or all Part
+        // slots are occupied.
+        bool forkActivePart();
+
+        // Returns the number of patterns in the active bank that reference the
+        // same Part as the active pattern.
+        int activePartShareCount() const;
+
         // Queue a pattern switch to fire at the next grid boundary (end of the
         // longest running track's cycle). Safe to call from the message thread.
         // cancelQueuedPattern() clears any pending switch.

@@ -420,9 +420,10 @@ DESIGN.md §4.7.
       (end of longest running track). Cancel via `PatternScope + Stop`.
       Releasing PatternScope without pressing a step fires Snapshot
       (backward-compat). Pending switch shown as QUE:B.P chrome badge.
-- [ ] **MC.5** Part sharing UI: indicate when multiple patterns share a
-      Part. Provide a "fork Part" gesture so editing in one pattern
-      stops affecting siblings.
+- [x] **MC.5** Part sharing UI: SHR:N chrome badge when N patterns share
+      the active Part. PatternScope + VerbRecord forks the Part (copies
+      it into the first free Part slot so edits no longer affect
+      siblings). No-op if already unshared or all 4 Part slots used.
 - [ ] **MC.6** Chain mode (DESIGN §16). RAM-only queue of upcoming
       pattern changes appended by `Pattern + Chain + <stepkey>`.
       Loop / single-shot toggle. Interruptible by a plain

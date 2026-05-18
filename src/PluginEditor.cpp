@@ -277,6 +277,21 @@ namespace lockstep
                 g.fillRoundedRectangle(r.toFloat(), 3.0f);
                 g.setColour(juce::Colours::white);
                 g.drawText(quLabel, r, juce::Justification::centred);
+                bx += 52 + kGap;
+            }
+
+            // Part-sharing badge: shown when the active Part is shared by multiple patterns.
+            {
+                const int shareCount = processor_.activePartShareCount();
+                if (shareCount > 1)
+                {
+                    const juce::String shrLabel = "SHR:" + juce::String(shareCount);
+                    const auto r = juce::Rectangle<int>(bx, by, 40, kBadgeH);
+                    g.setColour(juce::Colour(0xFF9040C0u));
+                    g.fillRoundedRectangle(r.toFloat(), 3.0f);
+                    g.setColour(juce::Colours::white);
+                    g.drawText(shrLabel, r, juce::Justification::centred);
+                }
             }
         }
 
@@ -538,6 +553,7 @@ namespace lockstep
             case ControllerButton::PatternScope:
                 uiState_.patternScopeHeld = true;
                 uiState_.patternScopeUsed = false;
+                editMode_.onScopeEvent(ev);
                 repaint();
                 return true;
 
@@ -597,6 +613,7 @@ namespace lockstep
                 checkpointDepth_ = std::min(checkpointDepth_ + 1, 8);
             uiState_.patternScopeHeld = false;
             uiState_.patternScopeUsed = false;
+            editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::PatternScope });
             repaint();
             handled = true;
         }
@@ -749,7 +766,12 @@ namespace lockstep
 
             case PS::Pattern:
             {
-                if (verb == CB::VerbRecord)      { clipboardType_ = ClipboardType::Pattern; }
+                if (verb == CB::VerbRecord)
+                {
+                    // Fork the active Part if it is shared; otherwise copy pattern.
+                    if (!processor_.forkActivePart())
+                        clipboardType_ = ClipboardType::Pattern;
+                }
                 else if (verb == CB::VerbPlay)   { /* stub: paste pattern */ }
                 else if (verb == CB::VerbStop)   { /* stub: clear pattern */ }
                 break;

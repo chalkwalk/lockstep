@@ -127,6 +127,41 @@ namespace lockstep
         learnActive_.store(false, std::memory_order_release);
     }
 
+    int LockstepProcessor::activePartShareCount() const
+    {
+        const auto& bank    = project_.banks[static_cast<std::size_t>(activeBankIdx_)];
+        const int   partRef = activePattern().partRef;
+        int count = 0;
+        for (const auto& pat : bank.patterns)
+            if (pat.partRef == partRef) ++count;
+        return count;
+    }
+
+    bool LockstepProcessor::forkActivePart()
+    {
+        auto& bank         = project_.banks[static_cast<std::size_t>(activeBankIdx_)];
+        const int partRef  = activePattern().partRef;
+
+        // Nothing to fork if this Part is not shared.
+        if (activePartShareCount() <= 1) return false;
+
+        // Find a Part slot that is not referenced by any pattern in this bank.
+        int freeSlot = -1;
+        for (int p = 0; p < kPartsPerBank; ++p)
+        {
+            bool used = false;
+            for (const auto& pat : bank.patterns)
+                if (pat.partRef == p) { used = true; break; }
+            if (!used) { freeSlot = p; break; }
+        }
+        if (freeSlot < 0) return false;
+
+        bank.parts[static_cast<std::size_t>(freeSlot)] =
+            bank.parts[static_cast<std::size_t>(partRef)];
+        activePattern().partRef = freeSlot;
+        return true;
+    }
+
     void LockstepProcessor::queuePattern(int bankIdx, int patternIdx)
     {
         if (bankIdx    < 0 || bankIdx    >= static_cast<int>(kNumBanks))        return;
