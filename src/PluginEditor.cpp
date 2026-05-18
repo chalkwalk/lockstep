@@ -303,11 +303,17 @@ namespace lockstep
 
             case ControllerButton::Step:
             {
-                if (heldStepKey_ != rawCode)
+                // Ignore key-repeat (same physical key already in list).
+                bool alreadyHeld = false;
+                for (auto& [code, _] : heldStepKeys_)
                 {
-                    heldStepKey_ = rawCode;
+                    if (code == rawCode) { alreadyHeld = true; break; }
+                }
+                if (!alreadyHeld)
+                {
                     const int absStep = stepGrid_.currentPage() * StepGrid::kPageSteps
                                         + ev.index;
+                    heldStepKeys_.push_back({ rawCode, absStep });
                     processor_.editContext().hold(stepGrid_.getActiveTrack(), absStep);
                     editMode_.setTrigHeld(true);
                 }
@@ -423,28 +429,34 @@ namespace lockstep
             handled = true;
         }
 
-        // Step key release: toggle trig or commit P-Lock hold.
-        if (!isKeyDown && heldStepKey_ != -1
-            && !juce::KeyPress::isKeyCurrentlyDown(heldStepKey_))
+        // Step key releases: for each held step whose physical key is no longer down,
+        // release it from the edit context and optionally toggle its trig.
+        for (int i = static_cast<int>(heldStepKeys_.size()) - 1; i >= 0; --i)
         {
-            const auto& ctx = processor_.editContext();
-            const int track = ctx.heldTrackIndex();
-            const int step  = ctx.heldStepIndex();
-            const bool shouldToggle = !ctx.wasParamWritten();
-
-            processor_.editContext().release();
-
-            if (shouldToggle && track >= 0 && step >= 0)
+            auto [code, stepIdx] = heldStepKeys_[static_cast<std::size_t>(i)];
+            if (!juce::KeyPress::isKeyCurrentlyDown(code))
             {
-                auto& s = processor_.sequence()
-                    .tracks[static_cast<std::size_t>(track)]
-                    .steps[static_cast<std::size_t>(step)];
-                s.trig = !s.trig;
-            }
+                auto& ctx = processor_.editContext();
+                const int  track          = ctx.heldTrackIndex();
+                const bool paramWasWritten = ctx.wasParamWritten();
 
-            heldStepKey_ = -1;
+                processor_.editContext().release(stepIdx);
+
+                if (!paramWasWritten && track >= 0 && stepIdx >= 0)
+                {
+                    auto& s = processor_.sequence()
+                        .tracks[static_cast<std::size_t>(track)]
+                        .steps[static_cast<std::size_t>(stepIdx)];
+                    s.trig = !s.trig;
+                }
+
+                heldStepKeys_.erase(heldStepKeys_.begin() + i);
+                handled = true;
+            }
+        }
+        if (handled && heldStepKeys_.empty())
+        {
             editMode_.setTrigHeld(false);
-            handled = true;
         }
 
         return handled;

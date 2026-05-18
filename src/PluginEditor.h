@@ -2,6 +2,8 @@
 
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <memory>
+#include <utility>
+#include <vector>
 
 #include "PluginProcessor.h"
 #include "io/ClipboardType.h"
@@ -55,7 +57,8 @@ namespace lockstep
         QwertyOverlay qwerty_;
         EditMode      editMode_;
         UiState uiState_;
-        int           heldStepKey_    = -1;
+        // (rawKeyCode, absStepIndex) pairs, ordered by press time.
+        std::vector<std::pair<int,int>> heldStepKeys_;
         ClipboardType clipboardType_  = ClipboardType::None;
         int           checkpointDepth_ = 0;  // stub: real stack in MD
         juce::Component* keyListenerTarget_ = nullptr;

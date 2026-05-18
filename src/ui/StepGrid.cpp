@@ -215,10 +215,10 @@ namespace lockstep
                 const int absIdx   = baseStep + localIdx;
                 const bool inRange = absIdx < trackLen;
                 const auto& ctx    = processor_.editContext();
+                const auto& held   = ctx.heldSteps();
                 const bool isHeld  = inRange
-                    && ctx.isActiveForEditing()
                     && ctx.heldTrackIndex() == activeTrack_
-                    && ctx.heldStepIndex()  == absIdx;
+                    && std::find(held.begin(), held.end(), absIdx) != held.end();
                 const bool hasTrig = inRange
                     && track.steps[static_cast<std::size_t>(absIdx)].trig;
                 const int  activeSlot    = ctx.activeSlot();
@@ -421,7 +421,7 @@ namespace lockstep
 
         const bool shouldToggle = !processor_.editContext().wasParamWritten()
                                   && stepCellAt(e.getPosition()) == mouseHeldStep_;
-        processor_.editContext().release();
+        processor_.editContext().release(mouseHeldStep_);
 
         if (shouldToggle)
         {
