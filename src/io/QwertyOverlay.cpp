@@ -19,25 +19,23 @@ namespace lockstep
 
         // Primary layer — no special modifier held (Fill is transparent; doesn't alter mappings).
         constexpr std::array<Entry, 32> kPrimary = { {
-            // Navigation (2=Up, W=Left, E=Down, R=Right)
-            { code('2'), B::NavUp,       -1 },
+            // Navigation (2=Rec, 3=Up, W=Left, E=Down, R=Right)
+            { code('2'), B::RecordArm,   -1 },
+            { code('3'), B::NavUp,       -1 },
             { code('W'), B::NavLeft,     -1 },
             { code('E'), B::NavDown,     -1 },
             { code('R'), B::NavRight,    -1 },
 
-            // Section buttons (keys 3-8)
-            { code('3'), B::Section,      0 },
-            { code('4'), B::Section,      1 },
-            { code('5'), B::Section,      2 },
-            { code('6'), B::Section,      3 },
-            { code('7'), B::Section,      4 },
-            { code('8'), B::Section,      5 },
+            // Section buttons (keys 4-9)
+            { code('4'), B::Section,      0 },
+            { code('5'), B::Section,      1 },
+            { code('6'), B::Section,      2 },
+            { code('7'), B::Section,      3 },
+            { code('8'), B::Section,      4 },
+            { code('9'), B::Section,      5 },
 
-            // Transport
-            { code('9'), B::PlayStop,    -1 },
-
-            // Verb and utility row (T=RecordArm, Y/U/I=verbs, O=TapTempo)
-            { code('T'), B::RecordArm,   -1 },
+            // Verb and utility row (T=PlayStop, Y/U/I=verbs, O=TapTempo)
+            { code('T'), B::PlayStop,    -1 },
             { code('Y'), B::VerbRecord,  -1 },
             { code('U'), B::VerbPlay,    -1 },
             { code('I'), B::VerbStop,    -1 },
@@ -66,21 +64,25 @@ namespace lockstep
 
         // Func layer — applied when Func (key 1) is held.
         // Keys not listed here fall through to the primary table.
-        constexpr std::array<Entry, 13> kFunc = { {
-            { code('2'), B::PatternScope,      -1 },
-            { code('9'), B::StopReset,         -1 },
+        constexpr std::array<Entry, 14> kFunc = { {
+            // Func+2(Rec)=snapshot(Yes), Func+T(Ply)=restore(No)
+            { code('2'), B::Yes,               -1 },
+            { code('T'), B::No,                -1 },
 
-            // Meta sections
-            { code('3'), B::MetaSection,        0 },
-            { code('4'), B::MetaSection,        1 },
-            { code('5'), B::MetaSection,        2 },
-            { code('6'), B::MetaSection,        3 },
-            { code('7'), B::MetaSection,        4 },
-            { code('8'), B::MetaSection,        5 },
+            // Func+<(W)=No, Func+>(R)=Yes for general confirmations
+            { code('W'), B::No,                -1 },
+            { code('R'), B::Yes,               -1 },
 
-            // Confirmation verbs
-            { code('T'), B::Yes,               -1 },
-            { code('O'), B::No,                -1 },
+            // Func+E(down)=stop+reset (temporary home until MD nav-secondary pass)
+            { code('E'), B::StopReset,         -1 },
+
+            // Meta sections (keys 4-9)
+            { code('4'), B::MetaSection,        0 },
+            { code('5'), B::MetaSection,        1 },
+            { code('6'), B::MetaSection,        2 },
+            { code('7'), B::MetaSection,        3 },
+            { code('8'), B::MetaSection,        4 },
+            { code('9'), B::MetaSection,        5 },
 
             // Trig grid mode chords (held = mode active)
             { code('Y'), B::TrigModeKeyboard,  -1 },

@@ -18,14 +18,14 @@ namespace lockstep
         // Q is the TrackScope modifier (left column); W-O are function keys.
         constexpr std::array<QKeyDef, FunctionBar::kNumKeys> kDefs = {{
             { 'Q', "Q", "TRK", "",    false },  // TrackScope modifier
-            { 'W', "W", "<",   "",    true  },  // NavLeft
+            { 'W', "W", "<",   "NO",  true  },  // NavLeft  / No
             { 'E', "E", "v",   "",    true  },  // NavDown
-            { 'R', "R", ">",   "",    true  },  // NavRight
-            { 'T', "T", "REC", "YES", false },  // RecordArm / Yes
+            { 'R', "R", ">",   "YES", true  },  // NavRight / Yes
+            { 'T', "T", "PLY", "RST", false },  // PlayStop / Restore (checkpoint pop)
             { 'Y', "Y", "CPY", "KEY", false },  // VerbRecord / TrigModeKeyboard
             { 'U', "U", "PST", "RTG", false },  // VerbPlay   / TrigModeRetrig
             { 'I', "I", "CLR", "POL", false },  // VerbStop   / TrigModeSoundPool
-            { 'O', "O", "TAP", "NO",  false },  // TapTempo   / No
+            { 'O', "O", "TAP", "",    false },  // TapTempo
         }};
     }
 
@@ -81,8 +81,8 @@ namespace lockstep
 
             const auto  cell = juce::Rectangle<int>(x, 0, cellW, h).reduced(2, 2);
 
-            const bool isPressed  = juce::KeyPress::isKeyCurrentlyDown(def.keyCode);
-            const bool isRecArmed = (def.keyCode == 'T') && processor_.clock().isRecordArmed();
+            const bool isPressed    = juce::KeyPress::isKeyCurrentlyDown(def.keyCode);
+            const bool isPlaying    = (def.keyCode == 'T') && processor_.clock().inPluginPlaying();
             // Trig-mode active indicator: Y=KEY, U=RTG, I=POL.
             const bool isModeActive = (def.keyCode == 'Y' && gridMode == TrigGridMode::Keyboard)
                                    || (def.keyCode == 'U' && gridMode == TrigGridMode::Retrig)
@@ -97,8 +97,8 @@ namespace lockstep
                 bg = juce::Colour::fromRGB(30, 80, 60);   // teal tint when Track held
             else if (isModeActive)
                 bg = juce::Colour::fromRGB(90, 55, 30);   // amber tint for active mode
-            else if (isRecArmed)
-                bg = juce::Colour::fromRGB(90, 35, 35);
+            else if (isPlaying)
+                bg = juce::Colour::fromRGB(30, 90, 40);   // green tint when playing
             else if (def.keyCode == 'Q')
                 bg = juce::Colour::fromRGB(28, 38, 50);   // modifier: slightly different dark
             else if (def.isNav)

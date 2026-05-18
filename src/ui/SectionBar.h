@@ -43,9 +43,9 @@ namespace lockstep
         std::function<void(int)> onMetaSectionChanged;
 
     private:
-        // Fixed cells: 0=FNC(1), 1=NavUp(2); trailing: 8=PlayStop(9).
-        static constexpr int kFixedCells  = 2;
-        static constexpr int kTailCells   = 1;   // PlayStop
+        // Fixed cells: 0=FNC(1), 1=REC(2), 2=NavUp(3); no trailing tail.
+        static constexpr int kFixedCells  = 3;
+        static constexpr int kTailCells   = 0;
         static constexpr int kTotalCells  = kFixedCells + IMachine::kMaxSections + kTailCells;
 
         // Returns the cell rectangle for a given cell index.

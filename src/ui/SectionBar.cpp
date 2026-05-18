@@ -163,26 +163,27 @@ namespace lockstep
         const int activeTrack = grid_.getActiveTrack();
 
         paintFixedCell(g, cellBounds(0), "FNC", uiState_.funcHeld);
-        paintFixedCell(g, cellBounds(1), juce::String::charToString(0x25B2),
-                       juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('2'))); // NavUp
+
+        // REC cell (key 2): highlights red when record armed.
+        {
+            const bool isArmed  = processor_.clock().isRecordArmed();
+            const bool keyDown  = juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('2'));
+            const auto r = cellBounds(1);
+            g.setColour(keyDown  ? juce::Colour::fromRGB(80, 120, 165)
+                       : isArmed ? juce::Colour::fromRGB(90, 35, 35)
+                                 : juce::Colour::fromRGB(40, 50, 60));
+            g.fillRect(r.reduced(2, 2));
+            g.setColour(isArmed ? juce::Colour::fromRGB(220, 100, 100)
+                                : juce::Colour::fromRGB(100, 120, 140));
+            g.setFont(juce::Font(juce::FontOptions(10.0f)));
+            g.drawText("REC", r, juce::Justification::centred);
+        }
+
+        paintFixedCell(g, cellBounds(2), juce::String::charToString(0x25B2),
+                       juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('3'))); // NavUp
 
         for (int s = 0; s < IMachine::kMaxSections; ++s)
             paintSectionCell(g, cellBounds(kFixedCells + s), s, activeTrack);
-
-        // PlayStop cell (key 9, last cell).
-        {
-            const bool isPlaying = processor_.clock().inPluginPlaying();
-            const bool keyDown   = juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('9'));
-            const auto r = cellBounds(kTotalCells - 1);
-            g.setColour(keyDown   ? juce::Colour::fromRGB(80, 120, 165)
-                       : isPlaying ? juce::Colour::fromRGB(30, 90, 40)
-                                   : juce::Colour::fromRGB(40, 50, 60));
-            g.fillRect(r.reduced(2, 2));
-            g.setColour(isPlaying ? juce::Colour::fromRGB(80, 200, 100)
-                                  : juce::Colour::fromRGB(100, 120, 140));
-            g.setFont(juce::Font(juce::FontOptions(10.0f)));
-            g.drawText(isPlaying ? "STP" : "PLY", r, juce::Justification::centred);
-        }
 
         // Key-number annotations (1–9) in STG and ORL modes.
         if (displayMode_ != GridDisplayMode::Clean)
