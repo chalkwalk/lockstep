@@ -291,6 +291,24 @@ namespace lockstep
                     g.fillRoundedRectangle(r.toFloat(), 3.0f);
                     g.setColour(juce::Colours::white);
                     g.drawText(shrLabel, r, juce::Justification::centred);
+                    bx += 40 + kGap;
+                }
+            }
+
+            // Chain badge: shown when the chain queue has entries.
+            {
+                const int chainLen = processor_.chainLength();
+                if (chainLen > 0)
+                {
+                    const bool looping = processor_.chainLoopEnabled();
+                    const juce::String chnLabel = juce::String(looping ? "CHN:" : "CHN1:")
+                                                  + juce::String(chainLen);
+                    const int badgeW = looping ? 40 : 50;
+                    const auto r = juce::Rectangle<int>(bx, by, badgeW, kBadgeH);
+                    g.setColour(juce::Colour(0xFF20A0C0u));
+                    g.fillRoundedRectangle(r.toFloat(), 3.0f);
+                    g.setColour(juce::Colours::white);
+                    g.drawText(chnLabel, r, juce::Justification::centred);
                 }
             }
         }
@@ -407,11 +425,21 @@ namespace lockstep
 
             case ControllerButton::Step:
             {
-                // PatternScope + step: queue a pattern switch to pattern ev.index in
-                // the current bank. Does not enter step-hold / trig-edit mode.
+                // PatternScope + step: first step press queues a direct switch and
+                // clears any existing chain; subsequent step presses (while still
+                // holding PatternScope) append to the chain.
                 if (uiState_.patternScopeHeld)
                 {
-                    processor_.queuePattern(processor_.activeBankIdx(), ev.index);
+                    const int bank = processor_.activeBankIdx();
+                    if (!uiState_.patternScopeUsed)
+                    {
+                        processor_.clearChain();
+                        processor_.queuePattern(bank, ev.index);
+                    }
+                    else
+                    {
+                        processor_.appendToChain(bank, ev.index);
+                    }
                     uiState_.patternScopeUsed = true;
                     repaint();
                     return true;
@@ -453,6 +481,14 @@ namespace lockstep
                 return true;
 
             case ControllerButton::NavRight:
+                if (uiState_.patternScopeHeld)
+                {
+                    // PatternScope + NavRight (Func+2 + R): toggle chain loop mode.
+                    processor_.setChainLoopEnabled(!processor_.chainLoopEnabled());
+                    uiState_.patternScopeUsed = true;
+                    repaint();
+                    return true;
+                }
                 stepGrid_.nextPage();
                 return true;
 

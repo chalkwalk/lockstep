@@ -162,6 +162,18 @@ namespace lockstep
         return true;
     }
 
+    void LockstepProcessor::appendToChain(int bankIdx, int patternIdx)
+    {
+        if (bankIdx    < 0 || bankIdx    >= static_cast<int>(kNumBanks))        return;
+        if (patternIdx < 0 || patternIdx >= static_cast<int>(kPatternsPerBank)) return;
+        chain_.push_back({ bankIdx, patternIdx });
+    }
+
+    void LockstepProcessor::clearChain()
+    {
+        chain_.clear();
+    }
+
     void LockstepProcessor::queuePattern(int bankIdx, int patternIdx)
     {
         if (bankIdx    < 0 || bankIdx    >= static_cast<int>(kNumBanks))        return;
@@ -172,6 +184,7 @@ namespace lockstep
 
     void LockstepProcessor::cancelQueuedPattern()
     {
+        chain_.clear();
         queuedPatternBankIdx_.store(-1, std::memory_order_relaxed);
         queuedPatternPatIdx_ .store(-1, std::memory_order_release);
     }
@@ -646,6 +659,15 @@ namespace lockstep
                                     [this, qBankIdx, qPatIdx]
                                     {
                                         setActivePattern(qBankIdx, qPatIdx);
+                                        // Advance chain: pop the next entry and queue it.
+                                        if (!chain_.empty())
+                                        {
+                                            auto [nextBank, nextPat] = chain_.front();
+                                            chain_.pop_front();
+                                            if (chainLoopEnabled_)
+                                                chain_.push_back({ qBankIdx, qPatIdx });
+                                            queuePattern(nextBank, nextPat);
+                                        }
                                         if (onActivePatternChanged)
                                             onActivePatternChanged();
                                     });

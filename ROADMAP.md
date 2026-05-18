@@ -424,10 +424,13 @@ DESIGN.md §4.7.
       the active Part. PatternScope + VerbRecord forks the Part (copies
       it into the first free Part slot so edits no longer affect
       siblings). No-op if already unshared or all 4 Part slots used.
-- [ ] **MC.6** Chain mode (DESIGN §16). RAM-only queue of upcoming
-      pattern changes appended by `Pattern + Chain + <stepkey>`.
-      Loop / single-shot toggle. Interruptible by a plain
-      `Pattern + <stepkey>`.
+- [x] **MC.6** Chain mode (DESIGN §16). RAM-only queue. First
+      PatternScope + step queues a direct switch (clears chain);
+      subsequent step presses while still holding PatternScope append
+      to the chain. PatternScope + NavRight (R) toggles loop/single-shot.
+      Chain self-advances via callAsync each time a queued switch fires.
+      Interruptible by a new PatternScope + step (clears chain).
+      CHN:N (loop) / CHN1:N (single-shot) chrome badge.
 - [ ] **MC.7** Unknown-machine fallback on load: an unknown machine id
       in a Part resolves to a silent stub that preserves base params
       and trigs, with a relink/replace dialog offered.

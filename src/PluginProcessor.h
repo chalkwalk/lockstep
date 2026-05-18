@@ -2,8 +2,10 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <atomic>
+#include <deque>
 #include <functional>
 #include <memory>
+#include <utility>
 
 #include "core/ChannelMode.h"
 #include "core/Clock.h"
@@ -100,6 +102,16 @@ namespace lockstep
 
         // Called on the message thread after a queued pattern switch fires.
         std::function<void()> onActivePatternChanged;
+
+        // Chain mode: RAM-only ordered queue of upcoming pattern switches.
+        // appendToChain adds to the back; the queue advances automatically as
+        // each queued switch fires. clearChain cancels the remaining entries.
+        // When chainLoopEnabled the current pattern is re-appended when consumed.
+        void appendToChain(int bankIdx, int patternIdx);
+        void clearChain();
+        bool chainLoopEnabled() const { return chainLoopEnabled_; }
+        void setChainLoopEnabled(bool v) { chainLoopEnabled_ = v; }
+        int  chainLength()      const { return static_cast<int>(chain_.size()); }
 
         Clock&       clock()       { return clock_; }
         const Clock& clock() const { return clock_; }
@@ -198,6 +210,10 @@ namespace lockstep
         // the next grid boundary. -1/-1 means no switch is pending.
         std::atomic<int> queuedPatternBankIdx_ { -1 };
         std::atomic<int> queuedPatternPatIdx_  { -1 };
+
+        // Chain queue: message-thread only. Pair = (bankIdx, patternIdx).
+        std::deque<std::pair<int,int>> chain_;
+        bool chainLoopEnabled_ = true;
 
         std::atomic<int> previewPoolIndex_ { -1 };
         std::atomic<int> previewReqTrack_  { 0 };
