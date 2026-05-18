@@ -402,22 +402,24 @@ Foundational for almost every later feature. Lifts the current
 single-pattern model into the Octatrack-style hierarchy described in
 DESIGN.md §4.7.
 
-- [ ] **MC.1** Data model. Introduce `Project` (owns banks, sample
+- [x] **MC.1** Data model. Introduce `Project` (owns banks, sample
       pool, CC mappings, focus, channel mode, clock); `Bank` (owns
       patterns + parts); `Pattern` (owns trigs / overrides / P-Locks /
       track meta + Part ref); `Part` (owns per-track machine identity,
       base ParamFrame, sample refs, post-machine FLTR/AMP state — ME
       adds the FLTR/AMP state, can be stubbed empty here).
-- [ ] **MC.2** Resolver wiring. `StateResolver` now resolves against
+- [x] **MC.2** Resolver wiring. `StateResolver` now resolves against
       the currently-active (Pattern, Part) pair rather than a flat
       sequence. Add an active-pattern selector at sequencer level.
-- [ ] **MC.3** v1 serialization. Bump `kCurrentVersion`. v1 layout
-      includes banks/patterns/parts. v0 (M8 format) load path
-      auto-upgrades a v0 project into one Bank with one Pattern
+- [x] **MC.3** v2 serialization. Bumped `kCurrentVersion` to 2. v2 layout
+      includes banks/patterns/parts. v1 (M8 format) load path
+      auto-upgrades a v1 project into one Bank with one Pattern
       referencing one Part.
-- [ ] **MC.4** Pattern-switch gesture: `Pattern + <stepkey>` queues a
-      pattern to start at the next grid boundary (configurable; default
-      = end of longest playing track). Cancel via `Pattern + Stop`.
+- [x] **MC.4** Pattern-switch gesture: `Func+2` (PatternScope, held) +
+      `<stepkey>` queues a pattern to start at the next grid boundary
+      (end of longest running track). Cancel via `PatternScope + Stop`.
+      Releasing PatternScope without pressing a step fires Snapshot
+      (backward-compat). Pending switch shown as QUE:B.P chrome badge.
 - [ ] **MC.5** Part sharing UI: indicate when multiple patterns share a
       Part. Provide a "fork Part" gesture so editing in one pattern
       stops affecting siblings.

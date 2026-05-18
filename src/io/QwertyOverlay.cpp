@@ -65,8 +65,9 @@ namespace lockstep
         // Func layer — applied when Func (key 1) is held.
         // Keys not listed here fall through to the primary table.
         constexpr std::array<Entry, 13> kFunc = { {
-            // Func+2(Rec)=snapshot, Func+T(Ply)=restore
-            { code('2'), B::Snapshot,          -1 },
+            // Func+2=PatternScope (held: queue pattern via step; released w/o step: Snapshot).
+            // Func+T(Ply)=restore.
+            { code('2'), B::PatternScope,      -1 },
             { code('T'), B::Restore,           -1 },
 
             // Func+E(down)=stop+reset (temporary home until MD nav-secondary pass)

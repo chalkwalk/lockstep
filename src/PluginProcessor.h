@@ -2,6 +2,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <atomic>
+#include <functional>
 #include <memory>
 
 #include "core/ChannelMode.h"
@@ -77,6 +78,18 @@ namespace lockstep
         // Switch the active pattern (no-op if indices unchanged or out of range).
         // Syncs Track.baseParams from the new Part when the Part reference changes.
         void setActivePattern(int bankIdx, int patternIdx);
+
+        // Queue a pattern switch to fire at the next grid boundary (end of the
+        // longest running track's cycle). Safe to call from the message thread.
+        // cancelQueuedPattern() clears any pending switch.
+        void queuePattern(int bankIdx, int patternIdx);
+        void cancelQueuedPattern();
+        bool hasQueuedPattern()      const;
+        int  queuedPatternBankIdx()  const;
+        int  queuedPatternPatIdx()   const;
+
+        // Called on the message thread after a queued pattern switch fires.
+        std::function<void()> onActivePatternChanged;
 
         Clock&       clock()       { return clock_; }
         const Clock& clock() const { return clock_; }
@@ -171,6 +184,11 @@ namespace lockstep
 
         // Preview request: message thread writes both fields (track first, then
         // poolIndex with release ordering); audio thread consumes with acq_rel exchange.
+        // Queued pattern switch: message thread writes, audio thread consumes at
+        // the next grid boundary. -1/-1 means no switch is pending.
+        std::atomic<int> queuedPatternBankIdx_ { -1 };
+        std::atomic<int> queuedPatternPatIdx_  { -1 };
+
         std::atomic<int> previewPoolIndex_ { -1 };
         std::atomic<int> previewReqTrack_  { 0 };
 

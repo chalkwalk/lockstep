@@ -146,12 +146,16 @@ namespace lockstep
             dispatchVerb(scope, verb);
         };
 
+        // Repaint chrome when a queued pattern switch fires.
+        proc.onActivePatternChanged = [this] { repaint(); };
+
         setSize(990, 480);
         setWantsKeyboardFocus(true);
     }
 
     LockstepEditor::~LockstepEditor()
     {
+        processor_.onActivePatternChanged = nullptr;
         processor_.apvts().removeParameterListener(ParamIDs::syncMode, this);
         if (keyListenerTarget_ != nullptr)
             keyListenerTarget_->removeKeyListener(this);
@@ -258,6 +262,21 @@ namespace lockstep
                 g.fillRoundedRectangle(r.toFloat(), 3.0f);
                 g.setColour(juce::Colours::white);
                 g.drawText(ckLabel, r, juce::Justification::centred);
+                bx += 38 + kGap;
+            }
+
+            // Queued pattern switch badge: shown while a pattern switch is pending.
+            if (processor_.hasQueuedPattern())
+            {
+                const int qBank = processor_.queuedPatternBankIdx();
+                const int qPat  = processor_.queuedPatternPatIdx();
+                const juce::String quLabel = "QUE:" + juce::String(qBank + 1)
+                                             + "." + juce::String(qPat + 1);
+                const auto r = juce::Rectangle<int>(bx, by, 52, kBadgeH);
+                g.setColour(juce::Colour(0xFFC08020u));
+                g.fillRoundedRectangle(r.toFloat(), 3.0f);
+                g.setColour(juce::Colours::white);
+                g.drawText(quLabel, r, juce::Justification::centred);
             }
         }
 
@@ -373,6 +392,16 @@ namespace lockstep
 
             case ControllerButton::Step:
             {
+                // PatternScope + step: queue a pattern switch to pattern ev.index in
+                // the current bank. Does not enter step-hold / trig-edit mode.
+                if (uiState_.patternScopeHeld)
+                {
+                    processor_.queuePattern(processor_.activeBankIdx(), ev.index);
+                    uiState_.patternScopeUsed = true;
+                    repaint();
+                    return true;
+                }
+
                 // Ignore key-repeat (same physical key already in list).
                 bool alreadyHeld = false;
                 for (auto& [code, _] : heldStepKeys_)
@@ -434,6 +463,13 @@ namespace lockstep
             }
 
             case ControllerButton::StopReset:
+                if (uiState_.patternScopeHeld)
+                {
+                    processor_.cancelQueuedPattern();
+                    uiState_.patternScopeUsed = true;
+                    repaint();
+                    return true;
+                }
                 processor_.clock().setInPluginPlaying(false);
                 processor_.clock().resetPhase();
                 return true;
@@ -497,7 +533,12 @@ namespace lockstep
                 return true;
 
             case ControllerButton::TapTempo:
+                return true;
+
             case ControllerButton::PatternScope:
+                uiState_.patternScopeHeld = true;
+                uiState_.patternScopeUsed = false;
+                repaint();
                 return true;
 
             default:
@@ -544,6 +585,18 @@ namespace lockstep
         {
             uiState_.fillHeld = false;
             editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::FillScope });
+            repaint();
+            handled = true;
+        }
+
+        // PatternScope (Func+2) release: if no step was queued, fire Snapshot instead.
+        if (!isKeyDown && uiState_.patternScopeHeld
+            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('2')))
+        {
+            if (!uiState_.patternScopeUsed)
+                checkpointDepth_ = std::min(checkpointDepth_ + 1, 8);
+            uiState_.patternScopeHeld = false;
+            uiState_.patternScopeUsed = false;
             repaint();
             handled = true;
         }

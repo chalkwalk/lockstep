@@ -17,10 +17,12 @@ namespace lockstep
         std::array<std::array<int, IMachine::kMaxSections>, kNumTracks> trackPage{};
 
         // Left-column modifier key states (updated by PluginEditor key events).
-        bool funcHeld  = false;  // key 1
-        bool trackHeld = false;  // key Q
-        bool muteHeld  = false;  // key A
-        bool fillHeld  = false;  // key Z
+        bool funcHeld         = false;  // key 1
+        bool trackHeld        = false;  // key Q
+        bool muteHeld         = false;  // key A
+        bool fillHeld         = false;  // key Z
+        bool patternScopeHeld = false;  // Func+2 (while held)
+        bool patternScopeUsed = false;  // true if a step was pressed while PatternScope held
 
         // Active trig-grid input mode.
         TrigGridMode trigGridMode = TrigGridMode::Default;

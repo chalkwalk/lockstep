@@ -127,6 +127,35 @@ namespace lockstep
         learnActive_.store(false, std::memory_order_release);
     }
 
+    void LockstepProcessor::queuePattern(int bankIdx, int patternIdx)
+    {
+        if (bankIdx    < 0 || bankIdx    >= static_cast<int>(kNumBanks))        return;
+        if (patternIdx < 0 || patternIdx >= static_cast<int>(kPatternsPerBank)) return;
+        queuedPatternBankIdx_.store(bankIdx,    std::memory_order_relaxed);
+        queuedPatternPatIdx_ .store(patternIdx, std::memory_order_release);
+    }
+
+    void LockstepProcessor::cancelQueuedPattern()
+    {
+        queuedPatternBankIdx_.store(-1, std::memory_order_relaxed);
+        queuedPatternPatIdx_ .store(-1, std::memory_order_release);
+    }
+
+    bool LockstepProcessor::hasQueuedPattern() const
+    {
+        return queuedPatternPatIdx_.load(std::memory_order_acquire) >= 0;
+    }
+
+    int LockstepProcessor::queuedPatternBankIdx() const
+    {
+        return queuedPatternBankIdx_.load(std::memory_order_relaxed);
+    }
+
+    int LockstepProcessor::queuedPatternPatIdx() const
+    {
+        return queuedPatternPatIdx_.load(std::memory_order_acquire);
+    }
+
     WidgetMappingInfo LockstepProcessor::queryWidgetMapping(int slot, int mzPosition) const
     {
         for (const auto& m : ccMappingTable_.mappings())
@@ -535,6 +564,63 @@ namespace lockstep
                 }
             }
             return;
+        }
+
+        // Determine the "grid boundary" track: the one with the longest cycle
+        // in PPQ (trackLen * divPpq). The queued pattern switch fires when that
+        // track wraps back to step 0.
+        {
+            const int qBankIdx = queuedPatternBankIdx_.load(std::memory_order_relaxed);
+            const int qPatIdx  = queuedPatternPatIdx_ .load(std::memory_order_acquire);
+            if (qBankIdx >= 0 && qPatIdx >= 0)
+            {
+                std::size_t longestTrack = 0;
+                double      longestCycle = 0.0;
+                for (std::size_t i = 0; i < kNumTracks; ++i)
+                {
+                    const int    tl  = static_cast<int>(trackLengthParams_[i]->load());
+                    const int    td  = static_cast<int>(trackDividerParams_[i]->load());
+                    const double ppq = 0.25 * static_cast<double>(td <= 0 ? 1 : td)
+                                       * static_cast<double>(tl <= 0 ? 1 : tl);
+                    if (ppq > longestCycle) { longestCycle = ppq; longestTrack = i; }
+                }
+
+                // Check whether the longest track fires step 0 in this block.
+                const int   tl     = static_cast<int>(trackLengthParams_[longestTrack]->load());
+                const int   td     = static_cast<int>(trackDividerParams_[longestTrack]->load());
+                const double divPpqL = 0.25 * static_cast<double>(td <= 0 ? 1 : td);
+                if (divPpqL > 0.0 && samplesPerPpq > 0.0 && tl > 0)
+                {
+                    double cursor = nextTriggerPpq_[longestTrack];
+                    if (cursor < blockStart - divPpqL)
+                        cursor = std::floor(blockStart / divPpqL) * divPpqL;
+                    while (cursor < blockEnd)
+                    {
+                        if (cursor >= blockStart)
+                        {
+                            const auto stepNum = static_cast<std::int64_t>(cursor / divPpqL);
+                            const int  si      = static_cast<int>(
+                                stepNum % static_cast<std::int64_t>(tl));
+                            if (si == 0)
+                            {
+                                // Fire on message thread so setActivePattern() can safely
+                                // update project data structures.
+                                queuedPatternBankIdx_.store(-1, std::memory_order_relaxed);
+                                queuedPatternPatIdx_ .store(-1, std::memory_order_release);
+                                juce::MessageManager::callAsync(
+                                    [this, qBankIdx, qPatIdx]
+                                    {
+                                        setActivePattern(qBankIdx, qPatIdx);
+                                        if (onActivePatternChanged)
+                                            onActivePatternChanged();
+                                    });
+                                break;
+                            }
+                        }
+                        cursor += divPpqL;
+                    }
+                }
+            }
         }
 
         for (std::size_t i = 0; i < kNumTracks; ++i)
