@@ -2,6 +2,7 @@
 
 #include <array>
 #include "../core/Sequence.h"   // kNumTracks
+#include "../io/TrigGridMode.h"
 #include "../machine/IMachine.h"  // kMaxSections
 
 namespace lockstep
@@ -20,6 +21,9 @@ namespace lockstep
         bool trackHeld = false;  // key Q
         bool muteHeld  = false;  // key A
         bool fillHeld  = false;  // key Z
+
+        // Active trig-grid input mode.
+        TrigGridMode trigGridMode = TrigGridMode::Default;
 
         // Active master section (-1 = none).
         int masterSection = -1;

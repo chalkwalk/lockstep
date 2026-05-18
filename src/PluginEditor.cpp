@@ -371,11 +371,32 @@ namespace lockstep
                 editMode_.onVerb(ev.button);
                 return true;
 
-            // Trig grid modes — reserved for MB.5.
+            // Trig grid mode selection (Func+Y/U/I). Pressing the active mode
+            // a second time resets to Default (toggle behaviour).
             case ControllerButton::TrigModeKeyboard:
-            case ControllerButton::TrigModeRetrig:
-            case ControllerButton::TrigModeSoundPool:
+            {
+                const auto next = (uiState_.trigGridMode == TrigGridMode::Keyboard)
+                                  ? TrigGridMode::Default : TrigGridMode::Keyboard;
+                uiState_.trigGridMode = next;
+                stepGrid_.repaint();
                 return true;
+            }
+            case ControllerButton::TrigModeRetrig:
+            {
+                const auto next = (uiState_.trigGridMode == TrigGridMode::Retrig)
+                                  ? TrigGridMode::Default : TrigGridMode::Retrig;
+                uiState_.trigGridMode = next;
+                stepGrid_.repaint();
+                return true;
+            }
+            case ControllerButton::TrigModeSoundPool:
+            {
+                const auto next = (uiState_.trigGridMode == TrigGridMode::SoundPool)
+                                  ? TrigGridMode::Default : TrigGridMode::SoundPool;
+                uiState_.trigGridMode = next;
+                stepGrid_.repaint();
+                return true;
+            }
 
             // Mute toggle (Mute+step) — reserved for MD.
             case ControllerButton::ToggleMute:

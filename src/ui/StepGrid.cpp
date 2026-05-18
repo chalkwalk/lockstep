@@ -347,6 +347,21 @@ namespace lockstep
             "Page " + juce::String(stepPage_ + 1) + " / " + juce::String(pages)
                 + "     Length:",
             infoRect, juce::Justification::centredLeft);
+
+        // ---- Trig grid mode indicator (top-left badge, non-Default only) ----
+        const auto mode = uiState_.trigGridMode;
+        if (mode != TrigGridMode::Default)
+        {
+            const char* label = (mode == TrigGridMode::Keyboard)  ? "KEY"
+                              : (mode == TrigGridMode::Retrig)     ? "RTG"
+                                                                   : "POL";
+            const auto badgeRect = getLocalBounds().removeFromTop(18).removeFromLeft(40).reduced(3);
+            g.setColour(juce::Colour(0xFFD07030u));
+            g.fillRoundedRectangle(badgeRect.toFloat(), 3.0f);
+            g.setColour(juce::Colours::white);
+            g.setFont(juce::Font(juce::FontOptions(11.0f)));
+            g.drawText(label, badgeRect, juce::Justification::centred);
+        }
     }
 
     void StepGrid::resized()
