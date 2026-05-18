@@ -59,6 +59,12 @@ namespace lockstep
         UiState uiState_;
         // (rawKeyCode, absStepIndex) pairs, ordered by press time.
         std::vector<std::pair<int,int>> heldStepKeys_;
+
+        // Double-press detection for PlayStop: two presses within threshold = StopReset.
+        double lastPlayPressTime_            = 0.0;
+        bool   playKeyHeld_                  = false;
+        static constexpr double kDoublePressMsThreshold = 350.0;
+
         ClipboardType clipboardType_  = ClipboardType::None;
         int           checkpointDepth_ = 0;  // stub: real stack in MD
         juce::Component* keyListenerTarget_ = nullptr;

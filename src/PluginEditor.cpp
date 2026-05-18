@@ -413,8 +413,25 @@ namespace lockstep
                 return true;
 
             case ControllerButton::PlayStop:
-                processor_.clock().setInPluginPlaying(!processor_.clock().inPluginPlaying());
+            {
+                if (playKeyHeld_) return true;  // ignore key repeat
+                playKeyHeld_ = true;
+
+                const double now = juce::Time::getMillisecondCounterHiRes();
+                const bool isDouble = (now - lastPlayPressTime_) < kDoublePressMsThreshold;
+                lastPlayPressTime_ = now;
+
+                if (isDouble)
+                {
+                    processor_.clock().setInPluginPlaying(false);
+                    processor_.clock().resetPhase();
+                }
+                else
+                {
+                    processor_.clock().setInPluginPlaying(!processor_.clock().inPluginPlaying());
+                }
                 return true;
+            }
 
             case ControllerButton::StopReset:
                 processor_.clock().setInPluginPlaying(false);
@@ -524,6 +541,13 @@ namespace lockstep
             uiState_.fillHeld = false;
             editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::FillScope });
             repaint();
+            handled = true;
+        }
+
+        if (!isKeyDown && playKeyHeld_
+            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('T')))
+        {
+            playKeyHeld_ = false;
             handled = true;
         }
 
