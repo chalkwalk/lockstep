@@ -55,22 +55,55 @@ namespace lockstep
         }
        #endif
 
-        // Seed each track's base params from the machine's declared defaults.
-        for (std::size_t t = 0; t < kNumTracks; ++t)
+        // Seed every Part in every Bank with machine defaults, then sync to Patterns.
+        for (auto& bank : project_.banks)
         {
-            const int np = machines_[t]->numParams();
-            sequence_.tracks[t].baseParams.assign(static_cast<std::size_t>(np), 0.0f);
-            for (int s = 0; s < np; ++s)
+            for (auto& part : bank.parts)
             {
-                sequence_.tracks[t].baseParams[static_cast<std::size_t>(s)] =
-                    machines_[t]->paramSpec(s).defaultValue;
+                for (std::size_t t = 0; t < kNumTracks; ++t)
+                {
+                    const int np = machines_[t]->numParams();
+                    part.tracks[t].baseParams.assign(static_cast<std::size_t>(np), 0.0f);
+                    for (int s = 0; s < np; ++s)
+                        part.tracks[t].baseParams[static_cast<std::size_t>(s)] =
+                            machines_[t]->paramSpec(s).defaultValue;
+                    // Track N defaults to sample index N so each track sounds distinct.
+                    part.tracks[t].baseParams[0] = static_cast<float>(t);
+                }
             }
-            // Track N defaults to sample index N so each track sounds distinct.
-            sequence_.tracks[t].baseParams[0] = static_cast<float>(t);
+            // Sync all patterns' Track.baseParams from their referenced Part.
+            for (auto& pattern : bank.patterns)
+            {
+                const auto& part = bank.parts[static_cast<std::size_t>(pattern.partRef)];
+                for (std::size_t t = 0; t < kNumTracks; ++t)
+                    pattern.sequence.tracks[t].baseParams = part.tracks[t].baseParams;
+            }
         }
     }
 
     LockstepProcessor::~LockstepProcessor() = default;
+
+    void LockstepProcessor::setActivePattern(int bankIdx, int patternIdx)
+    {
+        if (bankIdx    < 0 || bankIdx    >= static_cast<int>(kNumBanks))        return;
+        if (patternIdx < 0 || patternIdx >= static_cast<int>(kPatternsPerBank)) return;
+        if (bankIdx == activeBankIdx_ && patternIdx == activePatternIdx_)        return;
+
+        const int oldBankIdx   = activeBankIdx_;
+        const int oldPartRef   = activePattern().partRef;
+        activeBankIdx_    = bankIdx;
+        activePatternIdx_ = patternIdx;
+        const int newPartRef   = activePattern().partRef;
+
+        // If the Part changed, sync Track.baseParams from the new Part so the
+        // audio thread sees the new machine configuration immediately.
+        if (bankIdx != oldBankIdx || newPartRef != oldPartRef)
+        {
+            const auto& part = activePart();
+            for (std::size_t t = 0; t < kNumTracks; ++t)
+                sequence().tracks[t].baseParams = part.tracks[t].baseParams;
+        }
+    }
 
     void LockstepProcessor::setMZSlots(int slotOffset)
     {
@@ -262,7 +295,7 @@ namespace lockstep
             : ChannelMode::Omni;
         ccCtx.getCurrentTrackValue = [this](int t, int s) -> float {
             const auto ti = static_cast<std::size_t>(t);
-            const float base = sequence_.tracks[ti].baseParams[static_cast<std::size_t>(s)];
+            const float base = sequence().tracks[ti].baseParams[static_cast<std::size_t>(s)];
             // When a step is held on this track, read from its P-Lock (if present)
             // so soft-takeover and relative-delta both operate against the value
             // actually being edited, not the track base.
@@ -271,7 +304,7 @@ namespace lockstep
             {
                 const int step = editContext_.heldStepIndex();
                 if (step >= 0 && step < kMaxStepsPerTrack)
-                    return sequence_.tracks[ti]
+                    return sequence().tracks[ti]
                         .steps[static_cast<std::size_t>(step)].overrides.get(s, base);
             }
             return base;
@@ -344,7 +377,7 @@ namespace lockstep
                 // Enable the trig on the held step.
                 const int step = editContext_.heldStepIndex();
                 if (step >= 0 && step < kMaxStepsPerTrack)
-                    sequence_.tracks[ti].steps[static_cast<std::size_t>(step)].trig = true;
+                    sequence().tracks[ti].steps[static_cast<std::size_t>(step)].trig = true;
             }
             else if (recArmed && sequencerRunning
                      && !editContext_.isActiveForEditing())
@@ -362,7 +395,7 @@ namespace lockstep
                     const int stepIdx = static_cast<int>(
                         ((nearestNum % static_cast<std::int64_t>(trackLen))
                          + trackLen) % trackLen);
-                    auto& s = sequence_.tracks[ti].steps[static_cast<std::size_t>(stepIdx)];
+                    auto& s = sequence().tracks[ti].steps[static_cast<std::size_t>(stepIdx)];
                     s.trig = true;
                     s.trigOverride.hasNote = true;
                     s.trigOverride.note    = note;
@@ -378,7 +411,7 @@ namespace lockstep
                     const int step = editContext_.heldStepIndex();
                     if (step >= 0 && step < kMaxStepsPerTrack)
                     {
-                        auto& trig = sequence_.tracks[ti]
+                        auto& trig = sequence().tracks[ti]
                             .steps[static_cast<std::size_t>(step)].trigOverride;
                         trig.hasNote = true;
                         trig.note    = note;
@@ -387,7 +420,7 @@ namespace lockstep
                 }
                 else
                 {
-                    sequence_.tracks[ti].trigDefaults.note = note;
+                    sequence().tracks[ti].trigDefaults.note = note;
                 }
             }
 
@@ -464,7 +497,7 @@ namespace lockstep
                 if (editContext_.isActiveForEditing()
                     && editContext_.heldTrackIndex() == static_cast<int>(i))
                     resolveStep = editContext_.heldStepIndex();
-                auto frame = StateResolver::resolve(sequence_.tracks[i], resolveStep);
+                auto frame = StateResolver::resolve(sequence().tracks[i], resolveStep);
                 if (previewActive_ && static_cast<int>(i) == previewTrack_)
                 {
                     const int ss = slotForId(static_cast<int>(i), "sample_id");
@@ -506,7 +539,7 @@ namespace lockstep
 
         for (std::size_t i = 0; i < kNumTracks; ++i)
         {
-            const auto& track = sequence_.tracks[i];
+            const auto& track = sequence().tracks[i];
 
             const int trackLen = static_cast<int>(trackLengthParams_[i]->load());
             const int trackDiv = static_cast<int>(trackDividerParams_[i]->load());
@@ -661,14 +694,16 @@ namespace lockstep
             const int step = editContext_.heldStepIndex();
             if (step >= 0 && step < kMaxStepsPerTrack)
             {
-                sequence_.tracks[ti].steps[static_cast<std::size_t>(step)]
+                sequence().tracks[ti].steps[static_cast<std::size_t>(step)]
                     .overrides.set(slot, value);
                 editContext_.markParamWritten();
             }
         }
         else
         {
-            sequence_.tracks[ti].baseParams[static_cast<std::size_t>(slot)] = value;
+            sequence().tracks[ti].baseParams[static_cast<std::size_t>(slot)] = value;
+            // Also write to the active Part so the value persists across pattern switches.
+            activePart().tracks[ti].baseParams[static_cast<std::size_t>(slot)] = value;
         }
     }
 
@@ -677,7 +712,7 @@ namespace lockstep
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
         if (step  < 0 || step  >= kMaxStepsPerTrack)             return;
         if (slot  < 0 || slot  >= numParams(track))              return;
-        sequence_.tracks[static_cast<std::size_t>(track)]
+        sequence().tracks[static_cast<std::size_t>(track)]
             .steps[static_cast<std::size_t>(step)].overrides.clear(slot);
     }
 
@@ -685,7 +720,7 @@ namespace lockstep
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
         if (step  < 0 || step  >= kMaxStepsPerTrack)            return;
-        auto& s = sequence_.tracks[static_cast<std::size_t>(track)]
+        auto& s = sequence().tracks[static_cast<std::size_t>(track)]
                       .steps[static_cast<std::size_t>(step)];
         s.overrides   = PLock{};
         s.trigOverride = TrigOverride{};
@@ -771,26 +806,41 @@ namespace lockstep
         if (idx < 0 || idx >= samplePool_.size())
             return;
         const int newMax = samplePool_.size() - 2;  // max valid index after removal
+
         for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
         {
             const int sampleSlot = slotForId(t, "sample_id");
             if (sampleSlot < 0) continue;
             const auto slotSz = static_cast<std::size_t>(sampleSlot);
-            auto& track = sequence_.tracks[static_cast<std::size_t>(t)];
 
-            if (slotSz < track.baseParams.size())
-            {
-                const int cur = static_cast<int>(track.baseParams[slotSz]);
-                if (cur == idx)      track.baseParams[slotSz] = static_cast<float>(std::max(0, std::min(cur, newMax)));
-                else if (cur > idx)  track.baseParams[slotSz] = static_cast<float>(cur - 1);
-            }
+            auto remapPoolIdx = [idx, newMax](float cur) -> float {
+                const int c = static_cast<int>(cur);
+                if (c == idx)     return static_cast<float>(std::max(0, std::min(c, newMax)));
+                if (c  > idx)     return static_cast<float>(c - 1);
+                return cur;
+            };
 
-            for (auto& step : track.steps)
+            // Remap Part baseParams across all banks.
+            for (auto& bank : project_.banks)
             {
-                if (!step.overrides.has(sampleSlot)) continue;
-                const int cur = static_cast<int>(step.overrides.get(sampleSlot, 0.0f));
-                if (cur == idx)      step.overrides.set(sampleSlot, static_cast<float>(std::max(0, std::min(cur, newMax))));
-                else if (cur > idx)  step.overrides.set(sampleSlot, static_cast<float>(cur - 1));
+                for (auto& part : bank.parts)
+                {
+                    auto& bp = part.tracks[static_cast<std::size_t>(t)].baseParams;
+                    if (slotSz < bp.size()) bp[slotSz] = remapPoolIdx(bp[slotSz]);
+                }
+                // Remap Pattern tracks (baseParams + step overrides).
+                for (auto& pattern : bank.patterns)
+                {
+                    auto& track = pattern.sequence.tracks[static_cast<std::size_t>(t)];
+                    if (slotSz < track.baseParams.size())
+                        track.baseParams[slotSz] = remapPoolIdx(track.baseParams[slotSz]);
+                    for (auto& step : track.steps)
+                    {
+                        if (!step.overrides.has(sampleSlot)) continue;
+                        step.overrides.set(sampleSlot,
+                            remapPoolIdx(step.overrides.get(sampleSlot, 0.0f)));
+                    }
+                }
             }
         }
         samplePool_.remove(idx);
@@ -799,26 +849,39 @@ namespace lockstep
     void LockstepProcessor::swapSamples(int a, int b)
     {
         if (a == b || a < 0 || b < 0) return;
+
         for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
         {
             const int sampleSlot = slotForId(t, "sample_id");
             if (sampleSlot < 0) continue;
             const auto slotSz = static_cast<std::size_t>(sampleSlot);
-            auto& track = sequence_.tracks[static_cast<std::size_t>(t)];
 
-            if (slotSz < track.baseParams.size())
-            {
-                const int cur = static_cast<int>(track.baseParams[slotSz]);
-                if (cur == a)       track.baseParams[slotSz] = static_cast<float>(b);
-                else if (cur == b)  track.baseParams[slotSz] = static_cast<float>(a);
-            }
+            auto swapPoolIdx = [a, b](float cur) -> float {
+                const int c = static_cast<int>(cur);
+                if (c == a) return static_cast<float>(b);
+                if (c == b) return static_cast<float>(a);
+                return cur;
+            };
 
-            for (auto& step : track.steps)
+            for (auto& bank : project_.banks)
             {
-                if (!step.overrides.has(sampleSlot)) continue;
-                const int cur = static_cast<int>(step.overrides.get(sampleSlot, 0.0f));
-                if (cur == a)       step.overrides.set(sampleSlot, static_cast<float>(b));
-                else if (cur == b)  step.overrides.set(sampleSlot, static_cast<float>(a));
+                for (auto& part : bank.parts)
+                {
+                    auto& bp = part.tracks[static_cast<std::size_t>(t)].baseParams;
+                    if (slotSz < bp.size()) bp[slotSz] = swapPoolIdx(bp[slotSz]);
+                }
+                for (auto& pattern : bank.patterns)
+                {
+                    auto& track = pattern.sequence.tracks[static_cast<std::size_t>(t)];
+                    if (slotSz < track.baseParams.size())
+                        track.baseParams[slotSz] = swapPoolIdx(track.baseParams[slotSz]);
+                    for (auto& step : track.steps)
+                    {
+                        if (!step.overrides.has(sampleSlot)) continue;
+                        step.overrides.set(sampleSlot,
+                            swapPoolIdx(step.overrides.get(sampleSlot, 0.0f)));
+                    }
+                }
             }
         }
         samplePool_.swap(a, b);

@@ -7,7 +7,7 @@
 #include "core/ChannelMode.h"
 #include "core/Clock.h"
 #include "core/Metronome.h"
-#include "core/Sequence.h"
+#include "core/Project.h"
 #include "core/SyncMode.h"
 #include "io/CCMappingTable.h"
 #include "io/EditContext.h"
@@ -60,8 +60,24 @@ namespace lockstep
         void setStateInformation(const void* data, int sizeInBytes) override;
 
         juce::AudioProcessorValueTreeState& apvts() { return apvts_; }
-        Sequence& sequence() { return sequence_; }
-        const Sequence& sequence() const { return sequence_; }
+
+        // Active pattern / part accessors — point into the live project.
+        Sequence&       sequence()       { return activePattern().sequence; }
+        const Sequence& sequence() const { return activePattern().sequence; }
+        Pattern&        activePattern()  { return project_.banks[activeBankIdx_].patterns[activePatternIdx_]; }
+        const Pattern&  activePattern()  const { return project_.banks[activeBankIdx_].patterns[activePatternIdx_]; }
+        Part&           activePart()     { return project_.banks[activeBankIdx_].parts[activePattern().partRef]; }
+        const Part&     activePart()     const { return project_.banks[activeBankIdx_].parts[activePattern().partRef]; }
+        Project&        project()        { return project_; }
+        const Project&  project()        const { return project_; }
+
+        int activeBankIdx()    const { return activeBankIdx_; }
+        int activePatternIdx() const { return activePatternIdx_; }
+
+        // Switch the active pattern (no-op if indices unchanged or out of range).
+        // Syncs Track.baseParams from the new Part when the Part reference changes.
+        void setActivePattern(int bankIdx, int patternIdx);
+
         Clock&       clock()       { return clock_; }
         const Clock& clock() const { return clock_; }
         SamplePool& samplePool() { return samplePool_; }
@@ -129,7 +145,9 @@ namespace lockstep
     private:
         juce::AudioProcessorValueTreeState apvts_;
         SamplePool samplePool_;
-        Sequence sequence_;
+        Project project_;          // full Project/Bank/Pattern/Part hierarchy
+        int activeBankIdx_    = 0;
+        int activePatternIdx_ = 0;
         Clock clock_;
         EditContext editContext_;
         CCMappingTable ccMappingTable_;

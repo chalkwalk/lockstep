@@ -177,7 +177,8 @@ namespace lockstep::PluginState
         const auto seqNode = root.getChildWithName("Sequence");
         if (!seqNode.isValid()) return;
 
-        auto& seq = proc.sequence();
+        auto& seq  = proc.sequence();
+        auto& part = proc.activePart();  // keep Part.baseParams in sync
 
         for (auto trackNode : seqNode)
         {
@@ -211,8 +212,13 @@ namespace lockstep::PluginState
                             + "' on track " + juce::String(t) + " -- skipping");
                         continue;
                     }
-                    if (static_cast<std::size_t>(slot) < track.baseParams.size())
-                        track.baseParams[static_cast<std::size_t>(slot)] = val;
+                    const auto slotSz = static_cast<std::size_t>(slot);
+                    if (slotSz < track.baseParams.size())
+                        track.baseParams[slotSz] = val;
+                    // Keep the active Part in sync with what we just loaded.
+                    auto& pt = part.tracks[static_cast<std::size_t>(t)];
+                    if (slotSz < pt.baseParams.size())
+                        pt.baseParams[slotSz] = val;
                 }
             }
 
@@ -383,10 +389,12 @@ namespace lockstep::PluginState
         }
         root.appendChild(ccNode, nullptr);
 
-        // Focus track + standalone BPM.
+        // Focus track + standalone BPM + active pattern address.
         juce::ValueTree miscNode("Misc");
-        miscNode.setProperty("focusTrack", proc.focusTrack(), nullptr);
-        miscNode.setProperty("localBpm",   proc.clock().localBpm(), nullptr);
+        miscNode.setProperty("focusTrack",      proc.focusTrack(),        nullptr);
+        miscNode.setProperty("localBpm",        proc.clock().localBpm(),  nullptr);
+        miscNode.setProperty("activeBankIdx",   proc.activeBankIdx(),     nullptr);
+        miscNode.setProperty("activePatternIdx",proc.activePatternIdx(),  nullptr);
         root.appendChild(miscNode, nullptr);
     }
 
@@ -433,6 +441,10 @@ namespace lockstep::PluginState
             proc.setFocusTrack(static_cast<int>(miscNode.getProperty("focusTrack", -1)));
             const double bpm = static_cast<double>(miscNode.getProperty("localBpm", 120.0));
             proc.clock().setLocalBpm(bpm);
+            // Restore active pattern — setActivePattern validates range and syncs Part.
+            const int bankIdx    = static_cast<int>(miscNode.getProperty("activeBankIdx",    0));
+            const int patternIdx = static_cast<int>(miscNode.getProperty("activePatternIdx", 0));
+            proc.setActivePattern(bankIdx, patternIdx);
         }
     }
 
