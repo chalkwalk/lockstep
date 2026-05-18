@@ -11,7 +11,10 @@ namespace lockstep
     namespace PluginState
     {
         // Bump when the on-disk format changes in a breaking way.
-        inline constexpr int kCurrentVersion = 1;
+        // v1: flat Sequence + SamplePool + CCMappings + Misc
+        // v2: full Project/Bank/Pattern/Part hierarchy; Sequence/BaseParams
+        //     moved into Project node; Misc gains activeBankIdx/activePatternIdx
+        inline constexpr int kCurrentVersion = 2;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);

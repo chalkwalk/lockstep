@@ -1,7 +1,12 @@
 #include "PluginState.h"
 #include "../PluginProcessor.h"
+#include "../core/Bank.h"
+#include "../core/Pattern.h"
+#include "../core/Part.h"
+#include "../core/Project.h"
 #include "../core/Sequence.h"
 #include "../core/TrigCondition.h"
+#include "../machine/SamplerMachine.h"
 #include <cstdint>
 #include <cstdio>
 
@@ -170,7 +175,443 @@ namespace lockstep::PluginState
     }
 
     // -------------------------------------------------------------------------
-    // Read
+    // v2 helpers: separate pattern-track and part-track serialization
+
+    // Writes baseCond, trigDefaults, and steps for one track into a <Track> node.
+    // Does NOT write BaseParams (those belong in the Part in v2).
+    static juce::ValueTree writePatternTrackNode(int t, const Track& track)
+    {
+        juce::ValueTree node("Track");
+        node.setProperty("i", t, nullptr);
+
+        if (!track.baseCond.isTrivial())
+            node.appendChild(condToTree("BaseCond", track.baseCond), nullptr);
+
+        const auto& td = track.trigDefaults;
+        if (td.note != 60 || td.velocity != 100 || floatNe(td.gateMs, 0.0f))
+        {
+            juce::ValueTree tdNode("TrigDefaults");
+            tdNode.setProperty("note",   td.note,                       nullptr);
+            tdNode.setProperty("vel",    td.velocity,                    nullptr);
+            tdNode.setProperty("gateMs", static_cast<double>(td.gateMs), nullptr);
+            node.appendChild(tdNode, nullptr);
+        }
+
+        juce::ValueTree stepsNode("Steps");
+        for (int s = 0; s < kMaxStepsPerTrack; ++s)
+        {
+            const auto& step = track.steps[static_cast<std::size_t>(s)];
+            const bool hasPLock    = !step.overrides.empty();
+            const bool hasTrigOvr  = step.trigOverride.hasNote
+                                  || step.trigOverride.hasVelocity
+                                  || step.trigOverride.hasGate;
+            const bool hasNonTrivCond = !step.condition.isTrivial();
+            if (!step.trig && !hasPLock && !hasTrigOvr && !hasNonTrivCond) continue;
+
+            juce::ValueTree stepNode("S");
+            stepNode.setProperty("i", s,                   nullptr);
+            stepNode.setProperty("t", step.trig ? 1 : 0,   nullptr);
+
+            if (hasNonTrivCond)
+                stepNode.appendChild(condToTree("C", step.condition), nullptr);
+
+            if (hasTrigOvr)
+            {
+                juce::ValueTree toNode("TO");
+                if (step.trigOverride.hasNote)
+                {
+                    toNode.setProperty("hn", 1,                      nullptr);
+                    toNode.setProperty("n",  step.trigOverride.note,  nullptr);
+                }
+                if (step.trigOverride.hasVelocity)
+                {
+                    toNode.setProperty("hv", 1,                          nullptr);
+                    toNode.setProperty("v",  step.trigOverride.velocity,  nullptr);
+                }
+                if (step.trigOverride.hasGate)
+                {
+                    toNode.setProperty("hg", 1,                                             nullptr);
+                    toNode.setProperty("g",  static_cast<double>(step.trigOverride.gateMs), nullptr);
+                }
+                stepNode.appendChild(toNode, nullptr);
+            }
+
+            // P-Lock IDs are resolved via the processor (not available here).
+            // The caller must supply idForSlot; we store the (slotId, value) pairs.
+            // Note: PLocks are stored without slot resolution here — the full
+            // slot-ID lookup is done in the Project-level writer below.
+            if (hasPLock)
+            {
+                juce::ValueTree plNode("PL");
+                stepNode.setProperty("hasPL", 1, nullptr);
+                // Placeholder: actual PL writing done in writeProjectNode with proc.
+                (void)plNode;
+            }
+
+            stepsNode.appendChild(stepNode, nullptr);
+        }
+        if (stepsNode.getNumChildren() > 0)
+            node.appendChild(stepsNode, nullptr);
+
+        return node;
+    }
+
+    // Writes machineId and base params for one PartTrack into a <PartTrack> node.
+    static juce::ValueTree writePartTrackNode(int t, const PartTrack& pt,
+                                               LockstepProcessor& proc)
+    {
+        juce::ValueTree node("PartTrack");
+        node.setProperty("i", t, nullptr);
+        node.setProperty("machineId", juce::String(pt.machineId), nullptr);
+
+        const int np = proc.numParams(t);
+        if (np > 0)
+        {
+            juce::ValueTree bpNode("BaseParams");
+            for (int s = 0; s < np; ++s)
+            {
+                const juce::String id = proc.idForSlot(t, s);
+                if (id.isEmpty()) continue;
+                const float def = proc.paramSpec(t, s).defaultValue;
+                const float val = (static_cast<std::size_t>(s) < pt.baseParams.size())
+                                  ? pt.baseParams[static_cast<std::size_t>(s)] : def;
+                if (!floatNe(val, def)) continue;
+                juce::ValueTree pNode("P");
+                pNode.setProperty("id", id,                       nullptr);
+                pNode.setProperty("v",  static_cast<double>(val), nullptr);
+                bpNode.appendChild(pNode, nullptr);
+            }
+            if (bpNode.getNumChildren() > 0)
+                node.appendChild(bpNode, nullptr);
+        }
+        return node;
+    }
+
+    // Writes the full Project hierarchy as a <Project> node.
+    // Uses proc for slot-ID lookups and step P-Lock resolution.
+    static void writeProjectNode(juce::ValueTree& root, LockstepProcessor& proc)
+    {
+        juce::ValueTree projNode("Project");
+
+        for (int bi = 0; bi < static_cast<int>(kNumBanks); ++bi)
+        {
+            const auto& bank = proc.project().banks[static_cast<std::size_t>(bi)];
+            juce::ValueTree bankNode("Bank");
+            bankNode.setProperty("i", bi, nullptr);
+            bool bankHasContent = false;
+
+            // Write non-empty Patterns
+            for (int pi = 0; pi < static_cast<int>(kPatternsPerBank); ++pi)
+            {
+                const auto& pattern = bank.patterns[static_cast<std::size_t>(pi)];
+                juce::ValueTree patNode("Pattern");
+                patNode.setProperty("i",       pi,              nullptr);
+                patNode.setProperty("partRef", pattern.partRef, nullptr);
+
+                bool patHasContent = false;
+                for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+                {
+                    const auto& track = pattern.sequence.tracks[static_cast<std::size_t>(t)];
+                    const bool hasCond  = !track.baseCond.isTrivial();
+                    const bool hasTrig  = (track.trigDefaults.note != 60
+                                       || track.trigDefaults.velocity != 100
+                                       || floatNe(track.trigDefaults.gateMs, 0.0f));
+                    bool hasStep = false;
+                    for (const auto& step : track.steps)
+                    {
+                        if (step.trig || !step.overrides.empty()
+                            || step.trigOverride.hasNote
+                            || step.trigOverride.hasVelocity
+                            || step.trigOverride.hasGate
+                            || !step.condition.isTrivial())
+                        {
+                            hasStep = true;
+                            break;
+                        }
+                    }
+                    if (!hasCond && !hasTrig && !hasStep) continue;
+
+                    juce::ValueTree trackNode("Track");
+                    trackNode.setProperty("i", t, nullptr);
+
+                    if (hasCond)
+                        trackNode.appendChild(condToTree("BaseCond", track.baseCond), nullptr);
+
+                    if (hasTrig)
+                    {
+                        juce::ValueTree tdNode("TrigDefaults");
+                        tdNode.setProperty("note",   track.trigDefaults.note,   nullptr);
+                        tdNode.setProperty("vel",    track.trigDefaults.velocity, nullptr);
+                        tdNode.setProperty("gateMs", static_cast<double>(track.trigDefaults.gateMs), nullptr);
+                        trackNode.appendChild(tdNode, nullptr);
+                    }
+
+                    if (hasStep)
+                    {
+                        juce::ValueTree stepsNode("Steps");
+                        for (int s = 0; s < kMaxStepsPerTrack; ++s)
+                        {
+                            const auto& step = track.steps[static_cast<std::size_t>(s)];
+                            const bool hp  = !step.overrides.empty();
+                            const bool hto = step.trigOverride.hasNote
+                                          || step.trigOverride.hasVelocity
+                                          || step.trigOverride.hasGate;
+                            const bool hnc = !step.condition.isTrivial();
+                            if (!step.trig && !hp && !hto && !hnc) continue;
+
+                            juce::ValueTree stepNode("S");
+                            stepNode.setProperty("i", s,                  nullptr);
+                            stepNode.setProperty("t", step.trig ? 1 : 0,  nullptr);
+
+                            if (hnc)
+                                stepNode.appendChild(condToTree("C", step.condition), nullptr);
+
+                            if (hto)
+                            {
+                                juce::ValueTree toNode("TO");
+                                if (step.trigOverride.hasNote)
+                                {
+                                    toNode.setProperty("hn", 1,                     nullptr);
+                                    toNode.setProperty("n",  step.trigOverride.note, nullptr);
+                                }
+                                if (step.trigOverride.hasVelocity)
+                                {
+                                    toNode.setProperty("hv", 1,                          nullptr);
+                                    toNode.setProperty("v",  step.trigOverride.velocity,  nullptr);
+                                }
+                                if (step.trigOverride.hasGate)
+                                {
+                                    toNode.setProperty("hg", 1,                                             nullptr);
+                                    toNode.setProperty("g",  static_cast<double>(step.trigOverride.gateMs), nullptr);
+                                }
+                                stepNode.appendChild(toNode, nullptr);
+                            }
+
+                            if (hp)
+                            {
+                                juce::ValueTree plNode("PL");
+                                step.overrides.forEach([&](int slot, float value) {
+                                    const juce::String id = proc.idForSlot(t, slot);
+                                    if (id.isEmpty()) return;
+                                    juce::ValueTree lNode("L");
+                                    lNode.setProperty("id", id,                         nullptr);
+                                    lNode.setProperty("v",  static_cast<double>(value), nullptr);
+                                    plNode.appendChild(lNode, nullptr);
+                                });
+                                if (plNode.getNumChildren() > 0)
+                                    stepNode.appendChild(plNode, nullptr);
+                            }
+
+                            stepsNode.appendChild(stepNode, nullptr);
+                        }
+                        if (stepsNode.getNumChildren() > 0)
+                            trackNode.appendChild(stepsNode, nullptr);
+                    }
+
+                    patNode.appendChild(trackNode, nullptr);
+                    patHasContent = true;
+                }
+
+                // Always write the active pattern; skip empty non-active ones.
+                const bool isActive = (bi == proc.activeBankIdx()
+                                    && pi == proc.activePatternIdx());
+                if (patHasContent || isActive)
+                {
+                    bankNode.appendChild(patNode, nullptr);
+                    bankHasContent = true;
+                }
+            }
+
+            // Write non-default Parts
+            for (int ri = 0; ri < static_cast<int>(kPartsPerBank); ++ri)
+            {
+                const auto& part = bank.parts[static_cast<std::size_t>(ri)];
+                juce::ValueTree partNode("Part");
+                partNode.setProperty("i", ri, nullptr);
+                bool partHasContent = false;
+
+                for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+                {
+                    const auto& pt = part.tracks[static_cast<std::size_t>(t)];
+                    const juce::ValueTree ptNode = writePartTrackNode(t, pt, proc);
+                    const bool nonDefaultId = (pt.machineId != "lockstep.sampler.v1");
+                    const bool nonDefaultBp = ptNode.getChildWithName("BaseParams").isValid();
+                    if (nonDefaultId || nonDefaultBp)
+                    {
+                        partNode.appendChild(ptNode, nullptr);
+                        partHasContent = true;
+                    }
+                }
+
+                // Always write Part 0 (the default kit) and the active Part.
+                const int activePartRef = proc.activePattern().partRef;
+                const bool isActivePart = (bi == proc.activeBankIdx()
+                                        && ri == activePartRef);
+                if (partHasContent || ri == 0 || isActivePart)
+                {
+                    bankNode.appendChild(partNode, nullptr);
+                    bankHasContent = true;
+                }
+            }
+
+            if (bankHasContent || bi == proc.activeBankIdx())
+                projNode.appendChild(bankNode, nullptr);
+        }
+
+        root.appendChild(projNode, nullptr);
+    }
+
+    // -------------------------------------------------------------------------
+    // v2 read helpers
+
+    static void readPatternTrackFromNode(const juce::ValueTree& trackNode,
+                                          Track& track, LockstepProcessor& proc, int t)
+    {
+        const auto bcNode = trackNode.getChildWithName("BaseCond");
+        if (bcNode.isValid())
+            track.baseCond = condFromTree(bcNode);
+
+        const auto tdNode = trackNode.getChildWithName("TrigDefaults");
+        if (tdNode.isValid())
+        {
+            track.trigDefaults.note     = static_cast<int>(tdNode.getProperty("note",   60));
+            track.trigDefaults.velocity = static_cast<int>(tdNode.getProperty("vel",   100));
+            track.trigDefaults.gateMs   = getFloat(tdNode, "gateMs", 0.0f);
+        }
+
+        const auto stepsNode = trackNode.getChildWithName("Steps");
+        if (!stepsNode.isValid()) return;
+
+        for (auto stepNode : stepsNode)
+        {
+            const int s = static_cast<int>(stepNode.getProperty("i", -1));
+            if (s < 0 || s >= kMaxStepsPerTrack) continue;
+            auto& step = track.steps[static_cast<std::size_t>(s)];
+
+            step.trig = (static_cast<int>(stepNode.getProperty("t", 0)) != 0);
+
+            const auto cNode = stepNode.getChildWithName("C");
+            if (cNode.isValid())
+                step.condition = condFromTree(cNode);
+
+            const auto toNode = stepNode.getChildWithName("TO");
+            if (toNode.isValid())
+            {
+                step.trigOverride.hasNote = (static_cast<int>(toNode.getProperty("hn", 0)) != 0);
+                if (step.trigOverride.hasNote)
+                    step.trigOverride.note = static_cast<int>(toNode.getProperty("n", 60));
+
+                step.trigOverride.hasVelocity = (static_cast<int>(toNode.getProperty("hv", 0)) != 0);
+                if (step.trigOverride.hasVelocity)
+                    step.trigOverride.velocity = static_cast<int>(toNode.getProperty("v", 100));
+
+                step.trigOverride.hasGate = (static_cast<int>(toNode.getProperty("hg", 0)) != 0);
+                if (step.trigOverride.hasGate)
+                    step.trigOverride.gateMs = getFloat(toNode, "g", 0.0f);
+            }
+
+            const auto plNode = stepNode.getChildWithName("PL");
+            if (!plNode.isValid()) continue;
+
+            for (auto lNode : plNode)
+            {
+                const juce::String id  = lNode.getProperty("id").toString();
+                const float        val = getFloat(lNode, "v", 0.0f);
+                const int slot = proc.slotForId(t, id);
+                if (slot < 0)
+                {
+                    DBG("PluginState: unknown P-Lock id '" + id
+                        + "' on track " + juce::String(t) + " -- skipping");
+                    continue;
+                }
+                step.overrides.set(slot, val);
+            }
+        }
+    }
+
+    static void readPartTrackFromNode(const juce::ValueTree& ptNode,
+                                       PartTrack& pt, LockstepProcessor& proc, int t)
+    {
+        pt.machineId = ptNode.getProperty("machineId",
+                                           "lockstep.sampler.v1").toString().toStdString();
+
+        const auto bpNode = ptNode.getChildWithName("BaseParams");
+        if (!bpNode.isValid()) return;
+
+        for (auto pNode : bpNode)
+        {
+            const juce::String id  = pNode.getProperty("id").toString();
+            const float        val = getFloat(pNode, "v", 0.0f);
+            const int slot = proc.slotForId(t, id);
+            if (slot < 0)
+            {
+                DBG("PluginState: unknown param id '" + id
+                    + "' on track " + juce::String(t) + " -- skipping");
+                continue;
+            }
+            const auto slotSz = static_cast<std::size_t>(slot);
+            if (slotSz < pt.baseParams.size())
+                pt.baseParams[slotSz] = val;
+        }
+    }
+
+    static void readProjectNode(const juce::ValueTree& root, LockstepProcessor& proc)
+    {
+        const auto projNode = root.getChildWithName("Project");
+        if (!projNode.isValid()) return;
+
+        for (auto bankNode : projNode)
+        {
+            const int bi = static_cast<int>(bankNode.getProperty("i", -1));
+            if (bi < 0 || bi >= static_cast<int>(kNumBanks)) continue;
+            auto& bank = proc.project().banks[static_cast<std::size_t>(bi)];
+
+            for (auto child : bankNode)
+            {
+                if (child.getType() == juce::Identifier("Pattern"))
+                {
+                    const int pi = static_cast<int>(child.getProperty("i", -1));
+                    if (pi < 0 || pi >= static_cast<int>(kPatternsPerBank)) continue;
+                    auto& pattern = bank.patterns[static_cast<std::size_t>(pi)];
+                    pattern.partRef = std::clamp(
+                        static_cast<int>(child.getProperty("partRef", 0)),
+                        0, static_cast<int>(kPartsPerBank) - 1);
+
+                    for (auto trackNode : child)
+                    {
+                        const int t = static_cast<int>(trackNode.getProperty("i", -1));
+                        if (t < 0 || t >= static_cast<int>(kNumTracks)) continue;
+                        readPatternTrackFromNode(trackNode,
+                            pattern.sequence.tracks[static_cast<std::size_t>(t)], proc, t);
+                    }
+                }
+                else if (child.getType() == juce::Identifier("Part"))
+                {
+                    const int ri = static_cast<int>(child.getProperty("i", -1));
+                    if (ri < 0 || ri >= static_cast<int>(kPartsPerBank)) continue;
+                    auto& part = bank.parts[static_cast<std::size_t>(ri)];
+
+                    for (auto ptNode : child)
+                    {
+                        const int t = static_cast<int>(ptNode.getProperty("i", -1));
+                        if (t < 0 || t >= static_cast<int>(kNumTracks)) continue;
+                        readPartTrackFromNode(ptNode,
+                            part.tracks[static_cast<std::size_t>(t)], proc, t);
+                    }
+                }
+            }
+        }
+
+        // After loading all banks/patterns/parts, sync the active pattern's
+        // Track.baseParams from its Part so the audio thread has consistent data.
+        const auto& activePart = proc.activePart();
+        auto& seq = proc.sequence();
+        for (std::size_t t = 0; t < kNumTracks; ++t)
+            seq.tracks[t].baseParams = activePart.tracks[t].baseParams;
+    }
+
+    // -------------------------------------------------------------------------
+    // Read (legacy v1 path — kept for the upgrade function)
 
     static void readSequence(const juce::ValueTree& root, LockstepProcessor& proc)
     {
@@ -477,6 +918,74 @@ namespace lockstep::PluginState
         return v1;
     }
 
+    // v1 → v2
+    // v1 format: flat "Sequence" node with per-Track BaseParams mixed in.
+    // v2 format: "Project/Bank[0]/Pattern[0]" (trig data) +
+    //            "Project/Bank[0]/Part[0]"    (machine identity + base params).
+    juce::ValueTree upgrade_v1_to_v2(const juce::ValueTree& v1)
+    {
+        juce::ValueTree v2("LockstepState");
+        v2.setProperty("version", 2, nullptr);
+
+        // Copy all non-Sequence children unchanged.
+        for (int i = 0; i < v1.getNumChildren(); ++i)
+        {
+            const auto child = v1.getChild(i);
+            if (child.getType() != juce::Identifier("Sequence"))
+                v2.appendChild(child.createCopy(), nullptr);
+        }
+
+        // Build Project/Bank[0]/Pattern[0] + Part[0] from the old Sequence.
+        juce::ValueTree projNode("Project");
+        juce::ValueTree bankNode("Bank");
+        bankNode.setProperty("i", 0, nullptr);
+
+        juce::ValueTree patNode("Pattern");
+        patNode.setProperty("i",       0, nullptr);
+        patNode.setProperty("partRef", 0, nullptr);
+
+        juce::ValueTree partNode("Part");
+        partNode.setProperty("i", 0, nullptr);
+
+        const auto seqNode = v1.getChildWithName("Sequence");
+        if (seqNode.isValid())
+        {
+            for (auto trackNode : seqNode)
+            {
+                const juce::var trackIdx = trackNode.getProperty("i", -1);
+                if (static_cast<int>(trackIdx) < 0) continue;
+
+                // Pattern track: BaseCond, TrigDefaults, Steps (no BaseParams).
+                juce::ValueTree patTrackNode("Track");
+                patTrackNode.setProperty("i", trackIdx, nullptr);
+
+                // Part track: machineId + BaseParams.
+                juce::ValueTree ptNode("PartTrack");
+                ptNode.setProperty("i", trackIdx, nullptr);
+                ptNode.setProperty("machineId", SamplerMachine::kMachineId, nullptr);
+
+                for (int j = 0; j < trackNode.getNumChildren(); ++j)
+                {
+                    const auto child = trackNode.getChild(j);
+                    if (child.getType() == juce::Identifier("BaseParams"))
+                        ptNode.appendChild(child.createCopy(), nullptr);
+                    else
+                        patTrackNode.appendChild(child.createCopy(), nullptr);
+                }
+
+                patNode.appendChild(patTrackNode, nullptr);
+                partNode.appendChild(ptNode, nullptr);
+            }
+        }
+
+        bankNode.appendChild(patNode,  nullptr);
+        bankNode.appendChild(partNode, nullptr);
+        projNode.appendChild(bankNode, nullptr);
+        v2.appendChild(projNode, nullptr);
+
+        return v2;
+    }
+
     juce::ValueTree applyUpgrades(juce::ValueTree tree)
     {
         // Determine the version. v0 has root type "Lockstep" and no version attribute.
@@ -492,7 +1001,7 @@ namespace lockstep::PluginState
         // Apply each upgrade in order. Upgrades are idempotent with respect
         // to the chain: each runs only when needed by the version guard.
         if (version < 1) tree = upgrade_v0_to_v1(tree);
-        // if (version < 2) tree = upgrade_v1_to_v2(tree);
+        if (version < 2) tree = upgrade_v1_to_v2(tree);
 
         return tree;
     }
@@ -511,8 +1020,8 @@ namespace lockstep::PluginState
         // Sample pool ({path, hash} refs — no PCM bytes)
         writeSamplePool(root, proc);
 
-        // Sequence (trigs, P-Locks, base params, conditions)
-        writeSequence(root, proc);
+        // Full Project hierarchy (all banks, patterns, parts)
+        writeProjectNode(root, proc);
 
         // CC mappings, focus track, standalone BPM
         writeMiscState(root, proc);
@@ -540,7 +1049,8 @@ namespace lockstep::PluginState
         // Sample pool must be restored before sequence so that pool indices
         // referenced by P-Locks and baseParams resolve to the right entries.
         readSamplePool(root, proc);
-        readSequence(root, proc);
+        // readProject reads the full hierarchy; readMiscState sets the active pattern.
+        readProjectNode(root, proc);
         readMiscState(root, proc);
     }
 
@@ -584,27 +1094,90 @@ namespace
                        "v0 upgrades must not invent a Sequence node");
             }
 
-            beginTest("v1 passthrough: current format unchanged");
+            beginTest("v1 -> v2: Sequence split into Project/Bank/Pattern+Part");
             {
+                // Build a minimal v1 tree with a Track containing BaseParams and Steps.
                 juce::ValueTree v1("LockstepState");
                 v1.setProperty("version", 1, nullptr);
-                v1.appendChild(juce::ValueTree("Lockstep"),    nullptr);
-                v1.appendChild(juce::ValueTree("SamplePool"),  nullptr);
-                v1.appendChild(juce::ValueTree("Sequence"),    nullptr);
-                v1.appendChild(juce::ValueTree("CCMappings"),  nullptr);
-                v1.appendChild(juce::ValueTree("Misc"),        nullptr);
+                v1.appendChild(juce::ValueTree("Lockstep"),   nullptr);
+                v1.appendChild(juce::ValueTree("SamplePool"), nullptr);
+
+                juce::ValueTree seq("Sequence");
+                juce::ValueTree track0("Track");
+                track0.setProperty("i", 0, nullptr);
+
+                juce::ValueTree bp("BaseParams");
+                juce::ValueTree p("P");
+                p.setProperty("id", "sample_id", nullptr);
+                p.setProperty("v",  1.0,          nullptr);
+                bp.appendChild(p, nullptr);
+                track0.appendChild(bp, nullptr);
+
+                juce::ValueTree steps("Steps");
+                juce::ValueTree s("S");
+                s.setProperty("i", 0, nullptr);
+                s.setProperty("t", 1, nullptr);
+                steps.appendChild(s, nullptr);
+                track0.appendChild(steps, nullptr);
+                seq.appendChild(track0, nullptr);
+                v1.appendChild(seq, nullptr);
+
+                v1.appendChild(juce::ValueTree("CCMappings"), nullptr);
+                v1.appendChild(juce::ValueTree("Misc"),       nullptr);
 
                 const auto result = lockstep::PluginState::applyUpgrades(v1);
 
-                expect(result.getType() == juce::Identifier("LockstepState"),
-                       "root type preserved");
-                expectEquals(static_cast<int>(result.getProperty("version", -1)), 1,
-                             "version preserved");
-                expect(result.getChildWithName("Lockstep").isValid(),   "APVTS child present");
-                expect(result.getChildWithName("SamplePool").isValid(), "SamplePool child present");
-                expect(result.getChildWithName("Sequence").isValid(),   "Sequence child present");
-                expect(result.getChildWithName("CCMappings").isValid(), "CCMappings child present");
-                expect(result.getChildWithName("Misc").isValid(),       "Misc child present");
+                expectEquals(static_cast<int>(result.getProperty("version", -1)), 2,
+                             "version bumped to 2");
+                expect(!result.getChildWithName("Sequence").isValid(),
+                       "old Sequence node removed");
+                const auto proj = result.getChildWithName("Project");
+                expect(proj.isValid(), "Project node present");
+
+                const auto bank0 = proj.getChildWithName("Bank");
+                expect(bank0.isValid(), "Bank[0] present");
+
+                const auto pat0  = bank0.getChildWithName("Pattern");
+                expect(pat0.isValid(), "Pattern[0] present");
+                expectEquals(static_cast<int>(pat0.getProperty("partRef", -1)), 0,
+                             "Pattern[0] references Part[0]");
+
+                // Track[0] in Pattern[0] must have Steps but no BaseParams.
+                const auto patTrack0 = pat0.getChildWithName("Track");
+                expect(patTrack0.isValid(), "Pattern Track[0] present");
+                expect(patTrack0.getChildWithName("Steps").isValid(),
+                       "Steps moved to Pattern track");
+                expect(!patTrack0.getChildWithName("BaseParams").isValid(),
+                       "BaseParams must NOT be in Pattern track");
+
+                // Part[0]/PartTrack[0] must have BaseParams.
+                const auto part0 = bank0.getChildWithName("Part");
+                expect(part0.isValid(), "Part[0] present");
+                const auto pt0 = part0.getChildWithName("PartTrack");
+                expect(pt0.isValid(), "PartTrack[0] present");
+                expect(pt0.getChildWithName("BaseParams").isValid(),
+                       "BaseParams present in PartTrack");
+                expect(pt0.getProperty("machineId").toString()
+                       == lockstep::SamplerMachine::kMachineId,
+                       "machineId set to sampler.v1");
+            }
+
+            beginTest("v2 passthrough: current format unchanged");
+            {
+                juce::ValueTree v2("LockstepState");
+                v2.setProperty("version", 2, nullptr);
+                v2.appendChild(juce::ValueTree("Lockstep"),    nullptr);
+                v2.appendChild(juce::ValueTree("SamplePool"),  nullptr);
+                v2.appendChild(juce::ValueTree("Project"),     nullptr);
+                v2.appendChild(juce::ValueTree("CCMappings"),  nullptr);
+                v2.appendChild(juce::ValueTree("Misc"),        nullptr);
+
+                const auto result = lockstep::PluginState::applyUpgrades(v2);
+
+                expectEquals(static_cast<int>(result.getProperty("version", -1)), 2,
+                             "version preserved at 2");
+                expect(result.getChildWithName("Project").isValid(), "Project child present");
+                expect(!result.getChildWithName("Sequence").isValid(), "no legacy Sequence");
             }
 
             beginTest("future version: valid tree returned without crash");
