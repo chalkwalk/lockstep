@@ -195,6 +195,72 @@ namespace lockstep
 
     void LockstepEditor::paintOverChildren(juce::Graphics& g)
     {
+        // ---- Scope chrome: badge row in the free space of the header row ----
+        {
+            const auto& sc = editMode_.scopeState();
+            // Scope badges: (label, active?)
+            struct Badge { const char* label; bool active; juce::Colour onColour; };
+            const Badge scopes[] = {
+                { "FNC", sc.func,    juce::Colour(0xFF6090C0u) },
+                { "TRK", sc.track,   juce::Colour(0xFF50C060u) },
+                { "PAT", sc.pattern, juce::Colour(0xFFC09030u) },
+                { "MUT", sc.mute,    juce::Colour(0xFFC05050u) },
+                { "FIL", sc.fill,    juce::Colour(0xFFB060C0u) },
+            };
+
+            // Clipboard badge
+            const char* cbLabel = nullptr;
+            juce::Colour cbColour{ 0xFFFFFFFFu };
+            switch (clipboardType_)
+            {
+                case ClipboardType::None:    break;
+                case ClipboardType::Step:    cbLabel = "CPY:STP"; cbColour = juce::Colour(0xFF50B0C8u); break;
+                case ClipboardType::Section: cbLabel = "CPY:SEC"; cbColour = juce::Colour(0xFF50B0C8u); break;
+                case ClipboardType::Track:   cbLabel = "CPY:TRK"; cbColour = juce::Colour(0xFF50B0C8u); break;
+                case ClipboardType::Pattern: cbLabel = "CPY:PAT"; cbColour = juce::Colour(0xFF50B0C8u); break;
+            }
+
+            g.setFont(juce::Font(juce::FontOptions(10.0f)));
+
+            // Position: right-of-centre in the 36px header strip
+            static constexpr int kBadgeH = 16;
+            static constexpr int kBadgeW = 32;
+            static constexpr int kGap    = 3;
+            int bx = 420;
+            const int by = (36 - kBadgeH) / 2;
+
+            for (const auto& b : scopes)
+            {
+                const auto r = juce::Rectangle<int>(bx, by, kBadgeW, kBadgeH);
+                g.setColour(b.active ? b.onColour : juce::Colour(0xFF303035u));
+                g.fillRoundedRectangle(r.toFloat(), 3.0f);
+                g.setColour(b.active ? juce::Colours::white
+                                     : juce::Colour(0xFF606070u));
+                g.drawText(b.label, r, juce::Justification::centred);
+                bx += kBadgeW + kGap;
+            }
+
+            if (cbLabel != nullptr)
+            {
+                const auto r = juce::Rectangle<int>(bx, by, 56, kBadgeH);
+                g.setColour(cbColour);
+                g.fillRoundedRectangle(r.toFloat(), 3.0f);
+                g.setColour(juce::Colours::black);
+                g.drawText(cbLabel, r, juce::Justification::centred);
+                bx += 56 + kGap;
+            }
+
+            if (checkpointDepth_ > 0)
+            {
+                const juce::String ckLabel = "CK:" + juce::String(checkpointDepth_);
+                const auto r = juce::Rectangle<int>(bx, by, 38, kBadgeH);
+                g.setColour(juce::Colour(0xFF40A080u));
+                g.fillRoundedRectangle(r.toFloat(), 3.0f);
+                g.setColour(juce::Colours::white);
+                g.drawText(ckLabel, r, juce::Justification::centred);
+            }
+        }
+
         if (!isDraggingFiles_)
             return;
         g.setColour(juce::Colour::fromRGB(255, 180, 50).withAlpha(0.12f));
@@ -276,21 +342,25 @@ namespace lockstep
                 editMode_.onScopeEvent(ev);
                 sectionBar_.repaint();
                 functionBar_.repaint();
+                repaint();
                 return true;
 
             case ControllerButton::TrackScope:
                 uiState_.trackHeld = true;
                 editMode_.onScopeEvent(ev);
+                repaint();
                 return true;
 
             case ControllerButton::MuteScope:
                 uiState_.muteHeld = true;
                 editMode_.onScopeEvent(ev);
+                repaint();
                 return true;
 
             case ControllerButton::FillScope:
                 uiState_.fillHeld = true;
                 editMode_.onScopeEvent(ev);
+                repaint();
                 return true;
 
             case ControllerButton::Section:
@@ -423,6 +493,7 @@ namespace lockstep
             editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::Func });
             sectionBar_.repaint();
             functionBar_.repaint();
+            repaint();
             handled = true;
         }
 
@@ -431,6 +502,7 @@ namespace lockstep
         {
             uiState_.trackHeld = false;
             editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::TrackScope });
+            repaint();
             handled = true;
         }
 
@@ -439,6 +511,7 @@ namespace lockstep
         {
             uiState_.muteHeld = false;
             editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::MuteScope });
+            repaint();
             handled = true;
         }
 
@@ -447,6 +520,7 @@ namespace lockstep
         {
             uiState_.fillHeld = false;
             editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::FillScope });
+            repaint();
             handled = true;
         }
 
@@ -639,5 +713,8 @@ namespace lockstep
             default:
                 break;
         }
+
+        // Chrome must repaint after any verb that may change clipboard or checkpoint state.
+        repaint();
     }
 }
