@@ -67,10 +67,10 @@ namespace lockstep
         // Active pattern / part accessors — point into the live project.
         Sequence&       sequence()       { return activePattern().sequence; }
         const Sequence& sequence() const { return activePattern().sequence; }
-        Pattern&        activePattern()  { return project_.banks[activeBankIdx_].patterns[activePatternIdx_]; }
-        const Pattern&  activePattern()  const { return project_.banks[activeBankIdx_].patterns[activePatternIdx_]; }
-        Part&           activePart()     { return project_.banks[activeBankIdx_].parts[activePattern().partRef]; }
-        const Part&     activePart()     const { return project_.banks[activeBankIdx_].parts[activePattern().partRef]; }
+        Pattern&        activePattern()  { return project_.banks[static_cast<std::size_t>(activeBankIdx_)].patterns[static_cast<std::size_t>(activePatternIdx_)]; }
+        const Pattern&  activePattern()  const { return project_.banks[static_cast<std::size_t>(activeBankIdx_)].patterns[static_cast<std::size_t>(activePatternIdx_)]; }
+        Part&           activePart()     { return project_.banks[static_cast<std::size_t>(activeBankIdx_)].parts[static_cast<std::size_t>(activePattern().partRef)]; }
+        const Part&     activePart()     const { return project_.banks[static_cast<std::size_t>(activeBankIdx_)].parts[static_cast<std::size_t>(activePattern().partRef)]; }
         Project&        project()        { return project_; }
         const Project&  project()        const { return project_; }
 
