@@ -54,10 +54,11 @@ namespace lockstep
         ToggleMute,
 
         // Transport / utility.
-        RecordArm,  // key 2 (Func not held)
-        TapTempo,   // O (Func not held)
-        PlayStop,   // T (Func not held)
-        StopReset,  // Func+E
+        RecordArm,       // key 2 (Func not held)
+        TapTempo,        // O (Func not held)
+        MetronomeToggle, // Func+O
+        PlayStop,        // T (Func not held)
+        StopReset,       // Func+E
     };
 
     // A single normalised input event from any source (QWERTY, MIDI CC, UI encoder,

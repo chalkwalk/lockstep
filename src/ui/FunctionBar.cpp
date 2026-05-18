@@ -25,7 +25,7 @@ namespace lockstep
             { 'Y', "Y", "CPY", "KEY", false },  // VerbRecord / TrigModeKeyboard
             { 'U', "U", "PST", "RTG", false },  // VerbPlay   / TrigModeRetrig
             { 'I', "I", "CLR", "POL", false },  // VerbStop   / TrigModeSoundPool
-            { 'O', "O", "TAP", "",    false },  // TapTempo
+            { 'O', "O", "TAP", "MET", false },  // TapTempo / MetronomeToggle
         }};
     }
 
@@ -83,6 +83,7 @@ namespace lockstep
 
             const bool isPressed    = juce::KeyPress::isKeyCurrentlyDown(def.keyCode);
             const bool isPlaying    = (def.keyCode == 'T') && processor_.clock().inPluginPlaying();
+            const bool isMetActive  = (def.keyCode == 'O') && processor_.clock().isMetronomeEnabled();
             // Trig-mode active indicator: Y=KEY, U=RTG, I=POL.
             const bool isModeActive = (def.keyCode == 'Y' && gridMode == TrigGridMode::Keyboard)
                                    || (def.keyCode == 'U' && gridMode == TrigGridMode::Retrig)
@@ -99,6 +100,8 @@ namespace lockstep
                 bg = juce::Colour::fromRGB(90, 55, 30);   // amber tint for active mode
             else if (isPlaying)
                 bg = juce::Colour::fromRGB(30, 90, 40);   // green tint when playing
+            else if (isMetActive)
+                bg = juce::Colour::fromRGB(30, 60, 80);   // blue tint when metronome on
             else if (def.keyCode == 'Q')
                 bg = juce::Colour::fromRGB(28, 38, 50);   // modifier: slightly different dark
             else if (def.isNav)

@@ -492,6 +492,10 @@ namespace lockstep
             case ControllerButton::ToggleMute:
                 return true;
 
+            case ControllerButton::MetronomeToggle:
+                processor_.clock().setMetronomeEnabled(!processor_.clock().isMetronomeEnabled());
+                return true;
+
             case ControllerButton::TapTempo:
             case ControllerButton::PatternScope:
                 return true;

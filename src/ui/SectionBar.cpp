@@ -174,20 +174,23 @@ namespace lockstep
                                  : juce::Colour::fromRGB(40, 50, 60));
             g.fillRect(r.reduced(2, 2));
 
+            // Use reduced rect so labels stay inside the drawn background.
+            const auto cell = r.reduced(2, 2);
+
             // Primary label — dimmed when Func held.
             const float primAlpha = (keyDown || !uiState_.funcHeld) ? 1.0f : 0.35f;
             g.setColour((isArmed ? juce::Colour::fromRGB(220, 100, 100)
                                  : juce::Colour::fromRGB(100, 120, 140))
                             .withAlpha(primAlpha));
             g.setFont(juce::Font(juce::FontOptions(10.0f)));
-            g.drawText("REC", r.withTrimmedBottom(10), juce::Justification::centred);
+            g.drawText("REC", cell.withTrimmedBottom(10), juce::Justification::centred);
 
             // Func-layer label (SNP) — bright when Func held, dim otherwise.
             const float secAlpha = uiState_.funcHeld ? 1.0f : 0.25f;
             g.setFont(juce::Font(juce::FontOptions(8.0f)));
             g.setColour(juce::Colour::fromRGB(180, 200, 220).withAlpha(secAlpha));
             g.drawText("SNP",
-                       r.withTrimmedTop(r.getHeight() - 11).reduced(2, 0),
+                       cell.withTrimmedTop(cell.getHeight() - 11).reduced(2, 0),
                        juce::Justification::centredBottom);
         }
 
