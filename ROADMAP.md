@@ -7,8 +7,8 @@ milestone changes, update **Active focus** below.
 
 For architecture see `DESIGN.md`.
 
-**Active focus:** MD — Performance modifier cluster.
-**Last completed:** MC — Project/Bank/Pattern/Part hierarchy. All MC.1–MC.7 complete.
+**Active focus:** ME — Canonical sections + post-machine FLTR/AMP + role tags.
+**Last completed:** MD — Performance modifier cluster. All MD.1–MD.11 complete.
 
 After M8 the roadmap pivots from "core sequencer is usable" to
 "performance instrument is usable" — see new milestones MB–MH below.
@@ -438,47 +438,51 @@ DESIGN.md §4.7.
       Relink/replace dialog is a stub (offered at ME when machine
       catalogue expands).
 
-### MD — Performance modifier cluster  [pending]
+### MD — Performance modifier cluster  [complete]
 
 Copy/Paste/Clear, Performance Mutes, Fills, Control-All, Checkpoint
 stack. All five share the scope+verb grammar landed in MB and the
 hierarchy landed in MC.
 
-- [ ] **MD.1** Clipboard typed by scope (step / section / track /
+- [x] **MD.1** Clipboard typed by scope (step / section / track /
       pattern). Multi-step clipboard preserves relative offsets.
-      In-memory only.
-- [ ] **MD.2** Copy/Paste/Clear for **step** scope: `Trig`-hold
+      In-memory only. (`Clipboard.h`)
+- [x] **MD.2** Copy/Paste/Clear for **step** scope: `Trig`-hold
       (1+ steps) + Record / Play / Stop. Preserves trig defaults,
-      conditions, and P-Locks. Multi-target paste replicates a
-      1-step clipboard; 1-target paste unrolls an N-step clipboard.
-- [ ] **MD.3** Copy/Paste/Clear for **section** scope: section-key
-      + verb. Targets the section's slots across all steps on the
-      focused track (or all tracks under Control-All).
-- [ ] **MD.4** Copy/Paste/Clear for **track** scope.
-- [ ] **MD.5** Copy/Paste/Clear for **pattern** scope.
-- [ ] **MD.6** Global mutes (per-Project, per-track). Entered by
-      `Func + Track`. Non-destructive: suppression happens at the
-      sequencer→machine MIDI boundary after condition evaluation.
-- [ ] **MD.7** Pattern mutes (per-Pattern, per-track). Entered by
-      `Func + double-tap Track`. Saved with the pattern. Resolver
-      `muted[i] = global.muted[i] || pattern.muted[i]`.
-- [ ] **MD.8** Multi-select-on-release: holding `Func` inside either
-      mute mode defers the toggle; collected track keys all toggle
-      atomically on `Func` release.
-- [ ] **MD.9** `Fill` momentary modifier. `TrigCondition::fillRule`
+      conditions, and P-Locks. Multi-step copy: all held steps with
+      relative offsets; paste wraps within track length.
+- [x] **MD.3** Copy/Paste/Clear for **section** scope: section-key
+      held + verb. Targets the section's slots (by `sectionIndex`
+      match) across all steps on the focused track. Section key held
+      sets `sectionHeld_` scope so verbs dispatch to `PS::Section`.
+- [x] **MD.4** Copy/Paste/Clear for **track** scope.
+- [x] **MD.5** Copy/Paste/Clear for **pattern** scope. Pattern+Record
+      now always copies (fixes MC.5 which used this gesture for fork).
+      Fork Part moved to `Func+W` (`ControllerButton::ForkPart`).
+- [x] **MD.6** Global mutes (per-Project, per-track). `A+step`
+      toggles the APVTS `trackMute` param immediately.
+- [x] **MD.7** Pattern mutes (per-Pattern, per-track). `Func+A+step`
+      defers toggle; applied atomically on Func release (MD.8).
+      Saved with the pattern as a bitfield. Resolver: `muted[i] =
+      globalMute[i] || patternMute[i]`.
+- [x] **MD.8** Multi-select-on-release: holding `Func` while pressing
+      mute keys defers toggles into `deferredPatternMutes_`; all
+      applied atomically on `Func` release.
+- [x] **MD.9** `Fill` momentary modifier. `TrigCondition::fillRule`
       enum: `Always` / `OnlyFill` / `NeverFill`. Resolver conjoins
-      fillRule with probability and m:n. Step-state preview (§4.5)
-      shows fill-only cells distinctly while Fill is held.
-- [ ] **MD.10** Control-All (DESIGN §13.1). Holding `Track` (with no
-      specific track selected) broadcasts the next parameter edit
-      to every track whose schema matches by id (primary) or role
-      (fallback). Works for both base writes and P-Lock writes.
-      Visual indicator on which tracks accepted vs were skipped.
-- [ ] **MD.11** Checkpoint stack (DESIGN §13.6). RAM-only LIFO of
-      (Pattern, Part) snapshots, capped at 8 per pattern, oldest
-      evicted on overflow. `Func + Yes` push, `Func + No` pop. Stack
-      depth chip in transport bar. Cleared on project save (does not
-      persist).
+      fillRule with probability and m:n. Step-state preview shows
+      fill-only cells in violet while Fill is not held.
+- [x] **MD.10** Control-All (DESIGN §13.1). Holding `Track` (Q, with
+      no track-step selected) activates `controlAllActive_` in the
+      processor. `writeParam` broadcasts to all tracks whose machine
+      schema has the same slot id. Works for both base writes and
+      P-Lock writes (P-Lock if step held on target track).
+      Note: per-track accepted/skipped indicator deferred to ME.
+- [x] **MD.11** Checkpoint stack (DESIGN §13.6). RAM-only LIFO of
+      `{Pattern, Part}` snapshots per pattern-slot, capped at 8,
+      oldest evicted on overflow. `Func+2-release` (no step used) or
+      `Snapshot` key pushes; `Restore` key pops. Depth shown in
+      "CK:N" chrome badge. Not serialized.
 
 ### ME — Canonical sections + post-machine FLTR/AMP + role tags  [pending]
 

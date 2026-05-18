@@ -375,6 +375,14 @@ unknown machine ids cause the track to fall back to a stub machine
 that preserves its base params and trigs but produces silence,
 with a relink/replace dialog offered.
 
+**Fork Part.** When multiple Patterns in a bank share a Part and the
+user wants to author a variant kit just for the active Pattern, they
+fork: `Func + W` copies the Part into the first free Part slot and
+updates `activePattern().partRef` to point at it. The SHR:N chrome
+badge shows when sharing is active; fork is the escape hatch. (The
+Pattern+Record gesture is reserved for copy-pattern, not fork — that
+was an early implementation error fixed in MD.)
+
 Pattern switching at runtime is a performance gesture, not a state
 reload: the next Pattern is queued and the swap happens at the
 nearest configured grid boundary (default: end of the longest
@@ -868,14 +876,16 @@ change"), but the manual hold-Fill gesture is the baseline.
 
 Two mute layers, both first-class:
 
-- **Global mute (per-track).** Lives in the Project, not in any
-  Pattern or Part. Surviving across pattern changes makes it the
-  natural target for live "drop the drums" performance gestures.
-  Entered by `Func + Track` (Digitakt convention).
-- **Pattern mute (per-track).** Lives in the Pattern. Saved with the
-  pattern and recalled on pattern load — useful for arrangement-style
-  pattern variants without duplicating notes. Entered by
-  `Func + double-tap Track`.
+- **Global mute (per-track).** Lives in the Project (APVTS
+  `trackMute` param), not in any Pattern or Part. Surviving across
+  pattern changes makes it the natural target for live "drop the
+  drums" performance gestures. Entered by `A + step` (MuteScope +
+  step key), toggles immediately.
+- **Pattern mute (per-track).** Lives in the Pattern (serialised as
+  a bitfield). Saved with the pattern and recalled on pattern load —
+  useful for arrangement-style pattern variants without duplicating
+  notes. Entered by `Func + A + step`; toggles are deferred and
+  applied atomically on `Func` release (see multi-select below).
 
 Mute mask resolution: a track is muted at runtime iff
 `global.muted[i] || pattern.muted[i]`. Muting is non-destructive (no
