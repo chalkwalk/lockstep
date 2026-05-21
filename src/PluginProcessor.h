@@ -204,6 +204,27 @@ namespace lockstep
         juce::String idForSlot(int track, int index)       const;
         int slotForId(int track, const juce::String& id)   const;
 
+        // --- Diagnostic metering (audio thread writes, UI thread reads) ---
+        // trackPeak / masterPeak: instantaneous block-peak magnitude (linear).
+        // trigPulse / midiPulse: set to 1.0 on a sequencer trig / external MIDI
+        // note-on; the UI reads-and-clears them to drive a decaying blink.
+        float trackPeak(int track) const
+        {
+            if (track < 0 || track >= static_cast<int>(kNumTracks)) return 0.0f;
+            return trackPeak_[static_cast<std::size_t>(track)].load(std::memory_order_relaxed);
+        }
+        float masterPeak() const { return masterPeak_.load(std::memory_order_relaxed); }
+        float takeTrigPulse(int track)
+        {
+            if (track < 0 || track >= static_cast<int>(kNumTracks)) return 0.0f;
+            return trigPulse_[static_cast<std::size_t>(track)].exchange(0.0f, std::memory_order_relaxed);
+        }
+        float takeMidiPulse(int track)
+        {
+            if (track < 0 || track >= static_cast<int>(kNumTracks)) return 0.0f;
+            return midiPulse_[static_cast<std::size_t>(track)].exchange(0.0f, std::memory_order_relaxed);
+        }
+
         using juce::AudioProcessor::processBlock;
 
     private:
@@ -265,6 +286,10 @@ namespace lockstep
         MidiInput midiInput_;
         MidiClockReceiver midiClockReceiver_;
         std::array<std::unique_ptr<IMachine>, kNumTracks> machines_;
+        // Per-track scratch buffers: each machine writes here, then they are
+        // summed to the main output bus. Sized in prepareToPlay; cleared each block.
+        // Placeholder for future per-track insert effects (MV).
+        std::array<juce::AudioBuffer<float>, kNumTracks> trackBuffers_;
         // Per-track choke faders for monophonic re-trigger (MA.4).
         // Sequencer uses these in MA.5 when emitting MIDI note-ons.
         std::array<VoiceChoke, kNumTracks> trackChokes_;
@@ -292,6 +317,12 @@ namespace lockstep
         juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> gainSmoothed_;
         std::array<float, 2> dcX1_{};
         std::array<float, 2> dcY1_{};
+
+        // Diagnostic metering — see public accessors above.
+        std::array<std::atomic<float>, kNumTracks> trackPeak_{};
+        std::array<std::atomic<float>, kNumTracks> trigPulse_{};
+        std::array<std::atomic<float>, kNumTracks> midiPulse_{};
+        std::atomic<float> masterPeak_ { 0.0f };
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LockstepProcessor)
     };

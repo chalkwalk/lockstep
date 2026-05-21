@@ -800,8 +800,9 @@ namespace
 
                 expect(v1.getType() == juce::Identifier("LockstepState"),
                        "root type must be LockstepState");
-                expectEquals(static_cast<int>(v1.getProperty("version", -1)), 1,
-                             "version must be 1");
+                expectEquals(static_cast<int>(v1.getProperty("version", -1)),
+                             lockstep::PluginState::kCurrentVersion,
+                             "version must be current");
                 expect(v1.getChildWithName("Lockstep").isValid(),
                        "upgraded tree must contain APVTS child");
                 expect(!v1.getChildWithName("SamplePool").isValid(),

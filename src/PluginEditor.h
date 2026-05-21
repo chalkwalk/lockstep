@@ -1,6 +1,6 @@
 #pragma once
 
-#include <juce_audio_utils/juce_audio_utils.h>
+#include <juce_audio_processors/juce_audio_processors.h>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -25,7 +25,8 @@ namespace lockstep
     class LockstepEditor : public juce::AudioProcessorEditor,
                            public juce::KeyListener,
                            public juce::AudioProcessorValueTreeState::Listener,
-                           public juce::FileDragAndDropTarget
+                           public juce::FileDragAndDropTarget,
+                           public juce::Timer
     {
     public:
         explicit LockstepEditor(LockstepProcessor& processor);
@@ -52,6 +53,9 @@ namespace lockstep
         // juce::AudioProcessorValueTreeState::Listener
         void parameterChanged(const juce::String& paramID, float newValue) override;
 
+        // juce::Timer — drives the diagnostic VU meters / activity blinks.
+        void timerCallback() override;
+
     private:
         LockstepProcessor& processor_;
         QwertyOverlay qwerty_;
@@ -73,8 +77,6 @@ namespace lockstep
         int              heldSectionRawCode_ = -1;
         juce::Component* keyListenerTarget_ = nullptr;
 
-        juce::MidiKeyboardState keyboardState_;
-        juce::MidiKeyboardComponent keyboard_{ keyboardState_, juce::MidiKeyboardComponent::horizontalKeyboard };
         InPluginTransport transport_;
         std::unique_ptr<StandaloneTempoBar> tempoBar_;
         std::array<juce::TextButton,   kNumTracks> trackBtns_;
@@ -92,6 +94,14 @@ namespace lockstep
 
         GridDisplayMode gridMode_ = GridDisplayMode::Ortholinear;
         juce::ApplicationProperties appProps_;
+
+        // Diagnostic metering state — UI-thread copies with ballistic decay,
+        // updated each timerCallback() from the processor's atomic meters.
+        std::array<float, kNumTracks> trackMeter_{};
+        std::array<float, kNumTracks> trigBlink_{};
+        std::array<float, kNumTracks> midiBlink_{};
+        float masterMeter_ = 0.0f;
+        void paintMeters(juce::Graphics& g);
 
         void applyDisplayMode(GridDisplayMode mode);
         juce::ComboBox syncModeBox_;

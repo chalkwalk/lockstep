@@ -228,6 +228,13 @@ namespace lockstep
             m->prepare(sampleRate, samplesPerBlock);
             m->reset();
         }
+        // Size per-track scratch buffers to match the output bus.
+        // Machines write here; blocks are summed to the main output buffer.
+        {
+            const int numOut = getTotalNumOutputChannels();
+            for (auto& tb : trackBuffers_)
+                tb.setSize(numOut, samplesPerBlock, false, true, false);
+        }
         for (auto& choke : trackChokes_)
             choke.prepare(sampleRate, 1.5f);
         for (auto& pnf : pendingNoteOffs_)
@@ -266,6 +273,10 @@ namespace lockstep
         for (int ch = totalIn; ch < totalOut; ++ch)
             buffer.clear(ch, 0, buffer.getNumSamples());
         buffer.clear();
+
+        // Clear per-track scratch buffers once per block.
+        for (auto& tb : trackBuffers_)
+            tb.clear();
 
         // --- MIDI clock scanning (before any other processing) ---------------
         const bool isStandalone =
@@ -506,6 +517,7 @@ namespace lockstep
                 juce::MidiMessage::noteOn(1, midiNote,
                                           static_cast<juce::uint8>(velocity)),
                 sampleOffset);
+            midiPulse_[ti].store(1.0f, std::memory_order_relaxed);
         };
 
         // Route external note-off directly into the track's buffer.
@@ -583,8 +595,15 @@ namespace lockstep
                     if (ss >= 0 && static_cast<std::size_t>(ss) < frame.size())
                         frame[static_cast<std::size_t>(ss)] = static_cast<float>(previewSampleIndex_);
                 }
-                machines_[i]->process(trackMidi[i], frame, buffer);
+                machines_[i]->process(trackMidi[i], frame, trackBuffers_[i]);
+                trackPeak_[i].store(trackBuffers_[i].getMagnitude(0, numBlockSamples),
+                                    std::memory_order_relaxed);
             }
+
+            // Sum per-track outputs to the main bus.
+            for (std::size_t ti = 0; ti < kNumTracks; ++ti)
+                for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+                    buffer.addFrom(ch, 0, trackBuffers_[ti], ch, 0, numBlockSamples);
 
             // Keep audio path (gain smoothing, DC blocker) running so it doesn't freeze.
             const float targetGainDb = apvts_.getRawParameterValue(ParamIDs::outputGain)->load();
@@ -613,6 +632,8 @@ namespace lockstep
                     buffer.setSample(ch, i, std::tanh(s));
                 }
             }
+            masterPeak_.store(buffer.getMagnitude(0, numSamples),
+                              std::memory_order_relaxed);
             return;
         }
 
@@ -742,6 +763,7 @@ namespace lockstep
             // Inject sequencer note-on with resolved trig fields (note/velocity/gate).
             if (triggerAt >= 0)
             {
+                trigPulse_[i].store(1.0f, std::memory_order_relaxed);
                 const auto trig = StateResolver::resolveTrig(track, stepIndex);
 
                 // Cancel any stale pending note-off; the new note-on supersedes it
@@ -779,8 +801,15 @@ namespace lockstep
                 if (ss >= 0 && static_cast<std::size_t>(ss) < frame.size())
                     frame[static_cast<std::size_t>(ss)] = static_cast<float>(previewSampleIndex_);
             }
-            machines_[i]->process(trackMidi[i], frame, buffer);
+            machines_[i]->process(trackMidi[i], frame, trackBuffers_[i]);
+            trackPeak_[i].store(trackBuffers_[i].getMagnitude(0, numBlockSamples),
+                                std::memory_order_relaxed);
         }
+
+        // Sum per-track outputs to the main bus.
+        for (std::size_t ti = 0; ti < kNumTracks; ++ti)
+            for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+                buffer.addFrom(ch, 0, trackBuffers_[ti], ch, 0, numBlockSamples);
 
         if (clock_.isMetronomeEnabled())
             metronome_.process(blockStart, blockEnd, samplesPerPpq, buffer);
@@ -814,6 +843,8 @@ namespace lockstep
                 buffer.setSample(ch, i, std::tanh(s));
             }
         }
+        masterPeak_.store(buffer.getMagnitude(0, numSamples),
+                          std::memory_order_relaxed);
     }
 
     void LockstepProcessor::writeParam(int track, int slot, float value)

@@ -76,6 +76,14 @@ namespace lockstep
             trackBtns_[ti].setClickingTogglesState(false);
             trackBtns_[ti].setWantsKeyboardFocus(false);
             trackBtns_[ti].onClick = [this, i] { stepGrid_.setActiveTrack(i); };
+            // Transparent background so the underlaid per-track VU meter (drawn
+            // behind in paint()) shows through; the number paints on top.
+            trackBtns_[ti].setColour(juce::TextButton::buttonColourId,
+                                     juce::Colours::transparentBlack);
+            trackBtns_[ti].setColour(juce::TextButton::buttonOnColourId,
+                                     juce::Colours::transparentBlack);
+            trackBtns_[ti].setColour(juce::TextButton::textColourOffId, juce::Colours::white);
+            trackBtns_[ti].setColour(juce::TextButton::textColourOnId,  juce::Colours::white);
             addAndMakeVisible(trackBtns_[ti]);
 
             muteBtns_[ti].setButtonText("M");
@@ -119,7 +127,6 @@ namespace lockstep
         addAndMakeVisible(sectionBar_);
         addAndMakeVisible(functionBar_);
         addAndMakeVisible(stepGrid_);
-        addAndMakeVisible(keyboard_);
 
         poolBtn_.setWantsKeyboardFocus(false);
         poolBtn_.onClick = [this]
@@ -150,8 +157,10 @@ namespace lockstep
         // Repaint chrome when a queued pattern switch fires.
         proc.onActivePatternChanged = [this] { repaint(); };
 
-        setSize(990, 480);
+        setSize(990, 528);
         setWantsKeyboardFocus(true);
+
+        startTimerHz(30);  // diagnostic VU meters / activity blinks
     }
 
     LockstepEditor::~LockstepEditor()
@@ -166,6 +175,82 @@ namespace lockstep
     {
         if (paramID == ParamIDs::syncMode)
             juce::MessageManager::callAsync([this] { updateTransportGhosting(); });
+    }
+
+    void LockstepEditor::timerCallback()
+    {
+        // Peak meters: fast attack, slow ballistic decay. Activity blinks: a
+        // pulse from the audio thread snaps to 1.0, then decays each tick.
+        for (std::size_t i = 0; i < kNumTracks; ++i)
+        {
+            const float peak = processor_.trackPeak(static_cast<int>(i));
+            trackMeter_[i] = std::max(peak, trackMeter_[i] * 0.80f);
+
+            if (processor_.takeTrigPulse(static_cast<int>(i)) > 0.5f) trigBlink_[i] = 1.0f;
+            else                                                      trigBlink_[i] *= 0.70f;
+
+            if (processor_.takeMidiPulse(static_cast<int>(i)) > 0.5f) midiBlink_[i] = 1.0f;
+            else                                                      midiBlink_[i] *= 0.70f;
+        }
+        masterMeter_ = std::max(processor_.masterPeak(), masterMeter_ * 0.80f);
+        repaint();
+    }
+
+    // Maps a linear meter level [0,1] to a green→yellow→red colour.
+    static juce::Colour meterColour(float level)
+    {
+        if (level < 0.5f)  return juce::Colour::fromRGB(60, 200, 90);
+        if (level < 0.85f) return juce::Colour::fromRGB(220, 200, 60);
+        return juce::Colour::fromRGB(230, 80, 60);
+    }
+
+    void LockstepEditor::paintMeters(juce::Graphics& g)
+    {
+        // Determine which tracks are silenced (muted or solo-excluded) so the VU
+        // can flag them — a silenced track's machine is skipped entirely, which
+        // is a common cause of "no sound" confusion.
+        bool anySoloed = false;
+        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+            if (auto* p = processor_.apvts().getRawParameterValue(ParamIDs::trackSolo(t)))
+                if (p->load() >= 0.5f) { anySoloed = true; break; }
+
+        // Per-track VU underlaid behind the (transparent) track-number buttons.
+        for (std::size_t i = 0; i < kNumTracks; ++i)
+        {
+            const int  t       = static_cast<int>(i);
+            const bool gMuted  = processor_.getGlobalMute(t);
+            const bool pMuted  = processor_.getPatternMute(t);
+            const auto* sp     = processor_.apvts().getRawParameterValue(ParamIDs::trackSolo(t));
+            const bool soloed  = sp && sp->load() >= 0.5f;
+            const bool soloEx  = anySoloed && !soloed;
+
+            const auto r = trackBtns_[i].getBounds();
+            if (r.isEmpty()) continue;
+
+            // Distinct background per silencing source: global mute = red,
+            // pattern mute = orange, solo-exclusion = purple, audible = grey.
+            juce::Colour bg = juce::Colour::fromRGB(28, 32, 38);
+            if      (gMuted) bg = juce::Colour::fromRGB(70, 20, 20);
+            else if (pMuted) bg = juce::Colour::fromRGB(80, 50, 16);
+            else if (soloEx) bg = juce::Colour::fromRGB(50, 24, 70);
+            g.setColour(bg);
+            g.fillRect(r);
+
+            const float level = juce::jlimit(0.0f, 1.0f, trackMeter_[i]);
+            if (level > 0.001f)
+            {
+                const int fillW = juce::roundToInt(static_cast<float>(r.getWidth()) * level);
+                g.setColour(meterColour(level).withAlpha(0.55f));
+                g.fillRect(r.getX(), r.getY(), fillW, r.getHeight());
+            }
+
+            // Active-track outline so selection survives the transparent button.
+            if (t == stepGrid_.getActiveTrack())
+            {
+                g.setColour(juce::Colour::fromRGB(90, 160, 230));
+                g.drawRect(r, 2);
+            }
+        }
     }
 
     void LockstepEditor::updateTransportGhosting()
@@ -195,7 +280,7 @@ namespace lockstep
     void LockstepEditor::paint(juce::Graphics& g)
     {
         g.fillAll(juce::Colour::fromRGB(20, 22, 26));
-        juce::ignoreUnused(processor_);
+        paintMeters(g);  // per-track VU underlaid behind the track buttons
     }
 
     void LockstepEditor::paintOverChildren(juce::Graphics& g)
@@ -312,6 +397,40 @@ namespace lockstep
                     g.setColour(juce::Colours::white);
                     g.drawText(chnLabel, r, juce::Justification::centred);
                 }
+            }
+        }
+
+        // ---- Diagnostic meters drawn over children ----
+        // Master output meter: a thin bar along the very top edge.
+        {
+            const float level = juce::jlimit(0.0f, 1.0f, masterMeter_);
+            const int   w     = juce::roundToInt(static_cast<float>(getWidth()) * level);
+            g.setColour(juce::Colour::fromRGB(30, 34, 40));
+            g.fillRect(0, 0, getWidth(), 3);
+            if (w > 0)
+            {
+                g.setColour(meterColour(level));
+                g.fillRect(0, 0, w, 3);
+            }
+        }
+        // Per-track trig (left, cyan) + MIDI-in (right, magenta) activity dots.
+        for (std::size_t i = 0; i < kNumTracks; ++i)
+        {
+            const auto r = trackBtns_[i].getBounds();
+            if (r.isEmpty()) continue;
+            constexpr int d = 5;
+            if (trigBlink_[i] > 0.02f)
+            {
+                // White: high contrast against the green/yellow/red VU bar.
+                g.setColour(juce::Colours::white.withAlpha(trigBlink_[i]));
+                g.fillEllipse(static_cast<float>(r.getX() + 2),
+                              static_cast<float>(r.getY() + 2), d, d);
+            }
+            if (midiBlink_[i] > 0.02f)
+            {
+                g.setColour(juce::Colour::fromRGB(230, 80, 220).withAlpha(midiBlink_[i]));
+                g.fillEllipse(static_cast<float>(r.getRight() - 2 - d),
+                              static_cast<float>(r.getY() + 2), d, d);
             }
         }
 
@@ -773,17 +892,28 @@ namespace lockstep
         displayModeBtn_.setBounds(header.removeFromLeft(46).reduced(4));
         poolBtn_.setBounds(header.removeFromRight(80).reduced(4));
 
-        static constexpr int kKeyRowAlloc = 44;
-        static constexpr int kStepGridH   = 2 * (kKeyRowAlloc - 4) + 26 + 8;
+        // Tempo bar + Manipulation Zone are anchored to the top at fixed heights;
+        // the key rows below fill the remaining space, so growing the window makes
+        // the (QWERTY-emulating) buttons taller/squarer while the MZ stays put.
+        if (tempoBar_)
+            tempoBar_->setBounds(bounds.removeFromTop(28).reduced(8, 2));
+        bounds.removeFromTop(2);
 
-        keyboard_.setBounds(bounds.removeFromBottom(72).reduced(8, 4));
-        stepGrid_.setBounds(bounds.removeFromBottom(kStepGridH).reduced(8, 4));
-        if (gridMode_ == GridDisplayMode::Clean)
-            bounds.removeFromBottom(kClnRowGap);
-        functionBar_.setBounds(bounds.removeFromBottom(kKeyRowAlloc).reduced(8, 2));
-        sectionBar_.setBounds(bounds.removeFromBottom(kKeyRowAlloc).reduced(8, 2));
+        static constexpr int kMZHeight  = 96;  // preserved Manipulation Zone height
+        static constexpr int kTrackRowH = 26;  // track-number + VU row
+        static constexpr int kMsRowH    = 22;  // mute/solo row
+        manipulationZone_.setBounds(bounds.removeFromTop(kMZHeight).reduced(8, 4));
+
+        // Remaining region, laid out top->bottom: track row, mute/solo row,
+        // section bar, function bar, step grid.
         {
-            auto msRow = bounds.removeFromBottom(22).reduced(8, 2);
+            auto trackRow = bounds.removeFromTop(kTrackRowH).reduced(8, 2);
+            const int colW = trackRow.getWidth() / static_cast<int>(kNumTracks);
+            for (std::size_t i = 0; i < kNumTracks; ++i)
+                trackBtns_[i].setBounds(trackRow.removeFromLeft(colW).reduced(1, 1));
+        }
+        {
+            auto msRow = bounds.removeFromTop(kMsRowH).reduced(8, 2);
             const int colW = msRow.getWidth() / static_cast<int>(kNumTracks);
             for (std::size_t i = 0; i < kNumTracks; ++i)
             {
@@ -793,17 +923,18 @@ namespace lockstep
                 soloBtns_[i].setBounds(col.reduced(1, 1));
             }
         }
-        {
-            auto trackRow = bounds.removeFromBottom(22).reduced(8, 2);
-            const int colW = trackRow.getWidth() / static_cast<int>(kNumTracks);
-            for (std::size_t i = 0; i < kNumTracks; ++i)
-                trackBtns_[i].setBounds(trackRow.removeFromLeft(colW).reduced(1, 1));
-        }
 
-        if (tempoBar_)
-            tempoBar_->setBounds(bounds.removeFromTop(28).reduced(8, 2));
-        bounds.removeFromTop(2);
-        manipulationZone_.setBounds(bounds.reduced(8, 4));
+        // The two key rows + the 2-row step grid share the rest, keeping their
+        // former 44:44:114 proportions so the cells scale up uniformly.
+        const int keyArea = bounds.getHeight();
+        const int secH    = juce::roundToInt(static_cast<float>(keyArea) * (44.0f / 202.0f));
+        const int funcH   = juce::roundToInt(static_cast<float>(keyArea) * (44.0f / 202.0f));
+        sectionBar_.setBounds(bounds.removeFromTop(secH).reduced(8, 2));
+        functionBar_.setBounds(bounds.removeFromTop(funcH).reduced(8, 2));
+        if (gridMode_ == GridDisplayMode::Clean)
+            bounds.removeFromTop(kClnRowGap);
+        stepGrid_.setBounds(bounds.reduced(8, 4));  // remainder (≈114/202 share)
+
         poolOverlay_.setBounds(manipulationZone_.getBounds()
             .withBottom(stepGrid_.getBounds().getY()));
     }
