@@ -66,6 +66,7 @@ namespace lockstep
             juce::Rectangle<int> section;
             juce::Rectangle<int> function;
             juce::Rectangle<int> step;   // includes nav row at bottom
+            int intraStepGap = 0;        // vertical gap between the two step rows (ORL only)
         };
         RowAreas computeRowAreas() const;
 
@@ -101,7 +102,8 @@ namespace lockstep
         juce::Slider     lengthSlider_;
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> lengthAttachment_;
 
-        static constexpr int kNavRowH = 26;
+        static constexpr int kNavRowH    = 26;
+        static constexpr int kVertMargin = 4;  // top/bottom margin of the key area
 
         // Section row constants (from SectionBar)
         static constexpr int kFixedSectionCells = 3;

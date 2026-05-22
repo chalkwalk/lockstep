@@ -32,6 +32,14 @@ namespace lockstep
     // SectionBar + FunctionBar) and the lower pair (3-4, StepGrid).
     inline constexpr int kClnRowGap = 6;
 
+    // ORL-mode geometry: uniform gap between every pair of adjacent cells
+    // (applied identically horizontally and vertically).
+    inline constexpr int kOrlGap = 4;
+
+    // Horizontal margin from the component edge to the outermost column,
+    // applied in all three display modes.
+    inline constexpr int kSideMargin = 8;
+
     // Half-unit size in pixels for a component of the given width.
     inline int staggerHalfUnit(int componentWidth) noexcept
     { return componentWidth / kStaggerHalfUnits; }

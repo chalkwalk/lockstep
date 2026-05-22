@@ -107,33 +107,50 @@ namespace lockstep
 
     KeyboardArea::RowAreas KeyboardArea::computeRowAreas() const
     {
-        static constexpr int kRowGap = 4;
-        auto area = getLocalBounds();
-        const int availH = area.getHeight();
-        const int cellH  = juce::jmax(1, (availH - 50) / 4);
-        const int secH   = cellH + 4;
-        const int funcH  = cellH + 4;
-        const int rowGap2 = (displayMode_ == GridDisplayMode::Clean) ? kClnRowGap : kRowGap;
+        const int totalH  = getHeight();
+        const int usableH = totalH - kNavRowH - 2 * kVertMargin;
+        const int usableW = getWidth() - 2 * kSideMargin;
+        const int leftX   = kSideMargin;
+
+        int cellH, row0Y, row1Y, row2Y, intraStepGap;
+
+        if (displayMode_ == GridDisplayMode::Ortholinear)
+        {
+            const int g  = kOrlGap;
+            cellH        = juce::jmax(1, (usableH - 3 * g) / 4);
+            intraStepGap = g;
+            row0Y = kVertMargin;
+            row1Y = row0Y + cellH + g;
+            row2Y = row1Y + cellH + g;
+        }
+        else if (displayMode_ == GridDisplayMode::Clean)
+        {
+            cellH        = juce::jmax(1, (usableH - kClnRowGap) / 4);
+            intraStepGap = 0;
+            row0Y = kVertMargin;
+            row1Y = row0Y + cellH;
+            row2Y = row1Y + cellH + kClnRowGap;
+        }
+        else  // Staggered
+        {
+            cellH        = juce::jmax(1, usableH / 4);
+            intraStepGap = 0;
+            row0Y = kVertMargin;
+            row1Y = row0Y + cellH;
+            row2Y = row1Y + cellH;
+        }
 
         RowAreas r;
-        r.section  = area.removeFromTop(secH).reduced(8, 2);
-        area.removeFromTop(kRowGap);
-        r.function = area.removeFromTop(funcH).reduced(8, 2);
-        area.removeFromTop(rowGap2);
-        r.step     = area.reduced(8, 4);
+        r.section      = { leftX, row0Y, usableW, cellH };
+        r.function     = { leftX, row1Y, usableW, cellH };
+        r.step         = { leftX, row2Y, usableW, (totalH - kVertMargin) - row2Y };
+        r.intraStepGap = intraStepGap;
         return r;
     }
 
     int KeyboardArea::stepRowsLocalY() const
     {
-        static constexpr int kRowGap = 4;
-        const int availH  = getHeight();
-        const int cellH   = juce::jmax(1, (availH - 50) / 4);
-        const int secH    = cellH + 4;
-        const int funcH   = cellH + 4;
-        const int rowGap2 = (displayMode_ == GridDisplayMode::Clean) ? kClnRowGap : kRowGap;
-        // +4 = the top reduction from reduced(8,4) on the step area
-        return secH + kRowGap + funcH + rowGap2 + 4;
+        return computeRowAreas().step.getY();
     }
 
     // -------------------------------------------------------------------------
@@ -207,7 +224,8 @@ namespace lockstep
             return -1;
 
         static constexpr int kTotalGridCols = kCols + 1;
-        const bool useClnGap = (displayMode_ == GridDisplayMode::Clean);
+        const bool useClnGap      = (displayMode_ == GridDisplayMode::Clean);
+        const int  intraStepGap   = areas.intraStepGap;
 
         int cellW, staggerA, staggerZ;
         if (displayMode_ == GridDisplayMode::Staggered)
@@ -223,18 +241,24 @@ namespace lockstep
             staggerA = 0;
             staggerZ = 0;
         }
-        else
+        else  // Ortholinear
         {
-            cellW    = cellArea.getWidth() / kTotalGridCols;
+            cellW    = (cellArea.getWidth() - 8 * kOrlGap) / kTotalGridCols;
             staggerA = 0;
             staggerZ = 0;
         }
-        const int cellH = cellArea.getHeight() / kRows;
+        const int cellH = (cellArea.getHeight() - intraStepGap) / kRows;
         if (cellW <= 0 || cellH <= 0)
             return -1;
 
-        const int row = (pos.getY() - cellArea.getY()) / cellH;
-        if (row < 0 || row >= kRows)
+        // Row detection — handle optional intra-step gap for ORL.
+        const int relY = pos.getY() - cellArea.getY();
+        int row = -1;
+        if (relY >= 0 && relY < cellH)
+            row = 0;
+        else if (relY >= cellH + intraStepGap && relY < 2 * cellH + intraStepGap)
+            row = 1;
+        if (row < 0)
             return -1;
 
         const int rowStagger = (row == 0) ? staggerA : staggerZ;
@@ -247,6 +271,13 @@ namespace lockstep
             if (relX < cellW)                          col = 0;
             else if (relX < cellW + kClnColGap)        return -1;
             else col = 1 + (relX - cellW - kClnColGap) / cellW;
+        }
+        else if (displayMode_ == GridDisplayMode::Ortholinear)
+        {
+            const int pitch = cellW + kOrlGap;
+            if (relX < 0 || pitch <= 0)                return -1;
+            col = relX / pitch;
+            if (relX % pitch >= cellW)                 return -1;  // click in gap
         }
         else
         {
@@ -268,6 +299,7 @@ namespace lockstep
     {
         const int w = area.getWidth();
         const int h = area.getHeight();
+
         if (displayMode_ == GridDisplayMode::Clean)
         {
             const int cellW = (w - kClnColGap) / kTotalSectionCells;
@@ -276,9 +308,14 @@ namespace lockstep
                 : area.getX() + cellW + kClnColGap + (cellIndex - 1) * cellW;
             return { x, area.getY(), cellW, h };
         }
-        const int cellW = (displayMode_ == GridDisplayMode::Staggered)
-                              ? staggerCellW(staggerHalfUnit(w))
-                              : w / kTotalSectionCells;
+        if (displayMode_ == GridDisplayMode::Ortholinear)
+        {
+            const int g     = kOrlGap;
+            const int cellW = (w - 8 * g) / kTotalSectionCells;
+            return { area.getX() + cellIndex * (cellW + g), area.getY(), cellW, h };
+        }
+        // Staggered
+        const int cellW = staggerCellW(staggerHalfUnit(w));
         return { area.getX() + cellIndex * cellW, area.getY(), cellW, h };
     }
 
@@ -610,9 +647,9 @@ namespace lockstep
             cellW   = (area.getWidth() - kClnColGap) / static_cast<int>(kDefs.size());
             leftPad = 0;
         }
-        else
+        else  // Ortholinear
         {
-            cellW   = area.getWidth() / static_cast<int>(kDefs.size());
+            cellW   = (area.getWidth() - 8 * kOrlGap) / static_cast<int>(kDefs.size());
             leftPad = 0;
         }
 
@@ -622,8 +659,10 @@ namespace lockstep
 
             int x;
             if (displayMode_ == GridDisplayMode::Clean && i >= 1)
-                x = area.getX() + leftPad + cellW + kClnColGap + (i - 1) * cellW;
-            else
+                x = area.getX() + cellW + kClnColGap + (i - 1) * cellW;
+            else if (displayMode_ == GridDisplayMode::Ortholinear)
+                x = area.getX() + i * (cellW + kOrlGap);
+            else  // Staggered
                 x = area.getX() + leftPad + i * cellW;
 
             const auto cell = juce::Rectangle<int>(x, area.getY(), cellW, area.getHeight());
@@ -695,6 +734,7 @@ namespace lockstep
         static constexpr int kTotalGridCols = kCols + 1;
         const bool showKeyLetters = (displayMode_ != GridDisplayMode::Clean);
         const bool useClnGap      = (displayMode_ == GridDisplayMode::Clean);
+        const int  intraStepGap   = (displayMode_ == GridDisplayMode::Ortholinear) ? kOrlGap : 0;
 
         int cellW, staggerA, staggerZ;
         if (displayMode_ == GridDisplayMode::Staggered)
@@ -710,19 +750,26 @@ namespace lockstep
             staggerA = 0;
             staggerZ = 0;
         }
-        else
+        else  // Ortholinear
         {
-            cellW    = cellArea.getWidth() / kTotalGridCols;
+            cellW    = (cellArea.getWidth() - 8 * kOrlGap) / kTotalGridCols;
             staggerA = 0;
             staggerZ = 0;
         }
-        const int cellH = cellArea.getHeight() / kRows;
+        const int cellH = (cellArea.getHeight() - intraStepGap) / kRows;
+
+        auto rowY = [&](int row) -> int
+        {
+            return cellArea.getY() + row * cellH + (row > 0 ? intraStepGap : 0);
+        };
 
         auto colX = [&](int row, int col) -> int
         {
             const int stagger = (row == 0) ? staggerA : staggerZ;
             if (useClnGap && col >= 1)
                 return cellArea.getX() + stagger + cellW + kClnColGap + (col - 1) * cellW;
+            if (displayMode_ == GridDisplayMode::Ortholinear)
+                return cellArea.getX() + col * (cellW + kOrlGap);
             return cellArea.getX() + stagger + col * cellW;
         };
 
@@ -735,7 +782,7 @@ namespace lockstep
             for (int row = 0; row < kRows; ++row)
             {
                 const int x = colX(row, 0);
-                const int y = cellArea.getY() + row * cellH;
+                const int y = rowY(row);
                 const auto cell = juce::Rectangle<int>(x, y, cellW, cellH);
 
                 const bool isHeld  = (row == 0) ? uiState_.muteHeld : uiState_.fillHeld;
@@ -777,7 +824,7 @@ namespace lockstep
                 const bool isHead = (absIdx == playheadAbs);
 
                 const int x = colX(row, col + 1);
-                const int y = cellArea.getY() + row * cellH;
+                const int y = rowY(row);
                 const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
                 FillRule stepFillRule = FillRule::Always;
