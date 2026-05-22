@@ -2,14 +2,14 @@
 #include "../ParameterIDs.h"
 #include "../PluginProcessor.h"
 #include "../core/TrigCondition.h"
-#include "StepGrid.h"
+#include "KeyboardArea.h"
 #include <algorithm>
 #include <cmath>
 
 namespace lockstep
 {
-    ManipulationZone::ManipulationZone(LockstepProcessor& processor, StepGrid& grid)
-        : processor_(processor), grid_(grid)
+    ManipulationZone::ManipulationZone(LockstepProcessor& processor, KeyboardArea& area)
+        : processor_(processor), area_(area)
     {
         for (int i = 0; i < kNumSlots; ++i)
         {
@@ -42,7 +42,7 @@ namespace lockstep
                     case 1:  writeTrigField(i, v);   break;
                     case 2:  writeTrackField(i, v);  break;
                     case 5:  writeGlobalField(i, v); break;
-                    default: processor_.writeParam(grid_.getActiveTrack(),
+                    default: processor_.writeParam(area_.getActiveTrack(),
                                                    slotOffset_ + i, v); break;
                 }
             };
@@ -65,7 +65,7 @@ namespace lockstep
         samplePickerBtn_.addMouseListener(static_cast<juce::MouseListener*>(this), false);
         samplePickerBtn_.onClick = [this]
         {
-            const int track = grid_.getActiveTrack();
+            const int track = area_.getActiveTrack();
             if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
             showSamplePicker(slotOffset_);
         };
@@ -131,7 +131,7 @@ namespace lockstep
 
     void ManipulationZone::showMappingMenu(int slotIndex)
     {
-        const int track = grid_.getActiveTrack();
+        const int track = area_.getActiveTrack();
         const int slot  = slotOffset_ + slotIndex;
         const auto info = processor_.queryWidgetMapping(slot, slotIndex);
 
@@ -228,7 +228,7 @@ namespace lockstep
             default: break;
         }
 
-        const int track = grid_.getActiveTrack();
+        const int track = area_.getActiveTrack();
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return;
 
@@ -323,7 +323,7 @@ namespace lockstep
 
     void ManipulationZone::refreshCondSliders()
     {
-        const int track = grid_.getActiveTrack();
+        const int track = area_.getActiveTrack();
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return;
 
@@ -400,7 +400,7 @@ namespace lockstep
 
     void ManipulationZone::writeCondField(int field, float value)
     {
-        const int track = grid_.getActiveTrack();
+        const int track = area_.getActiveTrack();
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return;
 
@@ -444,7 +444,7 @@ namespace lockstep
 
     void ManipulationZone::refreshTrigSliders()
     {
-        const int track = grid_.getActiveTrack();
+        const int track = area_.getActiveTrack();
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return;
 
@@ -512,7 +512,7 @@ namespace lockstep
 
     void ManipulationZone::writeTrigField(int field, float value)
     {
-        const int track = grid_.getActiveTrack();
+        const int track = area_.getActiveTrack();
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return;
 
@@ -554,7 +554,7 @@ namespace lockstep
 
     void ManipulationZone::refreshTrackSliders()
     {
-        const int track = grid_.getActiveTrack();
+        const int track = area_.getActiveTrack();
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return;
 
@@ -598,7 +598,7 @@ namespace lockstep
 
     void ManipulationZone::writeTrackField(int field, float value)
     {
-        const int track = grid_.getActiveTrack();
+        const int track = area_.getActiveTrack();
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return;
 
@@ -677,7 +677,7 @@ namespace lockstep
 
     void ManipulationZone::showSamplePicker(int absoluteSlot)
     {
-        const int track = grid_.getActiveTrack();
+        const int track = area_.getActiveTrack();
         const int poolSize = processor_.samplePool().size();
 
         juce::PopupMenu menu;
@@ -757,7 +757,7 @@ namespace lockstep
         if (metaSection_ >= 0)
             return;  // meta sections: no CC badges or learn overlays
 
-        const int track   = grid_.getActiveTrack();
+        const int track   = area_.getActiveTrack();
         const int slotW   = getWidth() / kNumSlots;
         const bool pulse  = (juce::Time::getMillisecondCounter() / 300) % 2 == 0;
 

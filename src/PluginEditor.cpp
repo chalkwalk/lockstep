@@ -8,11 +8,9 @@ namespace lockstep
         : juce::AudioProcessorEditor(&proc),
           processor_(proc),
           transport_(proc.clock()),
-          stepGrid_(proc, uiState_),
-          manipulationZone_(proc, stepGrid_),
-          poolOverlay_(proc),
-          sectionBar_(proc, stepGrid_, uiState_),
-          functionBar_(proc, uiState_)
+          keyboardArea_(proc, uiState_),
+          manipulationZone_(proc, keyboardArea_),
+          poolOverlay_(proc)
     {
         // Load persisted display mode.
         {
@@ -58,11 +56,11 @@ namespace lockstep
         updateTransportGhosting();
 
         // Wire section-change callbacks -> update ManipulationZone.
-        sectionBar_.onSectionChanged = [this](int /*section*/, int /*page*/, int firstSlot)
+        keyboardArea_.onSectionChanged = [this](int /*section*/, int /*page*/, int firstSlot)
         {
             manipulationZone_.setSlotOffset(firstSlot);
         };
-        sectionBar_.onMetaSectionChanged = [this](int metaSection)
+        keyboardArea_.onMetaSectionChanged = [this](int metaSection)
         {
             manipulationZone_.setMetaSection(metaSection);
         };
@@ -75,7 +73,7 @@ namespace lockstep
             trackBtns_[ti].setButtonText(juce::String(i + 1));
             trackBtns_[ti].setClickingTogglesState(false);
             trackBtns_[ti].setWantsKeyboardFocus(false);
-            trackBtns_[ti].onClick = [this, i] { stepGrid_.setActiveTrack(i); };
+            trackBtns_[ti].onClick = [this, i] { keyboardArea_.setActiveTrack(i); };
             // Transparent background so the underlaid per-track VU meter (drawn
             // behind in paint()) shows through; the number paints on top.
             trackBtns_[ti].setColour(juce::TextButton::buttonColourId,
@@ -102,18 +100,13 @@ namespace lockstep
         }
         trackBtns_[0].setToggleState(true, juce::dontSendNotification);
 
-        stepGrid_.onActiveTrackChanged = [this](int newTrack)
+        keyboardArea_.onActiveTrackChanged = [this](int newTrack)
         {
             for (auto& b : trackBtns_)
                 b.setToggleState(false, juce::dontSendNotification);
             trackBtns_[static_cast<std::size_t>(newTrack)].setToggleState(
                 true, juce::dontSendNotification);
-            sectionBar_.syncToActiveTrack();
-        };
-
-        stepGrid_.onDisplayModeChanged = [this](GridDisplayMode mode)
-        {
-            applyDisplayMode(mode);
+            keyboardArea_.syncToActiveTrack();
         };
 
         displayModeBtn_.setWantsKeyboardFocus(false);
@@ -124,9 +117,7 @@ namespace lockstep
         };
         addAndMakeVisible(displayModeBtn_);
         addAndMakeVisible(manipulationZone_);
-        addAndMakeVisible(sectionBar_);
-        addAndMakeVisible(functionBar_);
-        addAndMakeVisible(stepGrid_);
+        addAndMakeVisible(keyboardArea_);
 
         poolBtn_.setWantsKeyboardFocus(false);
         poolBtn_.onClick = [this]
@@ -138,7 +129,7 @@ namespace lockstep
         addAndMakeVisible(poolBtn_);
 
         poolOverlay_.onClose = [this] { poolOverlay_.setVisible(false); };
-        poolOverlay_.getActiveTrack = [this]() { return stepGrid_.getActiveTrack(); };
+        poolOverlay_.getActiveTrack = [this]() { return keyboardArea_.getActiveTrack(); };
         addChildComponent(poolOverlay_);
 
         manipulationZone_.onOpenPoolManager = [this]
@@ -245,7 +236,7 @@ namespace lockstep
             }
 
             // Active-track outline so selection survives the transparent button.
-            if (t == stepGrid_.getActiveTrack())
+            if (t == keyboardArea_.getActiveTrack())
             {
                 g.setColour(juce::Colour::fromRGB(90, 160, 230));
                 g.drawRect(r, 2);
@@ -513,8 +504,8 @@ namespace lockstep
             case ControllerButton::Func:
                 uiState_.funcHeld = true;
                 editMode_.onScopeEvent(ev);
-                sectionBar_.repaint();
-                functionBar_.repaint();
+                keyboardArea_.repaint();
+                keyboardArea_.repaint();
                 repaint();
                 return true;
 
@@ -539,7 +530,7 @@ namespace lockstep
                 return true;
 
             case ControllerButton::Section:
-                sectionBar_.selectSection(ev.index);
+                keyboardArea_.selectSection(ev.index);
                 // Track section key hold for Section-scope verb dispatch (MD.3).
                 if (heldSectionRawCode_ < 0)
                 {
@@ -549,7 +540,7 @@ namespace lockstep
                 return true;
 
             case ControllerButton::MetaSection:
-                sectionBar_.selectMetaSection(ev.index);
+                keyboardArea_.selectMetaSection(ev.index);
                 return true;
 
             case ControllerButton::Step:
@@ -582,34 +573,34 @@ namespace lockstep
                 }
                 if (!alreadyHeld)
                 {
-                    const int absStep = stepGrid_.currentPage() * StepGrid::kPageSteps
+                    const int absStep = keyboardArea_.currentPage() * KeyboardArea::kPageSteps
                                         + ev.index;
                     heldStepKeys_.push_back({ rawCode, absStep });
-                    processor_.editContext().hold(stepGrid_.getActiveTrack(), absStep);
+                    processor_.editContext().hold(keyboardArea_.getActiveTrack(), absStep);
                     editMode_.setTrigHeld(true);
                 }
                 return true;
             }
 
             case ControllerButton::SelectTrack:
-                stepGrid_.setActiveTrack(ev.index);
+                keyboardArea_.setActiveTrack(ev.index);
                 processor_.setControlAllActive(false);  // specific track chosen; disable control-all
                 return true;
 
             case ControllerButton::NavUp:
                 // Up = next higher track number (user expectation).
-                stepGrid_.setActiveTrack(
+                keyboardArea_.setActiveTrack(
                     std::min(static_cast<int>(kNumTracks) - 1,
-                             stepGrid_.getActiveTrack() + 1));
+                             keyboardArea_.getActiveTrack() + 1));
                 return true;
 
             case ControllerButton::NavDown:
                 // Down = previous (lower) track number.
-                stepGrid_.setActiveTrack(std::max(0, stepGrid_.getActiveTrack() - 1));
+                keyboardArea_.setActiveTrack(std::max(0, keyboardArea_.getActiveTrack() - 1));
                 return true;
 
             case ControllerButton::NavLeft:
-                stepGrid_.prevPage();
+                keyboardArea_.prevPage();
                 return true;
 
             case ControllerButton::NavRight:
@@ -621,7 +612,7 @@ namespace lockstep
                     repaint();
                     return true;
                 }
-                stepGrid_.nextPage();
+                keyboardArea_.nextPage();
                 return true;
 
             case ControllerButton::PlayStop:
@@ -687,7 +678,7 @@ namespace lockstep
                 const auto next = (uiState_.trigGridMode == TrigGridMode::Keyboard)
                                   ? TrigGridMode::Default : TrigGridMode::Keyboard;
                 uiState_.trigGridMode = next;
-                stepGrid_.repaint();
+                keyboardArea_.repaint();
                 return true;
             }
             case ControllerButton::TrigModeRetrig:
@@ -695,7 +686,7 @@ namespace lockstep
                 const auto next = (uiState_.trigGridMode == TrigGridMode::Retrig)
                                   ? TrigGridMode::Default : TrigGridMode::Retrig;
                 uiState_.trigGridMode = next;
-                stepGrid_.repaint();
+                keyboardArea_.repaint();
                 return true;
             }
             case ControllerButton::TrigModeSoundPool:
@@ -703,7 +694,7 @@ namespace lockstep
                 const auto next = (uiState_.trigGridMode == TrigGridMode::SoundPool)
                                   ? TrigGridMode::Default : TrigGridMode::SoundPool;
                 uiState_.trigGridMode = next;
-                stepGrid_.repaint();
+                keyboardArea_.repaint();
                 return true;
             }
 
@@ -768,8 +759,8 @@ namespace lockstep
 
             uiState_.funcHeld = false;
             editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::Func });
-            sectionBar_.repaint();
-            functionBar_.repaint();
+            keyboardArea_.repaint();
+            keyboardArea_.repaint();
             repaint();
             handled = true;
         }
@@ -826,7 +817,7 @@ namespace lockstep
         }
 
         if (!isKeyDown && playKeyHeld_
-            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('T')))
+            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('P')))
         {
             playKeyHeld_ = false;
             handled = true;
@@ -868,9 +859,7 @@ namespace lockstep
     void LockstepEditor::applyDisplayMode(GridDisplayMode mode)
     {
         gridMode_ = mode;
-        stepGrid_.setDisplayMode(mode);
-        functionBar_.setDisplayMode(mode);
-        sectionBar_.setDisplayMode(mode);
+        keyboardArea_.setDisplayMode(mode);
 
         static constexpr const char* kModeLabels[] = { "STG", "ORL", "CLN" };
         displayModeBtn_.setButtonText(kModeLabels[static_cast<int>(mode)]);
@@ -926,24 +915,12 @@ namespace lockstep
             }
         }
 
-        // Equal-height rows: all 4 button rows (sec bar, func bar, 2 step rows) share
-        // the same cell height; vertical gap between row pairs = horizontal key gap (4 px).
-        // Derivation: 4*cellH + 2*rowGap + 2*4(bar padding) + 8(grid padding) + 26(nav) = avail
-        //   => cellH = (avail - 50) / 4  (with rowGap = 4)
-        static constexpr int kRowGap = 4;
-        const int availH = bounds.getHeight();
-        const int cellH  = juce::jmax(1, (availH - 50) / 4);
-        const int secH   = cellH + 4;      // reduced(8,2): 2 top + 2 bottom = 4
-        const int funcH  = cellH + 4;
-        const int stepH  = 2 * cellH + 34; // reduced(8,4): 4+4=8; nav row=26
-        sectionBar_.setBounds(bounds.removeFromTop(secH).reduced(8, 2));
-        bounds.removeFromTop(kRowGap);
-        functionBar_.setBounds(bounds.removeFromTop(funcH).reduced(8, 2));
-        bounds.removeFromTop(gridMode_ == GridDisplayMode::Clean ? kClnRowGap : kRowGap);
-        stepGrid_.setBounds(bounds.removeFromTop(stepH).reduced(8, 4));
+        // KeyboardArea owns all four button rows (section bar, function bar, two step rows)
+        // and the nav row. Give it the remaining space; it handles the internal layout.
+        keyboardArea_.setBounds(bounds);
 
         poolOverlay_.setBounds(manipulationZone_.getBounds()
-            .withBottom(stepGrid_.getBounds().getY()));
+            .withBottom(keyboardArea_.getY() + keyboardArea_.stepRowsLocalY()));
     }
 
     // -------------------------------------------------------------------------
@@ -1013,7 +990,7 @@ namespace lockstep
             // -----------------------------------------------------------------------
             case PS::Section:
             {
-                const int activeTrack = stepGrid_.getActiveTrack();
+                const int activeTrack = keyboardArea_.getActiveTrack();
                 const int secIdx      = uiState_.trackSection[static_cast<std::size_t>(activeTrack)];
                 auto& trk = processor_.sequence()
                                 .tracks[static_cast<std::size_t>(activeTrack)];
@@ -1075,7 +1052,7 @@ namespace lockstep
             // -----------------------------------------------------------------------
             case PS::Track:
             {
-                const int activeTrack = stepGrid_.getActiveTrack();
+                const int activeTrack = keyboardArea_.getActiveTrack();
                 auto& trk = processor_.sequence()
                                 .tracks[static_cast<std::size_t>(activeTrack)];
 

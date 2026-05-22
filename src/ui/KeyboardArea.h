@@ -1,0 +1,121 @@
+#pragma once
+
+#include <array>
+#include <functional>
+#include <memory>
+#include <juce_audio_processors/juce_audio_processors.h>
+#include <juce_gui_basics/juce_gui_basics.h>
+#include "../core/Sequence.h"
+#include "../state/UiState.h"
+#include "GridDisplayMode.h"
+
+namespace lockstep
+{
+    class LockstepProcessor;
+
+    // Merged keyboard-area component: renders all four QWERTY button rows
+    // (section bar, function bar, and the two step-grid rows) plus the nav row,
+    // previously spread across SectionBar, FunctionBar, and StepGrid.
+    class KeyboardArea : public juce::Component, public juce::Timer
+    {
+    public:
+        KeyboardArea(LockstepProcessor& processor, UiState& uiState);
+        ~KeyboardArea() override;
+
+        // Track / page (was in StepGrid)
+        void setActiveTrack(int t);
+        int  getActiveTrack() const { return activeTrack_; }
+        int  currentPage()    const { return stepPage_; }
+        void nextPage();
+        void prevPage();
+
+        // Display mode
+        void setDisplayMode(GridDisplayMode mode);
+        GridDisplayMode displayMode() const { return displayMode_; }
+
+        // Section API (was in SectionBar)
+        bool selectSection(int sectionIndex);
+        void selectMetaSection(int sectionIndex);
+        void syncToActiveTrack();
+
+        // Returns the Y position (in this component's local space) of where the step-cell
+        // rows begin, i.e. the equivalent of the old stepGrid_.getBounds().getY() - getY().
+        // Used by the editor to position the pool overlay.
+        int stepRowsLocalY() const;
+
+        // Callbacks
+        std::function<void(int)>             onActiveTrackChanged;
+        std::function<void(GridDisplayMode)> onDisplayModeChanged;
+        std::function<void(int, int, int)>   onSectionChanged;    // (section, page, firstSlot)
+        std::function<void(int)>             onMetaSectionChanged;
+
+        void paint(juce::Graphics& g) override;
+        void resized() override;
+        void timerCallback() override;
+        void mouseDown(const juce::MouseEvent& e) override;
+        void mouseUp(const juce::MouseEvent& e) override;
+
+        static constexpr int kPageSteps = 16;
+        static constexpr int kCols      = 8;
+        static constexpr int kRows      = 2;
+
+    private:
+        // Layout helpers — reproduce the same area math used in PluginEditor::resized()
+        // but applied to this component's own bounds.
+        struct RowAreas {
+            juce::Rectangle<int> section;
+            juce::Rectangle<int> function;
+            juce::Rectangle<int> step;   // includes nav row at bottom
+        };
+        RowAreas computeRowAreas() const;
+
+        // Step cell helpers (from StepGrid)
+        int  trackLength()  const;
+        int  numPages()     const;
+        void clampPage();
+        void rebuildLengthAttachment();
+        int  stepCellAt(juce::Point<int> pos) const;
+
+        // Section helpers (from SectionBar)
+        juce::Rectangle<int> sectionCellBounds(int cellIndex,
+                                                juce::Rectangle<int> area) const;
+        static int  cellToSection(int cellIndex);
+        static bool isReservedMeta(int sectionIndex);
+        void notifySectionChanged(int sectionIndex, int track);
+
+        // Paint helpers
+        void paintSectionRow(juce::Graphics& g, juce::Rectangle<int> area);
+        void paintFunctionRow(juce::Graphics& g, juce::Rectangle<int> area);
+        void paintStepRows  (juce::Graphics& g, juce::Rectangle<int> area);
+
+        LockstepProcessor& processor_;
+        UiState&           uiState_;
+
+        int             activeTrack_   = 0;
+        int             stepPage_      = 0;
+        GridDisplayMode displayMode_   = GridDisplayMode::Ortholinear;
+        int             mouseHeldStep_ = -1;
+
+        juce::TextButton prevBtn_{ "<" };
+        juce::TextButton nextBtn_{ ">" };
+        juce::Slider     lengthSlider_;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> lengthAttachment_;
+
+        static constexpr int kNavRowH = 26;
+
+        // Section row constants (from SectionBar)
+        static constexpr int kFixedSectionCells = 3;
+        static constexpr int kTotalSectionCells =
+            kFixedSectionCells + IMachine::kMaxSections; // 9
+
+        static constexpr std::array<const char*, IMachine::kMaxSections> kMetaLabels = {
+            "COND", "TRIG", "TRACK", "", "", "GLOBAL"
+        };
+
+        // Colours (from SectionBar)
+        static const juce::Colour kColourTrackActive;
+        static const juce::Colour kColourMasterActive;
+        static const juce::Colour kColourInactive;
+        static const juce::Colour kColourShiftActive;
+    };
+}

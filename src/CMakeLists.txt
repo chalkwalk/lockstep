@@ -79,13 +79,11 @@ target_sources(Lockstep
         PluginProcessor.cpp
         PluginEditor.cpp
         ui/KeyButton.cpp
-        ui/FunctionBar.cpp
+        ui/KeyboardArea.cpp
         ui/InPluginTransport.cpp
         ui/ManipulationZone.cpp
         ui/SamplePoolOverlay.cpp
-        ui/SectionBar.cpp
-        ui/StandaloneTempoBar.cpp
-        ui/StepGrid.cpp)
+        ui/StandaloneTempoBar.cpp)
 
 target_link_libraries(Lockstep
     PRIVATE

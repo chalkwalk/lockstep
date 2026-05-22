@@ -11,14 +11,12 @@
 #include "io/EditMode.h"
 #include "io/QwertyOverlay.h"
 #include "state/UiState.h"
-#include "ui/FunctionBar.h"
 #include "ui/GridDisplayMode.h"
 #include "ui/InPluginTransport.h"
+#include "ui/KeyboardArea.h"
 #include "ui/ManipulationZone.h"
 #include "ui/SamplePoolOverlay.h"
-#include "ui/SectionBar.h"
 #include "ui/StandaloneTempoBar.h"
-#include "ui/StepGrid.h"
 
 namespace lockstep
 {
@@ -86,11 +84,9 @@ namespace lockstep
                    kNumTracks> muteAttachments_;
         std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>,
                    kNumTracks> soloAttachments_;
-        StepGrid stepGrid_;
-        ManipulationZone manipulationZone_;  // after stepGrid_ — ctor takes StepGrid&
+        KeyboardArea keyboardArea_;
+        ManipulationZone manipulationZone_;  // after keyboardArea_ — ctor takes KeyboardArea&
         SamplePoolOverlay poolOverlay_;      // after processor_ — ctor takes LockstepProcessor&
-        SectionBar sectionBar_;              // after manipulationZone_ and stepGrid_
-        FunctionBar functionBar_;            // Q-row key display
 
         GridDisplayMode gridMode_ = GridDisplayMode::Ortholinear;
         juce::ApplicationProperties appProps_;

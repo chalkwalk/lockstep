@@ -34,12 +34,12 @@ namespace lockstep
             { code('8'), B::Section,      4 },
             { code('9'), B::Section,      5 },
 
-            // Verb and utility row — new order: Y=CPY U=PST I=CLR O=TAP T=PLY (far right)
-            { code('Y'), B::VerbRecord,  -1 },
-            { code('U'), B::VerbPlay,    -1 },
-            { code('I'), B::VerbStop,    -1 },
-            { code('O'), B::TapTempo,    -1 },
-            { code('T'), B::PlayStop,    -1 },
+            // Verb and utility row — new order: T=CPY Y=PST U=CLR I=TAP P=PLY (far right)
+            { code('T'), B::VerbRecord,  -1 },
+            { code('Y'), B::VerbPlay,    -1 },
+            { code('U'), B::VerbStop,    -1 },
+            { code('I'), B::TapTempo,    -1 },
+            { code('P'), B::PlayStop,    -1 },
 
             // Step grid row 1 (S-L = steps 0-7)
             { code('S'), B::Step,         0 },
@@ -66,9 +66,9 @@ namespace lockstep
         // Keys not listed here fall through to the primary table.
         constexpr std::array<Entry, 14> kFunc = { {
             // Func+2=PatternScope (held: queue pattern via step; released w/o step: Snapshot).
-            // Func+T(PLY, now far-right)=Restore checkpoint.
+            // Func+P(PLY, far-right)=Restore checkpoint.
             { code('2'), B::PatternScope,      -1 },
-            { code('T'), B::Restore,           -1 },
+            { code('P'), B::Restore,           -1 },
 
             // Func+E(down)=stop+reset (temporary home until MD nav-secondary pass)
             { code('E'), B::StopReset,         -1 },
@@ -76,8 +76,8 @@ namespace lockstep
             // Func+W = fork active Part (make it unique, break Part sharing). (MD.5)
             { code('W'), B::ForkPart,          -1 },
 
-            // Func+O = metronome toggle
-            { code('O'), B::MetronomeToggle,   -1 },
+            // Func+I(TAP) = metronome toggle
+            { code('I'), B::MetronomeToggle,   -1 },
 
             // Meta sections (keys 4-9)
             { code('4'), B::MetaSection,        0 },
@@ -88,9 +88,9 @@ namespace lockstep
             { code('9'), B::MetaSection,        5 },
 
             // Trig grid mode chords (held = mode active)
-            { code('Y'), B::TrigModeKeyboard,  -1 },
-            { code('U'), B::TrigModeRetrig,    -1 },
-            { code('I'), B::TrigModeSoundPool, -1 },
+            { code('T'), B::TrigModeKeyboard,  -1 },
+            { code('Y'), B::TrigModeRetrig,    -1 },
+            { code('U'), B::TrigModeSoundPool, -1 },
         } };
 
         // Track layer — applied when Track (key Q) is held.

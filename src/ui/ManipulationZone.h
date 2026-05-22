@@ -7,7 +7,7 @@
 namespace lockstep
 {
     class LockstepProcessor;
-    class StepGrid;
+    class KeyboardArea;
 
     // Shows the first 4 parameter slots (page 0) for the active track.
     // Reads from and writes to the correct layer — Step Override when a step
@@ -16,7 +16,7 @@ namespace lockstep
                              public juce::Timer
     {
     public:
-        ManipulationZone(LockstepProcessor& processor, StepGrid& grid);
+        ManipulationZone(LockstepProcessor& processor, KeyboardArea& area);
         ~ManipulationZone() override;
 
         void paint(juce::Graphics& g) override;
@@ -53,7 +53,7 @@ namespace lockstep
         void showSamplePicker(int absoluteSlot);
 
         LockstepProcessor& processor_;
-        StepGrid& grid_;
+        KeyboardArea& area_;
         int slotOffset_   = 0;
         int metaSection_  = -1;  // -1 = normal machine params; 0/1/2/5 = COND/TRIG/TRACK/GLOBAL
 
