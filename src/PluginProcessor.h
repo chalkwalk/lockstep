@@ -20,6 +20,7 @@
 #include "io/MidiInput.h"
 #include "machine/IMachine.h"
 #include "machine/SamplePool.h"
+#include "machine/TrackFltrDsp.h"
 #include "machine/VoiceChoke.h"
 
 namespace lockstep
@@ -165,6 +166,11 @@ namespace lockstep
         // slot is the absolute slot index; mzPosition is the widget's display position (0-3).
         WidgetMappingInfo queryWidgetMapping(int slot, int mzPosition) const;
 
+        // Returns the base value for any slot on a track — machine slots from
+        // the sequence track's baseParams, FLTR virtual slots from the Part's
+        // fltrState. Safe to call from the message thread.
+        float baseParamValue(int track, int slot) const;
+
         // Route a parameter write to the correct layer. If EditContext is
         // active for the given track, the value lands in the held step's
         // P-Lock; otherwise it updates the track's base params.
@@ -285,14 +291,21 @@ namespace lockstep
         Metronome metronome_;
         MidiInput midiInput_;
         MidiClockReceiver midiClockReceiver_;
+        // ME.4: virtual slot count for the post-machine FLTR block (added to machine.numParams()).
+        static constexpr int kFltrSlots  = TrackFltrState::kNumSlots;  // 6
+        static constexpr int kFltrSecIdx = 2;  // canonical FLTR section index
+
         std::array<std::unique_ptr<IMachine>, kNumTracks> machines_;
         // Per-track scratch buffers: each machine writes here, then they are
         // summed to the main output bus. Sized in prepareToPlay; cleared each block.
-        // Placeholder for future per-track insert effects (MV).
         std::array<juce::AudioBuffer<float>, kNumTracks> trackBuffers_;
         // Per-track choke faders for monophonic re-trigger (MA.4).
-        // Sequencer uses these in MA.5 when emitting MIDI note-ons.
         std::array<VoiceChoke, kNumTracks> trackChokes_;
+        // ME.4: post-machine FLTR DSP state (audio-thread only).
+        std::array<TrackFltrDsp, kNumTracks> trackFltrs_;
+        // Last step index that actually fired per track; -1 until first fire.
+        // Used for FLTR P-Lock resolution in the sequencer path.
+        std::array<int, kNumTracks> firedStepIdx_{};
 
         // Pending sequencer-scheduled note-offs that spill past the current block boundary.
         struct PendingNoteOff

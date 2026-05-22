@@ -32,11 +32,8 @@ namespace lockstep
         g.setColour(isDisabled ? accent.withAlpha(0.2f) : accent.withAlpha(isModeActive ? 1.0f : 0.5f));
         g.drawRoundedRectangle(inner.toFloat(), 4.0f, borderW);
 
-        if (isDisabled)
-            return;
-
         // Key hint — top-left, small, dim
-        if (showKeyHint && keyHint.isNotEmpty())
+        if (!isDisabled && showKeyHint && keyHint.isNotEmpty())
         {
             g.setFont(juce::Font(juce::FontOptions(8.0f)));
             g.setColour(juce::Colour(0xFF4A5C6Eu));
@@ -51,17 +48,23 @@ namespace lockstep
         const auto primArea = inner.withTrimmedBottom(secH);
         const auto secArea  = inner.withTrimmedTop(inner.getHeight() - secH).reduced(2, 0);
 
-        // Primary label — centred in its area; dims to 0.35 when FuncHeld
+        // Primary label — ghost-dim when Disabled so the section name is always readable;
+        // dims to 0.35 when FuncHeld; full brightness on Pressed.
         if (primary.isNotEmpty())
         {
-            const float alpha = (isFuncHeld && !isPressed) ? 0.35f : 1.0f;
+            const float alpha = isDisabled        ? 0.28f
+                              : (isFuncHeld && !isPressed) ? 0.35f
+                              : 1.0f;
             const juce::Colour primCol = isPressed
                 ? juce::Colours::white
-                : juce::Colour(0xFFA0B8D0u).withAlpha(alpha);
+                : juce::Colour(0xFFB8D0E0u).withAlpha(alpha);
             g.setFont(juce::Font(juce::FontOptions(10.0f)));
             g.setColour(primCol);
             g.drawText(primary, primArea, juce::Justification::centred);
         }
+
+        if (isDisabled)
+            return;
 
         // Secondary label — always visible (0.5α), full brightness when FuncHeld.
         // White keeps it legible across all group background colours.

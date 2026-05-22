@@ -3,7 +3,8 @@
 #include <array>
 #include <string>
 #include "../machine/IMachine.h"
-#include "Sequence.h"  // kNumTracks
+#include "Sequence.h"       // kNumTracks
+#include "TrackFltrState.h" // ME.4 post-machine FLTR params
 
 namespace lockstep
 {
@@ -19,10 +20,14 @@ namespace lockstep
         // Machine parameter defaults — one float per slot, sized to the
         // machine's numParams() at attachment time.
         ParamFrame baseParams{};
+
+        // Post-machine FLTR block parameters (ME.4). Foundation-owned;
+        // P-lockable via virtual slot indices above machine.numParams().
+        TrackFltrState fltrState;
     };
 
-    // Part owns the per-track machine identity and base parameter frame.
-    // FLTR/AMP block state per track is stubbed here; ME adds it later.
+    // Part owns the per-track machine identity, base parameter frame,
+    // and post-machine FLTR state.
     struct Part
     {
         std::array<PartTrack, kNumTracks> tracks{};

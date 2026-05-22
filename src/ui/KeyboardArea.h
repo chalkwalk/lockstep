@@ -123,7 +123,7 @@ namespace lockstep
             kFixedSectionCells + IMachine::kMaxSections; // 9
 
         static constexpr std::array<const char*, IMachine::kMaxSections> kMetaLabels = {
-            "COND", "TRIG", "TRACK", "", "", "GLOBAL"
+            "COND", "NOTE", "TRACK", "", "", "GLOBAL"
         };
 
         // Colours (from SectionBar)

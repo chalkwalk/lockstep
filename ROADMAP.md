@@ -594,7 +594,7 @@ across machine types.
 - [x] **ME.3** Extension sections: repeated press of a section key
       cycles through both canonical-pages-within-section and the
       machine's declared extension pages on that section.
-- [ ] **ME.4** Per-track post-machine FLTR block: multi-mode SVF
+- [x] **ME.4** Per-track post-machine FLTR block: multi-mode SVF
       (LP/BP/HP/Notch) with selectable 12 dB / 24 dB slope, Cutoff,
       Resonance, Drive, Env→Cutoff. Lives in
       `Part::track[i].fltrState`. Slope is a stepped slot

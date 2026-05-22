@@ -264,8 +264,7 @@ namespace lockstep
                 continue;
             }
 
-            const auto slotSz = static_cast<std::size_t>(slot);
-            const auto meta   = processor_.paramSpec(track, slot);
+            const auto meta = processor_.paramSpec(track, slot);
 
             // Sample slot: replace rotary with a name button + picker popup.
             const bool isSampleSlot = (meta.id == "sample_id");
@@ -276,7 +275,7 @@ namespace lockstep
                                   static_cast<double>(meta.maxValue),
                                   meta.isStepped ? 1.0 : 0.0);
 
-            float value = t.baseParams[slotSz];
+            float value = processor_.baseParamValue(track, slot);
 
             const bool stepHeld = ctx.isActiveForEditing() && ctx.heldTrackIndex() == track;
             const int  heldStep = ctx.heldStepIndex();

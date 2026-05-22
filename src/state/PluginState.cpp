@@ -77,8 +77,11 @@ namespace lockstep::PluginState
                 const juce::String id = proc.idForSlot(t, s);
                 if (id.isEmpty()) continue;
                 const float def = proc.paramSpec(t, s).defaultValue;
-                const float val = (static_cast<std::size_t>(s) < pt.baseParams.size())
-                                  ? pt.baseParams[static_cast<std::size_t>(s)] : def;
+                float val;
+                if (static_cast<std::size_t>(s) < pt.baseParams.size())
+                    val = pt.baseParams[static_cast<std::size_t>(s)];
+                else
+                    val = pt.fltrState.getSlot(s - static_cast<int>(pt.baseParams.size()));
                 if (!floatNe(val, def)) continue;
                 juce::ValueTree pNode("P");
                 pNode.setProperty("id", id,                       nullptr);
@@ -364,6 +367,8 @@ namespace lockstep::PluginState
             const auto slotSz = static_cast<std::size_t>(slot);
             if (slotSz < pt.baseParams.size())
                 pt.baseParams[slotSz] = val;
+            else
+                pt.fltrState.setSlot(slot - static_cast<int>(pt.baseParams.size()), val);
         }
     }
 
