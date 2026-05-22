@@ -31,9 +31,10 @@ namespace lockstep
         int masterSection = -1;
 
         // Returns the first slot index for the currently active page on the given track.
+        // Returns 0 if track is out of range or info.firstSlot is -1 (empty section).
         [[nodiscard]] int activeFirstSlot(int track, const SectionInfo& info) const
         {
-            if (track < 0 || track >= static_cast<int>(kNumTracks))
+            if (track < 0 || track >= static_cast<int>(kNumTracks) || info.firstSlot < 0)
                 return 0;
             const int section = trackSection[static_cast<std::size_t>(track)];
             const int page    = trackPage[static_cast<std::size_t>(track)]

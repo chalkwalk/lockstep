@@ -90,6 +90,13 @@ namespace lockstep
         // Section taxonomy. Up to kMaxSections sections; fewer is fine.
         // Section membership is declared per-slot via ParamSpec::sectionIndex.
         static constexpr int kMaxSections = 6;
+
+        // Canonical label for each of the kMaxSections section-bar keys.
+        // A machine section is "available" when at least one slot has a
+        // matching sectionIndex; the rendering always shows these labels.
+        static constexpr std::array<const char*, kMaxSections> kCanonicalSectionNames = {
+            "TRIG", "SRC", "FLTR", "AMP", "LFO", "FX"
+        };
         virtual int         numSections()        const { return 0; }
         virtual SectionInfo section(int /*index*/) const { return {}; }
 

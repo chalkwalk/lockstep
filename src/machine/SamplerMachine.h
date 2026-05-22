@@ -43,7 +43,9 @@ namespace lockstep
         static constexpr int kSlotRelease   = 7;
 
         static constexpr int kNumSlots    = 8;
-        static constexpr int kNumSections = 2;  // Source + Env
+        // Canonical section indices: SRC=1 (sample_id, pitch), AMP=3 (level + envelope).
+        // numSections() returns 4 (highest index used + 1) so the renderer checks all 0..3.
+        static constexpr int kNumSections = 4;
 
         enum class Stage { Idle, Attack, Hold, Decay, Sustain, Release };
 

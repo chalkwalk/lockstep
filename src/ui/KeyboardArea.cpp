@@ -349,6 +349,8 @@ namespace lockstep
         const auto ti   = static_cast<std::size_t>(track);
         const auto si   = static_cast<std::size_t>(sectionIndex);
         const auto info = processor_.section(track, sectionIndex);
+        if (info.firstSlot < 0)
+            return;  // empty canonical section — nothing to navigate to
         const int page  = uiState_.trackPage[ti][si];
         onSectionChanged(sectionIndex, page, info.firstSlot + 4 * page);
     }
@@ -359,7 +361,9 @@ namespace lockstep
             return false;
         if (sectionIndex < 0 || sectionIndex >= IMachine::kMaxSections)
             return false;
-        if (sectionIndex >= processor_.numSections(activeTrack_))
+
+        const auto info = processor_.section(activeTrack_, sectionIndex);
+        if (info.firstSlot < 0)  // canonical section present but no machine slots
             return false;
 
         const auto ti = static_cast<std::size_t>(activeTrack_);
@@ -370,7 +374,6 @@ namespace lockstep
 
         if (!wasInMasterMode && uiState_.trackSection[ti] == sectionIndex)
         {
-            const auto info = processor_.section(activeTrack_, sectionIndex);
             const int pageCount = info.pageCount > 0 ? info.pageCount : 1;
             uiState_.trackPage[ti][si] = (uiState_.trackPage[ti][si] + 1) % pageCount;
         }
@@ -400,9 +403,27 @@ namespace lockstep
         repaint();
         if (activeTrack_ < 0 || activeTrack_ >= static_cast<int>(kNumTracks))
             return;
-        if (uiState_.masterSection < 0)
-            notifySectionChanged(uiState_.trackSection[static_cast<std::size_t>(activeTrack_)],
-                                 activeTrack_);
+        if (uiState_.masterSection >= 0)
+            return;
+
+        const auto ti = static_cast<std::size_t>(activeTrack_);
+        int sec = uiState_.trackSection[ti];
+
+        // If the current section is empty for this machine, snap to the first available one.
+        if (processor_.section(activeTrack_, sec).firstSlot < 0)
+        {
+            for (int s = 0; s < IMachine::kMaxSections; ++s)
+            {
+                if (processor_.section(activeTrack_, s).firstSlot >= 0)
+                {
+                    uiState_.trackSection[ti] = s;
+                    sec = s;
+                    break;
+                }
+            }
+        }
+
+        notifySectionChanged(sec, activeTrack_);
     }
 
     // -------------------------------------------------------------------------
@@ -536,21 +557,24 @@ namespace lockstep
                            showKeyHint);
         }
 
-        // Section cells 3-8
+        // Section cells 3-8: always display canonical TRIG/SRC/FLTR/AMP/LFO/FX names.
+        // A section is "available" only when the machine has at least one slot in it.
         for (int s = 0; s < IMachine::kMaxSections; ++s)
         {
-            const int cellIdx   = kFixedSectionCells + s;
-            const bool available = (s < processor_.numSections(activeTrack));
+            const int cellIdx = kFixedSectionCells + s;
+            const juce::String canonicalName =
+                IMachine::kCanonicalSectionNames[static_cast<std::size_t>(s)];
+            const auto info      = processor_.section(activeTrack, s);
+            const bool available = (info.firstSlot >= 0);
 
             if (!available)
             {
-                // Show a brief press flash even on unavailable cells so the user
-                // gets visual feedback if they land on the wrong key.
+                // Show canonical name in a disabled state so the taxonomy is always visible.
                 const bool pressed = juce::KeyPress::isKeyCurrentlyDown(
                     static_cast<int>('4' + s));
                 const KeyGroup grp { kSecInactive, kSecActive, kSecAccent };
                 paintKeyButton(g, sectionCellBounds(cellIdx, area),
-                               kKeyHints[cellIdx], "", "",
+                               kKeyHints[cellIdx], canonicalName, "",
                                grp,
                                pressed ? KeyButtonState::Pressed : KeyButtonState::Disabled,
                                showKeyHint);
@@ -573,17 +597,14 @@ namespace lockstep
                 ? KeyGroup{ kSecInactive, 0xFF404010u, 0xFFFFB432u }
                 : KeyGroup{ kSecInactive, kSecActive,  kSecAccent  };
 
-            const auto info     = processor_.section(activeTrack, s);
-            const juce::String primLabel = info.label.isEmpty()
-                                           ? juce::String(s) : info.label;
-            const bool reserved  = isReservedMeta(s);
+            const bool reserved = isReservedMeta(s);
             const juce::String secLabel =
                 reserved ? juce::String::charToString(0x2014)
                          : juce::String(kMetaLabels[static_cast<std::size_t>(s)]);
 
             const auto cell = sectionCellBounds(cellIdx, area);
             paintKeyButton(g, cell, kKeyHints[cellIdx],
-                           primLabel, secLabel, secGrp, st, showKeyHint);
+                           canonicalName, secLabel, secGrp, st, showKeyHint);
 
             // Page dots
             const int pageCount = info.pageCount;

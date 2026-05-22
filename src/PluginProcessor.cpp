@@ -1048,9 +1048,8 @@ namespace lockstep
                 ++count;
             }
         }
-        if (info.firstSlot < 0) info.firstSlot = 0;
         info.pageCount = (count + kParamsPerPage - 1) / kParamsPerPage;
-        if (info.pageCount < 1) info.pageCount = 1;
+        if (info.firstSlot >= 0 && info.pageCount < 1) info.pageCount = 1;
         return info;
     }
 

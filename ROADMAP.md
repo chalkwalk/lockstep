@@ -585,9 +585,9 @@ hierarchy landed in MC.
 The DSP and schema work that makes the canonical section bar uniform
 across machine types.
 
-- [ ] **ME.1** Add `ParamSpec::role` (closed enum). Update all existing
+- [x] **ME.1** Add `ParamSpec::role` (closed enum). Update all existing
       machines (currently just `SamplerMachine`) to tag their slots.
-- [ ] **ME.2** Section bar canonical reservation: keys 3–8 fixed to
+- [x] **ME.2** Section bar canonical reservation: keys 3–8 fixed to
       TRIG / SRC / FLTR / AMP / LFO / FX. Section labels declared by
       the machine must match the canonical title where one applies.
       Update `SectionBar` rendering accordingly.
