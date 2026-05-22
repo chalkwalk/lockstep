@@ -80,8 +80,15 @@ namespace lockstep::PluginState
                 float val;
                 if (static_cast<std::size_t>(s) < pt.baseParams.size())
                     val = pt.baseParams[static_cast<std::size_t>(s)];
-                else
+                else if (id.startsWith("lockstep.fltr."))
                     val = pt.fltrState.getSlot(s - static_cast<int>(pt.baseParams.size()));
+                else if (id.startsWith("lockstep.amp."))
+                {
+                    const int ampBase = proc.numParams(t) - TrackAmpState::kNumSlots;
+                    val = pt.ampState.getSlot(s - ampBase);
+                }
+                else
+                    val = 0.0f;
                 if (!floatNe(val, def)) continue;
                 juce::ValueTree pNode("P");
                 pNode.setProperty("id", id,                       nullptr);
@@ -367,8 +374,13 @@ namespace lockstep::PluginState
             const auto slotSz = static_cast<std::size_t>(slot);
             if (slotSz < pt.baseParams.size())
                 pt.baseParams[slotSz] = val;
-            else
+            else if (id.startsWith("lockstep.fltr."))
                 pt.fltrState.setSlot(slot - static_cast<int>(pt.baseParams.size()), val);
+            else if (id.startsWith("lockstep.amp."))
+            {
+                const int ampBase = proc.numParams(t) - TrackAmpState::kNumSlots;
+                pt.ampState.setSlot(slot - ampBase, val);
+            }
         }
     }
 

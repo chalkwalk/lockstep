@@ -4,6 +4,7 @@
 #include <string>
 #include "../machine/IMachine.h"
 #include "Sequence.h"       // kNumTracks
+#include "TrackAmpState.h"  // ME.5 post-machine AMP params
 #include "TrackFltrState.h" // ME.4 post-machine FLTR params
 
 namespace lockstep
@@ -24,6 +25,11 @@ namespace lockstep
         // Post-machine FLTR block parameters (ME.4). Foundation-owned;
         // P-lockable via virtual slot indices above machine.numParams().
         TrackFltrState fltrState;
+
+        // Post-machine AMP block parameters (ME.5). Foundation-owned;
+        // P-lockable via virtual slot indices above the FLTR range.
+        // Inactive when the machine opts in with hasInternalAmp() = true.
+        TrackAmpState ampState;
     };
 
     // Part owns the per-track machine identity, base parameter frame,

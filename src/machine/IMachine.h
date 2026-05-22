@@ -113,6 +113,13 @@ namespace lockstep
         // n>1 = self-managed polyphony, 0 = unbounded / MIDI-out.
         virtual int maxVoices() const { return 1; }
 
+        // ME.6 opt-out flags: return true if the machine contains its own filter
+        // or amplitude processing for the canonical FLTR / AMP sections.
+        // When true, the processor routes that section key to the machine's own
+        // slots instead of the post-machine FLTR / AMP block.
+        virtual bool hasInternalFilter() const { return false; }
+        virtual bool hasInternalAmp()    const { return false; }
+
         // Returns true if this machine is currently producing audio (voice active,
         // fading, or pending). Used by the sequencer to decide whether to apply
         // a choke fade before re-triggering a monophonic machine.

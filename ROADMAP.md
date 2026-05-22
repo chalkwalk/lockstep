@@ -599,13 +599,13 @@ across machine types.
       Resonance, Drive, Env→Cutoff. Lives in
       `Part::track[i].fltrState`. Slope is a stepped slot
       (`{12dB, 24dB}`); P-lockable per step. Default 24 dB.
-- [ ] **ME.5** Per-track post-machine AMP block: AHDSR responding to
+- [x] **ME.5** Per-track post-machine AMP block: AHDSR responding to
       sequencer-emitted note-on/off; Pan; Level; **gate source**
       (`{Envelope | Held-open}`, default Envelope — Held-open keeps
       the amp stage open for Thru/drones, DESIGN §14). Lives in
       `Part::track[i].ampState`. (Send A / Send B output-mix levels
       are added with the FX system, MV.)
-- [ ] **ME.6** Machine opt-out: `IMachine::hasInternalFilter()` /
+- [x] **ME.6** Machine opt-out: `IMachine::hasInternalFilter()` /
       `hasInternalAmp()` bypass the corresponding block. Section key
       for that section is repurposed to the machine's own slots.
 - [ ] **ME.7** MIDI-out tracks (MF) implicitly bypass both; FLTR/AMP

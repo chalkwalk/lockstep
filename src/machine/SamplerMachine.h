@@ -27,7 +27,8 @@ namespace lockstep
         int       numSections()        const override { return kNumSections; }
         SectionInfo section(int index) const override;
 
-        bool isVoiceActive() const override;
+        bool isVoiceActive()    const override;
+        bool hasInternalAmp()   const override { return true; }
 
     private:
         // Dense slot layout — Section 0 "Source"

@@ -240,6 +240,8 @@ namespace lockstep
             choke.prepare(sampleRate, 1.5f);
         for (auto& fltr : trackFltrs_)
             fltr.prepare(sampleRate);
+        for (auto& amp : trackAmps_)
+            amp.prepare(sampleRate);
         for (auto& pnf : pendingNoteOffs_)
             pnf.samplesRemaining = -1;
         nextTriggerPpq_.fill(0.0);
@@ -388,13 +390,19 @@ namespace lockstep
         ccCtx.getCurrentTrackValue = [this](int t, int s) -> float {
             const auto ti = static_cast<std::size_t>(t);
             const auto& trk = sequence().tracks[ti];
-            // Route to FLTR state for virtual slots above machine's param count.
+            auto* m = machines_[ti].get();
+            const int mnp     = m->numParams();
+            const int fltrOff = mnp;
+            const int ampOff  = mnp + (m->hasInternalFilter() ? 0 : kFltrSlots);
             float base;
             if (static_cast<std::size_t>(s) < trk.baseParams.size())
                 base = trk.baseParams[static_cast<std::size_t>(s)];
+            else if (!m->hasInternalFilter() && s >= fltrOff && s < fltrOff + kFltrSlots)
+                base = activePart().tracks[ti].fltrState.getSlot(s - fltrOff);
+            else if (!m->hasInternalAmp() && s >= ampOff && s < ampOff + kAmpSlots)
+                base = activePart().tracks[ti].ampState.getSlot(s - ampOff);
             else
-                base = activePart().tracks[ti].fltrState.getSlot(
-                           s - machines_[ti]->numParams());
+                base = 0.0f;
             // When a step is held on this track, apply its P-Lock overlay.
             if (editContext_.isActiveForEditing()
                 && editContext_.heldTrackIndex() == t)
@@ -604,20 +612,43 @@ namespace lockstep
                 }
                 machines_[i]->process(trackMidi[i], frame, trackBuffers_[i]);
 
-                // ME.4: post-machine FLTR block (base from Part, P-Locks from held step)
                 {
-                    TrackFltrState fltr = activePart().tracks[i].fltrState;
-                    if (resolveStep >= 0 && resolveStep < kMaxStepsPerTrack)
+                    auto* mi      = machines_[i].get();
+                    const int mnp = mi->numParams();
+                    const int fltrOff = mnp;
+                    const int ampOff  = mnp + (mi->hasInternalFilter() ? 0 : kFltrSlots);
+
+                    // ME.4: post-machine FLTR block (bypassed when machine has internal filter)
+                    if (!mi->hasInternalFilter())
                     {
-                        const auto& overrides =
-                            sequence().tracks[i].steps[static_cast<std::size_t>(resolveStep)].overrides;
-                        const int mnp = machines_[i]->numParams();
-                        for (int fs = 0; fs < TrackFltrState::kNumSlots; ++fs)
-                            if (overrides.has(mnp + fs))
-                                fltr.setSlot(fs, overrides.get(mnp + fs, 0.0f));
+                        TrackFltrState fltr = activePart().tracks[i].fltrState;
+                        if (resolveStep >= 0 && resolveStep < kMaxStepsPerTrack)
+                        {
+                            const auto& ovr =
+                                sequence().tracks[i].steps[static_cast<std::size_t>(resolveStep)].overrides;
+                            for (int fs = 0; fs < TrackFltrState::kNumSlots; ++fs)
+                                if (ovr.has(fltrOff + fs))
+                                    fltr.setSlot(fs, ovr.get(fltrOff + fs, 0.0f));
+                        }
+                        trackFltrs_[i].processBlock(trackBuffers_[i], trackMidi[i], fltr,
+                                                    numBlockSamples);
                     }
-                    trackFltrs_[i].processBlock(trackBuffers_[i], trackMidi[i], fltr,
-                                                numBlockSamples);
+
+                    // ME.5: post-machine AMP block (bypassed when machine has internal amp)
+                    if (!mi->hasInternalAmp())
+                    {
+                        TrackAmpState amp = activePart().tracks[i].ampState;
+                        if (resolveStep >= 0 && resolveStep < kMaxStepsPerTrack)
+                        {
+                            const auto& ovr =
+                                sequence().tracks[i].steps[static_cast<std::size_t>(resolveStep)].overrides;
+                            for (int as = 0; as < TrackAmpState::kNumSlots; ++as)
+                                if (ovr.has(ampOff + as))
+                                    amp.setSlot(as, ovr.get(ampOff + as, 0.0f));
+                        }
+                        trackAmps_[i].processBlock(trackBuffers_[i], trackMidi[i], amp,
+                                                   numBlockSamples);
+                    }
                 }
 
                 trackPeak_[i].store(trackBuffers_[i].getMagnitude(0, numBlockSamples),
@@ -828,21 +859,44 @@ namespace lockstep
             }
             machines_[i]->process(trackMidi[i], frame, trackBuffers_[i]);
 
-            // ME.4: post-machine FLTR block (base from Part, P-Locks from last-fired step)
             {
-                TrackFltrState fltr = activePart().tracks[i].fltrState;
-                const int fsi = firedStepIdx_[i];
-                if (fsi >= 0 && fsi < kMaxStepsPerTrack)
+                auto* mi      = machines_[i].get();
+                const int mnp = mi->numParams();
+                const int fltrOff = mnp;
+                const int ampOff  = mnp + (mi->hasInternalFilter() ? 0 : kFltrSlots);
+                const int fsi     = firedStepIdx_[i];
+
+                // ME.4: post-machine FLTR block (bypassed when machine has internal filter)
+                if (!mi->hasInternalFilter())
                 {
-                    const auto& overrides =
-                        sequence().tracks[i].steps[static_cast<std::size_t>(fsi)].overrides;
-                    const int mnp = machines_[i]->numParams();
-                    for (int fs = 0; fs < TrackFltrState::kNumSlots; ++fs)
-                        if (overrides.has(mnp + fs))
-                            fltr.setSlot(fs, overrides.get(mnp + fs, 0.0f));
+                    TrackFltrState fltr = activePart().tracks[i].fltrState;
+                    if (fsi >= 0 && fsi < kMaxStepsPerTrack)
+                    {
+                        const auto& ovr =
+                            sequence().tracks[i].steps[static_cast<std::size_t>(fsi)].overrides;
+                        for (int fs = 0; fs < TrackFltrState::kNumSlots; ++fs)
+                            if (ovr.has(fltrOff + fs))
+                                fltr.setSlot(fs, ovr.get(fltrOff + fs, 0.0f));
+                    }
+                    trackFltrs_[i].processBlock(trackBuffers_[i], trackMidi[i], fltr,
+                                                numBlockSamples);
                 }
-                trackFltrs_[i].processBlock(trackBuffers_[i], trackMidi[i], fltr,
-                                            numBlockSamples);
+
+                // ME.5: post-machine AMP block (bypassed when machine has internal amp)
+                if (!mi->hasInternalAmp())
+                {
+                    TrackAmpState amp = activePart().tracks[i].ampState;
+                    if (fsi >= 0 && fsi < kMaxStepsPerTrack)
+                    {
+                        const auto& ovr =
+                            sequence().tracks[i].steps[static_cast<std::size_t>(fsi)].overrides;
+                        for (int as = 0; as < TrackAmpState::kNumSlots; ++as)
+                            if (ovr.has(ampOff + as))
+                                amp.setSlot(as, ovr.get(ampOff + as, 0.0f));
+                    }
+                    trackAmps_[i].processBlock(trackBuffers_[i], trackMidi[i], amp,
+                                               numBlockSamples);
+                }
             }
 
             trackPeak_[i].store(trackBuffers_[i].getMagnitude(0, numBlockSamples),
@@ -935,15 +989,21 @@ namespace lockstep
                 }
                 else
                 {
-                    const int dstMnp = machines_[ti]->numParams();
+                    auto*     dm     = machines_[ti].get();
+                    const int dstMnp = dm->numParams();
+                    const int dstAmpOff = dstMnp + (dm->hasInternalFilter() ? 0 : kFltrSlots);
                     if (dstSlot < dstMnp)
                     {
                         sequence().tracks[ti].baseParams[static_cast<std::size_t>(dstSlot)] = value;
                         activePart().tracks[ti].baseParams[static_cast<std::size_t>(dstSlot)] = value;
                     }
-                    else
+                    else if (!dm->hasInternalFilter() && dstSlot < dstAmpOff)
                     {
                         activePart().tracks[ti].fltrState.setSlot(dstSlot - dstMnp, value);
+                    }
+                    else if (!dm->hasInternalAmp())
+                    {
+                        activePart().tracks[ti].ampState.setSlot(dstSlot - dstAmpOff, value);
                     }
                 }
             }
@@ -965,17 +1025,21 @@ namespace lockstep
         }
         else
         {
-            const int mnp = machines_[ti]->numParams();
+            auto*     wm     = machines_[ti].get();
+            const int mnp    = wm->numParams();
+            const int ampOff = mnp + (wm->hasInternalFilter() ? 0 : kFltrSlots);
             if (slot < mnp)
             {
                 sequence().tracks[ti].baseParams[static_cast<std::size_t>(slot)] = value;
-                // Also write to the active Part so the value persists across pattern switches.
                 activePart().tracks[ti].baseParams[static_cast<std::size_t>(slot)] = value;
             }
-            else
+            else if (!wm->hasInternalFilter() && slot < ampOff)
             {
-                // FLTR virtual slot: Part-owned, not Sequence-owned.
                 activePart().tracks[ti].fltrState.setSlot(slot - mnp, value);
+            }
+            else if (!wm->hasInternalAmp())
+            {
+                activePart().tracks[ti].ampState.setSlot(slot - ampOff, value);
             }
         }
     }
@@ -1070,7 +1134,10 @@ namespace lockstep
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return 0;
-        return machines_[static_cast<std::size_t>(track)]->numParams() + kFltrSlots;
+        auto* m = machines_[static_cast<std::size_t>(track)].get();
+        return m->numParams()
+             + (m->hasInternalFilter() ? 0 : kFltrSlots)
+             + (m->hasInternalAmp()    ? 0 : kAmpSlots);
     }
 
     // Stable string IDs for the 6 FLTR virtual slots.
@@ -1079,31 +1146,75 @@ namespace lockstep
         "lockstep.fltr.res",  "lockstep.fltr.drive", "lockstep.fltr.env"
     };
 
+    // Stable string IDs for the 8 AMP virtual slots.
+    static const juce::String kAmpIds[TrackAmpState::kNumSlots] = {
+        "lockstep.amp.level", "lockstep.amp.pan",     "lockstep.amp.gate",
+        "lockstep.amp.att",   "lockstep.amp.hld",     "lockstep.amp.dec",
+        "lockstep.amp.sus",   "lockstep.amp.rel"
+    };
+
     ParamSpec LockstepProcessor::paramSpec(int track, int index) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return {};
-        const auto ti  = static_cast<std::size_t>(track);
-        const int  mnp = machines_[ti]->numParams();
+        const auto ti   = static_cast<std::size_t>(track);
+        auto*      m    = machines_[ti].get();
+        const int  mnp  = m->numParams();
         if (index < mnp)
-            return machines_[ti]->paramSpec(index);
-        const int fs = index - mnp;
-        if (fs < 0 || fs >= kFltrSlots) return {};
-        ParamSpec p;
-        p.sectionIndex = kFltrSecIdx;
-        p.id           = kFltrIds[fs];
-        switch (fs)
+            return m->paramSpec(index);
+
+        const int fltrOff = mnp;
+        const int ampOff  = mnp + (m->hasInternalFilter() ? 0 : kFltrSlots);
+
+        if (!m->hasInternalFilter() && index >= fltrOff && index < fltrOff + kFltrSlots)
         {
-        case 0: p.label="Mode";  p.isStepped=true; p.maxValue=3.0f; break;          // LP/HP/BP/Notch
-        case 1: p.label="Slope"; p.isStepped=true; p.maxValue=1.0f;
-                p.defaultValue=1.0f; break;                                           // 12/24dB; default 24dB
-        case 2: p.label="Cutoff"; p.maxValue=1.0f; p.defaultValue=1.0f; break;       // open by default
-        case 3: p.label="Reson";  p.maxValue=1.0f; break;
-        case 4: p.label="Drive";  p.maxValue=1.0f; break;
-        case 5: p.label="Env>Ct"; p.minValue=-1.0f; p.maxValue=1.0f; break;
-        default: break;
+            const int fs = index - fltrOff;
+            ParamSpec p;
+            p.sectionIndex = kFltrSecIdx;
+            p.id           = kFltrIds[fs];
+            switch (fs)
+            {
+            case 0: p.label="Mode";   p.isStepped=true; p.maxValue=3.0f; break;
+            case 1: p.label="Slope";  p.isStepped=true; p.maxValue=1.0f;
+                    p.defaultValue=1.0f; break;
+            case 2: p.label="Cutoff"; p.maxValue=1.0f; p.defaultValue=1.0f; break;
+            case 3: p.label="Reson";  p.maxValue=1.0f; break;
+            case 4: p.label="Drive";  p.maxValue=1.0f; break;
+            case 5: p.label="Env>Ct"; p.minValue=-1.0f; p.maxValue=1.0f; break;
+            default: break;
+            }
+            return p;
         }
-        return p;
+
+        if (!m->hasInternalAmp() && index >= ampOff && index < ampOff + kAmpSlots)
+        {
+            const int as = index - ampOff;
+            ParamSpec p;
+            p.sectionIndex = kAmpSecIdx;
+            p.id           = kAmpIds[as];
+            switch (as)
+            {
+            case 0: p.label="Level";   p.maxValue=2.0f; p.defaultValue=1.0f;
+                    p.role=ParamSpec::Role::Level; break;
+            case 1: p.label="Pan";     p.minValue=-1.0f; p.maxValue=1.0f;
+                    p.role=ParamSpec::Role::Pan; break;
+            case 2: p.label="Gate";    p.isStepped=true; p.maxValue=1.0f; break;
+            case 3: p.label="Attack";  p.maxValue=1000.0f; p.defaultValue=1.0f;
+                    p.unit=ParamSpec::Unit::Ms; p.role=ParamSpec::Role::Attack; break;
+            case 4: p.label="Hold";    p.maxValue=1000.0f;
+                    p.unit=ParamSpec::Unit::Ms; p.role=ParamSpec::Role::Hold; break;
+            case 5: p.label="Decay";   p.maxValue=2000.0f;
+                    p.unit=ParamSpec::Unit::Ms; p.role=ParamSpec::Role::Decay; break;
+            case 6: p.label="Sustain"; p.maxValue=1.0f; p.defaultValue=1.0f;
+                    p.role=ParamSpec::Role::Sustain; break;
+            case 7: p.label="Release"; p.maxValue=2000.0f; p.defaultValue=10.0f;
+                    p.unit=ParamSpec::Unit::Ms; p.role=ParamSpec::Role::Release; break;
+            default: break;
+            }
+            return p;
+        }
+
+        return {};
     }
 
     int LockstepProcessor::numSections(int track) const
@@ -1120,14 +1231,25 @@ namespace lockstep
             return {};
         auto* m = machines_[static_cast<std::size_t>(track)].get();
 
-        // ME.4: the post-machine FLTR block always owns canonical section kFltrSecIdx (2),
-        // regardless of what the machine declares for that index.
-        if (sectionIndex == kFltrSecIdx)
+        const int mnp    = m->numParams();
+        const int ampOff = mnp + (m->hasInternalFilter() ? 0 : kFltrSlots);
+
+        // Post-machine FLTR block owns canonical section 2 (when machine has no internal filter).
+        if (sectionIndex == kFltrSecIdx && !m->hasInternalFilter())
         {
             return { "FLTR",
-                     m->numParams(),     // firstSlot = first virtual FLTR slot
-                     (kFltrSlots + kParamsPerPage - 1) / kParamsPerPage,  // = 2
-                     -1 };              // parentCanonical = -1 (canonical, not extension)
+                     mnp,
+                     (kFltrSlots + kParamsPerPage - 1) / kParamsPerPage,
+                     -1 };
+        }
+
+        // Post-machine AMP block owns canonical section 3 (when machine has no internal amp).
+        if (sectionIndex == kAmpSecIdx && !m->hasInternalAmp())
+        {
+            return { "AMP",
+                     ampOff,
+                     (kAmpSlots + kParamsPerPage - 1) / kParamsPerPage,
+                     -1 };
         }
 
         SectionInfo info = m->section(sectionIndex);
@@ -1155,12 +1277,22 @@ namespace lockstep
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return {};
         const auto ti  = static_cast<std::size_t>(track);
-        const int  mnp = machines_[ti]->numParams();
+        auto*      m   = machines_[ti].get();
+        const int  mnp = m->numParams();
         if (index < mnp)
-            return machines_[ti]->idForSlot(index);
-        const int fs = index - mnp;
-        if (fs >= 0 && fs < kFltrSlots)
-            return kFltrIds[fs];
+            return m->idForSlot(index);
+        const int fltrOff = mnp;
+        const int ampOff  = mnp + (m->hasInternalFilter() ? 0 : kFltrSlots);
+        if (!m->hasInternalFilter())
+        {
+            const int fs = index - fltrOff;
+            if (fs >= 0 && fs < kFltrSlots) return kFltrIds[fs];
+        }
+        if (!m->hasInternalAmp())
+        {
+            const int as = index - ampOff;
+            if (as >= 0 && as < kAmpSlots) return kAmpIds[as];
+        }
         return {};
     }
 
@@ -1169,14 +1301,22 @@ namespace lockstep
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return -1;
         const auto ti = static_cast<std::size_t>(track);
-        if (id.startsWith("lockstep.fltr."))
+        auto*      m  = machines_[ti].get();
+        if (id.startsWith("lockstep.fltr.") && !m->hasInternalFilter())
         {
-            const int mnp = machines_[ti]->numParams();
+            const int mnp = m->numParams();
             for (int fs = 0; fs < kFltrSlots; ++fs)
                 if (id == kFltrIds[fs]) return mnp + fs;
             return -1;
         }
-        return machines_[ti]->slotForId(id);
+        if (id.startsWith("lockstep.amp.") && !m->hasInternalAmp())
+        {
+            const int ampOff = m->numParams() + (m->hasInternalFilter() ? 0 : kFltrSlots);
+            for (int as = 0; as < kAmpSlots; ++as)
+                if (id == kAmpIds[as]) return ampOff + as;
+            return -1;
+        }
+        return m->slotForId(id);
     }
 
     float LockstepProcessor::baseParamValue(int track, int slot) const
@@ -1186,7 +1326,15 @@ namespace lockstep
         const auto& bp = sequence().tracks[ti].baseParams;
         if (static_cast<std::size_t>(slot) < bp.size())
             return bp[static_cast<std::size_t>(slot)];
-        return activePart().tracks[ti].fltrState.getSlot(slot - machines_[ti]->numParams());
+        auto*      m      = machines_[ti].get();
+        const int  mnp    = m->numParams();
+        const int  fltrOff = mnp;
+        const int  ampOff  = mnp + (m->hasInternalFilter() ? 0 : kFltrSlots);
+        if (!m->hasInternalFilter() && slot >= fltrOff && slot < fltrOff + kFltrSlots)
+            return activePart().tracks[ti].fltrState.getSlot(slot - fltrOff);
+        if (!m->hasInternalAmp() && slot >= ampOff && slot < ampOff + kAmpSlots)
+            return activePart().tracks[ti].ampState.getSlot(slot - ampOff);
+        return 0.0f;
     }
 
     void LockstepProcessor::triggerPreview(int poolIndex, int track)

@@ -20,6 +20,7 @@
 #include "io/MidiInput.h"
 #include "machine/IMachine.h"
 #include "machine/SamplePool.h"
+#include "machine/TrackAmpDsp.h"
 #include "machine/TrackFltrDsp.h"
 #include "machine/VoiceChoke.h"
 
@@ -294,6 +295,8 @@ namespace lockstep
         // ME.4: virtual slot count for the post-machine FLTR block (added to machine.numParams()).
         static constexpr int kFltrSlots  = TrackFltrState::kNumSlots;  // 6
         static constexpr int kFltrSecIdx = 2;  // canonical FLTR section index
+        static constexpr int kAmpSlots   = TrackAmpState::kNumSlots;  // 8
+        static constexpr int kAmpSecIdx  = 3;  // canonical AMP section index
 
         std::array<std::unique_ptr<IMachine>, kNumTracks> machines_;
         // Per-track scratch buffers: each machine writes here, then they are
@@ -303,6 +306,7 @@ namespace lockstep
         std::array<VoiceChoke, kNumTracks> trackChokes_;
         // ME.4: post-machine FLTR DSP state (audio-thread only).
         std::array<TrackFltrDsp, kNumTracks> trackFltrs_;
+        std::array<TrackAmpDsp, kNumTracks> trackAmps_;
         // Last step index that actually fired per track; -1 until first fire.
         // Used for FLTR P-Lock resolution in the sequencer path.
         std::array<int, kNumTracks> firedStepIdx_{};
