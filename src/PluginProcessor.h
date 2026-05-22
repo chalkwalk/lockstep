@@ -53,7 +53,7 @@ namespace lockstep
 
         const juce::String getName() const override { return "Lockstep"; }
         bool acceptsMidi() const override                    { return true; }
-        bool producesMidi() const override                   { return false; }
+        bool producesMidi() const override                   { return true; }
         bool isMidiEffect() const override                   { return false; }
         double getTailLengthSeconds() const override         { return 0.0; }
 

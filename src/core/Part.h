@@ -18,6 +18,10 @@ namespace lockstep
         // Unknown IDs on load fall back to StubMachine.
         std::string machineId = "lockstep.sampler.v1";
 
+        // MF.2: stable MIDI output device identifier (empty = none / not a MIDI-out track).
+        // Persisted by device name so it survives device-list reordering between sessions.
+        std::string destinationId = "";
+
         // Machine parameter defaults — one float per slot, sized to the
         // machine's numParams() at attachment time.
         ParamFrame baseParams{};

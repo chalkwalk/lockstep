@@ -2,14 +2,15 @@
 
 #include "IMachine.h"
 #include <array>
+#include <string>
+#include <juce_audio_devices/juce_audio_devices.h>
 
 namespace lockstep
 {
     // First-class MIDI-output machine (DESIGN §15).
     // Translates sequencer-emitted MIDI events to a configured external destination.
-    // Bypasses both post-machine FLTR and AMP blocks; section keys 5/6 are
-    // repurposed to expose the CC bank pages instead (MF.5).
-    // Destination routing to actual MIDI devices is implemented in MF.2.
+    // Bypasses both post-machine FLTR and AMP blocks (hasInternalFilter/Amp = true).
+    // Section keys 5/6 are repurposed to expose CC bank pages instead (MF.5).
     class MidiOutMachine : public IMachine
     {
     public:
@@ -19,10 +20,16 @@ namespace lockstep
         void prepare(double sampleRate, int maxBlockSize) override;
         void reset() override;
 
-        // MF.2: destination routing not yet wired; events forwarded verbatim for now.
-        void process(const juce::MidiBuffer& events,
-                     const ParamFrame& params,
-                     juce::AudioBuffer<float>& buffer) override;
+        // Audio path unused — called via processMidi() instead.
+        void process(const juce::MidiBuffer&, const ParamFrame&,
+                     juce::AudioBuffer<float>&) override {}
+
+        // Routes note events (channel-remapped) and CC messages to the open device.
+        // midiOut receives the same messages so the processor can also forward them
+        // to the host MIDI output bus in plugin mode.
+        void processMidi(const juce::MidiBuffer& events,
+                         const ParamFrame&       params,
+                         juce::MidiBuffer&       midiOut) override;
 
         [[nodiscard]] const char* machineId() const override { return kMachineId; }
         static constexpr const char* kMachineId = "lockstep.midiout.v1";
@@ -33,15 +40,24 @@ namespace lockstep
         [[nodiscard]] SectionInfo section(int index) const override;
 
         [[nodiscard]] int  maxVoices()         const override { return 0; }
+        [[nodiscard]] bool isMidiOut()         const override { return true; }
         [[nodiscard]] bool hasInternalFilter() const override { return true; }
         [[nodiscard]] bool hasInternalAmp()    const override { return true; }
 
-        // Per-track configurable CC numbers (MF.4). Index 0..15 maps to cc[0..15] slots.
-        // Default is CC number == slot index (cc[0] → CC 0, cc[1] → CC 1, etc.).
+        // MF.2: stable device identifier used to reopen the correct device after
+        // a session reload (device-list order may differ between runs).
+        void setDestinationId(const std::string& id);
+        [[nodiscard]] const std::string& destinationId() const { return destinationId_; }
+
+        // Returns the device list refreshed at the last prepare() call.
+        [[nodiscard]] const juce::Array<juce::MidiDeviceInfo>& availableDevices() const
+            { return devices_; }
+
+        // Per-track configurable CC numbers (MF.4). Default: cc[i] → MIDI CC i.
         void setCCNumber(int ccSlot, int ccNumber);
         [[nodiscard]] int ccNumber(int ccSlot) const;
 
-        // Per-track configurable CC labels (MF.4). Empty string = use default "CC<N>".
+        // Per-track configurable CC labels (MF.4). Empty = show "CC<N>".
         void setCCLabel(int ccSlot, const juce::String& label);
         [[nodiscard]] juce::String ccLabel(int ccSlot) const;
 
@@ -53,13 +69,21 @@ namespace lockstep
         // Section 2 (repurposed FLTR key → CC bank A): cc[0..7]
         static constexpr int kSlotCC0     = 3;
         // Section 3 (repurposed AMP key → CC bank B): cc[8..15]
-        static constexpr int kSlotCC8     = 11;
+        // cc[8] is at index 11, cc[15] at index 18.
 
         static constexpr int kNumCCs      = 16;
         static constexpr int kNumSlots    = 3 + kNumCCs;   // 19
         static constexpr int kNumSections = 4;
 
-        std::array<int, kNumCCs>         ccNumbers_{};
+        void openDevice(int destIdx);
+
+        juce::Array<juce::MidiDeviceInfo>  devices_;
+        std::unique_ptr<juce::MidiOutput>  midiOutput_;
+        std::string                        destinationId_;
+        int                                currentDestIdx_ = -1;
+
+        std::array<int, kNumCCs>          ccNumbers_{};
         std::array<juce::String, kNumCCs> ccLabels_{};
+        std::array<int, kNumCCs>          prevCC_{};  // change-detection cache
     };
 }

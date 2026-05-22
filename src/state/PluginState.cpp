@@ -67,6 +67,8 @@ namespace lockstep::PluginState
         juce::ValueTree node("PartTrack");
         node.setProperty("i", t, nullptr);
         node.setProperty("machineId", juce::String(pt.machineId), nullptr);
+        if (!pt.destinationId.empty())
+            node.setProperty("destinationId", juce::String(pt.destinationId), nullptr);
 
         const int np = proc.numParams(t);
         if (np > 0)
@@ -354,8 +356,10 @@ namespace lockstep::PluginState
     static void readPartTrackFromNode(const juce::ValueTree& ptNode,
                                        PartTrack& pt, LockstepProcessor& proc, int t)
     {
-        pt.machineId = ptNode.getProperty("machineId",
-                                           "lockstep.sampler.v1").toString().toStdString();
+        pt.machineId     = ptNode.getProperty("machineId",
+                                              "lockstep.sampler.v1").toString().toStdString();
+        pt.destinationId = ptNode.getProperty("destinationId",
+                                              "").toString().toStdString();
 
         const auto bpNode = ptNode.getChildWithName("BaseParams");
         if (!bpNode.isValid()) return;

@@ -120,6 +120,16 @@ namespace lockstep
         virtual bool hasInternalFilter() const { return false; }
         virtual bool hasInternalAmp()    const { return false; }
 
+        // MIDI-out machines override both of these. isMidiOut() lets the processor
+        // skip the audio path without a dynamic_cast. processMidi() is called instead
+        // of process(); midiOut receives channel-remapped notes and CC messages that
+        // the processor routes to the host MIDI output (plugin) or to the machine's
+        // open juce::MidiOutput device (standalone, handled internally).
+        virtual bool isMidiOut() const { return false; }
+        virtual void processMidi(const juce::MidiBuffer& /*events*/,
+                                  const ParamFrame&       /*params*/,
+                                  juce::MidiBuffer&       /*midiOut*/) {}
+
         // Returns true if this machine is currently producing audio (voice active,
         // fading, or pending). Used by the sequencer to decide whether to apply
         // a choke fade before re-triggering a monophonic machine.

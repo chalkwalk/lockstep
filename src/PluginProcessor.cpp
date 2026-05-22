@@ -611,15 +611,23 @@ namespace lockstep
                     if (ss >= 0 && static_cast<std::size_t>(ss) < frame.size())
                         frame[static_cast<std::size_t>(ss)] = static_cast<float>(previewSampleIndex_);
                 }
-                machines_[i]->process(trackMidi[i], frame, trackBuffers_[i]);
-
+                auto* mi = machines_[i].get();
+                if (mi->isMidiOut())
                 {
-                    auto* mi      = machines_[i].get();
-                    const int mnp = mi->numParams();
+                    juce::MidiBuffer midiOutBuf;
+                    mi->processMidi(trackMidi[i], frame, midiOutBuf);
+                    // Plugin mode: forward to host MIDI output bus.
+                    if (!isStandalone)
+                        midi.addEvents(midiOutBuf, 0, numBlockSamples, 0);
+                }
+                else
+                {
+                    mi->process(trackMidi[i], frame, trackBuffers_[i]);
+
+                    const int mnp     = mi->numParams();
                     const int fltrOff = mnp;
                     const int ampOff  = mnp + (mi->hasInternalFilter() ? 0 : kFltrSlots);
 
-                    // ME.4: post-machine FLTR block (bypassed when machine has internal filter)
                     if (!mi->hasInternalFilter())
                     {
                         TrackFltrState fltr = activePart().tracks[i].fltrState;
@@ -635,7 +643,6 @@ namespace lockstep
                                                     numBlockSamples);
                     }
 
-                    // ME.5: post-machine AMP block (bypassed when machine has internal amp)
                     if (!mi->hasInternalAmp())
                     {
                         TrackAmpState amp = activePart().tracks[i].ampState;
@@ -650,10 +657,10 @@ namespace lockstep
                         trackAmps_[i].processBlock(trackBuffers_[i], trackMidi[i], amp,
                                                    numBlockSamples);
                     }
-                }
 
-                trackPeak_[i].store(trackBuffers_[i].getMagnitude(0, numBlockSamples),
-                                    std::memory_order_relaxed);
+                    trackPeak_[i].store(trackBuffers_[i].getMagnitude(0, numBlockSamples),
+                                        std::memory_order_relaxed);
+                }
             }
 
             // Sum per-track outputs to the main bus.
@@ -858,16 +865,23 @@ namespace lockstep
                 if (ss >= 0 && static_cast<std::size_t>(ss) < frame.size())
                     frame[static_cast<std::size_t>(ss)] = static_cast<float>(previewSampleIndex_);
             }
-            machines_[i]->process(trackMidi[i], frame, trackBuffers_[i]);
-
+            auto* mi = machines_[i].get();
+            if (mi->isMidiOut())
             {
-                auto* mi      = machines_[i].get();
-                const int mnp = mi->numParams();
+                juce::MidiBuffer midiOutBuf;
+                mi->processMidi(trackMidi[i], frame, midiOutBuf);
+                if (!isStandalone)
+                    midi.addEvents(midiOutBuf, 0, numBlockSamples, 0);
+            }
+            else
+            {
+                mi->process(trackMidi[i], frame, trackBuffers_[i]);
+
+                const int mnp     = mi->numParams();
                 const int fltrOff = mnp;
                 const int ampOff  = mnp + (mi->hasInternalFilter() ? 0 : kFltrSlots);
                 const int fsi     = firedStepIdx_[i];
 
-                // ME.4: post-machine FLTR block (bypassed when machine has internal filter)
                 if (!mi->hasInternalFilter())
                 {
                     TrackFltrState fltr = activePart().tracks[i].fltrState;
@@ -883,7 +897,6 @@ namespace lockstep
                                                 numBlockSamples);
                 }
 
-                // ME.5: post-machine AMP block (bypassed when machine has internal amp)
                 if (!mi->hasInternalAmp())
                 {
                     TrackAmpState amp = activePart().tracks[i].ampState;
@@ -898,10 +911,10 @@ namespace lockstep
                     trackAmps_[i].processBlock(trackBuffers_[i], trackMidi[i], amp,
                                                numBlockSamples);
                 }
-            }
 
-            trackPeak_[i].store(trackBuffers_[i].getMagnitude(0, numBlockSamples),
-                                std::memory_order_relaxed);
+                trackPeak_[i].store(trackBuffers_[i].getMagnitude(0, numBlockSamples),
+                                    std::memory_order_relaxed);
+            }
         }
 
         // Sum per-track outputs to the main bus.
@@ -1474,9 +1487,19 @@ namespace lockstep
         const auto& part = activePart();
         for (std::size_t t = 0; t < kNumTracks; ++t)
         {
-            const auto& mid = part.tracks[t].machineId;
-            if (machines_[t] && machines_[t]->machineId() == mid) continue;
-            machines_[t] = makeMachineForId(mid, samplePool_);
+            const auto& pt  = part.tracks[t];
+            if (machines_[t] && machines_[t]->machineId() == pt.machineId)
+            {
+                // Machine type unchanged — still push destinationId in case it changed.
+                if (machines_[t]->isMidiOut())
+                    static_cast<MidiOutMachine*>(machines_[t].get())
+                        ->setDestinationId(pt.destinationId);
+                continue;
+            }
+            machines_[t] = makeMachineForId(pt.machineId, samplePool_);
+            if (machines_[t]->isMidiOut())
+                static_cast<MidiOutMachine*>(machines_[t].get())
+                    ->setDestinationId(pt.destinationId);
             if (getSampleRate() > 0.0)
                 machines_[t]->prepare(getSampleRate(), getBlockSize());
         }

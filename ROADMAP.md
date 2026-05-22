@@ -617,7 +617,7 @@ the "external gear is a first-class workflow" pillar.
 - [x] **MF.1** `MidiOutMachine` skeleton inheriting `IMachine`,
       `maxVoices() = 0`. Schema: `dest`, `channel`, `program`,
       `cc[0..15]`.
-- [ ] **MF.2** Destination resolution: enumerate JUCE MIDI output
+- [x] **MF.2** Destination resolution: enumerate JUCE MIDI output
       devices (standalone) and host MIDI buses (plugin). Persist
       destination by stable id (device name or bus index).
 - [ ] **MF.3** Channel + program P-locking. Channel changes within a
