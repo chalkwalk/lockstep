@@ -109,14 +109,19 @@ namespace lockstep
     {
         const int totalH  = getHeight();
         const int usableH = totalH - kNavRowH - 2 * kVertMargin;
-        const int usableW = getWidth() - 2 * kSideMargin;
-        const int leftX   = kSideMargin;
 
-        int cellH, row0Y, row1Y, row2Y, intraStepGap;
+        int cellH, row0Y, row1Y, row2Y, intraStepGap, leftX, usableW;
 
         if (displayMode_ == GridDisplayMode::Ortholinear)
         {
+            // Size cells so that half a cell is visible on each side as an edge anchor.
+            // 10 cell-widths + 10 gaps fit the full component width:
+            //   cellW = (W - 10*g) / 10
+            //   leftX = g + cellW/2  (main block inset; edge key centered at x=0)
             const int g  = kOrlGap;
+            const int cw = juce::jmax(1, (getWidth() - 10 * g) / 10);
+            leftX        = g + cw / 2;
+            usableW      = getWidth() - 2 * leftX;
             cellH        = juce::jmax(1, (usableH - 3 * g) / 4);
             intraStepGap = g;
             row0Y = kVertMargin;
@@ -125,6 +130,8 @@ namespace lockstep
         }
         else if (displayMode_ == GridDisplayMode::Clean)
         {
+            leftX        = kSideMargin;
+            usableW      = getWidth() - 2 * kSideMargin;
             cellH        = juce::jmax(1, (usableH - kClnRowGap) / 4);
             intraStepGap = 0;
             row0Y = kVertMargin;
@@ -133,6 +140,8 @@ namespace lockstep
         }
         else  // Staggered
         {
+            leftX        = kSideMargin;
+            usableW      = getWidth() - 2 * kSideMargin;
             cellH        = juce::jmax(1, usableH / 4);
             intraStepGap = 0;
             row0Y = kVertMargin;
@@ -485,6 +494,7 @@ namespace lockstep
 
     void KeyboardArea::paintSectionRow(juce::Graphics& g, juce::Rectangle<int> area)
     {
+        paintEdgeRow(g, 0, area);
         const bool showKeyHint  = (displayMode_ != GridDisplayMode::Clean);
         const int  activeTrack  = activeTrack_;
 
@@ -534,10 +544,16 @@ namespace lockstep
 
             if (!available)
             {
+                // Show a brief press flash even on unavailable cells so the user
+                // gets visual feedback if they land on the wrong key.
+                const bool pressed = juce::KeyPress::isKeyCurrentlyDown(
+                    static_cast<int>('4' + s));
                 const KeyGroup grp { kSecInactive, kSecActive, kSecAccent };
                 paintKeyButton(g, sectionCellBounds(cellIdx, area),
                                kKeyHints[cellIdx], "", "",
-                               grp, KeyButtonState::Disabled, showKeyHint);
+                               grp,
+                               pressed ? KeyButtonState::Pressed : KeyButtonState::Disabled,
+                               showKeyHint);
                 continue;
             }
 
@@ -611,6 +627,7 @@ namespace lockstep
 
     void KeyboardArea::paintFunctionRow(juce::Graphics& g, juce::Rectangle<int> area)
     {
+        paintEdgeRow(g, 1, area);
         struct QKeyDef
         {
             int         keyCode;
@@ -629,7 +646,7 @@ namespace lockstep
             { 'Y', "Y", "PST", "RTG", { kActInactive, kActActive, kActAccent } },
             { 'U', "U", "CLR", "POL", { kActInactive, kActActive, kActAccent } },
             { 'I', "I", "TAP", "MET", { kTapInactive, kTapActive, kTapAccent } },
-            { 'P', "P", "PLY", "RST", { kTrnInactive, kTrnActive, kTrnAccent } },
+            { 'O', "O", "PLY", "RST", { kTrnInactive, kTrnActive, kTrnAccent } },
         }};
 
         const bool showKeyHint = (displayMode_ != GridDisplayMode::Clean);
@@ -668,7 +685,7 @@ namespace lockstep
             const auto cell = juce::Rectangle<int>(x, area.getY(), cellW, area.getHeight());
 
             const bool isPressed    = juce::KeyPress::isKeyCurrentlyDown(def.keyCode);
-            const bool isPlaying    = (def.keyCode == 'P') && processor_.clock().inPluginPlaying();
+            const bool isPlaying    = (def.keyCode == 'O') && processor_.clock().inPluginPlaying();
             const bool isMetActive  = (def.keyCode == 'I') && processor_.clock().isMetronomeEnabled();
             const bool isTrkHeld    = (def.keyCode == 'Q') && uiState_.trackHeld;
             const bool isModeActive = (def.keyCode == 'T' && gridMode == TrigGridMode::Keyboard)
@@ -772,6 +789,14 @@ namespace lockstep
                 return cellArea.getX() + col * (cellW + kOrlGap);
             return cellArea.getX() + stagger + col * cellW;
         };
+
+        // Edge anchor keys for A row (rowIndex=2) and Z row (rowIndex=3)
+        for (int row = 0; row < kRows; ++row)
+        {
+            const auto rowRect = juce::Rectangle<int>(cellArea.getX(), rowY(row),
+                                                       cellArea.getWidth(), cellH);
+            paintEdgeRow(g, 2 + row, rowRect);
+        }
 
         // Modifier column (A / Z)
         {
@@ -964,6 +989,127 @@ namespace lockstep
             g.setColour(juce::Colours::white);
             g.setFont(juce::Font(juce::FontOptions(11.0f)));
             g.drawText(label, badgeRect, juce::Justification::centred);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // paintEdgeRow — decorative anchor keys just outside the 9-column block
+    //
+    // ORL: one equal-width half-cell on each side, centred at the component edge.
+    // STG: ANSI-accurate widths, walking outward until off-screen (JUCE clips).
+    // CLN: no edge keys (returns immediately).
+
+    void KeyboardArea::paintEdgeRow(juce::Graphics& g,
+                                     int rowIndex,
+                                     juce::Rectangle<int> rowArea) const
+    {
+        if (displayMode_ == GridDisplayMode::Clean)
+            return;
+
+        const bool showHint = true;
+        // Dimmed group: very dark, clearly non-interactive
+        const KeyGroup dimGrp { 0xFF0E1218u, 0xFF1C2430u, 0xFF3040A0u };
+
+        if (displayMode_ == GridDisplayMode::Ortholinear)
+        {
+            const int gap   = kOrlGap;
+            const int cellW = (rowArea.getWidth() - 8 * gap) / 9;
+            const int cellH = rowArea.getHeight();
+
+            // Left edge key: right edge abuts main block left, center at x=0 (half clipped)
+            const auto leftRect = juce::Rectangle<int>(
+                rowArea.getX() - gap - cellW, rowArea.getY(), cellW, cellH);
+            // Right edge key: left edge abuts main block right, center at x=W (half clipped)
+            const auto rightRect = juce::Rectangle<int>(
+                rowArea.getRight() + gap, rowArea.getY(), cellW, cellH);
+
+            // Per-row labels and keycodes (left side, right side).
+            // ORL shows the single nearest edge key per side per row.
+            // Q-row right is P (80) because O is now PLY; [ sits further right.
+            static const int        kLeftCode[4]   = { 96, 9,   0,   0   };  // ` Tab - -
+            static const char*const kLeftLabel[4]  = { "`", "TAB", "CAP", "SHF" };
+            static const int        kRightCode[4]  = { 48, 80,  59,  47  };  // 0  P  ;  /
+            static const char*const kRightLabel[4] = { "0", "P", ";", "/" };
+
+            {
+                const int kc = kLeftCode[rowIndex];
+                const bool pressed = (kc > 0)
+                    ? juce::KeyPress::isKeyCurrentlyDown(kc)
+                    : (rowIndex == 3 && juce::ModifierKeys::currentModifiers.isShiftDown());
+                paintKeyButton(g, leftRect, kLeftLabel[rowIndex], "", "",
+                               dimGrp,
+                               pressed ? KeyButtonState::Pressed : KeyButtonState::Normal,
+                               showHint);
+            }
+            {
+                const int kc      = kRightCode[rowIndex];
+                const bool pressed = (kc > 0) && juce::KeyPress::isKeyCurrentlyDown(kc);
+                paintKeyButton(g, rightRect, kRightLabel[rowIndex], "", "",
+                               dimGrp,
+                               pressed ? KeyButtonState::Pressed : KeyButtonState::Normal,
+                               showHint);
+            }
+        }
+        else  // Staggered
+        {
+            const int hu  = staggerHalfUnit(rowArea.getWidth());
+            const int cw  = staggerCellW(hu);   // 2*hu
+            const int rY  = rowArea.getY();
+            const int rH  = rowArea.getHeight();
+
+            // Row stagger offsets (half-units): number=0, Q=1, A=2, Z=3
+            static constexpr int kStaggerHu[4] = { 0, 1, 2, 3 };
+            const int mainLeft  = rowArea.getX() + kStaggerHu[rowIndex] * hu;
+            const int mainRight = mainLeft + 9 * cw;
+
+            // Left edge key: one key per row, ANSI width (backtick=2hu, Tab=3hu,
+            // CapsLock=4hu, LShift=5hu).  All start at the same x (kSideMargin-2hu).
+            {
+                static const int kLWHu[4] = { 2, 3, 4, 5 };
+                static const int kLCode[4] = { 96, 9, 0, 0 };  // ` Tab - -
+                static const char*const kLLabel[4] = { "`", "TAB", "CAP", "SHF" };
+                const int keyW = kLWHu[rowIndex] * hu;
+                const int kx   = mainLeft - keyW;
+                const int kc = kLCode[rowIndex];
+                const bool pressed = (kc > 0)
+                    ? juce::KeyPress::isKeyCurrentlyDown(kc)
+                    : (rowIndex == 3 && juce::ModifierKeys::currentModifiers.isShiftDown());
+                paintKeyButton(g, juce::Rectangle<int>(kx, rY, keyW, rH),
+                               kLLabel[rowIndex], "", "", dimGrp,
+                               pressed ? KeyButtonState::Pressed : KeyButtonState::Normal,
+                               showHint);
+            }
+
+            // Right edge keys: regular 2hu keys walking right until off-screen.
+            {
+                // Q-row: P is now the first right-edge key (O=PLY occupies col 8).
+                static const int    kRCode[4][3] = {
+                    { 48, 45, 61 },  // number:  0  -  =
+                    { 80, 91, 93 },  // Q:       P  [  ]
+                    { 59, 39,  0 },  // A:       ;  '
+                    { 47,  0,  0 },  // Z:       /
+                };
+                static const char*const kRLabel[4][3] = {
+                    { "0", "-", "=" },
+                    { "P", "[", "]" },
+                    { ";", "'", ""  },
+                    { "/", "",  ""  },
+                };
+                const int compW = getWidth();
+                int rx = mainRight;
+                for (int j = 0; j < 3; ++j)
+                {
+                    if (kRLabel[rowIndex][j][0] == '\0') break;
+                    if (rx >= compW)                     break;
+                    const int kc = kRCode[rowIndex][j];
+                    const bool pressed = (kc > 0) && juce::KeyPress::isKeyCurrentlyDown(kc);
+                    paintKeyButton(g, juce::Rectangle<int>(rx, rY, cw, rH),
+                                   kRLabel[rowIndex][j], "", "", dimGrp,
+                                   pressed ? KeyButtonState::Pressed : KeyButtonState::Normal,
+                                   showHint);
+                    rx += cw;
+                }
+            }
         }
     }
 

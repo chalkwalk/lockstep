@@ -58,10 +58,16 @@ namespace lockstep
 
         // Transport / utility.
         RecordArm,       // key 2 (Func not held)
-        TapTempo,        // O (Func not held)
-        MetronomeToggle, // Func+O
-        PlayStop,        // T (Func not held)
+        TapTempo,        // key I (Func not held)
+        MetronomeToggle, // Func+I
+        PlayStop,        // key O (Func not held)
         StopReset,       // Func+E
+
+        // Sentinel: returned by QwertyOverlay::resolve() for unmapped keys.
+        // The default ControllerEvent::button must be this value so that the
+        // editor's switch statement falls through to its default: return false
+        // branch rather than firing a real action.
+        None,
     };
 
     // A single normalised input event from any source (QWERTY, MIDI CC, UI encoder,
@@ -71,7 +77,7 @@ namespace lockstep
         enum class Type : std::uint8_t { ButtonDown, ButtonUp, EncoderDelta };
 
         Type             type   = Type::ButtonDown;
-        ControllerButton button = ControllerButton::NavUp;
+        ControllerButton button = ControllerButton::None;
         int              index  = -1;  // step / section / track index
         int              delta  = 0;   // for EncoderDelta only
     };

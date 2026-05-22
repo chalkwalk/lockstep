@@ -29,5 +29,11 @@ namespace lockstep
                                               bool funcHeld,
                                               bool trackHeld,
                                               bool muteHeld) const;
+
+        // Returns true if the key is a decorative edge/anchor key that sits just
+        // outside the 9-column grid.  resolve() already returns an empty event for
+        // these, but callers should still treat them as "handled" (return true from
+        // keyPressed) to prevent spurious host-level reactions.
+        [[nodiscard]] static bool isEdgeKey(int keyCode) noexcept;
     };
 }

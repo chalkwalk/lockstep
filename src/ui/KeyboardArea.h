@@ -88,6 +88,9 @@ namespace lockstep
         void paintSectionRow(juce::Graphics& g, juce::Rectangle<int> area);
         void paintFunctionRow(juce::Graphics& g, juce::Rectangle<int> area);
         void paintStepRows  (juce::Graphics& g, juce::Rectangle<int> area);
+        // Decorative edge/anchor keys rendered just outside each main row (ORL and STG
+        // only; rowIndex 0-3 for number/Q/A/Z rows; JUCE clips the outer halves).
+        void paintEdgeRow   (juce::Graphics& g, int rowIndex, juce::Rectangle<int> rowArea) const;
 
         LockstepProcessor& processor_;
         UiState&           uiState_;

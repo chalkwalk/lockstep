@@ -39,7 +39,7 @@ namespace lockstep
             { code('Y'), B::VerbPlay,    -1 },
             { code('U'), B::VerbStop,    -1 },
             { code('I'), B::TapTempo,    -1 },
-            { code('P'), B::PlayStop,    -1 },
+            { code('O'), B::PlayStop,    -1 },
 
             // Step grid row 1 (S-L = steps 0-7)
             { code('S'), B::Step,         0 },
@@ -68,7 +68,7 @@ namespace lockstep
             // Func+2=PatternScope (held: queue pattern via step; released w/o step: Snapshot).
             // Func+P(PLY, far-right)=Restore checkpoint.
             { code('2'), B::PatternScope,      -1 },
-            { code('P'), B::Restore,           -1 },
+            { code('O'), B::Restore,           -1 },
 
             // Func+E(down)=stop+reset (temporary home until MD nav-secondary pass)
             { code('E'), B::StopReset,         -1 },
@@ -130,6 +130,26 @@ namespace lockstep
             }
             return false;
         }
+    }
+
+    bool QwertyOverlay::isEdgeKey(int keyCode) noexcept
+    {
+        // Keycodes for the decorative keys that sit immediately outside the 9-column
+        // grid: ` 0 - = (number-row edges), Tab [ ] (Q-row edges),
+        // ; ' (A-row right), / (Z-row right).
+        // CapsLock and Shift are OS-level modifiers with no standard KeyPress code.
+        static constexpr int kEdge[] = {
+            96,          // ` (backtick / grave)
+            48, 45, 61,  // 0  -  =
+            9,           // Tab
+            80, 91, 93,  // P  [  ]   (P is the right-edge Q-row key when O=PLY)
+            59, 39,      // ;  '
+            47,          // /
+        };
+        for (int k : kEdge)
+            if (k == keyCode)
+                return true;
+        return false;
     }
 
     ControllerEvent QwertyOverlay::resolve(int keyCode,

@@ -494,6 +494,9 @@ namespace lockstep
                                 ? rawCode - ('a' - 'A')
                                 : rawCode;
 
+        if (QwertyOverlay::isEdgeKey(uCode))
+            return true;
+
         const auto ev = qwerty_.resolve(uCode,
                                         uiState_.funcHeld,
                                         uiState_.trackHeld,
@@ -739,6 +742,9 @@ namespace lockstep
                 repaint();
                 return true;
 
+            case ControllerButton::None:
+                return false;
+
             default:
                 return false;
         }
@@ -817,7 +823,7 @@ namespace lockstep
         }
 
         if (!isKeyDown && playKeyHeld_
-            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('P')))
+            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('O')))
         {
             playKeyHeld_ = false;
             handled = true;

@@ -215,8 +215,8 @@ entry.
 Press step keys to toggle trigs on the focused track. For a
 four-on-the-floor kick, toggle steps **1, 5, 9, 13** (`S`, `H`, `X`, `N`).
 
-Press **Play** (key `9`) to start the transport. You should hear the
-kick on every beat. Press `9` again to stop.
+Press **Play** (key `O`) to start the transport. You should hear the
+kick on every beat. Press `O` again to stop.
 
 ### Step 3 — Add a second track
 
@@ -229,14 +229,14 @@ open the **SRC** section — see Step 5 — and set its sample.)
 
 ### Step 4 — Make a track polymetric
 
-Focus a track, open the **TRACK** meta section (`Func + 5`), and set its
+Focus a track, open the **TRACK** meta section (`Func + 6`), and set its
 **length** to something other than 16 — try 7. That track now loops every
 7 steps while the others loop every 16, and the two phase against each
 other. This is the heart of Lockstep's groove.
 
 ### Step 5 — Tweak a sound (and lock it per step)
 
-The **Section Bar** is keys `3`–`8`. Press a section key (e.g. **SRC**,
+The **Section Bar** is keys `4`–`9`. Press a section key (e.g. **SRC**,
 the sound-source section) to bring its parameters into the
 **Manipulation Zone** — the four-control quadrant. Turn the on-screen
 encoders (or a mapped MIDI knob) to adjust them.
@@ -252,7 +252,7 @@ use the section-clear gesture).
 
 ### Step 6 — Add a conditional trig
 
-Open the **COND** meta section (`Func + 3`). With no step held, the four
+Open the **COND** meta section (`Func + 4`). With no step held, the four
 controls set the **track's** base condition (probability, iteration
 m:n). Set probability to, say, 50% and that track fires stochastically
 each loop.
@@ -265,7 +265,7 @@ are in between.
 
 ### Step 7 — Record a melody live
 
-Press **Record-Arm** (`T`). Now play notes (via the on-screen keyboard
+Press **Record-Arm** (`2`). Now play notes (via the on-screen keyboard
 or an attached MIDI keyboard) and they're captured as trigs, quantised
 to the focused track's grid. Hold a step while playing a note to write
 that note's pitch onto that specific step instead.
@@ -282,9 +282,9 @@ Press `T` again to disarm.
 - **Copy a pattern and mutate it:** hold **Pattern** (`Func + 2`) and
   press **Record** to copy; move to another pattern slot and press
   **Play** to paste. Now change it without touching the original.
-- **Checkpoint before a risky idea:** press **Yes** (`Func + T`) to push
-  a snapshot. Experiment freely. If it didn't land, press **No**
-  (`Func + O`) to revert. Up to 8 levels deep.
+- **Checkpoint before a risky idea:** press `Func + 2` (release without
+  pressing a step) to push a snapshot. Experiment freely. Press
+  `Func + O` to revert. Up to 8 levels deep.
 
 ### Step 9 — Save
 
@@ -311,14 +311,21 @@ Lockstep uses a fixed **9×4** grid. The leftmost column of each row is a
 dedicated modifier; the rest are function or step keys.
 
 ```
-Row 1:  1=Func   2=NavUp   3=SEC0   4=SEC1   5=SEC2   6=SEC3   7=SEC4   8=SEC5   9=Play/Stop
-Row 2:  Q=Track  W=NavLeft E=NavDn  R=NavRt  T=RecArm Y=Record U=Play   I=Stop   O=TapTempo
+Row 1:  1=Func   2=RecArm  3=NavUp  4=SEC0   5=SEC1   6=SEC2   7=SEC3   8=SEC4   9=SEC5
+Row 2:  Q=Track  W=NavLeft E=NavDn  R=NavRt  T=Copy   Y=Paste  U=Clear  I=Tap    O=Ply
 Row 3:  A=Mute   S=Step1   D=Step2  F=Step3  G=Step4  H=Step5  J=Step6  K=Step7  L=Step8
 Row 4:  Z=Fill   X=Step9   C=Step10 V=Step11 B=Step12 N=Step13 M=Step14 ,=Step15 .=Step16
 ```
 
-`Record` / `Play` / `Stop` on row 2 are the **copy / paste / clear**
-verbs — *not* transport. Transport Play/Stop is key `9`.
+`Copy` / `Paste` / `Clear` on row 2 are the **scope verb** keys — *not*
+transport. Transport Play/Stop is key `O`.
+
+In **Ortholinear** and **Staggered** display modes the keys immediately
+outside the 9-column block — `` ` ``, `Tab`, `CapsLock`, `Shift` on the
+left and `0`/`-`/`=`, `P`/`[`/`]`, `;`/`'`, `/` on the right — are
+shown as dimmed decorative anchors. They have no sequencer function, but
+pressing one briefly lights it so you can reorient if you overshoot a
+key.
 
 ### 5.2 Modifier (scope) keys
 
@@ -328,7 +335,7 @@ verbs — *not* transport. Transport Play/Stop is key `9`.
 | `Q` | **Track** | One or more tracks; or, with none selected, Control-All. |
 | `Func + 2` | **Pattern** | A pattern (or several, in chain mode). |
 | step key (held) | **Trig** | The held step(s). Multi-step holds allowed. |
-| `3`–`8` | **Section** | The held section's parameters. |
+| `4`–`9` | **Section** | The held section's parameters. |
 | `A` | **Mute** | The mute mask. |
 | `Z` | **Fill** | "While held, fills fire." |
 
@@ -336,23 +343,21 @@ verbs — *not* transport. Transport Play/Stop is key `9`.
 
 | Key | Verb | Meaning |
 |---|---|---|
-| `Y` | **Record** | Copy the current scope into the clipboard. |
-| `U` | **Play** | Paste the clipboard into the scope. |
-| `I` | **Stop** | Clear the scope. |
-| `Func + T` | **Yes** | Push a checkpoint / confirm. |
-| `Func + O` | **No** | Pop a checkpoint / cancel. |
-| `T` | **Record-Arm** | Toggle live-recording arm (this is transport state, not a scope verb). |
+| `T` | **Record** | Copy the current scope into the clipboard. |
+| `Y` | **Play** | Paste the clipboard into the scope. |
+| `U` | **Stop** | Clear the scope. |
 
 ### 5.4 Transport and navigation
 
 | Key | Action |
 |---|---|
-| `9` | Play / Stop transport. |
-| `Func + 9` | Stop and reset to the start. |
-| `O` | Tap tempo. |
-| `2` / `E` | Navigate up / down (e.g. step-grid pages). |
+| `O` | Play / Stop transport. |
+| `Func + E` | Stop and reset to the start. |
+| `I` | Tap tempo. |
+| `Func + I` | Toggle metronome. |
+| `2` | Toggle record-arm. |
+| `3` / `E` | Navigate up / down (e.g. step-grid pages). |
 | `W` / `R` | Navigate left / right. |
-| `T` | Toggle record-arm. |
 
 ### 5.5 Track selection and focus
 
@@ -387,12 +392,12 @@ a mapped MIDI CC, or a QWERTY action.
 
 | Key | Section (machine layer) |
 |---|---|
-| `3` | **TRIG** — note, velocity, gate defaults |
-| `4` | **SRC** — sound source (sampler / oscillator controls) |
-| `5` | **FLTR** — filter *(post-machine block: planned, ME)* |
-| `6` | **AMP** — amplitude envelope *(post-machine block: planned, ME)* |
-| `7` | **LFO** — modulation *(planned)* |
-| `8` | **FX** — per-track effects *(planned, MV)* |
+| `4` | **TRIG** — note, velocity, gate defaults |
+| `5` | **SRC** — sound source (sampler / oscillator controls) |
+| `6` | **FLTR** — filter *(post-machine block: planned, ME)* |
+| `7` | **AMP** — amplitude envelope *(post-machine block: planned, ME)* |
+| `8` | **LFO** — modulation *(planned)* |
+| `9` | **FX** — per-track effects *(planned, MV)* |
 
 Press a section key repeatedly to page through its parameters (the MZ
 shows four at a time). The same key under `Func` selects the **track
@@ -400,16 +405,16 @@ meta** section:
 
 | Key | Meta section |
 |---|---|
-| `Func + 3` | **COND** — probability, m:n iteration, prev-dep |
-| `Func + 4` | **TRIG** — default note, velocity, gate |
-| `Func + 5` | **TRACK** — length, clock divider |
-| `Func + 8` | **GLOBAL** — output gain, sync mode, clock settings |
+| `Func + 4` | **COND** — probability, m:n iteration, prev-dep |
+| `Func + 5` | **TRIG** — default note, velocity, gate |
+| `Func + 6` | **TRACK** — length, clock divider |
+| `Func + 9` | **GLOBAL** — output gain, sync mode, clock settings |
 
 ### 5.9 Copy / paste / clear
 
 A single uniform grammar — **hold scope, press verb**:
 
-| Scope held | + Record (copy) | + Play (paste) | + Stop (clear) |
+| Scope held | + Copy (`T`) | + Paste (`Y`) | + Clear (`U`) |
 |---|---|---|---|
 | **Trig** (1+ steps) | Copy steps (trigs + conditions + P-Locks) | Paste onto held steps | Clear held steps' overrides |
 | **Section** key | Copy that section's params | Paste section to current track | Reset section to default |
@@ -454,7 +459,7 @@ everything else," which the multi-select gesture already gives you.
 
 ### 5.13 Trig conditions
 
-Set in the **COND** section (`Func + 3`). Three condition types, each
+Set in the **COND** section (`Func + 4`). Three condition types, each
 valid at track level (no step held) or step level (step held):
 
 - **Probability (1–100%)** — stochastic firing.
@@ -483,8 +488,8 @@ boundary. The transport chrome shows the queued pattern.
 
 | Gesture | Action |
 |---|---|
-| **Yes** (`Func + T`) | Push the current pattern + kit onto the checkpoint stack. |
-| **No** (`Func + O`) | Pop and restore the last checkpoint. |
+| `Func + 2` (release without pressing a step) | Push the current pattern + kit onto the checkpoint stack. |
+| `Func + O` | Pop and restore the last checkpoint. |
 
 Up to 8 deep, oldest evicted on overflow. **RAM-only** — checkpoints are
 a scratch-take tool and do *not* persist across save/reload. The chrome
@@ -511,9 +516,9 @@ The trig grid can become a modal surface for non-step roles:
 
 | Gesture | Mode |
 |---|---|
-| `Func + Y` | Keyboard mode (16 keys → chromatic notes) |
-| `Func + U` | Retrig / slice mode |
-| `Func + I` | Sound Pool mode |
+| `Func + T` | Keyboard mode (16 keys → chromatic notes) |
+| `Func + Y` | Retrig / slice mode |
+| `Func + U` | Sound Pool mode |
 
 A mode badge (`KEY` / `RTG` / `POL`) shows in the chrome. The full
 behaviour of these modes lands in a later milestone (see

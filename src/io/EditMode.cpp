@@ -66,6 +66,7 @@ namespace lockstep
             case ControllerButton::MetronomeToggle:
             case ControllerButton::PlayStop:
             case ControllerButton::StopReset:
+            case ControllerButton::None:
                 return false;
         }
         return false;
