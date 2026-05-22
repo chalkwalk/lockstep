@@ -84,6 +84,13 @@ namespace lockstep
 
         std::array<int, kNumCCs>          ccNumbers_{};
         std::array<juce::String, kNumCCs> ccLabels_{};
-        std::array<int, kNumCCs>          prevCC_{};  // change-detection cache
+        std::array<int, kNumCCs>          prevCC_{};   // change-detection cache
+
+        // MF.3: active voice tracking for clean channel-change note-offs.
+        int activeNote_    = -1;  // -1 = no note sounding
+        int activeChannel_ = 1;
+
+        // MF.3: program change change-detection. -2 = never sent (forces first-block emit).
+        int prevProgram_ = -2;
     };
 }

@@ -620,7 +620,7 @@ the "external gear is a first-class workflow" pillar.
 - [x] **MF.2** Destination resolution: enumerate JUCE MIDI output
       devices (standalone) and host MIDI buses (plugin). Persist
       destination by stable id (device name or bus index).
-- [ ] **MF.3** Channel + program P-locking. Channel changes within a
+- [x] **MF.3** Channel + program P-locking. Channel changes within a
       pattern emit clean note-offs on the previous channel.
 - [ ] **MF.4** Per-track configurable CC numbers + labels for the
       16 generic `cc[i]` slots. Optional `cc_name_table` JSON file

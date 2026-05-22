@@ -35,8 +35,10 @@ namespace lockstep
 
     void MidiOutMachine::reset()
     {
-        // Fill prevCC with -1 so all CCs are re-emitted at next note-on.
-        prevCC_.fill(-1);
+        prevCC_.fill(-1);    // force full CC re-emission next block
+        prevProgram_ = -2;   // force program re-emit next note-on
+        activeNote_    = -1;
+        activeChannel_ = 1;
     }
 
     void MidiOutMachine::processMidi(const juce::MidiBuffer& events,
@@ -54,23 +56,53 @@ namespace lockstep
 
         const int channel = juce::jlimit(1, 16,
                                           static_cast<int>(params[kSlotChannel]));
+        const int program = static_cast<int>(params[kSlotProgram]);
 
-        // Pass through note-on/off with MIDI channel remapping.
+        // Process note events with channel remapping and clean-channel-change logic.
         for (const auto& meta : events)
         {
             const auto msg = meta.getMessage();
             if (msg.isNoteOn())
+            {
+                // MF.3: if the channel changed while a note is sounding, send note-off
+                // on the old channel first so the downstream synth doesn't stick.
+                if (activeNote_ >= 0 && activeChannel_ != channel)
+                {
+                    midiOut.addEvent(
+                        juce::MidiMessage::noteOff(activeChannel_, activeNote_),
+                        meta.samplePosition);
+                    activeNote_ = -1;
+                }
+
+                // MF.3: emit program change before the note-on when program changed.
+                if (program >= 0 && program != prevProgram_)
+                {
+                    midiOut.addEvent(
+                        juce::MidiMessage::programChange(channel, program),
+                        meta.samplePosition);
+                    prevProgram_ = program;
+                }
+
                 midiOut.addEvent(
                     juce::MidiMessage::noteOn(channel, msg.getNoteNumber(),
                                               msg.getVelocity()),
                     meta.samplePosition);
+                activeNote_    = msg.getNoteNumber();
+                activeChannel_ = channel;
+            }
             else if (msg.isNoteOff())
+            {
                 midiOut.addEvent(
                     juce::MidiMessage::noteOff(channel, msg.getNoteNumber(),
                                                msg.getVelocity()),
                     meta.samplePosition);
+                if (msg.getNoteNumber() == activeNote_)
+                    activeNote_ = -1;
+            }
             else
+            {
                 midiOut.addEvent(msg, meta.samplePosition);
+            }
         }
 
         // Emit CC messages for any slot whose value has changed since last block.
