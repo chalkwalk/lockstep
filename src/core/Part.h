@@ -2,6 +2,7 @@
 
 #include <array>
 #include <string>
+#include <vector>
 #include "../machine/IMachine.h"
 #include "Sequence.h"       // kNumTracks
 #include "TrackAmpState.h"  // ME.5 post-machine AMP params
@@ -34,6 +35,12 @@ namespace lockstep
         // P-lockable via virtual slot indices above the FLTR range.
         // Inactive when the machine opts in with hasInternalAmp() = true.
         TrackAmpState ampState;
+
+        // MF.4: per-track CC slot configuration for MIDI-out tracks.
+        // Empty vectors = use defaults (CC number i → MIDI CC i, no labels).
+        // When populated, length == MidiOutMachine::kNumCCs (16).
+        std::vector<int>         midiCCNumbers{};
+        std::vector<std::string> midiCCLabels{};
     };
 
     // Part owns the per-track machine identity, base parameter frame,

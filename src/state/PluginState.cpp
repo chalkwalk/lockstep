@@ -6,6 +6,7 @@
 #include "../core/Project.h"
 #include "../core/Sequence.h"
 #include "../core/TrigCondition.h"
+#include "../machine/MidiOutMachine.h"
 #include "../machine/SamplerMachine.h"
 #include <cstdint>
 #include <cstdio>
@@ -100,6 +101,29 @@ namespace lockstep::PluginState
             if (bpNode.getNumChildren() > 0)
                 node.appendChild(bpNode, nullptr);
         }
+
+        // MF.4: serialize CC slot configuration for MIDI-out tracks.
+        if (!pt.midiCCNumbers.empty() || !pt.midiCCLabels.empty())
+        {
+            juce::ValueTree ccNode("CCConfig");
+            for (int ci = 0; ci < MidiOutMachine::kNumCCs; ++ci)
+            {
+                const int n = (ci < static_cast<int>(pt.midiCCNumbers.size()))
+                                  ? pt.midiCCNumbers[static_cast<std::size_t>(ci)] : ci;
+                const std::string& lbl = (ci < static_cast<int>(pt.midiCCLabels.size()))
+                                             ? pt.midiCCLabels[static_cast<std::size_t>(ci)] : "";
+                if (n == ci && lbl.empty()) continue;
+                juce::ValueTree ccEntry("CC");
+                ccEntry.setProperty("i", ci, nullptr);
+                ccEntry.setProperty("n", n,  nullptr);
+                if (!lbl.empty())
+                    ccEntry.setProperty("label", juce::String(lbl), nullptr);
+                ccNode.appendChild(ccEntry, nullptr);
+            }
+            if (ccNode.getNumChildren() > 0)
+                node.appendChild(ccNode, nullptr);
+        }
+
         return node;
     }
 
@@ -360,6 +384,25 @@ namespace lockstep::PluginState
                                               "lockstep.sampler.v1").toString().toStdString();
         pt.destinationId = ptNode.getProperty("destinationId",
                                               "").toString().toStdString();
+
+        // MF.4: restore CC slot configuration.
+        const auto ccNode = ptNode.getChildWithName("CCConfig");
+        if (ccNode.isValid())
+        {
+            pt.midiCCNumbers.resize(static_cast<std::size_t>(MidiOutMachine::kNumCCs));
+            pt.midiCCLabels .resize(static_cast<std::size_t>(MidiOutMachine::kNumCCs));
+            for (int ci = 0; ci < MidiOutMachine::kNumCCs; ++ci)
+                pt.midiCCNumbers[static_cast<std::size_t>(ci)] = ci;  // default
+            for (auto ccEntry : ccNode)
+            {
+                const int ci = static_cast<int>(ccEntry.getProperty("i", -1));
+                if (ci < 0 || ci >= MidiOutMachine::kNumCCs) continue;
+                const auto csz = static_cast<std::size_t>(ci);
+                pt.midiCCNumbers[csz] = static_cast<int>(ccEntry.getProperty("n", ci));
+                pt.midiCCLabels[csz]  = ccEntry.getProperty("label", "")
+                                            .toString().toStdString();
+            }
+        }
 
         const auto bpNode = ptNode.getChildWithName("BaseParams");
         if (!bpNode.isValid()) return;

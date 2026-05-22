@@ -187,9 +187,17 @@ namespace lockstep
             const auto sz = static_cast<std::size_t>(ci);
             p.sectionIndex = (ci < 8) ? 2 : 3;
             p.id    = juce::String("cc") + juce::String(ci);
-            p.label = ccLabels_[sz].isEmpty()
-                        ? (juce::String("CC") + juce::String(ccNumbers_[sz]))
-                        : ccLabels_[sz];
+            if (ccLabels_[sz].isNotEmpty())
+            {
+                p.label = ccLabels_[sz];
+            }
+            else
+            {
+                const auto it = nameTable_.find(ccNumbers_[sz]);
+                p.label = (it != nameTable_.end())
+                            ? it->second
+                            : (juce::String("CC") + juce::String(ccNumbers_[sz]));
+            }
             p.maxValue = 127.0f;
         }
         return p;
@@ -229,5 +237,15 @@ namespace lockstep
     {
         if (ccSlot < 0 || ccSlot >= kNumCCs) return {};
         return ccLabels_[static_cast<std::size_t>(ccSlot)];
+    }
+
+    void MidiOutMachine::setCCNameTable(std::unordered_map<int, juce::String> table)
+    {
+        nameTable_ = std::move(table);
+    }
+
+    void MidiOutMachine::clearCCNameTable()
+    {
+        nameTable_.clear();
     }
 }

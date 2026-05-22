@@ -622,9 +622,10 @@ the "external gear is a first-class workflow" pillar.
       destination by stable id (device name or bus index).
 - [x] **MF.3** Channel + program P-locking. Channel changes within a
       pattern emit clean note-offs on the previous channel.
-- [ ] **MF.4** Per-track configurable CC numbers + labels for the
-      16 generic `cc[i]` slots. Optional `cc_name_table` JSON file
-      per destination (e.g. Digitone, Syntakt, A4, Rytm presets).
+- [x] **MF.4** Per-track configurable CC numbers + labels for the
+      16 generic `cc[i]` slots. `nameTable_` in `MidiOutMachine`
+      for destination-specific CC name lookup (MF.8 populates it).
+      CC config serialized as `<CCConfig>` in PluginState.
 - [ ] **MF.5** FLTR/AMP bypass: `MidiOutMachine` returns
       `hasInternalFilter() = true` and `hasInternalAmp() = true`,
       so both post-machine blocks are skipped. The FLTR (key 5) and

@@ -1490,16 +1490,32 @@ namespace lockstep
             const auto& pt  = part.tracks[t];
             if (machines_[t] && machines_[t]->machineId() == pt.machineId)
             {
-                // Machine type unchanged — still push destinationId in case it changed.
+                // Machine type unchanged — still push MIDI-out config in case it changed.
                 if (machines_[t]->isMidiOut())
-                    static_cast<MidiOutMachine*>(machines_[t].get())
-                        ->setDestinationId(pt.destinationId);
+                {
+                    auto* mom = static_cast<MidiOutMachine*>(machines_[t].get());
+                    mom->setDestinationId(pt.destinationId);
+                    for (int ci = 0; ci < MidiOutMachine::kNumCCs
+                                  && ci < static_cast<int>(pt.midiCCNumbers.size()); ++ci)
+                        mom->setCCNumber(ci, pt.midiCCNumbers[static_cast<std::size_t>(ci)]);
+                    for (int ci = 0; ci < MidiOutMachine::kNumCCs
+                                  && ci < static_cast<int>(pt.midiCCLabels.size()); ++ci)
+                        mom->setCCLabel(ci, juce::String(pt.midiCCLabels[static_cast<std::size_t>(ci)]));
+                }
                 continue;
             }
             machines_[t] = makeMachineForId(pt.machineId, samplePool_);
             if (machines_[t]->isMidiOut())
-                static_cast<MidiOutMachine*>(machines_[t].get())
-                    ->setDestinationId(pt.destinationId);
+            {
+                auto* mom = static_cast<MidiOutMachine*>(machines_[t].get());
+                mom->setDestinationId(pt.destinationId);
+                for (int ci = 0; ci < MidiOutMachine::kNumCCs
+                              && ci < static_cast<int>(pt.midiCCNumbers.size()); ++ci)
+                    mom->setCCNumber(ci, pt.midiCCNumbers[static_cast<std::size_t>(ci)]);
+                for (int ci = 0; ci < MidiOutMachine::kNumCCs
+                              && ci < static_cast<int>(pt.midiCCLabels.size()); ++ci)
+                    mom->setCCLabel(ci, juce::String(pt.midiCCLabels[static_cast<std::size_t>(ci)]));
+            }
             if (getSampleRate() > 0.0)
                 machines_[t]->prepare(getSampleRate(), getBlockSize());
         }

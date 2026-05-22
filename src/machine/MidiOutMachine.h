@@ -3,6 +3,7 @@
 #include "IMachine.h"
 #include <array>
 #include <string>
+#include <unordered_map>
 #include <juce_audio_devices/juce_audio_devices.h>
 
 namespace lockstep
@@ -44,6 +45,8 @@ namespace lockstep
         [[nodiscard]] bool hasInternalFilter() const override { return true; }
         [[nodiscard]] bool hasInternalAmp()    const override { return true; }
 
+        static constexpr int kNumCCs = 16;
+
         // MF.2: stable device identifier used to reopen the correct device after
         // a session reload (device-list order may differ between runs).
         void setDestinationId(const std::string& id);
@@ -57,9 +60,15 @@ namespace lockstep
         void setCCNumber(int ccSlot, int ccNumber);
         [[nodiscard]] int ccNumber(int ccSlot) const;
 
-        // Per-track configurable CC labels (MF.4). Empty = show "CC<N>".
+        // Per-track configurable CC labels (MF.4). Empty = show name from table or "CC<N>".
         void setCCLabel(int ccSlot, const juce::String& label);
         [[nodiscard]] juce::String ccLabel(int ccSlot) const;
+
+        // MF.4: destination-specific CC name table. Maps CC number → friendly name string.
+        // Used as a fallback label when no per-slot ccLabel is set.
+        // Loaded from hardware-preset tables (MF.8); per-track override labels take priority.
+        void setCCNameTable(std::unordered_map<int, juce::String> table);
+        void clearCCNameTable();
 
     private:
         // Section 1 "SRC": destination, channel, program
@@ -71,7 +80,6 @@ namespace lockstep
         // Section 3 (repurposed AMP key → CC bank B): cc[8..15]
         // cc[8] is at index 11, cc[15] at index 18.
 
-        static constexpr int kNumCCs      = 16;
         static constexpr int kNumSlots    = 3 + kNumCCs;   // 19
         static constexpr int kNumSections = 4;
 
@@ -85,6 +93,9 @@ namespace lockstep
         std::array<int, kNumCCs>          ccNumbers_{};
         std::array<juce::String, kNumCCs> ccLabels_{};
         std::array<int, kNumCCs>          prevCC_{};   // change-detection cache
+
+        // MF.4: destination-specific CC name table; keyed by CC number.
+        std::unordered_map<int, juce::String> nameTable_;
 
         // MF.3: active voice tracking for clean channel-change note-offs.
         int activeNote_    = -1;  // -1 = no note sounding
