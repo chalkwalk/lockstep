@@ -4,6 +4,7 @@
 #include "ParameterIDs.h"
 #include "core/StateResolver.h"
 #include "core/TrigEvaluator.h"
+#include "machine/MidiOutMachine.h"
 #include "machine/SamplerMachine.h"
 #include "machine/StubMachine.h"
 #include "state/PluginState.h"
@@ -1454,6 +1455,8 @@ namespace lockstep
     {
         if (id == SamplerMachine::kMachineId || id.empty())
             return std::make_unique<SamplerMachine>(pool);
+        if (id == MidiOutMachine::kMachineId)
+            return std::make_unique<MidiOutMachine>();
         return std::make_unique<StubMachine>(id);
     }
 

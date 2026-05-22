@@ -12,6 +12,7 @@ add_library(lockstep_core STATIC
     core/Clock.cpp
     core/Metronome.cpp
     core/StateResolver.cpp
+    machine/MidiOutMachine.cpp
     machine/SamplerMachine.cpp
     machine/SamplePool.cpp
     machine/VoiceChoke.cpp

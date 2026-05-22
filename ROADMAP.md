@@ -580,7 +580,7 @@ hierarchy landed in MC.
       `Snapshot` key pushes; `Restore` key pops. Depth shown in
       "CK:N" chrome badge. Not serialized.
 
-### ME — Canonical sections + post-machine FLTR/AMP + role tags  [pending]
+### ME — Canonical sections + post-machine FLTR/AMP + role tags  [complete]
 
 The DSP and schema work that makes the canonical section bar uniform
 across machine types.
@@ -608,15 +608,13 @@ across machine types.
 - [x] **ME.6** Machine opt-out: `IMachine::hasInternalFilter()` /
       `hasInternalAmp()` bypass the corresponding block. Section key
       for that section is repurposed to the machine's own slots.
-- [ ] **ME.7** MIDI-out tracks (MF) implicitly bypass both; FLTR/AMP
-      section keys are repurposed to MIDI CC banks on those tracks.
 
 ### MF — MIDI-out machine (first-class)  [pending]
 
 DESIGN §15. A `MidiOutMachine` peer of `SamplerMachine`. Required for
 the "external gear is a first-class workflow" pillar.
 
-- [ ] **MF.1** `MidiOutMachine` skeleton inheriting `IMachine`,
+- [x] **MF.1** `MidiOutMachine` skeleton inheriting `IMachine`,
       `maxVoices() = 0`. Schema: `dest`, `channel`, `program`,
       `cc[0..15]`.
 - [ ] **MF.2** Destination resolution: enumerate JUCE MIDI output
@@ -627,15 +625,20 @@ the "external gear is a first-class workflow" pillar.
 - [ ] **MF.4** Per-track configurable CC numbers + labels for the
       16 generic `cc[i]` slots. Optional `cc_name_table` JSON file
       per destination (e.g. Digitone, Syntakt, A4, Rytm presets).
-- [ ] **MF.5** All-Notes-Off + Reset-All-Controllers on transport
+- [ ] **MF.5** FLTR/AMP bypass: `MidiOutMachine` returns
+      `hasInternalFilter() = true` and `hasInternalAmp() = true`,
+      so both post-machine blocks are skipped. The FLTR (key 5) and
+      AMP (key 6) section keys are repurposed to the machine's own
+      CC bank pages instead.
+- [ ] **MF.6** All-Notes-Off + Reset-All-Controllers on transport
       stop / pattern stop, per channel. Prevents stuck notes
       downstream.
-- [ ] **MF.6** Participation in performance features: Control-All
+- [ ] **MF.7** Participation in performance features: Control-All
       across MIDI-out tracks, Sound Pool entries for MIDI-out
       sounds, Fills / Mutes / Copy-Paste / Checkpoints — verify
       end-to-end that each unmodified gesture works against
       MIDI-out tracks.
-- [ ] **MF.7** Hardware-targeting factory tables for at least:
+- [ ] **MF.8** Hardware-targeting factory tables for at least:
       Digitakt, Digitone, Syntakt, Analog Four, Analog Rytm,
       Octatrack, Tonverk. (Tonverk CC table TBD; ship what's
       published.)
