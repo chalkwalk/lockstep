@@ -34,12 +34,12 @@ namespace lockstep
             { code('8'), B::Section,      4 },
             { code('9'), B::Section,      5 },
 
-            // Verb and utility row (T=PlayStop, Y/U/I=verbs, O=TapTempo)
-            { code('T'), B::PlayStop,    -1 },
+            // Verb and utility row — new order: Y=CPY U=PST I=CLR O=TAP T=PLY (far right)
             { code('Y'), B::VerbRecord,  -1 },
             { code('U'), B::VerbPlay,    -1 },
             { code('I'), B::VerbStop,    -1 },
             { code('O'), B::TapTempo,    -1 },
+            { code('T'), B::PlayStop,    -1 },
 
             // Step grid row 1 (S-L = steps 0-7)
             { code('S'), B::Step,         0 },
@@ -66,7 +66,7 @@ namespace lockstep
         // Keys not listed here fall through to the primary table.
         constexpr std::array<Entry, 14> kFunc = { {
             // Func+2=PatternScope (held: queue pattern via step; released w/o step: Snapshot).
-            // Func+T(Ply)=restore.
+            // Func+T(PLY, now far-right)=Restore checkpoint.
             { code('2'), B::PatternScope,      -1 },
             { code('T'), B::Restore,           -1 },
 

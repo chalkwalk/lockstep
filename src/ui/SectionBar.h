@@ -55,12 +55,6 @@ namespace lockstep
         // Returns the section index (0–5) for section cells, or -1 for fixed/tail cells.
         [[nodiscard]] static int cellToSection(int cellIndex);
 
-        void paintFixedCell(juce::Graphics& g, const juce::Rectangle<int>& r,
-                            const juce::String& label, bool highlighted) const;
-
-        void paintSectionCell(juce::Graphics& g, const juce::Rectangle<int>& r,
-                              int sectionIndex, int activeTrack) const;
-
         void notifyChanged(int sectionIndex, int activeTrack);
 
         LockstepProcessor& processor_;

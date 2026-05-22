@@ -597,13 +597,15 @@ namespace lockstep
                 return true;
 
             case ControllerButton::NavUp:
-                stepGrid_.setActiveTrack(std::max(0, stepGrid_.getActiveTrack() - 1));
-                return true;
-
-            case ControllerButton::NavDown:
+                // Up = next higher track number (user expectation).
                 stepGrid_.setActiveTrack(
                     std::min(static_cast<int>(kNumTracks) - 1,
                              stepGrid_.getActiveTrack() + 1));
+                return true;
+
+            case ControllerButton::NavDown:
+                // Down = previous (lower) track number.
+                stepGrid_.setActiveTrack(std::max(0, stepGrid_.getActiveTrack() - 1));
                 return true;
 
             case ControllerButton::NavLeft:
@@ -924,16 +926,21 @@ namespace lockstep
             }
         }
 
-        // The two key rows + the 2-row step grid share the rest, keeping their
-        // former 44:44:114 proportions so the cells scale up uniformly.
-        const int keyArea = bounds.getHeight();
-        const int secH    = juce::roundToInt(static_cast<float>(keyArea) * (44.0f / 202.0f));
-        const int funcH   = juce::roundToInt(static_cast<float>(keyArea) * (44.0f / 202.0f));
+        // Equal-height rows: all 4 button rows (sec bar, func bar, 2 step rows) share
+        // the same cell height; vertical gap between row pairs = horizontal key gap (4 px).
+        // Derivation: 4*cellH + 2*rowGap + 2*4(bar padding) + 8(grid padding) + 26(nav) = avail
+        //   => cellH = (avail - 50) / 4  (with rowGap = 4)
+        static constexpr int kRowGap = 4;
+        const int availH = bounds.getHeight();
+        const int cellH  = juce::jmax(1, (availH - 50) / 4);
+        const int secH   = cellH + 4;      // reduced(8,2): 2 top + 2 bottom = 4
+        const int funcH  = cellH + 4;
+        const int stepH  = 2 * cellH + 34; // reduced(8,4): 4+4=8; nav row=26
         sectionBar_.setBounds(bounds.removeFromTop(secH).reduced(8, 2));
+        bounds.removeFromTop(kRowGap);
         functionBar_.setBounds(bounds.removeFromTop(funcH).reduced(8, 2));
-        if (gridMode_ == GridDisplayMode::Clean)
-            bounds.removeFromTop(kClnRowGap);
-        stepGrid_.setBounds(bounds.reduced(8, 4));  // remainder (≈114/202 share)
+        bounds.removeFromTop(gridMode_ == GridDisplayMode::Clean ? kClnRowGap : kRowGap);
+        stepGrid_.setBounds(bounds.removeFromTop(stepH).reduced(8, 4));
 
         poolOverlay_.setBounds(manipulationZone_.getBounds()
             .withBottom(stepGrid_.getBounds().getY()));

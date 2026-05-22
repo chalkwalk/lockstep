@@ -1,4 +1,6 @@
 #include "StepGrid.h"
+#include "KeyButton.h"
+#include "UITheme.h"
 #include "../PluginProcessor.h"
 #include "../ParameterIDs.h"
 #include "../core/TrigCondition.h"
@@ -7,15 +9,13 @@
 
 namespace lockstep
 {
-    static const juce::Colour kColActive    { 0xFF50B478u };  // green trig — certain fire
-    static const juce::Colour kColTrigDim   { 0xFF1C3D28u };  // dark green — blocked / low-prob trig
-    static const juce::Colour kColFillOnly  { 0xFF7B4EC0u };  // violet — OnlyFill trig
-    static const juce::Colour kColNeverFill { 0xFF1C3D28u };  // same dim — NeverFill suppressed
-    static const juce::Colour kColInactive  { 0xFF2D3741u };  // dark, in-range, no trig
-    static const juce::Colour kColOutRange  { 0xFF1C2026u };  // near-black, out of track length
-    static const juce::Colour kColPlayhead  { 0xFFFFCC44u };  // amber highlight
-    static const juce::Colour kColHeld      { 0xFFFFFFFFu };  // held-step border
-    static const juce::Colour kColPLock     { 0xFF3EC8C8u };  // P-Lock dot
+    static const juce::Colour kColActive   { theme::kStepActive   };
+    static const juce::Colour kColFillOnly { theme::kStepFillOnly };
+    static const juce::Colour kColInactive { theme::kStepInactive };
+    static const juce::Colour kColOutRange { theme::kStepOutRange };
+    static const juce::Colour kColPlayhead { theme::kStepPlayhead };
+    static const juce::Colour kColHeld     { theme::kStepHeld     };
+    static const juce::Colour kColPLock    { theme::kStepPLock    };
 
     // Pre-computes a fire-probability in [0,1] for each slot on the visible page.
     // Steps with trig=false → 0. Scans from step 0 so prev-dep chains propagate
@@ -239,37 +239,31 @@ namespace lockstep
         };
 
         // ---- Modifier column (A = MuteScope, Z = FillScope) ----
-        for (int row = 0; row < kRows; ++row)
+        // Uses paintKeyButton so these match the SectionBar and FunctionBar buttons exactly.
         {
-            const int x = colX(row, 0);
-            const int y = cellArea.getY() + row * cellH;
-            const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+            static constexpr const char* kModKeys[kRows]  = { "A", "Z" };
+            static constexpr const char* kModLabels[kRows] = { "MUT", "FIL" };
+            const KeyGroup modGrp { theme::kModInactive, theme::kModActive, theme::kModAccent };
 
-            const bool isModHeld = (row == 0) ? uiState_.muteHeld : uiState_.fillHeld;
-            const bool modKeyDown = juce::KeyPress::isKeyCurrentlyDown(
-                (row == 0) ? static_cast<int>('A') : static_cast<int>('Z'));
-
-            g.setColour(modKeyDown ? juce::Colour::fromRGB(80, 120, 165)
-                        : isModHeld ? (row == 0 ? juce::Colour(0xFF702020u)
-                                                : juce::Colour(0xFF502870u))
-                                    : juce::Colour::fromRGB(25, 32, 42));
-            g.fillRoundedRectangle(cell.toFloat(), 3.0f);
-            g.setColour(juce::Colour::fromRGB(48, 58, 70));
-            g.drawRoundedRectangle(cell.toFloat(), 3.0f, 1.0f);
-
-            if (showKeyLetters)
+            for (int row = 0; row < kRows; ++row)
             {
-                g.setFont(juce::Font(juce::FontOptions(8.0f)));
-                g.setColour(juce::Colour::fromRGB(65, 80, 95));
-                g.drawText((row == 0) ? "A" : "Z",
-                           cell.withHeight(10).reduced(2, 0),
-                           juce::Justification::topLeft);
+                const int x = colX(row, 0);
+                const int y = cellArea.getY() + row * cellH;
+                const auto cell = juce::Rectangle<int>(x, y, cellW, cellH);
+
+                const bool isHeld = (row == 0) ? uiState_.muteHeld : uiState_.fillHeld;
+                const bool keyDown = juce::KeyPress::isKeyCurrentlyDown(
+                    (row == 0) ? static_cast<int>('A') : static_cast<int>('Z'));
+
+                KeyButtonState st = KeyButtonState::Normal;
+                if      (keyDown) st = KeyButtonState::Pressed;
+                else if (isHeld)  st = KeyButtonState::ModeActive;
+
+                paintKeyButton(g, cell,
+                               showKeyLetters ? kModKeys[row] : "",
+                               kModLabels[row], "",
+                               modGrp, st, showKeyLetters);
             }
-            const juce::Colour labelColour = isModHeld ? juce::Colours::white
-                                                       : juce::Colour::fromRGB(80, 100, 120);
-            g.setFont(juce::Font(juce::FontOptions(10.0f)));
-            g.setColour(labelColour);
-            g.drawText((row == 0) ? "MUT" : "FIL", cell, juce::Justification::centred);
         }
 
         // ---- Step cells (S..L in row 0, X..period in row 1) ----
@@ -309,48 +303,70 @@ namespace lockstep
                 }
 
                 // Layer 1: base state (step on/off)
+                // Probability is baked into the fill alpha so brightness scales naturally.
+                const float prob = inRange ? preview[static_cast<std::size_t>(localIdx)] : 0.0f;
+
                 if (!inRange)
                 {
                     g.setColour(kColOutRange);
-                    g.fillRoundedRectangle(cell.toFloat(), 3.0f);
+                    g.fillRoundedRectangle(cell.toFloat(), 4.0f);
                 }
                 else if (hasTrig)
                 {
-                    // OnlyFill steps: violet when fill not held (won't fire), green when held.
-                    // NeverFill steps: dim when fill held (won't fire), green when not held.
-                    const bool fillSuppressed =
-                        (stepFillRule == FillRule::OnlyFill  && !fillActive)
-                     || (stepFillRule == FillRule::NeverFill &&  fillActive);
-                    const juce::Colour baseCol =
-                        (stepFillRule == FillRule::OnlyFill && !fillActive) ? kColFillOnly
-                                                                             : kColActive;
-                    g.setColour(fillSuppressed ? kColTrigDim : baseCol);
-                    g.fillRoundedRectangle(cell.toFloat(), 3.0f);
+                    // Determine the base colour for this trig.
+                    // OnlyFill (fill off) → violet. All other active trigs → green.
+                    const bool isOnlyFillInactive =
+                        (stepFillRule == FillRule::OnlyFill && !fillActive);
+                    const bool isNeverFillActive =
+                        (stepFillRule == FillRule::NeverFill && fillActive);
+
+                    juce::Colour baseCol;
+                    if (isOnlyFillInactive)
+                    {
+                        // Violet at full brightness — this step won't fire right now.
+                        baseCol = kColFillOnly;
+                    }
+                    else if (isNeverFillActive)
+                    {
+                        // Suppressed by fill — very faint green.
+                        baseCol = kColActive.withAlpha(0.20f);
+                    }
+                    else
+                    {
+                        // Probability-scaled brightness: 100% → full green, ~0% → barely visible.
+                        // jlimit guards against float rounding pushing slightly above 1.0f.
+                        const float bright = juce::jlimit(0.15f, 1.0f, 0.15f + prob * 0.85f);
+                        baseCol = kColActive.withAlpha(bright);
+                    }
+
+                    // Playhead: faint wash of the step colour + amber border drawn later.
+                    if (isHead)
+                        g.setColour(baseCol.withAlpha(baseCol.getFloatAlpha() * 0.18f));
+                    else
+                        g.setColour(baseCol);
+                    g.fillRoundedRectangle(cell.toFloat(), 4.0f);
                 }
                 else
                 {
-                    g.setColour(kColInactive);
-                    g.fillRoundedRectangle(cell.toFloat(), 3.0f);
-                    g.setColour(juce::Colour::fromRGB(70, 85, 100));
-                    g.drawRoundedRectangle(cell.toFloat(), 3.0f, 1.0f);
-                }
-
-                // Layer 2: conditional trig overlay (probability dimming).
-                if (inRange && hasTrig)
-                {
-                    const float prob = preview[static_cast<std::size_t>(localIdx)];
-                    if (prob < 1.0f)
+                    // Inactive step: dim fill + subtle border.
+                    // Playhead on an inactive step: faint amber wash + border drawn later.
+                    if (isHead)
+                        g.setColour(kColInactive.withAlpha(0.4f));
+                    else
+                        g.setColour(kColInactive);
+                    g.fillRoundedRectangle(cell.toFloat(), 4.0f);
+                    if (!isHead)
                     {
-                        g.setColour(kColTrigDim.withAlpha(1.0f - prob));
-                        g.fillRoundedRectangle(cell.toFloat(), 3.0f);
+                        g.setColour(juce::Colour::fromRGB(70, 85, 100));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
                     }
                 }
 
-                // Layer 3: playhead tint.
+                // Layer 2: playhead amber border.
                 if (isHead)
                 {
-                    g.setColour(kColPlayhead.withAlpha(0.45f));
-                    g.fillRoundedRectangle(cell.toFloat(), 3.0f);
+                    g.setColour(kColPlayhead);
+                    g.drawRoundedRectangle(cell.toFloat(), 4.0f, 2.0f);
                 }
 
                 // P-Lock dot.
@@ -364,13 +380,13 @@ namespace lockstep
                 if (hasActiveLock)
                 {
                     g.setColour(kColPLock);
-                    g.drawRoundedRectangle(cell.toFloat(), 3.0f, 2.0f);
+                    g.drawRoundedRectangle(cell.toFloat(), 4.0f, 2.0f);
                 }
 
                 if (isHeld)
                 {
                     g.setColour(kColHeld);
-                    g.drawRoundedRectangle(cell.toFloat(), 3.0f, 2.0f);
+                    g.drawRoundedRectangle(cell.toFloat(), 4.0f, 2.0f);
                 }
 
                 // Key letter.
@@ -431,7 +447,7 @@ namespace lockstep
                                                                    : "POL";
             const auto badgeRect = getLocalBounds().removeFromTop(18).removeFromLeft(40).reduced(3);
             g.setColour(juce::Colour(0xFFD07030u));
-            g.fillRoundedRectangle(badgeRect.toFloat(), 3.0f);
+            g.fillRoundedRectangle(badgeRect.toFloat(), 4.0f);
             g.setColour(juce::Colours::white);
             g.setFont(juce::Font(juce::FontOptions(11.0f)));
             g.drawText(label, badgeRect, juce::Justification::centred);
