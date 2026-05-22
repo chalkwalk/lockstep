@@ -346,13 +346,60 @@ namespace lockstep
     {
         if (!onSectionChanged)
             return;
-        const auto ti   = static_cast<std::size_t>(track);
-        const auto si   = static_cast<std::size_t>(sectionIndex);
-        const auto info = processor_.section(track, sectionIndex);
-        if (info.firstSlot < 0)
-            return;  // empty canonical section — nothing to navigate to
-        const int page  = uiState_.trackPage[ti][si];
-        onSectionChanged(sectionIndex, page, info.firstSlot + 4 * page);
+
+        const auto groups = sectionsForKey(track, sectionIndex);
+        if (groups.empty())
+            return;
+
+        const auto ti = static_cast<std::size_t>(track);
+        const auto si = static_cast<std::size_t>(sectionIndex);
+        const int combinedPage = uiState_.trackPage[ti][si];
+
+        // Walk the groups to find which section owns the combined page and what
+        // page-within-section that corresponds to.
+        int remaining = combinedPage;
+        for (const auto& g : groups)
+        {
+            if (remaining < g.pageCount)
+            {
+                const auto info = processor_.section(track, g.sectionIdx);
+                if (info.firstSlot >= 0)
+                    onSectionChanged(sectionIndex, combinedPage,
+                                     info.firstSlot + kParamsPerPage * remaining);
+                return;
+            }
+            remaining -= g.pageCount;
+        }
+
+        // combinedPage out of range (stale state after machine change) — fall back.
+        const auto& first = groups.front();
+        const auto info   = processor_.section(track, first.sectionIdx);
+        if (info.firstSlot >= 0)
+            onSectionChanged(sectionIndex, 0, info.firstSlot);
+    }
+
+    std::vector<KeyboardArea::SecGroup>
+    KeyboardArea::sectionsForKey(int track, int canonicalIdx) const
+    {
+        std::vector<SecGroup> groups;
+
+        // Canonical section first.
+        {
+            const auto info = processor_.section(track, canonicalIdx);
+            if (info.firstSlot >= 0)
+                groups.push_back({ canonicalIdx, std::max(1, info.pageCount) });
+        }
+
+        // Extension sections: indices >= kMaxSections whose parentCanonical matches.
+        const int total = processor_.numSections(track);
+        for (int s = IMachine::kMaxSections; s < total; ++s)
+        {
+            const auto info = processor_.section(track, s);
+            if (info.parentCanonical == canonicalIdx && info.firstSlot >= 0)
+                groups.push_back({ s, std::max(1, info.pageCount) });
+        }
+
+        return groups;
     }
 
     bool KeyboardArea::selectSection(int sectionIndex)
@@ -362,9 +409,12 @@ namespace lockstep
         if (sectionIndex < 0 || sectionIndex >= IMachine::kMaxSections)
             return false;
 
-        const auto info = processor_.section(activeTrack_, sectionIndex);
-        if (info.firstSlot < 0)  // canonical section present but no machine slots
+        const auto groups = sectionsForKey(activeTrack_, sectionIndex);
+        if (groups.empty())  // no machine slots in this canonical section or its extensions
             return false;
+
+        int totalPages = 0;
+        for (const auto& g : groups) totalPages += g.pageCount;
 
         const auto ti = static_cast<std::size_t>(activeTrack_);
         const auto si = static_cast<std::size_t>(sectionIndex);
@@ -374,8 +424,7 @@ namespace lockstep
 
         if (!wasInMasterMode && uiState_.trackSection[ti] == sectionIndex)
         {
-            const int pageCount = info.pageCount > 0 ? info.pageCount : 1;
-            uiState_.trackPage[ti][si] = (uiState_.trackPage[ti][si] + 1) % pageCount;
+            uiState_.trackPage[ti][si] = (uiState_.trackPage[ti][si] + 1) % totalPages;
         }
         else
         {
@@ -558,14 +607,18 @@ namespace lockstep
         }
 
         // Section cells 3-8: always display canonical TRIG/SRC/FLTR/AMP/LFO/FX names.
-        // A section is "available" only when the machine has at least one slot in it.
+        // A section is "available" only when it (or an extension) has machine slots.
         for (int s = 0; s < IMachine::kMaxSections; ++s)
         {
             const int cellIdx = kFixedSectionCells + s;
             const juce::String canonicalName =
                 IMachine::kCanonicalSectionNames[static_cast<std::size_t>(s)];
-            const auto info      = processor_.section(activeTrack, s);
-            const bool available = (info.firstSlot >= 0);
+
+            // Gather combined section groups now — used for availability, cycling count,
+            // and page dots; avoids multiple calls to sectionsForKey per frame.
+            // groups: ordered (canonical first, then extensions); empty = nothing to show.
+            const auto groups    = sectionsForKey(activeTrack, s);
+            const bool available = !groups.empty();
 
             if (!available)
             {
@@ -606,9 +659,10 @@ namespace lockstep
             paintKeyButton(g, cell, kKeyHints[cellIdx],
                            canonicalName, secLabel, secGrp, st, showKeyHint);
 
-            // Page dots
-            const int pageCount = info.pageCount;
-            if (pageCount > 1 && !isMasterActive)
+            // Page dots — reflect total combined pages (canonical + extension).
+            int totalPageCount = 0;
+            for (const auto& grp : groups) totalPageCount += grp.pageCount;
+            if (totalPageCount > 1 && !isMasterActive)
             {
                 const auto ti       = static_cast<std::size_t>(activeTrack);
                 const auto si       = static_cast<std::size_t>(s);
@@ -619,11 +673,11 @@ namespace lockstep
 
                 const int dotSize    = 4;
                 const int dotSpacing = 6;
-                const int totalDotW  = pageCount * dotSpacing - (dotSpacing - dotSize);
+                const int totalDotW  = totalPageCount * dotSpacing - (dotSpacing - dotSize);
                 int dotX = cell.getCentreX() - totalDotW / 2;
                 const int dotY = cell.getBottom() - 6;
 
-                for (int p = 0; p < pageCount; ++p)
+                for (int p = 0; p < totalPageCount; ++p)
                 {
                     const bool isActiveDot = (p == activePage) && isTrackActive;
                     g.setColour(dotCol.withAlpha(isActiveDot ? 1.0f : 0.3f));

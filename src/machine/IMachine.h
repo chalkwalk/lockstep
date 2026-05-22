@@ -59,12 +59,17 @@ namespace lockstep
 
     // Returned by LockstepProcessor::section() after augmenting the machine's
     // raw label with computed layout fields (firstSlot, pageCount).
-    // IMachine::section() only fills `label`; the processor fills the rest.
+    // IMachine::section() only fills `label` and `parentCanonical`; the processor
+    // fills firstSlot and pageCount.
     struct SectionInfo
     {
         juce::String label;
-        int firstSlot  = 0;   // dense index of the first slot in this section
-        int pageCount  = 1;   // ceil(slotCount / kParamsPerPage)
+        int firstSlot       = -1;  // dense index of the first slot; -1 = empty section
+        int pageCount       = 0;   // ceil(slotCount / kParamsPerPage); 0 = empty section
+        // -1: this is a canonical section (sectionIndex 0..kMaxSections-1).
+        // >=0: this is an extension of canonical section [parentCanonical], reached
+        //      by extra presses of the same section key after cycling canonical pages.
+        int parentCanonical = -1;
     };
 
     class IMachine

@@ -3,6 +3,7 @@
 #include <array>
 #include <functional>
 #include <memory>
+#include <vector>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "../core/Sequence.h"
@@ -83,6 +84,14 @@ namespace lockstep
         static int  cellToSection(int cellIndex);
         static bool isReservedMeta(int sectionIndex);
         void notifySectionChanged(int sectionIndex, int track);
+
+        // One entry per section in the cycling order for a canonical key:
+        // canonical section first, then any extension sections in index order.
+        struct SecGroup { int sectionIdx = 0; int pageCount = 0; };
+        // Returns the ordered SecGroup list (canonical + extensions) for the given
+        // canonical key on the given track. Empty if the canonical section has no slots
+        // AND there are no extension sections.
+        std::vector<SecGroup> sectionsForKey(int track, int canonicalIdx) const;
 
         // Paint helpers
         void paintSectionRow(juce::Graphics& g, juce::Rectangle<int> area);

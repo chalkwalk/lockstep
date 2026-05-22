@@ -591,7 +591,7 @@ across machine types.
       TRIG / SRC / FLTR / AMP / LFO / FX. Section labels declared by
       the machine must match the canonical title where one applies.
       Update `SectionBar` rendering accordingly.
-- [ ] **ME.3** Extension sections: repeated press of a section key
+- [x] **ME.3** Extension sections: repeated press of a section key
       cycles through both canonical-pages-within-section and the
       machine's declared extension pages on that section.
 - [ ] **ME.4** Per-track post-machine FLTR block: multi-mode SVF
