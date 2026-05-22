@@ -290,18 +290,19 @@ namespace lockstep
     ParamSpec SamplerMachine::paramSpec(int index) const
     {
         using U = ParamSpec::Unit;
+        using R = ParamSpec::Role;
         switch (index)
         {
         // Section 0 "Source"
-        case kSlotSampleId: return { "sample_id", "Sample",   0.0f,    63.0f,   0.0f, true,  U::None,      0 };
-        case kSlotPitch:    return { "pitch",      "Pitch",  -24.0f,   24.0f,   0.0f, false, U::Semitones, 0 };
-        case kSlotLevel:    return { "level",      "Level",   0.0f,     1.0f,   1.0f, false, U::Percent,   0 };
+        case kSlotSampleId: return { "sample_id", "Sample",   0.0f,    63.0f,   0.0f, true,  U::None,      0, R::None    };
+        case kSlotPitch:    return { "pitch",      "Pitch",  -24.0f,   24.0f,   0.0f, false, U::Semitones, 0, R::Pitch   };
+        case kSlotLevel:    return { "level",      "Level",   0.0f,     1.0f,   1.0f, false, U::Percent,   0, R::Level   };
         // Section 1 "Env"
-        case kSlotAttack:   return { "attack",     "Attack",  0.0f,  5000.0f,   2.0f, false, U::Ms,        1 };
-        case kSlotHold:     return { "hold",       "Hold",    0.0f,  2000.0f,   0.0f, false, U::Ms,        1 };
-        case kSlotDecay:    return { "decay",      "Decay",   0.0f,  5000.0f, 500.0f, false, U::Ms,        1 };
-        case kSlotSustain:  return { "sustain",    "Sustain", 0.0f,     1.0f,   0.5f, false, U::Percent,   1 };
-        case kSlotRelease:  return { "release",    "Release", 0.0f,  5000.0f, 200.0f, false, U::Ms,        1 };
+        case kSlotAttack:   return { "attack",     "Attack",  0.0f,  5000.0f,   2.0f, false, U::Ms,        1, R::Attack  };
+        case kSlotHold:     return { "hold",       "Hold",    0.0f,  2000.0f,   0.0f, false, U::Ms,        1, R::Hold    };
+        case kSlotDecay:    return { "decay",      "Decay",   0.0f,  5000.0f, 500.0f, false, U::Ms,        1, R::Decay   };
+        case kSlotSustain:  return { "sustain",    "Sustain", 0.0f,     1.0f,   0.5f, false, U::Percent,   1, R::Sustain };
+        case kSlotRelease:  return { "release",    "Release", 0.0f,  5000.0f, 200.0f, false, U::Ms,        1, R::Release };
         default:            return {};
         }
     }

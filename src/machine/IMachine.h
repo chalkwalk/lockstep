@@ -18,6 +18,34 @@ namespace lockstep
     {
         enum class Unit { None, Ms, Semitones, Percent };
 
+        // Closed set of semantic roles. Used by Control-All as an id-fallback
+        // (broadcast to every track whose schema has the same role when no
+        // exact id match exists) and by 16-levels mode to enumerate eligible
+        // target parameters. Most slots are Role::None and don't participate.
+        enum class Role
+        {
+            None,
+            // Pitch / dynamics
+            Pitch,      // fine-tune or coarse pitch offset
+            Velocity,   // output velocity / gain
+            Level,      // amplitude / volume
+            Pan,        // stereo pan
+            // Filter
+            Cutoff,
+            Resonance,
+            Drive,
+            // Envelope
+            Attack,
+            Hold,
+            Decay,
+            Sustain,
+            Release,
+            // Modulation
+            LfoDepth,
+            LfoRate,
+            LfoShape,
+        };
+
         juce::String id;            // stable serialisation key
         juce::String label;         // shown in the Manipulation Zone
         float minValue     = 0.0f;
@@ -26,6 +54,7 @@ namespace lockstep
         bool  isStepped    = false;
         Unit  unit         = Unit::None;
         int   sectionIndex = 0;     // which section this slot belongs to (0-based)
+        Role  role         = Role::None;
     };
 
     // Returned by LockstepProcessor::section() after augmenting the machine's
