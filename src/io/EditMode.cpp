@@ -92,6 +92,33 @@ namespace lockstep
         if (onVerbDispatched) { onVerbDispatched(primary_, verb); }
     }
 
+    bool EditMode::hasCompoundScope() const noexcept
+    {
+        // Column 1 (structural, non-Func): track, pattern, mute.
+        const bool col1NonFunc = scope_.track || scope_.pattern || scope_.mute;
+        // Column 2 (performance): fill, cue, scene, master.
+        const bool col2 = scope_.fill || scope_.cue || scope_.scene || scope_.master;
+        // Compound = (col1-non-Func AND col2) OR (Func AND col2) OR (Func AND col1-non-Func).
+        // Func is the universal qualifier so it pairs with anything.
+        if (scope_.func && (col1NonFunc || col2)) { return true; }
+        if (col1NonFunc && col2) { return true; }
+        return false;
+    }
+
+    bool EditMode::hasSameColumnConflict() const noexcept
+    {
+        // Two col-1 non-Func modifiers held together is a same-column conflict.
+        const int col1Count = (scope_.track ? 1 : 0)
+                            + (scope_.pattern ? 1 : 0)
+                            + (scope_.mute ? 1 : 0);
+        // Two col-2 modifiers held together is a same-column conflict.
+        const int col2Count = (scope_.fill ? 1 : 0)
+                            + (scope_.cue ? 1 : 0)
+                            + (scope_.scene ? 1 : 0)
+                            + (scope_.master ? 1 : 0);
+        return (col1Count >= 2) || (col2Count >= 2);
+    }
+
     void EditMode::recomputePrimary()
     {
         // Priority: Trig > Section > Track > Pattern > Mute > Cue > Scene > Master > Fill > Func > None

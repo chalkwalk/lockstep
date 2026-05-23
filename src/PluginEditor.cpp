@@ -388,6 +388,17 @@ namespace lockstep
                 bx += kBadgeW + kGap;
             }
 
+            // Compound-chord indicator: lights up when a cross-column pair is held (MHX §13).
+            if (editMode_.hasCompoundScope())
+            {
+                const auto r = juce::Rectangle<int>(bx, by, 40, kBadgeH);
+                g.setColour(juce::Colour(0xFFFFCC44u));
+                g.fillRoundedRectangle(r.toFloat(), 3.0f);
+                g.setColour(juce::Colours::black);
+                g.drawText("CMPD", r, juce::Justification::centred);
+                bx += 40 + kGap;
+            }
+
             if (cbLabel != nullptr)
             {
                 const auto r = juce::Rectangle<int>(bx, by, 56, kBadgeH);

@@ -9,12 +9,16 @@ namespace lockstep
     // performance grammar context from them.  All input sources route through
     // this state machine before handler dispatch, so scoping is source-agnostic.
     //
-    // Scope hierarchy (highest to lowest priority when multiple are held):
-    //   Trig (held step) > Section > Track > Pattern > Mute > Fill > Func
+    // Compound-chord rule (MHX §13, §33.3):
+    //   Two modifiers may be held together only if they come from different columns
+    //   (col-1 structural vs col-2 performance).  A modifier+modifier compound never
+    //   fires on its own — it sets a compound scope waiting for a verb or encoder.
+    //   Func is the universal qualifier and composes with any other modifier.
+    //   Two col-1 modifiers or two col-2 modifiers are ignored (same-column chords
+    //   are not defined; the secondary press is a no-op in this context).
     //
-    // The primary scope is the last scope button pressed that is still held.
-    // Verb keys (VerbRecord, VerbPlay, VerbStop) dispatch through onVerb which
-    // carries the current primary scope. Snapshot/Restore bypass EditMode entirely.
+    // Scope hierarchy (highest to lowest priority when multiple are held):
+    //   Trig (held step) > Section > Track > Pattern > Mute > Cue > Scene > Master > Fill > Func
     class EditMode
     {
     public:
@@ -53,6 +57,15 @@ namespace lockstep
 
         [[nodiscard]] const ScopeState&  scopeState()   const { return scope_; }
         [[nodiscard]] PrimaryScope       primaryScope() const { return primary_; }
+
+        // Returns true when a cross-column compound scope is active (one col-1 modifier
+        // AND one col-2 modifier held simultaneously, excluding Func which is universal).
+        // Func+col2 counts as a compound; col1+col2 (non-Func) also counts.
+        [[nodiscard]] bool hasCompoundScope() const noexcept;
+
+        // Returns true when any two same-column non-Func modifiers are both held
+        // (which is a no-op per the compound-chord rule).
+        [[nodiscard]] bool hasSameColumnConflict() const noexcept;
 
         // Sync the trig-held and section-held sub-states from outside
         // (EditContext and SectionBar).
