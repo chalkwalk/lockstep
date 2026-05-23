@@ -139,6 +139,17 @@ namespace lockstep
                 (static_cast<int>(gridMode_) + 1) % 3));
         };
         addAndMakeVisible(displayModeBtn_);
+        // MHX.5: vertical crossfader — Scene A at top, Scene B at bottom.
+        crossfader_.setSliderStyle(juce::Slider::LinearBarVertical);
+        crossfader_.setRange(0.0, 1.0, 0.0);
+        crossfader_.setValue(0.5, juce::dontSendNotification);
+        crossfader_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+        crossfader_.setColour(juce::Slider::trackColourId,
+                              juce::Colour::fromRGB(100, 80, 200).withAlpha(0.6f));
+        crossfader_.setWantsKeyboardFocus(false);
+        crossfader_.setTooltip("Scene crossfader (A=top / B=bottom)");
+        addAndMakeVisible(crossfader_);
+
         addAndMakeVisible(manipulationZone_);
         addAndMakeVisible(keyboardArea_);
 
@@ -197,7 +208,7 @@ namespace lockstep
         // Repaint chrome when a queued pattern switch fires.
         proc.onActivePatternChanged = [this] { repaint(); };
 
-        setSize(990, 528);
+        setSize(990, 596);  // MHX: taller for 4x2 MZ encoder band
         setWantsKeyboardFocus(true);
 
         startTimerHz(30);  // diagnostic VU meters / activity blinks
@@ -1174,10 +1185,17 @@ namespace lockstep
             tempoBar_->setBounds(bounds.removeFromTop(28).reduced(8, 2));
         bounds.removeFromTop(2);
 
-        static constexpr int kMZHeight  = 160; // MHX 4x2 MZ (two rows of 4 slots)
-        static constexpr int kTrackRowH = 26;  // track-number + VU row
-        static constexpr int kMsRowH    = 22;  // mute/solo row
-        manipulationZone_.setBounds(bounds.removeFromTop(kMZHeight).reduced(8, 4));
+        // MHX.5: encoder band (MZ 4x2) + vertical crossfader to its right.
+        static constexpr int kMZHeight     = 160; // MHX 4x2 MZ (two rows of 4 slots)
+        static constexpr int kFaderW       = 28;  // crossfader strip width
+        static constexpr int kTrackRowH    = 26;  // track-number + VU row
+        static constexpr int kMsRowH       = 22;  // mute/solo row
+        {
+            auto mzStrip = bounds.removeFromTop(kMZHeight).reduced(8, 4);
+            auto faderArea = mzStrip.removeFromRight(kFaderW).reduced(2, 0);
+            crossfader_.setBounds(faderArea);
+            manipulationZone_.setBounds(mzStrip);
+        }
 
         // Remaining region, laid out top->bottom: track row, mute/solo row,
         // section bar, function bar, step grid.

@@ -116,6 +116,9 @@ namespace lockstep
         MachineSelectOverlay machineSelectOverlay_;
         bool isDraggingFiles_ = false;
 
+        // MHX.5: vertical crossfader to the right of the encoder band (Scene A top / B bottom).
+        juce::Slider crossfader_;
+
         void updateTransportGhosting();
 
         // Verb dispatch: called from the EditMode onVerbDispatched callback with the
