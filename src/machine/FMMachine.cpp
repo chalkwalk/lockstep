@@ -138,9 +138,14 @@ namespace lockstep
       op.envLevel  = std::max(op.envLevel, op.sustainLevel);
       if (--op.stageRemaining <= 0)
       {
-        op.envLevel       = op.sustainLevel;
-        op.stage          = Stage::Sustain;
-        op.stageRemaining = std::numeric_limits<int>::max();
+        op.envLevel = op.sustainLevel;
+        if (op.sustainLevel <= 0.0f)
+          op.stage = Stage::Idle;
+        else
+        {
+          op.stage          = Stage::Sustain;
+          op.stageRemaining = std::numeric_limits<int>::max();
+        }
       }
       break;
 
@@ -324,8 +329,8 @@ namespace lockstep
     case kSlotOutputLevel:  return { "fm_level",     "Level",     0.0f, 1.0f, 1.0f, false, U::Percent, 3, R::Level   };
     // AMP — pages 2-5: per-operator ADSR
     case kSlotOp1Attack:  return { "fm_atk_1", "Op1 Atk", 1.0f, 5000.0f,  10.0f, false, U::Ms,      3, R::None };
-    case kSlotOp1Decay:   return { "fm_dec_1", "Op1 Dec", 1.0f, 5000.0f, 200.0f, false, U::Ms,      3, R::None };
-    case kSlotOp1Sustain: return { "fm_sus_1", "Op1 Sus", 0.0f,    1.0f,   0.7f, false, U::Percent, 3, R::None };
+    case kSlotOp1Decay:   return { "fm_dec_1", "Op1 Dec", 1.0f, 5000.0f, 500.0f, false, U::Ms,      3, R::None };
+    case kSlotOp1Sustain: return { "fm_sus_1", "Op1 Sus", 0.0f,    1.0f,   0.0f, false, U::Percent, 3, R::None };
     case kSlotOp1Release: return { "fm_rel_1", "Op1 Rel", 1.0f, 5000.0f, 500.0f, false, U::Ms,      3, R::None };
     case kSlotOp2Attack:  return { "fm_atk_2", "Op2 Atk", 1.0f, 5000.0f,  10.0f, false, U::Ms,      3, R::None };
     case kSlotOp2Decay:   return { "fm_dec_2", "Op2 Dec", 1.0f, 5000.0f, 200.0f, false, U::Ms,      3, R::None };

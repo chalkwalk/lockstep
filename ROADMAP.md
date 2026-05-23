@@ -759,7 +759,8 @@ contributor-sized project. Order is a suggestion, not a dependency
 chain; any of these can land independently once MF (for MIDI-out
 parity) is done. **MHX lands first** (the surface freeze).
 
-- [ ] **MH.1** FMMachine — 4-op FM, Digitone-inspired voice topology.
+- [x] **MH.1** FMMachine — 4-op FM, free modulation matrix (4×4), per-operator
+      ADSR + ratio / fine-tune / mix, macro attack / release / sustain scalars.
 - [ ] **MH.2** VAMachine — virtual-analog mono/poly, Analog Four-style
       voice with paraphonic option.
 - [ ] **MH.3** DrumSynthMachine — Rytm-style per-track drum

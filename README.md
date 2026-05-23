@@ -170,7 +170,7 @@ other naturally with no master-bar concept.
 | **P-Lock** (parameter lock) | A per-step override of one or more of a sound engine's parameters. Hold a step, turn a control. |
 | **Trig override** | A per-step override of a sequencer field — note, velocity, gate, or condition — as opposed to an engine parameter. |
 | **Override-ELSE-Base** | The one resolution rule: effective value = step override if present, else track base. |
-| **Machine** | A sound engine. Each track hosts one. Lockstep ships three: `SamplerMachine` (monophonic sample playback), `MidiOutMachine` (MIDI CC/note output to external gear), and `StubMachine` (silent fallback for unknown IDs). |
+| **Machine** | A sound engine. Each track hosts one. Lockstep ships four: `SamplerMachine` (monophonic sample playback), `FMMachine` (4-op FM synthesizer), `MidiOutMachine` (MIDI CC/note output to external gear), and `StubMachine` (silent fallback for unknown IDs). |
 | **Part** | The per-track kit: machine identity, base parameters, sample refs. Shared or owned per pattern. |
 | **Pattern** | The trig grid and per-step data; references one Part. |
 | **Bank** | A group of patterns with addressable slots. |
@@ -398,7 +398,7 @@ Lockstep has 16 tracks. The track header shows 8 at a time; the **"1–8" / "9�
 | `Track (Q) + C–/` | Select / focus track 9–16 (`Q + C` = track 9, … `Q + /` = track 16). |
 | Page button (click) | Flip track header between tracks 1–8 and 9–16. |
 
-Tracks 1–8 default to `SamplerMachine` and tracks 9–16 to `MidiOutMachine` (Digitakt-style default split). Any track can be reassigned to any machine via the Part-edit flow (planned for MH). A small **"M"** badge in the top-right corner of a track button identifies MIDI-out tracks at a glance.
+Tracks 1–8 default to `SamplerMachine` and tracks 9–16 to `MidiOutMachine` (Digitakt-style default split). Any track can be reassigned to any machine via **`Func + R`** (opens the machine selector popup). A small **"M"** badge in the top-right corner of a track button identifies MIDI-out tracks at a glance.
 
 Focus determines what the contextual encoders edit and what selected-track MIDI mappings drive.
 
@@ -571,7 +571,7 @@ behaviour of these modes lands in a later milestone (see
 Lockstep is under active development. This manual describes both the
 shipped behaviour and the design intent. To avoid confusion:
 
-**Working today** (milestones M0–MD): sample loading and playback;
+**Working today** (milestones M0–MD, MG, MGX, MH.1): sample loading and playback;
 AHDSR envelope; choke micro-fade; DC blocker, soft-clip, gain smoothing;
 polymetric multi-track sequencing; P-Lock editing; trig conditions
 (probability / m:n / prev-dep); MIDI CC ingestion with soft-takeover and
@@ -580,7 +580,10 @@ scoped mappings; MIDI clock + sync modes; the full QWERTY overlay
 project serialization; the scope+verb grammar; copy/paste/clear for
 step / section / track / pattern; global and pattern mutes; the Fill
 modifier; Control-All; the checkpoint stack; pattern queueing and chain
-mode; trig-grid mode selectors with chrome badges. **Note:** the
+mode; trig-grid mode selectors with chrome badges; the **FM synthesizer**
+(`FMMachine`) — 4-operator FM with free modulation matrix, per-operator
+ADSR, ratio / fine-tune / mix per operator, and macro attack / release /
+sustain scalars; machine selection via `Func + R`. **Note:** the
 shipping overlay is still the **9×4** layout (one left modifier column,
 four-slot Manipulation Zone); §5 documents the 10×4 target that MHX
 delivers.
@@ -593,7 +596,7 @@ encoder band + vertical crossfader, four-register cell typography
 (MHX); post-machine FLTR and AMP blocks
 with role-tagged sections (ME); the first-class MIDI-out machine (MF);
 the full behaviour of the alternate trig modes — Keyboard / Retrig /
-Sound Pool (MG); additional sound engines — FM, virtual-analog,
+Sound Pool (MG); the remaining sound engines — virtual-analog,
 drum-synth, slicer (MH); scenes + crossfader (MI); pattern/part
 management UI (MJ); sampler trim/loop depth (MK); microtiming and swing
 (ML); 16-levels mode (MM); live sampling and resampling (MN); audition

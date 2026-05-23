@@ -52,7 +52,15 @@ namespace lockstep
                 if (msg.isNoteOn())  envTarget_ = 1.0f;
                 if (msg.isNoteOff()) envTarget_ = 0.0f;
             }
-            const float eCoeff = (envTarget_ > envLevel_) ? envAttackCoeff_ : envReleaseCoeff_;
+            // envAttackCoeff_/envReleaseCoeff_ are per-sample one-pole coefficients.
+            // The follower advances once per block, so raise the coefficient to the
+            // block length to apply the equivalent of numSamples per-sample steps;
+            // otherwise the intended 1 ms / 200 ms times stretch with the block size
+            // (the 200 ms release became seconds, so the follower never reclosed and
+            // only the very first cold note heard a slow filter sweep).
+            const float perSampleCoeff =
+                (envTarget_ > envLevel_) ? envAttackCoeff_ : envReleaseCoeff_;
+            const float eCoeff = std::pow(perSampleCoeff, static_cast<float>(numSamples));
             envLevel_ = eCoeff * envLevel_ + (1.0f - eCoeff) * envTarget_;
 
             // Resolve effective cutoff with envelope modulation, clamp to 0..1

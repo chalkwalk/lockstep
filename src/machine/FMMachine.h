@@ -86,8 +86,8 @@ namespace lockstep
 
     static constexpr int kNumOps = 4;
 
-    // Modulation depth scaling: matrix value ±1 → ±4π radians
-    static constexpr float kModScale = 4.0f * 3.14159265358979323846f;
+    // Modulation depth scaling: matrix value ±1 → ±π radians (β≈3.14 at full depth)
+    static constexpr float kModScale = 3.14159265358979323846f;
 
     // -----------------------------------------------------------------------
     // Voice state
