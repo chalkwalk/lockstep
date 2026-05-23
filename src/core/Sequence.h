@@ -5,7 +5,7 @@
 
 namespace lockstep
 {
-    inline constexpr int kNumTracks = 8;
+    inline constexpr int kNumTracks = 16;
 
     struct Sequence
     {

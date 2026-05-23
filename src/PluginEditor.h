@@ -77,6 +77,8 @@ namespace lockstep
 
         InPluginTransport transport_;
         std::unique_ptr<StandaloneTempoBar> tempoBar_;
+        int trackPage_ = 0;  // 0 = tracks 1-8 visible, 1 = tracks 9-16 visible
+        juce::TextButton trackPageBtn_{ "1-8" };
         std::array<juce::TextButton,   kNumTracks> trackBtns_;
         std::array<juce::ToggleButton, kNumTracks> muteBtns_;
         std::array<juce::ToggleButton, kNumTracks> soloBtns_;

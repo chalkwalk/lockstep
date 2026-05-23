@@ -94,27 +94,45 @@ namespace lockstep
         } };
 
         // Track layer — applied when Track (key Q) is held.
-        constexpr std::array<Entry, 8> kTrack = { {
-            { code('S'), B::SelectTrack, 0 },
-            { code('D'), B::SelectTrack, 1 },
-            { code('F'), B::SelectTrack, 2 },
-            { code('G'), B::SelectTrack, 3 },
-            { code('H'), B::SelectTrack, 4 },
-            { code('J'), B::SelectTrack, 5 },
-            { code('K'), B::SelectTrack, 6 },
-            { code('L'), B::SelectTrack, 7 },
+        // Row 3 (S-L) = tracks 0-7; row 4 (X-.) = tracks 8-15.
+        constexpr std::array<Entry, 16> kTrack = { {
+            { code('S'), B::SelectTrack,  0 },
+            { code('D'), B::SelectTrack,  1 },
+            { code('F'), B::SelectTrack,  2 },
+            { code('G'), B::SelectTrack,  3 },
+            { code('H'), B::SelectTrack,  4 },
+            { code('J'), B::SelectTrack,  5 },
+            { code('K'), B::SelectTrack,  6 },
+            { code('L'), B::SelectTrack,  7 },
+            { code('X'), B::SelectTrack,  8 },
+            { code('C'), B::SelectTrack,  9 },
+            { code('V'), B::SelectTrack, 10 },
+            { code('B'), B::SelectTrack, 11 },
+            { code('N'), B::SelectTrack, 12 },
+            { code('M'), B::SelectTrack, 13 },
+            { code(','), B::SelectTrack, 14 },
+            { code('.'), B::SelectTrack, 15 },
         } };
 
         // Mute layer — applied when Mute (key A) is held.
-        constexpr std::array<Entry, 8> kMute = { {
-            { code('S'), B::ToggleMute, 0 },
-            { code('D'), B::ToggleMute, 1 },
-            { code('F'), B::ToggleMute, 2 },
-            { code('G'), B::ToggleMute, 3 },
-            { code('H'), B::ToggleMute, 4 },
-            { code('J'), B::ToggleMute, 5 },
-            { code('K'), B::ToggleMute, 6 },
-            { code('L'), B::ToggleMute, 7 },
+        // Row 3 (S-L) = tracks 0-7; row 4 (X-.) = tracks 8-15.
+        constexpr std::array<Entry, 16> kMute = { {
+            { code('S'), B::ToggleMute,  0 },
+            { code('D'), B::ToggleMute,  1 },
+            { code('F'), B::ToggleMute,  2 },
+            { code('G'), B::ToggleMute,  3 },
+            { code('H'), B::ToggleMute,  4 },
+            { code('J'), B::ToggleMute,  5 },
+            { code('K'), B::ToggleMute,  6 },
+            { code('L'), B::ToggleMute,  7 },
+            { code('X'), B::ToggleMute,  8 },
+            { code('C'), B::ToggleMute,  9 },
+            { code('V'), B::ToggleMute, 10 },
+            { code('B'), B::ToggleMute, 11 },
+            { code('N'), B::ToggleMute, 12 },
+            { code('M'), B::ToggleMute, 13 },
+            { code(','), B::ToggleMute, 14 },
+            { code('.'), B::ToggleMute, 15 },
         } };
 
         template <std::size_t N>

@@ -199,6 +199,9 @@ namespace lockstep
         // Call only when the sequencer is stopped to avoid audio-thread data races.
         bool relinkSample(int index, const juce::String& newPath);
 
+        // Returns true when the machine on the given track is a MIDI-out machine.
+        bool isTrackMidiOut(int track) const;
+
         // Schema query helpers — forward to the machine on the given track.
         int         numParams(int track)              const;
         ParamSpec   paramSpec(int track, int index)   const;

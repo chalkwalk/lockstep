@@ -47,8 +47,15 @@ namespace lockstep
             trackSoloParams_[ti]    = apvts_.getRawParameterValue(ParamIDs::trackSolo(t));
         }
 
-        for (auto& m : machines_)
-            m = std::make_unique<SamplerMachine>(samplePool_);
+        // Tracks 0-7: sampler; tracks 8-15: MIDI-out (Digitakt-style default split).
+        // Any track can be reassigned to any machine via the Part-edit flow.
+        for (std::size_t t = 0; t < kNumTracks; ++t)
+        {
+            if (t < 8)
+                machines_[t] = std::make_unique<SamplerMachine>(samplePool_);
+            else
+                machines_[t] = std::make_unique<MidiOutMachine>();
+        }
 
         // Verify the state upgrade chain every time the plugin loads in debug mode.
        #if JUCE_DEBUG
@@ -64,6 +71,10 @@ namespace lockstep
         {
             for (auto& part : bank.parts)
             {
+                // Set MIDI-out machineId for tracks 8-15.
+                for (std::size_t t = 8; t < kNumTracks; ++t)
+                    part.tracks[t].machineId = MidiOutMachine::kMachineId;
+
                 for (std::size_t t = 0; t < kNumTracks; ++t)
                 {
                     const int np = machines_[t]->numParams();
@@ -71,8 +82,9 @@ namespace lockstep
                     for (int s = 0; s < np; ++s)
                         part.tracks[t].baseParams[static_cast<std::size_t>(s)] =
                             machines_[t]->paramSpec(s).defaultValue;
-                    // Track N defaults to sample index N so each track sounds distinct.
-                    part.tracks[t].baseParams[0] = static_cast<float>(t);
+                    // Sampler tracks: seed sample index to track index so each sounds distinct.
+                    if (!machines_[t]->isMidiOut())
+                        part.tracks[t].baseParams[0] = static_cast<float>(t);
                 }
             }
             // Sync all patterns' Track.baseParams from their referenced Part.
@@ -1169,6 +1181,13 @@ namespace lockstep
         const int key = activeBankIdx_ * kPatternsPerBank + activePatternIdx_;
         const auto it = checkpoints_.find(key);
         return (it != checkpoints_.end()) ? static_cast<int>(it->second.size()) : 0;
+    }
+
+    bool LockstepProcessor::isTrackMidiOut(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
+        const auto& m = machines_[static_cast<std::size_t>(track)];
+        return m && m->isMidiOut();
     }
 
     int LockstepProcessor::numParams(int track) const

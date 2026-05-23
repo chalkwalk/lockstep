@@ -488,7 +488,7 @@ messages. Mappings are project-saved.
 ### 5.3 Focus state and contextual encoders
 
 Selection is a **first-class focus state**, one of `{Global,
-Track1..8}`. The focus determines what the contextual encoders
+Track1..16}`. The focus determines what the contextual encoders
 manipulate and what `SelectedTrack`-scoped CCs target.
 
 Four **contextual encoders** parallel the 4-slot Manipulation Zone:
@@ -503,9 +503,9 @@ Two channel modes, exposed as a global setting:
 - **Omni → Selected.** All channels accepted; notes route to the
   currently focused track's MIDI buffer. If focus is Global, notes
   are ignored.
-- **Per-Track Channel.** MIDI channel N (1..8) hard-routes to track
-  N's MIDI buffer. Channels 9..16 are ignored. Live focus changes do
-  not affect note routing in this mode.
+- **Per-Track Channel.** MIDI channel N (1..16) hard-routes to track
+  N's MIDI buffer. Live focus changes do not affect note routing in
+  this mode.
 
 A note-on routed to a track is appended to that track's MIDI buffer
 for the current block and reaches the machine through the standard
@@ -2029,7 +2029,7 @@ gain`. Each slot carries a mode:
   famously lacks.
 
 Master FX parameters are edited under the existing `Master` focus
-state (`{Master, Track1..8}`), so no new focus concept is needed: with
+state (`{Master, Track1..16}`), so no new focus concept is needed: with
 Master focused, the FX section shows the master effects.
 
 **Scope (provisional).** Master FX state is **Project-scope** — one

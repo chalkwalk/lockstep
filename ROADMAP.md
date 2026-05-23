@@ -692,6 +692,30 @@ DESIGN §13.5. The trig grid as a modal surface.
       exit cleanly on chord release and never destructively alter
       the authored pattern unless record-arm is engaged.
 
+### MGX — 16-Track expansion + header pagination  [complete]
+
+16 heterogeneous tracks (expanded from 8). Default layout: tracks 1–8 sampler,
+tracks 9–16 MIDI-out (Digitakt-style split without the lock-in — any track can
+be reassigned to any machine via the Part-edit flow at MH).
+
+- [x] **MGX.1** `kNumTracks = 16` in `Sequence.h`; `machines_` and Part arrays
+      scale automatically everywhere `kNumTracks` is used.
+- [x] **MGX.2** Default machine assignment: tracks 0–7 → `SamplerMachine`,
+      tracks 8–15 → `MidiOutMachine` (set in `LockstepProcessor` constructor
+      and persisted via each Part's `machineId`). Old 8-track saves load
+      cleanly: tracks 8–15 receive MIDI-out defaults.
+- [x] **MGX.3** `QwertyOverlay` Track and Mute layers extended to 16:
+      `Track+S–L = SelectTrack 0–7`, `Track+X–. = SelectTrack 8–15`;
+      same extension for `Mute`.
+- [x] **MGX.4** Track-header pagination in `PluginEditor`: page-toggle button
+      (labelled "1–8" / "9–16") at the left of the track row; selecting a
+      track via keyboard auto-flips the page; only the active page's 8 buttons
+      are laid out and visible.
+- [x] **MGX.5** Machine-type badge: a small "M" drawn in the top-right corner
+      of MIDI-out track buttons in `paintMeters()`.
+- [ ] **MGX.6** Machine selection UI for runtime track reassignment — deferred
+      to MC/MH (Part-edit overlay; exact gesture TBD).
+
 ### MH — Machine catalogue expansion  [pending, staggered]
 
 DESIGN §1 (lineage). Inheritance from `IMachine` — each is a separate

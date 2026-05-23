@@ -271,8 +271,10 @@ namespace lockstep
 
             sliders_[si].setEnabled(!isSampleSlot);
             sliders_[si].setAlpha(isSampleSlot ? 0.0f : 1.0f);
-            sliders_[si].setRange(static_cast<double>(meta.minValue),
-                                  static_cast<double>(meta.maxValue),
+            // Guard: JUCE Slider asserts on a zero-extent range (min == max).
+            const double lo = static_cast<double>(meta.minValue);
+            const double hi = static_cast<double>(meta.maxValue);
+            sliders_[si].setRange(lo, (hi > lo ? hi : lo + 1.0),
                                   meta.isStepped ? 1.0 : 0.0);
 
             float value = processor_.baseParamValue(track, slot);

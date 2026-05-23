@@ -164,7 +164,9 @@ namespace lockstep
         {
             p.id = "dest";  p.label = "Dest";
             p.isStepped = true;
-            p.maxValue  = static_cast<float>(std::max(0, devices_.size() - 1));
+            // Minimum maxValue of 1 so JUCE Slider always has a non-degenerate range,
+            // even when no MIDI output devices are present or prepare() hasn't run yet.
+            p.maxValue  = static_cast<float>(std::max(1, devices_.size() - 1));
             p.sectionIndex = 1;
         }
         else if (index == kSlotChannel)

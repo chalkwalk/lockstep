@@ -168,7 +168,7 @@ other naturally with no master-bar concept.
 | **P-Lock** (parameter lock) | A per-step override of one or more of a sound engine's parameters. Hold a step, turn a control. |
 | **Trig override** | A per-step override of a sequencer field — note, velocity, gate, or condition — as opposed to an engine parameter. |
 | **Override-ELSE-Base** | The one resolution rule: effective value = step override if present, else track base. |
-| **Machine** | A sound engine. Each track hosts one. The baseline machine is a monophonic sampler; others (synths, MIDI-out) are planned. |
+| **Machine** | A sound engine. Each track hosts one. Lockstep ships three: `SamplerMachine` (monophonic sample playback), `MidiOutMachine` (MIDI CC/note output to external gear), and `StubMachine` (silent fallback for unknown IDs). |
 | **Part** | The per-track kit: machine identity, base parameters, sample refs. Shared or owned per pattern. |
 | **Pattern** | The trig grid and per-step data; references one Part. |
 | **Bank** | A group of patterns with addressable slots. |
@@ -361,12 +361,17 @@ key.
 
 ### 5.5 Track selection and focus
 
+Lockstep has 16 tracks. The track header shows 8 at a time; the **"1–8" / "9–16"** page button (top-left of the track row) flips between banks. Selecting a track via keyboard automatically flips to the correct page.
+
 | Gesture | Action |
 |---|---|
-| `Track (Q) + step key` | Select / focus track 1–8 (`Q + S` = track 1, … `Q + L` = track 8). |
+| `Track (Q) + S–L` | Select / focus track 1–8 (`Q + S` = track 1, … `Q + L` = track 8). |
+| `Track (Q) + X–.` | Select / focus track 9–16 (`Q + X` = track 9, … `Q + .` = track 16). |
+| Page button (click) | Flip track header between tracks 1–8 and 9–16. |
 
-Focus determines what the contextual encoders edit and what
-selected-track MIDI mappings drive.
+Tracks 1–8 default to `SamplerMachine` and tracks 9–16 to `MidiOutMachine` (Digitakt-style default split). Any track can be reassigned to any machine via the Part-edit flow (planned for MH). A small **"M"** badge in the top-right corner of a track button identifies MIDI-out tracks at a glance.
+
+Focus determines what the contextual encoders edit and what selected-track MIDI mappings drive.
 
 ### 5.6 Step editing
 

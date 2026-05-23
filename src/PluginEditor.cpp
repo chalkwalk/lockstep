@@ -65,6 +65,17 @@ namespace lockstep
             manipulationZone_.setMetaSection(metaSection);
         };
 
+        // Track page toggle: flips between tracks 1-8 and 9-16.
+        trackPageBtn_.setWantsKeyboardFocus(false);
+        trackPageBtn_.onClick = [this]
+        {
+            trackPage_ = 1 - trackPage_;
+            trackPageBtn_.setButtonText(trackPage_ == 0 ? "1-8" : "9-16");
+            resized();
+            repaint();
+        };
+        addAndMakeVisible(trackPageBtn_);
+
         // Track header: selector + mute/solo.
         for (int i = 0; i < static_cast<int>(kNumTracks); ++i)
         {
@@ -102,6 +113,14 @@ namespace lockstep
 
         keyboardArea_.onActiveTrackChanged = [this](int newTrack)
         {
+            // Auto-flip page when the active track changes bank.
+            const int newPage = (newTrack >= 8) ? 1 : 0;
+            if (newPage != trackPage_)
+            {
+                trackPage_ = newPage;
+                trackPageBtn_.setButtonText(trackPage_ == 0 ? "1-8" : "9-16");
+                resized();
+            }
             for (auto& b : trackBtns_)
                 b.setToggleState(false, juce::dontSendNotification);
             trackBtns_[static_cast<std::size_t>(newTrack)].setToggleState(
@@ -240,6 +259,14 @@ namespace lockstep
             {
                 g.setColour(juce::Colour::fromRGB(90, 160, 230));
                 g.drawRect(r, 2);
+            }
+
+            // Machine type badge: small "M" in top-right corner for MIDI-out tracks.
+            if (processor_.isTrackMidiOut(t))
+            {
+                g.setColour(juce::Colour::fromRGB(120, 200, 120).withAlpha(0.85f));
+                g.setFont(9.0f);
+                g.drawText("M", r.reduced(1).withHeight(10), juce::Justification::topRight, false);
             }
         }
     }
@@ -905,19 +932,47 @@ namespace lockstep
         // section bar, function bar, step grid.
         {
             auto trackRow = bounds.removeFromTop(kTrackRowH).reduced(8, 2);
-            const int colW = trackRow.getWidth() / static_cast<int>(kNumTracks);
+            // Page toggle sits at the left edge; the 8 visible track buttons fill the rest.
+            static constexpr int kPageBtnW = 36;
+            trackPageBtn_.setBounds(trackRow.removeFromLeft(kPageBtnW).reduced(1, 1));
+            const int pageStart = trackPage_ * 8;
+            const int colW = trackRow.getWidth() / 8;
             for (std::size_t i = 0; i < kNumTracks; ++i)
-                trackBtns_[i].setBounds(trackRow.removeFromLeft(colW).reduced(1, 1));
+            {
+                const bool visible = (static_cast<int>(i) >= pageStart
+                                   && static_cast<int>(i) < pageStart + 8);
+                trackBtns_[i].setVisible(visible);
+                if (visible)
+                    trackBtns_[i].setBounds(trackRow.removeFromLeft(colW).reduced(1, 1));
+                else
+                    trackBtns_[i].setBounds({});
+            }
         }
         {
             auto msRow = bounds.removeFromTop(kMsRowH).reduced(8, 2);
-            const int colW = msRow.getWidth() / static_cast<int>(kNumTracks);
+            // Reserve the same width as the page toggle button above.
+            static constexpr int kPageBtnW = 36;
+            msRow.removeFromLeft(kPageBtnW);
+            const int pageStart = trackPage_ * 8;
+            const int colW = msRow.getWidth() / 8;
             for (std::size_t i = 0; i < kNumTracks; ++i)
             {
-                auto col  = msRow.removeFromLeft(colW);
-                auto mute = col.removeFromLeft(col.getWidth() / 2);
-                muteBtns_[i].setBounds(mute.reduced(1, 1));
-                soloBtns_[i].setBounds(col.reduced(1, 1));
+                const bool visible = (static_cast<int>(i) >= pageStart
+                                   && static_cast<int>(i) < pageStart + 8);
+                muteBtns_[i].setVisible(visible);
+                soloBtns_[i].setVisible(visible);
+                if (visible)
+                {
+                    auto col  = msRow.removeFromLeft(colW);
+                    auto mute = col.removeFromLeft(col.getWidth() / 2);
+                    muteBtns_[i].setBounds(mute.reduced(1, 1));
+                    soloBtns_[i].setBounds(col.reduced(1, 1));
+                }
+                else
+                {
+                    muteBtns_[i].setBounds({});
+                    soloBtns_[i].setBounds({});
+                }
             }
         }
 

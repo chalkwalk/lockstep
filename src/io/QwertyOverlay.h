@@ -17,8 +17,8 @@ namespace lockstep
     //   Func layer: Func+2(Rec)=Snapshot, Func+T(Ply)=Restore, Func+E=StopReset,
     //               Func+4-9=MetaSections,
     //               Func+Y/U/I=TrigModeKeyboard/Retrig/SoundPool.
-    //   Track layer: Track+S-L = SelectTrack 0-7.
-    //   Mute layer:  Mute+S-L  = ToggleMute 0-7.
+    //   Track layer: Track+S-L = SelectTrack 0-7; Track+X-. = SelectTrack 8-15.
+    //   Mute layer:  Mute+S-L  = ToggleMute 0-7;  Mute+X-.  = ToggleMute 8-15.
     class QwertyOverlay
     {
     public:
