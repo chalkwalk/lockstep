@@ -80,8 +80,10 @@ Lockstep behaves.
 Every editing and performance action is built from two halves:
 
 - A **scope** key declares *what you're about to operate on*. Scopes are
-  held modifiers: `Func`, `Track`, `Pattern`, a **held step** (`Trig`),
-  a **section** key, `Mute`, and `Fill`.
+  held modifiers: the eight-key left cluster (`Func`, `Track`, `Pattern`,
+  `Mute`, `Fill`, `Cue`, `Scene`, `Master`), plus a **held step**
+  (`Trig`) and a **section** key. Two modifiers — one from each column —
+  can be held together to combine scopes (the *compound chord*).
 - A **verb** key declares *what to do*. The verb set is small and
   fixed: `Record` (= copy), `Play` (= paste), `Stop` (= clear), `Yes`,
   `No`, plus turning an encoder for live value tweaks.
@@ -172,9 +174,11 @@ other naturally with no master-bar concept.
 | **Part** | The per-track kit: machine identity, base parameters, sample refs. Shared or owned per pattern. |
 | **Pattern** | The trig grid and per-step data; references one Part. |
 | **Bank** | A group of patterns with addressable slots. |
-| **Scope** | A held modifier declaring what the next verb operates on (`Func`, `Track`, `Pattern`, held step, section, `Mute`, `Fill`). |
+| **Scope** | A held modifier declaring what the next verb operates on. Eight in the left cluster (`Func`, `Track`, `Pattern`, `Mute`, `Fill`, `Cue`, `Scene`, `Master`), plus a held step and a section key. |
+| **Compound chord** | Two modifiers (one per column) held together to combine scopes. Cross-column only; never fires on its own — it just narrows the scope until a verb is pressed. `Func` composes with anything. |
 | **Verb** | The action applied to the scope (`Record`=copy, `Play`=paste, `Stop`=clear, `Yes`, `No`). |
-| **Section** | A grouping of a machine's parameters on the section bar (keys 3–8). The Manipulation Zone shows four parameters of the active section at a time. |
+| **Section** | A grouping of a machine's parameters on the section bar (keys 3–8). The Manipulation Zone shows eight parameters (4×2) of the active section at a time. |
+| **Scene / Crossfader** | A per-Part pair of sparse parameter maps (A and B) blended by one continuous fader. The `Scene` modifier assigns slots; `Scene + ^/v` picks endpoint A/B. The fader is mouse/CC/hardware-only (no QWERTY). |
 | **Manipulation Zone (MZ)** | The four-parameter editing quadrant. What you are tweaking right now. |
 | **Step Grid** | The 2×8 matrix of step keys mirroring the bottom two QWERTY rows. |
 | **Focus / focused track** | The currently selected track (or Global). Determines what contextual encoders and selected-track MIDI map to. |
@@ -307,57 +311,82 @@ Key letters are the default QWERTY mapping.
 <a name="51-the-keyboard-layout"></a>
 ### 5.1 The keyboard layout
 
-Lockstep uses a fixed **9×4** grid. The leftmost column of each row is a
-dedicated modifier; the rest are function or step keys.
+> **Layout target (MHX).** This section documents the **10×4** surface
+> that the MHX milestone delivers (DESIGN §33). The current shipping
+> build still runs the prior **9×4** grid; the two differ in the left
+> modifier column (one column → two) and therefore in where the step
+> keys sit. Everything below describes the 10×4 target.
+
+Lockstep uses a fixed **10×4** grid. The **left two columns** are an
+eight-key modifier cluster, all reachable by one hand; the **right
+eight columns** are the functional block — function/section keys (top
+two rows) and step keys (bottom two rows).
 
 ```
-Row 1:  1=Func   2=RecArm  3=NavUp  4=SEC0   5=SEC1   6=SEC2   7=SEC3   8=SEC4   9=SEC5
-Row 2:  Q=Track  W=NavLeft E=NavDn  R=NavRt  T=Copy   Y=Paste  U=Clear  I=Tap    O=Ply
-Row 3:  A=Mute   S=Step1   D=Step2  F=Step3  G=Step4  H=Step5  J=Step6  K=Step7  L=Step8
-Row 4:  Z=Fill   X=Step9   C=Step10 V=Step11 B=Step12 N=Step13 M=Step14 ,=Step15 .=Step16
+ MODIFIERS  │  FUNCTIONAL BLOCK                                  keys
+ [Func][Fill]│ [TRIG][SRC ][FLTR][AMP ][LFO ][FX  ][ARM ][ >|| ]  3 4 5 6 7 8 9 0
+ [Trk ][Cue ]│ [ <  ][ ^  ][ v  ][ >  ][Copy][Past][Clr ][Tap ]  E R T Y U I O P
+ ───────────┼──────────────────────────────────────────────────
+ [Patt][Scn ]│ [ steps 1 - 8 ]                                   D F G H J K L ;
+ [Mute][Mstr]│ [ steps 9 - 16 ]                                  C V B N M , . /
 ```
 
-`Copy` / `Paste` / `Clear` on row 2 are the **scope verb** keys — *not*
-transport. Transport Play/Stop is key `O`.
+`Copy` / `Paste` / `Clear` on row 2 (`U I O`) are the **scope verb**
+keys — *not* transport. Transport Play/Stop is key `0` (top-right
+corner). The nav arrangement and the use of keys `9`/`0` are still
+provisional within MHX.
 
 In **Ortholinear** and **Staggered** display modes the keys immediately
-outside the 9-column block — `` ` ``, `Tab`, `CapsLock`, `Shift` on the
-left and `0`/`-`/`=`, `P`/`[`/`]`, `;`/`'`, `/` on the right — are
-shown as dimmed decorative anchors. They have no sequencer function, but
-pressing one briefly lights it so you can reorient if you overshoot a
-key.
+outside the 10-column block — `` ` ``, `Tab`, `CapsLock`, `Shift` on
+the left and `-`/`=`, `[`/`]`, `'` on the right — are shown as dimmed
+decorative anchors. They have no sequencer function, but pressing one
+briefly lights it so you can reorient if you overshoot a key.
 
 ### 5.2 Modifier (scope) keys
 
+The eight modifiers form the left two columns. Column 1 is structural;
+column 2 is performance.
+
 | Key | Scope | Selects |
 |---|---|---|
-| `1` | **Func** | Modifier layer for verbs and meta sections. |
+| `1` | **Func** | Modifier layer for verbs and meta sections; the universal qualifier. |
 | `Q` | **Track** | One or more tracks; or, with none selected, Control-All. |
-| `Func + 2` | **Pattern** | A pattern (or several, in chain mode). |
+| `A` | **Pattern** | A pattern (or several, in chain mode). |
+| `Z` | **Mute** | The mute mask (hold and tap several tracks). |
+| `2` | **Fill** | "While held, fills fire." |
+| `W` | **Cue** | The cue / monitor scope. |
+| `S` | **Scene** | Scene assignment; `Scene + ^`/`v` picks endpoint A/B. |
+| `X` | **Master** | Master-bus / FX focus. |
 | step key (held) | **Trig** | The held step(s). Multi-step holds allowed. |
-| `4`–`9` | **Section** | The held section's parameters. |
-| `A` | **Mute** | The mute mask. |
-| `Z` | **Fill** | "While held, fills fire." |
+| `3`–`8` | **Section** | The held section's parameters. |
+
+**Compound chords.** Hold one modifier from each column to combine
+scopes (e.g. `Scene + Mute` = fade a track across the crossfader). The
+rule: cross-column only, a two-modifier hold never acts on its own (it
+just narrows the scope until you press a verb), and `Func` composes
+with anything.
 
 ### 5.3 Verb keys
 
 | Key | Verb | Meaning |
 |---|---|---|
-| `T` | **Record** | Copy the current scope into the clipboard. |
-| `Y` | **Play** | Paste the clipboard into the scope. |
-| `U` | **Stop** | Clear the scope. |
+| `U` | **Record** | Copy the current scope into the clipboard. |
+| `I` | **Play** | Paste the clipboard into the scope. |
+| `O` | **Stop** | Clear the scope. |
 
 ### 5.4 Transport and navigation
 
+(Nav and the `9`/`0` transport keys are provisional within MHX.)
+
 | Key | Action |
 |---|---|
-| `O` | Play / Stop transport. |
-| `Func + E` | Stop and reset to the start. |
-| `I` | Tap tempo. |
-| `Func + I` | Toggle metronome. |
-| `2` | Toggle record-arm. |
-| `3` / `E` | Navigate up / down (e.g. step-grid pages). |
-| `W` / `R` | Navigate left / right. |
+| `0` | Play / Stop transport. |
+| `Func + 0` | Stop and reset to the start. |
+| `P` | Tap tempo. |
+| `Func + P` | Toggle metronome. |
+| `9` | Toggle record-arm. |
+| `R` / `T` | Navigate up / down (e.g. step-grid pages). |
+| `E` / `Y` | Navigate left / right. |
 
 ### 5.5 Track selection and focus
 
@@ -365,8 +394,8 @@ Lockstep has 16 tracks. The track header shows 8 at a time; the **"1–8" / "9�
 
 | Gesture | Action |
 |---|---|
-| `Track (Q) + S–L` | Select / focus track 1–8 (`Q + S` = track 1, … `Q + L` = track 8). |
-| `Track (Q) + X–.` | Select / focus track 9–16 (`Q + X` = track 9, … `Q + .` = track 16). |
+| `Track (Q) + D–;` | Select / focus track 1–8 (`Q + D` = track 1, … `Q + ;` = track 8). |
+| `Track (Q) + C–/` | Select / focus track 9–16 (`Q + C` = track 9, … `Q + /` = track 16). |
 | Page button (click) | Flip track header between tracks 1–8 and 9–16. |
 
 Tracks 1–8 default to `SamplerMachine` and tracks 9–16 to `MidiOutMachine` (Digitakt-style default split). Any track can be reassigned to any machine via the Part-edit flow (planned for MH). A small **"M"** badge in the top-right corner of a track button identifies MIDI-out tracks at a glance.
@@ -397,23 +426,23 @@ a mapped MIDI CC, or a QWERTY action.
 
 | Key | Section (machine layer) |
 |---|---|
-| `4` | **TRIG** — note, velocity, gate defaults |
-| `5` | **SRC** — sound source (sampler / oscillator controls) |
-| `6` | **FLTR** — filter *(post-machine block: planned, ME)* |
-| `7` | **AMP** — amplitude envelope *(post-machine block: planned, ME)* |
-| `8` | **LFO** — modulation *(planned)* |
-| `9` | **FX** — per-track effects *(planned, MV)* |
+| `3` | **TRIG** — note, velocity, gate defaults |
+| `4` | **SRC** — sound source (sampler / oscillator controls) |
+| `5` | **FLTR** — filter *(post-machine block: planned, ME)* |
+| `6` | **AMP** — amplitude envelope *(post-machine block: planned, ME)* |
+| `7` | **LFO** — modulation *(planned)* |
+| `8` | **FX** — per-track effects *(planned, MV)* |
 
 Press a section key repeatedly to page through its parameters (the MZ
-shows four at a time). The same key under `Func` selects the **track
-meta** section:
+shows eight at a time, in two rows of four — `kMZSlots`). The same key
+under `Func` selects the **track meta** section:
 
 | Key | Meta section |
 |---|---|
-| `Func + 4` | **COND** — probability, m:n iteration, prev-dep |
-| `Func + 5` | **TRIG** — default note, velocity, gate |
-| `Func + 6` | **TRACK** — length, clock divider |
-| `Func + 9` | **GLOBAL** — output gain, sync mode, clock settings |
+| `Func + 3` | **COND** — probability, m:n iteration, prev-dep |
+| `Func + 4` | **TRIG** — default note, velocity, gate |
+| `Func + 5` | **TRACK** — length, clock divider |
+| `Func + 8` | **GLOBAL** — output gain, sync mode, clock settings |
 
 ### 5.9 Copy / paste / clear
 
@@ -444,9 +473,12 @@ sweeping a filter or tightening every decay across the kit at once.
 
 | Gesture | Action |
 |---|---|
-| `Mute (A) + step key` | Toggle **global** mute on that track (survives pattern changes). |
-| `Func + A + step key` | Toggle **pattern** mute (saved with the pattern; applied on Func release). |
+| `Mute (Z) + step key` | Toggle **global** mute on that track (survives pattern changes). |
+| `Func + Mute (Z) + step key` | Toggle **pattern** mute (saved with the pattern; applied on Func release). |
 | `Func` held + multiple mute toggles | Deferred multi-select — all selected tracks toggle atomically on release ("kill four tracks at once"). |
+
+(`Func + Mute` is legal even though both are column-1 modifiers: `Func`
+is the universal qualifier.)
 
 Mutes are non-destructive: trigs are suppressed at the output, no
 note-offs are forced. There is no separate solo — "solo" is "mute
@@ -464,7 +496,7 @@ everything else," which the multi-select gesture already gives you.
 
 ### 5.13 Trig conditions
 
-Set in the **COND** section (`Func + 4`). Three condition types, each
+Set in the **COND** section (`Func + 3`). Three condition types, each
 valid at track level (no step held) or step level (step held):
 
 - **Probability (1–100%)** — stochastic firing.
@@ -480,10 +512,10 @@ playhead.
 
 | Gesture | Action |
 |---|---|
-| `Pattern (Func+2) + step key` | Queue a pattern to switch at the next grid boundary. |
+| `Pattern (A) + step key` | Queue a pattern to switch at the next grid boundary. |
 | `Pattern + Stop` | Cancel the queued switch. |
 | `Pattern + Record` | Copy the whole pattern. |
-| `Pattern + W` *(Func+W)* | **Fork Part** — give the active pattern its own copy of the kit. |
+| **Fork Part** *(Func-layer; exact key provisional in MHX)* | Give the active pattern its own copy of the kit. |
 | Chain mode | Append multiple patterns to a RAM-only play queue (the only song-level surface; not saved). |
 
 Pattern switches are queued, not instant — the swap happens at a musical
@@ -493,8 +525,8 @@ boundary. The transport chrome shows the queued pattern.
 
 | Gesture | Action |
 |---|---|
-| `Func + 2` (release without pressing a step) | Push the current pattern + kit onto the checkpoint stack. |
-| `Func + O` | Pop and restore the last checkpoint. |
+| `Pattern (A)` (release without pressing a step) | Push the current pattern + kit onto the checkpoint stack. |
+| `Func + O` (No) | Pop and restore the last checkpoint. |
 
 Up to 8 deep, oldest evicted on overflow. **RAM-only** — checkpoints are
 a scratch-take tool and do *not* persist across save/reload. The chrome
@@ -508,8 +540,8 @@ shows the stack depth (`CK:N`).
   Selected-Track (follows focus).
 - **Channel modes:** Omni→Selected (all channels route to the focused
   track) or Per-Track (channel N drives track N).
-- **Four contextual encoders** mirror the Manipulation Zone and always
-  drive the current focus.
+- **Eight contextual encoders** mirror the Manipulation Zone (4×2) and
+  always drive the current focus.
 - **MIDI clock** can drive the timeline in standalone, with Locked and
   Auto sync modes (Auto freewheels on clock dropout, freezes on explicit
   stop).
@@ -519,11 +551,13 @@ shows the stack depth (`CK:N`).
 
 The trig grid can become a modal surface for non-step roles:
 
+(Mode-chord keys are on the `Func` layer; exact keys provisional in MHX.)
+
 | Gesture | Mode |
 |---|---|
-| `Func + T` | Keyboard mode (16 keys → chromatic notes) |
-| `Func + Y` | Retrig / slice mode |
-| `Func + U` | Sound Pool mode |
+| `Func` + mode key | Keyboard mode (16 keys → chromatic notes) |
+| `Func` + mode key | Retrig / slice mode |
+| `Func` + mode key | Sound Pool mode |
 
 A mode badge (`KEY` / `RTG` / `POL`) shows in the chrome. The full
 behaviour of these modes lands in a later milestone (see
@@ -546,9 +580,17 @@ scoped mappings; MIDI clock + sync modes; the full QWERTY overlay
 project serialization; the scope+verb grammar; copy/paste/clear for
 step / section / track / pattern; global and pattern mutes; the Fill
 modifier; Control-All; the checkpoint stack; pattern queueing and chain
-mode; trig-grid mode selectors with chrome badges.
+mode; trig-grid mode selectors with chrome badges. **Note:** the
+shipping overlay is still the **9×4** layout (one left modifier column,
+four-slot Manipulation Zone); §5 documents the 10×4 target that MHX
+delivers.
 
-**Planned** (milestones ME onward): post-machine FLTR and AMP blocks
+**Planned** (remaining milestones; MHX is next): the **10×4 surface
+revamp** —
+eight-key one-hand modifier cluster, compound chords, single `Scene`
+modifier, `Master` focus key, 8-slot (4×2) Manipulation Zone, staggered
+encoder band + vertical crossfader, four-register cell typography
+(MHX); post-machine FLTR and AMP blocks
 with role-tagged sections (ME); the first-class MIDI-out machine (MF);
 the full behaviour of the alternate trig modes — Keyboard / Retrig /
 Sound Pool (MG); additional sound engines — FM, virtual-analog,

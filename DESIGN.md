@@ -531,38 +531,66 @@ choice rather than a hardcoded behaviour. See M7.4.
 
 ### 5.5 QWERTY overlay
 
-The QWERTY overlay uses a **9×4** layout.  The leftmost column of
-each row holds a dedicated modifier key; the remaining 8 columns
-carry function keys (top two rows) or step keys (bottom two rows).
+The QWERTY overlay uses a **10×4** layout (revamped in MHX, §33, from
+the earlier 9×4). The **left two columns** are an eight-key modifier
+cluster reachable by one hand; the **right eight columns** are the
+functional block — function/section keys (top two rows) and step keys
+(bottom two rows). Keeping the functional block 8 wide preserves the
+16-step grid and the six canonical sections unchanged.
 
 ```
-Row 1:  1=Func   2=NavUp  3=Sec0  4=Sec1  5=Sec2  6=Sec3  7=Sec4  8=Sec5  9=PlayStop
-Row 2:  Q=Track  W=NavLft E=NavDn R=NavRt T=RecArm Y=Verb: U=Verb: I=Verb: O=TapTempo
-                                                    Rec      Play     Stop
-Row 3:  A=Mute   S=Step0  D=Step1 F=Step2 G=Step3 H=Step4 J=Step5 K=Step6 L=Step7
-Row 4:  Z=Fill   X=Step8  C=Step9 V=St10  B=St11  N=St12  M=St13  ,=St14  .=St15
+ MODIFIERS  │  FUNCTIONAL BLOCK                                  keys
+ [Func][Fill]│ [TRIG][SRC ][FLTR][AMP ][LFO ][FX  ][ARM ][ >|| ]  3 4 5 6 7 8 9 0
+ [Trk ][Cue ]│ [ <  ][ ^  ][ v  ][ >  ][REC ][PLY ][STP ][TAP ]  E R T Y U I O P
+ ───────────┼──────────────────────────────────────────────────
+ [Patt][Scn ]│ [ steps 0 - 7 ]                                   D F G H J K L ;
+ [Mute][Mstr]│ [ steps 8 - 15 ]                                  C V B N M , . /
 ```
 
-The `Func` layer (hold key 1) remaps certain keys:
+**Modifier cluster (left two columns).** Eight persistent first-class
+scopes, split by column:
 
-```
-Func+2    = PatternScope         Func+3–8 = MetaSection0–5
-Func+T    = Yes                  Func+O   = No
-Func+Y    = TrigModeKeyboard     Func+U   = TrigModeRetrig   Func+I = TrigModeSoundPool
-Func+9    = StopReset
-```
+| Key | Modifier | Column role |
+|---|---|---|
+| `1` | Func    | structural |
+| `Q` | Track   | structural |
+| `A` | Pattern | structural |
+| `Z` | Mute    | structural |
+| `2` | Fill    | performance |
+| `W` | Cue     | performance |
+| `S` | Scene   | performance |
+| `X` | Master  | performance |
 
-The `Track` layer (hold Q) remaps the step row to track-select:
+Column 1 (`1 Q A Z`) holds structural/edit scopes; column 2
+(`2 W S X`) holds performance scopes. This is the complete persistent
+scope set — there are no others. `Pattern` is now a dedicated key (it
+no longer lives under `Func+2`); `Mute` keeps its dedicated key so the
+hold-and-tap-many multi-mute gesture survives; `Master` (master-bus /
+FX focus, §32.3) and the single `Scene` modifier (§17) take the slots
+freed by collapsing the old Scene A / Scene B pair into one.
 
-```
-Track+S–L = SelectTrack 0–7
-```
+**Function strip (top two rows of the functional block).** Canonical
+sections are fixed; *the nav arrangement and keys `9`/`0` are
+provisional and may move as MHX firms up*:
 
-The `Mute` layer (hold A) remaps the step row to mute-toggle:
+- `3–8` = the six canonical sections TRIG / SRC / FLTR / AMP / LFO / FX.
+- `9` = Record-Arm, `0` = Play/Stop (transport, top-right corner).
+- `E R T Y` = navigation `< ^ v >` (relocated, since `W`/`E`/`R` are
+  now modifiers).
+- `U I O` = the verbs Record / Play / Stop (Copy / Paste / Clear).
+- `P` = Tap Tempo.
 
-```
-Mute+S–L  = ToggleMute 0–7
-```
+**Step keys.** Row 3 `D F G H J K L ;` = steps 0–7; row 4
+`C V B N M , . /` = steps 8–15.
+
+The `Func` layer (hold `1`) reaches the secondary assignments
+(Yes / No, StopReset, ForkPart, MachineSelect, Metronome, the
+trig-grid mode chords, Quantize, …) and the track-meta sections
+(`Func + 3–8`). Holding any other modifier reinterprets the functional
+block per the **compound-chord rule** (§13): a second held modifier
+*qualifies* the scope, it never invents a new verb. `Track + step` =
+select track; `Mute + step` = toggle that track's mute; `Scene + ^` /
+`Scene + v` = assign to Scene A / B (§17.5).
 
 The overlay emits `ControllerEvent` structs (button-down, button-up,
 encoder-delta) that are source-agnostic — hardware controllers wire
@@ -576,10 +604,11 @@ controller's mechanical grid.
 The UI is built around three regions whose layout matches a future
 hardware surface 1:1:
 
-- **The Manipulation Zone.** Exactly 4 primary parameters visible at
-  any time. Their labels, ranges, and visualisations come from the
-  active Machine's metadata. When a section contains more than 4
-  slots, repeated section-key presses cycle pages of 4 within it.
+- **The Manipulation Zone.** `kMZSlots` primary parameters visible at
+  any time — **8** as of MHX (§26.2, §33), laid out 4×2. Their labels,
+  ranges, and visualisations come from the active Machine's metadata.
+  When a section contains more than `kMZSlots` slots, repeated
+  section-key presses cycle pages within it.
 - **The Section Bar.** Six section buttons (keys `3`–`8`) with two
   layers accessed via `Func` (`1`):
 
@@ -833,18 +862,52 @@ declares "what am I about to operate on?"), then press a **verb** key
 encoder. The grammar is the same regardless of whether the scope is
 a step, a track, a section, or a pattern.
 
-The scope buttons are persistent first-class modifiers.  Each has a
-dedicated key in the 9×4 QWERTY layout (see §5.5):
+The scope buttons are persistent first-class modifiers, the eight-key
+cluster in the left two columns of the 10×4 QWERTY layout (see §5.5,
+§33):
 
 | Scope button | QWERTY key | Selects | Held alongside |
 |---|---|---|---|
-| `Func` | `1` (top-left) | Modifier for verb keys and meta sections. | The verb. |
-| `Track` | `Q` (left col) | One or more track slots. | Verb, or an encoder. |
-| `Pattern` | `Func+2` | One pattern (or, in chain mode, several). | Verb, or a pattern key. |
-| `Trig` (hold a step) | `S–L` / `X–.` | The held step(s); multi-step hold is allowed. | Verb, encoder, or note key. |
+| `Func` | `1` (col 1) | Modifier for verb keys and meta sections; the universal qualifier. | Any. |
+| `Track` | `Q` (col 1) | One or more track slots; none selected = Control-All. | Verb, encoder, or a col-2 modifier. |
+| `Pattern` | `A` (col 1) | One pattern (or, in chain mode, several). | Verb, or a pattern key. |
+| `Mute` | `Z` (col 1) | The mute mask (hold and tap many). | Track/step keys. |
+| `Fill` | `2` (col 2) | "While I'm holding this, fill conditions evaluate true." | (no verb needed — it's the state itself). |
+| `Cue` | `W` (col 2) | The cue/monitor scope (§31). | Track keys, `Scene`. |
+| `Scene` | `S` (col 2) | Scene assignment; `Scene + ^/v` picks endpoint A/B (§17.5). | Nav, encoder, `Mute`. |
+| `Master` | `X` (col 2) | Master-bus / FX focus (§32.3). | Verb, section key. |
+| `Trig` (hold a step) | `D–;` / `C–/` | The held step(s); multi-step hold is allowed. | Verb, encoder, or note key. |
 | Section key | `3–8` | The held section's slots. | Verb. |
-| `Mute` | `A` (left col) | The mute mask. | Track keys. |
-| `Fill` | `Z` (left col) | "While I'm holding this, fill conditions evaluate true." | (no verb needed — it's the state itself). |
+
+**The compound-chord rule.** Two modifiers may be held together, and
+this is a deliberate part of the grammar — but under one hard rule so
+compounds never become bespoke two-key meanings:
+
+1. **Cross-column only.** A compound holds *at most one modifier from
+   each column*. Two column-1 modifiers (e.g. `Func+Track`) is
+   meaningless and ignored; the legal compound space is exactly "one
+   key from each column."
+2. **A modifier+modifier compound never fires on its own** — it only
+   sets a *compound scope*, still awaiting a verb or an encoder turn.
+   Nothing happens from two modifiers alone, so there is no surprise.
+   An action occurs only when a verb is pressed (`Track+Record`) or an
+   encoder moves.
+3. **`Func` is the universal qualifier** — the one sanctioned crossing
+   of clause 1: it composes with anything as the secondary/advanced
+   layer, as it does today.
+
+The compound *qualifies* the scope; it does not change what a verb
+means. `Track + Section` = the section verb scoped to *this* track
+rather than current/all; `Scene + Mute` = assign the AMP-level slot to
+a scene (fluid mute, §17.2); `Cue + Scene` = preview that scene (§31).
+
+**Exceptions table** (high-value chords that knowingly bend clause 1;
+starts empty and grows only when the obvious meaning is clearly worth
+it):
+
+| Chord | Meaning | Why it earns the exception |
+|---|---|---|
+| *(none yet)* | — | — |
 
 The verb set is small and uniform:
 
@@ -1289,12 +1352,19 @@ TBD; user-remappable) so any external surface can drive it.
 
 There is no QWERTY mapping for the fader axis: continuous gestures
 on a typing keyboard are a poor fit and would only invite muscle
-memory the hardware can't satisfy. The QWERTY mapping for
-**Scene A** / **Scene B** scope buttons exists (for the
-assignment gesture), but the fader's continuous value comes from
-mouse / CC / hardware fader only — consistent with pillar 1
+memory the hardware can't satisfy. The fader's continuous value comes
+from mouse / CC / hardware fader only — consistent with pillar 1
 ("hardware = fewer-key QWERTY"): the QWERTY layer omits the one
 axis the hardware can't reduce to a button.
+
+The assignment gesture uses a **single `Scene` modifier** (one key,
+not the old Scene A / Scene B pair — MHX, §33). Endpoint selection is
+a compound: `Scene + ^` (NavUp) targets **Scene A**, `Scene + v`
+(NavDown) targets **Scene B** — mirroring the vertical fader's A-top /
+B-bottom throw. On hardware the fader position picks the near endpoint
+directly, so the explicit `^`/`v` qualifier is the QWERTY-only path.
+The software fader sits as a vertical slider on the right of the
+encoder band (§26.1), spatially aligned with the encoder rows.
 
 ### 17.6 Morph-aware editing
 
@@ -1759,23 +1829,42 @@ the StepGrid. The exact pixel layout is the subject of MP.1;
 the constraint is "every cell that maps to a hardware key is
 square, and the window grows vertically."
 
+**Encoder band (MHX, §33).** The 8 MZ encoders render as a band above
+the key grid, **two staggered rows of four**, narrower than the
+10-column grid below them — the stagger gives each knob breathing
+room (the 10-key width is wide) and visually decouples the encoder
+area from the grid. The **crossfader** is a vertical slider on the
+right of this band, sharing its row-space, with **Scene A at the top
+and Scene B at the bottom** (§17.5). The software UI mirrors the
+intended hardware layout 1:1.
+
+**Cell typography (MHX, §33).** Every functional cell carries up to
+four registers in fixed positions, for a consistent read across the
+whole grid:
+
+- *Corner (dim, small):* the QWERTY-key legend — toggled by
+  `show-key-legend` (§6.2).
+- *Centre (largest, high-contrast):* the primary label.
+- *Bottom strip (smaller, secondary hue):* the `Func`-layer label.
+- *Held-chord overlay (accent colour):* when a modifier or compound is
+  active, the cell's contextual meaning takes the centre in an accent
+  colour — this is the per-cell form of "chrome announces state"
+  (PRINCIPLES §8).
+
+Abbreviations may run to ~5 characters now that cells are larger;
+canonical section names stay ≤4 so they never reflow.
+
 ### 26.2 Manipulation Zone size
 
-The MZ currently shows 4 slots at a time, matching 4 endless
-encoders on the hardware sketch. The hardware design is leaning
-toward **8 encoders**, which would grow the MZ to 8 slots per
-page and halve the pagination count for any section larger than
-8 slots.
+The MZ shows **8 slots** as of MHX (§33), matching **8 endless
+encoders** on the hardware, laid out **4×2** (two staggered rows of
+four — see §26.1). This halves the pagination count for any section
+larger than 8 slots and maps the encoders cleanly onto the section
+taxonomy.
 
-The decision is deferred (MZ-8 is a hardware question that
-affects industrial design budgets). The software commits only to
-making the size *a single named constant* (`lockstep::kMZSlots`,
-default `4`) such that growing it to 8 is a one-line change
-followed by a UI re-layout. No code outside the MZ may
-hard-code "4" for the slot count.
-
-This is a small discipline that costs nothing now and preserves
-the option without committing to it.
+The size remains a single named constant (`lockstep::kMZSlots`, now
+`8`); no code outside the MZ may hard-code the slot count, so the
+value stays the one place a future re-size is made.
 
 ## 27. Audio Routing and Track Input Sources
 
@@ -2048,3 +2137,64 @@ their FX section is repurposed to a MIDI CC bank exactly as ME.7
 already specifies for FLTR/AMP. No performance feature special-cases
 audio vs. MIDI-out here — the FX section simply renders whatever that
 track type exposes (`PRINCIPLES.md` §5).
+
+## 33. MHX — The 10×4 Surface Revamp
+
+The intended *final* control surface and UX grammar. Earlier
+milestones built on a 9×4 layout (one left modifier column + an 8-wide
+functional block); MHX widens that to **10×4** to give the performance
+grammar room to breathe before the machine catalogue (MH) and scenes
+(MI) pile on more scopes. This section is the consolidated decision
+record; the authoritative key map lives in §5.5, the grammar in §13,
+the scene/fader surface in §17.5, and the MZ/encoder/typography in §26.
+
+This is intended as the **last large UI/UX revamp** — the point at
+which the surface and grammar are frozen. It is sequenced *ahead of the
+rest of MH* (hence "MHX") so the catalogue machines are authored
+against the final surface, not a moving one.
+
+**33.1 Geometry.** Ten columns, four rows. The **left two columns** are
+an eight-key modifier cluster, all reachable by one (left) hand; the
+**right eight columns** are the functional block — function/section
+keys on the top two rows, the 16-step grid on the bottom two. Widening
+left rather than widening the step grid keeps the Digitakt-lineage
+16 steps and the six canonical sections untouched. The window grows
+*vertically* (PRINCIPLES §4; §26.1), width anchored to the 10 columns.
+
+**33.2 The eight modifiers.** Column 1 (structural): `Func` `Track`
+`Pattern` `Mute`. Column 2 (performance): `Fill` `Cue` `Scene`
+`Master`. Rationale for the slate (§5.5 has the key map):
+
+- `Pattern` is promoted from `Func+2` to its own key.
+- `Mute` keeps a dedicated key specifically to preserve its
+  hold-and-tap-many multi-mute gesture, which a verb-chord can't match.
+- The old **Scene A / Scene B** pair collapses to a single `Scene`
+  modifier; endpoint A/B is chosen by `Scene + ^/v` (§17.5). The freed
+  slot goes to `Master` (master-bus / FX focus, §32.3), which
+  previously had a focus state but no key.
+
+**33.3 Compound chords.** Two modifiers compose under the hard rule in
+§13: cross-column only, a modifier+modifier never fires on its own (it
+only sets a compound scope awaiting a verb), and `Func` is the
+universal qualifier. A compound *qualifies* the scope; it never changes
+what a verb means. An exceptions table (§13) starts empty.
+
+**33.4 Encoders, fader, typography.** 8 encoders (`kMZSlots = 8`) in a
+4×2 staggered band above the grid; the crossfader is a vertical slider
+to the right of that band (Scene A top, Scene B bottom). Functional
+cells follow a fixed four-register typography (corner key-legend /
+centre primary / bottom Func-label / accent held-chord overlay). See
+§26.
+
+**33.5 Open within MHX.** The canonical sections (`3–8`) are fixed, but
+the function-strip *nav arrangement* and the use of keys `9`/`0` are
+provisional and may move as MHX implementation firms up.
+
+**33.6 Implementation note.** Landing MHX touches the
+`QwertyOverlay` tables (modifier set, step keys moving to `D–;` /
+`C–/`, the relocated function strip), `isEdgeKey` (the decorative-edge
+set changes for a 10-wide grid), `kMZSlots` (4 → 8) and the editor
+re-layout (encoder band + vertical fader), plus the chrome that
+announces the new modifiers. Until it ships, the running build remains
+on the 9×4 layout; docs that describe the 10×4 surface are describing
+the MHX *target*.
