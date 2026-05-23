@@ -343,7 +343,7 @@ namespace lockstep
         // ---- Scope chrome: badge row in the free space of the header row ----
         {
             const auto& sc = editMode_.scopeState();
-            // Scope badges: (label, active?)
+            // Scope badges: (label, active?) — eight modifiers for MHX 10x4
             struct Badge { const char* label; bool active; juce::Colour onColour; };
             const Badge scopes[] = {
                 { "FNC", sc.func,    juce::Colour(0xFF6090C0u) },
@@ -351,6 +351,9 @@ namespace lockstep
                 { "PAT", sc.pattern, juce::Colour(0xFFC09030u) },
                 { "MUT", sc.mute,    juce::Colour(0xFFC05050u) },
                 { "FIL", sc.fill,    juce::Colour(0xFFB060C0u) },
+                { "CUE", sc.cue,     juce::Colour(0xFF40B0B0u) },
+                { "SCN", sc.scene,   juce::Colour(0xFF9050D0u) },
+                { "MST", sc.master,  juce::Colour(0xFFD06020u) },
             };
 
             // Clipboard badge
@@ -572,13 +575,19 @@ namespace lockstep
                 uiState_.funcHeld = true;
                 editMode_.onScopeEvent(ev);
                 keyboardArea_.repaint();
-                keyboardArea_.repaint();
                 repaint();
                 return true;
 
             case ControllerButton::TrackScope:
                 uiState_.trackHeld = true;
                 processor_.setControlAllActive(true);  // MD.10: active until a track is selected
+                editMode_.onScopeEvent(ev);
+                repaint();
+                return true;
+
+            case ControllerButton::PatternScope:
+                uiState_.patternScopeHeld = true;
+                uiState_.patternScopeUsed = false;
                 editMode_.onScopeEvent(ev);
                 repaint();
                 return true;
@@ -592,6 +601,24 @@ namespace lockstep
             case ControllerButton::FillScope:
                 uiState_.fillHeld = true;
                 processor_.setFillActive(true);
+                editMode_.onScopeEvent(ev);
+                repaint();
+                return true;
+
+            case ControllerButton::CueScope:
+                uiState_.cueHeld = true;
+                editMode_.onScopeEvent(ev);
+                repaint();
+                return true;
+
+            case ControllerButton::SceneScope:
+                uiState_.sceneHeld = true;
+                editMode_.onScopeEvent(ev);
+                repaint();
+                return true;
+
+            case ControllerButton::MasterScope:
+                uiState_.masterHeld = true;
                 editMode_.onScopeEvent(ev);
                 repaint();
                 return true;
@@ -933,13 +960,6 @@ namespace lockstep
             case ControllerButton::TapTempo:
                 return true;
 
-            case ControllerButton::PatternScope:
-                uiState_.patternScopeHeld = true;
-                uiState_.patternScopeUsed = false;
-                editMode_.onScopeEvent(ev);
-                repaint();
-                return true;
-
             case ControllerButton::None:
                 return false;
 
@@ -979,8 +999,19 @@ namespace lockstep
             handled = true;
         }
 
-        if (!isKeyDown && uiState_.muteHeld
+        // PatternScope is now on key A (dedicated in MHX).
+        if (!isKeyDown && uiState_.patternScopeHeld
             && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('A')))
+        {
+            uiState_.patternScopeHeld = false;
+            uiState_.patternScopeUsed = false;
+            editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::PatternScope });
+            repaint();
+            handled = true;
+        }
+
+        if (!isKeyDown && uiState_.muteHeld
+            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('Z')))
         {
             uiState_.muteHeld = false;
             editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::MuteScope });
@@ -989,7 +1020,7 @@ namespace lockstep
         }
 
         if (!isKeyDown && uiState_.fillHeld
-            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('Z')))
+            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('2')))
         {
             uiState_.fillHeld = false;
             processor_.setFillActive(false);
@@ -998,15 +1029,29 @@ namespace lockstep
             handled = true;
         }
 
-        // PatternScope (Func+2) release: if no step was queued, fire Snapshot instead.
-        if (!isKeyDown && uiState_.patternScopeHeld
-            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('2')))
+        if (!isKeyDown && uiState_.cueHeld
+            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('W')))
         {
-            if (!uiState_.patternScopeUsed)
-                processor_.pushCheckpoint();
-            uiState_.patternScopeHeld = false;
-            uiState_.patternScopeUsed = false;
-            editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::PatternScope });
+            uiState_.cueHeld = false;
+            editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::CueScope });
+            repaint();
+            handled = true;
+        }
+
+        if (!isKeyDown && uiState_.sceneHeld
+            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('S')))
+        {
+            uiState_.sceneHeld = false;
+            editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::SceneScope });
+            repaint();
+            handled = true;
+        }
+
+        if (!isKeyDown && uiState_.masterHeld
+            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('X')))
+        {
+            uiState_.masterHeld = false;
+            editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::MasterScope });
             repaint();
             handled = true;
         }
@@ -1021,7 +1066,7 @@ namespace lockstep
         }
 
         if (!isKeyDown && playKeyHeld_
-            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('O')))
+            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('0')))
         {
             playKeyHeld_ = false;
             handled = true;
@@ -1381,6 +1426,9 @@ namespace lockstep
             case PS::Func:
             case PS::Mute:
             case PS::Fill:
+            case PS::Cue:
+            case PS::Scene:
+            case PS::Master:
                 break;
 
             case PS::None:

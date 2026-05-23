@@ -1,5 +1,6 @@
 #include "QwertyOverlay.h"
 
+#include <algorithm>
 #include <array>
 
 namespace lockstep
@@ -157,23 +158,21 @@ namespace lockstep
         // Row 2 edge: Tab (left of Q), [ ] (right of P)
         // Row 3 edge: ' (right of ;)  — CapsLock is OS-level, no standard code
         // Row 4 edge: none (/ is step 15)
-        static constexpr int kEdge[] = {
+        static constexpr std::array<int, 7> kEdge = {
             96,          // ` (backtick / grave)
             45, 61,      // -  =
             9,           // Tab
             91, 93,      // [  ]
             39,          // '
         };
-        for (int k : kEdge)
-            if (k == keyCode)
-                return true;
-        return false;
+        return std::any_of(kEdge.begin(), kEdge.end(),
+                           [keyCode](int k) { return k == keyCode; });
     }
 
-    ControllerEvent QwertyOverlay::resolve(int keyCode,
+    ControllerEvent QwertyOverlay::resolve(int keyCode,  // NOLINT(readability-convert-member-functions-to-static)
                                            bool funcHeld,
                                            bool trackHeld,
-                                           bool muteHeld) const  // NOLINT(readability-convert-member-functions-to-static)
+                                           bool muteHeld) const
     {
         using T = ControllerEvent::Type;
 

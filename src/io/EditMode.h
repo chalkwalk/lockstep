@@ -18,15 +18,21 @@ namespace lockstep
     class EditMode
     {
     public:
-        // Which scope buttons are currently held.
+        // Which scope buttons are currently held (MHX 10x4 layout).
         struct ScopeState
         {
-            bool func    = false;
+            // Column 1 (structural):
+            bool func    = false;  // key 1
             bool track   = false;  // key Q: Control-All if no trig held
-            bool pattern = false;  // Func+2
-            bool mute    = false;  // key A
-            bool fill    = false;  // key Z
-            bool trig    = false;  // at least one step is held (set externally)
+            bool pattern = false;  // key A (dedicated in MHX)
+            bool mute    = false;  // key Z
+            // Column 2 (performance):
+            bool fill    = false;  // key 2
+            bool cue     = false;  // key W (§31)
+            bool scene   = false;  // key S (§17)
+            bool master  = false;  // key X (§32.3)
+            // Set externally from EditContext / section holds:
+            bool trig    = false;  // at least one step is held
         };
 
         // The primary scope determines what the next verb operates on.
@@ -39,6 +45,9 @@ namespace lockstep
             Pattern,  // Pattern scope
             Mute,     // Mute scope
             Fill,     // Fill scope (momentary; verb is less common here)
+            Cue,      // Cue/monitor scope (§31)
+            Scene,    // Scene assignment scope (§17)
+            Master,   // Master-bus / FX focus (§32.3)
             Section,  // a section key is held (set externally when section held)
         };
 

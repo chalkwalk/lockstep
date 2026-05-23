@@ -20,7 +20,7 @@ namespace lockstep
 
         switch (ev.button)
         {
-            // Scope modifier buttons — update scope state and recompute primary.
+            // Column-1 structural scope modifiers.
             case ControllerButton::Func:
                 scope_.func = isDown;
                 recomputePrimary();
@@ -37,8 +37,22 @@ namespace lockstep
                 scope_.mute = isDown;
                 recomputePrimary();
                 return true;
+
+            // Column-2 performance scope modifiers.
             case ControllerButton::FillScope:
                 scope_.fill = isDown;
+                recomputePrimary();
+                return true;
+            case ControllerButton::CueScope:
+                scope_.cue = isDown;
+                recomputePrimary();
+                return true;
+            case ControllerButton::SceneScope:
+                scope_.scene = isDown;
+                recomputePrimary();
+                return true;
+            case ControllerButton::MasterScope:
+                scope_.master = isDown;
                 recomputePrimary();
                 return true;
 
@@ -61,6 +75,7 @@ namespace lockstep
             case ControllerButton::SelectTrack:
             case ControllerButton::ToggleMute:
             case ControllerButton::ForkPart:
+            case ControllerButton::MachineSelect:
             case ControllerButton::RecordArm:
             case ControllerButton::TapTempo:
             case ControllerButton::MetronomeToggle:
@@ -79,12 +94,15 @@ namespace lockstep
 
     void EditMode::recomputePrimary()
     {
-        // Priority: Trig > Section > Track > Pattern > Mute > Fill > Func > None
+        // Priority: Trig > Section > Track > Pattern > Mute > Cue > Scene > Master > Fill > Func > None
         if (scope_.trig)    { primary_ = PrimaryScope::Trig;    return; }
         if (sectionHeld_)   { primary_ = PrimaryScope::Section; return; }
         if (scope_.track)   { primary_ = PrimaryScope::Track;   return; }
         if (scope_.pattern) { primary_ = PrimaryScope::Pattern; return; }
         if (scope_.mute)    { primary_ = PrimaryScope::Mute;    return; }
+        if (scope_.cue)     { primary_ = PrimaryScope::Cue;     return; }
+        if (scope_.scene)   { primary_ = PrimaryScope::Scene;   return; }
+        if (scope_.master)  { primary_ = PrimaryScope::Master;  return; }
         if (scope_.fill)    { primary_ = PrimaryScope::Fill;    return; }
         if (scope_.func)    { primary_ = PrimaryScope::Func;    return; }
         primary_ = PrimaryScope::None;
