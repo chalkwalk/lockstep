@@ -658,10 +658,15 @@ the "external gear is a first-class workflow" pillar.
       — Sound Pool: deferred to MG; PartTrack now carries all
         MIDI-out config (`destinationId`, `midiCCNumbers/Labels`)
         so a sound bundle naturally extends to MIDI-out tracks.
-- [ ] **MF.8** Hardware-targeting factory tables for at least:
+- [x] **MF.8** Hardware-targeting factory tables for at least:
       Digitakt, Digitone, Syntakt, Analog Four, Analog Rytm,
-      Octatrack, Tonverk. (Tonverk CC table TBD; ship what's
-      published.)
+      Octatrack, Tonverk. All seven shipped in
+      `src/machine/MidiDevicePresets.{h,cpp}`. Tables source from
+      published Elektron MIDI implementation charts; Tonverk from
+      TE product spec. `PartTrack::midiPresetName` persists the
+      active preset id; `setStateInformation` calls
+      `MidiDevicePresets::getTable()` to restore `nameTable_` on
+      reload. Preset selection UI deferred to MP (UI polish).
 
 ### MG — Alternate trig modes  [pending]
 

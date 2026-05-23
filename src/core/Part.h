@@ -41,6 +41,11 @@ namespace lockstep
         // When populated, length == MidiOutMachine::kNumCCs (16).
         std::vector<int>         midiCCNumbers{};
         std::vector<std::string> midiCCLabels{};
+
+        // MF.8: active hardware preset id (e.g. "elektron.digitone").
+        // Empty = no preset / name table is cleared. Persisted so the CC name
+        // table is restored on session reload.
+        std::string midiPresetName{};
     };
 
     // Part owns the per-track machine identity, base parameter frame,

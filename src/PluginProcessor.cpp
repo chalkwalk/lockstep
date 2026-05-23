@@ -4,6 +4,7 @@
 #include "ParameterIDs.h"
 #include "core/StateResolver.h"
 #include "core/TrigEvaluator.h"
+#include "machine/MidiDevicePresets.h"
 #include "machine/MidiOutMachine.h"
 #include "machine/SamplerMachine.h"
 #include "machine/StubMachine.h"
@@ -1508,40 +1509,38 @@ namespace lockstep
     {
         PluginState::readFrom(data, sizeInBytes, *this);
 
+        // Push all MIDI-out config from a PartTrack to an already-installed machine.
+        auto pushMidiOutConfig = [](MidiOutMachine* mom, const PartTrack& pt)
+        {
+            mom->setDestinationId(pt.destinationId);
+            for (int ci = 0; ci < MidiOutMachine::kNumCCs
+                          && ci < static_cast<int>(pt.midiCCNumbers.size()); ++ci)
+                mom->setCCNumber(ci, pt.midiCCNumbers[static_cast<std::size_t>(ci)]);
+            for (int ci = 0; ci < MidiOutMachine::kNumCCs
+                          && ci < static_cast<int>(pt.midiCCLabels.size()); ++ci)
+                mom->setCCLabel(ci, juce::String(pt.midiCCLabels[static_cast<std::size_t>(ci)]));
+            // MF.8: restore hardware preset CC name table.
+            if (!pt.midiPresetName.empty())
+                mom->setCCNameTable(MidiDevicePresets::getTable(pt.midiPresetName));
+            else
+                mom->clearCCNameTable();
+        };
+
         // Reinstall machines from the active Part's stored machineIds so that
         // any Part loaded from disk with an unknown machine ID gets StubMachine.
         const auto& part = activePart();
         for (std::size_t t = 0; t < kNumTracks; ++t)
         {
-            const auto& pt  = part.tracks[t];
+            const auto& pt = part.tracks[t];
             if (machines_[t] && machines_[t]->machineId() == pt.machineId)
             {
-                // Machine type unchanged — still push MIDI-out config in case it changed.
                 if (machines_[t]->isMidiOut())
-                {
-                    auto* mom = static_cast<MidiOutMachine*>(machines_[t].get());
-                    mom->setDestinationId(pt.destinationId);
-                    for (int ci = 0; ci < MidiOutMachine::kNumCCs
-                                  && ci < static_cast<int>(pt.midiCCNumbers.size()); ++ci)
-                        mom->setCCNumber(ci, pt.midiCCNumbers[static_cast<std::size_t>(ci)]);
-                    for (int ci = 0; ci < MidiOutMachine::kNumCCs
-                                  && ci < static_cast<int>(pt.midiCCLabels.size()); ++ci)
-                        mom->setCCLabel(ci, juce::String(pt.midiCCLabels[static_cast<std::size_t>(ci)]));
-                }
+                    pushMidiOutConfig(static_cast<MidiOutMachine*>(machines_[t].get()), pt);
                 continue;
             }
             machines_[t] = makeMachineForId(pt.machineId, samplePool_);
             if (machines_[t]->isMidiOut())
-            {
-                auto* mom = static_cast<MidiOutMachine*>(machines_[t].get());
-                mom->setDestinationId(pt.destinationId);
-                for (int ci = 0; ci < MidiOutMachine::kNumCCs
-                              && ci < static_cast<int>(pt.midiCCNumbers.size()); ++ci)
-                    mom->setCCNumber(ci, pt.midiCCNumbers[static_cast<std::size_t>(ci)]);
-                for (int ci = 0; ci < MidiOutMachine::kNumCCs
-                              && ci < static_cast<int>(pt.midiCCLabels.size()); ++ci)
-                    mom->setCCLabel(ci, juce::String(pt.midiCCLabels[static_cast<std::size_t>(ci)]));
-            }
+                pushMidiOutConfig(static_cast<MidiOutMachine*>(machines_[t].get()), pt);
             if (getSampleRate() > 0.0)
                 machines_[t]->prepare(getSampleRate(), getBlockSize());
         }

@@ -6,6 +6,7 @@
 #include "../core/Project.h"
 #include "../core/Sequence.h"
 #include "../core/TrigCondition.h"
+#include "../machine/MidiDevicePresets.h"
 #include "../machine/MidiOutMachine.h"
 #include "../machine/SamplerMachine.h"
 #include <cstdint>
@@ -70,6 +71,8 @@ namespace lockstep::PluginState
         node.setProperty("machineId", juce::String(pt.machineId), nullptr);
         if (!pt.destinationId.empty())
             node.setProperty("destinationId", juce::String(pt.destinationId), nullptr);
+        if (!pt.midiPresetName.empty())
+            node.setProperty("midiPreset", juce::String(pt.midiPresetName), nullptr);
 
         const int np = proc.numParams(t);
         if (np > 0)
@@ -380,10 +383,12 @@ namespace lockstep::PluginState
     static void readPartTrackFromNode(const juce::ValueTree& ptNode,
                                        PartTrack& pt, LockstepProcessor& proc, int t)
     {
-        pt.machineId     = ptNode.getProperty("machineId",
-                                              "lockstep.sampler.v1").toString().toStdString();
-        pt.destinationId = ptNode.getProperty("destinationId",
-                                              "").toString().toStdString();
+        pt.machineId      = ptNode.getProperty("machineId",
+                                               "lockstep.sampler.v1").toString().toStdString();
+        pt.destinationId  = ptNode.getProperty("destinationId",
+                                               "").toString().toStdString();
+        pt.midiPresetName = ptNode.getProperty("midiPreset",
+                                               "").toString().toStdString();
 
         // MF.4: restore CC slot configuration.
         const auto ccNode = ptNode.getChildWithName("CCConfig");
