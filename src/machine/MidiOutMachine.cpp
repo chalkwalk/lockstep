@@ -239,6 +239,15 @@ namespace lockstep
         return ccLabels_[static_cast<std::size_t>(ccSlot)];
     }
 
+    void MidiOutMachine::allNotesOff(juce::MidiBuffer& midiOut)
+    {
+        midiOut.addEvent(juce::MidiMessage::allNotesOff(activeChannel_), 0);
+        midiOut.addEvent(juce::MidiMessage::allControllersOff(activeChannel_), 0);
+        activeNote_ = -1;
+        if (midiOutput_ && !midiOut.isEmpty())
+            midiOutput_->sendBlockOfMessagesNow(midiOut);
+    }
+
     void MidiOutMachine::setCCNameTable(std::unordered_map<int, juce::String> table)
     {
         nameTable_ = std::move(table);

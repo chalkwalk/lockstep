@@ -70,6 +70,11 @@ namespace lockstep
         void setCCNameTable(std::unordered_map<int, juce::String> table);
         void clearCCNameTable();
 
+        // MF.6: emit All-Notes-Off (CC 123) + Reset-All-Controllers (CC 121) on
+        // the active channel. Called by the processor on transport stop to prevent
+        // stuck notes on the downstream synth. Also clears the activeNote_ state.
+        void allNotesOff(juce::MidiBuffer& midiOut);
+
     private:
         // Section 1 "SRC": destination, channel, program
         static constexpr int kSlotDest    = 0;

@@ -626,14 +626,21 @@ the "external gear is a first-class workflow" pillar.
       16 generic `cc[i]` slots. `nameTable_` in `MidiOutMachine`
       for destination-specific CC name lookup (MF.8 populates it).
       CC config serialized as `<CCConfig>` in PluginState.
-- [ ] **MF.5** FLTR/AMP bypass: `MidiOutMachine` returns
+- [x] **MF.5** FLTR/AMP bypass: `MidiOutMachine` returns
       `hasInternalFilter() = true` and `hasInternalAmp() = true`,
       so both post-machine blocks are skipped. The FLTR (key 5) and
       AMP (key 6) section keys are repurposed to the machine's own
-      CC bank pages instead.
-- [ ] **MF.6** All-Notes-Off + Reset-All-Controllers on transport
+      CC bank pages instead. Landed in MF.1 (opt-out flags) + MF.4
+      (sectionIndex=2/3 on cc slots); verified via `sectionsForKey`
+      in `KeyboardArea` — processor's `section()` intercepts only
+      fire when `!hasInternalFilter/Amp()`, so MidiOutMachine falls
+      through to its own CC bank sections automatically.
+- [x] **MF.6** All-Notes-Off + Reset-All-Controllers on transport
       stop / pattern stop, per channel. Prevents stuck notes
-      downstream.
+      downstream. `MidiOutMachine::allNotesOff()` emits CC 123 +
+      CC 121 on `activeChannel_`; processor detects the
+      `sequencerRunning` falling edge via `wasSequencerRunning_`
+      and calls it on every MIDI-out track each stop event.
 - [ ] **MF.7** Participation in performance features: Control-All
       across MIDI-out tracks, Sound Pool entries for MIDI-out
       sounds, Fills / Mutes / Copy-Paste / Checkpoints — verify

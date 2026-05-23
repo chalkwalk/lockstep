@@ -352,6 +352,21 @@ namespace lockstep
         }
         wasInPluginPlaying_ = clock_.inPluginPlaying();
 
+        // MF.6: on transport stop (falling edge), send All-Notes-Off +
+        // Reset-All-Controllers on every MIDI-out track to prevent stuck notes.
+        if (wasSequencerRunning_ && !sequencerRunning)
+        {
+            for (std::size_t i = 0; i < kNumTracks; ++i)
+            {
+                if (!machines_[i]->isMidiOut()) continue;
+                juce::MidiBuffer stopBuf;
+                static_cast<MidiOutMachine*>(machines_[i].get())->allNotesOff(stopBuf);
+                if (!isStandalone)
+                    midi.addEvents(stopBuf, 0, -1, 0);
+            }
+        }
+        wasSequencerRunning_ = sequencerRunning;
+
         // ---- PPQ window for step detection --------------------------------
         // In Auto mode, offset PPQ by the anchor so step 0 aligns with Play press.
         const double ppqOffset     = (mode == SyncMode::Auto) ? anchorPpq_ : 0.0;

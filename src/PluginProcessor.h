@@ -321,7 +321,8 @@ namespace lockstep
         std::array<double, kNumTracks> nextTriggerPpq_{};
         std::array<bool, kNumTracks>   lastStepFired_{};
         double anchorPpq_ = 0.0;
-        bool   wasInPluginPlaying_ = false;
+        bool   wasInPluginPlaying_  = false;
+        bool   wasSequencerRunning_ = false;  // MF.6: falling-edge transport stop detection
 
         std::atomic<float>* syncModeParam_    = nullptr;
         std::atomic<float>* channelModeParam_ = nullptr;
