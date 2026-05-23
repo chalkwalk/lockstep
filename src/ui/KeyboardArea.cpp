@@ -1012,6 +1012,25 @@ namespace lockstep
                                juce::Justification::topLeft);
                 }
 
+                // MG.1: In Keyboard mode show the note name centred on the cell.
+                if (uiState_.trigGridMode == TrigGridMode::Keyboard && inRange)
+                {
+                    static constexpr const char* kNoteNames[] = {
+                        "C","C#","D","D#","E","F","F#","G","G#","A","A#","B"
+                    };
+                    const int midiNote  = juce::jlimit(0, 127,
+                                             uiState_.keyboardRoot + localIdx);
+                    const int noteClass = midiNote % 12;
+                    const bool isSharp  = (noteClass == 1 || noteClass == 3 || noteClass == 6
+                                        || noteClass == 8 || noteClass == 10);
+                    g.setFont(juce::Font(juce::FontOptions(9.0f)));
+                    g.setColour(isSharp ? juce::Colour::fromRGB(200, 160, 100)
+                                       : juce::Colour::fromRGB(220, 220, 220));
+                    g.drawText(juce::String(kNoteNames[noteClass]),
+                               cell.reduced(2),
+                               juce::Justification::centred, false);
+                }
+
                 const bool hasTrackSelect = inRange && (row == 0);
                 const bool shiftHeld = uiState_.funcHeld;
                 static constexpr int kTrackLabelH = 11;

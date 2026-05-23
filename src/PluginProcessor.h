@@ -188,6 +188,10 @@ namespace lockstep
         // on the next processBlock call and injects a note-on + scheduled note-off.
         void triggerPreview(int poolIndex, int track);
 
+        // MG.1: trigger a note-on + scheduled note-off for the given MIDI note on the given track.
+        // durationMs is approximate (rounded to the next block boundary).
+        void triggerNote(int track, int midiNote, int durationMs = 350);
+
         // Sample pool helpers — message-thread only.
         // sampleShortName returns the filename stem for a given pool index, or "(none)".
         juce::String sampleShortName(int poolIndex) const;
@@ -285,12 +289,22 @@ namespace lockstep
         std::atomic<int> previewPoolIndex_ { -1 };
         std::atomic<int> previewReqTrack_  { 0 };
 
+        // MG.1: keyboard note trigger request (UI thread writes, audio thread consumes).
+        // kbdNoteReq_ stores (midiNote << 16 | durationMs); -1 = no request.
+        std::atomic<int> kbdNoteReq_   { -1 };
+        std::atomic<int> kbdNoteTrack_ { 0 };
+
         // Preview playback state — audio thread only (no atomics needed).
         bool previewActive_           = false;
         int  previewTrack_            = 0;
         int  previewSampleIndex_      = -1;
         int  previewNoteOffRemaining_ = -1;  // samples until note-off; -1 = inactive
         int  previewNote_             = 60;
+
+        // MG.1: keyboard note one-shot state — audio thread only.
+        int kbdNoteOffRemaining_ = -1;  // samples until note-off; -1 = inactive
+        int kbdNoteActiveTrack_  = 0;
+        int kbdNoteActive_       = 60;
 
         Metronome metronome_;
         MidiInput midiInput_;

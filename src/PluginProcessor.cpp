@@ -610,6 +610,45 @@ namespace lockstep
             }
         }
 
+        // MG.1: consume keyboard note request from the UI thread.
+        {
+            const int req = kbdNoteReq_.exchange(-1, std::memory_order_acq_rel);
+            if (req >= 0)
+            {
+                const int midiNote  = (req >> 16) & 0x7F;
+                const int durMs     = req & 0xFFFF;
+                const int noteTrack = kbdNoteTrack_.load(std::memory_order_acquire);
+
+                // Cancel any in-flight keyboard note-off.
+                if (kbdNoteOffRemaining_ >= 0)
+                    trackMidi[static_cast<std::size_t>(kbdNoteActiveTrack_)].addEvent(
+                        juce::MidiMessage::noteOff(1, kbdNoteActive_), 0);
+
+                kbdNoteActiveTrack_  = noteTrack;
+                kbdNoteActive_       = midiNote;
+                kbdNoteOffRemaining_ =
+                    static_cast<int>(getSampleRate() * static_cast<double>(durMs) / 1000.0);
+                trackMidi[static_cast<std::size_t>(noteTrack)].addEvent(
+                    juce::MidiMessage::noteOn(1, static_cast<juce::uint8>(midiNote),
+                                              static_cast<juce::uint8>(100)), 0);
+            }
+
+            if (kbdNoteOffRemaining_ >= 0)
+            {
+                if (kbdNoteOffRemaining_ < numBlockSamples)
+                {
+                    trackMidi[static_cast<std::size_t>(kbdNoteActiveTrack_)].addEvent(
+                        juce::MidiMessage::noteOff(1, kbdNoteActive_),
+                        kbdNoteOffRemaining_);
+                    kbdNoteOffRemaining_ = -1;
+                }
+                else
+                {
+                    kbdNoteOffRemaining_ -= numBlockSamples;
+                }
+            }
+        }
+
         // Pre-compute solo state once: if any track is soloed, non-soloed tracks
         // are silenced (even if their mute button is off).
         bool anySoloed = false;
@@ -1401,6 +1440,15 @@ namespace lockstep
     {
         previewReqTrack_.store(track, std::memory_order_relaxed);
         previewPoolIndex_.store(poolIndex, std::memory_order_release);
+    }
+
+    void LockstepProcessor::triggerNote(int track, int midiNote, int durationMs)
+    {
+        kbdNoteTrack_.store(juce::jlimit(0, static_cast<int>(kNumTracks) - 1, track),
+                            std::memory_order_relaxed);
+        const int packed = (juce::jlimit(0, 127, midiNote) << 16)
+                           | juce::jlimit(1, 0xFFFF, durationMs);
+        kbdNoteReq_.store(packed, std::memory_order_release);
     }
 
     juce::String LockstepProcessor::sampleShortName(int poolIndex) const

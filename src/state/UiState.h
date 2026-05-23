@@ -27,6 +27,9 @@ namespace lockstep
         // Active trig-grid input mode.
         TrigGridMode trigGridMode = TrigGridMode::Default;
 
+        // MG.1: root MIDI note for Keyboard trig-grid mode (default C4 = 60).
+        int keyboardRoot = 60;
+
         // Active master section (-1 = none).
         int masterSection = -1;
 

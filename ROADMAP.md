@@ -672,7 +672,7 @@ the "external gear is a first-class workflow" pillar.
 
 DESIGN §13.5. The trig grid as a modal surface.
 
-- [ ] **MG.1** Keyboard mode: 16 trig keys → 16 chromatic semitones
+- [x] **MG.1** Keyboard mode: 16 trig keys → 16 chromatic semitones
       from a configurable root. EditContext rules apply (held step +
       keyboard key writes `step.noteOverride`).
 - [ ] **MG.2** Retrig mode: trig keys, while held, retrigger at a

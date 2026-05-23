@@ -575,6 +575,33 @@ namespace lockstep
 
             case ControllerButton::Step:
             {
+                // MG.1: Keyboard mode — step keys play chromatic notes; no step editing.
+                if (uiState_.trigGridMode == TrigGridMode::Keyboard)
+                {
+                    const int note = juce::jlimit(0, 127, uiState_.keyboardRoot + ev.index);
+                    const int activeTrack = keyboardArea_.getActiveTrack();
+
+                    // If a step is held in the EditContext, write noteOverride to it.
+                    auto& ctx = processor_.editContext();
+                    if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == activeTrack)
+                    {
+                        auto& trk = processor_.sequence()
+                                        .tracks[static_cast<std::size_t>(activeTrack)];
+                        for (int heldIdx : ctx.heldSteps())
+                        {
+                            if (heldIdx < 0 || heldIdx >= kMaxStepsPerTrack) continue;
+                            auto& s = trk.steps[static_cast<std::size_t>(heldIdx)];
+                            s.trigOverride.hasNote = true;
+                            s.trigOverride.note    = note;
+                            s.trig                 = true;
+                        }
+                        ctx.markParamWritten();
+                    }
+
+                    processor_.triggerNote(activeTrack, note);
+                    return true;
+                }
+
                 // PatternScope + step: first step press queues a direct switch and
                 // clears any existing chain; subsequent step presses (while still
                 // holding PatternScope) append to the chain.
