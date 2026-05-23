@@ -2,6 +2,7 @@
 
 #include <array>
 #include "Bank.h"
+#include "SoundPool.h"
 
 namespace lockstep
 {
@@ -13,5 +14,6 @@ namespace lockstep
     struct Project
     {
         std::array<Bank, kNumBanks> banks{};
+        SoundPool soundPool{};  // MG.4: project-scope sound library
     };
 }

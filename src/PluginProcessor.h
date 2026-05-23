@@ -13,6 +13,7 @@
 #include "core/Clock.h"
 #include "core/Metronome.h"
 #include "core/Project.h"
+#include "core/SoundPool.h"
 #include "core/SyncMode.h"
 #include "io/CCMappingTable.h"
 #include "io/EditContext.h"
@@ -202,6 +203,16 @@ namespace lockstep
         int  trackSliceCount(int track)      const;
         void setTrackEqualSlices(int track, int count);
         void clearTrackSlices(int track);
+
+        // MG.4: Sound Pool CRUD (message thread only).
+        // saveTrackToSoundPool: snapshots the active Part's track state + sample index.
+        // Returns the new pool index, or -1 on failure.
+        int  saveTrackToSoundPool(int track, const std::string& name = "Sound");
+        // recallSoundFromPool: applies the pool entry's params to the active Part + sequence track.
+        bool recallSoundFromPool(int track, int entryIndex);
+        int  soundPoolSize()                    const { return project_.soundPool.size(); }
+        const SoundEntry* soundPoolEntry(int i) const { return project_.soundPool.get(i); }
+        void removeSoundEntry(int i)                  { project_.soundPool.remove(i); }
 
         // Sample pool helpers — message-thread only.
         // sampleShortName returns the filename stem for a given pool index, or "(none)".

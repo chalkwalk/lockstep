@@ -1554,6 +1554,45 @@ namespace lockstep
         static_cast<SamplerMachine*>(m)->clearSlices();
     }
 
+    int LockstepProcessor::saveTrackToSoundPool(int track, const std::string& name)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1;
+        const auto ti = static_cast<std::size_t>(track);
+        const auto& partTrack = activePart().tracks[ti];
+
+        SoundEntry entry;
+        entry.name           = name.empty() ? "Sound" : name;
+        entry.machineId      = partTrack.machineId;
+        entry.baseParams     = partTrack.baseParams;
+        entry.destinationId  = partTrack.destinationId;
+
+        // Extract sample pool index from the first slot of baseParams (sampler tracks).
+        if (!machines_[ti]->isMidiOut() && !partTrack.baseParams.empty())
+            entry.samplePoolIndex = static_cast<int>(partTrack.baseParams[0]);
+
+        return project_.soundPool.push(std::move(entry));
+    }
+
+    bool LockstepProcessor::recallSoundFromPool(int track, int entryIndex)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
+        const auto* e = project_.soundPool.get(entryIndex);
+        if (e == nullptr) return false;
+
+        const auto ti = static_cast<std::size_t>(track);
+        auto& partTrack = activePart().tracks[ti];
+
+        // Only apply if machine types match to avoid mismatched param frames.
+        if (partTrack.machineId != e->machineId) return false;
+
+        partTrack.baseParams    = e->baseParams;
+        partTrack.destinationId = e->destinationId;
+
+        // Sync the sequence track's base params so the audio thread picks it up.
+        sequence().tracks[ti].baseParams = e->baseParams;
+        return true;
+    }
+
     void LockstepProcessor::setRetrigActive(int track, bool active, double ratePpq)
     {
         if (active)

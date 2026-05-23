@@ -86,6 +86,7 @@ target_sources(Lockstep
         ui/InPluginTransport.cpp
         ui/ManipulationZone.cpp
         ui/SamplePoolOverlay.cpp
+        ui/SoundBankOverlay.cpp
         ui/StandaloneTempoBar.cpp)
 
 target_link_libraries(Lockstep

@@ -680,7 +680,7 @@ DESIGN §13.5. The trig grid as a modal surface.
       the retrig rate as a P-Lock.
 - [x] **MG.3** Slice sub-mode of Retrig (sampler tracks with slice
       data): 16 trig keys → first 16 slices, played live.
-- [ ] **MG.4** Sound Pool data model: Project-scope library of
+- [x] **MG.4** Sound Pool data model: Project-scope library of
       (machineId, base ParamFrame, sample/destination refs) bundles.
       CRUD UI: save current track sound to pool, recall pool entry
       to track.

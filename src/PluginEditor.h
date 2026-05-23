@@ -16,6 +16,7 @@
 #include "ui/KeyboardArea.h"
 #include "ui/ManipulationZone.h"
 #include "ui/SamplePoolOverlay.h"
+#include "ui/SoundBankOverlay.h"
 #include "ui/StandaloneTempoBar.h"
 
 namespace lockstep
@@ -108,6 +109,8 @@ namespace lockstep
         std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> channelModeAttachment_;
         juce::TextButton displayModeBtn_{ "ORL" };
         juce::TextButton poolBtn_{ "Pool..." };
+        juce::TextButton soundBankBtn_{ "SND..." };
+        SoundBankOverlay soundBankOverlay_;
         bool isDraggingFiles_ = false;
 
         void updateTransportGhosting();

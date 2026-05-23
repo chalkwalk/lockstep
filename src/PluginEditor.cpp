@@ -10,7 +10,8 @@ namespace lockstep
           transport_(proc.clock()),
           keyboardArea_(proc, uiState_),
           manipulationZone_(proc, keyboardArea_),
-          poolOverlay_(proc)
+          poolOverlay_(proc),
+          soundBankOverlay_(proc)
     {
         // Load persisted display mode.
         {
@@ -150,6 +151,19 @@ namespace lockstep
         poolOverlay_.onClose = [this] { poolOverlay_.setVisible(false); };
         poolOverlay_.getActiveTrack = [this]() { return keyboardArea_.getActiveTrack(); };
         addChildComponent(poolOverlay_);
+
+        soundBankBtn_.setWantsKeyboardFocus(false);
+        soundBankBtn_.onClick = [this]
+        {
+            soundBankOverlay_.setVisible(!soundBankOverlay_.isVisible());
+            if (soundBankOverlay_.isVisible())
+                soundBankOverlay_.toFront(false);
+        };
+        addAndMakeVisible(soundBankBtn_);
+
+        soundBankOverlay_.onClose = [this] { soundBankOverlay_.setVisible(false); };
+        soundBankOverlay_.getActiveTrack = [this]() { return keyboardArea_.getActiveTrack(); };
+        addChildComponent(soundBankOverlay_);
 
         manipulationZone_.onOpenPoolManager = [this]
         {
@@ -983,6 +997,7 @@ namespace lockstep
         channelModeBox_.setBounds(header.removeFromLeft(90).reduced(4));
         displayModeBtn_.setBounds(header.removeFromLeft(46).reduced(4));
         poolBtn_.setBounds(header.removeFromRight(80).reduced(4));
+        soundBankBtn_.setBounds(header.removeFromRight(60).reduced(4));
 
         // Tempo bar + Manipulation Zone are anchored to the top at fixed heights;
         // the key rows below fill the remaining space, so growing the window makes
@@ -1049,6 +1064,9 @@ namespace lockstep
         keyboardArea_.setBounds(bounds);
 
         poolOverlay_.setBounds(manipulationZone_.getBounds()
+            .withBottom(keyboardArea_.getY() + keyboardArea_.stepRowsLocalY()));
+
+        soundBankOverlay_.setBounds(manipulationZone_.getBounds()
             .withBottom(keyboardArea_.getY() + keyboardArea_.stepRowsLocalY()));
     }
 
