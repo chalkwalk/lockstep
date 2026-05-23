@@ -781,8 +781,10 @@ namespace lockstep
 
         const int track   = area_.getActiveTrack();
         static constexpr int kCols = kMZSlots / 2;
-        const int slotW   = getWidth() / kCols;
+        const int baseW   = getWidth() / kCols;
+        const int narrowW = baseW * 7 / 8;
         const int rowH    = getHeight() / 2;
+        const int upperX  = getWidth() - kCols * narrowW;
         const bool pulse  = (juce::Time::getMillisecondCounter() / 300) % 2 == 0;
 
         juce::ignoreUnused(track);
@@ -792,7 +794,8 @@ namespace lockstep
             const int slot = slotOffset_ + i;
             const int row  = i / kCols;
             const int ci   = i % kCols;
-            const juce::Rectangle<int> col (ci * slotW, row * rowH, slotW, rowH);
+            const int x    = (row == 0) ? upperX + ci * narrowW : ci * narrowW;
+            const juce::Rectangle<int> col (x, row * rowH, narrowW, rowH);
 
             // Listening overlay: pulsing highlight on the slot being learned.
             if (i == learningSlotIndex_)
@@ -845,11 +848,16 @@ namespace lockstep
 
     void ManipulationZone::resized()
     {
-        // 4x2 layout: two rows of 4 slots each (MHX §26.2, §33.4).
-        static constexpr int kCols = kMZSlots / 2;  // 4
+        // 4×2 staggered layout (MHX §26.2, §33.4):
+        // Each cell is 7/8 of the base column width (12.5% narrower).
+        // Lower row (row 1) is left-justified; upper row (row 0) is right-justified,
+        // so upper cell centres land near the right edge of each lower cell.
+        static constexpr int kCols   = kMZSlots / 2;  // 4
         auto bounds = getLocalBounds().reduced(4);
-        const int slotW = bounds.getWidth() / kCols;
-        const int rowH  = bounds.getHeight() / 2;
+        const int baseW  = bounds.getWidth() / kCols;
+        const int narrowW = baseW * 7 / 8;
+        const int rowH    = bounds.getHeight() / 2;
+        const int upperX  = bounds.getX() + (bounds.getWidth() - kCols * narrowW);
 
         for (int i = 0; i < kMZSlots; ++i)
         {
@@ -857,10 +865,13 @@ namespace lockstep
             const int  row = i / kCols;
             const int  col = i % kCols;
 
+            const int x = (row == 0)
+                ? upperX + col * narrowW           // upper: right-justified
+                : bounds.getX() + col * narrowW;   // lower: left-justified
+
             auto cell = juce::Rectangle<int>(
-                bounds.getX() + col * slotW,
-                bounds.getY() + row * rowH,
-                slotW, rowH).reduced(2, 2);
+                x, bounds.getY() + row * rowH,
+                narrowW, rowH).reduced(2, 2);
 
             // Top strip: value display left, clear button right.
             auto topRow = cell.removeFromTop(14);
