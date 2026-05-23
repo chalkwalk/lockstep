@@ -16,6 +16,7 @@
 #include "ui/KeyboardArea.h"
 #include "ui/ManipulationZone.h"
 #include "ui/SamplePoolOverlay.h"
+#include "ui/MachineSelectOverlay.h"
 #include "ui/SoundBankOverlay.h"
 #include "ui/StandaloneTempoBar.h"
 
@@ -111,6 +112,8 @@ namespace lockstep
         juce::TextButton poolBtn_{ "Pool..." };
         juce::TextButton soundBankBtn_{ "SND..." };
         SoundBankOverlay soundBankOverlay_;
+        juce::TextButton machineSelectBtn_{ "MACH" };
+        MachineSelectOverlay machineSelectOverlay_;
         bool isDraggingFiles_ = false;
 
         void updateTransportGhosting();

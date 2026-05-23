@@ -12,6 +12,7 @@ add_library(lockstep_core STATIC
     core/Clock.cpp
     core/Metronome.cpp
     core/StateResolver.cpp
+    machine/FMMachine.cpp
     machine/MidiDevicePresets.cpp
     machine/MidiOutMachine.cpp
     machine/SamplerMachine.cpp
@@ -86,6 +87,7 @@ target_sources(Lockstep
         ui/InPluginTransport.cpp
         ui/ManipulationZone.cpp
         ui/SamplePoolOverlay.cpp
+        ui/MachineSelectOverlay.cpp
         ui/SoundBankOverlay.cpp
         ui/StandaloneTempoBar.cpp)
 

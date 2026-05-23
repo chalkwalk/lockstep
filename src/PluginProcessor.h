@@ -235,6 +235,35 @@ namespace lockstep
         // Returns true when the machine on the given track is a MIDI-out machine.
         bool isTrackMidiOut(int track) const;
 
+        // MGX.6 — machine selection.
+        // Reassigns the machine on one track. Auto-forks the Part if shared.
+        // Resets baseParams to the new machine's defaults and syncs to the sequence.
+        void setTrackMachine(int track, const std::string& machineId);
+
+        // Returns the stable machineId string for the given track.
+        [[nodiscard]] juce::String getMachineId(int track) const;
+
+        // State-loading helpers: create a fresh machine for a given ID and compute
+        // slot indices using an explicit machine rather than machines_[t].
+        // Used by PluginState so that round-trip works when a non-default machine
+        // was saved (e.g. FM track deserialised while Sampler is still installed).
+        [[nodiscard]] std::unique_ptr<IMachine> createMachineForId(const std::string& id);
+        [[nodiscard]] int      slotForIdWithMachine   (const IMachine& m, const juce::String& id) const;
+        [[nodiscard]] int      numSlotsWithMachine     (const IMachine& m) const;
+        [[nodiscard]] ParamSpec paramSpecWithMachine   (const IMachine& m, int slot) const;
+
+        // Reassigns the active pattern to reference a different Part in the active bank.
+        // Reinstalls any machines whose type differs between the old and new Part.
+        void setActivePatternPart(int partIdx);
+
+        // Returns the Part index currently referenced by the active pattern.
+        [[nodiscard]] int activePatternPartRef() const;
+
+        // Machine catalogue — list of all available machine types.
+        struct MachineInfo { const char* id; const char* displayName; };
+        [[nodiscard]] int         numAvailableMachines()        const;
+        [[nodiscard]] MachineInfo availableMachineInfo(int idx) const;
+
         // Schema query helpers — forward to the machine on the given track.
         int         numParams(int track)              const;
         ParamSpec   paramSpec(int track, int index)   const;
@@ -271,6 +300,10 @@ namespace lockstep
         using juce::AudioProcessor::processBlock;
 
     private:
+        // Reinstalls machines_ entries that don't match activePart()'s machineIds,
+        // then syncs all sequence baseParams. Suspends audio only if needed.
+        void reinstallMachinesFromActivePart();
+
         juce::AudioProcessorValueTreeState apvts_;
         SamplePool samplePool_;
         Project project_;          // full Project/Bank/Pattern/Part hierarchy

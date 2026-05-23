@@ -5,6 +5,7 @@
 #include "core/StateResolver.h"
 #include "core/TrigEvaluator.h"
 #include "machine/MidiDevicePresets.h"
+#include "machine/FMMachine.h"
 #include "machine/MidiOutMachine.h"
 #include "machine/SamplerMachine.h"
 #include "machine/StubMachine.h"
@@ -1767,8 +1768,199 @@ namespace lockstep
             return std::make_unique<SamplerMachine>(pool);
         if (id == MidiOutMachine::kMachineId)
             return std::make_unique<MidiOutMachine>();
+        if (id == FMMachine::kMachineId)
+            return std::make_unique<FMMachine>();
         return std::make_unique<StubMachine>(id);
     }
+
+    // -------------------------------------------------------------------------
+    // MGX.6 — machine selection
+
+    static constexpr LockstepProcessor::MachineInfo kAvailableMachines[] = {
+        { SamplerMachine::kMachineId, "Sampler"  },
+        { FMMachine::kMachineId,      "FM Synth" },
+        { MidiOutMachine::kMachineId, "MIDI Out" },
+    };
+
+    int LockstepProcessor::numAvailableMachines() const
+    {
+        return static_cast<int>(std::size(kAvailableMachines));
+    }
+
+    LockstepProcessor::MachineInfo LockstepProcessor::availableMachineInfo(int idx) const
+    {
+        if (idx < 0 || idx >= static_cast<int>(std::size(kAvailableMachines)))
+            return { "", "" };
+        return kAvailableMachines[idx];
+    }
+
+    juce::String LockstepProcessor::getMachineId(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return {};
+        const auto* m = machines_[static_cast<std::size_t>(track)].get();
+        return m ? juce::String(m->machineId()) : juce::String{};
+    }
+
+    std::unique_ptr<IMachine> LockstepProcessor::createMachineForId(const std::string& id)
+    {
+        return makeMachineForId(id, samplePool_);
+    }
+
+    int LockstepProcessor::slotForIdWithMachine(const IMachine& m, const juce::String& id) const
+    {
+        const int mnp = m.numParams();
+        if (id.startsWith("lockstep.fltr.") && !m.hasInternalFilter())
+        {
+            for (int fs = 0; fs < kFltrSlots; ++fs)
+                if (id == kFltrIds[fs]) return mnp + fs;
+            return -1;
+        }
+        if (id.startsWith("lockstep.amp.") && !m.hasInternalAmp())
+        {
+            const int ampOff = mnp + (m.hasInternalFilter() ? 0 : kFltrSlots);
+            for (int as = 0; as < kAmpSlots; ++as)
+                if (id == kAmpIds[as]) return ampOff + as;
+            return -1;
+        }
+        return m.slotForId(id);
+    }
+
+    int LockstepProcessor::numSlotsWithMachine(const IMachine& m) const
+    {
+        return m.numParams()
+             + (m.hasInternalFilter() ? 0 : kFltrSlots)
+             + (m.hasInternalAmp()    ? 0 : kAmpSlots);
+    }
+
+    ParamSpec LockstepProcessor::paramSpecWithMachine(const IMachine& m, int index) const
+    {
+        const int mnp     = m.numParams();
+        const int fltrOff = mnp;
+        const int ampOff  = mnp + (m.hasInternalFilter() ? 0 : kFltrSlots);
+
+        if (index < mnp)
+            return m.paramSpec(index);
+
+        if (!m.hasInternalFilter() && index >= fltrOff && index < fltrOff + kFltrSlots)
+        {
+            const int fs = index - fltrOff;
+            ParamSpec p;
+            p.sectionIndex = kFltrSecIdx;
+            p.id           = kFltrIds[fs];
+            switch (fs)
+            {
+            case 0: p.label="Mode";   p.isStepped=true; p.maxValue=3.0f; break;
+            case 1: p.label="Slope";  p.isStepped=true; p.maxValue=1.0f;
+                    p.defaultValue=1.0f; break;
+            case 2: p.label="Cutoff"; p.maxValue=1.0f; p.defaultValue=1.0f; break;
+            case 3: p.label="Reson";  p.maxValue=1.0f; break;
+            case 4: p.label="Drive";  p.maxValue=1.0f; break;
+            case 5: p.label="Env>Ct"; p.minValue=-1.0f; p.maxValue=1.0f; break;
+            default: break;
+            }
+            return p;
+        }
+
+        if (!m.hasInternalAmp() && index >= ampOff && index < ampOff + kAmpSlots)
+        {
+            const int as = index - ampOff;
+            ParamSpec p;
+            p.sectionIndex = kAmpSecIdx;
+            p.id           = kAmpIds[as];
+            switch (as)
+            {
+            case 0: p.label="Level";   p.maxValue=2.0f; p.defaultValue=1.0f;
+                    p.role=ParamSpec::Role::Level; break;
+            case 1: p.label="Pan";     p.minValue=-1.0f; p.maxValue=1.0f;
+                    p.role=ParamSpec::Role::Pan; break;
+            case 2: p.label="Gate";    p.isStepped=true; p.maxValue=1.0f; break;
+            case 3: p.label="Attack";  p.maxValue=1000.0f; p.defaultValue=1.0f;
+                    p.unit=ParamSpec::Unit::Ms; p.role=ParamSpec::Role::Attack; break;
+            case 4: p.label="Hold";    p.maxValue=1000.0f;
+                    p.unit=ParamSpec::Unit::Ms; p.role=ParamSpec::Role::Hold; break;
+            case 5: p.label="Decay";   p.maxValue=2000.0f;
+                    p.unit=ParamSpec::Unit::Ms; p.role=ParamSpec::Role::Decay; break;
+            case 6: p.label="Sustain"; p.maxValue=1.0f; p.defaultValue=1.0f;
+                    p.role=ParamSpec::Role::Sustain; break;
+            case 7: p.label="Release"; p.maxValue=2000.0f; p.defaultValue=10.0f;
+                    p.unit=ParamSpec::Unit::Ms; p.role=ParamSpec::Role::Release; break;
+            default: break;
+            }
+            return p;
+        }
+
+        return {};
+    }
+
+    int LockstepProcessor::activePatternPartRef() const
+    {
+        return activePattern().partRef;
+    }
+
+    void LockstepProcessor::reinstallMachinesFromActivePart()
+    {
+        const auto& part = activePart();
+        bool needsSuspend = false;
+        for (std::size_t t = 0; t < kNumTracks; ++t)
+        {
+            const auto* m = machines_[t].get();
+            if (m && m->machineId() != part.tracks[t].machineId)
+                needsSuspend = true;
+        }
+
+        if (needsSuspend) suspendProcessing(true);
+        for (std::size_t t = 0; t < kNumTracks; ++t)
+        {
+            const auto& desired = part.tracks[t].machineId;
+            const auto* m       = machines_[t].get();
+            if (!m || m->machineId() != desired)
+            {
+                auto nm = makeMachineForId(desired, samplePool_);
+                nm->prepare(getSampleRate(), getBlockSize());
+                machines_[t] = std::move(nm);
+            }
+        }
+        if (needsSuspend) suspendProcessing(false);
+
+        for (std::size_t t = 0; t < kNumTracks; ++t)
+            sequence().tracks[t].baseParams = part.tracks[t].baseParams;
+    }
+
+    void LockstepProcessor::setTrackMachine(int track, const std::string& machineId)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        const auto ti = static_cast<std::size_t>(track);
+
+        if (activePartShareCount() > 1) forkActivePart();
+
+        auto nm = makeMachineForId(machineId, samplePool_);
+        nm->prepare(getSampleRate(), getBlockSize());
+
+        suspendProcessing(true);
+        machines_[ti] = std::move(nm);
+        suspendProcessing(false);
+
+        auto& partTrack    = activePart().tracks[ti];
+        partTrack.machineId = machineId;
+
+        const int np = machines_[ti]->numParams();
+        partTrack.baseParams.assign(static_cast<std::size_t>(np), 0.0f);
+        for (int s = 0; s < np; ++s)
+            partTrack.baseParams[static_cast<std::size_t>(s)] =
+                machines_[ti]->paramSpec(s).defaultValue;
+
+        sequence().tracks[ti].baseParams = partTrack.baseParams;
+    }
+
+    void LockstepProcessor::setActivePatternPart(int partIdx)
+    {
+        if (partIdx < 0 || partIdx >= static_cast<int>(kPartsPerBank)) return;
+        if (activePattern().partRef == partIdx) return;
+        activePattern().partRef = partIdx;
+        reinstallMachinesFromActivePart();
+    }
+
+    // -------------------------------------------------------------------------
 
     void LockstepProcessor::getStateInformation(juce::MemoryBlock& dest)
     {

@@ -74,23 +74,29 @@ namespace lockstep::PluginState
         if (!pt.midiPresetName.empty())
             node.setProperty("midiPreset", juce::String(pt.midiPresetName), nullptr);
 
-        const int np = proc.numParams(t);
+        // Use a temp machine matching pt.machineId so that slot IDs and param
+        // counts reflect THIS Part's machine, not the currently installed one.
+        auto tempMachine = proc.createMachineForId(pt.machineId);
+        const int machinNp = tempMachine->numParams();
+        const int np       = proc.numSlotsWithMachine(*tempMachine);
         if (np > 0)
         {
             juce::ValueTree bpNode("BaseParams");
             for (int s = 0; s < np; ++s)
             {
-                const juce::String id = proc.idForSlot(t, s);
+                const auto spec = proc.paramSpecWithMachine(*tempMachine, s);
+                const juce::String id = spec.id;
                 if (id.isEmpty()) continue;
-                const float def = proc.paramSpec(t, s).defaultValue;
+                const float def = spec.defaultValue;
                 float val;
                 if (static_cast<std::size_t>(s) < pt.baseParams.size())
                     val = pt.baseParams[static_cast<std::size_t>(s)];
                 else if (id.startsWith("lockstep.fltr."))
-                    val = pt.fltrState.getSlot(s - static_cast<int>(pt.baseParams.size()));
+                    val = pt.fltrState.getSlot(s - machinNp);
                 else if (id.startsWith("lockstep.amp."))
                 {
-                    const int ampBase = proc.numParams(t) - TrackAmpState::kNumSlots;
+                    const int ampBase = machinNp
+                        + (tempMachine->hasInternalFilter() ? 0 : TrackFltrState::kNumSlots);
                     val = pt.ampState.getSlot(s - ampBase);
                 }
                 else
@@ -412,11 +418,21 @@ namespace lockstep::PluginState
         const auto bpNode = ptNode.getChildWithName("BaseParams");
         if (!bpNode.isValid()) return;
 
+        // Create a temp machine matching pt.machineId so that slot lookups and
+        // baseParams sizing are correct regardless of which machine is currently
+        // installed for track t. This ensures FM (or any non-default) param IDs
+        // are found and baseParams is sized to the right schema width.
+        auto tempMachine = proc.createMachineForId(pt.machineId);
+        const int np = tempMachine->numParams();
+        pt.baseParams.assign(static_cast<std::size_t>(np), 0.0f);
+        for (int s = 0; s < np; ++s)
+            pt.baseParams[static_cast<std::size_t>(s)] = tempMachine->paramSpec(s).defaultValue;
+
         for (auto pNode : bpNode)
         {
             const juce::String id  = pNode.getProperty("id").toString();
             const float        val = getFloat(pNode, "v", 0.0f);
-            const int slot = proc.slotForId(t, id);
+            const int slot = proc.slotForIdWithMachine(*tempMachine, id);
             if (slot < 0)
             {
                 DBG("PluginState: unknown param id '" + id
@@ -430,7 +446,8 @@ namespace lockstep::PluginState
                 pt.fltrState.setSlot(slot - static_cast<int>(pt.baseParams.size()), val);
             else if (id.startsWith("lockstep.amp."))
             {
-                const int ampBase = proc.numParams(t) - TrackAmpState::kNumSlots;
+                const int ampBase = np + (tempMachine->hasInternalFilter() ? 0
+                                                                            : TrackFltrState::kNumSlots);
                 pt.ampState.setSlot(slot - ampBase, val);
             }
         }

@@ -1,5 +1,7 @@
 #include "PluginEditor.h"
 #include "ParameterIDs.h"
+#include "machine/FMMachine.h"
+#include "machine/MidiOutMachine.h"
 #include <algorithm>
 
 namespace lockstep
@@ -11,7 +13,8 @@ namespace lockstep
           keyboardArea_(proc, uiState_),
           manipulationZone_(proc, keyboardArea_),
           poolOverlay_(proc),
-          soundBankOverlay_(proc)
+          soundBankOverlay_(proc),
+          machineSelectOverlay_(proc)
     {
         // Load persisted display mode.
         {
@@ -165,6 +168,19 @@ namespace lockstep
         soundBankOverlay_.getActiveTrack = [this]() { return keyboardArea_.getActiveTrack(); };
         addChildComponent(soundBankOverlay_);
 
+        machineSelectBtn_.setWantsKeyboardFocus(false);
+        machineSelectBtn_.onClick = [this]
+        {
+            machineSelectOverlay_.setVisible(!machineSelectOverlay_.isVisible());
+            if (machineSelectOverlay_.isVisible())
+                machineSelectOverlay_.toFront(false);
+        };
+        addAndMakeVisible(machineSelectBtn_);
+
+        machineSelectOverlay_.onClose = [this] { machineSelectOverlay_.setVisible(false); };
+        machineSelectOverlay_.getActiveTrack = [this]() { return keyboardArea_.getActiveTrack(); };
+        addChildComponent(machineSelectOverlay_);
+
         manipulationZone_.onOpenPoolManager = [this]
         {
             poolOverlay_.setVisible(true);
@@ -275,12 +291,19 @@ namespace lockstep
                 g.drawRect(r, 2);
             }
 
-            // Machine type badge: small "M" in top-right corner for MIDI-out tracks.
-            if (processor_.isTrackMidiOut(t))
+            // Machine type badge: abbreviated type in top-right corner for non-sampler tracks.
             {
-                g.setColour(juce::Colour::fromRGB(120, 200, 120).withAlpha(0.85f));
-                g.setFont(9.0f);
-                g.drawText("M", r.reduced(1).withHeight(10), juce::Justification::topRight, false);
+                const juce::String mid = processor_.getMachineId(t);
+                juce::String badge;
+                if (mid == juce::String(MidiOutMachine::kMachineId))       badge = "M";
+                else if (mid == juce::String(FMMachine::kMachineId))       badge = "FM";
+                else if (mid.startsWith("lockstep.stub"))                  badge = "?";
+                if (badge.isNotEmpty())
+                {
+                    g.setColour(juce::Colour::fromRGB(120, 200, 120).withAlpha(0.85f));
+                    g.setFont(9.0f);
+                    g.drawText(badge, r.reduced(1).withHeight(10), juce::Justification::topRight, false);
+                }
             }
         }
     }
@@ -897,6 +920,12 @@ namespace lockstep
                 repaint();
                 return true;
 
+            case ControllerButton::MachineSelect:
+                machineSelectOverlay_.setVisible(!machineSelectOverlay_.isVisible());
+                if (machineSelectOverlay_.isVisible())
+                    machineSelectOverlay_.toFront(false);
+                return true;
+
             case ControllerButton::MetronomeToggle:
                 processor_.clock().setMetronomeEnabled(!processor_.clock().isMetronomeEnabled());
                 return true;
@@ -1080,6 +1109,7 @@ namespace lockstep
         displayModeBtn_.setBounds(header.removeFromLeft(46).reduced(4));
         poolBtn_.setBounds(header.removeFromRight(80).reduced(4));
         soundBankBtn_.setBounds(header.removeFromRight(60).reduced(4));
+        machineSelectBtn_.setBounds(header.removeFromRight(50).reduced(4));
 
         // Tempo bar + Manipulation Zone are anchored to the top at fixed heights;
         // the key rows below fill the remaining space, so growing the window makes
@@ -1149,6 +1179,9 @@ namespace lockstep
             .withBottom(keyboardArea_.getY() + keyboardArea_.stepRowsLocalY()));
 
         soundBankOverlay_.setBounds(manipulationZone_.getBounds()
+            .withBottom(keyboardArea_.getY() + keyboardArea_.stepRowsLocalY()));
+
+        machineSelectOverlay_.setBounds(manipulationZone_.getBounds()
             .withBottom(keyboardArea_.getY() + keyboardArea_.stepRowsLocalY()));
     }
 

@@ -64,7 +64,7 @@ namespace lockstep
 
         // Func layer — applied when Func (key 1) is held.
         // Keys not listed here fall through to the primary table.
-        constexpr std::array<Entry, 14> kFunc = { {
+        constexpr std::array<Entry, 15> kFunc = { {
             // Func+2=PatternScope (held: queue pattern via step; released w/o step: Snapshot).
             // Func+P(PLY, far-right)=Restore checkpoint.
             { code('2'), B::PatternScope,      -1 },
@@ -75,6 +75,9 @@ namespace lockstep
 
             // Func+W = fork active Part (make it unique, break Part sharing). (MD.5)
             { code('W'), B::ForkPart,          -1 },
+
+            // Func+R = open/close machine selector. (MGX.6)
+            { code('R'), B::MachineSelect,     -1 },
 
             // Func+I(TAP) = metronome toggle
             { code('I'), B::MetronomeToggle,   -1 },
