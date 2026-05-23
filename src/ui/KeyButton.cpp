@@ -9,7 +9,8 @@ namespace lockstep
                         const juce::String&   secondary,
                         const KeyGroup&       group,
                         KeyButtonState        state,
-                        bool                  showKeyHint)
+                        bool                  showKeyHint,
+                        bool                  compoundOverlay)
     {
         const auto inner = cell.reduced(2, 2);
 
@@ -74,6 +75,15 @@ namespace lockstep
             g.setFont(juce::Font(juce::FontOptions(8.0f)));
             g.setColour(juce::Colours::white.withAlpha(alpha));
             g.drawText(secondary, secArea, juce::Justification::centredBottom);
+        }
+
+        // Register 4: compound-chord overlay — amber top strip when this key is held
+        // as part of a cross-column compound scope (DESIGN §13).
+        if (compoundOverlay)
+        {
+            const auto strip = inner.withHeight(3).reduced(3, 0);
+            g.setColour(juce::Colour(0xFFD0A020u));
+            g.fillRect(strip);
         }
     }
 }

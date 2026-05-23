@@ -117,10 +117,12 @@ namespace lockstep
         static constexpr int kNavRowH    = 26;
         static constexpr int kVertMargin = 4;  // top/bottom margin of the key area
 
-        // Section row constants (from SectionBar)
-        static constexpr int kFixedSectionCells = 3;
+        // Section row constants (from SectionBar).
+        // MHX number row: Func(1) Fill(2) | TRIG..FX(3-8) | ARM(9) PLY(0) = 10 cells.
+        static constexpr int kFixedSectionCells = 2;   // Func + Fill (left modifiers)
+        static constexpr int kTailSectionCells  = 2;   // RecordArm + PlayStop (right)
         static constexpr int kTotalSectionCells =
-            kFixedSectionCells + IMachine::kMaxSections; // 9
+            kFixedSectionCells + IMachine::kMaxSections + kTailSectionCells; // 10
 
         static constexpr std::array<const char*, IMachine::kMaxSections> kMetaLabels = {
             "COND", "NOTE", "TRACK", "", "", "GLOBAL"

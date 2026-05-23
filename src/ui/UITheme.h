@@ -15,17 +15,22 @@ namespace lockstep::theme
     inline constexpr uint32_t kFuncActive   = 0xFFC07800u;
     inline constexpr uint32_t kFuncAccent   = 0xFFC07800u;
 
-    // Modifier keys (Q/TRK, A/MUT, Z/FIL) — indigo
+    // Structural modifier keys col-1 (Q/TRK, A/PAT, Z/MUT) — indigo
     inline constexpr uint32_t kModInactive  = 0xFF1E1A2Eu;
     inline constexpr uint32_t kModActive    = 0xFF5040A0u;
     inline constexpr uint32_t kModAccent    = 0xFF5040A0u;
 
-    // Navigation keys (W/◄, E/▼, R/►, 3/▲) — navy
+    // Performance modifier keys col-2 (2/FIL, W/CUE, S/SCN, X/MST) — violet
+    inline constexpr uint32_t kPerfInactive = 0xFF1E1430u;
+    inline constexpr uint32_t kPerfActive   = 0xFF7040B0u;
+    inline constexpr uint32_t kPerfAccent   = 0xFF9060D0u;
+
+    // Navigation keys (E/<, R/^, T/v, Y/>) — navy
     inline constexpr uint32_t kNavInactive  = 0xFF0E1E30u;
     inline constexpr uint32_t kNavActive    = 0xFF3060A0u;
     inline constexpr uint32_t kNavAccent    = 0xFF3060A0u;
 
-    // Record key (2 / REC) — warm red
+    // Record-arm key (9 / ARM) — warm red
     inline constexpr uint32_t kRecInactive  = 0xFF2E1010u;
     inline constexpr uint32_t kRecActive    = 0xFFA03030u;
     inline constexpr uint32_t kRecAccent    = 0xFFA03030u;
@@ -35,17 +40,17 @@ namespace lockstep::theme
     inline constexpr uint32_t kSecActive    = 0xFF206060u;
     inline constexpr uint32_t kSecAccent    = 0xFF3EC8C8u;
 
-    // Action keys (Y/CPY, U/PST, I/CLR) — slate blue
+    // Action / verb keys (U/REC, I/PLY, O/STP) — slate blue / transport green
     inline constexpr uint32_t kActInactive  = 0xFF101828u;
     inline constexpr uint32_t kActActive    = 0xFF204878u;
     inline constexpr uint32_t kActAccent    = 0xFF4090C0u;
 
-    // Tap Tempo key (O / TAP) — grey
+    // Tap Tempo key (P / TAP) — grey
     inline constexpr uint32_t kTapInactive  = 0xFF1A1A20u;
     inline constexpr uint32_t kTapActive    = 0xFF505060u;
     inline constexpr uint32_t kTapAccent    = 0xFF8090A0u;
 
-    // Transport key (T / PLY) — green
+    // Transport keys (0/PLY, I/PLY verb) — green
     inline constexpr uint32_t kTrnInactive  = 0xFF0C2010u;
     inline constexpr uint32_t kTrnActive    = 0xFF208040u;
     inline constexpr uint32_t kTrnAccent    = 0xFF30C060u;

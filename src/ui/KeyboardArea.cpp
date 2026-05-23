@@ -232,7 +232,7 @@ namespace lockstep
         if (!cellArea.contains(pos))
             return -1;
 
-        static constexpr int kTotalGridCols = kCols + 1;
+        static constexpr int kTotalGridCols = kCols + 2;  // 2 modifier cols + 8 step cols
         const bool useClnGap      = (displayMode_ == GridDisplayMode::Clean);
         const int  intraStepGap   = areas.intraStepGap;
 
@@ -252,7 +252,7 @@ namespace lockstep
         }
         else  // Ortholinear
         {
-            cellW    = (cellArea.getWidth() - 8 * kOrlGap) / kTotalGridCols;
+            cellW    = (cellArea.getWidth() - (kTotalGridCols - 1) * kOrlGap) / kTotalGridCols;
             staggerA = 0;
             staggerZ = 0;
         }
@@ -276,27 +276,29 @@ namespace lockstep
         int col;
         if (useClnGap)
         {
-            if (relX < 0)                              return -1;
-            if (relX < cellW)                          col = 0;
-            else if (relX < cellW + kClnColGap)        return -1;
-            else col = 1 + (relX - cellW - kClnColGap) / cellW;
+            // Cols 0/1 = modifiers, gap, cols 2+ = steps.
+            if (relX < 0)                                    return -1;
+            if (relX < 2 * cellW)                            col = relX / cellW;
+            else if (relX < 2 * cellW + kClnColGap)         return -1;
+            else col = 2 + (relX - 2 * cellW - kClnColGap) / cellW;
         }
         else if (displayMode_ == GridDisplayMode::Ortholinear)
         {
             const int pitch = cellW + kOrlGap;
-            if (relX < 0 || pitch <= 0)                return -1;
+            if (relX < 0 || pitch <= 0)                      return -1;
             col = relX / pitch;
-            if (relX % pitch >= cellW)                 return -1;  // click in gap
+            if (relX % pitch >= cellW)                       return -1;  // click in gap
         }
         else
         {
             col = relX / cellW;
         }
 
-        if (col <= 0 || col >= kTotalGridCols)
+        // Cols 0 and 1 are modifier cells — not step cells.
+        if (col <= 1 || col >= kTotalGridCols)
             return -1;
 
-        const int absIdx = stepPage_ * kPageSteps + row * kCols + (col - 1);
+        const int absIdx = stepPage_ * kPageSteps + row * kCols + (col - 2);
         return absIdx < trackLength() ? absIdx : -1;
     }
 
@@ -311,16 +313,18 @@ namespace lockstep
 
         if (displayMode_ == GridDisplayMode::Clean)
         {
+            // Gap between the 2 left modifier cells and the section + tail cells.
             const int cellW = (w - kClnColGap) / kTotalSectionCells;
-            const int x = (cellIndex == 0)
-                ? area.getX()
-                : area.getX() + cellW + kClnColGap + (cellIndex - 1) * cellW;
+            const int x = (cellIndex < kFixedSectionCells)
+                ? area.getX() + cellIndex * cellW
+                : area.getX() + kFixedSectionCells * cellW + kClnColGap
+                      + (cellIndex - kFixedSectionCells) * cellW;
             return { x, area.getY(), cellW, h };
         }
         if (displayMode_ == GridDisplayMode::Ortholinear)
         {
             const int g     = kOrlGap;
-            const int cellW = (w - 8 * g) / kTotalSectionCells;
+            const int cellW = (w - (kTotalSectionCells - 1) * g) / kTotalSectionCells;
             return { area.getX() + cellIndex * (cellW + g), area.getY(), cellW, h };
         }
         // Staggered
@@ -330,7 +334,10 @@ namespace lockstep
 
     int KeyboardArea::cellToSection(int cellIndex)
     {
-        if (cellIndex < kFixedSectionCells || cellIndex >= kTotalSectionCells)
+        // Section cells are kFixedSectionCells .. kFixedSectionCells+kMaxSections-1.
+        // Cells 0-1 (modifiers) and tail cells (ARM/PLY) map to -1.
+        if (cellIndex < kFixedSectionCells
+                || cellIndex >= kFixedSectionCells + IMachine::kMaxSections)
             return -1;
         return cellIndex - kFixedSectionCells;
     }
@@ -560,75 +567,68 @@ namespace lockstep
     }
 
     // -------------------------------------------------------------------------
-    // paintSectionRow — reproduces SectionBar::paint() exactly
+    // paintSectionRow — MHX number row (10 cells):
+    //   Func(1)  Fill(2)  TRIG(3) SRC(4) FLTR(5) AMP(6) LFO(7) FX(8)  ARM(9)  PLY(0)
+    //   cell 0   cell 1   cell 2   ...                           cell 7  cell 8  cell 9
 
     void KeyboardArea::paintSectionRow(juce::Graphics& g, juce::Rectangle<int> area)
     {
         paintEdgeRow(g, 0, area);
-        const bool showKeyHint  = (displayMode_ != GridDisplayMode::Clean);
-        const int  activeTrack  = activeTrack_;
+        const bool showKeyHint = (displayMode_ != GridDisplayMode::Clean);
+        const int  activeTrack = activeTrack_;
 
         static constexpr const char* kKeyHints[kTotalSectionCells] = {
-            "1", "2", "3", "4", "5", "6", "7", "8", "9"
+            "1", "2", "3", "4", "5", "6", "7", "8", "9", "0"
         };
 
-        // Cell 0: FNC
+        // Compound-chord overlay: show on modifier cells when two cross-column modifiers held.
+        const bool col1any = uiState_.trackHeld || uiState_.patternScopeHeld || uiState_.muteHeld;
+        const bool col2any = uiState_.fillHeld  || uiState_.cueHeld || uiState_.sceneHeld
+                                                || uiState_.masterHeld;
+        const bool hasCompound = (uiState_.funcHeld && (col1any || col2any)) || (col1any && col2any);
+
+        // Cell 0: Func (key 1) — amber, universal qualifier
         {
             const bool pressed = juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('1'));
             KeyButtonState st = KeyButtonState::Normal;
             if      (pressed)           st = KeyButtonState::Pressed;
             else if (uiState_.funcHeld) st = KeyButtonState::ModeActive;
             const KeyGroup grp { kFuncInactive, kFuncActive, kFuncAccent };
-            paintKeyButton(g, sectionCellBounds(0, area), kKeyHints[0], "FNC", "", grp, st,
-                           showKeyHint);
+            const bool overlay = hasCompound && uiState_.funcHeld;
+            paintKeyButton(g, sectionCellBounds(0, area), kKeyHints[0], "FNC", "",
+                           grp, st, showKeyHint, overlay);
         }
 
-        // Cell 1: REC
+        // Cell 1: Fill (key 2) — performance modifier (col-2), violet
         {
-            const bool isArmed = processor_.clock().isRecordArmed();
             const bool pressed = juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('2'));
             KeyButtonState st = KeyButtonState::Normal;
             if      (pressed)           st = KeyButtonState::Pressed;
-            else if (isArmed)           st = KeyButtonState::ModeActive;
+            else if (uiState_.fillHeld) st = KeyButtonState::ModeActive;
             else if (uiState_.funcHeld) st = KeyButtonState::FuncHeld;
-            const KeyGroup grp { kRecInactive, kRecActive, kRecAccent };
-            paintKeyButton(g, sectionCellBounds(1, area), kKeyHints[1], "REC", "SNP", grp, st,
-                           showKeyHint);
+            const KeyGroup grp { kPerfInactive, kPerfActive, kPerfAccent };
+            const bool overlay = hasCompound && uiState_.fillHeld;
+            paintKeyButton(g, sectionCellBounds(1, area), kKeyHints[1], "FIL", "",
+                           grp, st, showKeyHint, overlay);
         }
 
-        // Cell 2: Nav-Up (^)
-        {
-            const bool pressed = juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('3'));
-            KeyButtonState st = pressed ? KeyButtonState::Pressed : KeyButtonState::Normal;
-            if (!pressed && uiState_.funcHeld) st = KeyButtonState::FuncHeld;
-            const KeyGroup grp { kNavInactive, kNavActive, kNavAccent };
-            paintKeyButton(g, sectionCellBounds(2, area), kKeyHints[2], "^", "", grp, st,
-                           showKeyHint);
-        }
-
-        // Section cells 3-8: always display canonical TRIG/SRC/FLTR/AMP/LFO/FX names.
-        // A section is "available" only when it (or an extension) has machine slots.
+        // Cells 2-7: section keys 3-8 — canonical TRIG/SRC/FLTR/AMP/LFO/FX.
         for (int s = 0; s < IMachine::kMaxSections; ++s)
         {
             const int cellIdx = kFixedSectionCells + s;
             const juce::String canonicalName =
                 IMachine::kCanonicalSectionNames[static_cast<std::size_t>(s)];
 
-            // Gather combined section groups now — used for availability, cycling count,
-            // and page dots; avoids multiple calls to sectionsForKey per frame.
-            // groups: ordered (canonical first, then extensions); empty = nothing to show.
             const auto groups    = sectionsForKey(activeTrack, s);
             const bool available = !groups.empty();
 
             if (!available)
             {
-                // Show canonical name in a disabled state so the taxonomy is always visible.
                 const bool pressed = juce::KeyPress::isKeyCurrentlyDown(
-                    static_cast<int>('4' + s));
+                    static_cast<int>('3' + s));
                 const KeyGroup grp { kSecInactive, kSecActive, kSecAccent };
                 paintKeyButton(g, sectionCellBounds(cellIdx, area),
-                               kKeyHints[cellIdx], canonicalName, "",
-                               grp,
+                               kKeyHints[cellIdx], canonicalName, "", grp,
                                pressed ? KeyButtonState::Pressed : KeyButtonState::Disabled,
                                showKeyHint);
                 continue;
@@ -639,7 +639,7 @@ namespace lockstep
                 && uiState_.trackSection[static_cast<std::size_t>(activeTrack)] == s);
 
             const bool pressed = juce::KeyPress::isKeyCurrentlyDown(
-                static_cast<int>('4' + s));
+                static_cast<int>('3' + s));
 
             KeyButtonState st = KeyButtonState::Normal;
             if      (pressed)                           st = KeyButtonState::Pressed;
@@ -664,8 +664,8 @@ namespace lockstep
             for (const auto& grp : groups) totalPageCount += grp.pageCount;
             if (totalPageCount > 1 && !isMasterActive)
             {
-                const auto ti       = static_cast<std::size_t>(activeTrack);
-                const auto si       = static_cast<std::size_t>(s);
+                const auto ti        = static_cast<std::size_t>(activeTrack);
+                const auto si        = static_cast<std::size_t>(s);
                 const int activePage = uiState_.trackPage[ti][si];
 
                 const juce::Colour dotCol = isTrackActive
@@ -682,10 +682,8 @@ namespace lockstep
                     const bool isActiveDot = (p == activePage) && isTrackActive;
                     g.setColour(dotCol.withAlpha(isActiveDot ? 1.0f : 0.3f));
                     if (isActiveDot)
-                        g.fillEllipse(static_cast<float>(dotX),
-                                      static_cast<float>(dotY),
-                                      static_cast<float>(dotSize),
-                                      static_cast<float>(dotSize));
+                        g.fillEllipse(static_cast<float>(dotX), static_cast<float>(dotY),
+                                      static_cast<float>(dotSize), static_cast<float>(dotSize));
                     else
                         g.drawEllipse(static_cast<float>(dotX) + 0.5f,
                                       static_cast<float>(dotY) + 0.5f,
@@ -695,10 +693,37 @@ namespace lockstep
                 }
             }
         }
+
+        // Cell 8: RecordArm (key 9) — Func-layer: MetronomeToggle
+        {
+            const bool isArmed = processor_.clock().isRecordArmed();
+            const bool pressed = juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('9'));
+            KeyButtonState st = KeyButtonState::Normal;
+            if      (pressed)           st = KeyButtonState::Pressed;
+            else if (isArmed)           st = KeyButtonState::ModeActive;
+            else if (uiState_.funcHeld) st = KeyButtonState::FuncHeld;
+            const KeyGroup grp { kRecInactive, kRecActive, kRecAccent };
+            paintKeyButton(g, sectionCellBounds(8, area), kKeyHints[8], "ARM", "MET",
+                           grp, st, showKeyHint);
+        }
+
+        // Cell 9: PlayStop (key 0) — toggles play/stop
+        {
+            const bool isPlaying = processor_.clock().inPluginPlaying();
+            const bool pressed   = juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('0'));
+            KeyButtonState st = KeyButtonState::Normal;
+            if      (pressed)   st = KeyButtonState::Pressed;
+            else if (isPlaying) st = KeyButtonState::ModeActive;
+            const KeyGroup grp { kTrnInactive, kTrnActive, kTrnAccent };
+            paintKeyButton(g, sectionCellBounds(9, area), kKeyHints[9], "PLY", "",
+                           grp, st, showKeyHint);
+        }
     }
 
     // -------------------------------------------------------------------------
-    // paintFunctionRow — reproduces FunctionBar::paint() exactly
+    // paintFunctionRow — MHX Q-row (10 keys):
+    //   Q/TRK  W/CUE  E/<  R/^  T/v  Y/>  U/REC  I/PLY  O/STP  P/TAP
+    //   Func-layer secondaries: SRS  MACH  SNP  FORK  KEY   RTG   RST   SPL
 
     void KeyboardArea::paintFunctionRow(juce::Graphics& g, juce::Rectangle<int> area)
     {
@@ -712,20 +737,27 @@ namespace lockstep
             KeyGroup    group;
         };
 
-        static const std::array<QKeyDef, 9> kDefs = {{
-            { 'Q', "Q", "TRK", "",    { kModInactive, kModActive, kModAccent } },
-            { 'W', "W", "<",   "",    { kNavInactive, kNavActive, kNavAccent } },
-            { 'E', "E", "v",   "",    { kNavInactive, kNavActive, kNavAccent } },
-            { 'R', "R", ">",   "",    { kNavInactive, kNavActive, kNavAccent } },
-            { 'T', "T", "CPY", "KEY", { kActInactive, kActActive, kActAccent } },
-            { 'Y', "Y", "PST", "RTG", { kActInactive, kActActive, kActAccent } },
-            { 'U', "U", "CLR", "POL", { kActInactive, kActActive, kActAccent } },
-            { 'I', "I", "TAP", "MET", { kTapInactive, kTapActive, kTapAccent } },
-            { 'O', "O", "PLY", "RST", { kTrnInactive, kTrnActive, kTrnAccent } },
+        static const std::array<QKeyDef, 10> kDefs = {{
+            { 'Q', "Q", "TRK",  "",     { kModInactive,  kModActive,  kModAccent  } },
+            { 'W', "W", "CUE",  "",     { kPerfInactive, kPerfActive, kPerfAccent } },
+            { 'E', "E", "<",    "SRS",  { kNavInactive,  kNavActive,  kNavAccent  } },
+            { 'R', "R", "^",    "MACH", { kNavInactive,  kNavActive,  kNavAccent  } },
+            { 'T', "T", "v",    "SNP",  { kNavInactive,  kNavActive,  kNavAccent  } },
+            { 'Y', "Y", ">",    "FORK", { kNavInactive,  kNavActive,  kNavAccent  } },
+            { 'U', "U", "REC",  "KEY",  { kActInactive,  kActActive,  kActAccent  } },
+            { 'I', "I", "PLY",  "RTG",  { kTrnInactive,  kTrnActive,  kTrnAccent  } },
+            { 'O', "O", "STP",  "RST",  { kTrnInactive,  kTrnActive,  kTrnAccent  } },
+            { 'P', "P", "TAP",  "SPL",  { kTapInactive,  kTapActive,  kTapAccent  } },
         }};
 
         const bool showKeyHint = (displayMode_ != GridDisplayMode::Clean);
         const auto gridMode    = uiState_.trigGridMode;
+
+        // Compound overlay on Q (Track) and W (Cue).
+        const bool col1any = uiState_.trackHeld || uiState_.patternScopeHeld || uiState_.muteHeld;
+        const bool col2any = uiState_.fillHeld  || uiState_.cueHeld || uiState_.sceneHeld
+                                                || uiState_.masterHeld;
+        const bool hasCompound = (uiState_.funcHeld && (col1any || col2any)) || (col1any && col2any);
 
         int leftPad, cellW;
         if (displayMode_ == GridDisplayMode::Staggered)
@@ -741,7 +773,8 @@ namespace lockstep
         }
         else  // Ortholinear
         {
-            cellW   = (area.getWidth() - 8 * kOrlGap) / static_cast<int>(kDefs.size());
+            const int n = static_cast<int>(kDefs.size());
+            cellW   = (area.getWidth() - (n - 1) * kOrlGap) / n;
             leftPad = 0;
         }
 
@@ -750,8 +783,14 @@ namespace lockstep
             const auto& def = kDefs[static_cast<std::size_t>(i)];
 
             int x;
-            if (displayMode_ == GridDisplayMode::Clean && i >= 1)
-                x = area.getX() + cellW + kClnColGap + (i - 1) * cellW;
+            if (displayMode_ == GridDisplayMode::Clean)
+            {
+                // Gap between the 2 modifier cells (Q, W) and the nav/verb keys.
+                if (i >= 2)
+                    x = area.getX() + 2 * cellW + kClnColGap + (i - 2) * cellW;
+                else
+                    x = area.getX() + i * cellW;
+            }
             else if (displayMode_ == GridDisplayMode::Ortholinear)
                 x = area.getX() + i * (cellW + kOrlGap);
             else  // Staggered
@@ -759,23 +798,27 @@ namespace lockstep
 
             const auto cell = juce::Rectangle<int>(x, area.getY(), cellW, area.getHeight());
 
-            const bool isPressed    = juce::KeyPress::isKeyCurrentlyDown(def.keyCode);
-            const bool isPlaying    = (def.keyCode == 'O') && processor_.clock().inPluginPlaying();
-            const bool isMetActive  = (def.keyCode == 'I') && processor_.clock().isMetronomeEnabled();
-            const bool isTrkHeld    = (def.keyCode == 'Q') && uiState_.trackHeld;
-            const bool isModeActive = (def.keyCode == 'T' && gridMode == TrigGridMode::Keyboard)
-                                   || (def.keyCode == 'Y' && gridMode == TrigGridMode::Retrig)
-                                   || (def.keyCode == 'U' && gridMode == TrigGridMode::SoundPool)
-                                   || isPlaying || isMetActive || isTrkHeld;
+            const bool isPressed   = juce::KeyPress::isKeyCurrentlyDown(def.keyCode);
+            const bool isPlaying   = (def.keyCode == 'I') && processor_.clock().inPluginPlaying();
+            const bool isTrkHeld   = (def.keyCode == 'Q') && uiState_.trackHeld;
+            const bool isCueHeld   = (def.keyCode == 'W') && uiState_.cueHeld;
+            const bool isModeActive = (def.keyCode == 'U' && gridMode == TrigGridMode::Keyboard)
+                                   || (def.keyCode == 'I' && gridMode == TrigGridMode::Retrig)
+                                   || (def.keyCode == 'P' && gridMode == TrigGridMode::SoundPool)
+                                   || isPlaying || isTrkHeld || isCueHeld;
 
             KeyButtonState state = KeyButtonState::Normal;
-            if      (isPressed)          state = KeyButtonState::Pressed;
-            else if (isModeActive)       state = KeyButtonState::ModeActive;
-            else if (uiState_.funcHeld)  state = KeyButtonState::FuncHeld;
+            if      (isPressed)         state = KeyButtonState::Pressed;
+            else if (isModeActive)      state = KeyButtonState::ModeActive;
+            else if (uiState_.funcHeld) state = KeyButtonState::FuncHeld;
+
+            const bool overlay = hasCompound
+                && ((def.keyCode == 'Q' && uiState_.trackHeld)
+                 || (def.keyCode == 'W' && uiState_.cueHeld));
 
             paintKeyButton(g, cell,
                            def.keyHint, def.primary, def.secondary,
-                           def.group, state, showKeyHint);
+                           def.group, state, showKeyHint, overlay);
         }
     }
 
@@ -818,12 +861,14 @@ namespace lockstep
         const bool fillActive = processor_.fillActive();
         const auto preview = computePagePreview(track, trackLen, loopBase, baseStep, fillActive);
 
+        // MHX step keys: D-; (steps 0-7, A row), C-/ (steps 8-15, Z row).
         static constexpr const char* kKeyLetters[kPageSteps] = {
-            "S","D","F","G","H","J","K","L",
-            "X","C","V","B","N","M",",","."
+            "D","F","G","H","J","K","L",";",
+            "C","V","B","N","M",",",".","/"
         };
 
-        static constexpr int kTotalGridCols = kCols + 1;
+        // MHX: 2 modifier columns (A/S | Z/X) + 8 step columns = 10 total.
+        static constexpr int kTotalGridCols = kCols + 2;
         const bool showKeyLetters = (displayMode_ != GridDisplayMode::Clean);
         const bool useClnGap      = (displayMode_ == GridDisplayMode::Clean);
         const int  intraStepGap   = (displayMode_ == GridDisplayMode::Ortholinear) ? kOrlGap : 0;
@@ -844,7 +889,7 @@ namespace lockstep
         }
         else  // Ortholinear
         {
-            cellW    = (cellArea.getWidth() - 8 * kOrlGap) / kTotalGridCols;
+            cellW    = (cellArea.getWidth() - (kTotalGridCols - 1) * kOrlGap) / kTotalGridCols;
             staggerA = 0;
             staggerZ = 0;
         }
@@ -855,17 +900,20 @@ namespace lockstep
             return cellArea.getY() + row * cellH + (row > 0 ? intraStepGap : 0);
         };
 
+        // col 0/1 = modifiers, col 2+ = steps.
         auto colX = [&](int row, int col) -> int
         {
             const int stagger = (row == 0) ? staggerA : staggerZ;
-            if (useClnGap && col >= 1)
-                return cellArea.getX() + stagger + cellW + kClnColGap + (col - 1) * cellW;
+            if (useClnGap && col >= 2)
+                return cellArea.getX() + stagger + 2 * cellW + kClnColGap + (col - 2) * cellW;
+            if (useClnGap)
+                return cellArea.getX() + stagger + col * cellW;
             if (displayMode_ == GridDisplayMode::Ortholinear)
                 return cellArea.getX() + col * (cellW + kOrlGap);
             return cellArea.getX() + stagger + col * cellW;
         };
 
-        // Edge anchor keys for A row (rowIndex=2) and Z row (rowIndex=3)
+        // Edge anchor rows
         for (int row = 0; row < kRows; ++row)
         {
             const auto rowRect = juce::Rectangle<int>(cellArea.getX(), rowY(row),
@@ -873,30 +921,66 @@ namespace lockstep
             paintEdgeRow(g, 2 + row, rowRect);
         }
 
-        // Modifier column (A / Z)
+        // Compound overlay state
+        const bool col1any = uiState_.trackHeld || uiState_.patternScopeHeld || uiState_.muteHeld;
+        const bool col2any = uiState_.fillHeld  || uiState_.cueHeld || uiState_.sceneHeld
+                                                || uiState_.masterHeld;
+        const bool hasCompound = (uiState_.funcHeld && (col1any || col2any)) || (col1any && col2any);
+
+        // Two modifier columns per row:
+        //   col-1 structural: row 0 = A/PAT, row 1 = Z/MUT
+        //   col-2 performance: row 0 = S/SCN, row 1 = X/MST
         {
-            static constexpr const char* kModKeys[kRows]   = { "A", "Z" };
-            static constexpr const char* kModLabels[kRows] = { "MUT", "FIL" };
-            const KeyGroup modGrp { kModInactive, kModActive, kModAccent };
+            struct ModDef {
+                int  keyCode;
+                const char* keyHint;
+                const char* label;
+                bool        isHeld;
+                KeyGroup    grp;
+                bool        overlay;
+            };
+
+            const std::array<std::array<ModDef, 2>, kRows> mods = {{
+                // Row 0 (A row): A=Pattern (col-1), S=Scene (col-2)
+                std::array<ModDef, 2>{{
+                    { 'A', "A", "PAT", uiState_.patternScopeHeld,
+                      { kModInactive, kModActive, kModAccent },
+                      hasCompound && uiState_.patternScopeHeld },
+                    { 'S', "S", "SCN", uiState_.sceneHeld,
+                      { kPerfInactive, kPerfActive, kPerfAccent },
+                      hasCompound && uiState_.sceneHeld },
+                }},
+                // Row 1 (Z row): Z=Mute (col-1), X=Master (col-2)
+                std::array<ModDef, 2>{{
+                    { 'Z', "Z", "MUT", uiState_.muteHeld,
+                      { kModInactive, kModActive, kModAccent },
+                      hasCompound && uiState_.muteHeld },
+                    { 'X', "X", "MST", uiState_.masterHeld,
+                      { kPerfInactive, kPerfActive, kPerfAccent },
+                      hasCompound && uiState_.masterHeld },
+                }},
+            }};
 
             for (int row = 0; row < kRows; ++row)
             {
-                const int x = colX(row, 0);
-                const int y = rowY(row);
-                const auto cell = juce::Rectangle<int>(x, y, cellW, cellH);
+                for (int mc = 0; mc < 2; ++mc)
+                {
+                    const auto& md  = mods[static_cast<std::size_t>(row)]
+                                         [static_cast<std::size_t>(mc)];
+                    const int x     = colX(row, mc);
+                    const int y     = rowY(row);
+                    const auto cell = juce::Rectangle<int>(x, y, cellW, cellH);
 
-                const bool isHeld  = (row == 0) ? uiState_.muteHeld : uiState_.fillHeld;
-                const bool keyDown = juce::KeyPress::isKeyCurrentlyDown(
-                    (row == 0) ? static_cast<int>('A') : static_cast<int>('Z'));
+                    const bool keyDown = juce::KeyPress::isKeyCurrentlyDown(md.keyCode);
+                    KeyButtonState st  = KeyButtonState::Normal;
+                    if      (keyDown)    st = KeyButtonState::Pressed;
+                    else if (md.isHeld)  st = KeyButtonState::ModeActive;
 
-                KeyButtonState st = KeyButtonState::Normal;
-                if      (keyDown) st = KeyButtonState::Pressed;
-                else if (isHeld)  st = KeyButtonState::ModeActive;
-
-                paintKeyButton(g, cell,
-                               showKeyLetters ? kModKeys[row] : "",
-                               kModLabels[row], "",
-                               modGrp, st, showKeyLetters);
+                    paintKeyButton(g, cell,
+                                   showKeyLetters ? md.keyHint : "",
+                                   md.label, "",
+                                   md.grp, st, showKeyLetters, md.overlay);
+                }
             }
         }
 
@@ -923,7 +1007,7 @@ namespace lockstep
                     && track.steps[static_cast<std::size_t>(absIdx)].overrides.has(activeSlot);
                 const bool isHead = (absIdx == playheadAbs);
 
-                const int x = colX(row, col + 1);
+                const int x = colX(row, col + 2);  // +2: skip the two modifier columns
                 const int y = rowY(row);
                 const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
@@ -1140,7 +1224,8 @@ namespace lockstep
         if (displayMode_ == GridDisplayMode::Ortholinear)
         {
             const int gap   = kOrlGap;
-            const int cellW = (rowArea.getWidth() - 8 * gap) / 9;
+            // 10 cells, 9 internal gaps
+            const int cellW = (rowArea.getWidth() - 9 * gap) / 10;
             const int cellH = rowArea.getHeight();
 
             // Left edge key: right edge abuts main block left, center at x=0 (half clipped)
@@ -1150,13 +1235,12 @@ namespace lockstep
             const auto rightRect = juce::Rectangle<int>(
                 rowArea.getRight() + gap, rowArea.getY(), cellW, cellH);
 
-            // Per-row labels and keycodes (left side, right side).
-            // ORL shows the single nearest edge key per side per row.
-            // Q-row right is P (80) because O is now PLY; [ sits further right.
-            static const int        kLeftCode[4]   = { 96, 9,   0,   0   };  // ` Tab - -
+            // Per-row labels/keycodes. In MHX the 10th key of each row is in the main block
+            // (0/P/;// respectively), so the right-edge is the key after that.
+            static const int        kLeftCode[4]   = { 96, 9,  0,  0  };  // ` Tab CAP SHF
             static const char*const kLeftLabel[4]  = { "`", "TAB", "CAP", "SHF" };
-            static const int        kRightCode[4]  = { 48, 80,  59,  47  };  // 0  P  ;  /
-            static const char*const kRightLabel[4] = { "0", "P", ";", "/" };
+            static const int        kRightCode[4]  = { 45, 91, 39,  0  };  // - [ ' (none)
+            static const char*const kRightLabel[4] = { "-", "[", "'", "" };
 
             {
                 const int kc = kLeftCode[rowIndex];
@@ -1187,7 +1271,7 @@ namespace lockstep
             // Row stagger offsets (half-units): number=0, Q=1, A=2, Z=3
             static constexpr int kStaggerHu[4] = { 0, 1, 2, 3 };
             const int mainLeft  = rowArea.getX() + kStaggerHu[rowIndex] * hu;
-            const int mainRight = mainLeft + 9 * cw;
+            const int mainRight = mainLeft + 10 * cw;  // MHX: 10-wide
 
             // Left edge key: one key per row, ANSI width (backtick=2hu, Tab=3hu,
             // CapsLock=4hu, LShift=5hu).  All start at the same x (kSideMargin-2hu).
@@ -1208,19 +1292,20 @@ namespace lockstep
             }
 
             // Right edge keys: regular 2hu keys walking right until off-screen.
+            // In MHX all 10 keys per row are in the main block (0/P/;// included),
+            // so right-edge keys are the physical keys after the 10th column.
             {
-                // Q-row: P is now the first right-edge key (O=PLY occupies col 8).
                 static const int    kRCode[4][3] = {
-                    { 48, 45, 61 },  // number:  0  -  =
-                    { 80, 91, 93 },  // Q:       P  [  ]
-                    { 59, 39,  0 },  // A:       ;  '
-                    { 47,  0,  0 },  // Z:       /
+                    { 45, 61,  0 },  // number: -  =  (0 is now in main block)
+                    { 91, 93,  0 },  // Q:      [  ]  (P is now in main block)
+                    { 39,  0,  0 },  // A:      '     (; is now in main block)
+                    {  0,  0,  0 },  // Z:      none  (/ is now in main block)
                 };
                 static const char*const kRLabel[4][3] = {
-                    { "0", "-", "=" },
-                    { "P", "[", "]" },
-                    { ";", "'", ""  },
-                    { "/", "",  ""  },
+                    { "-", "=", "" },
+                    { "[", "]", "" },
+                    { "'", "",  "" },
+                    { "",  "",  "" },
                 };
                 const int compW = getWidth();
                 int rx = mainRight;
