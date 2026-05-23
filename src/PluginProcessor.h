@@ -204,6 +204,13 @@ namespace lockstep
         void setTrackEqualSlices(int track, int count);
         void clearTrackSlices(int track);
 
+        // MG.5: Sound Pool live-swap — message thread only.
+        // liveSwapTrackSound temporarily applies a pool entry's baseParams to the
+        // sequence track so the audio thread immediately hears the new sound.
+        // clearLiveSwap restores the track's baseParams from the active Part.
+        void liveSwapTrackSound(int track, int poolIndex);
+        void clearLiveSwap(int track);
+
         // MG.4: Sound Pool CRUD (message thread only).
         // saveTrackToSoundPool: snapshots the active Part's track state + sample index.
         // Returns the new pool index, or -1 on failure.

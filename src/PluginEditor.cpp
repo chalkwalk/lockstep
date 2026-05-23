@@ -589,6 +589,37 @@ namespace lockstep
 
             case ControllerButton::Step:
             {
+                // MG.5: Sound Pool mode — step keys select pool entries by index.
+                // Holding a key live-swaps the focused track's sound; record-arm
+                // captures the pool index as a sound_id override on the held step.
+                if (uiState_.trigGridMode == TrigGridMode::SoundPool)
+                {
+                    const int activeTrack = keyboardArea_.getActiveTrack();
+                    if (!uiState_.soundPoolKeyHeld && ev.index < processor_.soundPoolSize())
+                    {
+                        auto& ctx = processor_.editContext();
+                        if (ctx.isActiveForEditing()
+                            && ctx.heldTrackIndex() == activeTrack)
+                        {
+                            auto& trk = processor_.sequence()
+                                            .tracks[static_cast<std::size_t>(activeTrack)];
+                            for (int heldIdx : ctx.heldSteps())
+                            {
+                                if (heldIdx < 0 || heldIdx >= kMaxStepsPerTrack) continue;
+                                auto& s = trk.steps[static_cast<std::size_t>(heldIdx)];
+                                s.trigOverride.hasSoundId = true;
+                                s.trigOverride.soundId    = ev.index;
+                                s.trig = true;
+                            }
+                            ctx.markParamWritten();
+                        }
+                        uiState_.soundPoolKeyHeld = true;
+                        uiState_.soundPoolKeyCode = rawCode;
+                        processor_.liveSwapTrackSound(activeTrack, ev.index);
+                    }
+                    return true;
+                }
+
                 // MG.2/MG.3: Retrig mode.
                 // Func+step cycles the retrig rate.
                 // On a sampler track with slice data, keys play slices (Slice sub-mode).
@@ -935,6 +966,17 @@ namespace lockstep
             uiState_.retrigKeyHeld = false;
             uiState_.retrigKeyCode = -1;
             processor_.setRetrigActive(0, false);  // track arg ignored for cancel
+            handled = true;
+        }
+
+        // MG.5: Sound Pool key release — restore track's original sound.
+        if (uiState_.soundPoolKeyHeld
+            && uiState_.soundPoolKeyCode >= 0
+            && !juce::KeyPress::isKeyCurrentlyDown(uiState_.soundPoolKeyCode))
+        {
+            uiState_.soundPoolKeyHeld = false;
+            uiState_.soundPoolKeyCode = -1;
+            processor_.clearLiveSwap(keyboardArea_.getActiveTrack());
             handled = true;
         }
 

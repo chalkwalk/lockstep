@@ -684,7 +684,7 @@ DESIGN §13.5. The trig grid as a modal surface.
       (machineId, base ParamFrame, sample/destination refs) bundles.
       CRUD UI: save current track sound to pool, recall pool entry
       to track.
-- [ ] **MG.5** Sound Pool mode: trig keys page through the pool and
+- [x] **MG.5** Sound Pool mode: trig keys page through the pool and
       live-swap the focused track's sound while held. Record-arm
       captures pool index as a `sound_id` P-Lock on the next emitted
       step (or held step).

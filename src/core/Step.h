@@ -15,6 +15,10 @@ namespace lockstep
         int   velocity    = 100;
         bool  hasGate     = false;
         float gateMs      = 0.0f;
+        // MG.5: Sound Pool step override — applies pool entry's baseParams as the
+        // base param set for this step (P-Locks on top still win).
+        bool  hasSoundId  = false;
+        int   soundId     = -1;
     };
 
     struct Step

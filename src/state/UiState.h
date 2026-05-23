@@ -46,6 +46,11 @@ namespace lockstep
         bool retrigKeyHeld = false;
         int  retrigKeyCode = -1;
 
+        // MG.5: tracks which raw key code is held in Sound Pool mode.
+        // Used to restore live-swap on key release.
+        bool soundPoolKeyHeld = false;
+        int  soundPoolKeyCode = -1;
+
         // Active master section (-1 = none).
         int masterSection = -1;
 

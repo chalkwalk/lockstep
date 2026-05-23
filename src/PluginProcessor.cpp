@@ -1007,7 +1007,34 @@ namespace lockstep
                 }
             }
 
-            auto frame = StateResolver::resolve(track, stepIndex);
+            // MG.5: if the fired step carries a sound_id override, use the pool
+            // entry's baseParams as the base, then apply step P-Locks on top.
+            // Falls back to the normal StateResolver path if the entry is missing.
+            auto frame = [&]() -> ParamFrame
+            {
+                if (stepIndex >= 0 && stepIndex < kMaxStepsPerTrack)
+                {
+                    const auto& ov = track.steps[static_cast<std::size_t>(stepIndex)].trigOverride;
+                    if (ov.hasSoundId && ov.soundId >= 0)
+                    {
+                        const auto* e = project_.soundPool.get(ov.soundId);
+                        if (e && e->baseParams.size() == track.baseParams.size())
+                        {
+                            ParamFrame f = e->baseParams;
+                            const auto& plock =
+                                track.steps[static_cast<std::size_t>(stepIndex)].overrides;
+                            for (int slot = 0; slot < static_cast<int>(f.size()); ++slot)
+                            {
+                                if (plock.has(slot))
+                                    f[static_cast<std::size_t>(slot)] =
+                                        plock.get(slot, f[static_cast<std::size_t>(slot)]);
+                            }
+                            return f;
+                        }
+                    }
+                }
+                return StateResolver::resolve(track, stepIndex);
+            }();
             if (previewActive_ && static_cast<int>(i) == previewTrack_)
             {
                 const int ss = slotForId(static_cast<int>(i), "sample_id");
@@ -1571,6 +1598,25 @@ namespace lockstep
             entry.samplePoolIndex = static_cast<int>(partTrack.baseParams[0]);
 
         return project_.soundPool.push(std::move(entry));
+    }
+
+    void LockstepProcessor::liveSwapTrackSound(int track, int poolIndex)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        const auto* e = project_.soundPool.get(poolIndex);
+        if (e == nullptr) return;
+        const auto ti = static_cast<std::size_t>(track);
+        if (e->machineId != activePart().tracks[ti].machineId) return;
+        // Write directly to sequence track — same pattern as writeParam().
+        // Audio thread picks up the new baseParams on the next processBlock.
+        sequence().tracks[ti].baseParams = e->baseParams;
+    }
+
+    void LockstepProcessor::clearLiveSwap(int track)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        const auto ti = static_cast<std::size_t>(track);
+        sequence().tracks[ti].baseParams = activePart().tracks[ti].baseParams;
     }
 
     bool LockstepProcessor::recallSoundFromPool(int track, int entryIndex)

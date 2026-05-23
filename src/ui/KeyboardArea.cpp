@@ -1031,6 +1031,30 @@ namespace lockstep
                                juce::Justification::centred, false);
                 }
 
+                // MG.5: In Sound Pool mode show the pool entry index on the cell.
+                if (uiState_.trigGridMode == TrigGridMode::SoundPool && inRange)
+                {
+                    const int poolSize = processor_.soundPoolSize();
+                    const bool hasEntry = localIdx < poolSize;
+                    g.setFont(juce::Font(juce::FontOptions(9.0f)));
+                    if (hasEntry)
+                    {
+                        const auto* e = processor_.soundPoolEntry(localIdx);
+                        g.setColour(juce::Colour::fromRGB(180, 220, 180));
+                        const juce::String label = (e != nullptr)
+                            ? juce::String(localIdx + 1) + " " + juce::String(e->name).substring(0, 6)
+                            : juce::String(localIdx + 1);
+                        g.drawText(label, cell.reduced(2),
+                                   juce::Justification::centred, true);
+                    }
+                    else
+                    {
+                        g.setColour(juce::Colour::fromRGB(60, 70, 80));
+                        g.drawText("--", cell.reduced(2),
+                                   juce::Justification::centred, false);
+                    }
+                }
+
                 const bool hasTrackSelect = inRange && (row == 0);
                 const bool shiftHeld = uiState_.funcHeld;
                 static constexpr int kTrackLabelH = 11;
@@ -1084,7 +1108,7 @@ namespace lockstep
                 label  = kRateLabels[juce::jlimit(0, 3, uiState_.retrigRateIndex)];
                 badgeW = 68;
             }
-            else { label = "POL"; badgeW = 36; }
+            else { label = "SPL"; badgeW = 36; }
 
             const auto badgeRect = cellArea.withHeight(18).withWidth(badgeW).reduced(3);
             g.setColour(juce::Colour(0xFFD07030u));
