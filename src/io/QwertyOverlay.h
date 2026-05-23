@@ -4,21 +4,24 @@
 
 namespace lockstep
 {
-    // Translates raw JUCE key codes into ControllerEvents for the 9x4 layout.
+    // Translates raw JUCE key codes into ControllerEvents for the 10x4 layout (MHX).
     //
-    // Physical layout (columns 1-9, rows 1-4):
+    // Physical layout (columns 1-10, rows 1-4):
     //
-    //   [Fnc][Rec][Nav][Sc0][Sc1][Sc2][Sc3][Sc4][Sc5]   <- row 1
-    //   [Trk][</N][ v ][>/Y][Ply][ Cp][ Pt][ Cl][Tap]   <- row 2
-    //   [Mut][St1][St2][St3][St4][St5][St6][St7][St8]    <- row 3
-    //   [Fil][St9][S10][S11][S12][S13][S14][S15][S16]    <- row 4
+    //   [Fnc][Fil][Sc0][Sc1][Sc2][Sc3][Sc4][Sc5][ARM][>||]  <- row 1  1 2 3 4 5 6 7 8 9 0
+    //   [Trk][Cue][ < ][ ^ ][ v ][ > ][REC][PLY][STP][TAP]  <- row 2  Q W E R T Y U I O P
+    //   ─────────┼──────────────────────────────────────────
+    //   [Pat][Scn][St0][St1][St2][St3][St4][St5][St6][St7]  <- row 3  A S D F G H J K L ;
+    //   [Mut][Mst][St8][St9][S10][S11][S12][S13][S14][S15]  <- row 4  Z X C V B N M , . /
     //
-    //   Left column (1/Q/A/Z) = dedicated modifier strip (Func/Track/Mute/Fill).
-    //   Func layer: Func+2(Rec)=Snapshot, Func+T(Ply)=Restore, Func+E=StopReset,
-    //               Func+4-9=MetaSections,
-    //               Func+Y/U/I=TrigModeKeyboard/Retrig/SoundPool.
-    //   Track layer: Track+S-L = SelectTrack 0-7; Track+X-. = SelectTrack 8-15.
-    //   Mute layer:  Mute+S-L  = ToggleMute 0-7;  Mute+X-.  = ToggleMute 8-15.
+    //   Col 1 (1/Q/A/Z) = structural modifiers: Func / Track / Pattern / Mute.
+    //   Col 2 (2/W/S/X) = performance modifiers: Fill / Cue / Scene / Master.
+    //   Func layer: Func+E=StopReset, Func+R=MachineSelect, Func+T=Snapshot(Yes),
+    //               Func+Y=ForkPart, Func+U=TrigModeKeyboard, Func+I=TrigModeRetrig,
+    //               Func+O=Restore(No), Func+P=TrigModeSoundPool, Func+9=MetronomeToggle,
+    //               Func+3-8=MetaSections.
+    //   Track layer: Track+D-; = SelectTrack 0-7; Track+C-/ = SelectTrack 8-15.
+    //   Mute layer:  Mute+D-;  = ToggleMute 0-7;  Mute+C-/  = ToggleMute 8-15.
     class QwertyOverlay
     {
     public:

@@ -8,20 +8,28 @@ namespace lockstep
     // Buttons that carry a positional index (Step, Section, MetaSection, SelectTrack)
     // store the index in ControllerEvent::index; all other buttons have index == -1.
     //
-    // 9x4 layout (columns 1-9, rows QWERTY/ASDF/ZXCV):
-    //   Left column (1/Q/A/Z) = dedicated modifier strip.
-    //   Right 8x4 block top half = function/nav/verb keys.
-    //   Right 8x4 block bottom half = 16 sequencer steps (S-L, X-.).
+    // 10x4 layout (MHX §33, §5.5):
+    //   Left two columns = eight modifier cluster:
+    //     Col 1 (1/Q/A/Z): Func / Track / Pattern / Mute
+    //     Col 2 (2/W/S/X): Fill / Cue / Scene / Master
+    //   Right 8x4 functional block:
+    //     Row 1 (3-8, 9, 0): six canonical sections, RecordArm, PlayStop
+    //     Row 2 (E-P):       nav L/U/D/R, verbs Record/Play/Stop, TapTempo
+    //     Row 3 (D-;):       steps 0-7
+    //     Row 4 (C-/):       steps 8-15
     enum class ControllerButton : std::uint8_t
     {
-        // Left-column modifiers — dedicated physical keys, always reachable.
-        Func,       // key 1: primary modifier (secondary functions via Func+key)
-        TrackScope, // key Q: track scope (Q+step=SelectTrack, Q alone=Control-All)
-        MuteScope,  // key A: mute scope (A+step=toggle track mute)
-        FillScope,  // key Z: fill modifier (held=fill conditions evaluate true)
+        // Column-1 modifiers (structural / edit scopes).
+        Func,         // key 1: primary modifier (secondary functions via Func+key)
+        TrackScope,   // key Q: track scope (Q+step=SelectTrack, Q alone=Control-All)
+        PatternScope, // key A: pattern-level scope (dedicated key in MHX)
+        MuteScope,    // key Z: mute scope (Z+step=toggle track mute)
 
-        // Secondary scope buttons reachable via the Func layer.
-        PatternScope,     // Func+2: pattern-level scope
+        // Column-2 modifiers (performance scopes).
+        FillScope,    // key 2: fill modifier (held=fill conditions evaluate true)
+        CueScope,     // key W: cue/monitor scope (§31)
+        SceneScope,   // key S: scene assignment scope (§17); Scene+^/v picks endpoint A/B
+        MasterScope,  // key X: master-bus / FX focus (§32.3)
 
         // Verb keys (meaning changes based on the active scope from EditMode).
         VerbRecord,       // Y: copy / capture scope into clipboard
@@ -29,15 +37,15 @@ namespace lockstep
         VerbStop,         // I: clear scope
 
         // Checkpoint operations — direct actions, not scope-qualified verbs.
-        Snapshot,         // Func+2(Rec): push checkpoint
-        Restore,          // Func+T(Ply): pop checkpoint
+        Snapshot,         // Func+T: push checkpoint (Yes)
+        Restore,          // Func+O: pop checkpoint (No)
 
         // Trig-grid mode chords: held = mode active, exit on release.
-        TrigModeKeyboard, // Func+Y: 16 trig keys -> chromatic keyboard
-        TrigModeRetrig,   // Func+U: 16 trig keys -> retrigger pads
-        TrigModeSoundPool,// Func+I: 16 trig keys -> sound pool browser
+        TrigModeKeyboard, // Func+U: 16 trig keys -> chromatic keyboard
+        TrigModeRetrig,   // Func+I: 16 trig keys -> retrigger pads
+        TrigModeSoundPool,// Func+P: 16 trig keys -> sound pool browser
 
-        // Navigation (2=Up, W=Left, E=Down, R=Right).
+        // Navigation (E=Left, R=Up, T=Down, Y=Right).
         NavUp, NavLeft, NavDown, NavRight,
 
         // Section / meta-section buttons; index carries the section index (0-5).
@@ -53,17 +61,17 @@ namespace lockstep
         // Mute toggle for a specific track; index carries the track index (0-7).
         ToggleMute,
 
-        // Fork the active Part (make it unique). Gesture: Func+W. (MD.5)
+        // Fork the active Part (make it unique). Gesture: Func+Y. (MD.5)
         ForkPart,
 
         // Open / close the machine selector overlay. Gesture: Func+R. (MGX.6)
         MachineSelect,
 
         // Transport / utility.
-        RecordArm,       // key 2 (Func not held)
-        TapTempo,        // key I (Func not held)
-        MetronomeToggle, // Func+I
-        PlayStop,        // key O (Func not held)
+        RecordArm,       // key 9 (Func not held)
+        TapTempo,        // key P (Func not held)
+        MetronomeToggle, // Func+9
+        PlayStop,        // key 0 (Func not held)
         StopReset,       // Func+E
 
         // Sentinel: returned by QwertyOverlay::resolve() for unmapped keys.
