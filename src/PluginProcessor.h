@@ -323,6 +323,7 @@ namespace lockstep
         double anchorPpq_ = 0.0;
         bool   wasInPluginPlaying_  = false;
         bool   wasSequencerRunning_ = false;  // MF.6: falling-edge transport stop detection
+        std::array<bool, kNumTracks> wasSilent_{};  // MF.7: per-track mute rising-edge detection
 
         std::atomic<float>* syncModeParam_    = nullptr;
         std::atomic<float>* channelModeParam_ = nullptr;

@@ -794,6 +794,17 @@ namespace lockstep
             const bool soloed  = trackSoloParams_[i]->load() >= 0.5f;
             const bool silent  = muted || (anySoloed && !soloed);
 
+            // MF.7: mute rising edge — send All-Notes-Off on MIDI-out tracks to
+            // prevent stuck notes when a track is muted mid-note.
+            if (silent && !wasSilent_[i] && machines_[i]->isMidiOut())
+            {
+                juce::MidiBuffer stopBuf;
+                static_cast<MidiOutMachine*>(machines_[i].get())->allNotesOff(stopBuf);
+                if (!isStandalone)
+                    midi.addEvents(stopBuf, 0, -1, 0);
+            }
+            wasSilent_[i] = silent;
+
             // 16th note = 0.25 PPQ; divider scales the grid coarser.
             const double divPpq = 0.25 * static_cast<double>(trackDiv <= 0 ? 1 : trackDiv);
 

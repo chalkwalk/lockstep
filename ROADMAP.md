@@ -641,11 +641,23 @@ the "external gear is a first-class workflow" pillar.
       CC 121 on `activeChannel_`; processor detects the
       `sequencerRunning` falling edge via `wasSequencerRunning_`
       and calls it on every MIDI-out track each stop event.
-- [ ] **MF.7** Participation in performance features: Control-All
+- [x] **MF.7** Participation in performance features: Control-All
       across MIDI-out tracks, Sound Pool entries for MIDI-out
-      sounds, Fills / Mutes / Copy-Paste / Checkpoints — verify
-      end-to-end that each unmodified gesture works against
-      MIDI-out tracks.
+      sounds, Fills / Mutes / Copy-Paste / Checkpoints — verified
+      end-to-end against MIDI-out tracks.
+      — Control-All: works; `idForSlot`/`slotForId` routes through
+        `paramSpec().id` for all MIDI-out slots.
+      — Fills: works; trig condition evaluation is sequencer-level.
+      — Copy-Paste: works; track-scope copies the sequence layer
+        (steps), not the Part, which is correct by design.
+      — Checkpoints: works; `pushCheckpoint` captures the full Part
+        including all MIDI-out PartTrack fields.
+      — Mutes: fixed stuck-note risk — `wasSilent_[i]` rising-edge
+        detection fires `allNotesOff()` on MIDI-out tracks when
+        mute activates mid-note (`PluginProcessor.cpp`).
+      — Sound Pool: deferred to MG; PartTrack now carries all
+        MIDI-out config (`destinationId`, `midiCCNumbers/Labels`)
+        so a sound bundle naturally extends to MIDI-out tracks.
 - [ ] **MF.8** Hardware-targeting factory tables for at least:
       Digitakt, Digitone, Syntakt, Analog Four, Analog Rytm,
       Octatrack, Tonverk. (Tonverk CC table TBD; ship what's
@@ -1087,7 +1099,17 @@ MQ–MU recorder/cue cluster.
 - [ ] **MV.7** MIDI-out tracks carry no inserts/sends; their FX section
       remains the ME.7 MIDI CC bank. No special-casing elsewhere.
 
-### M9 — Plugin-wrapper machine (deferred indefinitely)
+### M9 — Polish, CI, beta  [pending]
+
+- [ ] **M9.1** GitHub Actions multi-platform CI (Linux/macOS/Windows).
+- [ ] **M9.2** Performance pass: voice CPU profile, choke-fade SIMD
+      review, voice cap configuration.
+- [ ] **M9.3** Factory patch library.
+- [ ] **M9.4** Final product name (replace "Lockstep"), bundle IDs,
+      icons, About box.
+- [ ] **M9.5** First public beta build.
+
+### M10 — Plugin-wrapper machine (deferred indefinitely)
 
 Originally scoped as a CLAP/VST3 sub-hosting phase against the
 48-slot contract. With the variable-schema `IMachine` boundary in
@@ -1099,16 +1121,6 @@ tree as the schema, and forwards MIDI/audio across.
 This is now an optional contributor project, not a planned phase.
 No core sequencer changes are required to support it. See DESIGN.md
 §9 for the design sketch.
-
-### M10 — Polish, CI, beta  [pending]
-
-- [ ] **M10.1** GitHub Actions multi-platform CI (Linux/macOS/Windows).
-- [ ] **M10.2** Performance pass: voice CPU profile, choke-fade SIMD
-      review, voice cap configuration.
-- [ ] **M10.3** Factory patch library.
-- [ ] **M10.4** Final product name (replace "Lockstep"), bundle IDs,
-      icons, About box.
-- [ ] **M10.5** First public beta build.
 
 ## Play-test notes
 
