@@ -6,7 +6,7 @@
 
 namespace lockstep
 {
-    inline constexpr int kParamsPerPage = 4;   // MZ display width — UI constant, not a machine limit
+    inline constexpr int kParamsPerPage = 8;   // MZ display width (MHX 4x2 grid) — UI constant, not a machine limit
 
     // Variable-length parameter frame, sized to the machine's numParams() at attachment.
     using ParamFrame = std::vector<float>;

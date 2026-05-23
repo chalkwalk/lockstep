@@ -68,7 +68,7 @@ namespace lockstep
             const int section = trackSection[static_cast<std::size_t>(track)];
             const int page    = trackPage[static_cast<std::size_t>(track)]
                                          [static_cast<std::size_t>(section)];
-            return info.firstSlot + 4 * page;
+            return info.firstSlot + (kParamsPerPage * page);
         }
     };
 }

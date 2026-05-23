@@ -1174,7 +1174,7 @@ namespace lockstep
             tempoBar_->setBounds(bounds.removeFromTop(28).reduced(8, 2));
         bounds.removeFromTop(2);
 
-        static constexpr int kMZHeight  = 96;  // preserved Manipulation Zone height
+        static constexpr int kMZHeight  = 160; // MHX 4x2 MZ (two rows of 4 slots)
         static constexpr int kTrackRowH = 26;  // track-number + VU row
         static constexpr int kMsRowH    = 22;  // mute/solo row
         manipulationZone_.setBounds(bounds.removeFromTop(kMZHeight).reduced(8, 4));

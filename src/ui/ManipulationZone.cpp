@@ -352,6 +352,10 @@ namespace lockstep
             { "m Num", 1.0f,   8.0f },
             { "m Den", 1.0f,   8.0f },
             { slot3IsPrev ? "Prev" : "Fill", 0.0f, slot3IsPrev ? 2.0f : 2.0f },
+            { "",      0.0f,   1.0f },
+            { "",      0.0f,   1.0f },
+            { "",      0.0f,   1.0f },
+            { "",      0.0f,   1.0f },
         }};
 
         const std::array<float, kNumSlots> vals = {
@@ -360,6 +364,7 @@ namespace lockstep
             static_cast<float>(display.iterDenominator),
             slot3IsPrev ? static_cast<float>(display.prevDependency)
                         : static_cast<float>(display.fillRule),
+            0.0f, 0.0f, 0.0f, 0.0f,
         };
 
         updatingFromTimer_ = true;
@@ -472,11 +477,17 @@ namespace lockstep
             { "Vel",      1.0f,   127.0f, true,  true  },
             { "Gate",     0.0f, 10000.0f, false, true  },
             { "",         0.0f,     1.0f, false, false },
+            { "",         0.0f,     1.0f, false, false },
+            { "",         0.0f,     1.0f, false, false },
+            { "",         0.0f,     1.0f, false, false },
+            { "",         0.0f,     1.0f, false, false },
         }};
         const std::array<float, kNumSlots> vals  = { static_cast<float>(note),
                                                      static_cast<float>(velocity),
-                                                     gateMs, 0.0f };
-        const std::array<bool,  kNumSlots> locks = { hasNote, hasVel, hasGate, false };
+                                                     gateMs, 0.0f,
+                                                     0.0f, 0.0f, 0.0f, 0.0f };
+        const std::array<bool,  kNumSlots> locks = { hasNote, hasVel, hasGate, false,
+                                                     false, false, false, false };
 
         updatingFromTimer_ = true;
         for (int i = 0; i < kNumSlots; ++i)
@@ -570,8 +581,13 @@ namespace lockstep
             { "Divider", 1.0f,  16.0f,  true,  true  },
             { "",        0.0f,   1.0f,  false, false },
             { "",        0.0f,   1.0f,  false, false },
+            { "",        0.0f,   1.0f,  false, false },
+            { "",        0.0f,   1.0f,  false, false },
+            { "",        0.0f,   1.0f,  false, false },
+            { "",        0.0f,   1.0f,  false, false },
         }};
-        const std::array<float, kNumSlots> vals = { length, divider, 0.0f, 0.0f };
+        const std::array<float, kNumSlots> vals = { length, divider, 0.0f, 0.0f,
+                                                    0.0f,   0.0f,    0.0f, 0.0f };
 
         updatingFromTimer_ = true;
         for (int i = 0; i < kNumSlots; ++i)
@@ -639,9 +655,14 @@ namespace lockstep
             { "Gain",  -60.0f,  6.0f, false, true  },
             { "Sync",    0.0f,  1.0f, true,  true  },
             { "Chan",    0.0f,  1.0f, true,  true  },
-            { "—",       0.0f,  1.0f, false, false },
+            { "",        0.0f,  1.0f, false, false },
+            { "",        0.0f,  1.0f, false, false },
+            { "",        0.0f,  1.0f, false, false },
+            { "",        0.0f,  1.0f, false, false },
+            { "",        0.0f,  1.0f, false, false },
         }};
-        const std::array<float, kNumSlots> vals = { gain, sync, chan, 0.0f };
+        const std::array<float, kNumSlots> vals = { gain, sync, chan, 0.0f,
+                                                    0.0f, 0.0f, 0.0f, 0.0f };
 
         updatingFromTimer_ = true;
         for (int i = 0; i < kNumSlots; ++i)
@@ -759,16 +780,19 @@ namespace lockstep
             return;  // meta sections: no CC badges or learn overlays
 
         const int track   = area_.getActiveTrack();
-        const int slotW   = getWidth() / kNumSlots;
+        static constexpr int kCols = kMZSlots / 2;
+        const int slotW   = getWidth() / kCols;
+        const int rowH    = getHeight() / 2;
         const bool pulse  = (juce::Time::getMillisecondCounter() / 300) % 2 == 0;
 
         juce::ignoreUnused(track);
 
-        for (int i = 0; i < kNumSlots; ++i)
+        for (int i = 0; i < kMZSlots; ++i)
         {
             const int slot = slotOffset_ + i;
-            const int colX = i * slotW;
-            const juce::Rectangle<int> col (colX, 0, slotW, getHeight());
+            const int row  = i / kCols;
+            const int ci   = i % kCols;
+            const juce::Rectangle<int> col (ci * slotW, row * rowH, slotW, rowH);
 
             // Listening overlay: pulsing highlight on the slot being learned.
             if (i == learningSlotIndex_)
@@ -821,26 +845,35 @@ namespace lockstep
 
     void ManipulationZone::resized()
     {
+        // 4x2 layout: two rows of 4 slots each (MHX §26.2, §33.4).
+        static constexpr int kCols = kMZSlots / 2;  // 4
         auto bounds = getLocalBounds().reduced(4);
-        const int slotW = bounds.getWidth() / kNumSlots;
+        const int slotW = bounds.getWidth() / kCols;
+        const int rowH  = bounds.getHeight() / 2;
 
-        for (int i = 0; i < kNumSlots; ++i)
+        for (int i = 0; i < kMZSlots; ++i)
         {
-            const auto si = static_cast<std::size_t>(i);
-            auto col = bounds.removeFromLeft(slotW).reduced(2, 0);
+            const auto si  = static_cast<std::size_t>(i);
+            const int  row = i / kCols;
+            const int  col = i % kCols;
 
-            // Top row: value display left, clear button right.
-            auto topRow = col.removeFromTop(16);
-            clearBtns_[si].setBounds(topRow.removeFromRight(18));
+            auto cell = juce::Rectangle<int>(
+                bounds.getX() + col * slotW,
+                bounds.getY() + row * rowH,
+                slotW, rowH).reduced(2, 2);
+
+            // Top strip: value display left, clear button right.
+            auto topRow = cell.removeFromTop(14);
+            clearBtns_[si].setBounds(topRow.removeFromRight(16));
             valueLabels_[si].setBounds(topRow);
 
-            // Bottom row: parameter name.
-            labels_[si].setBounds(col.removeFromBottom(16));
+            // Bottom strip: parameter name.
+            labels_[si].setBounds(cell.removeFromBottom(14));
 
-            // Middle: rotary knob (and sample picker occupies the same area as slot 0).
-            sliders_[si].setBounds(col);
+            // Middle: rotary knob.
+            sliders_[si].setBounds(cell);
             if (i == 0)
-                samplePickerBtn_.setBounds(col.reduced(2, 4));
+                samplePickerBtn_.setBounds(cell.reduced(2, 2));
         }
     }
 }

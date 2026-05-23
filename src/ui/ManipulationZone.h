@@ -9,7 +9,7 @@ namespace lockstep
     class LockstepProcessor;
     class KeyboardArea;
 
-    // Shows the first 4 parameter slots (page 0) for the active track.
+    // Shows kMZSlots (8) parameter slots in a 4×2 grid for the active track.
     // Reads from and writes to the correct layer — Step Override when a step
     // is held, Track Base otherwise — via LockstepProcessor::writeParam.
     class ManipulationZone : public juce::Component,
@@ -37,8 +37,13 @@ namespace lockstep
         // Called when the user clicks "Manage pool..." from the sample picker menu.
         std::function<void()> onOpenPoolManager;
 
+    public:
+        // MHX §26.2: 8 encoders in a 4x2 staggered band.  Single constant so the
+        // hardware-grow path (4 → 8) was a one-line change.
+        static constexpr int kMZSlots = 8;
+
     private:
-        static constexpr int kNumSlots = 4;
+        static constexpr int kNumSlots = kMZSlots;
 
         void refreshSliders();
         void refreshCondSliders();
