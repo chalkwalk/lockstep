@@ -688,7 +688,7 @@ DESIGN §13.5. The trig grid as a modal surface.
       live-swap the focused track's sound while held. Record-arm
       captures pool index as a `sound_id` P-Lock on the next emitted
       step (or held step).
-- [ ] **MG.6** Mode-chord UX consistent with MB.5; all three modes
+- [x] **MG.6** Mode-chord UX consistent with MB.5; all three modes
       exit cleanly on chord release and never destructively alter
       the authored pattern unless record-arm is engaged.
 

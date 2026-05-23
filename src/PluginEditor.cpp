@@ -803,12 +803,26 @@ namespace lockstep
                 repaint();
                 return true;
 
-            // Trig grid mode selection (Func+Y/U/I). Pressing the active mode
-            // a second time resets to Default (toggle behaviour).
+            // Trig grid mode selection (Func+T/Y/U). Pressing the active mode
+            // a second time resets to Default (MG.6: exit cleanly — cancel any
+            // in-flight retrig or live sound swap on mode exit).
             case ControllerButton::TrigModeKeyboard:
             {
                 const auto next = (uiState_.trigGridMode == TrigGridMode::Keyboard)
                                   ? TrigGridMode::Default : TrigGridMode::Keyboard;
+                // MG.6: exiting SoundPool or Retrig when switching to Keyboard.
+                if (uiState_.trigGridMode == TrigGridMode::Retrig)
+                {
+                    uiState_.retrigKeyHeld = false;
+                    uiState_.retrigKeyCode = -1;
+                    processor_.setRetrigActive(0, false);
+                }
+                else if (uiState_.trigGridMode == TrigGridMode::SoundPool)
+                {
+                    uiState_.soundPoolKeyHeld = false;
+                    uiState_.soundPoolKeyCode = -1;
+                    processor_.clearLiveSwap(keyboardArea_.getActiveTrack());
+                }
                 uiState_.trigGridMode = next;
                 keyboardArea_.repaint();
                 return true;
@@ -817,6 +831,19 @@ namespace lockstep
             {
                 const auto next = (uiState_.trigGridMode == TrigGridMode::Retrig)
                                   ? TrigGridMode::Default : TrigGridMode::Retrig;
+                // MG.6: cancel retrig when exiting the mode.
+                if (uiState_.trigGridMode == TrigGridMode::Retrig)
+                {
+                    uiState_.retrigKeyHeld = false;
+                    uiState_.retrigKeyCode = -1;
+                    processor_.setRetrigActive(0, false);
+                }
+                else if (uiState_.trigGridMode == TrigGridMode::SoundPool)
+                {
+                    uiState_.soundPoolKeyHeld = false;
+                    uiState_.soundPoolKeyCode = -1;
+                    processor_.clearLiveSwap(keyboardArea_.getActiveTrack());
+                }
                 uiState_.trigGridMode = next;
                 keyboardArea_.repaint();
                 return true;
@@ -825,6 +852,19 @@ namespace lockstep
             {
                 const auto next = (uiState_.trigGridMode == TrigGridMode::SoundPool)
                                   ? TrigGridMode::Default : TrigGridMode::SoundPool;
+                // MG.6: cancel retrig or live swap when exiting the mode.
+                if (uiState_.trigGridMode == TrigGridMode::Retrig)
+                {
+                    uiState_.retrigKeyHeld = false;
+                    uiState_.retrigKeyCode = -1;
+                    processor_.setRetrigActive(0, false);
+                }
+                else if (uiState_.trigGridMode == TrigGridMode::SoundPool)
+                {
+                    uiState_.soundPoolKeyHeld = false;
+                    uiState_.soundPoolKeyCode = -1;
+                    processor_.clearLiveSwap(keyboardArea_.getActiveTrack());
+                }
                 uiState_.trigGridMode = next;
                 keyboardArea_.repaint();
                 return true;
