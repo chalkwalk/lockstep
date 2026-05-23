@@ -575,21 +575,30 @@ namespace lockstep
 
             case ControllerButton::Step:
             {
-                // MG.2: Retrig mode — holding a step key retrigs the focused track.
-                // Func+step key cycles the retrig rate.
+                // MG.2/MG.3: Retrig mode.
+                // Func+step cycles the retrig rate.
+                // On a sampler track with slice data, keys play slices (Slice sub-mode).
+                // Otherwise, holding any key retrigs the focused track continuously.
                 if (uiState_.trigGridMode == TrigGridMode::Retrig)
                 {
+                    const int activeTrack = keyboardArea_.getActiveTrack();
                     if (uiState_.funcHeld)
                     {
                         uiState_.retrigRateIndex = (uiState_.retrigRateIndex + 1) % 4;
                         keyboardArea_.repaint();
+                    }
+                    else if (processor_.hasTrackSlices(activeTrack))
+                    {
+                        // MG.3: Slice sub-mode — each key plays a different slice.
+                        // Use note numbers 0-15 so the sampler can identify them as slice triggers.
+                        processor_.triggerNote(activeTrack, ev.index, 300);
                     }
                     else if (!uiState_.retrigKeyHeld)
                     {
                         uiState_.retrigKeyHeld = true;
                         uiState_.retrigKeyCode = rawCode;
                         processor_.setRetrigActive(
-                            keyboardArea_.getActiveTrack(),
+                            activeTrack,
                             true,
                             UiState::retrigRatePpq(uiState_.retrigRateIndex));
                     }

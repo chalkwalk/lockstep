@@ -197,6 +197,12 @@ namespace lockstep
         // Pass active=false to cancel (track is ignored on cancel).
         void setRetrigActive(int track, bool active, double ratePpq = 0.25);
 
+        // MG.3: slice queries + set (message thread; don't call while audio thread is running).
+        bool hasTrackSlices(int track)       const;
+        int  trackSliceCount(int track)      const;
+        void setTrackEqualSlices(int track, int count);
+        void clearTrackSlices(int track);
+
         // Sample pool helpers — message-thread only.
         // sampleShortName returns the filename stem for a given pool index, or "(none)".
         juce::String sampleShortName(int poolIndex) const;

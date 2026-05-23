@@ -30,6 +30,14 @@ namespace lockstep
         bool isVoiceActive()    const override;
         bool hasInternalAmp()   const override { return true; }
 
+        // MG.3: slice data.  Slices are normalized start positions [0.0, 1.0].
+        // Up to 16 slices; each maps to one step key in Slice sub-mode of Retrig.
+        static constexpr int kMaxSlices = 16;
+        void  setEqualSlices(int count);   // divide sample into `count` equal slices
+        void  clearSlices();
+        bool  hasSlices()  const { return numSlices_ > 0; }
+        int   numSlices()  const { return numSlices_; }
+
     private:
         // Dense slot layout — Section 0 "Source"
         static constexpr int kSlotSampleId  = 0;
@@ -72,6 +80,8 @@ namespace lockstep
         void  advanceStage(Voice& v);
         float nextEnvSample(Voice& v);
 
+        void startVoiceAtSlice(int sliceIndex, const ParamFrame& params);
+
         SamplePool& pool_;
         double      sampleRate_ = 0.0;
         Voice       voice_;
@@ -79,5 +89,9 @@ namespace lockstep
         bool        hasPendingTrigger_ = false;
         int         pendingNote_   = 60;
         ParamFrame  pendingParams_{};
+
+        // MG.3: slice data (audio-thread only).
+        std::array<float, kMaxSlices> slicePositions_{};  // normalized [0.0, 1.0]
+        int numSlices_ = 0;
     };
 }

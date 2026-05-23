@@ -1522,6 +1522,38 @@ namespace lockstep
         kbdNoteReq_.store(packed, std::memory_order_release);
     }
 
+    bool LockstepProcessor::hasTrackSlices(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
+        const auto* m = machines_[static_cast<std::size_t>(track)].get();
+        if (m == nullptr || m->isMidiOut()) return false;
+        return static_cast<const SamplerMachine*>(m)->hasSlices();
+    }
+
+    int LockstepProcessor::trackSliceCount(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return 0;
+        const auto* m = machines_[static_cast<std::size_t>(track)].get();
+        if (m == nullptr || m->isMidiOut()) return 0;
+        return static_cast<const SamplerMachine*>(m)->numSlices();
+    }
+
+    void LockstepProcessor::setTrackEqualSlices(int track, int count)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        auto* m = machines_[static_cast<std::size_t>(track)].get();
+        if (m == nullptr || m->isMidiOut()) return;
+        static_cast<SamplerMachine*>(m)->setEqualSlices(count);
+    }
+
+    void LockstepProcessor::clearTrackSlices(int track)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        auto* m = machines_[static_cast<std::size_t>(track)].get();
+        if (m == nullptr || m->isMidiOut()) return;
+        static_cast<SamplerMachine*>(m)->clearSlices();
+    }
+
     void LockstepProcessor::setRetrigActive(int track, bool active, double ratePpq)
     {
         if (active)

@@ -8,6 +8,21 @@ namespace lockstep
     SamplerMachine::SamplerMachine(SamplePool& pool) : pool_(pool) {}
     SamplerMachine::~SamplerMachine() = default;
 
+    // MG.3
+    void SamplerMachine::setEqualSlices(int count)
+    {
+        count = std::clamp(count, 1, kMaxSlices);
+        numSlices_ = count;
+        for (int i = 0; i < count; ++i)
+            slicePositions_[static_cast<std::size_t>(i)] =
+                static_cast<float>(i) / static_cast<float>(count);
+    }
+
+    void SamplerMachine::clearSlices()
+    {
+        numSlices_ = 0;
+    }
+
     void SamplerMachine::prepare(double sampleRate, int maxBlockSize)
     {
         sampleRate_ = sampleRate;
@@ -58,6 +73,24 @@ namespace lockstep
         }
     }
 
+    void SamplerMachine::startVoiceAtSlice(int sliceIndex, const ParamFrame& params)
+    {
+        if (sliceIndex < 0 || sliceIndex >= numSlices_)
+            return startVoice(60, params);  // fall back to normal trigger
+
+        // Look up the sample to find the absolute start offset.
+        const int sampleIdx = static_cast<int>(params[static_cast<std::size_t>(kSlotSampleId)]);
+        const Sample* sample = pool_.get(sampleIdx);
+
+        const float normPos   = slicePositions_[static_cast<std::size_t>(sliceIndex)];
+        const double startPos = (sample != nullptr)
+            ? static_cast<double>(normPos) * static_cast<double>(sample->pcm.getNumSamples())
+            : 0.0;
+
+        startVoice(60, params);  // sets rate=1.0, position=0
+        voice_.position = startPos;
+    }
+
     void SamplerMachine::triggerVoice(int midiNote, const ParamFrame& params)
     {
         if (voice_.active)
@@ -70,7 +103,11 @@ namespace lockstep
                 choke_.trigger();
             return;
         }
-        startVoice(midiNote, params);
+        // MG.3: note in slice range → play from that slice's start position.
+        if (numSlices_ > 0 && midiNote >= 0 && midiNote < numSlices_)
+            startVoiceAtSlice(midiNote, params);
+        else
+            startVoice(midiNote, params);
     }
 
     void SamplerMachine::advanceStage(Voice& v)
