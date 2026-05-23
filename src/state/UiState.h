@@ -30,6 +30,22 @@ namespace lockstep
         // MG.1: root MIDI note for Keyboard trig-grid mode (default C4 = 60).
         int keyboardRoot = 60;
 
+        // MG.2: retrig rate index; cycles through 0=1/16, 1=1/32, 2=1/48, 3=1/96.
+        int retrigRateIndex = 0;
+
+        // Returns the PPQ interval for the currently selected retrig rate.
+        [[nodiscard]] static double retrigRatePpq(int idx) noexcept
+        {
+            static constexpr double kRates[] = { 0.25, 0.125, 1.0 / 12.0, 1.0 / 24.0 };
+            if (idx < 0 || idx > 3) return 0.25;
+            return kRates[idx];
+        }
+
+        // MG.2: tracks which raw key codes are currently held in Retrig mode.
+        // Used to cancel retrig on key release.
+        bool retrigKeyHeld = false;
+        int  retrigKeyCode = -1;
+
         // Active master section (-1 = none).
         int masterSection = -1;
 

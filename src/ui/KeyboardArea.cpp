@@ -1073,11 +1073,20 @@ namespace lockstep
         const auto mode = uiState_.trigGridMode;
         if (mode != TrigGridMode::Default)
         {
-            const char* label = (mode == TrigGridMode::Keyboard)  ? "KEY"
-                              : (mode == TrigGridMode::Retrig)     ? "RTG"
-                                                                   : "POL";
-            // Badge positioned in the step cell area's top-left corner
-            const auto badgeRect = cellArea.withHeight(18).withWidth(40).reduced(3);
+            static constexpr const char* kRateLabels[] = {
+                "RTG 1/16", "RTG 1/32", "RTG 1/48", "RTG 1/96"
+            };
+            const char* label;
+            int badgeW;
+            if (mode == TrigGridMode::Keyboard)  { label = "KEY"; badgeW = 36; }
+            else if (mode == TrigGridMode::Retrig)
+            {
+                label  = kRateLabels[juce::jlimit(0, 3, uiState_.retrigRateIndex)];
+                badgeW = 68;
+            }
+            else { label = "POL"; badgeW = 36; }
+
+            const auto badgeRect = cellArea.withHeight(18).withWidth(badgeW).reduced(3);
             g.setColour(juce::Colour(0xFFD07030u));
             g.fillRoundedRectangle(badgeRect.toFloat(), 4.0f);
             g.setColour(juce::Colours::white);

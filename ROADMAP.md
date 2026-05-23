@@ -675,7 +675,7 @@ DESIGN §13.5. The trig grid as a modal surface.
 - [x] **MG.1** Keyboard mode: 16 trig keys → 16 chromatic semitones
       from a configurable root. EditContext rules apply (held step +
       keyboard key writes `step.noteOverride`).
-- [ ] **MG.2** Retrig mode: trig keys, while held, retrigger at a
+- [x] **MG.2** Retrig mode: trig keys, while held, retrigger at a
       configurable rate (1/16, 1/32, 1/48, 1/96). Record-arm captures
       the retrig rate as a P-Lock.
 - [ ] **MG.3** Slice sub-mode of Retrig (sampler tracks with slice

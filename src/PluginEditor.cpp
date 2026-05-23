@@ -575,6 +575,27 @@ namespace lockstep
 
             case ControllerButton::Step:
             {
+                // MG.2: Retrig mode — holding a step key retrigs the focused track.
+                // Func+step key cycles the retrig rate.
+                if (uiState_.trigGridMode == TrigGridMode::Retrig)
+                {
+                    if (uiState_.funcHeld)
+                    {
+                        uiState_.retrigRateIndex = (uiState_.retrigRateIndex + 1) % 4;
+                        keyboardArea_.repaint();
+                    }
+                    else if (!uiState_.retrigKeyHeld)
+                    {
+                        uiState_.retrigKeyHeld = true;
+                        uiState_.retrigKeyCode = rawCode;
+                        processor_.setRetrigActive(
+                            keyboardArea_.getActiveTrack(),
+                            true,
+                            UiState::retrigRatePpq(uiState_.retrigRateIndex));
+                    }
+                    return true;
+                }
+
                 // MG.1: Keyboard mode — step keys play chromatic notes; no step editing.
                 if (uiState_.trigGridMode == TrigGridMode::Keyboard)
                 {
@@ -880,6 +901,17 @@ namespace lockstep
             && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('O')))
         {
             playKeyHeld_ = false;
+            handled = true;
+        }
+
+        // MG.2: retrig key release.
+        if (uiState_.retrigKeyHeld
+            && uiState_.retrigKeyCode >= 0
+            && !juce::KeyPress::isKeyCurrentlyDown(uiState_.retrigKeyCode))
+        {
+            uiState_.retrigKeyHeld = false;
+            uiState_.retrigKeyCode = -1;
+            processor_.setRetrigActive(0, false);  // track arg ignored for cancel
             handled = true;
         }
 

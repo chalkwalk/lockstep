@@ -192,6 +192,11 @@ namespace lockstep
         // durationMs is approximate (rounded to the next block boundary).
         void triggerNote(int track, int midiNote, int durationMs = 350);
 
+        // MG.2: start / stop retrig on the focused track.
+        // ratePpq: 0.25=1/16, 0.125=1/32, 1/12.0=1/48, 1/24.0=1/96.
+        // Pass active=false to cancel (track is ignored on cancel).
+        void setRetrigActive(int track, bool active, double ratePpq = 0.25);
+
         // Sample pool helpers — message-thread only.
         // sampleShortName returns the filename stem for a given pool index, or "(none)".
         juce::String sampleShortName(int poolIndex) const;
@@ -305,6 +310,16 @@ namespace lockstep
         int kbdNoteOffRemaining_ = -1;  // samples until note-off; -1 = inactive
         int kbdNoteActiveTrack_  = 0;
         int kbdNoteActive_       = 60;
+
+        // MG.2: retrig state.
+        // retrigReqTrack_: -1 = cancel, >=0 = activate on that track.
+        std::atomic<int>    retrigReqTrack_  { -1 };
+        std::atomic<double> retrigReqRatePpq_ { 0.25 };  // written UI thread, read audio
+        // Audio-thread-only retrig state (no atomics needed).
+        int    retrigActiveTrack_      = -1;
+        double retrigRatePpq_          = 0.25;
+        double retrigNextFireSamples_  = 0.0;  // samples until next retrig fire
+        int    retrigNoteOffRemaining_ = -1;
 
         Metronome metronome_;
         MidiInput midiInput_;

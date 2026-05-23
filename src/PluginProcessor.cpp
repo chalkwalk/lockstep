@@ -649,6 +649,77 @@ namespace lockstep
             }
         }
 
+        // MG.2: retrig mode — consume activation/cancel request then fire note-ons at rate.
+        {
+            const int req = retrigReqTrack_.exchange(-1, std::memory_order_acq_rel);
+            if (req >= 0)
+            {
+                // Stop any previous retrig note.
+                if (retrigNoteOffRemaining_ >= 0)
+                    trackMidi[static_cast<std::size_t>(retrigActiveTrack_)].addEvent(
+                        juce::MidiMessage::noteOff(1, 60), 0);
+
+                retrigActiveTrack_      = req;
+                retrigRatePpq_          = retrigReqRatePpq_.load(std::memory_order_relaxed);
+                retrigNextFireSamples_  = 0.0;
+                retrigNoteOffRemaining_ = -1;
+            }
+            else if (req == -2)  // cancel signal
+            {
+                if (retrigNoteOffRemaining_ >= 0)
+                    trackMidi[static_cast<std::size_t>(retrigActiveTrack_)].addEvent(
+                        juce::MidiMessage::noteOff(1, 60), 0);
+                retrigActiveTrack_      = -1;
+                retrigNoteOffRemaining_ = -1;
+            }
+
+            if (retrigActiveTrack_ >= 0)
+            {
+                // Convert rate from PPQ to samples using the current clock BPM.
+                const double samplesPerRetrig = clock_.samplesPerPpq() * retrigRatePpq_;
+                const double blockLen = static_cast<double>(numBlockSamples);
+
+                // Advance the note-off countdown.
+                if (retrigNoteOffRemaining_ >= 0)
+                {
+                    if (retrigNoteOffRemaining_ < numBlockSamples)
+                    {
+                        trackMidi[static_cast<std::size_t>(retrigActiveTrack_)].addEvent(
+                            juce::MidiMessage::noteOff(1, 60), retrigNoteOffRemaining_);
+                        retrigNoteOffRemaining_ = -1;
+                    }
+                    else
+                    {
+                        retrigNoteOffRemaining_ -= numBlockSamples;
+                    }
+                }
+
+                // Fire note-ons at the retrig rate within this block.
+                double firePos = retrigNextFireSamples_;
+                while (firePos < blockLen)
+                {
+                    const int samplePos = juce::jlimit(0, numBlockSamples - 1,
+                                                        static_cast<int>(firePos));
+                    const auto ti = static_cast<std::size_t>(retrigActiveTrack_);
+                    trackMidi[ti].addEvent(
+                        juce::MidiMessage::noteOn(1, static_cast<juce::uint8>(60),
+                                                  static_cast<juce::uint8>(100)),
+                        samplePos);
+                    // note-off ~75% through the interval
+                    const int noteOffAt = samplePos + juce::jlimit(
+                        1, numBlockSamples - 1,
+                        static_cast<int>(samplesPerRetrig * 0.75));
+                    if (noteOffAt < numBlockSamples)
+                        trackMidi[ti].addEvent(juce::MidiMessage::noteOff(1, 60), noteOffAt);
+                    else
+                        retrigNoteOffRemaining_ = noteOffAt - numBlockSamples;
+
+                    firePos += samplesPerRetrig;
+                }
+                retrigNextFireSamples_ = firePos - blockLen;
+            }
+        }
+
         // Pre-compute solo state once: if any track is soloed, non-soloed tracks
         // are silenced (even if their mute button is off).
         bool anySoloed = false;
@@ -1449,6 +1520,21 @@ namespace lockstep
         const int packed = (juce::jlimit(0, 127, midiNote) << 16)
                            | juce::jlimit(1, 0xFFFF, durationMs);
         kbdNoteReq_.store(packed, std::memory_order_release);
+    }
+
+    void LockstepProcessor::setRetrigActive(int track, bool active, double ratePpq)
+    {
+        if (active)
+        {
+            retrigReqRatePpq_.store(ratePpq, std::memory_order_relaxed);
+            retrigReqTrack_.store(
+                juce::jlimit(0, static_cast<int>(kNumTracks) - 1, track),
+                std::memory_order_release);
+        }
+        else
+        {
+            retrigReqTrack_.store(-2, std::memory_order_release);  // -2 = cancel signal
+        }
     }
 
     juce::String LockstepProcessor::sampleShortName(int poolIndex) const
