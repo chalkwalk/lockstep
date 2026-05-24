@@ -104,6 +104,18 @@ namespace lockstep
     }
 
     // =========================================================================
+    // currentVoices
+
+    IMachine::Polyphony VAMachine::currentVoices(const ParamFrame& baseParams) const
+    {
+        // Para mode flips on at the same 0.5 threshold the process() path uses.
+        if (static_cast<int>(baseParams.size()) > kSlotVoiceMode
+            && baseParams[static_cast<std::size_t>(kSlotVoiceMode)] >= 0.5f)
+            return Polyphony::V4;
+        return Polyphony::V1;
+    }
+
+    // =========================================================================
     // isVoiceActive
 
     bool VAMachine::isVoiceActive() const

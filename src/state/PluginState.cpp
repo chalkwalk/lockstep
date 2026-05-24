@@ -173,6 +173,7 @@ namespace lockstep::PluginState
                     const bool hasTrig  = (track.trigDefaults.note != 60
                                        || track.trigDefaults.velocity != 100
                                        || floatNe(track.trigDefaults.gateMs, 0.0f));
+                    const bool hasNoteSel = (track.noteSelection != NoteSelection::TopBias);
                     bool hasStep = false;
                     for (const auto& step : track.steps)
                     {
@@ -186,10 +187,15 @@ namespace lockstep::PluginState
                             break;
                         }
                     }
-                    if (!hasCond && !hasTrig && !hasStep) continue;
+                    if (!hasCond && !hasTrig && !hasStep && !hasNoteSel) continue;
 
                     juce::ValueTree trackNode("Track");
                     trackNode.setProperty("i", t, nullptr);
+
+                    if (hasNoteSel)
+                        trackNode.setProperty("nsel",
+                                              static_cast<int>(track.noteSelection),
+                                              nullptr);
 
                     if (hasCond)
                         trackNode.appendChild(condToTree("BaseCond", track.baseCond), nullptr);
@@ -330,6 +336,10 @@ namespace lockstep::PluginState
         const auto bcNode = trackNode.getChildWithName("BaseCond");
         if (bcNode.isValid())
             track.baseCond = condFromTree(bcNode);
+
+        const int nsel = static_cast<int>(trackNode.getProperty("nsel", 0));
+        track.noteSelection = (nsel == 1) ? NoteSelection::BottomBias
+                                          : NoteSelection::TopBias;
 
         const auto tdNode = trackNode.getChildWithName("TrigDefaults");
         if (tdNode.isValid())

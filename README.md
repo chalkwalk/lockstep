@@ -170,7 +170,7 @@ other naturally with no master-bar concept.
 | **P-Lock** (parameter lock) | A per-step override of one or more of a sound engine's parameters. Hold a step, turn a control. |
 | **Trig override** | A per-step override of a sequencer field — note, velocity, gate, or condition — as opposed to an engine parameter. |
 | **Override-ELSE-Base** | The one resolution rule: effective value = step override if present, else track base. |
-| **Machine** | A sound engine. Each track hosts one. Lockstep ships five: `SamplerMachine` (monophonic sample playback), `FMMachine` (4-op FM synthesizer), `VAMachine` (virtual-analog dual-osc + SVF synth, mono/para), `MidiOutMachine` (MIDI CC/note output to external gear), and `StubMachine` (silent fallback for unknown IDs). |
+| **Machine** | A sound engine. Each track hosts one. Lockstep ships five: `SamplerMachine` (monophonic sample playback), `FMMachine` (4-op FM synthesizer, mono/poly), `VAMachine` (virtual-analog dual-osc + SVF synth, mono/para), `MidiOutMachine` (MIDI CC/note output to external gear), and `StubMachine` (silent fallback for unknown IDs). |
 | **Part** | The per-track kit: machine identity, base parameters, sample refs. Shared or owned per pattern. |
 | **Pattern** | The trig grid and per-step data; references one Part. |
 | **Bank** | A group of patterns with addressable slots. |
@@ -582,8 +582,13 @@ step / section / track / pattern; global and pattern mutes; the Fill
 modifier; Control-All; the checkpoint stack; pattern queueing and chain
 mode; trig-grid mode selectors with chrome badges; the **FM synthesizer**
 (`FMMachine`) — 4-operator FM with free modulation matrix, per-operator
-ADSR, ratio / fine-tune / mix per operator, and macro attack / release /
-sustain scalars; machine selection via `Func + R`; **polyphonic trig
+ADSR, ratio / fine-tune / mix per operator, macro attack / release /
+sustain scalars, **Mono / Poly voice modes** (Poly: 4-voice pool with
+oldest-voice stealing); machine selection via `Func + R`; **runtime
+polyphony** — each machine reports its live voice count per trig, and
+chord steps are clamped via a per-track Top-bias / Bottom-bias
+"spread-with-bias" selector that keeps the top and bottom voices first
+and spreads remaining picks evenly between them; **polyphonic trig
 steps** — steps carry up to 4 notes (hold step + play keys to record a
 chord; gate auto-written on last-note-off); the **VA synthesizer**
 (`VAMachine`) — 2× PolyBLEP oscillators (Saw/Pulse/Tri/Sin) + sub +

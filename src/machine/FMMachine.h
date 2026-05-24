@@ -4,6 +4,7 @@
 #include "VoiceChoke.h"
 #include <array>
 #include <cmath>
+#include <cstdint>
 
 namespace lockstep
 {
@@ -29,6 +30,9 @@ namespace lockstep
 
     bool isVoiceActive()    const override;
     bool hasInternalAmp()   const override { return true; }
+
+    // Mono (V1) or Poly (V4); driven by kSlotVoiceMode.
+    Polyphony currentVoices(const ParamFrame& baseParams) const override;
 
     // DX7-inspired ratio table: 18 stepped values [0.5 … 16]
     static constexpr int kNumRatios = 18;
@@ -81,10 +85,17 @@ namespace lockstep
     // Grouped by destination: slots[32+dst*4+src] = matrix[src][dst]
     static constexpr int kSlotModBase = 32;  // matrix[src][dst] = kSlotModBase + dst*4 + src
 
-    static constexpr int kNumSlots    = 48;
-    static constexpr int kNumSections = 7;  // indices 0..6; 6 is MOD extension
+    // Section 7 — VOICE (1 slot, extension of SRC).
+    // Mono / Poly switch. Lives in its own extension section so the SRC,
+    // MOD, and VOICE pages stay contiguous within their own slot ranges
+    // (the MZ navigation assumes section-contiguity).
+    static constexpr int kSlotVoiceMode = 48;
+
+    static constexpr int kNumSlots    = 49;
+    static constexpr int kNumSections = 8;  // indices 0..7; 6=MOD, 7=VOICE (both SRC extensions)
 
     static constexpr int kNumOps = 4;
+    static constexpr int kMaxVoices = 4;
 
     // Modulation depth scaling: matrix value ±1 → ±π radians (β≈3.14 at full depth)
     static constexpr float kModScale = 3.14159265358979323846f;
@@ -115,14 +126,24 @@ namespace lockstep
     {
       bool    active   = false;
       int     midiNote = -1;
+      std::uint64_t age = 0;  // monotonic stamp; oldest active voice is stolen first
       std::array<Operator, kNumOps> ops{};
       float   outputLevel = 1.0f;
       // matrix[src][dst]: op src modulates op dst
       std::array<std::array<float, kNumOps>, kNumOps> modMatrix{};
+      // Per-voice pending re-trigger state (Mono mode only): set when a
+      // note-on lands while this voice is already active so the choke
+      // fade can finish before the new voice starts on the same slot.
+      bool        hasPendingTrigger = false;
+      int         pendingNote       = 60;
+      ParamFrame  pendingParams{};
+      VoiceChoke  choke{};
     };
 
-    void startVoice(int midiNote, const ParamFrame& params);
-    void releaseVoice();
+    int  allocVoice();                // returns index in voices_
+    int  findVoiceByNote(int midiNote) const;
+    void startVoice(int voiceIdx, int midiNote, const ParamFrame& params);
+    void releaseVoice(int voiceIdx);
     float advanceEnv(Operator& op);
 
     static int msToSamples(float ms, double sampleRate)
@@ -130,11 +151,8 @@ namespace lockstep
       return static_cast<int>(static_cast<double>(ms) * 0.001 * sampleRate);
     }
 
-    double  sampleRate_        = 0.0;
-    FMVoice voice_;
-    VoiceChoke choke_;
-    bool    hasPendingTrigger_ = false;
-    int     pendingNote_       = 60;
-    ParamFrame pendingParams_{};
+    double  sampleRate_ = 0.0;
+    std::array<FMVoice, kMaxVoices> voices_{};
+    std::uint64_t voiceCounter_ = 0;
   };
 }

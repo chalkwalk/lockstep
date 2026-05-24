@@ -40,7 +40,11 @@ namespace lockstep
         [[nodiscard]] int       numSections()        const override { return kNumSections; }
         [[nodiscard]] SectionInfo section(int index) const override;
 
-        [[nodiscard]] int  maxVoices()         const override { return 0; }
+        [[nodiscard]] Polyphony currentVoices(const ParamFrame&) const override
+        {
+            // MIDI-out routes the step's full chord through unchanged.
+            return Polyphony::V0;
+        }
         [[nodiscard]] bool isMidiOut()         const override { return true; }
         [[nodiscard]] bool hasInternalFilter() const override { return true; }
         [[nodiscard]] bool hasInternalAmp()    const override { return true; }

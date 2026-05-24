@@ -32,9 +32,8 @@ namespace lockstep
     bool hasInternalFilter() const override { return true; }
     bool hasInternalAmp()    const override { return true; }
 
-    // Para mode returns 4 (self-managed); Mono returns 1.
-    // We always advertise 4 so the sequencer never applies external choke.
-    int maxVoices() const override { return kMaxSubVoices; }
+    // Voice mode is parameter-driven: Mono = V1, Para = V4 (kMaxSubVoices).
+    Polyphony currentVoices(const ParamFrame& baseParams) const override;
 
   private:
     // -----------------------------------------------------------------------

@@ -25,6 +25,71 @@ namespace lockstep
                 return BusesProperties().withOutput("Out", juce::AudioChannelSet::stereo(), true);
             }
         };
+
+        // Spread-with-bias note picker. Given ascending-sorted pitches[0..N-1]
+        // and target voice count K (with K <= N), picks K indices into pitches
+        // that always include the endpoints (top + bottom when K >= 2), then
+        // fills the interior so the chosen indices are as evenly spread as
+        // possible. When K is odd the inner "centre" is taken; when K is even
+        // and the natural choice falls between two interior pitches, the bias
+        // resolves the tie (TopBias rounds upward, BottomBias rounds downward).
+        // For K == 1 the bias picks top (TopBias) or bottom (BottomBias).
+        static void pickSpreadNotes(const std::array<int, kMaxNotesPerStep>& sortedAsc,
+                                     int N, int K, NoteSelection bias,
+                                     std::array<int, kMaxNotesPerStep>& out,
+                                     int& outCount)
+        {
+            outCount = 0;
+            if (N <= 0 || K <= 0) return;
+            if (K >= N)
+            {
+                for (int i = 0; i < N; ++i) out[static_cast<std::size_t>(i)] = sortedAsc[static_cast<std::size_t>(i)];
+                outCount = N;
+                return;
+            }
+
+            // Pick K positions in [0, N-1]; endpoints first.
+            std::array<int, kMaxNotesPerStep> idx{};
+            int count = 0;
+            if (K == 1)
+            {
+                idx[0] = (bias == NoteSelection::BottomBias) ? 0 : (N - 1);
+                count = 1;
+            }
+            else
+            {
+                idx[0] = 0;
+                idx[1] = N - 1;
+                count = 2;
+                // Fill interior positions evenly spread between 0 and N-1.
+                // Position formula: p_j = j*(N-1)/(K-1) for j = 1..K-2.
+                // Round toward the bias when the exact position is between two indices.
+                for (int j = 1; j <= K - 2; ++j)
+                {
+                    const int num = j * (N - 1);
+                    const int den = K - 1;
+                    const int floorIdx = num / den;
+                    const int rem      = num - floorIdx * den;
+                    int chosen = floorIdx;
+                    if (rem != 0)
+                    {
+                        // bias the rounding: TopBias rounds up, BottomBias rounds down.
+                        if (bias == NoteSelection::TopBias) chosen = floorIdx + 1;
+                        else                                 chosen = floorIdx;
+                    }
+                    // Deduplicate against already-picked indices (rare, defensive).
+                    bool dup = false;
+                    for (int k = 0; k < count; ++k) if (idx[static_cast<std::size_t>(k)] == chosen) { dup = true; break; }
+                    if (!dup) idx[static_cast<std::size_t>(count++)] = chosen;
+                }
+            }
+
+            // Sort the chosen indices ascending and emit pitches.
+            std::sort(idx.begin(), idx.begin() + count);
+            for (int j = 0; j < count; ++j)
+                out[static_cast<std::size_t>(j)] = sortedAsc[static_cast<std::size_t>(idx[static_cast<std::size_t>(j)])];
+            outCount = count;
+        }
     }
 
     LockstepProcessor::LockstepProcessor()
@@ -1067,19 +1132,40 @@ namespace lockstep
                     }
                 }
 
-                // Clamp notes emitted to what the machine can voice.
-                // maxVoices()==0 (MIDI-out) means unlimited; emit all notes.
-                const int machineVoices = machines_[static_cast<std::size_t>(i)]
-                    ? machines_[static_cast<std::size_t>(i)]->maxVoices() : 1;
-                const int notesToEmit = (machineVoices == 0)
-                    ? trig.noteCount
-                    : std::min(trig.noteCount, machineVoices);
+                // Pick which of the step's notes to emit.
+                // currentVoices()==V0 (MIDI-out) passes the chord through unchanged;
+                // otherwise we sort the held notes ascending and call the
+                // spread-with-bias picker so endpoints survive first.
+                auto* machineForVoices = machines_[static_cast<std::size_t>(i)].get();
+                const auto poly = machineForVoices
+                    ? machineForVoices->currentVoices(track.baseParams)
+                    : IMachine::Polyphony::V1;
+                const int machineVoices = static_cast<int>(poly);
+
+                std::array<int, kMaxNotesPerStep> sortedNotes{};
+                for (int n = 0; n < trig.noteCount; ++n)
+                    sortedNotes[static_cast<std::size_t>(n)] = trig.notes[static_cast<std::size_t>(n)];
+                std::sort(sortedNotes.begin(), sortedNotes.begin() + trig.noteCount);
+
+                std::array<int, kMaxNotesPerStep> emitNotes{};
+                int notesToEmit = 0;
+                if (machineVoices == 0)
+                {
+                    for (int n = 0; n < trig.noteCount; ++n)
+                        emitNotes[static_cast<std::size_t>(n)] = sortedNotes[static_cast<std::size_t>(n)];
+                    notesToEmit = trig.noteCount;
+                }
+                else
+                {
+                    pickSpreadNotes(sortedNotes, trig.noteCount, machineVoices,
+                                    track.noteSelection, emitNotes, notesToEmit);
+                }
 
                 const auto vel = static_cast<juce::uint8>(
                     std::clamp(trig.velocity, 1, 127));
                 for (int n = 0; n < notesToEmit; ++n)
                     trackMidi[i].addEvent(
-                        juce::MidiMessage::noteOn(1, trig.notes[static_cast<std::size_t>(n)], vel),
+                        juce::MidiMessage::noteOn(1, emitNotes[static_cast<std::size_t>(n)], vel),
                         triggerAt);
 
                 if (trig.gateMs > 0.0f)
@@ -1091,7 +1177,7 @@ namespace lockstep
                     {
                         for (int n = 0; n < notesToEmit; ++n)
                             trackMidi[i].addEvent(
-                                juce::MidiMessage::noteOff(1, trig.notes[static_cast<std::size_t>(n)]),
+                                juce::MidiMessage::noteOff(1, emitNotes[static_cast<std::size_t>(n)]),
                                 noteOffAt);
                     }
                     else
@@ -1099,7 +1185,7 @@ namespace lockstep
                         auto& pnf             = pendingNoteOffs_[i];
                         pnf.samplesRemaining  = noteOffAt - numBlockSamples;
                         pnf.noteCount         = notesToEmit;
-                        pnf.notes             = trig.notes;
+                        pnf.notes             = emitNotes;
                     }
                 }
             }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include "Step.h"
 #include "../machine/IMachine.h"
 
@@ -17,6 +18,12 @@ namespace lockstep
         float gateMs   = 0.0f;  // gate duration in ms; 0 = play to natural AHDSR end
     };
 
+    // When a chord step holds more notes than the machine's current polyphony
+    // can voice, the sequencer picks K notes from the N held notes using a
+    // "spread with bias" algorithm: top/bottom first, then middle positions
+    // chosen to spread the remaining voices, with the bias resolving ties.
+    enum class NoteSelection : std::uint8_t { TopBias = 0, BottomBias = 1 };
+
     // A track owns its step length, clock divider, base parameter values
     // (one per IMachine slot), and the steps themselves.
     struct Track
@@ -26,6 +33,7 @@ namespace lockstep
         ParamFrame baseParams{}; // track-level "default" values
         TrigCondition baseCond{};  // track-level condition; step condition overrides if non-trivial
         TrigDefaults trigDefaults{};
+        NoteSelection noteSelection = NoteSelection::TopBias;
 
         std::array<Step, kMaxStepsPerTrack> steps{};
     };

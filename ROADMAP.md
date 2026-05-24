@@ -43,9 +43,14 @@ must satisfy the ten principles.
   translates trig events into MIDI note-on/off (per §4.6 of DESIGN);
   machines receive `(MidiBuffer, ParamFrame, AudioBuffer)`. External
   MIDI is mixed into the same buffer.
-- **Voice topology is per-machine.** A machine declares `maxVoices()`;
-  `1` triggers sequencer-managed choke (1–2 ms micro-fade), `n>1` =
-  self-managed polyphony, `0` = unbounded / MIDI-out.
+- **Voice topology is per-machine and per-block.** A machine returns
+  `currentVoices(baseParams)` as one of `Polyphony::V0..V4`, pulled by
+  the sequencer at each trig so mode flips (VA Mono↔Para, FM Mono↔Poly)
+  take effect immediately. `V1` triggers sequencer-managed choke,
+  `V2..V4` = self-managed polyphony, `V0` = unbounded / MIDI-out.
+  When a chord step holds more notes than the live voice count, the
+  per-track `NoteSelection` (`TopBias` default, or `BottomBias`) picks
+  endpoints first and spreads the remaining voices.
 - **No PCM in plugin state.** Sample references use path + `xxHash32`;
   raw audio bytes never enter the DAW save payload.
 - **QWERTY-first UI.** The full editing flow is reachable from the
@@ -322,11 +327,14 @@ counts, `paramSpec(i)` instead of `getParamMetadata(i)`, etc.).
       machine. P-Lock storage stays integer-keyed at runtime; the
       serializer translates id↔index on load/save. Unknown ids on
       load are dropped with a log entry.
-- [x] **MA.4** Per-machine voice topology. `IMachine::maxVoices()`
-      with default `1`. `IMachine::isVoiceActive()` query. Per-track
-      `VoiceChoke` array scaffolded in `LockstepProcessor` (wired in
-      MA.10). `SamplerMachine` retains its internal choke for the
-      current code path.
+- [x] **MA.4** Per-machine voice topology. `IMachine::currentVoices()`
+      returns a `Polyphony` enum (V0..V4) pulled by the sequencer per
+      trig, so VA's Mono↔Para and FM's Mono↔Poly toggles are honored
+      live. The chord-clamp picks notes using the per-track
+      `NoteSelection` (top/bottom-bias spread). `isVoiceActive()` is
+      kept as a per-machine helper. Per-track `VoiceChoke` array
+      scaffolded in `LockstepProcessor` (wired in MA.10).
+      `SamplerMachine` retains its internal choke.
 - [x] **MA.5** Replace the `process(triggerAtSample, params, buffer)`
       signature with `process(MidiBuffer events, ParamFrame params,
       AudioBuffer<float> buffer)`. Sequencer injects a note-on per
@@ -615,7 +623,7 @@ DESIGN §15. A `MidiOutMachine` peer of `SamplerMachine`. Required for
 the "external gear is a first-class workflow" pillar.
 
 - [x] **MF.1** `MidiOutMachine` skeleton inheriting `IMachine`,
-      `maxVoices() = 0`. Schema: `dest`, `channel`, `program`,
+      `currentVoices() = V0`. Schema: `dest`, `channel`, `program`,
       `cc[0..15]`.
 - [x] **MF.2** Destination resolution: enumerate JUCE MIDI output
       devices (standalone) and host MIDI buses (plugin). Persist
@@ -764,6 +772,9 @@ parity) is done. **MHX lands first** (the surface freeze).
 
 - [x] **MH.1** FMMachine — 4-op FM, free modulation matrix (4×4), per-operator
       ADSR + ratio / fine-tune / mix, macro attack / release / sustain scalars.
+      Voice mode (Mono / Poly): a 4-voice pool with oldest-voice stealing
+      lights up when `kSlotVoiceMode` switches to Poly; chord steps fan out
+      to independent voices, each with its own envelopes and FM matrix.
 - [x] **MH.2** VAMachine — virtual-analog mono/para, Analog Four-style
       voice. 2× PolyBLEP oscillators (Saw/Pulse/Tri/Sin) + sub + noise,
       state-variable filter (LP4/LP2/HP/BP) with drive, filter ADSR,

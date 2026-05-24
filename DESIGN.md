@@ -128,11 +128,20 @@ The boundary is deliberately narrow but deliberately *not* fixed-shape
   see §27. Routing is forward-only by topological sort with cycles
   refused; `input_source = Master` is the one sanctioned prior-block
   tap (§27).
-- **Per-machine voice topology.** A machine declares `maxVoices()`:
-  `1` = monophonic with sequencer-managed choke (the baseline
-  sampler), `n>1` = polyphonic with self-managed voice stealing,
-  `0` = unbounded / MIDI-out style. Track monophony is therefore a
-  property of the chosen machine, not a universal sequencer rule.
+- **Per-machine voice topology, pulled live.** A machine returns
+  `currentVoices(baseParams) -> Polyphony { V0..V4 }`. The sequencer
+  calls this for each fired trig (so a parameter-driven mode flip such
+  as VA Mono↔Para or FM Mono↔Poly takes effect on the next trig). `V1`
+  = monophonic, `V2..V4` = self-managed polyphony, `V0` = unbounded /
+  MIDI-out style. Track monophony is therefore a property of the chosen
+  machine *in its current configuration*, not a universal sequencer
+  rule. When a chord step holds more notes than `currentVoices()`, the
+  sequencer applies the per-track `NoteSelection` (`TopBias` default,
+  `BottomBias`) using a "spread-with-bias" picker: top + bottom voices
+  first, then interior positions evenly spaced, with the bias resolving
+  ties. The step's note storage cap (`kMaxNotesPerStep = 4`) matches
+  the machine ceiling, so the selector only fires when a machine is
+  currently sub-4 and the step holds more notes than it can voice.
 - **Headless.** Machines ship no UI. The sequencer's Manipulation Zone
   queries each slot's metadata at display time and synthesises the
   controls itself. A machine that wants a custom visualisation (e.g. a
@@ -154,9 +163,9 @@ fully manipulable (pitch, slice, trim, loop). Its disk-streaming
 sibling (**Static**) and the input-consuming machines (**Thru**,
 **Recorder**, **Looper**) are described in §29:
 
-- **Voice topology.** `maxVoices() = 1`, so the sequencer schedules
-  the 1–2 ms choke micro-fade on retrigger; the sampler itself doesn't
-  manage voice stealing. Voices ring out under their AHDSR envelope
+- **Voice topology.** `currentVoices() = V1`. The sampler's own
+  `VoiceChoke` applies the 1–2 ms micro-fade on retrigger; the sampler
+  doesn't manage voice stealing. Voices ring out under their AHDSR envelope
   until the sequencer-emitted note-off triggers release (see §4.6).
 - **Sample pool.** Patches reference samples by id (an index into a
   user-curated pool). The id is one of the sampler's P-lockable slots,
@@ -363,9 +372,10 @@ on the track's MIDI buffer:
 Note-offs that fall after the end of the current block are queued and
 re-emitted at the right sample of a future block. Retriggers on a
 monophonic machine don't need an explicit note-off: the sequencer
-emits a new note-on, the machine's `maxVoices() = 1` declaration tells
-the sequencer to insert the choke micro-fade in front of it, and the
-new voice supersedes the old.
+emits a new note-on, and the machine — knowing it's monophonic from
+its `currentVoices() == V1` declaration — runs its own choke micro-fade
+before starting the new voice. (All current machines self-manage the
+choke; the sequencer just picks the chord and emits notes.)
 
 This model means machines never see "trig" as a concept — they only
 see MIDI. A polyphonic machine handles overlapping note-ons naturally;
@@ -517,7 +527,7 @@ The pitch-recording gesture is the one exception: when a step is held
 sequencer instead of being passed through. The note number is written
 to the held step's `noteOverride` field; the next time that step
 fires, it will emit a note-on with that number. For a monophonic
-machine (`maxVoices() = 1`) the last note-on within the hold wins;
+machine (`currentVoices() = V1`) the last note-on within the hold wins;
 for a polyphonic machine the overrides accumulate into a chord (the
 exact encoding for chord storage is deferred — see §12).
 
@@ -753,23 +763,28 @@ payload lands when P-Locks become first-class (M7).
 
 ## 8. Voice Lifecycle and Choke
 
-For machines that declare `maxVoices() = 1`, the sequencer manages
-voice lifecycle via a 1–2 ms choke micro-fade:
+Each machine owns its own voice lifecycle. The sequencer's
+responsibility is bounded: it asks the machine for its live
+`currentVoices()`, runs the `NoteSelection` picker to choose which
+notes from a chord step survive, then emits those note-ons (and
+scheduled note-offs) as plain MIDI.
 
-- Before emitting a note-on for a retrigger, the sequencer asks the
-  machine to fade out its current voice over 1–2 ms, then emits the
-  new note-on at the appropriate sample.
-- Voices that finish their envelope without being stolen are reclaimed
-  by the machine internally; the sequencer doesn't track this.
+- **Mono (`V1`).** The machine fades its active voice over a 1–2 ms
+  choke before starting a new voice for the next note-on. `SamplerMachine`,
+  `FMMachine` (in Mono mode), and `VAMachine` (in Mono mode) all do this
+  with a per-voice `VoiceChoke` helper.
+- **Poly (`V2..V4`).** The machine manages its own voice pool and steals
+  the oldest voice when note-ons exceed the live voice count (with a
+  brief fade on the stolen voice). `FMMachine` (Poly) and `VAMachine`
+  (Para) use this path.
+- **MIDI-out (`V0`).** The sequencer passes chord notes through unclamped.
 - Cross-track triggers do not interact; each track is its own choke
   group.
 
-For machines that declare `maxVoices() > 1`, the sequencer emits
-note-ons (and scheduled note-offs) without choke; the machine handles
-its own voice stealing if note-ons exceed `maxVoices()`. The
-sequencer's behaviour is therefore uniform — it always emits MIDI —
-and the machine's voice declaration determines whether choke fades
-are inserted in front of retriggers.
+The sequencer's behaviour is uniform — it always emits MIDI — and the
+machine's `currentVoices()` declaration determines how many of the step's
+notes are emitted. Choke is an implementation detail of each machine,
+not a sequencer feature.
 
 ## 9. Future direction: wrapping arbitrary plugins
 
@@ -1194,10 +1209,10 @@ When the host transport stops, the MIDI-out machine emits an
 All-Notes-Off + Reset-All-Controllers on each channel it has been
 driving. This prevents stuck notes on external hardware.
 
-`MidiOutMachine` reports `maxVoices() = 0` (unbounded), which
-disables sequencer-managed choke entirely — note-offs are scheduled
-by gate length as for any track, and overlapping note-ons are
-forwarded verbatim.
+`MidiOutMachine` reports `currentVoices() = V0` (unbounded). The
+sequencer passes the step's full chord through unchanged, with no
+clamp; note-offs are scheduled by gate length as for any track, and
+overlapping note-ons are forwarded verbatim.
 
 ## 16. Banks and Chain Mode
 

@@ -11,21 +11,73 @@ namespace lockstep
   void FMMachine::prepare(double sampleRate, int maxBlockSize)
   {
     sampleRate_ = sampleRate;
-    choke_.prepare(sampleRate_, 1.5f);
+    for (auto& v : voices_)
+      v.choke.prepare(sampleRate_, 1.5f);
     juce::ignoreUnused(maxBlockSize);
   }
 
   void FMMachine::reset()
   {
-    voice_             = FMVoice{};
-    hasPendingTrigger_ = false;
-    choke_.prepare(sampleRate_, 1.5f);
+    for (auto& v : voices_)
+    {
+      v = FMVoice{};
+      v.choke.prepare(sampleRate_, 1.5f);
+    }
+    voiceCounter_ = 0;
+  }
+
+  IMachine::Polyphony FMMachine::currentVoices(const ParamFrame& baseParams) const
+  {
+    if (static_cast<int>(baseParams.size()) > kSlotVoiceMode
+        && baseParams[static_cast<std::size_t>(kSlotVoiceMode)] >= 0.5f)
+      return Polyphony::V4;
+    return Polyphony::V1;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Voice allocation helpers
+
+  int FMMachine::allocVoice()
+  {
+    // First: idle voice with no fade pending.
+    for (int i = 0; i < kMaxVoices; ++i)
+    {
+      const auto& v = voices_[static_cast<std::size_t>(i)];
+      if (!v.active && !v.choke.isFading() && !v.hasPendingTrigger)
+        return i;
+    }
+    // All active: steal the oldest.
+    int oldest = 0;
+    for (int i = 1; i < kMaxVoices; ++i)
+      if (voices_[static_cast<std::size_t>(i)].age
+          < voices_[static_cast<std::size_t>(oldest)].age)
+        oldest = i;
+    return oldest;
+  }
+
+  int FMMachine::findVoiceByNote(int midiNote) const
+  {
+    // Newest matching voice (highest age) — handles re-triggering the same
+    // pitch in Poly mode where note-offs should retire the most recent voice.
+    int best = -1;
+    std::uint64_t bestAge = 0;
+    for (int i = 0; i < kMaxVoices; ++i)
+    {
+      const auto& v = voices_[static_cast<std::size_t>(i)];
+      if (v.active && v.midiNote == midiNote)
+      {
+        if (best < 0 || v.age > bestAge) { best = i; bestAge = v.age; }
+      }
+    }
+    return best;
   }
 
   // ---------------------------------------------------------------------------
 
-  void FMMachine::startVoice(int midiNote, const ParamFrame& params)
+  void FMMachine::startVoice(int voiceIdx, int midiNote, const ParamFrame& params)
   {
+    auto& voice = voices_[static_cast<std::size_t>(voiceIdx)];
+
     const auto p = [&](int s) { return params[static_cast<std::size_t>(s)]; };
 
     const float macroAttack  = p(kSlotMacroAttack);
@@ -34,13 +86,14 @@ namespace lockstep
 
     const double midiFreq = 440.0 * std::pow(2.0, (midiNote - 69) / 12.0);
 
-    voice_.active      = true;
-    voice_.midiNote    = midiNote;
-    voice_.outputLevel = p(kSlotOutputLevel);
+    voice.active      = true;
+    voice.midiNote    = midiNote;
+    voice.age         = ++voiceCounter_;
+    voice.outputLevel = p(kSlotOutputLevel);
 
     for (int dst = 0; dst < kNumOps; ++dst)
       for (int src = 0; src < kNumOps; ++src)
-        voice_.modMatrix[static_cast<std::size_t>(src)][static_cast<std::size_t>(dst)] =
+        voice.modMatrix[static_cast<std::size_t>(src)][static_cast<std::size_t>(dst)] =
           p(kSlotModBase + dst * kNumOps + src);
 
     constexpr int ratioSlots[kNumOps] = { kSlotRatio1, kSlotRatio2, kSlotRatio3, kSlotRatio4 };
@@ -53,7 +106,7 @@ namespace lockstep
 
     for (int i = 0; i < kNumOps; ++i)
     {
-      auto& op = voice_.ops[static_cast<std::size_t>(i)];
+      auto& op = voice.ops[static_cast<std::size_t>(i)];
 
       const int   ratioIdx   = std::clamp(static_cast<int>(std::round(p(ratioSlots[i]))), 0, kNumRatios - 1);
       const float ratio      = kRatioTable[static_cast<std::size_t>(ratioIdx)];
@@ -96,9 +149,10 @@ namespace lockstep
     }
   }
 
-  void FMMachine::releaseVoice()
+  void FMMachine::releaseVoice(int voiceIdx)
   {
-    for (auto& op : voice_.ops)
+    auto& voice = voices_[static_cast<std::size_t>(voiceIdx)];
+    for (auto& op : voice.ops)
     {
       if (op.stage == Stage::Attack || op.stage == Stage::Decay || op.stage == Stage::Sustain)
       {
@@ -176,10 +230,6 @@ namespace lockstep
                           const ParamFrame& params,
                           juce::AudioBuffer<float>& buffer)
   {
-    // Collect all note-on / note-off events with their sample positions so that
-    // multiple events in the same block (e.g. a previous trig's pending note-off
-    // emitted at the new trig sample, plus the new trig's own note-on and same-
-    // block note-off for a short gate) are all honored.
     struct NoteEvent { int samplePos; int note; bool on; };
     juce::Array<NoteEvent> noteEvents;
     noteEvents.ensureStorageAllocated(8);
@@ -194,7 +244,15 @@ namespace lockstep
 
     const int numBlockSamples = buffer.getNumSamples();
 
-    if (!voice_.active && !choke_.isFading() && !hasPendingTrigger_ && noteEvents.isEmpty())
+    const bool polyMode = (params.size() > static_cast<std::size_t>(kSlotVoiceMode)
+                           && params[static_cast<std::size_t>(kSlotVoiceMode)] >= 0.5f);
+
+    // Early-out if nothing is happening on any voice and no events arrived.
+    bool anyVoiceState = false;
+    for (const auto& v : voices_)
+      if (v.active || v.choke.isFading() || v.hasPendingTrigger)
+        { anyVoiceState = true; break; }
+    if (!anyVoiceState && noteEvents.isEmpty())
       return;
 
     const int numOut = buffer.getNumChannels();
@@ -207,94 +265,123 @@ namespace lockstep
         const auto& ev = noteEvents[eventIdx];
         if (!ev.on)
         {
-          if (voice_.active)
-            releaseVoice();
-        }
-        else
-        {
-          if (voice_.active)
+          if (polyMode)
           {
-            pendingNote_       = ev.note;
-            pendingParams_     = params;
-            hasPendingTrigger_ = true;
-            if (!choke_.isFading())
-              choke_.trigger();
+            const int idx = findVoiceByNote(ev.note);
+            if (idx >= 0) releaseVoice(idx);
           }
           else
           {
-            startVoice(ev.note, params);
+            if (voices_[0].active) releaseVoice(0);
+          }
+        }
+        else
+        {
+          if (polyMode)
+          {
+            const int idx = allocVoice();
+            auto& voice = voices_[static_cast<std::size_t>(idx)];
+            if (voice.active || voice.choke.isFading())
+            {
+              // Stealing an active/fading voice: defer the new note until the
+              // choke fade completes so we don't click.
+              voice.pendingNote       = ev.note;
+              voice.pendingParams     = params;
+              voice.hasPendingTrigger = true;
+              if (!voice.choke.isFading())
+                voice.choke.trigger();
+            }
+            else
+            {
+              startVoice(idx, ev.note, params);
+            }
+          }
+          else
+          {
+            auto& voice = voices_[0];
+            if (voice.active)
+            {
+              voice.pendingNote       = ev.note;
+              voice.pendingParams     = params;
+              voice.hasPendingTrigger = true;
+              if (!voice.choke.isFading())
+                voice.choke.trigger();
+            }
+            else
+            {
+              startVoice(0, ev.note, params);
+            }
           }
         }
         ++eventIdx;
       }
 
-      const float chokeGain = choke_.isFading() ? choke_.nextGain() : 1.0f;
-      if (!choke_.isFading() && hasPendingTrigger_)
+      // Per-voice sample mixing.
+      float mixed = 0.0f;
+      for (int vi = 0; vi < kMaxVoices; ++vi)
       {
-        hasPendingTrigger_ = false;
-        startVoice(pendingNote_, pendingParams_);
+        auto& voice = voices_[static_cast<std::size_t>(vi)];
+
+        const float chokeGain = voice.choke.isFading() ? voice.choke.nextGain() : 1.0f;
+        if (!voice.choke.isFading() && voice.hasPendingTrigger)
+        {
+          voice.hasPendingTrigger = false;
+          startVoice(vi, voice.pendingNote, voice.pendingParams);
+        }
+
+        if (!voice.active) continue;
+
+        // Deactivate voice once all operators are idle.
+        bool anyActive = false;
+        for (const auto& op : voice.ops)
+          if (op.stage != Stage::Idle) { anyActive = true; break; }
+        if (!anyActive) { voice.active = false; continue; }
+
+        // Modulation sums from previous outputs (1-sample delay avoids algebraic loop)
+        float modSum[kNumOps] = {};
+        for (int dst = 0; dst < kNumOps; ++dst)
+          for (int src = 0; src < kNumOps; ++src)
+            modSum[dst] += voice.modMatrix[static_cast<std::size_t>(src)]
+                                          [static_cast<std::size_t>(dst)]
+                           * voice.ops[static_cast<std::size_t>(src)].prevOutput
+                           * kModScale;
+
+        for (int j = 0; j < kNumOps; ++j)
+        {
+          auto& op = voice.ops[static_cast<std::size_t>(j)];
+          const float env   = advanceEnv(op);
+          const float angle = static_cast<float>(op.phase * (2.0 * 3.14159265358979323846))
+                              + modSum[j];
+          op.output = std::sin(angle) * env;
+          op.phase += op.phaseInc;
+          if (op.phase >= 1.0) op.phase -= 1.0;
+        }
+
+        float sample = 0.0f;
+        for (int j = 0; j < kNumOps; ++j)
+        {
+          const auto& op = voice.ops[static_cast<std::size_t>(j)];
+          sample += op.output * op.mixerLevel;
+        }
+        sample *= voice.outputLevel * chokeGain;
+
+        for (auto& op : voice.ops)
+          op.prevOutput = op.output;
+
+        mixed += sample;
       }
-
-      if (!voice_.active)
-      {
-        if (eventIdx >= noteEvents.size())
-          break;
-        continue;
-      }
-
-      // Deactivate voice once all operators have finished
-      bool anyActive = false;
-      for (const auto& op : voice_.ops)
-        if (op.stage != Stage::Idle)
-          anyActive = true;
-      if (!anyActive)
-      {
-        voice_.active = false;
-        break;
-      }
-
-      // Modulation sums from previous outputs (1-sample delay avoids algebraic loop)
-      float modSum[kNumOps] = {};
-      for (int dst = 0; dst < kNumOps; ++dst)
-        for (int src = 0; src < kNumOps; ++src)
-          modSum[dst] += voice_.modMatrix[static_cast<std::size_t>(src)]
-                                         [static_cast<std::size_t>(dst)]
-                         * voice_.ops[static_cast<std::size_t>(src)].prevOutput
-                         * kModScale;
-
-      // Advance envelopes and compute new operator outputs
-      for (int j = 0; j < kNumOps; ++j)
-      {
-        auto& op = voice_.ops[static_cast<std::size_t>(j)];
-        const float env   = advanceEnv(op);
-        const float angle = static_cast<float>(op.phase * (2.0 * 3.14159265358979323846))
-                            + modSum[j];
-        op.output = std::sin(angle) * env;
-        op.phase += op.phaseInc;
-        if (op.phase >= 1.0) op.phase -= 1.0;
-      }
-
-      // Mix outputs to audio
-      float sample = 0.0f;
-      for (int j = 0; j < kNumOps; ++j)
-      {
-        const auto& op = voice_.ops[static_cast<std::size_t>(j)];
-        sample += op.output * op.mixerLevel;
-      }
-      sample *= voice_.outputLevel * chokeGain;
-
-      // Store outputs for next sample's modulation
-      for (auto& op : voice_.ops)
-        op.prevOutput = op.output;
 
       for (int ch = 0; ch < numOut; ++ch)
-        buffer.addSample(ch, i, sample);
+        buffer.addSample(ch, i, mixed);
     }
   }
 
   bool FMMachine::isVoiceActive() const
   {
-    return voice_.active || choke_.isFading() || hasPendingTrigger_;
+    for (const auto& v : voices_)
+      if (v.active || v.choke.isFading() || v.hasPendingTrigger)
+        return true;
+    return false;
   }
 
   // ---------------------------------------------------------------------------
@@ -344,12 +431,13 @@ namespace lockstep
     case kSlotOp4Decay:   return { "fm_dec_4", "Op4 Dec", 1.0f, 5000.0f, 200.0f, false, U::Ms,      3, R::None };
     case kSlotOp4Sustain: return { "fm_sus_4", "Op4 Sus", 0.0f,    1.0f,   0.0f, false, U::Percent, 3, R::None };
     case kSlotOp4Release: return { "fm_rel_4", "Op4 Rel", 1.0f, 5000.0f, 500.0f, false, U::Ms,      3, R::None };
+    case kSlotVoiceMode:  return { "fm_voice_mode", "Voice", 0.0f, 1.0f, 0.0f, true, U::None, 7, R::None };
     default: break;
     }
 
     // MOD section (extension of SRC, section index 6)
     // Slot layout by destination: kSlotModBase + dst*4 + src
-    if (index >= kSlotModBase && index < kNumSlots)
+    if (index >= kSlotModBase && index < kSlotModBase + kNumOps * kNumOps)
     {
       const int offset = index - kSlotModBase;
       const int dst    = offset / kNumOps;
@@ -385,7 +473,8 @@ namespace lockstep
     {
     case 1: return { "SRC" };
     case 3: return { "AMP" };
-    case 6: return { "MOD", -1, 0, /*parentCanonical=*/1 };
+    case 6: return { "MOD",   -1, 0, /*parentCanonical=*/1 };
+    case 7: return { "VOICE", -1, 0, /*parentCanonical=*/1 };
     default: return {};
     }
   }

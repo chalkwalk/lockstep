@@ -109,9 +109,22 @@ namespace lockstep
         // Format: "lockstep.<engine>.<version>", e.g. "lockstep.sampler.v1".
         [[nodiscard]] virtual const char* machineId() const = 0;
 
-        // Voice topology hint. 1 = monophonic with sequencer-managed choke,
-        // n>1 = self-managed polyphony, 0 = unbounded / MIDI-out.
-        virtual int maxVoices() const { return 1; }
+        // Bounded polyphony enum (0..4). The step-side chord ceiling is
+        // kMaxNotesPerStep (4), so the type itself forbids requesting more.
+        enum class Polyphony : int { V0 = 0, V1 = 1, V2 = 2, V3 = 3, V4 = 4 };
+
+        // Current live voice count. Pulled by the sequencer per trig, so the
+        // machine can switch modes at runtime by returning a different value
+        // (e.g. VA Mono ↔ Para, FM Mono ↔ Poly). V0 = doesn't accept notes /
+        // MIDI-out passthrough (sequencer governs note count from the step).
+        // `baseParams` is the track's base ParamFrame (not the per-step resolved
+        // frame, since the clamp runs before frame resolution); machines that
+        // route their voice-mode slot via base-only writes can read it here.
+        virtual Polyphony currentVoices(const ParamFrame& baseParams) const
+        {
+            (void)baseParams;
+            return Polyphony::V1;
+        }
 
         // ME.6 opt-out flags: return true if the machine contains its own filter
         // or amplitude processing for the canonical FLTR / AMP sections.
