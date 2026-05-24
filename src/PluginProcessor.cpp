@@ -369,15 +369,27 @@ namespace lockstep
 
         // MF.6: on transport stop (falling edge), send All-Notes-Off +
         // Reset-All-Controllers on every MIDI-out track to prevent stuck notes.
+        // Also mark pending audio note-offs for immediate dispatch so audio voices
+        // are released even if the gate would have fired after the stop point.
         if (wasSequencerRunning_ && !sequencerRunning)
         {
             for (std::size_t i = 0; i < kNumTracks; ++i)
             {
-                if (!machines_[i]->isMidiOut()) continue;
-                juce::MidiBuffer stopBuf;
-                static_cast<MidiOutMachine*>(machines_[i].get())->allNotesOff(stopBuf);
-                if (!isStandalone)
-                    midi.addEvents(stopBuf, 0, -1, 0);
+                if (machines_[i]->isMidiOut())
+                {
+                    juce::MidiBuffer stopBuf;
+                    static_cast<MidiOutMachine*>(machines_[i].get())->allNotesOff(stopBuf);
+                    if (!isStandalone)
+                        midi.addEvents(stopBuf, 0, -1, 0);
+                }
+                else
+                {
+                    // Collapse the remaining countdown to 0 so the pending note-off
+                    // fires at the start of the next block via the normal dispatch path.
+                    auto& pnf = pendingNoteOffs_[i];
+                    if (pnf.samplesRemaining > 0)
+                        pnf.samplesRemaining = 0;
+                }
             }
         }
         wasSequencerRunning_ = sequencerRunning;
@@ -2092,7 +2104,10 @@ namespace lockstep
         // track saved before this default existed doesn't sustain forever.
         for (std::size_t t = 0; t < kNumTracks; ++t)
         {
-            if (machines_[t] && machines_[t]->machineId() == VAMachine::kMachineId)
+            // NOTE: machineId() returns const char*; compare via std::string to
+            // avoid a pointer-equality check that is always false.
+            if (machines_[t]
+                && std::string(machines_[t]->machineId()) == VAMachine::kMachineId)
             {
                 auto& trigDef = sequence().tracks[t].trigDefaults;
                 if (!(trigDef.gateMs > 0.0f))

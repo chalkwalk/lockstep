@@ -600,7 +600,11 @@ namespace lockstep
                     if (paraMode)
                         releaseParaVoice(ev.note);
                     else if (subVoices_[0].midiNote == ev.note)
+                    {
+                        if (hasPendingTrigger_ && pendingNote_ == ev.note)
+                            hasPendingTrigger_ = false;
                         releaseMonoVoice();
+                    }
                 }
                 ++eventIdx;
             }

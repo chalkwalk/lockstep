@@ -435,18 +435,18 @@ namespace lockstep::PluginState
             }
         }
 
-        const auto bpNode = ptNode.getChildWithName("BaseParams");
-        if (!bpNode.isValid()) return;
-
-        // Create a temp machine matching pt.machineId so that slot lookups and
-        // baseParams sizing are correct regardless of which machine is currently
-        // installed for track t. This ensures FM (or any non-default) param IDs
-        // are found and baseParams is sized to the right schema width.
+        // Always resize baseParams to match the saved machine's schema and seed
+        // defaults, regardless of whether there are any non-default values to read.
+        // Without this, a machine saved with all-default params (no BaseParams node)
+        // would leave baseParams at the previous machine's size, causing an OOB crash.
         auto tempMachine = proc.createMachineForId(pt.machineId);
         const int np = tempMachine->numParams();
         pt.baseParams.assign(static_cast<std::size_t>(np), 0.0f);
         for (int s = 0; s < np; ++s)
             pt.baseParams[static_cast<std::size_t>(s)] = tempMachine->paramSpec(s).defaultValue;
+
+        const auto bpNode = ptNode.getChildWithName("BaseParams");
+        if (!bpNode.isValid()) return;
 
         for (auto pNode : bpNode)
         {
