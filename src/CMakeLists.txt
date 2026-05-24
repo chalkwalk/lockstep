@@ -13,6 +13,7 @@ add_library(lockstep_core STATIC
     core/Metronome.cpp
     core/StateResolver.cpp
     machine/FMMachine.cpp
+    machine/VAMachine.cpp
     machine/MidiDevicePresets.cpp
     machine/MidiOutMachine.cpp
     machine/SamplerMachine.cpp

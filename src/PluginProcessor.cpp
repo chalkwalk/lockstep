@@ -8,6 +8,7 @@
 #include "machine/FMMachine.h"
 #include "machine/MidiOutMachine.h"
 #include "machine/SamplerMachine.h"
+#include "machine/VAMachine.h"
 #include "machine/StubMachine.h"
 #include "state/PluginState.h"
 #include <algorithm>
@@ -1833,6 +1834,8 @@ namespace lockstep
             return std::make_unique<MidiOutMachine>();
         if (id == FMMachine::kMachineId)
             return std::make_unique<FMMachine>();
+        if (id == VAMachine::kMachineId)
+            return std::make_unique<VAMachine>();
         return std::make_unique<StubMachine>(id);
     }
 
@@ -1842,6 +1845,7 @@ namespace lockstep
     static constexpr LockstepProcessor::MachineInfo kAvailableMachines[] = {
         { SamplerMachine::kMachineId, "Sampler"  },
         { FMMachine::kMachineId,      "FM Synth" },
+        { VAMachine::kMachineId,      "VA Synth"  },
         { MidiOutMachine::kMachineId, "MIDI Out" },
     };
 
