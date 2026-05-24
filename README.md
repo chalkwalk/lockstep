@@ -170,7 +170,7 @@ other naturally with no master-bar concept.
 | **P-Lock** (parameter lock) | A per-step override of one or more of a sound engine's parameters. Hold a step, turn a control. |
 | **Trig override** | A per-step override of a sequencer field — note, velocity, gate, or condition — as opposed to an engine parameter. |
 | **Override-ELSE-Base** | The one resolution rule: effective value = step override if present, else track base. |
-| **Machine** | A sound engine. Each track hosts one. Lockstep ships four: `SamplerMachine` (monophonic sample playback), `FMMachine` (4-op FM synthesizer), `MidiOutMachine` (MIDI CC/note output to external gear), and `StubMachine` (silent fallback for unknown IDs). |
+| **Machine** | A sound engine. Each track hosts one. Lockstep ships five: `SamplerMachine` (monophonic sample playback), `FMMachine` (4-op FM synthesizer), `VAMachine` (virtual-analog dual-osc + SVF synth, mono/para), `MidiOutMachine` (MIDI CC/note output to external gear), and `StubMachine` (silent fallback for unknown IDs). |
 | **Part** | The per-track kit: machine identity, base parameters, sample refs. Shared or owned per pattern. |
 | **Pattern** | The trig grid and per-step data; references one Part. |
 | **Bank** | A group of patterns with addressable slots. |
@@ -583,10 +583,16 @@ modifier; Control-All; the checkpoint stack; pattern queueing and chain
 mode; trig-grid mode selectors with chrome badges; the **FM synthesizer**
 (`FMMachine`) — 4-operator FM with free modulation matrix, per-operator
 ADSR, ratio / fine-tune / mix per operator, and macro attack / release /
-sustain scalars; machine selection via `Func + R`. **Note:** the
-shipping overlay is still the **9×4** layout (one left modifier column,
-four-slot Manipulation Zone); §5 documents the 10×4 target that MHX
-delivers.
+sustain scalars; machine selection via `Func + R`; **polyphonic trig
+steps** — steps carry up to 4 notes (hold step + play keys to record a
+chord; gate auto-written on last-note-off); the **VA synthesizer**
+(`VAMachine`) — 2× PolyBLEP oscillators (Saw/Pulse/Tri/Sin) + sub +
+noise, state-variable filter (LP4/LP2/HP/BP + drive), filter ADSR, amp
+ADSR, LFO (6 shapes, 4 targets: Cutoff/Pitch/PW/Amp), portamento, and
+Mono / Paraphonic-4 voice modes (Para: 4 independent pitches share one
+filter + amp envelope). **Note:** the shipping overlay is still the
+**9×4** layout (one left modifier column, four-slot Manipulation Zone);
+§5 documents the 10×4 target that MHX delivers.
 
 **Planned** (remaining milestones; MHX is next): the **10×4 surface
 revamp** —
@@ -596,8 +602,8 @@ encoder band + vertical crossfader, four-register cell typography
 (MHX); post-machine FLTR and AMP blocks
 with role-tagged sections (ME); the first-class MIDI-out machine (MF);
 the full behaviour of the alternate trig modes — Keyboard / Retrig /
-Sound Pool (MG); the remaining sound engines — virtual-analog,
-drum-synth, slicer (MH); scenes + crossfader (MI); pattern/part
+Sound Pool (MG); the remaining sound engines — drum-synth, slicer (MH);
+scenes + crossfader (MI); pattern/part
 management UI (MJ); sampler trim/loop depth (MK); microtiming and swing
 (ML); 16-levels mode (MM); live sampling and resampling (MN); audition
 and cross-track record (MO); UI polish and the state-colour palette

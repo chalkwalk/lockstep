@@ -10,8 +10,8 @@ feature must satisfy, see `PRINCIPLES.md`. **Before adding a
 milestone here, confirm it is expressible within those principles
 and within the existing scope+verb grammar (DESIGN §13).**
 
-**Active focus:** MH — Machine catalogue expansion (VA, DrumSynth, Slicer; FM done as MH.1).
-**Last completed:** MHX — 10×4 surface revamp complete (all 7 items shipped; surface frozen).
+**Active focus:** MH — Machine catalogue expansion (DrumSynth, Slicer; FM done as MH.1, VA done as MH.2).
+**Last completed:** MH.2 — VAMachine (poly trig infrastructure + VA Synth, mono+para modes).
 
 After M8 the roadmap pivots from "core sequencer is usable" to
 "performance instrument is usable" — see milestones MB–MI below
@@ -764,8 +764,14 @@ parity) is done. **MHX lands first** (the surface freeze).
 
 - [x] **MH.1** FMMachine — 4-op FM, free modulation matrix (4×4), per-operator
       ADSR + ratio / fine-tune / mix, macro attack / release / sustain scalars.
-- [ ] **MH.2** VAMachine — virtual-analog mono/poly, Analog Four-style
-      voice with paraphonic option.
+- [x] **MH.2** VAMachine — virtual-analog mono/para, Analog Four-style
+      voice. 2× PolyBLEP oscillators (Saw/Pulse/Tri/Sin) + sub + noise,
+      state-variable filter (LP4/LP2/HP/BP) with drive, filter ADSR,
+      amp ADSR, LFO (6 shapes, 4 targets), portamento, Mono/Para-4 voice
+      modes. Para: 4 independent pitches → shared filter + amp envelope.
+      Polyphonic trig infrastructure also added: steps carry up to 4 notes;
+      chord capture (hold step + play keys) + gate-length auto-write on
+      last-note-off. Backward-compatible serialization.
 - [ ] **MH.3** DrumSynthMachine — Rytm-style per-track drum
       synthesis (kick, snare, hat, tom variants).
 - [ ] **MH.4** SlicerMachine — Octatrack Static/Flex-inspired
