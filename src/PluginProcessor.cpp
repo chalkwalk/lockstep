@@ -2025,6 +2025,12 @@ namespace lockstep
                 machines_[ti]->paramSpec(s).defaultValue;
 
         sequence().tracks[ti].baseParams = partTrack.baseParams;
+
+        // VA Machine has a non-zero default sustain (0.8), so it sustains indefinitely
+        // when gateMs==0 (no note-off). Seed a sensible default gate on first install.
+        auto& trigDef = sequence().tracks[ti].trigDefaults;
+        if (machineId == VAMachine::kMachineId && !(trigDef.gateMs > 0.0f))
+            trigDef.gateMs = 200.0f;
     }
 
     void LockstepProcessor::setActivePatternPart(int partIdx)
@@ -2080,6 +2086,18 @@ namespace lockstep
                 pushMidiOutConfig(static_cast<MidiOutMachine*>(machines_[t].get()), pt);
             if (getSampleRate() > 0.0)
                 machines_[t]->prepare(getSampleRate(), getBlockSize());
+        }
+
+        // Seed a default gate for VA Machine tracks that have none, so that a
+        // track saved before this default existed doesn't sustain forever.
+        for (std::size_t t = 0; t < kNumTracks; ++t)
+        {
+            if (machines_[t] && machines_[t]->machineId() == VAMachine::kMachineId)
+            {
+                auto& trigDef = sequence().tracks[t].trigDefaults;
+                if (!(trigDef.gateMs > 0.0f))
+                    trigDef.gateMs = 200.0f;
+            }
         }
     }
 }

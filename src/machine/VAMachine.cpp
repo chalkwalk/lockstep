@@ -234,9 +234,6 @@ namespace lockstep
             s.hp = x - res * s.bp - s.lp;
             s.bp += fc * s.hp;
             s.lp += fc * s.bp;
-            // Clamp to prevent blow-up at high resonance
-            s.bp = std::clamp(s.bp, -4.0f, 4.0f);
-            s.lp = std::clamp(s.lp, -4.0f, 4.0f);
             return { s.lp, s.hp, s.bp };
         };
 
@@ -559,8 +556,12 @@ namespace lockstep
             ? std::exp(-1.0 / (static_cast<double>(portaMs) * 0.001 * sampleRate_))
             : 0.0;
 
-        // Resonance → SVF q.
-        const float svfQ = std::clamp(p(kSlotRes) * 1.9f, 0.0f, 1.9f);
+        // Resonance → SVF damping coefficient.
+        // In a SVF, this is the *inverse* of the resonance Q-factor:
+        //   damping=1.414 → Butterworth (no resonance peak, default)
+        //   damping→0     → self-oscillation
+        // So the knob must map res_param=0 → high damping and res_param=1 → low damping.
+        const float svfQ = std::max(0.01f, (1.0f - p(kSlotRes)) * 1.4f);
 
         // ---- Per-sample synthesis loop ------------------------------------
         int eventIdx = 0;
