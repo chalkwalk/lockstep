@@ -118,9 +118,9 @@ namespace lockstep
         static constexpr int kVertMargin = 4;  // top/bottom margin of the key area
 
         // Section row constants (from SectionBar).
-        // MHX number row: Func(1) Fill(2) | TRIG..FX(3-8) | ARM(9) PLY(0) = 10 cells.
-        static constexpr int kFixedSectionCells = 2;   // Func + Fill (left modifiers)
-        static constexpr int kTailSectionCells  = 2;   // RecordArm + PlayStop (right)
+        // Number row: Func(1) Fill(2) TAP(3) NavUp(4) | TRIG..FX(5-0) = 10 cells.
+        static constexpr int kFixedSectionCells = 4;   // Func + Fill + TAP + NavUp (left)
+        static constexpr int kTailSectionCells  = 0;   // no tail cells; sections run to key 0
         static constexpr int kTotalSectionCells =
             kFixedSectionCells + IMachine::kMaxSections + kTailSectionCells; // 10
 

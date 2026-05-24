@@ -1089,7 +1089,7 @@ namespace lockstep
         }
 
         if (!isKeyDown && playKeyHeld_
-            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('0')))
+            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('O')))
         {
             playKeyHeld_ = false;
             handled = true;

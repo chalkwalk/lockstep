@@ -20,32 +20,32 @@ namespace lockstep
 
         // Primary layer — no special modifier held.
         // Fill/Cue/Scene/Master are transparent (they just set held state).
-        constexpr std::array<Entry, 34> kPrimary = { {
-            // Section buttons (keys 3-8)
-            { code('3'), B::Section,     0 },
-            { code('4'), B::Section,     1 },
-            { code('5'), B::Section,     2 },
-            { code('6'), B::Section,     3 },
-            { code('7'), B::Section,     4 },
-            { code('8'), B::Section,     5 },
+        constexpr std::array<Entry, 32> kPrimary = { {
+            // Row 1 utilities: TAP(3), NavUp(4)
+            { code('3'), B::TapTempo,   -1 },
+            { code('4'), B::NavUp,      -1 },
 
-            // Transport (row 1 right: 9=Arm, 0=Play/Stop)
-            { code('9'), B::RecordArm,  -1 },
-            { code('0'), B::PlayStop,   -1 },
+            // Section buttons (keys 5-0: TRIG/SRC/FLTR/AMP/LFO/FX)
+            { code('5'), B::Section,     0 },
+            { code('6'), B::Section,     1 },
+            { code('7'), B::Section,     2 },
+            { code('8'), B::Section,     3 },
+            { code('9'), B::Section,     4 },
+            { code('0'), B::Section,     5 },
 
-            // Navigation row (E=Left, R=Up, T=Down, Y=Right)
+            // Navigation (inverted-T: 4=Up above E=Left, R=Down, T=Right)
             { code('E'), B::NavLeft,    -1 },
-            { code('R'), B::NavUp,      -1 },
-            { code('T'), B::NavDown,    -1 },
-            { code('Y'), B::NavRight,   -1 },
+            { code('R'), B::NavDown,    -1 },
+            { code('T'), B::NavRight,   -1 },
 
-            // Verb row (U=Copy/Record, I=Paste/Play, O=Clear/Stop)
-            { code('U'), B::VerbRecord, -1 },
-            { code('I'), B::VerbPlay,   -1 },
-            { code('O'), B::VerbStop,   -1 },
+            // Machine select + snapshot
+            { code('Y'), B::MachineSelect, -1 },
+            { code('U'), B::Snapshot,   -1 },
 
-            // Tap tempo
-            { code('P'), B::TapTempo,   -1 },
+            // Transport (I=RecordArm, O=PlayStop, P=StopReset)
+            { code('I'), B::RecordArm,  -1 },
+            { code('O'), B::PlayStop,   -1 },
+            { code('P'), B::StopReset,  -1 },
 
             // Step grid row 1 (D-; = steps 0-7)
             { code('D'), B::Step,        0 },
@@ -70,29 +70,30 @@ namespace lockstep
 
         // Func layer — applied when Func (key 1) is held.
         // Keys not listed here fall through to the primary table.
-        constexpr std::array<Entry, 15> kFunc = { {
-            // Meta sections (keys 3-8)
-            { code('3'), B::MetaSection,       0 },
-            { code('4'), B::MetaSection,       1 },
-            { code('5'), B::MetaSection,       2 },
-            { code('6'), B::MetaSection,       3 },
-            { code('7'), B::MetaSection,       4 },
-            { code('8'), B::MetaSection,       5 },
+        constexpr std::array<Entry, 16> kFunc = { {
+            // Func+3(TAP) = metronome toggle; Func+4(NavUp) = sound pool trig mode.
+            { code('3'), B::MetronomeToggle,  -1 },
+            { code('4'), B::TrigModeSoundPool,-1 },
 
-            // Func+9 = metronome toggle
-            { code('9'), B::MetronomeToggle,  -1 },
+            // Meta sections (keys 5-0)
+            { code('5'), B::MetaSection,       0 },
+            { code('6'), B::MetaSection,       1 },
+            { code('7'), B::MetaSection,       2 },
+            { code('8'), B::MetaSection,       3 },
+            { code('9'), B::MetaSection,       4 },
+            { code('0'), B::MetaSection,       5 },
 
-            // Navigation layer: Func+nav keys become transport/utility actions.
-            { code('E'), B::StopReset,        -1 },  // Func+E(NavLeft) = StopReset
-            { code('R'), B::MachineSelect,    -1 },  // Func+R(NavUp)   = open machine selector
-            { code('T'), B::Snapshot,         -1 },  // Func+T(NavDown) = Yes / push checkpoint
-            { code('Y'), B::ForkPart,         -1 },  // Func+Y(NavRight)= fork active Part
+            // Nav Func-layer.
+            { code('E'), B::StopReset,        -1 },  // Func+E(NavLeft)  = StopReset
+            { code('R'), B::TrigModeKeyboard, -1 },  // Func+R(NavDown)  = keyboard trig mode
+            { code('T'), B::TrigModeRetrig,   -1 },  // Func+T(NavRight) = retrig trig mode
+            { code('Y'), B::ForkPart,         -1 },  // Func+Y(MACH)     = fork active Part
 
-            // Verb layer: Func+verb keys become trig-mode chords + Restore.
-            { code('U'), B::TrigModeKeyboard, -1 },  // Func+U(VerbRecord) = keyboard mode
-            { code('I'), B::TrigModeRetrig,   -1 },  // Func+I(VerbPlay)   = retrig mode
-            { code('O'), B::Restore,          -1 },  // Func+O(VerbStop)   = No / pop checkpoint
-            { code('P'), B::TrigModeSoundPool,-1 },  // Func+P(TapTempo)   = sound pool mode
+            // Func-layer verbs and checkpoint restore.
+            { code('U'), B::Restore,          -1 },  // Func+U(SNAP) = pop checkpoint
+            { code('I'), B::VerbRecord,       -1 },  // Func+I(REC)  = CPY
+            { code('O'), B::VerbPlay,         -1 },  // Func+O(PLY)  = PST
+            { code('P'), B::VerbStop,         -1 },  // Func+P(STP)  = CLR
         } };
 
         // Track layer — applied when Track (key Q) is held.

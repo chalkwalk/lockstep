@@ -13,8 +13,9 @@ namespace lockstep
     //     Col 1 (1/Q/A/Z): Func / Track / Pattern / Mute
     //     Col 2 (2/W/S/X): Fill / Cue / Scene / Master
     //   Right 8x4 functional block:
-    //     Row 1 (3-8, 9, 0): six canonical sections, RecordArm, PlayStop
-    //     Row 2 (E-P):       nav L/U/D/R, verbs Record/Play/Stop, TapTempo
+    //     Row 1 (3-0): TAP(3), NavUp(4), six canonical sections(5-0)
+    //     Row 2 (E-P): NavLeft(E), NavDown(R), NavRight(T), MachineSelect(Y),
+    //                  Snapshot(U), RecordArm(I), PlayStop(O), StopReset(P)
     //     Row 3 (D-;):       steps 0-7
     //     Row 4 (C-/):       steps 8-15
     enum class ControllerButton : std::uint8_t
@@ -32,9 +33,9 @@ namespace lockstep
         MasterScope,  // key X: master-bus / FX focus (§32.3)
 
         // Verb keys (meaning changes based on the active scope from EditMode).
-        VerbRecord,       // Y: copy / capture scope into clipboard
-        VerbPlay,         // U: paste / apply clipboard to scope
-        VerbStop,         // I: clear scope
+        VerbRecord,       // Func+I: copy / capture scope into clipboard
+        VerbPlay,         // Func+O: paste / apply clipboard to scope
+        VerbStop,         // Func+P: clear scope
 
         // Checkpoint operations — direct actions, not scope-qualified verbs.
         Snapshot,         // Func+T: push checkpoint (Yes)

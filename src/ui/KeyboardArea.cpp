@@ -567,9 +567,9 @@ namespace lockstep
     }
 
     // -------------------------------------------------------------------------
-    // paintSectionRow — MHX number row (10 cells):
-    //   Func(1)  Fill(2)  TRIG(3) SRC(4) FLTR(5) AMP(6) LFO(7) FX(8)  ARM(9)  PLY(0)
-    //   cell 0   cell 1   cell 2   ...                           cell 7  cell 8  cell 9
+    // paintSectionRow — number row (10 cells):
+    //   Func(1)  Fill(2)  TAP(3)  ^(4)  TRIG(5) SRC(6) FLTR(7) AMP(8) LFO(9)  FX(0)
+    //   cell 0   cell 1   cell 2  cell3  cell 4   ...                           cell 9
 
     void KeyboardArea::paintSectionRow(juce::Graphics& g, juce::Rectangle<int> area)
     {
@@ -612,7 +612,34 @@ namespace lockstep
                            grp, st, showKeyHint, overlay);
         }
 
-        // Cells 2-7: section keys 3-8 — canonical TRIG/SRC/FLTR/AMP/LFO/FX.
+        // Cell 2: TAP (key 3) — tap tempo; Func-layer: MetronomeToggle
+        {
+            const bool pressed = juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('3'));
+            KeyButtonState st = KeyButtonState::Normal;
+            if      (pressed)           st = KeyButtonState::Pressed;
+            else if (uiState_.funcHeld) st = KeyButtonState::FuncHeld;
+            const KeyGroup grp { kTapInactive, kTapActive, kTapAccent };
+            paintKeyButton(g, sectionCellBounds(2, area), kKeyHints[2], "TAP", "MET",
+                           grp, st, showKeyHint);
+        }
+
+        // Cell 3: NavUp (key 4) — nav up; Func-layer: TrigModeSoundPool
+        {
+            const bool pressed = juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('4'));
+            KeyButtonState st = KeyButtonState::Normal;
+            if      (pressed)           st = KeyButtonState::Pressed;
+            else if (uiState_.funcHeld) st = KeyButtonState::FuncHeld;
+            const KeyGroup grp { kNavInactive, kNavActive, kNavAccent };
+            paintKeyButton(g, sectionCellBounds(3, area), kKeyHints[3], "^", "SPL",
+                           grp, st, showKeyHint);
+        }
+
+        // Section key codes for keys 5,6,7,8,9,0 (can't use arithmetic: '0' != '5'+5).
+        static constexpr int kSectionKeyCodes[IMachine::kMaxSections] = {
+            '5', '6', '7', '8', '9', '0'
+        };
+
+        // Cells 4-9: section keys 5-0 — canonical TRIG/SRC/FLTR/AMP/LFO/FX.
         for (int s = 0; s < IMachine::kMaxSections; ++s)
         {
             const int cellIdx = kFixedSectionCells + s;
@@ -624,8 +651,7 @@ namespace lockstep
 
             if (!available)
             {
-                const bool pressed = juce::KeyPress::isKeyCurrentlyDown(
-                    static_cast<int>('3' + s));
+                const bool pressed = juce::KeyPress::isKeyCurrentlyDown(kSectionKeyCodes[s]);
                 const KeyGroup grp { kSecInactive, kSecActive, kSecAccent };
                 paintKeyButton(g, sectionCellBounds(cellIdx, area),
                                kKeyHints[cellIdx], canonicalName, "", grp,
@@ -638,8 +664,7 @@ namespace lockstep
             const bool isTrackActive  = (uiState_.masterSection == -1
                 && uiState_.trackSection[static_cast<std::size_t>(activeTrack)] == s);
 
-            const bool pressed = juce::KeyPress::isKeyCurrentlyDown(
-                static_cast<int>('3' + s));
+            const bool pressed = juce::KeyPress::isKeyCurrentlyDown(kSectionKeyCodes[s]);
 
             KeyButtonState st = KeyButtonState::Normal;
             if      (pressed)                           st = KeyButtonState::Pressed;
@@ -694,36 +719,12 @@ namespace lockstep
             }
         }
 
-        // Cell 8: RecordArm (key 9) — Func-layer: MetronomeToggle
-        {
-            const bool isArmed = processor_.clock().isRecordArmed();
-            const bool pressed = juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('9'));
-            KeyButtonState st = KeyButtonState::Normal;
-            if      (pressed)           st = KeyButtonState::Pressed;
-            else if (isArmed)           st = KeyButtonState::ModeActive;
-            else if (uiState_.funcHeld) st = KeyButtonState::FuncHeld;
-            const KeyGroup grp { kRecInactive, kRecActive, kRecAccent };
-            paintKeyButton(g, sectionCellBounds(8, area), kKeyHints[8], "ARM", "MET",
-                           grp, st, showKeyHint);
-        }
-
-        // Cell 9: PlayStop (key 0) — toggles play/stop
-        {
-            const bool isPlaying = processor_.clock().inPluginPlaying();
-            const bool pressed   = juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('0'));
-            KeyButtonState st = KeyButtonState::Normal;
-            if      (pressed)   st = KeyButtonState::Pressed;
-            else if (isPlaying) st = KeyButtonState::ModeActive;
-            const KeyGroup grp { kTrnInactive, kTrnActive, kTrnAccent };
-            paintKeyButton(g, sectionCellBounds(9, area), kKeyHints[9], "PLY", "",
-                           grp, st, showKeyHint);
-        }
     }
 
     // -------------------------------------------------------------------------
-    // paintFunctionRow — MHX Q-row (10 keys):
-    //   Q/TRK  W/CUE  E/<  R/^  T/v  Y/>  U/REC  I/PLY  O/STP  P/TAP
-    //   Func-layer secondaries: SRS  MACH  SNP  FORK  KEY   RTG   RST   SPL
+    // paintFunctionRow — Q-row (10 keys):
+    //   Q/TRK  W/CUE  E/<  R/v  T/>  Y/MACH  U/SNAP  I/REC  O/PLY  P/STP
+    //   Func-layer secondaries:  SRS  KEY  RTG  FORK    RST   CPY    PST   CLR
 
     void KeyboardArea::paintFunctionRow(juce::Graphics& g, juce::Rectangle<int> area)
     {
@@ -741,17 +742,16 @@ namespace lockstep
             { 'Q', "Q", "TRK",  "",     { kModInactive,  kModActive,  kModAccent  } },
             { 'W', "W", "CUE",  "",     { kPerfInactive, kPerfActive, kPerfAccent } },
             { 'E', "E", "<",    "SRS",  { kNavInactive,  kNavActive,  kNavAccent  } },
-            { 'R', "R", "^",    "MACH", { kNavInactive,  kNavActive,  kNavAccent  } },
-            { 'T', "T", "v",    "SNP",  { kNavInactive,  kNavActive,  kNavAccent  } },
-            { 'Y', "Y", ">",    "FORK", { kNavInactive,  kNavActive,  kNavAccent  } },
-            { 'U', "U", "REC",  "KEY",  { kActInactive,  kActActive,  kActAccent  } },
-            { 'I', "I", "PLY",  "RTG",  { kTrnInactive,  kTrnActive,  kTrnAccent  } },
-            { 'O', "O", "STP",  "RST",  { kTrnInactive,  kTrnActive,  kTrnAccent  } },
-            { 'P', "P", "TAP",  "SPL",  { kTapInactive,  kTapActive,  kTapAccent  } },
+            { 'R', "R", "v",    "KEY",  { kNavInactive,  kNavActive,  kNavAccent  } },
+            { 'T', "T", ">",    "RTG",  { kNavInactive,  kNavActive,  kNavAccent  } },
+            { 'Y', "Y", "MACH", "FORK", { kActInactive,  kActActive,  kActAccent  } },
+            { 'U', "U", "SNAP", "RST",  { kActInactive,  kActActive,  kActAccent  } },
+            { 'I', "I", "REC",  "CPY",  { kRecInactive,  kRecActive,  kRecAccent  } },
+            { 'O', "O", "PLY",  "PST",  { kTrnInactive,  kTrnActive,  kTrnAccent  } },
+            { 'P', "P", "STP",  "CLR",  { kTrnInactive,  kTrnActive,  kTrnAccent  } },
         }};
 
         const bool showKeyHint = (displayMode_ != GridDisplayMode::Clean);
-        const auto gridMode    = uiState_.trigGridMode;
 
         // Compound overlay on Q (Track) and W (Cue).
         const bool col1any = uiState_.trackHeld || uiState_.patternScopeHeld || uiState_.muteHeld;
@@ -799,13 +799,11 @@ namespace lockstep
             const auto cell = juce::Rectangle<int>(x, area.getY(), cellW, area.getHeight());
 
             const bool isPressed   = juce::KeyPress::isKeyCurrentlyDown(def.keyCode);
-            const bool isPlaying   = (def.keyCode == 'I') && processor_.clock().inPluginPlaying();
+            const bool isArmed     = (def.keyCode == 'I') && processor_.clock().isRecordArmed();
+            const bool isPlaying   = (def.keyCode == 'O') && processor_.clock().inPluginPlaying();
             const bool isTrkHeld   = (def.keyCode == 'Q') && uiState_.trackHeld;
             const bool isCueHeld   = (def.keyCode == 'W') && uiState_.cueHeld;
-            const bool isModeActive = (def.keyCode == 'U' && gridMode == TrigGridMode::Keyboard)
-                                   || (def.keyCode == 'I' && gridMode == TrigGridMode::Retrig)
-                                   || (def.keyCode == 'P' && gridMode == TrigGridMode::SoundPool)
-                                   || isPlaying || isTrkHeld || isCueHeld;
+            const bool isModeActive = isArmed || isPlaying || isTrkHeld || isCueHeld;
 
             KeyButtonState state = KeyButtonState::Normal;
             if      (isPressed)         state = KeyButtonState::Pressed;
