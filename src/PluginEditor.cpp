@@ -738,8 +738,9 @@ namespace lockstep
                         {
                             if (heldIdx < 0 || heldIdx >= kMaxStepsPerTrack) continue;
                             auto& s = trk.steps[static_cast<std::size_t>(heldIdx)];
-                            s.trigOverride.hasNote = true;
-                            s.trigOverride.note    = note;
+                            if (s.trigOverride.noteCount == 0)
+                                s.trigOverride.noteCount = 1;
+                            s.trigOverride.notes[0] = note;
                             s.trig                 = true;
                         }
                         ctx.markParamWritten();

@@ -464,12 +464,14 @@ namespace lockstep
             : nullptr;
 
         // Override-ELSE-Base per field.
-        const int   note     = (trig && trig->hasNote)     ? trig->note     : t.trigDefaults.note;
+        const bool  hasNote  = trig && trig->noteCount > 0;
+        const int   note     = hasNote ? trig->notes[0] : t.trigDefaults.note;
         const int   velocity = (trig && trig->hasVelocity) ? trig->velocity : t.trigDefaults.velocity;
         const float gateMs   = (trig && trig->hasGate)     ? trig->gateMs   : t.trigDefaults.gateMs;
-        const bool  hasNote  = trig && trig->hasNote;
         const bool  hasVel   = trig && trig->hasVelocity;
         const bool  hasGate  = trig && trig->hasGate;
+        // Extra notes beyond the primary (for chord display).
+        const int   chordExtra = hasNote ? trig->noteCount - 1 : 0;
 
         struct TrigFieldDef { const char* label; float lo; float hi; bool stepped; bool active; };
         static constexpr std::array<TrigFieldDef, kNumSlots> kDefs = {{
@@ -509,6 +511,8 @@ namespace lockstep
                         : juce::String(static_cast<int>(vals[si])) + " ms";
                 else
                     valueText = juce::String(static_cast<int>(vals[si]));
+                if (i == 0 && chordExtra > 0)
+                    valueText += "+" + juce::String(chordExtra);
                 if (locks[si])
                     valueText += " *";
             }
@@ -539,8 +543,9 @@ namespace lockstep
             auto& trig = t.steps[static_cast<std::size_t>(step)].trigOverride;
             switch (field)
             {
-                case 0: trig.hasNote     = true;
-                        trig.note        = std::clamp(static_cast<int>(value), 0, 127);   break;
+                case 0: // MZ note edit: always sets primary note; preserves chord size.
+                        if (trig.noteCount == 0) trig.noteCount = 1;
+                        trig.notes[0]    = std::clamp(static_cast<int>(value), 0, 127);   break;
                 case 1: trig.hasVelocity = true;
                         trig.velocity    = std::clamp(static_cast<int>(value), 1, 127);   break;
                 case 2: trig.hasGate     = true;

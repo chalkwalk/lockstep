@@ -7,9 +7,11 @@ namespace lockstep
 {
     // Resolved sequencer-scope trig values for one step event.
     // Produced by resolveTrig(); handed to the sequencer when emitting note-on/off.
+    // noteCount >= 1 always (defaults to 1 with the track's base note).
     struct TrigFields
     {
-        int   note     = 60;
+        int  noteCount = 1;
+        std::array<int, kMaxNotesPerStep> notes{ 60, 0, 0, 0 };
         int   velocity = 100;
         float gateMs   = 0.0f;  // 0 = no gate, play to natural AHDSR end
     };

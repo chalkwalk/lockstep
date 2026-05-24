@@ -475,9 +475,10 @@ namespace lockstep
             if (pnf.samplesRemaining < 0) continue;
             if (pnf.samplesRemaining < numBlockSamples)
             {
-                trackMidi[i].addEvent(
-                    juce::MidiMessage::noteOff(1, pnf.noteNumber),
-                    pnf.samplesRemaining);
+                for (int n = 0; n < pnf.noteCount; ++n)
+                    trackMidi[i].addEvent(
+                        juce::MidiMessage::noteOff(1, pnf.notes[static_cast<std::size_t>(n)]),
+                        pnf.samplesRemaining);
                 pnf.samplesRemaining = -1;
             }
             else
@@ -531,8 +532,9 @@ namespace lockstep
                          + trackLen) % trackLen);
                     auto& s = sequence().tracks[ti].steps[static_cast<std::size_t>(stepIdx)];
                     s.trig = true;
-                    s.trigOverride.hasNote = true;
-                    s.trigOverride.note    = note;
+                    if (s.trigOverride.noteCount == 0)
+                        s.trigOverride.noteCount = 1;
+                    s.trigOverride.notes[0] = note;
                 }
             }
             else
@@ -547,8 +549,33 @@ namespace lockstep
                     {
                         auto& trig = sequence().tracks[ti]
                             .steps[static_cast<std::size_t>(step)].trigOverride;
-                        trig.hasNote = true;
-                        trig.note    = note;
+
+                        const bool freshChord = !chordCapture_.active
+                                                || chordCapture_.stepIndex != step
+                                                || chordCapture_.trackIndex != track;
+                        if (freshChord)
+                        {
+                            // First note to this step: clear existing list and start capture.
+                            trig.noteCount = 0;
+                            chordCapture_.active    = true;
+                            chordCapture_.trackIndex= track;
+                            chordCapture_.stepIndex = step;
+                            chordCapture_.heldCount = 0;
+                            chordCapture_.noteCount = 0;
+                            chordCapture_.gateStartSample =
+                                totalSamplesProcessed_ + sampleOffset;
+                        }
+                        if (trig.noteCount < kMaxNotesPerStep)
+                        {
+                            trig.notes[static_cast<std::size_t>(trig.noteCount)] = note;
+                            ++trig.noteCount;
+                        }
+                        if (chordCapture_.noteCount < kMaxNotesPerStep)
+                        {
+                            chordCapture_.notes[static_cast<std::size_t>(chordCapture_.noteCount)] = note;
+                            ++chordCapture_.noteCount;
+                        }
+                        ++chordCapture_.heldCount;
                         editContext_.markParamWritten();
                     }
                 }
@@ -565,12 +592,41 @@ namespace lockstep
             midiPulse_[ti].store(1.0f, std::memory_order_relaxed);
         };
 
-        // Route external note-off directly into the track's buffer.
-        ccCtx.onNoteOff = [&trackMidi](int track, int sampleOffset, int midiNote)
+        // Route external note-off directly into the track's buffer;
+        // also finalise chord gate when the last captured note is released.
+        ccCtx.onNoteOff = [this, &trackMidi](int track, int sampleOffset, int midiNote)
         {
             trackMidi[static_cast<std::size_t>(track)].addEvent(
                 juce::MidiMessage::noteOff(1, midiNote),
                 sampleOffset);
+
+            if (!chordCapture_.active || chordCapture_.trackIndex != track)
+                return;
+            // Check this note is one we captured.
+            bool found = false;
+            for (int n = 0; n < chordCapture_.noteCount; ++n)
+                if (chordCapture_.notes[static_cast<std::size_t>(n)] == midiNote)
+                    { found = true; break; }
+            if (!found) return;
+            --chordCapture_.heldCount;
+            if (chordCapture_.heldCount > 0) return;
+
+            // All chord keys released: write gate.
+            const int64_t gateEndSample =
+                totalSamplesProcessed_ + static_cast<int64_t>(sampleOffset);
+            const int64_t gateSamples = gateEndSample - chordCapture_.gateStartSample;
+            const float   gateMs = static_cast<float>(gateSamples)
+                                   * 1000.0f / static_cast<float>(getSampleRate());
+            const auto ti = static_cast<std::size_t>(track);
+            const int  si = chordCapture_.stepIndex;
+            if (si >= 0 && si < kMaxStepsPerTrack)
+            {
+                auto& trig      = sequence().tracks[ti]
+                                      .steps[static_cast<std::size_t>(si)].trigOverride;
+                trig.hasGate    = true;
+                trig.gateMs     = std::max(1.0f, gateMs);
+            }
+            chordCapture_.active = false;
         };
 
         midiInput_.process(midi, editContext_, ccCtx);
@@ -974,7 +1030,7 @@ namespace lockstep
                 nextTriggerPpq_[i] += divPpq;
             }
 
-            // Inject sequencer note-on with resolved trig fields (note/velocity/gate).
+            // Inject sequencer note-on(s) with resolved trig fields (note(s)/velocity/gate).
             if (triggerAt >= 0)
             {
                 trigPulse_[i].store(1.0f, std::memory_order_relaxed);
@@ -986,9 +1042,10 @@ namespace lockstep
 
                 const auto vel = static_cast<juce::uint8>(
                     std::clamp(trig.velocity, 1, 127));
-                trackMidi[i].addEvent(
-                    juce::MidiMessage::noteOn(1, trig.note, vel),
-                    triggerAt);
+                for (int n = 0; n < trig.noteCount; ++n)
+                    trackMidi[i].addEvent(
+                        juce::MidiMessage::noteOn(1, trig.notes[static_cast<std::size_t>(n)], vel),
+                        triggerAt);
 
                 if (trig.gateMs > 0.0f)
                 {
@@ -997,13 +1054,17 @@ namespace lockstep
                     const int noteOffAt = triggerAt + gateSamples;
                     if (noteOffAt < numBlockSamples)
                     {
-                        trackMidi[i].addEvent(
-                            juce::MidiMessage::noteOff(1, trig.note),
-                            noteOffAt);
+                        for (int n = 0; n < trig.noteCount; ++n)
+                            trackMidi[i].addEvent(
+                                juce::MidiMessage::noteOff(1, trig.notes[static_cast<std::size_t>(n)]),
+                                noteOffAt);
                     }
                     else
                     {
-                        pendingNoteOffs_[i] = { noteOffAt - numBlockSamples, trig.note };
+                        auto& pnf             = pendingNoteOffs_[i];
+                        pnf.samplesRemaining  = noteOffAt - numBlockSamples;
+                        pnf.noteCount         = trig.noteCount;
+                        pnf.notes             = trig.notes;
                     }
                 }
             }
@@ -1133,6 +1194,8 @@ namespace lockstep
         }
         masterPeak_.store(buffer.getMagnitude(0, numSamples),
                           std::memory_order_relaxed);
+
+        totalSamplesProcessed_ += numBlockSamples;
     }
 
     void LockstepProcessor::writeParam(int track, int slot, float value)

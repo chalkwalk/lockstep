@@ -404,9 +404,25 @@ namespace lockstep
         struct PendingNoteOff
         {
             int samplesRemaining = -1;  // -1 = none; else samples from start of next block
-            int noteNumber       = 60;
+            int noteCount        = 1;
+            std::array<int, kMaxNotesPerStep> notes{ 60, 0, 0, 0 };
         };
         std::array<PendingNoteOff, kNumTracks> pendingNoteOffs_{};
+
+        // Chord capture: accumulates notes played while a step is held.
+        // Gate length (last-note-off) is written when all captured notes are released.
+        struct ChordCapture
+        {
+            bool    active          = false;
+            int     trackIndex      = -1;
+            int     stepIndex       = -1;
+            int     heldCount       = 0;    // note-keys still held for this chord
+            int64_t gateStartSample = 0;    // absolute sample of first note-on
+            std::array<int, kMaxNotesPerStep> notes{};
+            int     noteCount       = 0;
+        };
+        ChordCapture chordCapture_{};
+        int64_t totalSamplesProcessed_ = 0;
         std::array<double, kNumTracks> nextTriggerPpq_{};
         std::array<bool, kNumTracks>   lastStepFired_{};
         double anchorPpq_ = 0.0;

@@ -177,7 +177,7 @@ namespace lockstep::PluginState
                     for (const auto& step : track.steps)
                     {
                         if (step.trig || !step.overrides.empty()
-                            || step.trigOverride.hasNote
+                            || step.trigOverride.noteCount > 0
                             || step.trigOverride.hasVelocity
                             || step.trigOverride.hasGate
                             || !step.condition.isTrivial())
@@ -210,7 +210,7 @@ namespace lockstep::PluginState
                         {
                             const auto& step = track.steps[static_cast<std::size_t>(s)];
                             const bool hp  = !step.overrides.empty();
-                            const bool hto = step.trigOverride.hasNote
+                            const bool hto = step.trigOverride.noteCount > 0
                                           || step.trigOverride.hasVelocity
                                           || step.trigOverride.hasGate;
                             const bool hnc = !step.condition.isTrivial();
@@ -226,10 +226,13 @@ namespace lockstep::PluginState
                             if (hto)
                             {
                                 juce::ValueTree toNode("TO");
-                                if (step.trigOverride.hasNote)
+                                if (step.trigOverride.noteCount > 0)
                                 {
-                                    toNode.setProperty("hn", 1,                     nullptr);
-                                    toNode.setProperty("n",  step.trigOverride.note, nullptr);
+                                    toNode.setProperty("nc", step.trigOverride.noteCount, nullptr);
+                                    for (int ni = 0; ni < step.trigOverride.noteCount; ++ni)
+                                        toNode.setProperty("n" + juce::String(ni),
+                                                           step.trigOverride.notes[static_cast<std::size_t>(ni)],
+                                                           nullptr);
                                 }
                                 if (step.trigOverride.hasVelocity)
                                 {
@@ -354,9 +357,26 @@ namespace lockstep::PluginState
             const auto toNode = stepNode.getChildWithName("TO");
             if (toNode.isValid())
             {
-                step.trigOverride.hasNote = (static_cast<int>(toNode.getProperty("hn", 0)) != 0);
-                if (step.trigOverride.hasNote)
-                    step.trigOverride.note = static_cast<int>(toNode.getProperty("n", 60));
+                // New format: "nc" = noteCount + "n0".."n3".
+                // Legacy format: "hn" + "n" (single note) — migrated on load.
+                if (toNode.hasProperty("nc"))
+                {
+                    step.trigOverride.noteCount = static_cast<int>(toNode.getProperty("nc", 0));
+                    step.trigOverride.noteCount = std::clamp(step.trigOverride.noteCount,
+                                                              0, kMaxNotesPerStep);
+                    for (int ni = 0; ni < step.trigOverride.noteCount; ++ni)
+                        step.trigOverride.notes[static_cast<std::size_t>(ni)] =
+                            static_cast<int>(toNode.getProperty("n" + juce::String(ni), 60));
+                }
+                else
+                {
+                    const bool legacy = (static_cast<int>(toNode.getProperty("hn", 0)) != 0);
+                    if (legacy)
+                    {
+                        step.trigOverride.noteCount = 1;
+                        step.trigOverride.notes[0]  = static_cast<int>(toNode.getProperty("n", 60));
+                    }
+                }
 
                 step.trigOverride.hasVelocity = (static_cast<int>(toNode.getProperty("hv", 0)) != 0);
                 if (step.trigOverride.hasVelocity)
