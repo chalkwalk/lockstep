@@ -176,56 +176,56 @@ namespace lockstep
                           const ParamFrame& params,
                           juce::AudioBuffer<float>& buffer)
   {
-    int triggerAt   = -1;
-    int triggerNote = 60;
-    int releaseAt   = -1;
+    // Collect all note-on / note-off events with their sample positions so that
+    // multiple events in the same block (e.g. a previous trig's pending note-off
+    // emitted at the new trig sample, plus the new trig's own note-on and same-
+    // block note-off for a short gate) are all honored.
+    struct NoteEvent { int samplePos; int note; bool on; };
+    juce::Array<NoteEvent> noteEvents;
+    noteEvents.ensureStorageAllocated(8);
     for (const auto& meta : events)
     {
       const auto msg = meta.getMessage();
       if (msg.isNoteOn())
-      {
-        triggerAt   = meta.samplePosition;
-        triggerNote = msg.getNoteNumber();
-      }
-      else if (msg.isNoteOff() && releaseAt < 0)
-        releaseAt = meta.samplePosition;
+        noteEvents.add({ meta.samplePosition, msg.getNoteNumber(), true });
+      else if (msg.isNoteOff())
+        noteEvents.add({ meta.samplePosition, msg.getNoteNumber(), false });
     }
 
     const int numBlockSamples = buffer.getNumSamples();
-    if (triggerAt >= 0)
-      triggerAt = std::clamp(triggerAt, 0, numBlockSamples - 1);
-    if (releaseAt >= 0)
-      releaseAt = std::clamp(releaseAt, 0, numBlockSamples - 1);
 
-    if (!voice_.active && !choke_.isFading() && !hasPendingTrigger_ && triggerAt < 0)
+    if (!voice_.active && !choke_.isFading() && !hasPendingTrigger_ && noteEvents.isEmpty())
       return;
 
     const int numOut = buffer.getNumChannels();
+    int eventIdx = 0;
 
     for (int i = 0; i < numBlockSamples; ++i)
     {
-      if (releaseAt >= 0 && i == releaseAt)
+      while (eventIdx < noteEvents.size() && noteEvents[eventIdx].samplePos <= i)
       {
-        if (voice_.active)
-          releaseVoice();
-        releaseAt = -1;
-      }
-
-      if (triggerAt >= 0 && i == triggerAt)
-      {
-        if (voice_.active)
+        const auto& ev = noteEvents[eventIdx];
+        if (!ev.on)
         {
-          pendingNote_       = triggerNote;
-          pendingParams_     = params;
-          hasPendingTrigger_ = true;
-          if (!choke_.isFading())
-            choke_.trigger();
+          if (voice_.active)
+            releaseVoice();
         }
         else
         {
-          startVoice(triggerNote, params);
+          if (voice_.active)
+          {
+            pendingNote_       = ev.note;
+            pendingParams_     = params;
+            hasPendingTrigger_ = true;
+            if (!choke_.isFading())
+              choke_.trigger();
+          }
+          else
+          {
+            startVoice(ev.note, params);
+          }
         }
-        triggerAt = -1;
+        ++eventIdx;
       }
 
       const float chokeGain = choke_.isFading() ? choke_.nextGain() : 1.0f;
@@ -237,7 +237,7 @@ namespace lockstep
 
       if (!voice_.active)
       {
-        if (triggerAt < 0)
+        if (eventIdx >= noteEvents.size())
           break;
         continue;
       }

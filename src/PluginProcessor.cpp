@@ -1049,9 +1049,23 @@ namespace lockstep
                 trigPulse_[i].store(1.0f, std::memory_order_relaxed);
                 const auto trig = StateResolver::resolveTrig(track, stepIndex);
 
-                // Cancel any stale pending note-off; the new note-on supersedes it
-                // (the internal choke handles the audio fade).
-                pendingNoteOffs_[i].samplesRemaining = -1;
+                // If a previous trig's note-off is still pending (gate longer than
+                // the step interval), emit it immediately at triggerAt so the
+                // voice releases and then retriggers cleanly. Inserting before the
+                // new note-on at the same sample preserves event order because
+                // juce::MidiBuffer iterates same-position events in insertion order.
+                {
+                    auto& pnf = pendingNoteOffs_[i];
+                    if (pnf.samplesRemaining >= 0)
+                    {
+                        for (int n = 0; n < pnf.noteCount; ++n)
+                            trackMidi[i].addEvent(
+                                juce::MidiMessage::noteOff(
+                                    1, pnf.notes[static_cast<std::size_t>(n)]),
+                                triggerAt);
+                        pnf.samplesRemaining = -1;
+                    }
+                }
 
                 // Clamp notes emitted to what the machine can voice.
                 // maxVoices()==0 (MIDI-out) means unlimited; emit all notes.

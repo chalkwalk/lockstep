@@ -370,7 +370,9 @@ namespace lockstep
 
     void VAMachine::releaseMonoVoice()
     {
-        subVoices_[0].active = false;
+        // Keep subVoices_[0].active true so the oscillator keeps producing samples
+        // through the amp envelope's Release stage; the voice is deactivated only
+        // once the envelope finishes (see the Idle transition in the process loop).
         releaseEnvelopes();
     }
 
@@ -600,11 +602,7 @@ namespace lockstep
                     if (paraMode)
                         releaseParaVoice(ev.note);
                     else if (subVoices_[0].midiNote == ev.note)
-                    {
-                        if (hasPendingTrigger_ && pendingNote_ == ev.note)
-                            hasPendingTrigger_ = false;
                         releaseMonoVoice();
-                    }
                 }
                 ++eventIdx;
             }
@@ -618,6 +616,11 @@ namespace lockstep
                                                      env_.aReleaseStart, env_.aRemain,
                                                      env_.aDecayMul, env_.aRelMul,
                                                      env_.aSustain);
+
+            // Amp envelope reached Idle (Release completed): mono voice is now
+            // silent and can be reused by the next note-on without a choke.
+            if (!paraMode && env_.aStage == Stage::Idle)
+                subVoices_[0].active = false;
 
             if (env_.aStage == Stage::Idle && !hasPendingTrigger_ && !choke_.isFading())
             {
