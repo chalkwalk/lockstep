@@ -10,8 +10,8 @@ feature must satisfy, see `PRINCIPLES.md`. **Before adding a
 milestone here, confirm it is expressible within those principles
 and within the existing scope+verb grammar (DESIGN §13).**
 
-**Active focus:** MHX — The 10×4 surface revamp (sequenced ahead of the rest of MH; DESIGN §33).
-**Last completed:** MGX — 16-track expansion + header pagination.
+**Active focus:** MH — Machine catalogue expansion (VA, DrumSynth, Slicer; FM done as MH.1).
+**Last completed:** MHX — 10×4 surface revamp complete (all 7 items shipped; surface frozen).
 
 After M8 the roadmap pivots from "core sequencer is usable" to
 "performance instrument is usable" — see milestones MB–MI below
@@ -716,7 +716,7 @@ be reassigned to any machine via the Part-edit flow at MH).
 - [ ] **MGX.6** Machine selection UI for runtime track reassignment — deferred
       to MC/MH (Part-edit overlay; exact gesture TBD).
 
-### MHX — The 10×4 surface revamp  [pending]
+### MHX — The 10×4 surface revamp  [complete]
 
 DESIGN §33 (+ §5.5, §13, §17.5, §26). The final control-surface and
 UX-grammar pass, sequenced **ahead of the rest of MH** so the
@@ -725,32 +725,35 @@ catalogue machines are authored against a frozen surface. Widens the
 two columns) + the unchanged 8-wide functional block (16 steps, 6
 canonical sections). Intended as the last large UI/UX revamp.
 
-- [ ] **MHX.1** `QwertyOverlay` rewrite to 10×4: eight modifiers
+- [x] **MHX.1** `QwertyOverlay` rewrite to 10×4: eight modifiers
       (`Func/Track/Pattern/Mute` | `Fill/Cue/Scene/Master`), step keys
       move to `D–;` (0–7) / `C–/` (8–15), function strip relocated
       (sections `3–8`, nav `E R T Y`, verbs `U I O`, `9`=Arm,
       `0`=Play/Stop, `P`=Tap). Update `isEdgeKey` for the 10-wide grid.
-- [ ] **MHX.2** Modifier slate wired: `Pattern` promoted to its own key
-      (off `Func+2`); single `Scene` modifier with `Scene + ^/v` =
-      endpoint A/B; `Master` modifier bound to the existing master
-      focus state (§32.3). `Mute` retains hold-and-tap-many.
-- [ ] **MHX.3** Compound-chord engine (DESIGN §13): cross-column-only,
+- [x] **MHX.2** Modifier slate wired: `Pattern` promoted to its own key
+      (`A`); single `Scene` modifier (`S`) with `Scene + ^/v` = endpoint
+      A/B; `Master` modifier (`X`) bound to master focus state (§32.3);
+      `Cue` modifier (`W`). `Mute` retains hold-and-tap-many (`Z`).
+- [x] **MHX.3** Compound-chord engine (DESIGN §13): cross-column-only,
       modifier+modifier sets a compound scope and never fires alone,
-      `Func` universal. Exceptions table (starts empty). Compound
-      *qualifies* scope; never redefines a verb.
-- [ ] **MHX.4** `kMZSlots` 4 → 8; MZ re-layout to 4×2. Audit that no
-      code outside the MZ hard-codes the slot count.
-- [ ] **MHX.5** Editor re-layout: staggered 4×2 encoder band above the
-      grid, narrower than the 10-column grid; vertical crossfader on
-      the band's right (Scene A top / B bottom). Software mirrors the
-      hardware 1:1.
-- [ ] **MHX.6** Cell typography pass: fixed four-register cells
-      (corner key-legend / centre primary / bottom Func-label / accent
-      held-chord overlay); abbreviations to ~5 chars, canonical section
-      names ≤4. Chrome announces the new modifiers (PRINCIPLES §8).
-- [ ] **MHX.7** Finalise the two provisional choices (function-strip
-      nav arrangement; use of keys `9`/`0`) once the relaid-out
-      surface has been play-tested.
+      `Func` universal. Exceptions table starts empty. `hasCompoundScope()`
+      / `hasSameColumnConflict()` on `EditMode`.
+- [x] **MHX.4** `kMZSlots` 4 → 8; MZ re-layout to 4×2. `kParamsPerPage`
+      bumped to 8. All meta-section arrays padded to 8 entries.
+- [x] **MHX.5** Editor re-layout: staggered 4×2 encoder band above the
+      grid; vertical crossfader on the band's right (Scene A top / B
+      bottom, wires in MI). Window 990×596.
+- [x] **MHX.6** Cell typography pass: four-register cells (corner
+      key-legend / centre primary / bottom Func-label / amber
+      compound-chord overlay); violet perf-modifier colour group; 10-cell
+      section row (Func, Fill, TRIG–FX, ARM, PLY); 10-item function row
+      (Q/TRK, W/CUE, E-Y nav, U-O verbs, P/TAP); two modifier columns
+      per step row (A/PAT + S/SCN, Z/MUT + X/MST); kStaggerHalfUnits=23;
+      key letters D–;/C–/; all abbreviations ≤5 chars.
+- [x] **MHX.7** Provisional choices finalised: `9`=RecordArm (ARM/MET),
+      `0`=PlayStop (PLY); nav on `E R T Y` (< ^ v >); verbs `U I O`
+      (REC/PLY/STP) with Func-layer KEY/RTG/RST; `P`=TAP/SPL. Surface
+      freeze confirmed — all MHX items shipped.
 
 ### MH — Machine catalogue expansion  [pending, staggered]
 
