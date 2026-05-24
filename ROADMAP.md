@@ -10,7 +10,7 @@ feature must satisfy, see `PRINCIPLES.md`. **Before adding a
 milestone here, confirm it is expressible within those principles
 and within the existing scope+verb grammar (DESIGN §13).**
 
-**Active focus:** MH — Machine catalogue expansion (DrumSynth, Slicer; FM done as MH.1, VA done as MH.2).
+**Active focus:** MH — Machine catalogue expansion (DrumSynth, Slicer, PercussionMachine; FM done as MH.1, VA done as MH.2).
 **Last completed:** MH.2 — VAMachine (poly trig infrastructure + VA Synth, mono+para modes).
 
 After M8 the roadmap pivots from "core sequencer is usable" to
@@ -783,6 +783,20 @@ parity) is done. **MHX lands first** (the surface freeze).
       audio (DESIGN §29). Shares Flex's overlapping slot vocabulary
       (start/end, level) minus the RAM-only manipulations streaming
       can't cheaply support. Audio never decoded wholesale into RAM.
+- [ ] **MH.7** PercussionMachine — Volca-Drum-style two-layer
+      percussion synth. Each voice = 2 parallel layers, each layer
+      = excitation osc (sine / saw / noise / folded variant) with
+      FM/ring-mod partner + pitch envelope (depth, decay) → waveguide
+      / modal resonator (Tube / String / Membrane / Modal-bank;
+      pitch, decay, damping, nonlinearity, send level). Layer A↔B
+      crossfade + bit/sample-rate reduce + drive in the mix stage.
+      Canonical FLTR (SVF) + AMP downstream as usual; resonator
+      block is the new DSP. Algorithm presets (kick / snare / hat /
+      tom / bell / cymbal) ship as Sound Pool entries, not schema
+      variants. Inharmonic / tuned-metal / struck-physical-object
+      territory neither Sampler nor VA can fake. Distinct machine
+      from any future Cydrum-style wavetable+animation drum
+      (different excitation philosophy; do not merge).
 
 ### MI — Scenes and crossfader  [pending]
 
