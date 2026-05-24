@@ -1041,9 +1041,17 @@ namespace lockstep
                 // (the internal choke handles the audio fade).
                 pendingNoteOffs_[i].samplesRemaining = -1;
 
+                // Clamp notes emitted to what the machine can voice.
+                // maxVoices()==0 (MIDI-out) means unlimited; emit all notes.
+                const int machineVoices = machines_[static_cast<std::size_t>(i)]
+                    ? machines_[static_cast<std::size_t>(i)]->maxVoices() : 1;
+                const int notesToEmit = (machineVoices == 0)
+                    ? trig.noteCount
+                    : std::min(trig.noteCount, machineVoices);
+
                 const auto vel = static_cast<juce::uint8>(
                     std::clamp(trig.velocity, 1, 127));
-                for (int n = 0; n < trig.noteCount; ++n)
+                for (int n = 0; n < notesToEmit; ++n)
                     trackMidi[i].addEvent(
                         juce::MidiMessage::noteOn(1, trig.notes[static_cast<std::size_t>(n)], vel),
                         triggerAt);
@@ -1055,7 +1063,7 @@ namespace lockstep
                     const int noteOffAt = triggerAt + gateSamples;
                     if (noteOffAt < numBlockSamples)
                     {
-                        for (int n = 0; n < trig.noteCount; ++n)
+                        for (int n = 0; n < notesToEmit; ++n)
                             trackMidi[i].addEvent(
                                 juce::MidiMessage::noteOff(1, trig.notes[static_cast<std::size_t>(n)]),
                                 noteOffAt);
@@ -1064,7 +1072,7 @@ namespace lockstep
                     {
                         auto& pnf             = pendingNoteOffs_[i];
                         pnf.samplesRemaining  = noteOffAt - numBlockSamples;
-                        pnf.noteCount         = trig.noteCount;
+                        pnf.noteCount         = notesToEmit;
                         pnf.notes             = trig.notes;
                     }
                 }
