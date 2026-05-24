@@ -154,7 +154,7 @@ namespace lockstep
         else
         {
             menu.addSectionHeader("Map this control via MIDI Learn:");
-            menu.addItem(1, "Fixed — track " + juce::String(track + 1)
+            menu.addItem(1, juce::String(u8"Fixed — track ") + juce::String(track + 1)
                             + ", slot " + juce::String(slot));
             menu.addItem(2, "Selected track (follows focus)");
             menu.addItem(3, "Contextual (this display position)");
@@ -691,7 +691,7 @@ namespace lockstep
             else if (i == 2)
                 valueText = (static_cast<int>(vals[si]) == 0) ? "Omni" : "Per-Trk";
             else
-                valueText = "—";
+                valueText = juce::String(u8"—");
 
             valueLabels_[si].setText(valueText, juce::dontSendNotification);
             labels_[si].setText(kDefs[si].label, juce::dontSendNotification);

@@ -109,8 +109,8 @@ namespace lockstep
         GridDisplayMode displayMode_   = GridDisplayMode::Ortholinear;
         int             mouseHeldStep_ = -1;
 
-        juce::TextButton prevBtn_{ "<" };
-        juce::TextButton nextBtn_{ ">" };
+        juce::TextButton prevBtn_{ juce::String(u8"←") };
+        juce::TextButton nextBtn_{ juce::String(u8"→") };
         juce::Slider     lengthSlider_;
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> lengthAttachment_;
 

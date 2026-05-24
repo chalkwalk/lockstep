@@ -630,7 +630,7 @@ namespace lockstep
             if      (pressed)           st = KeyButtonState::Pressed;
             else if (uiState_.funcHeld) st = KeyButtonState::FuncHeld;
             const KeyGroup grp { kNavInactive, kNavActive, kNavAccent };
-            paintKeyButton(g, sectionCellBounds(3, area), kKeyHints[3], "^", "SPL",
+            paintKeyButton(g, sectionCellBounds(3, area), kKeyHints[3], u8"↑", "SPL",
                            grp, st, showKeyHint);
         }
 
@@ -729,26 +729,31 @@ namespace lockstep
     void KeyboardArea::paintFunctionRow(juce::Graphics& g, juce::Rectangle<int> area)
     {
         paintEdgeRow(g, 1, area);
+        // Note: string fields are const char8_t* so that the nav-key labels
+        // (E/R/T) can carry the U+2190/2193/2192 arrow glyphs. juce::String
+        // has a dedicated const char8_t* overload that decodes the bytes as
+        // UTF-8 (the const char* ctor asserts on non-ASCII). Plain-ASCII
+        // labels here use u8"..." too, for type-consistency across the array.
         struct QKeyDef
         {
-            int         keyCode;
-            const char* keyHint;
-            const char* primary;
-            const char* secondary;
-            KeyGroup    group;
+            int             keyCode;
+            const char8_t*  keyHint;
+            const char8_t*  primary;
+            const char8_t*  secondary;
+            KeyGroup        group;
         };
 
         static const std::array<QKeyDef, 10> kDefs = {{
-            { 'Q', "Q", "TRK",  "",     { kModInactive,  kModActive,  kModAccent  } },
-            { 'W', "W", "CUE",  "",     { kPerfInactive, kPerfActive, kPerfAccent } },
-            { 'E', "E", "<",    "SRS",  { kNavInactive,  kNavActive,  kNavAccent  } },
-            { 'R', "R", "v",    "KEY",  { kNavInactive,  kNavActive,  kNavAccent  } },
-            { 'T', "T", ">",    "RTG",  { kNavInactive,  kNavActive,  kNavAccent  } },
-            { 'Y', "Y", "MACH", "FORK", { kActInactive,  kActActive,  kActAccent  } },
-            { 'U', "U", "SNAP", "RST",  { kActInactive,  kActActive,  kActAccent  } },
-            { 'I', "I", "REC",  "CPY",  { kRecInactive,  kRecActive,  kRecAccent  } },
-            { 'O', "O", "PLY",  "PST",  { kTrnInactive,  kTrnActive,  kTrnAccent  } },
-            { 'P', "P", "STP",  "CLR",  { kTrnInactive,  kTrnActive,  kTrnAccent  } },
+            { 'Q', u8"Q", u8"TRK",  u8"",     { kModInactive,  kModActive,  kModAccent  } },
+            { 'W', u8"W", u8"CUE",  u8"",     { kPerfInactive, kPerfActive, kPerfAccent } },
+            { 'E', u8"E", u8"←",    u8"SRS",  { kNavInactive,  kNavActive,  kNavAccent  } },
+            { 'R', u8"R", u8"↓",    u8"KEY",  { kNavInactive,  kNavActive,  kNavAccent  } },
+            { 'T', u8"T", u8"→",    u8"RTG",  { kNavInactive,  kNavActive,  kNavAccent  } },
+            { 'Y', u8"Y", u8"MACH", u8"FORK", { kActInactive,  kActActive,  kActAccent  } },
+            { 'U', u8"U", u8"SNAP", u8"RST",  { kActInactive,  kActActive,  kActAccent  } },
+            { 'I', u8"I", u8"REC",  u8"CPY",  { kRecInactive,  kRecActive,  kRecAccent  } },
+            { 'O', u8"O", u8"PLY",  u8"PST",  { kTrnInactive,  kTrnActive,  kTrnAccent  } },
+            { 'P', u8"P", u8"STP",  u8"CLR",  { kTrnInactive,  kTrnActive,  kTrnAccent  } },
         }};
 
         const bool showKeyHint = (displayMode_ != GridDisplayMode::Clean);
