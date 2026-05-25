@@ -920,7 +920,7 @@ grammar; no behavioural change to the sequencer itself.
 Goal: the surface tells you exactly what your held modifiers will
 operate on; the MZ stops repeating itself; the top bar becomes useful.
 
-- [ ] **MHZ.2.1** Step-grid scope re-skin. When a scope modifier maps
+- [x] **MHZ.2.1** Step-grid scope re-skin. When a scope modifier maps
       to a 1-of-16 selector (Track / Pattern / Part; Part+SRC =
       machine picker) the 16 step keys become a non-paginated index
       for that scope. **Pagination is suppressed** in the re-skinned
@@ -930,7 +930,7 @@ operate on; the MZ stops repeating itself; the top bar becomes useful.
       (sibling of `ScopedSectionMatrix.h`) so new scopes are data, not
       paint code. Machine names render textually on Part+SRC; every
       other scope is numeric.
-- [ ] **MHZ.2.2** Top bar redesign. Drop the mode-chips strip;
+- [x] **MHZ.2.2** Top bar redesign. Drop the mode-chips strip;
       replace with two zones:
       - **Left dashboard:** BPM, Bank/Pattern/Part identity, transport
         position, chain queue glance, checkpoint depth `CK:N`.
@@ -939,7 +939,7 @@ operate on; the MZ stops repeating itself; the top bar becomes useful.
         cheat sheet for the cluster grammar.
       Both zones read a single view-model so behaviour and labels
       cannot drift.
-- [ ] **MHZ.2.3** ManipulationZone streamlining. Each slot collapses
+- [x] **MHZ.2.3** ManipulationZone streamlining. Each slot collapses
       to **rotary + one value display**. Value display is textual
       when the slot's `ParamSpec` carries a `valueLabels` table
       (filter mode, voice mode, …) and numeric otherwise. Bigger
@@ -947,18 +947,18 @@ operate on; the MZ stops repeating itself; the top bar becomes useful.
       header (or piggybacks on the section key label since context
       already says what page you're on). The redundant separate
       label-and-value pair is gone.
-- [ ] **MHZ.2.4** Double-click rotary → reset to default. JUCE
+- [x] **MHZ.2.4** Double-click rotary → reset to default. JUCE
       `Slider::onDoubleClick`. Routed through one helper so the
       eventual hardware push-encoder-twice gesture (DESIGN §17.5
       style) lands on the same code path.
-- [ ] **MHZ.2.5** `ParamSpec::valueLabels` (`std::span<const char* const>`),
+- [x] **MHZ.2.5** `ParamSpec::valueLabels` (`std::span<const char* const>`),
       default empty. Machines populate it for stepped/enum slots; MZ
       render consults it. Existing `kSlotVoiceMode` / filter mode /
       LFO shape slots get textual values out of the box.
-- [ ] **MHZ.2.6** Documentation: DESIGN updates for `valueLabels`,
+- [x] **MHZ.2.6** Documentation: DESIGN updates for `valueLabels`,
       scope re-skin, top-bar dashboard; CLAUDE.md glossary; README §5
       / §6 reference table.
-- [ ] **MHZ.2.7** Verification: hold Track and confirm step grid is a
+- [x] **MHZ.2.7** Verification: hold Track and confirm step grid is a
       1-of-16 track picker with unavailable indices dimmed; hold
       Part+SRC and confirm machine names render; top bar dashboard
       shows current Bank/Pattern/Part/BPM; held-context preview
