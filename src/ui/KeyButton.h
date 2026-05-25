@@ -22,6 +22,14 @@ namespace lockstep
         uint32_t accent;    // border colour (1 px Normal, 2 px ModeActive)
     };
 
+    // Draws only the QWERTY key hint in the standard style (12 pt, top-left corner).
+    // `inner` is the usable interior rectangle (typically `cell.reduced(1,1)`).
+    // alpha = 1.0 for normal, 0.45 for disabled.
+    void paintCellKeyHint(juce::Graphics&      g,
+                          juce::Rectangle<int> inner,
+                          const juce::String&  hint,
+                          float                alpha = 1.0f);
+
     // Stateless paint helper: draws one key into `cell`.
     // All geometry is determined by `cell`; caller positions cells in their own paint().
     // showKeyHint: whether to draw the small physical-key letter in the top-left.

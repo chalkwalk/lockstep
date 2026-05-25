@@ -1280,13 +1280,7 @@ namespace lockstep
                     }
 
                     if (showKeyLetters)
-                    {
-                        g.setFont(juce::Font(juce::FontOptions(8.0f)));
-                        g.setColour(juce::Colour::fromRGB(88, 108, 128).withAlpha(0.7f));
-                        g.drawText(kKeyLetters[static_cast<std::size_t>(idx)],
-                                   cell.withHeight(10).reduced(2, 0),
-                                   juce::Justification::topLeft);
-                    }
+                        paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(idx)]);
                 }
             }
             g.setColour(juce::Colour::fromRGB(80, 95, 115));
@@ -1353,13 +1347,7 @@ namespace lockstep
                     }
 
                     if (showKeyLetters)
-                    {
-                        g.setFont(juce::Font(juce::FontOptions(8.0f)));
-                        g.setColour(juce::Colour::fromRGB(88, 108, 128).withAlpha(0.7f));
-                        g.drawText(kKeyLetters[static_cast<std::size_t>(slotIdx)],
-                                   cell.withHeight(10).reduced(2, 0),
-                                   juce::Justification::topLeft);
-                    }
+                        paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(slotIdx)]);
                 }
             }
             g.setColour(juce::Colour::fromRGB(80, 95, 115));
@@ -1502,14 +1490,8 @@ namespace lockstep
                     }
 
                     if (showKeyLetters)
-                    {
-                        g.setFont(juce::Font(juce::FontOptions(8.0f)));
-                        g.setColour(juce::Colour::fromRGB(88, 108, 128).withAlpha(
-                                        isNext ? 0.4f : 0.7f));
-                        g.drawText(kKeyLetters[static_cast<std::size_t>(idx)],
-                                   cell.withHeight(10).reduced(2, 0),
-                                   juce::Justification::topLeft);
-                    }
+                        paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(idx)],
+                                         isNext ? 0.4f : 1.0f);
                 }
             }
             // Nav row hint
@@ -1621,13 +1603,7 @@ namespace lockstep
                 }
 
                 if (showKeyLetters && inRange)
-                {
-                    g.setFont(juce::Font(juce::FontOptions(8.0f)));
-                    g.setColour(juce::Colour::fromRGB(88, 108, 128));
-                    g.drawText(kKeyLetters[static_cast<std::size_t>(localIdx)],
-                               cell.withHeight(10).reduced(2, 0),
-                               juce::Justification::topLeft);
-                }
+                    paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(localIdx)]);
 
                 // MG.1: In Keyboard mode show the note name centred on the cell.
                 if (uiState_.trigGridMode == TrigGridMode::Keyboard && inRange)

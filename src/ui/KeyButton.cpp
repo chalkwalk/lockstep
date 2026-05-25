@@ -2,6 +2,15 @@
 
 namespace lockstep
 {
+    void paintCellKeyHint(juce::Graphics& g, juce::Rectangle<int> inner,
+                          const juce::String& hint, float alpha)
+    {
+        if (hint.isEmpty()) return;
+        g.setFont(juce::Font(juce::FontOptions(12.0f)));
+        g.setColour(juce::Colour(0xFFAAC4D8u).withAlpha(alpha));
+        g.drawText(hint, inner.withHeight(14).reduced(2, 0), juce::Justification::topLeft);
+    }
+
     void paintKeyButton(juce::Graphics&       g,
                         juce::Rectangle<int>  cell,
                         const juce::String&   keyHint,
@@ -35,14 +44,8 @@ namespace lockstep
         g.drawRoundedRectangle(inner.toFloat(), 4.0f, borderW);
 
         // Key hint — top-left; always shown, slightly dimmed when disabled.
-        if (showKeyHint && keyHint.isNotEmpty())
-        {
-            g.setFont(juce::Font(juce::FontOptions(12.0f)));
-            g.setColour(juce::Colour(0xFFAAC4D8u).withAlpha(isDisabled ? 0.45f : 1.0f));
-            g.drawText(keyHint,
-                       inner.withHeight(14).reduced(2, 0),
-                       juce::Justification::topLeft);
-        }
+        if (showKeyHint)
+            paintCellKeyHint(g, inner, keyHint, isDisabled ? 0.45f : 1.0f);
 
         // MHZ.1.1: secondary band grown from 12 px to 14 px.
         const bool hasSec = secondary.isNotEmpty();
