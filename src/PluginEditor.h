@@ -119,8 +119,9 @@ namespace lockstep
         void applyDisplayMode(GridDisplayMode mode);
 
         // Unified input dispatch — both keyPressed and mouse callbacks route here.
-        void dispatchDown(ControllerEvent ev);
-        void dispatchUp  (ControllerEvent ev);
+        // rawCode = physical key code (keyboard) or 0 (mouse).
+        bool dispatchDown(ControllerEvent ev, int rawCode = 0);
+        void dispatchUp  (ControllerEvent ev, int rawCode = 0);
         void handleTapTempo();
 
         PressTracker pressTracker_;

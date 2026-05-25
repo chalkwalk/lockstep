@@ -654,28 +654,10 @@ namespace lockstep
     // -------------------------------------------------------------------------
     // Key handling (9x4 layout)
 
-    bool LockstepEditor::keyPressed(const juce::KeyPress& key, juce::Component*)
+    // dispatchDown — source-agnostic button-down handler fed by both keyboard
+    // and mouse.  rawCode is the physical key code (keyboard) or 0 (mouse).
+    bool LockstepEditor::dispatchDown(ControllerEvent ev, int rawCode)
     {
-        const int rawCode = key.getKeyCode();
-        const int uCode   = (rawCode >= 'a' && rawCode <= 'z')
-                                ? rawCode - ('a' - 'A')
-                                : rawCode;
-
-        // Suppress OS key-repeat: if we already saw this key go down, ignore.
-        if (!heldKeys_.insert(uCode).second)
-            return true;
-
-        if (QwertyOverlay::isEdgeKey(uCode))
-            return true;
-
-        const auto ev = qwerty_.resolve(uCode,
-                                        uiState_.funcHeld,
-                                        uiState_.trackHeld,
-                                        uiState_.muteHeld);
-
-        // Register in PressTracker so paint can highlight via isKeyHeld(rawCode).
-        pressTracker_.press(uCode, ev.button, ev.index);
-
         switch (ev.button)
         {
             case ControllerButton::Func:
@@ -1220,209 +1202,197 @@ namespace lockstep
         }
     }
 
+    bool LockstepEditor::keyPressed(const juce::KeyPress& key, juce::Component*)
+    {
+        const int rawCode = key.getKeyCode();
+        const int uCode   = (rawCode >= 'a' && rawCode <= 'z')
+                                ? rawCode - ('a' - 'A')
+                                : rawCode;
+
+        // Suppress OS key-repeat: if we already saw this key go down, ignore.
+        if (!heldKeys_.insert(uCode).second)
+            return true;
+
+        if (QwertyOverlay::isEdgeKey(uCode))
+            return true;
+
+        const auto ev = qwerty_.resolve(uCode,
+                                        uiState_.funcHeld,
+                                        uiState_.trackHeld,
+                                        uiState_.muteHeld);
+
+        pressTracker_.press(uCode, ev.button, ev.index);
+        return dispatchDown(ev, uCode);
+    }
+
+    // dispatchUp — source-agnostic button-up handler.
+    // rawCode: physical key code (keyboard) or 0 (mouse / no key).
+    void LockstepEditor::dispatchUp(ControllerEvent ev, int rawCode)
+    {
+        using CB = ControllerButton;
+        using T  = ControllerEvent::Type;
+
+        switch (ev.button)
+        {
+            case CB::Func:
+                // MD.7/MD.8: apply deferred pattern mute toggles atomically on Func release.
+                for (const int t : deferredPatternMutes_)
+                    processor_.togglePatternMute(t);
+                deferredPatternMutes_.clear();
+                uiState_.funcHeld = false;
+                // MHZ.3.4: Func release exits P-Lock clear mode.
+                uiState_.pLockClearMode  = false;
+                uiState_.pLockClearTrack = -1;
+                uiState_.pLockClearStep  = -1;
+                // MHZ.3.5: Func release exits machine picker mode.
+                uiState_.funcPartHeld = false;
+                editMode_.onScopeEvent({ T::ButtonUp, CB::Func });
+                keyboardArea_.repaint();
+                repaint();
+                break;
+
+            case CB::TrackScope:
+                uiState_.trackHeld = false;
+                processor_.setControlAllActive(false);  // MD.10
+                editMode_.onScopeEvent({ T::ButtonUp, CB::TrackScope });
+                repaint();
+                break;
+
+            case CB::PatternScope:
+                uiState_.patternScopeHeld = false;
+                uiState_.patternScopeUsed = false;
+                editMode_.onScopeEvent({ T::ButtonUp, CB::PatternScope });
+                repaint();
+                break;
+
+            case CB::PartScope:
+                uiState_.partHeld = false;
+                uiState_.funcPartHeld = false;  // MHZ.3.5
+                editMode_.onScopeEvent({ T::ButtonUp, CB::PartScope });
+                repaint();
+                break;
+
+            case CB::MuteScope:
+                uiState_.muteHeld = false;
+                editMode_.onScopeEvent({ T::ButtonUp, CB::MuteScope });
+                repaint();
+                break;
+
+            case CB::FillScope:
+                uiState_.fillHeld = false;
+                processor_.setFillActive(false);
+                editMode_.onScopeEvent({ T::ButtonUp, CB::FillScope });
+                repaint();
+                break;
+
+            case CB::CueScope:
+                uiState_.cueHeld = false;
+                editMode_.onScopeEvent({ T::ButtonUp, CB::CueScope });
+                repaint();
+                break;
+
+            case CB::SceneScope:
+                uiState_.sceneHeld = false;
+                editMode_.onScopeEvent({ T::ButtonUp, CB::SceneScope });
+                repaint();
+                break;
+
+            case CB::MasterScope:
+                uiState_.masterHeld = false;
+                editMode_.onScopeEvent({ T::ButtonUp, CB::MasterScope });
+                repaint();
+                break;
+
+            case CB::Section:
+            case CB::MetaSection:
+                heldSectionRawCode_ = -1;
+                editMode_.setSectionHeld(false);
+                break;
+
+            case CB::VerbPlay:
+                playKeyHeld_ = false;
+                break;
+
+            case CB::Step:
+            {
+                // MG.2: retrig key release — this step key started continuous retrig.
+                if (uiState_.retrigKeyHeld && uiState_.retrigKeyCode == rawCode)
+                {
+                    uiState_.retrigKeyHeld = false;
+                    uiState_.retrigKeyCode = -1;
+                    processor_.setRetrigActive(0, false);
+                    break;
+                }
+                // MG.5: sound-pool key release — restore track's original sound.
+                if (uiState_.soundPoolKeyHeld && uiState_.soundPoolKeyCode == rawCode)
+                {
+                    uiState_.soundPoolKeyHeld = false;
+                    uiState_.soundPoolKeyCode = -1;
+                    processor_.clearLiveSwap(keyboardArea_.getActiveTrack());
+                    break;
+                }
+                // Normal step release: look up absStep by rawCode and commit.
+                for (int i = static_cast<int>(heldStepKeys_.size()) - 1; i >= 0; --i)
+                {
+                    auto [code, stepIdx] = heldStepKeys_[static_cast<std::size_t>(i)];
+                    if (code == rawCode)
+                    {
+                        auto& ctx              = processor_.editContext();
+                        const int  track       = ctx.heldTrackIndex();
+                        const bool paramWrote  = ctx.wasParamWritten();
+                        processor_.editContext().release(stepIdx);
+                        // MHZ.3.1: next press starts a fresh chord capture.
+                        if (track >= 0)
+                            processor_.cancelChordCapture(track, stepIdx);
+                        if (!paramWrote && track >= 0 && stepIdx >= 0)
+                        {
+                            auto& s = processor_.sequence()
+                                .tracks[static_cast<std::size_t>(track)]
+                                .steps[static_cast<std::size_t>(stepIdx)];
+                            s.trig = !s.trig;
+                        }
+                        heldStepKeys_.erase(heldStepKeys_.begin() + i);
+                        break;
+                    }
+                }
+                if (heldStepKeys_.empty())
+                {
+                    uiState_.stepHeld = false;
+                    editMode_.setTrigHeld(false);
+                }
+                repaint();
+                break;
+            }
+
+            default:
+                break;
+        }
+    }
+
     bool LockstepEditor::keyStateChanged(bool isKeyDown, juce::Component*)
     {
-        // Purge any released keys from the repeat-suppression set.
+        // Purge released keys from the repeat-suppression set.
         std::erase_if(heldKeys_, [](int code) {
             return !juce::KeyPress::isKeyCurrentlyDown(code);
         });
 
-        // Mirror into PressTracker so paint reflects current keyboard state.
-        {
-            std::vector<int> toRelease;
-            pressTracker_.forEachReleasedKeyboard([&](int src, ControllerButton, int)
-            {
-                toRelease.push_back(src);
-            });
-            for (int src : toRelease)
-                pressTracker_.release(src);
-        }
-
+        // Diff PressTracker against physical key state; synthesize ButtonUp for
+        // any keyboard entry that is no longer down and dispatch release logic.
         bool handled = false;
-
-        // Left-column modifier key releases.
-        if (!isKeyDown && uiState_.funcHeld
-            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('1')))
+        std::vector<std::pair<int, ControllerEvent>> toRelease;
+        pressTracker_.forEachReleasedKeyboard([&](int src, ControllerButton btn, int idx)
         {
-            // MD.7/MD.8: apply deferred pattern mute toggles atomically.
-            for (const int t : deferredPatternMutes_)
-                processor_.togglePatternMute(t);
-            deferredPatternMutes_.clear();
-
-            uiState_.funcHeld = false;
-            // MHZ.3.4: Func release exits P-Lock clear mode.
-            uiState_.pLockClearMode  = false;
-            uiState_.pLockClearTrack = -1;
-            uiState_.pLockClearStep  = -1;
-            // MHZ.3.5: Func release exits machine picker mode.
-            uiState_.funcPartHeld = false;
-            editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::Func });
-            keyboardArea_.repaint();
-            repaint();
+            toRelease.push_back({ src,
+                { ControllerEvent::Type::ButtonUp, btn, idx, 0 } });
+        });
+        for (auto& [src, relEv] : toRelease)
+        {
+            pressTracker_.release(src);
+            dispatchUp(relEv, src);
             handled = true;
         }
 
-        // MHY cluster: Track lives on key 2.
-        if (!isKeyDown && uiState_.trackHeld
-            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('2')))
-        {
-            uiState_.trackHeld = false;
-            processor_.setControlAllActive(false);  // MD.10
-            editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::TrackScope });
-            repaint();
-            handled = true;
-        }
-
-        // MHY cluster: Pattern lives on key Q.
-        if (!isKeyDown && uiState_.patternScopeHeld
-            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('Q')))
-        {
-            uiState_.patternScopeHeld = false;
-            uiState_.patternScopeUsed = false;
-            editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::PatternScope });
-            repaint();
-            handled = true;
-        }
-
-        // MHY cluster: Part lives on key W (new scope).
-        if (!isKeyDown && uiState_.partHeld
-            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('W')))
-        {
-            uiState_.partHeld = false;
-            uiState_.funcPartHeld = false;  // MHZ.3.5: clear machine picker if Part released
-            editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::PartScope });
-            repaint();
-            handled = true;
-        }
-
-        // MHY cluster: Mute on Z (unchanged).
-        if (!isKeyDown && uiState_.muteHeld
-            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('Z')))
-        {
-            uiState_.muteHeld = false;
-            editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::MuteScope });
-            repaint();
-            handled = true;
-        }
-
-        // MHY cluster: Fill on key X.
-        if (!isKeyDown && uiState_.fillHeld
-            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('X')))
-        {
-            uiState_.fillHeld = false;
-            processor_.setFillActive(false);
-            editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::FillScope });
-            repaint();
-            handled = true;
-        }
-
-        // MHY: Cue is not bound to any cluster key post-MHY. The held-state
-        // tracking remains in case a future input source emits CueScope events.
-        if (!isKeyDown && uiState_.cueHeld)
-        {
-            uiState_.cueHeld = false;
-            editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::CueScope });
-            repaint();
-            handled = true;
-        }
-
-        // MHY cluster: Scene on key A.
-        if (!isKeyDown && uiState_.sceneHeld
-            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('A')))
-        {
-            uiState_.sceneHeld = false;
-            editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::SceneScope });
-            repaint();
-            handled = true;
-        }
-
-        // MHY cluster: Master on key S.
-        if (!isKeyDown && uiState_.masterHeld
-            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('S')))
-        {
-            uiState_.masterHeld = false;
-            editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::MasterScope });
-            repaint();
-            handled = true;
-        }
-
-        // Section key release: clear section-held scope.
-        if (heldSectionRawCode_ >= 0
-            && !juce::KeyPress::isKeyCurrentlyDown(heldSectionRawCode_))
-        {
-            heldSectionRawCode_ = -1;
-            editMode_.setSectionHeld(false);
-            handled = true;
-        }
-
-        if (!isKeyDown && playKeyHeld_
-            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('I')))
-        {
-            playKeyHeld_ = false;
-            handled = true;
-        }
-
-        // MG.2: retrig key release.
-        if (uiState_.retrigKeyHeld
-            && uiState_.retrigKeyCode >= 0
-            && !juce::KeyPress::isKeyCurrentlyDown(uiState_.retrigKeyCode))
-        {
-            uiState_.retrigKeyHeld = false;
-            uiState_.retrigKeyCode = -1;
-            processor_.setRetrigActive(0, false);  // track arg ignored for cancel
-            handled = true;
-        }
-
-        // MG.5: Sound Pool key release — restore track's original sound.
-        if (uiState_.soundPoolKeyHeld
-            && uiState_.soundPoolKeyCode >= 0
-            && !juce::KeyPress::isKeyCurrentlyDown(uiState_.soundPoolKeyCode))
-        {
-            uiState_.soundPoolKeyHeld = false;
-            uiState_.soundPoolKeyCode = -1;
-            processor_.clearLiveSwap(keyboardArea_.getActiveTrack());
-            handled = true;
-        }
-
-        // Step key releases: for each held step whose physical key is no longer down,
-        // release it from the edit context and optionally toggle its trig.
-        for (int i = static_cast<int>(heldStepKeys_.size()) - 1; i >= 0; --i)
-        {
-            auto [code, stepIdx] = heldStepKeys_[static_cast<std::size_t>(i)];
-            if (!juce::KeyPress::isKeyCurrentlyDown(code))
-            {
-                auto& ctx = processor_.editContext();
-                const int  track          = ctx.heldTrackIndex();
-                const bool paramWasWritten = ctx.wasParamWritten();
-
-                processor_.editContext().release(stepIdx);
-                // MHZ.3.1: signal the audio thread that this step is no longer held,
-                // so the next press of the same step starts a fresh chord capture.
-                if (track >= 0)
-                    processor_.cancelChordCapture(track, stepIdx);
-
-                if (!paramWasWritten && track >= 0 && stepIdx >= 0)
-                {
-                    auto& s = processor_.sequence()
-                        .tracks[static_cast<std::size_t>(track)]
-                        .steps[static_cast<std::size_t>(stepIdx)];
-                    s.trig = !s.trig;
-                }
-
-                heldStepKeys_.erase(heldStepKeys_.begin() + i);
-                handled = true;
-            }
-        }
-        if (handled && heldStepKeys_.empty())
-        {
-            uiState_.stepHeld = false;
-            editMode_.setTrigHeld(false);
-            repaint();
-        }
-
-        // Key releases change visual state: step trigs toggle on release, and nav/step
-        // keys paint their pressed state via isKeyCurrentlyDown(). Always repaint on
-        // key-up so the display doesn't lag behind physical state.
+        // Always repaint on key-up so pressed indicators clear immediately.
         if (!isKeyDown)
             keyboardArea_.repaint();
 
