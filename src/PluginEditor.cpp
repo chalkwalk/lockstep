@@ -293,6 +293,25 @@ namespace lockstep
         if (flooredMaster != masterMeter_) { masterMeter_ = flooredMaster; dirty = true; }
 
         if (dirty) repaint();
+
+        // Reconcile: release any keyboard press whose key is no longer physically
+        // down (catches stuck modifiers/steps after Alt-Tab or window deactivation).
+        std::vector<std::pair<int, ControllerEvent>> toRelease;
+        pressTracker_.forEachReleasedKeyboard([&](int src, ControllerButton btn, int idx) {
+            toRelease.push_back({ src, { ControllerEvent::Type::ButtonUp, btn, idx, 0 } });
+        });
+        if (!toRelease.empty())
+        {
+            std::erase_if(heldKeys_, [](int code) {
+                return !juce::KeyPress::isKeyCurrentlyDown(code);
+            });
+            for (auto& [src, relEv] : toRelease)
+            {
+                pressTracker_.release(src);
+                dispatchUp(relEv, src);
+            }
+            repaint();
+        }
     }
 
     // Maps a linear meter level [0,1] to a green→yellow→red colour.
@@ -389,6 +408,19 @@ namespace lockstep
         keyListenerTarget_ = newTop;
         if (keyListenerTarget_ != nullptr && keyListenerTarget_ != this)
             keyListenerTarget_->addKeyListener(this);
+    }
+
+    void LockstepEditor::focusLost(FocusChangeType /*cause*/)
+    {
+        // Release any held mouse state so a focus-loss mid-click doesn't leave
+        // a modifier or step stuck (keyboard is reconciled in timerCallback).
+        if (const auto entry = pressTracker_.mouseEntry())
+        {
+            pressTracker_.release(PressTracker::kMouseSource);
+            dispatchUp({ ControllerEvent::Type::ButtonUp, entry->button, entry->index, 0 },
+                       PressTracker::kMouseSource);
+            keyboardArea_.repaint();
+        }
     }
 
     void LockstepEditor::paint(juce::Graphics& g)

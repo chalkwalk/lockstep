@@ -38,6 +38,7 @@ namespace lockstep
         void paintOverChildren(juce::Graphics& g) override;
         void resized() override;
         void parentHierarchyChanged() override;
+        void focusLost(FocusChangeType cause) override;
 
         // juce::FileDragAndDropTarget
         bool isInterestedInFileDrag(const juce::StringArray& files) override;

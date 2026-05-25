@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <unordered_map>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "ControllerEvent.h"
@@ -42,6 +43,15 @@ namespace lockstep
             return (index == -1 || it->second.index == index);
         }
 
+        // Returns the current mouse-held entry if one exists, or nullopt.
+        struct Entry { ControllerButton button; int index; };
+        [[nodiscard]] std::optional<Entry> mouseEntry() const
+        {
+            const auto it = entries_.find(kMouseSource);
+            if (it == entries_.end()) return std::nullopt;
+            return it->second;
+        }
+
         // Call fn(source, button, index) for every keyboard entry whose key is no
         // longer physically down.  Used by keyStateChanged to synthesize ButtonUp events.
         template<typename F>
@@ -59,7 +69,6 @@ namespace lockstep
         [[nodiscard]] bool anyHeld() const { return !entries_.empty(); }
 
     private:
-        struct Entry { ControllerButton button; int index; };
         std::unordered_map<int, Entry> entries_;
     };
 }
