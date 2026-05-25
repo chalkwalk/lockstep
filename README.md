@@ -194,6 +194,12 @@ other naturally with no master-bar concept.
 | **Sample pool** | The project-wide library of samples, stored as `{path, hash}` references rather than embedded audio. |
 | **Sound Pool** *(planned)* | A project-scope library of saved per-track sounds, recallable or P-lockable per step. |
 | **Scene / crossfader** *(planned)* | A per-Part pair of parameter snapshots blended by a continuous fader. |
+| **Scope colour grammar** *(planned, MHZ.1)* | A canonical palette per scope (`step` = light grey, plus distinct hues for `track / pattern / part / machine / scene / master`) used by key tints, the step-grid scope re-skin, and any badge that needs to say "which scope is held". |
+| **Scope re-skin** *(planned, MHZ.2)* | When a scope modifier maps to a 1-of-16 selector (Track / Pattern / Part; `Part + SRC` = machine picker), the 16 step keys become a non-paginated index for that scope. Unavailable indices dim. Cells tint in the scope's colour. |
+| **Top-bar dashboard** *(planned, MHZ.2)* | The top of the editor splits into a persistent performance dashboard (BPM, Bank/Pattern/Part, transport position, chain queue, checkpoint depth) on the left, and a live held-context preview on the right. |
+| **Value-label table** *(planned, MHZ.2)* | A `ParamSpec` field carrying textual names for stepped/enum positions (`LP24 / LP12 / HP / BP`, `MONO / PARA`, …). The MZ renders the textual name in place of a number when present. |
+| **Step-hold capture window** *(planned, MHZ.3)* | The canonical chord-edit path: hold a step → play MIDI → release commits the captured chord onto that step. Empty buffer = no change. Independent of record-arm and transport. |
+| **P-Lock clear gestures + popup picker** *(planned, MHZ.3)* | `Trig + (slot) + Stop` clears one slot's P-Lock on the held step; `Trig + Func + Stop` clears every P-Lock on the held step; for steps with several locks, a popup picker turns the MZ into a 1-of-16 list and the step key (D=1 … `/`=16) clears that one. |
 
 ---
 
@@ -570,7 +576,63 @@ shows the stack depth (`CK:N`).
   stop).
 - Transport controls bind to MIDI realtime / MMC, not to CC.
 
-### 5.17 Trig-grid modes *(selectors present; behaviour planned)*
+### 5.17 Keyboard / UI revamp *(planned, MHZ)*
+
+A chrome-and-grammar pass over the 10×4 surface that MHX/MHY froze.
+Lands as three sub-milestones (MHZ.1 → MHZ.2 → MHZ.3) before the
+remaining MH machine catalogue resumes.
+
+**MHZ.1 — Surface chrome (planned).**
+
+- Larger key cells with bigger primary text; **6-character** key label
+  ceiling (was 3–4); longer abbreviations like `FILTER`, `ATTACK`,
+  `RETRIG`, `COPY`, `PASTE`, `CLEAR`.
+- A unified **label-resolution rule**: when a modifier is held the key
+  re-skins to its contextual meaning; universally-invariant secondary
+  meanings (verb keys' COPY/PASTE/CLR under any scope) keep an
+  always-on hint.
+- **Scope colour grammar**: a canonical palette per scope (light grey
+  for step, distinct hues for `track / pattern / part / machine /
+  scene / master`) so the surface visibly says *which scope is held*.
+
+**MHZ.2 — Contextual modes, top bar, MZ streamline (planned).**
+
+- **Step-grid scope re-skin.** Hold `Track` and the 16 step keys
+  become a 1-of-16 track picker; `Pattern` → pattern picker; `Part`
+  → part picker; `Part + SRC` → machine picker showing machine names.
+  **Pagination is suppressed in this mode** — only "which key was
+  pressed" matters. Unavailable indices dim; cells tint with the
+  scope colour.
+- **Top-bar dashboard + held-context preview.** The pre-MHZ "mode
+  chips" row is replaced by a persistent performance dashboard (BPM,
+  Bank / Pattern / Part identity, transport position, chain queue,
+  checkpoint depth) on the left, and a live held-context preview on
+  the right (e.g. `TRACK 3 + …`, `PART + SRC → machine picker`).
+- **MZ streamline.** Each slot collapses to a larger rotary plus a
+  single value display; stepped/enum params show textual values
+  (`LP24 / LP12 / HP / BP`, `MONO / PARA`) instead of numbers when
+  `ParamSpec.valueLabels` is populated.
+- **Double-click rotary** resets a slot to its default. (Eventual
+  hardware push-encoder-twice maps to the same gesture.)
+
+**MHZ.3 — Note capture, P-Lock clear, popup picker (planned).**
+
+- **Step-hold MIDI capture.** Hold a step, play notes, release — the
+  captured chord lands on that step (up to 4 notes). Works with the
+  transport stopped and record-arm off; an empty buffer is a no-op
+  (no destructive surprise).
+- **Replace-on-hold is the chord editor.** Replaying a different
+  chord onto a held step replaces the existing chord; no per-note
+  add/remove/swap UI in MHZ.
+- **P-Lock clear gestures.** `Trig + (slot) + Stop` clears the held
+  step's lock on that slot; `Trig + Func + Stop` clears all locks
+  on the held step. Both use the existing scope+verb grammar — no
+  bespoke keys.
+- **Popup picker for P-Lock clear.** When several locks exist on a
+  held step, the MZ becomes a non-paginated list of locked
+  parameters; press the step key (D=1 … `/`=16) to clear that one.
+
+### 5.18 Trig-grid modes *(selectors present; behaviour planned)*
 
 The trig grid can become a modal surface for non-step roles:
 
@@ -622,22 +684,23 @@ filter + amp envelope). **Note:** the shipping overlay is still the
 **9×4** layout (one left modifier column, four-slot Manipulation Zone);
 §5 documents the 10×4 target that MHX delivers.
 
-**Planned** (remaining milestones; MHX is next): the **10×4 surface
-revamp** —
-eight-key one-hand modifier cluster, compound chords, single `Scene`
-modifier, `Master` focus key, 8-slot (4×2) Manipulation Zone, staggered
-encoder band + vertical crossfader, four-register cell typography
-(MHX); post-machine FLTR and AMP blocks
-with role-tagged sections (ME); the first-class MIDI-out machine (MF);
-the full behaviour of the alternate trig modes — Keyboard / Retrig /
-Sound Pool (MG); the remaining sound engines — drum-synth, slicer (MH);
-scenes + crossfader (MI); pattern/part
-management UI (MJ); sampler trim/loop depth (MK); microtiming and swing
-(ML); 16-levels mode (MM); live sampling and resampling (MN); audition
-and cross-track record (MO); UI polish and the state-colour palette
-(MP); special trig types (MQ); audio-input routing and the Thru machine
-(MR); recorder buffers and looper (MS–MT); the cue bus (MU); and the
-insert/master effects system (MV).
+**Planned** (remaining milestones; **MHZ is next**, then MH.3
+resumes): the **keyboard / UI revamp** — bigger key cells, 6-char
+labels, unified label-resolution helper, scope colour grammar
+(MHZ.1); step-grid scope re-skin, top-bar dashboard + held-context
+preview, MZ streamline + `ParamSpec.valueLabels`, double-click default
+(MHZ.2); step-hold MIDI capture, P-Lock clear gestures, popup picker
+(MHZ.3); the remaining sound engines — drum-synth, slicer, static,
+percussion (MH.3–MH.7) authored against the MHZ surface; post-machine
+FLTR and AMP blocks with role-tagged sections (ME); the first-class
+MIDI-out machine (MF); the full behaviour of the alternate trig modes
+— Keyboard / Retrig / Sound Pool (MG); scenes + crossfader (MI);
+pattern/part management UI (MJ); sampler trim/loop depth (MK);
+microtiming and swing (ML); 16-levels mode (MM); live sampling and
+resampling (MN); audition and cross-track record (MO); UI polish and
+the state-colour palette (MP); special trig types (MQ); audio-input
+routing and the Thru machine (MR); recorder buffers and looper (MS–MT);
+the cue bus (MU); and the insert/master effects system (MV).
 
 See `ROADMAP.md` for the full milestone breakdown and current status.
 ```

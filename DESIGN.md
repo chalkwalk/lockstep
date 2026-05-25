@@ -93,12 +93,17 @@ The boundary is deliberately narrow but deliberately *not* fixed-shape
   a stable string id, a display label, range, default, stepped flag,
   unit hint, the section index it belongs to (0..5; see §6.1.1), a
   **variant** (`Primary` or `Secondary` — MHY) declaring whether the
-  slot lives on the no-modifier page or under `Func+section`, and an
-  optional **role tag** (see below). Slot count and layout are
-  entirely the machine's choice; only the section-key it sits under
-  is constrained by the snap-to-canonical discipline (§6.1.1). The
-  sequencer's P-Lock storage, MZ rendering, and CC mapping are all
-  driven by the schema the machine reports.
+  slot lives on the no-modifier page or under `Func+section`, an
+  optional **role tag** (see below), and an optional **value-label
+  table** (`valueLabels`, MHZ.2) supplying textual names for stepped /
+  enum positions (`LP24 / LP12 / HP / BP`, `MONO / PARA`, sine / saw /
+  pulse / tri…). Slot count and layout are entirely the machine's
+  choice; only the section-key it sits under is constrained by the
+  snap-to-canonical discipline (§6.1.1). The sequencer's P-Lock
+  storage, MZ rendering, and CC mapping are all driven by the schema
+  the machine reports. When `valueLabels` is populated the MZ
+  renders the textual name in the single value display (§26.2);
+  empty = numeric.
 - **Role tags (`ParamSpec::role`).** An optional enum that classifies
   what a slot *is* across machine types: `cutoff`, `resonance`,
   `attack`, `decay`, `sustain`, `release`, `lfo.rate`, `lfo.depth`,
@@ -804,6 +809,127 @@ quick-start, but power users edit individual toggles directly.
 Toggle state is not P-lockable and does not affect playback or MIDI
 routing.
 
+### 6.5 Contextual chrome and label resolution (MHZ.1)
+
+The MHY rollout introduced enough contextual relabelling
+(`COPY/PASTE/CLR` on verb keys when a scope is held; the scope-section
+matrix relabelling six section keys under five different scopes;
+section-bar dimming for `hasContent=false` cells) that the original
+"primary label / fixed secondary label" cell layout no longer carries
+the meaning a held modifier puts on the key. MHZ.1 consolidates the
+contextual chrome under a single rule:
+
+**One resolver decides every key's label.** A pure helper
+
+```cpp
+KeyLabel resolveKeyLabel(const KeyDef& def,
+                         const UiState& ui,
+                         const EditContext& ec);
+struct KeyLabel { juce::String primary; juce::String hint; };
+```
+
+is the only path that produces the strings painted on a key. Today's
+ad-hoc branches — the `COP/PST/CLR` swap, the `scopedCell()` matrix
+lookup, the verb-key dimming under section scope — collapse into this
+one function. **Step-hold is just another modifier flag in the input**
+(`ec.isActiveForEditing()`), so the historical "section scope held OR
+step held" special case disappears.
+
+The resolver follows three policies:
+
+1. **Primary label swaps when a modifier is held.** When any held
+   modifier reinterprets a key, the resolver returns that
+   contextual label as `primary`. Without held modifiers, the
+   `primary` is the key's natural identity.
+2. **An always-on `hint` survives only for genuinely-invariant
+   secondary meanings.** Verb keys always reach for COPY/PASTE/CLR
+   under *any* scope, so those hints can render as a permanent
+   bottom-line hint regardless of state. Everything else — section
+   scope cells, step-held cells, etc. — only swaps when its
+   modifier is held.
+3. **Empty / disabled is a first-class return.** The resolver may
+   say "no contextual primary, dim the key" for cells the held
+   scope reinterprets to nothing (e.g. `Pattern + 6 SRC`). The
+   paint pipeline trusts the resolver and never adds its own
+   relabelling.
+
+### 6.6 Scope colour grammar (MHZ.1)
+
+The scope identity that a held modifier puts on the surface is now
+**visible**, not just functional. Each scope has a canonical colour
+slot in `UITheme`:
+
+| Scope     | Colour slot |
+|-----------|-------------|
+| *(none)* / step | light grey |
+| `Track`   | distinct hue 1 |
+| `Pattern` | distinct hue 2 |
+| `Part`    | distinct hue 3 |
+| `Machine` (Part+SRC picker) | distinct hue 4 |
+| `Scene`   | distinct hue 5 |
+| `Master`  | distinct hue 6 |
+
+Used by:
+- key tints when a modifier is held (the held key, and any keys it
+  reinterprets, glow in its scope colour);
+- the step-grid scope re-skin (§6.7), so a held `Track` shows steps
+  tinted in the track scope colour while they act as a 1-of-16
+  picker;
+- the held-context preview band (§6.8);
+- any badge or chrome that needs to say *what scope am I in?*.
+
+**Taxonomy only.** As with §24 (state colour palette), specific RGB
+values are a later visual-design pass; the canonical *set* is fixed
+here so hardware LEDs and the software surface stay in lockstep.
+
+### 6.7 Scope-driven step-grid re-skin (MHZ.2)
+
+When a scope modifier maps to a 1-of-16 selector, the 16 step keys
+are re-skinned for the duration of the hold:
+
+| Held modifier        | Re-skin                                  |
+|----------------------|------------------------------------------|
+| `Track`              | Track 1 … 16 (numeric)                    |
+| `Pattern`            | Pattern 1 … 16 (numeric)                  |
+| `Part`               | Part 1 … 16 (numeric)                     |
+| `Part + SRC` (machine picker) | Machine names (textual)          |
+
+Three rules govern the re-skin:
+
+1. **Pagination is suppressed.** In the re-skinned mode only "which
+   key was pressed" matters, and there are at most 16 entries
+   directly addressable by D … `/`. The page bar is dimmed; cells
+   never wrap.
+2. **Unavailable indices dim.** If only N entries exist (e.g. 8
+   tracks), indices > N render in the disabled state. The user sees
+   immediately how many slots are populated without consulting
+   another part of the UI.
+3. **Cells tint with the scope colour** (§6.6) so the surface tells
+   the user *which scope is being picked from*.
+
+Implementation: an extended scoped-cell table (sibling of
+`ScopedSectionMatrix.h`) maps `Scope → ReskinSpec { count,
+labelStyle, labelForIndex }`. The paint pipeline consults the table;
+no scope-specific paint code.
+
+### 6.8 Top-bar dashboard and held-context preview (MHZ.2)
+
+The pre-MHZ "mode chips" row duplicated information already encoded
+in the held cluster keys. MHZ.2 replaces it with two zones reading a
+single view-model:
+
+- **Left dashboard.** Persistent performance state: BPM,
+  Bank / Pattern / Part identity, transport position, chain queue
+  glance, checkpoint depth (`CK:N`).
+- **Right held-context preview.** Derived from currently-held
+  modifiers — e.g. `TRACK 3 + …`, `PART + SRC → machine picker`.
+  Acts as a live cheat sheet without being authoritative: the
+  *behaviour* is set by the cluster keys, the preview just *shows*
+  what those held keys mean.
+
+Both zones read the same view-model so what the bar says and what
+the next verb does cannot drift.
+
 ## 7. Host Serialization
 
 Plugin state carries:
@@ -1045,6 +1171,9 @@ A single uniform grammar: **hold scope, press verb**.
 | `Trig` (hold 1+ steps) + Record | Copy those steps (trigs + condition + P-Locks). |
 | `Trig` + Play | Paste clipboard onto the held steps. |
 | `Trig` + Stop | Clear those steps' overrides (trig + P-Locks). |
+| `Trig` + `Func + Stop` (MHZ.3) | Clear **all** P-Locks on the held step(s), leaving the trig itself intact. The `Func` qualifier narrows `Stop`'s scope from "clear the step" to "clear locks only". |
+| `Trig` + `(MZ slot)` + Stop (MHZ.3) | Clear **only that slot's** P-Lock on the held step. Targeted by the held slot (the same slot the MZ would write). |
+| `Trig` + popup picker → step key (MHZ.3) | When several P-Locks exist on the held step, invoking the popup picker turns the MZ into a non-paginated list of P-locked slots; pressing the step key (D=1 … `/`=16) clears just that one. Page-independent. |
 | `Section` key + Record | Copy all of that section's params (base + P-Locks across all steps). |
 | `Section` key + Play | Paste section onto current track. |
 | `Section` key + Stop | Reset section to default. |
@@ -1684,6 +1813,45 @@ identically with Retrig (MG.2), Slice (MG.3), and Sound Pool
 slice-index, sound-id) onto the next emitted step. The grammar is
 the same; only the payload differs.
 
+### 21.4 Step-hold capture window (MHZ.3)
+
+Hold-step + play notes + release is the **canonical chord-edit path**
+on a step. The transport need not be running and record-arm need not
+be on: holding a step opens a *capture window* on that step; every
+MIDI note-on that arrives while the step is held accumulates into a
+temporary chord buffer; releasing the step commits the buffer.
+
+Commit semantics:
+
+- The committed chord replaces the step's
+  `TrigOverride.notes[] / noteCount` (reusing the MH.2 chord-step
+  model, up to `kMaxNotesPerStep = 4`).
+- **Empty buffer = no change.** Holding a step without playing any
+  notes preserves existing data — the gesture is non-destructive
+  unless notes are actually played.
+- Velocity / gate captured the same way as transport-time record
+  (§4.6 conventions): velocity taken from the highest-velocity
+  note-on, gate captured from the longest note-on→note-off span if
+  all notes are released before the step is released; otherwise the
+  track default `gateLength` is used.
+
+Coexistence:
+
+- **Replaces** the per-playhead behaviour as the *canonical* editing
+  path. The earlier transport-time record-arm capture (§21.2)
+  remains as the **live performance** flow: while record-arm is on
+  and the transport is running, played notes still land on the
+  currently-firing step on the armed-set's tracks. The two are
+  orthogonal and never run simultaneously on the same step.
+- Composes with all other modifiers — holding a step is just another
+  modifier in the single-input-gate rule (§5) — so a chord captured
+  during step-hold can still be augmented with section-page
+  P-Locks before release.
+
+There is no per-note add/remove/swap editor in MHZ; **replace on
+hold** is the editor. A finer-grained editor only lands later if
+play-testing proves replace-only too coarse.
+
 ## 22. Sampling and Resampling
 
 A single capture flow underlies both "sample audio coming into the
@@ -1844,6 +2012,21 @@ emerges):
 | `pattern.chained` | Member of the active chain. |
 | `mode.alt` | Trig-grid in an alt mode (Keyboard / Retrig / SoundPool / 16-levels). |
 | `checkpoint.depth` | Chrome chip — depth `0..8`. |
+| `scope.colour.step` | Default-grey (no scope held). |
+| `scope.colour.track` | Track-scope held — applied to keys + reskinned step cells. |
+| `scope.colour.pattern` | Pattern-scope held. |
+| `scope.colour.part` | Part-scope held. |
+| `scope.colour.machine` | `Part + SRC` machine picker — distinct from Part so the picker is visibly its own mode. |
+| `scope.colour.scene` | Scene-scope held. |
+| `scope.colour.master` | Master-scope held. |
+
+The seven `scope.colour.*` entries (MHZ.1) are the **scope colour
+grammar**: the visible side of "which scope is on the surface right
+now". They drive key tints when a modifier is held, the step-grid
+re-skin cells (§6.7), the held-context preview band (§6.8), and any
+badge that needs to signal scope identity. Same deferred-palette
+policy as the rest of §24 — the *set* is canonical, specific RGB
+values land in the later visual-design pass.
 
 Every renderer (StepGrid, SectionBar, chrome badges, future
 hardware LED packet builder) consumes the same enum through a
@@ -1952,6 +2135,30 @@ taxonomy.
 The size remains a single named constant (`lockstep::kMZSlots`, now
 `8`); no code outside the MZ may hard-code the slot count, so the
 value stays the one place a future re-size is made.
+
+### 26.3 Slot layout streamline (MHZ.2)
+
+Pre-MHZ each MZ slot rendered a parameter name label, a rotary
+encoder, a separately-rendered numeric value label, and a "clear
+P-Lock" `x` button — four widgets per slot, with the label and the
+value duplicating information. MHZ.2 collapses each slot to **rotary
++ one value display**, where:
+
+- The value display reads textual when the slot's `ParamSpec` carries
+  a `valueLabels` table (§2) — `LP24 / LP12 / HP / BP`, `MONO / PARA`,
+  sine / saw / pulse / tri — and numeric otherwise.
+- The parameter's name moves to a slim header (or piggybacks on the
+  section-key label since context already names the page).
+- The standalone `x` clear button is removed; clearing a P-Lock is a
+  grammar gesture under `Trig + (slot) + Stop` / `Trig + Func + Stop`
+  / `Trig + popup picker` (§13.2), keyboard-first.
+- The reclaimed space grows the rotary itself, so it's actually
+  legible at performing distance.
+
+Double-click on a rotary resets its slot to the `ParamSpec` default,
+routed through one helper so the eventual hardware push-encoder-twice
+gesture lands on the same code path (consistent with §17.5
+single-axis push-encoder discipline).
 
 ## 27. Audio Routing and Track Input Sources
 

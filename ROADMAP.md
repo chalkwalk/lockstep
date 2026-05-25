@@ -10,8 +10,9 @@ feature must satisfy, see `PRINCIPLES.md`. **Before adding a
 milestone here, confirm it is expressible within those principles
 and within the existing scope+verb grammar (DESIGN §13).**
 
-**Active focus:** MH.3 — DrumSynthMachine (Rytm-style per-track drum synthesis, kick/snare/hat/tom variants). Authoring against the MHY contract (scope-indexed sections, MOD canonical, Part scope, Yes/Rec/Play/Stop/No verbs).
+**Active focus:** MH.3 — DrumSynthMachine (Rytm-style per-track drum synthesis, kick/snare/hat/tom variants). Authoring against the MHY contract (scope-indexed sections, MOD canonical, Part scope, Yes/Rec/Play/Stop/No verbs). **Paused** while MHZ.1 → MHZ.3 (keyboard / UI revamp) land — MH.3 resumes against the improved surface.
 **Last completed:** MHY — Surface revamp complete: modifier cluster remapped (Func/Track|Pattern/Part|Scene/Master|Mute/Fill), LFO→MOD, ParamSpec.variant, right-utility row Yes/Rec/Play/Stop/No, scope-section matrix scaffolding + reactive chrome, tap tempo implemented.
+**Next up:** MHZ — Keyboard / UI revamp (MHZ.1 chrome + label grammar → MHZ.2 contextual modes + top bar + MZ streamline → MHZ.3 step-hold note capture + P-Lock clear + popup picker). Lands before MH.3 resumes.
 
 After M8 the roadmap pivots from "core sequencer is usable" to
 "performance instrument is usable" — see milestones MB–MI below
@@ -840,13 +841,178 @@ reactivation). Folds machine-select into `Part+SRC` (replaces
       fix; scope-section matrix labels confirmed live-updating in the
       section bar when scope modifiers are held.
 
+### MHZ — Keyboard / UI revamp  [pending]
+
+DESIGN §6, §13, §24. A third surface-revamp pass sequenced **after**
+MHY (which froze the cluster identities + section matrix) and **before**
+the remaining MH catalogue entries — in practice the three MHZ sub-
+milestones land before MH.3 resumes so DrumSynth / Slicer / Static /
+Percussion are authored against the improved surface.
+
+MHX / MHY froze the geometry and the modifier cluster. MHZ closes the
+chrome and grammar gaps that surfaced once the matrix was wired:
+
+- key cells under-use the screen (small primary text, four-register
+  cells designed when "contextual labels" was one special case);
+- contextual labels (`COPY/PASTE/CLR`, scope-relabelled sections)
+  reach for ad-hoc swap logic instead of a single rule;
+- there is no project-wide colour grammar to tell the user which
+  scope a held modifier is operating on;
+- the top-bar "mode chips" duplicate what the cluster already says
+  while real performance state (BPM, Bank/Pattern/Part identity,
+  chain queue, checkpoint depth) has nowhere to live;
+- the ManipulationZone repeats parameter name + value redundantly and
+  has no textual display for stepped/enum params (filter mode, voice
+  mode, …);
+- there is no canonical step-edit path for chord notes (today MH.2
+  chord capture only fires under transport-time record-arm), no
+  P-Lock clear gesture, and no default-reset gesture on a rotary.
+
+**Frozen by MHX/MHY, untouched by MHZ:** all key positions, the
+modifier cluster identities, the section-bar canonical taxonomy, the
+scope+verb grammar (DESIGN §13). MHZ is a chrome / grammar-helper /
+gap-closing pass; it adds no new scopes and no new verbs.
+
+#### MHZ.1 — Surface chrome (geometry + label grammar)
+
+Goal: bigger, clearer, contextual keys; project-wide scope colour
+grammar; no behavioural change to the sequencer itself.
+
+- [ ] **MHZ.1.1** Key cell typography pass. Grow primary-label font
+      (~10pt → ~15pt), grow QWERTY hint and secondary band, drop the
+      wasted inner margin. `KeyButton.{h,cpp}` paint primitive.
+- [ ] **MHZ.1.2** Label-length ceiling lifted to **6 characters
+      (hard cap)**. Audit existing canonical and per-key abbreviations
+      and lengthen the ones that benefit (`FILTER`, `ATTACK`,
+      `RETRIG`, `COPY`, `PASTE`, `CLEAR`, `CONFIG`, …). Truncation
+      logic in `paintKeyButton` updated; over-6 falls back to
+      auto-shrink rather than truncation.
+- [ ] **MHZ.1.3** Unified label-resolution helper
+      `resolveKeyLabel(KeyDef, UiState, EditContext) -> {primary,
+      hint}`. Collapses today's ad-hoc `COP/PST/CLR` branch + the
+      `scopedCell()` matrix lookup + the verb-key dimming into one
+      rule. Step-hold becomes just another modifier flag in the
+      resolver's input — the "section scope held OR step held"
+      special case disappears.
+- [ ] **MHZ.1.4** Scope colour grammar in `UITheme.h`. Canonical
+      palette entries: `step / track / pattern / part / machine /
+      scene / master`. Light grey for step (default); distinct hue per
+      remaining scope. Used by every UI surface from this point: key
+      tints when a modifier is held, StepGrid re-skin cells (MHZ.2),
+      held-context preview chrome (MHZ.2), badges. Taxonomy only —
+      exact palette values defer to the later visual-design pass
+      (DESIGN §24 policy).
+- [ ] **MHZ.1.5** Always-on hints kept where the secondary meaning is
+      genuinely invariant under *any* scope (verb keys
+      `COPY/PASTE/CLR` under any scope modifier; anything else swaps
+      only when the relevant modifier is held). Encoded inside the
+      label resolver so the policy lives in one place.
+- [ ] **MHZ.1.6** Documentation pass: DESIGN §6 sub-section "Contextual
+      chrome and label resolution"; DESIGN §24 scope colour grammar
+      taxonomy; CLAUDE.md glossary entries; README.md §5 + §6.
+- [ ] **MHZ.1.7** Verification: build clean (all three targets);
+      standalone smoke-tested; visually confirm primary labels readable
+      at arm's length, every modifier press lights its scope colour,
+      hint-vs-primary policy correct.
+
+#### MHZ.2 — Contextual modes (scope-driven re-skin + top bar + MZ streamline)
+
+Goal: the surface tells you exactly what your held modifiers will
+operate on; the MZ stops repeating itself; the top bar becomes useful.
+
+- [ ] **MHZ.2.1** Step-grid scope re-skin. When a scope modifier maps
+      to a 1-of-16 selector (Track / Pattern / Part; Part+SRC =
+      machine picker) the 16 step keys become a non-paginated index
+      for that scope. **Pagination is suppressed** in the re-skinned
+      mode — only "which key was pressed" matters. Unavailable indices
+      dim (e.g. tracks 9–16 dim when only 8 tracks exist). Cells tint
+      with the scope colour. Driven by an extended scoped-cell table
+      (sibling of `ScopedSectionMatrix.h`) so new scopes are data, not
+      paint code. Machine names render textually on Part+SRC; every
+      other scope is numeric.
+- [ ] **MHZ.2.2** Top bar redesign. Drop the mode-chips strip;
+      replace with two zones:
+      - **Left dashboard:** BPM, Bank/Pattern/Part identity, transport
+        position, chain queue glance, checkpoint depth `CK:N`.
+      - **Right held-context preview:** derived from held modifiers —
+        e.g. "TRACK 3 + …" or "PART + SRC → machine picker". Live
+        cheat sheet for the cluster grammar.
+      Both zones read a single view-model so behaviour and labels
+      cannot drift.
+- [ ] **MHZ.2.3** ManipulationZone streamlining. Each slot collapses
+      to **rotary + one value display**. Value display is textual
+      when the slot's `ParamSpec` carries a `valueLabels` table
+      (filter mode, voice mode, …) and numeric otherwise. Bigger
+      rotaries fill the reclaimed space. Param name moves to a slim
+      header (or piggybacks on the section key label since context
+      already says what page you're on). The redundant separate
+      label-and-value pair is gone.
+- [ ] **MHZ.2.4** Double-click rotary → reset to default. JUCE
+      `Slider::onDoubleClick`. Routed through one helper so the
+      eventual hardware push-encoder-twice gesture (DESIGN §17.5
+      style) lands on the same code path.
+- [ ] **MHZ.2.5** `ParamSpec::valueLabels` (`std::span<const char* const>`),
+      default empty. Machines populate it for stepped/enum slots; MZ
+      render consults it. Existing `kSlotVoiceMode` / filter mode /
+      LFO shape slots get textual values out of the box.
+- [ ] **MHZ.2.6** Documentation: DESIGN updates for `valueLabels`,
+      scope re-skin, top-bar dashboard; CLAUDE.md glossary; README §5
+      / §6 reference table.
+- [ ] **MHZ.2.7** Verification: hold Track and confirm step grid is a
+      1-of-16 track picker with unavailable indices dimmed; hold
+      Part+SRC and confirm machine names render; top bar dashboard
+      shows current Bank/Pattern/Part/BPM; held-context preview
+      updates live; MZ filter slot shows `LP24`/`LP12`/`HP`/`BP` text;
+      double-click rotary resets to default.
+
+#### MHZ.3 — Note capture, P-Lock clear, popup picker
+
+Goal: close the real grammar gaps surfaced during MHY play-testing.
+
+- [ ] **MHZ.3.1** Step-hold MIDI capture as the canonical chord-edit
+      path. Holding a step opens a capture window; held MIDI notes
+      accumulate into a temporary chord buffer; **on step release**
+      the buffer commits to that step's `TrigOverride.notes[] /
+      noteCount` (reusing the MH.2 chord-step data model, up to
+      `kMaxNotesPerStep`). Empty buffer = no change (preserves
+      existing data). Transport-time record-arm capture stays as an
+      orthogonal live-performance flow.
+- [ ] **MHZ.3.2** Replace-on-hold is the chord editor. No per-note
+      add / remove / swap UI in MHZ — the simpler grammar wins, and a
+      finer-grained editor only lands if play-testing proves
+      replace-only too coarse.
+- [ ] **MHZ.3.3** P-Lock clear gestures. Single-slot clear on the
+      held step, and a "clear all P-Locks on this step" gesture.
+      Both expressed inside the existing scope+verb grammar (no new
+      modifier; no bespoke single-purpose key). Exact gesture choice
+      finalised during MHZ.3 design; documented in DESIGN §13 once
+      pinned.
+- [ ] **MHZ.3.4** Popup picker for P-Lock clear. When "clear which
+      P-Lock?" is invoked on a step that carries multiple locks, the
+      MZ becomes a non-paginated 1-of-16 picker listing the slotted
+      parameters by index; press the step key (D=1 … `/`=16) to clear
+      that one. **Page-independent** — the picker does not paginate.
+      Built narrowly for P-Lock clear only; a future "general picker"
+      can subsume it without rework.
+- [ ] **MHZ.3.5** Documentation: DESIGN step-hold capture window
+      subsection (near §4.6 / §21); DESIGN §13 grammar additions for
+      the P-Lock clear gestures; CLAUDE.md glossary; README §5 / §6.
+- [ ] **MHZ.3.6** Verification: with transport stopped, hold step D,
+      play C-major chord, release step — chord lands on step D.
+      Repeat with another chord; confirm replace semantics. Place
+      several P-Locks on one step; invoke the picker; confirm the
+      selected index clears only that lock; confirm the "clear all"
+      gesture wipes them all. Regression-check transport-time
+      record-arm capture still works.
+
 ### MH — Machine catalogue expansion  [pending, staggered]
 
 DESIGN §1 (lineage). Inheritance from `IMachine` — each is a separate
 contributor-sized project. Order is a suggestion, not a dependency
 chain; any of these can land independently once MF (for MIDI-out
-parity) is done. **MHX and MHY land first** (the surface freeze and
-the contract).
+parity) is done. **MHX, MHY and MHZ land first** (the surface freeze,
+the contract, and the chrome/grammar revamp). In practice MH.3
+resumes once MHZ.1 → MHZ.3 are complete.
 
 - [x] **MH.1** FMMachine — 4-op FM, free modulation matrix (4×4), per-operator
       ADSR + ratio / fine-tune / mix, macro attack / release / sustain scalars.
