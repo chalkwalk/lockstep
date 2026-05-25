@@ -1278,6 +1278,15 @@ namespace lockstep
                         g.setFont(juce::Font(juce::FontOptions(8.5f)));
                         g.drawText(name, cell.reduced(2), juce::Justification::centred, true);
                     }
+
+                    if (showKeyLetters)
+                    {
+                        g.setFont(juce::Font(juce::FontOptions(8.0f)));
+                        g.setColour(juce::Colour::fromRGB(88, 108, 128).withAlpha(0.7f));
+                        g.drawText(kKeyLetters[static_cast<std::size_t>(idx)],
+                                   cell.withHeight(10).reduced(2, 0),
+                                   juce::Justification::topLeft);
+                    }
                 }
             }
             g.setColour(juce::Colour::fromRGB(80, 95, 115));
@@ -1341,6 +1350,15 @@ namespace lockstep
                         g.setColour(textCol);
                         g.setFont(juce::Font(juce::FontOptions(8.0f)));
                         g.drawText(label, cell.reduced(2), juce::Justification::centred, true);
+                    }
+
+                    if (showKeyLetters)
+                    {
+                        g.setFont(juce::Font(juce::FontOptions(8.0f)));
+                        g.setColour(juce::Colour::fromRGB(88, 108, 128).withAlpha(0.7f));
+                        g.drawText(kKeyLetters[static_cast<std::size_t>(slotIdx)],
+                                   cell.withHeight(10).reduced(2, 0),
+                                   juce::Justification::topLeft);
                     }
                 }
             }
@@ -1481,6 +1499,16 @@ namespace lockstep
                         g.setColour(isNext ? juce::Colours::white : juce::Colours::black);
                         g.setFont(juce::Font(juce::FontOptions(7.0f)).boldened());
                         g.drawText(juce::String(cpos), badge, juce::Justification::centred);
+                    }
+
+                    if (showKeyLetters)
+                    {
+                        g.setFont(juce::Font(juce::FontOptions(8.0f)));
+                        g.setColour(juce::Colour::fromRGB(88, 108, 128).withAlpha(
+                                        isNext ? 0.4f : 0.7f));
+                        g.drawText(kKeyLetters[static_cast<std::size_t>(idx)],
+                                   cell.withHeight(10).reduced(2, 0),
+                                   juce::Justification::topLeft);
                     }
                 }
             }
