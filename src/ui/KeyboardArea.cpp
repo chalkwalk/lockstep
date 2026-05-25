@@ -1,5 +1,6 @@
 #include "KeyboardArea.h"
 #include "KeyButton.h"
+#include "ScopedSectionMatrix.h"
 #include "UITheme.h"
 #include "../PluginProcessor.h"
 #include "../ParameterIDs.h"
@@ -640,29 +641,49 @@ namespace lockstep
             '5', '6', '7', '8', '9', '0'
         };
 
-        // Cells 4-9: section keys 5-0 — canonical TRIG/SRC/FLTR/AMP/LFO/FX.
+        // Determine the active section-suite scope (MHY.5). Performance-specialist
+        // scopes (Mute, Fill) have no section suite so they don't override labels.
+        using PS = EditMode::PrimaryScope;
+        PS sectionScope = PS::None;
+        if      (uiState_.trackHeld)        sectionScope = PS::Track;
+        else if (uiState_.patternScopeHeld) sectionScope = PS::Pattern;
+        else if (uiState_.partHeld)         sectionScope = PS::Part;
+        else if (uiState_.sceneHeld)        sectionScope = PS::Scene;
+        else if (uiState_.masterHeld)       sectionScope = PS::Master;
+        const bool isScopedMode = (sectionScope != PS::None);
+
+        // Cells 4-9: section keys 5-0 — canonical TRIG/SRC/FLTR/AMP/MOD/FX.
+        // When a section-suite scope is held the matrix overrides labels + availability.
         for (int s = 0; s < IMachine::kMaxSections; ++s)
         {
             const int cellIdx = kFixedSectionCells + s;
             const juce::String canonicalName =
                 IMachine::kCanonicalSectionNames[static_cast<std::size_t>(s)];
 
+            // MHY.5: scope-section matrix lookup.
+            const ScopedCellInfo cell_info = scopedCell(sectionScope, s);
+            const juce::String displayLabel = (isScopedMode && cell_info.label != nullptr)
+                ? juce::String(cell_info.label) : canonicalName;
+
+            // When a scope is held, availability comes from the matrix; otherwise from
+            // the machine's declared sections.
             const auto groups    = sectionsForKey(activeTrack, s);
-            const bool available = !groups.empty();
+            const bool machineHasSection = !groups.empty();
+            const bool available = isScopedMode ? cell_info.hasContent : machineHasSection;
 
             if (!available)
             {
                 const bool pressed = juce::KeyPress::isKeyCurrentlyDown(kSectionKeyCodes[s]);
                 const KeyGroup grp { kSecInactive, kSecActive, kSecAccent };
                 paintKeyButton(g, sectionCellBounds(cellIdx, area),
-                               kKeyHints[cellIdx], canonicalName, "", grp,
+                               kKeyHints[cellIdx], displayLabel, "", grp,
                                pressed ? KeyButtonState::Pressed : KeyButtonState::Disabled,
                                showKeyHint);
                 continue;
             }
 
-            const bool isMasterActive = (uiState_.masterSection == s);
-            const bool isTrackActive  = (uiState_.masterSection == -1
+            const bool isMasterActive = !isScopedMode && (uiState_.masterSection == s);
+            const bool isTrackActive  = !isScopedMode && (uiState_.masterSection == -1
                 && uiState_.trackSection[static_cast<std::size_t>(activeTrack)] == s);
 
             const bool pressed = juce::KeyPress::isKeyCurrentlyDown(kSectionKeyCodes[s]);
@@ -676,14 +697,17 @@ namespace lockstep
                 ? KeyGroup{ kSecInactive, 0xFF404010u, 0xFFFFB432u }
                 : KeyGroup{ kSecInactive, kSecActive,  kSecAccent  };
 
-            const bool reserved = isReservedMeta(s);
-            const juce::String secLabel =
-                reserved ? juce::String::charToString(0x2014)
-                         : juce::String(kMetaLabels[static_cast<std::size_t>(s)]);
+            // Secondary (meta) label: shown as Func-layer badge. Hidden in scoped mode
+            // since the matrix label IS the primary; Func+ gives the secondary variant.
+            const juce::String secLabel = isScopedMode
+                ? juce::String{}
+                : (isReservedMeta(s)
+                    ? juce::String::charToString(0x2014)
+                    : juce::String(kMetaLabels[static_cast<std::size_t>(s)]));
 
             const auto cell = sectionCellBounds(cellIdx, area);
             paintKeyButton(g, cell, kKeyHints[cellIdx],
-                           canonicalName, secLabel, secGrp, st, showKeyHint);
+                           displayLabel, secLabel, secGrp, st, showKeyHint);
 
             // Page dots — reflect total combined pages (canonical + extension).
             int totalPageCount = 0;
