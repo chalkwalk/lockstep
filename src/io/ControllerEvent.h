@@ -14,8 +14,8 @@ namespace lockstep
     //     Col 2 (2/W/S/X): Track / Part / Master / Fill
     //   Right 8x4 functional block:
     //     Row 1 (3-0): TAP(3), NavUp(4), six canonical sections(5-0)
-    //     Row 2 (E-P): NavLeft(E), NavDown(R), NavRight(T), MachineSelect(Y),
-    //                  Snapshot(U), RecordArm(I), PlayStop(O), StopReset(P)
+    //     Row 2 (E-P): NavLeft(E), NavDown(R), NavRight(T),
+    //                  Yes(Y), Rec(U), Play(I), Stop(O), No(P)
     //     Row 3 (D-;):       steps 0-7
     //     Row 4 (C-/):       steps 8-15
     //   Cue is reserved as a scope (§31) but is not bound to a cluster key
@@ -37,19 +37,21 @@ namespace lockstep
         // Cue scope: reserved for MU reactivation, currently not bound to any key.
         CueScope,
 
-        // Verb keys (meaning changes based on the active scope from EditMode).
-        VerbRecord,       // Func+I: copy / capture scope into clipboard
-        VerbPlay,         // Func+O: paste / apply clipboard to scope
-        VerbStop,         // Func+P: clear scope
+        // Verb keys (MHY: primary layer Y/U/I/O/P; meaning changes with active scope).
+        VerbYes,          // key Y: affirmative verb (confirm, assign, push checkpoint via Func)
+        VerbRecord,       // key U: record / copy / capture (transport arm when no scope)
+        VerbPlay,         // key I: play / paste (transport play/stop when no scope)
+        VerbStop,         // key O: stop / clear (transport stop-and-reset via Func; no scope = stop)
+        VerbNo,           // key P: negative / cancel (pop checkpoint via Func+P)
 
-        // Checkpoint operations — direct actions, not scope-qualified verbs.
-        Snapshot,         // Func+T: push checkpoint (Yes)
-        Restore,          // Func+O: pop checkpoint (No)
+        // Checkpoint operations — triggered via Func+verb layer.
+        Snapshot,         // Func+Y: push checkpoint
+        Restore,          // Func+P: pop checkpoint
 
         // Trig-grid mode chords: held = mode active, exit on release.
-        TrigModeKeyboard, // Func+U: 16 trig keys -> chromatic keyboard
-        TrigModeRetrig,   // Func+I: 16 trig keys -> retrigger pads
-        TrigModeSoundPool,// Func+P: 16 trig keys -> sound pool browser
+        TrigModeKeyboard, // Func+R: 16 trig keys -> chromatic keyboard
+        TrigModeRetrig,   // Func+T: 16 trig keys -> retrigger pads
+        TrigModeSoundPool,// Func+4: 16 trig keys -> sound pool browser
 
         // Navigation (E=Left, R=Up, T=Down, Y=Right).
         NavUp, NavLeft, NavDown, NavRight,

@@ -724,8 +724,8 @@ namespace lockstep
 
     // -------------------------------------------------------------------------
     // paintFunctionRow — Q-row (10 keys, MHY identities):
-    //   Q/PAT  W/PRT  E/<  R/v  T/>  Y/MACH  U/SNAP  I/REC  O/PLY  P/STP
-    //   Func-layer secondaries:  SRS  KEY  RTG  FORK    RST   CPY    PST   CLR
+    //   Q/PAT  W/PRT  E/<  R/v  T/>  Y/YES  U/REC  I/PLY  O/STP  P/NO
+    //   Func-layer secondaries:              SNAP        MET   RST   POP
 
     void KeyboardArea::paintFunctionRow(juce::Graphics& g, juce::Rectangle<int> area)
     {
@@ -750,11 +750,11 @@ namespace lockstep
             { 'E', u8"E", u8"←",    u8"SRS",  { kNavInactive,  kNavActive,  kNavAccent  } },
             { 'R', u8"R", u8"↓",    u8"KEY",  { kNavInactive,  kNavActive,  kNavAccent  } },
             { 'T', u8"T", u8"→",    u8"RTG",  { kNavInactive,  kNavActive,  kNavAccent  } },
-            { 'Y', u8"Y", u8"MACH", u8"FORK", { kActInactive,  kActActive,  kActAccent  } },
-            { 'U', u8"U", u8"SNAP", u8"RST",  { kActInactive,  kActActive,  kActAccent  } },
-            { 'I', u8"I", u8"REC",  u8"CPY",  { kRecInactive,  kRecActive,  kRecAccent  } },
-            { 'O', u8"O", u8"PLY",  u8"PST",  { kTrnInactive,  kTrnActive,  kTrnAccent  } },
-            { 'P', u8"P", u8"STP",  u8"CLR",  { kTrnInactive,  kTrnActive,  kTrnAccent  } },
+            { 'Y', u8"Y", u8"YES",  u8"SNAP", { kActInactive,  kActActive,  kActAccent  } },
+            { 'U', u8"U", u8"REC",  u8"",     { kRecInactive,  kRecActive,  kRecAccent  } },
+            { 'I', u8"I", u8"PLY",  u8"MET",  { kTrnInactive,  kTrnActive,  kTrnAccent  } },
+            { 'O', u8"O", u8"STP",  u8"RST",  { kTrnInactive,  kTrnActive,  kTrnAccent  } },
+            { 'P', u8"P", u8"NO",   u8"POP",  { kActInactive,  kActActive,  kActAccent  } },
         }};
 
         const bool showKeyHint = (displayMode_ != GridDisplayMode::Clean);
@@ -805,8 +805,8 @@ namespace lockstep
             const auto cell = juce::Rectangle<int>(x, area.getY(), cellW, area.getHeight());
 
             const bool isPressed   = juce::KeyPress::isKeyCurrentlyDown(def.keyCode);
-            const bool isArmed     = (def.keyCode == 'I') && processor_.clock().isRecordArmed();
-            const bool isPlaying   = (def.keyCode == 'O') && processor_.clock().inPluginPlaying();
+            const bool isArmed     = (def.keyCode == 'U') && processor_.clock().isRecordArmed();
+            const bool isPlaying   = (def.keyCode == 'I') && processor_.clock().inPluginPlaying();
             const bool isPatHeld   = (def.keyCode == 'Q') && uiState_.patternScopeHeld;
             const bool isPrtHeld   = (def.keyCode == 'W') && uiState_.partHeld;
             const bool isModeActive = isArmed || isPlaying || isPatHeld || isPrtHeld;

@@ -827,8 +827,20 @@ namespace lockstep
                 keyboardArea_.nextPage();
                 return true;
 
-            case ControllerButton::PlayStop:
+            // MHY.4: right-utility verbs. Without a scope modifier these perform their
+            // default transport / confirmation action; with a scope held, EditMode
+            // routes them as grammar verbs (CPY / PST / CLR / confirm / cancel).
+
+            case ControllerButton::VerbPlay:
             {
+                using PS = EditMode::PrimaryScope;
+                // Scope held → grammar verb (e.g. paste).  No scope → play/stop.
+                if (editMode_.primaryScope() != PS::None
+                    && editMode_.primaryScope() != PS::Func)
+                {
+                    editMode_.onVerb(ev.button);
+                    return true;
+                }
                 if (playKeyHeld_) return true;  // ignore key repeat
                 playKeyHeld_ = true;
 
@@ -848,7 +860,16 @@ namespace lockstep
                 return true;
             }
 
-            case ControllerButton::StopReset:
+            case ControllerButton::VerbStop:
+            {
+                using PS = EditMode::PrimaryScope;
+                // Scope held → grammar verb (e.g. clear).  No scope → stop transport.
+                if (editMode_.primaryScope() != PS::None
+                    && editMode_.primaryScope() != PS::Func)
+                {
+                    editMode_.onVerb(ev.button);
+                    return true;
+                }
                 if (uiState_.patternScopeHeld)
                 {
                     processor_.cancelQueuedPattern();
@@ -857,20 +878,28 @@ namespace lockstep
                     return true;
                 }
                 processor_.clock().setInPluginPlaying(false);
-                processor_.clock().resetPhase();
                 return true;
+            }
 
-            case ControllerButton::VerbStop:
+            case ControllerButton::VerbRecord:
+            {
+                using PS = EditMode::PrimaryScope;
+                // Scope held → grammar verb (e.g. copy).  No scope → arm recording.
+                if (editMode_.primaryScope() != PS::None
+                    && editMode_.primaryScope() != PS::Func)
+                {
+                    editMode_.onVerb(ev.button);
+                    return true;
+                }
+                processor_.clock().setRecordArmed(!processor_.clock().isRecordArmed());
+                return true;
+            }
+
+            case ControllerButton::VerbYes:
                 editMode_.onVerb(ev.button);
                 return true;
 
-            case ControllerButton::RecordArm:
-                processor_.clock().setRecordArmed(!processor_.clock().isRecordArmed());
-                return true;
-
-            // Scope verbs dispatched through EditMode.
-            case ControllerButton::VerbRecord:
-            case ControllerButton::VerbPlay:
+            case ControllerButton::VerbNo:
                 editMode_.onVerb(ev.button);
                 return true;
 
@@ -881,6 +910,18 @@ namespace lockstep
             case ControllerButton::Restore:
                 processor_.popCheckpoint();
                 repaint();
+                return true;
+
+            // Legacy transport buttons — kept for any code paths that still emit them.
+            case ControllerButton::PlayStop:
+                processor_.clock().setInPluginPlaying(!processor_.clock().inPluginPlaying());
+                return true;
+            case ControllerButton::StopReset:
+                processor_.clock().setInPluginPlaying(false);
+                processor_.clock().resetPhase();
+                return true;
+            case ControllerButton::RecordArm:
+                processor_.clock().setRecordArmed(!processor_.clock().isRecordArmed());
                 return true;
 
             // Trig grid mode selection (Func+T/Y/U). Pressing the active mode
@@ -1112,7 +1153,7 @@ namespace lockstep
         }
 
         if (!isKeyDown && playKeyHeld_
-            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('O')))
+            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('I')))
         {
             playKeyHeld_ = false;
             handled = true;
@@ -1495,6 +1536,15 @@ namespace lockstep
                         processor_.clearParam(ctx.heldTrackIndex(),
                                               ctx.heldStepIndex(),
                                               ctx.activeSlot());
+                }
+                // VerbYes / VerbNo with no scope: checkpoint push / pop.
+                else if (verb == CB::VerbYes)
+                {
+                    processor_.pushCheckpoint();
+                }
+                else if (verb == CB::VerbNo)
+                {
+                    processor_.popCheckpoint();
                 }
                 break;
             }

@@ -64,9 +64,11 @@ namespace lockstep
                 return true;
 
             // All other buttons are not scope modifiers; caller handles them.
+            case ControllerButton::VerbYes:
             case ControllerButton::VerbRecord:
             case ControllerButton::VerbPlay:
             case ControllerButton::VerbStop:
+            case ControllerButton::VerbNo:
             case ControllerButton::Snapshot:
             case ControllerButton::Restore:
             case ControllerButton::TrigModeKeyboard:
