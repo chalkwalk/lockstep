@@ -207,9 +207,19 @@ namespace lockstep
             dispatchVerb(scope, verb);
         };
 
-        // Wire mouse button events from KeyboardArea to the same handlers as QWERTY.
-        keyboardArea_.onButtonDown = [this](ControllerEvent ev) { handleMouseButtonDown(ev); };
-        keyboardArea_.onButtonUp   = [this](ControllerEvent ev) { handleMouseButtonUp(ev); };
+        // Wire mouse button events from KeyboardArea through the unified dispatch.
+        keyboardArea_.onButtonDown = [this](ControllerEvent ev)
+        {
+            pressTracker_.press(PressTracker::kMouseSource, ev.button, ev.index);
+            dispatchDown(ev, PressTracker::kMouseSource);
+            keyboardArea_.repaint();
+        };
+        keyboardArea_.onButtonUp = [this](ControllerEvent ev)
+        {
+            pressTracker_.release(PressTracker::kMouseSource);
+            dispatchUp(ev, PressTracker::kMouseSource);
+            keyboardArea_.repaint();
+        };
 
         // Give KeyboardArea a pointer to the shared PressTracker so its paint
         // methods can query pressed state from both keyboard and mouse sources.
@@ -1432,180 +1442,6 @@ namespace lockstep
                 processor_.clock().setLocalBpm(bpm);
                 repaint();
             }
-        }
-    }
-
-    void LockstepEditor::handleMouseButtonDown(ControllerEvent ev)
-    {
-        using CB = ControllerButton;
-        using T  = ControllerEvent::Type;
-
-        switch (ev.button)
-        {
-            // ---- Scope modifiers ----
-            case CB::Func:
-                uiState_.funcHeld = true;
-                editMode_.onScopeEvent({ T::ButtonDown, CB::Func });
-                keyboardArea_.repaint();
-                repaint();
-                break;
-
-            case CB::TrackScope:
-                uiState_.trackHeld = true;
-                processor_.setControlAllActive(true);
-                editMode_.onScopeEvent({ T::ButtonDown, CB::TrackScope });
-                repaint();
-                break;
-
-            case CB::PatternScope:
-                uiState_.patternScopeHeld = true;
-                uiState_.patternScopeUsed = false;
-                editMode_.onScopeEvent({ T::ButtonDown, CB::PatternScope });
-                repaint();
-                break;
-
-            case CB::PartScope:
-                uiState_.partHeld = true;
-                editMode_.onScopeEvent({ T::ButtonDown, CB::PartScope });
-                repaint();
-                break;
-
-            case CB::SceneScope:
-                uiState_.sceneHeld = true;
-                editMode_.onScopeEvent({ T::ButtonDown, CB::SceneScope });
-                repaint();
-                break;
-
-            case CB::MasterScope:
-                uiState_.masterHeld = true;
-                editMode_.onScopeEvent({ T::ButtonDown, CB::MasterScope });
-                repaint();
-                break;
-
-            case CB::MuteScope:
-                uiState_.muteHeld = true;
-                editMode_.onScopeEvent({ T::ButtonDown, CB::MuteScope });
-                repaint();
-                break;
-
-            case CB::FillScope:
-                uiState_.fillHeld = true;
-                processor_.setFillActive(true);
-                editMode_.onScopeEvent({ T::ButtonDown, CB::FillScope });
-                repaint();
-                break;
-
-            // ---- Navigation ----
-            case CB::NavUp:
-                keyboardArea_.setActiveTrack(
-                    std::min(static_cast<int>(kNumTracks) - 1,
-                             keyboardArea_.getActiveTrack() + 1));
-                break;
-
-            case CB::NavDown:
-                keyboardArea_.setActiveTrack(std::max(0, keyboardArea_.getActiveTrack() - 1));
-                break;
-
-            case CB::NavLeft:
-                keyboardArea_.prevPage();
-                break;
-
-            case CB::NavRight:
-                keyboardArea_.nextPage();
-                break;
-
-            // ---- Utility / transport ----
-            case CB::TapTempo:
-                handleTapTempo();
-                break;
-
-            case CB::VerbYes:
-            case CB::VerbNo:
-                editMode_.onVerb(ev.button);
-                break;
-
-            case CB::VerbPlay:
-                // Simple toggle (no double-press detection for mouse path).
-                processor_.clock().setInPluginPlaying(!processor_.clock().inPluginPlaying());
-                break;
-
-            case CB::VerbStop:
-                processor_.clock().setInPluginPlaying(false);
-                break;
-
-            case CB::VerbRecord:
-                processor_.clock().setRecordArmed(!processor_.clock().isRecordArmed());
-                break;
-
-            default:
-                break;
-        }
-    }
-
-    void LockstepEditor::handleMouseButtonUp(ControllerEvent ev)
-    {
-        using CB = ControllerButton;
-        using T  = ControllerEvent::Type;
-
-        switch (ev.button)
-        {
-            case CB::Func:
-                for (const int t : deferredPatternMutes_)
-                    processor_.togglePatternMute(t);
-                deferredPatternMutes_.clear();
-                uiState_.funcHeld = false;
-                editMode_.onScopeEvent({ T::ButtonUp, CB::Func });
-                keyboardArea_.repaint();
-                repaint();
-                break;
-
-            case CB::TrackScope:
-                uiState_.trackHeld = false;
-                processor_.setControlAllActive(false);
-                editMode_.onScopeEvent({ T::ButtonUp, CB::TrackScope });
-                repaint();
-                break;
-
-            case CB::PatternScope:
-                uiState_.patternScopeHeld = false;
-                uiState_.patternScopeUsed = false;
-                editMode_.onScopeEvent({ T::ButtonUp, CB::PatternScope });
-                repaint();
-                break;
-
-            case CB::PartScope:
-                uiState_.partHeld = false;
-                editMode_.onScopeEvent({ T::ButtonUp, CB::PartScope });
-                repaint();
-                break;
-
-            case CB::SceneScope:
-                uiState_.sceneHeld = false;
-                editMode_.onScopeEvent({ T::ButtonUp, CB::SceneScope });
-                repaint();
-                break;
-
-            case CB::MasterScope:
-                uiState_.masterHeld = false;
-                editMode_.onScopeEvent({ T::ButtonUp, CB::MasterScope });
-                repaint();
-                break;
-
-            case CB::MuteScope:
-                uiState_.muteHeld = false;
-                editMode_.onScopeEvent({ T::ButtonUp, CB::MuteScope });
-                repaint();
-                break;
-
-            case CB::FillScope:
-                uiState_.fillHeld = false;
-                processor_.setFillActive(false);
-                editMode_.onScopeEvent({ T::ButtonUp, CB::FillScope });
-                repaint();
-                break;
-
-            default:
-                break;  // Nav/verb buttons have no held state to clear.
         }
     }
 

@@ -126,9 +126,6 @@ namespace lockstep
 
         PressTracker pressTracker_;
 
-        // Legacy mouse helpers — kept during transition; will be deleted in Stage 3.
-        void handleMouseButtonDown(ControllerEvent ev);
-        void handleMouseButtonUp  (ControllerEvent ev);
         juce::ComboBox syncModeBox_;
         std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> syncModeAttachment_;
         juce::ComboBox channelModeBox_;

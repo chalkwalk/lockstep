@@ -628,36 +628,33 @@ namespace lockstep
         const auto pos   = e.getPosition();
         const auto areas = computeRowAreas();
 
-        // Section row — all 10 cells.
+        // Section row — all 10 cells produce ControllerEvents.
         for (int i = 0; i < kTotalSectionCells; ++i)
         {
             if (!sectionCellBounds(i, areas.section).contains(pos)) continue;
 
+            using CB = ControllerButton;
+            ControllerEvent ev { ControllerEvent::Type::ButtonDown, CB::None, -1, 0 };
+
             if (i < kFixedSectionCells)
             {
-                // Fixed cells 0-3: Func / Track / TAP / NavUp → fire callback.
-                using CB = ControllerButton;
                 static constexpr CB kFixed[kFixedSectionCells] = {
                     CB::Func, CB::TrackScope, CB::TapTempo, CB::NavUp
                 };
-                const ControllerEvent ev {
-                    ControllerEvent::Type::ButtonDown, kFixed[i], -1, 0
-                };
-                mouseHeldButton_ = ev;
-                if (onButtonDown) onButtonDown(ev);
+                ev.button = kFixed[i];
             }
             else
             {
-                // Cells 4-9: section selection — handled directly.
+                // Section cells 4-9: emit Section or MetaSection depending on funcHeld,
+                // mirroring what QwertyOverlay resolves for the equivalent key.
                 const int section = cellToSection(i);
-                if (section >= 0)
-                {
-                    if (uiState_.funcHeld)
-                        selectMetaSection(section);
-                    else
-                        selectSection(section);
-                }
+                if (section < 0) return;
+                ev.button = uiState_.funcHeld ? CB::MetaSection : CB::Section;
+                ev.index  = section;
             }
+
+            mouseHeldButton_ = ev;
+            if (onButtonDown) onButtonDown(ev);
             return;
         }
 
@@ -683,47 +680,35 @@ namespace lockstep
             }
         }
 
-        // Step cells.
+        // Step cells: emit Step event with absIdx so dispatchDown gets the full context.
         const int absIdx = stepCellAt(pos);
         if (absIdx >= 0)
         {
+            // Page-relative index for the event (dispatchDown recomputes absStep itself,
+            // but we store absIdx in mouseHeldStep_ for the matching mouseUp).
+            const int pageRelIdx = absIdx % kPageSteps;
             mouseHeldStep_ = absIdx;
-            processor_.editContext().hold(activeTrack_, absIdx);
+            const ControllerEvent ev {
+                ControllerEvent::Type::ButtonDown, ControllerButton::Step, pageRelIdx, 0
+            };
+            mouseHeldButton_ = ev;
+            if (onButtonDown) onButtonDown(ev);
         }
     }
 
-    void KeyboardArea::mouseUp(const juce::MouseEvent& e)
+    void KeyboardArea::mouseUp(const juce::MouseEvent&)
     {
-        // Non-step button release: fire up event and clear.
-        if (mouseHeldButton_.button != ControllerButton::None)
-        {
-            const ControllerEvent up {
-                ControllerEvent::Type::ButtonUp, mouseHeldButton_.button,
-                mouseHeldButton_.index, 0
-            };
-            if (onButtonUp) onButtonUp(up);
-            mouseHeldButton_ = {};
-            repaint();
-            return;
-        }
-
-        if (mouseHeldStep_ < 0)
+        if (mouseHeldButton_.button == ControllerButton::None)
             return;
 
-        const bool shouldToggle = !processor_.editContext().wasParamWritten()
-                                  && stepCellAt(e.getPosition()) == mouseHeldStep_;
-        processor_.editContext().release(mouseHeldStep_);
-
-        if (shouldToggle)
-        {
-            auto& step = processor_.sequence()
-                .tracks[static_cast<std::size_t>(activeTrack_)]
-                .steps[static_cast<std::size_t>(mouseHeldStep_)];
-            step.trig = !step.trig;
-            repaint();
-        }
-
-        mouseHeldStep_ = -1;
+        const ControllerEvent up {
+            ControllerEvent::Type::ButtonUp, mouseHeldButton_.button,
+            mouseHeldButton_.index, 0
+        };
+        mouseHeldButton_ = {};
+        mouseHeldStep_   = -1;
+        if (onButtonUp) onButtonUp(up);
+        repaint();
     }
 
     // -------------------------------------------------------------------------
