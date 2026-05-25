@@ -12,6 +12,7 @@ add_library(lockstep_core STATIC
     core/Clock.cpp
     core/Metronome.cpp
     core/StateResolver.cpp
+    machine/DrumSynthMachine.cpp
     machine/FMMachine.cpp
     machine/VAMachine.cpp
     machine/MidiDevicePresets.cpp

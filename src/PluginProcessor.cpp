@@ -5,6 +5,7 @@
 #include "core/StateResolver.h"
 #include "core/TrigEvaluator.h"
 #include "machine/MidiDevicePresets.h"
+#include "machine/DrumSynthMachine.h"
 #include "machine/FMMachine.h"
 #include "machine/MidiOutMachine.h"
 #include "machine/SamplerMachine.h"
@@ -1970,6 +1971,8 @@ namespace lockstep
             return std::make_unique<SamplerMachine>(pool);
         if (id == MidiOutMachine::kMachineId)
             return std::make_unique<MidiOutMachine>();
+        if (id == DrumSynthMachine::kMachineId)
+            return std::make_unique<DrumSynthMachine>();
         if (id == FMMachine::kMachineId)
             return std::make_unique<FMMachine>();
         if (id == VAMachine::kMachineId)
@@ -1981,10 +1984,11 @@ namespace lockstep
     // MGX.6 — machine selection
 
     static constexpr LockstepProcessor::MachineInfo kAvailableMachines[] = {
-        { SamplerMachine::kMachineId, "Sampler"  },
-        { FMMachine::kMachineId,      "FM Synth" },
-        { VAMachine::kMachineId,      "VA Synth"  },
-        { MidiOutMachine::kMachineId, "MIDI Out" },
+        { SamplerMachine::kMachineId,   "Sampler"    },
+        { FMMachine::kMachineId,        "FM Synth"   },
+        { VAMachine::kMachineId,        "VA Synth"   },
+        { DrumSynthMachine::kMachineId, "Drum Synth" },
+        { MidiOutMachine::kMachineId,   "MIDI Out"   },
     };
 
     int LockstepProcessor::numAvailableMachines() const
