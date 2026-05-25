@@ -1256,17 +1256,37 @@ namespace lockstep
             else if (uiState_.patternScopeHeld)
             {
                 maxAvail  = kPatternsPerBank;
-                // If a pattern switch is queued, highlight the destination so the
-                // pressed cell lights up immediately rather than waiting for the
-                // queue to fire at the pattern boundary.
-                activeIdx = processor_.hasQueuedPattern()
-                    ? processor_.queuedPatternPatIdx()
-                    : processor_.activePatternIdx();
+                activeIdx = processor_.activePatternIdx();
             }
             else // partHeld
             {
                 maxAvail  = kPartsPerBank;
                 activeIdx = static_cast<int>(processor_.activePattern().partRef);
+            }
+
+            // For Pattern scope, build a per-cell chain-position map so each cell
+            // can show a distinct visual state: active / next (pos 1) / chain (pos 2+).
+            // chainPos[idx] = 1 for the queued-next pattern, 2+ for chain entries,
+            // 0 means not in the queue/chain. The first occurrence wins (a pattern
+            // can repeat in the chain; show the earliest position).
+            std::array<int, kPatternsPerBank> chainPos{};
+            if (uiState_.patternScopeHeld)
+            {
+                if (processor_.hasQueuedPattern())
+                {
+                    const int qi = processor_.queuedPatternPatIdx();
+                    if (qi >= 0 && qi < kPatternsPerBank && chainPos[static_cast<std::size_t>(qi)] == 0)
+                        chainPos[static_cast<std::size_t>(qi)] = 1;
+
+                    const int chainLen = processor_.chainLength();
+                    for (int ci = 0; ci < chainLen; ++ci)
+                    {
+                        const auto [bi, pi] = processor_.chainEntry(ci);
+                        (void)bi;
+                        if (pi >= 0 && pi < kPatternsPerBank && chainPos[static_cast<std::size_t>(pi)] == 0)
+                            chainPos[static_cast<std::size_t>(pi)] = ci + 2;
+                    }
+                }
             }
 
             for (int row = 0; row < kRows; ++row)
@@ -1275,33 +1295,75 @@ namespace lockstep
                 {
                     const int idx     = row * kCols + col;
                     const bool avail  = idx < maxAvail;
-                    const bool active = avail && (idx == activeIdx);
-                    const int x       = colX(row, col + 2);
-                    const int y       = rowY(row);
-                    const auto cell   = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+                    const bool isCurrent = avail && (idx == activeIdx);
+                    const int  cpos   = (uiState_.patternScopeHeld && avail)
+                                        ? chainPos[static_cast<std::size_t>(idx)] : 0;
+                    const bool isNext  = cpos == 1;
+                    const bool isChain = cpos >= 2;
 
-                    const juce::Colour fill = avail
-                        ? (active ? scopeTint.withAlpha(0.85f) : scopeTint.withAlpha(0.22f))
-                        : juce::Colour(kStepOutRange);
+                    const int x    = colX(row, col + 2);
+                    const int y    = rowY(row);
+                    const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+
+                    // Fill colour: current=opaque white-ish, next=bright tint,
+                    // chain=mid tint, idle=dim, unavailable=out-of-range.
+                    juce::Colour fill;
+                    if (!avail)
+                        fill = juce::Colour(kStepOutRange);
+                    else if (isCurrent && !isNext)
+                        fill = juce::Colours::white.withAlpha(0.18f);
+                    else if (isNext)
+                        fill = scopeTint.withAlpha(0.80f);
+                    else if (isChain)
+                        fill = scopeTint.withAlpha(0.38f);
+                    else
+                        fill = scopeTint.withAlpha(0.12f);
+
                     g.setColour(fill);
                     g.fillRoundedRectangle(cell.toFloat(), 4.0f);
-                    if (avail && !active)
+
+                    // Border: current gets a white rim, next gets none (fill is bright),
+                    // chain gets a dim tint rim, idle gets a faint tint rim.
+                    if (avail && isCurrent && !isNext)
                     {
-                        g.setColour(scopeTint.withAlpha(0.5f));
+                        g.setColour(juce::Colours::white.withAlpha(0.60f));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
+                    }
+                    else if (avail && !isNext)
+                    {
+                        g.setColour(scopeTint.withAlpha(isChain ? 0.60f : 0.35f));
                         g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
                     }
-                    g.setColour(active ? juce::Colours::black.withAlpha(0.85f)
-                                       : (avail ? juce::Colours::white.withAlpha(0.75f)
-                                                : juce::Colour::fromRGB(50, 55, 60)));
+
+                    // Label: index number, plus chain position badge for queue entries.
+                    const juce::Colour textCol = (!avail)
+                        ? juce::Colour::fromRGB(50, 55, 60)
+                        : (isNext ? juce::Colours::black
+                                  : juce::Colours::white.withAlpha(isCurrent ? 0.90f : 0.65f));
+                    g.setColour(textCol);
                     g.setFont(juce::Font(juce::FontOptions(9.0f)));
                     g.drawText(juce::String(idx + 1), cell.reduced(2),
                                juce::Justification::centred);
+
+                    // Chain-position badge (small, top-right corner): "1", "2", "3"...
+                    if (cpos > 0)
+                    {
+                        const auto badge = cell.withWidth(11).withHeight(11)
+                                               .withRightX(cell.getRight())
+                                               .withY(cell.getY());
+                        g.setColour(isNext ? juce::Colours::black.withAlpha(0.70f)
+                                           : scopeTint.brighter(0.3f).withAlpha(0.85f));
+                        g.fillRoundedRectangle(badge.toFloat(), 2.0f);
+                        g.setColour(isNext ? juce::Colours::white : juce::Colours::black);
+                        g.setFont(juce::Font(juce::FontOptions(7.0f)).boldened());
+                        g.drawText(juce::String(cpos), badge, juce::Justification::centred);
+                    }
                 }
             }
-            // skip nav row text and return early
+            // Nav row hint
             g.setColour(juce::Colour::fromRGB(80, 95, 115));
             g.setFont(juce::Font(juce::FontOptions(10.0f)));
-            g.drawText(uiState_.trackHeld       ? "SELECT TRACK"
+            g.drawText(uiState_.trackHeld          ? "SELECT TRACK"
                        : uiState_.patternScopeHeld ? "SELECT PATTERN" : "SELECT PART",
                        navArea, juce::Justification::centred);
             return;

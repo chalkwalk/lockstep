@@ -117,6 +117,8 @@ namespace lockstep
         bool chainLoopEnabled() const { return chainLoopEnabled_; }
         void setChainLoopEnabled(bool v) { chainLoopEnabled_ = v; }
         int  chainLength()      const { return static_cast<int>(chain_.size()); }
+        // Message-thread-only: returns the (bankIdx, patIdx) for chain position i.
+        std::pair<int,int> chainEntry(int i) const { return chain_[static_cast<std::size_t>(i)]; }
 
         Clock&       clock()       { return clock_; }
         const Clock& clock() const { return clock_; }
