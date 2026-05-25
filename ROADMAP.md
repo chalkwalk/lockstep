@@ -887,7 +887,7 @@ grammar; no behavioural change to the sequencer itself.
       `RETRIG`, `COPY`, `PASTE`, `CLEAR`, `CONFIG`, …). Truncation
       logic in `paintKeyButton` updated; over-6 falls back to
       auto-shrink rather than truncation.
-- [ ] **MHZ.1.3** Unified label-resolution helper
+- [x] **MHZ.1.3** Unified label-resolution helper
       `resolveKeyLabel(KeyDef, UiState, EditContext) -> {primary,
       hint}`. Collapses today's ad-hoc `COP/PST/CLR` branch + the
       `scopedCell()` matrix lookup + the verb-key dimming into one
@@ -902,7 +902,7 @@ grammar; no behavioural change to the sequencer itself.
       held-context preview chrome (MHZ.2), badges. Taxonomy only —
       exact palette values defer to the later visual-design pass
       (DESIGN §24 policy).
-- [ ] **MHZ.1.5** Always-on hints kept where the secondary meaning is
+- [x] **MHZ.1.5** Always-on hints kept where the secondary meaning is
       genuinely invariant under *any* scope (verb keys
       `COPY/PASTE/CLR` under any scope modifier; anything else swaps
       only when the relevant modifier is held). Encoded inside the
