@@ -9,32 +9,39 @@ namespace lockstep
     // performance grammar context from them.  All input sources route through
     // this state machine before handler dispatch, so scoping is source-agnostic.
     //
-    // Compound-chord rule (MHX §13, §33.3):
-    //   Two modifiers may be held together only if they come from different columns
-    //   (col-1 structural vs col-2 performance).  A modifier+modifier compound never
-    //   fires on its own — it sets a compound scope waiting for a verb or encoder.
-    //   Func is the universal qualifier and composes with any other modifier.
-    //   Two col-1 modifiers or two col-2 modifiers are ignored (same-column chords
-    //   are not defined; the secondary press is a no-op in this context).
+    // Compound-chord rule (DESIGN §13, §33.3; MHY cluster):
+    //   Two modifiers may be held together only if they come from different
+    //   columns. A modifier+modifier compound never fires on its own — it sets
+    //   a compound scope waiting for a verb or encoder. Func is the universal
+    //   qualifier and composes with any other modifier. Two same-column
+    //   modifiers are ignored.
+    //
+    //   Col 1 (1/Q/A/Z): Func, Pattern, Scene, Mute.
+    //   Col 2 (2/W/S/X): Track, Part,    Master, Fill.
     //
     // Scope hierarchy (highest to lowest priority when multiple are held):
-    //   Trig (held step) > Section > Track > Pattern > Mute > Cue > Scene > Master > Fill > Func
+    //   Trig (held step) > Section > Track > Pattern > Part > Mute > Scene >
+    //   Master > Fill > Func.
+    //   (Cue is reserved as a PrimaryScope but is not bound to a key
+    //   post-MHY; left in for MU reactivation.)
     class EditMode
     {
     public:
-        // Which scope buttons are currently held (MHX 10x4 layout).
+        // Which scope buttons are currently held (MHX shape, MHY identities).
         struct ScopeState
         {
-            // Column 1 (structural):
+            // Column 1 (1/Q/A/Z):
             bool func    = false;  // key 1
-            bool track   = false;  // key Q: Control-All if no trig held
-            bool pattern = false;  // key A (dedicated in MHX)
+            bool pattern = false;  // key Q
+            bool scene   = false;  // key A (§17)
             bool mute    = false;  // key Z
-            // Column 2 (performance):
-            bool fill    = false;  // key 2
-            bool cue     = false;  // key W (§31)
-            bool scene   = false;  // key S (§17)
-            bool master  = false;  // key X (§32.3)
+            // Column 2 (2/W/S/X):
+            bool track   = false;  // key 2: Control-All if no trig held
+            bool part    = false;  // key W (§4.7) — kit identity, Part+SRC = machine select
+            bool master  = false;  // key S (§32.3)
+            bool fill    = false;  // key X
+            // Reserved for MU (Cue bus) — no key bound:
+            bool cue     = false;
             // Set externally from EditContext / section holds:
             bool trig    = false;  // at least one step is held
         };
@@ -47,9 +54,10 @@ namespace lockstep
             Trig,     // one or more steps held
             Track,    // Track scope (Control-All if trig not also held)
             Pattern,  // Pattern scope
+            Part,     // Part scope (§4.7) — MHY
             Mute,     // Mute scope
             Fill,     // Fill scope (momentary; verb is less common here)
-            Cue,      // Cue/monitor scope (§31)
+            Cue,      // Cue/monitor scope (§31; reserved until MU)
             Scene,    // Scene assignment scope (§17)
             Master,   // Master-bus / FX focus (§32.3)
             Section,  // a section key is held (set externally when section held)

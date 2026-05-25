@@ -20,17 +20,17 @@ namespace lockstep
 
         switch (ev.button)
         {
-            // Column-1 structural scope modifiers.
+            // MHY cluster Col 1: Func / Pattern / Scene / Mute.
             case ControllerButton::Func:
                 scope_.func = isDown;
                 recomputePrimary();
                 return true;
-            case ControllerButton::TrackScope:
-                scope_.track = isDown;
-                recomputePrimary();
-                return true;
             case ControllerButton::PatternScope:
                 scope_.pattern = isDown;
+                recomputePrimary();
+                return true;
+            case ControllerButton::SceneScope:
+                scope_.scene = isDown;
                 recomputePrimary();
                 return true;
             case ControllerButton::MuteScope:
@@ -38,21 +38,28 @@ namespace lockstep
                 recomputePrimary();
                 return true;
 
-            // Column-2 performance scope modifiers.
-            case ControllerButton::FillScope:
-                scope_.fill = isDown;
+            // MHY cluster Col 2: Track / Part / Master / Fill.
+            case ControllerButton::TrackScope:
+                scope_.track = isDown;
                 recomputePrimary();
                 return true;
-            case ControllerButton::CueScope:
-                scope_.cue = isDown;
-                recomputePrimary();
-                return true;
-            case ControllerButton::SceneScope:
-                scope_.scene = isDown;
+            case ControllerButton::PartScope:
+                scope_.part = isDown;
                 recomputePrimary();
                 return true;
             case ControllerButton::MasterScope:
                 scope_.master = isDown;
+                recomputePrimary();
+                return true;
+            case ControllerButton::FillScope:
+                scope_.fill = isDown;
+                recomputePrimary();
+                return true;
+
+            // Cue scope is reserved (MU); no key emits it post-MHY, but accept
+            // the event in case future input sources do.
+            case ControllerButton::CueScope:
+                scope_.cue = isDown;
                 recomputePrimary();
                 return true;
 
@@ -94,12 +101,12 @@ namespace lockstep
 
     bool EditMode::hasCompoundScope() const noexcept
     {
-        // Column 1 (structural, non-Func): track, pattern, mute.
-        const bool col1NonFunc = scope_.track || scope_.pattern || scope_.mute;
-        // Column 2 (performance): fill, cue, scene, master.
-        const bool col2 = scope_.fill || scope_.cue || scope_.scene || scope_.master;
-        // Compound = (col1-non-Func AND col2) OR (Func AND col2) OR (Func AND col1-non-Func).
-        // Func is the universal qualifier so it pairs with anything.
+        // MHY columns:
+        //   Col 1 (non-Func): pattern, scene, mute.
+        //   Col 2:            track, part, master, fill.
+        // Func is the universal qualifier and pairs with anything.
+        const bool col1NonFunc = scope_.pattern || scope_.scene || scope_.mute;
+        const bool col2        = scope_.track   || scope_.part  || scope_.master || scope_.fill;
         if (scope_.func && (col1NonFunc || col2)) { return true; }
         if (col1NonFunc && col2) { return true; }
         return false;
@@ -107,25 +114,27 @@ namespace lockstep
 
     bool EditMode::hasSameColumnConflict() const noexcept
     {
-        // Two col-1 non-Func modifiers held together is a same-column conflict.
-        const int col1Count = (scope_.track ? 1 : 0)
-                            + (scope_.pattern ? 1 : 0)
-                            + (scope_.mute ? 1 : 0);
-        // Two col-2 modifiers held together is a same-column conflict.
-        const int col2Count = (scope_.fill ? 1 : 0)
-                            + (scope_.cue ? 1 : 0)
-                            + (scope_.scene ? 1 : 0)
-                            + (scope_.master ? 1 : 0);
+        // MHY columns. Two of the same column non-Func held = no-op conflict.
+        const int col1Count = (scope_.pattern ? 1 : 0)
+                            + (scope_.scene   ? 1 : 0)
+                            + (scope_.mute    ? 1 : 0);
+        const int col2Count = (scope_.track   ? 1 : 0)
+                            + (scope_.part    ? 1 : 0)
+                            + (scope_.master  ? 1 : 0)
+                            + (scope_.fill    ? 1 : 0);
         return (col1Count >= 2) || (col2Count >= 2);
     }
 
     void EditMode::recomputePrimary()
     {
-        // Priority: Trig > Section > Track > Pattern > Mute > Cue > Scene > Master > Fill > Func > None
+        // Priority (MHY): Trig > Section > Track > Pattern > Part > Mute >
+        // Scene > Master > Fill > Func > None.
+        // (Cue is reserved but currently unreachable from QWERTY.)
         if (scope_.trig)    { primary_ = PrimaryScope::Trig;    return; }
         if (sectionHeld_)   { primary_ = PrimaryScope::Section; return; }
         if (scope_.track)   { primary_ = PrimaryScope::Track;   return; }
         if (scope_.pattern) { primary_ = PrimaryScope::Pattern; return; }
+        if (scope_.part)    { primary_ = PrimaryScope::Part;    return; }
         if (scope_.mute)    { primary_ = PrimaryScope::Mute;    return; }
         if (scope_.cue)     { primary_ = PrimaryScope::Cue;     return; }
         if (scope_.scene)   { primary_ = PrimaryScope::Scene;   return; }

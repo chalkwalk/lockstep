@@ -19,13 +19,14 @@ namespace lockstep
         constexpr int code(char c) { return static_cast<int>(c); }
 
         // Primary layer — no special modifier held.
-        // Fill/Cue/Scene/Master are transparent (they just set held state).
+        // Modifier-cluster keys (1/Q/A/Z, 2/W/S/X) are handled by resolve()
+        // directly; only non-modifier keys appear here.
         constexpr std::array<Entry, 32> kPrimary = { {
             // Row 1 utilities: TAP(3), NavUp(4)
             { code('3'), B::TapTempo,   -1 },
             { code('4'), B::NavUp,      -1 },
 
-            // Section buttons (keys 5-0: TRIG/SRC/FLTR/AMP/LFO/FX)
+            // Section buttons (keys 5-0: TRIG/SRC/FLTR/AMP/MOD/FX — MHY rename)
             { code('5'), B::Section,     0 },
             { code('6'), B::Section,     1 },
             { code('7'), B::Section,     2 },
@@ -177,17 +178,17 @@ namespace lockstep
     {
         using T = ControllerEvent::Type;
 
-        // Column-1 modifier keys (structural scopes) always emit their own identity.
+        // MHY cluster identities. Col 1 = Func / Pattern / Scene / Mute.
         if (keyCode == code('1')) { return { T::ButtonDown, B::Func,         -1, 0 }; }
-        if (keyCode == code('Q')) { return { T::ButtonDown, B::TrackScope,   -1, 0 }; }
-        if (keyCode == code('A')) { return { T::ButtonDown, B::PatternScope, -1, 0 }; }
+        if (keyCode == code('Q')) { return { T::ButtonDown, B::PatternScope, -1, 0 }; }
+        if (keyCode == code('A')) { return { T::ButtonDown, B::SceneScope,   -1, 0 }; }
         if (keyCode == code('Z')) { return { T::ButtonDown, B::MuteScope,    -1, 0 }; }
 
-        // Column-2 modifier keys (performance scopes) emit their own identity.
-        if (keyCode == code('2')) { return { T::ButtonDown, B::FillScope,   -1, 0 }; }
-        if (keyCode == code('W')) { return { T::ButtonDown, B::CueScope,    -1, 0 }; }
-        if (keyCode == code('S')) { return { T::ButtonDown, B::SceneScope,  -1, 0 }; }
-        if (keyCode == code('X')) { return { T::ButtonDown, B::MasterScope, -1, 0 }; }
+        // MHY cluster identities. Col 2 = Track / Part / Master / Fill.
+        if (keyCode == code('2')) { return { T::ButtonDown, B::TrackScope,  -1, 0 }; }
+        if (keyCode == code('W')) { return { T::ButtonDown, B::PartScope,   -1, 0 }; }
+        if (keyCode == code('S')) { return { T::ButtonDown, B::MasterScope, -1, 0 }; }
+        if (keyCode == code('X')) { return { T::ButtonDown, B::FillScope,   -1, 0 }; }
 
         ControllerEvent ev;
 

@@ -17,17 +17,22 @@ namespace lockstep
         std::array<std::array<int, IMachine::kMaxSections>, kNumTracks> trackPage{};
 
         // Modifier key states (updated by PluginEditor key events).
-        // Column 1 structural scopes:
+        // MHY cluster:
+        //   Col 1 (1/Q/A/Z): Func / Pattern / Scene / Mute.
+        //   Col 2 (2/W/S/X): Track / Part / Master / Fill.
+        // Col 1:
         bool funcHeld         = false;  // key 1
-        bool trackHeld        = false;  // key Q
-        bool patternScopeHeld = false;  // key A (dedicated in MHX)
+        bool patternScopeHeld = false;  // key Q (MHY: moved from A)
         bool patternScopeUsed = false;  // true if a step was pressed while PatternScope held
+        bool sceneHeld        = false;  // key A (MHY: moved from S)
         bool muteHeld         = false;  // key Z
-        // Column 2 performance scopes:
-        bool fillHeld         = false;  // key 2
-        bool cueHeld          = false;  // key W
-        bool sceneHeld        = false;  // key S
-        bool masterHeld       = false;  // key X
+        // Col 2:
+        bool trackHeld        = false;  // key 2 (MHY: moved from Q)
+        bool partHeld         = false;  // key W (MHY new — §4.7)
+        bool masterHeld       = false;  // key S (MHY: moved from X)
+        bool fillHeld         = false;  // key X (MHY: moved from 2)
+        // Cue is reserved (MU); no key bound post-MHY.
+        bool cueHeld          = false;
 
         // Active trig-grid input mode.
         TrigGridMode trigGridMode = TrigGridMode::Default;

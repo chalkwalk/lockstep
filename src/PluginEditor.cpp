@@ -356,15 +356,16 @@ namespace lockstep
             const auto& sc = editMode_.scopeState();
             // Scope badges: (label, active?) — eight modifiers for MHX 10x4
             struct Badge { const char* label; bool active; juce::Colour onColour; };
+            // MHY cluster order: col-1 stacked above col-2 per row, frequency-of-use.
             const Badge scopes[] = {
                 { "FNC", sc.func,    juce::Colour(0xFF6090C0u) },
                 { "TRK", sc.track,   juce::Colour(0xFF50C060u) },
                 { "PAT", sc.pattern, juce::Colour(0xFFC09030u) },
-                { "MUT", sc.mute,    juce::Colour(0xFFC05050u) },
-                { "FIL", sc.fill,    juce::Colour(0xFFB060C0u) },
-                { "CUE", sc.cue,     juce::Colour(0xFF40B0B0u) },
+                { "PRT", sc.part,    juce::Colour(0xFFC07050u) },
                 { "SCN", sc.scene,   juce::Colour(0xFF9050D0u) },
                 { "MST", sc.master,  juce::Colour(0xFFD06020u) },
+                { "MUT", sc.mute,    juce::Colour(0xFFC05050u) },
+                { "FIL", sc.fill,    juce::Colour(0xFFB060C0u) },
             };
 
             // Clipboard badge
@@ -641,6 +642,12 @@ namespace lockstep
 
             case ControllerButton::MasterScope:
                 uiState_.masterHeld = true;
+                editMode_.onScopeEvent(ev);
+                repaint();
+                return true;
+
+            case ControllerButton::PartScope:
+                uiState_.partHeld = true;
                 editMode_.onScopeEvent(ev);
                 repaint();
                 return true;
@@ -1012,8 +1019,9 @@ namespace lockstep
             handled = true;
         }
 
+        // MHY cluster: Track lives on key 2.
         if (!isKeyDown && uiState_.trackHeld
-            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('Q')))
+            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('2')))
         {
             uiState_.trackHeld = false;
             processor_.setControlAllActive(false);  // MD.10
@@ -1022,9 +1030,9 @@ namespace lockstep
             handled = true;
         }
 
-        // PatternScope is now on key A (dedicated in MHX).
+        // MHY cluster: Pattern lives on key Q.
         if (!isKeyDown && uiState_.patternScopeHeld
-            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('A')))
+            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('Q')))
         {
             uiState_.patternScopeHeld = false;
             uiState_.patternScopeUsed = false;
@@ -1033,6 +1041,17 @@ namespace lockstep
             handled = true;
         }
 
+        // MHY cluster: Part lives on key W (new scope).
+        if (!isKeyDown && uiState_.partHeld
+            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('W')))
+        {
+            uiState_.partHeld = false;
+            editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::PartScope });
+            repaint();
+            handled = true;
+        }
+
+        // MHY cluster: Mute on Z (unchanged).
         if (!isKeyDown && uiState_.muteHeld
             && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('Z')))
         {
@@ -1042,8 +1061,9 @@ namespace lockstep
             handled = true;
         }
 
+        // MHY cluster: Fill on key X.
         if (!isKeyDown && uiState_.fillHeld
-            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('2')))
+            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('X')))
         {
             uiState_.fillHeld = false;
             processor_.setFillActive(false);
@@ -1052,8 +1072,9 @@ namespace lockstep
             handled = true;
         }
 
-        if (!isKeyDown && uiState_.cueHeld
-            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('W')))
+        // MHY: Cue is not bound to any cluster key post-MHY. The held-state
+        // tracking remains in case a future input source emits CueScope events.
+        if (!isKeyDown && uiState_.cueHeld)
         {
             uiState_.cueHeld = false;
             editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::CueScope });
@@ -1061,8 +1082,9 @@ namespace lockstep
             handled = true;
         }
 
+        // MHY cluster: Scene on key A.
         if (!isKeyDown && uiState_.sceneHeld
-            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('S')))
+            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('A')))
         {
             uiState_.sceneHeld = false;
             editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::SceneScope });
@@ -1070,8 +1092,9 @@ namespace lockstep
             handled = true;
         }
 
+        // MHY cluster: Master on key S.
         if (!isKeyDown && uiState_.masterHeld
-            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('X')))
+            && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('S')))
         {
             uiState_.masterHeld = false;
             editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::MasterScope });
@@ -1459,6 +1482,7 @@ namespace lockstep
             case PS::Cue:
             case PS::Scene:
             case PS::Master:
+            case PS::Part:  // MHY: Part-scope verbs land here once the kit verbs are wired
                 break;
 
             case PS::None:

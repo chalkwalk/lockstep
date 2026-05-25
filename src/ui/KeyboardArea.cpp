@@ -567,9 +567,9 @@ namespace lockstep
     }
 
     // -------------------------------------------------------------------------
-    // paintSectionRow — number row (10 cells):
-    //   Func(1)  Fill(2)  TAP(3)  ^(4)  TRIG(5) SRC(6) FLTR(7) AMP(8) LFO(9)  FX(0)
-    //   cell 0   cell 1   cell 2  cell3  cell 4   ...                           cell 9
+    // paintSectionRow — number row (10 cells, MHY identities):
+    //   Func(1)  Track(2)  TAP(3)  ^(4)  TRIG(5) SRC(6) FLTR(7) AMP(8) MOD(9) FX(0)
+    //   cell 0   cell 1    cell 2  cell3  cell 4   ...                          cell 9
 
     void KeyboardArea::paintSectionRow(juce::Graphics& g, juce::Rectangle<int> area)
     {
@@ -582,12 +582,13 @@ namespace lockstep
         };
 
         // Compound-chord overlay: show on modifier cells when two cross-column modifiers held.
-        const bool col1any = uiState_.trackHeld || uiState_.patternScopeHeld || uiState_.muteHeld;
-        const bool col2any = uiState_.fillHeld  || uiState_.cueHeld || uiState_.sceneHeld
-                                                || uiState_.masterHeld;
+        // MHY columns: col-1 non-Func = {pattern, scene, mute}; col-2 = {track, part, master, fill}.
+        const bool col1any = uiState_.patternScopeHeld || uiState_.sceneHeld || uiState_.muteHeld;
+        const bool col2any = uiState_.trackHeld || uiState_.partHeld
+                                                || uiState_.masterHeld || uiState_.fillHeld;
         const bool hasCompound = (uiState_.funcHeld && (col1any || col2any)) || (col1any && col2any);
 
-        // Cell 0: Func (key 1) — amber, universal qualifier
+        // Cell 0: Func (key 1) — amber, universal qualifier (col-1 row 0).
         {
             const bool pressed = juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('1'));
             KeyButtonState st = KeyButtonState::Normal;
@@ -599,16 +600,16 @@ namespace lockstep
                            grp, st, showKeyHint, overlay);
         }
 
-        // Cell 1: Fill (key 2) — performance modifier (col-2), violet
+        // Cell 1: Track (key 2) — section-scope (col-2 row 0), violet.
         {
             const bool pressed = juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('2'));
             KeyButtonState st = KeyButtonState::Normal;
-            if      (pressed)           st = KeyButtonState::Pressed;
-            else if (uiState_.fillHeld) st = KeyButtonState::ModeActive;
-            else if (uiState_.funcHeld) st = KeyButtonState::FuncHeld;
+            if      (pressed)            st = KeyButtonState::Pressed;
+            else if (uiState_.trackHeld) st = KeyButtonState::ModeActive;
+            else if (uiState_.funcHeld)  st = KeyButtonState::FuncHeld;
             const KeyGroup grp { kPerfInactive, kPerfActive, kPerfAccent };
-            const bool overlay = hasCompound && uiState_.fillHeld;
-            paintKeyButton(g, sectionCellBounds(1, area), kKeyHints[1], "FIL", "",
+            const bool overlay = hasCompound && uiState_.trackHeld;
+            paintKeyButton(g, sectionCellBounds(1, area), kKeyHints[1], "TRK", "",
                            grp, st, showKeyHint, overlay);
         }
 
@@ -722,8 +723,8 @@ namespace lockstep
     }
 
     // -------------------------------------------------------------------------
-    // paintFunctionRow — Q-row (10 keys):
-    //   Q/TRK  W/CUE  E/<  R/v  T/>  Y/MACH  U/SNAP  I/REC  O/PLY  P/STP
+    // paintFunctionRow — Q-row (10 keys, MHY identities):
+    //   Q/PAT  W/PRT  E/<  R/v  T/>  Y/MACH  U/SNAP  I/REC  O/PLY  P/STP
     //   Func-layer secondaries:  SRS  KEY  RTG  FORK    RST   CPY    PST   CLR
 
     void KeyboardArea::paintFunctionRow(juce::Graphics& g, juce::Rectangle<int> area)
@@ -744,8 +745,8 @@ namespace lockstep
         };
 
         static const std::array<QKeyDef, 10> kDefs = {{
-            { 'Q', u8"Q", u8"TRK",  u8"",     { kModInactive,  kModActive,  kModAccent  } },
-            { 'W', u8"W", u8"CUE",  u8"",     { kPerfInactive, kPerfActive, kPerfAccent } },
+            { 'Q', u8"Q", u8"PAT",  u8"",     { kModInactive,  kModActive,  kModAccent  } },
+            { 'W', u8"W", u8"PRT",  u8"",     { kPerfInactive, kPerfActive, kPerfAccent } },
             { 'E', u8"E", u8"←",    u8"SRS",  { kNavInactive,  kNavActive,  kNavAccent  } },
             { 'R', u8"R", u8"↓",    u8"KEY",  { kNavInactive,  kNavActive,  kNavAccent  } },
             { 'T', u8"T", u8"→",    u8"RTG",  { kNavInactive,  kNavActive,  kNavAccent  } },
@@ -758,10 +759,10 @@ namespace lockstep
 
         const bool showKeyHint = (displayMode_ != GridDisplayMode::Clean);
 
-        // Compound overlay on Q (Track) and W (Cue).
-        const bool col1any = uiState_.trackHeld || uiState_.patternScopeHeld || uiState_.muteHeld;
-        const bool col2any = uiState_.fillHeld  || uiState_.cueHeld || uiState_.sceneHeld
-                                                || uiState_.masterHeld;
+        // Compound overlay on Q (Pattern) and W (Part) — MHY identities.
+        const bool col1any = uiState_.patternScopeHeld || uiState_.sceneHeld || uiState_.muteHeld;
+        const bool col2any = uiState_.trackHeld || uiState_.partHeld
+                                                || uiState_.masterHeld || uiState_.fillHeld;
         const bool hasCompound = (uiState_.funcHeld && (col1any || col2any)) || (col1any && col2any);
 
         int leftPad, cellW;
@@ -806,9 +807,9 @@ namespace lockstep
             const bool isPressed   = juce::KeyPress::isKeyCurrentlyDown(def.keyCode);
             const bool isArmed     = (def.keyCode == 'I') && processor_.clock().isRecordArmed();
             const bool isPlaying   = (def.keyCode == 'O') && processor_.clock().inPluginPlaying();
-            const bool isTrkHeld   = (def.keyCode == 'Q') && uiState_.trackHeld;
-            const bool isCueHeld   = (def.keyCode == 'W') && uiState_.cueHeld;
-            const bool isModeActive = isArmed || isPlaying || isTrkHeld || isCueHeld;
+            const bool isPatHeld   = (def.keyCode == 'Q') && uiState_.patternScopeHeld;
+            const bool isPrtHeld   = (def.keyCode == 'W') && uiState_.partHeld;
+            const bool isModeActive = isArmed || isPlaying || isPatHeld || isPrtHeld;
 
             KeyButtonState state = KeyButtonState::Normal;
             if      (isPressed)         state = KeyButtonState::Pressed;
@@ -816,8 +817,8 @@ namespace lockstep
             else if (uiState_.funcHeld) state = KeyButtonState::FuncHeld;
 
             const bool overlay = hasCompound
-                && ((def.keyCode == 'Q' && uiState_.trackHeld)
-                 || (def.keyCode == 'W' && uiState_.cueHeld));
+                && ((def.keyCode == 'Q' && uiState_.patternScopeHeld)
+                 || (def.keyCode == 'W' && uiState_.partHeld));
 
             paintKeyButton(g, cell,
                            def.keyHint, def.primary, def.secondary,
@@ -924,15 +925,15 @@ namespace lockstep
             paintEdgeRow(g, 2 + row, rowRect);
         }
 
-        // Compound overlay state
-        const bool col1any = uiState_.trackHeld || uiState_.patternScopeHeld || uiState_.muteHeld;
-        const bool col2any = uiState_.fillHeld  || uiState_.cueHeld || uiState_.sceneHeld
-                                                || uiState_.masterHeld;
+        // Compound overlay state — MHY columns.
+        const bool col1any = uiState_.patternScopeHeld || uiState_.sceneHeld || uiState_.muteHeld;
+        const bool col2any = uiState_.trackHeld || uiState_.partHeld
+                                                || uiState_.masterHeld || uiState_.fillHeld;
         const bool hasCompound = (uiState_.funcHeld && (col1any || col2any)) || (col1any && col2any);
 
-        // Two modifier columns per row:
-        //   col-1 structural: row 0 = A/PAT, row 1 = Z/MUT
-        //   col-2 performance: row 0 = S/SCN, row 1 = X/MST
+        // Two modifier columns per row (MHY identities):
+        //   col-1: row 0 = A/SCN, row 1 = Z/MUT
+        //   col-2: row 0 = S/MST, row 1 = X/FIL
         {
             struct ModDef {
                 int  keyCode;
@@ -944,23 +945,23 @@ namespace lockstep
             };
 
             const std::array<std::array<ModDef, 2>, kRows> mods = {{
-                // Row 0 (A row): A=Pattern (col-1), S=Scene (col-2)
+                // Row 0 (A row): A=Scene (col-1), S=Master (col-2)
                 std::array<ModDef, 2>{{
-                    { 'A', "A", "PAT", uiState_.patternScopeHeld,
+                    { 'A', "A", "SCN", uiState_.sceneHeld,
                       { kModInactive, kModActive, kModAccent },
-                      hasCompound && uiState_.patternScopeHeld },
-                    { 'S', "S", "SCN", uiState_.sceneHeld,
-                      { kPerfInactive, kPerfActive, kPerfAccent },
                       hasCompound && uiState_.sceneHeld },
+                    { 'S', "S", "MST", uiState_.masterHeld,
+                      { kPerfInactive, kPerfActive, kPerfAccent },
+                      hasCompound && uiState_.masterHeld },
                 }},
-                // Row 1 (Z row): Z=Mute (col-1), X=Master (col-2)
+                // Row 1 (Z row): Z=Mute (col-1), X=Fill (col-2)
                 std::array<ModDef, 2>{{
                     { 'Z', "Z", "MUT", uiState_.muteHeld,
                       { kModInactive, kModActive, kModAccent },
                       hasCompound && uiState_.muteHeld },
-                    { 'X', "X", "MST", uiState_.masterHeld,
+                    { 'X', "X", "FIL", uiState_.fillHeld,
                       { kPerfInactive, kPerfActive, kPerfAccent },
-                      hasCompound && uiState_.masterHeld },
+                      hasCompound && uiState_.fillHeld },
                 }},
             }};
 

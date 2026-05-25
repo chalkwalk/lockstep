@@ -8,29 +8,34 @@ namespace lockstep
     // Buttons that carry a positional index (Step, Section, MetaSection, SelectTrack)
     // store the index in ControllerEvent::index; all other buttons have index == -1.
     //
-    // 10x4 layout (MHX §33, §5.5):
-    //   Left two columns = eight modifier cluster:
-    //     Col 1 (1/Q/A/Z): Func / Track / Pattern / Mute
-    //     Col 2 (2/W/S/X): Fill / Cue / Scene / Master
+    // 10x4 layout (MHX shape, MHY identities; DESIGN §33, §5.5):
+    //   Left two columns = eight modifier cluster (MHY frequency-of-use order):
+    //     Col 1 (1/Q/A/Z): Func / Pattern / Scene / Mute
+    //     Col 2 (2/W/S/X): Track / Part / Master / Fill
     //   Right 8x4 functional block:
     //     Row 1 (3-0): TAP(3), NavUp(4), six canonical sections(5-0)
     //     Row 2 (E-P): NavLeft(E), NavDown(R), NavRight(T), MachineSelect(Y),
     //                  Snapshot(U), RecordArm(I), PlayStop(O), StopReset(P)
     //     Row 3 (D-;):       steps 0-7
     //     Row 4 (C-/):       steps 8-15
+    //   Cue is reserved as a scope (§31) but is not bound to a cluster key
+    //   until MU; the CueScope enum value remains for future reactivation.
     enum class ControllerButton : std::uint8_t
     {
-        // Column-1 modifiers (structural / edit scopes).
-        Func,         // key 1: primary modifier (secondary functions via Func+key)
-        TrackScope,   // key Q: track scope (Q+step=SelectTrack, Q alone=Control-All)
-        PatternScope, // key A: pattern-level scope (dedicated key in MHX)
+        // Column-1 modifiers (MHY): Func / Pattern / Scene / Mute.
+        Func,         // key 1: universal qualifier (secondary functions via Func+key)
+        PatternScope, // key Q: pattern-level scope (MHY: moved from A)
+        SceneScope,   // key A: scene assignment scope (§17, MHY: moved from S); Scene+^/v picks endpoint A/B
         MuteScope,    // key Z: mute scope (Z+step=toggle track mute)
 
-        // Column-2 modifiers (performance scopes).
-        FillScope,    // key 2: fill modifier (held=fill conditions evaluate true)
-        CueScope,     // key W: cue/monitor scope (§31)
-        SceneScope,   // key S: scene assignment scope (§17); Scene+^/v picks endpoint A/B
-        MasterScope,  // key X: master-bus / FX focus (§32.3)
+        // Column-2 modifiers (MHY): Track / Part / Master / Fill.
+        TrackScope,   // key 2: track scope (MHY: moved from Q); Track+step=SelectTrack, Track alone=Control-All
+        PartScope,    // key W: part scope (MHY new — kit identity, machine select via Part+SRC, §4.7)
+        MasterScope,  // key S: master-bus / FX focus (§32.3, MHY: moved from X)
+        FillScope,    // key X: fill modifier (MHY: moved from 2; held=fill conditions evaluate true)
+
+        // Cue scope: reserved for MU reactivation, currently not bound to any key.
+        CueScope,
 
         // Verb keys (meaning changes based on the active scope from EditMode).
         VerbRecord,       // Func+I: copy / capture scope into clipboard

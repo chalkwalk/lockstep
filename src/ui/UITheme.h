@@ -15,12 +15,12 @@ namespace lockstep::theme
     inline constexpr uint32_t kFuncActive   = 0xFFC07800u;
     inline constexpr uint32_t kFuncAccent   = 0xFFC07800u;
 
-    // Structural modifier keys col-1 (Q/TRK, A/PAT, Z/MUT) — indigo
+    // Col-1 modifier keys (Q/PAT, A/SCN, Z/MUT) — indigo. MHY identities.
     inline constexpr uint32_t kModInactive  = 0xFF1E1A2Eu;
     inline constexpr uint32_t kModActive    = 0xFF5040A0u;
     inline constexpr uint32_t kModAccent    = 0xFF5040A0u;
 
-    // Performance modifier keys col-2 (2/FIL, W/CUE, S/SCN, X/MST) — violet
+    // Col-2 modifier keys (2/TRK, W/PRT, S/MST, X/FIL) — violet. MHY identities.
     inline constexpr uint32_t kPerfInactive = 0xFF1E1430u;
     inline constexpr uint32_t kPerfActive   = 0xFF7040B0u;
     inline constexpr uint32_t kPerfAccent   = 0xFF9060D0u;

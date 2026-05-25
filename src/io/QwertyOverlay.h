@@ -4,18 +4,20 @@
 
 namespace lockstep
 {
-    // Translates raw JUCE key codes into ControllerEvents for the 10x4 layout (MHX).
+    // Translates raw JUCE key codes into ControllerEvents for the 10x4 layout
+    // (MHX shape, MHY identities).
     //
     // Physical layout (columns 1-10, rows 1-4):
     //
-    //   [Fnc][Fil][TAP][ ^ ][Sc0][Sc1][Sc2][Sc3][Sc4][Sc5]  <- row 1  1 2 3 4 5 6 7 8 9 0
-    //   [Trk][Cue][ < ][ v ][ > ][MCH][SNP][REC][PLY][STP]  <- row 2  Q W E R T Y U I O P
+    //   [Fnc][Trk][TAP][ ^ ][Sc0][Sc1][Sc2][Sc3][Sc4][Sc5]  <- row 1  1 2 3 4 5 6 7 8 9 0
+    //   [Pat][Prt][ < ][ v ][ > ][MCH][SNP][REC][PLY][STP]  <- row 2  Q W E R T Y U I O P
     //   ─────────┼──────────────────────────────────────────
-    //   [Pat][Scn][St0][St1][St2][St3][St4][St5][St6][St7]  <- row 3  A S D F G H J K L ;
-    //   [Mut][Mst][St8][St9][S10][S11][S12][S13][S14][S15]  <- row 4  Z X C V B N M , . /
+    //   [Scn][Mst][St0][St1][St2][St3][St4][St5][St6][St7]  <- row 3  A S D F G H J K L ;
+    //   [Mut][Fil][St8][St9][S10][S11][S12][S13][S14][S15]  <- row 4  Z X C V B N M , . /
     //
-    //   Col 1 (1/Q/A/Z) = structural modifiers: Func / Track / Pattern / Mute.
-    //   Col 2 (2/W/S/X) = performance modifiers: Fill / Cue / Scene / Master.
+    //   Col 1 (1/Q/A/Z) = Func / Pattern / Scene / Mute.
+    //   Col 2 (2/W/S/X) = Track / Part / Master / Fill.
+    //   (Cue is reserved for MU but no key is bound to it post-MHY.)
     //   Inverted-T nav: 4=NavUp above E=NavLeft, R=NavDown, T=NavRight.
     //   Func layer: Func+3=MetronomeToggle, Func+4=TrigModeSoundPool,
     //               Func+5-0=MetaSections 0-5,

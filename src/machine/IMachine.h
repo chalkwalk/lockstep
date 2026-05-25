@@ -46,6 +46,13 @@ namespace lockstep
             LfoShape,
         };
 
+        // Variant declares which Func tier this slot belongs to (MHY).
+        // Primary slots populate the section's no-modifier pages.
+        // Secondary slots populate the Func+section pages — used for machine
+        // deep-dives (FM modulation matrix, VA voice-mode block) that we want
+        // available in two presses without crowding the primary section.
+        enum class Variant { Primary, Secondary };
+
         juce::String id;            // stable serialisation key
         juce::String label;         // shown in the Manipulation Zone
         float minValue     = 0.0f;
@@ -53,8 +60,9 @@ namespace lockstep
         float defaultValue = 0.0f;
         bool  isStepped    = false;
         Unit  unit         = Unit::None;
-        int   sectionIndex = 0;     // which section this slot belongs to (0-based)
+        int   sectionIndex = 0;     // which canonical section (0..kMaxSections-1)
         Role  role         = Role::None;
+        Variant variant    = Variant::Primary;  // MHY: primary vs Func-secondary page (appended last to preserve aggregate-init)
     };
 
     // Returned by LockstepProcessor::section() after augmenting the machine's
@@ -99,8 +107,12 @@ namespace lockstep
         // Canonical label for each of the kMaxSections section-bar keys.
         // A machine section is "available" when at least one slot has a
         // matching sectionIndex; the rendering always shows these labels.
+        // Canonical-six labels for the section bar (MHY rename: LFO -> MOD).
+        // The MOD section is broader than just LFO — it hosts modulation
+        // matrices, per-operator envelopes, voice-mode, and portamento for
+        // machines that have them. See DESIGN §6.1.1.
         static constexpr std::array<const char*, kMaxSections> kCanonicalSectionNames = {
-            "TRIG", "SRC", "FLTR", "AMP", "LFO", "FX"
+            "TRIG", "SRC", "FLTR", "AMP", "MOD", "FX"
         };
         virtual int         numSections()        const { return 0; }
         virtual SectionInfo section(int /*index*/) const { return {}; }
