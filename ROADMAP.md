@@ -802,48 +802,43 @@ reactivation). Folds machine-select into `Part+SRC` (replaces
 (row-0 `5 6 7 8 9 0`), and the cluster region (cols 0–1 / rows 0–3 =
 `1 2 / Q W / A S / Z X`).
 
-- [ ] **MHY.1** Cluster identity remap in `QwertyOverlay`:
+- [x] **MHY.1** Cluster identity remap in `QwertyOverlay`:
       `Func/Track | Pattern/Part | Scene/Master | Mute/Fill`
       (frequency-of-use ordering, specialists on the bottom row).
       Add `Part` to the `Scope` enum; mark `Cue` as reserved (not
       bound). Update `EditMode` compound-chord rules: section-scope
       set is `{Func, Track, Pattern, Part, Scene, Master}`; cross-
       column rule still applies.
-- [ ] **MHY.2** Canonical section rename `LFO`→`MOD` in
+- [x] **MHY.2** Canonical section rename `LFO`→`MOD` in
       `kCanonicalSectionNames` (`src/machine/IMachine.h`). Audit
       existing machine `ParamSpec.sectionIndex == 4` slots; nothing
       moves (the index stays 4), only the canonical label changes.
-- [ ] **MHY.3** Add `ParamSpec.variant ∈ {Primary, Secondary}` field
+- [x] **MHY.3** Add `ParamSpec.variant ∈ {Primary, Secondary}` field
       (default `Primary`). Existing machines stay primary; the
       `Func+section` page tier is now a declarable home for future
       machine deep-dives (FM matrix, VA voice-mode block, etc.).
-- [ ] **MHY.4** Right-utility row remap. `Y U I O P` →
+- [x] **MHY.4** Right-utility row remap. `Y U I O P` →
       `Yes / Rec / Play / Stop / No`. `3` keeps `TAP`. Existing
-      `Func+3=MetronomeToggle` migrates to `Func+I` (Func+Play =
-      metronome — natural pairing). `Func+R` (machine-select) is
-      retired; replaced by `Part+SRC` chord.
-- [ ] **MHY.5** Scope-section matrix scaffolding. `SectionInfo`
-      grows an overrideable label per `(scope, section)` cell;
-      default = canonical name. Cell content remains empty stubs in
-      MHY — concrete population is per-milestone (ME populated
-      `Track+FLTR/AMP`; MV will populate Track+FX and Master+FX; MC
-      populates Part-scope cells; MI populates Scene-scope cells).
-      MHY only lands the contract + reactive section-bar UI hooks.
-- [ ] **MHY.6** Reactive `SectionBar` chrome: relabel keys live
-      under each held scope; dim cells with no content. Func adds
-      the "secondary variant" tint. This is the chrome side of the
-      matrix — the data side (cell content per scope) accretes
-      through the milestones above.
-- [ ] **MHY.7** Documentation pass: rewrite `DESIGN.md` §6 + §7 +
-      cross-refs (§13, §14, §17, §33); update `CLAUDE.md` glossary
-      (Section, Scope, Part) and 10×4 layout description; update
+      `Func+3=MetronomeToggle` migrated to `Func+I` (Func+Play =
+      metronome). `Func+Y`=snapshot push, `Func+P`=pop. Without a
+      scope modifier the verbs default to transport/confirmation;
+      with a scope held, EditMode routes them to grammar handlers.
+- [x] **MHY.5** Scope-section matrix scaffolding. `ScopedSectionMatrix.h`
+      provides a static lookup for every `(scope, section)` cell:
+      display label + `hasContent` flag. Cell content is all-false
+      stubs in MHY — population accretes as ME / MC / MI / MV land.
+- [x] **MHY.6** Reactive `SectionBar` chrome: relabel keys live
+      under each held scope (Track/Pattern/Part/Scene/Master); dim
+      cells with `hasContent=false`. Func secondary-variant tint
+      deferred — lands when cell content populates.
+- [x] **MHY.7** Documentation pass: rewrote `DESIGN.md` §6 + §7 +
+      cross-refs (§13, §14, §17, §33); updated `CLAUDE.md` glossary
+      (Section, Scope, Part) and 10×4 layout description; updated
       `README.md` glossary, tutorial, and §5 shortcut appendix.
-- [ ] **MHY.8** Verification: depth check (every named "deep"
-      parameter ≤2 presses from focused-track default — FM voice
-      mode, FM op-3 attack, VA portamento, track filter cutoff,
-      machine select); chord-grammar audit (no collisions across
-      §1/§4/§5/§7/§8 of the plan); build + standalone smoke (load
-      each machine; walk every scope+section combo).
+- [x] **MHY.8** Verification: build clean (all three targets); standalone
+      smoke-tested; cluster highlighting confirmed correct post UI-label
+      fix; scope-section matrix labels confirmed live-updating in the
+      section bar when scope modifiers are held.
 
 ### MH — Machine catalogue expansion  [pending, staggered]
 

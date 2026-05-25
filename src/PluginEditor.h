@@ -64,10 +64,19 @@ namespace lockstep
         // (rawKeyCode, absStepIndex) pairs, ordered by press time.
         std::vector<std::pair<int,int>> heldStepKeys_;
 
-        // Double-press detection for PlayStop: two presses within threshold = StopReset.
+        // Double-press detection for Play: two presses within threshold = stop+reset.
         double lastPlayPressTime_            = 0.0;
         bool   playKeyHeld_                  = false;
         static constexpr double kDoublePressMsThreshold = 350.0;
+
+        // Tap tempo: rolling window of up to 5 tap timestamps (ms, high-res).
+        // Requires ≥2 taps; ignores taps older than 3 s relative to the latest tap.
+        static constexpr int    kTapMaxCount    = 5;
+        static constexpr double kTapWindowMs    = 3000.0;
+        static constexpr double kTapMinBpm      = 20.0;
+        static constexpr double kTapMaxBpm      = 300.0;
+        std::array<double, kTapMaxCount> tapTimes_{};
+        int tapCount_ = 0;
 
         Clipboard clipboard_;
 

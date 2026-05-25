@@ -1029,7 +1029,44 @@ namespace lockstep
                 return true;
 
             case ControllerButton::TapTempo:
+            {
+                const double now = juce::Time::getMillisecondCounterHiRes();
+
+                // Expire taps older than kTapWindowMs relative to the new tap.
+                int kept = 0;
+                for (int i = 0; i < tapCount_; ++i)
+                {
+                    if (now - tapTimes_[static_cast<std::size_t>(i)] <= kTapWindowMs)
+                        tapTimes_[static_cast<std::size_t>(kept++)] =
+                            tapTimes_[static_cast<std::size_t>(i)];
+                }
+                tapCount_ = kept;
+
+                // Append the new tap, evicting the oldest if at capacity.
+                if (tapCount_ >= kTapMaxCount)
+                {
+                    for (int i = 1; i < kTapMaxCount; ++i)
+                        tapTimes_[static_cast<std::size_t>(i - 1)] =
+                            tapTimes_[static_cast<std::size_t>(i)];
+                    tapCount_ = kTapMaxCount - 1;
+                }
+                tapTimes_[static_cast<std::size_t>(tapCount_++)] = now;
+
+                // Need at least 2 taps to compute an interval.
+                if (tapCount_ >= 2)
+                {
+                    const double spanMs = tapTimes_[static_cast<std::size_t>(tapCount_ - 1)]
+                                        - tapTimes_[0];
+                    const double intervals = static_cast<double>(tapCount_ - 1);
+                    const double bpm = (60000.0 * intervals) / spanMs;
+                    if (bpm >= kTapMinBpm && bpm <= kTapMaxBpm)
+                    {
+                        processor_.clock().setLocalBpm(bpm);
+                        repaint();
+                    }
+                }
                 return true;
+            }
 
             case ControllerButton::None:
                 return false;

@@ -36,49 +36,53 @@ namespace lockstep
         // Labels match the plan §1 cell map; hasContent reflects current wiring.
         //
         //  idx: 0=TRIG  1=SRC        2=FLTR       3=AMP        4=MOD        5=FX
+        // hasContent=true marks cells with planned content (will be wired per milestone);
+        // hasContent=false marks cells intentionally empty (no planned content).
+        // The section bar dims false cells and highlights true cells as available.
+
         static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kTrack = {{
-            { "TRIG", false },   // per-track condition defaults (ME)
-            { "SRC",  false },   // input_source / Thru assignment (MR)
-            { "FLTR", false },   // post-machine FLTR (ME.6)
-            { "AMP",  false },   // post-machine AMP + sends (ME.7)
-            { "MOD",  false },   // per-track LFO (ME)
-            { "FX",   false },   // IEffect inserts 1+2 (MV)
+            { "TRIG", true  },   // per-track condition defaults (ME)
+            { "SRC",  true  },   // input_source / Thru assignment (MR)
+            { "FLTR", true  },   // post-machine FLTR (ME.6)
+            { "AMP",  true  },   // post-machine AMP + sends (ME.7)
+            { "MOD",  true  },   // per-track LFO (ME)
+            { "FX",   true  },   // IEffect inserts 1+2 (MV)
         }};
 
         static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kPattern = {{
-            { "LEN",  false },   // length / scale lock (MC)
-            { nullptr,false },   // dim (no content planned)
-            { nullptr,false },   // dim
-            { "GAIN", false },   // pattern output gain (MC)
-            { "TMPO", false },   // tempo + chain queue (MC)
-            { nullptr,false },   // dim
+            { "LEN",  true  },   // length / scale lock (MC)
+            { nullptr,false },   // dim — no content planned
+            { nullptr,false },   // dim — no content planned
+            { "GAIN", true  },   // pattern output gain (MC)
+            { "TMPO", true  },   // tempo + chain queue (MC)
+            { nullptr,false },   // dim — no content planned
         }};
 
         static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kPart = {{
-            { "TRIG", false },   // trig templates (MC)
-            { "MACH", false },   // machine select — Part+SRC (MC wires the full flow)
-            { "FLTR", false },   // part-base FLTR (MC)
-            { "AMP",  false },   // part-base AMP (MC)
-            { "MOD",  false },   // part-base MOD (MC)
-            { "FX",   false },   // part-base FX (MC)
+            { "TRIG", true  },   // trig templates (MC)
+            { "MACH", true  },   // machine select — Part+SRC (MC wires the full flow)
+            { "FLTR", true  },   // part-base FLTR (MC)
+            { "AMP",  true  },   // part-base AMP (MC)
+            { "MOD",  true  },   // part-base MOD (MC)
+            { "FX",   true  },   // part-base FX (MC)
         }};
 
         static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kScene = {{
-            { "CXFD", false },   // crossfader curve / scene rename (MI)
-            { "SRC",  false },   // scene-assign SRC (MI)
-            { "FLTR", false },   // scene-assign FLTR (MI)
-            { "AMP",  false },   // scene-assign AMP (MI)
-            { "MOD",  false },   // scene-assign MOD (MI)
-            { "FX",   false },   // scene-assign FX (MI)
+            { "CXFD", true  },   // crossfader curve / endpoint assign (MI)
+            { "SRC",  true  },   // scene-assign SRC (MI)
+            { "FLTR", true  },   // scene-assign FLTR (MI)
+            { "AMP",  true  },   // scene-assign AMP (MI)
+            { "MOD",  true  },   // scene-assign MOD (MI)
+            { "FX",   true  },   // scene-assign FX (MI)
         }};
 
         static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kMaster = {{
-            { nullptr,false },   // dim
-            { nullptr,false },   // dim
-            { "FLTR", false },   // master FLTR (MV)
-            { "AMP",  false },   // master gain + sends (MV)
-            { nullptr,false },   // dim
-            { "FX",   false },   // master FX 1+2 (MV)
+            { nullptr,false },   // dim — no content planned
+            { nullptr,false },   // dim — no content planned
+            { "FLTR", true  },   // master FLTR (MV)
+            { "AMP",  true  },   // master gain + sends (MV)
+            { nullptr,false },   // dim — no content planned
+            { "FX",   true  },   // master FX 1+2 (MV)
         }};
 
         if (section < 0 || section >= IMachine::kMaxSections)

@@ -614,14 +614,14 @@ namespace lockstep
                            grp, st, showKeyHint, overlay);
         }
 
-        // Cell 2: TAP (key 3) — tap tempo; Func-layer: MetronomeToggle
+        // Cell 2: TAP (key 3) — tap tempo; Func+3 falls through to TapTempo (no Func-layer override).
         {
             const bool pressed = juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('3'));
             KeyButtonState st = KeyButtonState::Normal;
             if      (pressed)           st = KeyButtonState::Pressed;
             else if (uiState_.funcHeld) st = KeyButtonState::FuncHeld;
             const KeyGroup grp { kTapInactive, kTapActive, kTapAccent };
-            paintKeyButton(g, sectionCellBounds(2, area), kKeyHints[2], "TAP", "MET",
+            paintKeyButton(g, sectionCellBounds(2, area), kKeyHints[2], "TAP", "",
                            grp, st, showKeyHint);
         }
 
@@ -835,10 +835,19 @@ namespace lockstep
             const bool isPrtHeld   = (def.keyCode == 'W') && uiState_.partHeld;
             const bool isModeActive = isArmed || isPlaying || isPatHeld || isPrtHeld;
 
+            // When a section-suite scope modifier is held, verb keys (Y-P) show as
+            // scope-qualified (FuncHeld tint) so the operator sees they're modified.
+            const bool sectionScopeHeld = uiState_.trackHeld || uiState_.patternScopeHeld
+                || uiState_.partHeld || uiState_.sceneHeld || uiState_.masterHeld;
+            const bool isVerbKey = (def.keyCode == 'Y' || def.keyCode == 'U'
+                                 || def.keyCode == 'I' || def.keyCode == 'O'
+                                 || def.keyCode == 'P');
+
             KeyButtonState state = KeyButtonState::Normal;
-            if      (isPressed)         state = KeyButtonState::Pressed;
-            else if (isModeActive)      state = KeyButtonState::ModeActive;
-            else if (uiState_.funcHeld) state = KeyButtonState::FuncHeld;
+            if      (isPressed)                         state = KeyButtonState::Pressed;
+            else if (isModeActive)                      state = KeyButtonState::ModeActive;
+            else if (sectionScopeHeld && isVerbKey)     state = KeyButtonState::FuncHeld;
+            else if (uiState_.funcHeld)                 state = KeyButtonState::FuncHeld;
 
             const bool overlay = hasCompound
                 && ((def.keyCode == 'Q' && uiState_.patternScopeHeld)
