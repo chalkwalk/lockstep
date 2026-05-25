@@ -1053,6 +1053,10 @@ namespace lockstep
             juce::String displayPrimary { def.primary };
             juce::String displayHint    { def.secondary };
 
+            // MHZ.3.5: when Func is held, the Part key (W) relabels to MACH.
+            if (def.keyCode == 'W' && uiState_.funcHeld)
+                displayPrimary = "MACH";
+
             if (def.role == KeyRole::VerbCopy
              || def.role == KeyRole::VerbPaste
              || def.role == KeyRole::VerbClear)
@@ -1235,6 +1239,130 @@ namespace lockstep
                                    md.grp, st, showKeyLetters, md.overlay);
                 }
             }
+        }
+
+        // MHZ.3.5: Func+Part machine picker — step cells show available machine names.
+        if (uiState_.funcPartHeld)
+        {
+            const juce::Colour machineTint = scopeColour(EditMode::PrimaryScope::Part, true);
+            const int numMachines = processor_.numAvailableMachines();
+            const juce::String activeMachineId = processor_.getMachineId(activeTrack_);
+
+            for (int row = 0; row < kRows; ++row)
+            {
+                for (int col = 0; col < kCols; ++col)
+                {
+                    const int idx  = row * kCols + col;
+                    const bool avail = idx < numMachines;
+                    const juce::String machineId = avail
+                        ? juce::String(processor_.availableMachineInfo(idx).id) : juce::String();
+                    const bool isCurrent = avail && (machineId == activeMachineId);
+
+                    const int x = colX(row, col + 2);
+                    const int y = rowY(row);
+                    const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+
+                    juce::Colour fill;
+                    if (!avail)
+                        fill = juce::Colour(kStepOutRange);
+                    else if (isCurrent)
+                        fill = juce::Colours::white.withAlpha(0.18f);
+                    else
+                        fill = machineTint.withAlpha(0.12f);
+
+                    g.setColour(fill);
+                    g.fillRoundedRectangle(cell.toFloat(), 4.0f);
+
+                    if (avail && isCurrent)
+                    {
+                        g.setColour(juce::Colours::white.withAlpha(0.60f));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
+                    }
+                    else if (avail)
+                    {
+                        g.setColour(machineTint.withAlpha(0.35f));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
+                    }
+
+                    if (avail)
+                    {
+                        const juce::String name {
+                            processor_.availableMachineInfo(idx).displayName };
+                        const juce::Colour textCol = juce::Colours::white.withAlpha(isCurrent ? 0.90f : 0.65f);
+                        g.setColour(textCol);
+                        g.setFont(juce::Font(juce::FontOptions(8.5f)));
+                        g.drawText(name, cell.reduced(2), juce::Justification::centred, true);
+                    }
+                }
+            }
+            g.setColour(juce::Colour::fromRGB(80, 95, 115));
+            g.setFont(juce::Font(juce::FontOptions(10.0f)));
+            g.drawText("SELECT MACHINE", navArea, juce::Justification::centred);
+            return;
+        }
+
+        // MHZ.3.4: P-Lock clear mode — step cells show slot labels for the target step.
+        // P-locked slots are bright; empty slots are dim. Press a cell to clear that slot.
+        if (uiState_.pLockClearMode
+            && uiState_.pLockClearTrack == activeTrack_
+            && uiState_.pLockClearStep >= 0)
+        {
+            const juce::Colour clearTint = juce::Colour::fromRGB(220, 120, 60);
+            const int targetStep = uiState_.pLockClearStep;
+            const auto& stepData = processor_.sequence()
+                .tracks[static_cast<std::size_t>(activeTrack_)]
+                .steps[static_cast<std::size_t>(targetStep)];
+            const int numSlots = processor_.numParams(activeTrack_);
+
+            for (int row = 0; row < kRows; ++row)
+            {
+                for (int col = 0; col < kCols; ++col)
+                {
+                    const int slotIdx = row * kCols + col;
+                    const bool hasSlot = slotIdx < numSlots;
+                    const bool hasLock = hasSlot && stepData.overrides.has(slotIdx);
+
+                    const int x = colX(row, col + 2);
+                    const int y = rowY(row);
+                    const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+
+                    juce::Colour fill;
+                    if (!hasSlot)
+                        fill = juce::Colour(kStepOutRange);
+                    else if (hasLock)
+                        fill = clearTint.withAlpha(0.45f);
+                    else
+                        fill = clearTint.withAlpha(0.06f);
+
+                    g.setColour(fill);
+                    g.fillRoundedRectangle(cell.toFloat(), 4.0f);
+
+                    if (hasSlot && hasLock)
+                    {
+                        g.setColour(clearTint.withAlpha(0.80f));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
+                    }
+                    else if (hasSlot)
+                    {
+                        g.setColour(clearTint.withAlpha(0.20f));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
+                    }
+
+                    if (hasSlot)
+                    {
+                        const juce::String label {
+                            processor_.paramSpec(activeTrack_, slotIdx).label };
+                        const juce::Colour textCol = juce::Colours::white.withAlpha(hasLock ? 0.90f : 0.30f);
+                        g.setColour(textCol);
+                        g.setFont(juce::Font(juce::FontOptions(8.0f)));
+                        g.drawText(label, cell.reduced(2), juce::Justification::centred, true);
+                    }
+                }
+            }
+            g.setColour(juce::Colour::fromRGB(80, 95, 115));
+            g.setFont(juce::Font(juce::FontOptions(10.0f)));
+            g.drawText("CLEAR P-LOCK  (release FUNC to exit)", navArea, juce::Justification::centred);
+            return;
         }
 
         // MHZ.2.1: scope re-skin — Track/Pattern/Part held → 1-of-N index picker.

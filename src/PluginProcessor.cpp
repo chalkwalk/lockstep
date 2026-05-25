@@ -635,11 +635,12 @@ namespace lockstep
                         {
                             // First note to this step: clear existing list and start capture.
                             trig.noteCount = 0;
-                            chordCapture_.active    = true;
-                            chordCapture_.trackIndex= track;
-                            chordCapture_.stepIndex = step;
-                            chordCapture_.heldCount = 0;
-                            chordCapture_.noteCount = 0;
+                            chordCapture_.active       = true;
+                            chordCapture_.trackIndex   = track;
+                            chordCapture_.stepIndex    = step;
+                            chordCapture_.heldCount    = 0;
+                            chordCapture_.noteCount    = 0;
+                            chordCapture_.maxVelocity  = 0;
                             chordCapture_.gateStartSample =
                                 totalSamplesProcessed_ + sampleOffset;
                         }
@@ -653,6 +654,8 @@ namespace lockstep
                             chordCapture_.notes[static_cast<std::size_t>(chordCapture_.noteCount)] = note;
                             ++chordCapture_.noteCount;
                         }
+                        if (velocity > chordCapture_.maxVelocity)
+                            chordCapture_.maxVelocity = velocity;
                         ++chordCapture_.heldCount;
                         editContext_.markParamWritten();
                     }
@@ -703,6 +706,11 @@ namespace lockstep
                                       .steps[static_cast<std::size_t>(si)].trigOverride;
                 trig.hasGate    = true;
                 trig.gateMs     = std::max(1.0f, gateMs);
+                if (chordCapture_.maxVelocity > 0)
+                {
+                    trig.hasVelocity = true;
+                    trig.velocity    = chordCapture_.maxVelocity;
+                }
             }
             chordCapture_.active = false;
         };
@@ -1473,8 +1481,18 @@ namespace lockstep
         if (step  < 0 || step  >= kMaxStepsPerTrack)            return;
         auto& s = sequence().tracks[static_cast<std::size_t>(track)]
                       .steps[static_cast<std::size_t>(step)];
-        s.overrides   = PLock{};
+        s.overrides    = PLock{};
         s.trigOverride = TrigOverride{};
+    }
+
+    void LockstepProcessor::cancelChordCapture(int track, int step)
+    {
+        if (chordCapture_.active
+            && chordCapture_.trackIndex == track
+            && chordCapture_.stepIndex  == step)
+        {
+            chordCapture_.active = false;
+        }
     }
 
     void LockstepProcessor::pushCheckpoint()

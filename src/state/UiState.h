@@ -68,6 +68,19 @@ namespace lockstep
         // Set by PluginEditor so KeyboardArea can show COP/PST/CLR on verb keys.
         bool stepHeld = false;
 
+        // MHZ.3.4: step-driven P-Lock clear mode. Entered when Func+step is pressed
+        // (no other step held). Step cells re-skin to show the target step's P-locked
+        // slot labels; pressing a cell clears that slot's P-Lock. Released when Func
+        // is released.
+        bool pLockClearMode  = false;
+        int  pLockClearTrack = -1;
+        int  pLockClearStep  = -1;
+
+        // MHZ.3.5: true while Func+Part are both held (machine picker mode).
+        // Step cells re-skin to show available machine names; pressing a cell assigns
+        // the machine for the active track.
+        bool funcPartHeld = false;
+
         // Returns the first slot index for the currently active page on the given track.
         // Returns 0 if track is out of range or info.firstSlot is -1 (empty section).
         [[nodiscard]] int activeFirstSlot(int track, const SectionInfo& info) const

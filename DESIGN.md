@@ -1204,9 +1204,9 @@ A single uniform grammar: **hold scope, press verb**.
 | `Trig` (hold 1+ steps) + Record | Copy those steps (trigs + condition + P-Locks). |
 | `Trig` + Play | Paste clipboard onto the held steps. |
 | `Trig` + Stop | Clear those steps' overrides (trig + P-Locks). |
-| `Trig` + `Func + Stop` (MHZ.3) | Clear **all** P-Locks on the held step(s), leaving the trig itself intact. The `Func` qualifier narrows `Stop`'s scope from "clear the step" to "clear locks only". |
-| `Trig` + `(MZ slot)` + Stop (MHZ.3) | Clear **only that slot's** P-Lock on the held step. Targeted by the held slot (the same slot the MZ would write). |
-| step-driven edit mode (MHZ.3) | Hold non-step modifier(s) + press the target step → step cells re-skin to show this step's P-locked slot labels (dimmed for empty slots) → press a step cell to clear that slot → release modifiers → exit. The modifier hold is the mode; exact chord TBD in MHZ.3 design. |
+| `Trig` + `Func + Stop` | Clear **all** P-Locks on the held step(s), leaving the trig itself intact. The `Func` qualifier narrows `Stop`'s scope from "clear the step" to "clear locks only". |
+| `Trig` + `(MZ slot)` + Stop | Clear **only that slot's** P-Lock on the held step. Targeted by the held slot (the same slot the MZ would write). |
+| `Func` + step (P-Lock clear mode) | Hold Func then press a step → step cells re-skin orange: bright for P-locked slots, dim for empty. Press any step cell to clear that slot's P-Lock on the target step. Release Func to exit. Slots 0-15 are shown; each cell maps to one machine slot by index. |
 | `Section` key + Record | Copy all of that section's params (base + P-Locks across all steps). |
 | `Section` key + Play | Paste section onto current track. |
 | `Section` key + Stop | Reset section to default. |
@@ -1846,7 +1846,7 @@ identically with Retrig (MG.2), Slice (MG.3), and Sound Pool
 slice-index, sound-id) onto the next emitted step. The grammar is
 the same; only the payload differs.
 
-### 21.4 Step-hold capture window (MHZ.3)
+### 21.4 Step-hold capture window (MHZ.3 — implemented)
 
 Hold-step + play notes + release is the **canonical chord-edit path**
 on a step. The transport need not be running and record-arm need not
@@ -1858,15 +1858,19 @@ Commit semantics:
 
 - The committed chord replaces the step's
   `TrigOverride.notes[] / noteCount` (reusing the MH.2 chord-step
-  model, up to `kMaxNotesPerStep = 4`).
+  model, up to `kMaxNotesPerStep = 4`). Notes are written
+  immediately as they arrive; the chord is finalised (velocity,
+  gate) on step release or last note-off.
 - **Empty buffer = no change.** Holding a step without playing any
   notes preserves existing data — the gesture is non-destructive
   unless notes are actually played.
-- Velocity / gate captured the same way as transport-time record
-  (§4.6 conventions): velocity taken from the highest-velocity
-  note-on, gate captured from the longest note-on→note-off span if
-  all notes are released before the step is released; otherwise the
-  track default `gateLength` is used.
+- **Velocity** = highest velocity among all captured note-ons
+  (written to `TrigOverride.hasVelocity / velocity`).
+- **Gate** captured from the note-on→note-off span: if all captured
+  notes are released before the step is released, the gate is the
+  span from first note-on to last note-off. Otherwise (notes still
+  held when step is released) the track default `gateLength` is
+  used.
 
 Coexistence:
 

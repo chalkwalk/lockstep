@@ -195,11 +195,12 @@ other naturally with no master-bar concept.
 | **Sound Pool** *(planned)* | A project-scope library of saved per-track sounds, recallable or P-lockable per step. |
 | **Scene / crossfader** *(planned)* | A per-Part pair of parameter snapshots blended by a continuous fader. |
 | **Scope colour grammar** *(planned, MHZ.1)* | A canonical palette per scope (`step` = light grey, plus distinct hues for `track / pattern / part / machine / scene / master`) used by key tints, the step-grid scope re-skin, and any badge that needs to say "which scope is held". |
-| **Scope re-skin** *(planned, MHZ.2)* | When a scope modifier maps to a 1-of-16 selector (Track / Pattern / Part; `Part + SRC` = machine picker), the 16 step keys become a non-paginated index for that scope. Unavailable indices dim. Cells tint in the scope's colour. |
+| **Scope re-skin** | When a scope modifier maps to a 1-of-16 selector (Track / Pattern / Part; `Func + Part` = machine picker), the 16 step keys become a non-paginated index for that scope. Unavailable indices dim. Cells tint in the scope's colour. |
 | **Top-bar dashboard** *(planned, MHZ.2)* | The top of the editor splits into a persistent performance dashboard (BPM, Bank/Pattern/Part, transport position, chain queue, checkpoint depth) on the left, and a live held-context preview on the right. |
 | **Value-label table** *(planned, MHZ.2)* | A `ParamSpec` field carrying textual names for stepped/enum positions (`LP24 / LP12 / HP / BP`, `MONO / PARA`, …). The MZ renders the textual name in place of a number when present. |
-| **Step-hold capture window** *(planned, MHZ.3)* | The canonical chord-edit path: hold a step → play MIDI → release commits the captured chord onto that step. Empty buffer = no change. Independent of record-arm and transport. |
-| **P-Lock clear gestures + popup picker** *(planned, MHZ.3)* | `Trig + (slot) + Stop` clears one slot's P-Lock on the held step; `Trig + Func + Stop` clears every P-Lock on the held step; for steps with several locks, a popup picker turns the MZ into a 1-of-16 list and the step key (D=1 … `/`=16) clears that one. |
+| **Step-hold capture window** | The canonical chord-edit path: hold a step → play MIDI → notes write to that step; release commits velocity (highest) and gate. Empty capture = no change. Independent of record-arm and transport. |
+| **P-Lock clear gestures** | `Trig + Func + Stop` clears every P-Lock on the held step(s), leaving trig intact. `Trig + (active MZ slot) + Stop` clears only that one slot. `Func + step` enters P-Lock clear mode: cells re-skin orange, press a cell to clear its slot, release Func to exit. |
+| **Func+Part machine picker** | Hold Func (1) then tap Part (W) — the Part key relabels to MACH; step cells show available machine names. Press a step to assign that machine to the active track. |
 
 ---
 
@@ -368,7 +369,7 @@ in the scope-section matrix); two are **performance specialists**
 | `1` | **Func** | Universal qualifier — composes with any other scope to flip to its "secondary variant." Also the modifier layer for snapshots, verbs, and machine secondaries. |
 | `2` | **Track** | One or more tracks; or, with none selected, Control-All. `Track+section` opens the track-foundation row (post-machine FILTER/AMP, IEffect inserts). |
 | `Q` | **Pattern** | A pattern (or several, in chain mode). `Pattern+section` opens pattern-data cells. |
-| `W` | **Part** | The kit half of the Project/Bank/Pattern/Part hierarchy. `Part+SRC` opens the machine picker (replaces the retired `Func+R`). |
+| `W` | **Part** | The kit half of the Project/Bank/Pattern/Part hierarchy. `Func+Part` (W relabels to MACH) opens the machine picker via step-cell re-skin. |
 | `A` | **Scene** | Scene assignment; `Scene + ^`/`v` picks endpoint A/B. `Scene+section` opens scene-assign cells per section. |
 | `S` | **Master** | Master-bus / FX focus. `Master+FX` opens master FX slots. |
 | `Z` | **Mute** | The mute mask (hold and tap several tracks). |
@@ -615,22 +616,25 @@ remaining MH machine catalogue resumes.
 - **Double-click rotary** resets a slot to its default. (Eventual
   hardware push-encoder-twice maps to the same gesture.)
 
-**MHZ.3 — Note capture, P-Lock clear, popup picker (planned).**
+**MHZ.3 — Note capture, P-Lock clear, machine picker.**
 
-- **Step-hold MIDI capture.** Hold a step, play notes, release — the
-  captured chord lands on that step (up to 4 notes). Works with the
-  transport stopped and record-arm off; an empty buffer is a no-op
-  (no destructive surprise).
-- **Replace-on-hold is the chord editor.** Replaying a different
-  chord onto a held step replaces the existing chord; no per-note
-  add/remove/swap UI in MHZ.
-- **P-Lock clear gestures.** `Trig + (slot) + Stop` clears the held
-  step's lock on that slot; `Trig + Func + Stop` clears all locks
-  on the held step. Both use the existing scope+verb grammar — no
-  bespoke keys.
-- **Popup picker for P-Lock clear.** When several locks exist on a
-  held step, the MZ becomes a non-paginated list of locked
-  parameters; press the step key (D=1 … `/`=16) to clear that one.
+- **Step-hold MIDI capture.** Hold a step key, play MIDI notes from
+  a connected keyboard, release — notes write to that step (up to 4,
+  replace-on-hold). Velocity = highest; gate = span if all notes
+  released before step, else track default. Works with transport
+  stopped and record-arm off; an empty buffer is a no-op (non-destructive).
+- **P-Lock clear gestures.** `Trig + Func + Stop` clears all
+  P-Locks on the held step(s), trig left intact. `Trig + (active MZ
+  slot) + Stop` clears only that one slot's P-Lock. Both use the
+  existing scope+verb grammar.
+- **Step-driven P-Lock clear mode.** Hold Func (1), then press a
+  step → step cells re-skin orange: bright cells = slots that have a
+  P-Lock on that step, dim cells = empty. Press a cell to clear that
+  slot's P-Lock. Release Func to exit. No sticky state.
+- **Func+Part machine picker.** Hold Func (1) and tap Part (W) —
+  Part relabels to MACH; step cells show available machine names.
+  Press a step to assign that machine to the active track. Release
+  Func or Part to exit.
 
 ### 5.18 Trig-grid modes *(selectors present; behaviour planned)*
 

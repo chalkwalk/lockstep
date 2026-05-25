@@ -186,6 +186,10 @@ namespace lockstep
         // Remove all P-Lock overrides and trig overrides for a step.
         void clearStepLocks(int track, int step);
 
+        // MHZ.3.1: cancel in-flight chord capture for the given step (called from
+        // the UI thread on step release so the next hold of the same step starts fresh).
+        void cancelChordCapture(int track, int step);
+
         // Trigger a one-shot preview of the sample at poolIndex on the given track.
         // Safe to call from the message thread; the audio thread consumes the request
         // on the next processBlock call and injects a note-on + scheduled note-off.
@@ -422,6 +426,7 @@ namespace lockstep
             int64_t gateStartSample = 0;    // absolute sample of first note-on
             std::array<int, kMaxNotesPerStep> notes{};
             int     noteCount       = 0;
+            int     maxVelocity     = 0;    // highest velocity of any note-on in this chord
         };
         ChordCapture chordCapture_{};
         int64_t totalSamplesProcessed_ = 0;

@@ -60,7 +60,7 @@ namespace lockstep
 
         static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kPart = {{
             { "TRIG",   true  },   // trig templates (MC)
-            { "MACH",   true  },   // machine select — Part+SRC (MC wires the full flow)
+            { "SRC",    false },   // part-base SRC params — MACH picker moved to Func+Part (MHZ.3.5)
             { "FILTER", true  },   // part-base FLTR (MC)
             { "AMP",    true  },   // part-base AMP (MC)
             { "MOD",    true  },   // part-base MOD (MC)

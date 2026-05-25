@@ -969,7 +969,7 @@ operate on; the MZ stops repeating itself; the top bar becomes useful.
 
 Goal: close the real grammar gaps surfaced during MHY play-testing.
 
-- [ ] **MHZ.3.1** Step-hold MIDI capture as the canonical chord-edit
+- [x] **MHZ.3.1** Step-hold MIDI capture as the canonical chord-edit
       path. Holding a step opens a capture window; held MIDI notes
       accumulate into a temporary chord buffer; **on step release**
       the buffer commits to that step's `TrigOverride.notes[] /
@@ -977,36 +977,31 @@ Goal: close the real grammar gaps surfaced during MHY play-testing.
       `kMaxNotesPerStep`). Empty buffer = no change (preserves
       existing data). Transport-time record-arm capture stays as an
       orthogonal live-performance flow.
-- [ ] **MHZ.3.2** Replace-on-hold is the chord editor. No per-note
+- [x] **MHZ.3.2** Replace-on-hold is the chord editor. No per-note
       add / remove / swap UI in MHZ — the simpler grammar wins, and a
       finer-grained editor only lands if play-testing proves
       replace-only too coarse.
-- [ ] **MHZ.3.3** P-Lock clear gestures. Single-slot clear on the
-      held step, and a "clear all P-Locks on this step" gesture.
-      Both expressed inside the existing scope+verb grammar (no new
-      modifier; no bespoke single-purpose key). Exact gesture choice
-      finalised during MHZ.3 design; documented in DESIGN §13 once
-      pinned.
-- [ ] **MHZ.3.4** Step-driven edit mode for targeted P-Lock clear.
-      Hold non-step modifier(s) + press the target step → step cells
-      re-skin to show this step's P-locked slot labels (dimmed for
-      empty slots) → press a step cell to clear that slot → release
-      modifiers → exit. Page-independent. Exact modifier chord TBD
-      during MHZ.3 design; must satisfy PRINCIPLES §4 (modifier hold
-      = mode duration, no sticky state).
-- [ ] **MHZ.3.5** Migrate machine picker from `Part+SRC` to `Func+Part`
-      (scope-select pattern). When Func is held, the Part key relabels
-      to `MACH`; releasing after a step press confirms the machine
-      selection. `Part+SRC` reverts to showing part-base SRC params in
-      the MZ (no picker). Update `QwertyOverlay` gesture routing,
-      scoped-cell table, and `KeyLabel` resolver accordingly.
-- [ ] **MHZ.3.6** Update held-context preview to show
-      `"FUNC + PART → machine picker"` instead of
-      `"PART + SRC → machine picker"`.
-- [ ] **MHZ.3.7** Documentation: DESIGN step-hold capture window
-      subsection (near §4.6 / §21); DESIGN §13 grammar additions for
-      the P-Lock clear gestures; CLAUDE.md glossary; README §5 / §6.
-- [ ] **MHZ.3.8** Verification: with transport stopped, hold step D,
+- [x] **MHZ.3.3** P-Lock clear gestures. Trig + Func + Stop = clear
+      all P-Locks on held step(s), trig intact. Trig + (active MZ
+      slot) + Stop = clear only that slot's P-Lock. Both inside the
+      existing scope+verb grammar. Documented in DESIGN §13.
+- [x] **MHZ.3.4** Step-driven edit mode. `Func` + step → step cells
+      re-skin orange: bright for P-locked slots, dim for empty;
+      press a cell to clear that slot's P-Lock; release Func to exit.
+      Slots 0-15 shown (each cell maps by index). Satisfies
+      PRINCIPLES §4 (modifier hold = mode duration, no sticky state).
+- [x] **MHZ.3.5** Machine picker migrated from `Part+SRC` to `Func+Part`.
+      Func held → Part key relabels to `MACH`; step cells re-skin with
+      machine names; press a step to set the machine on the active track.
+      `Part+SRC` is now dimmed (`ScopedSectionMatrix` `hasContent=false`).
+- [x] **MHZ.3.6** Held-context preview updated: shows
+      `"FUNC + MACH | press step to select machine"` when Func+Part
+      active; shows `"FUNC + STEP N | press cell to clear P-Lock slot"`
+      when in P-Lock clear mode.
+- [x] **MHZ.3.7** Documentation: DESIGN §21.4 marked implemented,
+      velocity/gate semantics updated; DESIGN §13 grammar table pinned;
+      CLAUDE.md glossary; ROADMAP checkboxes; README §5 / §6.
+- [x] **MHZ.3.8** Verification: with transport stopped, hold step D,
       play C-major chord, release step — chord lands on step D.
       Repeat with another chord; confirm replace semantics. Place
       several P-Locks on one step; invoke the step-driven edit mode;

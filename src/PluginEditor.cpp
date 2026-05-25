@@ -495,20 +495,45 @@ namespace lockstep
             {
                 juce::String ctx;
                 const auto& ui = uiState_;
-                // Primary scope token.
-                if      (ui.trackHeld)        ctx = "TRACK " + juce::String(keyboardArea_.getActiveTrack() + 1);
-                else if (ui.patternScopeHeld) ctx = "PATTERN";
-                else if (ui.partHeld)         ctx = "PART";
-                else if (ui.sceneHeld)        ctx = "SCENE";
-                else if (ui.masterHeld)       ctx = "MASTER";
-                else if (ui.muteHeld)         ctx = "MUTE";
-                else if (ui.fillHeld)         ctx = "FILL";
-                else if (ui.funcHeld)         ctx = "FUNC";
+                // MHZ.3.5: Func+Part = machine picker — show dedicated hint.
+                if (ui.funcPartHeld)
+                {
+                    ctx = "FUNC + MACH  |  press step to select machine";
+                }
+                // MHZ.3.4: P-lock clear mode.
+                else if (ui.pLockClearMode)
+                {
+                    ctx = "FUNC + STEP " + juce::String(ui.pLockClearStep + 1)
+                          + "  |  press cell to clear P-Lock slot";
+                }
+                else
+                {
+                    // Step held (no modifier) → P-Lock edit mode.
+                    const auto& ec = processor_.editContext();
+                    if (ui.stepHeld && ec.isActiveForEditing())
+                    {
+                        const int stepNum = ec.heldStepIndex() + 1;
+                        const int cnt     = static_cast<int>(ec.heldSteps().size());
+                        ctx = cnt > 1
+                            ? juce::String(cnt) + " STEPS  |  turn knob to P-Lock"
+                            : "STEP " + juce::String(stepNum) + "  |  turn knob to P-Lock";
+                    }
+                    // Primary scope token.
+                    else if (ui.trackHeld)        ctx = "TRACK " + juce::String(keyboardArea_.getActiveTrack() + 1);
+                    else if (ui.patternScopeHeld) ctx = "PATTERN";
+                    else if (ui.partHeld)         ctx = "PART";
+                    else if (ui.sceneHeld)        ctx = "SCENE";
+                    else if (ui.masterHeld)       ctx = "MASTER";
+                    else if (ui.muteHeld)         ctx = "MUTE";
+                    else if (ui.fillHeld)         ctx = "FILL";
+                    else if (ui.funcHeld)         ctx = "FUNC";
+                }
 
                 if (ctx.isEmpty()) return;   // nothing held — preview is blank
 
-                // Qualify with Func if held alongside another modifier.
-                if (ui.funcHeld && ctx != "FUNC")
+                // Qualify with Func if held alongside another modifier (normal path only).
+                if (!ui.funcPartHeld && !ui.pLockClearMode
+                    && ui.funcHeld && ctx != "FUNC")
                     ctx = "FUNC + " + ctx;
 
                 // Active section suffix.
@@ -700,7 +725,11 @@ namespace lockstep
 
             case ControllerButton::PartScope:
                 uiState_.partHeld = true;
+                // MHZ.3.5: Func+Part activates machine picker; step cells will re-skin.
+                if (uiState_.funcHeld)
+                    uiState_.funcPartHeld = true;
                 editMode_.onScopeEvent(ev);
+                keyboardArea_.repaint();
                 repaint();
                 return true;
 
@@ -727,14 +756,8 @@ namespace lockstep
                         keyboardArea_.selectMetaSection(2);
                         return true;
                     }
-                    if (sectionScope == PS::Part && ev.index == 1)
-                    {
-                        // Part+MACH: open the machine-select overlay.
-                        machineSelectOverlay_.setVisible(!machineSelectOverlay_.isVisible());
-                        if (machineSelectOverlay_.isVisible())
-                            machineSelectOverlay_.toFront(false);
-                        return true;
-                    }
+                    // MHZ.3.5: Part+SRC (index 1) is now dimmed (MACH moved to Func+Part).
+                    // No special dispatch; fall through to the generic dim-check above.
                     // All other non-dim scope cells fall through to the machine's own
                     // section (e.g. Track+FLTR → section 2 = post-machine FLTR block).
                 }
@@ -876,10 +899,51 @@ namespace lockstep
                 }
 
                 // PartScope + step: immediately assign the pattern's Part reference.
-                if (uiState_.partHeld)
+                if (uiState_.partHeld && !uiState_.funcPartHeld)
                 {
                     processor_.setActivePatternPart(ev.index);
                     repaint();
+                    keyboardArea_.repaint();
+                    return true;
+                }
+
+                // MHZ.3.5: Func+Part (machine picker) + step: assign machine by index.
+                if (uiState_.funcPartHeld)
+                {
+                    const int numMachines = processor_.numAvailableMachines();
+                    if (ev.index >= 0 && ev.index < numMachines)
+                    {
+                        const std::string machineId {
+                            processor_.availableMachineInfo(ev.index).id };
+                        processor_.setTrackMachine(keyboardArea_.getActiveTrack(), machineId);
+                        keyboardArea_.syncToActiveTrack();
+                    }
+                    // Stay in picker mode until Func/Part is released.
+                    keyboardArea_.repaint();
+                    return true;
+                }
+
+                // MHZ.3.4: P-Lock clear mode — a second step press selects the slot to clear.
+                if (uiState_.pLockClearMode)
+                {
+                    const int slotIdx  = ev.index;  // step cell 0-15 → slot index 0-15
+                    const int numSlots = processor_.numParams(uiState_.pLockClearTrack);
+                    if (slotIdx >= 0 && slotIdx < numSlots)
+                        processor_.clearParam(uiState_.pLockClearTrack,
+                                              uiState_.pLockClearStep, slotIdx);
+                    // Stay in mode until Func is released; allow clearing multiple slots.
+                    keyboardArea_.repaint();
+                    return true;
+                }
+
+                // MHZ.3.4: Func + step (no existing step held) → enter P-Lock clear mode.
+                if (uiState_.funcHeld && heldStepKeys_.empty())
+                {
+                    const int absStep = keyboardArea_.currentPage() * KeyboardArea::kPageSteps
+                                        + ev.index;
+                    uiState_.pLockClearMode  = true;
+                    uiState_.pLockClearTrack = keyboardArea_.getActiveTrack();
+                    uiState_.pLockClearStep  = absStep;
                     keyboardArea_.repaint();
                     return true;
                 }
@@ -898,6 +962,7 @@ namespace lockstep
                     uiState_.stepHeld = true;
                     processor_.editContext().hold(keyboardArea_.getActiveTrack(), absStep);
                     editMode_.setTrigHeld(true);
+                    repaint();
                 }
                 return true;
             }
@@ -1167,8 +1232,13 @@ namespace lockstep
             deferredPatternMutes_.clear();
 
             uiState_.funcHeld = false;
+            // MHZ.3.4: Func release exits P-Lock clear mode.
+            uiState_.pLockClearMode  = false;
+            uiState_.pLockClearTrack = -1;
+            uiState_.pLockClearStep  = -1;
+            // MHZ.3.5: Func release exits machine picker mode.
+            uiState_.funcPartHeld = false;
             editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::Func });
-            keyboardArea_.repaint();
             keyboardArea_.repaint();
             repaint();
             handled = true;
@@ -1201,6 +1271,7 @@ namespace lockstep
             && !juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('W')))
         {
             uiState_.partHeld = false;
+            uiState_.funcPartHeld = false;  // MHZ.3.5: clear machine picker if Part released
             editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, ControllerButton::PartScope });
             repaint();
             handled = true;
@@ -1307,6 +1378,10 @@ namespace lockstep
                 const bool paramWasWritten = ctx.wasParamWritten();
 
                 processor_.editContext().release(stepIdx);
+                // MHZ.3.1: signal the audio thread that this step is no longer held,
+                // so the next press of the same step starts a fresh chord capture.
+                if (track >= 0)
+                    processor_.cancelChordCapture(track, stepIdx);
 
                 if (!paramWasWritten && track >= 0 && stepIdx >= 0)
                 {
@@ -1324,6 +1399,7 @@ namespace lockstep
         {
             uiState_.stepHeld = false;
             editMode_.setTrigHeld(false);
+            repaint();
         }
 
         // Key releases change visual state: step trigs toggle on release, and nav/step
@@ -1706,12 +1782,32 @@ namespace lockstep
                 }
                 else if (verb == CB::VerbStop)
                 {
-                    for (int idx : ctx.heldSteps())
+                    const bool funcIsHeld = editMode_.scopeState().func;
+                    const int  activeSlot = ctx.activeSlot();
+                    if (funcIsHeld)
                     {
-                        processor_.clearStepLocks(track, idx);
-                        auto& s = trk.steps[static_cast<std::size_t>(idx)];
-                        s.trig      = false;
-                        s.condition = TrigCondition{};
+                        // MHZ.3.3: Trig + Func + Stop — clear all P-Locks on held
+                        // step(s), leaving the trig and condition intact.
+                        for (int idx : ctx.heldSteps())
+                            processor_.clearStepLocks(track, idx);
+                    }
+                    else if (activeSlot >= 0)
+                    {
+                        // MHZ.3.3: Trig + (active MZ slot) + Stop — clear only
+                        // that slot's P-Lock on all held steps.
+                        for (int idx : ctx.heldSteps())
+                            processor_.clearParam(track, idx, activeSlot);
+                    }
+                    else
+                    {
+                        // Full clear: trig off + condition reset + all P-Locks.
+                        for (int idx : ctx.heldSteps())
+                        {
+                            processor_.clearStepLocks(track, idx);
+                            auto& s = trk.steps[static_cast<std::size_t>(idx)];
+                            s.trig      = false;
+                            s.condition = TrigCondition{};
+                        }
                     }
                 }
                 break;
