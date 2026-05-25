@@ -845,19 +845,28 @@ namespace lockstep
                     return true;
                 }
 
-                // PatternScope + step: first step press queues a direct switch and
-                // clears any existing chain; subsequent step presses (while still
-                // holding PatternScope) append to the chain.
+                // PatternScope + step:
+                //   Stopped — first press: instant swap; subsequent: build chain.
+                //   Playing — every press: queue/append (fires at pattern boundary).
                 if (uiState_.patternScopeHeld)
                 {
-                    const int bank = processor_.activeBankIdx();
-                    if (!uiState_.patternScopeUsed)
+                    const int bank     = processor_.activeBankIdx();
+                    const bool playing = processor_.clock().inPluginPlaying();
+                    if (!uiState_.patternScopeUsed && !playing)
                     {
+                        // Immediate swap when stopped; wipes any existing chain.
+                        processor_.clearChain();
+                        processor_.setActivePattern(bank, ev.index);
+                    }
+                    else if (!uiState_.patternScopeUsed)
+                    {
+                        // First press while playing: queue for end of current pattern.
                         processor_.clearChain();
                         processor_.queuePattern(bank, ev.index);
                     }
                     else
                     {
+                        // Subsequent presses: append to chain regardless of transport state.
                         processor_.appendToChain(bank, ev.index);
                     }
                     uiState_.patternScopeUsed = true;
