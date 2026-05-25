@@ -1033,7 +1033,7 @@ resumes once MHZ.1 → MHZ.3 are complete.
       Polyphonic trig infrastructure also added: steps carry up to 4 notes;
       chord capture (hold step + play keys) + gate-length auto-write on
       last-note-off. Backward-compatible serialization.
-- [ ] **MH.3** DrumSynthMachine — Rytm-style per-track drum
+- [x] **MH.3** DrumSynthMachine — Rytm-style per-track drum
       synthesis (kick, snare, hat, tom variants).
 - [ ] **MH.4** SlicerMachine — Octatrack Static/Flex-inspired
       slice-playback with playback-rate and start-point modulation.
