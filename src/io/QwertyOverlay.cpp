@@ -86,7 +86,7 @@ namespace lockstep
             { code('R'), B::TrigModeKeyboard, -1 },  // Func+R(NavDown)  = keyboard trig mode
             { code('T'), B::TrigModeRetrig,   -1 },  // Func+T(NavRight) = retrig trig mode
             { code('Y'), B::Snapshot,         -1 },  // Func+Y(Yes)      = push checkpoint (MHY.4)
-            { code('I'), B::MetronomeToggle,  -1 },  // Func+I(Play)     = metronome toggle (MHY.4)
+            { code('3'), B::MetronomeToggle,  -1 },  // Func+3(TAP)      = metronome toggle
             { code('O'), B::StopReset,        -1 },  // Func+O(Stop)     = stop+reset (MHY.4)
             { code('P'), B::Restore,          -1 },  // Func+P(No)       = pop checkpoint (MHY.4)
             // Func+U falls through to primary VerbRecord (arm transport record).

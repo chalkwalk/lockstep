@@ -614,14 +614,14 @@ namespace lockstep
                            grp, st, showKeyHint, overlay);
         }
 
-        // Cell 2: TAP (key 3) — tap tempo; Func+3 falls through to TapTempo (no Func-layer override).
+        // Cell 2: TAP (key 3) — tap tempo; Func+3 = MetronomeToggle.
         {
             const bool pressed = juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('3'));
             KeyButtonState st = KeyButtonState::Normal;
             if      (pressed)           st = KeyButtonState::Pressed;
             else if (uiState_.funcHeld) st = KeyButtonState::FuncHeld;
             const KeyGroup grp { kTapInactive, kTapActive, kTapAccent };
-            paintKeyButton(g, sectionCellBounds(2, area), kKeyHints[2], "TAP", "",
+            paintKeyButton(g, sectionCellBounds(2, area), kKeyHints[2], "TAP", "MET",
                            grp, st, showKeyHint);
         }
 
@@ -776,7 +776,7 @@ namespace lockstep
             { 'T', u8"T", u8"→",    u8"RTG",  { kNavInactive,  kNavActive,  kNavAccent  } },
             { 'Y', u8"Y", u8"YES",  u8"SNAP", { kActInactive,  kActActive,  kActAccent  } },
             { 'U', u8"U", u8"REC",  u8"",     { kRecInactive,  kRecActive,  kRecAccent  } },
-            { 'I', u8"I", u8"PLY",  u8"MET",  { kTrnInactive,  kTrnActive,  kTrnAccent  } },
+            { 'I', u8"I", u8"PLY",  u8"",     { kTrnInactive,  kTrnActive,  kTrnAccent  } },
             { 'O', u8"O", u8"STP",  u8"RST",  { kTrnInactive,  kTrnActive,  kTrnAccent  } },
             { 'P', u8"P", u8"NO",   u8"POP",  { kActInactive,  kActActive,  kActAccent  } },
         }};
@@ -853,8 +853,19 @@ namespace lockstep
                 && ((def.keyCode == 'Q' && uiState_.patternScopeHeld)
                  || (def.keyCode == 'W' && uiState_.partHeld));
 
+            // Under any section scope or step-held, the three action verbs
+            // relabel to show the copy/paste/clear operations they perform.
+            const bool showCopPstClr = (sectionScopeHeld || uiState_.stepHeld) && isVerbKey;
+            const char8_t* displayPrimary = def.primary;
+            if (showCopPstClr)
+            {
+                if      (def.keyCode == 'U') displayPrimary = u8"COP";
+                else if (def.keyCode == 'I') displayPrimary = u8"PST";
+                else if (def.keyCode == 'O') displayPrimary = u8"CLR";
+            }
+
             paintKeyButton(g, cell,
-                           def.keyHint, def.primary, def.secondary,
+                           def.keyHint, displayPrimary, def.secondary,
                            def.group, state, showKeyHint, overlay);
         }
     }

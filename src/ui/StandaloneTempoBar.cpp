@@ -26,6 +26,7 @@ namespace lockstep
 
     void StandaloneTempoBar::timerCallback()
     {
+        bpmSlider_.setValue(clock_.localBpm(), juce::dontSendNotification);
         positionLabel_.setText(positionText(), juce::dontSendNotification);
     }
 
