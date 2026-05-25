@@ -15,13 +15,15 @@ namespace lockstep
         {
             const auto si = static_cast<std::size_t>(i);
 
-            valueLabels_[si].setJustificationType(juce::Justification::centredLeft);
-            valueLabels_[si].setFont(juce::Font(juce::FontOptions(11.0f)));
-            addAndMakeVisible(valueLabels_[si]);
-
-            labels_[si].setJustificationType(juce::Justification::centred);
-            labels_[si].setFont(juce::Font(juce::FontOptions(10.0f)));
+            // MHZ.2.3: slim header — param name above the rotary.
+            labels_[si].setJustificationType(juce::Justification::centredLeft);
+            labels_[si].setFont(juce::Font(juce::FontOptions(9.0f)));
             addAndMakeVisible(labels_[si]);
+
+            // MHZ.2.3: single value line below the rotary (textual or numeric).
+            valueLabels_[si].setJustificationType(juce::Justification::centred);
+            valueLabels_[si].setFont(juce::Font(juce::FontOptions(10.0f)));
+            addAndMakeVisible(valueLabels_[si]);
 
             sliders_[si].setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
             sliders_[si].setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
@@ -282,6 +284,9 @@ namespace lockstep
             const double hi = static_cast<double>(meta.maxValue);
             sliders_[si].setRange(lo, (hi > lo ? hi : lo + 1.0),
                                   meta.isStepped ? 1.0 : 0.0);
+            // MHZ.2.4: double-click resets to parameter default.
+            sliders_[si].setDoubleClickReturnValue(true,
+                                                   static_cast<double>(meta.defaultValue));
 
             float value = processor_.baseParamValue(track, slot);
 
@@ -309,7 +314,19 @@ namespace lockstep
             else
             {
                 if (i == 0) samplePickerBtn_.setVisible(false);
-                juce::String valueText = formatValue(value, meta.unit, meta.isStepped);
+                // MHZ.2.5: use textual valueLabels for stepped/enum slots if available.
+                juce::String valueText;
+                if (!meta.valueLabels.empty())
+                {
+                    const int idx = std::clamp(static_cast<int>(std::round(value)),
+                                               0,
+                                               static_cast<int>(meta.valueLabels.size()) - 1);
+                    valueText = juce::String(meta.valueLabels[static_cast<std::size_t>(idx)]);
+                }
+                else
+                {
+                    valueText = formatValue(value, meta.unit, meta.isStepped);
+                }
                 if (hasLock)
                     valueText += " *";
                 valueLabels_[si].setText(valueText, juce::dontSendNotification);
@@ -878,15 +895,15 @@ namespace lockstep
                 x, bounds.getY() + row * rowH,
                 narrowW, rowH).reduced(2, 2);
 
-            // Top strip: value display left, clear button right.
-            auto topRow = cell.removeFromTop(14);
-            clearBtns_[si].setBounds(topRow.removeFromRight(16));
-            valueLabels_[si].setBounds(topRow);
+            // Top strip: param name left, clear button right.
+            auto header = cell.removeFromTop(10);
+            clearBtns_[si].setBounds(header.removeFromRight(14));
+            labels_[si].setBounds(header);
 
-            // Bottom strip: parameter name.
-            labels_[si].setBounds(cell.removeFromBottom(14));
+            // Bottom strip: value display.
+            valueLabels_[si].setBounds(cell.removeFromBottom(10));
 
-            // Middle: rotary knob.
+            // Middle: rotary knob (bigger than old layout).
             sliders_[si].setBounds(cell);
             if (i == 0)
                 samplePickerBtn_.setBounds(cell.reduced(2, 2));
