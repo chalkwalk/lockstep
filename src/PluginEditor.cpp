@@ -865,6 +865,14 @@ namespace lockstep
                     return true;
                 }
 
+                // PartScope + step: immediately assign the pattern's Part reference.
+                if (uiState_.partHeld)
+                {
+                    processor_.setActivePatternPart(ev.index);
+                    repaint();
+                    return true;
+                }
+
                 // Ignore key-repeat (same physical key already in list).
                 bool alreadyHeld = false;
                 for (auto& [code, _] : heldStepKeys_)

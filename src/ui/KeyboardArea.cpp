@@ -1256,7 +1256,12 @@ namespace lockstep
             else if (uiState_.patternScopeHeld)
             {
                 maxAvail  = kPatternsPerBank;
-                activeIdx = processor_.activePatternIdx();
+                // If a pattern switch is queued, highlight the destination so the
+                // pressed cell lights up immediately rather than waiting for the
+                // queue to fire at the pattern boundary.
+                activeIdx = processor_.hasQueuedPattern()
+                    ? processor_.queuedPatternPatIdx()
+                    : processor_.activePatternIdx();
             }
             else // partHeld
             {
