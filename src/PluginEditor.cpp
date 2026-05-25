@@ -233,19 +233,47 @@ namespace lockstep
     {
         // Peak meters: fast attack, slow ballistic decay. Activity blinks: a
         // pulse from the audio thread snaps to 1.0, then decays each tick.
+        // Only repaint if any value actually changed; floor tiny values to zero
+        // so decay terminates and the repaint loop stops when transport is idle.
+        static constexpr float kMeterFloor = 0.001f;
+        static constexpr float kBlinkFloor = 0.005f;
+        bool dirty = false;
+
         for (std::size_t i = 0; i < kNumTracks; ++i)
         {
-            const float peak = processor_.trackPeak(static_cast<int>(i));
-            trackMeter_[i] = std::max(peak, trackMeter_[i] * 0.80f);
+            const float peak     = processor_.trackPeak(static_cast<int>(i));
+            const float newMeter = std::max(peak, trackMeter_[i] * 0.80f);
+            const float floored  = (newMeter < kMeterFloor) ? 0.0f : newMeter;
+            if (floored != trackMeter_[i]) { trackMeter_[i] = floored; dirty = true; }
 
-            if (processor_.takeTrigPulse(static_cast<int>(i)) > 0.5f) trigBlink_[i] = 1.0f;
-            else                                                      trigBlink_[i] *= 0.70f;
+            if (processor_.takeTrigPulse(static_cast<int>(i)) > 0.5f)
+            {
+                trigBlink_[i] = 1.0f;
+                dirty = true;
+            }
+            else if (trigBlink_[i] > 0.0f)
+            {
+                trigBlink_[i] = (trigBlink_[i] > kBlinkFloor) ? trigBlink_[i] * 0.70f : 0.0f;
+                dirty = true;
+            }
 
-            if (processor_.takeMidiPulse(static_cast<int>(i)) > 0.5f) midiBlink_[i] = 1.0f;
-            else                                                      midiBlink_[i] *= 0.70f;
+            if (processor_.takeMidiPulse(static_cast<int>(i)) > 0.5f)
+            {
+                midiBlink_[i] = 1.0f;
+                dirty = true;
+            }
+            else if (midiBlink_[i] > 0.0f)
+            {
+                midiBlink_[i] = (midiBlink_[i] > kBlinkFloor) ? midiBlink_[i] * 0.70f : 0.0f;
+                dirty = true;
+            }
         }
-        masterMeter_ = std::max(processor_.masterPeak(), masterMeter_ * 0.80f);
-        repaint();
+
+        const float newMaster = std::max(processor_.masterPeak(), masterMeter_ * 0.80f);
+        const float flooredMaster = (newMaster < kMeterFloor) ? 0.0f : newMaster;
+        if (flooredMaster != masterMeter_) { masterMeter_ = flooredMaster; dirty = true; }
+
+        if (dirty) repaint();
     }
 
     // Maps a linear meter level [0,1] to a green→yellow→red colour.

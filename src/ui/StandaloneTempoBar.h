@@ -22,6 +22,9 @@ namespace lockstep
         juce::Slider bpmSlider_;
         juce::Label  positionLabel_;
 
+        double       lastBpm_ = -1.0;
+        juce::String lastPos_;
+
         void timerCallback() override;
         juce::String positionText() const;
 

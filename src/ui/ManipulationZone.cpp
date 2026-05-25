@@ -192,6 +192,12 @@ namespace lockstep
             learningSlotIndex_ = -1;
 
         refreshSliders();
+
+        // The CC-learn overlay pulses at ~3 Hz; repaint to drive that animation.
+        // Outside of learn mode the child sliders/labels repaint themselves when
+        // their values change, so no explicit repaint() is needed here.
+        if (learningSlotIndex_ >= 0)
+            repaint();
     }
 
     static juce::String formatValue(float v, ParamSpec::Unit unit, bool isStepped)  // NOLINT
@@ -318,8 +324,6 @@ namespace lockstep
             clearBtns_[si].setAlpha(hasLock ? 1.0f : 0.3f);
         }
         updatingFromTimer_ = false;
-
-        repaint();
     }
 
     void ManipulationZone::refreshCondSliders()
@@ -401,7 +405,6 @@ namespace lockstep
             clearBtns_[si].setAlpha(0.0f);
         }
         updatingFromTimer_ = false;
-        repaint();
     }
 
     void ManipulationZone::writeCondField(int field, float value)
@@ -523,7 +526,6 @@ namespace lockstep
             clearBtns_[si].setAlpha(locks[si] ? 1.0f : 0.3f);
         }
         updatingFromTimer_ = false;
-        repaint();
     }
 
     void ManipulationZone::writeTrigField(int field, float value)
@@ -615,7 +617,6 @@ namespace lockstep
             clearBtns_[si].setAlpha(0.0f);
         }
         updatingFromTimer_ = false;
-        repaint();
     }
 
     void ManipulationZone::writeTrackField(int field, float value)
@@ -699,7 +700,6 @@ namespace lockstep
             clearBtns_[si].setAlpha(0.0f);
         }
         updatingFromTimer_ = false;
-        repaint();
     }
 
     void ManipulationZone::showSamplePicker(int absoluteSlot)

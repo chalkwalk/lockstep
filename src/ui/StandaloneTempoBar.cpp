@@ -26,8 +26,19 @@ namespace lockstep
 
     void StandaloneTempoBar::timerCallback()
     {
-        bpmSlider_.setValue(clock_.localBpm(), juce::dontSendNotification);
-        positionLabel_.setText(positionText(), juce::dontSendNotification);
+        const double bpm = clock_.localBpm();
+        if (bpm != lastBpm_)
+        {
+            lastBpm_ = bpm;
+            bpmSlider_.setValue(bpm, juce::dontSendNotification);
+        }
+
+        const juce::String pos = positionText();
+        if (pos != lastPos_)
+        {
+            lastPos_ = pos;
+            positionLabel_.setText(pos, juce::dontSendNotification);
+        }
     }
 
     juce::String StandaloneTempoBar::positionText() const

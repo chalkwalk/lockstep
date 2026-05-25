@@ -108,6 +108,7 @@ namespace lockstep
         int             stepPage_      = 0;
         GridDisplayMode displayMode_   = GridDisplayMode::Ortholinear;
         int             mouseHeldStep_ = -1;
+        double          lastPpq_       = -1.0;
 
         juce::TextButton prevBtn_{ juce::String(u8"←") };
         juce::TextButton nextBtn_{ juce::String(u8"→") };

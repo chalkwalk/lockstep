@@ -190,7 +190,15 @@ namespace lockstep
         repaint();
     }
 
-    void KeyboardArea::timerCallback() { repaint(); }
+    void KeyboardArea::timerCallback()
+    {
+        const double ppq = processor_.clock().cumulativePpq();
+        if (ppq != lastPpq_)
+        {
+            lastPpq_ = ppq;
+            repaint();
+        }
+    }
 
     // -------------------------------------------------------------------------
     // Step helpers
