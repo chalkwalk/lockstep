@@ -45,26 +45,34 @@ namespace lockstep
         using U = ParamSpec::Unit;
         using R = ParamSpec::Role;
 
+        static constexpr const char* kVoiceModeLabels[]  = { "MONO", "PARA" };
+        static constexpr const char* kFilterTypeLabels[]  = { "LP24", "LP12", "HP", "BP" };
+        static constexpr const char* kOscWaveLabels[]     = { "SAW", "TRI", "SQR", "SIN" };
+        static constexpr const char* kOsc2WaveLabels[]    = { "SAW", "TRI", "SQR", "SIN", "OFF" };
+        static constexpr const char* kLfoShapeLabels[]    = { "SIN", "TRI", "SAW", "SQR", "S&H", "RND" };
+        static constexpr const char* kLfoTargetLabels[]   = { "CUT", "PITCH", "PW", "AMP" };
+        static constexpr const char* kLfoSyncLabels[]     = { "FREE", "SYNC" };
+
         switch (index)
         {
         // --- SRC (section 1) ---
         case kSlotOsc1Coarse: return { "va_osc1_coarse", "Osc1 Coarse", -24.0f, 24.0f,  0.0f, true,  U::Semitones, 1, R::Pitch };
         case kSlotOsc1Fine:   return { "va_osc1_fine",   "Osc1 Fine",   -50.0f, 50.0f,  0.0f, false, U::None,      1, R::None  };
-        case kSlotOsc1Wave:   return { "va_osc1_wave",   "Osc1 Wave",     0.0f,  3.0f,  0.0f, true,  U::None,      1, R::None  };
+        case kSlotOsc1Wave:   { ParamSpec p { "va_osc1_wave",   "Osc1 Wave",     0.0f,  3.0f,  0.0f, true,  U::None,      1, R::None  }; p.valueLabels = std::span<const char* const>(kOscWaveLabels); return p; }
         case kSlotOsc1PW:     return { "va_osc1_pw",     "Osc1 PW",       0.0f,  1.0f,  0.5f, false, U::None,      1, R::None  };
         case kSlotOsc2Coarse: return { "va_osc2_coarse", "Osc2 Coarse", -24.0f, 24.0f,  0.0f, true,  U::Semitones, 1, R::Pitch };
         case kSlotOsc2Fine:   return { "va_osc2_fine",   "Osc2 Fine",   -50.0f, 50.0f,  0.0f, false, U::None,      1, R::None  };
-        case kSlotOsc2Wave:   return { "va_osc2_wave",   "Osc2 Wave",     0.0f,  4.0f,  0.0f, true,  U::None,      1, R::None  };
+        case kSlotOsc2Wave:   { ParamSpec p { "va_osc2_wave",   "Osc2 Wave",     0.0f,  4.0f,  0.0f, true,  U::None,      1, R::None  }; p.valueLabels = std::span<const char* const>(kOsc2WaveLabels); return p; }
         case kSlotOsc2PW:     return { "va_osc2_pw",     "Osc2 PW",       0.0f,  1.0f,  0.5f, false, U::None,      1, R::None  };
         case kSlotSub:        return { "va_sub",          "Sub",           0.0f,  1.0f,  0.0f, false, U::None,      1, R::None  };
         case kSlotNoise:      return { "va_noise",        "Noise",         0.0f,  1.0f,  0.0f, false, U::None,      1, R::None  };
         case kSlotPorta:      return { "va_porta",        "Portamento",    0.0f,500.0f,  0.0f, false, U::Ms,        1, R::None  };
-        case kSlotVoiceMode:  return { "va_voice_mode",   "Voice Mode",    0.0f,  1.0f,  0.0f, true,  U::None,      1, R::None  };
+        case kSlotVoiceMode:  { ParamSpec p { "va_voice_mode",   "Voice Mode",    0.0f,  1.0f,  0.0f, true,  U::None,      1, R::None  }; p.valueLabels = std::span<const char* const>(kVoiceModeLabels);  return p; }
 
         // --- FLTR (section 2) ---
         case kSlotCutoff:     return { "va_cutoff",      "Cutoff",        0.0f,  1.0f,  1.0f, false, U::None,      2, R::Cutoff    };
         case kSlotRes:        return { "va_res",          "Resonance",     0.0f,  1.0f,  0.0f, false, U::None,      2, R::Resonance };
-        case kSlotFilterType: return { "va_filter_type",  "Filter",        0.0f,  3.0f,  0.0f, true,  U::None,      2, R::None      };
+        case kSlotFilterType: { ParamSpec p { "va_filter_type",  "Filter",        0.0f,  3.0f,  0.0f, true,  U::None,      2, R::None  }; p.valueLabels = std::span<const char* const>(kFilterTypeLabels); return p; }
         case kSlotDrive:      return { "va_drive",        "Drive",         0.0f,  1.0f,  0.0f, false, U::None,      2, R::Drive     };
         case kSlotFEnvDepth:  return { "va_fenv_depth",   "Env Depth",    -1.0f,  1.0f,  0.0f, false, U::None,      2, R::None      };
         case kSlotFEnvA:      return { "va_fenv_a",       "F Atk",         1.0f,5000.0f, 1.0f, false, U::Ms,        2, R::None      };
@@ -83,9 +91,9 @@ namespace lockstep
         // --- LFO (section 4) ---
         case kSlotLfoRate:    return { "va_lfo_rate",     "LFO Rate",    0.01f, 40.0f,  3.0f, false, U::None,      4, R::LfoRate  };
         case kSlotLfoDepth:   return { "va_lfo_depth",    "LFO Depth",   0.0f,   1.0f,  0.0f, false, U::None,      4, R::LfoDepth };
-        case kSlotLfoShape:   return { "va_lfo_shape",    "LFO Shape",   0.0f,   5.0f,  0.0f, true,  U::None,      4, R::LfoShape };
-        case kSlotLfoTarget:  return { "va_lfo_target",   "LFO Target",  0.0f,   3.0f,  0.0f, true,  U::None,      4, R::None     };
-        case kSlotLfoSync:    return { "va_lfo_sync",     "LFO Sync",    0.0f,   1.0f,  0.0f, true,  U::None,      4, R::None     };
+        case kSlotLfoShape:   { ParamSpec p { "va_lfo_shape",    "LFO Shape",   0.0f,   5.0f,  0.0f, true,  U::None,      4, R::LfoShape }; p.valueLabels = std::span<const char* const>(kLfoShapeLabels);  return p; }
+        case kSlotLfoTarget:  { ParamSpec p { "va_lfo_target",   "LFO Target",  0.0f,   3.0f,  0.0f, true,  U::None,      4, R::None     }; p.valueLabels = std::span<const char* const>(kLfoTargetLabels); return p; }
+        case kSlotLfoSync:    { ParamSpec p { "va_lfo_sync",     "LFO Sync",    0.0f,   1.0f,  0.0f, true,  U::None,      4, R::None     }; p.valueLabels = std::span<const char* const>(kLfoSyncLabels);   return p; }
 
         default: return {};
         }

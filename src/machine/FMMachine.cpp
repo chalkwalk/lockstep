@@ -392,6 +392,8 @@ namespace lockstep
     using U = ParamSpec::Unit;
     using R = ParamSpec::Role;
 
+    static constexpr const char* kVoiceModeLabels[] = { "MONO", "POLY" };
+
     switch (index)
     {
     // SRC — page 1: coarse ratios
@@ -431,7 +433,7 @@ namespace lockstep
     case kSlotOp4Decay:   return { "fm_dec_4", "Op4 Dec", 1.0f, 5000.0f, 200.0f, false, U::Ms,      3, R::None };
     case kSlotOp4Sustain: return { "fm_sus_4", "Op4 Sus", 0.0f,    1.0f,   0.0f, false, U::Percent, 3, R::None };
     case kSlotOp4Release: return { "fm_rel_4", "Op4 Rel", 1.0f, 5000.0f, 500.0f, false, U::Ms,      3, R::None };
-    case kSlotVoiceMode:  return { "fm_voice_mode", "Voice", 0.0f, 1.0f, 0.0f, true, U::None, 7, R::None };
+    case kSlotVoiceMode:  { ParamSpec p { "fm_voice_mode", "Voice", 0.0f, 1.0f, 0.0f, true, U::None, 7, R::None }; p.valueLabels = std::span<const char* const>(kVoiceModeLabels); return p; }
     default: break;
     }
 

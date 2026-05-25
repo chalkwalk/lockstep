@@ -1,5 +1,6 @@
 #pragma once
 
+#include <span>
 #include <string>
 #include <vector>
 #include <juce_audio_basics/juce_audio_basics.h>
@@ -63,6 +64,11 @@ namespace lockstep
         int   sectionIndex = 0;     // which canonical section (0..kMaxSections-1)
         Role  role         = Role::None;
         Variant variant    = Variant::Primary;  // MHY: primary vs Func-secondary page (appended last to preserve aggregate-init)
+
+        // Optional textual labels for stepped/enum slots (MHZ.2.5).
+        // Non-empty → MZ renders valueLabels[round(value)] instead of a numeric string.
+        // Must point to static-lifetime data; the span is non-owning.
+        std::span<const char* const> valueLabels = {};
     };
 
     // Returned by LockstepProcessor::section() after augmenting the machine's
