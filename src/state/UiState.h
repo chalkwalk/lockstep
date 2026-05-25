@@ -64,6 +64,10 @@ namespace lockstep
         // Active master section (-1 = none).
         int masterSection = -1;
 
+        // True whenever at least one step key is held (heldStepKeys_ non-empty).
+        // Set by PluginEditor so KeyboardArea can show COP/PST/CLR on verb keys.
+        bool stepHeld = false;
+
         // Returns the first slot index for the currently active page on the given track.
         // Returns 0 if track is out of range or info.firstSlot is -1 (empty section).
         [[nodiscard]] int activeFirstSlot(int track, const SectionInfo& info) const

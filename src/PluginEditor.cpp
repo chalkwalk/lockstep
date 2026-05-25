@@ -788,6 +788,7 @@ namespace lockstep
                     const int absStep = keyboardArea_.currentPage() * KeyboardArea::kPageSteps
                                         + ev.index;
                     heldStepKeys_.push_back({ rawCode, absStep });
+                    uiState_.stepHeld = true;
                     processor_.editContext().hold(keyboardArea_.getActiveTrack(), absStep);
                     editMode_.setTrigHeld(true);
                 }
@@ -1245,6 +1246,7 @@ namespace lockstep
         }
         if (handled && heldStepKeys_.empty())
         {
+            uiState_.stepHeld = false;
             editMode_.setTrigHeld(false);
         }
 
