@@ -50,11 +50,11 @@ namespace lockstep
         }};
 
         static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kPattern = {{
-            { "LEN",  true  },   // length / scale lock (MC)
+            { "LEN",  true  },   // length / scale lock → routes to TRACK meta (Length/Divider)
             { nullptr,false },   // dim — no content planned
             { nullptr,false },   // dim — no content planned
-            { "GAIN", true  },   // pattern output gain (MC)
-            { "TMPO", true  },   // tempo + chain queue (MC)
+            { nullptr,false },   // GAIN — pattern output gain not yet implemented
+            { nullptr,false },   // TMPO — per-pattern tempo not yet implemented
             { nullptr,false },   // dim — no content planned
         }};
 
@@ -68,21 +68,21 @@ namespace lockstep
         }};
 
         static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kScene = {{
-            { "CXFD", true  },   // crossfader curve / endpoint assign (MI)
-            { "SRC",  true  },   // scene-assign SRC (MI)
-            { "FLTR", true  },   // scene-assign FLTR (MI)
-            { "AMP",  true  },   // scene-assign AMP (MI)
-            { "MOD",  true  },   // scene-assign MOD (MI)
-            { "FX",   true  },   // scene-assign FX (MI)
+            { nullptr,false },   // CXFD — crossfader curve (MI, not yet implemented)
+            { nullptr,false },   // SRC — scene-assign SRC (MI, not yet implemented)
+            { nullptr,false },   // FLTR — scene-assign FLTR (MI, not yet implemented)
+            { nullptr,false },   // AMP — scene-assign AMP (MI, not yet implemented)
+            { nullptr,false },   // MOD — scene-assign MOD (MI, not yet implemented)
+            { nullptr,false },   // FX — scene-assign FX (MI, not yet implemented)
         }};
 
         static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kMaster = {{
             { nullptr,false },   // dim — no content planned
             { nullptr,false },   // dim — no content planned
-            { "FLTR", true  },   // master FLTR (MV)
-            { "AMP",  true  },   // master gain + sends (MV)
+            { nullptr,false },   // FLTR — master FLTR (MV, not yet implemented)
+            { nullptr,false },   // AMP — master gain + sends (MV, not yet implemented)
             { nullptr,false },   // dim — no content planned
-            { "FX",   true  },   // master FX 1+2 (MV)
+            { nullptr,false },   // FX — master FX 1+2 (MV, not yet implemented)
         }};
 
         if (section < 0 || section >= IMachine::kMaxSections)

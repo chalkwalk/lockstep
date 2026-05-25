@@ -2,6 +2,7 @@
 #include "ParameterIDs.h"
 #include "machine/FMMachine.h"
 #include "machine/MidiOutMachine.h"
+#include "ui/ScopedSectionMatrix.h"
 #include <algorithm>
 
 namespace lockstep
@@ -653,6 +654,41 @@ namespace lockstep
                 return true;
 
             case ControllerButton::Section:
+            {
+                // Determine whether a section-suite scope modifier is held.
+                using PS = EditMode::PrimaryScope;
+                PS sectionScope = PS::None;
+                if      (uiState_.trackHeld)        sectionScope = PS::Track;
+                else if (uiState_.patternScopeHeld) sectionScope = PS::Pattern;
+                else if (uiState_.partHeld)         sectionScope = PS::Part;
+                else if (uiState_.sceneHeld)        sectionScope = PS::Scene;
+                else if (uiState_.masterHeld)       sectionScope = PS::Master;
+
+                if (sectionScope != PS::None)
+                {
+                    // Dim under this scope — no content, block entirely.
+                    if (!scopedCell(sectionScope, ev.index).hasContent) return true;
+
+                    // Scope-specific dispatch for cells whose content is implemented.
+                    if (sectionScope == PS::Pattern && ev.index == 0)
+                    {
+                        // Pattern+LEN: track length/divider lives in the TRACK meta section.
+                        keyboardArea_.selectMetaSection(2);
+                        return true;
+                    }
+                    if (sectionScope == PS::Part && ev.index == 1)
+                    {
+                        // Part+MACH: open the machine-select overlay.
+                        machineSelectOverlay_.setVisible(!machineSelectOverlay_.isVisible());
+                        if (machineSelectOverlay_.isVisible())
+                            machineSelectOverlay_.toFront(false);
+                        return true;
+                    }
+                    // All other non-dim scope cells fall through to the machine's own
+                    // section (e.g. Track+FLTR → section 2 = post-machine FLTR block).
+                }
+
+                // KeyboardArea gates on machine slot availability.
                 keyboardArea_.selectSection(ev.index);
                 // Track section key hold for Section-scope verb dispatch (MD.3).
                 if (heldSectionRawCode_ < 0)
@@ -661,6 +697,7 @@ namespace lockstep
                     editMode_.setSectionHeld(true);
                 }
                 return true;
+            }
 
             case ControllerButton::MetaSection:
                 keyboardArea_.selectMetaSection(ev.index);
