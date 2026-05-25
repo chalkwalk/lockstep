@@ -45,9 +45,12 @@ identically for both.
 Three non-negotiable design pillars:
 
 1. **Realtime usability without the mouse.** The full editing workflow
-   is reachable from the QWERTY keyboard alone. The eventual hardware
-   controller is literally a special, fewer-key QWERTY keyboard in a
-   grid layout — same key→action mapping, ergonomically denser
+   is reachable from the QWERTY keyboard alone. In-context selection
+   — machine type, P-lock target slot, track, pattern, part — is
+   always a step-key press; section keys navigate the MZ to a
+   parameter page and never launch a picker or popup. The eventual
+   hardware controller is literally a special, fewer-key QWERTY
+   keyboard in a grid layout — same key→action mapping, ergonomically denser
    package, **no extra features**. If a workflow can't be done from
    the software's QWERTY today, the hardware won't add it.
 2. **A strict DSP encapsulation boundary.** Sound-generating engines —
@@ -582,7 +585,7 @@ of which are performance specialists.
 | `1` | Func    | section scope + universal qualifier | composes with every other scope to give the "secondary variant" |
 | `2` | Track   | section scope | focused-track edits, post-machine FLTR/AMP cells |
 | `Q` | Pattern | section scope | pattern length / tempo / chain |
-| `W` | Part    | section scope | kit identity, machine select (`Part+SRC`) |
+| `W` | Part    | section scope | kit identity, base ParamFrame, sample refs. `Func+Part` (relabels to MACH) activates the machine picker. |
 | `A` | Scene   | section scope | scene-assign per section |
 | `S` | Master  | section scope | master FX / gain cells |
 | `Z` | Mute    | performance specialist | hold-and-tap-many multi-mute |
@@ -619,7 +622,10 @@ every key it composes with (snapshot push/pop, metronome via
 `Func+I`, stop-and-reset, etc.) and — via the scope-section matrix
 (§6.1.2) — the secondary variant of any held scope's cells. The old
 `Func+R = MachineSelect` gesture is retired in MHY; machine selection
-now lives at `Part+SRC` (hold `W`, tap `6`). Holding any other modifier
+is `Func+Part` (hold `1`, tap `W`; the Part key relabels to `MACH`) —
+the 16 step cells re-skin to show available machine names and a step
+press confirms the selection (scope-select pattern, §PRINCIPLES §4).
+Holding any other modifier
 reinterprets the functional block per the **compound-chord rule**
 (§13): a second held modifier *qualifies* the scope, it never invents
 a new verb. `Track + step` = select track; `Mute + step` = toggle
@@ -652,6 +658,20 @@ hardware surface 1:1:
   flips any held context to its "secondary variant." Pages within a
   given `(scope, section)` cell are cycled by repeated presses of
   the section key.
+
+**Section keys expose parameters; step keys select.** A section key
+press always navigates the MZ to a parameter page — it never opens a
+picker or popup. When the UI needs "pick one of N," the 16 step keys
+are the selection surface and the step cells re-skin to show the
+options. There are two picker patterns (see also PRINCIPLES §4):
+
+- *Scope-select* (machine, track, pattern, part): hold modifier →
+  step cells re-skin for the duration of the hold → press step to
+  select → release.
+- *Step-driven edit* (P-lock slot edit, step note edit): hold
+  non-step modifier(s) + press the target step → step cells re-skin
+  → interact → release modifiers → mode exits. The modifier hold is
+  the mode; nothing is left armed after release.
 
 ### 6.1 Canonical sections
 
@@ -696,7 +716,7 @@ Scene-scope, MV for FX cells, MU for Cue-scope reactivation).
   | `Func`    | conditions / fill | machine SRC alt | machine FLTR alt | machine AMP alt | machine MOD alt | machine FX alt |
   | `Track`   | per-track condition defaults | input_source / Thru | post-machine FLTR | post-machine AMP + sends | per-track LFO (if any) | IEffect insert 1+2 |
   | `Pattern` | length / scale lock | (dim) | (dim) | pattern gain | tempo / chain queue | pattern-FX snapshot |
-  | `Part`    | trig templates | **machine select** | part-base FLTR | part-base AMP | part-base MOD | part-base FX |
+  | `Part`    | trig templates | part-base SRC | part-base FLTR | part-base AMP | part-base MOD | part-base FX |
   | `Scene`   | (renamed `CXFD`) | scene-assign SRC | scene-assign FLTR | scene-assign AMP | scene-assign MOD | scene-assign FX |
   | `Master`  | (dim) | (dim) | master FLTR (if any) | master gain + sends | (dim) | master FX 1+2 |
 
@@ -874,13 +894,15 @@ slot in `UITheme` (`src/ui/UITheme.h`):
 | `Track`   | `kScopeTrack`       | cyan-blue      |
 | `Pattern` | `kScopePattern`     | purple         |
 | `Part`    | `kScopePart`        | green          |
-| `Machine` (Part+SRC picker) | `kScopeMachine` | lime |
+| `Machine` (Func+Part picker) | `kScopeMachine` | lime |
 | `Scene`   | `kScopeScene`       | orange         |
 | `Master`  | `kScopeMaster`      | gold           |
 
 The helper `scopeColour(PrimaryScope, machinePicker=false)` in
 `src/ui/KeyLabel.h` maps a scope enum value to its colour in one
 place; every renderer calls this rather than defining its own tints.
+(`machinePicker=true` is set when the active scope is the `Func+Part`
+machine picker.)
 
 Used by:
 - key tints when a modifier is held (the held key, and any keys it
@@ -903,7 +925,7 @@ are re-skinned for the duration of the hold:
 | `Track`              | Track 1 … 16 (numeric)                    |
 | `Pattern`            | Pattern 1 … 16 (numeric)                  |
 | `Part`               | Part 1 … 16 (numeric)                     |
-| `Part + SRC` (machine picker) | Machine names (textual)          |
+| `Func + Part` (machine picker) | Machine names (textual)          |
 
 Three rules govern the re-skin:
 
@@ -933,7 +955,7 @@ single view-model:
   Bank / Pattern / Part identity, transport position, chain queue
   glance, checkpoint depth (`CK:N`).
 - **Right held-context preview.** Derived from currently-held
-  modifiers — e.g. `TRACK 3 + …`, `PART + SRC → machine picker`.
+  modifiers — e.g. `TRACK 3 + …`, `FUNC + PART → machine picker`.
   Acts as a live cheat sheet without being authoritative: the
   *behaviour* is set by the cluster keys, the preview just *shows*
   what those held keys mean.
@@ -1091,7 +1113,7 @@ cluster in the left two columns of the 10×4 QWERTY layout (see §5.5,
 | `Scene` | `A` (col 1) | Scene assignment; `Scene + ^/v` picks endpoint A/B (§17.5). | Nav, encoder, `Master`, `Fill`. |
 | `Mute` | `Z` (col 1) | The mute mask (hold and tap many). | Track/step keys. |
 | `Track` | `2` (col 2) | One or more track slots; none selected = Control-All. | Verb, encoder, or a col-1 modifier. |
-| `Part` | `W` (col 2) | The kit half of the Part/Pattern split (§4.7) — machine identity, base ParamFrame, sample refs. `Part+SRC` opens the machine picker. | Verb, section key. |
+| `Part` | `W` (col 2) | The kit half of the Part/Pattern split (§4.7) — machine identity, base ParamFrame, sample refs. `Func+Part` (relabels to MACH) activates the machine picker via step-cell re-skin. | Verb, section key. |
 | `Master` | `S` (col 2) | Master-bus / FX focus (§32.3). | Verb, section key, `Scene`. |
 | `Fill` | `X` (col 2) | "While I'm holding this, fill conditions evaluate true." | Step keys; (no verb needed — it's the state itself). |
 | `Trig` (hold a step) | `D–;` / `C–/` | The held step(s); multi-step hold is allowed. | Verb, encoder, or note key. |
@@ -1184,7 +1206,7 @@ A single uniform grammar: **hold scope, press verb**.
 | `Trig` + Stop | Clear those steps' overrides (trig + P-Locks). |
 | `Trig` + `Func + Stop` (MHZ.3) | Clear **all** P-Locks on the held step(s), leaving the trig itself intact. The `Func` qualifier narrows `Stop`'s scope from "clear the step" to "clear locks only". |
 | `Trig` + `(MZ slot)` + Stop (MHZ.3) | Clear **only that slot's** P-Lock on the held step. Targeted by the held slot (the same slot the MZ would write). |
-| `Trig` + popup picker → step key (MHZ.3) | When several P-Locks exist on the held step, invoking the popup picker turns the MZ into a non-paginated list of P-locked slots; pressing the step key (D=1 … `/`=16) clears just that one. Page-independent. |
+| step-driven edit mode (MHZ.3) | Hold non-step modifier(s) + press the target step → step cells re-skin to show this step's P-locked slot labels (dimmed for empty slots) → press a step cell to clear that slot → release modifiers → exit. The modifier hold is the mode; exact chord TBD in MHZ.3 design. |
 | `Section` key + Record | Copy all of that section's params (base + P-Locks across all steps). |
 | `Section` key + Play | Paste section onto current track. |
 | `Section` key + Stop | Reset section to default. |
@@ -2027,7 +2049,7 @@ emerges):
 | `scope.colour.track` | Track-scope held — applied to keys + reskinned step cells. |
 | `scope.colour.pattern` | Pattern-scope held. |
 | `scope.colour.part` | Part-scope held. |
-| `scope.colour.machine` | `Part + SRC` machine picker — distinct from Part so the picker is visibly its own mode. |
+| `scope.colour.machine` | `Func + Part` machine picker — distinct from Part so the picker is visibly its own mode. |
 | `scope.colour.scene` | Scene-scope held. |
 | `scope.colour.master` | Master-scope held. |
 
@@ -2163,7 +2185,7 @@ value duplicating information. MHZ.2 collapses each slot to **rotary
   section-key label since context already names the page).
 - The standalone `x` clear button is removed; clearing a P-Lock is a
   grammar gesture under `Trig + (slot) + Stop` / `Trig + Func + Stop`
-  / `Trig + popup picker` (§13.2), keyboard-first.
+  / step-driven edit mode (§13.2), keyboard-first.
 - The reclaimed space grows the rotary itself, so it's actually
   legible at performing distance.
 

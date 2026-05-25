@@ -12,7 +12,7 @@ and within the existing scope+verb grammar (DESIGN §13).**
 
 **Active focus:** MH.3 — DrumSynthMachine (Rytm-style per-track drum synthesis, kick/snare/hat/tom variants). Authoring against the MHY contract (scope-indexed sections, MOD canonical, Part scope, Yes/Rec/Play/Stop/No verbs). **Paused** while MHZ.1 → MHZ.3 (keyboard / UI revamp) land — MH.3 resumes against the improved surface.
 **Last completed:** MHY — Surface revamp complete: modifier cluster remapped (Func/Track|Pattern/Part|Scene/Master|Mute/Fill), LFO→MOD, ParamSpec.variant, right-utility row Yes/Rec/Play/Stop/No, scope-section matrix scaffolding + reactive chrome, tap tempo implemented.
-**Next up:** MHZ — Keyboard / UI revamp (MHZ.1 chrome + label grammar → MHZ.2 contextual modes + top bar + MZ streamline → MHZ.3 step-hold note capture + P-Lock clear + popup picker). Lands before MH.3 resumes.
+**Next up:** MHZ — Keyboard / UI revamp (MHZ.1 chrome + label grammar → MHZ.2 contextual modes + top bar + MZ streamline → MHZ.3 step-hold note capture + P-Lock clear + step-driven edit mode). Lands before MH.3 resumes.
 
 After M8 the roadmap pivots from "core sequencer is usable" to
 "performance instrument is usable" — see milestones MB–MI below
@@ -794,8 +794,8 @@ also promotes the section bar from a flat six-of-canonical to a
 renames `LFO`→`MOD` so machine modulation has a real home, introduces
 `Part` as a first-class scope (kit half of the Part/Pattern split,
 DESIGN §4.7) and drops `Cue` from the cluster (reserved for MU
-reactivation). Folds machine-select into `Part+SRC` (replaces
-`Func+R`). Right-utility row (`Y U I O P`) is reassigned to
+reactivation). Moves machine-select to `Func+Part` (Part relabels to
+MACH; replaces `Func+R`). Right-utility row (`Y U I O P`) is reassigned to
 `Yes/Rec/Play/Stop/No`; key `3` keeps `TAP`.
 
 **Frozen by MHX, untouched by MHY:** nav (`4 / E R T`), 16 step keys
@@ -965,7 +965,7 @@ operate on; the MZ stops repeating itself; the top bar becomes useful.
       updates live; MZ filter slot shows `LP24`/`LP12`/`HP`/`BP` text;
       double-click rotary resets to default.
 
-#### MHZ.3 — Note capture, P-Lock clear, popup picker
+#### MHZ.3 — Note capture, P-Lock clear, step-driven edit modes
 
 Goal: close the real grammar gaps surfaced during MHY play-testing.
 
@@ -987,23 +987,34 @@ Goal: close the real grammar gaps surfaced during MHY play-testing.
       modifier; no bespoke single-purpose key). Exact gesture choice
       finalised during MHZ.3 design; documented in DESIGN §13 once
       pinned.
-- [ ] **MHZ.3.4** Popup picker for P-Lock clear. When "clear which
-      P-Lock?" is invoked on a step that carries multiple locks, the
-      MZ becomes a non-paginated 1-of-16 picker listing the slotted
-      parameters by index; press the step key (D=1 … `/`=16) to clear
-      that one. **Page-independent** — the picker does not paginate.
-      Built narrowly for P-Lock clear only; a future "general picker"
-      can subsume it without rework.
-- [ ] **MHZ.3.5** Documentation: DESIGN step-hold capture window
+- [ ] **MHZ.3.4** Step-driven edit mode for targeted P-Lock clear.
+      Hold non-step modifier(s) + press the target step → step cells
+      re-skin to show this step's P-locked slot labels (dimmed for
+      empty slots) → press a step cell to clear that slot → release
+      modifiers → exit. Page-independent. Exact modifier chord TBD
+      during MHZ.3 design; must satisfy PRINCIPLES §4 (modifier hold
+      = mode duration, no sticky state).
+- [ ] **MHZ.3.5** Migrate machine picker from `Part+SRC` to `Func+Part`
+      (scope-select pattern). When Func is held, the Part key relabels
+      to `MACH`; releasing after a step press confirms the machine
+      selection. `Part+SRC` reverts to showing part-base SRC params in
+      the MZ (no picker). Update `QwertyOverlay` gesture routing,
+      scoped-cell table, and `KeyLabel` resolver accordingly.
+- [ ] **MHZ.3.6** Update held-context preview to show
+      `"FUNC + PART → machine picker"` instead of
+      `"PART + SRC → machine picker"`.
+- [ ] **MHZ.3.7** Documentation: DESIGN step-hold capture window
       subsection (near §4.6 / §21); DESIGN §13 grammar additions for
       the P-Lock clear gestures; CLAUDE.md glossary; README §5 / §6.
-- [ ] **MHZ.3.6** Verification: with transport stopped, hold step D,
+- [ ] **MHZ.3.8** Verification: with transport stopped, hold step D,
       play C-major chord, release step — chord lands on step D.
       Repeat with another chord; confirm replace semantics. Place
-      several P-Locks on one step; invoke the picker; confirm the
-      selected index clears only that lock; confirm the "clear all"
-      gesture wipes them all. Regression-check transport-time
-      record-arm capture still works.
+      several P-Locks on one step; invoke the step-driven edit mode;
+      confirm the selected slot clears only that lock; confirm the
+      "clear all" gesture wipes them all. Hold Func+Part and confirm
+      machine names render on step cells; press a step to select;
+      confirm Part+SRC now shows part-base SRC params. Regression-check
+      transport-time record-arm capture still works.
 
 ### MH — Machine catalogue expansion  [pending, staggered]
 

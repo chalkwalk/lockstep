@@ -79,6 +79,29 @@ software (they violate the grammar) and in hardware (they bloat
 the surface). Every key earns its placement by participating in
 the same scope+verb system everywhere it appears.
 
+**The step grid is the in-context selection surface.** When a
+workflow reaches a "pick one of N" decision — machine type, P-lock
+target slot, track, pattern, part — the answer is a step-key press,
+not a floating menu or mouse click. Section keys navigate the MZ to
+a parameter page; they never launch a picker. Any feature that
+requires a popup widget or mouse interaction as its primary
+mechanism has the wrong design and must be re-expressed as a
+scope-change that re-skins the step grid.
+
+**The modifier hold is the mode.** There are no sticky modes.
+Two patterns:
+
+- *Scope-select*: hold a modifier → step cells re-skin to show
+  the available options → press a step key to select → release
+  modifier → done. The mode lasts exactly as long as the hold.
+- *Step-driven edit* (e.g. P-lock slot edit, step note edit):
+  hold non-step modifier(s) + press the target step → step cells
+  re-skin to show editable items → interact with step keys →
+  release the modifier(s) → mode exits automatically.
+
+In both patterns "what you hold determines what mode you're in."
+Nothing is ever left armed after you let go.
+
 ## 5. Internal-audio and MIDI-out tracks are equal citizens
 
 A track driving a MIDI-out destination has the same trig grid, the
