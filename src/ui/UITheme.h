@@ -67,6 +67,26 @@ namespace lockstep::theme
     inline constexpr uint32_t kStepPLock     = 0xFF3EC8C8u;  // cyan — P-Lock dot
 
     // -------------------------------------------------------------------------
+    // Scope colour grammar (MHZ.1.4, DESIGN §6.6)
+    // Canonical palette per scope. Taxonomy is fixed; specific RGB values
+    // are deferred to a later visual-design pass (placeholder colours are
+    // distinguishable but not yet "designed").
+    // -------------------------------------------------------------------------
+
+    // Default / no-scope held: light grey
+    inline constexpr uint32_t kScopeStep    = 0xFF8898A8u;
+
+    // Section-suite scope modifiers — each gets a distinct hue.
+    inline constexpr uint32_t kScopeTrack   = 0xFF30A0C0u;  // cyan-blue
+    inline constexpr uint32_t kScopePattern = 0xFF8040C0u;  // purple
+    inline constexpr uint32_t kScopePart    = 0xFF20A060u;  // green
+    inline constexpr uint32_t kScopeScene   = 0xFFD06020u;  // orange
+    inline constexpr uint32_t kScopeMaster  = 0xFFC0A000u;  // gold
+
+    // Part+SRC machine picker: visibly distinct from Part itself.
+    inline constexpr uint32_t kScopeMachine = 0xFF50C030u;  // lime
+
+    // -------------------------------------------------------------------------
     // Helper: build a juce::Colour from a packed ARGB uint32
     // -------------------------------------------------------------------------
     inline juce::Colour col(uint32_t argb) noexcept

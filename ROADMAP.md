@@ -894,7 +894,7 @@ grammar; no behavioural change to the sequencer itself.
       rule. Step-hold becomes just another modifier flag in the
       resolver's input — the "section scope held OR step held"
       special case disappears.
-- [ ] **MHZ.1.4** Scope colour grammar in `UITheme.h`. Canonical
+- [x] **MHZ.1.4** Scope colour grammar in `UITheme.h`. Canonical
       palette entries: `step / track / pattern / part / machine /
       scene / master`. Light grey for step (default); distinct hue per
       remaining scope. Used by every UI surface from this point: key
