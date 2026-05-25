@@ -8,6 +8,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "../core/Sequence.h"
 #include "../io/ControllerEvent.h"
+#include "../io/PressTracker.h"
 #include "../state/UiState.h"
 #include "GridDisplayMode.h"
 
@@ -55,6 +56,10 @@ namespace lockstep
         // PluginEditor wires these to route through the same handler as QWERTY events.
         std::function<void(ControllerEvent)> onButtonDown;
         std::function<void(ControllerEvent)> onButtonUp;
+
+        // Wired from PluginEditor so paint can query held state for both
+        // keyboard and mouse without polling juce::KeyPress::isKeyCurrentlyDown.
+        void setPressTracker(const PressTracker* pt) { pressTracker_ = pt; }
 
         void paint(juce::Graphics& g) override;
         void resized() override;
@@ -112,8 +117,23 @@ namespace lockstep
         // only; rowIndex 0-3 for number/Q/A/Z rows; JUCE clips the outer halves).
         void paintEdgeRow   (juce::Graphics& g, int rowIndex, juce::Rectangle<int> rowArea) const;
 
+        // Helper: true if the given raw key code is currently held (keyboard) OR
+        // if the mouse is holding the given logical (button, index) cell.
+        // Replaces scattered juce::KeyPress::isKeyCurrentlyDown calls in paint.
+        [[nodiscard]] bool isKeyPressed(int rawCode) const
+        {
+            if (pressTracker_)
+                return pressTracker_->isKeyHeld(rawCode);
+            return juce::KeyPress::isKeyCurrentlyDown(rawCode);
+        }
+        [[nodiscard]] bool isMouseCellPressed(ControllerButton btn, int idx = -1) const
+        {
+            return pressTracker_ && pressTracker_->isMouseHeld(btn, idx);
+        }
+
         LockstepProcessor& processor_;
         UiState&           uiState_;
+        const PressTracker* pressTracker_ = nullptr;
 
         int             activeTrack_    = 0;
         int             stepPage_       = 0;

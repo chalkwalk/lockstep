@@ -778,7 +778,7 @@ namespace lockstep
 
         // Cell 0: Func (key 1) — amber, universal qualifier (col-1 row 0).
         {
-            const bool pressed = juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('1'));
+            const bool pressed = isKeyPressed('1');
             KeyButtonState st = KeyButtonState::Normal;
             if      (pressed)           st = KeyButtonState::Pressed;
             else if (uiState_.funcHeld) st = KeyButtonState::ModeActive;
@@ -790,7 +790,7 @@ namespace lockstep
 
         // Cell 1: Track (key 2) — section-scope (col-2 row 0), violet.
         {
-            const bool pressed = juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('2'));
+            const bool pressed = isKeyPressed('2');
             KeyButtonState st = KeyButtonState::Normal;
             if      (pressed)            st = KeyButtonState::Pressed;
             else if (uiState_.trackHeld) st = KeyButtonState::ModeActive;
@@ -803,7 +803,7 @@ namespace lockstep
 
         // Cell 2: TAP (key 3) — tap tempo; Func+3 = MetronomeToggle.
         {
-            const bool pressed = juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('3'));
+            const bool pressed = isKeyPressed('3');
             KeyButtonState st = KeyButtonState::Normal;
             if      (pressed)           st = KeyButtonState::Pressed;
             else if (uiState_.funcHeld) st = KeyButtonState::FuncHeld;
@@ -814,7 +814,7 @@ namespace lockstep
 
         // Cell 3: NavUp (key 4) — nav up; Func-layer: TrigModeSoundPool
         {
-            const bool pressed = juce::KeyPress::isKeyCurrentlyDown(static_cast<int>('4'));
+            const bool pressed = isKeyPressed('4');
             KeyButtonState st = KeyButtonState::Normal;
             if      (pressed)           st = KeyButtonState::Pressed;
             else if (uiState_.funcHeld) st = KeyButtonState::FuncHeld;
@@ -867,7 +867,7 @@ namespace lockstep
 
             if (!available)
             {
-                const bool pressed = juce::KeyPress::isKeyCurrentlyDown(kSectionKeyCodes[s]);
+                const bool pressed = isKeyPressed(kSectionKeyCodes[s]);
                 const KeyGroup grp { kSecInactive, kSecActive, kSecAccent };
                 paintKeyButton(g, sectionCellBounds(cellIdx, area),
                                kKeyHints[cellIdx], kl.primary, "", grp,
@@ -880,7 +880,7 @@ namespace lockstep
             const bool isTrackActive  = !isScopedMode && (uiState_.masterSection == -1
                 && uiState_.trackSection[static_cast<std::size_t>(activeTrack)] == s);
 
-            const bool pressed = juce::KeyPress::isKeyCurrentlyDown(kSectionKeyCodes[s]);
+            const bool pressed = isKeyPressed(kSectionKeyCodes[s]);
 
             KeyButtonState st = KeyButtonState::Normal;
             if      (pressed)                           st = KeyButtonState::Pressed;
@@ -1024,7 +1024,7 @@ namespace lockstep
 
             const auto cell = juce::Rectangle<int>(x, area.getY(), cellW, area.getHeight());
 
-            const bool isPressed    = juce::KeyPress::isKeyCurrentlyDown(def.keyCode);
+            const bool isPressed    = isKeyPressed(def.keyCode);
             const bool isArmed      = (def.keyCode == 'U') && processor_.clock().isRecordArmed();
             const bool isPlaying    = (def.keyCode == 'I') && processor_.clock().inPluginPlaying();
             const bool isPatHeld    = (def.keyCode == 'Q') && uiState_.patternScopeHeld;
@@ -1228,7 +1228,7 @@ namespace lockstep
                     const int y     = rowY(row);
                     const auto cell = juce::Rectangle<int>(x, y, cellW, cellH);
 
-                    const bool keyDown = juce::KeyPress::isKeyCurrentlyDown(md.keyCode);
+                    const bool keyDown = isKeyPressed(md.keyCode);
                     KeyButtonState st  = KeyButtonState::Normal;
                     if      (keyDown)    st = KeyButtonState::Pressed;
                     else if (md.isHeld)  st = KeyButtonState::ModeActive;

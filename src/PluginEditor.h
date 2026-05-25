@@ -10,6 +10,7 @@
 #include "io/Clipboard.h"
 #include "io/ControllerEvent.h"
 #include "io/EditMode.h"
+#include "io/PressTracker.h"
 #include "io/QwertyOverlay.h"
 #include "state/UiState.h"
 #include "ui/GridDisplayMode.h"
@@ -117,11 +118,16 @@ namespace lockstep
 
         void applyDisplayMode(GridDisplayMode mode);
 
-        // Mouse button routing — wired from KeyboardArea callbacks.
-        // Handles the same logic as keyPressed / keyStateChanged for clicked buttons.
+        // Unified input dispatch — both keyPressed and mouse callbacks route here.
+        void dispatchDown(ControllerEvent ev);
+        void dispatchUp  (ControllerEvent ev);
+        void handleTapTempo();
+
+        PressTracker pressTracker_;
+
+        // Legacy mouse helpers — kept during transition; will be deleted in Stage 3.
         void handleMouseButtonDown(ControllerEvent ev);
         void handleMouseButtonUp  (ControllerEvent ev);
-        void handleTapTempo();
         juce::ComboBox syncModeBox_;
         std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> syncModeAttachment_;
         juce::ComboBox channelModeBox_;

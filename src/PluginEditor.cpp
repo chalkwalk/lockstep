@@ -211,6 +211,10 @@ namespace lockstep
         keyboardArea_.onButtonDown = [this](ControllerEvent ev) { handleMouseButtonDown(ev); };
         keyboardArea_.onButtonUp   = [this](ControllerEvent ev) { handleMouseButtonUp(ev); };
 
+        // Give KeyboardArea a pointer to the shared PressTracker so its paint
+        // methods can query pressed state from both keyboard and mouse sources.
+        keyboardArea_.setPressTracker(&pressTracker_);
+
         // Repaint chrome when a queued pattern switch fires.
         proc.onActivePatternChanged = [this] { repaint(); };
 
@@ -668,6 +672,9 @@ namespace lockstep
                                         uiState_.funcHeld,
                                         uiState_.trackHeld,
                                         uiState_.muteHeld);
+
+        // Register in PressTracker so paint can highlight via isKeyHeld(rawCode).
+        pressTracker_.press(uCode, ev.button, ev.index);
 
         switch (ev.button)
         {
@@ -1219,6 +1226,17 @@ namespace lockstep
         std::erase_if(heldKeys_, [](int code) {
             return !juce::KeyPress::isKeyCurrentlyDown(code);
         });
+
+        // Mirror into PressTracker so paint reflects current keyboard state.
+        {
+            std::vector<int> toRelease;
+            pressTracker_.forEachReleasedKeyboard([&](int src, ControllerButton, int)
+            {
+                toRelease.push_back(src);
+            });
+            for (int src : toRelease)
+                pressTracker_.release(src);
+        }
 
         bool handled = false;
 
