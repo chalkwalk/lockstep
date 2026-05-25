@@ -10,8 +10,8 @@ feature must satisfy, see `PRINCIPLES.md`. **Before adding a
 milestone here, confirm it is expressible within those principles
 and within the existing scope+verb grammar (DESIGN §13).**
 
-**Active focus:** MHY — Surface revamp: section matrix + modifier cluster (parameter access depth, scope-indexed sections, cluster identities by measured chord-value, Part scope introduced, Cue dropped from cluster, LFO→MOD canonical rename, machine-select folds into Part+SRC, right-utility row remapped to Yes/Rec/Play/Stop/No).
-**Last completed:** MH.2 — VAMachine (poly trig infrastructure + VA Synth, mono+para modes). MH pauses until MHY ships; MH.3+ author against the MHY contract.
+**Active focus:** MH.3 — DrumSynthMachine (Rytm-style per-track drum synthesis, kick/snare/hat/tom variants). Authoring against the MHY contract (scope-indexed sections, MOD canonical, Part scope, Yes/Rec/Play/Stop/No verbs).
+**Last completed:** MHY — Surface revamp complete: modifier cluster remapped (Func/Track|Pattern/Part|Scene/Master|Mute/Fill), LFO→MOD, ParamSpec.variant, right-utility row Yes/Rec/Play/Stop/No, scope-section matrix scaffolding + reactive chrome, tap tempo implemented.
 
 After M8 the roadmap pivots from "core sequencer is usable" to
 "performance instrument is usable" — see milestones MB–MI below
@@ -781,7 +781,7 @@ canonical sections). Intended as the last large UI/UX revamp.
       (REC/PLY/STP) with Func-layer KEY/RTG/RST; `P`=TAP/SPL. Surface
       freeze confirmed — all MHX items shipped.
 
-### MHY — Section matrix + modifier-cluster rethink  [pending]
+### MHY — Section matrix + modifier-cluster rethink  [complete]
 
 DESIGN §6, §13, §33. A second-pass refinement of MHX, sequenced
 **after** MHX (which froze key positions) and **before** the rest of
