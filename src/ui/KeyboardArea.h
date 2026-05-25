@@ -141,6 +141,7 @@ namespace lockstep
         int             mouseHeldStep_  = -1;
         ControllerEvent mouseHeldButton_{};  // non-step button held via mouse
         double          lastPpq_        = -1.0;
+        int             lastTrackLen_   = -1;
 
         juce::TextButton prevBtn_{ juce::String(u8"←") };
         juce::TextButton nextBtn_{ juce::String(u8"→") };

@@ -194,12 +194,24 @@ namespace lockstep
 
     void KeyboardArea::timerCallback()
     {
+        bool dirty = false;
+
         const double ppq = processor_.clock().cumulativePpq();
         if (ppq != lastPpq_)
         {
             lastPpq_ = ppq;
-            repaint();
+            dirty = true;
         }
+
+        const int len = trackLength();
+        if (len != lastTrackLen_)
+        {
+            lastTrackLen_ = len;
+            dirty = true;
+        }
+
+        if (dirty)
+            repaint();
     }
 
     // -------------------------------------------------------------------------
@@ -1280,7 +1292,8 @@ namespace lockstep
                     }
 
                     if (showKeyLetters)
-                        paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(idx)]);
+                        paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(idx)],
+                                         avail ? 1.0f : 0.45f);
                 }
             }
             g.setColour(juce::Colour::fromRGB(80, 95, 115));
@@ -1347,7 +1360,8 @@ namespace lockstep
                     }
 
                     if (showKeyLetters)
-                        paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(slotIdx)]);
+                        paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(slotIdx)],
+                                         hasSlot ? 1.0f : 0.45f);
                 }
             }
             g.setColour(juce::Colour::fromRGB(80, 95, 115));
@@ -1491,7 +1505,7 @@ namespace lockstep
 
                     if (showKeyLetters)
                         paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(idx)],
-                                         isNext ? 0.4f : 1.0f);
+                                         !avail ? 0.45f : isNext ? 0.4f : 1.0f);
                 }
             }
             // Nav row hint
@@ -1602,8 +1616,9 @@ namespace lockstep
                     g.drawRoundedRectangle(cell.toFloat(), 4.0f, 2.0f);
                 }
 
-                if (showKeyLetters && inRange)
-                    paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(localIdx)]);
+                if (showKeyLetters)
+                    paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(localIdx)],
+                                     inRange ? 1.0f : 0.45f);
 
                 // MG.1: In Keyboard mode show the note name centred on the cell.
                 if (uiState_.trigGridMode == TrigGridMode::Keyboard && inRange)
