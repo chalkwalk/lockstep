@@ -1,6 +1,7 @@
 #include "PluginEditor.h"
 #include "ParameterIDs.h"
 #include "machine/FMMachine.h"
+#include "machine/IMachine.h"
 #include "machine/MidiOutMachine.h"
 #include "ui/ScopedSectionMatrix.h"
 #include <algorithm>
@@ -384,133 +385,147 @@ namespace lockstep
 
     void LockstepEditor::paintOverChildren(juce::Graphics& g)
     {
-        // ---- Scope chrome: badge row in the free space of the header row ----
+        // ---- MHZ.2.2: top-bar dashboard (free space between left controls and right buttons) ----
+        // Left zone (~420..640): Bank/Pattern/Part identity + state badges (CK, CHN, QUE, SHR, CPY).
+        // Right zone (~640..800): Held-context preview derived from modifier cluster state.
         {
-            const auto& sc = editMode_.scopeState();
-            // Scope badges: (label, active?) — eight modifiers for MHX 10x4
-            struct Badge { const char* label; bool active; juce::Colour onColour; };
-            // MHY cluster order: col-1 stacked above col-2 per row, frequency-of-use.
-            const Badge scopes[] = {
-                { "FNC", sc.func,    juce::Colour(0xFF6090C0u) },
-                { "TRK", sc.track,   juce::Colour(0xFF50C060u) },
-                { "PAT", sc.pattern, juce::Colour(0xFFC09030u) },
-                { "PRT", sc.part,    juce::Colour(0xFFC07050u) },
-                { "SCN", sc.scene,   juce::Colour(0xFF9050D0u) },
-                { "MST", sc.master,  juce::Colour(0xFFD06020u) },
-                { "MUT", sc.mute,    juce::Colour(0xFFC05050u) },
-                { "FIL", sc.fill,    juce::Colour(0xFFB060C0u) },
-            };
-
-            // Clipboard badge
-            const char* cbLabel = nullptr;
-            juce::Colour cbColour{ 0xFFFFFFFFu };
-            switch (clipboard_.type)
-            {
-                case ClipboardType::None:    break;
-                case ClipboardType::Step:    cbLabel = "CPY:STP"; cbColour = juce::Colour(0xFF50B0C8u); break;
-                case ClipboardType::Section: cbLabel = "CPY:SEC"; cbColour = juce::Colour(0xFF50B0C8u); break;
-                case ClipboardType::Track:   cbLabel = "CPY:TRK"; cbColour = juce::Colour(0xFF50B0C8u); break;
-                case ClipboardType::Pattern: cbLabel = "CPY:PAT"; cbColour = juce::Colour(0xFF50B0C8u); break;
-            }
+            static constexpr int kBadgeH   = 16;
+            static constexpr int kGap       = 3;
+            static constexpr int kDashStartX = 420;   // right edge of left controls
+            static constexpr int kRightBtnX  = 800;   // left edge of the three right buttons
+            static constexpr int kSplitX     = 640;   // dashboard/preview divider
+            const int by = (36 - kBadgeH) / 2;
 
             g.setFont(juce::Font(juce::FontOptions(10.0f)));
 
-            // Position: right-of-centre in the 36px header strip
-            static constexpr int kBadgeH = 16;
-            static constexpr int kBadgeW = 32;
-            static constexpr int kGap    = 3;
-            int bx = 420;
-            const int by = (36 - kBadgeH) / 2;
-
-            for (const auto& b : scopes)
+            // ---- Left dashboard ----
             {
-                const auto r = juce::Rectangle<int>(bx, by, kBadgeW, kBadgeH);
-                g.setColour(b.active ? b.onColour : juce::Colour(0xFF303035u));
-                g.fillRoundedRectangle(r.toFloat(), 3.0f);
-                g.setColour(b.active ? juce::Colours::white
-                                     : juce::Colour(0xFF606070u));
-                g.drawText(b.label, r, juce::Justification::centred);
-                bx += kBadgeW + kGap;
-            }
-
-            // Compound-chord indicator: lights up when a cross-column pair is held (MHX §13).
-            if (editMode_.hasCompoundScope())
-            {
-                const auto r = juce::Rectangle<int>(bx, by, 40, kBadgeH);
-                g.setColour(juce::Colour(0xFFFFCC44u));
-                g.fillRoundedRectangle(r.toFloat(), 3.0f);
-                g.setColour(juce::Colours::black);
-                g.drawText("CMPD", r, juce::Justification::centred);
-                bx += 40 + kGap;
-            }
-
-            if (cbLabel != nullptr)
-            {
-                const auto r = juce::Rectangle<int>(bx, by, 56, kBadgeH);
-                g.setColour(cbColour);
-                g.fillRoundedRectangle(r.toFloat(), 3.0f);
-                g.setColour(juce::Colours::black);
-                g.drawText(cbLabel, r, juce::Justification::centred);
-                bx += 56 + kGap;
-            }
-
-            const int checkpointDepth = processor_.checkpointDepth();
-            if (checkpointDepth > 0)
-            {
-                const juce::String ckLabel = "CK:" + juce::String(checkpointDepth);
-                const auto r = juce::Rectangle<int>(bx, by, 38, kBadgeH);
-                g.setColour(juce::Colour(0xFF40A080u));
-                g.fillRoundedRectangle(r.toFloat(), 3.0f);
-                g.setColour(juce::Colours::white);
-                g.drawText(ckLabel, r, juce::Justification::centred);
-                bx += 38 + kGap;
-            }
-
-            // Queued pattern switch badge: shown while a pattern switch is pending.
-            if (processor_.hasQueuedPattern())
-            {
-                const int qBank = processor_.queuedPatternBankIdx();
-                const int qPat  = processor_.queuedPatternPatIdx();
-                const juce::String quLabel = "QUE:" + juce::String(qBank + 1)
-                                             + "." + juce::String(qPat + 1);
-                const auto r = juce::Rectangle<int>(bx, by, 52, kBadgeH);
-                g.setColour(juce::Colour(0xFFC08020u));
-                g.fillRoundedRectangle(r.toFloat(), 3.0f);
-                g.setColour(juce::Colours::white);
-                g.drawText(quLabel, r, juce::Justification::centred);
-                bx += 52 + kGap;
-            }
-
-            // Part-sharing badge: shown when the active Part is shared by multiple patterns.
-            {
-                const int shareCount = processor_.activePartShareCount();
-                if (shareCount > 1)
+                // Bank / Pattern / Part identity pill.
+                const int bk = processor_.activeBankIdx() + 1;
+                const int pt = processor_.activePatternIdx() + 1;
+                const int pr = processor_.activePattern().partRef + 1;
+                const juce::String identity = "Bk:" + juce::String(bk)
+                                            + "  Pt:" + juce::String(pt)
+                                            + "  Pr:" + juce::String(pr);
                 {
-                    const juce::String shrLabel = "SHR:" + juce::String(shareCount);
+                    const auto r = juce::Rectangle<int>(kDashStartX, by, 120, kBadgeH);
+                    g.setColour(juce::Colour(0xFF262830u));
+                    g.fillRoundedRectangle(r.toFloat(), 3.0f);
+                    g.setColour(juce::Colour(0xFFBBCCDDu));
+                    g.drawText(identity, r, juce::Justification::centred);
+                }
+
+                int bx = kDashStartX + 120 + kGap;
+
+                // Clipboard badge.
+                const char* cbLabel = nullptr;
+                switch (clipboard_.type)
+                {
+                    case ClipboardType::None:    break;
+                    case ClipboardType::Step:    cbLabel = "CPY:STP"; break;
+                    case ClipboardType::Section: cbLabel = "CPY:SEC"; break;
+                    case ClipboardType::Track:   cbLabel = "CPY:TRK"; break;
+                    case ClipboardType::Pattern: cbLabel = "CPY:PAT"; break;
+                }
+                if (cbLabel != nullptr && bx + 56 < kSplitX)
+                {
+                    const auto r = juce::Rectangle<int>(bx, by, 56, kBadgeH);
+                    g.setColour(juce::Colour(0xFF50B0C8u));
+                    g.fillRoundedRectangle(r.toFloat(), 3.0f);
+                    g.setColour(juce::Colours::black);
+                    g.drawText(cbLabel, r, juce::Justification::centred);
+                    bx += 56 + kGap;
+                }
+
+                // CK:N checkpoint badge.
+                const int checkpointDepth = processor_.checkpointDepth();
+                if (checkpointDepth > 0 && bx + 38 < kSplitX)
+                {
+                    const auto r = juce::Rectangle<int>(bx, by, 38, kBadgeH);
+                    g.setColour(juce::Colour(0xFF40A080u));
+                    g.fillRoundedRectangle(r.toFloat(), 3.0f);
+                    g.setColour(juce::Colours::white);
+                    g.drawText("CK:" + juce::String(checkpointDepth), r, juce::Justification::centred);
+                    bx += 38 + kGap;
+                }
+
+                // QUE:B.P queued pattern badge.
+                if (processor_.hasQueuedPattern() && bx + 52 < kSplitX)
+                {
+                    const int qBank = processor_.queuedPatternBankIdx() + 1;
+                    const int qPat  = processor_.queuedPatternPatIdx()  + 1;
+                    const auto r = juce::Rectangle<int>(bx, by, 52, kBadgeH);
+                    g.setColour(juce::Colour(0xFFC08020u));
+                    g.fillRoundedRectangle(r.toFloat(), 3.0f);
+                    g.setColour(juce::Colours::white);
+                    g.drawText("Q:" + juce::String(qBank) + "." + juce::String(qPat),
+                               r, juce::Justification::centred);
+                    bx += 52 + kGap;
+                }
+
+                // SHR:N part-share badge.
+                const int shareCount = processor_.activePartShareCount();
+                if (shareCount > 1 && bx + 40 < kSplitX)
+                {
                     const auto r = juce::Rectangle<int>(bx, by, 40, kBadgeH);
                     g.setColour(juce::Colour(0xFF9040C0u));
                     g.fillRoundedRectangle(r.toFloat(), 3.0f);
                     g.setColour(juce::Colours::white);
-                    g.drawText(shrLabel, r, juce::Justification::centred);
+                    g.drawText("SHR:" + juce::String(shareCount), r, juce::Justification::centred);
                     bx += 40 + kGap;
                 }
-            }
 
-            // Chain badge: shown when the chain queue has entries.
-            {
+                // CHN:N chain badge.
                 const int chainLen = processor_.chainLength();
-                if (chainLen > 0)
+                if (chainLen > 0 && bx + 50 < kSplitX)
                 {
                     const bool looping = processor_.chainLoopEnabled();
-                    const juce::String chnLabel = juce::String(looping ? "CHN:" : "CHN1:")
-                                                  + juce::String(chainLen);
-                    const int badgeW = looping ? 40 : 50;
+                    const int badgeW = looping ? 42 : 52;
                     const auto r = juce::Rectangle<int>(bx, by, badgeW, kBadgeH);
                     g.setColour(juce::Colour(0xFF20A0C0u));
                     g.fillRoundedRectangle(r.toFloat(), 3.0f);
                     g.setColour(juce::Colours::white);
-                    g.drawText(chnLabel, r, juce::Justification::centred);
+                    g.drawText(juce::String(looping ? "CHN:" : "CHN1:") + juce::String(chainLen),
+                               r, juce::Justification::centred);
                 }
+            }
+
+            // ---- Right held-context preview ----
+            // Compose a short description of the currently held modifier cluster.
+            {
+                juce::String ctx;
+                const auto& ui = uiState_;
+                // Primary scope token.
+                if      (ui.trackHeld)        ctx = "TRACK " + juce::String(keyboardArea_.getActiveTrack() + 1);
+                else if (ui.patternScopeHeld) ctx = "PATTERN";
+                else if (ui.partHeld)         ctx = "PART";
+                else if (ui.sceneHeld)        ctx = "SCENE";
+                else if (ui.masterHeld)       ctx = "MASTER";
+                else if (ui.muteHeld)         ctx = "MUTE";
+                else if (ui.fillHeld)         ctx = "FILL";
+                else if (ui.funcHeld)         ctx = "FUNC";
+
+                if (ctx.isEmpty()) return;   // nothing held — preview is blank
+
+                // Qualify with Func if held alongside another modifier.
+                if (ui.funcHeld && ctx != "FUNC")
+                    ctx = "FUNC + " + ctx;
+
+                // Active section suffix.
+                const int activeTrack = keyboardArea_.getActiveTrack();
+                if (activeTrack >= 0)
+                {
+                    const int sec = ui.trackSection[static_cast<std::size_t>(activeTrack)];
+                    if (sec >= 0 && sec < IMachine::kMaxSections)
+                        ctx += juce::String("  |  ") + juce::String(IMachine::kCanonicalSectionNames[static_cast<std::size_t>(sec)]);
+                }
+
+                const int previewW = kRightBtnX - kSplitX - kGap;
+                const auto r = juce::Rectangle<int>(kSplitX, by, previewW, kBadgeH);
+                g.setColour(juce::Colour(0xFF1E2028u));
+                g.fillRoundedRectangle(r.toFloat(), 3.0f);
+                g.setColour(juce::Colour(0xFFDDEEFFu));
+                g.drawText(ctx, r.reduced(4, 0), juce::Justification::centredLeft, true);
             }
         }
 
