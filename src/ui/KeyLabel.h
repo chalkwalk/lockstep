@@ -30,8 +30,12 @@ namespace lockstep
             case PS::Part:    return col(kScopePart);
             case PS::Scene:   return col(kScopeScene);
             case PS::Master:  return col(kScopeMaster);
-            default:          return col(kScopeStep);
+            // Non-section scopes and None use the default step colour.
+            case PS::None: case PS::Func: case PS::Trig: case PS::Mute:
+            case PS::Fill: case PS::Cue: case PS::Section:
+                break;
         }
+        return col(kScopeStep);
     }
 
     // Returns the scope colour that corresponds to the held modifier state in

@@ -878,10 +878,10 @@ gap-closing pass; it adds no new scopes and no new verbs.
 Goal: bigger, clearer, contextual keys; project-wide scope colour
 grammar; no behavioural change to the sequencer itself.
 
-- [ ] **MHZ.1.1** Key cell typography pass. Grow primary-label font
+- [x] **MHZ.1.1** Key cell typography pass. Grow primary-label font
       (~10pt → ~15pt), grow QWERTY hint and secondary band, drop the
       wasted inner margin. `KeyButton.{h,cpp}` paint primitive.
-- [ ] **MHZ.1.2** Label-length ceiling lifted to **6 characters
+- [x] **MHZ.1.2** Label-length ceiling lifted to **6 characters
       (hard cap)**. Audit existing canonical and per-key abbreviations
       and lengthen the ones that benefit (`FILTER`, `ATTACK`,
       `RETRIG`, `COPY`, `PASTE`, `CLEAR`, `CONFIG`, …). Truncation

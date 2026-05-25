@@ -12,7 +12,8 @@ namespace lockstep
                         bool                  showKeyHint,
                         bool                  compoundOverlay)
     {
-        const auto inner = cell.reduced(2, 2);
+        // MHZ.1.1: reduced inner margin (was 2,2) to use more of the cell area.
+        const auto inner = cell.reduced(1, 1);
 
         const bool isPressed    = (state == KeyButtonState::Pressed);
         const bool isModeActive = (state == KeyButtonState::ModeActive);
@@ -33,52 +34,57 @@ namespace lockstep
         g.setColour(isDisabled ? accent.withAlpha(0.2f) : accent.withAlpha(isModeActive ? 1.0f : 0.5f));
         g.drawRoundedRectangle(inner.toFloat(), 4.0f, borderW);
 
-        // Key hint — top-left, small, dim
+        // Key hint — top-left. MHZ.1.1: 8pt → 10pt.
         if (!isDisabled && showKeyHint && keyHint.isNotEmpty())
         {
-            g.setFont(juce::Font(juce::FontOptions(8.0f)));
+            g.setFont(juce::Font(juce::FontOptions(10.0f)));
             g.setColour(juce::Colour(0xFF4A5C6Eu));
             g.drawText(keyHint,
-                       inner.withHeight(10).reduced(2, 0),
+                       inner.withHeight(12).reduced(2, 0),
                        juce::Justification::topLeft);
         }
 
-        // Layout: reserve bottom 12px for secondary when one exists; primary fills the rest.
+        // MHZ.1.1: secondary band grown from 12 px to 14 px.
         const bool hasSec = secondary.isNotEmpty();
-        const int secH   = hasSec ? 12 : 0;
+        const int secH   = hasSec ? 14 : 0;
         const auto primArea = inner.withTrimmedBottom(secH);
         const auto secArea  = inner.withTrimmedTop(inner.getHeight() - secH).reduced(2, 0);
 
-        // Primary label — ghost-dim when Disabled so the section name is always readable;
-        // dims to 0.35 when FuncHeld; full brightness on Pressed.
+        // Primary label — ghost-dim when Disabled; dims to 0.35 when FuncHeld.
+        // MHZ.1.1: primary font grown from 10pt to 15pt.
+        // MHZ.1.2: labels up to 6 chars fit at 15pt; over-6 falls back to
+        //          auto-fit (juce truncation disabled, JUCE clips).
         if (primary.isNotEmpty())
         {
-            const float alpha = isDisabled        ? 0.28f
+            const float alpha = isDisabled               ? 0.28f
                               : (isFuncHeld && !isPressed) ? 0.35f
                               : 1.0f;
             const juce::Colour primCol = isPressed
                 ? juce::Colours::white
                 : juce::Colour(0xFFB8D0E0u).withAlpha(alpha);
-            g.setFont(juce::Font(juce::FontOptions(10.0f)));
+
+            // Choose font size: 15pt for ≤ 6 chars, auto-shrink for longer labels.
+            const float fontSize = (primary.length() <= 6) ? 15.0f
+                                 : (primary.length() <= 8) ? 11.0f : 9.0f;
+            g.setFont(juce::Font(juce::FontOptions(fontSize)));
             g.setColour(primCol);
-            g.drawText(primary, primArea, juce::Justification::centred);
+            g.drawText(primary, primArea, juce::Justification::centred, false);
         }
 
         if (isDisabled)
             return;
 
         // Secondary label — always visible (0.5α), full brightness when FuncHeld.
-        // White keeps it legible across all group background colours.
+        // MHZ.1.1: hint font grown from 8pt to 9pt.
         if (hasSec)
         {
             const float alpha = isFuncHeld ? 1.0f : 0.5f;
-            g.setFont(juce::Font(juce::FontOptions(8.0f)));
+            g.setFont(juce::Font(juce::FontOptions(9.0f)));
             g.setColour(juce::Colours::white.withAlpha(alpha));
-            g.drawText(secondary, secArea, juce::Justification::centredBottom);
+            g.drawText(secondary, secArea, juce::Justification::centredBottom, false);
         }
 
-        // Register 4: compound-chord overlay — amber top strip when this key is held
-        // as part of a cross-column compound scope (DESIGN §13).
+        // Register 4: compound-chord overlay — amber top strip (DESIGN §13).
         if (compoundOverlay)
         {
             const auto strip = inner.withHeight(3).reduced(3, 0);

@@ -41,12 +41,12 @@ namespace lockstep
         // The section bar dims false cells and highlights true cells as available.
 
         static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kTrack = {{
-            { "TRIG", true  },   // per-track condition defaults (ME)
-            { "SRC",  true  },   // input_source / Thru assignment (MR)
-            { "FLTR", true  },   // post-machine FLTR (ME.6)
-            { "AMP",  true  },   // post-machine AMP + sends (ME.7)
-            { "MOD",  true  },   // per-track LFO (ME)
-            { "FX",   true  },   // IEffect inserts 1+2 (MV)
+            { "TRIG",   true  },   // per-track condition defaults (ME)
+            { "SRC",    true  },   // input_source / Thru assignment (MR)
+            { "FILTER", true  },   // post-machine FLTR (ME.6)
+            { "AMP",    true  },   // post-machine AMP + sends (ME.7)
+            { "MOD",    true  },   // per-track LFO (ME)
+            { "FX",     true  },   // IEffect inserts 1+2 (MV)
         }};
 
         static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kPattern = {{
@@ -59,12 +59,12 @@ namespace lockstep
         }};
 
         static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kPart = {{
-            { "TRIG", true  },   // trig templates (MC)
-            { "MACH", true  },   // machine select — Part+SRC (MC wires the full flow)
-            { "FLTR", true  },   // part-base FLTR (MC)
-            { "AMP",  true  },   // part-base AMP (MC)
-            { "MOD",  true  },   // part-base MOD (MC)
-            { "FX",   true  },   // part-base FX (MC)
+            { "TRIG",   true  },   // trig templates (MC)
+            { "MACH",   true  },   // machine select — Part+SRC (MC wires the full flow)
+            { "FILTER", true  },   // part-base FLTR (MC)
+            { "AMP",    true  },   // part-base AMP (MC)
+            { "MOD",    true  },   // part-base MOD (MC)
+            { "FX",     true  },   // part-base FX (MC)
         }};
 
         static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kScene = {{

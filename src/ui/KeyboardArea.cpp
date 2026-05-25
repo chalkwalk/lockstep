@@ -1,5 +1,6 @@
 #include "KeyboardArea.h"
 #include "KeyButton.h"
+#include "KeyLabel.h"
 #include "ScopedSectionMatrix.h"
 #include "UITheme.h"
 #include "../PluginProcessor.h"
@@ -605,7 +606,7 @@ namespace lockstep
             else if (uiState_.funcHeld) st = KeyButtonState::ModeActive;
             const KeyGroup grp { kFuncInactive, kFuncActive, kFuncAccent };
             const bool overlay = hasCompound && uiState_.funcHeld;
-            paintKeyButton(g, sectionCellBounds(0, area), kKeyHints[0], "FNC", "",
+            paintKeyButton(g, sectionCellBounds(0, area), kKeyHints[0], "FUNC", "",
                            grp, st, showKeyHint, overlay);
         }
 
@@ -618,7 +619,7 @@ namespace lockstep
             else if (uiState_.funcHeld)  st = KeyButtonState::FuncHeld;
             const KeyGroup grp { kPerfInactive, kPerfActive, kPerfAccent };
             const bool overlay = hasCompound && uiState_.trackHeld;
-            paintKeyButton(g, sectionCellBounds(1, area), kKeyHints[1], "TRK", "",
+            paintKeyButton(g, sectionCellBounds(1, area), kKeyHints[1], "TRACK", "",
                            grp, st, showKeyHint, overlay);
         }
 
@@ -640,7 +641,7 @@ namespace lockstep
             if      (pressed)           st = KeyButtonState::Pressed;
             else if (uiState_.funcHeld) st = KeyButtonState::FuncHeld;
             const KeyGroup grp { kNavInactive, kNavActive, kNavAccent };
-            paintKeyButton(g, sectionCellBounds(3, area), kKeyHints[3], u8"↑", "SPL",
+            paintKeyButton(g, sectionCellBounds(3, area), kKeyHints[3], u8"↑", "POOL",
                            grp, st, showKeyHint);
         }
 
@@ -660,31 +661,38 @@ namespace lockstep
         else if (uiState_.masterHeld)       sectionScope = PS::Master;
         const bool isScopedMode = (sectionScope != PS::None);
 
-        // Cells 4-9: section keys 5-0 — canonical TRIG/SRC/FLTR/AMP/MOD/FX.
-        // When a section-suite scope is held the matrix overrides labels + availability.
+        // Cells 4-9: section keys 5-0 — canonical TRIG/SRC/FILTER/AMP/MOD/FX.
+        // resolveKeyLabel() drives label + availability; page-dots paint separately.
         for (int s = 0; s < IMachine::kMaxSections; ++s)
         {
             const int cellIdx = kFixedSectionCells + s;
-            const juce::String canonicalName =
-                IMachine::kCanonicalSectionNames[static_cast<std::size_t>(s)];
 
-            // MHY.5: scope-section matrix lookup.
-            const ScopedCellInfo cell_info = scopedCell(sectionScope, s);
-            const juce::String displayLabel = (isScopedMode && cell_info.label != nullptr)
-                ? juce::String(cell_info.label) : canonicalName;
-
-            // When a scope is held, availability comes from the matrix; otherwise from
-            // the machine's declared sections.
-            const auto groups    = sectionsForKey(activeTrack, s);
+            const auto groups         = sectionsForKey(activeTrack, s);
             const bool machineHasSection = !groups.empty();
-            const bool available = isScopedMode ? cell_info.hasContent : machineHasSection;
+
+            // Build a KeyDef for the resolver.  funcLayer carries the meta-section
+            // secondary (em-dash for reserved cells, label otherwise); the resolver
+            // returns it in KeyLabel.hint for non-scoped mode.
+            const char* metaLabel = isReservedMeta(s)
+                ? nullptr  // em-dash handled below; can't store non-ASCII in const char*
+                : kMetaLabels[static_cast<std::size_t>(s)];
+            const KeyDef kd {
+                KeyRole::SectionKey,
+                IMachine::kCanonicalSectionNames[static_cast<std::size_t>(s)],
+                (metaLabel != nullptr) ? metaLabel : "",
+                s,
+                machineHasSection
+            };
+            const KeyLabel kl = resolveKeyLabel(kd, uiState_, processor_.editContext());
+
+            const bool available = !kl.disabled;
 
             if (!available)
             {
                 const bool pressed = juce::KeyPress::isKeyCurrentlyDown(kSectionKeyCodes[s]);
                 const KeyGroup grp { kSecInactive, kSecActive, kSecAccent };
                 paintKeyButton(g, sectionCellBounds(cellIdx, area),
-                               kKeyHints[cellIdx], displayLabel, "", grp,
+                               kKeyHints[cellIdx], kl.primary, "", grp,
                                pressed ? KeyButtonState::Pressed : KeyButtonState::Disabled,
                                showKeyHint);
                 continue;
@@ -705,17 +713,17 @@ namespace lockstep
                 ? KeyGroup{ kSecInactive, 0xFF404010u, 0xFFFFB432u }
                 : KeyGroup{ kSecInactive, kSecActive,  kSecAccent  };
 
-            // Secondary (meta) label: shown as Func-layer badge. Hidden in scoped mode
-            // since the matrix label IS the primary; Func+ gives the secondary variant.
+            // Secondary (meta) label: resolver supplies it for normal mode; em-dash for
+            // reserved-meta sections (non-ASCII, handled outside resolver).
             const juce::String secLabel = isScopedMode
                 ? juce::String{}
                 : (isReservedMeta(s)
                     ? juce::String::charToString(0x2014)
-                    : juce::String(kMetaLabels[static_cast<std::size_t>(s)]));
+                    : kl.hint);
 
             const auto cell = sectionCellBounds(cellIdx, area);
             paintKeyButton(g, cell, kKeyHints[cellIdx],
-                           displayLabel, secLabel, secGrp, st, showKeyHint);
+                           kl.primary, secLabel, secGrp, st, showKeyHint);
 
             // Page dots — reflect total combined pages (canonical + extension).
             int totalPageCount = 0;
@@ -756,37 +764,39 @@ namespace lockstep
 
     // -------------------------------------------------------------------------
     // paintFunctionRow — Q-row (10 keys, MHY identities):
-    //   Q/PAT  W/PRT  E/<  R/v  T/>  Y/YES  U/REC  I/PLY  O/STP  P/NO
-    //   Func-layer secondaries:              SNAP        MET   RST   POP
+    //   Q/PAT  W/PART  E/<  R/v  T/>  Y/YES  U/REC  I/PLAY  O/STOP  P/NO
+    //   MHZ.1: labels expanded to 6-char cap; resolveKeyLabel() drives U/I/O.
 
     void KeyboardArea::paintFunctionRow(juce::Graphics& g, juce::Rectangle<int> area)
     {
         paintEdgeRow(g, 1, area);
-        // Note: string fields are const char8_t* so that the nav-key labels
-        // (E/R/T) can carry the U+2190/2193/2192 arrow glyphs. juce::String
-        // has a dedicated const char8_t* overload that decodes the bytes as
-        // UTF-8 (the const char* ctor asserts on non-ASCII). Plain-ASCII
-        // labels here use u8"..." too, for type-consistency across the array.
+        // Note: string fields use const char8_t* so nav-key arrow glyphs (E/R/T)
+        // can be stored as U+2190/2193/2192 UTF-8 sequences. juce::String has a
+        // dedicated const char8_t* overload. Plain-ASCII labels use u8"..." for
+        // type-consistency across the array.
         struct QKeyDef
         {
             int             keyCode;
             const char8_t*  keyHint;
-            const char8_t*  primary;
-            const char8_t*  secondary;
+            const char8_t*  primary;    // natural label (default state)
+            const char8_t*  secondary;  // Func-layer secondary; "" = none
             KeyGroup        group;
+            KeyRole         role = KeyRole::Utility;
         };
 
+        // MHZ.1.2: labels expanded where they benefit (≤ 6 chars hard cap).
+        // U/I/O carry KeyRole so resolveKeyLabel() drives their primary + hint.
         static const std::array<QKeyDef, 10> kDefs = {{
-            { 'Q', u8"Q", u8"PAT",  u8"",     { kModInactive,  kModActive,  kModAccent  } },
-            { 'W', u8"W", u8"PRT",  u8"",     { kPerfInactive, kPerfActive, kPerfAccent } },
-            { 'E', u8"E", u8"←",    u8"SRS",  { kNavInactive,  kNavActive,  kNavAccent  } },
-            { 'R', u8"R", u8"↓",    u8"KEY",  { kNavInactive,  kNavActive,  kNavAccent  } },
-            { 'T', u8"T", u8"→",    u8"RTG",  { kNavInactive,  kNavActive,  kNavAccent  } },
-            { 'Y', u8"Y", u8"YES",  u8"SNAP", { kActInactive,  kActActive,  kActAccent  } },
-            { 'U', u8"U", u8"REC",  u8"",     { kRecInactive,  kRecActive,  kRecAccent  } },
-            { 'I', u8"I", u8"PLY",  u8"",     { kTrnInactive,  kTrnActive,  kTrnAccent  } },
-            { 'O', u8"O", u8"STP",  u8"RST",  { kTrnInactive,  kTrnActive,  kTrnAccent  } },
-            { 'P', u8"P", u8"NO",   u8"POP",  { kActInactive,  kActActive,  kActAccent  } },
+            { 'Q', u8"Q", u8"PAT",   u8"",      { kModInactive,  kModActive,  kModAccent  }, KeyRole::Modifier  },
+            { 'W', u8"W", u8"PART",  u8"",      { kPerfInactive, kPerfActive, kPerfAccent }, KeyRole::Modifier  },
+            { 'E', u8"E", u8"←",     u8"RST",   { kNavInactive,  kNavActive,  kNavAccent  }, KeyRole::Nav       },
+            { 'R', u8"R", u8"↓",     u8"KEY",   { kNavInactive,  kNavActive,  kNavAccent  }, KeyRole::Nav       },
+            { 'T', u8"T", u8"→",     u8"RETRIG",{ kNavInactive,  kNavActive,  kNavAccent  }, KeyRole::Nav       },
+            { 'Y', u8"Y", u8"YES",   u8"SNAP",  { kActInactive,  kActActive,  kActAccent  }, KeyRole::VerbYes   },
+            { 'U', u8"U", u8"REC",   u8"",      { kRecInactive,  kRecActive,  kRecAccent  }, KeyRole::VerbCopy  },
+            { 'I', u8"I", u8"PLAY",  u8"",      { kTrnInactive,  kTrnActive,  kTrnAccent  }, KeyRole::VerbPaste },
+            { 'O', u8"O", u8"STOP",  u8"RST",   { kTrnInactive,  kTrnActive,  kTrnAccent  }, KeyRole::VerbClear },
+            { 'P', u8"P", u8"NO",    u8"POP",   { kActInactive,  kActActive,  kActAccent  }, KeyRole::VerbNo    },
         }};
 
         const bool showKeyHint = (displayMode_ != GridDisplayMode::Clean);
@@ -836,15 +846,13 @@ namespace lockstep
 
             const auto cell = juce::Rectangle<int>(x, area.getY(), cellW, area.getHeight());
 
-            const bool isPressed   = juce::KeyPress::isKeyCurrentlyDown(def.keyCode);
-            const bool isArmed     = (def.keyCode == 'U') && processor_.clock().isRecordArmed();
-            const bool isPlaying   = (def.keyCode == 'I') && processor_.clock().inPluginPlaying();
-            const bool isPatHeld   = (def.keyCode == 'Q') && uiState_.patternScopeHeld;
-            const bool isPrtHeld   = (def.keyCode == 'W') && uiState_.partHeld;
+            const bool isPressed    = juce::KeyPress::isKeyCurrentlyDown(def.keyCode);
+            const bool isArmed      = (def.keyCode == 'U') && processor_.clock().isRecordArmed();
+            const bool isPlaying    = (def.keyCode == 'I') && processor_.clock().inPluginPlaying();
+            const bool isPatHeld    = (def.keyCode == 'Q') && uiState_.patternScopeHeld;
+            const bool isPrtHeld    = (def.keyCode == 'W') && uiState_.partHeld;
             const bool isModeActive = isArmed || isPlaying || isPatHeld || isPrtHeld;
 
-            // When a section-suite scope modifier is held, verb keys (Y-P) show as
-            // scope-qualified (FuncHeld tint) so the operator sees they're modified.
             const bool sectionScopeHeld = uiState_.trackHeld || uiState_.patternScopeHeld
                 || uiState_.partHeld || uiState_.sceneHeld || uiState_.masterHeld;
             const bool isVerbKey = (def.keyCode == 'Y' || def.keyCode == 'U'
@@ -861,19 +869,30 @@ namespace lockstep
                 && ((def.keyCode == 'Q' && uiState_.patternScopeHeld)
                  || (def.keyCode == 'W' && uiState_.partHeld));
 
-            // Under any section scope or step-held, the three action verbs
-            // relabel to show the copy/paste/clear operations they perform.
-            const bool showCopPstClr = (sectionScopeHeld || uiState_.stepHeld) && isVerbKey;
-            const char8_t* displayPrimary = def.primary;
-            if (showCopPstClr)
+            // MHZ.1.3: resolveKeyLabel() drives primary + hint for verb keys.
+            // Nav/Modifier keys use def.primary / def.secondary directly (arrows
+            // are stored as char8_t* and cannot pass through the const char* resolver).
+            juce::String displayPrimary { def.primary };
+            juce::String displayHint    { def.secondary };
+
+            if (def.role == KeyRole::VerbCopy
+             || def.role == KeyRole::VerbPaste
+             || def.role == KeyRole::VerbClear)
             {
-                if      (def.keyCode == 'U') displayPrimary = u8"COP";
-                else if (def.keyCode == 'I') displayPrimary = u8"PST";
-                else if (def.keyCode == 'O') displayPrimary = u8"CLR";
+                // secondary is ASCII (RST / empty) — safe to reinterpret.
+                const KeyDef kd {
+                    def.role,
+                    reinterpret_cast<const char*>(def.primary),
+                    reinterpret_cast<const char*>(def.secondary),
+                    -1, true
+                };
+                const KeyLabel kl = resolveKeyLabel(kd, uiState_, processor_.editContext());
+                displayPrimary = kl.primary;
+                displayHint    = kl.hint;
             }
 
             paintKeyButton(g, cell,
-                           def.keyHint, displayPrimary, def.secondary,
+                           def.keyHint, displayPrimary, displayHint,
                            def.group, state, showKeyHint, overlay);
         }
     }
@@ -999,19 +1018,19 @@ namespace lockstep
             const std::array<std::array<ModDef, 2>, kRows> mods = {{
                 // Row 0 (A row): A=Scene (col-1), S=Master (col-2)
                 std::array<ModDef, 2>{{
-                    { 'A', "A", "SCN", uiState_.sceneHeld,
+                    { 'A', "A", "SCENE",  uiState_.sceneHeld,
                       { kModInactive, kModActive, kModAccent },
                       hasCompound && uiState_.sceneHeld },
-                    { 'S', "S", "MST", uiState_.masterHeld,
+                    { 'S', "S", "MASTER", uiState_.masterHeld,
                       { kPerfInactive, kPerfActive, kPerfAccent },
                       hasCompound && uiState_.masterHeld },
                 }},
                 // Row 1 (Z row): Z=Mute (col-1), X=Fill (col-2)
                 std::array<ModDef, 2>{{
-                    { 'Z', "Z", "MUT", uiState_.muteHeld,
+                    { 'Z', "Z", "MUTE", uiState_.muteHeld,
                       { kModInactive, kModActive, kModAccent },
                       hasCompound && uiState_.muteHeld },
-                    { 'X', "X", "FIL", uiState_.fillHeld,
+                    { 'X', "X", "FILL", uiState_.fillHeld,
                       { kPerfInactive, kPerfActive, kPerfAccent },
                       hasCompound && uiState_.fillHeld },
                 }},

@@ -112,7 +112,7 @@ namespace lockstep
         // matrices, per-operator envelopes, voice-mode, and portamento for
         // machines that have them. See DESIGN §6.1.1.
         static constexpr std::array<const char*, kMaxSections> kCanonicalSectionNames = {
-            "TRIG", "SRC", "FLTR", "AMP", "MOD", "FX"
+            "TRIG", "SRC", "FILTER", "AMP", "MOD", "FX"
         };
         virtual int         numSections()        const { return 0; }
         virtual SectionInfo section(int /*index*/) const { return {}; }
