@@ -7,6 +7,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "../core/Sequence.h"
+#include "../io/ControllerEvent.h"
 #include "../state/UiState.h"
 #include "GridDisplayMode.h"
 
@@ -49,6 +50,11 @@ namespace lockstep
         std::function<void(GridDisplayMode)> onDisplayModeChanged;
         std::function<void(int, int, int)>   onSectionChanged;    // (section, page, firstSlot)
         std::function<void(int)>             onMetaSectionChanged;
+
+        // Mouse button events for non-step, non-section buttons (nav, verb, modifiers).
+        // PluginEditor wires these to route through the same handler as QWERTY events.
+        std::function<void(ControllerEvent)> onButtonDown;
+        std::function<void(ControllerEvent)> onButtonUp;
 
         void paint(juce::Graphics& g) override;
         void resized() override;
@@ -93,6 +99,11 @@ namespace lockstep
         // AND there are no extension sections.
         std::vector<SecGroup> sectionsForKey(int track, int canonicalIdx) const;
 
+        // Hit-testing for non-step, non-section-5-0 buttons.
+        // Returns a ButtonDown event for the hit button, or {ButtonDown, None} if no hit.
+        ControllerEvent hitTestFunctionRow (juce::Point<int> pos, juce::Rectangle<int> area) const;
+        ControllerEvent hitTestModifierCell(juce::Point<int> pos, juce::Rectangle<int> stepArea) const;
+
         // Paint helpers
         void paintSectionRow(juce::Graphics& g, juce::Rectangle<int> area);
         void paintFunctionRow(juce::Graphics& g, juce::Rectangle<int> area);
@@ -104,11 +115,12 @@ namespace lockstep
         LockstepProcessor& processor_;
         UiState&           uiState_;
 
-        int             activeTrack_   = 0;
-        int             stepPage_      = 0;
-        GridDisplayMode displayMode_   = GridDisplayMode::Ortholinear;
-        int             mouseHeldStep_ = -1;
-        double          lastPpq_       = -1.0;
+        int             activeTrack_    = 0;
+        int             stepPage_       = 0;
+        GridDisplayMode displayMode_    = GridDisplayMode::Ortholinear;
+        int             mouseHeldStep_  = -1;
+        ControllerEvent mouseHeldButton_{};  // non-step button held via mouse
+        double          lastPpq_        = -1.0;
 
         juce::TextButton prevBtn_{ juce::String(u8"←") };
         juce::TextButton nextBtn_{ juce::String(u8"→") };

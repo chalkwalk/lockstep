@@ -34,13 +34,13 @@ namespace lockstep
         g.setColour(isDisabled ? accent.withAlpha(0.2f) : accent.withAlpha(isModeActive ? 1.0f : 0.5f));
         g.drawRoundedRectangle(inner.toFloat(), 4.0f, borderW);
 
-        // Key hint — top-left. MHZ.1.1: 8pt → 10pt.
+        // Key hint — top-left. MHZ.1.1: 8pt → 10pt. MHZ.2: 10pt → 12pt, higher contrast.
         if (!isDisabled && showKeyHint && keyHint.isNotEmpty())
         {
-            g.setFont(juce::Font(juce::FontOptions(10.0f)));
-            g.setColour(juce::Colour(0xFF4A5C6Eu));
+            g.setFont(juce::Font(juce::FontOptions(12.0f)));
+            g.setColour(juce::Colour(0xFFAAC4D8u));
             g.drawText(keyHint,
-                       inner.withHeight(12).reduced(2, 0),
+                       inner.withHeight(14).reduced(2, 0),
                        juce::Justification::topLeft);
         }
 

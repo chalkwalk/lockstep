@@ -2,6 +2,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <memory>
+#include <set>
 #include <utility>
 #include <vector>
 
@@ -63,6 +64,8 @@ namespace lockstep
         UiState uiState_;
         // (rawKeyCode, absStepIndex) pairs, ordered by press time.
         std::vector<std::pair<int,int>> heldStepKeys_;
+        // Key codes currently held down — used to suppress OS key-repeat in keyPressed().
+        std::set<int> heldKeys_;
 
         // Double-press detection for Play: two presses within threshold = stop+reset.
         double lastPlayPressTime_            = 0.0;
@@ -113,6 +116,12 @@ namespace lockstep
         void paintMeters(juce::Graphics& g);
 
         void applyDisplayMode(GridDisplayMode mode);
+
+        // Mouse button routing — wired from KeyboardArea callbacks.
+        // Handles the same logic as keyPressed / keyStateChanged for clicked buttons.
+        void handleMouseButtonDown(ControllerEvent ev);
+        void handleMouseButtonUp  (ControllerEvent ev);
+        void handleTapTempo();
         juce::ComboBox syncModeBox_;
         std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> syncModeAttachment_;
         juce::ComboBox channelModeBox_;

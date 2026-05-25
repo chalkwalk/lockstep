@@ -206,6 +206,10 @@ namespace lockstep
             dispatchVerb(scope, verb);
         };
 
+        // Wire mouse button events from KeyboardArea to the same handlers as QWERTY.
+        keyboardArea_.onButtonDown = [this](ControllerEvent ev) { handleMouseButtonDown(ev); };
+        keyboardArea_.onButtonUp   = [this](ControllerEvent ev) { handleMouseButtonUp(ev); };
+
         // Repaint chrome when a queued pattern switch fires.
         proc.onActivePatternChanged = [this] { repaint(); };
 
@@ -612,6 +616,10 @@ namespace lockstep
         const int uCode   = (rawCode >= 'a' && rawCode <= 'z')
                                 ? rawCode - ('a' - 'A')
                                 : rawCode;
+
+        // Suppress OS key-repeat: if we already saw this key go down, ignore.
+        if (!heldKeys_.insert(uCode).second)
+            return true;
 
         if (QwertyOverlay::isEdgeKey(uCode))
             return true;
@@ -1095,44 +1103,8 @@ namespace lockstep
                 return true;
 
             case ControllerButton::TapTempo:
-            {
-                const double now = juce::Time::getMillisecondCounterHiRes();
-
-                // Expire taps older than kTapWindowMs relative to the new tap.
-                int kept = 0;
-                for (int i = 0; i < tapCount_; ++i)
-                {
-                    if (now - tapTimes_[static_cast<std::size_t>(i)] <= kTapWindowMs)
-                        tapTimes_[static_cast<std::size_t>(kept++)] =
-                            tapTimes_[static_cast<std::size_t>(i)];
-                }
-                tapCount_ = kept;
-
-                // Append the new tap, evicting the oldest if at capacity.
-                if (tapCount_ >= kTapMaxCount)
-                {
-                    for (int i = 1; i < kTapMaxCount; ++i)
-                        tapTimes_[static_cast<std::size_t>(i - 1)] =
-                            tapTimes_[static_cast<std::size_t>(i)];
-                    tapCount_ = kTapMaxCount - 1;
-                }
-                tapTimes_[static_cast<std::size_t>(tapCount_++)] = now;
-
-                // Need at least 2 taps to compute an interval.
-                if (tapCount_ >= 2)
-                {
-                    const double spanMs = tapTimes_[static_cast<std::size_t>(tapCount_ - 1)]
-                                        - tapTimes_[0];
-                    const double intervals = static_cast<double>(tapCount_ - 1);
-                    const double bpm = (60000.0 * intervals) / spanMs;
-                    if (bpm >= kTapMinBpm && bpm <= kTapMaxBpm)
-                    {
-                        processor_.clock().setLocalBpm(bpm);
-                        repaint();
-                    }
-                }
+                handleTapTempo();
                 return true;
-            }
 
             case ControllerButton::None:
                 return false;
@@ -1144,6 +1116,11 @@ namespace lockstep
 
     bool LockstepEditor::keyStateChanged(bool isKeyDown, juce::Component*)
     {
+        // Purge any released keys from the repeat-suppression set.
+        std::erase_if(heldKeys_, [](int code) {
+            return !juce::KeyPress::isKeyCurrentlyDown(code);
+        });
+
         bool handled = false;
 
         // Left-column modifier key releases.
@@ -1315,7 +1292,223 @@ namespace lockstep
             editMode_.setTrigHeld(false);
         }
 
+        // Key releases change visual state: step trigs toggle on release, and nav/step
+        // keys paint their pressed state via isKeyCurrentlyDown(). Always repaint on
+        // key-up so the display doesn't lag behind physical state.
+        if (!isKeyDown)
+            keyboardArea_.repaint();
+
         return handled;
+    }
+
+    // -------------------------------------------------------------------------
+    // Mouse button routing (mirror of keyPressed / keyStateChanged for click input)
+
+    void LockstepEditor::handleTapTempo()
+    {
+        const double now = juce::Time::getMillisecondCounterHiRes();
+
+        int kept = 0;
+        for (int i = 0; i < tapCount_; ++i)
+        {
+            if (now - tapTimes_[static_cast<std::size_t>(i)] <= kTapWindowMs)
+                tapTimes_[static_cast<std::size_t>(kept++)] = tapTimes_[static_cast<std::size_t>(i)];
+        }
+        tapCount_ = kept;
+
+        if (tapCount_ >= kTapMaxCount)
+        {
+            for (int i = 1; i < kTapMaxCount; ++i)
+                tapTimes_[static_cast<std::size_t>(i - 1)] = tapTimes_[static_cast<std::size_t>(i)];
+            tapCount_ = kTapMaxCount - 1;
+        }
+        tapTimes_[static_cast<std::size_t>(tapCount_++)] = now;
+
+        if (tapCount_ >= 2)
+        {
+            const double spanMs    = tapTimes_[static_cast<std::size_t>(tapCount_ - 1)] - tapTimes_[0];
+            const double intervals = static_cast<double>(tapCount_ - 1);
+            const double bpm       = (60000.0 * intervals) / spanMs;
+            if (bpm >= kTapMinBpm && bpm <= kTapMaxBpm)
+            {
+                processor_.clock().setLocalBpm(bpm);
+                repaint();
+            }
+        }
+    }
+
+    void LockstepEditor::handleMouseButtonDown(ControllerEvent ev)
+    {
+        using CB = ControllerButton;
+        using T  = ControllerEvent::Type;
+
+        switch (ev.button)
+        {
+            // ---- Scope modifiers ----
+            case CB::Func:
+                uiState_.funcHeld = true;
+                editMode_.onScopeEvent({ T::ButtonDown, CB::Func });
+                keyboardArea_.repaint();
+                repaint();
+                break;
+
+            case CB::TrackScope:
+                uiState_.trackHeld = true;
+                processor_.setControlAllActive(true);
+                editMode_.onScopeEvent({ T::ButtonDown, CB::TrackScope });
+                repaint();
+                break;
+
+            case CB::PatternScope:
+                uiState_.patternScopeHeld = true;
+                uiState_.patternScopeUsed = false;
+                editMode_.onScopeEvent({ T::ButtonDown, CB::PatternScope });
+                repaint();
+                break;
+
+            case CB::PartScope:
+                uiState_.partHeld = true;
+                editMode_.onScopeEvent({ T::ButtonDown, CB::PartScope });
+                repaint();
+                break;
+
+            case CB::SceneScope:
+                uiState_.sceneHeld = true;
+                editMode_.onScopeEvent({ T::ButtonDown, CB::SceneScope });
+                repaint();
+                break;
+
+            case CB::MasterScope:
+                uiState_.masterHeld = true;
+                editMode_.onScopeEvent({ T::ButtonDown, CB::MasterScope });
+                repaint();
+                break;
+
+            case CB::MuteScope:
+                uiState_.muteHeld = true;
+                editMode_.onScopeEvent({ T::ButtonDown, CB::MuteScope });
+                repaint();
+                break;
+
+            case CB::FillScope:
+                uiState_.fillHeld = true;
+                processor_.setFillActive(true);
+                editMode_.onScopeEvent({ T::ButtonDown, CB::FillScope });
+                repaint();
+                break;
+
+            // ---- Navigation ----
+            case CB::NavUp:
+                keyboardArea_.setActiveTrack(
+                    std::min(static_cast<int>(kNumTracks) - 1,
+                             keyboardArea_.getActiveTrack() + 1));
+                break;
+
+            case CB::NavDown:
+                keyboardArea_.setActiveTrack(std::max(0, keyboardArea_.getActiveTrack() - 1));
+                break;
+
+            case CB::NavLeft:
+                keyboardArea_.prevPage();
+                break;
+
+            case CB::NavRight:
+                keyboardArea_.nextPage();
+                break;
+
+            // ---- Utility / transport ----
+            case CB::TapTempo:
+                handleTapTempo();
+                break;
+
+            case CB::VerbYes:
+            case CB::VerbNo:
+                editMode_.onVerb(ev.button);
+                break;
+
+            case CB::VerbPlay:
+                // Simple toggle (no double-press detection for mouse path).
+                processor_.clock().setInPluginPlaying(!processor_.clock().inPluginPlaying());
+                break;
+
+            case CB::VerbStop:
+                processor_.clock().setInPluginPlaying(false);
+                break;
+
+            case CB::VerbRecord:
+                processor_.clock().setRecordArmed(!processor_.clock().isRecordArmed());
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    void LockstepEditor::handleMouseButtonUp(ControllerEvent ev)
+    {
+        using CB = ControllerButton;
+        using T  = ControllerEvent::Type;
+
+        switch (ev.button)
+        {
+            case CB::Func:
+                for (const int t : deferredPatternMutes_)
+                    processor_.togglePatternMute(t);
+                deferredPatternMutes_.clear();
+                uiState_.funcHeld = false;
+                editMode_.onScopeEvent({ T::ButtonUp, CB::Func });
+                keyboardArea_.repaint();
+                repaint();
+                break;
+
+            case CB::TrackScope:
+                uiState_.trackHeld = false;
+                processor_.setControlAllActive(false);
+                editMode_.onScopeEvent({ T::ButtonUp, CB::TrackScope });
+                repaint();
+                break;
+
+            case CB::PatternScope:
+                uiState_.patternScopeHeld = false;
+                uiState_.patternScopeUsed = false;
+                editMode_.onScopeEvent({ T::ButtonUp, CB::PatternScope });
+                repaint();
+                break;
+
+            case CB::PartScope:
+                uiState_.partHeld = false;
+                editMode_.onScopeEvent({ T::ButtonUp, CB::PartScope });
+                repaint();
+                break;
+
+            case CB::SceneScope:
+                uiState_.sceneHeld = false;
+                editMode_.onScopeEvent({ T::ButtonUp, CB::SceneScope });
+                repaint();
+                break;
+
+            case CB::MasterScope:
+                uiState_.masterHeld = false;
+                editMode_.onScopeEvent({ T::ButtonUp, CB::MasterScope });
+                repaint();
+                break;
+
+            case CB::MuteScope:
+                uiState_.muteHeld = false;
+                editMode_.onScopeEvent({ T::ButtonUp, CB::MuteScope });
+                repaint();
+                break;
+
+            case CB::FillScope:
+                uiState_.fillHeld = false;
+                processor_.setFillActive(false);
+                editMode_.onScopeEvent({ T::ButtonUp, CB::FillScope });
+                repaint();
+                break;
+
+            default:
+                break;  // Nav/verb buttons have no held state to clear.
+        }
     }
 
     void LockstepEditor::applyDisplayMode(GridDisplayMode mode)

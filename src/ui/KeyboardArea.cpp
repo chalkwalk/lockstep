@@ -493,33 +493,196 @@ namespace lockstep
     }
 
     // -------------------------------------------------------------------------
+    // Mouse hit-testing
+
+    ControllerEvent KeyboardArea::hitTestFunctionRow(juce::Point<int> pos,
+                                                      juce::Rectangle<int> area) const
+    {
+        if (!area.contains(pos))
+            return {};
+
+        // Q-row logical button mapping (matches kDefs order in paintFunctionRow).
+        using CB = ControllerButton;
+        static constexpr std::array<CB, 10> kButtons = {{
+            CB::PatternScope, CB::PartScope,
+            CB::NavLeft, CB::NavDown, CB::NavRight,
+            CB::VerbYes, CB::VerbRecord, CB::VerbPlay, CB::VerbStop, CB::VerbNo,
+        }};
+
+        const int n = static_cast<int>(kButtons.size());
+        int cellW, leftPad;
+        if (displayMode_ == GridDisplayMode::Staggered)
+        {
+            const int hu = staggerHalfUnit(area.getWidth());
+            cellW   = staggerCellW(hu);
+            leftPad = staggerOffsetQ(hu);
+        }
+        else if (displayMode_ == GridDisplayMode::Clean)
+        {
+            cellW   = (area.getWidth() - kClnColGap) / n;
+            leftPad = 0;
+        }
+        else  // Ortholinear
+        {
+            cellW   = (area.getWidth() - (n - 1) * kOrlGap) / n;
+            leftPad = 0;
+        }
+
+        for (int i = 0; i < n; ++i)
+        {
+            int x;
+            if (displayMode_ == GridDisplayMode::Clean)
+                x = (i >= 2) ? area.getX() + 2 * cellW + kClnColGap + (i - 2) * cellW
+                              : area.getX() + i * cellW;
+            else if (displayMode_ == GridDisplayMode::Ortholinear)
+                x = area.getX() + i * (cellW + kOrlGap);
+            else
+                x = area.getX() + leftPad + i * cellW;
+
+            if (juce::Rectangle<int>(x, area.getY(), cellW, area.getHeight()).contains(pos))
+                return { ControllerEvent::Type::ButtonDown, kButtons[static_cast<std::size_t>(i)], -1, 0 };
+        }
+        return {};
+    }
+
+    ControllerEvent KeyboardArea::hitTestModifierCell(juce::Point<int> pos,
+                                                       juce::Rectangle<int> stepArea) const
+    {
+        auto area = stepArea;
+        area.removeFromBottom(kNavRowH);
+        if (!area.contains(pos))
+            return {};
+
+        static constexpr int kTotalGridCols = kCols + 2;
+        const bool useClnGap    = (displayMode_ == GridDisplayMode::Clean);
+        const int  intraStepGap = (displayMode_ == GridDisplayMode::Ortholinear) ? kOrlGap : 0;
+
+        int cellW, staggerA, staggerZ;
+        if (displayMode_ == GridDisplayMode::Staggered)
+        {
+            const int hu = staggerHalfUnit(area.getWidth());
+            cellW    = staggerCellW(hu);
+            staggerA = staggerOffsetA(hu);
+            staggerZ = staggerOffsetZ(hu);
+        }
+        else if (useClnGap)
+        {
+            cellW    = (area.getWidth() - kClnColGap) / kTotalGridCols;
+            staggerA = 0;
+            staggerZ = 0;
+        }
+        else
+        {
+            cellW    = (area.getWidth() - (kTotalGridCols - 1) * kOrlGap) / kTotalGridCols;
+            staggerA = 0;
+            staggerZ = 0;
+        }
+        const int cellH = (area.getHeight() - intraStepGap) / kRows;
+        if (cellW <= 0 || cellH <= 0)
+            return {};
+
+        const int relY = pos.getY() - area.getY();
+        int row = -1;
+        if (relY >= 0 && relY < cellH)
+            row = 0;
+        else if (relY >= cellH + intraStepGap && relY < 2 * cellH + intraStepGap)
+            row = 1;
+        if (row < 0)
+            return {};
+
+        const int rowStagger = (row == 0) ? staggerA : staggerZ;
+        const int cellY      = area.getY() + row * cellH + (row > 0 ? intraStepGap : 0);
+
+        // Modifier buttons: logical layout
+        //   row 0, col 0 = A (Scene)   row 0, col 1 = S (Master)
+        //   row 1, col 0 = Z (Mute)    row 1, col 1 = X (Fill)
+        using CB = ControllerButton;
+        static constexpr CB kModButtons[2][2] = {
+            { CB::SceneScope,  CB::MasterScope },
+            { CB::MuteScope,   CB::FillScope   },
+        };
+
+        for (int mc = 0; mc < 2; ++mc)
+        {
+            int x;
+            if (useClnGap)
+                x = area.getX() + rowStagger + mc * cellW;
+            else if (displayMode_ == GridDisplayMode::Ortholinear)
+                x = area.getX() + mc * (cellW + kOrlGap);
+            else
+                x = area.getX() + rowStagger + mc * cellW;
+
+            if (juce::Rectangle<int>(x, cellY, cellW, cellH).contains(pos))
+                return { ControllerEvent::Type::ButtonDown,
+                         kModButtons[row][mc], -1, 0 };
+        }
+        return {};
+    }
+
+    // -------------------------------------------------------------------------
     // Mouse
 
     void KeyboardArea::mouseDown(const juce::MouseEvent& e)
     {
-        const auto pos = e.getPosition();
+        const auto pos   = e.getPosition();
+        const auto areas = computeRowAreas();
 
-        // Check section row click (keys 4-9 only; fixed cells 0-2 have no mouse action)
+        // Section row — all 10 cells.
+        for (int i = 0; i < kTotalSectionCells; ++i)
         {
-            const auto areas = computeRowAreas();
-            for (int i = 0; i < kTotalSectionCells; ++i)
+            if (!sectionCellBounds(i, areas.section).contains(pos)) continue;
+
+            if (i < kFixedSectionCells)
             {
-                if (sectionCellBounds(i, areas.section).contains(pos))
+                // Fixed cells 0-3: Func / Track / TAP / NavUp → fire callback.
+                using CB = ControllerButton;
+                static constexpr CB kFixed[kFixedSectionCells] = {
+                    CB::Func, CB::TrackScope, CB::TapTempo, CB::NavUp
+                };
+                const ControllerEvent ev {
+                    ControllerEvent::Type::ButtonDown, kFixed[i], -1, 0
+                };
+                mouseHeldButton_ = ev;
+                if (onButtonDown) onButtonDown(ev);
+            }
+            else
+            {
+                // Cells 4-9: section selection — handled directly.
+                const int section = cellToSection(i);
+                if (section >= 0)
                 {
-                    const int section = cellToSection(i);
-                    if (section >= 0)
-                    {
-                        if (uiState_.funcHeld)
-                            selectMetaSection(section);
-                        else
-                            selectSection(section);
-                    }
-                    return;
+                    if (uiState_.funcHeld)
+                        selectMetaSection(section);
+                    else
+                        selectSection(section);
                 }
+            }
+            return;
+        }
+
+        // Function row (Q-P): modifiers + nav + verb buttons.
+        {
+            const auto ev = hitTestFunctionRow(pos, areas.function);
+            if (ev.button != ControllerButton::None)
+            {
+                mouseHeldButton_ = ev;
+                if (onButtonDown) onButtonDown(ev);
+                return;
             }
         }
 
-        // Check step cells
+        // Step row modifier columns (A/S, Z/X).
+        {
+            const auto ev = hitTestModifierCell(pos, areas.step);
+            if (ev.button != ControllerButton::None)
+            {
+                mouseHeldButton_ = ev;
+                if (onButtonDown) onButtonDown(ev);
+                return;
+            }
+        }
+
+        // Step cells.
         const int absIdx = stepCellAt(pos);
         if (absIdx >= 0)
         {
@@ -530,6 +693,19 @@ namespace lockstep
 
     void KeyboardArea::mouseUp(const juce::MouseEvent& e)
     {
+        // Non-step button release: fire up event and clear.
+        if (mouseHeldButton_.button != ControllerButton::None)
+        {
+            const ControllerEvent up {
+                ControllerEvent::Type::ButtonUp, mouseHeldButton_.button,
+                mouseHeldButton_.index, 0
+            };
+            if (onButtonUp) onButtonUp(up);
+            mouseHeldButton_ = {};
+            repaint();
+            return;
+        }
+
         if (mouseHeldStep_ < 0)
             return;
 
@@ -543,6 +719,7 @@ namespace lockstep
                 .tracks[static_cast<std::size_t>(activeTrack_)]
                 .steps[static_cast<std::size_t>(mouseHeldStep_)];
             step.trig = !step.trig;
+            repaint();
         }
 
         mouseHeldStep_ = -1;
@@ -1119,18 +1296,12 @@ namespace lockstep
                         baseCol = kColActive.withAlpha(bright);
                     }
 
-                    if (isHead)
-                        g.setColour(baseCol.withAlpha(baseCol.getFloatAlpha() * 0.18f));
-                    else
-                        g.setColour(baseCol);
+                    g.setColour(baseCol);
                     g.fillRoundedRectangle(cell.toFloat(), 4.0f);
                 }
                 else
                 {
-                    if (isHead)
-                        g.setColour(kColInactive.withAlpha(0.4f));
-                    else
-                        g.setColour(kColInactive);
+                    g.setColour(kColInactive);
                     g.fillRoundedRectangle(cell.toFloat(), 4.0f);
                     if (!isHead)
                     {
@@ -1141,6 +1312,8 @@ namespace lockstep
 
                 if (isHead)
                 {
+                    g.setColour(kColPlayhead.withAlpha(0.35f));
+                    g.fillRoundedRectangle(cell.toFloat(), 4.0f);
                     g.setColour(kColPlayhead);
                     g.drawRoundedRectangle(cell.toFloat(), 4.0f, 2.0f);
                 }
