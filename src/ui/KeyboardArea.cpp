@@ -1269,23 +1269,34 @@ namespace lockstep
             // chainPos[idx] = 1 for the queued-next pattern, 2+ for chain entries,
             // 0 means not in the queue/chain. The first occurrence wins (a pattern
             // can repeat in the chain; show the earliest position).
+            // chainPos[idx]: 0 = not queued, 1 = next, 2+ = chain position.
+            // Playing: queuedPattern is position 1, chain_ entries follow as 2, 3…
+            // Stopped:  no queuedPattern; chain_ entries are positions 1, 2, 3…
+            //           (immediate swap already updated activePatternIdx, so chain
+            //            entries are the upcoming patterns after the current one).
             std::array<int, kPatternsPerBank> chainPos{};
             if (uiState_.patternScopeHeld)
             {
+                int nextChainPos;   // position number for chain_[0]
                 if (processor_.hasQueuedPattern())
                 {
                     const int qi = processor_.queuedPatternPatIdx();
                     if (qi >= 0 && qi < kPatternsPerBank && chainPos[static_cast<std::size_t>(qi)] == 0)
                         chainPos[static_cast<std::size_t>(qi)] = 1;
+                    nextChainPos = 2;
+                }
+                else
+                {
+                    nextChainPos = 1;  // stopped: chain[0] is the very next pattern
+                }
 
-                    const int chainLen = processor_.chainLength();
-                    for (int ci = 0; ci < chainLen; ++ci)
-                    {
-                        const auto [bi, pi] = processor_.chainEntry(ci);
-                        (void)bi;
-                        if (pi >= 0 && pi < kPatternsPerBank && chainPos[static_cast<std::size_t>(pi)] == 0)
-                            chainPos[static_cast<std::size_t>(pi)] = ci + 2;
-                    }
+                const int chainLen = processor_.chainLength();
+                for (int ci = 0; ci < chainLen; ++ci)
+                {
+                    const auto [bi, pi] = processor_.chainEntry(ci);
+                    (void)bi;
+                    if (pi >= 0 && pi < kPatternsPerBank && chainPos[static_cast<std::size_t>(pi)] == 0)
+                        chainPos[static_cast<std::size_t>(pi)] = nextChainPos + ci;
                 }
             }
 

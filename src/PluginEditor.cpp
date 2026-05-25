@@ -871,6 +871,7 @@ namespace lockstep
                     }
                     uiState_.patternScopeUsed = true;
                     repaint();
+                    keyboardArea_.repaint();
                     return true;
                 }
 
@@ -879,6 +880,7 @@ namespace lockstep
                 {
                     processor_.setActivePatternPart(ev.index);
                     repaint();
+                    keyboardArea_.repaint();
                     return true;
                 }
 
