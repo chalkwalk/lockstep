@@ -5,6 +5,7 @@
 #include "UITheme.h"
 #include "../PluginProcessor.h"
 #include "../ParameterIDs.h"
+#include "../core/Bank.h"
 #include "../core/TrigCondition.h"
 #include <algorithm>
 #include <cstddef>
@@ -1234,6 +1235,71 @@ namespace lockstep
                                    md.grp, st, showKeyLetters, md.overlay);
                 }
             }
+        }
+
+        // MHZ.2.1: scope re-skin — Track/Pattern/Part held → 1-of-N index picker.
+        // The 16 step cells become a flat non-paginated selector tinted with the
+        // scope colour. Unavailable indices are dimmed. Normal step rendering is
+        // suppressed entirely while the re-skin is active.
+        const bool scopeReskin = uiState_.trackHeld || uiState_.patternScopeHeld
+                                                     || uiState_.partHeld;
+        if (scopeReskin)
+        {
+            const juce::Colour scopeTint = scopeColourFromState(uiState_);
+            int maxAvail;
+            int activeIdx;
+            if (uiState_.trackHeld)
+            {
+                maxAvail  = static_cast<int>(kNumTracks);
+                activeIdx = activeTrack_;
+            }
+            else if (uiState_.patternScopeHeld)
+            {
+                maxAvail  = kPatternsPerBank;
+                activeIdx = processor_.activePatternIdx();
+            }
+            else // partHeld
+            {
+                maxAvail  = kPartsPerBank;
+                activeIdx = static_cast<int>(processor_.activePattern().partRef);
+            }
+
+            for (int row = 0; row < kRows; ++row)
+            {
+                for (int col = 0; col < kCols; ++col)
+                {
+                    const int idx     = row * kCols + col;
+                    const bool avail  = idx < maxAvail;
+                    const bool active = avail && (idx == activeIdx);
+                    const int x       = colX(row, col + 2);
+                    const int y       = rowY(row);
+                    const auto cell   = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+
+                    const juce::Colour fill = avail
+                        ? (active ? scopeTint.withAlpha(0.85f) : scopeTint.withAlpha(0.22f))
+                        : juce::Colour(kStepOutRange);
+                    g.setColour(fill);
+                    g.fillRoundedRectangle(cell.toFloat(), 4.0f);
+                    if (avail && !active)
+                    {
+                        g.setColour(scopeTint.withAlpha(0.5f));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
+                    }
+                    g.setColour(active ? juce::Colours::black.withAlpha(0.85f)
+                                       : (avail ? juce::Colours::white.withAlpha(0.75f)
+                                                : juce::Colour::fromRGB(50, 55, 60)));
+                    g.setFont(juce::Font(juce::FontOptions(9.0f)));
+                    g.drawText(juce::String(idx + 1), cell.reduced(2),
+                               juce::Justification::centred);
+                }
+            }
+            // skip nav row text and return early
+            g.setColour(juce::Colour::fromRGB(80, 95, 115));
+            g.setFont(juce::Font(juce::FontOptions(10.0f)));
+            g.drawText(uiState_.trackHeld       ? "SELECT TRACK"
+                       : uiState_.patternScopeHeld ? "SELECT PATTERN" : "SELECT PART",
+                       navArea, juce::Justification::centred);
+            return;
         }
 
         // Step cells
