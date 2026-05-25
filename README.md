@@ -178,7 +178,7 @@ other naturally with no master-bar concept.
 | **Scope** | A held modifier declaring what the next verb operates on. Eight in the left cluster (`Func`, `Track`, `Pattern`, `Part`, `Scene`, `Master`, `Mute`, `Fill` — MHY), plus a held step and a section key. `Cue` is reserved for the cue bus (MU) but not yet bound to a key. |
 | **Compound chord** | Two modifiers (one per column) held together to combine scopes. Cross-column only; never fires on its own — it just narrows the scope until a verb is pressed. `Func` composes with anything. |
 | **Verb** | The action applied to the scope (`Record`=copy, `Play`=paste, `Stop`=clear, `Yes`, `No`). |
-| **Section** | A grouping of parameters on the section bar (keys `5–0`). Canonical six: TRIG / SRC / FLTR / AMP / MOD / FX. Held scope modifiers reinterpret each key (e.g. `Track+FLTR` = post-machine filter, `Master+FX` = master FX). The Manipulation Zone shows eight parameters (4×2) of the active cell at a time. |
+| **Section** | A grouping of parameters on the section bar (keys `5–0`). Canonical six: TRIG / SRC / FILTER / AMP / MOD / FX. Held scope modifiers reinterpret each key (e.g. `Track+FILTER` = post-machine filter, `Master+FX` = master FX). The Manipulation Zone shows eight parameters (4×2) of the active cell at a time. |
 | **Scene / Crossfader** | A per-Part pair of sparse parameter maps (A and B) blended by one continuous fader. The `Scene` modifier assigns slots; `Scene + ^/v` picks endpoint A/B. The fader is mouse/CC/hardware-only (no QWERTY). |
 | **Manipulation Zone (MZ)** | The four-parameter editing quadrant. What you are tweaking right now. |
 | **Step Grid** | The 2×8 matrix of step keys mirroring the bottom two QWERTY rows. |
@@ -331,11 +331,11 @@ two rows) and step keys (bottom two rows).
 
 ```
  MODIFIERS    │  FUNCTIONAL BLOCK                                 keys
- [Func][Track]│ [TAP ][ ^  ][TRIG][SRC ][FLTR][AMP ][MOD ][ FX ]  1 2 3 4 5 6 7 8 9 0
- [Patt][Part ]│ [ <  ][ v  ][ >  ][Yes ][REC ][PLY ][STP ][ No ]  Q W E R T Y U I O P
- ─────────────┼──────────────────────────────────────────────────
- [Scn ][Mstr ]│ [ steps 1 - 8 ]                                   A S D F G H J K L ;
- [Mute][Fill ]│ [ steps 9 - 16 ]                                  Z X C V B N M , . /
+ [FUNC][TRACK]│ [TAP ][ ^  ][TRIG][SRC ][FILTER][AMP][MOD][ FX]  1 2 3 4 5 6 7 8 9 0
+ [PATT][PART ]│ [ <  ][ v  ][ >  ][YES ][REC ][PLAY][STOP][ NO]  Q W E R T Y U I O P
+ ─────────────┼──────────────────────────────────────────────────────────────────────
+ [SCENE][MSTR]│ [ steps 1 - 8 ]                                   A S D F G H J K L ;
+ [MUTE][FILL ]│ [ steps 9 - 16 ]                                  Z X C V B N M , . /
 ```
 
 (The two left columns in each row hold the eight modifiers; the next
@@ -366,7 +366,7 @@ in the scope-section matrix); two are **performance specialists**
 | Key | Scope | Selects |
 |---|---|---|
 | `1` | **Func** | Universal qualifier — composes with any other scope to flip to its "secondary variant." Also the modifier layer for snapshots, verbs, and machine secondaries. |
-| `2` | **Track** | One or more tracks; or, with none selected, Control-All. `Track+section` opens the track-foundation row (post-machine FLTR/AMP, IEffect inserts). |
+| `2` | **Track** | One or more tracks; or, with none selected, Control-All. `Track+section` opens the track-foundation row (post-machine FILTER/AMP, IEffect inserts). |
 | `Q` | **Pattern** | A pattern (or several, in chain mode). `Pattern+section` opens pattern-data cells. |
 | `W` | **Part** | The kit half of the Project/Bank/Pattern/Part hierarchy. `Part+SRC` opens the machine picker (replaces the retired `Func+R`). |
 | `A` | **Scene** | Scene assignment; `Scene + ^`/`v` picks endpoint A/B. `Scene+section` opens scene-assign cells per section. |
@@ -448,7 +448,7 @@ a mapped MIDI CC, or a QWERTY action.
 |---|---|
 | `5` | **TRIG** — note, velocity, gate defaults |
 | `6` | **SRC** — sound source (sampler / oscillator controls) |
-| `7` | **FLTR** — filter *(post-machine block: planned, ME)* |
+| `7` | **FILTER** — filter *(post-machine block: planned, ME)* |
 | `8` | **AMP** — amplitude envelope *(post-machine block: planned, ME)* |
 | `9` | **MOD** — modulation (LFO, matrices, per-op envelopes, voice/portamento) |
 | `0` | **FX** — per-track effects *(planned, MV)* |
@@ -459,14 +459,14 @@ shows eight at a time, in two rows of four — `kMZSlots`). Holding
 parameters like FM mod matrices); holding any other scope opens that
 scope's row in the **scope-section matrix**:
 
-| Held scope | What `Track+5` (TRIG) means | …`Track+7` (FLTR) | …`Master+0` (FX) |
+| Held scope | What `Track+5` (TRIG) means | …`Track+7` (FILTER) | …`Master+0` (FX) |
 |---|---|---|---|
-| `Track` | Per-track condition defaults (length / divider via `Track+TRIG`) | Post-machine FLTR | (no track scope on FX) |
+| `Track` | Per-track condition defaults (length / divider via `Track+TRIG`) | Post-machine FILTER | (no track scope on FX) |
 | `Pattern` | Length / scale lock | (dim) | Pattern-FX snapshot |
-| `Part` | Trig templates | Part-base FLTR | Part-base FX |
-| `Scene` | (rename `CXFD` — crossfader curve) | Scene-assign FLTR | Scene-assign FX |
-| `Master` | (dim) | Master FLTR (if any) | **Master FX 1+2** |
-| `Func` (over any of the above) | The secondary variant of the cell (e.g. `Func+Scene+FLTR` = the other scene's filter assignments). |
+| `Part` | Trig templates | Part-base FILTER | Part-base FX |
+| `Scene` | (rename `CXFD` — crossfader curve) | Scene-assign FILTER | Scene-assign FX |
+| `Master` | (dim) | Master FILTER (if any) | **Master FX 1+2** |
+| `Func` (over any of the above) | The secondary variant of the cell (e.g. `Func+Scene+FILTER` = the other scene's filter assignments). |
 
 Track-meta content folds into `Func+TRIG` (COND: probability, m:n,
 prev-dep) and `TRIG` itself (default note / velocity / gate). Track
@@ -589,7 +589,7 @@ remaining MH machine catalogue resumes.
   `RETRIG`, `COPY`, `PASTE`, `CLEAR`.
 - A unified **label-resolution rule**: when a modifier is held the key
   re-skins to its contextual meaning; universally-invariant secondary
-  meanings (verb keys' COPY/PASTE/CLR under any scope) keep an
+  meanings (verb keys' COPY/PASTE/CLEAR under any scope) keep an
   always-on hint.
 - **Scope colour grammar**: a canonical palette per scope (light grey
   for step, distinct hues for `track / pattern / part / machine /
@@ -644,7 +644,7 @@ The trig grid can become a modal surface for non-step roles:
 | `Func` + mode key | Retrig / slice mode |
 | `Func` + mode key | Sound Pool mode |
 
-A mode badge (`KEY` / `RTG` / `POL`) shows in the chrome. The full
+A mode badge (`KEY` / `RETRIG` / `POL`) shows in the chrome. The full
 behaviour of these modes lands in a later milestone (see
 [§6](#6-implemented-vs-planned)).
 
@@ -692,7 +692,7 @@ preview, MZ streamline + `ParamSpec.valueLabels`, double-click default
 (MHZ.2); step-hold MIDI capture, P-Lock clear gestures, popup picker
 (MHZ.3); the remaining sound engines — drum-synth, slicer, static,
 percussion (MH.3–MH.7) authored against the MHZ surface; post-machine
-FLTR and AMP blocks with role-tagged sections (ME); the first-class
+FILTER and AMP blocks with role-tagged sections (ME); the first-class
 MIDI-out machine (MF); the full behaviour of the alternate trig modes
 — Keyboard / Retrig / Sound Pool (MG); scenes + crossfader (MI);
 pattern/part management UI (MJ); sampler trim/loop depth (MK);

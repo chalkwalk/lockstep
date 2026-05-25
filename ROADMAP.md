@@ -907,10 +907,10 @@ grammar; no behavioural change to the sequencer itself.
       `COPY/PASTE/CLR` under any scope modifier; anything else swaps
       only when the relevant modifier is held). Encoded inside the
       label resolver so the policy lives in one place.
-- [ ] **MHZ.1.6** Documentation pass: DESIGN §6 sub-section "Contextual
+- [x] **MHZ.1.6** Documentation pass: DESIGN §6 sub-section "Contextual
       chrome and label resolution"; DESIGN §24 scope colour grammar
       taxonomy; CLAUDE.md glossary entries; README.md §5 + §6.
-- [ ] **MHZ.1.7** Verification: build clean (all three targets);
+- [x] **MHZ.1.7** Verification: build clean (all three targets);
       standalone smoke-tested; visually confirm primary labels readable
       at arm's length, every modifier press lights its scope colour,
       hint-vs-primary policy correct.

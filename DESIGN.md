@@ -809,10 +809,10 @@ quick-start, but power users edit individual toggles directly.
 Toggle state is not P-lockable and does not affect playback or MIDI
 routing.
 
-### 6.5 Contextual chrome and label resolution (MHZ.1)
+### 6.5 Contextual chrome and label resolution (MHZ.1) ✓
 
 The MHY rollout introduced enough contextual relabelling
-(`COPY/PASTE/CLR` on verb keys when a scope is held; the scope-section
+(`COPY/PASTE/CLEAR` on verb keys when a scope is held; the scope-section
 matrix relabelling six section keys under five different scopes;
 section-bar dimming for `hasContent=false` cells) that the original
 "primary label / fixed secondary label" cell layout no longer carries
@@ -822,14 +822,17 @@ contextual chrome under a single rule:
 **One resolver decides every key's label.** A pure helper
 
 ```cpp
+// src/ui/KeyLabel.h
 KeyLabel resolveKeyLabel(const KeyDef& def,
                          const UiState& ui,
                          const EditContext& ec);
-struct KeyLabel { juce::String primary; juce::String hint; };
+struct KeyLabel { juce::String primary; juce::String hint; bool disabled; };
+struct KeyDef   { KeyRole role; const char* natural; const char* funcLayer;
+                  int sectionIdx; bool machineHasSection; };
 ```
 
-is the only path that produces the strings painted on a key. Today's
-ad-hoc branches — the `COP/PST/CLR` swap, the `scopedCell()` matrix
+is the only path that produces the strings painted on a key. The former
+ad-hoc branches — the `COPY/PASTE/CLEAR` swap, the `scopedCell()` matrix
 lookup, the verb-key dimming under section scope — collapse into this
 one function. **Step-hold is just another modifier flag in the input**
 (`ec.isActiveForEditing()`), so the historical "section scope held OR
@@ -842,45 +845,53 @@ The resolver follows three policies:
    contextual label as `primary`. Without held modifiers, the
    `primary` is the key's natural identity.
 2. **An always-on `hint` survives only for genuinely-invariant
-   secondary meanings.** Verb keys always reach for COPY/PASTE/CLR
-   under *any* scope, so those hints can render as a permanent
-   bottom-line hint regardless of state. Everything else — section
-   scope cells, step-held cells, etc. — only swaps when its
-   modifier is held.
+   secondary meanings.** Verb keys (`KeyRole::VerbCopy/Paste/Clear`)
+   always show COPY/PASTE/CLEAR as a permanent bottom-strip hint
+   regardless of state. When a scope is held that hint promotes to
+   `primary` and the hint band is cleared (no duplication). Every
+   other secondary appears only when its modifier is held.
 3. **Empty / disabled is a first-class return.** The resolver may
-   say "no contextual primary, dim the key" for cells the held
-   scope reinterprets to nothing (e.g. `Pattern + 6 SRC`). The
-   paint pipeline trusts the resolver and never adds its own
-   relabelling.
+   return `disabled=true` for cells the held scope reinterprets to
+   nothing (e.g. `Pattern + SRC`). The paint pipeline trusts
+   `disabled` and never adds its own relabelling.
 
-### 6.6 Scope colour grammar (MHZ.1)
+**Label expansion (MHZ.1.2):** canonical section names and modifier-key
+labels now use up to 6 characters where they benefit: `FILTER` (was
+`FLTR`), `TRACK` (`TRK`), `SCENE` (`SCN`), `MASTER` (`MST`), `MUTE`
+(`MUT`), `PART` (`PRT`), `FUNC` (`FNC`), `PLAY` (`PLY`), `STOP`
+(`STP`), `FILL` (`FIL`), `COPY`/`PASTE`/`CLEAR` (`COP`/`PST`/`CLR`),
+`RETRIG` (`RTG`), `POOL` (`SPL`).
+
+### 6.6 Scope colour grammar (MHZ.1) ✓
 
 The scope identity that a held modifier puts on the surface is now
 **visible**, not just functional. Each scope has a canonical colour
-slot in `UITheme`:
+slot in `UITheme` (`src/ui/UITheme.h`):
 
-| Scope     | Colour slot |
-|-----------|-------------|
-| *(none)* / step | light grey |
-| `Track`   | distinct hue 1 |
-| `Pattern` | distinct hue 2 |
-| `Part`    | distinct hue 3 |
-| `Machine` (Part+SRC picker) | distinct hue 4 |
-| `Scene`   | distinct hue 5 |
-| `Master`  | distinct hue 6 |
+| Scope     | Colour slot         | Constant       |
+|-----------|---------------------|----------------|
+| *(none)* / step | `kScopeStep`  | light grey     |
+| `Track`   | `kScopeTrack`       | cyan-blue      |
+| `Pattern` | `kScopePattern`     | purple         |
+| `Part`    | `kScopePart`        | green          |
+| `Machine` (Part+SRC picker) | `kScopeMachine` | lime |
+| `Scene`   | `kScopeScene`       | orange         |
+| `Master`  | `kScopeMaster`      | gold           |
+
+The helper `scopeColour(PrimaryScope, machinePicker=false)` in
+`src/ui/KeyLabel.h` maps a scope enum value to its colour in one
+place; every renderer calls this rather than defining its own tints.
 
 Used by:
 - key tints when a modifier is held (the held key, and any keys it
-  reinterprets, glow in its scope colour);
-- the step-grid scope re-skin (§6.7), so a held `Track` shows steps
-  tinted in the track scope colour while they act as a 1-of-16
-  picker;
-- the held-context preview band (§6.8);
+  reinterprets, glow in its scope colour) — wired in MHZ.2;
+- the step-grid scope re-skin (§6.7) — wired in MHZ.2;
+- the held-context preview band (§6.8) — wired in MHZ.2;
 - any badge or chrome that needs to say *what scope am I in?*.
 
-**Taxonomy only.** As with §24 (state colour palette), specific RGB
-values are a later visual-design pass; the canonical *set* is fixed
-here so hardware LEDs and the software surface stay in lockstep.
+**Taxonomy only.** Placeholder RGB values are distinguishable but
+deferred to the later visual-design pass (§24 policy). The *set*
+is fixed so hardware LEDs and the software surface stay in lockstep.
 
 ### 6.7 Scope-driven step-grid re-skin (MHZ.2)
 
@@ -2020,7 +2031,7 @@ emerges):
 | `scope.colour.scene` | Scene-scope held. |
 | `scope.colour.master` | Master-scope held. |
 
-The seven `scope.colour.*` entries (MHZ.1) are the **scope colour
+The seven `scope.colour.*` entries (MHZ.1 ✓) are the **scope colour
 grammar**: the visible side of "which scope is on the surface right
 now". They drive key tints when a modifier is held, the step-grid
 re-skin cells (§6.7), the held-context preview band (§6.8), and any
@@ -2028,10 +2039,11 @@ badge that needs to signal scope identity. Same deferred-palette
 policy as the rest of §24 — the *set* is canonical, specific RGB
 values land in the later visual-design pass.
 
-Every renderer (StepGrid, SectionBar, chrome badges, future
-hardware LED packet builder) consumes the same enum through a
-single resolver. New chrome that needs to distinguish a state must
-first add it to the taxonomy.
+**Implementation:** seven `kScope*` constants in `UITheme.h`;
+`scopeColour(PrimaryScope, bool machinePicker)` helper in `KeyLabel.h`
+is the single consumer-facing API — no renderer should hard-code scope
+RGB directly. New chrome that needs to distinguish a state must first
+add it to the taxonomy.
 
 Specific colours are deferred. The first cut ships with
 placeholder colours that are *distinguishable* (no two states
