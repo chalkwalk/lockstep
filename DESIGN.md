@@ -91,10 +91,14 @@ The boundary is deliberately narrow but deliberately *not* fixed-shape
 - **Parameter Schema (variable, machine-declared).** A machine declares
   any number of parameter slots. Each slot is a `ParamSpec` carrying:
   a stable string id, a display label, range, default, stepped flag,
-  unit hint, the section index it belongs to, and an optional
-  **role tag** (see below). Slot count and layout are entirely the
-  machine's choice. The sequencer's P-Lock storage, MZ rendering,
-  and CC mapping are all driven by the schema the machine reports.
+  unit hint, the section index it belongs to (0..5; see §6.1.1), a
+  **variant** (`Primary` or `Secondary` — MHY) declaring whether the
+  slot lives on the no-modifier page or under `Func+section`, and an
+  optional **role tag** (see below). Slot count and layout are
+  entirely the machine's choice; only the section-key it sits under
+  is constrained by the snap-to-canonical discipline (§6.1.1). The
+  sequencer's P-Lock storage, MZ rendering, and CC mapping are all
+  driven by the schema the machine reports.
 - **Role tags (`ParamSpec::role`).** An optional enum that classifies
   what a slot *is* across machine types: `cutoff`, `resonance`,
   `attack`, `decay`, `sustain`, `release`, `lfo.rate`, `lfo.depth`,
@@ -541,66 +545,81 @@ choice rather than a hardcoded behaviour. See M7.4.
 
 ### 5.5 QWERTY overlay
 
-The QWERTY overlay uses a **10×4** layout (revamped in MHX, §33, from
-the earlier 9×4). The **left two columns** are an eight-key modifier
-cluster reachable by one hand; the **right eight columns** are the
-functional block — function/section keys (top two rows) and step keys
-(bottom two rows). Keeping the functional block 8 wide preserves the
-16-step grid and the six canonical sections unchanged.
+The QWERTY overlay uses a **10×4** layout (revamped in MHX §33, with
+identities re-shuffled in MHY by measured chord-value). The **left two
+columns** are an eight-key modifier cluster reachable by one hand; the
+**right eight columns** are the functional block — function/section
+keys (top two rows) and step keys (bottom two rows). Keeping the
+functional block 8 wide preserves the 16-step grid and the six
+canonical sections unchanged.
 
 ```
- MODIFIERS  │  FUNCTIONAL BLOCK                                  keys
- [Func][Fill]│ [TRIG][SRC ][FLTR][AMP ][LFO ][FX  ][ARM ][ >|| ]  3 4 5 6 7 8 9 0
- [Trk ][Cue ]│ [ <  ][ ^  ][ v  ][ >  ][REC ][PLY ][STP ][TAP ]  E R T Y U I O P
- ───────────┼──────────────────────────────────────────────────
- [Patt][Scn ]│ [ steps 0 - 7 ]                                   D F G H J K L ;
- [Mute][Mstr]│ [ steps 8 - 15 ]                                  C V B N M , . /
+ MODIFIERS    │  FUNCTIONAL BLOCK                                 keys
+ [Func][Track]│ [TAP ][ ^  ][TRIG][SRC ][FLTR][AMP ][MOD ][ FX ]  1 2 3 4 5 6 7 8 9 0
+ [Patt][Part ]│ [ <  ][ v  ][ >  ][Yes ][REC ][PLY ][STP ][ No ]  Q W E R T Y U I O P
+ ─────────────┼──────────────────────────────────────────────────
+ [Scn ][Mstr ]│ [ steps 0 - 7 ]                                   A S D F G H J K L ;
+ [Mute][Fill ]│ [ steps 8 - 15 ]                                  Z X C V B N M , . /
 ```
 
-**Modifier cluster (left two columns).** Eight persistent first-class
-scopes, split by column:
+(The two left columns in each row hold the cluster; the next two
+slots on row 0 are `3=TAP` and `4=NavUp`; sections fill `5–0`. Row 1's
+right side is `E=NavLeft / R=NavDown / T=NavRight` followed by the
+verb cluster `Y U I O P`. The 16 step keys live on rows 2 and 3.)
 
-| Key | Modifier | Column role |
-|---|---|---|
-| `1` | Func    | structural |
-| `Q` | Track   | structural |
-| `A` | Pattern | structural |
-| `Z` | Mute    | structural |
-| `2` | Fill    | performance |
-| `W` | Cue     | performance |
-| `S` | Scene   | performance |
-| `X` | Master  | performance |
+**Modifier cluster (left two columns, MHY identities).** Eight
+persistent first-class scopes, six of which are "section scopes"
+(each owns a six-cell row in the scope-section matrix, §6), and two
+of which are performance specialists.
 
-Column 1 (`1 Q A Z`) holds structural/edit scopes; column 2
-(`2 W S X`) holds performance scopes. This is the complete persistent
-scope set — there are no others. `Pattern` is now a dedicated key (it
-no longer lives under `Func+2`); `Mute` keeps its dedicated key so the
-hold-and-tap-many multi-mute gesture survives; `Master` (master-bus /
-FX focus, §32.3) and the single `Scene` modifier (§17) take the slots
-freed by collapsing the old Scene A / Scene B pair into one.
+| Key | Modifier | Role | Chord notes |
+|---|---|---|---|
+| `1` | Func    | section scope + universal qualifier | composes with every other scope to give the "secondary variant" |
+| `2` | Track   | section scope | focused-track edits, post-machine FLTR/AMP cells |
+| `Q` | Pattern | section scope | pattern length / tempo / chain |
+| `W` | Part    | section scope | kit identity, machine select (`Part+SRC`) |
+| `A` | Scene   | section scope | scene-assign per section |
+| `S` | Master  | section scope | master FX / gain cells |
+| `Z` | Mute    | performance specialist | hold-and-tap-many multi-mute |
+| `X` | Fill    | performance specialist | `Fill+step` marks fill-only |
 
-**Function strip (top two rows of the functional block).** Canonical
-sections are fixed; *the nav arrangement and keys `9`/`0` are
-provisional and may move as MHX firms up*:
+Column 1 (`1 Q A Z`) and column 2 (`2 W S X`) compound only **cross-
+column** per the §13 compound-chord rule. The two specialists on row 3
+signal the semantic split: they don't take a section. `Cue` is
+reserved as a scope (DESIGN §31) but is not bound to a cluster key
+until MU; cue-scene functionality folds under `Func+Scene` and
+master-scope cells in the interim.
 
-- `3–8` = the six canonical sections TRIG / SRC / FLTR / AMP / LFO / FX.
-- `9` = Record-Arm, `0` = Play/Stop (transport, top-right corner).
-- `E R T Y` = navigation `< ^ v >` (relocated, since `W`/`E`/`R` are
-  now modifiers).
-- `U I O` = the verbs Record / Play / Stop (Copy / Paste / Clear).
-- `P` = Tap Tempo.
+Frequency-of-use rationale: Func and Track are the most-touched modifiers
+(row 0); Pattern and Part hold the structural-recall slots (row 1);
+Scene and Master hold the performance-bus slots (row 2); specialists
+sit at row 3 where they're easy to find but don't compete for prime
+real estate.
+
+**Function strip (top two rows of the functional block).** As of MHY:
+
+- `3` = Tap Tempo (TAP/SPL on the Func layer).
+- `4 / E R T` = inverted-T navigation (Up / Left / Down / Right).
+- `5–0` = the six canonical sections TRIG / SRC / FLTR / AMP / MOD / FX
+  (note `LFO`→`MOD` rename from MHY; see §6.1.1).
+- `Y U I O P` = verbs `Yes / Record / Play / Stop / No` (MHY remap).
+  Snapshot push/pop are `Func+Yes` / `Func+No`; `Record-Arm` /
+  `Play-Stop` chords on `9 / 0` are deferred — see §33.1.
 
 **Step keys.** Row 3 `D F G H J K L ;` = steps 0–7; row 4
 `C V B N M , . /` = steps 8–15.
 
-The `Func` layer (hold `1`) reaches the secondary assignments
-(Yes / No, StopReset, ForkPart, MachineSelect, Metronome, the
-trig-grid mode chords, Quantize, …) and the track-meta sections
-(`Func + 3–8`). Holding any other modifier reinterprets the functional
-block per the **compound-chord rule** (§13): a second held modifier
-*qualifies* the scope, it never invents a new verb. `Track + step` =
-select track; `Mute + step` = toggle that track's mute; `Scene + ^` /
-`Scene + v` = assign to Scene A / B (§17.5).
+The `Func` layer (hold `1`) reaches the secondary assignments for
+every key it composes with (snapshot push/pop, metronome via
+`Func+I`, stop-and-reset, etc.) and — via the scope-section matrix
+(§6.1.2) — the secondary variant of any held scope's cells. The old
+`Func+R = MachineSelect` gesture is retired in MHY; machine selection
+now lives at `Part+SRC` (hold `W`, tap `6`). Holding any other modifier
+reinterprets the functional block per the **compound-chord rule**
+(§13): a second held modifier *qualifies* the scope, it never invents
+a new verb. `Track + step` = select track; `Mute + step` = toggle
+that track's mute; `Scene + ^` / `Scene + v` = assign to Scene A / B
+(§17.5).
 
 The overlay emits `ControllerEvent` structs (button-down, button-up,
 encoder-delta) that are source-agnostic — hardware controllers wire
@@ -619,48 +638,94 @@ hardware surface 1:1:
   ranges, and visualisations come from the active Machine's metadata.
   When a section contains more than `kMZSlots` slots, repeated
   section-key presses cycle pages within it.
-- **The Section Bar.** Six section buttons (keys `3`–`8`) with two
-  layers accessed via `Func` (`1`):
+- **The Section Bar.** Six section buttons (keys `5`–`0`) that
+  resolve through a **scope-indexed matrix** (§6.1.2, introduced in
+  MHY). The key meaning depends on which scope modifier is held: no
+  modifier = the focused track's machine sections; a section-scope
+  modifier (`Track / Pattern / Part / Scene / Master`) opens that
+  scope's six-section row; `Func` is the universal qualifier that
+  flips any held context to its "secondary variant." Pages within a
+  given `(scope, section)` cell are cycled by repeated presses of
+  the section key.
 
-  *Machine sections (no Func):* the six section buttons follow a
-  **canonical-reserved + machine-extension** rule. Sections 1–6 on
-  the section bar are reserved for a fixed canonical taxonomy:
+### 6.1 Canonical sections
 
-  | Key | Canonical section | Typical contents |
-  |---|---|---|
-  | 3 | **TRIG** | Trig defaults: note, velocity, gate. (Also reachable as a track-meta section — see below.) |
-  | 4 | **SRC** | Sound source: sampler controls, oscillator controls, MIDI program/channel for MIDI-out machines. |
-  | 5 | **FLTR** | Filter — usually the post-machine FLTR block (§14), but machines may opt out and present their own. |
-  | 6 | **AMP** | Amplitude envelope — usually the post-machine AMP block (§14). |
-  | 7 | **LFO** | Modulation: LFO rate/depth/shape/destination. |
-  | 8 | **FX** | Per-track FX: drive, bit-reduction, send levels. |
+#### 6.1.1 The canonical six (MHY)
+
+The six section keys carry a fixed canonical taxonomy:
+
+  | Key | Idx | Canonical section | Typical contents |
+  |---|---|---|---|
+  | 5 | 0 | **TRIG** | Trig defaults: note, velocity, gate. Also the host of track-meta `COND` / `TRIG` content (track-default conditions + step overrides). |
+  | 6 | 1 | **SRC**  | Primary sound source: sampler controls, oscillator controls, FM ratios, MIDI program/channel for MIDI-out machines. |
+  | 7 | 2 | **FLTR** | Filter — usually the post-machine FLTR block (§14), but machines may opt out (`hasInternalFilter()`) and present their own. |
+  | 8 | 3 | **AMP**  | Amplitude envelope + output mix (Level, Pan, Sends) — usually the post-machine AMP block (§14). |
+  | 9 | 4 | **MOD**  | Modulation: LFO, modulation matrices, per-operator envelopes, voice/portamento. (Renamed from `LFO` in MHY — every deep synth has modulation that isn't LFO, and conflating the two pushed the FM matrix five presses deep.) |
+  | 0 | 5 | **FX**   | Effects: machine-intrinsic (drive / bit-reduction) at primary; foundation-owned inserts on `Track+FX`; master FX on `Master+FX`. |
 
   A machine that has nothing to fill a canonical section leaves it
   empty (button dimmed). A machine that needs more than the canonical
   six declares *extension sections* on additional section-bar pages,
-  reached by repeated press of the same section key (which cycles
-  through both the canonical pages-within-section and the machine's
-  extension pages). Section labels are declared by the machine but
-  must match the canonical title where one applies — this discipline
-  is what makes "hold FLTR section + COPY" mean the same thing across
-  every machine type.
+  reached by repeated press of the same section key.
 
-  *Track meta sections (Shift held):* sequencer and structural controls
-  for the current track, machine-independent. The six meta slots have
-  a fixed layout:
+  **Snap-to-canonical discipline (MHY).** A machine's no-scope pages
+  belong to the machine: it may relabel any section (a wave-folder
+  might print `MORPH` over the FLTR-key label). But canonical
+  *placement* governs — a filter-like control belongs under FLTR
+  (key 7) even when relabelled; a modulation matrix under MOD (key 9);
+  an envelope under AMP (key 8). The discipline lets cross-machine
+  workflows survive — `hold FLTR + COPY` always means "copy whatever
+  the focused machine treats as its filter stage," and Control-All
+  by `role` still finds matching slots across renamed labels.
 
-  | Shift + key | Meta section | Contents |
-  |---|---|---|
-  | 3 | COND | Trig conditions (prob, m:n, prev-dep) |
-  | 4 | TRIG  | Default note, default velocity, gate length |
-  | 5 | TRACK | Length, divider |
-  | 6–7 | — | Reserved for future use |
-  | 8 | GLOBAL | Output gain, sync mode, clock settings |
+#### 6.1.2 The scope-section matrix
 
-  Each section button cell shows its machine-section label at the top
-  and its track-meta label at the bottom. The active layer determines
-  which label renders prominently and which colour highlights the cell
-  (teal for machine sections, amber for track meta).
+Held scope modifiers reinterpret the six section keys. The cell map
+below is normative; concrete content accretes through the milestones
+that own each row (ME for Track-scope, MC for Part-scope, MI for
+Scene-scope, MV for FX cells, MU for Cue-scope reactivation).
+
+  | Scope     | 5 TRIG | 6 SRC | 7 FLTR | 8 AMP | 9 MOD | 0 FX |
+  |-----------|--------|-------|--------|-------|-------|------|
+  | *(none)*  | machine trig | machine SRC | machine FLTR (opt) | machine AMP (opt) | machine MOD | machine FX (drive/bit) |
+  | `Func`    | conditions / fill | machine SRC alt | machine FLTR alt | machine AMP alt | machine MOD alt | machine FX alt |
+  | `Track`   | per-track condition defaults | input_source / Thru | post-machine FLTR | post-machine AMP + sends | per-track LFO (if any) | IEffect insert 1+2 |
+  | `Pattern` | length / scale lock | (dim) | (dim) | pattern gain | tempo / chain queue | pattern-FX snapshot |
+  | `Part`    | trig templates | **machine select** | part-base FLTR | part-base AMP | part-base MOD | part-base FX |
+  | `Scene`   | (renamed `CXFD`) | scene-assign SRC | scene-assign FLTR | scene-assign AMP | scene-assign MOD | scene-assign FX |
+  | `Master`  | (dim) | (dim) | master FLTR (if any) | master gain + sends | (dim) | master FX 1+2 |
+
+Three rules govern the matrix:
+
+1. **`Func` is the universal qualifier.** `Func + section` alone =
+   the machine's secondary page (`ParamSpec.variant = Secondary` —
+   §2). `Func + scope + section` = the secondary variant of the
+   scope's cell (e.g. `Func+Scene+FLTR` = the *other* scene's filter
+   assignments, `Func+Master+FX` = master FX 2 vs FX 1, etc.).
+2. **N/A cells are dim or renamed.** A scope+section combination
+   with no content dims its key. Where a near-canonical alternative
+   exists, the section bar relabels the key live under that scope
+   (e.g. `Scene+TRIG` becomes `CXFD` for crossfader curve, since
+   scenes morph parameters but never trigs — §17.2).
+3. **The section bar is reactive.** Holding a scope relabels the
+   key chrome to that scope's row; holding `Func` in addition flips
+   to the secondary variant. This is the operational form of
+   `PRINCIPLES.md` §8 ("chrome must announce state").
+
+### 6.2 Track-meta content lives on `Func+TRIG` (MHY)
+
+Pre-MHY, the section bar had a separate "track meta" layer reached
+by Shift (`COND` / `TRIG` / `TRACK` / `GLOBAL`). MHY folds that
+layer into the matrix: track-meta `COND` content (probability, m:n,
+prev-dep) lives under `Func+TRIG`; trig defaults (default note,
+default velocity, gate length) live under `TRIG` itself. Track
+length / divider migrate into `Track+TRIG`. Global output gain,
+sync mode, and clock settings migrate to `Master`-scope cells.
+
+Each section button cell still shows its primary label at the top
+and its `Func`-secondary label at the bottom; the active layer
+determines which renders prominently and which colour highlights
+the cell.
 - **The Step Grid.** A 2×8 visual matrix mirroring the bottom two
   QWERTY rows. Sequences longer than 16 paginate via dedicated keys.
   Cells carry a condition-state preview (§4.5): certain-fire,
@@ -668,10 +733,11 @@ hardware surface 1:1:
   so conditional logic is visible at a glance without running the
   sequencer.
 
-### 6.1 COND meta section — manipulation zone layout
+### 6.3 COND meta section — manipulation zone layout
 
-When the COND track meta section is active, the four encoder slots
-show the trig condition controls for the current track:
+When the COND track meta layer is active (`Func+TRIG` post-MHY, §6.2),
+the four encoder slots show the trig condition controls for the
+current track:
 
 ```
 [ Prob %  ] [ m:n Num ] [ m:n Den ] [ Prev-dep ]
@@ -704,7 +770,7 @@ The aim is that an experienced user holds an editing context (a step
 held, a section selected) and resolves all parameter changes in the
 Manipulation Zone without ever leaving the keyboard.
 
-### 6.2 Display preferences: granular feedback toggles
+### 6.4 Display preferences: granular feedback toggles
 
 The UI's visual density is governed by a set of **granular feedback
 toggles** stored in global settings (not in project state). Every
@@ -884,15 +950,21 @@ cluster in the left two columns of the 10×4 QWERTY layout (see §5.5,
 | Scope button | QWERTY key | Selects | Held alongside |
 |---|---|---|---|
 | `Func` | `1` (col 1) | Modifier for verb keys and meta sections; the universal qualifier. | Any. |
-| `Track` | `Q` (col 1) | One or more track slots; none selected = Control-All. | Verb, encoder, or a col-2 modifier. |
-| `Pattern` | `A` (col 1) | One pattern (or, in chain mode, several). | Verb, or a pattern key. |
+| `Pattern` | `Q` (col 1) | One pattern (or, in chain mode, several). | Verb, or a pattern key. |
+| `Scene` | `A` (col 1) | Scene assignment; `Scene + ^/v` picks endpoint A/B (§17.5). | Nav, encoder, `Master`, `Fill`. |
 | `Mute` | `Z` (col 1) | The mute mask (hold and tap many). | Track/step keys. |
-| `Fill` | `2` (col 2) | "While I'm holding this, fill conditions evaluate true." | (no verb needed — it's the state itself). |
-| `Cue` | `W` (col 2) | The cue/monitor scope (§31). | Track keys, `Scene`. |
-| `Scene` | `S` (col 2) | Scene assignment; `Scene + ^/v` picks endpoint A/B (§17.5). | Nav, encoder, `Mute`. |
-| `Master` | `X` (col 2) | Master-bus / FX focus (§32.3). | Verb, section key. |
+| `Track` | `2` (col 2) | One or more track slots; none selected = Control-All. | Verb, encoder, or a col-1 modifier. |
+| `Part` | `W` (col 2) | The kit half of the Part/Pattern split (§4.7) — machine identity, base ParamFrame, sample refs. `Part+SRC` opens the machine picker. | Verb, section key. |
+| `Master` | `S` (col 2) | Master-bus / FX focus (§32.3). | Verb, section key, `Scene`. |
+| `Fill` | `X` (col 2) | "While I'm holding this, fill conditions evaluate true." | Step keys; (no verb needed — it's the state itself). |
 | `Trig` (hold a step) | `D–;` / `C–/` | The held step(s); multi-step hold is allowed. | Verb, encoder, or note key. |
-| Section key | `3–8` | The held section's slots. | Verb. |
+| Section key | `5–0` | The held section's slots. | Verb, scope modifier (scope-section matrix, §6.1.2). |
+
+The cluster identities above are the MHY layout (frequency-of-use
+ordered, with the two performance specialists on row 3). `Cue` is
+reserved as a scope (§31) but is not bound to a cluster key until
+MU; its functionality currently lives under `Func+Scene` (cue scene)
+and `Master`-scope cells (cue routing) — see §31.
 
 **The compound-chord rule.** Two modifiers may be held together, and
 this is a deliberate part of the grammar — but under one hard rule so
@@ -2153,7 +2225,7 @@ already specifies for FLTR/AMP. No performance feature special-cases
 audio vs. MIDI-out here — the FX section simply renders whatever that
 track type exposes (`PRINCIPLES.md` §5).
 
-## 33. MHX — The 10×4 Surface Revamp
+## 33. MHX — The 10×4 Surface Revamp (amended by MHY)
 
 The intended *final* control surface and UX grammar. Earlier
 milestones built on a 9×4 layout (one left modifier column + an 8-wide
@@ -2163,10 +2235,18 @@ grammar room to breathe before the machine catalogue (MH) and scenes
 record; the authoritative key map lives in §5.5, the grammar in §13,
 the scene/fader surface in §17.5, and the MZ/encoder/typography in §26.
 
-This is intended as the **last large UI/UX revamp** — the point at
-which the surface and grammar are frozen. It is sequenced *ahead of the
-rest of MH* (hence "MHX") so the catalogue machines are authored
-against the final surface, not a moving one.
+MHX was intended as the last large UI/UX revamp. In practice the
+cluster identities it shipped were assigned by intuition rather than
+measured chord-value, and the canonical six elided the distinction
+between LFOs and modulation more generally. **MHY** (ROADMAP §MHY)
+amends the cluster identities, the right-utility row, and the
+canonical-six naming — without moving any key. The MHX *geometry*
+(10×4 footprint, cluster region in cols 0–1, section bar on row 0,
+16-step grid on rows 2–3, nav inverted-T at `4/E/R/T`) remains frozen.
+
+In short: MHX = the shape; MHY = the labels. Sections §5.5, §6, §13
+have already been rewritten to the MHY layout; what follows is the
+historical MHX-as-shipped record.
 
 **33.1 Geometry.** Ten columns, four rows. The **left two columns** are
 an eight-key modifier cluster, all reachable by one (left) hand; the

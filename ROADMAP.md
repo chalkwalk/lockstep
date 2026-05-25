@@ -10,8 +10,8 @@ feature must satisfy, see `PRINCIPLES.md`. **Before adding a
 milestone here, confirm it is expressible within those principles
 and within the existing scope+verb grammar (DESIGN §13).**
 
-**Active focus:** MH — Machine catalogue expansion (DrumSynth, Slicer, PercussionMachine; FM done as MH.1, VA done as MH.2).
-**Last completed:** MH.2 — VAMachine (poly trig infrastructure + VA Synth, mono+para modes).
+**Active focus:** MHY — Surface revamp: section matrix + modifier cluster (parameter access depth, scope-indexed sections, cluster identities by measured chord-value, Part scope introduced, Cue dropped from cluster, LFO→MOD canonical rename, machine-select folds into Part+SRC, right-utility row remapped to Yes/Rec/Play/Stop/No).
+**Last completed:** MH.2 — VAMachine (poly trig infrastructure + VA Synth, mono+para modes). MH pauses until MHY ships; MH.3+ author against the MHY contract.
 
 After M8 the roadmap pivots from "core sequencer is usable" to
 "performance instrument is usable" — see milestones MB–MI below
@@ -80,11 +80,25 @@ must satisfy the ten principles.
   don't, it falls back to the same `role`. Most slots are
   `role = none` and don't participate. (DESIGN §13.1.)
 - **Canonical sections reserved + machine extensions allowed.**
-  Section bar keys 3–8 carry a fixed canonical taxonomy
-  (TRIG / SRC / FLTR / AMP / LFO / FX). A machine fills what
-  applies, leaves the rest empty, and may declare *extension*
-  sections on additional section-bar pages reached by repeated
-  press of the same section key. (DESIGN §6.)
+  Section-bar keys 5–0 (row 0) carry a fixed canonical taxonomy
+  (TRIG / SRC / FLTR / AMP / MOD / FX — note `LFO`→`MOD` as of MHY).
+  A machine fills what applies, leaves the rest empty, and may
+  declare *extension* sections on additional section-bar pages
+  reached by repeated press of the same section key. (DESIGN §6.)
+- **Sections are a scope-indexed matrix (MHY).** The six section
+  keys mean different things under different scope modifiers held:
+  no-scope = machine's primary sections; `Func+section` = machine
+  secondary; `Track/Pattern/Part/Scene/Master+section` = foundation-
+  owned cells (post-machine FLTR/AMP, IEffect inserts, scene
+  assigns, master FX, etc.). `Func` is the universal qualifier —
+  composes with any other scope to give the secondary variant.
+  (DESIGN §6.)
+- **Machine schema snaps to canonical sections by meaning.** A
+  machine may relabel a section under its no-scope pages, but a
+  filter-like control belongs under FLTR (key 7) even if the label
+  reads `MORPH`; a modulation matrix belongs under MOD (key 9). The
+  discipline keeps cross-machine workflows (hold FLTR + COPY,
+  Control-All by role) working uniformly.
 - **Post-machine FLTR + AMP, machine-opt-out.** Sequencer-side
   multi-mode SVF + AHDSR live downstream of every internal-audio
   machine. Machines that own their own filter/envelope (analog
@@ -94,11 +108,15 @@ must satisfy the ten principles.
 - **No song timeline.** The Chain (a RAM-only queued list of
   upcoming pattern changes) is the entire song-level surface.
   (DESIGN §16.)
-- **Performance grammar: scope + verb.** Hold a scope key (`Trig`,
-  `Track`, `Pattern`, a section key, `Mute`, `Fill`) and press a
-  verb (`Record` = copy, `Play` = paste, `Stop` = clear, `Yes`/`No`
-  = checkpoint push/pop). Verbs never change meaning by scope; only
-  the scope changes. (DESIGN §13.)
+- **Performance grammar: scope + verb.** Hold a scope key (`Func`,
+  `Track`, `Pattern`, `Part`, `Scene`, `Master`, `Mute`, `Fill`, a
+  section key, or a held trig) and press a verb (`Record` = copy,
+  `Play` = paste, `Stop` = clear, `Yes`/`No` = checkpoint push/pop).
+  Verbs never change meaning by scope; only the scope changes.
+  (DESIGN §13.) Cluster set finalised in MHY: section-scopes
+  `{Func, Track, Pattern, Part, Scene, Master}` plus performance
+  specialists `{Mute, Fill}`; `Cue` is reserved as a scope but not
+  bound to a cluster key until MU.
 - **Hardware = fewer-key QWERTY, no new features.** The eventual
   hardware controller is a denser physical mapping of the same key
   layout. Anything the hardware does must already be doable from
@@ -763,12 +781,77 @@ canonical sections). Intended as the last large UI/UX revamp.
       (REC/PLY/STP) with Func-layer KEY/RTG/RST; `P`=TAP/SPL. Surface
       freeze confirmed — all MHX items shipped.
 
+### MHY — Section matrix + modifier-cluster rethink  [pending]
+
+DESIGN §6, §13, §33. A second-pass refinement of MHX, sequenced
+**after** MHX (which froze key positions) and **before** the rest of
+MH (so DrumSynth / Slicer / Static / Percussion author against the
+finalised contract). MHX assigned cluster identities by intuition;
+MHY measures chord-value across every key category and reshuffles. MHY
+also promotes the section bar from a flat six-of-canonical to a
+**scope-indexed matrix** (~36 first-tier section pages instead of 6),
+renames `LFO`→`MOD` so machine modulation has a real home, introduces
+`Part` as a first-class scope (kit half of the Part/Pattern split,
+DESIGN §4.7) and drops `Cue` from the cluster (reserved for MU
+reactivation). Folds machine-select into `Part+SRC` (replaces
+`Func+R`). Right-utility row (`Y U I O P`) is reassigned to
+`Yes/Rec/Play/Stop/No`; key `3` keeps `TAP`.
+
+**Frozen by MHX, untouched by MHY:** nav (`4 / E R T`), 16 step keys
+(`D F G H J K L ;` / `C V B N M , . /`), section-bar position
+(row-0 `5 6 7 8 9 0`), and the cluster region (cols 0–1 / rows 0–3 =
+`1 2 / Q W / A S / Z X`).
+
+- [ ] **MHY.1** Cluster identity remap in `QwertyOverlay`:
+      `Func/Track | Pattern/Part | Scene/Master | Mute/Fill`
+      (frequency-of-use ordering, specialists on the bottom row).
+      Add `Part` to the `Scope` enum; mark `Cue` as reserved (not
+      bound). Update `EditMode` compound-chord rules: section-scope
+      set is `{Func, Track, Pattern, Part, Scene, Master}`; cross-
+      column rule still applies.
+- [ ] **MHY.2** Canonical section rename `LFO`→`MOD` in
+      `kCanonicalSectionNames` (`src/machine/IMachine.h`). Audit
+      existing machine `ParamSpec.sectionIndex == 4` slots; nothing
+      moves (the index stays 4), only the canonical label changes.
+- [ ] **MHY.3** Add `ParamSpec.variant ∈ {Primary, Secondary}` field
+      (default `Primary`). Existing machines stay primary; the
+      `Func+section` page tier is now a declarable home for future
+      machine deep-dives (FM matrix, VA voice-mode block, etc.).
+- [ ] **MHY.4** Right-utility row remap. `Y U I O P` →
+      `Yes / Rec / Play / Stop / No`. `3` keeps `TAP`. Existing
+      `Func+3=MetronomeToggle` migrates to `Func+I` (Func+Play =
+      metronome — natural pairing). `Func+R` (machine-select) is
+      retired; replaced by `Part+SRC` chord.
+- [ ] **MHY.5** Scope-section matrix scaffolding. `SectionInfo`
+      grows an overrideable label per `(scope, section)` cell;
+      default = canonical name. Cell content remains empty stubs in
+      MHY — concrete population is per-milestone (ME populated
+      `Track+FLTR/AMP`; MV will populate Track+FX and Master+FX; MC
+      populates Part-scope cells; MI populates Scene-scope cells).
+      MHY only lands the contract + reactive section-bar UI hooks.
+- [ ] **MHY.6** Reactive `SectionBar` chrome: relabel keys live
+      under each held scope; dim cells with no content. Func adds
+      the "secondary variant" tint. This is the chrome side of the
+      matrix — the data side (cell content per scope) accretes
+      through the milestones above.
+- [ ] **MHY.7** Documentation pass: rewrite `DESIGN.md` §6 + §7 +
+      cross-refs (§13, §14, §17, §33); update `CLAUDE.md` glossary
+      (Section, Scope, Part) and 10×4 layout description; update
+      `README.md` glossary, tutorial, and §5 shortcut appendix.
+- [ ] **MHY.8** Verification: depth check (every named "deep"
+      parameter ≤2 presses from focused-track default — FM voice
+      mode, FM op-3 attack, VA portamento, track filter cutoff,
+      machine select); chord-grammar audit (no collisions across
+      §1/§4/§5/§7/§8 of the plan); build + standalone smoke (load
+      each machine; walk every scope+section combo).
+
 ### MH — Machine catalogue expansion  [pending, staggered]
 
 DESIGN §1 (lineage). Inheritance from `IMachine` — each is a separate
 contributor-sized project. Order is a suggestion, not a dependency
 chain; any of these can land independently once MF (for MIDI-out
-parity) is done. **MHX lands first** (the surface freeze).
+parity) is done. **MHX and MHY land first** (the surface freeze and
+the contract).
 
 - [x] **MH.1** FMMachine — 4-op FM, free modulation matrix (4×4), per-operator
       ADSR + ratio / fine-tune / mix, macro attack / release / sustain scalars.
