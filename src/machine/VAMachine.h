@@ -96,10 +96,14 @@ namespace lockstep
     };
 
     // One per-pitch sub-voice (both Mono and Para).
-    // In Mono mode only subVoices_[0] is used.
+    // In Mono mode only subVoices_[0] is used; oscType is ignored (renders both oscs).
+    // In Para mode: oscType 0 = render osc1+sub, oscType 1 = render osc2+sub.
+    // Slot assignment: note_index_in_chord % 2 → oscType, so note0→osc1, note1→osc2,
+    // note2→osc1, note3→osc2. Noise is shared across all voices (see VAMachine::noise_).
     struct SubVoice
     {
       bool   active      = false;
+      int    oscType     = 0;      // 0 = osc1, 1 = osc2 (para mode only; ignored in mono)
       int    midiNote    = -1;
       int    age         = 0;      // allocation counter for steal-oldest
       double osc1Phase   = 0.0;
@@ -138,10 +142,13 @@ namespace lockstep
 
     // Generate a single sample for a sub-voice oscillator stack.
     // Advances sub-voice phase accumulators.
+    // In Para mode, oscType selects which oscillator to render (0=osc1+sub, 1=osc2+sub).
+    // In Mono mode (oscType<0 convention: pass -1 to render all), both oscs are rendered.
     float oscillatorSample(SubVoice& sv, int osc1Wave, float osc1PW,
                            int osc2Wave, float osc2PW,
-                           float subLevel, float noiseLevel,
-                           double osc2FreqRatio) noexcept;
+                           float subLevel,
+                           double osc2FreqRatio,
+                           bool paraMode) noexcept;
 
     // SVF: runs one pass through the two-stage cascade or single-stage.
     // filterType: 0=LP4, 1=LP2, 2=HP, 3=BP
@@ -181,9 +188,13 @@ namespace lockstep
     double sampleRate_ = 44100.0;
 
     std::array<SubVoice, kMaxSubVoices> subVoices_{};
-    int    voiceCounter_ = 0;   // monotonic counter for age-based stealing
+    int    voiceCounter_     = 0;   // monotonic counter for age-based stealing
+    int    paraChordNoteIdx_ = 0;   // tracks which chord note is being assigned next
     SharedEnv env_{};
     SVFState  svf1_{}, svf2_{};
+
+    // Shared noise state (single generator mixed into the pre-filter bus).
+    float noiseState_ = 0.0f;
 
     double lfoPhase_    = 0.0;
     float  lfoOut_      = 0.0f;

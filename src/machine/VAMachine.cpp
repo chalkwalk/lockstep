@@ -24,12 +24,14 @@ namespace lockstep
     void VAMachine::reset()
     {
         for (auto& sv : subVoices_) sv = SubVoice{};
-        voiceCounter_ = 0;
+        voiceCounter_     = 0;
+        paraChordNoteIdx_ = 0;
         env_  = SharedEnv{};
         svf1_.reset();
         svf2_.reset();
         lfoPhase_ = 0.0;
         lfoOut_   = 0.0f;
+        noiseState_ = 0.0f;
         choke_.prepare(sampleRate_, 1.5f);
         hasPendingTrigger_ = false;
         lfoRandCurr_ = 0.0f;
@@ -154,53 +156,64 @@ namespace lockstep
 
     float VAMachine::oscillatorSample(SubVoice& sv, int osc1Wave, float osc1PW,
                                       int osc2Wave, float osc2PW,
-                                      float subLevel, float noiseLevel,
-                                      double osc2FreqRatio) noexcept
+                                      float subLevel,
+                                      double osc2FreqRatio,
+                                      bool paraMode) noexcept
     {
+        // In para mode: sv.oscType 0 → render osc1+sub only; sv.oscType 1 → render osc2+sub only.
+        // In mono mode (paraMode=false): render both osc1 and osc2.
+        const bool renderOsc1 = !paraMode || sv.oscType == 0;
+        const bool renderOsc2 = !paraMode || sv.oscType == 1;
+
         const double osc1Inc = sv.currentFreq / sampleRate_;
         const double osc2Inc = sv.currentFreq * osc2FreqRatio / sampleRate_;
         const double subInc  = sv.currentFreq * 0.5 / sampleRate_;
 
         float out = 0.0f;
 
-        // Osc 1
+        // Osc 1 (advance phase even when not rendering to stay in sync for mode switches)
         {
             const double ph = sv.osc1Phase;
             const double inc = osc1Inc;
-            float s = 0.0f;
-            switch (osc1Wave)
+            if (renderOsc1)
             {
-            case 0: // Saw
-                s = static_cast<float>(2.0 * ph - 1.0) + polyBlep(ph, inc);
-                break;
-            case 1: // Pulse
-            {
-                const auto pw = static_cast<double>(std::clamp(osc1PW, 0.05f, 0.95f));
-                s = ph < pw ? 1.0f : -1.0f;
-                s -= polyBlep(ph, inc);
-                s += polyBlep(std::fmod(ph - pw + 1.0, 1.0), inc);
-                break;
+                float s = 0.0f;
+                switch (osc1Wave)
+                {
+                case 0: // Saw
+                    s = static_cast<float>(2.0 * ph - 1.0) + polyBlep(ph, inc);
+                    break;
+                case 1: // Pulse
+                {
+                    const auto pw = static_cast<double>(std::clamp(osc1PW, 0.05f, 0.95f));
+                    s = ph < pw ? 1.0f : -1.0f;
+                    s -= polyBlep(ph, inc);
+                    s += polyBlep(std::fmod(ph - pw + 1.0, 1.0), inc);
+                    break;
+                }
+                case 2: // Triangle
+                    s = static_cast<float>(4.0 * std::abs(ph - 0.5) - 1.0);
+                    break;
+                case 3: // Sine
+                    s = static_cast<float>(std::sin(kTwoPi * ph));
+                    break;
+                default: break;
+                }
+                out += s;
             }
-            case 2: // Triangle
-                s = static_cast<float>(4.0 * std::abs(ph - 0.5) - 1.0);
-                break;
-            case 3: // Sine
-                s = static_cast<float>(std::sin(kTwoPi * ph));
-                break;
-            default: break;
-            }
-            out += s;
             sv.osc1Phase += inc;
             if (sv.osc1Phase >= 1.0) sv.osc1Phase -= 1.0;
         }
 
-        // Osc 2 (0 = Off)
-        if (osc2Wave > 0)
+        // Osc 2 (0 = Off in mono mode; in para mode it's the osc2-type voice's primary osc)
+        const bool osc2Active = paraMode ? (renderOsc2) : (osc2Wave > 0);
+        if (osc2Active)
         {
             const double ph = sv.osc2Phase;
             const double inc = osc2Inc;
+            const int wave   = paraMode ? std::max(1, osc2Wave) : osc2Wave;  // para: use saw if OFF
             float s = 0.0f;
-            switch (osc2Wave)
+            switch (wave)
             {
             case 1: // Saw
                 s = static_cast<float>(2.0 * ph - 1.0) + polyBlep(ph, inc);
@@ -225,8 +238,15 @@ namespace lockstep
             sv.osc2Phase += inc;
             if (sv.osc2Phase >= 1.0) sv.osc2Phase -= 1.0;
         }
+        else
+        {
+            // Advance osc2 phase even when silent to avoid a jump on unmute.
+            sv.osc2Phase += osc2Inc;
+            if (sv.osc2Phase >= 1.0) sv.osc2Phase -= 1.0;
+        }
 
-        // Sub (one octave below osc1, sawtooth)
+        // Sub (one octave below the primary osc; follows osc1 for both types in mono,
+        // and for osc1-type voices in para; osc2-type voices also get sub at their pitch).
         if (subLevel > 0.0f)
         {
             const double ph = sv.subPhase;
@@ -236,12 +256,8 @@ namespace lockstep
             if (sv.subPhase >= 1.0) sv.subPhase -= 1.0;
         }
 
-        // Noise
-        if (noiseLevel > 0.0f)
-        {
-            const float noise = (static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX)) * 2.0f - 1.0f;
-            out += noise * noiseLevel;
-        }
+        // Noise is not generated here — a single shared generator is mixed after the
+        // voice sum in process(), regardless of mono/para mode.
 
         return out;
     }
@@ -401,11 +417,19 @@ namespace lockstep
 
     int VAMachine::allocSubVoice()
     {
-        // First: inactive voice.
+        // In para mode, prefer the slot that matches the current chord-note index
+        // so that note0→slot0 (osc1), note1→slot1 (osc2), note2→slot2 (osc1), etc.
+        const int preferred = paraChordNoteIdx_ % kMaxSubVoices;
+        const auto& pv = subVoices_[static_cast<std::size_t>(preferred)];
+        if (!pv.active && pv.fadeRemain == 0)
+            return preferred;
+
+        // Fall back to any inactive voice.
         for (int i = 0; i < kMaxSubVoices; ++i)
             if (!subVoices_[static_cast<std::size_t>(i)].active
                 && subVoices_[static_cast<std::size_t>(i)].fadeRemain == 0)
                 return i;
+
         // All active: steal oldest (lowest age counter).
         int oldest = 0;
         for (int i = 1; i < kMaxSubVoices; ++i)
@@ -429,6 +453,7 @@ namespace lockstep
             sv.currentFreq = targetHz;
         sv.targetFreq  = targetHz;
         sv.active      = true;
+        sv.oscType     = paraChordNoteIdx_ % 2;  // 0 = osc1, 1 = osc2
         sv.midiNote    = midiNote;
         sv.age         = ++voiceCounter_;
         sv.microAmp    = 1.0f;
@@ -436,6 +461,8 @@ namespace lockstep
         sv.osc1Phase   = 0.0;
         sv.osc2Phase   = 0.0;
         sv.subPhase    = 0.0;
+
+        ++paraChordNoteIdx_;  // advance for next note in this chord
 
         // Trigger envelopes only if this is the first active voice.
         bool anyOtherActive = false;
@@ -446,6 +473,7 @@ namespace lockstep
 
         if (!anyOtherActive)
         {
+            paraChordNoteIdx_ = 1;  // reset: first note just used slot 0
             svf1_.reset();
             svf2_.reset();
             triggerEnvelopes(params);
@@ -679,8 +707,8 @@ namespace lockstep
 
                 float svSample = oscillatorSample(sv, osc1Wave, osc1PW,
                                                    osc2Wave, osc2PW,
-                                                   subLevel, noiseLevel,
-                                                   osc2FreqRatio);
+                                                   subLevel, osc2FreqRatio,
+                                                   paraMode);
                 sv.currentFreq = savedFreq;
 
                 // Per-voice micro-amp (note-off fade).
@@ -690,6 +718,13 @@ namespace lockstep
                     --sv.fadeRemain;
                 }
                 oscSum += svSample * sv.microAmp;
+            }
+
+            // ---- Shared noise (one generator per sample, mixed before drive) ----
+            if (noiseLevel > 0.0f)
+            {
+                noiseState_ = static_cast<float>(rand()) / static_cast<float>(RAND_MAX) * 2.0f - 1.0f;
+                oscSum += noiseState_ * noiseLevel;
             }
 
             // ---- Drive ----
