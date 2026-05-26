@@ -424,20 +424,22 @@ namespace lockstep
         };
         std::array<PendingNoteOff, kNumTracks> pendingNoteOffs_{};
 
-        // Chord capture: accumulates notes played while a step is held.
-        // Gate length (last-note-off) is written when all captured notes are released.
+        // Chord capture: snapshot-currently-held semantics.
+        // Each note-on snapshots the physically-held MIDI set into all held steps.
+        // Gate timing is finalised when all MIDI notes are released.
         struct ChordCapture
         {
-            bool    active          = false;
-            int     trackIndex      = -1;
-            int     stepIndex       = -1;
-            int     heldCount       = 0;    // note-keys still held for this chord
-            int64_t gateStartSample = 0;    // absolute sample of first note-on
-            std::array<int, kMaxNotesPerStep> notes{};
-            int     noteCount       = 0;
-            int     maxVelocity     = 0;    // highest velocity of any note-on in this chord
+            bool    active          = false;  // true while ≥1 note physically held
+            int     heldCount       = 0;      // number of physically-held notes
+            int64_t gateStartSample = 0;      // sample of first note-on in current chord
+            int     maxVelocity     = 0;
+            std::array<bool, 128> heldNotes{};  // which MIDI notes are currently held
         };
         ChordCapture chordCapture_{};
+
+        // Per-track last step index written by realtime record (for chord aggregation).
+        // -1 means no step has been recorded for this track yet.
+        std::array<int, kNumTracks> lastRecordedStep_{};
         int64_t totalSamplesProcessed_ = 0;
         std::array<double, kNumTracks> nextTriggerPpq_{};
         std::array<bool, kNumTracks>   lastStepFired_{};

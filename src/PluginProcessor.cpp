@@ -101,6 +101,7 @@ namespace lockstep
     {
         nextTriggerPpq_.fill(0.0);
         firedStepIdx_.fill(-1);
+        lastRecordedStep_.fill(-1);
 
         for (auto& s : mzSlots_)
             s.store(-1, std::memory_order_relaxed);
@@ -599,6 +600,7 @@ namespace lockstep
                      && !editContext_.isActiveForEditing())
             {
                 // M7.2: Quantize note-on to nearest step boundary, write trig.
+                // Multiple notes that quantise to the same step are aggregated into a chord.
                 const int trackDiv = static_cast<int>(trackDividerParams_[ti]->load());
                 const double divPpq = 0.25 * static_cast<double>(trackDiv <= 0 ? 1 : trackDiv);
                 const int trackLen  = static_cast<int>(trackLengthParams_[ti]->load());
@@ -612,56 +614,80 @@ namespace lockstep
                         ((nearestNum % static_cast<std::int64_t>(trackLen))
                          + trackLen) % trackLen);
                     auto& s = sequence().tracks[ti].steps[static_cast<std::size_t>(stepIdx)];
+                    // If this note quantises to a different step than the last recorded note,
+                    // start a fresh chord on the new step.
+                    if (stepIdx != lastRecordedStep_[ti])
+                    {
+                        s.trigOverride.noteCount = 0;
+                        lastRecordedStep_[ti] = stepIdx;
+                    }
                     s.trig = true;
-                    if (s.trigOverride.noteCount == 0)
-                        s.trigOverride.noteCount = 1;
-                    s.trigOverride.notes[0] = note;
+                    if (s.trigOverride.noteCount < kMaxNotesPerStep)
+                    {
+                        // De-dup: skip if note already in chord.
+                        bool already = false;
+                        for (int n = 0; n < s.trigOverride.noteCount; ++n)
+                            if (s.trigOverride.notes[static_cast<std::size_t>(n)] == note)
+                                { already = true; break; }
+                        if (!already)
+                            s.trigOverride.notes[static_cast<std::size_t>(
+                                s.trigOverride.noteCount++)] = note;
+                    }
                 }
             }
             else
             {
-                // M5.8: Without record arm — write note override to held step, or
+                // M5.8: Without record arm — write note override to all held steps, or
                 // update the track default.
                 if (editContext_.isActiveForEditing()
-                    && editContext_.heldTrackIndex() == track)
+                    && editContext_.heldTrackIndex() == track
+                    && !editContext_.heldSteps().empty())
                 {
-                    const int step = editContext_.heldStepIndex();
-                    if (step >= 0 && step < kMaxStepsPerTrack)
+                    // Snapshot-currently-held semantics:
+                    // 1. If no capture is active, this is a fresh chord: clear all held steps.
+                    // 2. Mark this note as physically held; update the held-set snapshot.
+                    // 3. Write the full snapshot to all held steps.
+                    const bool isFresh = !chordCapture_.active;
+                    if (isFresh)
                     {
-                        auto& trig = sequence().tracks[ti]
-                            .steps[static_cast<std::size_t>(step)].trigOverride;
-
-                        const bool freshChord = !chordCapture_.active
-                                                || chordCapture_.stepIndex != step
-                                                || chordCapture_.trackIndex != track;
-                        if (freshChord)
+                        for (int si : editContext_.heldSteps())
                         {
-                            // First note to this step: clear existing list and start capture.
-                            trig.noteCount = 0;
-                            chordCapture_.active       = true;
-                            chordCapture_.trackIndex   = track;
-                            chordCapture_.stepIndex    = step;
-                            chordCapture_.heldCount    = 0;
-                            chordCapture_.noteCount    = 0;
-                            chordCapture_.maxVelocity  = 0;
-                            chordCapture_.gateStartSample =
-                                totalSamplesProcessed_ + sampleOffset;
+                            if (si >= 0 && si < kMaxStepsPerTrack)
+                                sequence().tracks[ti]
+                                    .steps[static_cast<std::size_t>(si)]
+                                    .trigOverride.noteCount = 0;
                         }
-                        if (trig.noteCount < kMaxNotesPerStep)
-                        {
-                            trig.notes[static_cast<std::size_t>(trig.noteCount)] = note;
-                            ++trig.noteCount;
-                        }
-                        if (chordCapture_.noteCount < kMaxNotesPerStep)
-                        {
-                            chordCapture_.notes[static_cast<std::size_t>(chordCapture_.noteCount)] = note;
-                            ++chordCapture_.noteCount;
-                        }
-                        if (velocity > chordCapture_.maxVelocity)
-                            chordCapture_.maxVelocity = velocity;
-                        ++chordCapture_.heldCount;
-                        editContext_.markParamWritten();
+                        chordCapture_.active          = true;
+                        chordCapture_.gateStartSample = totalSamplesProcessed_ + sampleOffset;
+                        chordCapture_.maxVelocity     = 0;
                     }
+
+                    if (!chordCapture_.heldNotes[static_cast<std::size_t>(note)])
+                    {
+                        chordCapture_.heldNotes[static_cast<std::size_t>(note)] = true;
+                        ++chordCapture_.heldCount;
+                    }
+                    if (velocity > chordCapture_.maxVelocity)
+                        chordCapture_.maxVelocity = velocity;
+
+                    // Build ascending snapshot of currently-held notes.
+                    std::array<int, kMaxNotesPerStep> snapshot{};
+                    int snapCount = 0;
+                    for (int n = 0; n < 128 && snapCount < kMaxNotesPerStep; ++n)
+                        if (chordCapture_.heldNotes[static_cast<std::size_t>(n)])
+                            snapshot[static_cast<std::size_t>(snapCount++)] = n;
+
+                    // Write snapshot to all held steps; force trig on.
+                    for (int si : editContext_.heldSteps())
+                    {
+                        if (si < 0 || si >= kMaxStepsPerTrack) continue;
+                        auto& step = sequence().tracks[ti].steps[static_cast<std::size_t>(si)];
+                        step.trig = true;
+                        step.trigOverride.noteCount = snapCount;
+                        for (int n = 0; n < snapCount; ++n)
+                            step.trigOverride.notes[static_cast<std::size_t>(n)] = snapshot[static_cast<std::size_t>(n)];
+                    }
+                    editContext_.markParamWritten();
                 }
                 else
                 {
@@ -684,37 +710,40 @@ namespace lockstep
                 juce::MidiMessage::noteOff(1, midiNote),
                 sampleOffset);
 
-            if (!chordCapture_.active || chordCapture_.trackIndex != track)
-                return;
-            // Check this note is one we captured.
-            bool found = false;
-            for (int n = 0; n < chordCapture_.noteCount; ++n)
-                if (chordCapture_.notes[static_cast<std::size_t>(n)] == midiNote)
-                    { found = true; break; }
-            if (!found) return;
+            if (!chordCapture_.active) return;
+            // Only handle if this note was part of the capture.
+            if (midiNote < 0 || midiNote >= 128) return;
+            if (!chordCapture_.heldNotes[static_cast<std::size_t>(midiNote)]) return;
+
+            chordCapture_.heldNotes[static_cast<std::size_t>(midiNote)] = false;
             --chordCapture_.heldCount;
             if (chordCapture_.heldCount > 0) return;
 
-            // All chord keys released: write gate.
+            // All chord keys released: write gate to every still-held step.
             const int64_t gateEndSample =
                 totalSamplesProcessed_ + static_cast<int64_t>(sampleOffset);
             const int64_t gateSamples = gateEndSample - chordCapture_.gateStartSample;
             const float   gateMs = static_cast<float>(gateSamples)
                                    * 1000.0f / static_cast<float>(getSampleRate());
-            const auto ti = static_cast<std::size_t>(track);
-            const int  si = chordCapture_.stepIndex;
-            if (si >= 0 && si < kMaxStepsPerTrack)
+
+            if (editContext_.heldTrackIndex() == track)
             {
-                auto& trig      = sequence().tracks[ti]
-                                      .steps[static_cast<std::size_t>(si)].trigOverride;
-                trig.hasGate    = true;
-                trig.gateMs     = std::max(1.0f, gateMs);
-                if (chordCapture_.maxVelocity > 0)
+                const auto ti = static_cast<std::size_t>(track);
+                for (int si : editContext_.heldSteps())
                 {
-                    trig.hasVelocity = true;
-                    trig.velocity    = chordCapture_.maxVelocity;
+                    if (si < 0 || si >= kMaxStepsPerTrack) continue;
+                    auto& trig = sequence().tracks[ti]
+                                     .steps[static_cast<std::size_t>(si)].trigOverride;
+                    trig.hasGate = true;
+                    trig.gateMs  = std::max(1.0f, gateMs);
+                    if (chordCapture_.maxVelocity > 0)
+                    {
+                        trig.hasVelocity = true;
+                        trig.velocity    = chordCapture_.maxVelocity;
+                    }
                 }
             }
+            // Capture complete — next note-on will start a fresh chord.
             chordCapture_.active = false;
         };
 
@@ -1511,14 +1540,11 @@ namespace lockstep
         s.trigOverride = TrigOverride{};
     }
 
-    void LockstepProcessor::cancelChordCapture(int track, int step)
+    void LockstepProcessor::cancelChordCapture(int /*track*/, int /*step*/)
     {
-        if (chordCapture_.active
-            && chordCapture_.trackIndex == track
-            && chordCapture_.stepIndex  == step)
-        {
-            chordCapture_.active = false;
-        }
+        // With the snapshot-currently-held model, chordCapture_ resets automatically
+        // when all MIDI notes are released (heldCount drops to 0). No explicit cancel
+        // is needed on step release; the next note-on will start a fresh capture.
     }
 
     void LockstepProcessor::pushCheckpoint()
