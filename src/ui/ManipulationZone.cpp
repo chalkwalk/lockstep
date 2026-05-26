@@ -493,23 +493,27 @@ namespace lockstep
         // Extra notes beyond the primary (for chord display).
         const int   chordExtra = hasNote ? trig->noteCount - 1 : 0;
 
+        const float noteSel = static_cast<float>(
+            t.noteSelection == NoteSelection::BottomBias ? 1 : 0);
+
         struct TrigFieldDef { const char* label; float lo; float hi; bool stepped; bool active; };
         static constexpr std::array<TrigFieldDef, kNumSlots> kDefs = {{
-            { "Note",     0.0f,   127.0f, true,  true  },
-            { "Vel",      1.0f,   127.0f, true,  true  },
-            { "Gate",     0.0f, 10000.0f, false, true  },
-            { "",         0.0f,     1.0f, false, false },
-            { "",         0.0f,     1.0f, false, false },
-            { "",         0.0f,     1.0f, false, false },
-            { "",         0.0f,     1.0f, false, false },
-            { "",         0.0f,     1.0f, false, false },
+            { "Note",   0.0f,   127.0f, true,  true  },
+            { "Vel",    1.0f,   127.0f, true,  true  },
+            { "Gate",   0.0f, 10000.0f, false, true  },
+            { "Bias",   0.0f,     1.0f, true,  true  },
+            { "",       0.0f,     1.0f, false, false },
+            { "",       0.0f,     1.0f, false, false },
+            { "",       0.0f,     1.0f, false, false },
+            { "",       0.0f,     1.0f, false, false },
         }};
         const std::array<float, kNumSlots> vals  = { static_cast<float>(note),
                                                      static_cast<float>(velocity),
-                                                     gateMs, 0.0f,
+                                                     gateMs, noteSel,
                                                      0.0f, 0.0f, 0.0f, 0.0f };
         const std::array<bool,  kNumSlots> locks = { hasNote, hasVel, hasGate, false,
                                                      false, false, false, false };
+        static constexpr const char* kBiasLabels[] = { "TOP", "BOT" };
 
         updatingFromTimer_ = true;
         for (int i = 0; i < kNumSlots; ++i)
@@ -529,6 +533,8 @@ namespace lockstep
                     valueText = vals[si] < 10.0f
                         ? juce::String(vals[si], 1) + " ms"
                         : juce::String(static_cast<int>(vals[si])) + " ms";
+                else if (i == 3)
+                    valueText = kBiasLabels[static_cast<int>(vals[si])];
                 else
                     valueText = juce::String(static_cast<int>(vals[si]));
                 if (i == 0 && chordExtra > 0)
@@ -580,6 +586,10 @@ namespace lockstep
                 case 0: t.trigDefaults.note     = std::clamp(static_cast<int>(value), 0, 127);  break;
                 case 1: t.trigDefaults.velocity = std::clamp(static_cast<int>(value), 1, 127);  break;
                 case 2: t.trigDefaults.gateMs   = std::max(0.0f, value);                        break;
+                case 3: t.noteSelection = (value >= 0.5f)
+                            ? NoteSelection::BottomBias
+                            : NoteSelection::TopBias;
+                        break;
                 default: break;
             }
         }
