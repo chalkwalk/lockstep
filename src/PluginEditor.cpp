@@ -1202,6 +1202,11 @@ namespace lockstep
                 {
                     // Deferred pattern mute (MD.7 + MD.8).
                     deferredPatternMutes_.push_back(trackIdx);
+                    // Flip the pending-display flag so the re-skin shows the
+                    // net result immediately (XOR on each press, same as commit).
+                    const auto ti = static_cast<std::size_t>(trackIdx);
+                    uiState_.pendingPatternMuteToggle[ti] =
+                        !uiState_.pendingPatternMuteToggle[ti];
                 }
                 else
                 {
@@ -1276,6 +1281,7 @@ namespace lockstep
                 for (const int t : deferredPatternMutes_)
                     processor_.togglePatternMute(t);
                 deferredPatternMutes_.clear();
+                uiState_.pendingPatternMuteToggle.fill(false);
                 uiState_.funcHeld = false;
                 // MHZ.3.4: Func release exits P-Lock clear mode.
                 uiState_.pLockClearMode  = false;

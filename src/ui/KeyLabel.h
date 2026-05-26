@@ -30,8 +30,9 @@ namespace lockstep
             case PS::Part:    return col(kScopePart);
             case PS::Scene:   return col(kScopeScene);
             case PS::Master:  return col(kScopeMaster);
+            case PS::Mute:    return col(kScopeMute);
             // Non-section scopes and None use the default step colour.
-            case PS::None: case PS::Func: case PS::Trig: case PS::Mute:
+            case PS::None: case PS::Func: case PS::Trig:
             case PS::Fill: case PS::Cue: case PS::Section:
                 break;
         }
@@ -43,12 +44,14 @@ namespace lockstep
     // colour if none.
     inline juce::Colour scopeColourFromState(const UiState& ui) noexcept
     {
+        using namespace theme;
         using PS = EditMode::PrimaryScope;
         if (ui.trackHeld)        return scopeColour(PS::Track);
         if (ui.patternScopeHeld) return scopeColour(PS::Pattern);
         if (ui.partHeld)         return scopeColour(PS::Part);
         if (ui.sceneHeld)        return scopeColour(PS::Scene);
         if (ui.masterHeld)       return scopeColour(PS::Master);
+        if (ui.muteHeld)         return col(ui.funcHeld ? kScopePMute : kScopeMute);
         return scopeColour(PS::None);
     }
 

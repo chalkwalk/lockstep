@@ -83,6 +83,10 @@ namespace lockstep::theme
     inline constexpr uint32_t kScopeScene   = 0xFFD06020u;  // orange
     inline constexpr uint32_t kScopeMaster  = 0xFFC0A000u;  // gold
 
+    // Performance-specialist modifiers.
+    inline constexpr uint32_t kScopeMute    = 0xFFC03030u;  // red   (global mute)
+    inline constexpr uint32_t kScopePMute   = 0xFFC07820u;  // amber (pattern mute)
+
     // Part+SRC machine picker: visibly distinct from Part itself.
     inline constexpr uint32_t kScopeMachine = 0xFF50C030u;  // lime
 

@@ -1370,6 +1370,77 @@ namespace lockstep
             return;
         }
 
+        // Mute re-skin — Mute held → per-track mute state viewer.
+        // Mute alone shows global mute; Func+Mute shows pattern mute.
+        // Cells 0-7 map to tracks 0-7; cells 8-15 are out-of-range and dim.
+        // Pressing a cell still routes through the normal ToggleMute handler.
+        if (uiState_.muteHeld)
+        {
+            const bool isPatternMute = uiState_.funcHeld;
+            const juce::Colour mutedCol   = col(isPatternMute ? kScopePMute : kScopeMute);
+            const juce::Colour audibleCol = col(kStepInactive).interpolatedWith(mutedCol, 0.5f);
+
+            for (int row = 0; row < kRows; ++row)
+            {
+                for (int col2 = 0; col2 < kCols; ++col2)
+                {
+                    const int idx  = row * kCols + col2;
+                    const bool avail = idx < static_cast<int>(kNumTracks);
+                    const int x    = colX(row, col2 + 2);
+                    const int y    = rowY(row);
+                    const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+
+                    juce::Colour fill;
+                    if (!avail)
+                    {
+                        fill = juce::Colour(kStepOutRange);
+                    }
+                    else
+                    {
+                        const bool committed = isPatternMute
+                            ? processor_.getPatternMute(idx)
+                            : processor_.getGlobalMute(idx);
+                        const bool pending = isPatternMute
+                            && uiState_.pendingPatternMuteToggle[static_cast<std::size_t>(idx)];
+                        const bool muted = committed ^ pending;
+                        fill = muted ? mutedCol.withAlpha(0.80f) : audibleCol;
+                    }
+
+                    g.setColour(fill);
+                    g.fillRoundedRectangle(cell.toFloat(), 4.0f);
+
+                    if (avail)
+                    {
+                        const bool committed = isPatternMute
+                            ? processor_.getPatternMute(idx)
+                            : processor_.getGlobalMute(idx);
+                        const bool pending = isPatternMute
+                            && uiState_.pendingPatternMuteToggle[static_cast<std::size_t>(idx)];
+                        const bool muted = committed ^ pending;
+                        g.setColour(muted ? mutedCol.brighter(0.2f).withAlpha(0.90f)
+                                          : juce::Colour(kScopeStep).withAlpha(0.40f));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
+
+                        g.setColour(muted ? juce::Colours::white.withAlpha(0.90f)
+                                          : juce::Colours::white.withAlpha(0.45f));
+                        g.setFont(juce::Font(juce::FontOptions(9.0f)));
+                        g.drawText(juce::String(idx + 1), cell.reduced(2),
+                                   juce::Justification::centred);
+                    }
+
+                    if (showKeyLetters)
+                        paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(idx)],
+                                         avail ? 1.0f : 0.45f);
+                }
+            }
+
+            g.setColour(juce::Colour::fromRGB(80, 95, 115));
+            g.setFont(juce::Font(juce::FontOptions(10.0f)));
+            g.drawText(isPatternMute ? "PATTERN MUTE" : "GLOBAL MUTE",
+                       navArea, juce::Justification::centred);
+            return;
+        }
+
         // MHZ.2.1: scope re-skin — Track/Pattern/Part held → 1-of-N index picker.
         // The 16 step cells become a flat non-paginated selector tinted with the
         // scope colour. Unavailable indices are dimmed. Normal step rendering is

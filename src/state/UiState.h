@@ -81,6 +81,11 @@ namespace lockstep
         // the machine for the active track.
         bool funcPartHeld = false;
 
+        // Per-track pending pattern mute toggle (Func+Mute deferred multi-select).
+        // True = this track has an odd number of pending presses and will flip its
+        // committed pattern mute state when Func releases.
+        std::array<bool, kNumTracks> pendingPatternMuteToggle{};
+
         // Returns the first slot index for the currently active page on the given track.
         // Returns 0 if track is out of range or info.firstSlot is -1 (empty section).
         [[nodiscard]] int activeFirstSlot(int track, const SectionInfo& info) const
