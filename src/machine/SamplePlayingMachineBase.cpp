@@ -1,4 +1,5 @@
 #include "SamplePlayingMachineBase.h"
+#include "TransientDetector.h"
 #include <algorithm>
 #include <cmath>
 
@@ -132,5 +133,31 @@ namespace lockstep
         }
 
         return static_cast<float>(bestIdx) / static_cast<float>(numSamples);
+    }
+
+    void SamplePlayingMachineBase::detectTransientSlices()
+    {
+        detectTransientSlices(numSlices_ > 0 ? numSlices_ : 8);
+    }
+
+    void SamplePlayingMachineBase::detectTransientSlices(int count)
+    {
+        const Sample* s = pool_.get(currentSampleIndex_);
+        if (s == nullptr || s->missing || s->pcm.getNumSamples() < 2)
+            return;
+
+        const std::vector<int> positions = placeTransientSlices(
+            s->pcm, s->sampleRate, count, s->analysis);
+
+        numSlices_ = static_cast<int>(positions.size());
+        numSlices_ = std::min(numSlices_, kMaxSlices);
+
+        const int nSamp = s->pcm.getNumSamples();
+        for (int i = 0; i < numSlices_; ++i)
+        {
+            slicePositions_[static_cast<std::size_t>(i)] =
+                static_cast<float>(positions[static_cast<std::size_t>(i)])
+                / static_cast<float>(nSamp);
+        }
     }
 }

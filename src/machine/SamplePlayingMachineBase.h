@@ -46,7 +46,12 @@ namespace lockstep
         [[nodiscard]] int numSlices() const override { return numSlices_; }
         void setEqualSlices(int count) override;
         void clearSlices()             override;
-        void detectTransientSlices()   override {} // wired in step 7
+        // Populates slicePositions_ from transient-detected onsets in the
+        // currently-loaded sample (uses Sample::analysis cached at load time).
+        // count is the number of slices to place; capped by kMinSliceMs.
+        void detectTransientSlices() override;
+        // Variant that also accepts an explicit count (used by SlicerMachine).
+        void detectTransientSlices(int count);
 
     protected:
         // Per-voice state: SamplePlayer, choke, and pending re-trigger.
@@ -76,6 +81,9 @@ namespace lockstep
         double      sampleRate_ = 0.0;
         std::array<VoiceSlot, kMaxVoices> voices_{};
         std::uint64_t voiceCounter_ = 0;
+        // Last sample index used (updated by subclasses from const build-spec paths).
+        // Lets detectTransientSlices() find the sample without requiring baseParams.
+        mutable int currentSampleIndex_ = 0;
 
         // MG.3 / ISliceable: normalized slice start positions [0.0, 1.0].
         std::array<float, kMaxSlices> slicePositions_{};

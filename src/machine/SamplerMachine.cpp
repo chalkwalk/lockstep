@@ -22,6 +22,7 @@ namespace lockstep
         const double semitones   = static_cast<double>(midiNote - 60) + pitchOffset;
 
         const int sampleIdx = static_cast<int>(p(kSlotSampleId));
+        currentSampleIndex_ = sampleIdx;  // keep base updated for detectTransientSlices
         const Sample* sample = pool_.get(sampleIdx);
         const double numSrcSamples = (sample != nullptr)
             ? static_cast<double>(sample->pcm.getNumSamples())

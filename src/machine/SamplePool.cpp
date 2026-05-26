@@ -34,6 +34,8 @@ namespace lockstep
             sample->pcm.getReadPointer(0),
             static_cast<std::size_t>(numSamples) * sizeof(float));
 
+        sample->analysis = analyseSample(sample->pcm, sample->sampleRate);
+
         const int index = static_cast<int>(samples_.size());
         samples_.push_back(std::move(sample));
         return index;

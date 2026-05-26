@@ -1,5 +1,6 @@
 #pragma once
 
+#include "TransientDetector.h"
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <cstdint>
 #include <memory>
@@ -20,6 +21,10 @@ namespace lockstep
         juce::AudioBuffer<float> pcm;
         double sampleRate = 0.0;
         bool   missing    = false;  // true when the file could not be found on load
+
+        // Cached per-block analysis for transient detection (message thread only).
+        // Populated by SamplePool::load(); empty for missing entries.
+        BlockAnalysis analysis;
     };
 
     // Holds decoded PCM for every sample loaded into the session.
