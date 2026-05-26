@@ -1687,6 +1687,31 @@ namespace lockstep
                     g.drawRoundedRectangle(cell.toFloat(), 4.0f, 2.0f);
                 }
 
+                // Note-count badge: 1–4 stacked tick marks on the left edge,
+                // one per note in the step's trig override chord.
+                if (inRange)
+                {
+                    const int nc = track.steps[static_cast<std::size_t>(absIdx)]
+                                       .trigOverride.noteCount;
+                    if (nc > 0)
+                    {
+                        const juce::Colour noteCol = hasTrig
+                            ? juce::Colours::white.withAlpha(0.75f)
+                            : juce::Colour::fromRGB(120, 180, 220).withAlpha(0.70f);
+                        g.setColour(noteCol);
+                        const int dotH  = 3;
+                        const int dotW  = 3;
+                        const int gap   = 1;
+                        const int blockH = nc * dotH + (nc - 1) * gap;
+                        int dotY = cell.getCentreY() - blockH / 2;
+                        for (int n = 0; n < nc; ++n)
+                        {
+                            g.fillRect(cell.getX() + 2, dotY, dotW, dotH);
+                            dotY += dotH + gap;
+                        }
+                    }
+                }
+
                 if (showKeyLetters)
                     paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(localIdx)],
                                      inRange ? 1.0f : 0.45f);
