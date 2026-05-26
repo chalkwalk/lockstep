@@ -1,12 +1,13 @@
 #pragma once
 
 #include "IMachine.h"
+#include "ISliceable.h"
 #include "SamplePool.h"
 #include "VoiceChoke.h"
 
 namespace lockstep
 {
-    class SamplerMachine : public IMachine
+    class SamplerMachine : public IMachine, public ISliceable
     {
     public:
         explicit SamplerMachine(SamplePool& pool);
@@ -31,13 +32,13 @@ namespace lockstep
         bool isVoiceActive()    const override;
         bool hasInternalAmp()   const override { return true; }
 
-        // MG.3: slice data.  Slices are normalized start positions [0.0, 1.0].
+        // ISliceable — MG.3 slice data.  Normalized start positions [0.0, 1.0].
         // Up to 16 slices; each maps to one step key in Slice sub-mode of Retrig.
         static constexpr int kMaxSlices = 16;
-        void  setEqualSlices(int count);   // divide sample into `count` equal slices
-        void  clearSlices();
-        bool  hasSlices()  const { return numSlices_ > 0; }
-        int   numSlices()  const { return numSlices_; }
+        [[nodiscard]] int numSlices()  const override { return numSlices_; }
+        void setEqualSlices(int count)           override;
+        void clearSlices()                       override;
+        void detectTransientSlices()             override {} // wired in step 2
 
     private:
         // Dense slot layout — Section 0 "Source"

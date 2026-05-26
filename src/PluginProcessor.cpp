@@ -1757,32 +1757,36 @@ namespace lockstep
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
         const auto* m = machines_[static_cast<std::size_t>(track)].get();
-        if (m == nullptr || m->isMidiOut()) return false;
-        return static_cast<const SamplerMachine*>(m)->hasSlices();
+        if (m == nullptr) return false;
+        const auto* s = dynamic_cast<const ISliceable*>(m);
+        return s != nullptr && s->hasSlices();
     }
 
     int LockstepProcessor::trackSliceCount(int track) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return 0;
         const auto* m = machines_[static_cast<std::size_t>(track)].get();
-        if (m == nullptr || m->isMidiOut()) return 0;
-        return static_cast<const SamplerMachine*>(m)->numSlices();
+        if (m == nullptr) return 0;
+        const auto* s = dynamic_cast<const ISliceable*>(m);
+        return s != nullptr ? s->numSlices() : 0;
     }
 
     void LockstepProcessor::setTrackEqualSlices(int track, int count)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
         auto* m = machines_[static_cast<std::size_t>(track)].get();
-        if (m == nullptr || m->isMidiOut()) return;
-        static_cast<SamplerMachine*>(m)->setEqualSlices(count);
+        if (m == nullptr) return;
+        auto* s = dynamic_cast<ISliceable*>(m);
+        if (s != nullptr) s->setEqualSlices(count);
     }
 
     void LockstepProcessor::clearTrackSlices(int track)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
         auto* m = machines_[static_cast<std::size_t>(track)].get();
-        if (m == nullptr || m->isMidiOut()) return;
-        static_cast<SamplerMachine*>(m)->clearSlices();
+        if (m == nullptr) return;
+        auto* s = dynamic_cast<ISliceable*>(m);
+        if (s != nullptr) s->clearSlices();
     }
 
     int LockstepProcessor::saveTrackToSoundPool(int track, const std::string& name)
