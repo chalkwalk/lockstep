@@ -940,15 +940,35 @@ namespace lockstep
                     return true;
                 }
 
-                // MHZ.3.4: P-Lock clear mode — a second step press selects the slot to clear.
+                // MHZ.3.4: P-Lock clear mode — a second step press stages/un-stages a slot.
+                // Cell index maps into a packed list of the step's P-locked slots (not by
+                // raw slot index). Staged removals are committed on Func release.
                 if (uiState_.pLockClearMode)
                 {
-                    const int slotIdx  = ev.index;  // step cell 0-15 → slot index 0-15
-                    const int numSlots = processor_.numParams(uiState_.pLockClearTrack);
-                    if (slotIdx >= 0 && slotIdx < numSlots)
-                        processor_.clearParam(uiState_.pLockClearTrack,
-                                              uiState_.pLockClearStep, slotIdx);
-                    // Stay in mode until Func is released; allow clearing multiple slots.
+                    const int cellIdx  = ev.index;
+                    const int track    = uiState_.pLockClearTrack;
+                    const int step     = uiState_.pLockClearStep;
+                    const int numSlots = processor_.numParams(track);
+                    if (track >= 0 && step >= 0 && step < kMaxStepsPerTrack)
+                    {
+                        // Rebuild the packed slot list (same order as the render).
+                        const auto& stepData = processor_.sequence()
+                            .tracks[static_cast<std::size_t>(track)]
+                            .steps[static_cast<std::size_t>(step)];
+                        std::vector<int> lockedSlots;
+                        for (int s = 0; s < numSlots; ++s)
+                            if (stepData.overrides.has(s))
+                                lockedSlots.push_back(s);
+
+                        if (cellIdx >= 0 && cellIdx < static_cast<int>(lockedSlots.size()))
+                        {
+                            const int slotIdx = lockedSlots[static_cast<std::size_t>(cellIdx)];
+                            if (uiState_.pLockClearStaged.count(slotIdx) > 0)
+                                uiState_.pLockClearStaged.erase(slotIdx);  // cancel
+                            else
+                                uiState_.pLockClearStaged.insert(slotIdx); // stage
+                        }
+                    }
                     keyboardArea_.repaint();
                     return true;
                 }
@@ -958,6 +978,7 @@ namespace lockstep
                 {
                     const int absStep = keyboardArea_.currentPage() * KeyboardArea::kPageSteps
                                         + ev.index;
+                    uiState_.pLockClearStaged.clear();  // fresh session
                     uiState_.pLockClearMode  = true;
                     uiState_.pLockClearTrack = keyboardArea_.getActiveTrack();
                     uiState_.pLockClearStep  = absStep;
@@ -1274,7 +1295,14 @@ namespace lockstep
                 deferredPatternMutes_.clear();
                 uiState_.pendingPatternMuteToggle.fill(false);
                 uiState_.funcHeld = false;
-                // MHZ.3.4: Func release exits P-Lock clear mode.
+                // MHZ.3.4: Func release commits staged P-Lock clears, then exits mode.
+                if (uiState_.pLockClearMode)
+                {
+                    for (const int slot : uiState_.pLockClearStaged)
+                        processor_.clearParam(uiState_.pLockClearTrack,
+                                              uiState_.pLockClearStep, slot);
+                    uiState_.pLockClearStaged.clear();
+                }
                 uiState_.pLockClearMode  = false;
                 uiState_.pLockClearTrack = -1;
                 uiState_.pLockClearStep  = -1;

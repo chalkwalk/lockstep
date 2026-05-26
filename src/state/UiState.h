@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <set>
 #include "../core/Sequence.h"   // kNumTracks
 #include "../io/TrigGridMode.h"
 #include "../machine/IMachine.h"  // kMaxSections
@@ -69,12 +70,14 @@ namespace lockstep
         bool stepHeld = false;
 
         // MHZ.3.4: step-driven P-Lock clear mode. Entered when Func+step is pressed
-        // (no other step held). Step cells re-skin to show the target step's P-locked
-        // slot labels; pressing a cell clears that slot's P-Lock. Released when Func
-        // is released.
-        bool pLockClearMode  = false;
-        int  pLockClearTrack = -1;
-        int  pLockClearStep  = -1;
+        // (no other step held). Step cells re-skin to show only the target step's
+        // P-locked slots, packed into the first N cells; pressing a cell stages that
+        // slot for removal. Pressing a staged cell cancels the removal. Clears are
+        // committed permanently when Func is released.
+        bool        pLockClearMode   = false;
+        int         pLockClearTrack  = -1;
+        int         pLockClearStep   = -1;
+        std::set<int> pLockClearStaged;  // slot indices pending permanent removal
 
         // MHZ.3.5: true while Func+Part are both held (machine picker mode).
         // Step cells re-skin to show available machine names; pressing a cell assigns

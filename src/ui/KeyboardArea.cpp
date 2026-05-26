@@ -9,6 +9,7 @@
 #include "../core/TrigCondition.h"
 #include <algorithm>
 #include <cstddef>
+#include <vector>
 
 namespace lockstep
 {
@@ -1302,8 +1303,10 @@ namespace lockstep
             return;
         }
 
-        // MHZ.3.4: P-Lock clear mode — step cells show slot labels for the target step.
-        // P-locked slots are bright; empty slots are dim. Press a cell to clear that slot.
+        // MHZ.3.4: P-Lock clear mode — packed display of only the set P-locks.
+        // Cells 0..N-1 map to the N P-locked slots (sorted ascending by slot index).
+        // Bright = active lock; staged-for-removal shown dimmed. Press to stage/un-stage.
+        // All staged removals are committed on Func release.
         if (uiState_.pLockClearMode
             && uiState_.pLockClearTrack == activeTrack_
             && uiState_.pLockClearStep >= 0)
@@ -1315,58 +1318,70 @@ namespace lockstep
                 .steps[static_cast<std::size_t>(targetStep)];
             const int numSlots = processor_.numParams(activeTrack_);
 
+            // Build packed list of all P-locked slot indices.
+            std::vector<int> lockedSlots;
+            for (int s = 0; s < numSlots; ++s)
+                if (stepData.overrides.has(s))
+                    lockedSlots.push_back(s);
+
             for (int row = 0; row < kRows; ++row)
             {
                 for (int col = 0; col < kCols; ++col)
                 {
-                    const int slotIdx = row * kCols + col;
-                    const bool hasSlot = slotIdx < numSlots;
-                    const bool hasLock = hasSlot && stepData.overrides.has(slotIdx);
+                    const int cellIdx = row * kCols + col;
+                    const bool hasPacked = cellIdx < static_cast<int>(lockedSlots.size());
+                    const int slotIdx = hasPacked ? lockedSlots[static_cast<std::size_t>(cellIdx)] : -1;
+                    const bool isStaged = hasPacked && uiState_.pLockClearStaged.count(slotIdx) > 0;
 
                     const int x = colX(row, col + 2);
                     const int y = rowY(row);
                     const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
-                    juce::Colour fill;
-                    if (!hasSlot)
-                        fill = juce::Colour(kStepOutRange);
-                    else if (hasLock)
-                        fill = clearTint.withAlpha(0.45f);
-                    else
-                        fill = clearTint.withAlpha(0.06f);
-
-                    g.setColour(fill);
-                    g.fillRoundedRectangle(cell.toFloat(), 4.0f);
-
-                    if (hasSlot && hasLock)
+                    if (!hasPacked)
                     {
+                        g.setColour(juce::Colour(kStepOutRange));
+                        g.fillRoundedRectangle(cell.toFloat(), 4.0f);
+                    }
+                    else if (isStaged)
+                    {
+                        // Staged for removal: dimmed fill, dashed-style outline.
+                        g.setColour(clearTint.withAlpha(0.10f));
+                        g.fillRoundedRectangle(cell.toFloat(), 4.0f);
+                        g.setColour(clearTint.withAlpha(0.35f));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
+                    }
+                    else
+                    {
+                        // Active lock: bright fill + outline.
+                        g.setColour(clearTint.withAlpha(0.45f));
+                        g.fillRoundedRectangle(cell.toFloat(), 4.0f);
                         g.setColour(clearTint.withAlpha(0.80f));
                         g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
                     }
-                    else if (hasSlot)
-                    {
-                        g.setColour(clearTint.withAlpha(0.20f));
-                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
-                    }
 
-                    if (hasSlot)
+                    if (hasPacked)
                     {
                         const juce::String label {
                             processor_.paramSpec(activeTrack_, slotIdx).label };
-                        const juce::Colour textCol = juce::Colours::white.withAlpha(hasLock ? 0.90f : 0.30f);
-                        g.setColour(textCol);
+                        const float textAlpha = isStaged ? 0.35f : 0.90f;
+                        g.setColour(juce::Colours::white.withAlpha(textAlpha));
                         g.setFont(juce::Font(juce::FontOptions(8.0f)));
                         g.drawText(label, cell.reduced(2), juce::Justification::centred, true);
                     }
 
-                    if (showKeyLetters)
-                        paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(slotIdx)],
-                                         hasSlot ? 1.0f : 0.45f);
+                    if (showKeyLetters && hasPacked)
+                        paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(cellIdx)],
+                                         1.0f);
                 }
             }
+            const int stagedCount = static_cast<int>(uiState_.pLockClearStaged.size());
+            const juce::String navMsg = stagedCount > 0
+                ? "CLEAR P-LOCK  " + juce::String(stagedCount) + " staged  (release FUNC to commit)"
+                : "CLEAR P-LOCK  " + juce::String(static_cast<int>(lockedSlots.size()))
+                  + " lock(s)  (release FUNC to exit)";
             g.setColour(juce::Colour::fromRGB(80, 95, 115));
             g.setFont(juce::Font(juce::FontOptions(10.0f)));
-            g.drawText("CLEAR P-LOCK  (release FUNC to exit)", navArea, juce::Justification::centred);
+            g.drawText(navMsg, navArea, juce::Justification::centred);
             return;
         }
 
