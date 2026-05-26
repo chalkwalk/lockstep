@@ -791,6 +791,8 @@ namespace lockstep
             }
 
             case ControllerButton::MetaSection:
+                if (uiState_.funcHeld && ev.index == 0)
+                    uiState_.funcTrigHeld = true;  // Func+Trig compound — enables note-edit gesture
                 keyboardArea_.selectMetaSection(ev.index);
                 return true;
 
@@ -940,6 +942,51 @@ namespace lockstep
                     return true;
                 }
 
+                // NoteEdit mode: step keys are a 1-octave chromatic keyboard.
+                // Cells 0-11 = semitones C through B; cells 12-15 = unused.
+                if (uiState_.noteEditMode)
+                {
+                    const int semitone = ev.index;
+                    if (semitone >= 0 && semitone < 12)
+                    {
+                        const int absNote = (uiState_.noteEditOctave + 1) * 12 + semitone;
+                        const int activeTrack = keyboardArea_.getActiveTrack();
+                        auto& trk = processor_.sequence()
+                                        .tracks[static_cast<std::size_t>(activeTrack)];
+                        for (const int stepIdx : uiState_.noteEditSteps)
+                        {
+                            if (stepIdx < 0 || stepIdx >= kMaxStepsPerTrack) continue;
+                            auto& s = trk.steps[static_cast<std::size_t>(stepIdx)];
+                            auto& staged = uiState_.noteEditStaged[stepIdx];
+                            bool inNotes = false;
+                            for (int n = 0; n < s.trigOverride.noteCount; ++n)
+                                if (s.trigOverride.notes[n] == absNote) { inNotes = true; break; }
+                            if (inNotes && staged.count(absNote) == 0)
+                                staged.insert(absNote);        // stage for removal
+                            else if (inNotes && staged.count(absNote) > 0)
+                                staged.erase(absNote);         // cancel removal
+                            else if (!inNotes && s.trigOverride.noteCount < kMaxNotesPerStep)
+                            {
+                                s.trigOverride.notes[s.trigOverride.noteCount++] = absNote;
+                                s.trig = true;
+                            }
+                        }
+                    }
+                    keyboardArea_.repaint();
+                    return true;
+                }
+
+                // Func+Trig+step: tentative note-edit entry.
+                // Suppress pLockClearMode; NoteEdit mode activates on step key release.
+                if (uiState_.funcTrigHeld && !uiState_.noteEditMode)
+                {
+                    const int absStep = keyboardArea_.currentPage() * KeyboardArea::kPageSteps
+                                        + ev.index;
+                    uiState_.noteEditSteps = { absStep };
+                    keyboardArea_.repaint();
+                    return true;
+                }
+
                 // MHZ.3.4: P-Lock clear mode — a second step press stages/un-stages a slot.
                 // Cell index maps into a packed list of the step's P-locked slots (not by
                 // raw slot index). Staged removals are committed on Func release.
@@ -1011,6 +1058,12 @@ namespace lockstep
                 return true;
 
             case ControllerButton::NavUp:
+                if (uiState_.noteEditMode)
+                {
+                    uiState_.noteEditOctave = std::min(uiState_.noteEditOctave + 1, 8);
+                    keyboardArea_.repaint();
+                    return true;
+                }
                 // Up = next higher track number (user expectation).
                 keyboardArea_.setActiveTrack(
                     std::min(static_cast<int>(kNumTracks) - 1,
@@ -1018,6 +1071,12 @@ namespace lockstep
                 return true;
 
             case ControllerButton::NavDown:
+                if (uiState_.noteEditMode)
+                {
+                    uiState_.noteEditOctave = std::max(uiState_.noteEditOctave - 1, 0);
+                    keyboardArea_.repaint();
+                    return true;
+                }
                 // Down = previous (lower) track number.
                 keyboardArea_.setActiveTrack(std::max(0, keyboardArea_.getActiveTrack() - 1));
                 return true;
@@ -1295,6 +1354,30 @@ namespace lockstep
                 deferredPatternMutes_.clear();
                 uiState_.pendingPatternMuteToggle.fill(false);
                 uiState_.funcHeld = false;
+                // NoteEdit: Func release commits staged note removals, then exits mode.
+                if (uiState_.noteEditMode)
+                {
+                    const int activeTrack = keyboardArea_.getActiveTrack();
+                    auto& trk = processor_.sequence()
+                                    .tracks[static_cast<std::size_t>(activeTrack)];
+                    for (auto& [stepIdx, staged] : uiState_.noteEditStaged)
+                    {
+                        if (stepIdx < 0 || stepIdx >= kMaxStepsPerTrack) continue;
+                        auto& s = trk.steps[static_cast<std::size_t>(stepIdx)];
+                        int newCount = 0;
+                        std::array<int, kMaxNotesPerStep> kept{};
+                        for (int n = 0; n < s.trigOverride.noteCount; ++n)
+                            if (staged.count(s.trigOverride.notes[n]) == 0)
+                                kept[static_cast<std::size_t>(newCount++)] = s.trigOverride.notes[n];
+                        s.trigOverride.noteCount = newCount;
+                        for (int n = 0; n < newCount; ++n)
+                            s.trigOverride.notes[n] = kept[static_cast<std::size_t>(n)];
+                    }
+                    uiState_.noteEditMode = false;
+                    uiState_.noteEditSteps.clear();
+                    uiState_.noteEditStaged.clear();
+                }
+                uiState_.funcTrigHeld = false;
                 // MHZ.3.4: Func release commits staged P-Lock clears, then exits mode.
                 if (uiState_.pLockClearMode)
                 {
@@ -1368,6 +1451,7 @@ namespace lockstep
             case CB::Section:
             case CB::MetaSection:
                 heldSectionRawCode_ = -1;
+                uiState_.funcTrigHeld = false;  // Trig released: no longer in Func+Trig compound
                 editMode_.setSectionHeld(false);
                 break;
 
@@ -1377,6 +1461,24 @@ namespace lockstep
 
             case CB::Step:
             {
+                // Func+Trig+step: step release while funcTrigHeld → enter NoteEdit mode.
+                if (uiState_.funcTrigHeld && !uiState_.noteEditMode
+                    && !uiState_.noteEditSteps.empty())
+                {
+                    uiState_.noteEditMode = true;
+                    uiState_.noteEditStaged.clear();
+                    keyboardArea_.repaint();
+                    repaint();
+                    break;
+                }
+
+                // NoteEdit mode: key-up on a chromatic cell; no further processing needed.
+                if (uiState_.noteEditMode)
+                {
+                    keyboardArea_.repaint();
+                    break;
+                }
+
                 // MG.2: retrig key release — this step key started continuous retrig.
                 if (uiState_.retrigKeyHeld && uiState_.retrigKeyCode == rawCode)
                 {

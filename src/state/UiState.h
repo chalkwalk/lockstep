@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <map>
 #include <set>
 #include "../core/Sequence.h"   // kNumTracks
 #include "../io/TrigGridMode.h"
@@ -83,6 +84,16 @@ namespace lockstep
         // Step cells re-skin to show available machine names; pressing a cell assigns
         // the machine for the active track.
         bool funcPartHeld = false;
+
+        // Note-edit mode: Func+Trig+step gesture. Step cells become a 1-octave
+        // chromatic keyboard; pressing a cell toggles a pitch on the target steps.
+        // Entered when a step is released while Func+Section(0) are still held.
+        bool funcTrigHeld    = false;  // true while Func + Section(0) are both held
+        bool noteEditMode    = false;
+        int  noteEditOctave  = 3;  // current view octave (C3 = MIDI 48, C4 = MIDI 60)
+        std::set<int> noteEditSteps;  // step indices currently being edited
+        // Pitches (absolute MIDI note) staged for removal; committed on Func release.
+        std::map<int, std::set<int>> noteEditStaged;  // stepIndex → set of MIDI notes
 
         // Per-track pending pattern mute toggle (Func+Mute deferred multi-select).
         // True = this track has an odd number of pending presses and will flip its

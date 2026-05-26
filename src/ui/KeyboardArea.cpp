@@ -1303,6 +1303,146 @@ namespace lockstep
             return;
         }
 
+        // NoteEdit mode: 1-octave chromatic keyboard overlay.
+        // Cells 0-11 = C through B; cells 12-15 = unused.
+        // Bright = note active in current octave; staged = dim (removal pending).
+        // Cross-octave instances shown as small octave-number badges.
+        if (uiState_.noteEditMode && !uiState_.noteEditSteps.empty())
+        {
+            static constexpr const char* kNoteNames[] =
+                { "C","C#","D","D#","E","F","F#","G","G#","A","A#","B" };
+            static constexpr bool kIsBlack[] =
+                { false,true,false,true,false,false,true,false,true,false,true,false };
+
+            const juce::Colour noteTint  = juce::Colour::fromRGB(80, 180, 220);
+            const juce::Colour stageTint = juce::Colour::fromRGB(220, 100, 60);
+
+            // Collect notes across all target steps for rendering.
+            const int octave = uiState_.noteEditOctave;
+            const int trackIdx = activeTrack_;
+
+            for (int row = 0; row < kRows; ++row)
+            {
+                for (int col2 = 0; col2 < kCols; ++col2)
+                {
+                    const int cellIdx = row * kCols + col2;
+                    const int x = colX(row, col2 + 2);
+                    const int y = rowY(row);
+                    const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+
+                    if (cellIdx >= 12)
+                    {
+                        // Unused — dim placeholder.
+                        g.setColour(juce::Colour(kStepOutRange));
+                        g.fillRoundedRectangle(cell.toFloat(), 4.0f);
+                        continue;
+                    }
+
+                    const int semitone  = cellIdx;
+                    const int curNote   = (octave + 1) * 12 + semitone;
+
+                    // Aggregate note state across all target steps.
+                    bool curActive = false, curStaged = false;
+                    std::vector<int> otherOctaves;
+
+                    for (const int stepIdx : uiState_.noteEditSteps)
+                    {
+                        if (stepIdx < 0 || stepIdx >= kMaxStepsPerTrack) continue;
+                        const auto& s = processor_.sequence()
+                            .tracks[static_cast<std::size_t>(trackIdx)]
+                            .steps[static_cast<std::size_t>(stepIdx)];
+                        const auto* staged = [&]() -> const std::set<int>*
+                        {
+                            auto it = uiState_.noteEditStaged.find(stepIdx);
+                            return (it != uiState_.noteEditStaged.end()) ? &it->second : nullptr;
+                        }();
+                        for (int n = 0; n < s.trigOverride.noteCount; ++n)
+                        {
+                            const int noteVal = s.trigOverride.notes[n];
+                            if (noteVal % 12 != semitone) continue;
+                            const int noteOctave = noteVal / 12 - 1;
+                            if (noteOctave == octave)
+                            {
+                                curActive = true;
+                                if (staged && staged->count(noteVal) > 0) curStaged = true;
+                            }
+                            else
+                            {
+                                bool alreadyListed = false;
+                                for (int o : otherOctaves) if (o == noteOctave) { alreadyListed = true; break; }
+                                if (!alreadyListed) otherOctaves.push_back(noteOctave);
+                            }
+                        }
+                    }
+
+                    // Fill.
+                    if (curActive && curStaged)
+                    {
+                        g.setColour(stageTint.withAlpha(0.12f));
+                        g.fillRoundedRectangle(cell.toFloat(), 4.0f);
+                        g.setColour(stageTint.withAlpha(0.60f));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
+                    }
+                    else if (curActive)
+                    {
+                        g.setColour(noteTint.withAlpha(kIsBlack[semitone] ? 0.50f : 0.65f));
+                        g.fillRoundedRectangle(cell.toFloat(), 4.0f);
+                        g.setColour(noteTint.withAlpha(0.90f));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
+                    }
+                    else if (!otherOctaves.empty())
+                    {
+                        g.setColour(noteTint.withAlpha(0.12f));
+                        g.fillRoundedRectangle(cell.toFloat(), 4.0f);
+                        g.setColour(noteTint.withAlpha(0.40f));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
+                    }
+                    else
+                    {
+                        g.setColour(juce::Colour(kIsBlack[semitone] ? 0xff202830u : 0xff2c3540u));
+                        g.fillRoundedRectangle(cell.toFloat(), 4.0f);
+                    }
+
+                    // Note name.
+                    g.setColour(curActive
+                                ? (curStaged ? stageTint : juce::Colours::white)
+                                : noteTint.withAlpha(0.60f));
+                    g.setFont(juce::Font(juce::FontOptions(9.0f)).boldened());
+                    g.drawText(juce::String(kNoteNames[semitone]), cell, juce::Justification::centred);
+
+                    // Cross-octave badges: small octave numbers, bottom of cell.
+                    if (!otherOctaves.empty())
+                    {
+                        std::sort(otherOctaves.begin(), otherOctaves.end());
+                        const int badgeW = 8, badgeH = 8, gap = 1;
+                        const int totalW = static_cast<int>(otherOctaves.size()) * (badgeW + gap) - gap;
+                        int bx = cell.getCentreX() - totalW / 2;
+                        const int by = cell.getBottom() - badgeH - 2;
+                        for (const int otherOct : otherOctaves)
+                        {
+                            const auto badge = juce::Rectangle<int>(bx, by, badgeW, badgeH);
+                            g.setColour(noteTint.withAlpha(0.55f));
+                            g.fillRoundedRectangle(badge.toFloat(), 2.0f);
+                            g.setColour(juce::Colours::white.withAlpha(0.85f));
+                            g.setFont(juce::Font(juce::FontOptions(6.0f)));
+                            g.drawText(juce::String(otherOct), badge, juce::Justification::centred);
+                            bx += badgeW + gap;
+                        }
+                    }
+
+                    if (showKeyLetters)
+                        paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(cellIdx)], 0.55f);
+                }
+            }
+
+            const juce::String navMsg = "NOTE EDIT  oct " + juce::String(octave)
+                                        + "  (NavUp/Dn to shift octave, release FUNC to commit)";
+            g.setColour(juce::Colour::fromRGB(80, 95, 115));
+            g.setFont(juce::Font(juce::FontOptions(10.0f)));
+            g.drawText(navMsg, navArea, juce::Justification::centred);
+            return;
+        }
+
         // MHZ.3.4: P-Lock clear mode — packed display of only the set P-locks.
         // Cells 0..N-1 map to the N P-locked slots (sorted ascending by slot index).
         // Bright = active lock; staged-for-removal shown dimmed. Press to stage/un-stage.
