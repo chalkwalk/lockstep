@@ -1,5 +1,6 @@
 #include "SamplePlayingMachineBase.h"
 #include <algorithm>
+#include <cmath>
 
 namespace lockstep
 {
@@ -87,5 +88,49 @@ namespace lockstep
             }
         }
         return best;
+    }
+
+    float SamplePlayingMachineBase::snapWrittenValue(int slot,
+                                                      float v,
+                                                      const SamplePool& pool,
+                                                      const ParamFrame& baseParams) const
+    {
+        juce::ignoreUnused(slot);
+
+        // Slot 0 is the sample_id in both SamplerMachine and SlicerMachine.
+        if (baseParams.empty())
+            return v;
+
+        const int sampleIdx = static_cast<int>(baseParams[0]);
+        const Sample* s = pool.get(sampleIdx);
+        if (s == nullptr || s->pcm.getNumSamples() < 2)
+            return v;
+
+        const int numSamples = s->pcm.getNumSamples();
+        const double targetPos = static_cast<double>(v) * static_cast<double>(numSamples);
+        const double searchRadius = 0.005 * s->sampleRate;  // ±5 ms
+
+        const int lo = std::max(0, static_cast<int>(targetPos - searchRadius));
+        const int hi = std::min(numSamples - 2, static_cast<int>(targetPos + searchRadius));
+
+        int bestIdx  = static_cast<int>(targetPos);
+        double bestDist = searchRadius + 1.0;
+
+        const float* ch0 = s->pcm.getReadPointer(0);
+        for (int i = lo; i <= hi; ++i)
+        {
+            // Detect sign change (zero crossing between samples i and i+1).
+            if ((ch0[i] >= 0.0f) != (ch0[i + 1] >= 0.0f))
+            {
+                const double dist = std::abs(static_cast<double>(i) - targetPos);
+                if (dist < bestDist)
+                {
+                    bestDist = dist;
+                    bestIdx  = i;
+                }
+            }
+        }
+
+        return static_cast<float>(bestIdx) / static_cast<float>(numSamples);
     }
 }

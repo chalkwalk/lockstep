@@ -9,6 +9,7 @@
 #include "machine/FMMachine.h"
 #include "machine/MidiOutMachine.h"
 #include "machine/SamplerMachine.h"
+#include "machine/SamplePlayingMachineBase.h"
 #include "machine/VAMachine.h"
 #include "machine/StubMachine.h"
 #include "state/PluginState.h"
@@ -1338,13 +1339,32 @@ namespace lockstep
 
         // Clamp sample index to the actual pool size so a full-throw CC can
         // never select a beyond-pool entry on tracks with a sample slot.
-        if (idForSlot(track, slot) == "sample_id")
+        if (idForSlot(track, slot) == "sample_id"
+            || idForSlot(track, slot) == "slicer_sample_id")
         {
             const int poolSize = samplePool_.size();
             if (poolSize > 0)
                 value = std::min(value, static_cast<float>(poolSize - 1));
             else
                 value = 0.0f;
+        }
+
+        // Zero-crossing snap: if the slot is marked zeroCrossingSnap and the
+        // machine is a SamplePlayingMachineBase, round the position value to the
+        // nearest zero-crossing in the currently-loaded sample.
+        {
+            const auto ti = static_cast<std::size_t>(track);
+            const auto* m = machines_[ti].get();
+            if (m != nullptr && slot < m->numParams()
+                && m->paramSpec(slot).zeroCrossingSnap)
+            {
+                const auto* spm = dynamic_cast<const SamplePlayingMachineBase*>(m);
+                if (spm != nullptr)
+                {
+                    const auto& bp = sequence().tracks[ti].baseParams;
+                    value = spm->snapWrittenValue(slot, value, samplePool_, bp);
+                }
+            }
         }
 
         // MD.10 Control-All: when active and no step is held on the source track,

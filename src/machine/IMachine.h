@@ -69,6 +69,11 @@ namespace lockstep
         // Non-empty → MZ renders valueLabels[round(value)] instead of a numeric string.
         // Must point to static-lifetime data; the span is non-owning.
         std::span<const char* const> valueLabels = {};
+
+        // When true, writeParam() snaps this slot's value to the nearest
+        // zero-crossing in the currently-loaded sample before storing it.
+        // Applies to normalised [0..1] position slots (start, length, loop_*).
+        bool zeroCrossingSnap = false;
     };
 
     // Returned by LockstepProcessor::section() after augmenting the machine's

@@ -33,6 +33,15 @@ namespace lockstep
         void reset() override;
         bool isVoiceActive() const override;
 
+        // Snap a normalised [0..1] position value to the nearest zero-crossing
+        // in the currently-loaded sample, searching within ±5 ms of the
+        // requested position. Returns v unchanged if no sample is loaded.
+        // Called by writeParam() when paramSpec(slot).zeroCrossingSnap is true.
+        [[nodiscard]] float snapWrittenValue(int slot,
+                                             float v,
+                                             const SamplePool& pool,
+                                             const ParamFrame& baseParams) const;
+
         // ISliceable
         [[nodiscard]] int numSlices() const override { return numSlices_; }
         void setEqualSlices(int count) override;
