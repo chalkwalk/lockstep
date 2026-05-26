@@ -1,8 +1,10 @@
 #include "PluginEditor.h"
 #include "ParameterIDs.h"
+#include "machine/DrumSynthMachine.h"
 #include "machine/FMMachine.h"
 #include "machine/IMachine.h"
 #include "machine/MidiOutMachine.h"
+#include "machine/VAMachine.h"
 #include "ui/ScopedSectionMatrix.h"
 #include <algorithm>
 
@@ -180,15 +182,6 @@ namespace lockstep
         soundBankOverlay_.onClose = [this] { soundBankOverlay_.setVisible(false); };
         soundBankOverlay_.getActiveTrack = [this]() { return keyboardArea_.getActiveTrack(); };
         addChildComponent(soundBankOverlay_);
-
-        machineSelectBtn_.setWantsKeyboardFocus(false);
-        machineSelectBtn_.onClick = [this]
-        {
-            machineSelectOverlay_.setVisible(!machineSelectOverlay_.isVisible());
-            if (machineSelectOverlay_.isVisible())
-                machineSelectOverlay_.toFront(false);
-        };
-        addAndMakeVisible(machineSelectBtn_);
 
         machineSelectOverlay_.onClose = [this] { machineSelectOverlay_.setVisible(false); };
         machineSelectOverlay_.getActiveTrack = [this]() { return keyboardArea_.getActiveTrack(); };
@@ -375,6 +368,8 @@ namespace lockstep
                 juce::String badge;
                 if (mid == juce::String(MidiOutMachine::kMachineId))       badge = "M";
                 else if (mid == juce::String(FMMachine::kMachineId))       badge = "FM";
+                else if (mid == juce::String(VAMachine::kMachineId))       badge = "VA";
+                else if (mid == juce::String(DrumSynthMachine::kMachineId))badge = "DS";
                 else if (mid.startsWith("lockstep.stub"))                  badge = "?";
                 if (badge.isNotEmpty())
                 {
@@ -1504,7 +1499,6 @@ namespace lockstep
         displayModeBtn_.setBounds(header.removeFromLeft(46).reduced(4));
         poolBtn_.setBounds(header.removeFromRight(80).reduced(4));
         soundBankBtn_.setBounds(header.removeFromRight(60).reduced(4));
-        machineSelectBtn_.setBounds(header.removeFromRight(50).reduced(4));
 
         // Tempo bar + Manipulation Zone are anchored to the top at fixed heights;
         // the key rows below fill the remaining space, so growing the window makes

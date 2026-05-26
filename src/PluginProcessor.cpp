@@ -2140,8 +2140,6 @@ namespace lockstep
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
         const auto ti = static_cast<std::size_t>(track);
 
-        if (activePartShareCount() > 1) forkActivePart();
-
         auto nm = makeMachineForId(machineId, samplePool_);
         nm->prepare(getSampleRate(), getBlockSize());
 

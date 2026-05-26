@@ -135,7 +135,6 @@ namespace lockstep
         juce::TextButton poolBtn_{ "Pool..." };
         juce::TextButton soundBankBtn_{ "SND..." };
         SoundBankOverlay soundBankOverlay_;
-        juce::TextButton machineSelectBtn_{ "MACH" };
         MachineSelectOverlay machineSelectOverlay_;
         bool isDraggingFiles_ = false;
 
