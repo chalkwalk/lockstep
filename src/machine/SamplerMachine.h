@@ -34,15 +34,19 @@ namespace lockstep
         static constexpr int kSlotStart     = 2;  // normalised [0..1], ZC-snap
         static constexpr int kSlotLength    = 3;  // normalised (0..1], ZC-snap
 
-        // Section 3 "AMP" — level + internal AHDSR
-        static constexpr int kSlotLevel     = 4;
-        static constexpr int kSlotAttack    = 5;
-        static constexpr int kSlotHold      = 6;
-        static constexpr int kSlotDecay     = 7;
-        static constexpr int kSlotSustain   = 8;
-        static constexpr int kSlotRelease   = 9;
+        static constexpr int kSlotLoopMode  = 4;  // 0=Off, 1=Sust, 2=S+R, 3=All
+        static constexpr int kSlotLoopStart = 5;  // normalised [0..1], ZC-snap
+        static constexpr int kSlotLoopLen   = 6;  // normalised (0..1], ZC-snap
 
-        static constexpr int kNumSlots    = 10;
+        // Section 3 "AMP" — level + internal AHDSR
+        static constexpr int kSlotLevel     = 7;
+        static constexpr int kSlotAttack    = 8;
+        static constexpr int kSlotHold      = 9;
+        static constexpr int kSlotDecay     = 10;
+        static constexpr int kSlotSustain   = 11;
+        static constexpr int kSlotRelease   = 12;
+
+        static constexpr int kNumSlots    = 13;
         static constexpr int kNumSections = 4;
 
         [[nodiscard]] SamplePlayer::Spec buildSpec(int midiNote,

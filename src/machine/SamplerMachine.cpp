@@ -28,21 +28,61 @@ namespace lockstep
             : 0.0;
 
         const double startNorm  = static_cast<double>(p(kSlotStart));
-        const double lengthNorm = static_cast<double>(p(kSlotLength));
-        const double winStart   = startNorm  * numSrcSamples;
-        const double winEnd     = (startNorm + lengthNorm) * numSrcSamples;
+        const double lengthNorm = std::max(0.001, static_cast<double>(p(kSlotLength)));
+        const double winStart   = startNorm * numSrcSamples;
+        const double winEnd     = std::min((startNorm + lengthNorm) * numSrcSamples,
+                                           numSrcSamples);
+
+        // Loop slots — relative to the playback window.
+        const int loopModeInt  = static_cast<int>(std::round(p(kSlotLoopMode)));
+        const auto loopMode    = static_cast<SamplePlayer::LoopMode>(
+            std::clamp(loopModeInt, 0,
+                       static_cast<int>(SamplePlayer::LoopMode::All)));
+
+        const double loopStartNorm = static_cast<double>(p(kSlotLoopStart));
+        const double loopLenNorm   = static_cast<double>(p(kSlotLoopLen));
+
+        // Compute absolute loop bounds based on mode.
+        double absLoopStart = 0.0;
+        double absLoopEnd   = 0.0;
+        const double windowLen = winEnd - winStart;
+
+        switch (loopMode)
+        {
+        case SamplePlayer::LoopMode::Off:
+            break;
+        case SamplePlayer::LoopMode::Sust:
+            // User-set loop_start and loop_length apply (free).
+            absLoopStart = winStart + loopStartNorm * windowLen;
+            absLoopEnd   = absLoopStart + loopLenNorm * windowLen;
+            break;
+        case SamplePlayer::LoopMode::SustAndRel:
+            // loop_start user-set; loop_length auto = window_end − loop_start.
+            absLoopStart = winStart + loopStartNorm * windowLen;
+            absLoopEnd   = winEnd;
+            break;
+        case SamplePlayer::LoopMode::All:
+            // Both auto: loop = full playback window.
+            absLoopStart = winStart;
+            absLoopEnd   = winEnd;
+            break;
+        }
+        absLoopEnd = std::min(absLoopEnd, winEnd);
 
         SamplePlayer::Spec spec;
-        spec.sampleIndex   = sampleIdx;
-        spec.positionStart = winStart;
-        spec.windowEnd     = winEnd;
-        spec.rate          = std::pow(2.0, semitones / 12.0);
-        spec.level         = p(kSlotLevel);
+        spec.sampleIndex    = sampleIdx;
+        spec.positionStart  = winStart;
+        spec.windowEnd      = winEnd;
+        spec.rate           = std::pow(2.0, semitones / 12.0);
+        spec.level          = p(kSlotLevel);
         spec.attackSamples  = msToSamples(p(kSlotAttack),  sampleRate_);
         spec.holdSamples    = msToSamples(p(kSlotHold),    sampleRate_);
         spec.decaySamples   = msToSamples(p(kSlotDecay),   sampleRate_);
         spec.sustainLevel   = p(kSlotSustain);
         spec.releaseSamples = msToSamples(p(kSlotRelease), sampleRate_);
+        spec.loopStart      = absLoopStart;
+        spec.loopEnd        = absLoopEnd;
+        spec.loopMode       = loopMode;
         return spec;
     }
 
@@ -218,6 +258,21 @@ namespace lockstep
             break;
         case kSlotLength:
             ps = { "samp_length", "Length", 0.0f, 1.0f, 1.0f, false, U::None, 1, R::None };
+            ps.zeroCrossingSnap = true;
+            break;
+        case kSlotLoopMode:
+        {
+            static constexpr const char* kLoopLabels[] = { "OFF", "SUS", "S+R", "ALL" };
+            ps = { "samp_loop_mode", "Loop",    0.0f, 3.0f, 0.0f, true, U::None, 1, R::None };
+            ps.valueLabels = kLoopLabels;
+            break;
+        }
+        case kSlotLoopStart:
+            ps = { "samp_loop_start", "LpStart", 0.0f, 1.0f, 0.0f, false, U::None, 1, R::None };
+            ps.zeroCrossingSnap = true;
+            break;
+        case kSlotLoopLen:
+            ps = { "samp_loop_len", "LpLen",   0.0f, 1.0f, 1.0f, false, U::None, 1, R::None };
             ps.zeroCrossingSnap = true;
             break;
         // Canonical section 3 "AMP"
