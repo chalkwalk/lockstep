@@ -21,10 +21,21 @@ namespace lockstep
         const double pitchOffset = static_cast<double>(p(kSlotPitch));
         const double semitones   = static_cast<double>(midiNote - 60) + pitchOffset;
 
+        const int sampleIdx = static_cast<int>(p(kSlotSampleId));
+        const Sample* sample = pool_.get(sampleIdx);
+        const double numSrcSamples = (sample != nullptr)
+            ? static_cast<double>(sample->pcm.getNumSamples())
+            : 0.0;
+
+        const double startNorm  = static_cast<double>(p(kSlotStart));
+        const double lengthNorm = static_cast<double>(p(kSlotLength));
+        const double winStart   = startNorm  * numSrcSamples;
+        const double winEnd     = (startNorm + lengthNorm) * numSrcSamples;
+
         SamplePlayer::Spec spec;
-        spec.sampleIndex   = static_cast<int>(p(kSlotSampleId));
-        spec.positionStart = 0.0;
-        spec.windowEnd     = 0.0;  // 0 = full sample
+        spec.sampleIndex   = sampleIdx;
+        spec.positionStart = winStart;
+        spec.windowEnd     = winEnd;
         spec.rate          = std::pow(2.0, semitones / 12.0);
         spec.level         = p(kSlotLevel);
         spec.attackSamples  = msToSamples(p(kSlotAttack),  sampleRate_);
@@ -191,18 +202,34 @@ namespace lockstep
     {
         using U = ParamSpec::Unit;
         using R = ParamSpec::Role;
+        ParamSpec ps;
         switch (index)
         {
-        case kSlotSampleId: return { "sample_id", "Sample",   0.0f,    63.0f,   0.0f, true,  U::None,      1, R::None    };
-        case kSlotPitch:    return { "pitch",      "Pitch",  -24.0f,   24.0f,   0.0f, false, U::Semitones, 1, R::Pitch   };
-        case kSlotLevel:    return { "level",      "Level",   0.0f,     1.0f,   1.0f, false, U::Percent,   3, R::Level   };
-        case kSlotAttack:   return { "attack",     "Attack",  0.0f,  5000.0f,   2.0f, false, U::Ms,        3, R::Attack  };
-        case kSlotHold:     return { "hold",       "Hold",    0.0f,  2000.0f,   0.0f, false, U::Ms,        3, R::Hold    };
-        case kSlotDecay:    return { "decay",      "Decay",   0.0f,  5000.0f, 500.0f, false, U::Ms,        3, R::Decay   };
-        case kSlotSustain:  return { "sustain",    "Sustain", 0.0f,     1.0f,   0.5f, false, U::Percent,   3, R::Sustain };
-        case kSlotRelease:  return { "release",    "Release", 0.0f,  5000.0f, 200.0f, false, U::Ms,        3, R::Release };
-        default:            return {};
+        // Canonical section 1 "SRC"
+        case kSlotSampleId:
+            ps = { "sample_id", "Sample",  0.0f,   63.0f,  0.0f, true,  U::None,      1, R::None  };
+            break;
+        case kSlotPitch:
+            ps = { "pitch",     "Pitch",  -24.0f,  24.0f,  0.0f, false, U::Semitones, 1, R::Pitch };
+            break;
+        case kSlotStart:
+            ps = { "samp_start",  "Start",  0.0f, 1.0f, 0.0f, false, U::None, 1, R::None };
+            ps.zeroCrossingSnap = true;
+            break;
+        case kSlotLength:
+            ps = { "samp_length", "Length", 0.0f, 1.0f, 1.0f, false, U::None, 1, R::None };
+            ps.zeroCrossingSnap = true;
+            break;
+        // Canonical section 3 "AMP"
+        case kSlotLevel:    ps = { "level",   "Level",   0.0f,    1.0f,   1.0f, false, U::Percent,   3, R::Level   }; break;
+        case kSlotAttack:   ps = { "attack",  "Attack",  0.0f, 5000.0f,   2.0f, false, U::Ms,        3, R::Attack  }; break;
+        case kSlotHold:     ps = { "hold",    "Hold",    0.0f, 2000.0f,   0.0f, false, U::Ms,        3, R::Hold    }; break;
+        case kSlotDecay:    ps = { "decay",   "Decay",   0.0f, 5000.0f, 500.0f, false, U::Ms,        3, R::Decay   }; break;
+        case kSlotSustain:  ps = { "sustain", "Sustain", 0.0f,    1.0f,   0.5f, false, U::Percent,   3, R::Sustain }; break;
+        case kSlotRelease:  ps = { "release", "Release", 0.0f, 5000.0f, 200.0f, false, U::Ms,        3, R::Release }; break;
+        default:            break;
         }
+        return ps;
     }
 
     SectionInfo SamplerMachine::section(int index) const

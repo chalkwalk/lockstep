@@ -31,16 +31,18 @@ namespace lockstep
         // Dense slot layout — Section 1 "SRC"
         static constexpr int kSlotSampleId  = 0;
         static constexpr int kSlotPitch     = 1;
+        static constexpr int kSlotStart     = 2;  // normalised [0..1], ZC-snap
+        static constexpr int kSlotLength    = 3;  // normalised (0..1], ZC-snap
 
         // Section 3 "AMP" — level + internal AHDSR
-        static constexpr int kSlotLevel     = 2;
-        static constexpr int kSlotAttack    = 3;
-        static constexpr int kSlotHold      = 4;
-        static constexpr int kSlotDecay     = 5;
-        static constexpr int kSlotSustain   = 6;
-        static constexpr int kSlotRelease   = 7;
+        static constexpr int kSlotLevel     = 4;
+        static constexpr int kSlotAttack    = 5;
+        static constexpr int kSlotHold      = 6;
+        static constexpr int kSlotDecay     = 7;
+        static constexpr int kSlotSustain   = 8;
+        static constexpr int kSlotRelease   = 9;
 
-        static constexpr int kNumSlots    = 8;
+        static constexpr int kNumSlots    = 10;
         static constexpr int kNumSections = 4;
 
         [[nodiscard]] SamplePlayer::Spec buildSpec(int midiNote,
