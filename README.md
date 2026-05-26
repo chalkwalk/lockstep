@@ -171,7 +171,7 @@ other naturally with no master-bar concept.
 | **P-Lock** (parameter lock) | A per-step override of one or more of a sound engine's parameters. Hold a step, turn a control. |
 | **Trig override** | A per-step override of a sequencer field — note, velocity, gate, or condition — as opposed to an engine parameter. |
 | **Override-ELSE-Base** | The one resolution rule: effective value = step override if present, else track base. |
-| **Machine** | A sound engine. Each track hosts one. Lockstep ships six: `SamplerMachine` (monophonic sample playback), `FMMachine` (4-op FM synthesizer, mono/poly), `VAMachine` (virtual-analog dual-osc + SVF synth, mono/para), `DrumSynthMachine` (Rytm-style drum synth — kick, snare, hat, tom via one stepped param), `MidiOutMachine` (MIDI CC/note output to external gear), and `StubMachine` (silent fallback for unknown IDs). |
+| **Machine** | A sound engine. Each track hosts one. Lockstep ships seven: `SamplerMachine` (monophonic sample playback with trim, loop region, ZC-snap), `SlicerMachine` (slice/scrub dual-mode with transient detection and poly), `FMMachine` (4-op FM synthesizer, mono/poly), `VAMachine` (virtual-analog dual-osc + SVF synth, mono/para), `DrumSynthMachine` (Rytm-style drum synth — kick, snare, hat, tom via one stepped param), `MidiOutMachine` (MIDI CC/note output to external gear), and `StubMachine` (silent fallback for unknown IDs). |
 | **Part** | The per-track kit: machine identity, base parameters, sample refs. Shared or owned per pattern. |
 | **Pattern** | The trig grid and per-step data; references one Part. |
 | **Bank** | A group of patterns with addressable slots. |
@@ -421,6 +421,17 @@ Lockstep has 16 tracks. The track header shows 8 at a time; the **"1–8" / "9�
 
 Tracks 1–8 default to `SamplerMachine` and tracks 9–16 to `MidiOutMachine` (Digitakt-style default split). Any track can be reassigned to any machine via **`Part + SRC`** (`W + 6` — opens the machine selector popup; replaces the retired `Func+R` gesture). A small **"M"** badge in the top-right corner of a track button identifies MIDI-out tracks at a glance.
 
+#### Machine catalogue
+
+| Machine | Badge | Description |
+|---|---|---|
+| `SamplerMachine` | SP | Monophonic sample playback. SRC section: sample, pitch, trim window (`samp_start` / `samp_length`), loop mode (OFF / SUS / S+R / ALL), loop region (`samp_loop_start` / `samp_loop_len`). All position slots snap to zero-crossings on write. AMP section: level + AHDSR. |
+| `SlicerMachine` | SL | Slice/scrub sample playback. SLICE mode: incoming MIDI note selects slice 0–15; `slicer_start` / `slicer_length` are relative to the active slice. SCRUB mode: note drives playback rate vs. root 60 (identical to Sampler semantics). `slicer_rate` P-lockable for per-step rate; negative rate = reverse playback. `slicer_slice_src` (EQUAL / TRANS) and `slicer_slice_count` auto-recompute slices on change; transient detection uses 5 ms RMS blocks with fast/slow envelope ratio and centre-weighted search. VOICE section: MONO / POLY toggle (V4). |
+| `FMMachine` | FM | 4-operator FM synthesis. Free 4×4 modulation matrix. Per-operator ADSR, ratio, fine-tune, mix. Macro attack/release/sustain scalars. MONO / POLY voice modes (V4 pool). |
+| `VAMachine` | VA | Virtual-analog dual-osc synth. Saw/Pulse/Tri/Sin PolyBLEP oscillators + sub + noise. State-variable filter (LP4/LP2/HP/BP + drive). Filter ADSR + amp ADSR. LFO (6 shapes). Mono / Paraphonic-4 voice modes. |
+| `DrumSynthMachine` | DR | Rytm-style per-track drum synthesis. Type param selects KICK / SNARE / HAT / TOM variant; each has dedicated DSP (exponential pitch sweep + waveshaper / bandpass noise / hipass noise / sine + tom body). |
+| `MidiOutMachine` | M | MIDI CC / note output to external gear. Configurable destination, channel, program, 16 CC slots with user-assignable numbers and labels. |
+
 Focus determines what the contextual encoders edit and what selected-track MIDI mappings drive.
 
 ### 5.6 Step editing
@@ -660,8 +671,17 @@ behaviour of these modes lands in a later milestone (see
 Lockstep is under active development. This manual describes both the
 shipped behaviour and the design intent. To avoid confusion:
 
-**Working today** (milestones M0–MD, MG, MGX, MH.1): sample loading and playback;
-AHDSR envelope; choke micro-fade; DC blocker, soft-clip, gain smoothing;
+**Working today** (milestones M0–MH.4): sample loading and playback;
+**sampler trim and loop** — `samp_start` / `samp_length` window into a sample,
+`samp_loop_mode` (OFF / SUS / S+R / ALL), `samp_loop_start` / `samp_loop_len`
+loop region relative to the playback window; edit-time zero-crossing snap on all
+four position slots; **SlicerMachine** (`lockstep.slicer.v1`) — dual-mode SLICE
+(note → slice index 0–15, start/length relative to active slice) and SCRUB
+(note → pitch rate); up to 16 slices, auto-placed by equal division or
+transient detection (5 ms RMS blocks, fast/slow envelope ratio, triangular
+centre-weighted search, ZC snap within block); MONO / POLY toggle (V4 voice
+pool); per-slice anti-click fade; reverse playback at `slicer_rate < 0`; AHDSR
+envelope; choke micro-fade; DC blocker, soft-clip, gain smoothing;
 polymetric multi-track sequencing; P-Lock editing; trig conditions
 (probability / m:n / prev-dep); MIDI CC ingestion with soft-takeover and
 scoped mappings; MIDI clock + sync modes; the full QWERTY overlay
@@ -688,18 +708,11 @@ filter + amp envelope). **Note:** the shipping overlay is still the
 **9×4** layout (one left modifier column, four-slot Manipulation Zone);
 §5 documents the 10×4 target that MHX delivers.
 
-**Planned** (remaining milestones; **MHZ is next**, then MH.3
-resumes): the **keyboard / UI revamp** — bigger key cells, 6-char
-labels, unified label-resolution helper, scope colour grammar
-(MHZ.1); step-grid scope re-skin, top-bar dashboard + held-context
-preview, MZ streamline + `ParamSpec.valueLabels`, double-click default
-(MHZ.2); step-hold MIDI capture, P-Lock clear gestures, popup picker
-(MHZ.3); the remaining sound engines — drum-synth, slicer, static,
-percussion (MH.3–MH.7) authored against the MHZ surface; post-machine
+**Planned** (remaining milestones): post-machine
 FILTER and AMP blocks with role-tagged sections (ME); the first-class
 MIDI-out machine (MF); the full behaviour of the alternate trig modes
 — Keyboard / Retrig / Sound Pool (MG); scenes + crossfader (MI);
-pattern/part management UI (MJ); sampler trim/loop depth (MK);
+pattern/part management UI (MJ);
 microtiming and swing (ML); 16-levels mode (MM); live sampling and
 resampling (MN); audition and cross-track record (MO); UI polish and
 the state-colour palette (MP); special trig types (MQ); audio-input

@@ -10,9 +10,9 @@ feature must satisfy, see `PRINCIPLES.md`. **Before adding a
 milestone here, confirm it is expressible within those principles
 and within the existing scope+verb grammar (DESIGN §13).**
 
-**Active focus:** MH.3 — DrumSynthMachine (Rytm-style per-track drum synthesis, kick/snare/hat/tom variants). Authoring against the MHY contract (scope-indexed sections, MOD canonical, Part scope, Yes/Rec/Play/Stop/No verbs). **Paused** while MHZ.1 → MHZ.3 (keyboard / UI revamp) land — MH.3 resumes against the improved surface.
-**Last completed:** MHY — Surface revamp complete: modifier cluster remapped (Func/Track|Pattern/Part|Scene/Master|Mute/Fill), LFO→MOD, ParamSpec.variant, right-utility row Yes/Rec/Play/Stop/No, scope-section matrix scaffolding + reactive chrome, tap tempo implemented.
-**Next up:** MHZ — Keyboard / UI revamp (MHZ.1 chrome + label grammar → MHZ.2 contextual modes + top bar + MZ streamline → MHZ.3 step-hold note capture + P-Lock clear + step-driven edit mode). Lands before MH.3 resumes.
+**Active focus:** MH.5 — machine pack file format.
+**Last completed:** MH.4 — Sampler depth (trim, loop region, ZC-snap) + SlicerMachine on shared SamplePlayingMachineBase.
+**Next up:** MH.5 — machine pack format; then MH.6 StaticMachine, MH.7 PercussionMachine, ME post-machine FLTR/AMP, MF MIDI-out.
 
 After M8 the roadmap pivots from "core sequencer is usable" to
 "performance instrument is usable" — see milestones MB–MI below
@@ -1035,8 +1035,12 @@ resumes once MHZ.1 → MHZ.3 are complete.
       last-note-off. Backward-compatible serialization.
 - [x] **MH.3** DrumSynthMachine — Rytm-style per-track drum
       synthesis (kick, snare, hat, tom variants).
-- [ ] **MH.4** SlicerMachine — Octatrack Static/Flex-inspired
-      slice-playback with playback-rate and start-point modulation.
+- [x] **MH.4** Sampler depth + SlicerMachine — trim slots (samp_start /
+      samp_length), four loop modes (OFF / SUS / S+R / ALL), loop region
+      (samp_loop_start / samp_loop_len), edit-time zero-crossing snap, shared
+      SamplePlayingMachineBase, SlicerMachine (SLICE / SCRUB dual mode, 16-slice
+      cap, transient detection, MONO / POLY toggle, anti-click fade, reverse
+      playback at rate < 0).
 - [ ] **MH.5** Define and version-stamp a "machine pack" file format
       so individual machines can ship and be discovered without
       bloating the core.
