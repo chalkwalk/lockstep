@@ -11,7 +11,8 @@ milestone here, confirm it is expressible within those principles
 and within the existing scope+verb grammar (DESIGN §13).**
 
 **Active focus:** MH.5 — machine pack file format.
-**Last completed:** MH.4 — Sampler depth (trim, loop region, ZC-snap) + SlicerMachine on shared SamplePlayingMachineBase.
+**Last completed:** MHZ.4 — Polyphonic step authoring fixes + VA paraphonic topology.
+**Previously completed:** MH.4 — Sampler depth (trim, loop region, ZC-snap) + SlicerMachine on shared SamplePlayingMachineBase.
 **Next up:** MH.5 — machine pack format; then MH.6 StaticMachine, MH.7 PercussionMachine, ME post-machine FLTR/AMP, MF MIDI-out.
 
 After M8 the roadmap pivots from "core sequencer is usable" to
@@ -1010,6 +1011,46 @@ Goal: close the real grammar gaps surfaced during MHY play-testing.
       machine names render on step cells; press a step to select;
       confirm Part+SRC now shows part-base SRC params. Regression-check
       transport-time record-arm capture still works.
+
+#### MHZ.4 — Polyphonic step authoring: fixes + VA para topology  [complete]
+
+Closes the authoring gaps surfaced after MHZ.3 shipping.
+
+- [x] **MHZ.4.1** Realtime chord record — aggregate notes that quantise
+      to the same step. `lastRecordedStep_[]` tracks per-track the last
+      step written; a fresh note-on to the same step appends (de-dup);
+      a new step clears and starts fresh. Up to `kMaxNotesPerStep = 4`.
+- [x] **MHZ.4.2** Step-hold capture — snapshot-currently-held semantics.
+      Each note-on snapshots the entire currently-physically-held MIDI
+      set (not just the pressed note). Note-offs do not change the step's
+      notes. All-released (or step release) commits the last snapshot.
+      Multi-step: all held steps receive the same chord in parallel.
+      Force-enables `step.trig = true` on any note write.
+- [x] **MHZ.4.3** Note-count badge on step cells. 1–4 stacked tick marks
+      on the left edge of each step cell; reflects `trigOverride.noteCount`
+      so chord captures are immediately visible without entering any edit mode.
+- [x] **MHZ.4.4** P-Lock clear mode packed + toggle-until-commit.
+      Cells 0..N-1 now map to the N *set* P-locks (sorted by slot index),
+      not by raw slot index. Pressing a cell stages it; pressing again
+      cancels the staging. All staged removals commit on Func release.
+- [x] **MHZ.4.5** VA paraphonic topology — osc-by-slot + shared noise.
+      `SubVoice.oscType` (`0`=osc1, `1`=osc2) is set from
+      `paraChordNoteIdx_ % 2`; first and third chord notes use osc1+sub,
+      second and fourth use osc2+sub. A single shared noise generator
+      runs once per sample in `process()` and mixes before the drive
+      stage, replacing the former per-voice noise path.
+- [x] **MHZ.4.6** Note-edit mode — keyboardless chord authoring.
+      `Func + Section(0) + step` (release step while Func+Trig held)
+      enters a 1-octave chromatic keyboard overlay on the 16 step cells
+      (cells 0–11 = C through B; 12–15 unused). Pressing a cell toggles
+      a pitch in the current octave. Cross-octave instances of each pitch
+      class appear as small octave-number badges. NavUp/NavDown shift
+      the view octave. Toggle-until-commit: staged removals apply on
+      Func release. Force-enables `step.trig = true` on any add.
+- [x] **MHZ.4.7** NoteSelection (TopBias/BottomBias) exposed in the
+      TRIG meta-section. Slot 3 = "Bias" (0=TOP, 1=BOT). MZ shows
+      text labels "TOP" / "BOT". Reads and writes `Track::noteSelection`
+      directly (already serialised via `PluginState`).
 
 ### MH — Machine catalogue expansion  [pending, staggered]
 

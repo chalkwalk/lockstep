@@ -198,8 +198,11 @@ other naturally with no master-bar concept.
 | **Scope re-skin** | When a scope modifier maps to a 1-of-16 selector (Track / Pattern / Part; `Func + Part` = machine picker), the 16 step keys become a non-paginated index for that scope. Unavailable indices dim. Cells tint in the scope's colour. |
 | **Top-bar dashboard** *(planned, MHZ.2)* | The top of the editor splits into a persistent performance dashboard (BPM, Bank/Pattern/Part, transport position, chain queue, checkpoint depth) on the left, and a live held-context preview on the right. |
 | **Value-label table** *(planned, MHZ.2)* | A `ParamSpec` field carrying textual names for stepped/enum positions (`LP24 / LP12 / HP / BP`, `MONO / PARA`, …). The MZ renders the textual name in place of a number when present. |
-| **Step-hold capture window** | The canonical chord-edit path: hold a step → play MIDI → notes write to that step; release commits velocity (highest) and gate. Empty capture = no change. Independent of record-arm and transport. |
-| **P-Lock clear gestures** | `Trig + Func + Stop` clears every P-Lock on the held step(s), leaving trig intact. `Trig + (active MZ slot) + Stop` clears only that one slot. `Func + step` enters P-Lock clear mode: cells re-skin orange, press a cell to clear its slot, release Func to exit. |
+| **Step-hold capture window** | The canonical chord-edit path: hold a step → play MIDI → each note-on snapshots all currently-held notes; release commits velocity (highest) and gate. Empty capture = no change. Independent of record-arm and transport. Multi-step: all held steps receive the same chord. |
+| **Note-count badge** | 1–4 stacked tick marks on the left edge of each step cell showing `trigOverride.noteCount` — immediately visible without entering any edit mode. |
+| **Note-edit mode** | `Func + Section(0) + step` (release step while Func+Trig held) enters a 1-octave chromatic keyboard on the step grid: cells 0–11 = C through B, 12–15 unused. Press a cell to toggle that pitch in the current view octave. Cross-octave instances show small octave-number badges. NavUp/NavDown shift the octave. Staged removals commit on Func release. |
+| **P-Lock clear gestures** | `Trig + Func + Stop` clears every P-Lock on the held step(s), leaving trig intact. `Trig + (active MZ slot) + Stop` clears only that one slot. `Func + step` enters P-Lock clear mode: cells re-skin orange showing only the *set* P-locks (packed, not by raw slot index); press a cell to stage it for removal, press again to cancel; release Func to commit all staged removals. |
+| **NoteSelection bias** | Per-track bias for chord-note spread when the machine voice count is smaller than the step's note count. `TopBias` (default) includes top + bottom and fills from the top; `BottomBias` fills from the bottom. Set in the TRIG meta-section, slot 3 (Bias = TOP / BOT). |
 | **Func+Part machine picker** | Hold Func (1) then tap Part (W) — the Part key relabels to MACH; step cells show available machine names. Press a step to assign that machine to the active track. |
 
 ---
@@ -428,7 +431,7 @@ Tracks 1–8 default to `SamplerMachine` and tracks 9–16 to `MidiOutMachine` (
 | `SamplerMachine` | SP | Monophonic sample playback. SRC section: sample, pitch, trim window (`samp_start` / `samp_length`), loop mode (OFF / SUS / S+R / ALL), loop region (`samp_loop_start` / `samp_loop_len`). All position slots snap to zero-crossings on write. AMP section: level + AHDSR. |
 | `SlicerMachine` | SL | Slice/scrub sample playback. SLICE mode: incoming MIDI note selects slice 0–15; `slicer_start` / `slicer_length` are relative to the active slice. SCRUB mode: note drives playback rate vs. root 60 (identical to Sampler semantics). `slicer_rate` P-lockable for per-step rate; negative rate = reverse playback. `slicer_slice_src` (EQUAL / TRANS) and `slicer_slice_count` auto-recompute slices on change; transient detection uses 5 ms RMS blocks with fast/slow envelope ratio and centre-weighted search. VOICE section: MONO / POLY toggle (V4). |
 | `FMMachine` | FM | 4-operator FM synthesis. Free 4×4 modulation matrix. Per-operator ADSR, ratio, fine-tune, mix. Macro attack/release/sustain scalars. MONO / POLY voice modes (V4 pool). |
-| `VAMachine` | VA | Virtual-analog dual-osc synth. Saw/Pulse/Tri/Sin PolyBLEP oscillators + sub + noise. State-variable filter (LP4/LP2/HP/BP + drive). Filter ADSR + amp ADSR. LFO (6 shapes). Mono / Paraphonic-4 voice modes. |
+| `VAMachine` | VA | Virtual-analog dual-osc synth. Saw/Pulse/Tri/Sin PolyBLEP oscillators + sub + shared noise. State-variable filter (LP4/LP2/HP/BP + drive). Filter ADSR + amp ADSR. LFO (6 shapes). Mono / Paraphonic-4 voice modes. Para topology: chord notes 1 & 3 → osc1+sub; notes 2 & 4 → osc2+sub. |
 | `DrumSynthMachine` | DR | Rytm-style per-track drum synthesis. Type param selects KICK / SNARE / HAT / TOM variant; each has dedicated DSP (exponential pitch sweep + waveshaper / bandpass noise / hipass noise / sine + tom body). |
 | `MidiOutMachine` | M | MIDI CC / note output to external gear. Configurable destination, channel, program, 16 CC slots with user-assignable numbers and labels. |
 
@@ -639,13 +642,40 @@ remaining MH machine catalogue resumes.
   slot) + Stop` clears only that one slot's P-Lock. Both use the
   existing scope+verb grammar.
 - **Step-driven P-Lock clear mode.** Hold Func (1), then press a
-  step → step cells re-skin orange: bright cells = slots that have a
-  P-Lock on that step, dim cells = empty. Press a cell to clear that
-  slot's P-Lock. Release Func to exit. No sticky state.
+  step → step cells re-skin orange: cells map to the *packed* list
+  of set P-locks only (not by raw slot index). Press a cell to stage
+  it for removal; press again to cancel. Release Func to commit all
+  staged removals.
 - **Func+Part machine picker.** Hold Func (1) and tap Part (W) —
   Part relabels to MACH; step cells show available machine names.
   Press a step to assign that machine to the active track. Release
   Func or Part to exit.
+
+**MHZ.4 — Polyphonic step authoring improvements.**
+
+- **Snapshot chord capture.** Step-hold MIDI capture now uses
+  snapshot-currently-held semantics: each note-on writes the full set
+  of currently-held MIDI notes to the step (not just the pressed note).
+  Note-offs don't change the step's stored notes. Multi-step: all held
+  steps receive the same chord in parallel.
+- **Realtime chord record.** Transport-time record-arm now aggregates
+  notes that quantise to the same step into a chord (up to 4 notes,
+  de-duplicated). A new note-on to a different step starts fresh.
+- **Note-count badge.** 1–4 stacked tick marks on each step cell show
+  `noteCount` at a glance — visible in normal mode without entering any
+  edit overlay.
+- **Note-edit mode.** `Func + Section(0) + step` (Trig key held, press
+  a step then release it) enters a 1-octave chromatic overlay: cells 0–11
+  = C through B, cells 12–15 unused. Press a cell to toggle that pitch in
+  the current octave. Cross-octave instances of each pitch class show as
+  small octave-number badges. NavUp/NavDown shift the view octave. Staged
+  removals commit on Func release.
+- **NoteSelection in TRIG meta-section.** The TRIG meta-section (hold
+  any step and navigate to Section key 5) now shows a "Bias" slot (TOP /
+  BOT) that reads and writes the per-track chord-spread bias.
+- **VA paraphonic topology.** VA Para-4 mode now routes chord notes to
+  oscillators by slot: notes 1 & 3 → osc1+sub, notes 2 & 4 → osc2+sub.
+  A single shared noise generator replaces per-voice noise generators.
 
 ### 5.18 Trig-grid modes *(selectors present; behaviour planned)*
 
@@ -671,7 +701,7 @@ behaviour of these modes lands in a later milestone (see
 Lockstep is under active development. This manual describes both the
 shipped behaviour and the design intent. To avoid confusion:
 
-**Working today** (milestones M0–MH.4): sample loading and playback;
+**Working today** (milestones M0–MHZ.4): sample loading and playback;
 **sampler trim and loop** — `samp_start` / `samp_length` window into a sample,
 `samp_loop_mode` (OFF / SUS / S+R / ALL), `samp_loop_start` / `samp_loop_len`
 loop region relative to the playback window; edit-time zero-crossing snap on all
@@ -696,15 +726,17 @@ sustain scalars, **Mono / Poly voice modes** (Poly: 4-voice pool with
 oldest-voice stealing); machine selection via `Part + SRC` (post-MHY; was `Func + R`); **runtime
 polyphony** — each machine reports its live voice count per trig, and
 chord steps are clamped via a per-track Top-bias / Bottom-bias
-"spread-with-bias" selector that keeps the top and bottom voices first
-and spreads remaining picks evenly between them; **polyphonic trig
-steps** — steps carry up to 4 notes (hold step + play keys to record a
-chord; gate auto-written on last-note-off); the **VA synthesizer**
-(`VAMachine`) — 2× PolyBLEP oscillators (Saw/Pulse/Tri/Sin) + sub +
-noise, state-variable filter (LP4/LP2/HP/BP + drive), filter ADSR, amp
-ADSR, LFO (6 shapes, 4 targets: Cutoff/Pitch/PW/Amp), portamento, and
-Mono / Paraphonic-4 voice modes (Para: 4 independent pitches share one
-filter + amp envelope). **Note:** the shipping overlay is still the
+"spread-with-bias" selector (editable in the TRIG meta-section as "Bias =
+TOP / BOT") that keeps the top and bottom voices first and spreads
+remaining picks evenly between them; **polyphonic trig steps** — steps
+carry up to 4 notes (hold step + play keys for snapshot-chord capture;
+realtime record aggregates chord notes per step; note-edit overlay for
+keyboardless entry; note-count badge on each cell; gate auto-written on
+last-note-off); the **VA synthesizer** (`VAMachine`) — 2× PolyBLEP
+oscillators (Saw/Pulse/Tri/Sin) + sub + shared noise, state-variable
+filter (LP4/LP2/HP/BP + drive), filter ADSR, amp ADSR, LFO (6 shapes, 4
+targets: Cutoff/Pitch/PW/Amp), portamento, and Mono / Paraphonic-4 voice
+modes (Para: chord notes 1 & 3 → osc1+sub; notes 2 & 4 → osc2+sub). **Note:** the shipping overlay is still the
 **9×4** layout (one left modifier column, four-slot Manipulation Zone);
 §5 documents the 10×4 target that MHX delivers.
 
