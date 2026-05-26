@@ -4,37 +4,10 @@
 
 namespace lockstep
 {
-    SamplerMachine::SamplerMachine(SamplePool& pool) : pool_(pool) {}
+    SamplerMachine::SamplerMachine(SamplePool& pool)
+        : SamplePlayingMachineBase(pool) {}
+
     SamplerMachine::~SamplerMachine() = default;
-
-    // ISliceable
-    void SamplerMachine::setEqualSlices(int count)
-    {
-        count = std::clamp(count, 1, kMaxSlices);
-        numSlices_ = count;
-        for (int i = 0; i < count; ++i)
-            slicePositions_[static_cast<std::size_t>(i)] =
-                static_cast<float>(i) / static_cast<float>(count);
-    }
-
-    void SamplerMachine::clearSlices()
-    {
-        numSlices_ = 0;
-    }
-
-    void SamplerMachine::prepare(double sampleRate, int maxBlockSize)
-    {
-        sampleRate_ = sampleRate;
-        choke_.prepare(sampleRate_, 1.5f);
-        juce::ignoreUnused(maxBlockSize);
-    }
-
-    void SamplerMachine::reset()
-    {
-        player_            = SamplePlayer{};
-        hasPendingTrigger_ = false;
-        choke_.prepare(sampleRate_, 1.5f);
-    }
 
     // -------------------------------------------------------------------------
 
@@ -51,7 +24,7 @@ namespace lockstep
         SamplePlayer::Spec spec;
         spec.sampleIndex   = static_cast<int>(p(kSlotSampleId));
         spec.positionStart = 0.0;
-        spec.windowEnd     = 0.0;  // 0 = full sample (SamplePlayer default)
+        spec.windowEnd     = 0.0;  // 0 = full sample
         spec.rate          = std::pow(2.0, semitones / 12.0);
         spec.level         = p(kSlotLevel);
         spec.attackSamples  = msToSamples(p(kSlotAttack),  sampleRate_);
@@ -66,7 +39,7 @@ namespace lockstep
     {
         if (sliceIndex < 0 || sliceIndex >= numSlices_)
         {
-            player_.trigger(buildSpec(60, params));
+            voices_[0].player.trigger(buildSpec(60, params));
             return;
         }
 
@@ -82,24 +55,30 @@ namespace lockstep
 
         auto spec          = buildSpec(60, params);
         spec.positionStart = startPos;
-        player_.trigger(spec);
+        voices_[0].player.trigger(spec);
     }
 
     void SamplerMachine::triggerVoice(int midiNote, const ParamFrame& params)
     {
-        if (player_.isActive())
+        auto& vs = voices_[0];
+
+        if (vs.player.isActive())
         {
-            pendingNote_       = midiNote;
-            pendingParams_     = params;
-            hasPendingTrigger_ = true;
-            if (!choke_.isFading())
-                choke_.trigger();
+            vs.pendingNote   = midiNote;
+            vs.pendingParams = params;
+            vs.hasPending    = true;
+            if (!vs.choke.isFading())
+                vs.choke.trigger();
             return;
         }
+
+        vs.midiNote = midiNote;
+        vs.age      = ++voiceCounter_;
+
         if (numSlices_ > 0 && midiNote >= 0 && midiNote < numSlices_)
             startVoiceAtSlice(midiNote, params);
         else
-            player_.trigger(buildSpec(midiNote, params));
+            vs.player.trigger(buildSpec(midiNote, params));
     }
 
     // -------------------------------------------------------------------------
@@ -132,58 +111,65 @@ namespace lockstep
         if (releaseAt >= 0)
             releaseAt = std::clamp(releaseAt, 0, numBlockSamples - 1);
 
-        if (!player_.isActive() && !choke_.isFading()
-            && !hasPendingTrigger_ && triggerAt < 0)
+        auto& vs = voices_[0];
+
+        if (!vs.player.isActive() && !vs.choke.isFading()
+            && !vs.hasPending && triggerAt < 0)
             return;
 
-        // Resolve the sample pointer at the start of the block.
-        const Sample* sample = player_.isActive() ? pool_.get(player_.sampleIndex) : nullptr;
+        const Sample* sample = vs.player.isActive()
+                               ? pool_.get(vs.player.sampleIndex)
+                               : nullptr;
         const int numOut = buffer.getNumChannels();
 
         for (int i = 0; i < numBlockSamples; ++i)
         {
             if (releaseAt >= 0 && i == releaseAt)
             {
-                player_.release();
+                vs.player.release();
                 releaseAt = -1;
             }
 
             if (triggerAt >= 0 && i == triggerAt)
             {
                 triggerVoice(triggerNote, params);
-                if (!choke_.isFading())
+                if (!vs.choke.isFading())
                 {
-                    sample = pool_.get(player_.sampleIndex);
+                    sample = pool_.get(vs.player.sampleIndex);
                     if (sample == nullptr)
                     {
-                        player_ = SamplePlayer{};
+                        vs.player = SamplePlayer{};
                         break;
                     }
                 }
                 triggerAt = -1;
             }
 
-            const float chokeGain = choke_.isFading() ? choke_.nextGain() : 1.0f;
+            const float chokeGain = vs.choke.isFading() ? vs.choke.nextGain() : 1.0f;
 
-            if (!choke_.isFading() && hasPendingTrigger_)
+            if (!vs.choke.isFading() && vs.hasPending)
             {
-                hasPendingTrigger_ = false;
-                if (numSlices_ > 0
-                    && pendingNote_ >= 0
-                    && pendingNote_ < numSlices_)
-                    startVoiceAtSlice(pendingNote_, pendingParams_);
-                else
-                    player_.trigger(buildSpec(pendingNote_, pendingParams_));
+                vs.hasPending = false;
+                const int pn = vs.pendingNote;
+                const ParamFrame pp = vs.pendingParams;
 
-                sample = pool_.get(player_.sampleIndex);
+                vs.midiNote = pn;
+                vs.age      = ++voiceCounter_;
+
+                if (numSlices_ > 0 && pn >= 0 && pn < numSlices_)
+                    startVoiceAtSlice(pn, pp);
+                else
+                    vs.player.trigger(buildSpec(pn, pp));
+
+                sample = pool_.get(vs.player.sampleIndex);
                 if (sample == nullptr)
                 {
-                    player_ = SamplePlayer{};
+                    vs.player = SamplePlayer{};
                     break;
                 }
             }
 
-            if (!player_.isActive())
+            if (!vs.player.isActive())
             {
                 if (triggerAt < 0)
                     break;
@@ -193,15 +179,10 @@ namespace lockstep
             if (sample == nullptr)
                 continue;
 
-            const float out = player_.step(sample->pcm) * chokeGain;
+            const float out = vs.player.step(sample->pcm) * chokeGain;
             for (int ch = 0; ch < numOut; ++ch)
                 buffer.addSample(ch, i, out);
         }
-    }
-
-    bool SamplerMachine::isVoiceActive() const
-    {
-        return player_.isActive() || choke_.isFading() || hasPendingTrigger_;
     }
 
     // -------------------------------------------------------------------------

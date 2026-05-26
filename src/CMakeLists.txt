@@ -14,6 +14,7 @@ add_library(lockstep_core STATIC
     core/StateResolver.cpp
     machine/DrumSynthMachine.cpp
     machine/FMMachine.cpp
+    machine/SamplePlayingMachineBase.cpp
     machine/SamplePlayer.cpp
     machine/VAMachine.cpp
     machine/MidiDevicePresets.cpp

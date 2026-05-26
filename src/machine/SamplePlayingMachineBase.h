@@ -1,0 +1,75 @@
+#pragma once
+
+#include "IMachine.h"
+#include "ISliceable.h"
+#include "SamplePlayer.h"
+#include "SamplePool.h"
+#include "VoiceChoke.h"
+#include <array>
+#include <cstdint>
+
+namespace lockstep
+{
+    // Shared base for sample-based machines (SamplerMachine, SlicerMachine).
+    // Owns: sample pool reference, 4-slot voice array (SamplePlayer + VoiceChoke
+    // + pending-trigger state per slot), ISliceable implementation, and the
+    // common prepare/reset/isVoiceActive helpers.
+    //
+    // Subclasses provide: their own schema (paramSpec/section/numParams),
+    // machineId/badge, currentVoices(), and process(). They call the base
+    // helpers (allocVoice, findVoiceByNote, the VoiceSlot accessors) from
+    // their own process() implementation.
+    class SamplePlayingMachineBase : public IMachine, public ISliceable
+    {
+    public:
+        static constexpr int kMaxVoices = 4;
+        static constexpr int kMaxSlices = 16;
+
+        explicit SamplePlayingMachineBase(SamplePool& pool);
+        ~SamplePlayingMachineBase() override;
+
+        // IMachine
+        void prepare(double sampleRate, int maxBlockSize) override;
+        void reset() override;
+        bool isVoiceActive() const override;
+
+        // ISliceable
+        [[nodiscard]] int numSlices() const override { return numSlices_; }
+        void setEqualSlices(int count) override;
+        void clearSlices()             override;
+        void detectTransientSlices()   override {} // wired in step 7
+
+    protected:
+        // Per-voice state: SamplePlayer, choke, and pending re-trigger.
+        struct VoiceSlot
+        {
+            SamplePlayer player{};
+            VoiceChoke   choke{};
+            bool         hasPending   = false;
+            int          pendingNote  = 60;
+            ParamFrame   pendingParams{};
+            std::uint64_t age        = 0;
+            int          midiNote    = -1;  // note currently sounding (-1 = idle)
+        };
+
+        // Idle slot first; if all busy, steals the oldest active slot.
+        [[nodiscard]] int allocVoice();
+        // Returns the voice index holding the given note (newest if duplicated),
+        // or -1 if not found.
+        [[nodiscard]] int findVoiceByNote(int midiNote) const;
+
+        static int msToSamples(float ms, double sampleRate)
+        {
+            return static_cast<int>(static_cast<double>(ms) * 0.001 * sampleRate);
+        }
+
+        SamplePool& pool_;
+        double      sampleRate_ = 0.0;
+        std::array<VoiceSlot, kMaxVoices> voices_{};
+        std::uint64_t voiceCounter_ = 0;
+
+        // MG.3 / ISliceable: normalized slice start positions [0.0, 1.0].
+        std::array<float, kMaxSlices> slicePositions_{};
+        int numSlices_ = 0;
+    };
+}
