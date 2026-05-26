@@ -1,14 +1,13 @@
 #include "SamplerMachine.h"
 #include <algorithm>
 #include <cmath>
-#include <limits>
 
 namespace lockstep
 {
     SamplerMachine::SamplerMachine(SamplePool& pool) : pool_(pool) {}
     SamplerMachine::~SamplerMachine() = default;
 
-    // MG.3
+    // ISliceable
     void SamplerMachine::setEqualSlices(int count)
     {
         count = std::clamp(count, 1, kMaxSlices);
@@ -32,70 +31,64 @@ namespace lockstep
 
     void SamplerMachine::reset()
     {
-        voice_             = Voice{};
+        player_            = SamplePlayer{};
         hasPendingTrigger_ = false;
-        choke_.prepare(sampleRate_, 1.5f); // resets fadeRemaining
+        choke_.prepare(sampleRate_, 1.5f);
     }
 
     // -------------------------------------------------------------------------
 
-    void SamplerMachine::startVoice(int midiNote, const ParamFrame& params)
+    SamplePlayer::Spec SamplerMachine::buildSpec(int midiNote,
+                                                  const ParamFrame& params) const
     {
-        const auto msToSamples = [this](float ms) {
-            return static_cast<int>(static_cast<double>(ms) * 0.001 * sampleRate_);
+        const auto p = [&](int s) {
+            return params[static_cast<std::size_t>(s)];
         };
 
-        const double pitchOffset = static_cast<double>(
-            params[static_cast<std::size_t>(kSlotPitch)]);
+        const double pitchOffset = static_cast<double>(p(kSlotPitch));
         const double semitones   = static_cast<double>(midiNote - 60) + pitchOffset;
 
-        voice_.active         = true;
-        voice_.position       = 0.0;
-        voice_.sampleIndex    = static_cast<int>(params[static_cast<std::size_t>(kSlotSampleId)]);
-        voice_.level          = params[static_cast<std::size_t>(kSlotLevel)];
-        voice_.rate           = std::pow(2.0, semitones / 12.0);
-        voice_.attackSamples  = msToSamples(params[static_cast<std::size_t>(kSlotAttack)]);
-        voice_.holdSamples    = msToSamples(params[static_cast<std::size_t>(kSlotHold)]);
-        voice_.decaySamples   = msToSamples(params[static_cast<std::size_t>(kSlotDecay)]);
-        voice_.sustainLevel   = params[static_cast<std::size_t>(kSlotSustain)];
-        voice_.releaseSamples = msToSamples(params[static_cast<std::size_t>(kSlotRelease)]);
-        voice_.envLevel       = 0.0f;
-        voice_.stage          = Stage::Attack;
-
-        if (voice_.attackSamples == 0)
-        {
-            voice_.envLevel = 1.0f;
-            advanceStage(voice_);
-        }
-        else
-        {
-            voice_.stageRemaining = voice_.attackSamples;
-        }
+        SamplePlayer::Spec spec;
+        spec.sampleIndex   = static_cast<int>(p(kSlotSampleId));
+        spec.positionStart = 0.0;
+        spec.windowEnd     = 0.0;  // 0 = full sample (SamplePlayer default)
+        spec.rate          = std::pow(2.0, semitones / 12.0);
+        spec.level         = p(kSlotLevel);
+        spec.attackSamples  = msToSamples(p(kSlotAttack),  sampleRate_);
+        spec.holdSamples    = msToSamples(p(kSlotHold),    sampleRate_);
+        spec.decaySamples   = msToSamples(p(kSlotDecay),   sampleRate_);
+        spec.sustainLevel   = p(kSlotSustain);
+        spec.releaseSamples = msToSamples(p(kSlotRelease), sampleRate_);
+        return spec;
     }
 
     void SamplerMachine::startVoiceAtSlice(int sliceIndex, const ParamFrame& params)
     {
         if (sliceIndex < 0 || sliceIndex >= numSlices_)
-            return startVoice(60, params);  // fall back to normal trigger
+        {
+            player_.trigger(buildSpec(60, params));
+            return;
+        }
 
-        // Look up the sample to find the absolute start offset.
-        const int sampleIdx = static_cast<int>(params[static_cast<std::size_t>(kSlotSampleId)]);
+        const int sampleIdx = static_cast<int>(
+            params[static_cast<std::size_t>(kSlotSampleId)]);
         const Sample* sample = pool_.get(sampleIdx);
 
-        const float normPos   = slicePositions_[static_cast<std::size_t>(sliceIndex)];
+        const float normPos = slicePositions_[static_cast<std::size_t>(sliceIndex)];
         const double startPos = (sample != nullptr)
-            ? static_cast<double>(normPos) * static_cast<double>(sample->pcm.getNumSamples())
+            ? static_cast<double>(normPos)
+              * static_cast<double>(sample->pcm.getNumSamples())
             : 0.0;
 
-        startVoice(60, params);  // sets rate=1.0, position=0
-        voice_.position = startPos;
+        auto spec          = buildSpec(60, params);
+        spec.positionStart = startPos;
+        player_.trigger(spec);
     }
 
     void SamplerMachine::triggerVoice(int midiNote, const ParamFrame& params)
     {
-        if (voice_.active)
+        if (player_.isActive())
         {
-            // Voice is busy: arm pending and start (or extend) the choke fade.
             pendingNote_       = midiNote;
             pendingParams_     = params;
             hasPendingTrigger_ = true;
@@ -103,99 +96,10 @@ namespace lockstep
                 choke_.trigger();
             return;
         }
-        // MG.3: note in slice range → play from that slice's start position.
         if (numSlices_ > 0 && midiNote >= 0 && midiNote < numSlices_)
             startVoiceAtSlice(midiNote, params);
         else
-            startVoice(midiNote, params);
-    }
-
-    void SamplerMachine::advanceStage(Voice& v)
-    {
-        // Walk through zero-duration stages immediately.
-        bool done = false;
-        while (!done)
-        {
-            switch (v.stage)
-            {
-            case Stage::Attack:
-                v.envLevel = 1.0f;
-                v.stage = Stage::Hold;
-                if (v.holdSamples > 0) { v.stageRemaining = v.holdSamples; done = true; }
-                break;
-
-            case Stage::Hold:
-                v.stage = Stage::Decay;
-                if (v.decaySamples > 0) { v.stageRemaining = v.decaySamples; done = true; }
-                break;
-
-            case Stage::Decay:
-                v.envLevel = v.sustainLevel;
-                v.stage = Stage::Sustain;
-                v.stageRemaining = std::numeric_limits<int>::max();
-                done = true;
-                break;
-
-            case Stage::Sustain:
-                v.releaseStartLevel = v.envLevel;
-                v.stage = Stage::Release;
-                if (v.releaseSamples > 0) { v.stageRemaining = v.releaseSamples; done = true; }
-                break;
-
-            case Stage::Release:
-                v.envLevel = 0.0f;
-                v.stage = Stage::Idle;
-                v.active = false;
-                done = true;
-                break;
-
-            case Stage::Idle:
-                done = true;
-                break;
-            }
-        }
-    }
-
-    float SamplerMachine::nextEnvSample(Voice& v)
-    {
-        const float level = v.envLevel;
-
-        switch (v.stage)
-        {
-        case Stage::Attack:
-            v.envLevel += 1.0f / static_cast<float>(v.attackSamples);
-            if (--v.stageRemaining <= 0)
-                advanceStage(v);
-            break;
-
-        case Stage::Hold:
-            if (--v.stageRemaining <= 0)
-                advanceStage(v);
-            break;
-
-        case Stage::Decay:
-            v.envLevel -= (1.0f - v.sustainLevel) / static_cast<float>(v.decaySamples);
-            v.envLevel = std::max(v.envLevel, v.sustainLevel);
-            if (--v.stageRemaining <= 0)
-                advanceStage(v);
-            break;
-
-        case Stage::Sustain:
-            break;
-
-        case Stage::Release:
-            if (v.releaseSamples > 0)
-                v.envLevel -= v.releaseStartLevel / static_cast<float>(v.releaseSamples);
-            v.envLevel = std::max(v.envLevel, 0.0f);
-            if (--v.stageRemaining <= 0)
-                advanceStage(v);
-            break;
-
-        case Stage::Idle:
-            break;
-        }
-
-        return level;
+            player_.trigger(buildSpec(midiNote, params));
     }
 
     // -------------------------------------------------------------------------
@@ -204,10 +108,10 @@ namespace lockstep
                                  const ParamFrame& params,
                                  juce::AudioBuffer<float>& buffer)
     {
-        // Scan events: last note-on wins (monophonic), first note-off triggers release.
-        int triggerAt  = -1;
+        int triggerAt   = -1;
         int triggerNote = 60;
-        int releaseAt  = -1;
+        int releaseAt   = -1;
+
         for (const auto& meta : events)
         {
             const auto msg = meta.getMessage();
@@ -217,7 +121,9 @@ namespace lockstep
                 triggerNote = msg.getNoteNumber();
             }
             else if (msg.isNoteOff() && releaseAt < 0)
+            {
                 releaseAt = meta.samplePosition;
+            }
         }
 
         const int numBlockSamples = buffer.getNumSamples();
@@ -226,55 +132,58 @@ namespace lockstep
         if (releaseAt >= 0)
             releaseAt = std::clamp(releaseAt, 0, numBlockSamples - 1);
 
-        if (!voice_.active && !choke_.isFading() && !hasPendingTrigger_ && triggerAt < 0)
+        if (!player_.isActive() && !choke_.isFading()
+            && !hasPendingTrigger_ && triggerAt < 0)
             return;
 
-        // Sample pointer is resolved after each trigger so sampleIndex is current.
-        const Sample* sample = voice_.active ? pool_.get(voice_.sampleIndex) : nullptr;
-
+        // Resolve the sample pointer at the start of the block.
+        const Sample* sample = player_.isActive() ? pool_.get(player_.sampleIndex) : nullptr;
         const int numOut = buffer.getNumChannels();
 
         for (int i = 0; i < numBlockSamples; ++i)
         {
-            // Note-off: if sustaining, start the release phase.
             if (releaseAt >= 0 && i == releaseAt)
             {
-                if (voice_.active && voice_.stage == Stage::Sustain)
-                    advanceStage(voice_);
+                player_.release();
                 releaseAt = -1;
             }
 
-            // Note-on: trigger the voice at the scheduled offset.
             if (triggerAt >= 0 && i == triggerAt)
             {
                 triggerVoice(triggerNote, params);
                 if (!choke_.isFading())
                 {
-                    sample = pool_.get(voice_.sampleIndex);
+                    sample = pool_.get(player_.sampleIndex);
                     if (sample == nullptr)
                     {
-                        voice_.active = false;
+                        player_ = SamplePlayer{};
                         break;
                     }
                 }
                 triggerAt = -1;
             }
 
-            // Apply choke fade; start the pending voice once the fade completes.
             const float chokeGain = choke_.isFading() ? choke_.nextGain() : 1.0f;
+
             if (!choke_.isFading() && hasPendingTrigger_)
             {
                 hasPendingTrigger_ = false;
-                startVoice(pendingNote_, pendingParams_);
-                sample = pool_.get(voice_.sampleIndex);
+                if (numSlices_ > 0
+                    && pendingNote_ >= 0
+                    && pendingNote_ < numSlices_)
+                    startVoiceAtSlice(pendingNote_, pendingParams_);
+                else
+                    player_.trigger(buildSpec(pendingNote_, pendingParams_));
+
+                sample = pool_.get(player_.sampleIndex);
                 if (sample == nullptr)
                 {
-                    voice_.active = false;
+                    player_ = SamplePlayer{};
                     break;
                 }
             }
 
-            if (!voice_.active)
+            if (!player_.isActive())
             {
                 if (triggerAt < 0)
                     break;
@@ -284,34 +193,7 @@ namespace lockstep
             if (sample == nullptr)
                 continue;
 
-            const int numSrcSamples = sample->pcm.getNumSamples();
-
-            const float env = nextEnvSample(voice_);
-
-            float audioOut = 0.0f;
-            if (voice_.stage != Stage::Release && voice_.stage != Stage::Idle)
-            {
-                const int idx0 = static_cast<int>(voice_.position);
-                if (idx0 < numSrcSamples)
-                {
-                    const int idx1 = std::min(idx0 + 1, numSrcSamples - 1);
-                    const float frac = static_cast<float>(
-                        voice_.position - static_cast<double>(idx0));
-                    audioOut = sample->pcm.getSample(0, idx0) * (1.0f - frac)
-                             + sample->pcm.getSample(0, idx1) * frac;
-                    voice_.position += voice_.rate;
-
-                    if (voice_.position >= static_cast<double>(numSrcSamples)
-                        && voice_.stage == Stage::Sustain)
-                        advanceStage(voice_);
-                }
-                else if (voice_.stage == Stage::Sustain)
-                {
-                    advanceStage(voice_);
-                }
-            }
-
-            const float out = audioOut * env * voice_.level * chokeGain;
+            const float out = player_.step(sample->pcm) * chokeGain;
             for (int ch = 0; ch < numOut; ++ch)
                 buffer.addSample(ch, i, out);
         }
@@ -319,7 +201,7 @@ namespace lockstep
 
     bool SamplerMachine::isVoiceActive() const
     {
-        return voice_.active || choke_.isFading() || hasPendingTrigger_;
+        return player_.isActive() || choke_.isFading() || hasPendingTrigger_;
     }
 
     // -------------------------------------------------------------------------
@@ -330,10 +212,8 @@ namespace lockstep
         using R = ParamSpec::Role;
         switch (index)
         {
-        // Canonical section 1 "SRC"
         case kSlotSampleId: return { "sample_id", "Sample",   0.0f,    63.0f,   0.0f, true,  U::None,      1, R::None    };
         case kSlotPitch:    return { "pitch",      "Pitch",  -24.0f,   24.0f,   0.0f, false, U::Semitones, 1, R::Pitch   };
-        // Canonical section 3 "AMP" — level + internal envelope (machine opts out of post-machine AMP at ME.6)
         case kSlotLevel:    return { "level",      "Level",   0.0f,     1.0f,   1.0f, false, U::Percent,   3, R::Level   };
         case kSlotAttack:   return { "attack",     "Attack",  0.0f,  5000.0f,   2.0f, false, U::Ms,        3, R::Attack  };
         case kSlotHold:     return { "hold",       "Hold",    0.0f,  2000.0f,   0.0f, false, U::Ms,        3, R::Hold    };
@@ -344,14 +224,12 @@ namespace lockstep
         }
     }
 
-    // -------------------------------------------------------------------------
-
     SectionInfo SamplerMachine::section(int index) const
     {
         switch (index)
         {
-        case 1: return { "SRC" };   // canonical SRC — sample_id + pitch
-        case 3: return { "AMP" };   // canonical AMP — level + internal AHDSR
+        case 1: return { "SRC" };
+        case 3: return { "AMP" };
         default: return {};
         }
     }
