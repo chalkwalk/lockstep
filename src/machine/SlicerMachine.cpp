@@ -111,6 +111,7 @@ namespace lockstep
         SamplePlayer::Spec spec;
         spec.sampleIndex    = sampleIdx;
         spec.positionStart  = winStart;
+        spec.windowStart    = winStart;
         spec.windowEnd      = winEnd;
         spec.rate           = rateParam * std::pow(2.0, pitchSemis / 12.0);
         spec.level          = 1.0f;

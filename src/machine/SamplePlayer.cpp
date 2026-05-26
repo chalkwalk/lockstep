@@ -8,9 +8,13 @@ namespace lockstep
     void SamplePlayer::trigger(const Spec& spec)
     {
         sampleIndex   = spec.sampleIndex;
-        position      = spec.positionStart;
+        windowStart   = spec.windowStart;
         windowEnd     = spec.windowEnd;
         rate          = spec.rate;
+        // Reverse playback starts from the far end of the window.
+        position      = (spec.rate < 0.0 && spec.windowEnd > 0.0)
+                        ? spec.windowEnd - 1.0
+                        : spec.positionStart;
         level         = spec.level;
         loopStart     = spec.loopStart;
         loopEnd       = spec.loopEnd;
@@ -143,17 +147,32 @@ namespace lockstep
         if (readAudio)
         {
             const int numSrc = pcm.getNumSamples();
-            const double effEnd = (windowEnd > 0.0) ? windowEnd
-                                                     : static_cast<double>(numSrc);
+            const double effEnd   = (windowEnd > 0.0) ? windowEnd
+                                                       : static_cast<double>(numSrc);
+            const double effStart = windowStart;
+            const bool   reverse  = (rate < 0.0);
 
             const int idx0 = static_cast<int>(position);
             if (idx0 >= 0 && idx0 < numSrc)
             {
-                const int idx1 = std::min(idx0 + 1, numSrc - 1);
-                const float frac = static_cast<float>(
-                    position - static_cast<double>(idx0));
-                audioOut = pcm.getSample(0, idx0) * (1.0f - frac)
-                         + pcm.getSample(0, idx1) * frac;
+                if (reverse)
+                {
+                    // For reverse: interpolate between idx0 and idx0-1.
+                    const int idx1 = std::max(idx0 - 1, 0);
+                    const float frac = static_cast<float>(
+                        position - static_cast<double>(idx0));
+                    audioOut = pcm.getSample(0, idx0) * (1.0f - frac)
+                             + pcm.getSample(0, idx1) * frac;
+                }
+                else
+                {
+                    const int idx1 = std::min(idx0 + 1, numSrc - 1);
+                    const float frac = static_cast<float>(
+                        position - static_cast<double>(idx0));
+                    audioOut = pcm.getSample(0, idx0) * (1.0f - frac)
+                             + pcm.getSample(0, idx1) * frac;
+                }
+
                 position += rate;
 
                 // Loop handling
@@ -163,21 +182,39 @@ namespace lockstep
                                                        || stage == Stage::Release))
                  || (loopMode == LoopMode::All);
 
-                if (loopActive && loopEnd > loopStart && position >= loopEnd)
+                if (reverse)
                 {
-                    position = loopStart + std::fmod(position - loopStart,
-                                                      loopEnd - loopStart);
-                }
-                else if (position >= effEnd)
-                {
-                    // Ran off the end of the playback window.
-                    if (stage == Stage::Sustain)
-                        advanceStage();  // → Release
-                    else if (stage == Stage::Release || stage == Stage::Attack
-                             || stage == Stage::Hold || stage == Stage::Decay)
+                    if (loopActive && loopEnd > loopStart && position < loopStart)
                     {
-                        // Past window during non-sustain: just let envelope finish.
-                        position = effEnd;  // clamp; audio will be silent next frame
+                        const double span = loopEnd - loopStart;
+                        position = loopEnd - std::fmod(loopStart - position, span);
+                    }
+                    else if (position < effStart)
+                    {
+                        if (stage == Stage::Sustain)
+                            advanceStage();
+                        else
+                        {
+                            position = effStart;
+                        }
+                    }
+                }
+                else
+                {
+                    if (loopActive && loopEnd > loopStart && position >= loopEnd)
+                    {
+                        position = loopStart + std::fmod(position - loopStart,
+                                                          loopEnd - loopStart);
+                    }
+                    else if (position >= effEnd)
+                    {
+                        if (stage == Stage::Sustain)
+                            advanceStage();
+                        else if (stage == Stage::Release || stage == Stage::Attack
+                                 || stage == Stage::Hold || stage == Stage::Decay)
+                        {
+                            position = effEnd;
+                        }
                     }
                 }
             }

@@ -28,6 +28,7 @@ namespace lockstep
             double positionStart = 0.0;  // initial position in source samples
             // Exclusive playback window. 0.0 = "use full sample length" (step 2
             // default). Steps 5/6 set this from samp_start + samp_length.
+            double windowStart   = 0.0;  // inclusive lower bound (for reverse)
             double windowEnd     = 0.0;
             double rate          = 1.0;  // negative = reverse
             float  level         = 1.0f;
@@ -49,6 +50,7 @@ namespace lockstep
         int     sampleIndex   = -1;
         double  position      = 0.0;
         double  rate          = 1.0;
+        double  windowStart   = 0.0;
         double  windowEnd     = 0.0;  // 0 = use full sample (see Spec above)
         float   level         = 1.0f;
         double  loopStart     = 0.0;

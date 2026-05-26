@@ -73,6 +73,7 @@ namespace lockstep
         SamplePlayer::Spec spec;
         spec.sampleIndex    = sampleIdx;
         spec.positionStart  = winStart;
+        spec.windowStart    = winStart;
         spec.windowEnd      = winEnd;
         spec.rate           = std::pow(2.0, semitones / 12.0);
         spec.level          = p(kSlotLevel);
