@@ -20,6 +20,7 @@ add_library(lockstep_core STATIC
     machine/MidiDevicePresets.cpp
     machine/MidiOutMachine.cpp
     machine/SamplerMachine.cpp
+    machine/SlicerMachine.cpp
     machine/SamplePool.cpp
     machine/VoiceChoke.cpp
     io/AbsoluteCC.cpp
