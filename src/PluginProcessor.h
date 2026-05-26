@@ -314,6 +314,11 @@ namespace lockstep
         // then syncs all sequence baseParams. Suspends audio only if needed.
         void reinstallMachinesFromActivePart();
 
+        // If the written slot on the given track governs slice layout
+        // (slicer_sample_id, slicer_slice_src, slicer_slice_count), recompute
+        // the ISliceable's slice array from the current base params.
+        void recomputeSlicesIfNeeded(int track, int slot, const ParamFrame& baseParams);
+
         juce::AudioProcessorValueTreeState apvts_;
         SamplePool samplePool_;
         Project project_;          // full Project/Bank/Pattern/Part hierarchy

@@ -51,7 +51,7 @@ namespace lockstep
         // count is the number of slices to place; capped by kMinSliceMs.
         void detectTransientSlices() override;
         // Variant that also accepts an explicit count (used by SlicerMachine).
-        void detectTransientSlices(int count);
+        void detectTransientSlices(int count) override;
 
     protected:
         // Per-voice state: SamplePlayer, choke, and pending re-trigger.

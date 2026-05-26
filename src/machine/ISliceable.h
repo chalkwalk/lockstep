@@ -13,7 +13,8 @@ namespace lockstep
         virtual void clearSlices()               = 0;
         // Run transient detection and populate slice positions.
         // No-op if no sample is loaded or the machine does not support it.
-        virtual void detectTransientSlices()     = 0;
+        virtual void detectTransientSlices()          = 0;
+        virtual void detectTransientSlices(int count) = 0;
 
         [[nodiscard]] bool hasSlices() const { return numSlices() > 0; }
     };

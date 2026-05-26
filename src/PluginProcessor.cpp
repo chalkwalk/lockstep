@@ -1437,6 +1437,10 @@ namespace lockstep
             {
                 sequence().tracks[ti].baseParams[static_cast<std::size_t>(slot)] = value;
                 activePart().tracks[ti].baseParams[static_cast<std::size_t>(slot)] = value;
+
+                // Recompute slices when a slice-governing base param changes.
+                recomputeSlicesIfNeeded(static_cast<int>(ti), slot,
+                                        sequence().tracks[ti].baseParams);
             }
             else if (!wm->hasInternalFilter() && slot < ampOff)
             {
@@ -1808,6 +1812,42 @@ namespace lockstep
         if (m == nullptr) return;
         auto* s = dynamic_cast<ISliceable*>(m);
         if (s != nullptr) s->clearSlices();
+    }
+
+    void LockstepProcessor::recomputeSlicesIfNeeded(int track,
+                                                     int slot,
+                                                     const ParamFrame& baseParams)
+    {
+        const auto ti = static_cast<std::size_t>(track);
+        auto* m = machines_[ti].get();
+        auto* sl = dynamic_cast<ISliceable*>(m);
+        if (sl == nullptr) return;
+
+        const juce::String id = idForSlot(track, slot);
+        const bool isSampleId  = (id == "slicer_sample_id");
+        const bool isSliceSrc  = (id == "slicer_slice_src");
+        const bool isSliceCount = (id == "slicer_slice_count");
+
+        if (!isSampleId && !isSliceSrc && !isSliceCount)
+            return;
+
+        const int srcSlot   = slotForId(track, "slicer_slice_src");
+        const int countSlot = slotForId(track, "slicer_slice_count");
+        if (srcSlot < 0 || countSlot < 0) return;
+
+        const int src   = static_cast<int>(std::round(
+            baseParams[static_cast<std::size_t>(srcSlot)]));
+        const int count = static_cast<int>(std::round(
+            baseParams[static_cast<std::size_t>(countSlot)]));
+
+        if (src == 0)
+        {
+            sl->setEqualSlices(count);
+        }
+        else
+        {
+            sl->detectTransientSlices(count);
+        }
     }
 
     int LockstepProcessor::saveTrackToSoundPool(int track, const std::string& name)
