@@ -13,7 +13,8 @@ namespace lockstep
         explicit StubMachine(std::string unknownId)
             : unknownId_(std::move(unknownId)) {}
 
-        [[nodiscard]] const char* machineId() const override { return "lockstep.stub"; }
+        [[nodiscard]] const char* machineId() const noexcept override { return "lockstep.stub"; }
+        [[nodiscard]] const char* badge()     const noexcept override { return ""; }
         [[nodiscard]] const std::string& unknownMachineId() const { return unknownId_; }
 
         void prepare(double, int) override {}

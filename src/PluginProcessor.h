@@ -249,6 +249,10 @@ namespace lockstep
         // Returns the stable machineId string for the given track.
         [[nodiscard]] juce::String getMachineId(int track) const;
 
+        // Returns the short display badge for the given track's live machine.
+        // Empty string means no badge (stub / null machine).
+        [[nodiscard]] const char* trackBadge(int track) const noexcept;
+
         // State-loading helpers: create a fresh machine for a given ID and compute
         // slot indices using an explicit machine rather than machines_[t].
         // Used by PluginState so that round-trip works when a non-default machine

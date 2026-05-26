@@ -127,6 +127,12 @@ namespace lockstep
         // Format: "lockstep.<engine>.<version>", e.g. "lockstep.sampler.v1".
         [[nodiscard]] virtual const char* machineId() const = 0;
 
+        // Short display badge (1-4 chars) shown in the track VU area.
+        // Return "" to suppress the badge (StubMachine only).
+        // May reflect machine state (e.g. a multi-variant machine returning
+        // different labels per variant), so it is called per-repaint.
+        [[nodiscard]] virtual const char* badge() const noexcept = 0;
+
         // Bounded polyphony enum (0..4). The step-side chord ceiling is
         // kMaxNotesPerStep (4), so the type itself forbids requesting more.
         enum class Polyphony : int { V0 = 0, V1 = 1, V2 = 2, V3 = 3, V4 = 4 };

@@ -1,10 +1,6 @@
 #include "PluginEditor.h"
 #include "ParameterIDs.h"
-#include "machine/DrumSynthMachine.h"
-#include "machine/FMMachine.h"
 #include "machine/IMachine.h"
-#include "machine/MidiOutMachine.h"
-#include "machine/VAMachine.h"
 #include "ui/ScopedSectionMatrix.h"
 #include <algorithm>
 
@@ -364,18 +360,13 @@ namespace lockstep
 
             // Machine type badge: abbreviated type in top-right corner for non-sampler tracks.
             {
-                const juce::String mid = processor_.getMachineId(t);
-                juce::String badge;
-                if (mid == juce::String(MidiOutMachine::kMachineId))       badge = "M";
-                else if (mid == juce::String(FMMachine::kMachineId))       badge = "FM";
-                else if (mid == juce::String(VAMachine::kMachineId))       badge = "VA";
-                else if (mid == juce::String(DrumSynthMachine::kMachineId))badge = "DS";
-                else if (mid.startsWith("lockstep.stub"))                  badge = "?";
+                const juce::String badge { processor_.trackBadge(t) };
                 if (badge.isNotEmpty())
                 {
-                    g.setColour(juce::Colour::fromRGB(120, 200, 120).withAlpha(0.85f));
+                    g.setColour(juce::Colour::fromRGB(180, 185, 190).withAlpha(0.85f));
                     g.setFont(9.0f);
-                    g.drawText(badge, r.reduced(1).withHeight(10), juce::Justification::topRight, false);
+                    g.drawText(badge, r.reduced(1).withHeight(10).withTrimmedRight(6),
+                               juce::Justification::topRight, false);
                 }
             }
         }

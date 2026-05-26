@@ -32,7 +32,8 @@ namespace lockstep
                          const ParamFrame&       params,
                          juce::MidiBuffer&       midiOut) override;
 
-        [[nodiscard]] const char* machineId() const override { return kMachineId; }
+        [[nodiscard]] const char* machineId() const noexcept override { return kMachineId; }
+        [[nodiscard]] const char* badge()     const noexcept override { return "M"; }
         static constexpr const char* kMachineId = "lockstep.midiout.v1";
 
         [[nodiscard]] int       numParams()          const override { return kNumSlots; }

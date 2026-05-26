@@ -18,7 +18,8 @@ namespace lockstep
                      const ParamFrame& params,
                      juce::AudioBuffer<float>& buffer) override;
 
-        [[nodiscard]] const char* machineId() const override { return kMachineId; }
+        [[nodiscard]] const char* machineId() const noexcept override { return kMachineId; }
+        [[nodiscard]] const char* badge()     const noexcept override { return "SP"; }
         static constexpr const char* kMachineId = "lockstep.sampler.v1";
 
         // Schema — dense indices 0..kNumSlots-1
