@@ -279,7 +279,8 @@ namespace lockstep
             const auto meta = processor_.paramSpec(track, slot);
 
             // Sample slot: replace rotary with a name button + picker popup.
-            const bool isSampleSlot = (meta.id == "sample_id");
+            const bool isSampleSlot = (meta.id == "sample_id"
+                                    || meta.id == "slicer_sample_id");
 
             sliders_[si].setEnabled(!isSampleSlot);
             sliders_[si].setAlpha(isSampleSlot ? 0.0f : 1.0f);

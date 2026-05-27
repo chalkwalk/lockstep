@@ -20,6 +20,7 @@ namespace lockstep
         float envLevel_          = 0.0f;
         float releaseStartLevel_ = 0.0f;
         int   stageRemaining_    = 0;
+        int   noteCount_         = 0;  // polyphonic hold count
 
         // Envelope parameters cached at note-on (sample counts / levels).
         int   attSamples_  = 0;
@@ -39,10 +40,17 @@ namespace lockstep
             stage_          = Stage::Idle;
             envLevel_       = 0.0f;
             stageRemaining_ = 0;
+            noteCount_      = 0;
         }
+
+        bool isIdle() const noexcept { return stage_ == Stage::Idle; }
 
         void noteOn(const TrackAmpState& amp) noexcept
         {
+            ++noteCount_;
+            if (noteCount_ > 1)
+                return;  // already sounding — stay in current stage, no retrigger
+
             const auto msToS = [this](float ms) {
                 return static_cast<int>(ms * 0.001f * sampleRate_);
             };
@@ -67,7 +75,11 @@ namespace lockstep
 
         void noteOff() noexcept
         {
-            if (stage_ != Stage::Sustain) return;
+            if (noteCount_ > 0) --noteCount_;
+            if (noteCount_ > 0) return;  // other notes still held
+
+            // All notes released — start release from wherever the envelope is.
+            if (stage_ == Stage::Idle || stage_ == Stage::Release) return;
             releaseStartLevel_ = envLevel_;
             stage_ = Stage::Release;
             if (relSamples_ == 0)

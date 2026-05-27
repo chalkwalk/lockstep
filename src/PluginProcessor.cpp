@@ -1019,8 +1019,11 @@ namespace lockstep
                                 if (ovr.has(ampOff + as))
                                     amp.setSlot(as, ovr.get(ampOff + as, 0.0f));
                         }
+                        const bool ampWasIdle = trackAmps_[i].isIdle();
                         trackAmps_[i].processBlock(trackBuffers_[i], trackMidi[i], amp,
                                                    numBlockSamples);
+                        if (!ampWasIdle && trackAmps_[i].isIdle())
+                            mi->reset();
                     }
 
                     trackPeak_[i].store(trackBuffers_[i].getMagnitude(0, numBlockSamples),
@@ -1400,8 +1403,11 @@ namespace lockstep
                             if (ovr.has(ampOff + as))
                                 amp.setSlot(as, ovr.get(ampOff + as, 0.0f));
                     }
+                    const bool ampWasIdle = trackAmps_[i].isIdle();
                     trackAmps_[i].processBlock(trackBuffers_[i], trackMidi[i], amp,
                                                numBlockSamples);
+                    if (!ampWasIdle && trackAmps_[i].isIdle())
+                        mi->reset();
                 }
 
                 trackPeak_[i].store(trackBuffers_[i].getMagnitude(0, numBlockSamples),
@@ -2341,7 +2347,12 @@ namespace lockstep
         if (needsSuspend) suspendProcessing(false);
 
         for (std::size_t t = 0; t < kNumTracks; ++t)
+        {
             sequence().tracks[t].baseParams = part.tracks[t].baseParams;
+            recomputeSlicesIfNeeded(static_cast<int>(t),
+                                    slotForId(static_cast<int>(t), "slicer_sample_id"),
+                                    sequence().tracks[t].baseParams);
+        }
     }
 
     void LockstepProcessor::setTrackMachine(int track, const std::string& machineId)
@@ -2366,6 +2377,11 @@ namespace lockstep
                 machines_[ti]->paramSpec(s).defaultValue;
 
         sequence().tracks[ti].baseParams = partTrack.baseParams;
+
+        // Seed slices for slicer machine on first install so trigs fire immediately.
+        recomputeSlicesIfNeeded(track,
+                                slotForId(track, "slicer_sample_id"),
+                                sequence().tracks[ti].baseParams);
 
         // VA Machine has a non-zero default sustain (0.8), so it sustains indefinitely
         // without a gate. Seed 1/8-note gate (≈250 ms at 120 BPM) on first install.

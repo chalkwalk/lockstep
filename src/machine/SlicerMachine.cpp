@@ -41,7 +41,9 @@ namespace lockstep
         const int    modeInt   = static_cast<int>(std::round(p(kSlotMode)));
         const bool   isSlice   = (modeInt == 0);
         const double rateParam = static_cast<double>(p(kSlotRate));
-        const double pitchSemis = static_cast<double>(midiNote - 60)
+        // In SLICE mode the note selects the slice; pitch is fixed by kSlotPitch only.
+        // In SCRUB mode the note transposes normally.
+        const double pitchSemis = (isSlice ? 0.0 : static_cast<double>(midiNote - 60))
                                 + static_cast<double>(p(kSlotPitch));
 
         // Determine the playback window.  In SLICE mode the note selects a slice
@@ -52,7 +54,9 @@ namespace lockstep
 
         if (isSlice && numSlices_ > 0)
         {
-            const int sliceIdx = std::clamp(midiNote, 0, numSlices_ - 1);
+            // Map note chromatically from root (60): note 60 = slice 0, 61 = slice 1, etc.
+            const int rel = midiNote - 60;
+            const int sliceIdx = ((rel % numSlices_) + numSlices_) % numSlices_;
             const double sliceStart = static_cast<double>(
                 slicePositions_[static_cast<std::size_t>(sliceIdx)]) * numSrcSamples;
             const double sliceEnd   = (sliceIdx + 1 < numSlices_)
@@ -128,6 +132,32 @@ namespace lockstep
 
     void SlicerMachine::triggerVoice(int midiNote, const ParamFrame& params)
     {
+        // Lazy-seed slices if not yet initialised (e.g. after state load).
+        if (numSlices_ == 0)
+        {
+            currentSampleIndex_ = static_cast<int>(
+                params[static_cast<std::size_t>(kSlotSampleId)]);
+            const int src   = static_cast<int>(std::round(
+                params[static_cast<std::size_t>(kSlotSliceSrc)]));
+            const int count = static_cast<int>(std::round(
+                params[static_cast<std::size_t>(kSlotSliceCount)]));
+            if (src == 0)
+                setEqualSlices(count);
+            else
+                detectTransientSlices(count);
+        }
+
+        // Choke any released-but-still-running voices so they don't overlap the new note.
+        for (auto& zv : voices_)
+        {
+            if (zv.player.isActive() && zv.midiNote < 0 && !zv.hasPending && !zv.choke.isFading())
+            {
+                zv.hasPending  = true;
+                zv.pendingNote = -1;  // sentinel: kill voice after choke completes
+                zv.choke.trigger();
+            }
+        }
+
         const int vi = allocVoice();
         auto& vs = voices_[static_cast<std::size_t>(vi)];
 
@@ -155,6 +185,7 @@ namespace lockstep
         int triggerAt   = -1;
         int triggerNote = 60;
         int releaseAt   = -1;
+        int releaseNote = -1;
 
         for (const auto& meta : events)
         {
@@ -166,7 +197,8 @@ namespace lockstep
             }
             else if (msg.isNoteOff() && releaseAt < 0)
             {
-                releaseAt = meta.samplePosition;
+                releaseAt   = meta.samplePosition;
+                releaseNote = msg.getNoteNumber();
             }
         }
 
@@ -190,10 +222,16 @@ namespace lockstep
         {
             if (releaseAt >= 0 && i == releaseAt)
             {
-                for (auto& vs : voices_)
-                    if (vs.player.isActive())
-                        vs.player.release();
-                releaseAt = -1;
+                const int vi = findVoiceByNote(releaseNote);
+                if (vi >= 0)
+                {
+                    // Keep the voice producing audio so the AMP release envelope
+                    // has something to fade. The processor resets the machine when
+                    // the AMP goes Idle.
+                    voices_[static_cast<std::size_t>(vi)].midiNote = -1;
+                }
+                releaseAt   = -1;
+                releaseNote = -1;
             }
 
             if (triggerAt >= 0 && i == triggerAt)
@@ -210,6 +248,11 @@ namespace lockstep
                 if (!vs.choke.isFading() && vs.hasPending)
                 {
                     vs.hasPending = false;
+                    if (vs.pendingNote < 0)
+                    {
+                        vs.player = SamplePlayer{};  // kill zombie voice after choke
+                        continue;
+                    }
                     const int pn        = vs.pendingNote;
                     const ParamFrame pp = vs.pendingParams;
                     vs.midiNote = pn;
