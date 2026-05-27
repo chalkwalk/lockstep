@@ -67,7 +67,9 @@ namespace lockstep
       case kSlotNoiseDecay:
         return { "drum_noise_decay", "Nz Dec",    1.f, 2000.f, 200.f, false, U::Ms,        3, R::None   };
       case kSlotLevel:
-        return { "drum_level",       "Level",     0.f,    1.f, 0.85f, false, U::Percent,   3, R::Level  };
+        return { "drum_level",       "Level",     0.f,    1.f, 0.85f, false, U::Percent,   3, R::Level   };
+      case kSlotVelSens:
+        return { "drum_vel_sens",    "Vel Sens",  0.f,    1.f,  0.0f, false, U::Percent,   3, R::None    };
       case kSlotRetrig:
       {
         static constexpr const char* kRetrigLabels[] = { "LEGATO", "RETRIG", "FREE" };
@@ -342,6 +344,9 @@ namespace lockstep
     const int   numOut     = buffer.getNumChannels();
     const float level      = paramAt(params, kSlotLevel);
     const float body       = paramAt(params, kSlotBody);
+    const float velSens    = paramAt(params, kSlotVelSens);
+    // velGain: lerp between full level (sens=0) and velocity-scaled level (sens=1)
+    const float velGain    = 1.0f - velSens + velSens * voice_.velocity;
     const double twoPi     = 2.0 * std::numbers::pi;
 
     int evIdx = 0;
@@ -414,7 +419,7 @@ namespace lockstep
           const float shaped = std::tanh(osc * (1.f + drive * 8.f));
           const float click  = xorNoise(v.noiseSeed) * advanceClick(v);
           const float amp    = advanceAmp(v);
-          out = (shaped + click) * amp * v.velocity * level;
+          out = (shaped + click) * amp * velGain * level;
           break;
         }
 
@@ -434,7 +439,7 @@ namespace lockstep
 
           const float amp = advanceAmp(v);
           out = (bodyOsc * body + noise * (1.f - body) + snapSig)
-                * amp * v.velocity * level;
+                * amp * velGain * level;
           break;
         }
 
@@ -443,7 +448,7 @@ namespace lockstep
         {
           const float filtered = svfHigh(v, xorNoise(v.noiseSeed));
           const float amp      = advanceAmp(v);
-          out = filtered * amp * v.velocity * level;
+          out = filtered * amp * velGain * level;
           break;
         }
       }

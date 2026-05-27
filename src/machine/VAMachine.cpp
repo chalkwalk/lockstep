@@ -102,6 +102,8 @@ namespace lockstep
           p.valueLabels = std::span<const char* const>(kRetrigLabels);
           return p;
         }
+        case kSlotVelSens:
+          return { "va_vel_sens", "Vel Sens", 0.0f, 1.0f, 0.0f, false, U::Percent, 3, R::None };
 
         default: return {};
         }
@@ -567,16 +569,17 @@ namespace lockstep
 
         // ---- Scan events -----------------------------------------------
         // Collect all note-ons and note-offs with their sample positions.
-        struct NoteEvent { int samplePos; int note; bool on; };
+        struct NoteEvent { int samplePos; int note; float vel; bool on; };
         juce::Array<NoteEvent> noteEvents;
         noteEvents.ensureStorageAllocated(8);
         for (const auto& meta : events)
         {
             const auto msg = meta.getMessage();
             if (msg.isNoteOn())
-                noteEvents.add({ meta.samplePosition, msg.getNoteNumber(), true });
+                noteEvents.add({ meta.samplePosition, msg.getNoteNumber(),
+                                 msg.getFloatVelocity(), true });
             else if (msg.isNoteOff())
-                noteEvents.add({ meta.samplePosition, msg.getNoteNumber(), false });
+                noteEvents.add({ meta.samplePosition, msg.getNoteNumber(), 0.0f, false });
         }
 
         // Early exit
@@ -634,7 +637,9 @@ namespace lockstep
         const float osc1PW        = std::clamp(p(kSlotOsc1PW) + lfoPWMod, 0.05f, 0.95f);
         const int   osc2Wave      = static_cast<int>(p(kSlotOsc2Wave));
         const float osc2PW        = std::clamp(p(kSlotOsc2PW) + lfoPWMod, 0.05f, 0.95f);
-        const float outputLevel   = p(kSlotLevel) * (1.0f + lfoAmpMod);
+        const float velSens    = p(kSlotVelSens);
+        const float velGain    = 1.0f - velSens + velSens * voiceVelocity_;
+        const float outputLevel   = p(kSlotLevel) * (1.0f + lfoAmpMod) * velGain;
         const float pan           = std::clamp(p(kSlotPan), -1.0f, 1.0f);
 
         // Osc2 frequency ratio from coarse + fine params.
@@ -674,6 +679,7 @@ namespace lockstep
                 const auto& ev = noteEvents[eventIdx];
                 if (ev.on)
                 {
+                    voiceVelocity_ = ev.vel;
                     if (paraMode)
                     {
                         startParaVoice(ev.note, params);

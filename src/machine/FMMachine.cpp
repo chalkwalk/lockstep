@@ -86,7 +86,7 @@ namespace lockstep
 
   // ---------------------------------------------------------------------------
 
-  void FMMachine::startVoice(int voiceIdx, int midiNote, const ParamFrame& params)
+  void FMMachine::startVoice(int voiceIdx, int midiNote, const ParamFrame& params, float velocity)
   {
     auto& voice = voices_[static_cast<std::size_t>(voiceIdx)];
 
@@ -102,6 +102,7 @@ namespace lockstep
     voice.midiNote    = midiNote;
     voice.age         = ++voiceCounter_;
     voice.outputLevel = p(kSlotOutputLevel);
+    voice.velocity    = std::clamp(velocity, 0.0f, 1.0f);
 
     for (int dst = 0; dst < kNumOps; ++dst)
       for (int src = 0; src < kNumOps; ++src)
@@ -162,12 +163,12 @@ namespace lockstep
     }
   }
 
-  void FMMachine::legatoUpdateVoice(int midiNote, const ParamFrame& params)
+  void FMMachine::legatoUpdateVoice(int midiNote, const ParamFrame& params, float velocity)
   {
     auto& voice = voices_[0];
     if (!voice.active)
     {
-      startVoice(0, midiNote, params);
+      startVoice(0, midiNote, params, velocity);
       return;
     }
 
@@ -179,6 +180,7 @@ namespace lockstep
 
     voice.midiNote = midiNote;
     voice.age      = ++voiceCounter_;
+    voice.velocity = std::clamp(velocity, 0.0f, 1.0f);
 
     for (int i = 0; i < kNumOps; ++i)
     {
@@ -272,16 +274,17 @@ namespace lockstep
                           const ParamFrame& params,
                           juce::AudioBuffer<float>& buffer)
   {
-    struct NoteEvent { int samplePos; int note; bool on; };
+    struct NoteEvent { int samplePos; int note; float vel; bool on; };
     juce::Array<NoteEvent> noteEvents;
     noteEvents.ensureStorageAllocated(8);
     for (const auto& meta : events)
     {
       const auto msg = meta.getMessage();
       if (msg.isNoteOn())
-        noteEvents.add({ meta.samplePosition, msg.getNoteNumber(), true });
+        noteEvents.add({ meta.samplePosition, msg.getNoteNumber(),
+                         msg.getFloatVelocity(), true });
       else if (msg.isNoteOff())
-        noteEvents.add({ meta.samplePosition, msg.getNoteNumber(), false });
+        noteEvents.add({ meta.samplePosition, msg.getNoteNumber(), 0.0f, false });
     }
 
     const int numBlockSamples = buffer.getNumSamples();
@@ -328,6 +331,7 @@ namespace lockstep
               // Stealing an active/fading voice: defer the new note until the
               // choke fade completes so we don't click.
               voice.pendingNote       = ev.note;
+              voice.pendingVelocity   = ev.vel;
               voice.pendingParams     = params;
               voice.hasPendingTrigger = true;
               if (!voice.choke.isFading())
@@ -335,7 +339,7 @@ namespace lockstep
             }
             else
             {
-              startVoice(idx, ev.note, params);
+              startVoice(idx, ev.note, params, ev.vel);
             }
           }
           else
@@ -347,11 +351,11 @@ namespace lockstep
             if (retrigMode == 2)  // FREE: skip if voice is sounding
             {
               if (!voice.active && !voice.choke.isFading())
-                startVoice(0, ev.note, params);
+                startVoice(0, ev.note, params, ev.vel);
             }
             else if (retrigMode == 0)  // LEGATO: update pitch, let envelope continue
             {
-              legatoUpdateVoice(ev.note, params);
+              legatoUpdateVoice(ev.note, params, ev.vel);
             }
             else  // RETRIG: immediate ghost-slot crossfade
             {
@@ -362,14 +366,14 @@ namespace lockstep
                 voices_[1].hasPendingTrigger = false;
                 voices_[1].choke.prepare(sampleRate_, 1.5f);
                 voices_[1].choke.trigger();
-                startVoice(0, ev.note, params);
+                startVoice(0, ev.note, params, ev.vel);
                 voices_[0].isGhost           = false;
                 voices_[0].hasPendingTrigger = false;
                 voices_[0].choke.reset();
               }
               else
               {
-                startVoice(0, ev.note, params);
+                startVoice(0, ev.note, params, ev.vel);
               }
             }
           }
@@ -397,7 +401,7 @@ namespace lockstep
         if (!voice.choke.isFading() && voice.hasPendingTrigger)
         {
           voice.hasPendingTrigger = false;
-          startVoice(vi, voice.pendingNote, voice.pendingParams);
+          startVoice(vi, voice.pendingNote, voice.pendingParams, voice.pendingVelocity);
         }
 
         if (!voice.active) continue;
@@ -426,6 +430,12 @@ namespace lockstep
           op.output = std::sin(angle) * env;
           op.phase += op.phaseInc;
           if (op.phase >= 1.0) op.phase -= 1.0;
+
+          // Per-op velocity scaling (affects FM modulation depth, not just output bus)
+          const int vsSlot = kSlotOp1VelSens + j;
+          const float velSens = (params.size() > static_cast<std::size_t>(vsSlot))
+              ? params[static_cast<std::size_t>(vsSlot)] : 0.0f;
+          op.output *= 1.0f - velSens + velSens * voice.velocity;
         }
 
         float sample = 0.0f;
@@ -504,7 +514,10 @@ namespace lockstep
     case kSlotOp4Decay:   { ParamSpec p { "fm_dec_4", "Op4 Dec",  1.0f,10000.0f, 200.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }
     case kSlotOp4Sustain: return { "fm_sus_4", "Op4 Sus", 0.0f, 1.0f, 0.0f, false, U::Percent, 3, R::None };
     case kSlotOp4Release: { ParamSpec p { "fm_rel_4", "Op4 Rel",  1.0f,10000.0f, 500.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }
-    case kSlotVoiceMode:  { ParamSpec p { "fm_voice_mode", "Voice", 0.0f, 1.0f, 0.0f, true, U::None, 7, R::None }; p.valueLabels = std::span<const char* const>(kVoiceModeLabels); return p; }
+    case kSlotOp1VelSens: return { "fm_vs_1", "Op1 VelSns", 0.0f, 1.0f, 0.0f, false, U::Percent, 3, R::None };
+    case kSlotOp2VelSens: return { "fm_vs_2", "Op2 VelSns", 0.0f, 1.0f, 0.0f, false, U::Percent, 3, R::None };
+    case kSlotOp3VelSens: return { "fm_vs_3", "Op3 VelSns", 0.0f, 1.0f, 0.0f, false, U::Percent, 3, R::None };
+    case kSlotOp4VelSens: return { "fm_vs_4", "Op4 VelSns", 0.0f, 1.0f, 0.0f, false, U::Percent, 3, R::None };
     case kSlotRetrig:
     {
       static constexpr const char* kRetrigLabels[] = { "LEGATO", "RETRIG", "FREE" };
@@ -512,6 +525,7 @@ namespace lockstep
       p.valueLabels = std::span<const char* const>(kRetrigLabels);
       return p;
     }
+    case kSlotVoiceMode:  { ParamSpec p { "fm_voice_mode", "Voice", 0.0f, 1.0f, 0.0f, true, U::None, 7, R::None }; p.valueLabels = std::span<const char* const>(kVoiceModeLabels); return p; }
     default: break;
     }
 

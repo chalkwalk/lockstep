@@ -65,23 +65,24 @@ namespace lockstep
     static constexpr int kSlotFEnvS      = 19;
     static constexpr int kSlotFEnvR      = 20;
 
-    // Section 3 — AMP (6 slots, 1 page)
+    // Section 3 — AMP (8 slots, 1 page) — must stay contiguous in slot space
     static constexpr int kSlotAmpA       = 21;
     static constexpr int kSlotAmpD       = 22;
     static constexpr int kSlotAmpS       = 23;
     static constexpr int kSlotAmpR       = 24;
     static constexpr int kSlotLevel      = 25;
     static constexpr int kSlotPan        = 26;
+    static constexpr int kSlotRetrig     = 27;  // 0=LEGATO 1=RETRIG 2=FREE
+    static constexpr int kSlotVelSens    = 28;  // 0=off, 1=full velocity sensitivity
 
     // Section 4 — LFO (5 slots, 1 page)
-    static constexpr int kSlotLfoRate    = 27;
-    static constexpr int kSlotLfoDepth   = 28;
-    static constexpr int kSlotLfoShape   = 29;
-    static constexpr int kSlotLfoTarget  = 30;
-    static constexpr int kSlotLfoSync    = 31;
-    static constexpr int kSlotRetrig     = 32;  // 0=LEGATO 1=RETRIG 2=FREE
+    static constexpr int kSlotLfoRate    = 29;
+    static constexpr int kSlotLfoDepth   = 30;
+    static constexpr int kSlotLfoShape   = 31;
+    static constexpr int kSlotLfoTarget  = 32;
+    static constexpr int kSlotLfoSync    = 33;
 
-    static constexpr int kNumSlots    = 33;
+    static constexpr int kNumSlots    = 34;
     static constexpr int kNumSections = 5;  // indices 0..4
     static constexpr int kMaxSubVoices = 4;
 
@@ -190,6 +191,7 @@ namespace lockstep
 
     double sampleRate_ = 44100.0;
 
+    float  voiceVelocity_ = 1.0f;   // normalised velocity (0..1) of the last triggered note
     std::array<SubVoice, kMaxSubVoices> subVoices_{};
     int    voiceCounter_     = 0;   // monotonic counter for age-based stealing
     int    paraChordNoteIdx_ = 0;   // tracks which chord note is being assigned next

@@ -109,8 +109,9 @@ namespace lockstep
     static constexpr int kSlotNoiseDecay = 11;  // snare: independent noise envelope decay
     static constexpr int kSlotLevel      = 12;
     static constexpr int kSlotRetrig     = 13;  // 0=LEGATO 1=RETRIG 2=FREE
+    static constexpr int kSlotVelSens    = 14;  // 0=off, 1=full velocity sensitivity
 
-    static constexpr int kNumSlots    = 14;
+    static constexpr int kNumSlots    = 15;
     static constexpr int kNumSections = 4;  // 0=TRIG, 1=SRC, 2=FILTER, 3=AMP
 
     // -----------------------------------------------------------------------

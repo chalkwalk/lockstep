@@ -60,7 +60,7 @@ namespace lockstep
     static constexpr int kSlotMix3    = 10;
     static constexpr int kSlotMix4    = 11;
 
-    // Section 3 — AMP (20 slots, 5 pages, hasInternalAmp=true)
+    // Section 3 — AMP (25 slots, 4 pages, hasInternalAmp=true) — must stay contiguous in slot space
     static constexpr int kSlotMacroAttack   = 12;
     static constexpr int kSlotMacroRelease  = 13;
     static constexpr int kSlotMacroSustain  = 14;
@@ -81,19 +81,21 @@ namespace lockstep
     static constexpr int kSlotOp4Decay      = 29;
     static constexpr int kSlotOp4Sustain    = 30;
     static constexpr int kSlotOp4Release    = 31;
+    // Per-op velocity sensitivity (scales op.output before FM modulation)
+    static constexpr int kSlotOp1VelSens    = 32;
+    static constexpr int kSlotOp2VelSens    = 33;
+    static constexpr int kSlotOp3VelSens    = 34;
+    static constexpr int kSlotOp4VelSens    = 35;
+    static constexpr int kSlotRetrig        = 36;  // 0=LEGATO 1=RETRIG 2=FREE
 
-    // Section 6 — MOD (16 slots, 4 pages, extension of SRC)
-    // Grouped by destination: slots[32+dst*4+src] = matrix[src][dst]
-    static constexpr int kSlotModBase = 32;  // matrix[src][dst] = kSlotModBase + dst*4 + src
+    // Section 6 — MOD (16 slots, 2 pages, extension of SRC)
+    // Grouped by destination: slots[37+dst*4+src] = matrix[src][dst]
+    static constexpr int kSlotModBase = 37;  // matrix[src][dst] = kSlotModBase + dst*4 + src
 
     // Section 7 — VOICE (1 slot, extension of SRC).
-    // Mono / Poly switch. Lives in its own extension section so the SRC,
-    // MOD, and VOICE pages stay contiguous within their own slot ranges
-    // (the MZ navigation assumes section-contiguity).
-    static constexpr int kSlotVoiceMode = 48;
-    static constexpr int kSlotRetrig    = 49;  // 0=LEGATO 1=RETRIG 2=FREE
+    static constexpr int kSlotVoiceMode = 53;
 
-    static constexpr int kNumSlots    = 50;
+    static constexpr int kNumSlots    = 54;
     static constexpr int kNumSections = 8;  // indices 0..7; 6=MOD, 7=VOICE (both SRC extensions)
 
     static constexpr int kNumOps = 4;
@@ -131,22 +133,24 @@ namespace lockstep
       std::uint64_t age = 0;  // monotonic stamp; oldest active voice is stolen first
       std::array<Operator, kNumOps> ops{};
       float   outputLevel = 1.0f;
+      float   velocity    = 1.0f;   // normalised (0..1) velocity of the triggering note-on
       // matrix[src][dst]: op src modulates op dst
       std::array<std::array<float, kNumOps>, kNumOps> modMatrix{};
       // Per-voice pending re-trigger state (Mono mode only): set when a
       // note-on lands while this voice is already active so the choke
       // fade can finish before the new voice starts on the same slot.
-      bool        hasPendingTrigger = false;
-      int         pendingNote       = 60;
+      bool        hasPendingTrigger  = false;
+      int         pendingNote        = 60;
+      float       pendingVelocity    = 1.0f;
       ParamFrame  pendingParams{};
       VoiceChoke  choke{};
-      bool        isGhost           = false;  // fade-only slot; deactivates when choke ends
+      bool        isGhost            = false;  // fade-only slot; deactivates when choke ends
     };
 
     int  allocVoice();                // returns index in voices_
     int  findVoiceByNote(int midiNote) const;
-    void startVoice(int voiceIdx, int midiNote, const ParamFrame& params);
-    void legatoUpdateVoice(int midiNote, const ParamFrame& params);
+    void startVoice(int voiceIdx, int midiNote, const ParamFrame& params, float velocity = 1.0f);
+    void legatoUpdateVoice(int midiNote, const ParamFrame& params, float velocity = 1.0f);
     void releaseVoice(int voiceIdx);
     float advanceEnv(Operator& op);
 
