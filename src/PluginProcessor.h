@@ -445,6 +445,11 @@ namespace lockstep
         // Per-track last step index written by realtime record (for chord aggregation).
         // -1 means no step has been recorded for this track yet.
         std::array<int, kNumTracks> lastRecordedStep_{};
+
+        // MHZ.6.1: per-track, per-note gate tracker for realtime record.
+        // stepIdx == -1 means this note slot is inactive.
+        struct RealtimeNoteEntry { int stepIdx = -1; int64_t noteOnSample = 0; };
+        std::array<std::array<RealtimeNoteEntry, 128>, kNumTracks> realtimeNotes_{};
         int64_t totalSamplesProcessed_ = 0;
         std::array<double, kNumTracks> nextTriggerPpq_{};
         std::array<bool, kNumTracks>   lastStepFired_{};

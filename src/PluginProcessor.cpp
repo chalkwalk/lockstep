@@ -618,7 +618,8 @@ namespace lockstep
                     // start a fresh chord on the new step.
                     if (stepIdx != lastRecordedStep_[ti])
                     {
-                        s.trigOverride.noteCount = 0;
+                        s.trigOverride.noteCount        = 0;
+                        s.trigOverride.hasNoteVelocities = false;
                         lastRecordedStep_[ti] = stepIdx;
                     }
                     s.trig = true;
@@ -630,9 +631,18 @@ namespace lockstep
                             if (s.trigOverride.notes[static_cast<std::size_t>(n)] == note)
                                 { already = true; break; }
                         if (!already)
-                            s.trigOverride.notes[static_cast<std::size_t>(
-                                s.trigOverride.noteCount++)] = note;
+                        {
+                            const auto idx = static_cast<std::size_t>(s.trigOverride.noteCount);
+                            s.trigOverride.notes[idx]      = note;
+                            s.trigOverride.velocities[idx] = static_cast<uint8_t>(velocity);
+                            s.trigOverride.hasNoteVelocities = true;
+                            ++s.trigOverride.noteCount;
+                        }
                     }
+                    // MHZ.6.1: record note-on sample for gate capture on note-off.
+                    const int64_t noteOnSample = totalSamplesProcessed_
+                                                 + static_cast<int64_t>(sampleOffset);
+                    realtimeNotes_[ti][static_cast<std::size_t>(midiNote)] = { stepIdx, noteOnSample };
                 }
             }
             else
@@ -708,11 +718,41 @@ namespace lockstep
 
         // Route external note-off directly into the track's buffer;
         // also finalise chord gate when the last captured note is released.
-        ccCtx.onNoteOff = [this, &trackMidi, samplesPerPpq](int track, int sampleOffset, int midiNote)
+        ccCtx.onNoteOff = [this, &trackMidi, samplesPerPpq, recArmed, sequencerRunning]
+                          (int track, int sampleOffset, int midiNote)
         {
             trackMidi[static_cast<std::size_t>(track)].addEvent(
                 juce::MidiMessage::noteOff(1, midiNote),
                 sampleOffset);
+
+            // MHZ.6.1: finalise gate for realtime record path.
+            if (recArmed && sequencerRunning && !editContext_.isActiveForEditing()
+                && midiNote >= 0 && midiNote < 128)
+            {
+                const auto ti = static_cast<std::size_t>(track);
+                auto& entry = realtimeNotes_[ti][static_cast<std::size_t>(midiNote)];
+                if (entry.stepIdx >= 0)
+                {
+                    const int64_t noteOffSample =
+                        totalSamplesProcessed_ + static_cast<int64_t>(sampleOffset);
+                    const float gateMs =
+                        static_cast<float>(noteOffSample - entry.noteOnSample)
+                        * 1000.0f / static_cast<float>(getSampleRate());
+                    const double captureBpm = (samplesPerPpq > 0.0)
+                        ? (getSampleRate() * 60.0 / samplesPerPpq) : clock_.localBpm();
+                    const MusicalGate g = nearestMusicalGate(std::max(1.0f, gateMs), captureBpm);
+                    auto& trig = sequence().tracks[ti]
+                                     .steps[static_cast<std::size_t>(entry.stepIdx)].trigOverride;
+                    // Max-gate rule: keep the longest gate among all notes in this step.
+                    if (!trig.hasGate
+                        || static_cast<uint8_t>(g) > static_cast<uint8_t>(trig.gateValue))
+                    {
+                        trig.hasGate   = true;
+                        trig.gateValue = g;
+                    }
+                    entry.stepIdx = -1;
+                }
+            }
 
             if (!chordCapture_.active) return;
             // Only handle if this note was part of the capture.
