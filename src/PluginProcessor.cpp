@@ -118,15 +118,11 @@ namespace lockstep
             trackSoloParams_[ti]    = apvts_.getRawParameterValue(ParamIDs::trackSolo(t));
         }
 
-        // Tracks 0-7: sampler; tracks 8-15: MIDI-out (Digitakt-style default split).
-        // Any track can be reassigned to any machine via the Part-edit flow.
-        for (std::size_t t = 0; t < kNumTracks; ++t)
-        {
-            if (t < 8)
-                machines_[t] = std::make_unique<SamplerMachine>(samplePool_);
-            else
-                machines_[t] = std::make_unique<MidiOutMachine>();
-        }
+        // T0 starts as a sampler; T1–T15 are stub (empty) until materialised.
+        // machines_ entries are set correctly here; Part[0] seed below confirms.
+        machines_[0] = std::make_unique<SamplerMachine>(samplePool_);
+        for (std::size_t t = 1; t < kNumTracks; ++t)
+            machines_[t] = std::make_unique<StubMachine>("");
 
         // Verify the state upgrade chain every time the plugin loads in debug mode.
        #if JUCE_DEBUG
@@ -137,29 +133,35 @@ namespace lockstep
         }
        #endif
 
-        // Seed Bank[0]/Part[0] with the default opinionated kit (8 samplers + 8 MIDI-out,
-        // Digitakt-style). All other patterns and parts start uninitialised — they are
+        // Seed Bank[0]/Part[0] with one active sampler track; T1-T15 are empty stub
+        // tracks. All other patterns and parts start uninitialised — they are
         // "empty slots" that materialise on first use via the copy/create gesture.
         {
             auto& part0 = project_.banks[0].parts[0];
             part0.initialised = true;
-            for (std::size_t t = 0; t < kNumTracks; ++t)
+
+            // T0: sampler with default params.
             {
-                part0.tracks[t].machineId = (t < 8)
-                    ? std::string(SamplerMachine::kMachineId)
-                    : std::string(MidiOutMachine::kMachineId);
-                const int np = machines_[t]->numParams();
-                part0.tracks[t].baseParams.assign(static_cast<std::size_t>(np), 0.0f);
+                part0.tracks[0].machineId = SamplerMachine::kMachineId;
+                const int np = machines_[0]->numParams();
+                part0.tracks[0].baseParams.assign(static_cast<std::size_t>(np), 0.0f);
                 for (int s = 0; s < np; ++s)
-                    part0.tracks[t].baseParams[static_cast<std::size_t>(s)] =
-                        machines_[t]->paramSpec(s).defaultValue;
-                if (!machines_[t]->isMidiOut())
-                    part0.tracks[t].baseParams[0] = static_cast<float>(t);
+                    part0.tracks[0].baseParams[static_cast<std::size_t>(s)] =
+                        machines_[0]->paramSpec(s).defaultValue;
+                part0.tracks[0].baseParams[0] = 0.0f;  // sample slot 0
             }
+
+            // T1–T15: empty stub tracks.
+            for (std::size_t t = 1; t < kNumTracks; ++t)
+            {
+                part0.tracks[t].machineId = StubMachine::kMachineId;
+                part0.tracks[t].baseParams.clear();
+            }
+
             auto& pat0 = project_.banks[0].patterns[0];
             pat0.initialised = true;
-            for (std::size_t t = 0; t < kNumTracks; ++t)
-                pat0.sequence.tracks[t].baseParams = part0.tracks[t].baseParams;
+            // Only T0 has real baseParams; T1-T15 stay empty.
+            pat0.sequence.tracks[0].baseParams = part0.tracks[0].baseParams;
         }
     }
 
