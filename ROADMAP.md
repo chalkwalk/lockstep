@@ -1059,63 +1059,40 @@ matured enough to play extended sequences. No new scopes or verbs;
 adds a single per-track AMP param (RETRIG), a single `ParamSpec` field
 (`skew`), and one new clear-notes gesture.
 
-- [ ] **MHZ.5.1** First-trig loudness fix. `VoiceChoke` today only
-      attenuates the *outgoing* voice on retrigger; the first trig
-      after instantiation / pattern restart has no predecessor to
-      fade, so it plays at full level while subsequent retriggers
-      come in mixed against the fade tail of the previous voice.
-      Make the fade strictly asymmetric — incoming voice always at
-      full envelope-shaped amplitude, outgoing voice fades over the
-      existing 1.5–2 ms window into the same buffer. Audit FM, VA,
-      Drums share the same behaviour. Audit DrumSynth click
-      (`DrumSynthMachine.cpp:231`) — the click bypasses amp envelope
-      so its trig-1 punch may also need amp gating.
-- [ ] **MHZ.5.2** Envelope time scaling. Add
-      `ParamSpec::skew : float` (default `1.0f` = linear), JUCE
-      `NormalisableRange::skew` semantics. Apply skew on
-      normalised↔value conversion in the MZ rotary, double-click
-      reset, Control-All broadcast, and P-Lock read/write paths.
-      Re-author envelope slots across FM, VA, DrumSynth, Sampler,
-      `SamplePlayingMachineBase`: Attack `0–5000 ms`, Decay
-      `1–10000 ms`, Release `1–10000 ms`, exponential skew
-      (`≈ 0.25–0.35`). Tune by ear once the curve is live.
-- [ ] **MHZ.5.3** Per-track RETRIG mode. New per-track param
-      `RETRIG = LEGATO | RETRIG | FREE` in the AMP canonical
-      section, P-lockable per step, `valueLabels` for textual MZ
-      render. Default `LEGATO` = today's behaviour (envelope
-      continues on same-pitch retrig in mono). `RETRIG` =
-      envelope always restarts at 0. `FREE` = envelope only
-      restarts when no voice is currently sounding. Wired into
-      each machine's voice-trigger path.
-- [ ] **MHZ.5.4** Trig / notes decoupling — visual + clear-notes
-      gesture. The data model already keeps `step.trig`,
-      `trigOverride.notes[]`, and P-Locks independent (`Step.h`,
-      `PluginState.cpp:361`); the gap is only surface. (a) Step
-      cells with `trig == false` but `noteCount > 0` or P-Locks
-      present render dim while still showing note-count badge
-      and P-Lock dot. (b) New gesture **Trig + Func + No** =
-      clear held step(s)' notes + velocity/gate overrides,
-      leaving `step.trig` and P-Locks intact (parallel to
-      Trig + Func + Stop = clear P-Locks).
-- [ ] **MHZ.5.5** Octave badge legibility (extends MHZ.4.6).
-      Cross-octave badges on note-edit overlay become `<`, `<<`,
-      `>`, `>>` glyphs (`<<<` / `>>>` for ±3; numeric fallback
-      beyond), ~11pt, top-right corner of the cell, tinted with
-      scope colour. Rendering site:
-      `KeyboardArea.cpp:1306-1443`.
-- [ ] **MHZ.5.6** Documentation: CLAUDE.md glossary
-      (`RETRIG mode`, `clear-notes gesture`, `ParamSpec::skew`);
-      DESIGN updates (§3 envelope skew, §13 clear-notes,
-      §21.4 trig/notes decoupling clarification); README §5
-      shortcut table; ROADMAP checkboxes.
-- [ ] **MHZ.5.7** Verification: 16-step uniform-velocity FM
-      sequence — first trig is no longer audibly louder.
-      Envelope Attack encoder gives fine resolution under
-      100 ms, coarse above 1 s. RETRIG=RETRIG retriggers
-      envelope on every trig in mono. Step with trig off still
-      shows note-count + P-Lock dots; Trig+Func+No strips notes
-      while leaving P-Locks. Note-edit overlay badges legible
-      at 1× zoom.
+- [x] **MHZ.5.1** First-trig loudness fix. FM: ghost-slot (dying
+      voice copied to slot[1], fades out while slot[0] fires
+      immediately). VA: ghost-gain crossfade (old aLevel decays
+      over 1.5 ms; new envelope attacks from 0; combined
+      amplitude = aEnvLevel + ghostGain). DrumSynth: immediate
+      noteOn() on retrig (click transient masks the cut).
+      Sampler: retains choke+pending (sample boundary semantics).
+- [x] **MHZ.5.2** Envelope time scaling. Added `ParamSpec::skew`
+      (float, default 1.0 = linear). Skew applied by MZ rotary
+      via `Slider::setSkewFactor()`; P-Locks and serializer use
+      raw values. All four machines re-authored: Attack 0–5000 ms,
+      Decay/Release 1–10000 ms, skew ≈ 0.3 (exponential feel).
+- [x] **MHZ.5.3** Per-track RETRIG mode. `kSlotRetrig` added to
+      all four machines' AMP section (LEGATO=0, RETRIG=1, FREE=2).
+      LEGATO: pitch update only, envelope continues. RETRIG: ghost
+      crossfade / envelope restarts (MHZ.5.1 behavior). FREE:
+      ignores note-on while voice active. Textual MZ render via
+      `valueLabels`.
+- [x] **MHZ.5.4** Trig / notes decoupling. Visual was already
+      correct (dim badge still visible on trig-off cells). New
+      gesture **Trig + Func + No** clears `noteCount`, `notes[]`,
+      `hasVelocity`, `velocity`, `hasGate`, `gateMs` on held
+      step(s); `step.trig` and P-Locks unchanged.
+- [x] **MHZ.5.5** Octave badge legibility. Arrow glyphs
+      (`<`/`<<`/`<<<`, `>`/`>>`/`>>>`) relative to view octave;
+      font 6pt → 11pt; position bottom-centred → top-right
+      corner, right-aligned, sized per `getStringWidthFloat()`.
+- [x] **MHZ.5.6** Documentation: CLAUDE.md status + glossary
+      updated. ROADMAP checkboxes marked. (DESIGN/README deferred
+      to end-of-MHZ.8 doc sweep.)
+- [x] **MHZ.5.7** Verification: build passes clean. Manual test
+      confirms first-trig matches subsequent trigs, encoder gives
+      fine control under 100 ms, RETRIG mode restarts envelope,
+      Trig+Func+No strips notes, arrow badges legible.
 
 #### MHZ.6 — Record-time capture parity (velocity + musical gate)
 
