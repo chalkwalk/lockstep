@@ -1698,27 +1698,44 @@ namespace lockstep
                 }
             }
 
+            // Pre-compute isEmpty per cell: uninitialised slots get a distinct visual.
+            const int activeBankIdx = processor_.activeBankIdx();
+            std::array<bool, 16> slotEmpty{};
+            for (int i = 0; i < maxAvail; ++i)
+            {
+                if (uiState_.trackHeld)
+                    slotEmpty[static_cast<std::size_t>(i)] = processor_.isTrackEmpty(i);
+                else if (uiState_.patternScopeHeld)
+                    slotEmpty[static_cast<std::size_t>(i)] =
+                        !processor_.isPatternInitialised(activeBankIdx, i);
+                else  // partHeld
+                    slotEmpty[static_cast<std::size_t>(i)] =
+                        !processor_.isPartInitialised(activeBankIdx, i);
+            }
+
             for (int row = 0; row < kRows; ++row)
             {
                 for (int col = 0; col < kCols; ++col)
                 {
-                    const int idx     = row * kCols + col;
-                    const bool avail  = idx < maxAvail;
-                    const bool isCurrent = avail && (idx == activeIdx);
-                    const int  cpos   = (uiState_.patternScopeHeld && avail)
-                                        ? chainPos[static_cast<std::size_t>(idx)] : 0;
-                    const bool isNext  = cpos == 1;
-                    const bool isChain = cpos >= 2;
+                    const int idx        = row * kCols + col;
+                    const bool avail     = idx < maxAvail;
+                    const bool isEmpty   = avail && slotEmpty[static_cast<std::size_t>(idx)];
+                    const bool isCurrent = avail && !isEmpty && (idx == activeIdx);
+                    const int  cpos      = (uiState_.patternScopeHeld && avail && !isEmpty)
+                                           ? chainPos[static_cast<std::size_t>(idx)] : 0;
+                    const bool isNext    = cpos == 1;
+                    const bool isChain   = cpos >= 2;
 
                     const int x    = colX(row, col + 2);
                     const int y    = rowY(row);
                     const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
-                    // Fill colour: current=opaque white-ish, next=bright tint,
-                    // chain=mid tint, idle=dim, unavailable=out-of-range.
+                    // Three-state fill: occupied (current/chain/idle), empty, or out-of-range.
                     juce::Colour fill;
                     if (!avail)
                         fill = juce::Colour(kStepOutRange);
+                    else if (isEmpty)
+                        fill = juce::Colour(kStepOutRange).brighter(0.06f);
                     else if (isCurrent && !isNext)
                         fill = juce::Colours::white.withAlpha(0.18f);
                     else if (isNext)
@@ -1731,31 +1748,35 @@ namespace lockstep
                     g.setColour(fill);
                     g.fillRoundedRectangle(cell.toFloat(), 4.0f);
 
-                    // Border: current gets a white rim, next gets none (fill is bright),
-                    // chain gets a dim tint rim, idle gets a faint tint rim.
-                    if (avail && isCurrent && !isNext)
+                    // Border: occupied slots get a rim; empty and out-of-range do not.
+                    if (!isEmpty && avail && isCurrent && !isNext)
                     {
                         g.setColour(juce::Colours::white.withAlpha(0.60f));
                         g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
                     }
-                    else if (avail && !isNext)
+                    else if (!isEmpty && avail && !isNext)
                     {
                         g.setColour(scopeTint.withAlpha(isChain ? 0.60f : 0.35f));
                         g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
                     }
 
-                    // Label: index number, plus chain position badge for queue entries.
+                    // Label: number for occupied/out-of-range; ~ or + for empty slots.
+                    // ~ = "press to copy current here" (no Func); + = "create default" (Func held).
+                    const juce::String label = isEmpty
+                        ? (uiState_.funcHeld ? "+" : "~")
+                        : juce::String(idx + 1);
                     const juce::Colour textCol = (!avail)
                         ? juce::Colour::fromRGB(50, 55, 60)
-                        : (isNext ? juce::Colours::black
-                                  : juce::Colours::white.withAlpha(isCurrent ? 0.90f : 0.65f));
+                        : isEmpty
+                            ? juce::Colour::fromRGB(80, 85, 90)
+                            : (isNext ? juce::Colours::black
+                                      : juce::Colours::white.withAlpha(isCurrent ? 0.90f : 0.65f));
                     g.setColour(textCol);
                     g.setFont(juce::Font(juce::FontOptions(9.0f)));
-                    g.drawText(juce::String(idx + 1), cell.reduced(2),
-                               juce::Justification::centred);
+                    g.drawText(label, cell.reduced(2), juce::Justification::centred);
 
-                    // Chain-position badge (small, top-right corner): "1", "2", "3"...
-                    if (cpos > 0)
+                    // Chain-position badge: only for occupied, queued entries.
+                    if (cpos > 0 && !isEmpty)
                     {
                         const auto badge = cell.withWidth(11).withHeight(11)
                                                .withRightX(cell.getRight())
