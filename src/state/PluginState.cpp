@@ -1044,8 +1044,9 @@ namespace
 
                 const auto result = lockstep::PluginState::applyUpgrades(v1);
 
-                expectEquals(static_cast<int>(result.getProperty("version", -1)), 2,
-                             "version bumped to 2");
+                expectEquals(static_cast<int>(result.getProperty("version", -1)),
+                             lockstep::PluginState::kCurrentVersion,
+                             "version upgraded to current");
                 expect(!result.getChildWithName("Sequence").isValid(),
                        "old Sequence node removed");
                 const auto proj = result.getChildWithName("Project");
@@ -1091,8 +1092,9 @@ namespace
 
                 const auto result = lockstep::PluginState::applyUpgrades(v2);
 
-                expectEquals(static_cast<int>(result.getProperty("version", -1)), 2,
-                             "version preserved at 2");
+                expectEquals(static_cast<int>(result.getProperty("version", -1)),
+                             lockstep::PluginState::kCurrentVersion,
+                             "version upgraded to current");
                 expect(result.getChildWithName("Project").isValid(), "Project child present");
                 expect(!result.getChildWithName("Sequence").isValid(), "no legacy Sequence");
             }
