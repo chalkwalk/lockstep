@@ -17,7 +17,7 @@ namespace lockstep
 
             // MHZ.2.3: slim header — param name above the rotary.
             labels_[si].setJustificationType(juce::Justification::centredLeft);
-            labels_[si].setFont(juce::Font(juce::FontOptions(9.0f)));
+            labels_[si].setFont(juce::Font(juce::FontOptions(11.0f)));
             addAndMakeVisible(labels_[si]);
 
             // MHZ.2.3: single value line below the rotary (textual or numeric).
@@ -56,7 +56,11 @@ namespace lockstep
             clearBtns_[si].onClick = [this, i]
             {
                 const auto& ctx = processor_.editContext();
-                if (ctx.isActiveForEditing())
+                if (!ctx.isActiveForEditing()) return;
+                if (metaSection_ == 1)
+                    processor_.clearTrigOverrideField(ctx.heldTrackIndex(),
+                                                      ctx.heldStepIndex(), i);
+                else
                     processor_.clearParam(ctx.heldTrackIndex(), ctx.heldStepIndex(),
                                           slotOffset_ + i);
             };
@@ -513,7 +517,8 @@ namespace lockstep
                                                      static_cast<float>(velocity),
                                                      gateMs, noteSel,
                                                      0.0f, 0.0f, 0.0f, 0.0f };
-        const std::array<bool,  kNumSlots> locks = { hasNote, hasVel, hasGate, false,
+        // Notes are not P-locks (not set via the param area) — no lock indicator or clear button.
+        const std::array<bool,  kNumSlots> locks = { false, hasVel, hasGate, false,
                                                      false, false, false, false };
         static constexpr const char* kBiasLabels[] = { "TOP", "BOT" };
 
@@ -908,8 +913,8 @@ namespace lockstep
                 narrowW, rowH).reduced(2, 2);
 
             // Top strip: param name left, clear button right.
-            auto header = cell.removeFromTop(10);
-            clearBtns_[si].setBounds(header.removeFromRight(14));
+            auto header = cell.removeFromTop(14);
+            clearBtns_[si].setBounds(header.removeFromRight(16));
             labels_[si].setBounds(header);
 
             // Bottom strip: value display.

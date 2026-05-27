@@ -158,6 +158,7 @@ namespace lockstep
         op.stage          = Stage::Attack;
         op.stageRemaining = op.attackSamples;
       }
+
     }
   }
 
@@ -376,16 +377,8 @@ namespace lockstep
         ++eventIdx;
       }
 
-      // Per-voice sample mixing with voice-count normalization.
-      // Dividing by the number of sounding voices keeps a 3-note chord at the
-      // same perceived level as a single note (standard poly-synth behaviour).
+      // Per-voice sample mixing.
       float mixed = 0.0f;
-      int soundingVoices = 0;
-      for (int vi = 0; vi < kMaxVoices; ++vi)
-      {
-        const auto& v = voices_[static_cast<std::size_t>(vi)];
-        if (v.active || v.choke.isFading() || v.hasPendingTrigger) ++soundingVoices;
-      }
       for (int vi = 0; vi < kMaxVoices; ++vi)
       {
         auto& voice = voices_[static_cast<std::size_t>(vi)];
@@ -449,10 +442,8 @@ namespace lockstep
         mixed += sample;
       }
 
-      const float norm = (soundingVoices > 1)
-                         ? 1.0f / static_cast<float>(soundingVoices) : 1.0f;
       for (int ch = 0; ch < numOut; ++ch)
-        buffer.addSample(ch, i, mixed * norm);
+        buffer.addSample(ch, i, mixed);
     }
   }
 

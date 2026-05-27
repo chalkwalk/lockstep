@@ -1003,6 +1003,9 @@ namespace lockstep
                             .tracks[static_cast<std::size_t>(track)]
                             .steps[static_cast<std::size_t>(step)];
                         std::vector<int> lockedSlots;
+                        const auto& tov = stepData.trigOverride;
+                        if (tov.hasVelocity)   lockedSlots.push_back(-2);
+                        if (tov.hasGate)       lockedSlots.push_back(-3);
                         for (int s = 0; s < numSlots; ++s)
                             if (stepData.overrides.has(s))
                                 lockedSlots.push_back(s);
@@ -1058,34 +1061,36 @@ namespace lockstep
                 return true;
 
             case ControllerButton::NavUp:
-                if (uiState_.noteEditMode)
-                {
-                    uiState_.noteEditOctave = std::min(uiState_.noteEditOctave + 1, 8);
-                    keyboardArea_.repaint();
-                    return true;
-                }
                 // Up = next higher track number (user expectation).
+                // Note-edit octave is on NavLeft/Right; NavUp falls through to track nav.
                 keyboardArea_.setActiveTrack(
                     std::min(static_cast<int>(kNumTracks) - 1,
                              keyboardArea_.getActiveTrack() + 1));
                 return true;
 
             case ControllerButton::NavDown:
+                // Down = previous (lower) track number.
+                // Note-edit octave is on NavLeft/Right; NavDown falls through to track nav.
+                keyboardArea_.setActiveTrack(std::max(0, keyboardArea_.getActiveTrack() - 1));
+                return true;
+
+            case ControllerButton::NavLeft:
                 if (uiState_.noteEditMode)
                 {
                     uiState_.noteEditOctave = std::max(uiState_.noteEditOctave - 1, 0);
                     keyboardArea_.repaint();
                     return true;
                 }
-                // Down = previous (lower) track number.
-                keyboardArea_.setActiveTrack(std::max(0, keyboardArea_.getActiveTrack() - 1));
-                return true;
-
-            case ControllerButton::NavLeft:
                 keyboardArea_.prevPage();
                 return true;
 
             case ControllerButton::NavRight:
+                if (uiState_.noteEditMode)
+                {
+                    uiState_.noteEditOctave = std::min(uiState_.noteEditOctave + 1, 8);
+                    keyboardArea_.repaint();
+                    return true;
+                }
                 if (uiState_.patternScopeHeld)
                 {
                     // PatternScope + NavRight (Func+2 + R): toggle chain loop mode.
@@ -1187,9 +1192,10 @@ namespace lockstep
                 processor_.clock().setInPluginPlaying(!processor_.clock().inPluginPlaying());
                 return true;
             case ControllerButton::StopReset:
-                if (uiState_.noteEditMode)  // Func+E = NavLeft hijacked; reroute as prev page
+                if (uiState_.noteEditMode)  // Func+E = NavLeft: octave down
                 {
-                    keyboardArea_.prevPage();
+                    uiState_.noteEditOctave = std::max(uiState_.noteEditOctave - 1, 0);
+                    keyboardArea_.repaint();
                     return true;
                 }
                 processor_.clock().setInPluginPlaying(false);
@@ -1204,12 +1210,6 @@ namespace lockstep
             // in-flight retrig or live sound swap on mode exit).
             case ControllerButton::TrigModeKeyboard:
             {
-                if (uiState_.noteEditMode)  // Func+R = NavDown hijacked; reroute as octave-down
-                {
-                    uiState_.noteEditOctave = std::max(uiState_.noteEditOctave - 1, 0);
-                    keyboardArea_.repaint();
-                    return true;
-                }
                 const auto next = (uiState_.trigGridMode == TrigGridMode::Keyboard)
                                   ? TrigGridMode::Default : TrigGridMode::Keyboard;
                 // MG.6: exiting SoundPool or Retrig when switching to Keyboard.
@@ -1231,9 +1231,10 @@ namespace lockstep
             }
             case ControllerButton::TrigModeRetrig:
             {
-                if (uiState_.noteEditMode)  // Func+T = NavRight hijacked; reroute as next page
+                if (uiState_.noteEditMode)  // Func+T = NavRight: octave up
                 {
-                    keyboardArea_.nextPage();
+                    uiState_.noteEditOctave = std::min(uiState_.noteEditOctave + 1, 8);
+                    keyboardArea_.repaint();
                     return true;
                 }
                 const auto next = (uiState_.trigGridMode == TrigGridMode::Retrig)
@@ -1257,12 +1258,6 @@ namespace lockstep
             }
             case ControllerButton::TrigModeSoundPool:
             {
-                if (uiState_.noteEditMode)  // Func+4 = NavUp hijacked; reroute as octave-up
-                {
-                    uiState_.noteEditOctave = std::min(uiState_.noteEditOctave + 1, 8);
-                    keyboardArea_.repaint();
-                    return true;
-                }
                 const auto next = (uiState_.trigGridMode == TrigGridMode::SoundPool)
                                   ? TrigGridMode::Default : TrigGridMode::SoundPool;
                 // MG.6: cancel retrig or live swap when exiting the mode.
@@ -1404,8 +1399,15 @@ namespace lockstep
                 if (uiState_.pLockClearMode)
                 {
                     for (const int slot : uiState_.pLockClearStaged)
-                        processor_.clearParam(uiState_.pLockClearTrack,
-                                              uiState_.pLockClearStep, slot);
+                    {
+                        if (slot < 0)
+                            processor_.clearTrigOverrideField(uiState_.pLockClearTrack,
+                                                              uiState_.pLockClearStep,
+                                                              -(slot + 1));
+                        else
+                            processor_.clearParam(uiState_.pLockClearTrack,
+                                                  uiState_.pLockClearStep, slot);
+                    }
                     uiState_.pLockClearStaged.clear();
                 }
                 uiState_.pLockClearMode  = false;
@@ -1489,6 +1491,32 @@ namespace lockstep
                 {
                     uiState_.noteEditMode = true;
                     uiState_.noteEditStaged.clear();
+
+                    // Auto-set the view octave to match the step's existing notes so
+                    // cells are immediately live without needing a NavUp/Down first.
+                    if (!uiState_.noteEditSteps.empty())
+                    {
+                        const int firstStep = *uiState_.noteEditSteps.begin();
+                        const int track     = processor_.editContext().heldTrackIndex();
+                        if (track >= 0 && firstStep >= 0)
+                        {
+                            const auto& s = processor_.sequence()
+                                .tracks[static_cast<std::size_t>(track)]
+                                .steps[static_cast<std::size_t>(firstStep)];
+                            if (s.trigOverride.noteCount > 0)
+                            {
+                                // Use the octave of the first note on the step.
+                                const int noteVal = s.trigOverride.notes[0];
+                                uiState_.noteEditOctave = noteVal / 12 - 1;
+                            }
+                        }
+                    }
+
+                    // Restore MZ to machine params — dismiss the TRIG meta section
+                    // that Func+Trig brought up, so the user returns to where they were.
+                    uiState_.masterSection = -1;
+                    manipulationZone_.setMetaSection(-1);
+
                     keyboardArea_.repaint();
                     repaint();
                     break;

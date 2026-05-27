@@ -183,6 +183,9 @@ namespace lockstep
         // Remove the P-Lock override for one slot on a specific step.
         void clearParam(int track, int step, int slot);
 
+        // Remove one TrigOverride field (0=note, 1=velocity, 2=gate) for a step.
+        void clearTrigOverrideField(int track, int step, int field);
+
         // Remove all P-Lock overrides and trig overrides for a step.
         void clearStepLocks(int track, int step);
 

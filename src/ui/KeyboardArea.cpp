@@ -1467,7 +1467,7 @@ namespace lockstep
             }
 
             const juce::String navMsg = "NOTE EDIT  oct " + juce::String(octave)
-                                        + "  (NavUp/Dn to shift octave, release FUNC to commit)";
+                                        + "  (NavLeft/Right to shift octave, release FUNC to commit)";
             g.setColour(juce::Colour::fromRGB(80, 95, 115));
             g.setFont(juce::Font(juce::FontOptions(10.0f)));
             g.drawText(navMsg, navArea, juce::Justification::centred);
@@ -1490,7 +1490,12 @@ namespace lockstep
             const int numSlots = processor_.numParams(activeTrack_);
 
             // Build packed list of all P-locked slot indices.
+            // Sentinel IDs prefix the list: -2=Vel, -3=Gate.
+            // Notes are NOT included — they are not P-locks (not set via the param area).
             std::vector<int> lockedSlots;
+            const auto& tov = stepData.trigOverride;
+            if (tov.hasVelocity)    lockedSlots.push_back(-2);
+            if (tov.hasGate)        lockedSlots.push_back(-3);
             for (int s = 0; s < numSlots; ++s)
                 if (stepData.overrides.has(s))
                     lockedSlots.push_back(s);
@@ -1532,8 +1537,10 @@ namespace lockstep
 
                     if (hasPacked)
                     {
-                        const juce::String label {
-                            processor_.paramSpec(activeTrack_, slotIdx).label };
+                        juce::String label;
+                        if      (slotIdx == -2) label = "Vel";
+                        else if (slotIdx == -3) label = "Gate";
+                        else                    label = processor_.paramSpec(activeTrack_, slotIdx).label;
                         const float textAlpha = isStaged ? 0.35f : 0.90f;
                         g.setColour(juce::Colours::white.withAlpha(textAlpha));
                         g.setFont(juce::Font(juce::FontOptions(8.0f)));

@@ -1491,6 +1491,21 @@ namespace lockstep
             .steps[static_cast<std::size_t>(step)].overrides.clear(slot);
     }
 
+    void LockstepProcessor::clearTrigOverrideField(int track, int step, int field)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        if (step  < 0 || step  >= kMaxStepsPerTrack)             return;
+        auto& trig = sequence().tracks[static_cast<std::size_t>(track)]
+                         .steps[static_cast<std::size_t>(step)].trigOverride;
+        switch (field)
+        {
+            case 0: trig.noteCount = 0; break;
+            case 1: trig.hasVelocity = false; break;
+            case 2: trig.hasGate = false; break;
+            default: break;
+        }
+    }
+
     // -------------------------------------------------------------------------
     // MD.6/MD.7: Mute helpers
 
