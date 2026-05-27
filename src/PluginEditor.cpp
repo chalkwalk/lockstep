@@ -1187,6 +1187,11 @@ namespace lockstep
                 processor_.clock().setInPluginPlaying(!processor_.clock().inPluginPlaying());
                 return true;
             case ControllerButton::StopReset:
+                if (uiState_.noteEditMode)  // Func+E = NavLeft hijacked; reroute as prev page
+                {
+                    keyboardArea_.prevPage();
+                    return true;
+                }
                 processor_.clock().setInPluginPlaying(false);
                 processor_.clock().resetPhase();
                 return true;
@@ -1199,6 +1204,12 @@ namespace lockstep
             // in-flight retrig or live sound swap on mode exit).
             case ControllerButton::TrigModeKeyboard:
             {
+                if (uiState_.noteEditMode)  // Func+R = NavDown hijacked; reroute as octave-down
+                {
+                    uiState_.noteEditOctave = std::max(uiState_.noteEditOctave - 1, 0);
+                    keyboardArea_.repaint();
+                    return true;
+                }
                 const auto next = (uiState_.trigGridMode == TrigGridMode::Keyboard)
                                   ? TrigGridMode::Default : TrigGridMode::Keyboard;
                 // MG.6: exiting SoundPool or Retrig when switching to Keyboard.
@@ -1220,6 +1231,11 @@ namespace lockstep
             }
             case ControllerButton::TrigModeRetrig:
             {
+                if (uiState_.noteEditMode)  // Func+T = NavRight hijacked; reroute as next page
+                {
+                    keyboardArea_.nextPage();
+                    return true;
+                }
                 const auto next = (uiState_.trigGridMode == TrigGridMode::Retrig)
                                   ? TrigGridMode::Default : TrigGridMode::Retrig;
                 // MG.6: cancel retrig when exiting the mode.
@@ -1241,6 +1257,12 @@ namespace lockstep
             }
             case ControllerButton::TrigModeSoundPool:
             {
+                if (uiState_.noteEditMode)  // Func+4 = NavUp hijacked; reroute as octave-up
+                {
+                    uiState_.noteEditOctave = std::min(uiState_.noteEditOctave + 1, 8);
+                    keyboardArea_.repaint();
+                    return true;
+                }
                 const auto next = (uiState_.trigGridMode == TrigGridMode::SoundPool)
                                   ? TrigGridMode::Default : TrigGridMode::SoundPool;
                 // MG.6: cancel retrig or live swap when exiting the mode.

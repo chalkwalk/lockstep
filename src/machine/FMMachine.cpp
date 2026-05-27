@@ -46,8 +46,20 @@ namespace lockstep
       if (!v.active && !v.choke.isFading() && !v.hasPendingTrigger)
         return i;
     }
-    // All active: steal the oldest.
-    int oldest = 0;
+    // All active: steal the oldest, skipping voices already pending a retrigger.
+    // This ensures each note in a chord steals a distinct voice.
+    int oldest = -1;
+    for (int i = 0; i < kMaxVoices; ++i)
+    {
+      const auto& v = voices_[static_cast<std::size_t>(i)];
+      if (v.hasPendingTrigger) continue;
+      if (oldest < 0 || v.age < voices_[static_cast<std::size_t>(oldest)].age)
+        oldest = i;
+    }
+    if (oldest >= 0)
+      return oldest;
+    // All voices already have a pending retrigger — steal the oldest overall.
+    oldest = 0;
     for (int i = 1; i < kMaxVoices; ++i)
       if (voices_[static_cast<std::size_t>(i)].age
           < voices_[static_cast<std::size_t>(oldest)].age)
@@ -364,8 +376,16 @@ namespace lockstep
         ++eventIdx;
       }
 
-      // Per-voice sample mixing.
+      // Per-voice sample mixing with voice-count normalization.
+      // Dividing by the number of sounding voices keeps a 3-note chord at the
+      // same perceived level as a single note (standard poly-synth behaviour).
       float mixed = 0.0f;
+      int soundingVoices = 0;
+      for (int vi = 0; vi < kMaxVoices; ++vi)
+      {
+        const auto& v = voices_[static_cast<std::size_t>(vi)];
+        if (v.active || v.choke.isFading() || v.hasPendingTrigger) ++soundingVoices;
+      }
       for (int vi = 0; vi < kMaxVoices; ++vi)
       {
         auto& voice = voices_[static_cast<std::size_t>(vi)];
@@ -429,8 +449,10 @@ namespace lockstep
         mixed += sample;
       }
 
+      const float norm = (soundingVoices > 1)
+                         ? 1.0f / static_cast<float>(soundingVoices) : 1.0f;
       for (int ch = 0; ch < numOut; ++ch)
-        buffer.addSample(ch, i, mixed);
+        buffer.addSample(ch, i, mixed * norm);
     }
   }
 
