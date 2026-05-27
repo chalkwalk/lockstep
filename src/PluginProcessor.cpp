@@ -660,6 +660,8 @@ namespace lockstep
                         chordCapture_.active          = true;
                         chordCapture_.gateStartSample = totalSamplesProcessed_ + sampleOffset;
                         chordCapture_.maxVelocity     = 0;
+                        chordCapture_.totalVelocity   = 0;
+                        chordCapture_.capturedCount   = 0;
                     }
 
                     if (!chordCapture_.heldNotes[static_cast<std::size_t>(note)])
@@ -669,6 +671,8 @@ namespace lockstep
                     }
                     if (velocity > chordCapture_.maxVelocity)
                         chordCapture_.maxVelocity = velocity;
+                    chordCapture_.totalVelocity += velocity;
+                    ++chordCapture_.capturedCount;
 
                     // Build ascending snapshot of currently-held notes.
                     std::array<int, kMaxNotesPerStep> snapshot{};
@@ -704,7 +708,7 @@ namespace lockstep
 
         // Route external note-off directly into the track's buffer;
         // also finalise chord gate when the last captured note is released.
-        ccCtx.onNoteOff = [this, &trackMidi](int track, int sampleOffset, int midiNote)
+        ccCtx.onNoteOff = [this, &trackMidi, samplesPerPpq](int track, int sampleOffset, int midiNote)
         {
             trackMidi[static_cast<std::size_t>(track)].addEvent(
                 juce::MidiMessage::noteOff(1, midiNote),
@@ -719,27 +723,35 @@ namespace lockstep
             --chordCapture_.heldCount;
             if (chordCapture_.heldCount > 0) return;
 
-            // All chord keys released: write gate to every still-held step.
+            // All chord keys released: write gate + mean velocity to every still-held step.
             const int64_t gateEndSample =
                 totalSamplesProcessed_ + static_cast<int64_t>(sampleOffset);
             const int64_t gateSamples = gateEndSample - chordCapture_.gateStartSample;
             const float   gateMs = static_cast<float>(gateSamples)
                                    * 1000.0f / static_cast<float>(getSampleRate());
+            const double  captureBpm = (samplesPerPpq > 0.0)
+                ? (getSampleRate() * 60.0 / samplesPerPpq)
+                : clock_.localBpm();
 
             if (editContext_.heldTrackIndex() == track)
             {
                 const auto ti = static_cast<std::size_t>(track);
+                const MusicalGate capturedGate =
+                    nearestMusicalGate(std::max(1.0f, gateMs), captureBpm);
+                const int meanVel = (chordCapture_.capturedCount > 0)
+                    ? (chordCapture_.totalVelocity / chordCapture_.capturedCount)
+                    : chordCapture_.maxVelocity;
                 for (int si : editContext_.heldSteps())
                 {
                     if (si < 0 || si >= kMaxStepsPerTrack) continue;
                     auto& trig = sequence().tracks[ti]
                                      .steps[static_cast<std::size_t>(si)].trigOverride;
-                    trig.hasGate = true;
-                    trig.gateMs  = std::max(1.0f, gateMs);
-                    if (chordCapture_.maxVelocity > 0)
+                    trig.hasGate  = true;
+                    trig.gateValue = capturedGate;
+                    if (meanVel > 0)
                     {
                         trig.hasVelocity = true;
-                        trig.velocity    = chordCapture_.maxVelocity;
+                        trig.velocity    = meanVel;
                     }
                 }
             }
@@ -1182,17 +1194,37 @@ namespace lockstep
                     : IMachine::Polyphony::V1;
                 const int machineVoices = static_cast<int>(poly);
 
-                std::array<int, kMaxNotesPerStep> sortedNotes{};
+                // Sort (note, velocity) pairs together ascending by pitch so the
+                // spread-with-bias picker and per-note velocity lookup stay in sync.
+                struct NoteVelPair { int note; uint8_t vel; };
+                std::array<NoteVelPair, kMaxNotesPerStep> nvPairs{};
                 for (int n = 0; n < trig.noteCount; ++n)
-                    sortedNotes[static_cast<std::size_t>(n)] = trig.notes[static_cast<std::size_t>(n)];
-                std::sort(sortedNotes.begin(), sortedNotes.begin() + trig.noteCount);
+                {
+                    const auto ni = static_cast<std::size_t>(n);
+                    nvPairs[ni].note = trig.notes[ni];
+                    nvPairs[ni].vel  = trig.hasNoteVelocities
+                        ? trig.velocities[ni]
+                        : static_cast<uint8_t>(std::clamp(trig.velocity, 1, 127));
+                }
+                std::sort(nvPairs.begin(), nvPairs.begin() + trig.noteCount,
+                          [](const NoteVelPair& a, const NoteVelPair& b) { return a.note < b.note; });
+
+                std::array<int, kMaxNotesPerStep> sortedNotes{};
+                std::array<uint8_t, kMaxNotesPerStep> sortedVels{};
+                for (int n = 0; n < trig.noteCount; ++n)
+                {
+                    sortedNotes[static_cast<std::size_t>(n)] = nvPairs[static_cast<std::size_t>(n)].note;
+                    sortedVels [static_cast<std::size_t>(n)] = nvPairs[static_cast<std::size_t>(n)].vel;
+                }
 
                 std::array<int, kMaxNotesPerStep> emitNotes{};
                 int notesToEmit = 0;
                 if (machineVoices == 0)
                 {
                     for (int n = 0; n < trig.noteCount; ++n)
+                    {
                         emitNotes[static_cast<std::size_t>(n)] = sortedNotes[static_cast<std::size_t>(n)];
+                    }
                     notesToEmit = trig.noteCount;
                 }
                 else
@@ -1201,17 +1233,38 @@ namespace lockstep
                                     track.noteSelection, emitNotes, notesToEmit);
                 }
 
-                const auto vel = static_cast<juce::uint8>(
-                    std::clamp(trig.velocity, 1, 127));
-                for (int n = 0; n < notesToEmit; ++n)
-                    trackMidi[i].addEvent(
-                        juce::MidiMessage::noteOn(1, emitNotes[static_cast<std::size_t>(n)], vel),
-                        triggerAt);
-
-                if (trig.gateMs > 0.0f)
+                // Reconstruct per-note velocities for the emitted subset.
+                std::array<uint8_t, kMaxNotesPerStep> emitVels{};
+                for (int j = 0; j < notesToEmit; ++j)
                 {
-                    const int gateSamples = static_cast<int>(
-                        trig.gateMs * 0.001f * static_cast<float>(getSampleRate()));
+                    for (int k = 0; k < trig.noteCount; ++k)
+                    {
+                        if (sortedNotes[static_cast<std::size_t>(k)] == emitNotes[static_cast<std::size_t>(j)])
+                        {
+                            emitVels[static_cast<std::size_t>(j)] = sortedVels[static_cast<std::size_t>(k)];
+                            break;
+                        }
+                    }
+                }
+
+                const auto uniformVel = static_cast<juce::uint8>(std::clamp(trig.velocity, 1, 127));
+                for (int n = 0; n < notesToEmit; ++n)
+                {
+                    const auto ni  = static_cast<std::size_t>(n);
+                    const auto vel = trig.hasNoteVelocities
+                        ? static_cast<juce::uint8>(std::clamp(static_cast<int>(emitVels[ni]), 1, 127))
+                        : uniformVel;
+                    trackMidi[i].addEvent(
+                        juce::MidiMessage::noteOn(1, emitNotes[ni], vel), triggerAt);
+                }
+
+                if (trig.gateValue != MusicalGate::None)
+                {
+                    const double liveBpm = (samplesPerPpq > 0.0)
+                        ? (getSampleRate() * 60.0 / samplesPerPpq)
+                        : clock_.localBpm();
+                    const int gateSamples = musicalGateToSamples(
+                        trig.gateValue, liveBpm, getSampleRate());
                     const int noteOffAt = triggerAt + gateSamples;
                     if (noteOffAt < numBlockSamples)
                     {
@@ -2275,10 +2328,10 @@ namespace lockstep
         sequence().tracks[ti].baseParams = partTrack.baseParams;
 
         // VA Machine has a non-zero default sustain (0.8), so it sustains indefinitely
-        // when gateMs==0 (no note-off). Seed a sensible default gate on first install.
+        // without a gate. Seed 1/8-note gate (≈250 ms at 120 BPM) on first install.
         auto& trigDef = sequence().tracks[ti].trigDefaults;
-        if (machineId == VAMachine::kMachineId && !(trigDef.gateMs > 0.0f))
-            trigDef.gateMs = 200.0f;
+        if (machineId == VAMachine::kMachineId && trigDef.gateValue == MusicalGate::None)
+            trigDef.gateValue = MusicalGate::G1_8;
     }
 
     void LockstepProcessor::setActivePatternPart(int partIdx)
@@ -2346,8 +2399,8 @@ namespace lockstep
                 && std::string(machines_[t]->machineId()) == VAMachine::kMachineId)
             {
                 auto& trigDef = sequence().tracks[t].trigDefaults;
-                if (!(trigDef.gateMs > 0.0f))
-                    trigDef.gateMs = 200.0f;
+                if (trigDef.gateValue == MusicalGate::None)
+                    trigDef.gateValue = MusicalGate::G1_8;
             }
         }
     }

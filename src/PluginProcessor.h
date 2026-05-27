@@ -436,6 +436,8 @@ namespace lockstep
             int     heldCount       = 0;      // number of physically-held notes
             int64_t gateStartSample = 0;      // sample of first note-on in current chord
             int     maxVelocity     = 0;
+            int     totalVelocity   = 0;      // sum of velocities (for mean)
+            int     capturedCount   = 0;      // total notes pressed (for mean)
             std::array<bool, 128> heldNotes{};  // which MIDI notes are currently held
         };
         ChordCapture chordCapture_{};
