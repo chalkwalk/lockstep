@@ -1787,6 +1787,21 @@ namespace lockstep
                         }
                     }
                 }
+                else if (verb == CB::VerbNo && editMode_.scopeState().func)
+                {
+                    // MHZ.5.4: Trig + Func + No — clear notes, velocity and gate
+                    // override on held step(s), leaving step.trig and P-Locks intact.
+                    for (int idx : ctx.heldSteps())
+                    {
+                        auto& s = trk.steps[static_cast<std::size_t>(idx)];
+                        s.trigOverride.noteCount  = 0;
+                        s.trigOverride.notes      = {};
+                        s.trigOverride.hasVelocity = false;
+                        s.trigOverride.velocity    = 100;
+                        s.trigOverride.hasGate     = false;
+                        s.trigOverride.gateMs      = 0.0f;
+                    }
+                }
                 break;
             }
 
