@@ -45,8 +45,9 @@ namespace lockstep
         static constexpr int kSlotDecay     = 10;
         static constexpr int kSlotSustain   = 11;
         static constexpr int kSlotRelease   = 12;
+        static constexpr int kSlotRetrig   = 13;  // 0=LEGATO 1=RETRIG 2=FREE
 
-        static constexpr int kNumSlots    = 13;
+        static constexpr int kNumSlots    = 14;
         static constexpr int kNumSections = 4;
 
         [[nodiscard]] SamplePlayer::Spec buildSpec(int midiNote,

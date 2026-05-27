@@ -115,6 +115,13 @@ namespace lockstep
     {
         auto& vs = voices_[0];
 
+        const int retrigMode = (params.size() > static_cast<std::size_t>(kSlotRetrig))
+            ? static_cast<int>(std::round(params[static_cast<std::size_t>(kSlotRetrig)]))
+            : 0;
+
+        if (retrigMode == 2 && vs.player.isActive())
+            return;  // FREE: skip while voice is sounding
+
         if (vs.player.isActive())
         {
             vs.pendingNote   = midiNote;
@@ -284,6 +291,13 @@ namespace lockstep
         case kSlotDecay:    ps = { "decay",   "Decay",   1.0f, 10000.0f, 500.0f, false, U::Ms,      3, R::Decay   }; ps.skew = 0.3f; break;
         case kSlotSustain:  ps = { "sustain", "Sustain", 0.0f,    1.0f,   0.5f, false, U::Percent, 3, R::Sustain }; break;
         case kSlotRelease:  ps = { "release", "Release", 1.0f, 10000.0f, 200.0f, false, U::Ms,      3, R::Release }; ps.skew = 0.3f; break;
+        case kSlotRetrig:
+        {
+            static constexpr const char* kRetrigLabels[] = { "LEGATO", "RETRIG", "FREE" };
+            ps = { "samp_retrig", "Retrig", 0.0f, 2.0f, 0.0f, true, U::None, 3, R::None };
+            ps.valueLabels = std::span<const char* const>(kRetrigLabels);
+            break;
+        }
         default:            break;
         }
         return ps;

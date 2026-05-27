@@ -91,8 +91,9 @@ namespace lockstep
     // MOD, and VOICE pages stay contiguous within their own slot ranges
     // (the MZ navigation assumes section-contiguity).
     static constexpr int kSlotVoiceMode = 48;
+    static constexpr int kSlotRetrig    = 49;  // 0=LEGATO 1=RETRIG 2=FREE
 
-    static constexpr int kNumSlots    = 49;
+    static constexpr int kNumSlots    = 50;
     static constexpr int kNumSections = 8;  // indices 0..7; 6=MOD, 7=VOICE (both SRC extensions)
 
     static constexpr int kNumOps = 4;
@@ -145,6 +146,7 @@ namespace lockstep
     int  allocVoice();                // returns index in voices_
     int  findVoiceByNote(int midiNote) const;
     void startVoice(int voiceIdx, int midiNote, const ParamFrame& params);
+    void legatoUpdateVoice(int midiNote, const ParamFrame& params);
     void releaseVoice(int voiceIdx);
     float advanceEnv(Operator& op);
 

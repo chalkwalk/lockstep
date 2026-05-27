@@ -149,6 +149,35 @@ namespace lockstep
     }
   }
 
+  void FMMachine::legatoUpdateVoice(int midiNote, const ParamFrame& params)
+  {
+    auto& voice = voices_[0];
+    if (!voice.active)
+    {
+      startVoice(0, midiNote, params);
+      return;
+    }
+
+    const auto p = [&](int s) { return params[static_cast<std::size_t>(s)]; };
+    const double midiFreq = 440.0 * std::pow(2.0, (midiNote - 69) / 12.0);
+
+    constexpr int ratioSlots[kNumOps] = { kSlotRatio1, kSlotRatio2, kSlotRatio3, kSlotRatio4 };
+    constexpr int fineSlots [kNumOps] = { kSlotFine1,  kSlotFine2,  kSlotFine3,  kSlotFine4  };
+
+    voice.midiNote = midiNote;
+    voice.age      = ++voiceCounter_;
+
+    for (int i = 0; i < kNumOps; ++i)
+    {
+      auto& op = voice.ops[static_cast<std::size_t>(i)];
+      const int ratioIdx = std::clamp(static_cast<int>(std::round(p(ratioSlots[i]))), 0, kNumRatios - 1);
+      const float ratio  = kRatioTable[static_cast<std::size_t>(ratioIdx)];
+      const double fineCents = static_cast<double>(p(fineSlots[i]));
+      op.phaseInc = midiFreq * static_cast<double>(ratio)
+                    * std::pow(2.0, fineCents / 1200.0) / sampleRate_;
+    }
+  }
+
   void FMMachine::releaseVoice(int voiceIdx)
   {
     auto& voice = voices_[static_cast<std::size_t>(voiceIdx)];
@@ -299,23 +328,36 @@ namespace lockstep
           else
           {
             auto& voice = voices_[0];
-            if (voice.active || voice.choke.isFading())
+            const int retrigMode = (params.size() > static_cast<std::size_t>(kSlotRetrig))
+                ? static_cast<int>(std::round(params[static_cast<std::size_t>(kSlotRetrig)]))
+                : 0;
+            if (retrigMode == 2)  // FREE: skip if voice is sounding
             {
-              // Concurrent retrig: copy dying voice[0] to ghost slot[1], then
-              // start the new voice in slot[0] immediately (no choke delay).
-              voices_[1]                    = voice;
-              voices_[1].isGhost           = true;
-              voices_[1].hasPendingTrigger = false;
-              voices_[1].choke.prepare(sampleRate_, 1.5f);
-              voices_[1].choke.trigger();
-              startVoice(0, ev.note, params);
-              voices_[0].isGhost           = false;
-              voices_[0].hasPendingTrigger = false;
-              voices_[0].choke.reset();
+              if (!voice.active && !voice.choke.isFading())
+                startVoice(0, ev.note, params);
             }
-            else
+            else if (retrigMode == 0)  // LEGATO: update pitch, let envelope continue
             {
-              startVoice(0, ev.note, params);
+              legatoUpdateVoice(ev.note, params);
+            }
+            else  // RETRIG: immediate ghost-slot crossfade
+            {
+              if (voice.active || voice.choke.isFading())
+              {
+                voices_[1]                    = voice;
+                voices_[1].isGhost           = true;
+                voices_[1].hasPendingTrigger = false;
+                voices_[1].choke.prepare(sampleRate_, 1.5f);
+                voices_[1].choke.trigger();
+                startVoice(0, ev.note, params);
+                voices_[0].isGhost           = false;
+                voices_[0].hasPendingTrigger = false;
+                voices_[0].choke.reset();
+              }
+              else
+              {
+                startVoice(0, ev.note, params);
+              }
             }
           }
         }
@@ -450,6 +492,13 @@ namespace lockstep
     case kSlotOp4Sustain: return { "fm_sus_4", "Op4 Sus", 0.0f, 1.0f, 0.0f, false, U::Percent, 3, R::None };
     case kSlotOp4Release: { ParamSpec p { "fm_rel_4", "Op4 Rel",  1.0f,10000.0f, 500.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }
     case kSlotVoiceMode:  { ParamSpec p { "fm_voice_mode", "Voice", 0.0f, 1.0f, 0.0f, true, U::None, 7, R::None }; p.valueLabels = std::span<const char* const>(kVoiceModeLabels); return p; }
+    case kSlotRetrig:
+    {
+      static constexpr const char* kRetrigLabels[] = { "LEGATO", "RETRIG", "FREE" };
+      ParamSpec p { "fm_retrig", "Retrig", 0.0f, 2.0f, 0.0f, true, U::None, 3, R::None };
+      p.valueLabels = std::span<const char* const>(kRetrigLabels);
+      return p;
+    }
     default: break;
     }
 

@@ -95,6 +95,13 @@ namespace lockstep
         case kSlotLfoShape:   { ParamSpec p { "va_lfo_shape",    "LFO Shape",   0.0f,   5.0f,  0.0f, true,  U::None,      4, R::LfoShape }; p.valueLabels = std::span<const char* const>(kLfoShapeLabels);  return p; }
         case kSlotLfoTarget:  { ParamSpec p { "va_lfo_target",   "LFO Target",  0.0f,   3.0f,  0.0f, true,  U::None,      4, R::None     }; p.valueLabels = std::span<const char* const>(kLfoTargetLabels); return p; }
         case kSlotLfoSync:    { ParamSpec p { "va_lfo_sync",     "LFO Sync",    0.0f,   1.0f,  0.0f, true,  U::None,      4, R::None     }; p.valueLabels = std::span<const char* const>(kLfoSyncLabels);   return p; }
+        case kSlotRetrig:
+        {
+          static constexpr const char* kRetrigLabels[] = { "LEGATO", "RETRIG", "FREE" };
+          ParamSpec p { "va_retrig", "Retrig", 0.0f, 2.0f, 0.0f, true, U::None, 3, R::None };
+          p.valueLabels = std::span<const char* const>(kRetrigLabels);
+          return p;
+        }
 
         default: return {};
         }
@@ -428,6 +435,24 @@ namespace lockstep
             lfoPhase_ = 0.0;
     }
 
+    void VAMachine::legatoMonoVoice(int midiNote, const ParamFrame& params)
+    {
+        auto& sv = subVoices_[0];
+        if (!sv.active && monoGhostFade_ <= 0)
+        {
+            startMonoVoice(midiNote, params);
+            return;
+        }
+        const auto p = [&](int s) { return params[static_cast<std::size_t>(s)]; };
+        const double targetHz = midiNoteToHz(midiNote);
+        const float portaMs   = p(kSlotPorta);
+        if (portaMs <= 0.0f)
+            sv.currentFreq = targetHz;
+        sv.targetFreq = targetHz;
+        sv.midiNote   = midiNote;
+        // Envelope continues; oscillator phases and SVF state unchanged.
+    }
+
     void VAMachine::releaseMonoVoice()
     {
         // Keep subVoices_[0].active true so the oscillator keeps producing samples
@@ -655,18 +680,30 @@ namespace lockstep
                     }
                     else
                     {
-                        // Mono: immediate retrigger with ghost-gain crossfade.
-                        if (subVoices_[0].active || monoGhostFade_ > 0)
+                        const int retrigMode = (params.size() > static_cast<std::size_t>(kSlotRetrig))
+                            ? static_cast<int>(std::round(p(kSlotRetrig)))
+                            : 0;
+                        if (retrigMode == 2)  // FREE: skip if voice is sounding
                         {
-                            // Capture outgoing amp level; new envelope attacks from 0
-                            // while this ghost gain decays to 0 over ~1.5ms.
-                            monoGhostGain_ = env_.aLevel;
-                            monoGhostFade_ = msToSamples(1.5f, sampleRate_);
-                            retriggerMonoVoice(ev.note, params);
+                            if (!subVoices_[0].active && monoGhostFade_ <= 0)
+                                startMonoVoice(ev.note, params);
                         }
-                        else
+                        else if (retrigMode == 0)  // LEGATO: pitch update, envelope continues
                         {
-                            startMonoVoice(ev.note, params);
+                            legatoMonoVoice(ev.note, params);
+                        }
+                        else  // RETRIG: ghost-gain crossfade, envelope restarts
+                        {
+                            if (subVoices_[0].active || monoGhostFade_ > 0)
+                            {
+                                monoGhostGain_ = env_.aLevel;
+                                monoGhostFade_ = msToSamples(1.5f, sampleRate_);
+                                retriggerMonoVoice(ev.note, params);
+                            }
+                            else
+                            {
+                                startMonoVoice(ev.note, params);
+                            }
                         }
                     }
                 }

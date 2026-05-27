@@ -79,8 +79,9 @@ namespace lockstep
     static constexpr int kSlotLfoShape   = 29;
     static constexpr int kSlotLfoTarget  = 30;
     static constexpr int kSlotLfoSync    = 31;
+    static constexpr int kSlotRetrig     = 32;  // 0=LEGATO 1=RETRIG 2=FREE
 
-    static constexpr int kNumSlots    = 32;
+    static constexpr int kNumSlots    = 33;
     static constexpr int kNumSections = 5;  // indices 0..4
     static constexpr int kMaxSubVoices = 4;
 
@@ -166,6 +167,7 @@ namespace lockstep
     // Mono-mode helpers.
     void startMonoVoice(int midiNote, const ParamFrame& params);
     void retriggerMonoVoice(int midiNote, const ParamFrame& params);
+    void legatoMonoVoice(int midiNote, const ParamFrame& params);
     void releaseMonoVoice();
 
     // Para-mode helpers.
