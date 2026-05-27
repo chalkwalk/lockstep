@@ -14,15 +14,12 @@ namespace lockstep
   void DrumSynthMachine::prepare(double sampleRate, int /*maxBlockSize*/)
   {
     sampleRate_ = sampleRate;
-    voice_.choke.prepare(sampleRate, 2.0f);
     reset();
   }
 
   void DrumSynthMachine::reset()
   {
     voice_ = DrumVoice{};
-    if (sampleRate_ > 0.0)
-      voice_.choke.prepare(sampleRate_, 2.0f);
   }
 
   // ---------------------------------------------------------------------------
@@ -91,7 +88,7 @@ namespace lockstep
 
   bool DrumSynthMachine::isVoiceActive() const
   {
-    return voice_.active || voice_.choke.isFading();
+    return voice_.active;
   }
 
   // ---------------------------------------------------------------------------
@@ -331,9 +328,7 @@ namespace lockstep
         noteEvents.add({ meta.samplePosition, msg.getNoteNumber(), 0.f, false });
     }
 
-    const bool idle = !voice_.active && !voice_.choke.isFading()
-                      && !voice_.pendingTrigger;
-    if (idle && noteEvents.isEmpty())
+    if (!voice_.active && noteEvents.isEmpty())
       return;
 
     const int   numSamples = buffer.getNumSamples();
@@ -352,37 +347,13 @@ namespace lockstep
         const auto& ev = noteEvents[evIdx];
         if (ev.on)
         {
-          if (voice_.active)
-          {
-            voice_.pendingNote    = ev.note;
-            voice_.pendingVel     = ev.vel;
-            voice_.pendingParams  = params;
-            voice_.pendingTrigger = true;
-            if (!voice_.choke.isFading())
-              voice_.choke.trigger();
-          }
-          else
-          {
-            noteOn(ev.note, ev.vel, params);
-          }
+          noteOn(ev.note, ev.vel, params);
         }
         else
         {
           noteOff();
         }
         ++evIdx;
-      }
-
-      // Choke fade: let the fade complete, then fire the pending note
-      if (voice_.choke.isFading())
-      {
-        voice_.choke.nextGain();
-        if (!voice_.choke.isFading() && voice_.pendingTrigger)
-        {
-          voice_.pendingTrigger = false;
-          noteOn(voice_.pendingNote, voice_.pendingVel, voice_.pendingParams);
-        }
-        continue;
       }
 
       if (!voice_.active)

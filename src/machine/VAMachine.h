@@ -165,6 +165,7 @@ namespace lockstep
 
     // Mono-mode helpers.
     void startMonoVoice(int midiNote, const ParamFrame& params);
+    void retriggerMonoVoice(int midiNote, const ParamFrame& params);
     void releaseMonoVoice();
 
     // Para-mode helpers.
@@ -199,11 +200,10 @@ namespace lockstep
     double lfoPhase_    = 0.0;
     float  lfoOut_      = 0.0f;
 
-    // Mono-mode pending retrigger (same choke-wait pattern as FMMachine).
-    VoiceChoke choke_;
-    bool  hasPendingTrigger_ = false;
-    int   pendingNote_       = 60;
-    ParamFrame pendingParams_{};
+    // Mono-mode retrigger crossfade: old envelope level fades to 0 over ~1.5ms
+    // while the new voice envelope attacks from 0. Combined gain = aEnvLevel + ghostGain.
+    float monoGhostGain_ = 0.0f;
+    int   monoGhostFade_ = 0;
 
     // Random state for S&H LFO.
     float  lfoRandCurr_ = 0.0f;

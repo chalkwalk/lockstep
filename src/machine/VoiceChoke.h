@@ -13,7 +13,8 @@ namespace lockstep
 
         void prepare(double sampleRate, float fadeMs);
         void trigger();
-        bool  isFading() const { return fadeRemaining_ > 0; }
+        void              reset()    { fadeRemaining_ = 0; }
+        [[nodiscard]] bool isFading() const { return fadeRemaining_ > 0; }
         float nextGain();  // per-sample: returns gain [1→0], advances counter
 
     private:

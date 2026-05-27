@@ -17,7 +17,6 @@ namespace lockstep
     void VAMachine::prepare(double sampleRate, int /*maxBlockSize*/)
     {
         sampleRate_ = sampleRate;
-        choke_.prepare(sampleRate_, 1.5f);
         reset();
     }
 
@@ -29,13 +28,13 @@ namespace lockstep
         env_  = SharedEnv{};
         svf1_.reset();
         svf2_.reset();
-        lfoPhase_ = 0.0;
-        lfoOut_   = 0.0f;
-        noiseState_ = 0.0f;
-        choke_.prepare(sampleRate_, 1.5f);
-        hasPendingTrigger_ = false;
-        lfoRandCurr_ = 0.0f;
-        lfoRandNext_ = 0.0f;
+        lfoPhase_     = 0.0;
+        lfoOut_       = 0.0f;
+        noiseState_   = 0.0f;
+        monoGhostGain_ = 0.0f;
+        monoGhostFade_ = 0;
+        lfoRandCurr_  = 0.0f;
+        lfoRandNext_  = 0.0f;
         lfoRandPhase_ = 0.0;
     }
 
@@ -130,7 +129,7 @@ namespace lockstep
 
     bool VAMachine::isVoiceActive() const
     {
-        if (choke_.isFading() || hasPendingTrigger_) return true;
+        if (monoGhostFade_ > 0) return true;
         for (const auto& sv : subVoices_)
             if (sv.active || sv.fadeRemain > 0) return true;
         return env_.aStage != Stage::Idle;
@@ -404,6 +403,31 @@ namespace lockstep
             lfoPhase_ = 0.0;
     }
 
+    // Retrigger: update pitch and restart envelopes without resetting oscillator
+    // phases or SVF state, so the waveform transitions without a click.
+    void VAMachine::retriggerMonoVoice(int midiNote, const ParamFrame& params)
+    {
+        const auto p = [&](int s) { return params[static_cast<std::size_t>(s)]; };
+
+        auto& sv = subVoices_[0];
+        const double targetHz = midiNoteToHz(midiNote);
+        const float portaMs   = p(kSlotPorta);
+
+        if (portaMs <= 0.0f)
+            sv.currentFreq = targetHz;
+        sv.targetFreq = targetHz;
+        sv.active     = true;
+        sv.midiNote   = midiNote;
+        sv.microAmp   = 1.0f;
+        sv.fadeRemain = 0;
+        // Oscillator phases and SVF state intentionally NOT reset — avoids click.
+
+        triggerEnvelopes(params);
+
+        if (p(kSlotLfoSync) >= 0.5f)
+            lfoPhase_ = 0.0;
+    }
+
     void VAMachine::releaseMonoVoice()
     {
         // Keep subVoices_[0].active true so the oscillator keeps producing samples
@@ -631,13 +655,14 @@ namespace lockstep
                     }
                     else
                     {
-                        // Mono: if voice active, choke and defer.
-                        if (subVoices_[0].active || choke_.isFading())
+                        // Mono: immediate retrigger with ghost-gain crossfade.
+                        if (subVoices_[0].active || monoGhostFade_ > 0)
                         {
-                            if (!choke_.isFading()) choke_.trigger();
-                            hasPendingTrigger_ = true;
-                            pendingNote_       = ev.note;
-                            pendingParams_     = params;
+                            // Capture outgoing amp level; new envelope attacks from 0
+                            // while this ghost gain decays to 0 over ~1.5ms.
+                            monoGhostGain_ = env_.aLevel;
+                            monoGhostFade_ = msToSamples(1.5f, sampleRate_);
+                            retriggerMonoVoice(ev.note, params);
                         }
                         else
                         {
@@ -670,7 +695,7 @@ namespace lockstep
             if (!paraMode && env_.aStage == Stage::Idle)
                 subVoices_[0].active = false;
 
-            if (env_.aStage == Stage::Idle && !hasPendingTrigger_ && !choke_.isFading())
+            if (env_.aStage == Stage::Idle && monoGhostFade_ <= 0)
             {
                 // Check if any voice is still fading.
                 bool anyFade = false;
@@ -733,15 +758,15 @@ namespace lockstep
             // ---- Filter ----
             float filtered = filterSample(driven, svfF, svfQ, filterType);
 
-            // ---- Mono choke gain ----
-            const float chokeGain = (!paraMode && choke_.isFading()) ? choke_.nextGain() : 1.0f;
-            // After advancing choke, start pending voice if choke just ended.
-            if (!paraMode && !choke_.isFading() && hasPendingTrigger_)
+            // ---- Mono retrigger ghost-gain crossfade ----
+            if (!paraMode && monoGhostFade_ > 0)
             {
-                startMonoVoice(pendingNote_, pendingParams_);
-                hasPendingTrigger_ = false;
+                monoGhostGain_ -= monoGhostGain_ / static_cast<float>(monoGhostFade_);
+                --monoGhostFade_;
+                if (monoGhostFade_ <= 0) monoGhostGain_ = 0.0f;
             }
-            float finalGain = aEnvLevel * outputLevel * chokeGain;
+            const float combinedGain = aEnvLevel + (paraMode ? 0.0f : monoGhostGain_);
+            float finalGain = combinedGain * outputLevel;
 
             // ---- Output ----
             const float outSample = filtered * finalGain;

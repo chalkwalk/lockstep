@@ -1,7 +1,6 @@
 #pragma once
 
 #include "IMachine.h"
-#include "VoiceChoke.h"
 #include <cmath>
 #include <cstdint>
 
@@ -79,12 +78,6 @@ namespace lockstep
       // For hat: note-off triggers fast decay instead of ignoring gate
       bool gateOpen { false };
 
-      // Pending retrigger state (mono choke pattern)
-      bool       pendingTrigger { false };
-      int        pendingNote    { 60 };
-      float      pendingVel     { 1.f };
-      ParamFrame pendingParams  {};
-
       // Stored drum type (set on note-on; used per-sample in process)
       DrumType currentType { DrumType::Kick };
 
@@ -93,8 +86,6 @@ namespace lockstep
 
       float velocity { 1.f };
       bool  active   { false };
-
-      VoiceChoke choke;
     };
 
   private:

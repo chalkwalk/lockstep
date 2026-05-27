@@ -299,13 +299,19 @@ namespace lockstep
           else
           {
             auto& voice = voices_[0];
-            if (voice.active)
+            if (voice.active || voice.choke.isFading())
             {
-              voice.pendingNote       = ev.note;
-              voice.pendingParams     = params;
-              voice.hasPendingTrigger = true;
-              if (!voice.choke.isFading())
-                voice.choke.trigger();
+              // Concurrent retrig: copy dying voice[0] to ghost slot[1], then
+              // start the new voice in slot[0] immediately (no choke delay).
+              voices_[1]                    = voice;
+              voices_[1].isGhost           = true;
+              voices_[1].hasPendingTrigger = false;
+              voices_[1].choke.prepare(sampleRate_, 1.5f);
+              voices_[1].choke.trigger();
+              startVoice(0, ev.note, params);
+              voices_[0].isGhost           = false;
+              voices_[0].hasPendingTrigger = false;
+              voices_[0].choke.reset();
             }
             else
             {
@@ -323,6 +329,16 @@ namespace lockstep
         auto& voice = voices_[static_cast<std::size_t>(vi)];
 
         const float chokeGain = voice.choke.isFading() ? voice.choke.nextGain() : 1.0f;
+
+        // Ghost slots (Mono retrig): deactivate once the choke fade ends.
+        if (voice.isGhost && !voice.choke.isFading())
+        {
+          voice.active  = false;
+          voice.isGhost = false;
+          continue;
+        }
+
+        // Poly voice-steal pending start (not used in Mono mode).
         if (!voice.choke.isFading() && voice.hasPendingTrigger)
         {
           voice.hasPendingTrigger = false;

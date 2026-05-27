@@ -139,6 +139,7 @@ namespace lockstep
       int         pendingNote       = 60;
       ParamFrame  pendingParams{};
       VoiceChoke  choke{};
+      bool        isGhost           = false;  // fade-only slot; deactivates when choke ends
     };
 
     int  allocVoice();                // returns index in voices_
