@@ -7,7 +7,7 @@
 namespace lockstep
 {
     inline constexpr int kPatternsPerBank = 16;
-    inline constexpr int kPartsPerBank    = 4;
+    inline constexpr int kPartsPerBank    = 16;
 
     // A Bank holds a grid of Patterns and a pool of Parts.
     // Patterns reference Parts by index; multiple patterns can share one Part.
