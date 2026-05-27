@@ -106,7 +106,14 @@ The boundary is deliberately narrow but deliberately *not* fixed-shape
   storage, MZ rendering, and CC mapping are all driven by the schema
   the machine reports. When `valueLabels` is populated the MZ
   renders the textual name in the single value display (§26.2);
-  empty = numeric.
+  empty = numeric. An optional **skew** (`ParamSpec::skew`, MHZ.5,
+  default `1.0` = linear; JUCE `NormalisableRange::skew` semantics)
+  gives non-linear encoder mapping for parameters whose useful
+  resolution is bunched at one end of the range — envelope times
+  (`≈ 0.25–0.35`, so 1–10 ms covers as much knob travel as 1–10 s)
+  are the canonical case. Skew is applied uniformly on the rotary,
+  double-click reset, Control-All broadcast, and P-Lock read/write
+  paths; on disk values are still stored unskewed.
 - **Role tags (`ParamSpec::role`).** An optional enum that classifies
   what a slot *is* across machine types: `cutoff`, `resonance`,
   `attack`, `decay`, `sustain`, `release`, `lfo.rate`, `lfo.depth`,
@@ -1748,7 +1755,41 @@ overrides — only the timing offset. To remove a trig entirely, use
 Swing is not affected by Quantize. To reset swing, set it via the
 TRACK meta section like any other parameter.
 
+### 19.4 Musical gate values (MHZ.6)
+
+Gate length is **musical**, not absolute. `TrigOverride.gateValue`
+is a closed enum: note value `{1/64, 1/32, 1/16, 1/8, 1/4, 1/2, 1,
+2, 4}` × modifier `{plain | dotted | triplet}`, plus a `None`
+sentinel meaning "use the track default." The resolver converts to
+samples at emit time using the current BPM.
+
+The motivation is the same as for swing being per-track: once
+tracks can carry different step subdivisions (polymetric clocking,
+§4.2; future per-track step subdivisions beyond polymetric ratios),
+a gate expressed as "3 steps" stops meaning anything portable. A
+1/8-dotted gate sounds like a 1/8-dotted gate on every track, at
+every tempo, regardless of step length. MZ renders the value
+textually via `valueLabels` (`1/8`, `1/8.`, `1/8T`).
+
+The realtime record path rounds the observed note-on→note-off span
+to the nearest musical value at capture time (using the BPM at
+capture, not at playback — captures are committed to a definite
+musical interval). The step-hold capture path does the same on the
+captured chord's gate.
+
 ## 20. 16-levels Trig-Grid Mode
+
+**Implementation note (MHZ.7).** 16-levels lands as the **LEVELS**
+input mode on a per-track basis (see §34, `TrackInputMode`), not as
+a momentary chord on top of the trig grid. The §20 design below
+still describes the *behaviour* of the mode; what's changed is the
+*entry*: instead of "hold a mode chord," the user puts the focused
+track into `LEVELS` mode via `Track + O` (the verb-row mode
+selector), and the step cells reinterpret as quantised value
+buckets while the mode is active. MHZ.7 ships **velocity-first**
+(binding fixed to `velocity`); §20.1's eligibility set and §20.2's
+encoder-binding selector remain the design target for the follow-up
+generic sub-mode but are not in MHZ.7 itself.
 
 The 16-levels mode (DESIGN §13.5 extension) repurposes the trig
 grid into a value-selection surface. While the mode is active,
@@ -1888,6 +1929,47 @@ Coexistence:
 There is no per-note add/remove/swap editor in MHZ; **replace on
 hold** is the editor. A finer-grained editor only lands later if
 play-testing proves replace-only too coarse.
+
+#### 21.4.1 Velocity and gate (MHZ.6 amendment)
+
+The MHZ.3 implementation captured **one** velocity (max across the
+chord) and a raw-ms `gateMs`. MHZ.6 lifts both:
+
+- `TrigOverride.velocities[kMaxNotesPerStep]` (`uint8`, gated by
+  `hasNoteVelocities`) gives each note its own velocity. **Realtime
+  record** preserves per-note velocity (each MIDI note-on writes
+  its own). **Step-hold chord-snapshot** uses the **mean** of
+  currently-held MIDI velocities and writes it uniformly across the
+  captured chord — coarse but matches the gesture (the user picked
+  a chord, they didn't perform it). Emitted MIDI note-ons carry the
+  per-note velocity; machine API is unchanged.
+- `TrigOverride.gateValue` replaces `gateMs`. It is a musical note
+  value (see §19.4) rather than absolute time, so gates survive BPM
+  changes musically and decouple from any future per-track step
+  subdivision (a "3-step gate" stops meaning anything once track A
+  is 1/16 and track B is 1/4). Step-hold capture rounds the
+  observed note-on→note-off span to the nearest musical value;
+  realtime record does the same.
+
+#### 21.4.2 Trig / notes / P-Locks decoupling
+
+`step.trig`, `trigOverride.notes[]` (with velocities + gateValue),
+and the step's P-Locks are **three independent storage axes**.
+Toggling any one of them does not touch the others. This was
+latent in the data model from MHZ.3 but only becomes visible in
+MHZ.5:
+
+- Step cells with `trig == false` but `noteCount > 0` or P-Locks
+  present render dim while still showing the note-count badge and
+  P-Lock dot, so authored-but-muted material is discoverable at a
+  glance.
+- Three clear gestures cover the three axes:
+  `Trig + step` toggles `step.trig`;
+  `Trig + Func + No` clears notes + velocity + gateValue;
+  `Trig + Func + Stop` clears P-Locks.
+
+This supports the "sketch a chord progression, mute trigs to find
+the part" workflow without losing authored chords.
 
 ## 22. Sampling and Resampling
 
@@ -2538,3 +2620,90 @@ re-layout (encoder band + vertical fader), plus the chrome that
 announces the new modifiers. Until it ships, the running build remains
 on the 9×4 layout; docs that describe the 10×4 surface are describing
 the MHX *target*.
+
+## 34. Per-Track Input Modes (MHZ.7)
+
+The scope+verb grammar (§13) governs what the user is operating *on*.
+Per-track **input modes** govern what raw input *means* on the focused
+track. The two are orthogonal: a held scope still reinterprets the
+step grid the same way regardless of mode, and a mode only changes
+what bare step-cell presses and incoming MIDI do.
+
+`TrackInputMode` is a per-track enum:
+
+| Mode | Step cells (bare press) | Incoming MIDI |
+|---|---|---|
+| `PLAY` (default) | Toggle `step.trig` | QWERTY-MIDI / external MIDI feed monitoring / record-arm path as today |
+| `EDIT` | (placeholder for a future dedicated step editor; behaves like `PLAY` for now) | Same as `PLAY` |
+| `CHROMATIC` | Become a 1-octave chromatic keyboard for live play; play into the focused track's machine | Same as `PLAY` |
+| `LEVELS` | Become quantised velocity buckets (`1/16 … 16/16` of 127); write `velocityOverride` per §34.2 | Same as `PLAY` |
+
+Default is `PLAY`. Mode applies on the **focused** track only;
+non-focused tracks are unaffected by the mode setting. The top-bar
+right zone (the held-context preview, §6.8) shows the current mode
+when it is not `PLAY`.
+
+### 34.1 Mode selector
+
+`Track + verb-row key` sets the focused track's mode:
+`Track + Y` = PLAY, `Track + U` = EDIT, `Track + I` = CHROMATIC,
+`Track + O` = LEVELS. Compound qualifier: `Track + track-key +
+verb-row key` sets the mode on a specific track without changing
+focus (per the standard §13 compound-chord rule).
+
+Modes are RAM-only initially; if play-testing shows that a track
+"wants" to stay in CHROMATIC across project reloads, the field
+will be promoted to per-Track serialised state.
+
+### 34.2 CHROMATIC
+
+While the focused track is in CHROMATIC, the 16 step cells render
+as a 1-octave chromatic keyboard (cells 0–11 = C through B,
+cells 12–15 unused), reusing the note-edit overlay's view-octave
+state (`UiState::noteEditOctave`) and NavUp/NavDown shift gestures.
+Cell presses are injected into the focused track's machine via a
+per-track input-MIDI seam in `PluginProcessor::processBlock()`, so
+the machine hears them identically to a QWERTY MIDI overlay key.
+
+With record-arm on and transport running, captured notes route
+through the §21 realtime record path (including the §21.4.1 per-note
+velocity and §19.4 musical gate capture from MHZ.6) and land on
+steps. CHROMATIC composes with all scope modifiers — holding a scope
+key during CHROMATIC reinterprets the step grid per the scope re-skin
+(§6.7) and suspends CHROMATIC playback for the duration of the hold.
+
+### 34.3 LEVELS
+
+While the focused track is in LEVELS, the 16 step cells become
+quantised velocity buckets: cell `i ∈ [0..15]` represents velocity
+`floor((i + 1) × 127 / 16)`. Cell-press semantics:
+
+| Context | Cell-press effect |
+|---|---|
+| Step held | Write `velocityOverride` to all notes on the held step at the chosen level. Multi-step hold: all held steps receive the same velocity. |
+| No step held, transport stopped | Set the focused track's base velocity (`track.defaultVelocity`) at the chosen level. |
+| No step held, record-arm + transport running | Fire the focused track's machine at the chosen velocity (using the last-played pitch or the track's default note); write the trig + velocity to the next quantised step. |
+
+MHZ.7 ships **velocity-only** LEVELS. The role-tagged generic
+(`cutoff`, `pitch.coarse`, `attack`, `cutoff`, …) per §20.1's
+eligibility set lands as a follow-up sub-mode on top of MHZ.7 — the
+binding selector (encoder cycles eligible roles, §20.2) sits on the
+same surface as today's mode chord.
+
+### 34.4 Pattern-length authoring (MHZ.8)
+
+Pattern length sits in the §13 grammar under the `Pattern` scope:
+
+| Gesture | Effect |
+|---|---|
+| `Pattern + Func + NavLeft/NavRight` | Paginate the step grid past current pattern length. Cells beyond current length render very dim. |
+| `Pattern + Func + step` | Set the pattern's length to that absolute (page-aware) step index. |
+| `Pattern + Track + Func + step` | Set just that track's length (per-track length already in the model). |
+| `Pattern + Func + Yes` | Double current length, duplicating all step data (trigs, notes, P-Locks, overrides) into the new tail. |
+| `Pattern + Func + No` | Halve current length, truncating the tail. One automatic checkpoint push fires before truncation so the data is recoverable via the §13.6 checkpoint stack. |
+
+The same value also lives as an `LEN` encoder in the TRIG
+meta-section (1–64, `valueLabels` annotate page boundaries), so a
+user can dial pattern length without leaving the MZ. The encoder and
+chord gestures write the same `Parameters::trackLengthParams_[t]`
+APVTS parameter — no divergence.

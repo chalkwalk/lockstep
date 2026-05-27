@@ -1052,6 +1052,211 @@ Closes the authoring gaps surfaced after MHZ.3 shipping.
       text labels "TOP" / "BOT". Reads and writes `Track::noteSelection`
       directly (already serialised via `PluginState`).
 
+#### MHZ.5 — Engine hygiene (first-trig, envelopes, retrig, decouple, badges)
+
+Goal: small DSP and authoring fixes that surfaced once the surface
+matured enough to play extended sequences. No new scopes or verbs;
+adds a single per-track AMP param (RETRIG), a single `ParamSpec` field
+(`skew`), and one new clear-notes gesture.
+
+- [ ] **MHZ.5.1** First-trig loudness fix. `VoiceChoke` today only
+      attenuates the *outgoing* voice on retrigger; the first trig
+      after instantiation / pattern restart has no predecessor to
+      fade, so it plays at full level while subsequent retriggers
+      come in mixed against the fade tail of the previous voice.
+      Make the fade strictly asymmetric — incoming voice always at
+      full envelope-shaped amplitude, outgoing voice fades over the
+      existing 1.5–2 ms window into the same buffer. Audit FM, VA,
+      Drums share the same behaviour. Audit DrumSynth click
+      (`DrumSynthMachine.cpp:231`) — the click bypasses amp envelope
+      so its trig-1 punch may also need amp gating.
+- [ ] **MHZ.5.2** Envelope time scaling. Add
+      `ParamSpec::skew : float` (default `1.0f` = linear), JUCE
+      `NormalisableRange::skew` semantics. Apply skew on
+      normalised↔value conversion in the MZ rotary, double-click
+      reset, Control-All broadcast, and P-Lock read/write paths.
+      Re-author envelope slots across FM, VA, DrumSynth, Sampler,
+      `SamplePlayingMachineBase`: Attack `0–5000 ms`, Decay
+      `1–10000 ms`, Release `1–10000 ms`, exponential skew
+      (`≈ 0.25–0.35`). Tune by ear once the curve is live.
+- [ ] **MHZ.5.3** Per-track RETRIG mode. New per-track param
+      `RETRIG = LEGATO | RETRIG | FREE` in the AMP canonical
+      section, P-lockable per step, `valueLabels` for textual MZ
+      render. Default `LEGATO` = today's behaviour (envelope
+      continues on same-pitch retrig in mono). `RETRIG` =
+      envelope always restarts at 0. `FREE` = envelope only
+      restarts when no voice is currently sounding. Wired into
+      each machine's voice-trigger path.
+- [ ] **MHZ.5.4** Trig / notes decoupling — visual + clear-notes
+      gesture. The data model already keeps `step.trig`,
+      `trigOverride.notes[]`, and P-Locks independent (`Step.h`,
+      `PluginState.cpp:361`); the gap is only surface. (a) Step
+      cells with `trig == false` but `noteCount > 0` or P-Locks
+      present render dim while still showing note-count badge
+      and P-Lock dot. (b) New gesture **Trig + Func + No** =
+      clear held step(s)' notes + velocity/gate overrides,
+      leaving `step.trig` and P-Locks intact (parallel to
+      Trig + Func + Stop = clear P-Locks).
+- [ ] **MHZ.5.5** Octave badge legibility (extends MHZ.4.6).
+      Cross-octave badges on note-edit overlay become `<`, `<<`,
+      `>`, `>>` glyphs (`<<<` / `>>>` for ±3; numeric fallback
+      beyond), ~11pt, top-right corner of the cell, tinted with
+      scope colour. Rendering site:
+      `KeyboardArea.cpp:1306-1443`.
+- [ ] **MHZ.5.6** Documentation: CLAUDE.md glossary
+      (`RETRIG mode`, `clear-notes gesture`, `ParamSpec::skew`);
+      DESIGN updates (§3 envelope skew, §13 clear-notes,
+      §21.4 trig/notes decoupling clarification); README §5
+      shortcut table; ROADMAP checkboxes.
+- [ ] **MHZ.5.7** Verification: 16-step uniform-velocity FM
+      sequence — first trig is no longer audibly louder.
+      Envelope Attack encoder gives fine resolution under
+      100 ms, coarse above 1 s. RETRIG=RETRIG retriggers
+      envelope on every trig in mono. Step with trig off still
+      shows note-count + P-Lock dots; Trig+Func+No strips notes
+      while leaving P-Locks. Note-edit overlay badges legible
+      at 1× zoom.
+
+#### MHZ.6 — Record-time capture parity (velocity + musical gate)
+
+Goal: close the gap where chord-hold capture writes velocity / gate
+but quantised realtime record skips both. Lift gate from raw ms to
+musical time so it survives BPM changes and decouples from per-track
+step subdivisions.
+
+- [ ] **MHZ.6.1** Quantised realtime record captures velocity +
+      gate. In the `onNoteOn` quantised path
+      (`PluginProcessor.cpp:599-636`): per-note velocity flows into
+      the new per-note `velocities[]` field (MHZ.6.3); per-note
+      gate length, captured on note-off, converts to a musical
+      gate value (MHZ.6.2) and writes the step's `gateValue`. Two
+      captures landing on the same quantised step still aggregate
+      as a chord; velocities/gates merge per 6.2 / 6.3 rules.
+- [ ] **MHZ.6.2** Gate length as musical time.
+      `TrigOverride.gateMs` retires; new field
+      `gateValue : { 1/64, 1/32, 1/16, 1/8, 1/4, 1/2, 1, 2, 4 }
+      × { plain | dotted | triplet }` with a `None` sentinel.
+      Resolver converts to samples at emit time using current BPM
+      so gates survive BPM changes musically and decouple from
+      future per-track step subdivisions (the original motivation
+      — a "3-step gate" stops meaning anything once steps can be
+      anything from 1/32 to 1/4). MZ shows `1/8`, `1/8.`, `1/8T`
+      via `valueLabels`. Serializer version bump with upgrade
+      chain that maps existing `gateMs` to nearest musical value
+      at the project's stored BPM (or 120 BPM fallback).
+- [ ] **MHZ.6.3** Per-note velocity in `TrigOverride`. Parallel
+      `velocities[kMaxNotesPerStep]` (`uint8`, 0–127) +
+      `hasNoteVelocities` flag. Realtime record preserves
+      per-note velocity (`chordCapture_.maxVelocity` →
+      `chordCapture_.velocities[]`); step-hold chord-snapshot
+      stores the **mean** of currently-held velocities uniformly
+      across the captured chord (matches "realtime per-note,
+      step-hold mean"). Emitted MIDI note-ons carry the per-note
+      velocity; machine API unchanged (machines that ignore
+      velocity today continue to). `pickSpreadNotes()` drops
+      matching velocities alongside notes. Serializer versioned.
+- [ ] **MHZ.6.4** Documentation: DESIGN §21.4 velocity/gate
+      semantics rewritten; CLAUDE.md glossary
+      (`musical gate value`, `per-note velocity`); ROADMAP
+      checkboxes; README §5.
+- [ ] **MHZ.6.5** Verification: record-arm + play 8 notes with
+      varied velocity and gate. Hold each captured step; verify
+      per-note velocities and gate as musical value. Save +
+      reload; values survive. Existing pre-bump project saves
+      load cleanly via upgrade chain.
+
+#### MHZ.7 — Per-track input modes (CHROMATIC, LEVELS)
+
+Goal: a per-track input-mode enum the focused track reads to
+reinterpret incoming MIDI / step-key presses. Doesn't supersede the
+scope+verb grammar — modes only change what raw input *means* on the
+focused track. Folds MM (16-levels) into this milestone as the LEVELS
+mode, velocity-first.
+
+- [ ] **MHZ.7.1** `TrackInputMode = { PLAY, EDIT, CHROMATIC,
+      LEVELS }` enum on `Track`, default `PLAY`. RAM-only
+      initially (serialise later if play-testing proves it
+      performance-sticky). Mode applies on the **focused** track
+      only. Top-bar dashboard right zone (MHZ.2) shows current
+      mode when not `PLAY`.
+- [ ] **MHZ.7.2** Mode selector gesture. Held `Track` (no
+      specific track-key) + verb-row key (`Y/U/I/O/P` =
+      PLAY/EDIT/CHROMATIC/LEVELS) sets the focused track's mode.
+      Composes with `Track + track-key` to set a specific
+      track's mode without changing focus (compound qualifier
+      per §13).
+- [ ] **MHZ.7.3** CHROMATIC mode. In CHROMATIC the 16 step cells
+      become a 1-octave chromatic keyboard for live play
+      (reuses `UiState::noteEditOctave` + NavUp/NavDown for
+      octave shift). Notes feed into the focused track's machine
+      via a per-track input-MIDI seam in
+      `PluginProcessor::processBlock()`. Coexists with the
+      existing QWERTY MIDI overlay. With record-arm on +
+      transport running, captured notes route through the
+      MHZ.6 realtime record path and land in steps.
+- [ ] **MHZ.7.4** LEVELS mode (formerly MM). 16 step cells
+      become quantised velocity buckets (`1/16, 2/16, …, 16/16`
+      of 127). Cell-press semantics:
+        - step held → write `velocityOverride` to all notes on
+          the held step at the chosen level;
+        - no step held + transport stopped → set focused
+          track's base velocity at the chosen level;
+        - no step held + record-arm + transport running →
+          fire the focused track's machine at the chosen
+          velocity (last-played pitch or root) and write the
+          trig + velocity to the next quantised step.
+      Target-param selector (cutoff / pitch / etc.) deferred —
+      LEVELS is velocity-only in MHZ.7; the role-tagged generic
+      lands later as a sub-mode toggle.
+- [ ] **MHZ.7.5** Documentation: DESIGN new sub-section on
+      per-track input modes; CLAUDE.md glossary
+      (`TrackInputMode`, `CHROMATIC mode`, `LEVELS mode`); MM
+      cross-referenced to MHZ.7; README §5 / §6.
+- [ ] **MHZ.7.6** Verification: set focused track to CHROMATIC;
+      step keys play chromatic pitches; NavUp/Down shifts
+      octave; record-arm captures to steps. Switch to LEVELS;
+      held step + cell-press writes velocity to the chord;
+      live cell-press with record-arm fires + writes the
+      next-step trig. PLAY mode restores scope grammar.
+
+#### MHZ.8 — Pattern length authoring
+
+Goal: keyboard / encoder paths to set, double, and halve pattern
+length without leaving the surface. Closes the gap where
+`trackLengthParams_[t]` exists in Parameters but has no UI gesture.
+
+- [ ] **MHZ.8.1** Encoder path. `LEN` slot in the TRIG
+      meta-section, range 1–64, writes
+      `trackLengthParams_[focusedTrack]`. `valueLabels` may
+      annotate page boundaries (e.g. `16 (1 page)`,
+      `32 (2 pages)`). Always available, no gesture conflict.
+- [ ] **MHZ.8.2** Page navigation in the Pattern-length
+      gesture context. `Pattern + Func + NavLeft / NavRight`
+      moves between step-grid pages — including pages past the
+      current pattern length (which today are inaccessible
+      because the step grid only paginates within live length).
+      Visible cells past current length render very dim.
+- [ ] **MHZ.8.3** Length-set chord. `Pattern + Func + step`
+      sets pattern length to the resulting absolute index
+      (page-aware: page 2 step 0 → length 17). Multi-track
+      compound: `Pattern + Track + Func + step` sets just that
+      track's length (per-track length already in the model).
+- [ ] **MHZ.8.4** Multiply / halve. `Pattern + Func + Yes` =
+      double current length and duplicate all step data
+      (notes, P-Locks, trig overrides) into the new tail.
+      `Pattern + Func + No` = halve and truncate the tail (one
+      automatic checkpoint push before truncation so it's
+      recoverable via the existing checkpoint stack).
+- [ ] **MHZ.8.5** Documentation: DESIGN §13 grammar table +
+      §20 (pattern length authoring sub-section); CLAUDE.md
+      glossary; README §5 shortcut table.
+- [ ] **MHZ.8.6** Verification: encoder sets LEN across the
+      whole 1–64 range. `Pattern + Func + step` sets length to
+      that step. `Pattern + Func + NavRight` reaches pages past
+      current length. `Pattern + Func + Yes` doubles + duplicates
+      step data; `Pattern + Func + No` halves with checkpoint
+      safety.
+
 ### MH — Machine catalogue expansion  [pending, staggered]
 
 DESIGN §1 (lineage). Inheritance from `IMachine` — each is a separate
@@ -1060,6 +1265,14 @@ chain; any of these can land independently once MF (for MIDI-out
 parity) is done. **MHX, MHY and MHZ land first** (the surface freeze,
 the contract, and the chrome/grammar revamp). In practice MH.3
 resumes once MHZ.1 → MHZ.3 are complete.
+
+**Schedule note (post-MHZ.4 reshuffle):** MH.5–MH.7 land *after*
+MHZ.5–MHZ.8 and ML. The surface is now mature enough that authoring
+depth (record-time capture, per-track input modes, microtiming,
+pattern-length gestures) unlocks more performance value than another
+machine. Deferring MH.5+ keeps the catalogue work coherent: new
+machines will be authored against the post-MHZ.8 contract (musical
+gate values, per-note velocity, RETRIG modes, `ParamSpec::skew`).
 
 - [x] **MH.1** FMMachine — 4-op FM, free modulation matrix (4×4), per-operator
       ADSR + ratio / fine-tune / mix, macro attack / release / sustain scalars.
@@ -1210,6 +1423,13 @@ sampler. Machine-internal — no sequencer changes.
 DESIGN §19. Captures live timing nuance and provides a uniform
 quantize verb.
 
+**Schedule note:** ML is pulled forward to land **immediately after
+MHZ.8** (ahead of MH.5+), since it completes the record-time capture
+story started in MHZ.6 (gate / velocity / microtiming all becoming
+first-class on captured steps). Realtime record writes `microOffset`
+per *step* (one value across all notes on the step) per the existing
+ML.2 spec.
+
 - [ ] **ML.1** `Step::microOffset : float ∈ [-0.5, +0.5]`
       (fraction of step length). Resolver shifts trig sample
       position by `microOffset × step_samples`. Stored
@@ -1236,7 +1456,15 @@ quantize verb.
       indicator showing direction of nudge. Visible at all
       times (not gated by held step).
 
-### MM — 16-levels trig-grid mode  [pending]
+### MM — 16-levels trig-grid mode  [folded into MHZ.7]
+
+**Superseded by MHZ.7.4** (LEVELS as a per-track input mode,
+velocity-first). The MM.1 eligibility-set work — generalising
+LEVELS beyond velocity to a closed set of role-tagged params
+(`cutoff`, `attack`, `pan`, …) — survives as a follow-up sub-mode
+on top of MHZ.7.4 and will land separately once the velocity-first
+shape proves itself in play-testing. The original MM design follows
+for reference.
 
 DESIGN §20. Extends MG's modal trig-grid surface. Lands after MG.
 
@@ -1293,6 +1521,17 @@ DESIGN §22.
       pointing to a project-relative `samples/recorded/`
       folder, and the standard `xxHash32` ref. Behaves
       identically to drag-and-dropped samples thereafter.
+- [ ] **MN.7** Resample-time stretch / pitch decision. At the
+      end of capture (before the MN.5 naming flow), the user
+      picks one of `{preserve pitch, preserve length,
+      independent ratios}`. `Preserve pitch` resamples to a
+      new length while holding pitch; `preserve length` shifts
+      pitch while holding length; `independent ratios` exposes
+      two encoders (length-ratio + pitch-ratio). All three
+      bake into the captured sample — no realtime DSP here.
+      Realtime per-step `pitch` and `speed` independent
+      P-lockable slots are a separate, later sampler-depth
+      addition (folded into a future `MK.x` once MK lands).
 
 ### MO — Audition and cross-track record  [pending]
 
