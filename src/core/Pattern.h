@@ -16,6 +16,11 @@ namespace lockstep
         Sequence sequence{};  // per-track steps, conditions, trig defaults
         int      partRef = 0; // index into Bank::parts
 
+        // True once the pattern has been explicitly initialised (by the startup
+        // seed, state load, or a materialise gesture). Uninitialised patterns are
+        // "empty slots" — selecting one triggers the copy / create archetype.
+        bool initialised = false;
+
         // MD.7: Pattern-scope mute mask. Per-track. Saved with the pattern.
         // Runtime mute = globalMute[i] || patternMutes[i].
         std::array<bool, kNumTracks> patternMutes{};

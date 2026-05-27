@@ -10,10 +10,14 @@ namespace lockstep
     class StubMachine : public IMachine
     {
     public:
-        explicit StubMachine(std::string unknownId)
+        static constexpr const char* kMachineId = "lockstep.stub";
+
+        // unknownId is empty when the track was explicitly left empty by the user;
+        // non-empty when an unknown machine ID was loaded from a saved session.
+        explicit StubMachine(std::string unknownId = "")
             : unknownId_(std::move(unknownId)) {}
 
-        [[nodiscard]] const char* machineId() const noexcept override { return "lockstep.stub"; }
+        [[nodiscard]] const char* machineId() const noexcept override { return kMachineId; }
         [[nodiscard]] const char* badge()     const noexcept override { return ""; }
         [[nodiscard]] const std::string& unknownMachineId() const { return unknownId_; }
 

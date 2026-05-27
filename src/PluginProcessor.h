@@ -83,7 +83,7 @@ namespace lockstep
         int activePatternIdx() const { return activePatternIdx_; }
 
         // Switch the active pattern (no-op if indices unchanged or out of range).
-        // Syncs Track.baseParams from the new Part when the Part reference changes.
+        // Always syncs Track.baseParams from the new active Part.
         void setActivePattern(int bankIdx, int patternIdx);
 
         // Fork the active Part: copy it into the first free Part slot so the
@@ -95,6 +95,23 @@ namespace lockstep
         // Returns the number of patterns in the active bank that reference the
         // same Part as the active pattern.
         int activePartShareCount() const;
+
+        // Empty-slot gestural archetype — see DESIGN for the copy/create convention.
+        // materialisePattern copies the current active pattern if copy=true, else
+        // creates a blank pattern referencing the current Part.
+        // materialisePart copies the active Part if copy=true, else creates a default
+        // Part (T0=sampler, T1-15=stub). Both mark the slot as initialised.
+        [[nodiscard]] bool isPatternInitialised(int bankIdx, int patternIdx) const;
+        [[nodiscard]] bool isPartInitialised(int bankIdx, int partIdx) const;
+        void materialisePattern(int bankIdx, int patternIdx, bool copy);
+        void materialisePart(int bankIdx, int partIdx, bool copy);
+
+        // Copy the active Part's PartTrack (machine + base params) from srcTrack
+        // to dstTrack. Does NOT copy step data (sequence is per-pattern, not per-Part).
+        void copyPartTrack(int srcTrack, int dstTrack);
+
+        // True when the installed machine on the given track is a stub (empty track).
+        [[nodiscard]] bool isTrackEmpty(int track) const;
 
         // Queue a pattern switch to fire at the next grid boundary (end of the
         // longest running track's cycle). Safe to call from the message thread.

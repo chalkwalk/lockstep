@@ -289,11 +289,13 @@ namespace lockstep::PluginState
                     patHasContent = true;
                 }
 
-                // Always write the active pattern; skip empty non-active ones.
+                // Write all initialised patterns, plus the active one unconditionally.
                 const bool isActive = (bi == proc.activeBankIdx()
                                     && pi == proc.activePatternIdx());
-                if (patHasContent || isActive)
+                if (patHasContent || isActive || pattern.initialised)
                 {
+                    if (pattern.initialised)
+                        patNode.setProperty("init", 1, nullptr);
                     bankNode.appendChild(patNode, nullptr);
                     bankHasContent = true;
                 }
@@ -320,12 +322,14 @@ namespace lockstep::PluginState
                     }
                 }
 
-                // Always write Part 0 (the default kit) and the active Part.
+                // Write all initialised parts, plus Part 0 and the active Part unconditionally.
                 const int activePartRef = proc.activePattern().partRef;
                 const bool isActivePart = (bi == proc.activeBankIdx()
                                         && ri == activePartRef);
-                if (partHasContent || ri == 0 || isActivePart)
+                if (partHasContent || ri == 0 || isActivePart || part.initialised)
                 {
+                    if (part.initialised)
+                        partNode.setProperty("init", 1, nullptr);
                     bankNode.appendChild(partNode, nullptr);
                     bankHasContent = true;
                 }
@@ -545,6 +549,7 @@ namespace lockstep::PluginState
                         readPatternTrackFromNode(trackNode,
                             pattern.sequence.tracks[static_cast<std::size_t>(t)], proc, t);
                     }
+                    pattern.initialised = (static_cast<int>(child.getProperty("init", 0)) != 0);
                 }
                 else if (child.getType() == juce::Identifier("Part"))
                 {
@@ -559,6 +564,7 @@ namespace lockstep::PluginState
                         readPartTrackFromNode(ptNode,
                             part.tracks[static_cast<std::size_t>(t)], proc, t);
                     }
+                    part.initialised = (static_cast<int>(child.getProperty("init", 0)) != 0);
                 }
             }
         }
@@ -901,6 +907,32 @@ namespace lockstep::PluginState
         return v3;
     }
 
+    juce::ValueTree upgrade_v3_to_v4(const juce::ValueTree& v3)
+    {
+        juce::ValueTree v4 = v3.createCopy();
+        v4.setProperty("version", 4, nullptr);
+
+        // All existing Pattern and Part nodes are from a pre-gestural-archetype
+        // session where every slot was pre-seeded. Mark them all as initialised
+        // so they don't trigger copy/create gestures on first touch.
+        const auto projNode = v4.getChildWithName("Project");
+        if (!projNode.isValid()) return v4;
+
+        for (auto bankNode : projNode)
+        {
+            for (auto child : bankNode)
+            {
+                if (child.getType() == juce::Identifier("Pattern") ||
+                    child.getType() == juce::Identifier("Part"))
+                {
+                    child.setProperty("init", 1, nullptr);
+                }
+            }
+        }
+
+        return v4;
+    }
+
     juce::ValueTree applyUpgrades(juce::ValueTree tree)
     {
         // Determine the version. v0 has root type "Lockstep" and no version attribute.
@@ -918,6 +950,7 @@ namespace lockstep::PluginState
         if (version < 1) tree = upgrade_v0_to_v1(tree);
         if (version < 2) tree = upgrade_v1_to_v2(tree);
         if (version < 3) tree = upgrade_v2_to_v3(tree);
+        if (version < 4) tree = upgrade_v3_to_v4(tree);
 
         return tree;
     }
@@ -1097,6 +1130,51 @@ namespace
                              "version upgraded to current");
                 expect(result.getChildWithName("Project").isValid(), "Project child present");
                 expect(!result.getChildWithName("Sequence").isValid(), "no legacy Sequence");
+            }
+
+            beginTest("v3 -> v4: Pattern and Part nodes gain init=1");
+            {
+                // Build a minimal v3 tree with one Bank containing one Pattern
+                // and one Part (as they would appear in a pre-v4 session).
+                juce::ValueTree v3("LockstepState");
+                v3.setProperty("version", 3, nullptr);
+
+                juce::ValueTree proj("Project");
+                juce::ValueTree bank("Bank");
+                bank.setProperty("i", 0, nullptr);
+
+                juce::ValueTree pat("Pattern");
+                pat.setProperty("i",       0, nullptr);
+                pat.setProperty("partRef", 0, nullptr);
+
+                juce::ValueTree part("Part");
+                part.setProperty("i", 0, nullptr);
+
+                bank.appendChild(pat,  nullptr);
+                bank.appendChild(part, nullptr);
+                proj.appendChild(bank, nullptr);
+                v3.appendChild(proj,   nullptr);
+
+                const auto result = lockstep::PluginState::applyUpgrades(v3);
+
+                expectEquals(static_cast<int>(result.getProperty("version", -1)),
+                             lockstep::PluginState::kCurrentVersion,
+                             "version upgraded to current");
+
+                const auto rBank = result.getChildWithName("Project")
+                                         .getChildWithName("Bank");
+                expect(rBank.isValid(), "Bank present");
+
+                const auto rPat  = rBank.getChildWithName("Pattern");
+                const auto rPart = rBank.getChildWithName("Part");
+
+                expect(rPat.isValid(),  "Pattern node present");
+                expect(rPart.isValid(), "Part node present");
+
+                expectEquals(static_cast<int>(rPat.getProperty("init",  0)), 1,
+                             "Pattern has init=1 after v3->v4 upgrade");
+                expectEquals(static_cast<int>(rPart.getProperty("init", 0)), 1,
+                             "Part has init=1 after v3->v4 upgrade");
             }
 
             beginTest("future version: valid tree returned without crash");

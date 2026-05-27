@@ -1,6 +1,7 @@
 #include "PluginEditor.h"
 #include "ParameterIDs.h"
 #include "machine/IMachine.h"
+#include "machine/SamplerMachine.h"
 #include "ui/ScopedSectionMatrix.h"
 #include <algorithm>
 
@@ -742,9 +743,6 @@ namespace lockstep
 
             case ControllerButton::PartScope:
                 uiState_.partHeld = true;
-                // MHZ.3.5: Func+Part activates machine picker; step cells will re-skin.
-                if (uiState_.funcHeld)
-                    uiState_.funcPartHeld = true;
                 editMode_.onScopeEvent(ev);
                 keyboardArea_.repaint();
                 repaint();
@@ -773,8 +771,13 @@ namespace lockstep
                         keyboardArea_.selectMetaSection(2);
                         return true;
                     }
-                    // MHZ.3.5: Part+SRC (index 1) is now dimmed (MACH moved to Func+Part).
-                    // No special dispatch; fall through to the generic dim-check above.
+                    if (sectionScope == PS::Part && ev.index == 1)
+                    {
+                        // Part+SRC: machine picker — re-skin the step grid to show machines.
+                        uiState_.funcPartHeld = true;
+                        keyboardArea_.repaint();
+                        return true;
+                    }
                     // All other non-dim scope cells fall through to the machine's own
                     // section (e.g. Track+FLTR → section 2 = post-machine FLTR block).
                 }
@@ -894,6 +897,10 @@ namespace lockstep
                 {
                     const int bank     = processor_.activeBankIdx();
                     const bool playing = processor_.clock().inPluginPlaying();
+                    // Materialise empty slot before selecting it.
+                    // Pat+step = copy current; Func+Pat+step = blank (inherits Part ref).
+                    if (!processor_.isPatternInitialised(bank, ev.index))
+                        processor_.materialisePattern(bank, ev.index, !uiState_.funcHeld);
                     if (!uiState_.patternScopeUsed && !playing)
                     {
                         // Immediate swap when stopped; wipes any existing chain.
@@ -917,9 +924,18 @@ namespace lockstep
                     return true;
                 }
 
-                // PartScope + step: immediately assign the pattern's Part reference.
+                // PartScope + step: assign the pattern's Part reference.
+                // Part+step = copy current Part into empty slot (or plain select if occupied).
+                // Func+Part+step = create default Part in empty slot (or plain select if occupied).
                 if (uiState_.partHeld && !uiState_.funcPartHeld)
                 {
+                    const int bank = processor_.activeBankIdx();
+                    if (ev.index >= 0 && ev.index < static_cast<int>(kPartsPerBank)
+                        && !processor_.isPartInitialised(bank, ev.index))
+                    {
+                        // copy=true → copy current Part; copy=false → default Part.
+                        processor_.materialisePart(bank, ev.index, !uiState_.funcHeld);
+                    }
                     processor_.setActivePatternPart(ev.index);
                     repaint();
                     keyboardArea_.repaint();
@@ -1056,6 +1072,19 @@ namespace lockstep
             }
 
             case ControllerButton::SelectTrack:
+                if (uiState_.trackHeld && processor_.isTrackEmpty(ev.index))
+                {
+                    // Track+empty step = copy current track's machine+params (no steps).
+                    // Func+Track+empty step = create a default sampler track.
+                    if (uiState_.funcHeld)
+                        processor_.setTrackMachine(ev.index,
+                            std::string(SamplerMachine::kMachineId));
+                    else
+                        processor_.copyPartTrack(keyboardArea_.getActiveTrack(), ev.index);
+                    repaint();
+                    keyboardArea_.repaint();
+                    return true;
+                }
                 keyboardArea_.setActiveTrack(ev.index);
                 processor_.setControlAllActive(false);  // specific track chosen; disable control-all
                 return true;

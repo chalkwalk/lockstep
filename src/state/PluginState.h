@@ -14,7 +14,10 @@ namespace lockstep
         // v1: flat Sequence + SamplePool + CCMappings + Misc
         // v2: full Project/Bank/Pattern/Part hierarchy; Sequence/BaseParams
         //     moved into Project node; Misc gains activeBankIdx/activePatternIdx
-        inline constexpr int kCurrentVersion = 3;
+        // v3: TrigOverride gate stored as MusicalGate enum; per-note velocity added
+        // v4: Pattern/Part nodes gain explicit "init=1" attribute; uninitialised
+        //     slots are empty by default; PartTrack may hold "lockstep.stub" machineId
+        inline constexpr int kCurrentVersion = 4;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);

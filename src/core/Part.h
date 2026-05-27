@@ -53,5 +53,10 @@ namespace lockstep
     struct Part
     {
         std::array<PartTrack, kNumTracks> tracks{};
+
+        // True once the part has been explicitly initialised (by the startup seed,
+        // state load, or a materialise gesture). Uninitialised parts are "empty
+        // slots" — selecting one triggers the copy / create archetype.
+        bool initialised = false;
     };
 }

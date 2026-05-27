@@ -1051,8 +1051,9 @@ namespace lockstep
             juce::String displayPrimary { def.primary };
             juce::String displayHint    { def.secondary };
 
-            // MHZ.3.5: when Func is held, the Part key (W) relabels to MACH.
-            if (def.keyCode == 'W' && uiState_.funcHeld)
+            // MACH picker is entered via Part+SRC; the Part key (W) relabels when
+            // the picker is active so the user sees what state they're in.
+            if (def.keyCode == 'W' && uiState_.funcPartHeld)
                 displayPrimary = "MACH";
 
             if (def.role == KeyRole::VerbCopy
