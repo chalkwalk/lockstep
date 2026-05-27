@@ -1410,23 +1410,54 @@ namespace lockstep
                     g.setFont(juce::Font(juce::FontOptions(9.0f)).boldened());
                     g.drawText(juce::String(kNoteNames[semitone]), cell, juce::Justification::centred);
 
-                    // Cross-octave badges: small octave numbers, bottom of cell.
+                    // Cross-octave badges: arrow glyphs at top-right, relative to view octave.
+                    // < / << / <<< = 1/2/3+ octaves below; > / >> / >>> = above; numeric fallback.
                     if (!otherOctaves.empty())
                     {
                         std::sort(otherOctaves.begin(), otherOctaves.end());
-                        const int badgeW = 8, badgeH = 8, gap = 1;
-                        const int totalW = static_cast<int>(otherOctaves.size()) * (badgeW + gap) - gap;
-                        int bx = cell.getCentreX() - totalW / 2;
-                        const int by = cell.getBottom() - badgeH - 2;
+                        juce::Font badgeFont(juce::FontOptions(11.0f));
+                        g.setFont(badgeFont);
+                        const int badgeH = 14, gap = 2;
+                        const int by = cell.getY() + 2;
+
+                        // Build glyph strings from relative octave offsets.
+                        std::vector<juce::String> glyphs;
+                        glyphs.reserve(static_cast<std::size_t>(otherOctaves.size()));
                         for (const int otherOct : otherOctaves)
                         {
-                            const auto badge = juce::Rectangle<int>(bx, by, badgeW, badgeH);
+                            const int diff = otherOct - octave;
+                            juce::String gl;
+                            if      (diff == -1) gl = "<";
+                            else if (diff == -2) gl = "<<";
+                            else if (diff <= -3) gl = "<<<";
+                            else if (diff ==  1) gl = ">";
+                            else if (diff ==  2) gl = ">>";
+                            else if (diff >=  3) gl = ">>>";
+                            else                 gl = juce::String(otherOct);
+                            glyphs.push_back(gl);
+                        }
+
+                        // Measure badge widths, right-align in the top-right corner.
+                        std::vector<int> widths;
+                        widths.reserve(glyphs.size());
+                        int totalW = -gap;
+                        for (const auto& gl : glyphs)
+                        {
+                            const int w = juce::roundToInt(badgeFont.getStringWidthFloat(gl)) + 6;
+                            widths.push_back(w);
+                            totalW += w + gap;
+                        }
+
+                        int bx = cell.getRight() - 2 - totalW;
+                        for (int gi = 0; gi < static_cast<int>(glyphs.size()); ++gi)
+                        {
+                            const auto sz = static_cast<std::size_t>(gi);
+                            const auto badge = juce::Rectangle<int>(bx, by, widths[sz], badgeH);
                             g.setColour(noteTint.withAlpha(0.55f));
                             g.fillRoundedRectangle(badge.toFloat(), 2.0f);
                             g.setColour(juce::Colours::white.withAlpha(0.85f));
-                            g.setFont(juce::Font(juce::FontOptions(6.0f)));
-                            g.drawText(juce::String(otherOct), badge, juce::Justification::centred);
-                            bx += badgeW + gap;
+                            g.drawText(glyphs[sz], badge, juce::Justification::centred);
+                            bx += widths[sz] + gap;
                         }
                     }
 
