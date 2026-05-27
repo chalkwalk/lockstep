@@ -14,7 +14,7 @@ namespace lockstep
         // v1: flat Sequence + SamplePool + CCMappings + Misc
         // v2: full Project/Bank/Pattern/Part hierarchy; Sequence/BaseParams
         //     moved into Project node; Misc gains activeBankIdx/activePatternIdx
-        inline constexpr int kCurrentVersion = 2;
+        inline constexpr int kCurrentVersion = 3;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);

@@ -172,7 +172,7 @@ namespace lockstep::PluginState
                     const bool hasCond  = !track.baseCond.isTrivial();
                     const bool hasTrig  = (track.trigDefaults.note != 60
                                        || track.trigDefaults.velocity != 100
-                                       || floatNe(track.trigDefaults.gateMs, 0.0f));
+                                       || track.trigDefaults.gateValue != MusicalGate::None);
                     const bool hasNoteSel = (track.noteSelection != NoteSelection::TopBias);
                     bool hasStep = false;
                     for (const auto& step : track.steps)
@@ -203,9 +203,10 @@ namespace lockstep::PluginState
                     if (hasTrig)
                     {
                         juce::ValueTree tdNode("TrigDefaults");
-                        tdNode.setProperty("note",   track.trigDefaults.note,   nullptr);
-                        tdNode.setProperty("vel",    track.trigDefaults.velocity, nullptr);
-                        tdNode.setProperty("gateMs", static_cast<double>(track.trigDefaults.gateMs), nullptr);
+                        tdNode.setProperty("note",  track.trigDefaults.note,     nullptr);
+                        tdNode.setProperty("vel",   track.trigDefaults.velocity,  nullptr);
+                        tdNode.setProperty("gateV", static_cast<int>(static_cast<uint8_t>(
+                                               track.trigDefaults.gateValue)),    nullptr);
                         trackNode.appendChild(tdNode, nullptr);
                     }
 
@@ -247,8 +248,18 @@ namespace lockstep::PluginState
                                 }
                                 if (step.trigOverride.hasGate)
                                 {
-                                    toNode.setProperty("hg", 1,                                             nullptr);
-                                    toNode.setProperty("g",  static_cast<double>(step.trigOverride.gateMs), nullptr);
+                                    toNode.setProperty("hg", 1, nullptr);
+                                    toNode.setProperty("gv", static_cast<int>(
+                                        static_cast<uint8_t>(step.trigOverride.gateValue)), nullptr);
+                                }
+                                if (step.trigOverride.hasNoteVelocities)
+                                {
+                                    toNode.setProperty("hnv", 1, nullptr);
+                                    for (int ni = 0; ni < step.trigOverride.noteCount; ++ni)
+                                        toNode.setProperty("vel" + juce::String(ni),
+                                            static_cast<int>(step.trigOverride.velocities[
+                                                static_cast<std::size_t>(ni)]),
+                                            nullptr);
                                 }
                                 stepNode.appendChild(toNode, nullptr);
                             }
@@ -346,7 +357,9 @@ namespace lockstep::PluginState
         {
             track.trigDefaults.note     = static_cast<int>(tdNode.getProperty("note",   60));
             track.trigDefaults.velocity = static_cast<int>(tdNode.getProperty("vel",   100));
-            track.trigDefaults.gateMs   = getFloat(tdNode, "gateMs", 0.0f);
+            track.trigDefaults.gateValue = static_cast<MusicalGate>(
+                std::clamp(static_cast<int>(tdNode.getProperty("gateV", 0)),
+                           0, kMusicalGateCount - 1));
         }
 
         const auto stepsNode = trackNode.getChildWithName("Steps");
@@ -394,7 +407,19 @@ namespace lockstep::PluginState
 
                 step.trigOverride.hasGate = (static_cast<int>(toNode.getProperty("hg", 0)) != 0);
                 if (step.trigOverride.hasGate)
-                    step.trigOverride.gateMs = getFloat(toNode, "g", 0.0f);
+                    step.trigOverride.gateValue = static_cast<MusicalGate>(
+                        std::clamp(static_cast<int>(toNode.getProperty("gv", 0)),
+                                   0, kMusicalGateCount - 1));
+
+                step.trigOverride.hasNoteVelocities =
+                    (static_cast<int>(toNode.getProperty("hnv", 0)) != 0);
+                if (step.trigOverride.hasNoteVelocities)
+                {
+                    for (int ni = 0; ni < step.trigOverride.noteCount; ++ni)
+                        step.trigOverride.velocities[static_cast<std::size_t>(ni)] =
+                            static_cast<uint8_t>(static_cast<int>(
+                                toNode.getProperty("vel" + juce::String(ni), 100)));
+                }
             }
 
             const auto plNode = stepNode.getChildWithName("PL");
@@ -818,6 +843,64 @@ namespace lockstep::PluginState
         return v2;
     }
 
+    // v2 → v3
+    // v2 format: TrigOverride gate stored as "hg"+"g" (float milliseconds).
+    //            TrigDefaults gate stored as "gateMs" (float milliseconds).
+    // v3 format: TrigOverride gate stored as "hg"+"gv" (int MusicalGate index).
+    //            TrigDefaults gate stored as "gateV"   (int MusicalGate index).
+    //            TrigOverride per-note velocities: "hnv"+"vel0".."vel3" (new; absent in v2).
+    juce::ValueTree upgrade_v2_to_v3(const juce::ValueTree& v2)
+    {
+        juce::ValueTree v3 = v2.createCopy();
+        v3.setProperty("version", 3, nullptr);
+
+        // Walk Project/Bank/Pattern/Track/Steps/Step/TO nodes and convert gate.
+        const auto projNode = v3.getChildWithName("Project");
+        if (!projNode.isValid()) return v3;
+
+        for (auto bankNode : projNode)
+        {
+            for (auto child : bankNode)
+            {
+                if (child.getType() != juce::Identifier("Pattern")) continue;
+                for (auto trackNode : child)
+                {
+                    // Fix TrigDefaults: "gateMs" float → "gateV" int.
+                    auto tdNode = trackNode.getChildWithName("TrigDefaults");
+                    if (tdNode.isValid() && tdNode.hasProperty("gateMs"))
+                    {
+                        const float gms = static_cast<float>(
+                            static_cast<double>(tdNode.getProperty("gateMs", 0.0)));
+                        tdNode.setProperty("gateV",
+                            static_cast<int>(static_cast<uint8_t>(
+                                nearestMusicalGate(gms, 120.0))), nullptr);
+                        tdNode.removeProperty("gateMs", nullptr);
+                    }
+
+                    // Fix each step's TO node: "g" double → "gv" int.
+                    const auto stepsNode = trackNode.getChildWithName("Steps");
+                    if (!stepsNode.isValid()) continue;
+                    for (auto stepNode : stepsNode)
+                    {
+                        auto toNode = stepNode.getChildWithName("TO");
+                        if (!toNode.isValid()) continue;
+                        if (toNode.hasProperty("g"))
+                        {
+                            const float gms = static_cast<float>(
+                                static_cast<double>(toNode.getProperty("g", 0.0)));
+                            toNode.setProperty("gv",
+                                static_cast<int>(static_cast<uint8_t>(
+                                    nearestMusicalGate(gms, 120.0))), nullptr);
+                            toNode.removeProperty("g", nullptr);
+                        }
+                    }
+                }
+            }
+        }
+
+        return v3;
+    }
+
     juce::ValueTree applyUpgrades(juce::ValueTree tree)
     {
         // Determine the version. v0 has root type "Lockstep" and no version attribute.
@@ -834,6 +917,7 @@ namespace lockstep::PluginState
         // to the chain: each runs only when needed by the version guard.
         if (version < 1) tree = upgrade_v0_to_v1(tree);
         if (version < 2) tree = upgrade_v1_to_v2(tree);
+        if (version < 3) tree = upgrade_v2_to_v3(tree);
 
         return tree;
     }
