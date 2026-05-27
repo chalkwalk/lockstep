@@ -27,7 +27,7 @@ namespace lockstep::StateResolver
         result.noteCount  = 1;
         result.notes[0]   = track.trigDefaults.note;
         result.velocity   = track.trigDefaults.velocity;
-        result.gateMs     = track.trigDefaults.gateMs;
+        result.gateValue  = track.trigDefaults.gateValue;
 
         if (stepIndex < 0 || stepIndex >= kMaxStepsPerTrack)
             return result;
@@ -38,8 +38,16 @@ namespace lockstep::StateResolver
             result.noteCount = ov.noteCount;
             result.notes     = ov.notes;
         }
-        if (ov.hasVelocity) result.velocity = ov.velocity;
-        if (ov.hasGate)     result.gateMs   = ov.gateMs;
+        if (ov.hasVelocity)
+        {
+            result.velocity = ov.velocity;
+        }
+        if (ov.hasNoteVelocities)
+        {
+            result.hasNoteVelocities = true;
+            result.velocities        = ov.velocities;
+        }
+        if (ov.hasGate) { result.gateValue = ov.gateValue; }
         return result;
     }
 }

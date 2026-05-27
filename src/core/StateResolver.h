@@ -11,9 +11,11 @@ namespace lockstep
     struct TrigFields
     {
         int  noteCount = 1;
-        std::array<int, kMaxNotesPerStep> notes{ 60, 0, 0, 0 };
-        int   velocity = 100;
-        float gateMs   = 0.0f;  // 0 = no gate, play to natural AHDSR end
+        std::array<int, kMaxNotesPerStep>     notes{ 60, 0, 0, 0 };
+        int         velocity          = 100;
+        bool        hasNoteVelocities = false;
+        std::array<uint8_t, kMaxNotesPerStep> velocities{};
+        MusicalGate gateValue         = MusicalGate::None;
     };
 
     // Effective Value = Step Override State [if exists] ELSE Track Base State.

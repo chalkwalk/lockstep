@@ -1,8 +1,10 @@
 #pragma once
 
+#include "MusicalGate.h"
 #include "PLock.h"
 #include "TrigCondition.h"
 #include <array>
+#include <cstdint>
 
 namespace lockstep
 {
@@ -12,14 +14,21 @@ namespace lockstep
     // Each field is independently optional (Override-ELSE-Base).
     // noteCount == 0: no note override (use track default, monophonic).
     // noteCount  > 0: notes[0..noteCount-1] form the chord; notes[0] is the primary.
+    //
+    // Velocity layers:
+    //   hasNoteVelocities + velocities[] — per-note, set by realtime record (MHZ.6.3).
+    //   hasVelocity + velocity           — uniform override, set via MZ (takes effect only
+    //                                      when hasNoteVelocities is false).
     struct TrigOverride
     {
         int   noteCount   = 0;
-        std::array<int, kMaxNotesPerStep> notes{};
-        bool  hasVelocity = false;
-        int   velocity    = 100;
-        bool  hasGate     = false;
-        float gateMs      = 0.0f;
+        std::array<int, kMaxNotesPerStep>     notes{};
+        bool  hasVelocity     = false;
+        int   velocity        = 100;
+        bool  hasNoteVelocities = false;
+        std::array<uint8_t, kMaxNotesPerStep> velocities{};
+        bool        hasGate   = false;
+        MusicalGate gateValue = MusicalGate::None;
         // MG.5: Sound Pool step override — applies pool entry's baseParams as the
         // base param set for this step (P-Locks on top still win).
         bool  hasSoundId  = false;

@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include "MusicalGate.h"
 #include "Step.h"
 #include "../machine/IMachine.h"
 
@@ -13,9 +14,9 @@ namespace lockstep
     // Resolved against per-step TrigOverride via Override-ELSE-Base.
     struct TrigDefaults
     {
-        int   note     = 60;    // MIDI note number (0-127)
-        int   velocity = 100;   // MIDI velocity (1-127)
-        float gateMs   = 0.0f;  // gate duration in ms; 0 = play to natural AHDSR end
+        int         note      = 60;                  // MIDI note number (0-127)
+        int         velocity  = 100;                 // MIDI velocity (1-127)
+        MusicalGate gateValue = MusicalGate::None;   // musical gate; None = play to AHDSR end
     };
 
     // When a chord step holds more notes than the machine's current polyphony
