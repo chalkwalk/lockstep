@@ -284,6 +284,8 @@ namespace lockstep
             const double hi = static_cast<double>(meta.maxValue);
             sliders_[si].setRange(lo, (hi > lo ? hi : lo + 1.0),
                                   meta.isStepped ? 1.0 : 0.0);
+            // MHZ.5.2: non-linear encoder curve for time params (attack/decay/release).
+            sliders_[si].setSkewFactor(meta.isStepped ? 1.0 : static_cast<double>(meta.skew));
             // MHZ.2.4: double-click resets to parameter default.
             sliders_[si].setDoubleClickReturnValue(true,
                                                    static_cast<double>(meta.defaultValue));

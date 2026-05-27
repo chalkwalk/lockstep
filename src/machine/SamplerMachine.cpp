@@ -279,11 +279,11 @@ namespace lockstep
             break;
         // Canonical section 3 "AMP"
         case kSlotLevel:    ps = { "level",   "Level",   0.0f,    1.0f,   1.0f, false, U::Percent,   3, R::Level   }; break;
-        case kSlotAttack:   ps = { "attack",  "Attack",  0.0f, 5000.0f,   2.0f, false, U::Ms,        3, R::Attack  }; break;
-        case kSlotHold:     ps = { "hold",    "Hold",    0.0f, 2000.0f,   0.0f, false, U::Ms,        3, R::Hold    }; break;
-        case kSlotDecay:    ps = { "decay",   "Decay",   0.0f, 5000.0f, 500.0f, false, U::Ms,        3, R::Decay   }; break;
-        case kSlotSustain:  ps = { "sustain", "Sustain", 0.0f,    1.0f,   0.5f, false, U::Percent,   3, R::Sustain }; break;
-        case kSlotRelease:  ps = { "release", "Release", 0.0f, 5000.0f, 200.0f, false, U::Ms,        3, R::Release }; break;
+        case kSlotAttack:   ps = { "attack",  "Attack",  0.0f,  5000.0f,   2.0f, false, U::Ms,      3, R::Attack  }; ps.skew = 0.3f; break;
+        case kSlotHold:     ps = { "hold",    "Hold",    0.0f,  2000.0f,   0.0f, false, U::Ms,      3, R::Hold    }; ps.skew = 0.5f; break;
+        case kSlotDecay:    ps = { "decay",   "Decay",   1.0f, 10000.0f, 500.0f, false, U::Ms,      3, R::Decay   }; ps.skew = 0.3f; break;
+        case kSlotSustain:  ps = { "sustain", "Sustain", 0.0f,    1.0f,   0.5f, false, U::Percent, 3, R::Sustain }; break;
+        case kSlotRelease:  ps = { "release", "Release", 1.0f, 10000.0f, 200.0f, false, U::Ms,      3, R::Release }; ps.skew = 0.3f; break;
         default:            break;
         }
         return ps;

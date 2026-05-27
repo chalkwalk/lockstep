@@ -63,7 +63,7 @@ namespace lockstep
       case kSlotHold:
         return { "drum_hold",        "Hold",      0.f,  200.f,   0.f, false, U::Ms,        3, R::Hold   };
       case kSlotDecay:
-        return { "drum_decay",       "Decay",     1.f, 5000.f, 500.f, false, U::Ms,        3, R::Decay  };
+        { ParamSpec p { "drum_decay", "Decay", 1.f, 5000.f, 500.f, false, U::Ms, 3, R::Decay }; p.skew = 0.3f; return p; }
       case kSlotNoiseDecay:
         return { "drum_noise_decay", "Nz Dec",    1.f, 2000.f, 200.f, false, U::Ms,        3, R::None   };
       case kSlotLevel:

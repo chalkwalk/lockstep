@@ -74,6 +74,12 @@ namespace lockstep
         // zero-crossing in the currently-loaded sample before storing it.
         // Applies to normalised [0..1] position slots (start, length, loop_*).
         bool zeroCrossingSnap = false;
+
+        // Encoder curve following JUCE NormalisableRange::skew semantics.
+        // 1.0 = linear (default). < 1 biases resolution toward the low end of
+        // the range (exponential feel for time parameters). Applied by the MZ
+        // rotary only — P-Lock and serializer always work with actual values.
+        float skew = 1.0f;
     };
 
     // Returned by LockstepProcessor::section() after augmenting the machine's

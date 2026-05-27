@@ -432,23 +432,23 @@ namespace lockstep
     case kSlotMacroRelease: return { "fm_macro_rel", "Macro Rel", 0.0f, 3.0f, 1.0f, false, U::None,    3, R::Release };
     case kSlotMacroSustain: return { "fm_macro_sus", "Macro Sus", 0.0f, 2.0f, 1.0f, false, U::None,    3, R::Sustain };
     case kSlotOutputLevel:  return { "fm_level",     "Level",     0.0f, 1.0f, 1.0f, false, U::Percent, 3, R::Level   };
-    // AMP — pages 2-5: per-operator ADSR
-    case kSlotOp1Attack:  return { "fm_atk_1", "Op1 Atk", 1.0f, 5000.0f,  10.0f, false, U::Ms,      3, R::None };
-    case kSlotOp1Decay:   return { "fm_dec_1", "Op1 Dec", 1.0f, 5000.0f, 500.0f, false, U::Ms,      3, R::None };
-    case kSlotOp1Sustain: return { "fm_sus_1", "Op1 Sus", 0.0f,    1.0f,   0.0f, false, U::Percent, 3, R::None };
-    case kSlotOp1Release: return { "fm_rel_1", "Op1 Rel", 1.0f, 5000.0f, 500.0f, false, U::Ms,      3, R::None };
-    case kSlotOp2Attack:  return { "fm_atk_2", "Op2 Atk", 1.0f, 5000.0f,  10.0f, false, U::Ms,      3, R::None };
-    case kSlotOp2Decay:   return { "fm_dec_2", "Op2 Dec", 1.0f, 5000.0f, 200.0f, false, U::Ms,      3, R::None };
-    case kSlotOp2Sustain: return { "fm_sus_2", "Op2 Sus", 0.0f,    1.0f,   0.0f, false, U::Percent, 3, R::None };
-    case kSlotOp2Release: return { "fm_rel_2", "Op2 Rel", 1.0f, 5000.0f, 500.0f, false, U::Ms,      3, R::None };
-    case kSlotOp3Attack:  return { "fm_atk_3", "Op3 Atk", 1.0f, 5000.0f,  10.0f, false, U::Ms,      3, R::None };
-    case kSlotOp3Decay:   return { "fm_dec_3", "Op3 Dec", 1.0f, 5000.0f, 200.0f, false, U::Ms,      3, R::None };
-    case kSlotOp3Sustain: return { "fm_sus_3", "Op3 Sus", 0.0f,    1.0f,   0.0f, false, U::Percent, 3, R::None };
-    case kSlotOp3Release: return { "fm_rel_3", "Op3 Rel", 1.0f, 5000.0f, 500.0f, false, U::Ms,      3, R::None };
-    case kSlotOp4Attack:  return { "fm_atk_4", "Op4 Atk", 1.0f, 5000.0f,  10.0f, false, U::Ms,      3, R::None };
-    case kSlotOp4Decay:   return { "fm_dec_4", "Op4 Dec", 1.0f, 5000.0f, 200.0f, false, U::Ms,      3, R::None };
-    case kSlotOp4Sustain: return { "fm_sus_4", "Op4 Sus", 0.0f,    1.0f,   0.0f, false, U::Percent, 3, R::None };
-    case kSlotOp4Release: return { "fm_rel_4", "Op4 Rel", 1.0f, 5000.0f, 500.0f, false, U::Ms,      3, R::None };
+    // AMP — pages 2-5: per-operator ADSR (attack 0–5s, decay/release 1–10s, exponential curve)
+    case kSlotOp1Attack:  { ParamSpec p { "fm_atk_1", "Op1 Atk",  0.0f, 5000.0f,  10.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }
+    case kSlotOp1Decay:   { ParamSpec p { "fm_dec_1", "Op1 Dec",  1.0f,10000.0f, 500.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }
+    case kSlotOp1Sustain: return { "fm_sus_1", "Op1 Sus", 0.0f, 1.0f, 0.0f, false, U::Percent, 3, R::None };
+    case kSlotOp1Release: { ParamSpec p { "fm_rel_1", "Op1 Rel",  1.0f,10000.0f, 500.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }
+    case kSlotOp2Attack:  { ParamSpec p { "fm_atk_2", "Op2 Atk",  0.0f, 5000.0f,  10.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }
+    case kSlotOp2Decay:   { ParamSpec p { "fm_dec_2", "Op2 Dec",  1.0f,10000.0f, 200.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }
+    case kSlotOp2Sustain: return { "fm_sus_2", "Op2 Sus", 0.0f, 1.0f, 0.0f, false, U::Percent, 3, R::None };
+    case kSlotOp2Release: { ParamSpec p { "fm_rel_2", "Op2 Rel",  1.0f,10000.0f, 500.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }
+    case kSlotOp3Attack:  { ParamSpec p { "fm_atk_3", "Op3 Atk",  0.0f, 5000.0f,  10.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }
+    case kSlotOp3Decay:   { ParamSpec p { "fm_dec_3", "Op3 Dec",  1.0f,10000.0f, 200.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }
+    case kSlotOp3Sustain: return { "fm_sus_3", "Op3 Sus", 0.0f, 1.0f, 0.0f, false, U::Percent, 3, R::None };
+    case kSlotOp3Release: { ParamSpec p { "fm_rel_3", "Op3 Rel",  1.0f,10000.0f, 500.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }
+    case kSlotOp4Attack:  { ParamSpec p { "fm_atk_4", "Op4 Atk",  0.0f, 5000.0f,  10.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }
+    case kSlotOp4Decay:   { ParamSpec p { "fm_dec_4", "Op4 Dec",  1.0f,10000.0f, 200.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }
+    case kSlotOp4Sustain: return { "fm_sus_4", "Op4 Sus", 0.0f, 1.0f, 0.0f, false, U::Percent, 3, R::None };
+    case kSlotOp4Release: { ParamSpec p { "fm_rel_4", "Op4 Rel",  1.0f,10000.0f, 500.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }
     case kSlotVoiceMode:  { ParamSpec p { "fm_voice_mode", "Voice", 0.0f, 1.0f, 0.0f, true, U::None, 7, R::None }; p.valueLabels = std::span<const char* const>(kVoiceModeLabels); return p; }
     default: break;
     }

@@ -76,16 +76,16 @@ namespace lockstep
         case kSlotFilterType: { ParamSpec p { "va_filter_type",  "Filter",        0.0f,  3.0f,  0.0f, true,  U::None,      2, R::None  }; p.valueLabels = std::span<const char* const>(kFilterTypeLabels); return p; }
         case kSlotDrive:      return { "va_drive",        "Drive",         0.0f,  1.0f,  0.0f, false, U::None,      2, R::Drive     };
         case kSlotFEnvDepth:  return { "va_fenv_depth",   "Env Depth",    -1.0f,  1.0f,  0.0f, false, U::None,      2, R::None      };
-        case kSlotFEnvA:      return { "va_fenv_a",       "F Atk",         1.0f,5000.0f, 1.0f, false, U::Ms,        2, R::None      };
-        case kSlotFEnvD:      return { "va_fenv_d",       "F Dec",         1.0f,5000.0f,100.0f,false, U::Ms,        2, R::None      };
+        case kSlotFEnvA:      { ParamSpec p { "va_fenv_a", "F Atk",  0.0f, 5000.0f,   1.0f, false, U::Ms, 2, R::None }; p.skew = 0.3f; return p; }
+        case kSlotFEnvD:      { ParamSpec p { "va_fenv_d", "F Dec",  1.0f,10000.0f, 100.0f, false, U::Ms, 2, R::None }; p.skew = 0.3f; return p; }
         case kSlotFEnvS:      return { "va_fenv_s",       "F Sus",         0.0f,  1.0f,  0.0f, false, U::None,      2, R::None      };
-        case kSlotFEnvR:      return { "va_fenv_r",       "F Rel",         1.0f,5000.0f,100.0f,false, U::Ms,        2, R::None      };
+        case kSlotFEnvR:      { ParamSpec p { "va_fenv_r", "F Rel",  1.0f,10000.0f, 100.0f, false, U::Ms, 2, R::None }; p.skew = 0.3f; return p; }
 
         // --- AMP (section 3) ---
-        case kSlotAmpA:       return { "va_amp_a",        "Attack",        1.0f,5000.0f,  1.0f, false, U::Ms,       3, R::Attack  };
-        case kSlotAmpD:       return { "va_amp_d",        "Decay",         1.0f,5000.0f,100.0f, false, U::Ms,       3, R::Decay   };
+        case kSlotAmpA:       { ParamSpec p { "va_amp_a", "Attack",  0.0f, 5000.0f,   1.0f, false, U::Ms, 3, R::Attack  }; p.skew = 0.3f; return p; }
+        case kSlotAmpD:       { ParamSpec p { "va_amp_d", "Decay",   1.0f,10000.0f, 100.0f, false, U::Ms, 3, R::Decay   }; p.skew = 0.3f; return p; }
         case kSlotAmpS:       return { "va_amp_s",        "Sustain",       0.0f,  1.0f,  0.8f,  false, U::None,     3, R::Sustain };
-        case kSlotAmpR:       return { "va_amp_r",        "Release",       1.0f,5000.0f,500.0f, false, U::Ms,       3, R::Release };
+        case kSlotAmpR:       { ParamSpec p { "va_amp_r", "Release", 1.0f,10000.0f, 500.0f, false, U::Ms, 3, R::Release }; p.skew = 0.3f; return p; }
         case kSlotLevel:      return { "va_level",        "Level",         0.0f,  1.0f,  0.8f,  false, U::None,     3, R::Level   };
         case kSlotPan:        return { "va_pan",          "Pan",          -1.0f,  1.0f,  0.0f,  false, U::None,     3, R::Pan     };
 
