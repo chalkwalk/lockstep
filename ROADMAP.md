@@ -1101,7 +1101,7 @@ but quantised realtime record skips both. Lift gate from raw ms to
 musical time so it survives BPM changes and decouples from per-track
 step subdivisions.
 
-- [ ] **MHZ.6.1** Quantised realtime record captures velocity +
+- [x] **MHZ.6.1** Quantised realtime record captures velocity +
       gate. In the `onNoteOn` quantised path
       (`PluginProcessor.cpp:599-636`): per-note velocity flows into
       the new per-note `velocities[]` field (MHZ.6.3); per-note
@@ -1109,7 +1109,7 @@ step subdivisions.
       gate value (MHZ.6.2) and writes the step's `gateValue`. Two
       captures landing on the same quantised step still aggregate
       as a chord; velocities/gates merge per 6.2 / 6.3 rules.
-- [ ] **MHZ.6.2** Gate length as musical time.
+- [x] **MHZ.6.2** Gate length as musical time.
       `TrigOverride.gateMs` retires; new field
       `gateValue : { 1/64, 1/32, 1/16, 1/8, 1/4, 1/2, 1, 2, 4 }
       × { plain | dotted | triplet }` with a `None` sentinel.
@@ -1121,7 +1121,7 @@ step subdivisions.
       via `valueLabels`. Serializer version bump with upgrade
       chain that maps existing `gateMs` to nearest musical value
       at the project's stored BPM (or 120 BPM fallback).
-- [ ] **MHZ.6.3** Per-note velocity in `TrigOverride`. Parallel
+- [x] **MHZ.6.3** Per-note velocity in `TrigOverride`. Parallel
       `velocities[kMaxNotesPerStep]` (`uint8`, 0–127) +
       `hasNoteVelocities` flag. Realtime record preserves
       per-note velocity (`chordCapture_.maxVelocity` →
@@ -1132,11 +1132,11 @@ step subdivisions.
       velocity; machine API unchanged (machines that ignore
       velocity today continue to). `pickSpreadNotes()` drops
       matching velocities alongside notes. Serializer versioned.
-- [ ] **MHZ.6.4** Documentation: DESIGN §21.4 velocity/gate
+- [x] **MHZ.6.4** Documentation: DESIGN §21.4 velocity/gate
       semantics rewritten; CLAUDE.md glossary
       (`musical gate value`, `per-note velocity`); ROADMAP
       checkboxes; README §5.
-- [ ] **MHZ.6.5** Verification: record-arm + play 8 notes with
+- [x] **MHZ.6.5** Verification: record-arm + play 8 notes with
       varied velocity and gate. Hold each captured step; verify
       per-note velocities and gate as musical value. Save +
       reload; values survive. Existing pre-bump project saves
