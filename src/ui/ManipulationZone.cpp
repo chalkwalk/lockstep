@@ -493,7 +493,7 @@ namespace lockstep
         const bool  hasNote  = trig && trig->noteCount > 0;
         const int   note     = hasNote ? trig->notes[0] : t.trigDefaults.note;
         const int   velocity = (trig && trig->hasVelocity) ? trig->velocity : t.trigDefaults.velocity;
-        const float gateMs   = (trig && trig->hasGate)     ? trig->gateMs   : t.trigDefaults.gateMs;
+        const MusicalGate gateVal = (trig && trig->hasGate) ? trig->gateValue : t.trigDefaults.gateValue;
         const bool  hasVel   = trig && trig->hasVelocity;
         const bool  hasGate  = trig && trig->hasGate;
         // Extra notes beyond the primary (for chord display).
@@ -504,19 +504,22 @@ namespace lockstep
 
         struct TrigFieldDef { const char* label; float lo; float hi; bool stepped; bool active; };
         static constexpr std::array<TrigFieldDef, kNumSlots> kDefs = {{
-            { "Note",   0.0f,   127.0f, true,  true  },
-            { "Vel",    1.0f,   127.0f, true,  true  },
-            { "Gate",   0.0f, 10000.0f, false, true  },
-            { "Bias",   0.0f,     1.0f, true,  true  },
-            { "",       0.0f,     1.0f, false, false },
-            { "",       0.0f,     1.0f, false, false },
-            { "",       0.0f,     1.0f, false, false },
-            { "",       0.0f,     1.0f, false, false },
+            { "Note",   0.0f,                          127.0f, true, true  },
+            { "Vel",    1.0f,                          127.0f, true, true  },
+            { "Gate",   0.0f, static_cast<float>(kMusicalGateCount - 1), true, true  },
+            { "Bias",   0.0f,                            1.0f, true, true  },
+            { "",       0.0f,                            1.0f, false, false },
+            { "",       0.0f,                            1.0f, false, false },
+            { "",       0.0f,                            1.0f, false, false },
+            { "",       0.0f,                            1.0f, false, false },
         }};
-        const std::array<float, kNumSlots> vals  = { static_cast<float>(note),
-                                                     static_cast<float>(velocity),
-                                                     gateMs, noteSel,
-                                                     0.0f, 0.0f, 0.0f, 0.0f };
+        const std::array<float, kNumSlots> vals  = {
+            static_cast<float>(note),
+            static_cast<float>(velocity),
+            static_cast<float>(static_cast<uint8_t>(gateVal)),
+            noteSel,
+            0.0f, 0.0f, 0.0f, 0.0f
+        };
         // Notes are not P-locks (not set via the param area) — no lock indicator or clear button.
         const std::array<bool,  kNumSlots> locks = { false, hasVel, hasGate, false,
                                                      false, false, false, false };
@@ -537,13 +540,19 @@ namespace lockstep
             if (kDefs[si].active)
             {
                 if (i == 2)
-                    valueText = vals[si] < 10.0f
-                        ? juce::String(vals[si], 1) + " ms"
-                        : juce::String(static_cast<int>(vals[si])) + " ms";
+                {
+                    const auto gidx = static_cast<int>(vals[si]);
+                    if (gidx >= 0 && gidx < kMusicalGateCount)
+                        valueText = juce::String(kMusicalGateLabels[gidx]);
+                }
                 else if (i == 3)
+                {
                     valueText = kBiasLabels[static_cast<int>(vals[si])];
+                }
                 else
+                {
                     valueText = juce::String(static_cast<int>(vals[si]));
+                }
                 if (i == 0 && chordExtra > 0)
                     valueText += "+" + juce::String(chordExtra);
                 if (locks[si])
@@ -580,8 +589,9 @@ namespace lockstep
                         trig.notes[0]    = std::clamp(static_cast<int>(value), 0, 127);   break;
                 case 1: trig.hasVelocity = true;
                         trig.velocity    = std::clamp(static_cast<int>(value), 1, 127);   break;
-                case 2: trig.hasGate     = true;
-                        trig.gateMs      = std::max(0.0f, value);                         break;
+                case 2: trig.hasGate  = true;
+                        trig.gateValue  = static_cast<MusicalGate>(
+                            std::clamp(static_cast<int>(value), 0, kMusicalGateCount - 1)); break;
                 default: break;
             }
             processor_.editContext().markParamWritten();
@@ -592,7 +602,8 @@ namespace lockstep
             {
                 case 0: t.trigDefaults.note     = std::clamp(static_cast<int>(value), 0, 127);  break;
                 case 1: t.trigDefaults.velocity = std::clamp(static_cast<int>(value), 1, 127);  break;
-                case 2: t.trigDefaults.gateMs   = std::max(0.0f, value);                        break;
+                case 2: t.trigDefaults.gateValue = static_cast<MusicalGate>(
+                            std::clamp(static_cast<int>(value), 0, kMusicalGateCount - 1)); break;
                 case 3: t.noteSelection = (value >= 0.5f)
                             ? NoteSelection::BottomBias
                             : NoteSelection::TopBias;

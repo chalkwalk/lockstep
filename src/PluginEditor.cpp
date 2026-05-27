@@ -1849,7 +1849,7 @@ namespace lockstep
                         s.trigOverride.hasVelocity = false;
                         s.trigOverride.velocity    = 100;
                         s.trigOverride.hasGate     = false;
-                        s.trigOverride.gateMs      = 0.0f;
+                        s.trigOverride.gateValue   = MusicalGate::None;
                     }
                 }
                 break;
