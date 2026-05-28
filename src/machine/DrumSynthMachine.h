@@ -28,7 +28,7 @@ namespace lockstep
     SectionInfo section(int index)   const override;
 
     bool isVoiceActive()     const override;
-    bool hasInternalFilter() const override { return true; }
+    bool hasInternalFilter() const override { return false; }
     bool hasInternalAmp()    const override { return true; }
 
     Polyphony currentVoices(const ParamFrame& /*baseParams*/) const override

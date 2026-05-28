@@ -51,7 +51,7 @@ namespace lockstep
       case kSlotPunch:
         return { "drum_punch",       "Punch",     0.f,    1.f,  0.5f, false, U::None,      1, R::None  };
       case kSlotTone:
-        return { "drum_tone",        "Tone",      0.f,    1.f,  0.3f, false, U::None,      1, R::Drive };
+        return { "drum_tone",        "Tone",      0.f,    1.f,  0.3f, false, U::None,      1, R::None };
       case kSlotBody:
         return { "drum_body",        "Body",      0.f,    1.f,  0.5f, false, U::None,      1, R::None  };
       case kSlotSnap:
@@ -67,7 +67,7 @@ namespace lockstep
       case kSlotNoiseDecay:
         return { "drum_noise_decay", "Nz Dec",    1.f, 2000.f, 200.f, false, U::Ms,        3, R::None   };
       case kSlotLevel:
-        return { "drum_level",       "Level",     0.f,    1.f, 0.85f, false, U::Percent,   3, R::Level   };
+        return { "drum_level",       "Level",     0.f,    1.f,  0.5f, false, U::Percent,   3, R::Level   };
       case kSlotVelSens:
         return { "drum_vel_sens",    "Vel Sens",  0.f,    1.f,  0.0f, false, U::Percent,   3, R::None    };
       case kSlotRetrig:
