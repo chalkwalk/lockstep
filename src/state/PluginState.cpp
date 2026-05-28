@@ -37,8 +37,6 @@ namespace lockstep::PluginState
         v.setProperty("n",  static_cast<int>(c.iterNumerator),      nullptr);
         v.setProperty("d",  static_cast<int>(c.iterDenominator),    nullptr);
         v.setProperty("pd", static_cast<int>(c.prevDependency),     nullptr);
-        if (c.fillRule != FillRule::Always)
-            v.setProperty("fr", static_cast<int>(c.fillRule), nullptr);
         return v;
     }
 
@@ -53,8 +51,8 @@ namespace lockstep::PluginState
             static_cast<int>(v.getProperty("d",   1)));
         c.prevDependency  = static_cast<std::uint8_t>(
             static_cast<int>(v.getProperty("pd",  0)));
-        const int fr = static_cast<int>(v.getProperty("fr", 0));
-        c.fillRule = static_cast<FillRule>(std::clamp(fr, 0, 2));
+        // Legacy: "fr" was fillRule (0=Always, 1=OnlyFill, 2=NeverFill).
+        // Now handled at step level as fillTrigState (see stepFromNode).
         return c;
     }
 
@@ -181,7 +179,12 @@ namespace lockstep::PluginState
                             || step.trigOverride.noteCount > 0
                             || step.trigOverride.hasVelocity
                             || step.trigOverride.hasGate
-                            || !step.condition.isTrivial())
+                            || !step.condition.isTrivial()
+                            || step.fillTrigState != FillTrigState::Inherit
+                            || !step.fillOverrides.empty()
+                            || step.fillTrigOverride.noteCount > 0
+                            || step.fillTrigOverride.hasVelocity
+                            || step.fillTrigOverride.hasGate)
                         {
                             hasStep = true;
                             break;
@@ -221,7 +224,13 @@ namespace lockstep::PluginState
                                           || step.trigOverride.hasVelocity
                                           || step.trigOverride.hasGate;
                             const bool hnc = !step.condition.isTrivial();
-                            if (!step.trig && !hp && !hto && !hnc) continue;
+                            const bool hfts = (step.fillTrigState != FillTrigState::Inherit);
+                            const bool hfp  = !step.fillOverrides.empty();
+                            const bool hfto = step.fillTrigOverride.noteCount > 0
+                                          || step.fillTrigOverride.hasVelocity
+                                          || step.fillTrigOverride.hasGate;
+                            if (!step.trig && !hp && !hto && !hnc
+                                && !hfts && !hfp && !hfto) continue;
 
                             juce::ValueTree stepNode("S");
                             stepNode.setProperty("i", s,                  nullptr);
@@ -277,6 +286,51 @@ namespace lockstep::PluginState
                                 });
                                 if (plNode.getNumChildren() > 0)
                                     stepNode.appendChild(plNode, nullptr);
+                            }
+
+                            // Fill layer.
+                            if (hfts)
+                                stepNode.setProperty("fts",
+                                    static_cast<int>(step.fillTrigState), nullptr);
+
+                            if (hfto)
+                            {
+                                juce::ValueTree ftoNode("FTO");
+                                if (step.fillTrigOverride.noteCount > 0)
+                                {
+                                    ftoNode.setProperty("nc", step.fillTrigOverride.noteCount, nullptr);
+                                    for (int ni = 0; ni < step.fillTrigOverride.noteCount; ++ni)
+                                        ftoNode.setProperty("n" + juce::String(ni),
+                                                            step.fillTrigOverride.notes[static_cast<std::size_t>(ni)],
+                                                            nullptr);
+                                }
+                                if (step.fillTrigOverride.hasVelocity)
+                                {
+                                    ftoNode.setProperty("hv", 1,                               nullptr);
+                                    ftoNode.setProperty("v",  step.fillTrigOverride.velocity,  nullptr);
+                                }
+                                if (step.fillTrigOverride.hasGate)
+                                {
+                                    ftoNode.setProperty("hg", 1, nullptr);
+                                    ftoNode.setProperty("gv", static_cast<int>(
+                                        static_cast<uint8_t>(step.fillTrigOverride.gateValue)), nullptr);
+                                }
+                                stepNode.appendChild(ftoNode, nullptr);
+                            }
+
+                            if (hfp)
+                            {
+                                juce::ValueTree fplNode("FPL");
+                                step.fillOverrides.forEach([&](int slot, float value) {
+                                    const juce::String id = proc.idForSlot(t, slot);
+                                    if (id.isEmpty()) return;
+                                    juce::ValueTree lNode("L");
+                                    lNode.setProperty("id", id,                         nullptr);
+                                    lNode.setProperty("v",  static_cast<double>(value), nullptr);
+                                    fplNode.appendChild(lNode, nullptr);
+                                });
+                                if (fplNode.getNumChildren() > 0)
+                                    stepNode.appendChild(fplNode, nullptr);
                             }
 
                             stepsNode.appendChild(stepNode, nullptr);
@@ -427,20 +481,84 @@ namespace lockstep::PluginState
             }
 
             const auto plNode = stepNode.getChildWithName("PL");
-            if (!plNode.isValid()) continue;
-
-            for (auto lNode : plNode)
+            if (plNode.isValid())
             {
-                const juce::String id  = lNode.getProperty("id").toString();
-                const float        val = getFloat(lNode, "v", 0.0f);
-                const int slot = proc.slotForId(t, id);
-                if (slot < 0)
+                for (auto lNode : plNode)
                 {
-                    DBG("PluginState: unknown P-Lock id '" + id
-                        + "' on track " + juce::String(t) + " -- skipping");
-                    continue;
+                    const juce::String id  = lNode.getProperty("id").toString();
+                    const float        val = getFloat(lNode, "v", 0.0f);
+                    const int slot = proc.slotForId(t, id);
+                    if (slot < 0)
+                    {
+                        DBG("PluginState: unknown P-Lock id '" + id
+                            + "' on track " + juce::String(t) + " -- skipping");
+                        continue;
+                    }
+                    step.overrides.set(slot, val);
                 }
-                step.overrides.set(slot, val);
+            }
+
+            // Fill layer — FillTrigState.
+            // Also migrates legacy "fr" (fillRule) from old TrigCondition format.
+            const int fts = static_cast<int>(stepNode.getProperty("fts", -1));
+            if (fts >= 0)
+            {
+                step.fillTrigState = static_cast<FillTrigState>(
+                    std::clamp(fts, 0, 2));
+            }
+            else
+            {
+                // Legacy migration: "fr" was stored on the per-step <C> node.
+                const auto cNode = stepNode.getChildWithName("C");
+                if (cNode.isValid())
+                {
+                    const int fr = static_cast<int>(cNode.getProperty("fr", 0));
+                    if (fr == 1) step.fillTrigState = FillTrigState::On;
+                    else if (fr == 2) step.fillTrigState = FillTrigState::Off;
+                }
+            }
+
+            const auto ftoNode = stepNode.getChildWithName("FTO");
+            if (ftoNode.isValid())
+            {
+                if (ftoNode.hasProperty("nc"))
+                {
+                    step.fillTrigOverride.noteCount = std::clamp(
+                        static_cast<int>(ftoNode.getProperty("nc", 0)),
+                        0, kMaxNotesPerStep);
+                    for (int ni = 0; ni < step.fillTrigOverride.noteCount; ++ni)
+                        step.fillTrigOverride.notes[static_cast<std::size_t>(ni)] =
+                            static_cast<int>(ftoNode.getProperty("n" + juce::String(ni), 60));
+                }
+                step.fillTrigOverride.hasVelocity =
+                    (static_cast<int>(ftoNode.getProperty("hv", 0)) != 0);
+                if (step.fillTrigOverride.hasVelocity)
+                    step.fillTrigOverride.velocity =
+                        static_cast<int>(ftoNode.getProperty("v", 100));
+                step.fillTrigOverride.hasGate =
+                    (static_cast<int>(ftoNode.getProperty("hg", 0)) != 0);
+                if (step.fillTrigOverride.hasGate)
+                    step.fillTrigOverride.gateValue = static_cast<MusicalGate>(
+                        std::clamp(static_cast<int>(ftoNode.getProperty("gv", 0)),
+                                   0, kMusicalGateCount - 1));
+            }
+
+            const auto fplNode = stepNode.getChildWithName("FPL");
+            if (fplNode.isValid())
+            {
+                for (auto lNode : fplNode)
+                {
+                    const juce::String id  = lNode.getProperty("id").toString();
+                    const float        val = getFloat(lNode, "v", 0.0f);
+                    const int slot = proc.slotForId(t, id);
+                    if (slot < 0)
+                    {
+                        DBG("PluginState: unknown fill P-Lock id '" + id
+                            + "' on track " + juce::String(t) + " -- skipping");
+                        continue;
+                    }
+                    step.fillOverrides.set(slot, val);
+                }
             }
         }
     }

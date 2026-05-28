@@ -1170,6 +1170,7 @@ namespace lockstep
             if (nextTriggerPpq_[i] < blockStart - divPpq)
                 nextTriggerPpq_[i] = std::floor(blockStart / divPpq) * divPpq;
 
+            const bool curFillActive = fillActive_.load(std::memory_order_relaxed);
             int triggerAt = -1;
             int stepIndex = 0;
 
@@ -1187,10 +1188,8 @@ namespace lockstep
                                                     ? track.baseCond
                                                     : step.condition;
                     const bool fired =
-                        step.trig
-                        && TrigEvaluator::shouldFire(cond, i, stepNum, trackLen,
-                                                      lastStepFired_[i],
-                                                      fillActive_.load(std::memory_order_relaxed));
+                        TrigEvaluator::shouldFire(step, cond, i, stepNum, trackLen,
+                                                   lastStepFired_[i], curFillActive);
                     if (fired)
                     {
                         const double offset =
@@ -1207,7 +1206,7 @@ namespace lockstep
             if (triggerAt >= 0)
             {
                 trigPulse_[i].store(1.0f, std::memory_order_relaxed);
-                const auto trig = StateResolver::resolveTrig(track, stepIndex);
+                const auto trig = StateResolver::resolveTrig(track, stepIndex, curFillActive);
 
                 // If a previous trig's note-off is still pending (gate longer than
                 // the step interval), emit it immediately at triggerAt so the
@@ -1352,7 +1351,7 @@ namespace lockstep
                         }
                     }
                 }
-                return StateResolver::resolve(track, stepIndex);
+                return StateResolver::resolve(track, stepIndex, curFillActive);
             }();
             if (previewActive_ && static_cast<int>(i) == previewTrack_)
             {
@@ -1605,6 +1604,28 @@ namespace lockstep
         }
     }
 
+    void LockstepProcessor::writeFillParam(int track, int slot, float value)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        if (slot  < 0 || slot  >= numParams(track))             return;
+        if (!editContext_.isActiveForEditing()
+            || editContext_.heldTrackIndex() != track) return;
+        const int step = editContext_.heldStepIndex();
+        if (step < 0 || step >= kMaxStepsPerTrack) return;
+        sequence().tracks[static_cast<std::size_t>(track)]
+            .steps[static_cast<std::size_t>(step)].fillOverrides.set(slot, value);
+        editContext_.markParamWritten();
+    }
+
+    void LockstepProcessor::clearFillParam(int track, int step, int slot)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        if (step  < 0 || step  >= kMaxStepsPerTrack)             return;
+        if (slot  < 0 || slot  >= numParams(track))              return;
+        sequence().tracks[static_cast<std::size_t>(track)]
+            .steps[static_cast<std::size_t>(step)].fillOverrides.clear(slot);
+    }
+
     // -------------------------------------------------------------------------
     // MD.6/MD.7: Mute helpers
 
@@ -1650,8 +1671,10 @@ namespace lockstep
         if (step  < 0 || step  >= kMaxStepsPerTrack)            return;
         auto& s = sequence().tracks[static_cast<std::size_t>(track)]
                       .steps[static_cast<std::size_t>(step)];
-        s.overrides    = PLock{};
-        s.trigOverride = TrigOverride{};
+        s.overrides        = PLock{};
+        s.trigOverride     = TrigOverride{};
+        s.fillOverrides    = PLock{};
+        s.fillTrigOverride = TrigOverride{};
     }
 
     void LockstepProcessor::cancelChordCapture(int /*track*/, int /*step*/)

@@ -1592,7 +1592,21 @@ namespace lockstep
                             auto& s = processor_.sequence()
                                 .tracks[static_cast<std::size_t>(track)]
                                 .steps[static_cast<std::size_t>(stepIdx)];
-                            s.trig = !s.trig;
+                            if (uiState_.fillHeld)
+                            {
+                                // Cycle fill trig state: Inherit → On → Off → Inherit.
+                                using FTS = FillTrigState;
+                                switch (s.fillTrigState)
+                                {
+                                    case FTS::Inherit: s.fillTrigState = FTS::On;      break;
+                                    case FTS::On:      s.fillTrigState = FTS::Off;     break;
+                                    case FTS::Off:     s.fillTrigState = FTS::Inherit; break;
+                                }
+                            }
+                            else
+                            {
+                                s.trig = !s.trig;
+                            }
                         }
                         heldStepKeys_.erase(heldStepKeys_.begin() + i);
                         break;
@@ -2004,10 +2018,13 @@ namespace lockstep
                     {
                         for (auto& s : trk.steps)
                         {
-                            s.trig       = false;
-                            s.condition  = TrigCondition{};
-                            s.overrides  = PLock{};
-                            s.trigOverride = TrigOverride{};
+                            s.trig           = false;
+                            s.condition      = TrigCondition{};
+                            s.overrides      = PLock{};
+                            s.trigOverride   = TrigOverride{};
+                            s.fillTrigState  = FillTrigState::Inherit;
+                            s.fillOverrides  = PLock{};
+                            s.fillTrigOverride = TrigOverride{};
                         }
                     }
                     pat.patternMutes.fill(false);
