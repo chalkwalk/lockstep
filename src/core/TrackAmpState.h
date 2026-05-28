@@ -8,7 +8,7 @@ namespace lockstep
     {
         static constexpr int kNumSlots = 8;
 
-        float level    = 1.0f;   // 0..1
+        float level    = 0.5f;   // 0..1
         float pan      = 0.0f;   // -1..1
         float gateSrc  = 0.0f;   // stepped: 0=Envelope, 1=Held-open
         float attack   = 1.0f;   // 0..5000 ms; default 1 ms (instant-feel)

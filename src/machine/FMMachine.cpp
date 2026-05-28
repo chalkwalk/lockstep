@@ -514,7 +514,7 @@ namespace lockstep
     case kSlotMacroAttack:  return { "fm_macro_atk", "Macro Atk", 0.0f, 3.0f, 1.0f, false, U::None,    3, R::Attack  };
     case kSlotMacroRelease: return { "fm_macro_rel", "Macro Rel", 0.0f, 3.0f, 1.0f, false, U::None,    3, R::Release };
     case kSlotMacroSustain: return { "fm_macro_sus", "Macro Sus", 0.0f, 2.0f, 1.0f, false, U::None,    3, R::Sustain };
-    case kSlotOutputLevel:  return { "fm_level",     "Level",     0.0f, 1.0f, 1.0f, false, U::Percent, 3, R::Level   };
+    case kSlotOutputLevel:  return { "fm_level",     "Level",     0.0f, 1.0f, 0.5f, false, U::Percent, 3, R::Level   };
     // AMP — pages 2-5: per-operator ADSR (attack 0–5s, decay/release 1–10s, exponential curve)
     case kSlotOp1Attack:  { ParamSpec p { "fm_atk_1", "Op1 Atk",  0.0f, 5000.0f,  10.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }
     case kSlotOp1Decay:   { ParamSpec p { "fm_dec_1", "Op1 Dec",  1.0f,10000.0f, 500.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }

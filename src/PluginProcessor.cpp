@@ -1468,6 +1468,15 @@ namespace lockstep
             }
         }
 
+        // Per-track soft clip — prevents one hot track from dominating the master bus.
+        for (std::size_t ti = 0; ti < kNumTracks; ++ti)
+            for (int ch = 0; ch < trackBuffers_[ti].getNumChannels(); ++ch)
+            {
+                float* d = trackBuffers_[ti].getWritePointer(ch);
+                for (int n = 0; n < numBlockSamples; ++n)
+                    d[n] = std::tanh(d[n]);
+            }
+
         // Sum per-track outputs to the main bus.
         for (std::size_t ti = 0; ti < kNumTracks; ++ti)
             for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
