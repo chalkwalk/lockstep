@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Step.h"
 #include "TrigCondition.h"
 #include <algorithm>
 #include <cstdint>
@@ -17,41 +18,48 @@ namespace lockstep::TrigEvaluator
         return static_cast<int>(h % 100u);
     }
 
-    // Returns true if the step should fire. Call only when step.trig is true.
-    // absoluteStep  — track-local step counter (nextTriggerPpq / divPpq), not
-    //                 the pattern-wrapped index.
-    // trackLen      — active track length; used to derive pattern iteration.
-    // prevFired     — whether the immediately preceding step slot fired.
-    // fillActive    — whether the Fill scope is currently held (MD.9).
-    inline bool shouldFire(const TrigCondition& cond,
+    // Returns true if the step should fire.
+    // step         — the full Step (for base trig + fill layer).
+    // absoluteStep — track-local step counter (nextTriggerPpq / divPpq).
+    // trackLen     — active track length; used to derive pattern iteration.
+    // prevFired    — whether the immediately preceding step slot fired.
+    // fillActive   — whether the Fill scope is currently held.
+    inline bool shouldFire(const Step& step,
+                            const TrigCondition& cond,
                             std::size_t trackIdx,
                             std::int64_t absoluteStep,
                             int trackLen,
                             bool prevFired,
                             bool fillActive = false)
     {
-        // Fill rule gate (MD.9): conjoined with all other conditions.
-        if (cond.fillRule == FillRule::OnlyFill  && !fillActive) { return false; }
-        if (cond.fillRule == FillRule::NeverFill &&  fillActive) { return false; }
+        // Fill trig state determines whether this step fires at all during fill.
+        if (fillActive)
+        {
+            if (step.fillTrigState == FillTrigState::On)
+            {
+                // Always fires during fill — skip remaining condition checks.
+                return true;
+            }
+            if (step.fillTrigState == FillTrigState::Off)
+                return false;
+            // Inherit: fall through to normal condition evaluation against step.trig.
+        }
 
-        // Iteration rule: {numerator, denominator} → fire on iteration
-        // `numerator` of every `denominator` loops (1-indexed, so numerator=1
-        // fires on iterations 0, D, 2D, …).
-        // denominator=1 is the default (every loop) and bypasses the check.
+        // Base trig must be on for any further evaluation.
+        if (!step.trig)
+            return false;
+
+        // Iteration rule.
         if (cond.iterDenominator > 1)
         {
             const auto len   = static_cast<std::int64_t>(std::max(trackLen, 1));
             const auto denom = static_cast<std::int64_t>(cond.iterDenominator);
             const auto iter  = absoluteStep / len;
             if (iter % denom != static_cast<std::int64_t>(cond.iterNumerator) - 1)
-            {
                 return false;
-            }
         }
 
         // Previous-dependency gate.
-        // 1 = fire only if the preceding step fired.
-        // 2 = fire only if the preceding step did NOT fire.
         if (cond.prevDependency == 1 && !prevFired) { return false; }
         if (cond.prevDependency == 2 &&  prevFired) { return false; }
 

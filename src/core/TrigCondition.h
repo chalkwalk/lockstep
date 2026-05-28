@@ -4,14 +4,6 @@
 
 namespace lockstep
 {
-    // MD.9: Fill interaction rule for a step's trig condition.
-    enum class FillRule : std::uint8_t
-    {
-        Always,    // fire regardless of fill state (default)
-        OnlyFill,  // fire only while Fill scope is held
-        NeverFill, // fire only while Fill scope is NOT held
-    };
-
     // Per-step trigger condition. M0 carries the data; the evaluator and
     // previous-dependency state machine land in M4.
     struct TrigCondition
@@ -29,9 +21,6 @@ namespace lockstep
         // 2 = fire only if previous step did NOT fire.
         std::uint8_t prevDependency = 0;
 
-        // Fill interaction (MD.9). Conjoined with probability and m:n.
-        FillRule fillRule = FillRule::Always;
-
         // True when the condition imposes no restriction — equivalent to
         // the default-constructed value. Used for Override-ELSE-Base
         // fallthrough: if a step's condition is trivial, the track's
@@ -41,8 +30,15 @@ namespace lockstep
             return probabilityPercent >= 100
                 && iterNumerator == 1
                 && iterDenominator == 1
-                && prevDependency == 0
-                && fillRule == FillRule::Always;
+                && prevDependency == 0;
         }
     };
+
+    // Per-step fill trig state. Stored directly on Step (not in TrigCondition)
+    // because fill overrides are independent of the probability/iter/prev chain.
+    //
+    // Inherit — step plays the base trig unchanged (default).
+    // On      — step always fires during fill, even if base trig is off.
+    // Off     — step never fires during fill, even if base trig is on.
+    enum class FillTrigState : std::uint8_t { Inherit = 0, On = 1, Off = 2 };
 }

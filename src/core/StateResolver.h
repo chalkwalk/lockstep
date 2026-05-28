@@ -19,13 +19,15 @@ namespace lockstep
     };
 
     // Effective Value = Step Override State [if exists] ELSE Track Base State.
-    // The resolver merges the two into a single ParamFrame the IMachine sees.
+    // When fillActive, FillOverride takes precedence over Override (three-tier resolution).
+    // The resolver merges the two (or three) into a single ParamFrame the IMachine sees.
     namespace StateResolver
     {
-        ParamFrame resolve(const Track& track, int stepIndex);
+        ParamFrame resolve(const Track& track, int stepIndex, bool fillActive = false);
 
         // Resolves sequencer-scope trig fields (note / velocity / gate) for one
         // fired step using Override-ELSE-Base against the track's TrigDefaults.
-        TrigFields resolveTrig(const Track& track, int stepIndex);
+        // When fillActive, fill-layer trig overrides take precedence.
+        TrigFields resolveTrig(const Track& track, int stepIndex, bool fillActive = false);
     }
 }

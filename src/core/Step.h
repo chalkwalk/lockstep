@@ -41,5 +41,10 @@ namespace lockstep
         TrigCondition condition;
         PLock         overrides;     // machine ParamFrame P-Locks
         TrigOverride  trigOverride;  // sequencer-scope trig field overrides
+
+        // Fill layer — evaluated only when Fill scope is held (FillOverride → Override → Base).
+        FillTrigState fillTrigState  = FillTrigState::Inherit;
+        PLock         fillOverrides;     // fill-specific machine param P-Locks
+        TrigOverride  fillTrigOverride;  // fill-specific sequencer trig field overrides
     };
 }
