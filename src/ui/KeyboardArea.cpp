@@ -1603,6 +1603,112 @@ namespace lockstep
             return;
         }
 
+        // MHZ.7.3: CHROMATIC mode — step cells become a 1-octave chromatic keyboard.
+        // Cells 0-11 = C through B in the current noteEditOctave; cells 12-15 = dim.
+        {
+            const auto mode = (activeTrack_ >= 0 && activeTrack_ < static_cast<int>(kNumTracks))
+                              ? uiState_.trackInputMode[static_cast<std::size_t>(activeTrack_)]
+                              : TrackInputMode::Play;
+            if (mode == TrackInputMode::Chromatic)
+            {
+                static constexpr const char* kNoteNames[] =
+                    { "C","C#","D","D#","E","F","F#","G","G#","A","A#","B" };
+                static constexpr bool kIsBlack[] =
+                    { false,true,false,true,false,false,true,false,true,false,true,false };
+
+                const juce::Colour chromaTint = col(kScopeTrack);  // cyan-blue = Track scope colour
+                const int octave = uiState_.noteEditOctave;
+
+                for (int row = 0; row < kRows; ++row)
+                {
+                    for (int col2 = 0; col2 < kCols; ++col2)
+                    {
+                        const int cellIdx = row * kCols + col2;
+                        const int x = colX(row, col2 + 2);
+                        const int y = rowY(row);
+                        const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+
+                        if (cellIdx >= 12)
+                        {
+                            g.setColour(juce::Colour(kStepOutRange));
+                            g.fillRoundedRectangle(cell.toFloat(), 4.0f);
+                            continue;
+                        }
+
+                        const bool isBlack = kIsBlack[cellIdx];
+                        g.setColour(isBlack
+                            ? chromaTint.withAlpha(0.22f)
+                            : chromaTint.withAlpha(0.35f));
+                        g.fillRoundedRectangle(cell.toFloat(), 4.0f);
+                        g.setColour(chromaTint.withAlpha(0.65f));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
+
+                        g.setColour(juce::Colours::white.withAlpha(0.80f));
+                        g.setFont(juce::Font(juce::FontOptions(9.0f)).boldened());
+                        g.drawText(juce::String(kNoteNames[cellIdx]), cell,
+                                   juce::Justification::centred);
+
+                        if (showKeyLetters)
+                            paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(cellIdx)], 0.65f);
+                    }
+                }
+
+                const int midiBase = (octave + 1) * 12;
+                const juce::String msg = "CHROMATIC  C" + juce::String(octave)
+                    + " (MIDI " + juce::String(midiBase) + ")  |  NavUp/Down = octave";
+                g.setColour(juce::Colour::fromRGB(80, 95, 115));
+                g.setFont(juce::Font(juce::FontOptions(10.0f)));
+                g.drawText(msg, navArea, juce::Justification::centred);
+                return;
+            }
+        }
+
+        // MHZ.7.4: LEVELS mode — step cells are 16 velocity buckets (1/16..16/16 of 127).
+        {
+            const auto mode = (activeTrack_ >= 0 && activeTrack_ < static_cast<int>(kNumTracks))
+                              ? uiState_.trackInputMode[static_cast<std::size_t>(activeTrack_)]
+                              : TrackInputMode::Play;
+            if (mode == TrackInputMode::Levels)
+            {
+                const juce::Colour lowCol  = juce::Colour(0xFF204060u);  // dim teal
+                const juce::Colour highCol = juce::Colour(0xFFE07030u);  // bright amber (LEVELS badge colour)
+
+                for (int row = 0; row < kRows; ++row)
+                {
+                    for (int col2 = 0; col2 < kCols; ++col2)
+                    {
+                        const int cellIdx = row * kCols + col2;
+                        const int x = colX(row, col2 + 2);
+                        const int y = rowY(row);
+                        const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+
+                        const float t = static_cast<float>(cellIdx + 1) / 16.0f;
+                        const int   vel = juce::roundToInt(t * 127.0f);
+
+                        const juce::Colour cellCol = lowCol.interpolatedWith(highCol, t);
+                        g.setColour(cellCol.withAlpha(0.55f + t * 0.30f));
+                        g.fillRoundedRectangle(cell.toFloat(), 4.0f);
+                        g.setColour(cellCol.brighter(0.3f).withAlpha(0.80f));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
+
+                        g.setColour(juce::Colours::white.withAlpha(0.80f));
+                        g.setFont(juce::Font(juce::FontOptions(8.5f)));
+                        g.drawText(juce::String(vel), cell.reduced(2),
+                                   juce::Justification::centred);
+
+                        if (showKeyLetters)
+                            paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(cellIdx)], 0.65f);
+                    }
+                }
+
+                g.setColour(juce::Colour::fromRGB(80, 95, 115));
+                g.setFont(juce::Font(juce::FontOptions(10.0f)));
+                g.drawText("LEVELS  |  step=P-Lock vel  |  no step=base vel  |  rec-arm=write trig",
+                           navArea, juce::Justification::centred);
+                return;
+            }
+        }
+
         // Mute re-skin — Mute held → per-track mute state viewer.
         // Mute alone shows global mute; Func+Mute shows pattern mute.
         // Cells 0-7 map to tracks 0-7; cells 8-15 are out-of-range and dim.

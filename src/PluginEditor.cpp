@@ -850,6 +850,43 @@ namespace lockstep
 
             case ControllerButton::Step:
             {
+                // MHZ.7.3: CHROMATIC mode — step keys are a 1-octave chromatic keyboard.
+                // Cells 0-11 = C through B in noteEditOctave; cells 12-15 = unused.
+                // With step held: write noteOverride. Always: trigger live note.
+                // record-arm + playing: routes through onNoteOn record path (MHZ.6).
+                {
+                    const int at = keyboardArea_.getActiveTrack();
+                    if (at >= 0 && at < static_cast<int>(kNumTracks)
+                        && uiState_.trackInputMode[static_cast<std::size_t>(at)] == TrackInputMode::Chromatic
+                        && uiState_.trigGridMode == TrigGridMode::Default)
+                    {
+                        if (ev.index >= 12) return true;  // cells 12-15 unused
+                        const int note = juce::jlimit(0, 127,
+                            (uiState_.noteEditOctave + 1) * 12 + ev.index);
+
+                        // If a step is held in the EditContext, write noteOverride to it.
+                        auto& ctx = processor_.editContext();
+                        if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == at)
+                        {
+                            auto& trk = processor_.sequence()
+                                            .tracks[static_cast<std::size_t>(at)];
+                            for (int heldIdx : ctx.heldSteps())
+                            {
+                                if (heldIdx < 0 || heldIdx >= kMaxStepsPerTrack) continue;
+                                auto& s = trk.steps[static_cast<std::size_t>(heldIdx)];
+                                if (s.trigOverride.noteCount == 0)
+                                    s.trigOverride.noteCount = 1;
+                                s.trigOverride.notes[0] = note;
+                                s.trig                  = true;
+                            }
+                            ctx.markParamWritten();
+                        }
+
+                        processor_.triggerNote(at, note);
+                        return true;
+                    }
+                }
+
                 // MG.5: Sound Pool mode — step keys select pool entries by index.
                 // Holding a key live-swaps the focused track's sound; record-arm
                 // captures the pool index as a sound_id override on the held step.
@@ -1139,18 +1176,38 @@ namespace lockstep
                 return true;
 
             case ControllerButton::NavUp:
-                // Up = next higher track number (user expectation).
-                // Note-edit octave is on NavLeft/Right; NavUp falls through to track nav.
+            {
+                // MHZ.7.3: CHROMATIC mode — NavUp shifts noteEditOctave up.
+                const int t = keyboardArea_.getActiveTrack();
+                if (t >= 0 && t < static_cast<int>(kNumTracks)
+                    && uiState_.trackInputMode[static_cast<std::size_t>(t)] == TrackInputMode::Chromatic)
+                {
+                    uiState_.noteEditOctave = std::min(uiState_.noteEditOctave + 1, 8);
+                    keyboardArea_.repaint();
+                    return true;
+                }
+                // Normal: next higher track number.
                 keyboardArea_.setActiveTrack(
                     std::min(static_cast<int>(kNumTracks) - 1,
                              keyboardArea_.getActiveTrack() + 1));
                 return true;
+            }
 
             case ControllerButton::NavDown:
-                // Down = previous (lower) track number.
-                // Note-edit octave is on NavLeft/Right; NavDown falls through to track nav.
+            {
+                // MHZ.7.3: CHROMATIC mode — NavDown shifts noteEditOctave down.
+                const int t = keyboardArea_.getActiveTrack();
+                if (t >= 0 && t < static_cast<int>(kNumTracks)
+                    && uiState_.trackInputMode[static_cast<std::size_t>(t)] == TrackInputMode::Chromatic)
+                {
+                    uiState_.noteEditOctave = std::max(uiState_.noteEditOctave - 1, 0);
+                    keyboardArea_.repaint();
+                    return true;
+                }
+                // Normal: previous (lower) track number.
                 keyboardArea_.setActiveTrack(std::max(0, keyboardArea_.getActiveTrack() - 1));
                 return true;
+            }
 
             case ControllerButton::NavLeft:
                 if (uiState_.noteEditMode)
