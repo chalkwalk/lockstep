@@ -848,6 +848,7 @@ namespace lockstep
         }
 
         // MG.1: consume keyboard note request from the UI thread.
+        // Routed through ccCtx.onNoteOn so record-arm + CHROMATIC/LEVELS capture works.
         {
             const int req = kbdNoteReq_.exchange(-1, std::memory_order_acq_rel);
             if (req >= 0)
@@ -856,7 +857,7 @@ namespace lockstep
                 const int midiNote  = (req >> 16) & 0x7F;
                 const int durMs     = req & 0xFFFF;
                 const int noteTrack = kbdNoteTrack_.load(std::memory_order_acquire);
-                const int noteVel   = kbdVel > 0 ? kbdVel : 100;  // legacy path safety
+                const int noteVel   = kbdVel > 0 ? kbdVel : 100;
 
                 // Cancel any in-flight keyboard note-off.
                 if (kbdNoteOffRemaining_ >= 0)
@@ -867,9 +868,9 @@ namespace lockstep
                 kbdNoteActive_       = midiNote;
                 kbdNoteOffRemaining_ =
                     static_cast<int>(getSampleRate() * static_cast<double>(durMs) / 1000.0);
-                trackMidi[static_cast<std::size_t>(noteTrack)].addEvent(
-                    juce::MidiMessage::noteOn(1, static_cast<juce::uint8>(midiNote),
-                                              static_cast<juce::uint8>(noteVel)), 0);
+                // Route through onNoteOn so record-arm path (M7.2, MHZ.6) fires.
+                // onNoteOn adds the note-on event to trackMidi at its end.
+                ccCtx.onNoteOn(noteTrack, 0, midiNote, noteVel);
             }
 
             if (kbdNoteOffRemaining_ >= 0)
