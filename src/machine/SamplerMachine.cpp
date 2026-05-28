@@ -119,8 +119,8 @@ namespace lockstep
             ? static_cast<int>(std::round(params[static_cast<std::size_t>(kSlotRetrig)]))
             : 0;
 
-        if (retrigMode == 2 && vs.player.isActive())
-            return;  // FREE: skip while voice is sounding
+        if (retrigMode >= 2 && vs.player.isActive())
+            return;  // legacy FREE: skip while voice is sounding
 
         if (vs.player.isActive())
         {
@@ -293,8 +293,8 @@ namespace lockstep
         case kSlotRelease:  ps = { "release", "Release", 1.0f, 10000.0f, 200.0f, false, U::Ms,      3, R::Release }; ps.skew = 0.3f; break;
         case kSlotRetrig:
         {
-            static constexpr const char* kRetrigLabels[] = { "LEGATO", "RETRIG", "FREE" };
-            ps = { "samp_retrig", "Retrig", 0.0f, 2.0f, 0.0f, true, U::None, 3, R::None };
+            static constexpr const char* kRetrigLabels[] = { "LEGATO", "RETRIG" };
+            ps = { "samp_retrig", "Retrig", 0.0f, 1.0f, 0.0f, true, U::None, 3, R::None };
             ps.valueLabels = std::span<const char* const>(kRetrigLabels);
             break;
         }

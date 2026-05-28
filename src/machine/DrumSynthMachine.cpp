@@ -72,9 +72,9 @@ namespace lockstep
         return { "drum_vel_sens",    "Vel Sens",  0.f,    1.f,  0.0f, false, U::Percent,   3, R::None    };
       case kSlotRetrig:
       {
-        static constexpr const char* kRetrigLabels[] = { "LEGATO", "RETRIG", "FREE" };
-        ParamSpec p { "drum_retrig", "Retrig", 0.f, 2.f, 0.f, true, U::None, 3, R::None };
-        p.valueLabels = std::span<const char* const>{ kRetrigLabels, 3 };
+        static constexpr const char* kRetrigLabels[] = { "LEGATO", "RETRIG" };
+        ParamSpec p { "drum_retrig", "Retrig", 0.f, 1.f, 0.f, true, U::None, 3, R::None };
+        p.valueLabels = std::span<const char* const>{ kRetrigLabels, 2 };
         return p;
       }
 
@@ -359,17 +359,7 @@ namespace lockstep
         const auto& ev = noteEvents[evIdx];
         if (ev.on)
         {
-          const int retrigMode = (params.size() > static_cast<std::size_t>(kSlotRetrig))
-              ? static_cast<int>(std::round(paramAt(params, kSlotRetrig)))
-              : 0;
-          if (retrigMode == 2 && voice_.active)
-          {
-            // FREE: ignore note-on while voice is sounding
-          }
-          else
-          {
-            noteOn(ev.note, ev.vel, params);
-          }
+          noteOn(ev.note, ev.vel, params);
         }
         else
         {
