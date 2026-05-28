@@ -24,6 +24,7 @@ namespace lockstep
       v.choke.prepare(sampleRate_, 1.5f);
     }
     voiceCounter_ = 0;
+    heldNotes_.clear();
   }
 
   IMachine::Polyphony FMMachine::currentVoices(const ParamFrame& baseParams) const
@@ -236,14 +237,9 @@ namespace lockstep
       op.envLevel  = std::max(op.envLevel, op.sustainLevel);
       if (--op.stageRemaining <= 0)
       {
-        op.envLevel = op.sustainLevel;
-        if (op.sustainLevel <= 0.0f)
-          op.stage = Stage::Idle;
-        else
-        {
-          op.stage          = Stage::Sustain;
-          op.stageRemaining = std::numeric_limits<int>::max();
-        }
+        op.envLevel       = op.sustainLevel;
+        op.stage          = Stage::Sustain;
+        op.stageRemaining = std::numeric_limits<int>::max();
       }
       break;
 
@@ -317,7 +313,19 @@ namespace lockstep
           }
           else
           {
-            if (voices_[0].active) releaseVoice(0);
+            // Track held notes; only release when last key is up.
+            heldNotes_.erase(
+                std::remove(heldNotes_.begin(), heldNotes_.end(), ev.note),
+                heldNotes_.end());
+            if (heldNotes_.empty())
+            {
+              if (voices_[0].active) releaseVoice(0);
+            }
+            else if (ev.note == voices_[0].midiNote)
+            {
+              // Playing note released while others held: slide to last held note.
+              legatoUpdateVoice(heldNotes_.back(), params, voices_[0].velocity);
+            }
           }
         }
         else
@@ -344,6 +352,11 @@ namespace lockstep
           }
           else
           {
+            // Track held notes for correct release.
+            if (std::find(heldNotes_.begin(), heldNotes_.end(), ev.note)
+                    == heldNotes_.end())
+                heldNotes_.push_back(ev.note);
+
             auto& voice = voices_[0];
             const int retrigMode = (params.size() > static_cast<std::size_t>(kSlotRetrig))
                 ? static_cast<int>(std::round(params[static_cast<std::size_t>(kSlotRetrig)]))

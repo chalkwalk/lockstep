@@ -1873,62 +1873,78 @@ namespace lockstep
                 const int y = rowY(row);
                 const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
-                // Fill trig state for colour — show when fill is held or pref enables preview.
                 const FillTrigState fts = inRange
                     ? stepRef.fillTrigState : FillTrigState::Inherit;
-                const bool showFillState = fillActive
-                    || (fts != FillTrigState::Inherit);  // always show non-Inherit states
 
                 static const juce::Colour kColFillAdd     { kStepFillAdd     };
                 static const juce::Colour kColFillSuppress { kStepFillSuppress };
                 static const juce::Colour kColFillPLock   { kStepFillPLock   };
+                static const juce::Colour kColScopeFill   { kScopeFill       };
 
-                const float prob = inRange ? preview[static_cast<std::size_t>(localIdx)] : 0.0f;
+                // For fill-only steps (seq-off, FillTrigState::On) in non-fill mode,
+                // computePagePreview returns 0 (they don't fire). Use the step's condition
+                // probability directly so brightness is consistent with fill mode.
+                const float prob = [&]() -> float
+                {
+                    if (!inRange) return 0.0f;
+                    if (!hasTrig && fts == FillTrigState::On && !fillActive)
+                    {
+                        const auto& cond = stepRef.condition.isTrivial()
+                                           ? track.baseCond : stepRef.condition;
+                        return std::clamp(
+                            static_cast<float>(cond.probabilityPercent) / 100.0f,
+                            0.0f, 1.0f);
+                    }
+                    return preview[static_cast<std::size_t>(localIdx)];
+                }();
 
+                // Body colour: lerp from kColInactive (empty) toward the scope colour
+                // (green normally, chartreuse in fill mode). This guarantees every
+                // non-empty state is visually brighter than an empty step.
+                //
+                //   seq-on  + Inherit/On → full   (lerp = 0.15+prob*0.85)
+                //   seq-off + On         → 2/3    (lerp = 0.10+prob*0.57)
+                //   seq-on  + Off        → 1/3    (lerp = 0.05+prob*0.28)
+                //   seq-off + Off/Inherit → 0     (empty, kColInactive)
                 if (!inRange)
                 {
                     g.setColour(kColOutRange);
                     g.fillRoundedRectangle(cell.toFloat(), 4.0f);
                 }
-                else if (showFillState && fts == FillTrigState::On)
-                {
-                    // Fill-add: fires in fill regardless of base trig.
-                    const float bright = juce::jlimit(0.25f, 1.0f, 0.25f + prob * 0.75f);
-                    g.setColour(kColFillAdd.withAlpha(bright));
-                    g.fillRoundedRectangle(cell.toFloat(), 4.0f);
-                }
-                else if (showFillState && fts == FillTrigState::Off)
-                {
-                    // Fill-suppress: base trig exists but is silenced in fill.
-                    if (hasTrig)
-                    {
-                        g.setColour(kColFillSuppress);
-                        g.fillRoundedRectangle(cell.toFloat(), 4.0f);
-                    }
-                    else
-                    {
-                        // Off on a non-trig step: subtle fill-suppress indicator.
-                        g.setColour(kColInactive);
-                        g.fillRoundedRectangle(cell.toFloat(), 4.0f);
-                        g.setColour(kColFillSuppress.withAlpha(0.6f));
-                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
-                    }
-                }
-                else if (hasTrig)
-                {
-                    // Normal trig with Inherit fill state.
-                    const float bright = juce::jlimit(0.15f, 1.0f, 0.15f + prob * 0.85f);
-                    g.setColour(kColActive.withAlpha(bright));
-                    g.fillRoundedRectangle(cell.toFloat(), 4.0f);
-                }
                 else
                 {
-                    g.setColour(kColInactive);
+                    const juce::Colour baseCol = fillActive ? kColScopeFill : kColActive;
+
+                    float lerpFrac = 0.0f;
+                    if (hasTrig)
+                    {
+                        if (fts == FillTrigState::Off)
+                            lerpFrac = juce::jlimit(0.05f, 0.33f, 0.05f + prob * 0.28f);
+                        else
+                            lerpFrac = juce::jlimit(0.15f, 1.0f, 0.15f + prob * 0.85f);
+                    }
+                    else if (fts == FillTrigState::On)
+                    {
+                        lerpFrac = juce::jlimit(0.10f, 0.67f, 0.10f + prob * 0.57f);
+                    }
+
+                    g.setColour(kColInactive.interpolatedWith(baseCol, lerpFrac));
                     g.fillRoundedRectangle(cell.toFloat(), 4.0f);
-                    if (!isHead)
+
+                    // Subtle outline on empty steps (not playhead, not held).
+                    if (lerpFrac < 0.001f && !isHead)
                     {
                         g.setColour(juce::Colour::fromRGB(70, 85, 100));
                         g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
+                    }
+
+                    // Fill-mode border: orange = FillOn, blue = FillOff.
+                    if (fillActive && fts != FillTrigState::Inherit)
+                    {
+                        const juce::Colour borderCol =
+                            (fts == FillTrigState::On) ? kColFillAdd : kColFillSuppress;
+                        g.setColour(borderCol);
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
                     }
                 }
 

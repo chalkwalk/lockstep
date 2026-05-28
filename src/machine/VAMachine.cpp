@@ -33,6 +33,7 @@ namespace lockstep
         noiseState_   = 0.0f;
         monoGhostGain_ = 0.0f;
         monoGhostFade_ = 0;
+        heldNotes_.clear();
         lfoRandCurr_  = 0.0f;
         lfoRandNext_  = 0.0f;
         lfoRandPhase_ = 0.0;
@@ -515,11 +516,12 @@ namespace lockstep
 
         ++paraChordNoteIdx_;  // advance for next note in this chord
 
-        // Trigger envelopes only if this is the first active voice.
+        // Trigger envelopes only if this is the first held (active) voice.
+        // Voices in their 2ms note-off fade (fadeRemain>0, active=false) are
+        // musically released; a new note-on should trigger fresh envelopes.
         bool anyOtherActive = false;
         for (int i = 0; i < kMaxSubVoices; ++i)
-            if (i != idx && (subVoices_[static_cast<std::size_t>(i)].active
-                             || subVoices_[static_cast<std::size_t>(i)].fadeRemain > 0))
+            if (i != idx && subVoices_[static_cast<std::size_t>(i)].active)
                 { anyOtherActive = true; break; }
 
         if (!anyOtherActive)
@@ -686,6 +688,11 @@ namespace lockstep
                     }
                     else
                     {
+                        // Track held notes so release only fires on last key up.
+                        if (std::find(heldNotes_.begin(), heldNotes_.end(), ev.note)
+                                == heldNotes_.end())
+                            heldNotes_.push_back(ev.note);
+
                         const int retrigMode = (params.size() > static_cast<std::size_t>(kSlotRetrig))
                             ? static_cast<int>(std::round(p(kSlotRetrig)))
                             : 0;
@@ -716,9 +723,26 @@ namespace lockstep
                 else
                 {
                     if (paraMode)
+                    {
                         releaseParaVoice(ev.note);
-                    else if (subVoices_[0].midiNote == ev.note)
-                        releaseMonoVoice();
+                    }
+                    else
+                    {
+                        // Remove from held set; only release when last key is up.
+                        heldNotes_.erase(
+                            std::remove(heldNotes_.begin(), heldNotes_.end(), ev.note),
+                            heldNotes_.end());
+                        if (heldNotes_.empty())
+                        {
+                            releaseMonoVoice();
+                        }
+                        else if (ev.note == subVoices_[0].midiNote)
+                        {
+                            // Playing note released while others held: slide to
+                            // the most recently pressed still-held note.
+                            legatoMonoVoice(heldNotes_.back(), params);
+                        }
+                    }
                 }
                 ++eventIdx;
             }

@@ -209,6 +209,8 @@ namespace lockstep
     float monoGhostGain_ = 0.0f;
     int   monoGhostFade_ = 0;
 
+    std::vector<int> heldNotes_;  // mono-mode held-key tracking for correct release
+
     // Random state for S&H LFO.
     float  lfoRandCurr_ = 0.0f;
     float  lfoRandNext_ = 0.0f;

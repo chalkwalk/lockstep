@@ -162,5 +162,6 @@ namespace lockstep
     double  sampleRate_ = 0.0;
     std::array<FMVoice, kMaxVoices> voices_{};
     std::uint64_t voiceCounter_ = 0;
+    std::vector<int> heldNotes_;  // mono-mode held-key tracking for correct release
   };
 }

@@ -1325,14 +1325,18 @@ namespace lockstep
                 }
             }
 
+            // Resolve ParamFrame for the machine using the last-fired step so that
+            // P-Locks (including fill-layer overrides) persist for the full note
+            // duration rather than only the block in which the step fires.
             // MG.5: if the fired step carries a sound_id override, use the pool
             // entry's baseParams as the base, then apply step P-Locks on top.
             // Falls back to the normal StateResolver path if the entry is missing.
             auto frame = [&]() -> ParamFrame
             {
-                if (stepIndex >= 0 && stepIndex < kMaxStepsPerTrack)
+                const int fi = firedStepIdx_[i];
+                if (fi >= 0 && fi < kMaxStepsPerTrack)
                 {
-                    const auto& ov = track.steps[static_cast<std::size_t>(stepIndex)].trigOverride;
+                    const auto& ov = track.steps[static_cast<std::size_t>(fi)].trigOverride;
                     if (ov.hasSoundId && ov.soundId >= 0)
                     {
                         const auto* e = project_.soundPool.get(ov.soundId);
@@ -1340,18 +1344,27 @@ namespace lockstep
                         {
                             ParamFrame f = e->baseParams;
                             const auto& plock =
-                                track.steps[static_cast<std::size_t>(stepIndex)].overrides;
+                                track.steps[static_cast<std::size_t>(fi)].overrides;
                             for (int slot = 0; slot < static_cast<int>(f.size()); ++slot)
                             {
                                 if (plock.has(slot))
                                     f[static_cast<std::size_t>(slot)] =
                                         plock.get(slot, f[static_cast<std::size_t>(slot)]);
                             }
+                            if (curFillActive)
+                            {
+                                const auto& fp =
+                                    track.steps[static_cast<std::size_t>(fi)].fillOverrides;
+                                for (int slot = 0; slot < static_cast<int>(f.size()); ++slot)
+                                    if (fp.has(slot))
+                                        f[static_cast<std::size_t>(slot)] =
+                                            fp.get(slot, f[static_cast<std::size_t>(slot)]);
+                            }
                             return f;
                         }
                     }
                 }
-                return StateResolver::resolve(track, stepIndex, curFillActive);
+                return StateResolver::resolve(track, fi, curFillActive);
             }();
             if (previewActive_ && static_cast<int>(i) == previewTrack_)
             {
