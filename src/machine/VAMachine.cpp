@@ -44,6 +44,8 @@ namespace lockstep
         lfoRandCurr_   = 0.0f;
         lfoRandNext_   = 0.0f;
         lfoRandPhase_  = 0.0;
+        dcX1_          = 0.0f;
+        dcY1_          = 0.0f;
     }
 
     // =========================================================================
@@ -94,7 +96,7 @@ namespace lockstep
         case kSlotAmpD:       { ParamSpec p { "va_amp_d", "Decay",   1.0f,10000.0f, 100.0f, false, U::Ms, 3, R::Decay   }; p.skew = 0.3f; return p; }
         case kSlotAmpS:       return { "va_amp_s",        "Sustain",       0.0f,  1.0f,  0.8f,  false, U::None,     3, R::Sustain };
         case kSlotAmpR:       { ParamSpec p { "va_amp_r", "Release", 1.0f,10000.0f, 500.0f, false, U::Ms, 3, R::Release }; p.skew = 0.3f; return p; }
-        case kSlotLevel:      return { "va_level",        "Level",         0.0f,  1.0f,  0.8f,  false, U::None,     3, R::Level   };
+        case kSlotLevel:      return { "va_level",        "Level",         0.0f,  1.0f,  0.5f,  false, U::None,     3, R::Level   };
         case kSlotPan:        return { "va_pan",          "Pan",          -1.0f,  1.0f,  0.0f,  false, U::None,     3, R::Pan     };
         case kSlotRetrig:
         {
@@ -805,12 +807,6 @@ namespace lockstep
                 oscSum += noiseState_ * noiseLevel;
             }
 
-            // ---- Drive ----
-            const float driven = std::tanh(driveGain * oscSum);
-
-            // ---- Filter ----
-            float filtered = filterSample(driven, svfF, svfQ, filterType);
-
             // ---- Mono RETRIG ghost-gain crossfade ----
             if (!paraMode && monoGhostFade_ > 0)
             {
@@ -818,22 +814,41 @@ namespace lockstep
                 --monoGhostFade_;
                 if (monoGhostFade_ <= 0) monoGhostGain_ = 0.0f;
             }
+
+            // Apply envelope + level BEFORE drive so the level knob sets headroom,
+            // not just the volume of already-saturated signal.
             const float combinedGain = aEnvLevel + (paraMode ? 0.0f : monoGhostGain_);
-            const float finalGain    = combinedGain * outputLevel;
+            const float preDrive     = oscSum * combinedGain * outputLevel;
+
+            // ---- Drive (unity-gain bypass when drive=0) ----
+            // tanh(driveGain*x)/tanh(driveGain) normalises DC gain to 1.0 so
+            // the drive knob adds harmonics without boosting level.
+            float shaped;
+            if (driveGain > 1.0001f)
+                shaped = std::tanh(driveGain * preDrive) / std::tanh(driveGain);
+            else
+                shaped = preDrive;
+
+            // ---- Filter ----
+            float filtered = filterSample(shaped, svfF, svfQ, filterType);
+
+            // ---- DC blocker (kills note-on thump from filter / envelope transients) ----
+            const float blocked = filtered - dcX1_ + 0.999f * dcY1_;
+            dcX1_ = filtered;
+            dcY1_ = blocked;
 
             // ---- Output ----
-            const float outSample = filtered * finalGain;
             const float gainL = (numOut >= 2) ? std::sqrt(std::max(0.0f, 1.0f - pan) * 0.5f + 0.5f) : 1.0f;
             const float gainR = (numOut >= 2) ? std::sqrt(std::max(0.0f, 1.0f + pan) * 0.5f + 0.5f) : 1.0f;
 
             if (numOut >= 2)
             {
-                buffer.addSample(0, i, outSample * gainL);
-                buffer.addSample(1, i, outSample * gainR);
+                buffer.addSample(0, i, blocked * gainL);
+                buffer.addSample(1, i, blocked * gainR);
             }
             else if (numOut == 1)
             {
-                buffer.addSample(0, i, outSample);
+                buffer.addSample(0, i, blocked);
             }
         }
     }

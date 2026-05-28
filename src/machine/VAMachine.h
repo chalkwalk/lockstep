@@ -188,6 +188,10 @@ namespace lockstep
     // switch and flush stale voice state before it causes havoc.
     bool prevParaMode_ = false;
 
+    // One-pole DC blocker on the mono pre-pan output.
+    float dcX1_ = 0.0f;
+    float dcY1_ = 0.0f;
+
     // Per-voice AR constants (Microfreak paraphony articulation).
     static constexpr float kParaArAttackMs  =  8.0f;
     static constexpr float kParaArReleaseMs = 25.0f;
