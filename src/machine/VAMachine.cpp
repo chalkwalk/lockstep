@@ -112,6 +112,7 @@ namespace lockstep
         case kSlotLfoShape:   { ParamSpec p { "va_lfo_shape",    "LFO Shape",   0.0f,   5.0f,  0.0f, true,  U::None,      4, R::LfoShape }; p.valueLabels = std::span<const char* const>(kLfoShapeLabels);  return p; }
         case kSlotLfoTarget:  { ParamSpec p { "va_lfo_target",   "LFO Target",  0.0f,   3.0f,  0.0f, true,  U::None,      4, R::None     }; p.valueLabels = std::span<const char* const>(kLfoTargetLabels); return p; }
         case kSlotLfoSync:    { ParamSpec p { "va_lfo_sync",     "LFO Sync",    0.0f,   1.0f,  0.0f, true,  U::None,      4, R::None     }; p.valueLabels = std::span<const char* const>(kLfoSyncLabels);   return p; }
+        case kSlotOscMix:     return { "va_osc_mix", "Osc Mix", 0.0f, 1.0f, 0.5f, false, U::None, 1, R::None };
         default: return {};
         }
     }
@@ -174,10 +175,11 @@ namespace lockstep
                                       int osc2Wave, float osc2PW,
                                       float subLevel,
                                       double osc2FreqRatio,
-                                      bool paraMode) noexcept
+                                      bool paraMode,
+                                      float osc1Gain, float osc2Gain) noexcept
     {
         // In para mode: sv.oscType 0 → render osc1+sub only; sv.oscType 1 → render osc2+sub only.
-        // In mono mode (paraMode=false): render both osc1 and osc2.
+        // In mono mode (paraMode=false): render both osc1 and osc2 weighted by osc1Gain/osc2Gain.
         const bool renderOsc1 = !paraMode || sv.oscType == 0;
         const bool renderOsc2 = !paraMode || sv.oscType == 1;
 
@@ -187,19 +189,23 @@ namespace lockstep
 
         float out = 0.0f;
 
-        // Osc 1 (advance phase even when not rendering to stay in sync for mode switches)
+        // Osc 1.  Phases always advance to stay coherent across mode switches.
+        // Labels: 0=SAW 1=TRI 2=SQR 3=SIN.
         {
-            const double ph = sv.osc1Phase;
+            const double ph  = sv.osc1Phase;
             const double inc = osc1Inc;
             if (renderOsc1)
             {
                 float s = 0.0f;
                 switch (osc1Wave)
                 {
-                case 0: // Saw
+                case 0: // SAW
                     s = static_cast<float>(2.0 * ph - 1.0) + polyBlep(ph, inc);
                     break;
-                case 1: // Pulse
+                case 1: // TRI
+                    s = static_cast<float>(4.0 * std::abs(ph - 0.5) - 1.0);
+                    break;
+                case 2: // SQR (pulse with PW control)
                 {
                     const auto pw = static_cast<double>(std::clamp(osc1PW, 0.05f, 0.95f));
                     s = ph < pw ? 1.0f : -1.0f;
@@ -207,34 +213,38 @@ namespace lockstep
                     s += polyBlep(std::fmod(ph - pw + 1.0, 1.0), inc);
                     break;
                 }
-                case 2: // Triangle
-                    s = static_cast<float>(4.0 * std::abs(ph - 0.5) - 1.0);
-                    break;
-                case 3: // Sine
+                case 3: // SIN
                     s = static_cast<float>(std::sin(kTwoPi * ph));
                     break;
                 default: break;
                 }
-                out += s;
+                out += s * osc1Gain;
             }
             sv.osc1Phase += inc;
             if (sv.osc1Phase >= 1.0) sv.osc1Phase -= 1.0;
         }
 
-        // Osc 2 (0 = Off in mono mode; in para mode it's the osc2-type voice's primary osc)
-        const bool osc2Active = paraMode ? (renderOsc2) : (osc2Wave > 0);
+        // Osc 2.  Labels: 0=SAW 1=TRI 2=SQR 3=SIN 4=OFF.
+        // OFF (4) silences osc2 in mono; in para mode it falls back to SAW so the
+        // osc2-type sub-voice still produces output.
+        const bool osc2Off    = (osc2Wave == 4);
+        const bool osc2Active = paraMode ? renderOsc2 : (renderOsc2 && !osc2Off);
         if (osc2Active)
         {
-            const double ph = sv.osc2Phase;
+            const double ph  = sv.osc2Phase;
             const double inc = osc2Inc;
-            const int wave   = paraMode ? std::max(1, osc2Wave) : osc2Wave;  // para: use saw if OFF
+            // Para + OFF → use SAW so the osc2 sub-voice still sounds.
+            const int wave = (paraMode && osc2Off) ? 0 : osc2Wave;
             float s = 0.0f;
             switch (wave)
             {
-            case 1: // Saw
+            case 0: // SAW
                 s = static_cast<float>(2.0 * ph - 1.0) + polyBlep(ph, inc);
                 break;
-            case 2: // Pulse
+            case 1: // TRI
+                s = static_cast<float>(4.0 * std::abs(ph - 0.5) - 1.0);
+                break;
+            case 2: // SQR (pulse with PW control)
             {
                 const auto pw = static_cast<double>(std::clamp(osc2PW, 0.05f, 0.95f));
                 s = ph < pw ? 1.0f : -1.0f;
@@ -242,31 +252,28 @@ namespace lockstep
                 s += polyBlep(std::fmod(ph - pw + 1.0, 1.0), inc);
                 break;
             }
-            case 3: // Triangle
-                s = static_cast<float>(4.0 * std::abs(ph - 0.5) - 1.0);
-                break;
-            case 4: // Sine
+            case 3: // SIN
                 s = static_cast<float>(std::sin(kTwoPi * ph));
                 break;
             default: break;
             }
-            out += s;
+            out += s * osc2Gain;
             sv.osc2Phase += inc;
             if (sv.osc2Phase >= 1.0) sv.osc2Phase -= 1.0;
         }
         else
         {
-            // Advance osc2 phase even when silent to avoid a jump on unmute.
+            // Advance osc2 phase even when silent to avoid a click on unmute.
             sv.osc2Phase += osc2Inc;
             if (sv.osc2Phase >= 1.0) sv.osc2Phase -= 1.0;
         }
 
-        // Sub (one octave below the primary osc)
+        // Sub (one octave below osc1; scaled by osc1Gain so it follows the mix).
         if (subLevel > 0.0f)
         {
             const double ph = sv.subPhase;
             const float subSample = static_cast<float>(2.0 * ph - 1.0) + polyBlep(ph, subInc);
-            out += subSample * subLevel;
+            out += subSample * subLevel * osc1Gain;
             sv.subPhase += subInc;
             if (sv.subPhase >= 1.0) sv.subPhase -= 1.0;
         }
@@ -608,6 +615,12 @@ namespace lockstep
         const double osc2FreqRatio = std::pow(2.0, static_cast<double>(osc2CoarseST) / 12.0
                                                + static_cast<double>(osc2FineCent) / 1200.0);
 
+        // Osc mix: constant-power crossfade between osc1 (0) and osc2 (1).
+        // Default 0.5 gives equal loudness; 0.0 = osc1 only, 1.0 = osc2 only.
+        const float oscMixAngle = std::clamp(p(kSlotOscMix), 0.0f, 1.0f) * kPiF * 0.5f;
+        const float osc1Gain    = std::cos(oscMixAngle);
+        const float osc2Gain    = std::sin(oscMixAngle);
+
         const float osc1CoarseST  = p(kSlotOsc1Coarse);
         const float osc1FineCent  = p(kSlotOsc1Fine);
         const double osc1FreqMul  = std::pow(2.0, static_cast<double>(osc1CoarseST) / 12.0
@@ -769,7 +782,8 @@ namespace lockstep
                 const float svSample = oscillatorSample(sv, osc1Wave, osc1PW,
                                                          osc2Wave, osc2PW,
                                                          subLevel, osc2FreqRatio,
-                                                         paraMode);
+                                                         paraMode,
+                                                         osc1Gain, osc2Gain);
                 sv.currentFreq = savedFreq;
 
                 // In mono mode the master ampEnv controls volume (combinedGain

@@ -81,8 +81,10 @@ namespace lockstep
     static constexpr int kSlotLfoShape   = 31;
     static constexpr int kSlotLfoTarget  = 32;
     static constexpr int kSlotLfoSync    = 33;
+    // Section 1 — SRC (continued; osc level balance)
+    static constexpr int kSlotOscMix     = 34;  // 0=all osc1, 1=all osc2, 0.5=equal power
 
-    static constexpr int kNumSlots    = 34;
+    static constexpr int kNumSlots    = 35;
     static constexpr int kNumSections = 5;
     static constexpr int kMaxSubVoices = 4;
 
@@ -124,7 +126,8 @@ namespace lockstep
                            int osc2Wave, float osc2PW,
                            float subLevel,
                            double osc2FreqRatio,
-                           bool paraMode) noexcept;
+                           bool paraMode,
+                           float osc1Gain, float osc2Gain) noexcept;
 
     float filterSample(float in, float f, float q, int filterType) noexcept;
 
