@@ -578,7 +578,11 @@ namespace lockstep
                             ? juce::String(cnt) + " STEPS  |  turn knob to P-Lock"
                             : "STEP " + juce::String(stepNum) + "  |  turn knob to P-Lock";
                     }
-                    // Primary scope token.
+                    // Primary scope token. MHZ.7.2: show mode hint when Track+Control-All.
+                    else if (ui.trackHeld && processor_.controlAllActive())
+                    {
+                        ctx = "TRACK  |  Y=PLAY  U=EDIT  I=CHROM  O=LEVLS";
+                    }
                     else if (ui.trackHeld)        ctx = "TRACK " + juce::String(keyboardArea_.getActiveTrack() + 1);
                     else if (ui.patternScopeHeld) ctx = "PATTERN";
                     else if (ui.partHeld)         ctx = "PART";
@@ -1183,6 +1187,16 @@ namespace lockstep
             case ControllerButton::VerbPlay:
             {
                 using PS = EditMode::PrimaryScope;
+                // MHZ.7.2: Track (no specific track selected) + VerbPlay → CHROMATIC mode.
+                if (uiState_.trackHeld && processor_.controlAllActive())
+                {
+                    const int t = keyboardArea_.getActiveTrack();
+                    if (t >= 0 && t < static_cast<int>(kNumTracks))
+                        uiState_.trackInputMode[static_cast<std::size_t>(t)] = TrackInputMode::Chromatic;
+                    keyboardArea_.repaint();
+                    repaint();
+                    return true;
+                }
                 // Scope held → grammar verb (e.g. paste).  No scope → play/stop.
                 if (editMode_.primaryScope() != PS::None
                     && editMode_.primaryScope() != PS::Func)
@@ -1212,6 +1226,16 @@ namespace lockstep
             case ControllerButton::VerbStop:
             {
                 using PS = EditMode::PrimaryScope;
+                // MHZ.7.2: Track (no specific track selected) + VerbStop → LEVELS mode.
+                if (uiState_.trackHeld && processor_.controlAllActive())
+                {
+                    const int t = keyboardArea_.getActiveTrack();
+                    if (t >= 0 && t < static_cast<int>(kNumTracks))
+                        uiState_.trackInputMode[static_cast<std::size_t>(t)] = TrackInputMode::Levels;
+                    keyboardArea_.repaint();
+                    repaint();
+                    return true;
+                }
                 // Scope held → grammar verb (e.g. clear).  No scope → stop transport.
                 if (editMode_.primaryScope() != PS::None
                     && editMode_.primaryScope() != PS::Func)
@@ -1233,6 +1257,16 @@ namespace lockstep
             case ControllerButton::VerbRecord:
             {
                 using PS = EditMode::PrimaryScope;
+                // MHZ.7.2: Track (no specific track selected) + VerbRecord → EDIT mode.
+                if (uiState_.trackHeld && processor_.controlAllActive())
+                {
+                    const int t = keyboardArea_.getActiveTrack();
+                    if (t >= 0 && t < static_cast<int>(kNumTracks))
+                        uiState_.trackInputMode[static_cast<std::size_t>(t)] = TrackInputMode::Edit;
+                    keyboardArea_.repaint();
+                    repaint();
+                    return true;
+                }
                 // Scope held → grammar verb (e.g. copy).  No scope → arm recording.
                 if (editMode_.primaryScope() != PS::None
                     && editMode_.primaryScope() != PS::Func)
@@ -1245,6 +1279,16 @@ namespace lockstep
             }
 
             case ControllerButton::VerbYes:
+                // MHZ.7.2: Track (no specific track selected) + VerbYes → PLAY mode.
+                if (uiState_.trackHeld && processor_.controlAllActive())
+                {
+                    const int t = keyboardArea_.getActiveTrack();
+                    if (t >= 0 && t < static_cast<int>(kNumTracks))
+                        uiState_.trackInputMode[static_cast<std::size_t>(t)] = TrackInputMode::Play;
+                    keyboardArea_.repaint();
+                    repaint();
+                    return true;
+                }
                 editMode_.onVerb(ev.button);
                 return true;
 
