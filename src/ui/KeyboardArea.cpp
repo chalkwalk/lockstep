@@ -1092,6 +1092,14 @@ namespace lockstep
                 displayHint    = kl.hint;
             }
 
+            // MHZ.7.2: Track+Control-All held → relabel verb keys as input-mode selectors.
+            if (uiState_.trackHeld && processor_.controlAllActive())
+            {
+                if      (def.keyCode == 'Y') { displayPrimary = "PLAY";  displayHint = {}; }
+                else if (def.keyCode == 'I') { displayPrimary = "CHROM"; displayHint = {}; }
+                else if (def.keyCode == 'O') { displayPrimary = "LEVLS"; displayHint = {}; }
+            }
+
             // Modifier keys (Q=Pattern, W=Part) always show their dim scope colour at rest
             // and fill with the full scope colour when active.
             KeyGroup activeGroup = def.group;
@@ -1603,20 +1611,19 @@ namespace lockstep
             return;
         }
 
-        // MHZ.7.3: CHROMATIC mode — step cells become a 1-octave chromatic keyboard.
-        // Cells 0-11 = C through B in the current noteEditOctave; cells 12-15 = dim.
+        // MHZ.7.3: CHROMATIC mode — step cells become a piano keyboard.
+        // Piano layout: bottom row (steps 8-15) = white keys C D E F G A B C+1.
+        //               top row   (steps 0-7)  = black keys C# D# F# G# A# + 3 dead.
         {
             const auto mode = (activeTrack_ >= 0 && activeTrack_ < static_cast<int>(kNumTracks))
                               ? uiState_.trackInputMode[static_cast<std::size_t>(activeTrack_)]
                               : TrackInputMode::Play;
             if (mode == TrackInputMode::Chromatic)
             {
-                static constexpr const char* kNoteNames[] =
-                    { "C","C#","D","D#","E","F","F#","G","G#","A","A#","B" };
-                static constexpr bool kIsBlack[] =
-                    { false,true,false,true,false,false,true,false,true,false,true,false };
-
-                const juce::Colour chromaTint = col(kScopeTrack);  // cyan-blue = Track scope colour
+                const juce::Colour whiteKey = col(kScopeTrack).withAlpha(0.38f);
+                const juce::Colour blackKey = col(kScopeTrack).withAlpha(0.16f);
+                const juce::Colour border   = col(kScopeTrack).withAlpha(0.70f);
+                const juce::Colour deadCol  = juce::Colour(kStepOutRange);
                 const int octave = uiState_.noteEditOctave;
 
                 for (int row = 0; row < kRows; ++row)
@@ -1628,25 +1635,26 @@ namespace lockstep
                         const int y = rowY(row);
                         const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
-                        if (cellIdx >= 12)
+                        const int  semitone = kPianoNoteOffset[static_cast<std::size_t>(cellIdx)];
+                        const char* name    = kPianoNoteNames[static_cast<std::size_t>(cellIdx)];
+
+                        if (semitone < 0)
                         {
-                            g.setColour(juce::Colour(kStepOutRange));
+                            g.setColour(deadCol);
                             g.fillRoundedRectangle(cell.toFloat(), 4.0f);
                             continue;
                         }
 
-                        const bool isBlack = kIsBlack[cellIdx];
-                        g.setColour(isBlack
-                            ? chromaTint.withAlpha(0.22f)
-                            : chromaTint.withAlpha(0.35f));
+                        // Black key = sharp note (top row); white key = natural (bottom row).
+                        const bool isBlack = (cellIdx < kCols);
+                        g.setColour(isBlack ? blackKey : whiteKey);
                         g.fillRoundedRectangle(cell.toFloat(), 4.0f);
-                        g.setColour(chromaTint.withAlpha(0.65f));
+                        g.setColour(border);
                         g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
 
-                        g.setColour(juce::Colours::white.withAlpha(0.80f));
+                        g.setColour(juce::Colours::white.withAlpha(0.85f));
                         g.setFont(juce::Font(juce::FontOptions(9.0f)).boldened());
-                        g.drawText(juce::String(kNoteNames[cellIdx]), cell,
-                                   juce::Justification::centred);
+                        g.drawText(juce::String(name), cell, juce::Justification::centred);
 
                         if (showKeyLetters)
                             paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(cellIdx)], 0.65f);
@@ -1655,7 +1663,7 @@ namespace lockstep
 
                 const int midiBase = (octave + 1) * 12;
                 const juce::String msg = "CHROMATIC  C" + juce::String(octave)
-                    + " (MIDI " + juce::String(midiBase) + ")  |  NavUp/Down = octave";
+                    + " (MIDI " + juce::String(midiBase) + ")  |  NavLeft/Right = octave";
                 g.setColour(juce::Colour::fromRGB(80, 95, 115));
                 g.setFont(juce::Font(juce::FontOptions(10.0f)));
                 g.drawText(msg, navArea, juce::Justification::centred);
