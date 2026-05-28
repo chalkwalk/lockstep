@@ -43,14 +43,21 @@ namespace lockstep
             const auto& step = track.steps[static_cast<std::size_t>(i)];
             float prob = 0.0f;
 
-            if (step.trig)
+            // Determine whether the step fires in the current fill context.
+            const bool stepFiresInContext = [&]() -> bool
+            {
+                if (fillActive)
+                {
+                    if (step.fillTrigState == FillTrigState::On)  return true;
+                    if (step.fillTrigState == FillTrigState::Off) return false;
+                }
+                return step.trig;
+            }();
+
+            if (stepFiresInContext)
             {
                 const auto& cond = step.condition.isTrivial()
                                        ? track.baseCond : step.condition;
-
-                bool fillPass = true;
-                if (cond.fillRule == FillRule::OnlyFill  && !fillActive) fillPass = false;
-                if (cond.fillRule == FillRule::NeverFill &&  fillActive) fillPass = false;
 
                 bool iterPass = true;
                 if (cond.iterDenominator > 1)
@@ -62,7 +69,7 @@ namespace lockstep
                                 == static_cast<std::int64_t>(cond.iterNumerator) - 1);
                 }
 
-                if (fillPass && iterPass)
+                if (iterPass)
                 {
                     prob = std::clamp(
                         static_cast<float>(cond.probabilityPercent) / 100.0f,
@@ -1855,23 +1862,26 @@ namespace lockstep
                 const bool hasTrig = inRange
                     && track.steps[static_cast<std::size_t>(absIdx)].trig;
                 const int activeSlot = ctx.activeSlot();
-                const bool hasLock   = inRange
-                    && !track.steps[static_cast<std::size_t>(absIdx)].overrides.empty();
+                const auto& stepRef = track.steps[static_cast<std::size_t>(absIdx)];
+                const bool hasLock   = inRange && !stepRef.overrides.empty();
                 const bool hasActiveLock = hasLock && activeSlot >= 0
-                    && track.steps[static_cast<std::size_t>(absIdx)].overrides.has(activeSlot);
+                    && stepRef.overrides.has(activeSlot);
+                const bool hasFillLock = inRange && !stepRef.fillOverrides.empty();
                 const bool isHead = (absIdx == playheadAbs);
 
                 const int x = colX(row, col + 2);  // +2: skip the two modifier columns
                 const int y = rowY(row);
                 const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
-                FillRule stepFillRule = FillRule::Always;
-                if (inRange && hasTrig)
-                {
-                    const auto& rawCond = track.steps[static_cast<std::size_t>(absIdx)].condition;
-                    const auto& cond = rawCond.isTrivial() ? track.baseCond : rawCond;
-                    stepFillRule = cond.fillRule;
-                }
+                // Fill trig state for colour — show when fill is held or pref enables preview.
+                const FillTrigState fts = inRange
+                    ? stepRef.fillTrigState : FillTrigState::Inherit;
+                const bool showFillState = fillActive
+                    || (fts != FillTrigState::Inherit);  // always show non-Inherit states
+
+                static const juce::Colour kColFillAdd     { kStepFillAdd     };
+                static const juce::Colour kColFillSuppress { kStepFillSuppress };
+                static const juce::Colour kColFillPLock   { kStepFillPLock   };
 
                 const float prob = inRange ? preview[static_cast<std::size_t>(localIdx)] : 0.0f;
 
@@ -1880,25 +1890,35 @@ namespace lockstep
                     g.setColour(kColOutRange);
                     g.fillRoundedRectangle(cell.toFloat(), 4.0f);
                 }
-                else if (hasTrig)
+                else if (showFillState && fts == FillTrigState::On)
                 {
-                    const bool isOnlyFillInactive =
-                        (stepFillRule == FillRule::OnlyFill && !fillActive);
-                    const bool isNeverFillActive =
-                        (stepFillRule == FillRule::NeverFill && fillActive);
-
-                    juce::Colour baseCol;
-                    if (isOnlyFillInactive)
-                        baseCol = kColFillOnly;
-                    else if (isNeverFillActive)
-                        baseCol = kColActive.withAlpha(0.20f);
+                    // Fill-add: fires in fill regardless of base trig.
+                    const float bright = juce::jlimit(0.25f, 1.0f, 0.25f + prob * 0.75f);
+                    g.setColour(kColFillAdd.withAlpha(bright));
+                    g.fillRoundedRectangle(cell.toFloat(), 4.0f);
+                }
+                else if (showFillState && fts == FillTrigState::Off)
+                {
+                    // Fill-suppress: base trig exists but is silenced in fill.
+                    if (hasTrig)
+                    {
+                        g.setColour(kColFillSuppress);
+                        g.fillRoundedRectangle(cell.toFloat(), 4.0f);
+                    }
                     else
                     {
-                        const float bright = juce::jlimit(0.15f, 1.0f, 0.15f + prob * 0.85f);
-                        baseCol = kColActive.withAlpha(bright);
+                        // Off on a non-trig step: subtle fill-suppress indicator.
+                        g.setColour(kColInactive);
+                        g.fillRoundedRectangle(cell.toFloat(), 4.0f);
+                        g.setColour(kColFillSuppress.withAlpha(0.6f));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
                     }
-
-                    g.setColour(baseCol);
+                }
+                else if (hasTrig)
+                {
+                    // Normal trig with Inherit fill state.
+                    const float bright = juce::jlimit(0.15f, 1.0f, 0.15f + prob * 0.85f);
+                    g.setColour(kColActive.withAlpha(bright));
                     g.fillRoundedRectangle(cell.toFloat(), 4.0f);
                 }
                 else
@@ -1931,6 +1951,13 @@ namespace lockstep
                     g.setColour(kColPLock);
                     g.drawRoundedRectangle(cell.toFloat(), 4.0f, 2.0f);
                 }
+                // Fill P-Lock badge: second dot below the normal P-Lock dot.
+                if (hasFillLock)
+                {
+                    g.setColour(kColFillPLock);
+                    g.fillRect(juce::Rectangle<int>(cell.getRight() - 5,
+                                                    cell.getY() + 7, 4, 4));
+                }
                 if (isHeld)
                 {
                     g.setColour(kColHeld);
@@ -1941,8 +1968,7 @@ namespace lockstep
                 // one per note in the step's trig override chord.
                 if (inRange)
                 {
-                    const int nc = track.steps[static_cast<std::size_t>(absIdx)]
-                                       .trigOverride.noteCount;
+                    const int nc = stepRef.trigOverride.noteCount;
                     if (nc > 0)
                     {
                         const juce::Colour noteCol = hasTrig

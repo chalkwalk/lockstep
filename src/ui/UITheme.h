@@ -58,13 +58,16 @@ namespace lockstep::theme
     // -------------------------------------------------------------------------
     // Step-grid colours
     // -------------------------------------------------------------------------
-    inline constexpr uint32_t kStepActive    = 0xFF50B478u;  // green — certain fire
-    inline constexpr uint32_t kStepFillOnly  = 0xFF7B4EC0u;  // violet — OnlyFill (fill off)
-    inline constexpr uint32_t kStepInactive  = 0xFF2D3741u;  // dark — in-range, no trig
-    inline constexpr uint32_t kStepOutRange  = 0xFF1C2026u;  // near-black — out of range
-    inline constexpr uint32_t kStepPlayhead  = 0xFFFFCC44u;  // amber border
-    inline constexpr uint32_t kStepHeld      = 0xFFFFFFFFu;  // white — held-step border
-    inline constexpr uint32_t kStepPLock     = 0xFF8060E0u;  // light indigo — P-Lock dot (matches kScopePLock family)
+    inline constexpr uint32_t kStepActive      = 0xFF50B478u;  // green — certain fire
+    inline constexpr uint32_t kStepFillOnly   = 0xFF7B4EC0u;  // legacy alias (kept for reference)
+    inline constexpr uint32_t kStepFillAdd    = 0xFFF08030u;  // warm orange — FillTrigState::On (additive fill trig)
+    inline constexpr uint32_t kStepFillSuppress = 0xFF3060A0u;  // cool blue — FillTrigState::Off (suppressed in fill)
+    inline constexpr uint32_t kStepFillPLock  = 0xFF40A0D0u;  // cyan — fill-layer P-Lock dot badge
+    inline constexpr uint32_t kStepInactive   = 0xFF2D3741u;  // dark — in-range, no trig
+    inline constexpr uint32_t kStepOutRange   = 0xFF1C2026u;  // near-black — out of range
+    inline constexpr uint32_t kStepPlayhead   = 0xFFFFCC44u;  // amber border
+    inline constexpr uint32_t kStepHeld       = 0xFFFFFFFFu;  // white — held-step border
+    inline constexpr uint32_t kStepPLock      = 0xFF8060E0u;  // light indigo — P-Lock dot (matches kScopePLock family)
 
     // -------------------------------------------------------------------------
     // Scope colour grammar (MHZ.1.4, DESIGN §6.6)

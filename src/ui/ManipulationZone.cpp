@@ -44,8 +44,15 @@ namespace lockstep
                     case 1:  writeTrigField(i, v);   break;
                     case 2:  writeTrackField(i, v);  break;
                     case 5:  writeGlobalField(i, v); break;
-                    default: processor_.writeParam(area_.getActiveTrack(),
-                                                   slotOffset_ + i, v); break;
+                    default:
+                        // Route to fill P-Lock layer when fill is held + step is held.
+                        if (processor_.fillActive())
+                            processor_.writeFillParam(area_.getActiveTrack(),
+                                                      slotOffset_ + i, v);
+                        else
+                            processor_.writeParam(area_.getActiveTrack(),
+                                                  slotOffset_ + i, v);
+                        break;
                 }
             };
             sliders_[si].addMouseListener(static_cast<juce::MouseListener*>(this), false);
@@ -60,6 +67,9 @@ namespace lockstep
                 if (metaSection_ == 1)
                     processor_.clearTrigOverrideField(ctx.heldTrackIndex(),
                                                       ctx.heldStepIndex(), i);
+                else if (processor_.fillActive())
+                    processor_.clearFillParam(ctx.heldTrackIndex(), ctx.heldStepIndex(),
+                                              slotOffset_ + i);
                 else
                     processor_.clearParam(ctx.heldTrackIndex(), ctx.heldStepIndex(),
                                           slotOffset_ + i);
@@ -297,14 +307,28 @@ namespace lockstep
 
             float value = processor_.baseParamValue(track, slot);
 
-            const bool stepHeld = ctx.isActiveForEditing() && ctx.heldTrackIndex() == track;
-            const int  heldStep = ctx.heldStepIndex();
+            const bool stepHeld  = ctx.isActiveForEditing() && ctx.heldTrackIndex() == track;
+            const int  heldStep  = ctx.heldStepIndex();
+            const bool fillHeld  = processor_.fillActive();
+            const bool fillEdit  = stepHeld && fillHeld && heldStep >= 0;
             bool hasLock = false;
 
             if (stepHeld && heldStep >= 0)
             {
-                value   = t.steps[static_cast<std::size_t>(heldStep)].overrides.get(slot, value);
-                hasLock = t.steps[static_cast<std::size_t>(heldStep)].overrides.has(slot);
+                const auto& s = t.steps[static_cast<std::size_t>(heldStep)];
+                // Resolved fill view: FillOverride → Override → Base.
+                value   = s.overrides.get(slot, value);
+                if (fillEdit)
+                {
+                    // Show fill layer value if present; otherwise resolved base+override.
+                    if (s.fillOverrides.has(slot))
+                        value = s.fillOverrides.get(slot, value);
+                    hasLock = s.fillOverrides.has(slot);
+                }
+                else
+                {
+                    hasLock = s.overrides.has(slot);
+                }
             }
 
             sliders_[si].setValue(static_cast<double>(value), juce::dontSendNotification);
@@ -370,28 +394,25 @@ namespace lockstep
         const TrigCondition& display   = (stepCond && !stepCond->isTrivial())
             ? *stepCond : baseCond;
 
-        // Slot 3: Fill rule when no step held (track-level), Prev-dep when step held.
-        // Fill rule is editable at both levels; Prev-dep only makes sense at step level.
-        const bool slot3IsPrev = stepHeld;
-
-        struct CondFieldDef { const char* label; float lo; float hi; };
+        // Slot 3 is always Prev-dep (fillRule has been removed from TrigCondition;
+        // fill trig state is set via Hold-Fill + step-tap gesture).
+        struct CondFieldDef { const char* label; float lo; float hi; bool enabled; };
         const std::array<CondFieldDef, kNumSlots> kDefs = {{
-            { "Prob",  1.0f, 100.0f },
-            { "m Num", 1.0f,   8.0f },
-            { "m Den", 1.0f,   8.0f },
-            { slot3IsPrev ? "Prev" : "Fill", 0.0f, slot3IsPrev ? 2.0f : 2.0f },
-            { "",      0.0f,   1.0f },
-            { "",      0.0f,   1.0f },
-            { "",      0.0f,   1.0f },
-            { "",      0.0f,   1.0f },
+            { "Prob",  1.0f, 100.0f, true  },
+            { "m Num", 1.0f,   8.0f, true  },
+            { "m Den", 1.0f,   8.0f, true  },
+            { "Prev",  0.0f,   2.0f, true  },
+            { "",      0.0f,   1.0f, false },
+            { "",      0.0f,   1.0f, false },
+            { "",      0.0f,   1.0f, false },
+            { "",      0.0f,   1.0f, false },
         }};
 
         const std::array<float, kNumSlots> vals = {
             static_cast<float>(display.probabilityPercent),
             static_cast<float>(display.iterNumerator),
             static_cast<float>(display.iterDenominator),
-            slot3IsPrev ? static_cast<float>(display.prevDependency)
-                        : static_cast<float>(display.fillRule),
+            static_cast<float>(display.prevDependency),
             0.0f, 0.0f, 0.0f, 0.0f,
         };
 
@@ -402,24 +423,18 @@ namespace lockstep
             sliders_[si].setRange(static_cast<double>(kDefs[si].lo),
                                   static_cast<double>(kDefs[si].hi), 1.0);
             sliders_[si].setValue(static_cast<double>(vals[si]), juce::dontSendNotification);
-            sliders_[si].setEnabled(true);
-            sliders_[si].setAlpha(1.0f);
+            sliders_[si].setEnabled(kDefs[si].enabled);
+            sliders_[si].setAlpha(kDefs[si].enabled ? 1.0f : 0.0f);
 
             juce::String valueText;
             if (i == 0)
                 valueText = juce::String(static_cast<int>(vals[si])) + "%";
-            else if (i == 3 && slot3IsPrev)
+            else if (i == 3)
             {
                 const int pd = static_cast<int>(vals[si]);
                 valueText = (pd == 0) ? "off" : (pd == 1 ? "fired" : "!fired");
             }
-            else if (i == 3 && !slot3IsPrev)
-            {
-                const int fr = static_cast<int>(vals[si]);
-                valueText = (fr == 0) ? "always"
-                          : (fr == 1) ? "fill only" : "no fill";
-            }
-            else
+            else if (kDefs[si].enabled)
                 valueText = juce::String(static_cast<int>(vals[si]));
 
             valueLabels_[si].setText(valueText, juce::dontSendNotification);
@@ -460,14 +475,7 @@ namespace lockstep
             case 0: target.probabilityPercent = u8(value); break;
             case 1: target.iterNumerator      = u8(value); break;
             case 2: target.iterDenominator    = u8(value); break;
-            case 3:
-                // Slot 3: Prev-dep when step held, Fill rule otherwise.
-                if (held && step >= 0)
-                    target.prevDependency = u8(value);
-                else
-                    target.fillRule = static_cast<FillRule>(
-                        std::clamp(static_cast<int>(std::round(value)), 0, 2));
-                break;
+            case 3: target.prevDependency     = u8(value); break;
             default: break;
         }
     }
@@ -814,11 +822,16 @@ namespace lockstep
         const auto& ctx = processor_.editContext();
         if (ctx.isActiveForEditing())
         {
-            g.setColour(juce::Colour::fromRGB(255, 180, 50).withAlpha(0.18f));
+            const bool fillEdit = processor_.fillActive();
+            const juce::Colour editCol = fillEdit
+                ? juce::Colour::fromRGB(80, 200, 255)
+                : juce::Colour::fromRGB(255, 180, 50);
+            g.setColour(editCol.withAlpha(0.18f));
             g.fillAll();
-            g.setColour(juce::Colour::fromRGB(255, 180, 50));
+            g.setColour(editCol);
             g.setFont(juce::Font(juce::FontOptions(10.0f)));
-            g.drawText("P-LOCK  track " + juce::String(ctx.heldTrackIndex() + 1)
+            const juce::String label = fillEdit ? "FILL P-LOCK" : "P-LOCK";
+            g.drawText(label + "  track " + juce::String(ctx.heldTrackIndex() + 1)
                            + "  step " + juce::String(ctx.heldStepIndex() + 1),
                        getLocalBounds().removeFromTop(14).reduced(4, 0),
                        juce::Justification::centredLeft);
