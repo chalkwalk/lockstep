@@ -31,9 +31,10 @@ namespace lockstep
             case PS::Scene:   return col(kScopeScene);
             case PS::Master:  return col(kScopeMaster);
             case PS::Mute:    return col(kScopeMute);
+            case PS::Fill:    return col(kScopeFill);
             // Non-section scopes and None use the default step colour.
             case PS::None: case PS::Func: case PS::Trig:
-            case PS::Fill: case PS::Cue: case PS::Section:
+            case PS::Cue: case PS::Section:
                 break;
         }
         return col(kScopeStep);
@@ -52,6 +53,7 @@ namespace lockstep
         if (ui.sceneHeld)        return scopeColour(PS::Scene);
         if (ui.masterHeld)       return scopeColour(PS::Master);
         if (ui.muteHeld)         return col(ui.funcHeld ? kScopePMute : kScopeMute);
+        if (ui.fillHeld)         return scopeColour(PS::Fill);
         return scopeColour(PS::None);
     }
 

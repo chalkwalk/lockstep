@@ -786,14 +786,16 @@ namespace lockstep
                            grp, st, showKeyHint, overlay);
         }
 
-        // Cell 1: Track (key 2) — section-scope (col-2 row 0), violet.
+        // Cell 1: Track (key 2) — section-scope (col-2 row 0).
         {
             const bool pressed = isKeyPressed('2');
             KeyButtonState st = KeyButtonState::Normal;
             if      (pressed)            st = KeyButtonState::Pressed;
             else if (uiState_.trackHeld) st = KeyButtonState::ModeActive;
             else if (uiState_.funcHeld)  st = KeyButtonState::FuncHeld;
-            const KeyGroup grp { kPerfInactive, kPerfActive, kPerfAccent };
+            const KeyGroup grp = uiState_.trackHeld
+                ? KeyGroup{ kScopeTrackDim, kScopeTrack, kScopeTrack }
+                : KeyGroup{ kScopeTrackDim, kPerfActive, kPerfAccent };
             const bool overlay = hasCompound && uiState_.trackHeld;
             paintKeyButton(g, sectionCellBounds(1, area), kKeyHints[1], "TRACK", "",
                            grp, st, showKeyHint, overlay);
@@ -877,17 +879,28 @@ namespace lockstep
             const bool isMasterActive = !isScopedMode && (uiState_.masterSection == s);
             const bool isTrackActive  = !isScopedMode && (uiState_.masterSection == -1
                 && uiState_.trackSection[static_cast<std::size_t>(activeTrack)] == s);
+            // SRC (s==1) becomes the machine picker when Part is held.
+            const bool isMachPicker   = (sectionScope == PS::Part && s == 1);
+            // TRIG (s==0) telegraphs note-edit entry when Func is held alone (no scope modifier).
+            const bool isTrigNoteEdit = (!isScopedMode && uiState_.funcHeld && s == 0);
 
             const bool pressed = isKeyPressed(kSectionKeyCodes[s]);
 
             KeyButtonState st = KeyButtonState::Normal;
             if      (pressed)                           st = KeyButtonState::Pressed;
             else if (isTrackActive || isMasterActive)   st = KeyButtonState::ModeActive;
+            else if (isMachPicker)                      st = KeyButtonState::ModeActive;
             else if (uiState_.funcHeld)                 st = KeyButtonState::FuncHeld;
 
-            const KeyGroup secGrp = isMasterActive
-                ? KeyGroup{ kSecInactive, 0xFF404010u, 0xFFFFB432u }
-                : KeyGroup{ kSecInactive, kSecActive,  kSecAccent  };
+            KeyGroup secGrp;
+            if (isMachPicker)
+                secGrp = KeyGroup{ kSecInactive, kScopeMachine, kScopeMachine };
+            else if (isMasterActive)
+                secGrp = KeyGroup{ kSecInactive, 0xFF404010u, 0xFFFFB432u };
+            else if (isTrigNoteEdit)
+                secGrp = KeyGroup{ kSecInactive, kScopeNoteEdit, kScopeNoteEdit };
+            else
+                secGrp = KeyGroup{ kSecInactive, kSecActive, kSecAccent };
 
             // Secondary (meta) label: resolver supplies it for normal mode; em-dash for
             // reserved-meta sections (non-ASCII, handled outside resolver).
@@ -1072,9 +1085,21 @@ namespace lockstep
                 displayHint    = kl.hint;
             }
 
+            // Modifier keys (Q=Pattern, W=Part) always show their dim scope colour at rest
+            // and fill with the full scope colour when active.
+            KeyGroup activeGroup = def.group;
+            if (def.keyCode == 'Q')
+                activeGroup = uiState_.patternScopeHeld
+                    ? KeyGroup{ kScopePatternDim, kScopePattern, kScopePattern }
+                    : KeyGroup{ kScopePatternDim, kModActive,    kModAccent    };
+            else if (def.keyCode == 'W')
+                activeGroup = uiState_.partHeld
+                    ? KeyGroup{ kScopePartDim, kScopePart, kScopePart }
+                    : KeyGroup{ kScopePartDim, kPerfActive, kPerfAccent };
+
             paintKeyButton(g, cell,
                            def.keyHint, displayPrimary, displayHint,
-                           def.group, state, showKeyHint, overlay);
+                           activeGroup, state, showKeyHint, overlay);
         }
     }
 
@@ -1188,32 +1213,34 @@ namespace lockstep
         //   col-2: row 0 = S/MST, row 1 = X/FIL
         {
             struct ModDef {
-                int  keyCode;
+                int         keyCode;
                 const char* keyHint;
                 const char* label;
                 bool        isHeld;
                 KeyGroup    grp;
                 bool        overlay;
+                uint32_t    scopeActive;  // colour used when ModeActive
+                uint32_t    scopeDim;     // dark tint used for inactive background
             };
 
             const std::array<std::array<ModDef, 2>, kRows> mods = {{
                 // Row 0 (A row): A=Scene (col-1), S=Master (col-2)
                 std::array<ModDef, 2>{{
                     { 'A', "A", "SCENE",  uiState_.sceneHeld,
-                      { kModInactive, kModActive, kModAccent },
-                      hasCompound && uiState_.sceneHeld },
+                      { kScopeSceneDim, kModActive, kModAccent },
+                      hasCompound && uiState_.sceneHeld, kScopeScene, kScopeSceneDim },
                     { 'S', "S", "MASTER", uiState_.masterHeld,
-                      { kPerfInactive, kPerfActive, kPerfAccent },
-                      hasCompound && uiState_.masterHeld },
+                      { kScopeMasterDim, kPerfActive, kPerfAccent },
+                      hasCompound && uiState_.masterHeld, kScopeMaster, kScopeMasterDim },
                 }},
                 // Row 1 (Z row): Z=Mute (col-1), X=Fill (col-2)
                 std::array<ModDef, 2>{{
                     { 'Z', "Z", "MUTE", uiState_.muteHeld,
-                      { kModInactive, kModActive, kModAccent },
-                      hasCompound && uiState_.muteHeld },
+                      { kScopeMuteDim, kModActive, kModAccent },
+                      hasCompound && uiState_.muteHeld, kScopeMute, kScopeMuteDim },
                     { 'X', "X", "FILL", uiState_.fillHeld,
-                      { kPerfInactive, kPerfActive, kPerfAccent },
-                      hasCompound && uiState_.fillHeld },
+                      { kScopeFillDim, kPerfActive, kPerfAccent },
+                      hasCompound && uiState_.fillHeld, kScopeFill, kScopeFillDim },
                 }},
             }};
 
@@ -1232,10 +1259,15 @@ namespace lockstep
                     if      (keyDown)    st = KeyButtonState::Pressed;
                     else if (md.isHeld)  st = KeyButtonState::ModeActive;
 
+                    // Always show dim scope colour at rest; full scope colour when active.
+                    KeyGroup grp = md.grp;
+                    if (st == KeyButtonState::ModeActive)
+                        grp = KeyGroup{ md.scopeDim, md.scopeActive, md.scopeActive };
+
                     paintKeyButton(g, cell,
                                    showKeyLetters ? md.keyHint : "",
                                    md.label, "",
-                                   md.grp, st, showKeyLetters, md.overlay);
+                                   grp, st, showKeyLetters, md.overlay);
                 }
             }
         }
@@ -1315,7 +1347,7 @@ namespace lockstep
             static constexpr bool kIsBlack[] =
                 { false,true,false,true,false,false,true,false,true,false,true,false };
 
-            const juce::Colour noteTint  = juce::Colour::fromRGB(80, 180, 220);
+            const juce::Colour noteTint  = col(kScopeNoteEdit);
             const juce::Colour stageTint = juce::Colour::fromRGB(220, 100, 60);
 
             // Collect notes across all target steps for rendering.
@@ -1483,7 +1515,7 @@ namespace lockstep
             && uiState_.pLockClearTrack == activeTrack_
             && uiState_.pLockClearStep >= 0)
         {
-            const juce::Colour clearTint = juce::Colour::fromRGB(220, 120, 60);
+            const juce::Colour clearTint = col(kScopePLock);
             const int targetStep = uiState_.pLockClearStep;
             const auto& stepData = processor_.sequence()
                 .tracks[static_cast<std::size_t>(activeTrack_)]
@@ -1730,20 +1762,23 @@ namespace lockstep
                     const int y    = rowY(row);
                     const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
-                    // Three-state fill: occupied (current/chain/idle), empty, or out-of-range.
+                    // Three-state fill: all cells derive from scopeTint.
+                    // Out-of-range / empty: faint tint (black overlay).
+                    // Present not selected (idle/chain): moderate tint.
+                    // Selected (current): white overlay — bright scope colour.
                     juce::Colour fill;
                     if (!avail)
-                        fill = juce::Colour(kStepOutRange);
+                        fill = scopeTint.withAlpha(0.04f);
                     else if (isEmpty)
-                        fill = juce::Colour(kStepOutRange).brighter(0.06f);
+                        fill = scopeTint.withAlpha(0.09f);
                     else if (isCurrent && !isNext)
-                        fill = juce::Colours::white.withAlpha(0.18f);
+                        fill = juce::Colours::white.interpolatedWith(scopeTint, 0.30f);
                     else if (isNext)
                         fill = scopeTint.withAlpha(0.80f);
                     else if (isChain)
-                        fill = scopeTint.withAlpha(0.38f);
+                        fill = scopeTint.withAlpha(0.42f);
                     else
-                        fill = scopeTint.withAlpha(0.12f);
+                        fill = scopeTint.withAlpha(0.18f);
 
                     g.setColour(fill);
                     g.fillRoundedRectangle(cell.toFloat(), 4.0f);
@@ -1751,12 +1786,12 @@ namespace lockstep
                     // Border: occupied slots get a rim; empty and out-of-range do not.
                     if (!isEmpty && avail && isCurrent && !isNext)
                     {
-                        g.setColour(juce::Colours::white.withAlpha(0.60f));
+                        g.setColour(juce::Colours::white.withAlpha(0.70f));
                         g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
                     }
                     else if (!isEmpty && avail && !isNext)
                     {
-                        g.setColour(scopeTint.withAlpha(isChain ? 0.60f : 0.35f));
+                        g.setColour(scopeTint.withAlpha(isChain ? 0.65f : 0.40f));
                         g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
                     }
 

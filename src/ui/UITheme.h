@@ -64,7 +64,7 @@ namespace lockstep::theme
     inline constexpr uint32_t kStepOutRange  = 0xFF1C2026u;  // near-black — out of range
     inline constexpr uint32_t kStepPlayhead  = 0xFFFFCC44u;  // amber border
     inline constexpr uint32_t kStepHeld      = 0xFFFFFFFFu;  // white — held-step border
-    inline constexpr uint32_t kStepPLock     = 0xFF3EC8C8u;  // cyan — P-Lock dot
+    inline constexpr uint32_t kStepPLock     = 0xFF8060E0u;  // light indigo — P-Lock dot (matches kScopePLock family)
 
     // -------------------------------------------------------------------------
     // Scope colour grammar (MHZ.1.4, DESIGN §6.6)
@@ -85,10 +85,27 @@ namespace lockstep::theme
 
     // Performance-specialist modifiers.
     inline constexpr uint32_t kScopeMute    = 0xFFC03030u;  // red   (global mute)
-    inline constexpr uint32_t kScopePMute   = 0xFFC07820u;  // amber (pattern mute)
+    inline constexpr uint32_t kScopePMute   = 0xFFC03080u;  // rose  (pattern mute — distinct from amber compound-chord strip)
+    inline constexpr uint32_t kScopeFill    = 0xFF80C020u;  // chartreuse
 
     // Part+SRC machine picker: visibly distinct from Part itself.
     inline constexpr uint32_t kScopeMachine = 0xFF50C030u;  // lime
+
+    // Step-grid sub-mode identities (not section-suite scopes; rendered via UI state flags).
+    inline constexpr uint32_t kScopeNoteEdit = 0xFF2888D8u;  // azure  (distinct from Track cyan)
+    inline constexpr uint32_t kScopePLock    = 0xFF6040C0u;  // indigo (distinct from amber compound-chord strip)
+
+    // -------------------------------------------------------------------------
+    // Dim (dark-tinted) versions of each scope colour — modifier key inactive backgrounds.
+    // Each is ~25% of the scope hue blended into black, giving a clearly-hued resting state.
+    // -------------------------------------------------------------------------
+    inline constexpr uint32_t kScopeTrackDim   = 0xFF0C2830u;  // dark cyan   (kScopeTrack)
+    inline constexpr uint32_t kScopePatternDim = 0xFF201030u;  // dark violet (kScopePattern)
+    inline constexpr uint32_t kScopePartDim    = 0xFF082818u;  // dark green  (kScopePart)
+    inline constexpr uint32_t kScopeSceneDim   = 0xFF341808u;  // dark orange (kScopeScene)
+    inline constexpr uint32_t kScopeMasterDim  = 0xFF302800u;  // dark gold   (kScopeMaster)
+    inline constexpr uint32_t kScopeMuteDim    = 0xFF300C0Cu;  // dark red    (kScopeMute)
+    inline constexpr uint32_t kScopeFillDim    = 0xFF203008u;  // dark chartreuse (kScopeFill)
 
     // -------------------------------------------------------------------------
     // Helper: build a juce::Colour from a packed ARGB uint32
