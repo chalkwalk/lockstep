@@ -328,7 +328,11 @@ namespace lockstep
         for (auto& amp : trackAmps_)
             amp.prepare(sampleRate);
         for (auto& pnf : pendingNoteOffs_)
+        {
             pnf.samplesRemaining = -1;
+            pnf.openEnded        = false;
+        }
+        firedStepIdx_.fill(-1);
         nextTriggerPpq_.fill(0.0);
 
         gainSmoothed_.reset(sampleRate, 0.05);  // 50 ms ramp
@@ -455,8 +459,9 @@ namespace lockstep
                 {
                     // Collapse the remaining countdown to 0 so the pending note-off
                     // fires at the start of the next block via the normal dispatch path.
+                    // Also schedule open-ended (gate=None) notes for immediate release.
                     auto& pnf = pendingNoteOffs_[i];
-                    if (pnf.samplesRemaining > 0)
+                    if (pnf.samplesRemaining > 0 || pnf.openEnded)
                         pnf.samplesRemaining = 0;
                 }
             }
@@ -483,7 +488,11 @@ namespace lockstep
                 lastStepFired_[i] = false;
             }
             for (auto& pnf : pendingNoteOffs_)
+            {
                 pnf.samplesRemaining = -1;
+                pnf.openEnded        = false;
+            }
+            firedStepIdx_.fill(-1);
             metronome_.reset();
         }
 
@@ -562,6 +571,7 @@ namespace lockstep
                         juce::MidiMessage::noteOff(1, pnf.notes[static_cast<std::size_t>(n)]),
                         pnf.samplesRemaining);
                 pnf.samplesRemaining = -1;
+                pnf.openEnded        = false;
             }
             else
             {
@@ -1197,6 +1207,25 @@ namespace lockstep
                         triggerAt = std::max(0, static_cast<int>(offset));
                         firedStepIdx_[i] = stepIndex;  // ME.4: track last-fired step for FLTR P-Locks
                     }
+                    else if (stepIndex == firedStepIdx_[i] && firedStepIdx_[i] >= 0)
+                    {
+                        // The step that last fired has cycled back but doesn't fire now
+                        // (user toggled it off, or condition failed). Close any open-ended
+                        // note that was left sounding by that step.
+                        auto& pnf = pendingNoteOffs_[i];
+                        if (pnf.openEnded)
+                        {
+                            const double off = (nextTriggerPpq_[i] - blockStart) * samplesPerPpq;
+                            const int nofAt  = std::clamp(static_cast<int>(off), 0,
+                                                          numBlockSamples - 1);
+                            for (int n = 0; n < pnf.noteCount; ++n)
+                                trackMidi[i].addEvent(
+                                    juce::MidiMessage::noteOff(
+                                        1, pnf.notes[static_cast<std::size_t>(n)]),
+                                    nofAt);
+                            pnf.openEnded = false;
+                        }
+                    }
                     lastStepFired_[i] = fired;
                 }
                 nextTriggerPpq_[i] += divPpq;
@@ -1215,7 +1244,7 @@ namespace lockstep
                 // juce::MidiBuffer iterates same-position events in insertion order.
                 {
                     auto& pnf = pendingNoteOffs_[i];
-                    if (pnf.samplesRemaining >= 0)
+                    if (pnf.samplesRemaining >= 0 || pnf.openEnded)
                     {
                         for (int n = 0; n < pnf.noteCount; ++n)
                             trackMidi[i].addEvent(
@@ -1223,6 +1252,7 @@ namespace lockstep
                                     1, pnf.notes[static_cast<std::size_t>(n)]),
                                 triggerAt);
                         pnf.samplesRemaining = -1;
+                        pnf.openEnded        = false;
                     }
                 }
 
@@ -1321,7 +1351,18 @@ namespace lockstep
                         pnf.samplesRemaining  = noteOffAt - numBlockSamples;
                         pnf.noteCount         = notesToEmit;
                         pnf.notes             = emitNotes;
+                        pnf.openEnded         = false;
                     }
+                }
+                else
+                {
+                    // gate=None: voices play to their envelope end. Track the open notes
+                    // so they can be closed if the step is toggled off or the sequencer stops.
+                    auto& pnf     = pendingNoteOffs_[i];
+                    pnf.openEnded = true;
+                    pnf.noteCount = notesToEmit;
+                    pnf.notes     = emitNotes;
+                    // samplesRemaining stays -1 — no scheduled release.
                 }
             }
 

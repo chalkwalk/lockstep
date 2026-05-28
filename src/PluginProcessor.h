@@ -442,9 +442,11 @@ namespace lockstep
         // Pending sequencer-scheduled note-offs that spill past the current block boundary.
         struct PendingNoteOff
         {
-            int samplesRemaining = -1;  // -1 = none; else samples from start of next block
-            int noteCount        = 1;
+            int  samplesRemaining = -1;    // -1 = none; else samples from start of next block
+            int  noteCount        = 1;
             std::array<int, kMaxNotesPerStep> notes{ 60, 0, 0, 0 };
+            bool openEnded        = false; // gate=None: note playing indefinitely; close on
+                                           // cycle-back or sequencer stop
         };
         std::array<PendingNoteOff, kNumTracks> pendingNoteOffs_{};
 

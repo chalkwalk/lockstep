@@ -41,8 +41,16 @@ namespace lockstep
 
     void SamplePlayer::release()
     {
-        if (stage == Stage::Sustain)
-            advanceStage();
+        if (stage == Stage::Idle || stage == Stage::Release)
+            return;
+        // Jump directly to Release from any active stage so note-off works
+        // even when the envelope hasn't reached Sustain yet (e.g. long Decay).
+        releaseStartLevel = envLevel;
+        stage = Stage::Release;
+        if (releaseSamples > 0)
+            stageRemaining = releaseSamples;
+        else
+            advanceStage();  // instant release → Idle
     }
 
     void SamplePlayer::advanceStage()
