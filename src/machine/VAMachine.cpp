@@ -749,9 +749,12 @@ namespace lockstep
                                                          paraMode);
                 sv.currentFreq = savedFreq;
 
+                // In mono mode the master ampEnv controls volume (combinedGain
+                // below); per-voice AR is para-only. In para keepForRelease the
+                // master amp release also governs, so AR is bypassed there too.
                 float voiceGain;
-                if (sv.keepForRelease)
-                    voiceGain = 1.0f;  // master amp env governs
+                if (!paraMode || sv.keepForRelease)
+                    voiceGain = 1.0f;
                 else
                     voiceGain = sv.ar.tick();
 
