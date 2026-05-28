@@ -1,5 +1,6 @@
 #include "PluginEditor.h"
 #include "ParameterIDs.h"
+#include "core/TrackInputMode.h"
 #include "machine/IMachine.h"
 #include "machine/SamplerMachine.h"
 #include "ui/ScopedSectionMatrix.h"
@@ -520,6 +521,32 @@ namespace lockstep
                     g.setColour(juce::Colours::white);
                     g.drawText(juce::String(looping ? "CHN:" : "CHN1:") + juce::String(chainLen),
                                r, juce::Justification::centred);
+                    bx += badgeW + kGap;
+                }
+
+                // MHZ.7.1: per-track input-mode badge — shown when focused track is not in PLAY mode.
+                {
+                    const int track = keyboardArea_.getActiveTrack();
+                    const auto mode = (track >= 0 && track < static_cast<int>(kNumTracks))
+                                      ? uiState_.trackInputMode[static_cast<std::size_t>(track)]
+                                      : TrackInputMode::Play;
+                    const char* modeLabel = nullptr;
+                    juce::Colour modeCol;
+                    switch (mode)
+                    {
+                        case TrackInputMode::Play:      break;  // no badge
+                        case TrackInputMode::Edit:      modeLabel = "EDIT";  modeCol = juce::Colour(0xFF50C8A0u); break;
+                        case TrackInputMode::Chromatic: modeLabel = "CHROM"; modeCol = juce::Colour(0xFF4090E0u); break;
+                        case TrackInputMode::Levels:    modeLabel = "LEVLS"; modeCol = juce::Colour(0xFFE07030u); break;
+                    }
+                    if (modeLabel != nullptr && bx + 46 < kSplitX)
+                    {
+                        const auto r = juce::Rectangle<int>(bx, by, 46, kBadgeH);
+                        g.setColour(modeCol);
+                        g.fillRoundedRectangle(r.toFloat(), 3.0f);
+                        g.setColour(juce::Colours::white);
+                        g.drawText(modeLabel, r, juce::Justification::centred);
+                    }
                 }
             }
 

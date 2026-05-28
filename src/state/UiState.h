@@ -3,9 +3,10 @@
 #include <array>
 #include <map>
 #include <set>
-#include "../core/Sequence.h"   // kNumTracks
+#include "../core/Sequence.h"        // kNumTracks
+#include "../core/TrackInputMode.h"
 #include "../io/TrigGridMode.h"
-#include "../machine/IMachine.h"  // kMaxSections
+#include "../machine/IMachine.h"    // kMaxSections
 
 namespace lockstep
 {
@@ -99,6 +100,10 @@ namespace lockstep
         // True = this track has an odd number of pending presses and will flip its
         // committed pattern mute state when Func releases.
         std::array<bool, kNumTracks> pendingPatternMuteToggle{};
+
+        // MHZ.7.1: per-track input mode. RAM-only; set by Track+verb gesture (MHZ.7.2).
+        // Mode applies on the focused track; TrackInputMode::Play is the default.
+        std::array<TrackInputMode, kNumTracks> trackInputMode{};
 
         // Returns the first slot index for the currently active page on the given track.
         // Returns 0 if track is out of range or info.firstSlot is -1 (empty section).
