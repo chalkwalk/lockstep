@@ -40,6 +40,7 @@ namespace lockstep
         monoGhostGain_ = 0.0f;
         monoGhostFade_ = 0;
         monoGate_.reset();
+        prevParaMode_  = false;
         lfoRandCurr_   = 0.0f;
         lfoRandNext_   = 0.0f;
         lfoRandPhase_  = 0.0;
@@ -506,6 +507,28 @@ namespace lockstep
         const bool paraMode  = (p(kSlotVoiceMode) >= 0.5f);
         const int numSamples = buffer.getNumSamples();
         const int numOut     = buffer.getNumChannels();
+
+        // ---- Mode-switch cleanup ------------------------------------------
+        // When Mono↔Para flips, stale voice state from the previous mode causes
+        // silence (Para→Mono: old sub-voices keep playing at full gain, overdriving
+        // output) or missing envelopes (Mono→Para: voice-0 still active, so the
+        // first startParaVoice() skips the master env trigger). Hard-flush here.
+        if (paraMode != prevParaMode_)
+        {
+            monoGate_.reset();
+            for (auto& sv : subVoices_)
+            {
+                sv.active         = false;
+                sv.keepForRelease = false;
+                sv.ar.reset();
+            }
+            paraChordNoteIdx_ = 0;
+            monoGhostGain_    = 0.0f;
+            monoGhostFade_    = 0;
+            ampEnv_.reset();
+            filterEnv_.reset();
+            prevParaMode_ = paraMode;
+        }
 
         // ---- Scan events -----------------------------------------------
         struct NoteEvent { int samplePos; int note; float vel; bool on; };

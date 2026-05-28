@@ -181,6 +181,10 @@ namespace lockstep
     float  lfoRandNext_  = 0.0f;
     double lfoRandPhase_ = 0.0;
 
+    // Tracks the previous block's voice mode so we can detect a Mono↔Para
+    // switch and flush stale voice state before it causes havoc.
+    bool prevParaMode_ = false;
+
     // Per-voice AR constants (Microfreak paraphony articulation).
     static constexpr float kParaArAttackMs  =  8.0f;
     static constexpr float kParaArReleaseMs = 25.0f;
