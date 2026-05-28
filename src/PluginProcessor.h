@@ -159,8 +159,24 @@ namespace lockstep
         int  checkpointDepth() const;
 
         // MD.9: Fill scope state — set by the UI thread, read by the audio thread.
-        void setFillActive(bool v) { fillActive_.store(v, std::memory_order_relaxed); }
+        // Two activation scopes share the same fill data:
+        //   * Fill alone  → allTracks=true:  every track sees fillActive during play.
+        //   * Func+Fill   → allTracks=false: only `trackIfNotAll` sees fillActive.
+        // Editing routes identically through writeFillParam (held step on current track).
+        void setFillActive(bool active, bool allTracks = true, int trackIfNotAll = -1)
+        {
+            fillActive_      .store(active,                       std::memory_order_relaxed);
+            fillAllTracks_   .store(allTracks,                    std::memory_order_relaxed);
+            fillLockedTrack_ .store(active && !allTracks ? trackIfNotAll : -1,
+                                                                  std::memory_order_relaxed);
+        }
         bool fillActive()    const { return fillActive_.load(std::memory_order_relaxed); }
+        bool fillActiveForTrack(int i) const
+        {
+            if (!fillActive_.load(std::memory_order_relaxed)) return false;
+            if (fillAllTracks_.load(std::memory_order_relaxed)) return true;
+            return i == fillLockedTrack_.load(std::memory_order_relaxed);
+        }
 
         // MD.6: Global mutes — per-track, live in the APVTS (trackMute params).
         // getGlobalMute reads the APVTS param; setGlobalMute writes through APVTS.
@@ -358,7 +374,9 @@ namespace lockstep
         struct CheckpointEntry { Pattern savedPattern; Part savedPart; };
         static constexpr int kMaxCheckpoints = 8;
         std::map<int, std::vector<CheckpointEntry>> checkpoints_;
-        std::atomic<bool> fillActive_ { false };
+        std::atomic<bool> fillActive_      { false };
+        std::atomic<bool> fillAllTracks_   { true };
+        std::atomic<int>  fillLockedTrack_ { -1 };
 
         // Current slot index for each MZ display position.
         // Written by the UI thread, read by the audio thread (atomic).

@@ -1180,7 +1180,7 @@ namespace lockstep
             if (nextTriggerPpq_[i] < blockStart - divPpq)
                 nextTriggerPpq_[i] = std::floor(blockStart / divPpq) * divPpq;
 
-            const bool curFillActive = fillActive_.load(std::memory_order_relaxed);
+            const bool curFillActive = fillActiveForTrack(static_cast<int>(i));
             int triggerAt = -1;
             int stepIndex = 0;
 

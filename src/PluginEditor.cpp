@@ -680,6 +680,23 @@ namespace lockstep
         repaint();
     }
 
+    void LockstepEditor::updateFillActivation()
+    {
+        const bool fillHeld = uiState_.fillHeld;
+        const bool funcHeld = uiState_.funcHeld;
+        if (fillHeld && funcHeld)
+        {
+            if (fillLockedTrack_ < 0)
+                fillLockedTrack_ = keyboardArea_.getActiveTrack();
+            processor_.setFillActive(true, /*allTracks=*/false, fillLockedTrack_);
+        }
+        else
+        {
+            fillLockedTrack_ = -1;
+            processor_.setFillActive(fillHeld, /*allTracks=*/true, -1);
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Key handling (9x4 layout)
 
@@ -692,6 +709,7 @@ namespace lockstep
             case ControllerButton::Func:
                 uiState_.funcHeld = true;
                 editMode_.onScopeEvent(ev);
+                updateFillActivation();
                 keyboardArea_.repaint();
                 repaint();
                 return true;
@@ -718,8 +736,8 @@ namespace lockstep
 
             case ControllerButton::FillScope:
                 uiState_.fillHeld = true;
-                processor_.setFillActive(true);
                 editMode_.onScopeEvent(ev);
+                updateFillActivation();
                 repaint();
                 return true;
 
@@ -1445,6 +1463,7 @@ namespace lockstep
                 // MHZ.3.5: Func release exits machine picker mode.
                 uiState_.funcPartHeld = false;
                 editMode_.onScopeEvent({ T::ButtonUp, CB::Func });
+                updateFillActivation();
                 keyboardArea_.repaint();
                 repaint();
                 break;
@@ -1478,8 +1497,8 @@ namespace lockstep
 
             case CB::FillScope:
                 uiState_.fillHeld = false;
-                processor_.setFillActive(false);
                 editMode_.onScopeEvent({ T::ButtonUp, CB::FillScope });
+                updateFillActivation();
                 repaint();
                 break;
 

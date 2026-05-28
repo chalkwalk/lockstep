@@ -85,6 +85,12 @@ namespace lockstep
 
         Clipboard clipboard_;
 
+        // Per-track fill latch: captured on the transition into Func+Fill held,
+        // cleared when either modifier releases. While Fill alone is held, this
+        // stays -1 and fill activates on every track.
+        int fillLockedTrack_ = -1;
+        void updateFillActivation();
+
         // MD.7/MD.8: deferred pattern mute track indices — collected while Func
         // is held inside mute mode; applied atomically on Func release.
         std::vector<int> deferredPatternMutes_;
