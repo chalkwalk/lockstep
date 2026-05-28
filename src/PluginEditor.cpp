@@ -535,7 +535,6 @@ namespace lockstep
                     switch (mode)
                     {
                         case TrackInputMode::Play:      break;  // no badge
-                        case TrackInputMode::Edit:      modeLabel = "EDIT";  modeCol = juce::Colour(0xFF50C8A0u); break;
                         case TrackInputMode::Chromatic: modeLabel = "CHROM"; modeCol = juce::Colour(0xFF4090E0u); break;
                         case TrackInputMode::Levels:    modeLabel = "LEVLS"; modeCol = juce::Colour(0xFFE07030u); break;
                     }
@@ -581,7 +580,7 @@ namespace lockstep
                     // Primary scope token. MHZ.7.2: show mode hint when Track+Control-All.
                     else if (ui.trackHeld && processor_.controlAllActive())
                     {
-                        ctx = "TRACK  |  Y=PLAY  U=EDIT  I=CHROM  O=LEVLS";
+                        ctx = "TRACK  |  I=CHROM  O=LEVLS  Y=PLAY";
                     }
                     else if (ui.trackHeld)        ctx = "TRACK " + juce::String(keyboardArea_.getActiveTrack() + 1);
                     else if (ui.patternScopeHeld) ctx = "PATTERN";
@@ -850,19 +849,20 @@ namespace lockstep
 
             case ControllerButton::Step:
             {
-                // MHZ.7.3: CHROMATIC mode — step keys are a 1-octave chromatic keyboard.
-                // Cells 0-11 = C through B in noteEditOctave; cells 12-15 = unused.
+                // MHZ.7.3: CHROMATIC mode — step keys are a piano keyboard.
+                // Piano layout via kPianoNoteOffset; dead keys (offset -1) are no-ops.
                 // With step held: write noteOverride. Always: trigger live note.
-                // record-arm + playing: routes through onNoteOn record path (MHZ.6).
                 {
                     const int at = keyboardArea_.getActiveTrack();
                     if (at >= 0 && at < static_cast<int>(kNumTracks)
                         && uiState_.trackInputMode[static_cast<std::size_t>(at)] == TrackInputMode::Chromatic
                         && uiState_.trigGridMode == TrigGridMode::Default)
                     {
-                        if (ev.index >= 12) return true;  // cells 12-15 unused
+                        if (ev.index < 0 || ev.index >= 16) return true;
+                        const int semitone = kPianoNoteOffset[static_cast<std::size_t>(ev.index)];
+                        if (semitone < 0) return true;  // dead key (D, H, ;)
                         const int note = juce::jlimit(0, 127,
-                            (uiState_.noteEditOctave + 1) * 12 + ev.index);
+                            (uiState_.noteEditOctave + 1) * 12 + semitone);
 
                         // If a step is held in the EditContext, write noteOverride to it.
                         auto& ctx = processor_.editContext();
@@ -1225,41 +1225,24 @@ namespace lockstep
                 return true;
 
             case ControllerButton::NavUp:
-            {
-                // MHZ.7.3: CHROMATIC mode — NavUp shifts noteEditOctave up.
-                const int t = keyboardArea_.getActiveTrack();
-                if (t >= 0 && t < static_cast<int>(kNumTracks)
-                    && uiState_.trackInputMode[static_cast<std::size_t>(t)] == TrackInputMode::Chromatic)
-                {
-                    uiState_.noteEditOctave = std::min(uiState_.noteEditOctave + 1, 8);
-                    keyboardArea_.repaint();
-                    return true;
-                }
                 // Normal: next higher track number.
                 keyboardArea_.setActiveTrack(
                     std::min(static_cast<int>(kNumTracks) - 1,
                              keyboardArea_.getActiveTrack() + 1));
                 return true;
-            }
 
             case ControllerButton::NavDown:
-            {
-                // MHZ.7.3: CHROMATIC mode — NavDown shifts noteEditOctave down.
-                const int t = keyboardArea_.getActiveTrack();
-                if (t >= 0 && t < static_cast<int>(kNumTracks)
-                    && uiState_.trackInputMode[static_cast<std::size_t>(t)] == TrackInputMode::Chromatic)
-                {
-                    uiState_.noteEditOctave = std::max(uiState_.noteEditOctave - 1, 0);
-                    keyboardArea_.repaint();
-                    return true;
-                }
                 // Normal: previous (lower) track number.
                 keyboardArea_.setActiveTrack(std::max(0, keyboardArea_.getActiveTrack() - 1));
                 return true;
-            }
 
             case ControllerButton::NavLeft:
-                if (uiState_.noteEditMode)
+            {
+                // Note-edit mode and CHROMATIC mode both use NavLeft/Right for octave shift.
+                const int tl = keyboardArea_.getActiveTrack();
+                const bool chromL = tl >= 0 && tl < static_cast<int>(kNumTracks)
+                    && uiState_.trackInputMode[static_cast<std::size_t>(tl)] == TrackInputMode::Chromatic;
+                if (uiState_.noteEditMode || chromL)
                 {
                     uiState_.noteEditOctave = std::max(uiState_.noteEditOctave - 1, 0);
                     keyboardArea_.repaint();
@@ -1267,9 +1250,14 @@ namespace lockstep
                 }
                 keyboardArea_.prevPage();
                 return true;
+            }
 
             case ControllerButton::NavRight:
-                if (uiState_.noteEditMode)
+            {
+                const int tr = keyboardArea_.getActiveTrack();
+                const bool chromR = tr >= 0 && tr < static_cast<int>(kNumTracks)
+                    && uiState_.trackInputMode[static_cast<std::size_t>(tr)] == TrackInputMode::Chromatic;
+                if (uiState_.noteEditMode || chromR)
                 {
                     uiState_.noteEditOctave = std::min(uiState_.noteEditOctave + 1, 8);
                     keyboardArea_.repaint();
@@ -1285,6 +1273,7 @@ namespace lockstep
                 }
                 keyboardArea_.nextPage();
                 return true;
+            }
 
             // MHY.4: right-utility verbs. Without a scope modifier these perform their
             // default transport / confirmation action; with a scope held, EditMode
@@ -1363,16 +1352,6 @@ namespace lockstep
             case ControllerButton::VerbRecord:
             {
                 using PS = EditMode::PrimaryScope;
-                // MHZ.7.2: Track (no specific track selected) + VerbRecord → EDIT mode.
-                if (uiState_.trackHeld && processor_.controlAllActive())
-                {
-                    const int t = keyboardArea_.getActiveTrack();
-                    if (t >= 0 && t < static_cast<int>(kNumTracks))
-                        uiState_.trackInputMode[static_cast<std::size_t>(t)] = TrackInputMode::Edit;
-                    keyboardArea_.repaint();
-                    repaint();
-                    return true;
-                }
                 // Scope held → grammar verb (e.g. copy).  No scope → arm recording.
                 if (editMode_.primaryScope() != PS::None
                     && editMode_.primaryScope() != PS::Func)
