@@ -2,6 +2,7 @@
 
 #include "IMachine.h"
 #include "VoiceChoke.h"
+#include "dsp/MonoGate.h"
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -86,7 +87,7 @@ namespace lockstep
     static constexpr int kSlotOp2VelSens    = 33;
     static constexpr int kSlotOp3VelSens    = 34;
     static constexpr int kSlotOp4VelSens    = 35;
-    static constexpr int kSlotRetrig        = 36;  // 0=LEGATO 1=RETRIG 2=FREE
+    static constexpr int kSlotRetrig        = 36;  // 0=LEGATO 1=RETRIG
 
     // Section 6 — MOD (16 slots, 2 pages, extension of SRC)
     // Grouped by destination: slots[37+dst*4+src] = matrix[src][dst]
@@ -162,6 +163,6 @@ namespace lockstep
     double  sampleRate_ = 0.0;
     std::array<FMVoice, kMaxVoices> voices_{};
     std::uint64_t voiceCounter_ = 0;
-    std::vector<int> heldNotes_;  // mono-mode held-key tracking for correct release
+    dsp::MonoGate monoGate_{};
   };
 }

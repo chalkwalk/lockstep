@@ -24,7 +24,7 @@ namespace lockstep
       v.choke.prepare(sampleRate_, 1.5f);
     }
     voiceCounter_ = 0;
-    heldNotes_.clear();
+    monoGate_.reset();
   }
 
   IMachine::Polyphony FMMachine::currentVoices(const ParamFrame& baseParams) const
@@ -313,19 +313,17 @@ namespace lockstep
           }
           else
           {
-            // Track held notes; only release when last key is up.
-            heldNotes_.erase(
-                std::remove(heldNotes_.begin(), heldNotes_.end(), ev.note),
-                heldNotes_.end());
-            if (heldNotes_.empty())
+            using OA = dsp::MonoGate::OffAction;
+            const OA action = monoGate_.noteOff(ev.note);
+            if (action == OA::Release)
             {
               if (voices_[0].active) releaseVoice(0);
             }
-            else if (ev.note == voices_[0].midiNote)
+            else if (action == OA::SlideTo)
             {
-              // Playing note released while others held: slide to last held note.
-              legatoUpdateVoice(heldNotes_.back(), params, voices_[0].velocity);
+              legatoUpdateVoice(monoGate_.topHeldNote(), params, voices_[0].velocity);
             }
+            // Ignore: background key released, nothing to do.
           }
         }
         else
@@ -336,8 +334,6 @@ namespace lockstep
             auto& voice = voices_[static_cast<std::size_t>(idx)];
             if (voice.active || voice.choke.isFading())
             {
-              // Stealing an active/fading voice: defer the new note until the
-              // choke fade completes so we don't click.
               voice.pendingNote       = ev.note;
               voice.pendingVelocity   = ev.vel;
               voice.pendingParams     = params;
@@ -352,25 +348,20 @@ namespace lockstep
           }
           else
           {
-            // Track held notes for correct release.
-            if (std::find(heldNotes_.begin(), heldNotes_.end(), ev.note)
-                    == heldNotes_.end())
-                heldNotes_.push_back(ev.note);
+            // Retrig mode (legacy FREE value 2 clamped to RETRIG).
+            const int retrigMode = std::clamp(
+                (params.size() > static_cast<std::size_t>(kSlotRetrig))
+                    ? static_cast<int>(std::round(params[static_cast<std::size_t>(kSlotRetrig)]))
+                    : 0,
+                0, 1);
+
+            using OA = dsp::MonoGate::OnAction;
+            const OA action = monoGate_.noteOn(ev.note);
 
             auto& voice = voices_[0];
-            const int retrigMode = (params.size() > static_cast<std::size_t>(kSlotRetrig))
-                ? static_cast<int>(std::round(params[static_cast<std::size_t>(kSlotRetrig)]))
-                : 0;
-            if (retrigMode == 2)  // FREE: skip if voice is sounding
-            {
-              if (!voice.active && !voice.choke.isFading())
-                startVoice(0, ev.note, params, ev.vel);
-            }
-            else if (retrigMode == 0)  // LEGATO: update pitch, let envelope continue
-            {
-              legatoUpdateVoice(ev.note, params, ev.vel);
-            }
-            else  // RETRIG: immediate ghost-slot crossfade
+
+            // Helper: ghost-fade current voice then start new.
+            auto doRetrigStart = [&]()
             {
               if (voice.active || voice.choke.isFading())
               {
@@ -388,6 +379,20 @@ namespace lockstep
               {
                 startVoice(0, ev.note, params, ev.vel);
               }
+            };
+
+            if (action == OA::FirstTrigger)
+            {
+              // New phrase (held set was empty): always retrigger, both modes.
+              doRetrigStart();
+            }
+            else if (retrigMode == 0)  // LEGATO OverlapTrigger
+            {
+              legatoUpdateVoice(ev.note, params, ev.vel);
+            }
+            else  // RETRIG OverlapTrigger
+            {
+              doRetrigStart();
             }
           }
         }
@@ -533,8 +538,8 @@ namespace lockstep
     case kSlotOp4VelSens: return { "fm_vs_4", "Op4 VelSns", 0.0f, 1.0f, 0.0f, false, U::Percent, 3, R::None };
     case kSlotRetrig:
     {
-      static constexpr const char* kRetrigLabels[] = { "LEGATO", "RETRIG", "FREE" };
-      ParamSpec p { "fm_retrig", "Retrig", 0.0f, 2.0f, 0.0f, true, U::None, 3, R::None };
+      static constexpr const char* kRetrigLabels[] = { "LEGATO", "RETRIG" };
+      ParamSpec p { "fm_retrig", "Retrig", 0.0f, 1.0f, 0.0f, true, U::None, 3, R::None };
       p.valueLabels = std::span<const char* const>(kRetrigLabels);
       return p;
     }
