@@ -10,10 +10,10 @@ feature must satisfy, see `PRINCIPLES.md`. **Before adding a
 milestone here, confirm it is expressible within those principles
 and within the existing scope+verb grammar (DESIGN §13).**
 
-**Active focus:** MH.5 — machine pack file format.
-**Last completed:** MHZ.4 — Polyphonic step authoring fixes + VA paraphonic topology.
-**Previously completed:** MH.4 — Sampler depth (trim, loop region, ZC-snap) + SlicerMachine on shared SamplePlayingMachineBase.
-**Next up:** MH.5 — machine pack format; then MH.6 StaticMachine, MH.7 PercussionMachine, ME post-machine FLTR/AMP, MF MIDI-out.
+**Active focus:** MHZ.8 — Pattern length authoring.
+**Last completed:** MHZ.7 — Per-track input modes (CHROMATIC + LEVELS).
+**Previously completed:** MHZ.6 — Record-time capture parity (velocity + musical gate).
+**Next up:** MHZ.8 (pattern length), then MH.5 machine pack format.
 
 After M8 the roadmap pivots from "core sequencer is usable" to
 "performance instrument is usable" — see milestones MB–MI below
@@ -1150,19 +1150,19 @@ scope+verb grammar — modes only change what raw input *means* on the
 focused track. Folds MM (16-levels) into this milestone as the LEVELS
 mode, velocity-first.
 
-- [ ] **MHZ.7.1** `TrackInputMode = { PLAY, EDIT, CHROMATIC,
+- [x] **MHZ.7.1** `TrackInputMode = { PLAY, EDIT, CHROMATIC,
       LEVELS }` enum on `Track`, default `PLAY`. RAM-only
       initially (serialise later if play-testing proves it
       performance-sticky). Mode applies on the **focused** track
       only. Top-bar dashboard right zone (MHZ.2) shows current
       mode when not `PLAY`.
-- [ ] **MHZ.7.2** Mode selector gesture. Held `Track` (no
+- [x] **MHZ.7.2** Mode selector gesture. Held `Track` (no
       specific track-key) + verb-row key (`Y/U/I/O/P` =
       PLAY/EDIT/CHROMATIC/LEVELS) sets the focused track's mode.
       Composes with `Track + track-key` to set a specific
       track's mode without changing focus (compound qualifier
       per §13).
-- [ ] **MHZ.7.3** CHROMATIC mode. In CHROMATIC the 16 step cells
+- [x] **MHZ.7.3** CHROMATIC mode. In CHROMATIC the 16 step cells
       become a 1-octave chromatic keyboard for live play
       (reuses `UiState::noteEditOctave` + NavUp/NavDown for
       octave shift). Notes feed into the focused track's machine
@@ -1171,7 +1171,7 @@ mode, velocity-first.
       existing QWERTY MIDI overlay. With record-arm on +
       transport running, captured notes route through the
       MHZ.6 realtime record path and land in steps.
-- [ ] **MHZ.7.4** LEVELS mode (formerly MM). 16 step cells
+- [x] **MHZ.7.4** LEVELS mode (formerly MM). 16 step cells
       become quantised velocity buckets (`1/16, 2/16, …, 16/16`
       of 127). Cell-press semantics:
         - step held → write `velocityOverride` to all notes on
@@ -1185,11 +1185,11 @@ mode, velocity-first.
       Target-param selector (cutoff / pitch / etc.) deferred —
       LEVELS is velocity-only in MHZ.7; the role-tagged generic
       lands later as a sub-mode toggle.
-- [ ] **MHZ.7.5** Documentation: DESIGN new sub-section on
+- [x] **MHZ.7.5** Documentation: DESIGN new sub-section on
       per-track input modes; CLAUDE.md glossary
       (`TrackInputMode`, `CHROMATIC mode`, `LEVELS mode`); MM
       cross-referenced to MHZ.7; README §5 / §6.
-- [ ] **MHZ.7.6** Verification: set focused track to CHROMATIC;
+- [x] **MHZ.7.6** Verification: set focused track to CHROMATIC;
       step keys play chromatic pitches; NavUp/Down shifts
       octave; record-arm captures to steps. Switch to LEVELS;
       held step + cell-press writes velocity to the chord;
