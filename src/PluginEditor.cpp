@@ -882,7 +882,56 @@ namespace lockstep
                             ctx.markParamWritten();
                         }
 
+                        uiState_.lastPlayedNote[static_cast<std::size_t>(at)] = note;
                         processor_.triggerNote(at, note);
+                        return true;
+                    }
+                }
+
+                // MHZ.7.4: LEVELS mode — step cells are 16 velocity buckets.
+                // Vel = roundToInt((cellIdx+1)/16 * 127).
+                // Step held → write uniform velocity to held step.
+                // No step held + stopped → set track base velocity.
+                // No step held + record-arm + playing → fire + capture via triggerNote.
+                {
+                    const int at = keyboardArea_.getActiveTrack();
+                    if (at >= 0 && at < static_cast<int>(kNumTracks)
+                        && uiState_.trackInputMode[static_cast<std::size_t>(at)] == TrackInputMode::Levels
+                        && uiState_.trigGridMode == TrigGridMode::Default)
+                    {
+                        const int vel = juce::roundToInt((ev.index + 1.0f) / 16.0f * 127.0f);
+                        auto& ctx = processor_.editContext();
+
+                        if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == at)
+                        {
+                            // Step held → write velocity override to all held steps.
+                            auto& trk = processor_.sequence()
+                                            .tracks[static_cast<std::size_t>(at)];
+                            for (int heldIdx : ctx.heldSteps())
+                            {
+                                if (heldIdx < 0 || heldIdx >= kMaxStepsPerTrack) continue;
+                                auto& s = trk.steps[static_cast<std::size_t>(heldIdx)];
+                                s.trigOverride.hasVelocity = true;
+                                s.trigOverride.velocity    = vel;
+                            }
+                            ctx.markParamWritten();
+                        }
+                        else if (!processor_.clock().inPluginPlaying())
+                        {
+                            // Stopped + no step held → set track base velocity.
+                            processor_.sequence()
+                                .tracks[static_cast<std::size_t>(at)]
+                                .trigDefaults.velocity = vel;
+                        }
+                        else
+                        {
+                            // Playing (record-arm or not) → fire note at chosen velocity.
+                            const int pitch = uiState_.lastPlayedNote[static_cast<std::size_t>(at)];
+                            const int note  = pitch > 0 ? pitch : 60;
+                            processor_.triggerNote(at, note, 350, vel);
+                        }
+
+                        keyboardArea_.repaint();
                         return true;
                     }
                 }

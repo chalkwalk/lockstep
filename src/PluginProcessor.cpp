@@ -852,9 +852,11 @@ namespace lockstep
             const int req = kbdNoteReq_.exchange(-1, std::memory_order_acq_rel);
             if (req >= 0)
             {
+                const int kbdVel    = (req >> 24) & 0x7F;
                 const int midiNote  = (req >> 16) & 0x7F;
                 const int durMs     = req & 0xFFFF;
                 const int noteTrack = kbdNoteTrack_.load(std::memory_order_acquire);
+                const int noteVel   = kbdVel > 0 ? kbdVel : 100;  // legacy path safety
 
                 // Cancel any in-flight keyboard note-off.
                 if (kbdNoteOffRemaining_ >= 0)
@@ -867,7 +869,7 @@ namespace lockstep
                     static_cast<int>(getSampleRate() * static_cast<double>(durMs) / 1000.0);
                 trackMidi[static_cast<std::size_t>(noteTrack)].addEvent(
                     juce::MidiMessage::noteOn(1, static_cast<juce::uint8>(midiNote),
-                                              static_cast<juce::uint8>(100)), 0);
+                                              static_cast<juce::uint8>(noteVel)), 0);
             }
 
             if (kbdNoteOffRemaining_ >= 0)
@@ -1995,11 +1997,13 @@ namespace lockstep
         previewPoolIndex_.store(poolIndex, std::memory_order_release);
     }
 
-    void LockstepProcessor::triggerNote(int track, int midiNote, int durationMs)
+    void LockstepProcessor::triggerNote(int track, int midiNote, int durationMs, int velocity)
     {
         kbdNoteTrack_.store(juce::jlimit(0, static_cast<int>(kNumTracks) - 1, track),
                             std::memory_order_relaxed);
-        const int packed = (juce::jlimit(0, 127, midiNote) << 16)
+        // Pack: bits 30-24 = velocity (7-bit), bits 22-16 = note (7-bit), bits 15-0 = durationMs.
+        const int packed = (juce::jlimit(1, 127, velocity) << 24)
+                           | (juce::jlimit(0, 127, midiNote) << 16)
                            | juce::jlimit(1, 0xFFFF, durationMs);
         kbdNoteReq_.store(packed, std::memory_order_release);
     }

@@ -105,6 +105,10 @@ namespace lockstep
         // Mode applies on the focused track; TrackInputMode::Play is the default.
         std::array<TrackInputMode, kNumTracks> trackInputMode{};
 
+        // MHZ.7.4: last note played per-track, used as LEVELS record-arm pitch.
+        // Updated whenever a note is triggered (keyboard overlay or CHROMATIC mode).
+        std::array<int, kNumTracks> lastPlayedNote{};  // default 60 (C4)
+
         // Returns the first slot index for the currently active page on the given track.
         // Returns 0 if track is out of range or info.firstSlot is -1 (empty section).
         [[nodiscard]] int activeFirstSlot(int track, const SectionInfo& info) const
