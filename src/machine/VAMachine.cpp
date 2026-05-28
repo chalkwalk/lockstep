@@ -18,6 +18,11 @@ namespace lockstep
     {
         sampleRate_ = sampleRate;
         reset();
+        // Re-prepare envelope objects after reset() zeroed their sr_ fields.
+        ampEnv_.prepare(sampleRate);
+        filterEnv_.prepare(sampleRate);
+        for (auto& sv : subVoices_)
+            sv.ar.prepare(sampleRate);
     }
 
     void VAMachine::reset()
@@ -25,18 +30,19 @@ namespace lockstep
         for (auto& sv : subVoices_) sv = SubVoice{};
         voiceCounter_     = 0;
         paraChordNoteIdx_ = 0;
-        env_  = SharedEnv{};
+        ampEnv_.reset();
+        filterEnv_.reset();
         svf1_.reset();
         svf2_.reset();
-        lfoPhase_     = 0.0;
-        lfoOut_       = 0.0f;
-        noiseState_   = 0.0f;
+        lfoPhase_      = 0.0;
+        lfoOut_        = 0.0f;
+        noiseState_    = 0.0f;
         monoGhostGain_ = 0.0f;
         monoGhostFade_ = 0;
-        heldNotes_.clear();
-        lfoRandCurr_  = 0.0f;
-        lfoRandNext_  = 0.0f;
-        lfoRandPhase_ = 0.0;
+        monoGate_.reset();
+        lfoRandCurr_   = 0.0f;
+        lfoRandNext_   = 0.0f;
+        lfoRandPhase_  = 0.0;
     }
 
     // =========================================================================
@@ -89,6 +95,15 @@ namespace lockstep
         case kSlotAmpR:       { ParamSpec p { "va_amp_r", "Release", 1.0f,10000.0f, 500.0f, false, U::Ms, 3, R::Release }; p.skew = 0.3f; return p; }
         case kSlotLevel:      return { "va_level",        "Level",         0.0f,  1.0f,  0.8f,  false, U::None,     3, R::Level   };
         case kSlotPan:        return { "va_pan",          "Pan",          -1.0f,  1.0f,  0.0f,  false, U::None,     3, R::Pan     };
+        case kSlotRetrig:
+        {
+          static constexpr const char* kRetrigLabels[] = { "LEGATO", "RETRIG" };
+          ParamSpec p { "va_retrig", "Retrig", 0.0f, 1.0f, 0.0f, true, U::None, 3, R::None };
+          p.valueLabels = std::span<const char* const>(kRetrigLabels);
+          return p;
+        }
+        case kSlotVelSens:
+          return { "va_vel_sens", "Vel Sens", 0.0f, 1.0f, 0.0f, false, U::Percent, 3, R::None };
 
         // --- LFO (section 4) ---
         case kSlotLfoRate:    return { "va_lfo_rate",     "LFO Rate",    0.01f, 40.0f,  3.0f, false, U::None,      4, R::LfoRate  };
@@ -96,16 +111,6 @@ namespace lockstep
         case kSlotLfoShape:   { ParamSpec p { "va_lfo_shape",    "LFO Shape",   0.0f,   5.0f,  0.0f, true,  U::None,      4, R::LfoShape }; p.valueLabels = std::span<const char* const>(kLfoShapeLabels);  return p; }
         case kSlotLfoTarget:  { ParamSpec p { "va_lfo_target",   "LFO Target",  0.0f,   3.0f,  0.0f, true,  U::None,      4, R::None     }; p.valueLabels = std::span<const char* const>(kLfoTargetLabels); return p; }
         case kSlotLfoSync:    { ParamSpec p { "va_lfo_sync",     "LFO Sync",    0.0f,   1.0f,  0.0f, true,  U::None,      4, R::None     }; p.valueLabels = std::span<const char* const>(kLfoSyncLabels);   return p; }
-        case kSlotRetrig:
-        {
-          static constexpr const char* kRetrigLabels[] = { "LEGATO", "RETRIG", "FREE" };
-          ParamSpec p { "va_retrig", "Retrig", 0.0f, 2.0f, 0.0f, true, U::None, 3, R::None };
-          p.valueLabels = std::span<const char* const>(kRetrigLabels);
-          return p;
-        }
-        case kSlotVelSens:
-          return { "va_vel_sens", "Vel Sens", 0.0f, 1.0f, 0.0f, false, U::Percent, 3, R::None };
-
         default: return {};
         }
     }
@@ -127,7 +132,6 @@ namespace lockstep
 
     IMachine::Polyphony VAMachine::currentVoices(const ParamFrame& baseParams) const
     {
-        // Para mode flips on at the same 0.5 threshold the process() path uses.
         if (static_cast<int>(baseParams.size()) > kSlotVoiceMode
             && baseParams[static_cast<std::size_t>(kSlotVoiceMode)] >= 0.5f)
             return Polyphony::V4;
@@ -141,8 +145,10 @@ namespace lockstep
     {
         if (monoGhostFade_ > 0) return true;
         for (const auto& sv : subVoices_)
-            if (sv.active || sv.fadeRemain > 0) return true;
-        return env_.aStage != Stage::Idle;
+        {
+            if (sv.active || sv.ar.isActive() || sv.keepForRelease) return true;
+        }
+        return ampEnv_.isActive();
     }
 
     // =========================================================================
@@ -254,8 +260,7 @@ namespace lockstep
             if (sv.osc2Phase >= 1.0) sv.osc2Phase -= 1.0;
         }
 
-        // Sub (one octave below the primary osc; follows osc1 for both types in mono,
-        // and for osc1-type voices in para; osc2-type voices also get sub at their pitch).
+        // Sub (one octave below the primary osc)
         if (subLevel > 0.0f)
         {
             const double ph = sv.subPhase;
@@ -265,15 +270,11 @@ namespace lockstep
             if (sv.subPhase >= 1.0) sv.subPhase -= 1.0;
         }
 
-        // Noise is not generated here — a single shared generator is mixed after the
-        // voice sum in process(), regardless of mono/para mode.
-
         return out;
     }
 
     float VAMachine::filterSample(float in, float f, float q, int filterType) noexcept
     {
-        // SVF update helper — inline lambda-free for performance
         auto runSVF = [](SVFState& s, float x, float fc, float res) -> std::tuple<float,float,float>
         {
             s.hp = x - res * s.bp - s.lp;
@@ -302,81 +303,22 @@ namespace lockstep
         }
     }
 
-    float VAMachine::advanceEnvLevel(Stage& stage, float& level, float& /*releaseStart*/,
-                                      int& remain, float decayMul, float relMul,
-                                      float sustain) noexcept
-    {
-        switch (stage)
-        {
-        case Stage::Idle: return 0.0f;
-        case Stage::Attack:
-            if (remain > 0) { level += 1.0f / static_cast<float>(remain + 1); --remain; }
-            level = std::min(level, 1.0f);
-            if (remain <= 0) { stage = Stage::Decay; }
-            return level;
-        case Stage::Decay:
-            level *= decayMul;
-            level = std::max(level, sustain);
-            if (std::abs(level - sustain) < 0.0001f) { level = sustain; stage = Stage::Sustain; }
-            return level;
-        case Stage::Sustain:
-            return sustain;
-        case Stage::Release:
-            level *= relMul;
-            if (level < 0.0001f) { level = 0.0f; stage = Stage::Idle; }
-            return level;
-        }
-        return 0.0f;
-    }
-
     // =========================================================================
     // Envelope helpers
 
-    void VAMachine::triggerEnvelopes(const ParamFrame& params)
+    void VAMachine::triggerEnvs(const ParamFrame& params)
     {
         const auto p = [&](int s) { return params[static_cast<std::size_t>(s)]; };
-
-        // Filter envelope
-        env_.fStage   = Stage::Attack;
-        env_.fLevel   = 0.0f;
-        env_.fSustain = p(kSlotFEnvS);
-        env_.fRemain  = msToSamples(p(kSlotFEnvA), sampleRate_);
-        {
-            const int ds = msToSamples(p(kSlotFEnvD), sampleRate_);
-            env_.fDecayMul = std::exp(-1.0f / static_cast<float>(ds));
-        }
-        {
-            const int rs = msToSamples(p(kSlotFEnvR), sampleRate_);
-            env_.fRelMul = std::exp(-1.0f / static_cast<float>(rs));
-        }
-
-        // Amp envelope
-        env_.aStage   = Stage::Attack;
-        env_.aLevel   = 0.0f;
-        env_.aSustain = p(kSlotAmpS);
-        env_.aRemain  = msToSamples(p(kSlotAmpA), sampleRate_);
-        {
-            const int ds = msToSamples(p(kSlotAmpD), sampleRate_);
-            env_.aDecayMul = std::exp(-1.0f / static_cast<float>(ds));
-        }
-        {
-            const int rs = msToSamples(p(kSlotAmpR), sampleRate_);
-            env_.aRelMul = std::exp(-1.0f / static_cast<float>(rs));
-        }
+        ampEnv_.setADSR(p(kSlotAmpA), p(kSlotAmpD), p(kSlotAmpS), p(kSlotAmpR));
+        ampEnv_.gateOn();
+        filterEnv_.setADSR(p(kSlotFEnvA), p(kSlotFEnvD), p(kSlotFEnvS), p(kSlotFEnvR));
+        filterEnv_.gateOn();
     }
 
-    void VAMachine::releaseEnvelopes()
+    void VAMachine::releaseEnvs()
     {
-        if (env_.fStage != Stage::Idle)
-        {
-            env_.fStage        = Stage::Release;
-            env_.fReleaseStart = env_.fLevel;
-        }
-        if (env_.aStage != Stage::Idle)
-        {
-            env_.aStage        = Stage::Release;
-            env_.aReleaseStart = env_.aLevel;
-        }
+        ampEnv_.gateOff();
+        filterEnv_.gateOff();
     }
 
     // =========================================================================
@@ -390,49 +332,25 @@ namespace lockstep
         const double targetHz = midiNoteToHz(midiNote);
         const float portaMs   = p(kSlotPorta);
 
-        if (portaMs <= 0.0f || !sv.active)
+        // Reset phases only when coming from a fully idle voice; if the voice is
+        // still in Release, preserve phases so the re-attack is click-free.
+        if (!sv.active)
         {
-            sv.currentFreq = targetHz;
             sv.osc1Phase   = 0.0;
             sv.osc2Phase   = 0.0;
             sv.subPhase    = 0.0;
         }
-        sv.targetFreq  = targetHz;
-        sv.active      = true;
-        sv.midiNote    = midiNote;
-        sv.microAmp    = 1.0f;
-        sv.fadeRemain  = 0;
+        if (!sv.active || portaMs <= 0.0f)
+            sv.currentFreq = targetHz;
+
+        sv.targetFreq = targetHz;
+        sv.active     = true;
+        sv.midiNote   = midiNote;
 
         svf1_.reset();
         svf2_.reset();
 
-        triggerEnvelopes(params);
-
-        // LFO key sync
-        if (p(kSlotLfoSync) >= 0.5f)
-            lfoPhase_ = 0.0;
-    }
-
-    // Retrigger: update pitch and restart envelopes without resetting oscillator
-    // phases or SVF state, so the waveform transitions without a click.
-    void VAMachine::retriggerMonoVoice(int midiNote, const ParamFrame& params)
-    {
-        const auto p = [&](int s) { return params[static_cast<std::size_t>(s)]; };
-
-        auto& sv = subVoices_[0];
-        const double targetHz = midiNoteToHz(midiNote);
-        const float portaMs   = p(kSlotPorta);
-
-        if (portaMs <= 0.0f)
-            sv.currentFreq = targetHz;
-        sv.targetFreq = targetHz;
-        sv.active     = true;
-        sv.midiNote   = midiNote;
-        sv.microAmp   = 1.0f;
-        sv.fadeRemain = 0;
-        // Oscillator phases and SVF state intentionally NOT reset — avoids click.
-
-        triggerEnvelopes(params);
+        triggerEnvs(params);
 
         if (p(kSlotLfoSync) >= 0.5f)
             lfoPhase_ = 0.0;
@@ -441,15 +359,9 @@ namespace lockstep
     void VAMachine::legatoMonoVoice(int midiNote, const ParamFrame& params)
     {
         auto& sv = subVoices_[0];
-        if (!sv.active && monoGhostFade_ <= 0)
-        {
-            startMonoVoice(midiNote, params);
-            return;
-        }
         const auto p = [&](int s) { return params[static_cast<std::size_t>(s)]; };
         const double targetHz = midiNoteToHz(midiNote);
-        const float portaMs   = p(kSlotPorta);
-        if (portaMs <= 0.0f)
+        if (p(kSlotPorta) <= 0.0f)
             sv.currentFreq = targetHz;
         sv.targetFreq = targetHz;
         sv.midiNote   = midiNote;
@@ -458,10 +370,7 @@ namespace lockstep
 
     void VAMachine::releaseMonoVoice()
     {
-        // Keep subVoices_[0].active true so the oscillator keeps producing samples
-        // through the amp envelope's Release stage; the voice is deactivated only
-        // once the envelope finishes (see the Idle transition in the process loop).
-        releaseEnvelopes();
+        releaseEnvs();
     }
 
     // =========================================================================
@@ -469,25 +378,28 @@ namespace lockstep
 
     int VAMachine::allocSubVoice()
     {
-        // In para mode, prefer the slot that matches the current chord-note index
-        // so that note0→slot0 (osc1), note1→slot1 (osc2), note2→slot2 (osc1), etc.
+        // Prefer the slot matching the current chord-note index.
         const int preferred = paraChordNoteIdx_ % kMaxSubVoices;
         const auto& pv = subVoices_[static_cast<std::size_t>(preferred)];
-        if (!pv.active && pv.fadeRemain == 0)
+        if (!pv.active && !pv.ar.isActive() && !pv.keepForRelease)
             return preferred;
 
-        // Fall back to any inactive voice.
+        // Fall back to any fully idle voice.
         for (int i = 0; i < kMaxSubVoices; ++i)
-            if (!subVoices_[static_cast<std::size_t>(i)].active
-                && subVoices_[static_cast<std::size_t>(i)].fadeRemain == 0)
+        {
+            const auto& sv = subVoices_[static_cast<std::size_t>(i)];
+            if (!sv.active && !sv.ar.isActive() && !sv.keepForRelease)
                 return i;
+        }
 
         // All active: steal oldest (lowest age counter).
         int oldest = 0;
         for (int i = 1; i < kMaxSubVoices; ++i)
+        {
             if (subVoices_[static_cast<std::size_t>(i)].age
                 < subVoices_[static_cast<std::size_t>(oldest)].age)
                 oldest = i;
+        }
         return oldest;
     }
 
@@ -505,31 +417,44 @@ namespace lockstep
             sv.currentFreq = targetHz;
         sv.targetFreq  = targetHz;
         sv.active      = true;
-        sv.oscType     = paraChordNoteIdx_ % 2;  // 0 = osc1, 1 = osc2
+        sv.oscType     = paraChordNoteIdx_ % 2;
         sv.midiNote    = midiNote;
         sv.age         = ++voiceCounter_;
-        sv.microAmp    = 1.0f;
-        sv.fadeRemain  = 0;
         sv.osc1Phase   = 0.0;
         sv.osc2Phase   = 0.0;
         sv.subPhase    = 0.0;
+        sv.keepForRelease = false;
 
-        ++paraChordNoteIdx_;  // advance for next note in this chord
+        ++paraChordNoteIdx_;
 
-        // Trigger envelopes only if this is the first held (active) voice.
-        // Voices in their 2ms note-off fade (fadeRemain>0, active=false) are
-        // musically released; a new note-on should trigger fresh envelopes.
+        // Per-voice AR: gives Microfreak-style per-note articulation.
+        sv.ar.setADSR(kParaArAttackMs, 0.0f, 1.0f, kParaArReleaseMs);
+        sv.ar.gateOn();
+
+        // Trigger master envelopes only when this is the first held voice
+        // (transition from all-voices-off to first-voice-on).
         bool anyOtherActive = false;
         for (int i = 0; i < kMaxSubVoices; ++i)
+        {
             if (i != idx && subVoices_[static_cast<std::size_t>(i)].active)
-                { anyOtherActive = true; break; }
+            {
+                anyOtherActive = true;
+                break;
+            }
+        }
 
         if (!anyOtherActive)
         {
-            paraChordNoteIdx_ = 1;  // reset: first note just used slot 0
+            paraChordNoteIdx_ = 1;
             svf1_.reset();
             svf2_.reset();
-            triggerEnvelopes(params);
+            // Clear any lingering keepForRelease flags from previous chord.
+            for (auto& s : subVoices_) { s.keepForRelease = false; s.ar.reset(); }
+            // Re-gate the released sv so its AR still starts correctly.
+            sv.ar.setADSR(kParaArAttackMs, 0.0f, 1.0f, kParaArReleaseMs);
+            sv.ar.gateOn();
+
+            triggerEnvs(params);
         }
 
         if (p(kSlotLfoSync) >= 0.5f && !anyOtherActive)
@@ -538,22 +463,35 @@ namespace lockstep
 
     void VAMachine::releaseParaVoice(int midiNote)
     {
-        // Start micro-fade on matching voice(s).
-        const int fadeSamples = std::max(1, static_cast<int>(0.002 * sampleRate_));
         for (auto& sv : subVoices_)
         {
             if (sv.active && sv.midiNote == midiNote)
-            {
-                sv.active     = false;
-                sv.fadeRemain = fadeSamples;
-            }
+                sv.active = false;
         }
 
-        // Release envelopes when all voices are done/fading.
         const bool anyActive = std::any_of(subVoices_.begin(), subVoices_.end(),
                                             [](const SubVoice& s) { return s.active; });
         if (!anyActive)
-            releaseEnvelopes();
+        {
+            // Last key released: master envs enter Release.
+            // Mark voices that were sounding so they keep contributing through
+            // the release stage (master amp env governs; per-voice AR is bypassed).
+            releaseEnvs();
+            for (auto& sv : subVoices_)
+            {
+                if (sv.ar.isActive())
+                    sv.keepForRelease = true;
+            }
+        }
+        else
+        {
+            // Partial chord release: let the per-voice AR decay for articulation.
+            for (auto& sv : subVoices_)
+            {
+                if (!sv.active && !sv.keepForRelease && sv.ar.isActive())
+                    sv.ar.gateOff();
+            }
+        }
     }
 
     // =========================================================================
@@ -565,12 +503,11 @@ namespace lockstep
     {
         const auto p = [&](int s) { return params[static_cast<std::size_t>(s)]; };
 
-        const bool paraMode = (p(kSlotVoiceMode) >= 0.5f);
+        const bool paraMode  = (p(kSlotVoiceMode) >= 0.5f);
         const int numSamples = buffer.getNumSamples();
         const int numOut     = buffer.getNumChannels();
 
         // ---- Scan events -----------------------------------------------
-        // Collect all note-ons and note-offs with their sample positions.
         struct NoteEvent { int samplePos; int note; float vel; bool on; };
         juce::Array<NoteEvent> noteEvents;
         noteEvents.ensureStorageAllocated(8);
@@ -584,7 +521,6 @@ namespace lockstep
                 noteEvents.add({ meta.samplePosition, msg.getNoteNumber(), 0.0f, false });
         }
 
-        // Early exit
         if (!isVoiceActive() && noteEvents.isEmpty()) return;
 
         // ---- LFO (per-block update) ------------------------------------
@@ -603,12 +539,12 @@ namespace lockstep
             {
             case 0: raw = static_cast<float>(std::sin(kTwoPi * lfoPhase_)); break;
             case 1: raw = static_cast<float>(4.0 * std::abs(lfoPhase_ - 0.5) - 1.0); break;
-            case 2: raw = static_cast<float>(2.0 * lfoPhase_ - 1.0); break;  // Saw
-            case 3: raw = static_cast<float>(1.0 - 2.0 * lfoPhase_); break;  // RSaw
-            case 4: raw = (lfoPhase_ < 0.5) ? 1.0f : -1.0f; break;           // Pulse
-            case 5: // Random (S&H): advance on phase reset
+            case 2: raw = static_cast<float>(2.0 * lfoPhase_ - 1.0); break;
+            case 3: raw = static_cast<float>(1.0 - 2.0 * lfoPhase_); break;
+            case 4: raw = (lfoPhase_ < 0.5) ? 1.0f : -1.0f; break;
+            case 5:
             {
-                if (lfoPhase_ < prevPhase)  // wrap
+                if (lfoPhase_ < prevPhase)
                 {
                     lfoRandCurr_ = lfoRandNext_;
                     lfoRandNext_ = (static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX)) * 2.0f - 1.0f;
@@ -621,60 +557,59 @@ namespace lockstep
             lfoOut_ = raw * lfoDepth;
         }
 
-        const int   lfoTarget = static_cast<int>(p(kSlotLfoTarget));
+        const int   lfoTarget    = static_cast<int>(p(kSlotLfoTarget));
         const float lfoCutoffMod = (lfoTarget == 0) ? lfoOut_ * 0.5f : 0.0f;
-        const float lfoPitchMod  = (lfoTarget == 1) ? lfoOut_         : 0.0f;  // in semitones
+        const float lfoPitchMod  = (lfoTarget == 1) ? lfoOut_         : 0.0f;
         const float lfoPWMod     = (lfoTarget == 2) ? lfoOut_ * 0.2f  : 0.0f;
         const float lfoAmpMod    = (lfoTarget == 3) ? lfoOut_ * 0.5f  : 0.0f;
 
         // ---- Params -------------------------------------------------------
-        const float cutoffParam   = std::clamp(p(kSlotCutoff) + lfoCutoffMod, 0.0f, 1.0f);
-        const int   filterType    = static_cast<int>(p(kSlotFilterType));
-        const float driveGain     = 1.0f + 4.0f * p(kSlotDrive);
-        const float fEnvDepth     = p(kSlotFEnvDepth);
-        const float subLevel      = p(kSlotSub);
-        const float noiseLevel    = p(kSlotNoise);
-        const float portaMs       = p(kSlotPorta);
-        const int   osc1Wave      = static_cast<int>(p(kSlotOsc1Wave));
-        const float osc1PW        = std::clamp(p(kSlotOsc1PW) + lfoPWMod, 0.05f, 0.95f);
-        const int   osc2Wave      = static_cast<int>(p(kSlotOsc2Wave));
-        const float osc2PW        = std::clamp(p(kSlotOsc2PW) + lfoPWMod, 0.05f, 0.95f);
-        const float velSens    = p(kSlotVelSens);
-        const float velGain    = 1.0f - velSens + velSens * voiceVelocity_;
-        const float outputLevel   = p(kSlotLevel) * (1.0f + lfoAmpMod) * velGain;
-        const float pan           = std::clamp(p(kSlotPan), -1.0f, 1.0f);
+        const float cutoffParam  = std::clamp(p(kSlotCutoff) + lfoCutoffMod, 0.0f, 1.0f);
+        const int   filterType   = static_cast<int>(p(kSlotFilterType));
+        const float driveGain    = 1.0f + 4.0f * p(kSlotDrive);
+        const float fEnvDepth    = p(kSlotFEnvDepth);
+        const float subLevel     = p(kSlotSub);
+        const float noiseLevel   = p(kSlotNoise);
+        const float portaMs      = p(kSlotPorta);
+        const int   osc1Wave     = static_cast<int>(p(kSlotOsc1Wave));
+        const float osc1PW       = std::clamp(p(kSlotOsc1PW) + lfoPWMod, 0.05f, 0.95f);
+        const int   osc2Wave     = static_cast<int>(p(kSlotOsc2Wave));
+        const float osc2PW       = std::clamp(p(kSlotOsc2PW) + lfoPWMod, 0.05f, 0.95f);
+        const float velSens      = p(kSlotVelSens);
+        const float velGain      = 1.0f - velSens + velSens * voiceVelocity_;
+        const float outputLevel  = p(kSlotLevel) * (1.0f + lfoAmpMod) * velGain;
+        const float pan          = std::clamp(p(kSlotPan), -1.0f, 1.0f);
 
-        // Osc2 frequency ratio from coarse + fine params.
-        const float osc2CoarseST = p(kSlotOsc2Coarse);
+        const float osc2CoarseST  = p(kSlotOsc2Coarse);
         const float osc2FineCent  = p(kSlotOsc2Fine);
         const double osc2FreqRatio = std::pow(2.0, static_cast<double>(osc2CoarseST) / 12.0
                                                + static_cast<double>(osc2FineCent) / 1200.0);
 
-        // Osc1 coarse/fine pitch offset in Hz ratio.
         const float osc1CoarseST  = p(kSlotOsc1Coarse);
         const float osc1FineCent  = p(kSlotOsc1Fine);
         const double osc1FreqMul  = std::pow(2.0, static_cast<double>(osc1CoarseST) / 12.0
                                               + static_cast<double>(osc1FineCent) / 1200.0
                                               + static_cast<double>(lfoPitchMod)   / 12.0);
 
-        // Portamento coefficient (one-pole IIR).
         const double portaCoeff = (portaMs > 0.0f)
             ? std::exp(-1.0 / (static_cast<double>(portaMs) * 0.001 * sampleRate_))
             : 0.0;
 
-        // Resonance → SVF damping coefficient.
-        // In a SVF, this is the *inverse* of the resonance Q-factor:
-        //   damping=1.414 → Butterworth (no resonance peak, default)
-        //   damping→0     → self-oscillation
-        // So the knob must map res_param=0 → high damping and res_param=1 → low damping.
         const float svfQ = std::max(0.01f, (1.0f - p(kSlotRes)) * 1.4f);
+
+        // Retrig mode (legacy FREE value clamped to RETRIG).
+        const int retrigMode = std::clamp(
+            (params.size() > static_cast<std::size_t>(kSlotRetrig))
+                ? static_cast<int>(std::round(p(kSlotRetrig)))
+                : 0,
+            0, 1);
 
         // ---- Per-sample synthesis loop ------------------------------------
         int eventIdx = 0;
 
         for (int i = 0; i < numSamples; ++i)
         {
-            // Handle events at this sample position.
+            // ---- Dispatch note events ----
             while (eventIdx < noteEvents.size()
                    && noteEvents[eventIdx].samplePos <= i)
             {
@@ -688,30 +623,34 @@ namespace lockstep
                     }
                     else
                     {
-                        // Track held notes so release only fires on last key up.
-                        if (std::find(heldNotes_.begin(), heldNotes_.end(), ev.note)
-                                == heldNotes_.end())
-                            heldNotes_.push_back(ev.note);
+                        using OA = dsp::MonoGate::OnAction;
+                        const OA action = monoGate_.noteOn(ev.note);
 
-                        const int retrigMode = (params.size() > static_cast<std::size_t>(kSlotRetrig))
-                            ? static_cast<int>(std::round(p(kSlotRetrig)))
-                            : 0;
-                        if (retrigMode == 2)  // FREE: skip if voice is sounding
+                        if (action == OA::FirstTrigger)
                         {
-                            if (!subVoices_[0].active && monoGhostFade_ <= 0)
-                                startMonoVoice(ev.note, params);
+                            // New phrase (held set was empty): always retrigger.
+                            startMonoVoice(ev.note, params);
                         }
-                        else if (retrigMode == 0)  // LEGATO: pitch update, envelope continues
+                        else if (retrigMode == 0)  // LEGATO OverlapTrigger
                         {
                             legatoMonoVoice(ev.note, params);
                         }
-                        else  // RETRIG: ghost-gain crossfade, envelope restarts
+                        else  // RETRIG OverlapTrigger
                         {
                             if (subVoices_[0].active || monoGhostFade_ > 0)
                             {
-                                monoGhostGain_ = env_.aLevel;
+                                // Ghost-fade the old amp level while the new
+                                // envelope attacks from 0.
+                                monoGhostGain_ = ampEnv_.currentLevel();
                                 monoGhostFade_ = msToSamples(1.5f, sampleRate_);
-                                retriggerMonoVoice(ev.note, params);
+                                legatoMonoVoice(ev.note, params);
+                                ampEnv_.setADSR(p(kSlotAmpA), p(kSlotAmpD),
+                                                p(kSlotAmpS), p(kSlotAmpR));
+                                filterEnv_.setADSR(p(kSlotFEnvA), p(kSlotFEnvD),
+                                                   p(kSlotFEnvS), p(kSlotFEnvR));
+                                ampEnv_.hardRetrigger();
+                                filterEnv_.hardRetrigger();
+                                if (p(kSlotLfoSync) >= 0.5f) lfoPhase_ = 0.0;
                             }
                             else
                             {
@@ -728,91 +667,98 @@ namespace lockstep
                     }
                     else
                     {
-                        // Remove from held set; only release when last key is up.
-                        heldNotes_.erase(
-                            std::remove(heldNotes_.begin(), heldNotes_.end(), ev.note),
-                            heldNotes_.end());
-                        if (heldNotes_.empty())
+                        using OA = dsp::MonoGate::OffAction;
+                        const OA action = monoGate_.noteOff(ev.note);
+                        if (action == OA::Release)
                         {
                             releaseMonoVoice();
                         }
-                        else if (ev.note == subVoices_[0].midiNote)
+                        else if (action == OA::SlideTo)
                         {
-                            // Playing note released while others held: slide to
-                            // the most recently pressed still-held note.
-                            legatoMonoVoice(heldNotes_.back(), params);
+                            legatoMonoVoice(monoGate_.topHeldNote(), params);
                         }
+                        // Ignore: background key released, no change.
                     }
                 }
                 ++eventIdx;
             }
 
             // ---- Advance filter and amp envelopes ----
-            const float fEnvLevel = advanceEnvLevel(env_.fStage, env_.fLevel,
-                                                     env_.fReleaseStart, env_.fRemain,
-                                                     env_.fDecayMul, env_.fRelMul,
-                                                     env_.fSustain);
-            const float aEnvLevel = advanceEnvLevel(env_.aStage, env_.aLevel,
-                                                     env_.aReleaseStart, env_.aRemain,
-                                                     env_.aDecayMul, env_.aRelMul,
-                                                     env_.aSustain);
+            const float fEnvLevel = filterEnv_.tick();
+            const float aEnvLevel = ampEnv_.tick();
 
-            // Amp envelope reached Idle (Release completed): mono voice is now
-            // silent and can be reused by the next note-on without a choke.
-            if (!paraMode && env_.aStage == Stage::Idle)
+            // Mono: deactivate voice once amp env finishes so the next
+            // FirstTrigger starts with a clean phase reset.
+            if (!paraMode && !ampEnv_.isActive())
                 subVoices_[0].active = false;
 
-            if (env_.aStage == Stage::Idle && monoGhostFade_ <= 0)
+            // Para: once master amp env finishes, free the keepForRelease voices.
+            if (paraMode && !ampEnv_.isActive())
             {
-                // Check if any voice is still fading.
+                for (auto& sv : subVoices_)
+                {
+                    if (sv.keepForRelease)
+                    {
+                        sv.keepForRelease = false;
+                        sv.ar.reset();
+                    }
+                }
+            }
+
+            if (!ampEnv_.isActive() && monoGhostFade_ <= 0)
+            {
                 bool anyFade = false;
                 for (const auto& sv : subVoices_)
-                    if (sv.fadeRemain > 0) { anyFade = true; break; }
-                if (!anyFade) continue;  // silence — skip this sample
+                {
+                    if (sv.ar.isActive() || sv.keepForRelease)
+                    {
+                        anyFade = true;
+                        break;
+                    }
+                }
+                if (!anyFade) continue;
             }
 
             // ---- Effective cutoff ----
             const float effectiveCutoff = std::clamp(cutoffParam + fEnvLevel * fEnvDepth,
                                                       0.0f, 1.0f);
-            // Map [0,1] → [20, 18000] Hz exponentially.
             const float cutoffHz = 20.0f * std::pow(900.0f, effectiveCutoff);
             const float svfF = std::clamp(
                 2.0f * std::sin(kPiF * cutoffHz / static_cast<float>(sampleRate_)),
                 0.001f, 0.99f);
 
-            // ---- Sum oscillators from all active sub-voices ----
+            // ---- Sum oscillators ----
             float oscSum = 0.0f;
             for (auto& sv : subVoices_)
             {
-                if (!sv.active && sv.fadeRemain == 0) continue;
+                if (!sv.active && !sv.ar.isActive() && !sv.keepForRelease) continue;
 
-                // Portamento: slide currentFreq toward targetFreq.
+                // Portamento.
                 if (portaCoeff > 0.0)
                     sv.currentFreq = portaCoeff * sv.currentFreq
                                      + (1.0 - portaCoeff) * sv.targetFreq;
                 else
                     sv.currentFreq = sv.targetFreq;
 
-                // Apply osc1 coarse/fine.
                 const double savedFreq = sv.currentFreq;
                 sv.currentFreq *= osc1FreqMul;
 
-                float svSample = oscillatorSample(sv, osc1Wave, osc1PW,
-                                                   osc2Wave, osc2PW,
-                                                   subLevel, osc2FreqRatio,
-                                                   paraMode);
+                const float svSample = oscillatorSample(sv, osc1Wave, osc1PW,
+                                                         osc2Wave, osc2PW,
+                                                         subLevel, osc2FreqRatio,
+                                                         paraMode);
                 sv.currentFreq = savedFreq;
 
-                // Per-voice micro-amp (note-off fade).
-                if (sv.fadeRemain > 0)
-                {
-                    sv.microAmp *= 1.0f - (1.0f / static_cast<float>(sv.fadeRemain + 1));
-                    --sv.fadeRemain;
-                }
-                oscSum += svSample * sv.microAmp;
+                float voiceGain;
+                if (sv.keepForRelease)
+                    voiceGain = 1.0f;  // master amp env governs
+                else
+                    voiceGain = sv.ar.tick();
+
+                oscSum += svSample * voiceGain;
             }
 
-            // ---- Shared noise (one generator per sample, mixed before drive) ----
+            // ---- Shared noise ----
             if (noiseLevel > 0.0f)
             {
                 noiseState_ = static_cast<float>(rand()) / static_cast<float>(RAND_MAX) * 2.0f - 1.0f;
@@ -825,7 +771,7 @@ namespace lockstep
             // ---- Filter ----
             float filtered = filterSample(driven, svfF, svfQ, filterType);
 
-            // ---- Mono retrigger ghost-gain crossfade ----
+            // ---- Mono RETRIG ghost-gain crossfade ----
             if (!paraMode && monoGhostFade_ > 0)
             {
                 monoGhostGain_ -= monoGhostGain_ / static_cast<float>(monoGhostFade_);
@@ -833,7 +779,7 @@ namespace lockstep
                 if (monoGhostFade_ <= 0) monoGhostGain_ = 0.0f;
             }
             const float combinedGain = aEnvLevel + (paraMode ? 0.0f : monoGhostGain_);
-            float finalGain = combinedGain * outputLevel;
+            const float finalGain    = combinedGain * outputLevel;
 
             // ---- Output ----
             const float outSample = filtered * finalGain;
