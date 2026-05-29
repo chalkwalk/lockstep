@@ -142,11 +142,12 @@ namespace lockstep
           return 1.f;
 
         case P::Decay:
-          if (v.ampDecaySamples > 0.f)
-            v.ampLevel -= 1.f / v.ampDecaySamples;
-          v.ampLevel = std::max(0.f, v.ampLevel);
-          if (v.ampLevel <= 0.f)
+          // Exponential decay: rings out naturally (vs a linear fade). The Decay
+          // param is the −60 dB time; terminate a touch later at −80 dB (1e-4).
+          v.ampLevel *= v.ampDecayCoef;
+          if (v.ampLevel <= 1e-4f)
           {
+            v.ampLevel = 0.f;
             v.ampPhase = P::Idle;
             v.active   = false;
           }
@@ -236,15 +237,21 @@ namespace lockstep
     // Amp envelope
     v.ampAttackSamples = msToSamples(attackMs, sampleRate_);
     v.ampHoldSamples   = msToSamples(holdMs,   sampleRate_);
-    v.ampDecaySamples  = msToSamples(decayMs,  sampleRate_);
-    v.ampLevel         = 0.f;
+    v.ampDecaySamples  = std::max(1.f, msToSamples(decayMs, sampleRate_));
+    // Exponential decay coefficient: reach −60 dB (×0.001) over the decay time.
+    v.ampDecayCoef     = std::exp(-6.907755f / v.ampDecaySamples);
     v.ampTimer         = 0.f;
     if (attackMs > 0.f)
+    {
+      v.ampLevel = 0.f;
       v.ampPhase = AmpPhase::Attack;
-    else if (holdMs > 0.f)
-      v.ampPhase = AmpPhase::Hold;
+    }
     else
-      v.ampPhase = AmpPhase::Decay;
+    {
+      // No attack ramp: start at full level so the decay (or hold) has signal.
+      v.ampLevel = 1.f;
+      v.ampPhase = (holdMs > 0.f) ? AmpPhase::Hold : AmpPhase::Decay;
+    }
 
     // Noise envelope
     v.noiseDecaySamples = msToSamples(noiseDecMs, sampleRate_);
@@ -385,7 +392,8 @@ namespace lockstep
         && voice_.ampPhase != AmpPhase::Idle)
     {
       static constexpr float kHatCloseMs = 1.f;
-      voice_.ampDecaySamples = msToSamples(kHatCloseMs, sampleRate_);
+      voice_.ampDecaySamples = std::max(1.f, msToSamples(kHatCloseMs, sampleRate_));
+      voice_.ampDecayCoef    = std::exp(-6.907755f / voice_.ampDecaySamples);
       voice_.ampPhase        = AmpPhase::Decay;
     }
   }

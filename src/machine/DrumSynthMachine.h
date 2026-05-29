@@ -60,6 +60,7 @@ namespace lockstep
       float    ampAttackSamples  { 0.f };
       float    ampHoldSamples    { 0.f };
       float    ampDecaySamples   { 1.f };
+      float    ampDecayCoef      { 0.f };  // per-sample multiply for exponential decay
 
       // Noise envelope (snare: independent from amp envelope)
       NoisePhase noisePhase        { NoisePhase::Idle };
@@ -84,6 +85,9 @@ namespace lockstep
 
       // Square oscillator phases (COWBELL: [0..1], CYMBAL: [0..5])
       double sqPhases[6] { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+
+      // CYMBAL: inharmonic partial spread factor (Sweep param; tonal↔clangy)
+      float metalSpread { 1.f };
 
       // CLAP multi-tap state
       int   voiceSampleCount  { 0 };   // samples elapsed since note-on
