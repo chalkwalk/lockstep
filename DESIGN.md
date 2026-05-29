@@ -85,8 +85,16 @@ compiles to CLAP and VST3 from a single C++/JUCE codebase.
 
 The sequencer talks to every sound engine through a single C++ virtual
 base class, `lockstep::IMachine`. A contributor adds a new engine by
-inheriting from `IMachine` and implementing its half-dozen virtuals;
-no sub-plugin format, no IPC, no sandbox.
+inheriting from the SDK base (`sdk::MachineBase : IMachine`) and
+implementing its half-dozen virtuals. There is **one authoring model
+with two link paths**: first-party machines are statically linked into
+the core, while third-party machines compile to a loadable module
+behind a stable, JUCE-free C ABI and are fronted by a `WrapperMachine`
+that presents as an ordinary `IMachine` — the sequencer never learns
+which path a machine took. This is a bespoke contract for machines
+purpose-built for Lockstep, **not** a CLAP/VST3 sub-host: still no IPC,
+no sandbox, no embedded interpreter. The full ABI, host-services
+interface, registry, and discovery model are specified in §36.
 
 The boundary is deliberately narrow but deliberately *not* fixed-shape
 — each machine declares its own parameter schema and voice topology:
@@ -1018,19 +1026,20 @@ machine's `currentVoices()` declaration determines how many of the step's
 notes are emitted. Choke is an implementation detail of each machine,
 not a sequencer feature.
 
-## 9. Future direction: wrapping arbitrary plugins
+## 9. Machine modules and arbitrary-plugin hosting
 
-An earlier draft of this document called out a Phase 3 milestone for
-hosting CLAP/VST3 plugins as Machines, with a 48-parameter contract
-they would need to satisfy. With the variable-schema `IMachine`
-boundary now in place (§2), wrapping an arbitrary plugin reduces to
-writing one specific `IMachine` subclass — a `WrapperMachine` that
-loads the host plugin via `juce::AudioPluginFormatManager`, exposes
-its parameter tree as the schema, and forwards MIDI and audio across.
+The successor to the earlier "wrap arbitrary plugins" sketch is the
+**Machine Module ABI** (milestone M10), specified in full in §36. It
+is *not* a CLAP/VST3 sub-host: it is a purpose-built, JUCE-free C ABI
+for machines designed specifically for Lockstep, loaded as native
+modules and fronted by a `WrapperMachine`. That is the sanctioned
+extensibility path, and the one we build.
 
-This is no longer a separate phase; it is one possible machine among
-many, deferred until there is a demonstrated need. No core sequencer
-changes are required to support it.
+Hosting *arbitrary* third-party CLAP/VST3 instruments (Serum, Diva, …)
+via `juce::AudioPluginFormatManager` is explicitly **not planned**. If
+it ever happened it would be just one more machine module written
+against the §36 SDK by whoever wanted it — no core sequencer changes —
+but it is not a goal and ships no first-party support.
 
 ## 10. Phase 4 — Open-Source Hardware Companion
 
@@ -3197,7 +3206,11 @@ ignored). New overlays append a channel; old controllers ignore it.
 How a contributor adds a controller mirrors how they add a machine: a C++
 base class, registered in a registry — **not** an embedded interpreter
 (consistent with the locked "`IMachine` is C++, no scripting/IPC"
-decision).
+decision). The machine registry (§36) now carries both statically
+registered first-party machines and dynamically discovered modules
+behind one factory; the `ControllerRegistry` here is its parallel and
+may adopt the same static/dynamic dual path if controllers ever ship
+as loadable modules.
 
 ```
 class IControllerSurface {
@@ -3260,3 +3273,273 @@ can't display → ignore it. `statesOfInterest()` (and the JSON
 `paletteMap`, §35.5) let the loader warn in chrome when a profile names a
 token that is unknown or deprecated, while still rendering it. The model
 grows; old controllers keep working.
+
+## 36. The Machine Module ABI (M10)
+
+§2 introduced the machine boundary as "one authoring model, two link
+paths." This section specifies that machinery: the C ABI a loadable
+module exports, the SDK base a contributor writes against, the
+host-services it calls back into, the registry that unifies static and
+dynamic machines, and the discovery / versioning / missing-module
+rules. The motivation is decoupling: machines become independently
+buildable units so the core does not have to carry every engine, and
+third parties can author machines without forking Lockstep — against a
+**stable, documented, JUCE-free contract**.
+
+This is deliberately **not** CLAP/VST3 sub-hosting. The contract is
+bespoke and may place unusual constraints on a module precisely because
+every module is purpose-built for Lockstep. Hosting arbitrary foreign
+plugins is out of scope (§9).
+
+### 36.1 Three layers
+
+```
+   authoring source (identical everywhere):
+        sdk::MachineBase : public IMachine
+        ├── STATIC PATH  — first-party machine linked into lockstep_core,
+        │                  registered via MachineRegistry's static factory.
+        │                  Presents straight as IMachine; the C ABI is
+        │                  never crossed at runtime.
+        └── DYNAMIC PATH — third-party .so/.dll/.dylib, one exported C
+                           entry point, loaded via juce::DynamicLibrary
+                           and fronted by WrapperMachine : IMachine, which
+                           translates C-ABI calls <-> the IMachine vtable.
+   Both present plain IMachine to the sequencer — PluginProcessor's hot
+   loop never learns which path a machine took.
+```
+
+The invariant: **the sequencer keeps talking to `IMachine` exactly as
+today.** A statically-linked machine *is* an `IMachine` (via the SDK
+base). A dynamic machine is reached through one extra `IMachine`
+subclass, `WrapperMachine`, handed back by the factory like any other.
+The static path is what first-party machines ship as; the dynamic path
+is exercised end-to-end by the CI template module (§36.8).
+
+### 36.2 The C ABI (`lockstep_machine_abi.h`)
+
+A single C header, `extern "C"`, **POD only** — no C++, STL, or JUCE
+types in the linkage-visible surface — so a module needs neither our
+exact toolchain nor JUCE. Fixed-width types, explicit field order.
+
+**One exported symbol.** The host passes its services and ABI version;
+the module returns a static descriptor (or `NULL` to reject the host):
+
+```c
+#define LSM_ABI_VERSION 1
+
+const LsmModuleDesc* lockstep_module_entry(uint32_t hostAbiVersion,
+                                           const LsmHostVTable* host);
+```
+
+**Module descriptor** — manifest + factory + per-instance vtable:
+
+```c
+struct LsmModuleDesc {
+    uint32_t    abiVersion;     /* LSM_ABI_VERSION the module was built against */
+    uint32_t    structSize;     /* sizeof — add-only growth guard (§36.6) */
+    const char* machineId;      /* "vendor.engine.vN" — static lifetime, UTF-8 */
+    const char* displayName;
+    const char* badge;          /* default badge; per-instance vtable may override */
+    uint64_t    capabilityFlags;/* LSM_CAP_* bitset (§36.6) */
+    void*       (*create)(const LsmHostVTable* host, uint32_t trackHint);
+    void        (*destroy)(void* inst);
+    const LsmMachineVTable* vtable;
+};
+```
+
+**Per-instance vtable** — every function takes `void* inst` first (no
+C++ `this`); mirrors the `IMachine` surface:
+
+```c
+struct LsmMachineVTable {
+    uint32_t structSize;
+    void (*prepare)(void* inst, double sampleRate, int32_t maxBlockSize);
+    void (*reset)(void* inst);
+    void (*process)(void* inst,
+                    const LsmMidiEvent* events, int32_t numEvents,
+                    const float* params, int32_t numParams,
+                    float* const* channels, int32_t numChannels, int32_t numFrames);
+    int32_t (*numParams)(void* inst);
+    void    (*paramSpec)(void* inst, int32_t index, LsmParamSpec* out);
+    int32_t (*numSections)(void* inst);
+    void    (*section)(void* inst, int32_t index, LsmSectionInfo* out);
+    const char* (*machineId)(void* inst);
+    const char* (*badge)(void* inst);
+    int32_t (*currentVoices)(void* inst, const float* baseParams, int32_t n); /* 0..4 */
+    uint32_t (*flags)(void* inst);     /* hasInternalFilter/Amp, isMidiOut (cacheable) */
+    int32_t (*isVoiceActive)(void* inst);  /* dynamic per-block — not cached */
+    void (*processMidi)(void* inst,
+                        const LsmMidiEvent* events, int32_t numEvents,
+                        const float* params, int32_t numParams,
+                        LsmMidiEvent* midiOut, int32_t* midiOutCount, int32_t midiOutCap);
+};
+```
+
+**POD payload mirrors.** Audio crosses as a channel-pointer array
+(`float* const*` + channel/frame counts), MIDI as a flat event array,
+and `ParamSpec` as a POD struct whose strings are `const char*` of
+**static lifetime** (the host copies into `juce::String` on return and
+never retains the raw pointer — the existing `valueLabels` lifetime
+rule, §2):
+
+```c
+typedef struct { int32_t sampleOffset; uint8_t bytes[4]; uint8_t numBytes; } LsmMidiEvent;
+
+typedef struct {
+    const char* id;            /* static lifetime */
+    const char* label;
+    float   minValue, maxValue, defaultValue, skew;
+    uint8_t isStepped, unit, role, variant;   /* enums as uint8 — closed, add-only */
+    int32_t sectionIndex;
+    uint8_t zeroCrossingSnap;
+    const char* const* valueLabels;           /* NULL-terminated, static lifetime */
+} LsmParamSpec;
+
+typedef struct { const char* label; int32_t parentCanonical; } LsmSectionInfo;
+```
+
+`LsmSectionInfo` carries only `label` + `parentCanonical`; the host
+fills `firstSlot` / `pageCount` itself, exactly as it already augments
+`IMachine::section()` today.
+
+### 36.3 The SDK base — one source, two link paths
+
+`sdk::MachineBase : public IMachine`. A contributor overrides the same
+ergonomic virtuals that `IMachine` exposes today (`process`,
+`paramSpec`, `currentVoices`, …). Below the line the SDK provides:
+
+- **Static half.** Because `MachineBase` *is* an `IMachine`, a
+  statically-linked machine needs nothing more — it registers straight
+  into `MachineRegistry` as an `IMachine` factory; the C ABI is never
+  crossed.
+- **Dynamic half.** A one-line `LOCKSTEP_EXPORT_MACHINE(MyMachine)`
+  macro emits `lockstep_module_entry`, the static `LsmModuleDesc`, and
+  the C trampolines that wrap `float* const* channels` in a zero-copy
+  `juce::AudioBuffer`, reconstruct a transient `MidiBuffer` from
+  `LsmMidiEvent[]`, present `params` as `std::span<const float>` (the
+  boundary type already documented in §2), and convert
+  `ParamSpec ↔ LsmParamSpec`.
+
+The two paths differ only in the build target — `STATIC` linked into
+the core, or `MODULE` plus the export macro. The SDK convenience layer
+may use JUCE, but compiles with hidden symbol visibility so the only
+exported symbol is `lockstep_module_entry`; authors who want a tiny
+module can write against the raw C ABI with no JUCE at all.
+
+### 36.4 Host-services (`LsmHostVTable`)
+
+Passed at entry and retained by the module; every callback takes an
+opaque `hostCtx` first. POD C, JUCE-free. This is how a module reaches
+the **single shared sample pool** every machine draws from — upholding
+"state refs, not state contents" (PRINCIPLES §10): the module resolves
+a `{path, xxHash32}` ref to a handle and reads *borrowed* PCM; it never
+owns or serialises bytes.
+
+```c
+struct LsmHostVTable {
+    uint32_t structSize;
+    void*    hostCtx;
+    /* shared sample pool — borrowed PCM, resolve-by-ref (never by index) */
+    int32_t      (*resolveSample)(void* ctx, const char* path, uint32_t xxHash32);
+    int32_t      (*sampleInfo)(void* ctx, int32_t handle,
+                               int32_t* numFrames, int32_t* numChannels,
+                               double* sampleRate, int32_t* missing);
+    const float* (*sampleChannel)(void* ctx, int32_t handle, int32_t channel);
+    /* transport / rate */
+    double (*hostSampleRate)(void* ctx);
+    void   (*transport)(void* ctx, double* ppqPosition, double* bpm, int32_t* isPlaying);
+    /* sanctioned RNG (PRINCIPLES §9 — the only RNG a module may use) */
+    uint32_t (*rngNext)(void* ctx);
+    /* lock-free logging */
+    void (*log)(void* ctx, int32_t level, const char* msg);
+};
+```
+
+**Thread affinity is part of the contract.** `resolveSample` follows
+`SamplePool::load` semantics (message thread); `sampleInfo` /
+`sampleChannel` follow `get` (audio-thread-safe for already-resolved
+handles). A borrowed `const float*` is valid for the duration of one
+`process()` call; the pool is not mutated concurrently. Handles are
+resolved by ref, never raw pool index, so pool `remove`/`swap`
+index-shifts can't dangle a module. `transport` / `hostSampleRate` /
+`rngNext` / `log` must be audio-thread-safe (logging via a lock-free
+FIFO, not direct I/O).
+
+### 36.5 Registry and catalogue merge
+
+A `MachineRegistry` replaces the hand-written `makeMachineForId` switch
+and the `kAvailableMachines[]` table. Its factory takes a
+`HostServices&` aggregate — exposing the raw `SamplePool&` to static
+first-party machines and the `LsmHostVTable` to `WrapperMachine` for
+forwarding — so `SamplePool&` is **not** baked into the public factory
+type. Resolution order for a `machineId`: static registry → loaded
+modules → `StubMachine` fallback (§36.7).
+
+`numAvailableMachines` / `availableMachineInfo` iterate static entries
+plus discovered-module manifests merged into one list; `MachineInfo`
+gains a `badge`, an `origin {Static, Module}`, and an `abiOk` flag so
+the picker can show third-party badges and grey out version-mismatched
+modules. The post-machine FLTR/AMP virtual-slot append and the
+`hasInternalFilter()` / `hasInternalAmp()` opt-outs stay entirely
+host-side and ABI-agnostic — only the two booleans cross (via `flags`);
+the module never sees the FLTR/AMP slots that live past its
+`numParams()` range. This registry is the static/dynamic sibling of the
+planned `ControllerRegistry` (§35.8.4).
+
+### 36.6 Versioning and capabilities — add-only
+
+`hostAbiVersion` is passed into the entry; the module returns `NULL` if
+it cannot satisfy it, and the host checks `desc->abiVersion` and
+`structSize`. **Growth is add-only**, identical in spirit to the
+`CellState` rule (§35.8.6): new vtable / descriptor fields append after
+`structSize`; the host reads only `min(known, module structSize)`;
+fields are never renumbered, reordered, or repurposed. Optional surface
+is negotiated through `capabilityFlags`
+(`LSM_CAP_MIDI_OUT | INTERNAL_FILTER | INTERNAL_AMP | AUDIO_INPUT`; the
+last is forward-compat for the §2 `input_source` Thru/Recorder idea).
+CI carries a frozen golden-header test: a module built against ABI v1
+must still load under a vN host.
+
+MIDI-out modules emit into the host-provided `midiOut[]` buffer only —
+a third-party module must **not** open its own `juce::MidiOutput`;
+device routing stays host-side (the standalone vs plugin distinction is
+the host's concern, §5).
+
+### 36.7 Missing-module round-trip
+
+A patch may reference a machine module the user has not installed.
+This reuses the missing-sample discipline (PRINCIPLES §10): on load,
+an unknown `machineId` resolves to a `StubMachine` carrying the
+unresolved id, and the UI offers it as a relink/replace target, exactly
+as a missing sample offers relink. Crucially the stub **retains and
+re-emits verbatim** the opaque `{id → value}` base-param and P-Lock map
+it loaded, so re-saving a project that references an uninstalled module
+does not silently drop that module's state. The stub can't *interpret*
+the slots, but it preserves them.
+
+### 36.8 Discovery, install, and the template module
+
+The host scans a per-platform machines directory and, for each module,
+opens it, calls `lockstep_module_entry`, and reads the descriptor —
+**no instance is created at scan time**, only the manifest. Modules
+with a rejected `abiVersion` / `structSize` are logged and skipped.
+Installing a third-party machine is copying its module file into that
+directory and rescanning. Install is an OS file operation, **not** a
+scope+verb gesture — it is an out-of-grammar administrative action, on
+the same footing as managing sample files (a drag-and-drop install flow
+in the UI is an affordance over that file op, not a grammar addition).
+
+A forkable **template module** is the third-party on-ramp and the CI
+fixture in one: it is built on every cycle but **not installed by
+default**; the test cycle installs it and asserts the full dynamic path
+— discover → load → instantiate → `process` → unload. Because the
+static path never crosses the C ABI, this template is the one artifact
+that genuinely exercises it, and keeping it green is what prevents ABI
+bit-rot.
+
+The SDK (C ABI header + `MachineBase`) lives as a single self-contained
+copy inside the main repository; first-party machines are
+subdirectories of the main repo, each a buildable unit linking that
+SDK; the template lives in one separate forkable repository that
+vendors the same SDK. No per-machine repositories, no separate SDK
+repository.
