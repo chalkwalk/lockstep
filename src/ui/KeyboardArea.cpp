@@ -1162,6 +1162,11 @@ namespace lockstep
             "D","F","G","H","J","K","L",";",
             "C","V","B","N","M",",",".","/"
         };
+        // Raw key codes for step keys — used by CHROMATIC/LEVELS to query pressed state.
+        static constexpr int kStepKeyCodes[kPageSteps] = {
+            'D','F','G','H','J','K','L', 59,
+            'C','V','B','N','M', 44, 46, 47
+        };
 
         // MHX: 2 modifier columns (A/S | Z/X) + 8 step columns = 10 total.
         static constexpr int kTotalGridCols = kCols + 2;
@@ -1646,13 +1651,16 @@ namespace lockstep
                         }
 
                         // Black key = sharp note (top row); white key = natural (bottom row).
-                        const bool isBlack = (cellIdx < kCols);
-                        g.setColour(isBlack ? blackKey : whiteKey);
+                        const bool isBlack  = (cellIdx < kCols);
+                        const bool isPressed = isKeyPressed(kStepKeyCodes[static_cast<std::size_t>(cellIdx)]);
+                        g.setColour(isPressed ? juce::Colours::white.withAlpha(0.70f)
+                                              : (isBlack ? blackKey : whiteKey));
                         g.fillRoundedRectangle(cell.toFloat(), 4.0f);
-                        g.setColour(border);
-                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
+                        g.setColour(isPressed ? juce::Colours::white : border);
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, isPressed ? 1.5f : 1.0f);
 
-                        g.setColour(juce::Colours::white.withAlpha(0.85f));
+                        g.setColour(isPressed ? juce::Colours::black.withAlpha(0.90f)
+                                              : juce::Colours::white.withAlpha(0.85f));
                         g.setFont(juce::Font(juce::FontOptions(9.0f)).boldened());
                         g.drawText(juce::String(name), cell, juce::Justification::centred);
 
@@ -1690,16 +1698,20 @@ namespace lockstep
                         const int y = rowY(row);
                         const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
-                        const float t = static_cast<float>(cellIdx + 1) / 16.0f;
+                        const float t   = static_cast<float>(cellIdx + 1) / 16.0f;
                         const int   vel = juce::roundToInt(t * 127.0f);
+                        const bool  isPressed = isKeyPressed(kStepKeyCodes[static_cast<std::size_t>(cellIdx)]);
 
                         const juce::Colour cellCol = lowCol.interpolatedWith(highCol, t);
-                        g.setColour(cellCol.withAlpha(0.55f + t * 0.30f));
+                        g.setColour(isPressed ? juce::Colours::white.withAlpha(0.75f)
+                                              : cellCol.withAlpha(0.55f + t * 0.30f));
                         g.fillRoundedRectangle(cell.toFloat(), 4.0f);
-                        g.setColour(cellCol.brighter(0.3f).withAlpha(0.80f));
-                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
+                        g.setColour(isPressed ? juce::Colours::white
+                                              : cellCol.brighter(0.3f).withAlpha(0.80f));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, isPressed ? 1.5f : 1.0f);
 
-                        g.setColour(juce::Colours::white.withAlpha(0.80f));
+                        g.setColour(isPressed ? juce::Colours::black.withAlpha(0.90f)
+                                              : juce::Colours::white.withAlpha(0.80f));
                         g.setFont(juce::Font(juce::FontOptions(8.5f)));
                         g.drawText(juce::String(vel), cell.reduced(2),
                                    juce::Justification::centred);

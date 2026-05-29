@@ -848,12 +848,15 @@ namespace lockstep
         }
 
         // MG.1: consume keyboard note request from the UI thread.
-        // Routed through ccCtx.onNoteOn so record-arm + CHROMATIC/LEVELS capture works.
+        // Bit 23 = bypassEditorial flag (set by LEVELS step-held audition).
+        // When clear: routes through onNoteOn so record-arm path (M7.2, MHZ.6) fires.
+        // When set: raw note-on injection — no P-Lock writes, no chord capture.
         {
             const int req = kbdNoteReq_.exchange(-1, std::memory_order_acq_rel);
             if (req >= 0)
             {
                 const int kbdVel    = (req >> 24) & 0x7F;
+                const bool bypass   = ((req >> 23) & 1) != 0;
                 const int midiNote  = (req >> 16) & 0x7F;
                 const int durMs     = req & 0xFFFF;
                 const int noteTrack = kbdNoteTrack_.load(std::memory_order_acquire);
@@ -868,9 +871,12 @@ namespace lockstep
                 kbdNoteActive_       = midiNote;
                 kbdNoteOffRemaining_ =
                     static_cast<int>(getSampleRate() * static_cast<double>(durMs) / 1000.0);
-                // Route through onNoteOn so record-arm path (M7.2, MHZ.6) fires.
-                // onNoteOn adds the note-on event to trackMidi at its end.
-                ccCtx.onNoteOn(noteTrack, 0, midiNote, noteVel);
+                if (bypass)
+                    trackMidi[static_cast<std::size_t>(noteTrack)].addEvent(
+                        juce::MidiMessage::noteOn(1, static_cast<juce::uint8>(midiNote),
+                                                  static_cast<juce::uint8>(noteVel)), 0);
+                else
+                    ccCtx.onNoteOn(noteTrack, 0, midiNote, noteVel);
             }
 
             if (kbdNoteOffRemaining_ >= 0)
@@ -1998,12 +2004,14 @@ namespace lockstep
         previewPoolIndex_.store(poolIndex, std::memory_order_release);
     }
 
-    void LockstepProcessor::triggerNote(int track, int midiNote, int durationMs, int velocity)
+    void LockstepProcessor::triggerNote(int track, int midiNote, int durationMs, int velocity, bool bypassEditorial)
     {
         kbdNoteTrack_.store(juce::jlimit(0, static_cast<int>(kNumTracks) - 1, track),
                             std::memory_order_relaxed);
-        // Pack: bits 30-24 = velocity (7-bit), bits 22-16 = note (7-bit), bits 15-0 = durationMs.
+        // Pack: bit 31=0 (keep positive), bits 30-24 = velocity (7-bit),
+        //       bit 23 = bypassEditorial, bits 22-16 = note (7-bit), bits 15-0 = durationMs.
         const int packed = (juce::jlimit(1, 127, velocity) << 24)
+                           | (bypassEditorial ? (1 << 23) : 0)
                            | (juce::jlimit(0, 127, midiNote) << 16)
                            | juce::jlimit(1, 0xFFFF, durationMs);
         kbdNoteReq_.store(packed, std::memory_order_release);

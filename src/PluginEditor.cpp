@@ -890,9 +890,10 @@ namespace lockstep
 
                 // MHZ.7.4: LEVELS mode — step cells are 16 velocity buckets.
                 // Vel = roundToInt((cellIdx+1)/16 * 127).
-                // Step held → write uniform velocity to held step.
-                // No step held + stopped → set track base velocity.
-                // No step held + record-arm + playing → fire + capture via triggerNote.
+                // Always auditions the note at the chosen velocity.
+                // Step held → also write velocity override to held step (bypass editorial).
+                // No step held + stopped → also set track base velocity.
+                // No step held + record-arm + playing → records trig+velocity to nearest step.
                 {
                     const int at = keyboardArea_.getActiveTrack();
                     if (at >= 0 && at < static_cast<int>(kNumTracks)
@@ -900,11 +901,13 @@ namespace lockstep
                         && uiState_.trigGridMode == TrigGridMode::Default)
                     {
                         const int vel = juce::roundToInt((ev.index + 1.0f) / 16.0f * 127.0f);
+                        const int pitch = uiState_.lastPlayedNote[static_cast<std::size_t>(at)];
+                        const int note  = pitch > 0 ? pitch : 60;
                         auto& ctx = processor_.editContext();
 
                         if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == at)
                         {
-                            // Step held → write velocity override to all held steps.
+                            // Step held → write velocity override; audition bypasses editorial.
                             auto& trk = processor_.sequence()
                                             .tracks[static_cast<std::size_t>(at)];
                             for (int heldIdx : ctx.heldSteps())
@@ -915,19 +918,16 @@ namespace lockstep
                                 s.trigOverride.velocity    = vel;
                             }
                             ctx.markParamWritten();
-                        }
-                        else if (!processor_.clock().inPluginPlaying())
-                        {
-                            // Stopped + no step held → set track base velocity.
-                            processor_.sequence()
-                                .tracks[static_cast<std::size_t>(at)]
-                                .trigDefaults.velocity = vel;
+                            processor_.triggerNote(at, note, 350, vel, /*bypassEditorial=*/true);
                         }
                         else
                         {
-                            // Playing (record-arm or not) → fire note at chosen velocity.
-                            const int pitch = uiState_.lastPlayedNote[static_cast<std::size_t>(at)];
-                            const int note  = pitch > 0 ? pitch : 60;
+                            // No step held: set base velocity when stopped; always audition.
+                            if (!processor_.clock().inPluginPlaying())
+                                processor_.sequence()
+                                    .tracks[static_cast<std::size_t>(at)]
+                                    .trigDefaults.velocity = vel;
+                            // Goes through onNoteOn: records if armed+playing; else just plays.
                             processor_.triggerNote(at, note, 350, vel);
                         }
 
@@ -1731,6 +1731,21 @@ namespace lockstep
                 {
                     keyboardArea_.repaint();
                     break;
+                }
+
+                // CHROMATIC/LEVELS mode: key-up clears the pressed highlight.
+                {
+                    const int at = keyboardArea_.getActiveTrack();
+                    if (at >= 0 && at < static_cast<int>(kNumTracks))
+                    {
+                        const auto m = uiState_.trackInputMode[static_cast<std::size_t>(at)];
+                        if ((m == TrackInputMode::Chromatic || m == TrackInputMode::Levels)
+                            && uiState_.trigGridMode == TrigGridMode::Default)
+                        {
+                            keyboardArea_.repaint();
+                            break;
+                        }
+                    }
                 }
 
                 // MG.2: retrig key release — this step key started continuous retrig.

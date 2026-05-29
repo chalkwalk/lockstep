@@ -238,7 +238,9 @@ namespace lockstep
         // MG.1: trigger a note-on + scheduled note-off for the given MIDI note on the given track.
         // durationMs is approximate (rounded to the next block boundary).
         // MHZ.7.4: velocity (1-127, default 100) is carried via upper bits of kbdNoteReq_.
-        void triggerNote(int track, int midiNote, int durationMs = 350, int velocity = 100);
+        // bypassEditorial = true: raw note-on injected directly (no record-arm, no P-Lock writes).
+        // Use this for LEVELS step-held audition to avoid the note-chord-capture path in onNoteOn.
+        void triggerNote(int track, int midiNote, int durationMs = 350, int velocity = 100, bool bypassEditorial = false);
 
         // MG.2: start / stop retrig on the focused track.
         // ratePpq: 0.25=1/16, 0.125=1/32, 1/12.0=1/48, 1/24.0=1/96.
