@@ -195,3 +195,14 @@ properly — explicit pool management, relink dialogs on load, hash
 verification — and accept the slightly higher one-time UX cost in
 exchange for never blocking the audio thread or bloating the host
 save.
+
+**Corollary (machine modules, M10).** This rule survives the machine
+boundary. A loadable machine module never owns or serialises bulk
+content: it asks the host to resolve a `{path, xxHash32}` ref and
+reads *borrowed* PCM through the host-services interface (DESIGN §36).
+The host owns the one shared sample pool; the module holds a handle,
+not the bytes. The same trust posture is deliberate elsewhere: a
+third-party machine module is **trusted, in-process native code** —
+loaded by the user like any plugin they choose to install. Lockstep
+ships **no sandbox and no IPC** (DESIGN §2, §36); the contract and the
+CI-tested template module are the quality gate, not process isolation.
