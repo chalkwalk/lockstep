@@ -85,6 +85,13 @@ namespace lockstep
       // Square oscillator phases (COWBELL: [0..1], CYMBAL: [0..5])
       double sqPhases[6] { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
 
+      // CLAP multi-tap state
+      int   voiceSampleCount  { 0 };   // samples elapsed since note-on
+      int   clapTapSpacing    { 0 };   // samples between consecutive taps
+      int   clapTapCount      { 1 };   // number of taps (1–5)
+      float clapTapEnvs[5]    {};      // per-tap envelope amplitude
+      float clapTapDecayCoef  { 0.f }; // per-sample multiply for tap envelopes
+
       // PRNG (xorshift32)
       uint32_t noiseSeed { 2166136261u };
 

@@ -321,7 +321,29 @@ namespace lockstep
         break;
       }
       case DrumType::Clap:
+      {
+        v.pitchHz = 0.f;
+        // BP SVF: tune (−24..+24) maps 500–4000 Hz, tone → Q
+        const float normalised = (tune + 24.f) / 48.f;
+        const float cutHz      = 500.f + normalised * 3500.f;
+        v.svfG = std::tan(std::numbers::pi_v<float> * std::min(cutHz / sr, 0.499f));
+        v.svfK = 1.f + tone * 5.f;
+        // Multi-tap: sweep (0–48 semitones) → tap count (1–5),
+        //            sweepDecMs / 25 → tap spacing in ms (default 60/25 = 2.4 ms)
+        v.clapTapCount   = std::clamp(1 + static_cast<int>(sweep * 4.f / 48.f), 1, 5);
+        v.clapTapSpacing = std::max(1, static_cast<int>(sweepDecMs * 0.001f * sr / 25.f));
+        // Fixed 5 ms tap decay; precompute per-sample multiply coefficient
+        const float tapDecaySamples = std::max(1.f, msToSamples(5.f, sampleRate_));
+        v.clapTapDecayCoef = std::exp(-1.f / tapDecaySamples);
+        v.voiceSampleCount = 0;
+        for (float& e : v.clapTapEnvs) e = 0.f;
+        // Tail = short "room" decay: Body 0→1 maps 20–180 ms, overriding the shared
+        // NzDec so the clap can't drone on (the noise env caps the tail length).
+        const float tailMs = 20.f + body * 160.f;
+        v.noiseDecaySamples = std::max(1.f, msToSamples(tailMs, sampleRate_));
+        v.clickLevel = 0.f;
         break;
+      }
       case DrumType::Cymbal:
       {
         // 6 inharmonic square oscillators = the metallic "clang". A decaying noise
@@ -551,7 +573,36 @@ namespace lockstep
           break;
         }
 
+        // -------------------------------------------------------------------
         case DrumType::Clap:
+        {
+          const float punch = paramAt(params, kSlotPunch);
+          const float snap  = paramAt(params, kSlotSnap);
+          // Fire taps at their scheduled sample offsets
+          for (int j = 0; j < v.clapTapCount; ++j)
+          {
+            if (v.voiceSampleCount == j * v.clapTapSpacing)
+              v.clapTapEnvs[j] = punch * 2.f;  // ×2 for impact
+          }
+          // Sum and decay active taps; add sustained noise tail via noise envelope
+          float noiseIn = 0.f;
+          for (int j = 0; j < v.clapTapCount; ++j)
+          {
+            if (v.clapTapEnvs[j] > 0.f)
+            {
+              noiseIn += xorNoise(v.noiseSeed) * v.clapTapEnvs[j];
+              v.clapTapEnvs[j] *= v.clapTapDecayCoef;
+              if (v.clapTapEnvs[j] < 1e-5f) v.clapTapEnvs[j] = 0.f;
+            }
+          }
+          noiseIn += xorNoise(v.noiseSeed) * advanceNoise(v) * snap;
+          ++v.voiceSampleCount;
+          const float filtered = svfBand(v, noiseIn);
+          const float amp      = advanceAmp(v);
+          out = filtered * amp * velGain * level;
+          break;
+        }
+
         default:
           advanceAmp(v);
           break;
