@@ -13,7 +13,8 @@ and within the existing scope+verb grammar (DESIGN §13).**
 **Active focus:** MHZ.8 — Pattern length authoring.
 **Last completed:** MHZ.9 — Latch (virtual-hold) + Track+Nav mode cycle.
 **Previously completed:** MHZ.7 — Per-track input modes (CHROMATIC + LEVELS).
-**Next up:** MHZ.8 (pattern length), then MH.5 machine pack format.
+**Next up:** MHZ.8 (pattern length), then M10 — the Machine Module ABI
+(the loadable-machine re-architecture that supersedes the old MH.5).
 
 After M8 the roadmap pivots from "core sequencer is usable" to
 "performance instrument is usable" — see milestones MB–MI below
@@ -30,10 +31,16 @@ must satisfy the ten principles.
 
 (Captured here so future-you doesn't re-litigate them.)
 
-- **`IMachine` is a C++ base class, not a sub-plugin format.** A new
-  engine is added by subclassing in-tree. No CLAP/VST3 sub-hosting
-  layer, no IPC. (Wrapping arbitrary plugins is one possible machine
-  someone could write later — see DESIGN.md §9 — not a planned phase.)
+- **`IMachine` is a C++ base class with one authoring model and two
+  link paths (M10).** Engines are authored against the SDK base
+  (`sdk::MachineBase : IMachine`); first-party machines are statically
+  linked, third-party machines compile to a loadable module behind a
+  stable JUCE-free C ABI and are fronted by a `WrapperMachine`. This is
+  a bespoke contract for purpose-built machines, **not** a CLAP/VST3
+  sub-host: still no IPC, no sandbox, no embedded interpreter. Hosting
+  arbitrary foreign plugins is explicitly not planned. See DESIGN.md
+  §36 (full spec) and §9. (Earlier drafts froze this as "in-tree only,
+  no dynamic loading"; M10 deliberately reverses that.)
 - **Variable parameter schema, declared per machine.** No fixed slot
   count. Each machine declares its own `ParamSpec` list. The MZ shows
   `kMZSlots` at a time (8 as of MHX, §33) and the section bar still has
@@ -1375,13 +1382,15 @@ parity) is done. **MHX, MHY and MHZ land first** (the surface freeze,
 the contract, and the chrome/grammar revamp). In practice MH.3
 resumes once MHZ.1 → MHZ.3 are complete.
 
-**Schedule note (post-MHZ.4 reshuffle):** MH.5–MH.7 land *after*
-MHZ.5–MHZ.8 and ML. The surface is now mature enough that authoring
-depth (record-time capture, per-track input modes, microtiming,
-pattern-length gestures) unlocks more performance value than another
-machine. Deferring MH.5+ keeps the catalogue work coherent: new
-machines will be authored against the post-MHZ.8 contract (musical
-gate values, per-note velocity, RETRIG modes, `ParamSpec::skew`).
+**Schedule note (post-MHZ.4 reshuffle):** the remaining machine work
+lands *after* MHZ.5–MHZ.8 and ML. The surface is now mature enough that
+authoring depth (record-time capture, per-track input modes,
+microtiming, pattern-length gestures) unlocks more performance value
+than another machine. The old MH.5 ("machine pack format") is
+superseded by **M10 — the Machine Module ABI**, which lands before the
+remaining catalogue machines so that MH.6 / MH.7 are authored against
+the SDK and the post-MHZ.8 contract (musical gate values, per-note
+velocity, RETRIG modes, `ParamSpec::skew`).
 
 - [x] **MH.1** FMMachine — 4-op FM, free modulation matrix (4×4), per-operator
       ADSR + ratio / fine-tune / mix, macro attack / release / sustain scalars.
@@ -1404,9 +1413,10 @@ gate values, per-note velocity, RETRIG modes, `ParamSpec::skew`).
       SamplePlayingMachineBase, SlicerMachine (SLICE / SCRUB dual mode, 16-slice
       cap, transient detection, MONO / POLY toggle, anti-click fade, reverse
       playback at rate < 0).
-- [ ] **MH.5** Define and version-stamp a "machine pack" file format
-      so individual machines can ship and be discovered without
-      bloating the core.
+- [ ] **MH.5** *Superseded by M10 — the Machine Module ABI.* The
+      "machine pack" concept (ship + discover machines without bloating
+      the core) is now the loadable-module + manifest system specified
+      in DESIGN §36; see M10 for the phased plan.
 - [ ] **MH.6** StaticMachine — disk-streaming sampler for long-form
       audio (DESIGN §29). Shares Flex's overlapping slot vocabulary
       (start/end, level) minus the RAM-only manipulations streaming
@@ -1931,18 +1941,45 @@ seam later, not built now).
       icons, About box.
 - [ ] **M9.5** First public beta build.
 
-### M10 — Plugin-wrapper machine (deferred indefinitely)
+### M10 — Machine Module ABI  [pending]
 
-Originally scoped as a CLAP/VST3 sub-hosting phase against the
-48-slot contract. With the variable-schema `IMachine` boundary in
-place (MA), wrapping arbitrary plugins reduces to writing one
-specific `IMachine` subclass — a `WrapperMachine` that loads a host
-plugin via `juce::AudioPluginFormatManager`, exposes its parameter
-tree as the schema, and forwards MIDI/audio across.
+DESIGN §36. Replaces the old "deferred Plugin-wrapper machine" plan
+and supersedes MH.5. Re-architects the machine boundary into one
+authoring model with two link paths: first-party machines statically
+linked, third-party machines compiled as loadable modules behind a
+stable, JUCE-free C ABI and fronted by a `WrapperMachine`. Bespoke
+contract for purpose-built machines — **not** CLAP/VST3 sub-hosting;
+in-process, no IPC, no sandbox. Hosting arbitrary foreign plugins is
+explicitly not planned (if ever wanted, it is just another third-party
+module against the §36 SDK).
 
-This is now an optional contributor project, not a planned phase.
-No core sequencer changes are required to support it. See DESIGN.md
-§9 for the design sketch.
+Phased so the C ABI is proven incrementally:
+
+- [ ] **M10.1** Registry + SDK base, static path only. Add
+      `lockstep_machine_abi.h` (the POD C ABI), `sdk::MachineBase`, and
+      `MachineRegistry`; replace the `makeMachineForId` switch and the
+      `kAvailableMachines[]` table with registry lookups. Port one
+      stock machine first as proof — **DrumSynthMachine** (no SamplePool
+      dependency, not MIDI-out, exercises the `hasInternalAmp()` opt-out).
+      No runtime ABI crossing yet; the POD conversions are built and
+      unit-tested in isolation.
+- [ ] **M10.2** Dynamic load + host-services + discovery.
+      `WrapperMachine` + `juce::DynamicLibrary` open/entry/descriptor;
+      the `LsmHostVTable` bridging the shared `SamplePool` (resolve /
+      info / borrowed channel), transport, sanctioned RNG, and lock-free
+      logging; per-platform directory scan + manifest read (no
+      instantiation at scan) + catalogue merge with `abiVersion` gating;
+      the forkable **template module** built-always / installed-in-test
+      as the CI fixture for the full dynamic path; and the
+      missing-module `StubMachine` opaque round-trip (retain + re-emit
+      an uninstalled module's base params / P-Locks).
+- [ ] **M10.3** Template repo + install flow + ABI freeze. One forkable
+      template repository vendoring the SDK; drag-and-drop install +
+      rescan (out-of-grammar admin action); validate the MIDI-out
+      emit-only contract (modules never open `juce::MidiOutput`) and
+      sample access by porting **SamplerMachine** to host-services
+      `sampleChannel`; freeze ABI v1 with a golden-header CI test.
+      Author MH.6 / MH.7 against the SDK thereafter.
 
 ## Play-test notes
 
