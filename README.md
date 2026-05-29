@@ -788,7 +788,12 @@ modes (Para: chord notes 1 & 3 → osc1+sub; notes 2 & 4 → osc2+sub). **Note:*
 **Planned** (remaining milestones): post-machine
 FILTER and AMP blocks with role-tagged sections (ME); the first-class
 MIDI-out machine (MF); the full behaviour of the alternate trig modes
-— Keyboard / Retrig / Sound Pool (MG); scenes + crossfader (MI);
+— Keyboard / Retrig / Sound Pool (MG); the rest of the "Elektron's
+greatest hits" machine catalogue — `StaticMachine` disk-stream sampler
+(MH.6), `PercussionMachine` physical-model drums (MH.7), `DigitalMachine`
+(the Monomachine archetype: SWAVE / SID / WAVE / VO digital models,
+MH.8), and a DrumSynth voice expansion (CLAP / CYMBAL / COWBELL /
+RIMSHOT, MH.9); scenes + crossfader (MI);
 pattern/part management UI (MJ);
 microtiming and swing (ML); 16-levels mode (MM); live sampling and
 resampling (MN); audition and cross-track record (MO); UI polish and

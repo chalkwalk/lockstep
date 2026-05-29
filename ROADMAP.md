@@ -41,6 +41,19 @@ must satisfy the ten principles.
   arbitrary foreign plugins is explicitly not planned. See DESIGN.md
   §36 (full spec) and §9. (Earlier drafts froze this as "in-tree only,
   no dynamic loading"; M10 deliberately reverses that.)
+- **Machines generate or capture; effects process.** A stock machine
+  is a sound *source* (synth/sampler), a *router* (Thru), or a *capture*
+  engine (Recorder/Looper). Pure timbre processing (filter, EQ, drive,
+  bitcrush, reverb, delay, comp) is an `IEffect` (§32), never a machine,
+  so the canonical FLTR/AMP/FX stay uniform. Thru is the one near-empty
+  exception. The stock catalogue is the iconic "Elektron's greatest
+  hits" set keyed to the reference lineage (DESIGN §29): Digitakt→Sampler
+  +Slicer, Digitone→FM, A4→VA, Rytm→DrumSynth, **Monomachine→Digital**,
+  modal→Percussion, Octatrack→Flex/Static/Thru/Recorder/Looper. Two
+  lineage boxes are **recipes, not machines**: Neighbour folds into Thru
+  (`input_source = Track N`) and Syntakt = existing voices + a
+  master-drive `IEffect`. Anything more specialised is a third-party
+  module (M10 / §36), possibly in a separate repo.
 - **Variable parameter schema, declared per machine.** No fixed slot
   count. Each machine declares its own `ParamSpec` list. The MZ shows
   `kMZSlots` at a time (8 as of MHX, §33) and the section bar still has
@@ -1435,6 +1448,29 @@ velocity, RETRIG modes, `ParamSpec::skew`).
       territory neither Sampler nor VA can fake. Distinct machine
       from any future Cydrum-style wavetable+animation drum
       (different excitation philosophy; do not merge).
+- [ ] **MH.8** DigitalMachine — the Monomachine archetype (DESIGN §29.1).
+      A model-based digital monosynth (`model` stepped slot, like
+      DrumSynth's `type`) covering digital timbres VA and FM cannot
+      reach. Stock models: **SWAVE** (supersaw — stacked detuned
+      saw/pulse, width/detune/spread), **SID** (PWM + ring-mod +
+      hard-sync grit), **WAVE** (single-cycle wavetable / PWM scan =
+      DPRO), **VO** (formant / vowel). `currentVoices() = V1` with a
+      live-pulled Mono/Poly voice-mode slot; uses the canonical
+      FLTR/AMP downstream (no opt-out — character is in the model). The
+      Monomachine's GND / FM / drum engines are **subsumed** (GND→Thru,
+      FM→FMMachine, drum→DrumSynth/Percussion), not re-implemented.
+      Authored against the M10 SDK + the post-MHZ.8 contract.
+- [ ] **MH.9** DrumSynthMachine voice expansion. Extend the `type`
+      enum (MH.3) with the analog/FM drum-machine techniques still
+      missing, keeping the boundary with the physical-model
+      PercussionMachine (MH.7) sharp: **CLAP** (noise-burst + multi-tap
+      env + bandpass — the clear gap), **CYMBAL/METAL** (808-style
+      6-square-oscillator FM-metal cluster + HP/BP), **COWBELL**
+      (2-square-osc, 808), **RIMSHOT** (short pulse transient).
+      Boundary rule: 808/909-style *analog/FM-metal* synthesis lives in
+      DrumSynth; *modal / waveguide / struck-physical* metal (bells,
+      bowed/struck cymbals) stays in PercussionMachine. Ship as `type`
+      values, not separate machines.
 
 ### MI — Scenes and crossfader  [pending]
 

@@ -181,6 +181,41 @@ any corresponding payoff. The MZ still shows 4 slots at a time for
 keyboard ergonomics, and the section bar still has 6 buttons; both
 paginate within whatever the machine declares.
 
+### 2.1 What is a machine — and what is an `IEffect` instead
+
+A machine occupies a track's sound-*source* slot. The boundary admits
+exactly three kinds of machine:
+
+- **Generators** — synths and samplers that *originate* sound from trig
+  events: `SamplerMachine`, `FMMachine`, `VAMachine`, `DrumSynthMachine`,
+  `SlicerMachine`, `StaticMachine`, `PercussionMachine`, `DigitalMachine`.
+- **Routers** — a machine that *carries* audio from an `input_source`
+  into the track's own signal path. There is exactly one: `ThruMachine`
+  (§29). It is near-empty by design — the actual shaping is done by the
+  canonical post-machine FLTR / AMP / FX (§14), not by the machine.
+- **Capture engines** — machines whose value is *stateful audio
+  capture*: `RecorderMachine` (overwrite) and `LooperMachine` (overdub).
+
+Pure timbre *processing* is **not** a machine. A filter, EQ, distortion,
+bitcrusher, reverb, delay, compressor, or any other "audio in → audio
+out" colourist is an **`IEffect`** (§32) — inserted post-AMP or on the
+master bus, reusing the same `ParamSpec` / `role` / P-Lock
+infrastructure. Building such a processor as a machine would waste a
+generator slot, duplicate the FX system, and break the §6.1 promise that
+FLTR / AMP / FX mean the same thing on every track (`PRINCIPLES.md` §7).
+The litmus test: *does it originate or capture sound, or merely colour an
+existing signal?* Originate/capture → machine; colour → `IEffect`. Thru
+is the single deliberate exception, and it earns it by doing no colouring
+of its own.
+
+This is also where catalogue scope is drawn. A machine ships **stock**
+only when it is iconic and foundational to the reference lineage (§29);
+anything more specialised is a **third-party module** authored against
+`sdk::MachineBase` and loaded via the M10 ABI (§36) — including engines
+the author maintains in their own separate repositories. "Would this be
+better as a separate download?" is a real question for every proposed
+machine, not a formality.
+
 ## 3. The Baseline Sampler Machine
 
 The first engine to inherit `IMachine` is a monophonic sampler
@@ -1748,7 +1783,8 @@ expand on the performance vision in this document — UI/input
 rethink, the Project/Bank/Pattern/Part hierarchy, the performance
 modifier cluster, canonical sections + post-machine FLTR/AMP, the
 MIDI-out machine, alternate trig modes, the machine catalogue
-expansion (FM, VA, DrumSynth, Slicer), scenes + crossfader, and
+expansion (FM, VA, DrumSynth, Slicer, Static, Percussion, Digital —
+§29), scenes + crossfader, and
 the depth pass (MJ–MP): pattern/part management, sampler
 depth, sequencer refinement, 16-levels, sampling+resampling,
 audition, and UI polish. The Octatrack-derived cluster (MQ–MU) then
@@ -2468,11 +2504,79 @@ The default project provides a small fixed set of volatile buffer
 slots (target count TBD, ~8) so recorder trigs and the §22 capture
 overlay always have somewhere to write.
 
-## 29. New Machine Types: Static, Thru, Recorder, Looper
+## 29. The Machine Catalogue
 
-Four machines extend the catalogue beyond the baseline Flex sampler
-(§3). The first is an ordinary synthesis/playback engine; the latter
-three consume audio via `input_source` (§27).
+The stock catalogue is an "Elektron's greatest hits" set: one machine
+per iconic engine, each authored against the same `IMachine` boundary
+(§2) and snapping to the canonical sections (§6.1). The reference
+lineage drives which machines ship stock:
+
+| Reference box        | Lockstep machine(s)                         | Kind        |
+|----------------------|---------------------------------------------|-------------|
+| Digitakt             | `SamplerMachine` + `SlicerMachine`          | generator   |
+| Digitone             | `FMMachine` (4-op)                           | generator   |
+| Analog Four          | `VAMachine` (virtual-analog)                 | generator   |
+| Analog Rytm          | `DrumSynthMachine` (analog/FM drum)          | generator   |
+| **Monomachine**      | **`DigitalMachine`** (digital multi-model)   | generator   |
+| Machinedrum          | `DrumSynthMachine` + `PercussionMachine`     | generator   |
+| (modal / Volca Drum) | `PercussionMachine` (physical model)         | generator   |
+| Octatrack — Flex     | `SamplerMachine`                             | generator   |
+| Octatrack — Static   | `StaticMachine` (disk-stream)                | generator   |
+| Octatrack — Thru / Neighbour | `ThruMachine` (`input_source`)       | router      |
+| Octatrack — track Recorder   | `RecorderMachine` (overwrite)        | capture     |
+| Octatrack — Pickup           | `LooperMachine` (overdub)            | capture     |
+
+Two lineage entries are deliberately **recipes, not machines**, because
+their character is already reachable by composing what the catalogue and
+the foundation provide:
+
+- **Neighbour → Thru.** The Octatrack's separate Neighbour machine is
+  folded into Thru: source is chosen by `input_source`
+  (`External bus` = classic Thru, `Track N` = neighbour-style
+  inter-track passthrough), and gated-vs-open is the general AMP gate
+  source (§14). One machine, one knob.
+- **Syntakt → existing voices + master drive.** The Syntakt is its drum
+  and digital voices (covered by `DrumSynthMachine` / `FMMachine` /
+  `VAMachine`) plus a *master analog overdrive/filter*. The drive and
+  filter are an `IEffect` (§32) and the canonical FLTR (§14), not a new
+  machine. There is no `SyntaktMachine`; the box is a Sound-Pool +
+  master-FX preset.
+
+### 29.1 `DigitalMachine` — the Monomachine archetype
+
+A **model-based digital monosynth** (built the way `DrumSynthMachine` is:
+a stepped `model` slot reshapes the engine, with `valueLabels`). It
+covers the digital timbres that `VAMachine` (analog) and `FMMachine`
+(4-op FM) cannot reach. Stock models:
+
+- **SWAVE** — SuperWave: stacked detuned saw/pulse with width / detune /
+  spread (the supersaw character).
+- **SID** — C64-SID-flavoured digital: pulse-width + ring-mod + hard-sync
+  grit.
+- **WAVE** — single-cycle wavetable / PWM scan (the Digipro/DPRO digital
+  waveform engine).
+- **VO** — formant / vowel synthesis (genuinely uncovered elsewhere in
+  the catalogue).
+
+`currentVoices() = V1` (mono) with a Mono/Poly voice-mode slot, pulled
+live like `FMMachine` (§2). It does **not** opt out of the canonical
+FLTR/AMP (§14): its character is in the oscillator/model, so the
+multimode SVF and the AMP envelope sit downstream as usual; the
+Monomachine's "+Drive" is a `drive`-role `IEffect` (§32), not internal.
+
+Three of the original Monomachine engines are **subsumed**, mirroring the
+Neighbour and Syntakt hygiene above — they are not re-implemented inside
+`DigitalMachine`:
+
+- **GND** (ground / utility) → **Thru** (`input_source`, §27).
+- **FM** → **`FMMachine`** (the dedicated 4-op engine).
+- **Drum / FMdrum models** → **`DrumSynthMachine`** / **`PercussionMachine`**.
+
+### 29.2 Static, Thru, Recorder, Looper
+
+These extend the catalogue beyond the baseline Flex sampler (§3). The
+first is an ordinary playback engine; the latter three consume audio via
+`input_source` (§27).
 
 - **Static.** A disk-streaming sampler for long-form material
   (full songs, long field recordings) that should not be decoded

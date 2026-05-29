@@ -146,6 +146,18 @@ work because FLTR means the same thing everywhere. Machine authors
 who deviate from canonical taxonomy break those workflows; we don't
 let them.
 
+**Consequence (machines generate; effects process).** A machine
+*originates* sound (a synth or sampler) or *routes/captures* it (Thru,
+Recorder, Looper). Pure timbre processing — filter, EQ, distortion,
+bitcrush, reverb, delay, compression — is an `IEffect`, not a machine,
+so that the canonical FLTR / AMP / FX stay uniform across every track.
+The litmus test: originate or capture → machine; merely colour an
+existing signal → `IEffect`. Thru is the single exception, and it earns
+it by doing no colouring of its own — the foundation FLTR/AMP/FX do the
+work. The stock catalogue is the iconic-and-foundational set
+(DESIGN §29); a specialised engine is a third-party module (DESIGN §36),
+not a reason to grow the in-box catalogue.
+
 ## 8. Ergonomics first; chrome must announce state
 
 When live ergonomics conflict with explicit visibility, ergonomics
