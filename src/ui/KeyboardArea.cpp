@@ -1046,6 +1046,7 @@ namespace lockstep
             const auto cell = juce::Rectangle<int>(x, area.getY(), cellW, area.getHeight());
 
             const bool isPressed    = isKeyPressed(def.keyCode);
+            const bool isOverdub    = (def.keyCode == 'U') && processor_.clock().isOverdubArmed();
             const bool isArmed      = (def.keyCode == 'U') && processor_.clock().isRecordArmed();
             const bool isPlaying    = (def.keyCode == 'I') && processor_.clock().inPluginPlaying();
             const bool isPatHeld    = (def.keyCode == 'Q') && uiState_.patternScopeHeld;
@@ -1097,9 +1098,15 @@ namespace lockstep
 
             // MHZ.9.7: mode selector moved to Track+NavUp/Down; verb relabels removed.
 
+            // Overdub armed: label becomes "OD" and the group switches to amber.
+            if (isOverdub)
+                displayPrimary = "OD";
+
             // Modifier keys (Q=Pattern, W=Part) always show their dim scope colour at rest
             // and fill with the full scope colour when active.
             KeyGroup activeGroup = def.group;
+            if (isOverdub)
+                activeGroup = KeyGroup{ 0xFF2E1E08u, 0xFFD2821Eu, 0xFFE0A040u };
             if (def.keyCode == 'Q')
                 activeGroup = uiState_.patternScopeHeld
                     ? KeyGroup{ kScopePatternDim, kScopePattern, kScopePattern }

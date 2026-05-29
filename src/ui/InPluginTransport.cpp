@@ -84,15 +84,19 @@ namespace lockstep
 
     void InPluginTransport::syncRecColour()
     {
-        const bool armed = clock_.isRecordArmed();
-        recBtn_.setColour(juce::TextButton::buttonColourId,
-                          armed ? juce::Colour::fromRGB(200, 50, 50)
-                                : juce::LookAndFeel::getDefaultLookAndFeel()
-                                      .findColour(juce::TextButton::buttonColourId));
+        const bool armed   = clock_.isRecordArmed();
+        const bool overdub = clock_.isOverdubArmed();
+        juce::Colour bg;
+        if (overdub)       bg = juce::Colour::fromRGB(210, 130, 30);  // amber = overdub
+        else if (armed)    bg = juce::Colour::fromRGB(200, 50, 50);   // red = plain record
+        else               bg = juce::LookAndFeel::getDefaultLookAndFeel()
+                                    .findColour(juce::TextButton::buttonColourId);
+        recBtn_.setColour(juce::TextButton::buttonColourId, bg);
         recBtn_.setColour(juce::TextButton::textColourOffId,
-                          armed ? juce::Colours::white
-                                : juce::LookAndFeel::getDefaultLookAndFeel()
-                                      .findColour(juce::TextButton::textColourOffId));
+                          (armed || overdub) ? juce::Colours::white
+                                             : juce::LookAndFeel::getDefaultLookAndFeel()
+                                                   .findColour(juce::TextButton::textColourOffId));
+        recBtn_.setButtonText(overdub ? "Overdub" : "Rec");
     }
 
     void InPluginTransport::syncMetroColour()
@@ -118,7 +122,7 @@ namespace lockstep
         auto b = getLocalBounds();
         playBtn_.setBounds(b.removeFromLeft(54).reduced(1));
         resetBtn_.setBounds(b.removeFromLeft(46).reduced(1));
-        recBtn_.setBounds(b.removeFromLeft(38).reduced(1));
+        recBtn_.setBounds(b.removeFromLeft(54).reduced(1));
         metroBtn_.setBounds(b.removeFromLeft(46).reduced(1));
     }
 }
