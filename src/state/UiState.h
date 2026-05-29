@@ -10,6 +10,31 @@
 
 namespace lockstep
 {
+    // Virtual-hold (latch) state — one bool per latchable modifier.
+    // Func never latches. Each bool, when true, means that modifier is held
+    // hands-free; its corresponding xxxHeld flag in UiState stays true even
+    // while the physical key is up. Column exclusivity is enforced at set time:
+    // at most one latch per column ({pattern,scene,mute} vs {track,part,master,fill}).
+    struct LatchState
+    {
+        // Col 1 (Func is not latchable):
+        bool pattern = false;
+        bool scene   = false;
+        bool mute    = false;
+        // Col 2:
+        bool track   = false;
+        bool part    = false;
+        bool master  = false;
+        bool fill    = false;
+
+        [[nodiscard]] bool any() const noexcept
+        { return pattern || scene || mute || track || part || master || fill; }
+
+        // Returns true if any step latch is engaged (via EditContext — checked externally).
+        // Placed here for structural symmetry with modifier latches.
+        bool anySteps = false;  // mirror kept in sync by PluginEditor
+    };
+
     // UI-local selection state. Not persisted. Not accessed from the audio thread.
     struct UiState
     {
@@ -36,6 +61,9 @@ namespace lockstep
         bool fillHeld         = false;  // key X (MHY: moved from 2)
         // Cue is reserved (MU); no key bound post-MHY.
         bool cueHeld          = false;
+
+        // MHZ.9.1: virtual-hold state. Kept in sync with xxxHeld (effective = physical OR latched).
+        LatchState latch;
 
         // Active trig-grid input mode.
         TrigGridMode trigGridMode = TrigGridMode::Default;

@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <algorithm>
+#include <set>
 
 namespace lockstep
 {
@@ -12,6 +13,10 @@ namespace lockstep
     // The "primary" held step is the first one pressed.  All held steps
     // share the same track index (cross-track simultaneous holds are not
     // supported; starting a hold on a different track releases previous holds).
+    //
+    // MHZ.9.1: latched steps are virtual-holds that persist even after the
+    // physical key is released. They remain in heldSteps_ until explicitly
+    // cleared (escape gesture or explicit clearLatched/clearAllLatched call).
     class EditContext
     {
     public:
@@ -61,10 +66,12 @@ namespace lockstep
             }
         }
 
-        // Release all held steps unconditionally (e.g. focus change).
+        // Release all held steps unconditionally (e.g. focus change, escape).
+        // Also clears the latch set so latched steps are dropped too.
         void release()
         {
             heldSteps_.clear();
+            latchedSteps_.clear();
             heldTrack_    = -1;
             paramWritten_ = false;
         }
@@ -73,8 +80,35 @@ namespace lockstep
         void markParamWritten() { paramWritten_ = true; }
         [[nodiscard]] bool wasParamWritten() const { return paramWritten_; }
 
+        // ---- MHZ.9.1: latched step API ----
+
+        [[nodiscard]] bool isLatched(int stepIndex) const
+        {
+            return latchedSteps_.count(stepIndex) > 0;
+        }
+
+        void setLatched(int stepIndex)
+        {
+            latchedSteps_.insert(stepIndex);
+        }
+
+        void clearLatched(int stepIndex)
+        {
+            latchedSteps_.erase(stepIndex);
+        }
+
+        void clearAllLatched()
+        {
+            latchedSteps_.clear();
+        }
+
+        [[nodiscard]] const std::set<int>& latchedSteps() const { return latchedSteps_; }
+
+        [[nodiscard]] bool hasAnyLatchedStep() const { return !latchedSteps_.empty(); }
+
     private:
         std::vector<int> heldSteps_;      // ordered by press time
+        std::set<int>    latchedSteps_;   // MHZ.9.1: subset of heldSteps_ that are virtual-held
         int              heldTrack_    = -1;
         bool             paramWritten_ = false;
         int              activeSlot_   = -1;
