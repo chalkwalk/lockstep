@@ -996,7 +996,8 @@ namespace lockstep
                 if (editContext_.isActiveForEditing()
                     && editContext_.heldTrackIndex() == static_cast<int>(i))
                     resolveStep = editContext_.heldStepIndex();
-                auto frame = StateResolver::resolve(sequence().tracks[i], resolveStep);
+                const bool fillNow = fillActiveForTrack(static_cast<int>(i));
+                auto frame = StateResolver::resolve(sequence().tracks[i], resolveStep, fillNow);
                 if (previewActive_ && static_cast<int>(i) == previewTrack_)
                 {
                     const int ss = slotForId(static_cast<int>(i), "sample_id");
@@ -1025,11 +1026,15 @@ namespace lockstep
                         TrackFltrState fltr = activePart().tracks[i].fltrState;
                         if (resolveStep >= 0 && resolveStep < kMaxStepsPerTrack)
                         {
-                            const auto& ovr =
-                                sequence().tracks[i].steps[static_cast<std::size_t>(resolveStep)].overrides;
+                            const auto& step =
+                                sequence().tracks[i].steps[static_cast<std::size_t>(resolveStep)];
                             for (int fs = 0; fs < TrackFltrState::kNumSlots; ++fs)
-                                if (ovr.has(fltrOff + fs))
-                                    fltr.setSlot(fs, ovr.get(fltrOff + fs, 0.0f));
+                                if (step.overrides.has(fltrOff + fs))
+                                    fltr.setSlot(fs, step.overrides.get(fltrOff + fs, 0.0f));
+                            if (fillNow)
+                                for (int fs = 0; fs < TrackFltrState::kNumSlots; ++fs)
+                                    if (step.fillOverrides.has(fltrOff + fs))
+                                        fltr.setSlot(fs, step.fillOverrides.get(fltrOff + fs, 0.0f));
                         }
                         trackFltrs_[i].processBlock(trackBuffers_[i], trackMidi[i], fltr,
                                                     numBlockSamples);
@@ -1040,11 +1045,15 @@ namespace lockstep
                         TrackAmpState amp = activePart().tracks[i].ampState;
                         if (resolveStep >= 0 && resolveStep < kMaxStepsPerTrack)
                         {
-                            const auto& ovr =
-                                sequence().tracks[i].steps[static_cast<std::size_t>(resolveStep)].overrides;
+                            const auto& step =
+                                sequence().tracks[i].steps[static_cast<std::size_t>(resolveStep)];
                             for (int as = 0; as < TrackAmpState::kNumSlots; ++as)
-                                if (ovr.has(ampOff + as))
-                                    amp.setSlot(as, ovr.get(ampOff + as, 0.0f));
+                                if (step.overrides.has(ampOff + as))
+                                    amp.setSlot(as, step.overrides.get(ampOff + as, 0.0f));
+                            if (fillNow)
+                                for (int as = 0; as < TrackAmpState::kNumSlots; ++as)
+                                    if (step.fillOverrides.has(ampOff + as))
+                                        amp.setSlot(as, step.fillOverrides.get(ampOff + as, 0.0f));
                         }
                         const bool ampWasIdle = trackAmps_[i].isIdle();
                         trackAmps_[i].processBlock(trackBuffers_[i], trackMidi[i], amp,
@@ -1452,11 +1461,14 @@ namespace lockstep
                     TrackFltrState fltr = activePart().tracks[i].fltrState;
                     if (fsi >= 0 && fsi < kMaxStepsPerTrack)
                     {
-                        const auto& ovr =
-                            sequence().tracks[i].steps[static_cast<std::size_t>(fsi)].overrides;
+                        const auto& step = sequence().tracks[i].steps[static_cast<std::size_t>(fsi)];
                         for (int fs = 0; fs < TrackFltrState::kNumSlots; ++fs)
-                            if (ovr.has(fltrOff + fs))
-                                fltr.setSlot(fs, ovr.get(fltrOff + fs, 0.0f));
+                            if (step.overrides.has(fltrOff + fs))
+                                fltr.setSlot(fs, step.overrides.get(fltrOff + fs, 0.0f));
+                        if (curFillActive)
+                            for (int fs = 0; fs < TrackFltrState::kNumSlots; ++fs)
+                                if (step.fillOverrides.has(fltrOff + fs))
+                                    fltr.setSlot(fs, step.fillOverrides.get(fltrOff + fs, 0.0f));
                     }
                     trackFltrs_[i].processBlock(trackBuffers_[i], trackMidi[i], fltr,
                                                 numBlockSamples);
@@ -1467,11 +1479,14 @@ namespace lockstep
                     TrackAmpState amp = activePart().tracks[i].ampState;
                     if (fsi >= 0 && fsi < kMaxStepsPerTrack)
                     {
-                        const auto& ovr =
-                            sequence().tracks[i].steps[static_cast<std::size_t>(fsi)].overrides;
+                        const auto& step = sequence().tracks[i].steps[static_cast<std::size_t>(fsi)];
                         for (int as = 0; as < TrackAmpState::kNumSlots; ++as)
-                            if (ovr.has(ampOff + as))
-                                amp.setSlot(as, ovr.get(ampOff + as, 0.0f));
+                            if (step.overrides.has(ampOff + as))
+                                amp.setSlot(as, step.overrides.get(ampOff + as, 0.0f));
+                        if (curFillActive)
+                            for (int as = 0; as < TrackAmpState::kNumSlots; ++as)
+                                if (step.fillOverrides.has(ampOff + as))
+                                    amp.setSlot(as, step.fillOverrides.get(ampOff + as, 0.0f));
                     }
                     const bool ampWasIdle = trackAmps_[i].isIdle();
                     trackAmps_[i].processBlock(trackBuffers_[i], trackMidi[i], amp,

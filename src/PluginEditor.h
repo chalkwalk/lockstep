@@ -185,6 +185,14 @@ namespace lockstep
         // When engaging, enforces column exclusivity (releases any other latch in the same column).
         void setModifierLatch(ControllerButton cb, bool set);
 
+        // MHZ.9.x: called from each latchable modifier's dispatchDown case.
+        // Single tap on an already-latched modifier unlatches it; double-tap toggles latch.
+        void handleModifierTap(ControllerButton cb, bool currentlyLatched);
+
+        // MHZ.9.x: auto-release a transient mode's latch after its terminal action.
+        // No-op when not latched; leaves physically-held (non-latched) mods alone.
+        void releaseTransientLatch(ControllerButton cb);
+
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LockstepEditor)
     };
 }

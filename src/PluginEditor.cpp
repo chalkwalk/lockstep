@@ -832,6 +832,48 @@ namespace lockstep
     }
 
     // -------------------------------------------------------------------------
+    // MHZ.9.x: per-modifier tap router.
+    // Single tap on a latched modifier unlatches it; double-tap toggles latch.
+
+    void LockstepEditor::handleModifierTap(ControllerButton cb, bool currentlyLatched)
+    {
+        const double now = juce::Time::getMillisecondCounterHiRes();
+        const bool dbl = doubleTap_.recordAndCheck(1000 + static_cast<int>(cb), now);
+        if (currentlyLatched && !dbl)
+        {
+            setModifierLatch(cb, false);
+            doubleTap_.invalidate();  // prevent follow-up read as re-latch
+        }
+        else if (dbl)
+        {
+            setModifierLatch(cb, !currentlyLatched);
+        }
+    }
+
+    // MHZ.9.x: auto-release a transient latch after a terminal action completes.
+    // Only releases when the mode is *latched* (not just physically held).
+
+    void LockstepEditor::releaseTransientLatch(ControllerButton cb)
+    {
+        using T = ControllerEvent::Type;
+        bool latched = false;
+        bool phys    = false;
+        switch (cb)
+        {
+            case ControllerButton::TrackScope:
+                latched = uiState_.latch.track; phys = physHeld_.track; break;
+            case ControllerButton::PartScope:
+                latched = uiState_.latch.part;  phys = physHeld_.part;  break;
+            default: return;
+        }
+        if (!latched) return;
+        setModifierLatch(cb, false);
+        if (!phys) dispatchUp({ T::ButtonUp, cb });
+        keyboardArea_.repaint();
+        repaint();
+    }
+
+    // -------------------------------------------------------------------------
     // Key handling (9x4 layout)
 
     // dispatchDown — source-agnostic button-down handler fed by both keyboard
@@ -863,12 +905,7 @@ namespace lockstep
                 uiState_.trackHeld = true;
                 processor_.setControlAllActive(true);  // MD.10: active until a track is selected
                 editMode_.onScopeEvent(ev);
-                // MHZ.9.3: double-tap toggles latch.
-                {
-                    const double now = juce::Time::getMillisecondCounterHiRes();
-                    if (doubleTap_.recordAndCheck(1000 + static_cast<int>(CB::TrackScope), now))
-                        setModifierLatch(CB::TrackScope, !uiState_.latch.track);
-                }
+                handleModifierTap(CB::TrackScope, uiState_.latch.track);
                 repaint();
                 return true;
 
@@ -877,11 +914,7 @@ namespace lockstep
                 uiState_.patternScopeHeld = true;
                 uiState_.patternScopeUsed = false;
                 editMode_.onScopeEvent(ev);
-                {
-                    const double now = juce::Time::getMillisecondCounterHiRes();
-                    if (doubleTap_.recordAndCheck(1000 + static_cast<int>(CB::PatternScope), now))
-                        setModifierLatch(CB::PatternScope, !uiState_.latch.pattern);
-                }
+                handleModifierTap(CB::PatternScope, uiState_.latch.pattern);
                 repaint();
                 return true;
 
@@ -889,11 +922,7 @@ namespace lockstep
                 physHeld_.mute = true;
                 uiState_.muteHeld = true;
                 editMode_.onScopeEvent(ev);
-                {
-                    const double now = juce::Time::getMillisecondCounterHiRes();
-                    if (doubleTap_.recordAndCheck(1000 + static_cast<int>(CB::MuteScope), now))
-                        setModifierLatch(CB::MuteScope, !uiState_.latch.mute);
-                }
+                handleModifierTap(CB::MuteScope, uiState_.latch.mute);
                 repaint();
                 return true;
 
@@ -902,11 +931,7 @@ namespace lockstep
                 uiState_.fillHeld = true;
                 editMode_.onScopeEvent(ev);
                 updateFillActivation();
-                {
-                    const double now = juce::Time::getMillisecondCounterHiRes();
-                    if (doubleTap_.recordAndCheck(1000 + static_cast<int>(CB::FillScope), now))
-                        setModifierLatch(CB::FillScope, !uiState_.latch.fill);
-                }
+                handleModifierTap(CB::FillScope, uiState_.latch.fill);
                 repaint();
                 return true;
 
@@ -921,11 +946,7 @@ namespace lockstep
                 physHeld_.scene = true;
                 uiState_.sceneHeld = true;
                 editMode_.onScopeEvent(ev);
-                {
-                    const double now = juce::Time::getMillisecondCounterHiRes();
-                    if (doubleTap_.recordAndCheck(1000 + static_cast<int>(CB::SceneScope), now))
-                        setModifierLatch(CB::SceneScope, !uiState_.latch.scene);
-                }
+                handleModifierTap(CB::SceneScope, uiState_.latch.scene);
                 repaint();
                 return true;
 
@@ -933,11 +954,7 @@ namespace lockstep
                 physHeld_.master = true;
                 uiState_.masterHeld = true;
                 editMode_.onScopeEvent(ev);
-                {
-                    const double now = juce::Time::getMillisecondCounterHiRes();
-                    if (doubleTap_.recordAndCheck(1000 + static_cast<int>(CB::MasterScope), now))
-                        setModifierLatch(CB::MasterScope, !uiState_.latch.master);
-                }
+                handleModifierTap(CB::MasterScope, uiState_.latch.master);
                 repaint();
                 return true;
 
@@ -945,11 +962,7 @@ namespace lockstep
                 physHeld_.part = true;
                 uiState_.partHeld = true;
                 editMode_.onScopeEvent(ev);
-                {
-                    const double now = juce::Time::getMillisecondCounterHiRes();
-                    if (doubleTap_.recordAndCheck(1000 + static_cast<int>(CB::PartScope), now))
-                        setModifierLatch(CB::PartScope, !uiState_.latch.part);
-                }
+                handleModifierTap(CB::PartScope, uiState_.latch.part);
                 keyboardArea_.repaint();
                 repaint();
                 return true;
@@ -1245,8 +1258,8 @@ namespace lockstep
                             processor_.availableMachineInfo(ev.index).id };
                         processor_.setTrackMachine(keyboardArea_.getActiveTrack(), machineId);
                         keyboardArea_.syncToActiveTrack();
+                        releaseTransientLatch(CB::PartScope);
                     }
-                    // Stay in picker mode until Func/Part is released.
                     keyboardArea_.repaint();
                     return true;
                 }
@@ -1417,12 +1430,14 @@ namespace lockstep
                             std::string(SamplerMachine::kMachineId));
                     else
                         processor_.copyPartTrack(keyboardArea_.getActiveTrack(), ev.index);
+                    releaseTransientLatch(CB::TrackScope);
                     repaint();
                     keyboardArea_.repaint();
                     return true;
                 }
                 keyboardArea_.setActiveTrack(ev.index);
                 processor_.setControlAllActive(false);  // specific track chosen; disable control-all
+                releaseTransientLatch(CB::TrackScope);
                 return true;
 
             case ControllerButton::NavUp:
@@ -2463,6 +2478,7 @@ namespace lockstep
                         s.trigOverride = TrigOverride{};
                     }
                 }
+                releaseTransientLatch(CB::TrackScope);
                 break;
             }
 
