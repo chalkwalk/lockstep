@@ -2243,6 +2243,14 @@ is the single consumer-facing API — no renderer should hard-code scope
 RGB directly. New chrome that needs to distinguish a state must first
 add it to the taxonomy.
 
+This taxonomy is realised as the **add-only `CellState` enum** carried by
+the surface model (§35.8): the entries above become tokens, the screen
+maps token→RGB via `UITheme`, and an external controller maps token→device
+colour/brightness. That is the mechanism by which "hardware LEDs mirror
+software for free" stops being a hope and becomes structural — both render
+the same model. Per §35.8.6 the enum only grows (deprecate, never remove),
+and every token always carries a resolved colour fallback.
+
 Specific colours are deferred. The first cut ships with
 placeholder colours that are *distinguishable* (no two states
 collide) but not yet "designed." A later visual pass picks the
@@ -2805,3 +2813,450 @@ meta-section (1–64, `valueLabels` annotate page boundaries), so a
 user can dial pattern length without leaving the MZ. The encoder and
 chord gestures write the same `Parameters::trackLengthParams_[t]`
 APVTS parameter — no divergence.
+
+## 35. External Controller Surfaces
+
+Lockstep's grammar is designed for one canonical surface — the 10×4
+QWERTY (and its denser hardware twin, §33, §26, `PRINCIPLES.md` §4).
+But performers already own generic MIDI controllers (encoder boxes,
+pad grids, fader banks). This section defines how such a device
+*augments* the canonical surface without becoming a second, divergent
+input language. It is a planned milestone (ROADMAP **MW**), not yet
+built; the design exists so the build stays inside the grammar.
+
+### 35.1 Two classes of surface
+
+| Class | Examples | Governed by |
+|---|---|---|
+| **Dedicated controller** | The eventual Lockstep hardware | §33 / §26 / `PRINCIPLES.md` §4 |
+| **Augmentation surface** | Behringer X-Touch Mini, Launchkey, pad grids | this section |
+
+The **dedicated controller** is *literally a fewer-key QWERTY* — same
+topology class (10×4 cluster + functional block, 8 encoders, 1 fader),
+same key→action map, full parity. `PRINCIPLES.md` §4 binds it. Nothing
+in §35 changes it.
+
+An **augmentation surface** is any generic third-party MIDI controller.
+It is *not* a Lockstep keyboard and makes no claim to parity. The
+reconciling rule with `PRINCIPLES.md` §4 (stated so the principle stays
+honest):
+
+> An augmentation surface may have a **different physical topology**
+> from the QWERTY surface, but only a **strict-subset action
+> vocabulary**. Every control it carries maps to an action already
+> reachable from QWERTY; it may omit actions freely but can invent
+> none. Topology differs; vocabulary only shrinks.
+
+So §4's full-parity clause binds the dedicated controller alone, while
+"one grammar, no exceptions" (`PRINCIPLES.md` §2) binds both: a generic
+controller adds zero new actions, it only re-expresses existing ones
+ergonomically, and the QWERTY + on-screen surface remain complete and
+authoritative at all times.
+
+**Coverage** is a property each profile declares — a monotonic ladder,
+each level including the prior:
+
+1. `encoders` — N relative encoders → MZ slots (live tweak only).
+2. `encoders+grid` — adds a button grid → `Step` / `ToggleMute` / scope
+   modifiers.
+3. `encoders+grid+transport` — adds verbs / transport.
+
+Plus a derived `covering` boolean: true only when coverage is
+`encoders+grid+transport` **and** the grid is ≥16 cells — i.e. the
+surface can stand in for the on-screen step grid. Only a `covering`
+profile may trigger the adaptive layout (§35.6). Coverage is *declared*
+by the profile, never inferred by the loader.
+
+### 35.2 Controller I/O ports — a side-channel disjoint from the bus
+
+The controller link is **not** the plugin's MIDI in/out bus and never
+appears in `processBlock`'s `MidiBuffer`. (It is also distinct from the
+§31 cue MIDI output, which is a *host-routed* second plugin bus — the
+controller port is a device the plugin opens *itself*.)
+
+A `ControllerPortManager` (in `src/io/`) owns its own `juce::MidiInput`
+and `juce::MidiOutput`, opened **by device identifier** matched from the
+loaded profile — the same mechanism the MIDI-out machine already uses
+(`MidiOutMachine::openDevice` → `juce::MidiOutput::openDevice(info.identifier)`).
+
+- **Standalone and DAW-hosted behave identically.** JUCE device-open is
+  OS-level MIDI, independent of the plugin's audio/MIDI buses — which is
+  exactly why the MIDI-out machine can open its own device even when
+  hosted. The host's musical MIDI never carries controller traffic, and
+  controller traffic never lands on a host track: "disjoint" holds by
+  construction, not by host configuration.
+
+- **Threading — three threads, marshalled.**
+  `MidiInputCallback::handleIncomingMidiMessage` fires on JUCE's
+  high-priority **MIDI thread**, not the message or audio thread. The
+  manager fans a single incoming stream out by destination:
+  - **Encoder / fader CC** → pushed into a lock-free FIFO drained at the
+    top of `processBlock`, then run through the existing
+    `CCMappingTable::dispatch` so soft-takeover (`AbsoluteCCRouter`),
+    relative decoding (`RelativeCCRouter`) and the actual parameter
+    writes all stay on the audio thread. Because this CC arrives on the
+    dedicated device rather than the host buffer, it must be *marshalled
+    in* — it does not ride the host CC path that §5 describes.
+  - **Buttons** → marshalled to the **message thread** (the same thread
+    QWERTY input uses) and dispatched as `ControllerEvent`s into the
+    editor.
+  - **Feedback out** (§35.4) → written to the dedicated `MidiOutput`
+    from the UI timer. **No MIDI is ever written from the audio thread.**
+
+- **Lifecycle.** Open on profile match; periodically rescan the device
+  list so a controller plugged in *after* launch is picked up; release
+  on profile change and shutdown. Persistence stores the device
+  **identifier**, not its display name (matching the MIDI-out machine's
+  `destinationId` discipline — display names are unstable across hosts
+  and OSes).
+
+- **Platform caveat (graceful).** Windows (WinMM) MIDI input is
+  **exclusive**: if the DAW has already claimed the controller as a
+  control surface, the plugin's open fails. This degrades to a chrome
+  warning ("controller in use by host"), never a crash — and the manual
+  guidance is "don't also map the controller inside the host". macOS
+  CoreMIDI and Linux ALSA are multi-client and unaffected.
+
+### 35.3 Input bindings
+
+With ports owned by §35.2, input still terminates where it does for
+every other source: `ControllerEvent` on the message thread
+(`LockstepEditor::dispatch…`), parameter CC on the audio thread. Input is
+the `onInput()` half of an `IControllerSurface` (§35.8); the default
+`JsonControllerSurface` owns the loaded profile and compiles each binding
+to one of the existing primitives — it produces **no new event types**.
+Every binding targets a cell or slot by its `(ControllerButton, index)`
+identity (`io/ControllerEvent.h`) — the *same* identity the surface model
+(§35.8) exposes for feedback, so press and light are two halves of one
+key:
+
+| Physical control | Compiles to | Notes |
+|---|---|---|
+| Encoder | `CCMapping{ isRelative, scope = Contextual, mzPosition = k }` | Rides `CCMappingTable` via the §35.2 FIFO; follows focus track + MZ exactly as §5.3 / §26.2. 8 encoders ↔ `kMZSlots = 8`. |
+| Button | `ControllerButton` + `index` → `ControllerEvent` | Note-on (vel > 0) = `ButtonDown`, note-off / vel 0 = `ButtonUp`. The MB.1 stream, no parallel path. A button may instead bind to a CC where its natural target is a parameter. |
+| Fader | Scene crossfader (§17.5) | The fader axis has no QWERTY mapping by design (§17.5); the augmentation surface *honours* that omission rather than inventing a button for it. **Depends on MI** for the final scene-fader parameter; until then it drives the software crossfader slider directly. |
+
+This is the concrete realisation of MB.1's promise: hardware-controller
+integration "wires its own producer onto the same stream — no parallel
+code path."
+
+### 35.4 Feedback — the bidirectional seam
+
+There is no controller-feedback path today (the MIDI-out machine is
+sequencer→synth only). §35.4 adds feedback as **a second renderer of the
+surface model defined in §35.8** — *not* a parallel re-derivation of UI
+state. The screen and the controller both render from the same
+`SurfaceModel` produced by the same pure `buildSurfaceModel()`; "it can
+never disagree with the screen" is therefore *structural*, not a property
+maintained by discipline. (Read §35.8 first — it defines `SurfaceModel`,
+`SurfaceCell`, `SurfaceSlot`, and `CellState`.)
+
+Concretely, `ControllerFeedbackEmitter` is the `render()` half of the
+default `JsonControllerSurface` (§35.8). It runs on a **timer at the
+ManipulationZone cadence (30 Hz)** — reuse that proven clock, do not add a
+second. Each tick it calls `buildSurfaceModel()`, **diffs against a
+per-indicator shadow cache**, and emits MIDI only for cells/slots that
+changed (bounded by a profile `maxMessagesPerTick` cap). No MIDI is ever
+written from the audio thread.
+
+Each indicator is driven by a model field, not by a private read of
+domain state:
+
+| Indicator | Model field (§35.8) | Signal |
+|---|---|---|
+| Encoder LED ring | `SurfaceSlot::norm` for the bound `mzPosition` | CC out, value = `round(norm · ringMax)` |
+| Button LED (on/brightness) | `SurfaceCell::base` token + `level` | note-on velocity = brightness curve |
+| Button LED (colour) | `SurfaceCell::base` token (smart device maps it) **or** `baseColour` (dumb device); decoration channels (`border`/`dot`/`strip`/`pip`) overlaid where the device can show them | device colour index, else brightness-only (X-Touch is single-colour) |
+
+A controller maps the **`CellState` token** where it understands it and
+falls back to the carried `baseColour` otherwise (§35.8 versioning), so a
+single-colour device, an RGB pad, and a future colour-ring device each
+render the *same model* to the limit of their hardware with no per-state
+code in the engine.
+
+The playhead is the one always-moving indicator and is handled at the
+render site as a single moving cursor (clear previous cell, light new)
+rather than a full-grid repaint, so a running transport does not saturate
+the link. This is a property of the emitter's diff/render step, not of the
+model.
+
+### 35.5 Profile files
+
+Profiles are **user-editable JSON**, parsed at runtime. A profile is the
+data payload of the default `JsonControllerSurface` (§35.8) — the
+data-driven path most contributors use, no C++ required. Built-ins ship
+embedded as defaults; user files in
+`<userAppData>/Lockstep/controllers/*.json` override a built-in of the
+same `id`. The plugin matches an opened device against `device.match`
+(by identifier; see §35.2). The schema covers device identity, declared
+coverage, input bindings, and feedback bindings:
+
+```jsonc
+{
+  "schemaVersion": 1,
+  "id": "behringer.xtouch-mini",
+  "name": "Behringer X-Touch Mini",
+  "device": { "match": "X-TOUCH MINI", "midiChannel": 1 },
+  "coverage": "encoders+grid+transport",
+  "covering": false,                      // only 16 grid cells — not ≥16 + spare
+  "input": {
+    "encoders": [
+      { "index": 0, "cc": 1, "relative": "twosComplement",
+        "target": { "kind": "cc", "scope": "Contextual", "mzPosition": 0 } }
+      // …encoders 1-7 → mzPosition 1-7
+    ],
+    "fader":   { "cc": 9, "target": { "kind": "sceneFader" } },
+    "buttons": [
+      { "note": 8,  "target": { "kind": "event", "button": "Step", "index": 0 } },
+      // top row → steps 0-7, bottom row → steps 8-15
+      { "note": 16, "target": { "kind": "event", "button": "Step", "index": 8 } },
+      { "note": 24, "target": { "kind": "event", "button": "VerbRecord" } },
+      { "note": 25, "target": { "kind": "event", "button": "VerbPlay"  } }
+    ]
+  },
+  "feedback": {
+    "encoderRings": [ { "mzPosition": 0, "cc": 1, "ringMax": 11, "ringMode": "fan" } ],
+    "buttonLeds":   [ { "step": 0, "note": 8, "colourModel": "brightness",
+                        "brightness": { "off": 0, "trig": 127, "playhead": 90, "fillAdd": 64 } } ],
+    "maxMessagesPerTick": 48
+  }
+}
+```
+
+A colour-capable device (e.g. a Launchpad) sets
+`"colourModel": "velocityPalette"` and a `paletteMap` keyed by
+**`CellState` token** (§35.8) to its colour-index space; the X-Touch uses
+`brightness` and ignores hue. A `paletteMap` entry naming a token the
+build does not know (or has deprecated) is **non-fatal**: that cell
+degrades to the model's carried `baseColour` and the load raises a chrome
+warning (`Controller profile X: unknown state <token>, using colour
+fallback`). This is the contributor-facing edge of §35.8's add-only
+versioning — a profile written against an older token set keeps working.
+
+**Loading is otherwise graceful**: an unknown device installs no
+bindings (silent — it is just a MIDI port); a malformed or
+schema-invalid profile is skipped whole with a chrome warning
+(`Controller profile X failed: <reason>`), never partially applied,
+never throwing into the audio path. Validation checks coverage enum,
+that every binding target resolves to a real `ControllerButton` /
+`CCScope`, CC/note in 0–127, and `covering` only with full coverage +
+≥16 grid cells.
+
+### 35.6 Adaptive layout (specified, opt-in, deferred)
+
+`LockstepEditor::resized()` is a single hardcoded layout today. §35.6
+specifies an **opt-in `layoutMode`**, gated on *both* `profile.covering
+== true` **and** an explicit user toggle (never automatic), that:
+
+1. relocates the MZ to a horizontal row **below** the QWERTY block
+   (knob-row ergonomics under the screen), and
+2. optionally collapses / hides the on-screen step grid when a covering
+   controller owns the grid.
+
+**Reconciliation with §26.1.** §26.1 commits to "MZ *above* the grid;
+the window grows vertically" — that remains the **default and
+authoritative** software layout and the spatial mirror of the dedicated
+hardware (encoders above keys). §35.6's below-QWERTY relocation is a
+**guarded, opt-in alternate**, active only when a covering augmentation
+surface is attached and the user enables it. It does not revoke §26.1;
+the square-cell / vertical-growth invariants still hold in both modes,
+and the default experience is unchanged.
+
+It is sequenced last (ROADMAP MW.8) because it touches the one
+hardcoded layout method, needs a covering device to test against, and
+adds ergonomics, not capability (`PRINCIPLES.md` §1). Note that the
+X-Touch Mini is *not* `covering` (only 16 grid buttons, no spare
+modifiers), so the first adaptive-UI-eligible device is a larger pad
+grid — another reason the work genuinely defers.
+
+### 35.7 Principle and grammar compliance
+
+- **§2 / §4 (one grammar; nothing unreachable).** Every binding
+  terminates in an existing `ControllerButton`, a `CCScope` mapping, or
+  the §17.5 fader axis — all reachable from QWERTY, the fader excepted by
+  §17.5's *own* QWERTY-omission rule, which the augmentation surface
+  honours rather than violates. No binding can name an action that does
+  not already exist.
+- **No bespoke single-purpose control.** A button only relabels a
+  physical control onto an existing scope / verb / step primitive; it is
+  never a one-off gesture.
+- **§5 (equal citizens).** Encoders drive `CCScope::Contextual` and
+  feedback reads the same per-track value accessor the MZ uses — both
+  machine-agnostic, so a MIDI-out track's CC slots ring and tweak
+  identically to a sampler's.
+- **§8 (chrome announces state).** "Controller attached: <profile>",
+  profile-load failures, the Windows-exclusivity warning, and any active
+  `layoutMode` are all surfaced in chrome. A profile that does not
+  announce itself is not finished.
+- **§10 (refs, not contents).** Project state stores the profile *id*,
+  not the profile body — mirroring the MIDI-out machine's preset
+  reference. The profile file is content referenced by id/path.
+
+### 35.8 The surface model and the controller authoring seam
+
+§35.3 (input) and §35.4 (feedback) both lean on one structure. This
+section defines it. It is the load-bearing decision of MW: the on-screen
+renderer and every controller render from **one** description of the
+surface, so they cannot diverge, and a new sequencer mode lights up on
+hardware with **zero per-mode controller code**.
+
+#### 35.8.1 One model, two renderers
+
+Today the editor has two inline paint paths and no shared cell-state
+object: `paintKeyButton` (`ui/KeyButton.cpp`, modifier/section/function
+keys via `KeyButtonState` + `KeyGroup`) and `KeyboardArea::paintStepRows`
+(step cells, computing fill / probability-brightness / playhead+held
+borders / P-Lock dots / fill states / scope tint *inline*). Feedback that
+re-derived that logic would be a second source of truth — the exact
+divergence MW exists to avoid.
+
+Instead, a **pure** `buildSurfaceModel()` is the single computation:
+
+```
+SurfaceModel buildSurfaceModel(const UiState&, const EditContext&,
+                               const Sequence& /*active pattern*/, Focus);
+```
+
+- The **screen** renders from it each paint (`paintStepRows` /
+  `paintSectionRow` / `paintFunctionRow` / `ManipulationZone` become
+  renderers, not deriver+renderers; the look is preserved).
+- Each **controller** (`IControllerSurface::render`, §35.8.4) renders from
+  it on the 30 Hz emitter tick (§35.4).
+
+Sharing the *function* — not a cached instance — is what guarantees
+agreement: both call sites see identical output for identical state.
+
+#### 35.8.2 Logical zones, keyed by input identity
+
+A controller subscribes to **logical zones**, never pixel regions. A zone
+is a set of cells addressed by the existing `(ControllerButton, index)`
+identity from `io/ControllerEvent.h`:
+
+| Zone | Cells |
+|---|---|
+| `StepGrid` | 16 `Step` cells (index 0–15) |
+| `ModifierCluster` | the 8 modifier buttons |
+| `SectionRow` | the 6 canonical `Section` cells |
+| `FunctionRow` | nav + verb + transport keys |
+| `ManipulationZone` | 8 `SurfaceSlot`s (continuous controls, §35.8.5) |
+
+Because a cell's model identity **is** its input identity, press and light
+are two halves of one key: to actuate a cell, a controller emits the same
+`ControllerEvent{ButtonDown/Up, button, index}` onto the MB.1 stream that
+the QWERTY surface emits (§35.3) — the editor reacts identically, by
+construction. **Generality follows directly:** a new trig-grid mode (a
+future "mode that uses the sequencer steps") changes the *state tokens*
+the `StepGrid` cells carry, not the zone's shape or identities, so every
+controller tracks it for free — no per-step, per-mode controller code.
+
+#### 35.8.3 Cell schema and the `CellState` taxonomy
+
+A cell carries a **semantic token and a resolved colour** (we send both),
+plus a closed, named set of decoration channels:
+
+```
+struct CellDecoration { CellState token; uint32_t colour; bool present; };
+
+struct SurfaceCell {
+  ControllerButton button;   // identity — matches the press path (§35.8.2)
+  int              index;    // step / section / track index, else -1
+
+  CellState  base;           // semantic token (add-only — §35.8.6)
+  uint32_t   baseColour;     // resolved ARGB — fallback for unknown/deprecated tokens
+  float      level;          // 0..1 brightness (probability dim, etc.)
+
+  CellDecoration border;     // playhead / held / mode-active outline
+  CellDecoration dot;        // P-Lock presence
+  CellDecoration strip;      // compound-chord / fill marker
+  CellDecoration pip;        // latch / virtual-hold (MHZ.9.6)
+};
+```
+
+`CellState` makes the §24 taxonomy concrete — one enum unifying the
+step-grid family (`Inactive`, `OutOfRange`, `TrigCertain`,
+`TrigProbable`, `TrigSuppressed`, `FillAdd`, `FillSuppress`, `Held`, …)
+and the key family (`Resting`, `Pressed`, `ModeActive`, `FuncHeld`,
+`Disabled`, …). The decoration channels intentionally mirror how the
+screen *already* layers: base fill, then border, then corner dot, then
+edge strip, then pip.
+
+**Why named channels, not a flat colour and not an opacity stack.** A
+single flattened colour per state-combination is combinatorial and
+destroys the orthogonality that keeps the paint code maintainable. An
+arbitrary ordered opacity stack keeps the screen orthogonal but hands
+controllers an open-ended thing to interpret — hostile to contributors.
+The **closed, named channel set** is the middle path: the screen draws
+each channel independently (adding an overlay = adding a channel — still
+orthogonal), and a controller renders only the channels its hardware can
+express (single-colour LED → `base` + `level`; RGB pad → `baseColour`; a
+ring+centre device → `border` and `base` separately; unknown channels
+ignored). New overlays append a channel; old controllers ignore it.
+
+#### 35.8.4 The authoring seam — `IControllerSurface`
+
+How a contributor adds a controller mirrors how they add a machine: a C++
+base class, registered in a registry — **not** an embedded interpreter
+(consistent with the locked "`IMachine` is C++, no scripting/IPC"
+decision).
+
+```
+class IControllerSurface {
+public:
+  virtual ~IControllerSurface() = default;
+  // device MIDI in -> ControllerEvent (MB.1) / CC FIFO (§35.2)
+  virtual void onInput(const juce::MidiMessage&, ControllerEventSink&) = 0;
+  // diff against shadow cache + emit feedback for this device (§35.4)
+  virtual void render(const SurfaceModel&, juce::MidiOutput&) = 0;
+  // tokens this surface consumes — drives deprecation warnings (§35.8.6)
+  virtual std::span<const CellState> statesOfInterest() const { return {}; }
+};
+```
+
+`JsonControllerSurface : IControllerSurface` is the **default
+data-driven implementation** — it interprets a §35.5 profile and covers
+the great majority of devices with no code. A device needing imperative
+logic (sysex LED framing, dynamic remap, bespoke ring encodings) ships a
+C++ subclass instead. Both are registered in a `ControllerRegistry`
+(parallel to the machine registry) and matched by device identifier.
+
+This keeps the door open without committing to it: a future
+`ScriptControllerSurface` hosting an embedded VM (the Bitwig-style path)
+would be *just another implementation* behind this seam, addable later
+without disturbing the model, the screen, or existing profiles. It is
+explicitly **not** built now.
+
+#### 35.8.5 The ManipulationZone zone — slots, not tokens
+
+The MZ zone's cells are continuous controls, described for feedback +
+optional device-screen text:
+
+```
+struct SurfaceSlot {
+  const char*  id;        // ParamSpec id on the focused track
+  const char*  label;
+  juce::String valueText; // stepped/enum text or formatted value
+  float        norm;      // 0..1 — the LED ring
+  bool         stepped;
+  bool         mapped;     // has a CC mapping / is learnable
+};
+```
+
+Built from the focused track's `ParamSpec` (existing) plus the current
+value. The slot descriptor adds only the *feedback + name* half: encoder
+**writes** continue to ride the existing `CCScope::Contextual` path, with
+`AbsoluteCCRouter` / `RelativeCCRouter` already handling absolute vs
+relative (§35.3, §5.3). A value change from *any* source — pagination,
+host CC, mouse — moves `norm`, so the next emitter diff re-rings the
+encoder automatically.
+
+#### 35.8.6 Versioning and compatibility
+
+`SurfaceModel` carries a `schemaVersion`; `CellState` is **add-only** —
+tokens may be deprecated but never renumbered or removed. `compatColour()`
+guarantees *every* token (including deprecated ones) resolves to a colour.
+A controller therefore degrades safely along two axes: a token it doesn't
+recognise → render via the cell's `baseColour`; a decoration channel it
+can't display → ignore it. `statesOfInterest()` (and the JSON
+`paletteMap`, §35.5) let the loader warn in chrome when a profile names a
+token that is unknown or deprecated, while still rendering it. The model
+grows; old controllers keep working.

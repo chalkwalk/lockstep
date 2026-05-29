@@ -212,6 +212,18 @@ must satisfy the ten principles.
   output mix). Master FX state is **Project-scope (provisional)**.
   Effect identity is a stable string id with stub fallback. (DESIGN
   §32.)
+- **Surface model is the single source of truth for screen + hardware.**
+  One pure `buildSurfaceModel()` produces a `SurfaceModel`; the on-screen
+  renderer and every external controller render *from it* — never a
+  re-derivation. A cell carries **both** a semantic `CellState` token and
+  a resolved colour; `CellState` is **add-only** (deprecate, never remove)
+  and every token has a colour fallback, so older controllers keep
+  working. Cell appearance is a base layer + a **closed, named set of
+  decoration channels** (border / dot / strip / pip), not a flattened
+  colour and not an arbitrary opacity stack. Controllers are authored via
+  the `IControllerSurface` C++ seam + `ControllerRegistry` (mirroring
+  `IMachine` — no embedded interpreter); the JSON profile is the default
+  data-driven implementation. (DESIGN §24, §35.8.)
 
 ## Milestones
 
@@ -1829,6 +1841,85 @@ MQ–MU recorder/cue cluster.
       (extends §13.2 section-copy). Verify on a Thru track end-to-end.
 - [ ] **MV.7** MIDI-out tracks carry no inserts/sends; their FX section
       remains the ME.7 MIDI CC bank. No special-casing elsewhere.
+
+### MW — External controller surfaces  [pending]
+
+DESIGN §35. Support generic third-party MIDI controllers (the worked
+example is the Behringer X-Touch Mini) as *augmentation surfaces*: a
+declared subset of the existing grammar, bidirectional, with QWERTY +
+on-screen surface still authoritative. Independent of the MQ–MV
+cluster. Dependencies already satisfied: **MB.1** (the `ControllerEvent`
+stream this rides) and the CC infrastructure (`CCMapping` / `CCMappingTable`
+/ `AbsoluteCC` / `RelativeCC` / MIDI Learn) are complete. The scene-fader
+binding (MW.7) depends on **MI** for its final parameter.
+
+The load-bearing piece is the **surface model** (DESIGN §35.8): one pure
+`buildSurfaceModel()` the screen *and* every controller render from, so
+they cannot diverge and a new sequencer mode lights up on hardware with no
+per-mode controller code. MW.5(a) extracts it and re-points the screen at
+it before any feedback emits. Contributors add controllers via the
+`IControllerSurface` seam (C++ base class + `ControllerRegistry`, mirroring
+`IMachine`); the JSON profile is the default data-driven implementation —
+no embedded interpreter (a scripting surface could slot behind the same
+seam later, not built now).
+
+- [ ] **MW.1** `IControllerSurface` seam + `ControllerRegistry` + profile
+      loader + JSON schema + validation (DESIGN §35.5, §35.8.4). The
+      registry parallels the machine registry; the default
+      `JsonControllerSurface` is the data-driven impl that interprets a
+      profile (most contributors need no C++). Built-in profiles embedded;
+      user profiles scanned from `<userAppData>/Lockstep/controllers/`;
+      match by device identifier; user overrides built-in by `id`. Parse /
+      validate / report only — no bindings active yet. Graceful: unknown
+      device = silent no-op; malformed = skip whole + chrome warning;
+      unknown/deprecated `CellState` token in a `paletteMap` =
+      colour-fallback + warning (§35.8.6), never into the audio path.
+- [ ] **MW.2** `ControllerPortManager` (DESIGN §35.2): open a dedicated
+      `juce::MidiInput` / `MidiOutput` by identifier, disjoint from the
+      host bus and `processBlock` buffer, identical standalone vs hosted
+      (precedent: `MidiOutMachine::openDevice`). Drives the active
+      `IControllerSurface`'s `onInput` / `render` halves. Hotplug rescan;
+      release on profile change / shutdown; Windows WinMM-exclusivity →
+      chrome warning, not crash. Three-thread marshalling scaffold
+      (MIDI-thread → lock-free FIFO for CC; → callAsync for buttons).
+- [ ] **MW.3** `ControllerInputRouter` (DESIGN §35.3): encoders →
+      `CCMapping{ Contextual, relative }` drained into `CCMappingTable`
+      via the MW.2 FIFO; buttons → `ControllerEvent` (MB.1 stream) via
+      callAsync; fader → software crossfader slider (interim, pre-MI).
+- [ ] **MW.4** Ship the X-Touch Mini built-in profile; manual pass —
+      all 8 encoders → MZ, 16 buttons → steps, 2 extra → verbs, fader →
+      crossfader. Confirm no contention across the three threads.
+- [ ] **MW.5** Surface model + feedback (DESIGN §35.4, §35.8). Two
+      phases, in order:
+      **(a)** Extract the pure `buildSurfaceModel()` → `SurfaceModel`
+      (`SurfaceCell` + `CellState` + `SurfaceSlot`) and **re-point the
+      existing screen renderers at it** — `KeyboardArea::paintStepRows`,
+      `paintSectionRow`, `paintFunctionRow`, `ManipulationZone` become
+      renderers of the model, not deriver+renderers. Behaviour and look
+      preserved; this is the single-source-of-truth refactor and the
+      prerequisite for feedback. `KeyButtonState` folds into `CellState`.
+      **(b)** `ControllerFeedbackEmitter` = the `render()` half of
+      `JsonControllerSurface`: 30 Hz timer (reuse the MZ cadence), calls
+      `buildSurfaceModel()`, per-indicator diff/throttle against a shadow
+      cache, ring CC out + button-LED note-on velocity; output via the
+      MW.2 dedicated port. No audio-thread MIDI writes. Playhead handled
+      as a moving cursor at the render site.
+- [ ] **MW.6** Feedback colour / state mirroring: map `SurfaceCell::base`
+      (`CellState`) + the named decoration channels (`border` / `dot` /
+      `strip` / `pip`) to the device. Token-aware devices map the token;
+      single-colour / dumb devices fall back to `baseColour` + `level`
+      (§35.8.3, §35.8.6). Brightness path verified on X-Touch;
+      `velocityPalette` (`paletteMap` keyed by `CellState`) stubbed for a
+      future colour device. Add-only / compat / `statesOfInterest` warning
+      path exercised. Covers mute / record-arm / fill / playhead.
+- [ ] **MW.7** Finalise scene-fader binding once **MI** lands: retarget
+      the fader from the interim slider to the scene-fader APVTS param.
+- [ ] **MW.8** Adaptive `layoutMode` (DESIGN §35.6, deferred-most):
+      opt-in MZ-below-QWERTY relocation + optional on-screen step-grid
+      collapse, gated on `profile.covering` + a user toggle; refactor
+      `LockstepEditor::resized()` to support the alternate layout. Chrome
+      announces controller + profile + layout state. (First eligible
+      device is a larger pad grid — the X-Touch is not `covering`.)
 
 ### M9 — Polish, CI, beta  [pending]
 
