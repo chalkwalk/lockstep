@@ -59,6 +59,11 @@ namespace lockstep
                 proc.apvts(), ParamIDs::channelMode, channelModeBox_);
 
         proc.apvts().addParameterListener(ParamIDs::syncMode, this);
+        for (int i = 0; i < static_cast<int>(kNumTracks); ++i)
+        {
+            proc.apvts().addParameterListener(ParamIDs::trackMute(i), this);
+            proc.apvts().addParameterListener(ParamIDs::trackSolo(i), this);
+        }
         updateTransportGhosting();
 
         // Wire section-change callbacks -> update ManipulationZone.
@@ -229,6 +234,11 @@ namespace lockstep
     {
         processor_.onActivePatternChanged = nullptr;
         processor_.apvts().removeParameterListener(ParamIDs::syncMode, this);
+        for (int i = 0; i < static_cast<int>(kNumTracks); ++i)
+        {
+            processor_.apvts().removeParameterListener(ParamIDs::trackMute(i), this);
+            processor_.apvts().removeParameterListener(ParamIDs::trackSolo(i), this);
+        }
         if (keyListenerTarget_ != nullptr)
             keyListenerTarget_->removeKeyListener(this);
     }
@@ -236,7 +246,21 @@ namespace lockstep
     void LockstepEditor::parameterChanged(const juce::String& paramID, float /*newValue*/)
     {
         if (paramID == ParamIDs::syncMode)
+        {
             juce::MessageManager::callAsync([this] { updateTransportGhosting(); });
+            return;
+        }
+        // Mute or solo changed (via track-bar buttons, host automation, or MIDI
+        // learn): repaint so the VU meter colour updates immediately.
+        for (int i = 0; i < static_cast<int>(kNumTracks); ++i)
+        {
+            if (paramID == juce::String(ParamIDs::trackMute(i))
+                || paramID == juce::String(ParamIDs::trackSolo(i)))
+            {
+                juce::MessageManager::callAsync([this] { repaint(); });
+                return;
+            }
+        }
     }
 
     void LockstepEditor::timerCallback()
@@ -254,7 +278,7 @@ namespace lockstep
             const float peak     = processor_.trackPeak(static_cast<int>(i));
             const float newMeter = std::max(peak, trackMeter_[i] * 0.80f);
             const float floored  = (newMeter < kMeterFloor) ? 0.0f : newMeter;
-            if (floored != trackMeter_[i]) { trackMeter_[i] = floored; dirty = true; }
+            if (std::abs(floored - trackMeter_[i]) > 0.0f) { trackMeter_[i] = floored; dirty = true; }
 
             if (processor_.takeTrigPulse(static_cast<int>(i)) > 0.5f)
             {
@@ -281,7 +305,7 @@ namespace lockstep
 
         const float newMaster = std::max(processor_.masterPeak(), masterMeter_ * 0.80f);
         const float flooredMaster = (newMaster < kMeterFloor) ? 0.0f : newMaster;
-        if (flooredMaster != masterMeter_) { masterMeter_ = flooredMaster; dirty = true; }
+        if (std::abs(flooredMaster - masterMeter_) > 0.0f) { masterMeter_ = flooredMaster; dirty = true; }
 
         if (dirty) repaint();
 
@@ -827,7 +851,36 @@ namespace lockstep
             case CB::PartScope:    uiState_.latch.part    = set; break;
             case CB::MasterScope:  uiState_.latch.master  = set; break;
             case CB::FillScope:    uiState_.latch.fill    = set; break;
-            default: break;
+            case CB::Func:
+            case CB::CueScope:
+            case CB::VerbYes:
+            case CB::VerbRecord:
+            case CB::VerbPlay:
+            case CB::VerbStop:
+            case CB::VerbNo:
+            case CB::Snapshot:
+            case CB::Restore:
+            case CB::TrigModeKeyboard:
+            case CB::TrigModeRetrig:
+            case CB::TrigModeSoundPool:
+            case CB::NavUp:
+            case CB::NavLeft:
+            case CB::NavDown:
+            case CB::NavRight:
+            case CB::Section:
+            case CB::MetaSection:
+            case CB::Step:
+            case CB::SelectTrack:
+            case CB::ToggleMute:
+            case CB::ForkPart:
+            case CB::MachineSelect:
+            case CB::RecordArm:
+            case CB::TapTempo:
+            case CB::MetronomeToggle:
+            case CB::PlayStop:
+            case CB::StopReset:
+            case CB::None:
+                break;
         }
     }
 
@@ -858,13 +911,17 @@ namespace lockstep
         using T = ControllerEvent::Type;
         bool latched = false;
         bool phys    = false;
-        switch (cb)
+        if (cb == ControllerButton::TrackScope)
         {
-            case ControllerButton::TrackScope:
-                latched = uiState_.latch.track; phys = physHeld_.track; break;
-            case ControllerButton::PartScope:
-                latched = uiState_.latch.part;  phys = physHeld_.part;  break;
-            default: return;
+            latched = uiState_.latch.track; phys = physHeld_.track;
+        }
+        else if (cb == ControllerButton::PartScope)
+        {
+            latched = uiState_.latch.part; phys = physHeld_.part;
+        }
+        else
+        {
+            return;
         }
         if (!latched) return;
         setModifierLatch(cb, false);
@@ -1282,14 +1339,14 @@ namespace lockstep
                             auto& staged = uiState_.noteEditStaged[stepIdx];
                             bool inNotes = false;
                             for (int n = 0; n < s.trigOverride.noteCount; ++n)
-                                if (s.trigOverride.notes[n] == absNote) { inNotes = true; break; }
+                                if (s.trigOverride.notes[static_cast<std::size_t>(n)] == absNote) { inNotes = true; break; }
                             if (inNotes && staged.count(absNote) == 0)
                                 staged.insert(absNote);        // stage for removal
                             else if (inNotes && staged.count(absNote) > 0)
                                 staged.erase(absNote);         // cancel removal
                             else if (!inNotes && s.trigOverride.noteCount < kMaxNotesPerStep)
                             {
-                                s.trigOverride.notes[s.trigOverride.noteCount++] = absNote;
+                                s.trigOverride.notes[static_cast<std::size_t>(s.trigOverride.noteCount++)] = absNote;
                                 s.trig = true;
                             }
                         }
@@ -1841,11 +1898,11 @@ namespace lockstep
                         int newCount = 0;
                         std::array<int, kMaxNotesPerStep> kept{};
                         for (int n = 0; n < s.trigOverride.noteCount; ++n)
-                            if (staged.count(s.trigOverride.notes[n]) == 0)
-                                kept[static_cast<std::size_t>(newCount++)] = s.trigOverride.notes[n];
+                            if (staged.count(s.trigOverride.notes[static_cast<std::size_t>(n)]) == 0)
+                                kept[static_cast<std::size_t>(newCount++)] = s.trigOverride.notes[static_cast<std::size_t>(n)];
                         s.trigOverride.noteCount = newCount;
                         for (int n = 0; n < newCount; ++n)
-                            s.trigOverride.notes[n] = kept[static_cast<std::size_t>(n)];
+                            s.trigOverride.notes[static_cast<std::size_t>(n)] = kept[static_cast<std::size_t>(n)];
                     }
                     uiState_.noteEditMode = false;
                     uiState_.noteEditSteps.clear();
@@ -2108,6 +2165,31 @@ namespace lockstep
                 repaint();
                 break;
             }
+
+            case CB::VerbYes:
+            case CB::VerbRecord:
+            case CB::VerbStop:
+            case CB::VerbNo:
+            case CB::Snapshot:
+            case CB::Restore:
+            case CB::TrigModeKeyboard:
+            case CB::TrigModeRetrig:
+            case CB::TrigModeSoundPool:
+            case CB::NavUp:
+            case CB::NavLeft:
+            case CB::NavDown:
+            case CB::NavRight:
+            case CB::SelectTrack:
+            case CB::ToggleMute:
+            case CB::ForkPart:
+            case CB::MachineSelect:
+            case CB::RecordArm:
+            case CB::TapTempo:
+            case CB::MetronomeToggle:
+            case CB::PlayStop:
+            case CB::StopReset:
+            case CB::None:
+                break;
 
             default:
                 break;
