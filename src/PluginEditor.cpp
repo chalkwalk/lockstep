@@ -1579,7 +1579,22 @@ namespace lockstep
                     editMode_.onVerb(ev.button);
                     return true;
                 }
-                processor_.clock().setRecordArmed(!processor_.clock().isRecordArmed());
+                // Double-tap = overdub record; single tap = plain (overwrite) record.
+                {
+                    const double now = juce::Time::getMillisecondCounterHiRes();
+                    const bool isDouble = doubleTap_.recordAndCheck(
+                        1000 + static_cast<int>(ControllerButton::VerbRecord), now);
+                    if (isDouble)
+                    {
+                        processor_.clock().setRecordArmed(true);
+                        processor_.clock().setOverdubArmed(true);
+                    }
+                    else
+                    {
+                        processor_.clock().setOverdubArmed(false);
+                        processor_.clock().setRecordArmed(!processor_.clock().isRecordArmed());
+                    }
+                }
                 return true;
             }
 
@@ -1615,8 +1630,22 @@ namespace lockstep
                 processor_.clock().resetPhase();
                 return true;
             case ControllerButton::RecordArm:
-                processor_.clock().setRecordArmed(!processor_.clock().isRecordArmed());
+            {
+                const double now = juce::Time::getMillisecondCounterHiRes();
+                const bool isDouble = doubleTap_.recordAndCheck(
+                    1000 + static_cast<int>(ControllerButton::RecordArm), now);
+                if (isDouble)
+                {
+                    processor_.clock().setRecordArmed(true);
+                    processor_.clock().setOverdubArmed(true);
+                }
+                else
+                {
+                    processor_.clock().setOverdubArmed(false);
+                    processor_.clock().setRecordArmed(!processor_.clock().isRecordArmed());
+                }
                 return true;
+            }
 
             // Trig grid mode selection (Func+T/Y/U). Pressing the active mode
             // a second time resets to Default (MG.6: exit cleanly — cancel any
