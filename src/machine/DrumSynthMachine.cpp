@@ -321,8 +321,24 @@ namespace lockstep
         break;
       }
       case DrumType::Clap:
-      case DrumType::Cymbal:
         break;
+      case DrumType::Cymbal:
+      {
+        // 6 inharmonic square oscillators = the metallic "clang". A decaying noise
+        // sizzle (Snap amount, NzDec length) rides on top, so the hit opens as
+        // noise and rings out as metal. Sweep stretches the partial spacing.
+        v.pitchHz = noteHz(midiNote, tune);
+        for (int j = 0; j < 6; ++j) v.sqPhases[j] = 0.0;
+        // Sweep 0..48 → spread 0.5..1.5 (1.0 = canonical 808 ratios at default 24):
+        // low = partials compress toward 2× (tonal), high = spread out (clangy).
+        v.metalSpread = 0.5f + sweep / 48.f;
+        // Body → HP cutoff (300–3000 Hz): trims low rumble, sets brightness.
+        const float cutHz = 300.f + body * 2700.f;
+        v.svfG = std::tan(std::numbers::pi_v<float> * std::min(cutHz / sr, 0.499f));
+        v.svfK = 0.7f + tone * 2.0f;
+        v.clickLevel = 0.f;
+        break;
+      }
       case DrumType::Rimshot:
       {
         // Pitched "tok" (sine at the note) blended with a bandpassed noise crack.
@@ -511,8 +527,31 @@ namespace lockstep
           break;
         }
 
-        case DrumType::Clap:
+        // -------------------------------------------------------------------
         case DrumType::Cymbal:
+        {
+          static constexpr double kRatios[6] { 2.0, 3.0, 3.7, 5.3, 5.9, 6.4 };
+          const float  snap     = paramAt(params, kSlotSnap);  // sizzle amount
+          const double baseFreq = static_cast<double>(v.pitchHz);
+          const double spread   = static_cast<double>(v.metalSpread);
+          float sum = 0.f;
+          for (int j = 0; j < 6; ++j)
+          {
+            // Stretch the inharmonic spacing around 2× by metalSpread.
+            const double ratio = 2.0 + (kRatios[j] - 2.0) * spread;
+            v.sqPhases[j] += baseFreq * ratio / sampleRate_;
+            if (v.sqPhases[j] >= 1.0) v.sqPhases[j] -= 1.0;
+            sum += (v.sqPhases[j] < 0.5) ? 1.0f : -1.0f;
+          }
+          const float metal    = sum * (1.f / 6.f);
+          const float sizzle   = xorNoise(v.noiseSeed) * advanceNoise(v) * snap;
+          const float filtered = svfHigh(v, metal + sizzle);
+          const float amp      = advanceAmp(v);
+          out = filtered * amp * velGain * level;
+          break;
+        }
+
+        case DrumType::Clap:
         default:
           advanceAmp(v);
           break;
