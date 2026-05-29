@@ -1774,6 +1774,40 @@ namespace lockstep
             param->setValueNotifyingHost(nowSoloed ? 0.0f : 1.0f);
     }
 
+    void LockstepProcessor::deleteTrack(int track)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        const auto ti = static_cast<std::size_t>(track);
+        // Replace machine with stub (absent) and reset base params.
+        setTrackMachine(track, StubMachine::kMachineId);
+        // Clear all step data.
+        auto& seqTrack = sequence().tracks[ti];
+        for (auto& s : seqTrack.steps)
+        {
+            s.trig           = false;
+            s.condition      = TrigCondition{};
+            s.overrides      = PLock{};
+            s.trigOverride   = TrigOverride{};
+            s.fillTrigState  = FillTrigState::Inherit;
+            s.fillOverrides  = PLock{};
+            s.fillTrigOverride = TrigOverride{};
+        }
+        seqTrack.trigDefaults = TrigDefaults{};
+    }
+
+    void LockstepProcessor::deletePart()
+    {
+        auto& part = activePart();
+        for (std::size_t t = 0; t < kNumTracks; ++t)
+        {
+            part.tracks[t].machineId  = StubMachine::kMachineId;
+            part.tracks[t].baseParams.clear();
+            part.tracks[t].fltrState  = TrackFltrState{};
+            part.tracks[t].ampState   = TrackAmpState{};
+        }
+        reinstallMachinesFromActivePart();
+    }
+
     bool LockstepProcessor::getPatternMute(int track) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;

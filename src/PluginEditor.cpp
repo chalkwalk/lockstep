@@ -2548,7 +2548,7 @@ namespace lockstep
             }
 
             // -----------------------------------------------------------------------
-            // MD.4  Track copy / paste / clear
+            // MD.4  Track copy / paste / clear / delete
             // -----------------------------------------------------------------------
             case PS::Track:
             {
@@ -2568,7 +2568,7 @@ namespace lockstep
                 }
                 else if (verb == CB::VerbStop)
                 {
-                    // Reset all steps; preserve length, divider, and base params.
+                    // Clear steps; preserve length, divider, and base params.
                     for (auto& s : trk.steps)
                     {
                         s.trig       = false;
@@ -2577,12 +2577,18 @@ namespace lockstep
                         s.trigOverride = TrigOverride{};
                     }
                 }
+                else if (verb == CB::VerbNo)
+                {
+                    // Delete: return track to absent state (StubMachine + cleared steps).
+                    processor_.pushCheckpoint();
+                    processor_.deleteTrack(activeTrack);
+                }
                 releaseTransientLatch(CB::TrackScope);
                 break;
             }
 
             // -----------------------------------------------------------------------
-            // MD.5  Pattern copy / paste / clear  (Pattern+Record = copy, not fork)
+            // MD.5  Pattern copy / paste / clear / delete
             // -----------------------------------------------------------------------
             case PS::Pattern:
             {
@@ -2600,8 +2606,11 @@ namespace lockstep
                     pat.sequence     = clipboard_.clipSequence;
                     pat.patternMutes = clipboard_.clipPatternMutes;
                 }
-                else if (verb == CB::VerbStop)
+                else if (verb == CB::VerbStop || verb == CB::VerbNo)
                 {
+                    // Clear (Stop) and Delete (No) are identical for patterns:
+                    // empty sequence+mutes is the absent state.
+                    if (verb == CB::VerbNo) processor_.pushCheckpoint();
                     for (auto& trk : pat.sequence.tracks)
                     {
                         for (auto& s : trk.steps)
@@ -2620,13 +2629,27 @@ namespace lockstep
                 break;
             }
 
+            // -----------------------------------------------------------------------
+            // Part delete (No verb only; copy/paste/clear TBD once kit verbs are wired)
+            // -----------------------------------------------------------------------
+            case PS::Part:
+            {
+                if (verb == CB::VerbNo)
+                {
+                    // Delete: return all tracks in active part to absent (StubMachine).
+                    processor_.pushCheckpoint();
+                    processor_.deletePart();
+                    releaseTransientLatch(CB::PartScope);
+                }
+                break;
+            }
+
             case PS::Func:
             case PS::Mute:
             case PS::Fill:
             case PS::Cue:
             case PS::Scene:
             case PS::Master:
-            case PS::Part:  // MHY: Part-scope verbs land here once the kit verbs are wired
                 break;
 
             case PS::None:

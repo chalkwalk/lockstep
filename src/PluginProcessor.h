@@ -191,6 +191,10 @@ namespace lockstep
         // UI thread: call requestPanic(). Audio thread consumes panicPending_ in processBlock.
         void requestPanic() { panicPending_.store(true, std::memory_order_release); }
 
+        // Delete gestures (scope + No verb): return object to absent/empty state.
+        void deleteTrack(int track);   // → StubMachine + cleared steps
+        void deletePart();             // → all tracks in active part → StubMachine
+
         // MD.7: Pattern mutes — per-track, live in the active Pattern.
         bool getPatternMute(int track) const;
         void setPatternMute(int track, bool muted);
