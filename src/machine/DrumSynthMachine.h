@@ -39,7 +39,8 @@ namespace lockstep
     // -----------------------------------------------------------------------
     // Public types (needed by file-scope helpers in .cpp)
 
-    enum class DrumType : int { Kick = 0, Snare = 1, Hat = 2, Tom = 3 };
+    enum class DrumType : int { Kick = 0, Snare = 1, Hat = 2, Tom = 3,
+                                Clap = 4, Cowbell = 5, Cymbal = 6, Rimshot = 7 };
     enum class AmpPhase  { Idle, Attack, Hold, Decay };
     enum class NoisePhase { Idle, Decay };
 

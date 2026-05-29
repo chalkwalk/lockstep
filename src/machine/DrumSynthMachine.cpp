@@ -31,15 +31,17 @@ namespace lockstep
     using R = ParamSpec::Role;
     using V = ParamSpec::Variant;
 
-    static constexpr const char* kTypeLabels[] = { "KICK", "SNARE", "HAT", "TOM" };
+    static constexpr const char* kTypeLabels[] = {
+      "KICK", "SNARE", "HAT", "TOM", "CLAP", "COWBELL", "CYMBAL", "RIMSHOT"
+    };
 
     switch (index)
     {
       // --- SRC section (index 1) ---
       case kSlotType:
       {
-        ParamSpec p { "drum_type", "Type", 0.f, 3.f, 0.f, true, U::None, 1, R::None, V::Primary };
-        p.valueLabels = std::span<const char* const>{ kTypeLabels, 4 };
+        ParamSpec p { "drum_type", "Type", 0.f, 7.f, 0.f, true, U::None, 1, R::None, V::Primary };
+        p.valueLabels = std::span<const char* const>{ kTypeLabels, 8 };
         return p;
       }
       case kSlotTune:
@@ -259,7 +261,7 @@ namespace lockstep
     v.phase = 0.0;
 
     v.currentType = static_cast<DrumType>(
-        std::clamp(static_cast<int>(std::lround(paramAt(params, kSlotType))), 0, 3));
+        std::clamp(static_cast<int>(std::lround(paramAt(params, kSlotType))), 0, 7));
 
     switch (v.currentType)
     {
@@ -300,6 +302,21 @@ namespace lockstep
         v.clickLevel = 0.f;
         break;
       }
+      case DrumType::Rimshot:
+      {
+        // Pitched "tok" (sine at the note) blended with a bandpassed noise crack.
+        // Body = tok↔crack balance; the crack BP sits well above the tok so it
+        // reads as a separate sharp transient. Tone widens the crack; Punch = click.
+        v.pitchHz = noteHz(midiNote, tune);
+        v.phase   = 0.0;
+        const float centreHz = std::clamp(v.pitchHz * 4.f, 800.f, 6000.f);
+        v.svfG = std::tan(std::numbers::pi_v<float> * std::min(centreHz / sr, 0.499f));
+        v.svfK = 0.3f + tone * 1.7f;
+        v.clickLevel = punch;
+        break;
+      }
+      default:
+        break;
     }
   }
 
@@ -441,6 +458,27 @@ namespace lockstep
           out = filtered * amp * velGain * level;
           break;
         }
+
+        // -------------------------------------------------------------------
+        case DrumType::Rimshot:
+        {
+          const float bodyBlend = paramAt(params, kSlotBody);  // 0 = tok, 1 = crack
+          // Pitched tok
+          v.phase += twoPi * static_cast<double>(v.pitchHz) / sampleRate_;
+          if (v.phase >= twoPi) v.phase -= twoPi;
+          const float tok   = static_cast<float>(std::sin(v.phase));
+          // Bandpassed noise crack
+          const float crack = svfBand(v, xorNoise(v.noiseSeed));
+          const float click = xorNoise(v.noiseSeed) * advanceClick(v);
+          const float amp   = advanceAmp(v);
+          out = (tok * (1.f - bodyBlend) + crack * bodyBlend + click)
+                * amp * velGain * level;
+          break;
+        }
+
+        default:
+          advanceAmp(v);
+          break;
       }
 
       for (int ch = 0; ch < numOut; ++ch)
