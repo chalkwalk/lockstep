@@ -82,6 +82,9 @@ namespace lockstep
       // Stored drum type (set on note-on; used per-sample in process)
       DrumType currentType { DrumType::Kick };
 
+      // Square oscillator phases (COWBELL: [0..1], CYMBAL: [0..5])
+      double sqPhases[6] { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+
       // PRNG (xorshift32)
       uint32_t noiseSeed { 2166136261u };
 

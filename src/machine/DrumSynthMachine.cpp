@@ -226,6 +226,7 @@ namespace lockstep
     const float sweepDecMs = paramAt(params, kSlotSweepDecay);
     const float punch      = paramAt(params, kSlotPunch);
     const float tone       = paramAt(params, kSlotTone);
+    const float body       = paramAt(params, kSlotBody);
     const float snap       = paramAt(params, kSlotSnap);
     const float attackMs   = paramAt(params, kSlotAttack);
     const float holdMs     = paramAt(params, kSlotHold);
@@ -302,6 +303,26 @@ namespace lockstep
         v.clickLevel = 0.f;
         break;
       }
+      case DrumType::Cowbell:
+      {
+        // 2 square oscillators; Sweep (0–48 semitones) / 4 = interval in semitones
+        // Default Sweep=24 → 6-semitone interval (ratio ≈ 1.498), close to classic 808.
+        v.pitchHz  = noteHz(midiNote, tune);
+        v.targetHz = v.pitchHz * std::pow(2.f, sweep / (4.f * 12.f));
+        v.sqPhases[0] = v.sqPhases[1] = 0.0;
+        // Bandpass *ring* (not highpass) centred above the upper oscillator gives the
+        // focused metallic "bonk". Body 0→1 sweeps the centre 1.5×–3.5× the upper osc
+        // (default 2.5×); Tone raises Q (lower k) for a tighter, more ringing tone.
+        const float centreHz = v.targetHz * (1.5f + body * 2.f);
+        v.svfG = std::tan(std::numbers::pi_v<float> * std::min(centreHz / sr, 0.499f));
+        v.svfK = 0.3f + (1.f - tone) * 1.2f;
+        // Click transient gives the hard attack "thock"
+        v.clickLevel = punch;
+        break;
+      }
+      case DrumType::Clap:
+      case DrumType::Cymbal:
+        break;
       case DrumType::Rimshot:
       {
         // Pitched "tok" (sine at the note) blended with a bandpassed noise crack.
@@ -315,8 +336,6 @@ namespace lockstep
         v.clickLevel = punch;
         break;
       }
-      default:
-        break;
     }
   }
 
@@ -460,6 +479,22 @@ namespace lockstep
         }
 
         // -------------------------------------------------------------------
+        case DrumType::Cowbell:
+        {
+          v.sqPhases[0] += static_cast<double>(v.pitchHz) / sampleRate_;
+          if (v.sqPhases[0] >= 1.0) v.sqPhases[0] -= 1.0;
+          v.sqPhases[1] += static_cast<double>(v.targetHz) / sampleRate_;
+          if (v.sqPhases[1] >= 1.0) v.sqPhases[1] -= 1.0;
+          const float sq1   = (v.sqPhases[0] < 0.5) ? 1.0f : -1.0f;
+          const float sq2   = (v.sqPhases[1] < 0.5) ? 1.0f : -1.0f;
+          const float ring  = svfBand(v, (sq1 + sq2) * 0.5f);
+          const float click = xorNoise(v.noiseSeed) * advanceClick(v);
+          const float amp   = advanceAmp(v);
+          out = (ring + click) * amp * velGain * level;
+          break;
+        }
+
+        // -------------------------------------------------------------------
         case DrumType::Rimshot:
         {
           const float bodyBlend = paramAt(params, kSlotBody);  // 0 = tok, 1 = crack
@@ -476,6 +511,8 @@ namespace lockstep
           break;
         }
 
+        case DrumType::Clap:
+        case DrumType::Cymbal:
         default:
           advanceAmp(v);
           break;
