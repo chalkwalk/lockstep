@@ -11,8 +11,8 @@ milestone here, confirm it is expressible within those principles
 and within the existing scope+verb grammar (DESIGN §13).**
 
 **Active focus:** MHZ.8 — Pattern length authoring.
-**Last completed:** MHZ.7 — Per-track input modes (CHROMATIC + LEVELS).
-**Previously completed:** MHZ.6 — Record-time capture parity (velocity + musical gate).
+**Last completed:** MHZ.9 — Latch (virtual-hold) + Track+Nav mode cycle.
+**Previously completed:** MHZ.7 — Per-track input modes (CHROMATIC + LEVELS).
 **Next up:** MHZ.8 (pattern length), then MH.5 machine pack format.
 
 After M8 the roadmap pivots from "core sequencer is usable" to
@@ -1246,7 +1246,7 @@ already understands. Also replaces the MHZ.7.2 verb radio for input-mode
 selection with `Track + Nav`, freeing the verb row and the double-tap
 gesture for their real meanings.
 
-- [ ] **MHZ.9.1** Latch state (least-invasive). Add a `LatchState`
+- [x] **MHZ.9.1** Latch state (least-invasive). Add a `LatchState`
       (the 7 latchable-modifier bools) to `src/state/UiState.h`
       beside the existing `xxxHeld` flags; keep `xxxHeld` as the
       *effective-held* value (physical OR latched) so every
@@ -1254,13 +1254,13 @@ gesture for their real meanings.
       Latched steps persist in EditContext's existing ordered
       `heldSteps_`; add `isLatched/setLatched/clearLatched(int)`
       + a `latchedSteps_` marker to `src/io/EditContext.h`.
-- [ ] **MHZ.9.2** Double-tap detector. Header-only
+- [x] **MHZ.9.2** Double-tap detector. Header-only
       `DoubleTapDetector` generalising the existing Play double-press
       (`lastPlayPressTime_`, `kDoublePressMsThreshold = 350.0`,
       `PluginEditor.h`). Non-colliding token scheme: modifiers
       `1000 + int(button)`, steps = step index (`< 1000`). One
       editor member.
-- [ ] **MHZ.9.3** Modifier latch. In `dispatchDown` (the
+- [x] **MHZ.9.3** Modifier latch. In `dispatchDown` (the
       `uiState_.xxxHeld = … ; editMode_.onScopeEvent(ev)` cases) a
       double-tap toggles that modifier's latch and enforces column
       exclusivity (reuse the `EditMode::hasSameColumnConflict`
@@ -1268,13 +1268,13 @@ gesture for their real meanings.
       {Track,Part,Master,Fill}). In `dispatchUp` / `keyStateChanged`,
       clear `xxxHeld` + emit ButtonUp **only if not latched**. Single
       press behaves exactly as today.
-- [ ] **MHZ.9.4** `Func` universal escape. `Func` never latches.
+- [x] **MHZ.9.4** `Func` universal escape. `Func` never latches.
       A double-tap `Func` calls `escapeAllLatches()` (clear all
       modifier latches + latched steps) — **only when latches are
       engaged**, so the existing deferred `Func` key-up flows
       (pattern-mute multi-select §13.4, NoteEdit, P-Lock-clear) are
       untouched. `Func` single-hold unchanged.
-- [ ] **MHZ.9.5** Step latch / operand. Step trig-toggle currently
+- [x] **MHZ.9.5** Step latch / operand. Step trig-toggle currently
       fires on key-*up* gated by `!paramWrote` (~`PluginEditor.cpp`
       :1798). Catch the double-tap on the 2nd key-*down*, mark the
       step latched, and revert/suppress the first tap's pending trig
@@ -1283,7 +1283,7 @@ gesture for their real meanings.
       normal trig toggle. Switch the scope-clear test from
       `heldStepKeys_.empty()` to `ctx.heldSteps().empty()` so latched
       steps keep the edit context alive.
-- [ ] **MHZ.9.6** Latch rendering. Persistent latch pip in
+- [x] **MHZ.9.6** Latch rendering. Persistent latch pip in
       `paintKeyButton` (`src/ui/KeyButton.cpp`), drawn in the
       per-scope colour (`UITheme.h` / `KeyLabel.h`), composing like
       the existing compound overlay and orthogonal to `Pressed`.
@@ -1291,7 +1291,7 @@ gesture for their real meanings.
       (`src/ui/KeyboardArea.cpp` ~1975-2009) add `isLatched` from
       `ctx.isLatched(absIdx)`. `Func` reads as the active escape
       whenever any latch is engaged.
-- [ ] **MHZ.9.7** Track+Nav mode cycle (supersedes MHZ.7.2). Delete
+- [x] **MHZ.9.7** Track+Nav mode cycle (supersedes MHZ.7.2). Delete
       the three `Track + VerbPlay/Stop/Yes` mode blocks
       (`PluginEditor.cpp` ~1285 / ~1324 / ~1366). Cycle
       `trackInputMode[activeTrack]` PLAY↔CHROMATIC↔LEVELS in the
@@ -1301,7 +1301,7 @@ gesture for their real meanings.
       CHROMATIC, NavLeft/Right still shifts octave. A mode switch is
       a new modality, so call `escapeAllLatches()` on each cycle
       (DESIGN §13.7, "entering a new modality exits the current one").
-- [ ] **MHZ.9.8** Documentation: DESIGN §13.7 (authored ahead of the
+- [x] **MHZ.9.8** Documentation: DESIGN §13.7 (authored ahead of the
       build) + the §34.1 / §20 mode-selector prose already updated to
       `Track + Nav`; CLAUDE.md glossary (Latch / virtual-hold,
       universal escape); README §5 shortcut table (double-tap =

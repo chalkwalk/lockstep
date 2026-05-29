@@ -1355,7 +1355,7 @@ with `Func + No` if it didn't land. The stack depth gives a few
 levels of "two-mistakes-deep" recovery without bloating into a full
 DAW-style history.
 
-### 13.7 Latch — virtual hold
+### 13.7 Latch — virtual hold ✓
 
 The grammar so far is built on *holding*: a held scope modifier sets a
 scope, a held step opens its P-Lock editor, a held `Func` raises the

@@ -651,6 +651,29 @@ remaining MH machine catalogue resumes.
   Press a step to assign that machine to the active track. Release
   Func or Part to exit.
 
+**MHZ.9 — Latch (hands-free virtual-hold) + Track+Nav mode cycle.**
+
+- **Double-tap = virtual-hold (latch).** Double-tapping any latchable modifier
+  (`Track`, `Part`, `Pattern`, `Scene`, `Master`, `Mute`, `Fill`) latches it
+  hands-free — exactly as if the key stayed physically held. Double-tap the
+  same modifier again to release. Column exclusivity is enforced: at most one
+  latch in each column ({`Pattern`, `Scene`, `Mute`} and {`Track`, `Part`,
+  `Master`, `Fill`}); latching a second key in the same column releases the first.
+- **Latched step operands.** Double-tapping a step virtual-holds it into the
+  edit context, so encoder edits land on it hands-free. A single tap on any
+  step still toggles its trig as normal. Net trig change on latch-in is zero
+  (the first-tap trig toggle is reverted on double-tap detection).
+- **Func double-tap = universal escape.** When any latch is active, double-tap
+  `Func` (key `1`) clears every latched modifier and every latched step in one
+  gesture. When no latches are active, Func double-tap is a no-op.
+- **Latch pip chrome.** A small scope-coloured dot appears at the bottom-left
+  of each latched modifier key and step cell.
+- **Track + NavUp/Down = input mode cycle.** Supersedes the MHZ.7.2 verb
+  radio (`Track + I/O/Y`). Hold `Track` (key `2`) without selecting a specific
+  track, then press `NavUp` (↑) or `NavDown` (↓) to cycle the focused track's
+  input mode: `PLAY ↔ CHROMATIC ↔ LEVELS`. Mode switches call escape-all-latches
+  per DESIGN §13.7 ("entering a new modality exits the current one").
+
 **MHZ.4 — Polyphonic step authoring improvements.**
 
 - **Snapshot chord capture.** Step-hold MIDI capture now uses
@@ -701,7 +724,7 @@ behaviour of these modes lands in a later milestone (see
 Lockstep is under active development. This manual describes both the
 shipped behaviour and the design intent. To avoid confusion:
 
-**Working today** (milestones M0–MHZ.4): sample loading and playback;
+**Working today** (milestones M0–MHZ.9, excluding MHZ.8): sample loading and playback;
 **sampler trim and loop** — `samp_start` / `samp_length` window into a sample,
 `samp_loop_mode` (OFF / SUS / S+R / ALL), `samp_loop_start` / `samp_loop_len`
 loop region relative to the playback window; edit-time zero-crossing snap on all
