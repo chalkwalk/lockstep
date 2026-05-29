@@ -187,6 +187,10 @@ namespace lockstep
         // Solo toggle — additive (multiple tracks can be soloed simultaneously).
         void toggleSolo(int track);
 
+        // Panic: flush all active voices + send All-Notes-Off without touching the clock.
+        // UI thread: call requestPanic(). Audio thread consumes panicPending_ in processBlock.
+        void requestPanic() { panicPending_.store(true, std::memory_order_release); }
+
         // MD.7: Pattern mutes — per-track, live in the active Pattern.
         bool getPatternMute(int track) const;
         void setPatternMute(int track, bool muted);
@@ -411,8 +415,11 @@ namespace lockstep
         std::deque<std::pair<int,int>> chain_;
         bool chainLoopEnabled_ = true;
 
-        std::atomic<int> previewPoolIndex_ { -1 };
-        std::atomic<int> previewReqTrack_  { 0 };
+        std::atomic<int>  previewPoolIndex_ { -1 };
+        std::atomic<int>  previewReqTrack_  { 0 };
+        // Panic request: UI thread sets true; audio thread consumes (exchange false)
+        // to send All-Notes-Off on MIDI-out tracks and flush pending audio note-offs.
+        std::atomic<bool> panicPending_ { false };
 
         // MG.1: keyboard note trigger request (UI thread writes, audio thread consumes).
         // kbdNoteReq_ stores (midiNote << 16 | durationMs); -1 = no request.

@@ -88,6 +88,10 @@ namespace lockstep
         // Used by Mute+Yes+step = solo gesture (additive toggle).
         bool yesHeld_ = false;
 
+        // Last-known transport state: lets timerCallback detect play/pause
+        // transitions so the keyboard PLAY/PAUSE label updates promptly.
+        bool lastPlayingState_ = false;
+
         // MHZ.9.1: physical-only held state for each latchable modifier.
         // xxxHeld in UiState = physHeld_.xxx OR uiState_.latch.xxx (effective).
         struct ModPhysHeld

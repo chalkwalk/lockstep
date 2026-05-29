@@ -307,6 +307,10 @@ namespace lockstep
         const float flooredMaster = (newMaster < kMeterFloor) ? 0.0f : newMaster;
         if (std::abs(flooredMaster - masterMeter_) > 0.0f) { masterMeter_ = flooredMaster; dirty = true; }
 
+        // Transport state change: repaint so the PLAY/PAUSE label updates promptly.
+        const bool nowPlaying = processor_.clock().inPluginPlaying();
+        if (nowPlaying != lastPlayingState_) { lastPlayingState_ = nowPlaying; dirty = true; }
+
         if (dirty) repaint();
 
         // Reconcile: release any keyboard press whose key is no longer physically
@@ -1625,7 +1629,7 @@ namespace lockstep
             case ControllerButton::VerbStop:
             {
                 using PS = EditMode::PrimaryScope;
-                // Scope held → grammar verb (e.g. clear).  No scope → stop transport.
+                // Scope held → grammar verb (e.g. clear).  No scope → panic.
                 if (editMode_.primaryScope() != PS::None
                     && editMode_.primaryScope() != PS::Func)
                 {
@@ -1639,7 +1643,8 @@ namespace lockstep
                     repaint();
                     return true;
                 }
-                processor_.clock().setInPluginPlaying(false);
+                // No scope: panic — flush voices + All-Notes-Off without moving the playhead.
+                processor_.requestPanic();
                 return true;
             }
 

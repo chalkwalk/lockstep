@@ -469,6 +469,27 @@ namespace lockstep
         }
         wasSequencerRunning_ = sequencerRunning;
 
+        // Panic: flush voices and send All-Notes-Off without stopping the clock.
+        if (panicPending_.exchange(false, std::memory_order_acq_rel))
+        {
+            for (std::size_t i = 0; i < kNumTracks; ++i)
+            {
+                if (machines_[i]->isMidiOut())
+                {
+                    juce::MidiBuffer stopBuf;
+                    static_cast<MidiOutMachine*>(machines_[i].get())->allNotesOff(stopBuf);
+                    if (!isStandalone)
+                        midi.addEvents(stopBuf, 0, -1, 0);
+                }
+                else
+                {
+                    auto& pnf = pendingNoteOffs_[i];
+                    if (pnf.samplesRemaining > 0 || pnf.openEnded)
+                        pnf.samplesRemaining = 0;
+                }
+            }
+        }
+
         // ---- PPQ window for step detection --------------------------------
         // In Auto mode, offset PPQ by the anchor so step 0 aligns with Play press.
         const double ppqOffset     = (mode == SyncMode::Auto) ? anchorPpq_ : 0.0;

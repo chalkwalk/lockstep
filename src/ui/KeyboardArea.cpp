@@ -1098,6 +1098,11 @@ namespace lockstep
 
             // MHZ.9.7: mode selector moved to Track+NavUp/Down; verb relabels removed.
 
+            // Dynamic Play label: show PAUSE when transport is running and no scope is held
+            // (matches the transport-bar button behaviour).
+            if (isPlaying && def.keyCode == 'I' && !sectionScopeHeld && !uiState_.stepHeld)
+                displayPrimary = "PAUSE";
+
             // Overdub armed: label becomes "OD" and the group switches to amber.
             if (isOverdub)
                 displayPrimary = "OD";
