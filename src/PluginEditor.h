@@ -9,6 +9,7 @@
 #include "PluginProcessor.h"
 #include "io/Clipboard.h"
 #include "io/ControllerEvent.h"
+#include "io/DoubleTapDetector.h"
 #include "io/EditMode.h"
 #include "io/PressTracker.h"
 #include "io/QwertyOverlay.h"
@@ -73,6 +74,23 @@ namespace lockstep
         double lastPlayPressTime_            = 0.0;
         bool   playKeyHeld_                  = false;
         static constexpr double kDoublePressMsThreshold = 350.0;
+
+        // MHZ.9.2: unified double-tap detector (modifiers + steps).
+        DoubleTapDetector doubleTap_;
+
+        // MHZ.9.1: physical-only held state for each latchable modifier.
+        // xxxHeld in UiState = physHeld_.xxx OR uiState_.latch.xxx (effective).
+        struct ModPhysHeld
+        {
+            bool pattern = false;
+            bool scene   = false;
+            bool mute    = false;
+            bool track   = false;
+            bool part    = false;
+            bool master  = false;
+            bool fill    = false;
+            bool cue     = false;
+        } physHeld_;
 
         // Tap tempo: rolling window of up to 5 tap timestamps (ms, high-res).
         // Requires ≥2 taps; ignores taps older than 3 s relative to the latest tap.
@@ -152,6 +170,14 @@ namespace lockstep
         // Verb dispatch: called from the EditMode onVerbDispatched callback with the
         // resolved primary scope and the pressed verb key.
         void dispatchVerb(EditMode::PrimaryScope scope, ControllerButton verb);
+
+        // MHZ.9.4: release all modifier latches and latched steps in one gesture.
+        // Only called when latch.any() || ctx.hasAnyLatchedStep().
+        void escapeAllLatches();
+
+        // MHZ.9.3: toggle one modifier's latch (set=true to engage, false to release).
+        // When engaging, enforces column exclusivity (releases any other latch in the same column).
+        void setModifierLatch(ControllerButton cb, bool set);
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LockstepEditor)
     };

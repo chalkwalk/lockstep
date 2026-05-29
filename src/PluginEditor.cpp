@@ -728,70 +728,228 @@ namespace lockstep
     }
 
     // -------------------------------------------------------------------------
+    // MHZ.9.4: universal latch escape
+
+    void LockstepEditor::escapeAllLatches()
+    {
+        using CB = ControllerButton;
+        using T  = ControllerEvent::Type;
+
+        const auto prevLatch = uiState_.latch;
+        uiState_.latch = {};  // clear all latches before calling dispatchUp so guards pass
+
+        // For each latched modifier that isn't physically held, do a full release.
+        // dispatchUp now checks !uiState_.latch.xxx (already false), so it runs completely.
+        if (prevLatch.pattern && !physHeld_.pattern)
+            dispatchUp({ T::ButtonUp, CB::PatternScope });
+        if (prevLatch.scene && !physHeld_.scene)
+            dispatchUp({ T::ButtonUp, CB::SceneScope });
+        if (prevLatch.mute && !physHeld_.mute)
+            dispatchUp({ T::ButtonUp, CB::MuteScope });
+        if (prevLatch.track && !physHeld_.track)
+            dispatchUp({ T::ButtonUp, CB::TrackScope });
+        if (prevLatch.part && !physHeld_.part)
+            dispatchUp({ T::ButtonUp, CB::PartScope });
+        if (prevLatch.master && !physHeld_.master)
+            dispatchUp({ T::ButtonUp, CB::MasterScope });
+        if (prevLatch.fill && !physHeld_.fill)
+            dispatchUp({ T::ButtonUp, CB::FillScope });
+
+        // Release latched steps (keep them in heldStepKeys_ if still physically held).
+        auto& ctx = processor_.editContext();
+        for (const int s : ctx.latchedSteps())
+        {
+            // Only release from EditContext if the physical key is not held.
+            bool physDown = false;
+            for (const auto& [code, idx] : heldStepKeys_)
+                if (idx == s) { physDown = true; break; }
+            if (!physDown)
+                ctx.release(s);
+        }
+        ctx.clearAllLatched();
+
+        if (ctx.heldSteps().empty())
+        {
+            heldStepKeys_.clear();
+            uiState_.stepHeld = false;
+            editMode_.setTrigHeld(false);
+        }
+
+        uiState_.latch.anySteps = ctx.hasAnyLatchedStep();
+        keyboardArea_.repaint();
+        repaint();
+    }
+
+    // -------------------------------------------------------------------------
+    // MHZ.9.3: column-exclusivity-aware modifier latch toggle.
+
+    void LockstepEditor::setModifierLatch(ControllerButton cb, bool set)
+    {
+        using CB = ControllerButton;
+        using T  = ControllerEvent::Type;
+
+        if (set)
+        {
+            // Enforce column exclusivity by releasing any existing latch in the same column.
+            // Calling dispatchUp (after clearing the latch bool) does the full release with
+            // side effects (setControlAllActive, updateFillActivation, etc.).
+            const bool isCol1 = (cb == CB::PatternScope || cb == CB::SceneScope
+                                 || cb == CB::MuteScope);
+
+            auto releaseOther = [&](bool& latchBool, bool physHeld, CB btn) {
+                if (!latchBool || cb == btn) return;
+                latchBool = false;
+                if (!physHeld)
+                    dispatchUp({ T::ButtonUp, btn });
+            };
+
+            if (isCol1)
+            {
+                releaseOther(uiState_.latch.pattern, physHeld_.pattern, CB::PatternScope);
+                releaseOther(uiState_.latch.scene,   physHeld_.scene,   CB::SceneScope);
+                releaseOther(uiState_.latch.mute,    physHeld_.mute,    CB::MuteScope);
+            }
+            else
+            {
+                releaseOther(uiState_.latch.track,  physHeld_.track,  CB::TrackScope);
+                releaseOther(uiState_.latch.part,   physHeld_.part,   CB::PartScope);
+                releaseOther(uiState_.latch.master, physHeld_.master, CB::MasterScope);
+                releaseOther(uiState_.latch.fill,   physHeld_.fill,   CB::FillScope);
+            }
+        }
+
+        switch (cb)
+        {
+            case CB::PatternScope: uiState_.latch.pattern = set; break;
+            case CB::SceneScope:   uiState_.latch.scene   = set; break;
+            case CB::MuteScope:    uiState_.latch.mute    = set; break;
+            case CB::TrackScope:   uiState_.latch.track   = set; break;
+            case CB::PartScope:    uiState_.latch.part    = set; break;
+            case CB::MasterScope:  uiState_.latch.master  = set; break;
+            case CB::FillScope:    uiState_.latch.fill    = set; break;
+            default: break;
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // Key handling (9x4 layout)
 
     // dispatchDown — source-agnostic button-down handler fed by both keyboard
     // and mouse.  rawCode is the physical key code (keyboard) or 0 (mouse).
     bool LockstepEditor::dispatchDown(ControllerEvent ev, int rawCode)
     {
+        using CB = ControllerButton;
         switch (ev.button)
         {
-            case ControllerButton::Func:
+            case CB::Func:
                 uiState_.funcHeld = true;
                 editMode_.onScopeEvent(ev);
                 updateFillActivation();
                 keyboardArea_.repaint();
                 repaint();
+                // MHZ.9.4: Func never latches; double-tap = universal escape (only if latches engaged).
+                {
+                    const double now = juce::Time::getMillisecondCounterHiRes();
+                    if (doubleTap_.recordAndCheck(1000 + static_cast<int>(CB::Func), now)
+                        && (uiState_.latch.any() || processor_.editContext().hasAnyLatchedStep()))
+                    {
+                        escapeAllLatches();
+                    }
+                }
                 return true;
 
-            case ControllerButton::TrackScope:
+            case CB::TrackScope:
+                physHeld_.track = true;
                 uiState_.trackHeld = true;
                 processor_.setControlAllActive(true);  // MD.10: active until a track is selected
                 editMode_.onScopeEvent(ev);
+                // MHZ.9.3: double-tap toggles latch.
+                {
+                    const double now = juce::Time::getMillisecondCounterHiRes();
+                    if (doubleTap_.recordAndCheck(1000 + static_cast<int>(CB::TrackScope), now))
+                        setModifierLatch(CB::TrackScope, !uiState_.latch.track);
+                }
                 repaint();
                 return true;
 
-            case ControllerButton::PatternScope:
+            case CB::PatternScope:
+                physHeld_.pattern = true;
                 uiState_.patternScopeHeld = true;
                 uiState_.patternScopeUsed = false;
                 editMode_.onScopeEvent(ev);
+                {
+                    const double now = juce::Time::getMillisecondCounterHiRes();
+                    if (doubleTap_.recordAndCheck(1000 + static_cast<int>(CB::PatternScope), now))
+                        setModifierLatch(CB::PatternScope, !uiState_.latch.pattern);
+                }
                 repaint();
                 return true;
 
-            case ControllerButton::MuteScope:
+            case CB::MuteScope:
+                physHeld_.mute = true;
                 uiState_.muteHeld = true;
                 editMode_.onScopeEvent(ev);
+                {
+                    const double now = juce::Time::getMillisecondCounterHiRes();
+                    if (doubleTap_.recordAndCheck(1000 + static_cast<int>(CB::MuteScope), now))
+                        setModifierLatch(CB::MuteScope, !uiState_.latch.mute);
+                }
                 repaint();
                 return true;
 
-            case ControllerButton::FillScope:
+            case CB::FillScope:
+                physHeld_.fill = true;
                 uiState_.fillHeld = true;
                 editMode_.onScopeEvent(ev);
                 updateFillActivation();
+                {
+                    const double now = juce::Time::getMillisecondCounterHiRes();
+                    if (doubleTap_.recordAndCheck(1000 + static_cast<int>(CB::FillScope), now))
+                        setModifierLatch(CB::FillScope, !uiState_.latch.fill);
+                }
                 repaint();
                 return true;
 
-            case ControllerButton::CueScope:
+            case CB::CueScope:
+                physHeld_.cue = true;
                 uiState_.cueHeld = true;
                 editMode_.onScopeEvent(ev);
                 repaint();
                 return true;
 
-            case ControllerButton::SceneScope:
+            case CB::SceneScope:
+                physHeld_.scene = true;
                 uiState_.sceneHeld = true;
                 editMode_.onScopeEvent(ev);
+                {
+                    const double now = juce::Time::getMillisecondCounterHiRes();
+                    if (doubleTap_.recordAndCheck(1000 + static_cast<int>(CB::SceneScope), now))
+                        setModifierLatch(CB::SceneScope, !uiState_.latch.scene);
+                }
                 repaint();
                 return true;
 
-            case ControllerButton::MasterScope:
+            case CB::MasterScope:
+                physHeld_.master = true;
                 uiState_.masterHeld = true;
                 editMode_.onScopeEvent(ev);
+                {
+                    const double now = juce::Time::getMillisecondCounterHiRes();
+                    if (doubleTap_.recordAndCheck(1000 + static_cast<int>(CB::MasterScope), now))
+                        setModifierLatch(CB::MasterScope, !uiState_.latch.master);
+                }
                 repaint();
                 return true;
 
-            case ControllerButton::PartScope:
+            case CB::PartScope:
+                physHeld_.part = true;
                 uiState_.partHeld = true;
                 editMode_.onScopeEvent(ev);
+                {
+                    const double now = juce::Time::getMillisecondCounterHiRes();
+                    if (doubleTap_.recordAndCheck(1000 + static_cast<int>(CB::PartScope), now))
+                        setModifierLatch(CB::PartScope, !uiState_.latch.part);
+                }
                 keyboardArea_.repaint();
                 repaint();
                 return true;
@@ -1625,55 +1783,85 @@ namespace lockstep
                 break;
 
             case CB::TrackScope:
-                uiState_.trackHeld = false;
-                processor_.setControlAllActive(false);  // MD.10
-                editMode_.onScopeEvent({ T::ButtonUp, CB::TrackScope });
-                repaint();
+                physHeld_.track = false;
+                if (!uiState_.latch.track)
+                {
+                    uiState_.trackHeld = false;
+                    processor_.setControlAllActive(false);  // MD.10
+                    editMode_.onScopeEvent({ T::ButtonUp, CB::TrackScope });
+                    repaint();
+                }
                 break;
 
             case CB::PatternScope:
-                uiState_.patternScopeHeld = false;
-                uiState_.patternScopeUsed = false;
-                editMode_.onScopeEvent({ T::ButtonUp, CB::PatternScope });
-                repaint();
+                physHeld_.pattern = false;
+                if (!uiState_.latch.pattern)
+                {
+                    uiState_.patternScopeHeld = false;
+                    uiState_.patternScopeUsed = false;
+                    editMode_.onScopeEvent({ T::ButtonUp, CB::PatternScope });
+                    repaint();
+                }
                 break;
 
             case CB::PartScope:
-                uiState_.partHeld = false;
-                uiState_.funcPartHeld = false;  // MHZ.3.5
-                editMode_.onScopeEvent({ T::ButtonUp, CB::PartScope });
-                repaint();
+                physHeld_.part = false;
+                if (!uiState_.latch.part)
+                {
+                    uiState_.partHeld = false;
+                    uiState_.funcPartHeld = false;  // MHZ.3.5
+                    editMode_.onScopeEvent({ T::ButtonUp, CB::PartScope });
+                    repaint();
+                }
                 break;
 
             case CB::MuteScope:
-                uiState_.muteHeld = false;
-                editMode_.onScopeEvent({ T::ButtonUp, CB::MuteScope });
-                repaint();
+                physHeld_.mute = false;
+                if (!uiState_.latch.mute)
+                {
+                    uiState_.muteHeld = false;
+                    editMode_.onScopeEvent({ T::ButtonUp, CB::MuteScope });
+                    repaint();
+                }
                 break;
 
             case CB::FillScope:
-                uiState_.fillHeld = false;
-                editMode_.onScopeEvent({ T::ButtonUp, CB::FillScope });
-                updateFillActivation();
-                repaint();
+                physHeld_.fill = false;
+                if (!uiState_.latch.fill)
+                {
+                    uiState_.fillHeld = false;
+                    editMode_.onScopeEvent({ T::ButtonUp, CB::FillScope });
+                    updateFillActivation();
+                    repaint();
+                }
                 break;
 
             case CB::CueScope:
+                physHeld_.cue = false;
+                // Cue is not latchable (reserved for MU); always release.
                 uiState_.cueHeld = false;
                 editMode_.onScopeEvent({ T::ButtonUp, CB::CueScope });
                 repaint();
                 break;
 
             case CB::SceneScope:
-                uiState_.sceneHeld = false;
-                editMode_.onScopeEvent({ T::ButtonUp, CB::SceneScope });
-                repaint();
+                physHeld_.scene = false;
+                if (!uiState_.latch.scene)
+                {
+                    uiState_.sceneHeld = false;
+                    editMode_.onScopeEvent({ T::ButtonUp, CB::SceneScope });
+                    repaint();
+                }
                 break;
 
             case CB::MasterScope:
-                uiState_.masterHeld = false;
-                editMode_.onScopeEvent({ T::ButtonUp, CB::MasterScope });
-                repaint();
+                physHeld_.master = false;
+                if (!uiState_.latch.master)
+                {
+                    uiState_.masterHeld = false;
+                    editMode_.onScopeEvent({ T::ButtonUp, CB::MasterScope });
+                    repaint();
+                }
                 break;
 
             case CB::Section:
