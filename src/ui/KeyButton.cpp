@@ -19,7 +19,8 @@ namespace lockstep
                         const KeyGroup&       group,
                         KeyButtonState        state,
                         bool                  showKeyHint,
-                        bool                  compoundOverlay)
+                        bool                  compoundOverlay,
+                        juce::Colour          latchColour)
     {
         // MHZ.1.1: reduced inner margin (was 2,2) to use more of the cell area.
         const auto inner = cell.reduced(1, 1);
@@ -93,6 +94,17 @@ namespace lockstep
             const auto strip = inner.withHeight(3).reduced(3, 0);
             g.setColour(juce::Colour(0xFFD0A020u));
             g.fillRect(strip);
+        }
+
+        // MHZ.9.6: latch pip — small scope-coloured dot at bottom-left indicates virtual-hold.
+        if (latchColour.getAlpha() > 0)
+        {
+            const int pipSz = 5;
+            const auto pip = juce::Rectangle<int>(inner.getX() + 2,
+                                                  inner.getBottom() - pipSz - 2,
+                                                  pipSz, pipSz);
+            g.setColour(latchColour);
+            g.fillEllipse(pip.toFloat());
         }
     }
 }

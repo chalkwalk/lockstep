@@ -35,6 +35,8 @@ namespace lockstep
     // showKeyHint: whether to draw the small physical-key letter in the top-left.
     // compoundOverlay: register 4 — amber top strip drawn when this key is part of an
     //   active compound-chord scope (cross-column modifier pair). Orthogonal to `state`.
+    // latchColour: when non-zero (non-transparent), draws a small latch pip (MHZ.9.6)
+    //   at the bottom-left in the given scope colour to indicate a virtual-hold.
     void paintKeyButton(juce::Graphics&      g,
                         juce::Rectangle<int> cell,
                         const juce::String&  keyHint,
@@ -43,5 +45,6 @@ namespace lockstep
                         const KeyGroup&      group,
                         KeyButtonState       state,
                         bool                 showKeyHint,
-                        bool                 compoundOverlay = false);
+                        bool                 compoundOverlay = false,
+                        juce::Colour         latchColour     = juce::Colours::transparentBlack);
 }

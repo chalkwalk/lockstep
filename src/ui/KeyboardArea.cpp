@@ -804,8 +804,11 @@ namespace lockstep
                 ? KeyGroup{ kScopeTrackDim, kScopeTrack, kScopeTrack }
                 : KeyGroup{ kScopeTrackDim, kPerfActive, kPerfAccent };
             const bool overlay = hasCompound && uiState_.trackHeld;
+            // MHZ.9.6: latch pip.
+            const juce::Colour latchCol = uiState_.latch.track
+                ? juce::Colour(kScopeTrack) : juce::Colours::transparentBlack;
             paintKeyButton(g, sectionCellBounds(1, area), kKeyHints[1], "TRACK", "",
-                           grp, st, showKeyHint, overlay);
+                           grp, st, showKeyHint, overlay, latchCol);
         }
 
         // Cell 2: TAP (key 3) — tap tempo; Func+3 = MetronomeToggle.
@@ -1112,9 +1115,16 @@ namespace lockstep
                     ? KeyGroup{ kScopePartDim, kScopePart, kScopePart }
                     : KeyGroup{ kScopePartDim, kPerfActive, kPerfAccent };
 
+            // MHZ.9.6: latch pip in scope colour for Pattern (Q) and Part (W).
+            juce::Colour latchCol = juce::Colours::transparentBlack;
+            if (def.keyCode == 'Q' && uiState_.latch.pattern)
+                latchCol = juce::Colour(kScopePattern);
+            else if (def.keyCode == 'W' && uiState_.latch.part)
+                latchCol = juce::Colour(kScopePart);
+
             paintKeyButton(g, cell,
                            def.keyHint, displayPrimary, displayHint,
-                           activeGroup, state, showKeyHint, overlay);
+                           activeGroup, state, showKeyHint, overlay, latchCol);
         }
     }
 
@@ -1264,6 +1274,16 @@ namespace lockstep
                 }},
             }};
 
+            // MHZ.9.6: latch pip colours for Scene/Master/Mute/Fill (A/S/Z/X).
+            const std::array<std::array<uint32_t, 2>, kRows> kLatchCols = {{
+                { kScopeScene, kScopeMaster },
+                { kScopeMute,  kScopeFill   },
+            }};
+            const std::array<std::array<bool, 2>, kRows> modLatched = {{
+                { uiState_.latch.scene,  uiState_.latch.master },
+                { uiState_.latch.mute,   uiState_.latch.fill   },
+            }};
+
             for (int row = 0; row < kRows; ++row)
             {
                 for (int mc = 0; mc < 2; ++mc)
@@ -1284,10 +1304,16 @@ namespace lockstep
                     if (st == KeyButtonState::ModeActive)
                         grp = KeyGroup{ md.scopeDim, md.scopeActive, md.scopeActive };
 
+                    const juce::Colour latchCol = modLatched[static_cast<std::size_t>(row)]
+                                                             [static_cast<std::size_t>(mc)]
+                        ? juce::Colour(kLatchCols[static_cast<std::size_t>(row)]
+                                                 [static_cast<std::size_t>(mc)])
+                        : juce::Colours::transparentBlack;
+
                     paintKeyButton(g, cell,
                                    showKeyLetters ? md.keyHint : "",
                                    md.label, "",
-                                   grp, st, showKeyLetters, md.overlay);
+                                   grp, st, showKeyLetters, md.overlay, latchCol);
                 }
             }
         }
@@ -2104,6 +2130,16 @@ namespace lockstep
                 {
                     g.setColour(kColHeld);
                     g.drawRoundedRectangle(cell.toFloat(), 4.0f, 2.0f);
+                }
+
+                // MHZ.9.6: latched step — draw a scope-coloured dot at bottom-left.
+                if (inRange && ctx.isLatched(absIdx))
+                {
+                    const int pipSz = 5;
+                    g.setColour(juce::Colour(kScopeStep));
+                    g.fillEllipse(juce::Rectangle<int>(cell.getX() + 2,
+                                                       cell.getBottom() - pipSz - 2,
+                                                       pipSz, pipSz).toFloat());
                 }
 
                 // Note-count badge: 1–4 stacked tick marks on the left edge,
