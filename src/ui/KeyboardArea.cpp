@@ -1095,13 +1095,7 @@ namespace lockstep
                 displayHint    = kl.hint;
             }
 
-            // MHZ.7.2: Track+Control-All held → relabel verb keys as input-mode selectors.
-            if (uiState_.trackHeld && processor_.controlAllActive())
-            {
-                if      (def.keyCode == 'Y') { displayPrimary = "PLAY";  displayHint = {}; }
-                else if (def.keyCode == 'I') { displayPrimary = "CHROM"; displayHint = {}; }
-                else if (def.keyCode == 'O') { displayPrimary = "LEVLS"; displayHint = {}; }
-            }
+            // MHZ.9.7: mode selector moved to Track+NavUp/Down; verb relabels removed.
 
             // Modifier keys (Q=Pattern, W=Part) always show their dim scope colour at rest
             // and fill with the full scope colour when active.

@@ -577,10 +577,10 @@ namespace lockstep
                             ? juce::String(cnt) + " STEPS  |  turn knob to P-Lock"
                             : "STEP " + juce::String(stepNum) + "  |  turn knob to P-Lock";
                     }
-                    // Primary scope token. MHZ.7.2: show mode hint when Track+Control-All.
+                    // Primary scope token. MHZ.9.7: show mode-cycle hint when Track+Control-All.
                     else if (ui.trackHeld && processor_.controlAllActive())
                     {
-                        ctx = "TRACK  |  I=CHROM  O=LEVLS  Y=PLAY";
+                        ctx = juce::String(u8"TRACK  |  ↑↓ cycle PLAY/CHROM/LEVLS");
                     }
                     else if (ui.trackHeld)        ctx = "TRACK " + juce::String(keyboardArea_.getActiveTrack() + 1);
                     else if (ui.patternScopeHeld) ctx = "PATTERN";
@@ -1426,16 +1426,55 @@ namespace lockstep
                 return true;
 
             case ControllerButton::NavUp:
+            {
+                const int t = keyboardArea_.getActiveTrack();
+                // MHZ.9.7: Track (no specific track selected) + NavUp → cycle input mode upward.
+                if (uiState_.trackHeld && processor_.controlAllActive()
+                    && t >= 0 && t < static_cast<int>(kNumTracks))
+                {
+                    auto& mode = uiState_.trackInputMode[static_cast<std::size_t>(t)];
+                    switch (mode)
+                    {
+                        case TrackInputMode::Play:      mode = TrackInputMode::Levels;     break;
+                        case TrackInputMode::Chromatic: mode = TrackInputMode::Play;       break;
+                        case TrackInputMode::Levels:    mode = TrackInputMode::Chromatic;  break;
+                        default: break;
+                    }
+                    escapeAllLatches();  // entering new modality exits current latch
+                    keyboardArea_.repaint();
+                    repaint();
+                    return true;
+                }
                 // Normal: next higher track number.
                 keyboardArea_.setActiveTrack(
-                    std::min(static_cast<int>(kNumTracks) - 1,
-                             keyboardArea_.getActiveTrack() + 1));
+                    std::min(static_cast<int>(kNumTracks) - 1, t + 1));
                 return true;
+            }
 
             case ControllerButton::NavDown:
+            {
+                const int t = keyboardArea_.getActiveTrack();
+                // MHZ.9.7: Track (no specific track selected) + NavDown → cycle input mode downward.
+                if (uiState_.trackHeld && processor_.controlAllActive()
+                    && t >= 0 && t < static_cast<int>(kNumTracks))
+                {
+                    auto& mode = uiState_.trackInputMode[static_cast<std::size_t>(t)];
+                    switch (mode)
+                    {
+                        case TrackInputMode::Play:      mode = TrackInputMode::Chromatic;  break;
+                        case TrackInputMode::Chromatic: mode = TrackInputMode::Levels;     break;
+                        case TrackInputMode::Levels:    mode = TrackInputMode::Play;       break;
+                        default: break;
+                    }
+                    escapeAllLatches();  // entering new modality exits current latch
+                    keyboardArea_.repaint();
+                    repaint();
+                    return true;
+                }
                 // Normal: previous (lower) track number.
-                keyboardArea_.setActiveTrack(std::max(0, keyboardArea_.getActiveTrack() - 1));
+                keyboardArea_.setActiveTrack(std::max(0, t - 1));
                 return true;
+            }
 
             case ControllerButton::NavLeft:
             {
@@ -1483,16 +1522,6 @@ namespace lockstep
             case ControllerButton::VerbPlay:
             {
                 using PS = EditMode::PrimaryScope;
-                // MHZ.7.2: Track (no specific track selected) + VerbPlay → CHROMATIC mode.
-                if (uiState_.trackHeld && processor_.controlAllActive())
-                {
-                    const int t = keyboardArea_.getActiveTrack();
-                    if (t >= 0 && t < static_cast<int>(kNumTracks))
-                        uiState_.trackInputMode[static_cast<std::size_t>(t)] = TrackInputMode::Chromatic;
-                    keyboardArea_.repaint();
-                    repaint();
-                    return true;
-                }
                 // Scope held → grammar verb (e.g. paste).  No scope → play/stop.
                 if (editMode_.primaryScope() != PS::None
                     && editMode_.primaryScope() != PS::Func)
@@ -1522,16 +1551,6 @@ namespace lockstep
             case ControllerButton::VerbStop:
             {
                 using PS = EditMode::PrimaryScope;
-                // MHZ.7.2: Track (no specific track selected) + VerbStop → LEVELS mode.
-                if (uiState_.trackHeld && processor_.controlAllActive())
-                {
-                    const int t = keyboardArea_.getActiveTrack();
-                    if (t >= 0 && t < static_cast<int>(kNumTracks))
-                        uiState_.trackInputMode[static_cast<std::size_t>(t)] = TrackInputMode::Levels;
-                    keyboardArea_.repaint();
-                    repaint();
-                    return true;
-                }
                 // Scope held → grammar verb (e.g. clear).  No scope → stop transport.
                 if (editMode_.primaryScope() != PS::None
                     && editMode_.primaryScope() != PS::Func)
@@ -1565,16 +1584,6 @@ namespace lockstep
             }
 
             case ControllerButton::VerbYes:
-                // MHZ.7.2: Track (no specific track selected) + VerbYes → PLAY mode.
-                if (uiState_.trackHeld && processor_.controlAllActive())
-                {
-                    const int t = keyboardArea_.getActiveTrack();
-                    if (t >= 0 && t < static_cast<int>(kNumTracks))
-                        uiState_.trackInputMode[static_cast<std::size_t>(t)] = TrackInputMode::Play;
-                    keyboardArea_.repaint();
-                    repaint();
-                    return true;
-                }
                 editMode_.onVerb(ev.button);
                 return true;
 
