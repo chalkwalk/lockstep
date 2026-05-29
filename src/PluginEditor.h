@@ -84,6 +84,10 @@ namespace lockstep
         int  lastTrigToggleTrack_   = -1;
         bool lastTrigToggleApplied_ = false;  // true iff the key-up actually toggled (paramWrote was false)
 
+        // Yes-held flag: true while VerbYes is physically pressed.
+        // Used by Mute+Yes+step = solo gesture (additive toggle).
+        bool yesHeld_ = false;
+
         // MHZ.9.1: physical-only held state for each latchable modifier.
         // xxxHeld in UiState = physHeld_.xxx OR uiState_.latch.xxx (effective).
         struct ModPhysHeld

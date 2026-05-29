@@ -184,6 +184,9 @@ namespace lockstep
         void setGlobalMute(int track, bool muted);
         void toggleGlobalMute(int track);
 
+        // Solo toggle — additive (multiple tracks can be soloed simultaneously).
+        void toggleSolo(int track);
+
         // MD.7: Pattern mutes — per-track, live in the active Pattern.
         bool getPatternMute(int track) const;
         void setPatternMute(int track, bool muted);

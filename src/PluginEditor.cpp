@@ -361,11 +361,13 @@ namespace lockstep
             if (r.isEmpty()) continue;
 
             // Distinct background per silencing source: global mute = red,
-            // pattern mute = orange, solo-exclusion = purple, audible = grey.
+            // pattern mute = orange, solo-exclusion = purple, soloed = teal,
+            // audible = grey.
             juce::Colour bg = juce::Colour::fromRGB(28, 32, 38);
             if      (gMuted) bg = juce::Colour::fromRGB(70, 20, 20);
             else if (pMuted) bg = juce::Colour::fromRGB(80, 50, 16);
             else if (soloEx) bg = juce::Colour::fromRGB(50, 24, 70);
+            else if (soloed) bg = juce::Colour::fromRGB(20, 70, 50);
             g.setColour(bg);
             g.fillRect(r);
 
@@ -1671,6 +1673,7 @@ namespace lockstep
             }
 
             case ControllerButton::VerbYes:
+                yesHeld_ = true;
                 editMode_.onVerb(ev.button);
                 return true;
 
@@ -1793,14 +1796,20 @@ namespace lockstep
             }
 
             // MD.6/MD.7: Mute toggle.
-            // A+step (no Func) → immediate global mute toggle.
-            // Func+A+step → deferred pattern mute (applied atomically on Func release).
+            // Mute+Yes+step → additive solo toggle.
+            // Mute+step (no Func) → immediate global mute toggle.
+            // Func+Mute+step → deferred pattern mute (applied atomically on Func release).
             case ControllerButton::ToggleMute:
             {
                 const int trackIdx = ev.index;
                 if (trackIdx < 0 || trackIdx >= static_cast<int>(kNumTracks))
                     return true;
-                if (uiState_.funcHeld)
+                if (yesHeld_)
+                {
+                    // Mute+Yes+step = solo (additive toggle).
+                    processor_.toggleSolo(trackIdx);
+                }
+                else if (uiState_.funcHeld)
                 {
                     // Deferred pattern mute (MD.7 + MD.8).
                     deferredPatternMutes_.push_back(trackIdx);
@@ -2167,6 +2176,9 @@ namespace lockstep
             }
 
             case CB::VerbYes:
+                yesHeld_ = false;
+                break;
+
             case CB::VerbRecord:
             case CB::VerbStop:
             case CB::VerbNo:

@@ -1743,6 +1743,16 @@ namespace lockstep
         setGlobalMute(track, !getGlobalMute(track));
     }
 
+    void LockstepProcessor::toggleSolo(int track)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        const auto* p = trackSoloParams_[static_cast<std::size_t>(track)];
+        if (!p) return;
+        const bool nowSoloed = p->load() >= 0.5f;
+        if (auto* param = apvts_.getParameter(ParamIDs::trackSolo(track)))
+            param->setValueNotifyingHost(nowSoloed ? 0.0f : 1.0f);
+    }
+
     bool LockstepProcessor::getPatternMute(int track) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
