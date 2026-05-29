@@ -2034,6 +2034,33 @@ MHZ.5:
 This supports the "sketch a chord progression, mute trigs to find
 the part" workflow without losing authored chords.
 
+#### 21.4.3 Realtime record: overwrite vs overdub
+
+The live/quantized record path (record-arm + transport running, no
+step held) uses an **absolute** quantized step number to track visits:
+
+- **Same absolute step number** within a loop = same visit. Notes
+  aggregate into a chord (dedup, `kMaxNotesPerStep` cap). This is how
+  simultaneous MIDI notes land on one step chord.
+- **New absolute step number** = new visit. In **overwrite mode**
+  (default), the step is cleared before the first note of the new
+  visit, so each pass through the pattern replaces whatever was there.
+  In **overdub mode**, the clear is skipped: notes accumulate across
+  passes until the chord is full.
+
+**Gesture:** single-tap Record arms overwrite record (Record button
+red). **Double-tap Record** toggles overdub mode on top of record arm
+(Record button amber, labelled "Overdub"; QWERTY `U` shows "OD" in
+amber). Single-tap while in overdub disarms overdub and returns to
+plain record; a second single-tap disarms record entirely.
+
+Overdub is automatically cleared when record is disarmed (`Clock`
+invariant), so it never persists silently across sessions.
+
+Step-hold capture (§21.4) and note-edit overlay (§20.3) are
+unaffected — both already have explicit replace/append semantics
+independent of the record arm state.
+
 ## 22. Sampling and Resampling
 
 A single capture flow underlies both "sample audio coming into the

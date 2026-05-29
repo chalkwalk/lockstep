@@ -1198,6 +1198,27 @@ mode, velocity-first.
       live cell-press with record-arm fires + writes the
       next-step trig. PLAY mode restores scope grammar.
 
+#### MHZ.7.x — Realtime record: overwrite default + overdub mode
+
+Goal: fix the accumulation bug (notes piling up across loop passes)
+and provide an explicit overdub gesture.
+
+- [x] **MHZ.7.x.1** Record defaults to overwrite. The visit-tracking
+      comparison moved from the *wrapped* step index to the *absolute*
+      quantized step number (`nearestNum`). Same absolute step = same
+      visit (chord aggregation intact); new absolute step = new visit,
+      step cleared before first note unless overdub armed.
+- [x] **MHZ.7.x.2** Overdub arm state on `Clock`. `isOverdubArmed()` /
+      `setOverdubArmed(bool)` atomic pair; disarming record auto-clears
+      overdub.
+- [x] **MHZ.7.x.3** Gesture: double-tap Record arms overdub (reuses
+      `DoubleTapDetector`); single-tap returns to plain overwrite record.
+      Both `VerbRecord` (no-scope) and `RecordArm` paths updated.
+- [x] **MHZ.7.x.4** Chrome: Record button → amber + "Overdub" label
+      when overdub armed. QWERTY `U` key → amber group + "OD" label.
+- [x] **MHZ.7.x.5** Documentation: DESIGN §21.4.3, README §5.4 /
+      MHZ.3 / Step 7 tutorial.
+
 #### MHZ.8 — Pattern length authoring
 
 Goal: keyboard / encoder paths to set, double, and halve pattern

@@ -285,6 +285,11 @@ or an attached MIDI keyboard) and they're captured as trigs, quantised
 to the focused track's grid. Hold a step while playing a note to write
 that note's pitch onto that specific step instead.
 
+Each pass through the pattern **overwrites** whatever notes were on a
+step (default). Double-tap Record-Arm to enter **overdub mode** (button
+turns amber, labelled "Overdub") — notes accumulate across passes up to
+4 per step. Single-tap to return to overwrite mode.
+
 Press `T` again to disarm.
 
 ### Step 8 — Perform variations
@@ -408,7 +413,7 @@ with anything.
 | `0` | Play / Stop transport. |
 | `Func + 0` | Stop and reset to the start. |
 | `3` | Tap tempo (`Func + I` = toggle metronome). |
-| `9` | Toggle record-arm. |
+| `9` | Toggle record-arm (overwrite mode). Double-tap = overdub (append). |
 | `4` | Navigate up (inverted-T above `E R T`). |
 | `E` / `R` / `T` | Navigate left / down / right. |
 
@@ -681,9 +686,14 @@ remaining MH machine catalogue resumes.
   of currently-held MIDI notes to the step (not just the pressed note).
   Note-offs don't change the step's stored notes. Multi-step: all held
   steps receive the same chord in parallel.
-- **Realtime chord record.** Transport-time record-arm now aggregates
-  notes that quantise to the same step into a chord (up to 4 notes,
-  de-duplicated). A new note-on to a different step starts fresh.
+- **Realtime chord record.** Transport-time record-arm quantises
+  incoming notes to the nearest step. Notes landing on the same step
+  within a single pass aggregate into a chord (up to 4 notes,
+  de-duplicated). On the next pass through that step the chord is
+  **replaced** (overwrite mode, default). Double-tap Record to arm
+  **overdub mode** (amber button, "OD" on the QWERTY key) — subsequent
+  passes append rather than replace, accumulating chords up to the 4-note
+  cap. Single-tap Record disarms overdub and returns to overwrite.
 - **Note-count badge.** 1–4 stacked tick marks on each step cell show
   `noteCount` at a glance — visible in normal mode without entering any
   edit overlay.
@@ -753,7 +763,7 @@ chord steps are clamped via a per-track Top-bias / Bottom-bias
 TOP / BOT") that keeps the top and bottom voices first and spreads
 remaining picks evenly between them; **polyphonic trig steps** — steps
 carry up to 4 notes (hold step + play keys for snapshot-chord capture;
-realtime record aggregates chord notes per step; note-edit overlay for
+realtime record overwrites steps on each loop pass (double-tap Record → overdub appends); note-edit overlay for
 keyboardless entry; note-count badge on each cell; gate auto-written on
 last-note-off); the **VA synthesizer** (`VAMachine`) — 2× PolyBLEP
 oscillators (Saw/Pulse/Tri/Sin) + sub + shared noise, state-variable
