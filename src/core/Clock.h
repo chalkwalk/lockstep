@@ -69,6 +69,17 @@ namespace lockstep
         void setRecordArmed(bool armed)
         {
             recordArmed_.store(armed, std::memory_order_relaxed);
+            if (!armed)
+                overdubArmed_.store(false, std::memory_order_relaxed);
+        }
+
+        bool isOverdubArmed() const
+        {
+            return overdubArmed_.load(std::memory_order_relaxed);
+        }
+        void setOverdubArmed(bool overdub)
+        {
+            overdubArmed_.store(overdub, std::memory_order_relaxed);
         }
 
         bool isMetronomeEnabled() const
@@ -110,6 +121,7 @@ namespace lockstep
         // Cross-thread state.
         std::atomic<bool>          inPluginPlaying_{false};
         std::atomic<bool>          recordArmed_{false};
+        std::atomic<bool>          overdubArmed_{false};
         std::atomic<bool>          metronomeEnabled_{false};
         std::atomic<std::uint64_t> ppqUi_{0};  // double bits of ppqBlockStart_
     };

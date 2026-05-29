@@ -16,6 +16,7 @@
 #include "state/PluginState.h"
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace lockstep
 {
@@ -101,7 +102,7 @@ namespace lockstep
     {
         nextTriggerPpq_.fill(0.0);
         firedStepIdx_.fill(-1);
-        lastRecordedStep_.fill(-1);
+        lastRecordedStepNum_.fill(std::numeric_limits<int64_t>::min());
 
         for (auto& s : mzSlots_)
             s.store(-1, std::memory_order_relaxed);
@@ -610,7 +611,10 @@ namespace lockstep
                      && !editContext_.isActiveForEditing())
             {
                 // M7.2: Quantize note-on to nearest step boundary, write trig.
-                // Multiple notes that quantise to the same step are aggregated into a chord.
+                // Chord aggregation: multiple notes quantising to the same absolute step
+                // number accumulate (same visit). A new absolute step number = a new visit;
+                // in overwrite mode the step is cleared before the first note of the visit,
+                // so each pass through the pattern replaces rather than piles up.
                 const int trackDiv = static_cast<int>(trackDividerParams_[ti]->load());
                 const double divPpq = 0.25 * static_cast<double>(trackDiv <= 0 ? 1 : trackDiv);
                 const int trackLen  = static_cast<int>(trackLengthParams_[ti]->load());
@@ -624,13 +628,17 @@ namespace lockstep
                         ((nearestNum % static_cast<std::int64_t>(trackLen))
                          + trackLen) % trackLen);
                     auto& s = sequence().tracks[ti].steps[static_cast<std::size_t>(stepIdx)];
-                    // If this note quantises to a different step than the last recorded note,
-                    // start a fresh chord on the new step.
-                    if (stepIdx != lastRecordedStep_[ti])
+                    // New absolute step = start of a new visit.
+                    // In overwrite mode (default), clear the step before its first note.
+                    // In overdub mode, never clear — notes always accumulate.
+                    if (nearestNum != lastRecordedStepNum_[ti])
                     {
-                        s.trigOverride.noteCount        = 0;
-                        s.trigOverride.hasNoteVelocities = false;
-                        lastRecordedStep_[ti] = stepIdx;
+                        lastRecordedStepNum_[ti] = nearestNum;
+                        if (!clock_.isOverdubArmed())
+                        {
+                            s.trigOverride.noteCount         = 0;
+                            s.trigOverride.hasNoteVelocities = false;
+                        }
                     }
                     s.trig = true;
                     if (s.trigOverride.noteCount < kMaxNotesPerStep)

@@ -486,9 +486,10 @@ namespace lockstep
         };
         ChordCapture chordCapture_{};
 
-        // Per-track last step index written by realtime record (for chord aggregation).
-        // -1 means no step has been recorded for this track yet.
-        std::array<int, kNumTracks> lastRecordedStep_{};
+        // Per-track last absolute quantized step number written by realtime record.
+        // Used for chord aggregation (same absolute step = aggregate) and overwrite
+        // (new absolute step = clear before first note). INT64_MIN = no step recorded.
+        std::array<int64_t, kNumTracks> lastRecordedStepNum_{};
 
         // MHZ.6.1: per-track, per-note gate tracker for realtime record.
         // stepIdx == -1 means this note slot is inactive.
