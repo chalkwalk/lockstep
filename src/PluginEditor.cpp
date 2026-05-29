@@ -1333,7 +1333,8 @@ namespace lockstep
                 }
 
                 // MHZ.3.4: Func + step (no existing step held) → enter P-Lock clear mode.
-                if (uiState_.funcHeld && heldStepKeys_.empty())
+                // MHZ.9.5: use ctx.heldSteps().empty() so latched steps keep the edit context alive.
+                if (uiState_.funcHeld && processor_.editContext().heldSteps().empty())
                 {
                     const int absStep = keyboardArea_.currentPage() * KeyboardArea::kPageSteps
                                         + ev.index;
@@ -1346,19 +1347,61 @@ namespace lockstep
                 }
 
                 // Ignore key-repeat (same physical key already in list).
-                bool alreadyHeld = false;
-                for (auto& [code, _] : heldStepKeys_)
                 {
-                    if (code == rawCode) { alreadyHeld = true; break; }
+                    bool alreadyHeld = false;
+                    for (auto& [code, _] : heldStepKeys_)
+                    {
+                        if (code == rawCode) { alreadyHeld = true; break; }
+                    }
+                    if (alreadyHeld) return true;
                 }
-                if (!alreadyHeld)
+
                 {
                     const int absStep = keyboardArea_.currentPage() * KeyboardArea::kPageSteps
                                         + ev.index;
+                    const double now = juce::Time::getMillisecondCounterHiRes();
+                    const bool isDouble = doubleTap_.recordAndCheck(absStep, now);
+
+                    // MHZ.9.5: double-tap on a step = virtual-hold (latch operand).
+                    // On the 2nd key-down, re-hold the step and mark it latched; also
+                    // revert the first key-up's trig toggle (if it happened) so the
+                    // net effect is zero trig changes.
+                    if (isDouble)
+                    {
+                        auto& ctx = processor_.editContext();
+                        ctx.hold(keyboardArea_.getActiveTrack(), absStep);
+                        ctx.setLatched(absStep);
+                        uiState_.latch.anySteps = ctx.hasAnyLatchedStep();
+                        heldStepKeys_.push_back({ rawCode, absStep });
+                        uiState_.stepHeld = true;
+                        editMode_.setTrigHeld(true);
+
+                        // Revert the first key-up trig flip if it happened on this step.
+                        if (lastTrigToggleApplied_
+                            && lastTrigToggleStep_  == absStep
+                            && lastTrigToggleTrack_ == ctx.heldTrackIndex())
+                        {
+                            auto& s = processor_.sequence()
+                                .tracks[static_cast<std::size_t>(lastTrigToggleTrack_)]
+                                .steps[static_cast<std::size_t>(lastTrigToggleStep_)];
+                            s.trig = !s.trig;  // undo the first-tap's toggle
+                        }
+                        lastTrigToggleApplied_ = false;
+                        lastTrigToggleStep_    = -1;
+                        lastTrigToggleTrack_   = -1;
+                        repaint();
+                        return true;
+                    }
+
+                    // Normal (first) press: hold the step.
                     heldStepKeys_.push_back({ rawCode, absStep });
                     uiState_.stepHeld = true;
                     processor_.editContext().hold(keyboardArea_.getActiveTrack(), absStep);
                     editMode_.setTrigHeld(true);
+                    // Clear stale trig-toggle tracking on any new step press.
+                    lastTrigToggleApplied_ = false;
+                    lastTrigToggleStep_    = -1;
+                    lastTrigToggleTrack_   = -1;
                     repaint();
                 }
                 return true;
@@ -1958,10 +2001,19 @@ namespace lockstep
                     auto [code, stepIdx] = heldStepKeys_[static_cast<std::size_t>(i)];
                     if (code == rawCode)
                     {
-                        auto& ctx              = processor_.editContext();
-                        const int  track       = ctx.heldTrackIndex();
-                        const bool paramWrote  = ctx.wasParamWritten();
-                        processor_.editContext().release(stepIdx);
+                        auto& ctx = processor_.editContext();
+
+                        // MHZ.9.5: latched step — keep it in the edit context, just remove
+                        // the physical key entry. Suppress trig toggle for the latch.
+                        if (ctx.isLatched(stepIdx))
+                        {
+                            heldStepKeys_.erase(heldStepKeys_.begin() + i);
+                            break;
+                        }
+
+                        const int  track      = ctx.heldTrackIndex();
+                        const bool paramWrote = ctx.wasParamWritten();
+                        ctx.release(stepIdx);
                         // MHZ.3.1: next press starts a fresh chord capture.
                         if (track >= 0)
                             processor_.cancelChordCapture(track, stepIdx);
@@ -1984,13 +2036,18 @@ namespace lockstep
                             else
                             {
                                 s.trig = !s.trig;
+                                // MHZ.9.5: record for possible revert if double-tap follows.
+                                lastTrigToggleStep_    = stepIdx;
+                                lastTrigToggleTrack_   = track;
+                                lastTrigToggleApplied_ = true;
                             }
                         }
                         heldStepKeys_.erase(heldStepKeys_.begin() + i);
                         break;
                     }
                 }
-                if (heldStepKeys_.empty())
+                // MHZ.9.5: clear stepHeld/trigHeld only when no physical or latched steps remain.
+                if (processor_.editContext().heldSteps().empty())
                 {
                     uiState_.stepHeld = false;
                     editMode_.setTrigHeld(false);

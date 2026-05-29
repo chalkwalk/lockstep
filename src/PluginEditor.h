@@ -78,6 +78,12 @@ namespace lockstep
         // MHZ.9.2: unified double-tap detector (modifiers + steps).
         DoubleTapDetector doubleTap_;
 
+        // MHZ.9.5: track the last step trig-toggle so latch double-tap can revert it.
+        // Set on key-up trig toggle; cleared on next dispatchDown step press.
+        int  lastTrigToggleStep_    = -1;
+        int  lastTrigToggleTrack_   = -1;
+        bool lastTrigToggleApplied_ = false;  // true iff the key-up actually toggled (paramWrote was false)
+
         // MHZ.9.1: physical-only held state for each latchable modifier.
         // xxxHeld in UiState = physHeld_.xxx OR uiState_.latch.xxx (effective).
         struct ModPhysHeld
