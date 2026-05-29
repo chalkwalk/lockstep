@@ -172,6 +172,7 @@ other naturally with no master-bar concept.
 | **Trig override** | A per-step override of a sequencer field — note, velocity, gate, or condition — as opposed to an engine parameter. |
 | **Override-ELSE-Base** | The one resolution rule: effective value = step override if present, else track base. |
 | **Machine** | A sound engine. Each track hosts one. Lockstep ships seven: `SamplerMachine` (monophonic sample playback with trim, loop region, ZC-snap), `SlicerMachine` (slice/scrub dual-mode with transient detection and poly), `FMMachine` (4-op FM synthesizer, mono/poly), `VAMachine` (virtual-analog dual-osc + SVF synth, mono/para), `DrumSynthMachine` (Rytm-style drum synth — kick, snare, hat, tom via one stepped param), `MidiOutMachine` (MIDI CC/note output to external gear), and `StubMachine` (silent fallback for unknown IDs). |
+| **Machine module** *(planned, M10)* | A machine shipped as a loadable native module behind Lockstep's stable C ABI, rather than compiled into the core. First-party machines are statically linked; third-party machines are authored against the SDK and installed into a per-platform folder. Bespoke contract for purpose-built machines — not a VST3/CLAP host. See DESIGN §36. |
 | **Part** | The per-track kit: machine identity, base parameters, sample refs. Shared or owned per pattern. |
 | **Pattern** | The trig grid and per-step data; references one Part. |
 | **Bank** | A group of patterns with addressable slots. |
@@ -441,6 +442,17 @@ Tracks 1–8 default to `SamplerMachine` and tracks 9–16 to `MidiOutMachine` (
 | `MidiOutMachine` | M | MIDI CC / note output to external gear. Configurable destination, channel, program, 16 CC slots with user-assignable numbers and labels. |
 
 Focus determines what the contextual encoders edit and what selected-track MIDI mappings drive.
+
+**Third-party machine modules** *(planned, M10)* — beyond the built-in
+machines above, the catalogue will also list machines installed as
+loadable modules. A machine module is native code authored against the
+Lockstep SDK and dropped into a per-platform machines folder; a
+drag-and-drop install flow copies it there and rescans. Installing or
+removing a module is an out-of-grammar administrative action (like
+managing sample files), not a scope+verb gesture. A project that
+references a module you don't have installed loads safely: the track
+shows a stub you can relink, and the missing module's settings are
+preserved on re-save. See DESIGN §36.
 
 ### 5.6 Step editing
 
