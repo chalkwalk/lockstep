@@ -1355,6 +1355,69 @@ with `Func + No` if it didn't land. The stack depth gives a few
 levels of "two-mistakes-deep" recovery without bloating into a full
 DAW-style history.
 
+### 13.7 Latch — virtual hold
+
+The grammar so far is built on *holding*: a held scope modifier sets a
+scope, a held step opens its P-Lock editor, a held `Func` raises the
+secondary layer. Latch adds one gesture that turns any of those holds
+hands-free, **without inventing a new per-key meaning**:
+
+> **Tap** = a momentary action (a step tap toggles `step.trig`; a lone
+> modifier tap does nothing). **Hold** = a momentary mode (hold a step →
+> P-Lock edit; hold `Func` → secondary layer; hold `Track` → Control-All
+> scope). **Double-tap = a virtual hold** — the *same* mode, held for you,
+> exactly as if the keys stayed down.
+
+A latched element reads identically to a physically held one (effective-held
+= physical OR latched), so nothing downstream of the hold needs to know the
+difference. Latch is persistence, not a new clause.
+
+- **Modifiers** (`Track`, `Part`, `Pattern`, `Scene`, `Master`, `Mute`,
+  `Fill`). Double-tap latches the scope; double-tap the **same** modifier
+  releases it. Latches obey the §13 compound-chord rules unchanged: at most
+  one latch among the left column {`Pattern`, `Scene`, `Mute`} and one among
+  the right column {`Track`, `Part`, `Master`, `Fill`}; latching a second key
+  in a column releases the first. Cross-column latches *compose* (latching one
+  from each column builds a compound scope), exactly as holding both would.
+- **`Func` never latches.** `Func` stays the momentary universal qualifier
+  (§13). Its double-tap is reserved as the **universal escape**: it clears
+  every latched modifier and every virtual-held step in one gesture. This is
+  the literal reading of "the *modality* latches, not the key" — you latch a
+  `Func`-combo (e.g. the machine picker, `Func + Part`) by double-tapping its
+  *operand* (`Part`), and you leave via `Func`. Because `Func` is the lone
+  exception, the escape always lives in the same place; the user never hunts
+  for the key that started a mode. (When no latch is engaged, `Func` behaves
+  exactly as today — the escape is a no-op and never pre-empts `Func`'s normal
+  key-up commits such as the §13.4 deferred pattern-mute multi-select.)
+- **Steps are operands, never the exit.** Double-tapping a step virtual-holds
+  it into the edit context (P-Lock / trig override), so encoder edits land on
+  it hands-free. A **single tap still toggles that step's trig**, even while
+  an edit is latched — a tap is a momentary action, unchanged. Double-tapping
+  an already-latched step removes just that operand. The *session* is exited
+  with `Func` (a step is transient content and makes a poor exit affordance).
+
+**Entering a new modality exits the current one.** Latch persists a *mode*,
+so committing to a different mode ends it. In particular, switching a track's
+input mode (§34.1, `Track + Nav` cycling PLAY ↔ CHROMATIC ↔ LEVELS) always
+clears any latched edit or scope — exactly as the `Func` escape would. There
+is never a stale modality lurking under a freshly chosen one.
+
+**Holds latch, verbs amplify.** The five verbs keep their own double-press
+meaning — the established one being a double-press of Play = stop + reset
+phase (§13 transport). Verbs are instantaneous, so latching them is
+meaningless; that they instead carry the "amplified action" reading keeps the
+two double-tap families cleanly separated.
+
+| Gesture | Effect |
+|---|---|
+| Double-tap a modifier | Latch (virtual-hold) that scope |
+| Double-tap the same modifier | Release that latch |
+| Double-tap a step | Virtual-hold it into the edit context (add operand) |
+| Single-tap a step (latched edit active) | Toggle its trig (unchanged) |
+| Double-tap a latched step | Remove that operand |
+| Double-tap `Func` | Universal escape — clear all latches |
+| Double-press a verb | Amplified action (e.g. Play = stop + reset) |
+
 ## 14. Signal Path and Post-Machine FLTR / AMP
 
 The sequencer-side signal path for an internal-audio track is:
@@ -1784,8 +1847,8 @@ input mode on a per-track basis (see §34, `TrackInputMode`), not as
 a momentary chord on top of the trig grid. The §20 design below
 still describes the *behaviour* of the mode; what's changed is the
 *entry*: instead of "hold a mode chord," the user puts the focused
-track into `LEVELS` mode via `Track + O` (the verb-row mode
-selector), and the step cells reinterpret as quantised value
+track into `LEVELS` mode via the `Track + Nav` mode selector
+(§34.1), and the step cells reinterpret as quantised value
 buckets while the mode is active. MHZ.7 ships **velocity-first**
 (binding fixed to `velocity`); §20.1's eligibility set and §20.2's
 encoder-binding selector remain the design target for the follow-up
@@ -2645,11 +2708,19 @@ when it is not `PLAY`.
 
 ### 34.1 Mode selector
 
-`Track + verb-row key` sets the focused track's mode:
-`Track + Y` = PLAY, `Track + U` = EDIT, `Track + I` = CHROMATIC,
-`Track + O` = LEVELS. Compound qualifier: `Track + track-key +
-verb-row key` sets the mode on a specific track without changing
-focus (per the standard §13 compound-chord rule).
+`Track + NavUp / NavDown` cycles the focused track's input mode
+(PLAY ↔ CHROMATIC ↔ LEVELS). NavLeft/NavRight is already the octave
+shift in CHROMATIC (§34.2), so Up/Down is free and conflict-less.
+Compound qualifier: `Track + track-key + NavUp/Down` sets the mode
+on a specific track without changing focus (per the standard §13
+compound-chord rule).
+
+> **Supersedes (MHZ.9).** MHZ.7 shipped an interim selector that
+> repurposed the verb row as a radio (`Track + Y/U/I/O` =
+> PLAY/EDIT/CHROMATIC/LEVELS). That mapping was grammatically
+> arbitrary (a verb meant a mode) and the exit was undiscoverable, so
+> it is replaced by `Track + Nav`. This also frees the verb row and
+> the double-tap gesture for their real meanings (§13.7).
 
 Modes are RAM-only initially; if play-testing shows that a track
 "wants" to stay in CHROMATIC across project reloads, the field

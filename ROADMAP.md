@@ -1161,7 +1161,9 @@ mode, velocity-first.
       PLAY/EDIT/CHROMATIC/LEVELS) sets the focused track's mode.
       Composes with `Track + track-key` to set a specific
       track's mode without changing focus (compound qualifier
-      per §13).
+      per §13). **Superseded by MHZ.9.7** (`Track + NavUp/Down`
+      cycle) — the verb→mode mapping was arbitrary and frees the
+      verb row + double-tap for §13.7.
 - [x] **MHZ.7.3** CHROMATIC mode. In CHROMATIC the 16 step cells
       become a 1-octave chromatic keyboard for live play
       (reuses `UiState::noteEditOctave` + NavUp/NavDown for
@@ -1233,6 +1235,103 @@ length without leaving the surface. Closes the gap where
       current length. `Pattern + Func + Yes` doubles + duplicates
       step data; `Pattern + Func + No` halves with checkpoint
       safety.
+
+#### MHZ.9 — Latch (hands-free virtual-hold) + Track+Nav mode cycle
+
+Goal: one cluster-wide gesture — **double-tap = virtual hold** — so any
+held mode (a scope, the secondary layer, a P-Lock edit) can be held
+hands-free, with `Func` as the universal escape. Adds **no** new per-key
+meaning (DESIGN §13.7) — latch is persistence of a hold the grammar
+already understands. Also replaces the MHZ.7.2 verb radio for input-mode
+selection with `Track + Nav`, freeing the verb row and the double-tap
+gesture for their real meanings.
+
+- [ ] **MHZ.9.1** Latch state (least-invasive). Add a `LatchState`
+      (the 7 latchable-modifier bools) to `src/state/UiState.h`
+      beside the existing `xxxHeld` flags; keep `xxxHeld` as the
+      *effective-held* value (physical OR latched) so every
+      downstream read of `funcHeld`/`trackHeld`/… is unchanged.
+      Latched steps persist in EditContext's existing ordered
+      `heldSteps_`; add `isLatched/setLatched/clearLatched(int)`
+      + a `latchedSteps_` marker to `src/io/EditContext.h`.
+- [ ] **MHZ.9.2** Double-tap detector. Header-only
+      `DoubleTapDetector` generalising the existing Play double-press
+      (`lastPlayPressTime_`, `kDoublePressMsThreshold = 350.0`,
+      `PluginEditor.h`). Non-colliding token scheme: modifiers
+      `1000 + int(button)`, steps = step index (`< 1000`). One
+      editor member.
+- [ ] **MHZ.9.3** Modifier latch. In `dispatchDown` (the
+      `uiState_.xxxHeld = … ; editMode_.onScopeEvent(ev)` cases) a
+      double-tap toggles that modifier's latch and enforces column
+      exclusivity (reuse the `EditMode::hasSameColumnConflict`
+      grouping: one latch among {Pattern,Scene,Mute}, one among
+      {Track,Part,Master,Fill}). In `dispatchUp` / `keyStateChanged`,
+      clear `xxxHeld` + emit ButtonUp **only if not latched**. Single
+      press behaves exactly as today.
+- [ ] **MHZ.9.4** `Func` universal escape. `Func` never latches.
+      A double-tap `Func` calls `escapeAllLatches()` (clear all
+      modifier latches + latched steps) — **only when latches are
+      engaged**, so the existing deferred `Func` key-up flows
+      (pattern-mute multi-select §13.4, NoteEdit, P-Lock-clear) are
+      untouched. `Func` single-hold unchanged.
+- [ ] **MHZ.9.5** Step latch / operand. Step trig-toggle currently
+      fires on key-*up* gated by `!paramWrote` (~`PluginEditor.cpp`
+      :1798). Catch the double-tap on the 2nd key-*down*, mark the
+      step latched, and revert/suppress the first tap's pending trig
+      flip (track via a `lastTrigToggleStep_`) so latch-in nets zero
+      trig change. A single tap during a latched edit keeps its
+      normal trig toggle. Switch the scope-clear test from
+      `heldStepKeys_.empty()` to `ctx.heldSteps().empty()` so latched
+      steps keep the edit context alive.
+- [ ] **MHZ.9.6** Latch rendering. Persistent latch pip in
+      `paintKeyButton` (`src/ui/KeyButton.cpp`), drawn in the
+      per-scope colour (`UITheme.h` / `KeyLabel.h`), composing like
+      the existing compound overlay and orthogonal to `Pressed`.
+      Modifier blocks pass `latched.<m>`; step cells
+      (`src/ui/KeyboardArea.cpp` ~1975-2009) add `isLatched` from
+      `ctx.isLatched(absIdx)`. `Func` reads as the active escape
+      whenever any latch is engaged.
+- [ ] **MHZ.9.7** Track+Nav mode cycle (supersedes MHZ.7.2). Delete
+      the three `Track + VerbPlay/Stop/Yes` mode blocks
+      (`PluginEditor.cpp` ~1285 / ~1324 / ~1366). Cycle
+      `trackInputMode[activeTrack]` PLAY↔CHROMATIC↔LEVELS in the
+      NavUp/NavDown handlers (~1227), gated on
+      `trackHeld && controlAllActive()`. Update the hint string
+      (~583) to e.g. `"TRACK | ^/v cycle PLAY/CHROM/LEVLS"`. In
+      CHROMATIC, NavLeft/Right still shifts octave. A mode switch is
+      a new modality, so call `escapeAllLatches()` on each cycle
+      (DESIGN §13.7, "entering a new modality exits the current one").
+- [ ] **MHZ.9.8** Documentation: DESIGN §13.7 (authored ahead of the
+      build) + the §34.1 / §20 mode-selector prose already updated to
+      `Track + Nav`; CLAUDE.md glossary (Latch / virtual-hold,
+      universal escape); README §5 shortcut table (double-tap =
+      latch, double-tap `Func` = escape, `Track + Nav` = input mode;
+      remove the I/O/Y radio). README changes land **with the code**,
+      not before (README must stay accurate for shipped gestures).
+- [ ] **MHZ.9.9** Verification (standalone): (a) double-tap `Fill`
+      latches fill-on, double-tap `Fill` releases; double-tap `Mute`
+      keeps the pane open. (b) latch `Track`, then double-tap `Part`
+      → `Track` latch drops, `Part` latches (column exclusivity).
+      (c) double-tap a step → latched edit, encoder writes that
+      step's override hands-free with no stray trig; single-tap
+      another step still toggles its trig; double-tap it to add to
+      the set. (d) with several latches engaged, double-tap `Func`
+      clears all in one gesture. (e) with nothing latched,
+      pattern-mute multi-select / NoteEdit / P-Lock-clear still behave
+      exactly as before. (f) hold `Track` + Nav↑/↓ cycles
+      PLAY→CHROM→LEVLS; the I/O/Y radio is gone. No crashes / NaNs;
+      APVTS round-trips (input mode is RAM-only by design).
+
+**Risks.** (1) *Highest:* `Func` escape vs `Func`'s deferred key-up
+commits — the escape must fire only when latches exist and must not
+double-fire across a double-tap's two presses (MHZ.9.4 + 9.9(e)).
+(2) Step double-tap net-zero depends on reverting the first tap's
+key-up trig flip with correct `paramWrote` ordering (MHZ.9.5).
+(3) Chromatic/Levels interaction *(resolved)*: a mode change is a new
+modality, so switching input mode via `Track + Nav` (MHZ.9.7) always
+clears any active latch — "entering a new modality exits the current
+one" (DESIGN §13.7). MHZ.9.7 must therefore call `escapeAllLatches()`
+on each mode switch.
 
 ### MH — Machine catalogue expansion  [pending, staggered]
 
