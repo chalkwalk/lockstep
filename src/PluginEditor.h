@@ -160,6 +160,13 @@ namespace lockstep
         float masterMeter_ = 0.0f;
         void paintMeters(juce::Graphics& g);
 
+        // Transient status line — shows CPC operation result for ~1.5s.
+        juce::String statusMessage_;
+        juce::uint32 statusSetMs_ = 0;
+        static constexpr juce::uint32 kStatusDurationMs = 1500;
+        void setStatus(const juce::String& msg);
+        void paintStatus(juce::Graphics& g, juce::Rectangle<int> area);
+
         void applyDisplayMode(GridDisplayMode mode);
 
         // Unified input dispatch — both keyPressed and mouse callbacks route here.

@@ -479,6 +479,15 @@ namespace lockstep
             if (isOverdub)
                 displayPrimary = "OD";
 
+            // CPC relabel: when a section-suite scope is held, the verb primaries
+            // show COPY/PASTE/CLEAR so the scope+verb grammar is immediately readable.
+            if (sectionScopeHeld)
+            {
+                if (def.role == KeyRole::VerbCopy)  displayPrimary = "COPY";
+                if (def.role == KeyRole::VerbPaste)  displayPrimary = "PASTE";
+                if (def.role == KeyRole::VerbClear)  displayPrimary = "CLEAR";
+            }
+
             // Func-hint promotion: when Func held and key has a Func-layer variant,
             // funcLayer IS the live function — show it as primary, clear hint.
             const bool hasFuncLayer = (def.funcLayer[0] != static_cast<char8_t>(0));

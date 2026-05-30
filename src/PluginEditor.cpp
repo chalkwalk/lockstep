@@ -644,6 +644,9 @@ namespace lockstep
                 g.fillRoundedRectangle(r.toFloat(), 3.0f);
                 g.setColour(juce::Colour(0xFFDDEEFFu));
                 g.drawText(ctx, r.reduced(4, 0), juce::Justification::centredLeft, true);
+
+                // Transient CPC status overlays the context-HUD for ~1.5s.
+                paintStatus(g, r);
             }
         }
 
@@ -2426,6 +2429,29 @@ namespace lockstep
     }
 
     // -------------------------------------------------------------------------
+    // Transient status line
+
+    void LockstepEditor::setStatus(const juce::String& msg)
+    {
+        statusMessage_ = msg;
+        statusSetMs_   = juce::Time::getMillisecondCounter();
+        repaint();
+    }
+
+    void LockstepEditor::paintStatus(juce::Graphics& g, juce::Rectangle<int> area)
+    {
+        if (statusMessage_.isEmpty()) return;
+        const auto elapsed = juce::Time::getMillisecondCounter() - statusSetMs_;
+        if (elapsed > kStatusDurationMs) return;
+        const float alpha = juce::jlimit(0.0f, 1.0f,
+            1.0f - static_cast<float>(elapsed) / static_cast<float>(kStatusDurationMs));
+        g.setColour(juce::Colour(0xFF1E2028u).withAlpha(alpha));
+        g.fillRoundedRectangle(area.toFloat(), 3.0f);
+        g.setColour(juce::Colour(0xFF80FFB0u).withAlpha(alpha));
+        g.drawText(statusMessage_, area.reduced(4, 0), juce::Justification::centredLeft, true);
+    }
+
+    // -------------------------------------------------------------------------
     // Verb dispatch (MB.3)
 
     void LockstepEditor::dispatchVerb(EditMode::PrimaryScope scope, ControllerButton verb)
@@ -2592,16 +2618,19 @@ namespace lockstep
                 const int activeTrack = keyboardArea_.getActiveTrack();
                 auto& trk = processor_.sequence()
                                 .tracks[static_cast<std::size_t>(activeTrack)];
+                const juce::String trkName = "Track " + juce::String(activeTrack + 1);
 
                 if (verb == CB::VerbRecord)
                 {
                     clipboard_.clipTrack = trk;
                     clipboard_.type      = ClipboardType::Track;
+                    setStatus("Copied " + trkName);
                 }
                 else if (verb == CB::VerbPlay)
                 {
                     if (clipboard_.type != ClipboardType::Track) break;
                     trk = clipboard_.clipTrack;
+                    setStatus("Pasted → " + trkName);
                 }
                 else if (verb == CB::VerbStop)
                 {
@@ -2613,6 +2642,7 @@ namespace lockstep
                         s.overrides  = PLock{};
                         s.trigOverride = TrigOverride{};
                     }
+                    setStatus("Cleared " + trkName);
                 }
                 releaseTransientLatch(CB::TrackScope);
                 break;
@@ -2624,18 +2654,21 @@ namespace lockstep
             case PS::Pattern:
             {
                 auto& pat = processor_.activePattern();
+                const juce::String patName = "Pattern " + juce::String(processor_.activePatternIdx() + 1);
 
                 if (verb == CB::VerbRecord)
                 {
                     clipboard_.clipSequence    = pat.sequence;
                     clipboard_.clipPatternMutes = pat.patternMutes;
                     clipboard_.type            = ClipboardType::Pattern;
+                    setStatus("Copied " + patName);
                 }
                 else if (verb == CB::VerbPlay)
                 {
                     if (clipboard_.type != ClipboardType::Pattern) break;
                     pat.sequence     = clipboard_.clipSequence;
                     pat.patternMutes = clipboard_.clipPatternMutes;
+                    setStatus("Pasted → " + patName);
                 }
                 else if (verb == CB::VerbStop || verb == CB::VerbNo)
                 {
@@ -2656,6 +2689,7 @@ namespace lockstep
                         }
                     }
                     pat.patternMutes.fill(false);
+                    setStatus("Cleared " + patName);
                 }
                 break;
             }
@@ -2671,6 +2705,7 @@ namespace lockstep
                     processor_.pushCheckpoint();
                     processor_.deletePart();
                     releaseTransientLatch(CB::PartScope);
+                    setStatus("Deleted Part");
                 }
                 break;
             }
