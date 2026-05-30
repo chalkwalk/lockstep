@@ -1935,15 +1935,23 @@ seam later, not built now).
 - [ ] **MW.4** Ship the X-Touch Mini built-in profile; manual pass —
       all 8 encoders → MZ, 16 buttons → steps, 2 extra → verbs, fader →
       crossfader. Confirm no contention across the three threads.
-- [ ] **MW.5** Surface model + feedback (DESIGN §35.4, §35.8). Two
+- [~] **MW.5** Surface model + feedback (DESIGN §35.4, §35.8). Two
       phases, in order:
-      **(a)** Extract the pure `buildSurfaceModel()` → `SurfaceModel`
-      (`SurfaceCell` + `CellState` + `SurfaceSlot`) and **re-point the
-      existing screen renderers at it** — `KeyboardArea::paintStepRows`,
-      `paintSectionRow`, `paintFunctionRow`, `ManipulationZone` become
-      renderers of the model, not deriver+renderers. Behaviour and look
-      preserved; this is the single-source-of-truth refactor and the
-      prerequisite for feedback. `KeyButtonState` folds into `CellState`.
+      **(a)** [in progress] Extract the pure `buildSurfaceModel()` → `SurfaceModel`
+      (`SurfaceCell` + `CellState` + `paintCell`) and **re-point the
+      existing screen renderers at it**. Slice checklist:
+      - [x] Slice 0: `SurfaceModel.{h,cpp}`, `CellState`, `compatColour`, builder
+        scaffold, `paintCell` adapter. Nothing consumes it yet.
+      - [x] Slice 1: Builder for modifiers + section row + function row + TAP/NavUp;
+        `paintSectionRow`/`paintFunctionRow` re-pointed; dead inline code removed.
+        Screen acceptance criteria: Func-hint promotion ✓, held-modifier scope tint ✓,
+        press highlight uniform ✓.
+      - [ ] Slice 2: Normal step grid tint (scope colour; fixes always-green; `pressed`).
+      - [ ] Slice 3: Mute re-skin → model (fixes missing press-highlight).
+      - [ ] Slice 4: Scope re-skin → model (fixes missing press-highlight).
+      - [ ] Slice 5: Remaining overlays (machine picker, note-edit, P-Lock clear,
+        chromatic, levels).
+      - [ ] Slice 6: `jassert` invariant + headless `SurfaceModelTest`.
       **(b)** `ControllerFeedbackEmitter` = the `render()` half of
       `JsonControllerSurface`: 30 Hz timer (reuse the MZ cadence), calls
       `buildSurfaceModel()`, per-indicator diff/throttle against a shadow

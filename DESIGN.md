@@ -3223,11 +3223,17 @@ borders / P-Lock dots / fill states / scope tint *inline*). Feedback that
 re-derived that logic would be a second source of truth — the exact
 divergence MW exists to avoid.
 
-Instead, a **pure** `buildSurfaceModel()` is the single computation:
+Instead, a **pure** `buildSurfaceModel()` is the single computation.
+Concrete signature (MW.5(a) expansion of the `Focus` placeholder):
 
-```
-SurfaceModel buildSurfaceModel(const UiState&, const EditContext&,
-                               const Sequence& /*active pattern*/, Focus);
+```cpp
+SurfaceModel buildSurfaceModel(const UiState&,
+                               const EditContext&,
+                               const PressTracker*,
+                               LockstepProcessor& /*read-only*/,
+                               int activeTrack,
+                               int stepPage,
+                               GridDisplayMode);
 ```
 
 - The **screen** renders from it each paint (`paintStepRows` /
@@ -3267,10 +3273,11 @@ controller tracks it for free — no per-step, per-mode controller code.
 A cell carries a **semantic token and a resolved colour** (we send both),
 plus a closed, named set of decoration channels:
 
-```
+```cpp
 struct CellDecoration { CellState token; uint32_t colour; bool present; };
 
 struct SurfaceCell {
+  // Frozen §35.8.3 contract — do not reorder (controllers bind by field offset)
   ControllerButton button;   // identity — matches the press path (§35.8.2)
   int              index;    // step / section / track index, else -1
 
@@ -3282,6 +3289,15 @@ struct SurfaceCell {
   CellDecoration dot;        // P-Lock presence
   CellDecoration strip;      // compound-chord / fill marker
   CellDecoration pip;        // latch / virtual-hold (MHZ.9.6)
+
+  // Screen-text extension (MW.5(a)) — appended after frozen block; controllers ignore.
+  // Adding these fields is NOT a contract break: the frozen prefix is unaffected and
+  // controllers never read past it. Do not insert fields before `pip`.
+  juce::String primary;    // ALWAYS the live function (decision 1)
+  juce::String funcHint;   // dim secondary (Func-variant or always-on hint); "" = none
+  juce::String keyHint;    // physical QWERTY legend ("D", "5", "Q" etc.)
+  bool pressed  = false;   // physical OR mouse press, every modality
+  bool disabled = false;   // dead key — base label dimmed (decision 3)
 };
 ```
 
