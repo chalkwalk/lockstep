@@ -7,7 +7,9 @@
 #include "../io/PressTracker.h"
 #include "../PluginProcessor.h"
 #include "../ParameterIDs.h"
+#include "../core/TrackInputMode.h"
 #include <algorithm>
+#include <set>
 
 namespace lockstep
 {
@@ -46,6 +48,13 @@ namespace lockstep
             case CellState::MachineCurrent:     return 0xFFFFFFFFu;
             case CellState::MachineAvailable:   return kScopeMachine;
             case CellState::MachineUnavailable: return kStepOutRange;
+            case CellState::NoteEditActive:     return kScopeNoteEdit;
+            case CellState::NoteEditStaged:     return 0xFFDC643Cu;
+            case CellState::NoteEditOther:      return kScopeNoteEdit;
+            case CellState::NoteEditResting:    return kStepOutRange;
+            case CellState::ChromaticWhite:     return kScopeTrack;
+            case CellState::ChromaticBlack:     return kScopeTrack;
+            case CellState::LevelsCell:         return 0xFF204060u;
             default: return fallback;
         }
     }
@@ -526,11 +535,11 @@ namespace lockstep
         model.modifiers[3].button = ControllerButton::PartScope;
 
         // =====================================================================
-        // step[0..15] — step grid cells (Slices 2+)
+        // step[0..15] — step grid cells (Slices 2–5)
         //
-        // muteHeld: cells encode mute re-skin state (Slice 3).
-        // Otherwise: normal step representation — scope/machine/note-edit/
-        // chromatic/levels still early-return in paintStepRows.
+        // Priority order mirrors paintStepRows early-returns:
+        //   funcPartHeld → noteEdit → pLockClear → Chromatic → Levels
+        //   → muteHeld → scope re-skin → normal step grid.
         // =====================================================================
         {
             static constexpr int kStepKeyCodes[16] = {
@@ -542,7 +551,225 @@ namespace lockstep
                 "C","V","B","N","M",",",".","/"
             };
 
-            if (ui.muteHeld)
+            // Active track input mode — needed by Chromatic/Levels branches.
+            const bool validTrackMode = activeTrack >= 0
+                                     && activeTrack < static_cast<int>(kNumTracks);
+            const TrackInputMode activeTrackMode = validTrackMode
+                ? ui.trackInputMode[static_cast<std::size_t>(activeTrack)]
+                : TrackInputMode::Play;
+
+            if (ui.funcPartHeld)
+            {
+                // Machine picker (MHZ.3.5): cells encode available machine slots.
+                const juce::Colour machineTint { kScopeMachine };
+                const int numMachines = proc.numAvailableMachines();
+                const juce::String activeMachineId = proc.getMachineId(activeTrack);
+
+                for (int i = 0; i < 16; ++i)
+                {
+                    SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                    c.button  = ControllerButton::Step;
+                    c.index   = i;
+                    c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                    c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+
+                    const bool avail = i < numMachines;
+                    if (!avail)
+                    {
+                        c.base      = CellState::MachineUnavailable;
+                        c.baseColour = kStepOutRange;
+                    }
+                    else
+                    {
+                        const juce::String machId { proc.availableMachineInfo(i).id };
+                        const bool isCur = (machId == activeMachineId);
+                        c.base      = isCur ? CellState::MachineCurrent : CellState::MachineAvailable;
+                        c.baseColour = isCur
+                            ? juce::Colours::white.withAlpha(0.18f).getARGB()
+                            : machineTint.withAlpha(0.12f).getARGB();
+                    }
+                }
+            }
+            else if (ui.noteEditMode && !ui.noteEditSteps.empty())
+            {
+                // NoteEdit overlay: cells encode semitone note state for one octave.
+                // Cells 0–11 = semitones C–B; 12–15 = dead.
+                static constexpr bool kNoteIsBlack[] =
+                    { false,true,false,true,false,false,true,false,true,false,true,false };
+
+                const juce::Colour noteTint  { kScopeNoteEdit };
+                const juce::Colour stageTint = juce::Colour::fromRGB(220, 100, 60);
+                const int octave    = ui.noteEditOctave;
+                const int trackIdx  = activeTrack;
+
+                for (int i = 0; i < 16; ++i)
+                {
+                    SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                    c.button  = ControllerButton::Step;
+                    c.index   = i;
+                    c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                    c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+
+                    if (i >= 12)
+                    {
+                        c.base      = CellState::StepOutOfRange;
+                        c.baseColour = kStepOutRange;
+                        continue;
+                    }
+
+                    const int semitone = i;
+                    bool curActive = false, curStaged = false, crossOctave = false;
+
+                    for (const int stepIdx : ui.noteEditSteps)
+                    {
+                        if (stepIdx < 0 || stepIdx >= kMaxStepsPerTrack) continue;
+                        const auto& s = proc.sequence()
+                            .tracks[static_cast<std::size_t>(trackIdx)]
+                            .steps[static_cast<std::size_t>(stepIdx)];
+                        const auto* staged = [&]() -> const std::set<int>*
+                        {
+                            auto it = ui.noteEditStaged.find(stepIdx);
+                            return (it != ui.noteEditStaged.end()) ? &it->second : nullptr;
+                        }();
+                        for (int n = 0; n < s.trigOverride.noteCount; ++n)
+                        {
+                            const int noteVal = s.trigOverride.notes[n];
+                            if (noteVal % 12 != semitone) continue;
+                            if (noteVal / 12 - 1 == octave)
+                            {
+                                curActive = true;
+                                if (staged && staged->count(noteVal) > 0) curStaged = true;
+                            }
+                            else
+                            {
+                                crossOctave = true;
+                            }
+                        }
+                    }
+
+                    const bool isBlack = kNoteIsBlack[static_cast<std::size_t>(semitone)];
+                    if (curActive && curStaged)
+                    {
+                        c.base      = CellState::NoteEditStaged;
+                        c.baseColour = stageTint.withAlpha(0.12f).getARGB();
+                    }
+                    else if (curActive)
+                    {
+                        c.base      = CellState::NoteEditActive;
+                        c.baseColour = noteTint.withAlpha(isBlack ? 0.50f : 0.65f).getARGB();
+                    }
+                    else if (crossOctave)
+                    {
+                        c.base      = CellState::NoteEditOther;
+                        c.baseColour = noteTint.withAlpha(0.12f).getARGB();
+                    }
+                    else
+                    {
+                        c.base      = CellState::NoteEditResting;
+                        c.baseColour = juce::Colour(isBlack ? 0xff202830u : 0xff2c3540u).getARGB();
+                    }
+                }
+            }
+            else if (ui.pLockClearMode
+                  && ui.pLockClearTrack == activeTrack
+                  && ui.pLockClearStep >= 0)
+            {
+                // P-Lock clear overlay: cells map to packed P-locked slot list.
+                const juce::Colour clearTint { kScopePLock };
+                const int targetStep = ui.pLockClearStep;
+                const auto& stepData = proc.sequence()
+                    .tracks[static_cast<std::size_t>(activeTrack)]
+                    .steps[static_cast<std::size_t>(targetStep)];
+                const int numSlots = proc.numParams(activeTrack);
+
+                std::vector<int> lockedSlots;
+                const auto& tov = stepData.trigOverride;
+                if (tov.hasVelocity) lockedSlots.push_back(-2);
+                if (tov.hasGate)     lockedSlots.push_back(-3);
+                for (int s = 0; s < numSlots; ++s)
+                    if (stepData.overrides.has(s))
+                        lockedSlots.push_back(s);
+
+                for (int i = 0; i < 16; ++i)
+                {
+                    SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                    c.button  = ControllerButton::Step;
+                    c.index   = i;
+                    c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                    c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+
+                    const bool hasPacked = i < static_cast<int>(lockedSlots.size());
+                    if (!hasPacked)
+                    {
+                        c.base      = CellState::SelectorOutRange;
+                        c.baseColour = kStepOutRange;
+                    }
+                    else
+                    {
+                        const int slotIdx  = lockedSlots[static_cast<std::size_t>(i)];
+                        const bool isStaged = ui.pLockClearStaged.count(slotIdx) > 0;
+                        c.base      = isStaged ? CellState::SelectorEmpty
+                                               : CellState::SelectorOccupied;
+                        c.baseColour = isStaged
+                            ? clearTint.withAlpha(0.10f).getARGB()
+                            : clearTint.withAlpha(0.45f).getARGB();
+                    }
+                }
+            }
+            else if (activeTrackMode == TrackInputMode::Chromatic)
+            {
+                // Chromatic piano overlay: 8 white keys (bottom row) + 5 black + 3 dead (top).
+                const juce::Colour whiteKey = juce::Colour(kScopeTrack).withAlpha(0.38f);
+                const juce::Colour blackKey = juce::Colour(kScopeTrack).withAlpha(0.16f);
+
+                for (int i = 0; i < 16; ++i)
+                {
+                    SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                    c.button  = ControllerButton::Step;
+                    c.index   = i;
+                    c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                    c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+
+                    const int semitone = kPianoNoteOffset[static_cast<std::size_t>(i)];
+                    if (semitone < 0)
+                    {
+                        c.base      = CellState::StepOutOfRange;
+                        c.baseColour = kStepOutRange;
+                    }
+                    else
+                    {
+                        const bool isBlack = (i < 8);  // top row (0-7) = black keys
+                        c.base      = isBlack ? CellState::ChromaticBlack : CellState::ChromaticWhite;
+                        c.baseColour = c.pressed
+                            ? juce::Colours::white.withAlpha(0.70f).getARGB()
+                            : (isBlack ? blackKey : whiteKey).getARGB();
+                    }
+                }
+            }
+            else if (activeTrackMode == TrackInputMode::Levels)
+            {
+                // Levels overlay: 16 velocity buckets (1/16..16/16 of 127).
+                static const juce::Colour lowCol  { 0xFF204060u };
+                static const juce::Colour highCol { 0xFFE07030u };
+
+                for (int i = 0; i < 16; ++i)
+                {
+                    SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                    c.button  = ControllerButton::Step;
+                    c.index   = i;
+                    c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                    c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+
+                    const float t      = static_cast<float>(i + 1) / 16.0f;
+                    const juce::Colour cellCol = lowCol.interpolatedWith(highCol, t);
+                    c.base  = CellState::LevelsCell;
+                    c.level = t;  // store gradient position for consumer outline colour
+                    c.baseColour = c.pressed
+                        ? juce::Colours::white.withAlpha(0.75f).getARGB()
+                        : cellCol.withAlpha(0.55f + t * 0.30f).getARGB();
+                }
+            }
+            else if (ui.muteHeld)
             {
                 // Mute re-skin (Slice 3): cells encode per-track mute state so
                 // paintStepRows can consume a single model path and add press feedback.

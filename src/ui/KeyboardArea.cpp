@@ -851,12 +851,6 @@ namespace lockstep
             "D","F","G","H","J","K","L",";",
             "C","V","B","N","M",",",".","/"
         };
-        // Raw key codes for step keys — used by CHROMATIC/LEVELS to query pressed state.
-        static constexpr int kStepKeyCodes[kPageSteps] = {
-            'D','F','G','H','J','K','L', 59,
-            'C','V','B','N','M', 44, 46, 47
-        };
-
         // MHX: 2 modifier columns (A/S | Z/X) + 8 step columns = 10 total.
         static constexpr int kTotalGridCols = kCols + 2;
         const bool showKeyLetters = (displayMode_ != GridDisplayMode::Clean);
@@ -998,35 +992,25 @@ namespace lockstep
         }
 
         // MHZ.3.5: Func+Part machine picker — step cells show available machine names.
+        // Fill and press come from model; machine name text is a screen residual.
         if (uiState_.funcPartHeld)
         {
             const juce::Colour machineTint = scopeColour(EditMode::PrimaryScope::Part, true);
-            const int numMachines = processor_.numAvailableMachines();
-            const juce::String activeMachineId = processor_.getMachineId(activeTrack_);
 
             for (int row = 0; row < kRows; ++row)
             {
                 for (int col = 0; col < kCols; ++col)
                 {
                     const int idx  = row * kCols + col;
-                    const bool avail = idx < numMachines;
-                    const juce::String machineId = avail
-                        ? juce::String(processor_.availableMachineInfo(idx).id) : juce::String();
-                    const bool isCurrent = avail && (machineId == activeMachineId);
+                    const SurfaceCell& sc = model.step[static_cast<std::size_t>(idx)];
+                    const bool avail    = sc.base != CellState::MachineUnavailable;
+                    const bool isCurrent = sc.base == CellState::MachineCurrent;
 
                     const int x = colX(row, col + 2);
                     const int y = rowY(row);
                     const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
-                    juce::Colour fill;
-                    if (!avail)
-                        fill = juce::Colour(kStepOutRange);
-                    else if (isCurrent)
-                        fill = juce::Colours::white.withAlpha(0.18f);
-                    else
-                        fill = machineTint.withAlpha(0.12f);
-
-                    g.setColour(fill);
+                    g.setColour(juce::Colour(sc.baseColour));
                     g.fillRoundedRectangle(cell.toFloat(), 4.0f);
 
                     if (avail && isCurrent)
@@ -1040,12 +1024,19 @@ namespace lockstep
                         g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
                     }
 
+                    // Press feedback
+                    if (sc.pressed && avail)
+                    {
+                        g.setColour(juce::Colours::white.withAlpha(0.65f));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
+                    }
+
+                    // Screen residual: machine name
                     if (avail)
                     {
                         const juce::String name {
                             processor_.availableMachineInfo(idx).displayName };
-                        const juce::Colour textCol = juce::Colours::white.withAlpha(isCurrent ? 0.90f : 0.65f);
-                        g.setColour(textCol);
+                        g.setColour(juce::Colours::white.withAlpha(isCurrent ? 0.90f : 0.65f));
                         g.setFont(juce::Font(juce::FontOptions(8.5f)));
                         g.drawText(name, cell.reduced(2), juce::Justification::centred, true);
                     }
@@ -1063,20 +1054,16 @@ namespace lockstep
 
         // NoteEdit mode: 1-octave chromatic keyboard overlay.
         // Cells 0-11 = C through B; cells 12-15 = unused.
-        // Bright = note active in current octave; staged = dim (removal pending).
-        // Cross-octave instances shown as small octave-number badges.
+        // Fill + press feedback from model; outlines, note names, cross-octave badges inline.
         if (uiState_.noteEditMode && !uiState_.noteEditSteps.empty())
         {
             static constexpr const char* kNoteNames[] =
                 { "C","C#","D","D#","E","F","F#","G","G#","A","A#","B" };
-            static constexpr bool kIsBlack[] =
-                { false,true,false,true,false,false,true,false,true,false,true,false };
 
             const juce::Colour noteTint  = col(kScopeNoteEdit);
             const juce::Colour stageTint = juce::Colour::fromRGB(220, 100, 60);
 
-            // Collect notes across all target steps for rendering.
-            const int octave = uiState_.noteEditOctave;
+            const int octave   = uiState_.noteEditOctave;
             const int trackIdx = activeTrack_;
 
             for (int row = 0; row < kRows; ++row)
@@ -1084,92 +1071,77 @@ namespace lockstep
                 for (int col2 = 0; col2 < kCols; ++col2)
                 {
                     const int cellIdx = row * kCols + col2;
+                    const SurfaceCell& sc = model.step[static_cast<std::size_t>(cellIdx)];
                     const int x = colX(row, col2 + 2);
                     const int y = rowY(row);
                     const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
+                    // Fill from model
+                    g.setColour(juce::Colour(sc.baseColour));
+                    g.fillRoundedRectangle(cell.toFloat(), 4.0f);
+
                     if (cellIdx >= 12)
-                    {
-                        // Unused — dim placeholder.
-                        g.setColour(juce::Colour(kStepOutRange));
-                        g.fillRoundedRectangle(cell.toFloat(), 4.0f);
                         continue;
-                    }
 
-                    const int semitone  = cellIdx;
-                    const int curNote   = (octave + 1) * 12 + semitone;
+                    const int semitone = cellIdx;
+                    const bool isStaged  = sc.base == CellState::NoteEditStaged;
+                    const bool isActive  = sc.base == CellState::NoteEditActive || isStaged;
+                    const bool isCrossOct = sc.base == CellState::NoteEditOther;
 
-                    // Aggregate note state across all target steps.
-                    bool curActive = false, curStaged = false;
-                    std::vector<int> otherOctaves;
-
-                    for (const int stepIdx : uiState_.noteEditSteps)
+                    // Outline (screen residual)
+                    if (isStaged)
                     {
-                        if (stepIdx < 0 || stepIdx >= kMaxStepsPerTrack) continue;
-                        const auto& s = processor_.sequence()
-                            .tracks[static_cast<std::size_t>(trackIdx)]
-                            .steps[static_cast<std::size_t>(stepIdx)];
-                        const auto* staged = [&]() -> const std::set<int>*
-                        {
-                            auto it = uiState_.noteEditStaged.find(stepIdx);
-                            return (it != uiState_.noteEditStaged.end()) ? &it->second : nullptr;
-                        }();
-                        for (int n = 0; n < s.trigOverride.noteCount; ++n)
-                        {
-                            const int noteVal = s.trigOverride.notes[n];
-                            if (noteVal % 12 != semitone) continue;
-                            const int noteOctave = noteVal / 12 - 1;
-                            if (noteOctave == octave)
-                            {
-                                curActive = true;
-                                if (staged && staged->count(noteVal) > 0) curStaged = true;
-                            }
-                            else
-                            {
-                                bool alreadyListed = false;
-                                for (int o : otherOctaves) if (o == noteOctave) { alreadyListed = true; break; }
-                                if (!alreadyListed) otherOctaves.push_back(noteOctave);
-                            }
-                        }
-                    }
-
-                    // Fill.
-                    if (curActive && curStaged)
-                    {
-                        g.setColour(stageTint.withAlpha(0.12f));
-                        g.fillRoundedRectangle(cell.toFloat(), 4.0f);
                         g.setColour(stageTint.withAlpha(0.60f));
                         g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
                     }
-                    else if (curActive)
+                    else if (isActive)
                     {
-                        g.setColour(noteTint.withAlpha(kIsBlack[semitone] ? 0.50f : 0.65f));
-                        g.fillRoundedRectangle(cell.toFloat(), 4.0f);
                         g.setColour(noteTint.withAlpha(0.90f));
                         g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
                     }
-                    else if (!otherOctaves.empty())
+                    else if (isCrossOct)
                     {
-                        g.setColour(noteTint.withAlpha(0.12f));
-                        g.fillRoundedRectangle(cell.toFloat(), 4.0f);
                         g.setColour(noteTint.withAlpha(0.40f));
                         g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
                     }
-                    else
+
+                    // Press feedback (new)
+                    if (sc.pressed)
                     {
-                        g.setColour(juce::Colour(kIsBlack[semitone] ? 0xff202830u : 0xff2c3540u));
-                        g.fillRoundedRectangle(cell.toFloat(), 4.0f);
+                        g.setColour(juce::Colours::white.withAlpha(0.65f));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
                     }
 
-                    // Note name.
-                    g.setColour(curActive
-                                ? (curStaged ? stageTint : juce::Colours::white)
+                    // Note name (screen residual)
+                    g.setColour(isActive
+                                ? (isStaged ? stageTint : juce::Colours::white)
                                 : noteTint.withAlpha(0.60f));
                     g.setFont(juce::Font(juce::FontOptions(9.0f)).boldened());
                     g.drawText(juce::String(kNoteNames[semitone]), cell, juce::Justification::centred);
 
-                    // Cross-octave badges: arrow glyphs at top-right, relative to view octave.
+                    // Cross-octave badges (screen residual): re-derive other-octave list for glyph text.
                     // < / << / <<< = 1/2/3+ octaves below; > / >> / >>> = above; numeric fallback.
+                    if (isCrossOct)
+                    {
+                        std::vector<int> otherOctaves;
+                        for (const int stepIdx : uiState_.noteEditSteps)
+                        {
+                            if (stepIdx < 0 || stepIdx >= kMaxStepsPerTrack) continue;
+                            const auto& s = processor_.sequence()
+                                .tracks[static_cast<std::size_t>(trackIdx)]
+                                .steps[static_cast<std::size_t>(stepIdx)];
+                            for (int n = 0; n < s.trigOverride.noteCount; ++n)
+                            {
+                                const int noteVal = s.trigOverride.notes[n];
+                                if (noteVal % 12 != semitone) continue;
+                                const int noteOctave = noteVal / 12 - 1;
+                                if (noteOctave == octave) continue;
+                                bool alreadyListed = false;
+                                for (int o : otherOctaves)
+                                    if (o == noteOctave) { alreadyListed = true; break; }
+                                if (!alreadyListed) otherOctaves.push_back(noteOctave);
+                            }
+                        }
                     if (!otherOctaves.empty())
                     {
                         std::sort(otherOctaves.begin(), otherOctaves.end());
@@ -1218,6 +1190,7 @@ namespace lockstep
                             bx += widths[sz] + gap;
                         }
                     }
+                    } // if (isCrossOct)
 
                     if (showKeyLetters)
                         paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(cellIdx)], 0.55f);
@@ -1233,9 +1206,8 @@ namespace lockstep
         }
 
         // MHZ.3.4: P-Lock clear mode — packed display of only the set P-locks.
-        // Cells 0..N-1 map to the N P-locked slots (sorted ascending by slot index).
-        // Bright = active lock; staged-for-removal shown dimmed. Press to stage/un-stage.
-        // All staged removals are committed on Func release.
+        // Fill and press from model; label text (slot name) is a screen residual that
+        // still needs lockedSlots for the label text and nav message count.
         if (uiState_.pLockClearMode
             && uiState_.pLockClearTrack == activeTrack_
             && uiState_.pLockClearStep >= 0)
@@ -1247,9 +1219,7 @@ namespace lockstep
                 .steps[static_cast<std::size_t>(targetStep)];
             const int numSlots = processor_.numParams(activeTrack_);
 
-            // Build packed list of all P-locked slot indices.
-            // Sentinel IDs prefix the list: -2=Vel, -3=Gate.
-            // Notes are NOT included — they are not P-locks (not set via the param area).
+            // lockedSlots needed for label text and nav count (screen residual).
             std::vector<int> lockedSlots;
             const auto& tov = stepData.trigOverride;
             if (tov.hasVelocity)    lockedSlots.push_back(-2);
@@ -1263,51 +1233,52 @@ namespace lockstep
                 for (int col = 0; col < kCols; ++col)
                 {
                     const int cellIdx = row * kCols + col;
-                    const bool hasPacked = cellIdx < static_cast<int>(lockedSlots.size());
-                    const int slotIdx = hasPacked ? lockedSlots[static_cast<std::size_t>(cellIdx)] : -1;
-                    const bool isStaged = hasPacked && uiState_.pLockClearStaged.count(slotIdx) > 0;
+                    const SurfaceCell& sc = model.step[static_cast<std::size_t>(cellIdx)];
+                    const bool hasPacked = sc.base != CellState::SelectorOutRange;
+                    const bool isStaged  = sc.base == CellState::SelectorEmpty;
+                    const int slotIdx = hasPacked
+                        ? lockedSlots[static_cast<std::size_t>(cellIdx)] : -1;
 
                     const int x = colX(row, col + 2);
                     const int y = rowY(row);
                     const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
-                    if (!hasPacked)
-                    {
-                        g.setColour(juce::Colour(kStepOutRange));
-                        g.fillRoundedRectangle(cell.toFloat(), 4.0f);
-                    }
-                    else if (isStaged)
-                    {
-                        // Staged for removal: dimmed fill, dashed-style outline.
-                        g.setColour(clearTint.withAlpha(0.10f));
-                        g.fillRoundedRectangle(cell.toFloat(), 4.0f);
-                        g.setColour(clearTint.withAlpha(0.35f));
-                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
-                    }
-                    else
-                    {
-                        // Active lock: bright fill + outline.
-                        g.setColour(clearTint.withAlpha(0.45f));
-                        g.fillRoundedRectangle(cell.toFloat(), 4.0f);
-                        g.setColour(clearTint.withAlpha(0.80f));
-                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
-                    }
+                    // Fill from model
+                    g.setColour(juce::Colour(sc.baseColour));
+                    g.fillRoundedRectangle(cell.toFloat(), 4.0f);
 
                     if (hasPacked)
                     {
+                        if (isStaged)
+                        {
+                            g.setColour(clearTint.withAlpha(0.35f));
+                            g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
+                        }
+                        else
+                        {
+                            g.setColour(clearTint.withAlpha(0.80f));
+                            g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
+                        }
+
+                        // Press feedback (new)
+                        if (sc.pressed)
+                        {
+                            g.setColour(juce::Colours::white.withAlpha(0.65f));
+                            g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
+                        }
+
+                        // Screen residual: slot label
                         juce::String label;
                         if      (slotIdx == -2) label = "Vel";
                         else if (slotIdx == -3) label = "Gate";
                         else                    label = processor_.paramSpec(activeTrack_, slotIdx).label;
-                        const float textAlpha = isStaged ? 0.35f : 0.90f;
-                        g.setColour(juce::Colours::white.withAlpha(textAlpha));
+                        g.setColour(juce::Colours::white.withAlpha(isStaged ? 0.35f : 0.90f));
                         g.setFont(juce::Font(juce::FontOptions(8.0f)));
                         g.drawText(label, cell.reduced(2), juce::Justification::centred, true);
                     }
 
                     if (showKeyLetters && hasPacked)
-                        paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(cellIdx)],
-                                         1.0f);
+                        paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(cellIdx)], 1.0f);
                 }
             }
             const int stagedCount = static_cast<int>(uiState_.pLockClearStaged.size());
@@ -1322,18 +1293,14 @@ namespace lockstep
         }
 
         // MHZ.7.3: CHROMATIC mode — step cells become a piano keyboard.
-        // Piano layout: bottom row (steps 8-15) = white keys C D E F G A B C+1.
-        //               top row   (steps 0-7)  = black keys C# D# F# G# A# + 3 dead.
+        // Fill and press from model; note names, key hints, nav text inline.
         {
             const auto mode = (activeTrack_ >= 0 && activeTrack_ < static_cast<int>(kNumTracks))
                               ? uiState_.trackInputMode[static_cast<std::size_t>(activeTrack_)]
                               : TrackInputMode::Play;
             if (mode == TrackInputMode::Chromatic)
             {
-                const juce::Colour whiteKey = col(kScopeTrack).withAlpha(0.38f);
-                const juce::Colour blackKey = col(kScopeTrack).withAlpha(0.16f);
-                const juce::Colour border   = col(kScopeTrack).withAlpha(0.70f);
-                const juce::Colour deadCol  = juce::Colour(kStepOutRange);
+                const juce::Colour border = col(kScopeTrack).withAlpha(0.70f);
                 const int octave = uiState_.noteEditOctave;
 
                 for (int row = 0; row < kRows; ++row)
@@ -1341,6 +1308,7 @@ namespace lockstep
                     for (int col2 = 0; col2 < kCols; ++col2)
                     {
                         const int cellIdx = row * kCols + col2;
+                        const SurfaceCell& sc = model.step[static_cast<std::size_t>(cellIdx)];
                         const int x = colX(row, col2 + 2);
                         const int y = rowY(row);
                         const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
@@ -1348,24 +1316,19 @@ namespace lockstep
                         const int  semitone = kPianoNoteOffset[static_cast<std::size_t>(cellIdx)];
                         const char* name    = kPianoNoteNames[static_cast<std::size_t>(cellIdx)];
 
-                        if (semitone < 0)
-                        {
-                            g.setColour(deadCol);
-                            g.fillRoundedRectangle(cell.toFloat(), 4.0f);
-                            continue;
-                        }
-
-                        // Black key = sharp note (top row); white key = natural (bottom row).
-                        const bool isBlack  = (cellIdx < kCols);
-                        const bool isPressed = isKeyPressed(kStepKeyCodes[static_cast<std::size_t>(cellIdx)]);
-                        g.setColour(isPressed ? juce::Colours::white.withAlpha(0.70f)
-                                              : (isBlack ? blackKey : whiteKey));
+                        // Fill from model (includes dead-cell and pressed states)
+                        g.setColour(juce::Colour(sc.baseColour));
                         g.fillRoundedRectangle(cell.toFloat(), 4.0f);
-                        g.setColour(isPressed ? juce::Colours::white : border);
-                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, isPressed ? 1.5f : 1.0f);
 
-                        g.setColour(isPressed ? juce::Colours::black.withAlpha(0.90f)
-                                              : juce::Colours::white.withAlpha(0.85f));
+                        if (semitone < 0)
+                            continue;
+
+                        g.setColour(sc.pressed ? juce::Colours::white : border);
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, sc.pressed ? 1.5f : 1.0f);
+
+                        // Screen residuals: note name, key hint
+                        g.setColour(sc.pressed ? juce::Colours::black.withAlpha(0.90f)
+                                               : juce::Colours::white.withAlpha(0.85f));
                         g.setFont(juce::Font(juce::FontOptions(9.0f)).boldened());
                         g.drawText(juce::String(name), cell, juce::Justification::centred);
 
@@ -1385,38 +1348,41 @@ namespace lockstep
         }
 
         // MHZ.7.4: LEVELS mode — step cells are 16 velocity buckets (1/16..16/16 of 127).
+        // Fill and press from model; velocity text, outline, key hint inline.
         {
             const auto mode = (activeTrack_ >= 0 && activeTrack_ < static_cast<int>(kNumTracks))
                               ? uiState_.trackInputMode[static_cast<std::size_t>(activeTrack_)]
                               : TrackInputMode::Play;
             if (mode == TrackInputMode::Levels)
             {
-                const juce::Colour lowCol  = juce::Colour(0xFF204060u);  // dim teal
-                const juce::Colour highCol = juce::Colour(0xFFE07030u);  // bright amber (LEVELS badge colour)
+                static const juce::Colour lowCol  { 0xFF204060u };
+                static const juce::Colour highCol { 0xFFE07030u };
 
                 for (int row = 0; row < kRows; ++row)
                 {
                     for (int col2 = 0; col2 < kCols; ++col2)
                     {
                         const int cellIdx = row * kCols + col2;
+                        const SurfaceCell& sc = model.step[static_cast<std::size_t>(cellIdx)];
                         const int x = colX(row, col2 + 2);
                         const int y = rowY(row);
                         const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
-                        const float t   = static_cast<float>(cellIdx + 1) / 16.0f;
-                        const int   vel = juce::roundToInt(t * 127.0f);
-                        const bool  isPressed = isKeyPressed(kStepKeyCodes[static_cast<std::size_t>(cellIdx)]);
-
-                        const juce::Colour cellCol = lowCol.interpolatedWith(highCol, t);
-                        g.setColour(isPressed ? juce::Colours::white.withAlpha(0.75f)
-                                              : cellCol.withAlpha(0.55f + t * 0.30f));
+                        // Fill from model (gradient colour, pressed → white)
+                        g.setColour(juce::Colour(sc.baseColour));
                         g.fillRoundedRectangle(cell.toFloat(), 4.0f);
-                        g.setColour(isPressed ? juce::Colours::white
-                                              : cellCol.brighter(0.3f).withAlpha(0.80f));
-                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, isPressed ? 1.5f : 1.0f);
 
-                        g.setColour(isPressed ? juce::Colours::black.withAlpha(0.90f)
-                                              : juce::Colours::white.withAlpha(0.80f));
+                        // Outline: derive gradient colour from sc.level for brightness
+                        const float t = sc.level;
+                        const juce::Colour cellCol = lowCol.interpolatedWith(highCol, t);
+                        g.setColour(sc.pressed ? juce::Colours::white
+                                               : cellCol.brighter(0.3f).withAlpha(0.80f));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, sc.pressed ? 1.5f : 1.0f);
+
+                        // Screen residuals: velocity text, key hint
+                        const int vel = juce::roundToInt(t * 127.0f);
+                        g.setColour(sc.pressed ? juce::Colours::black.withAlpha(0.90f)
+                                               : juce::Colours::white.withAlpha(0.80f));
                         g.setFont(juce::Font(juce::FontOptions(8.5f)));
                         g.drawText(juce::String(vel), cell.reduced(2),
                                    juce::Justification::centred);

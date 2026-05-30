@@ -51,6 +51,19 @@ namespace lockstep
         MachineCurrent     = 50,
         MachineAvailable   = 51,
         MachineUnavailable = 52,
+
+        // NoteEdit overlay family
+        NoteEditActive   = 60,
+        NoteEditStaged   = 61,  // note active and staged for removal
+        NoteEditOther    = 62,  // present in other octave(s) only
+        NoteEditResting  = 63,  // no note on this semitone
+
+        // Chromatic keyboard family
+        ChromaticWhite   = 70,
+        ChromaticBlack   = 71,
+
+        // Levels velocity picker
+        LevelsCell       = 80,
     };
 
     // =========================================================================
