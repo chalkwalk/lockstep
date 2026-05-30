@@ -939,6 +939,15 @@ namespace lockstep
     // -------------------------------------------------------------------------
     // Key handling (9x4 layout)
 
+    // A section-suite scope (Track/Pattern/Part/Scene/Master) qualifies the next
+    // verb. While one is held, bare-Func global ops (Snapshot/Restore) are reserved:
+    // Func+scope+verb is that scope's secondary variant — not a global checkpoint.
+    static bool sectionSuiteScopeHeld(const UiState& ui) noexcept
+    {
+        return ui.trackHeld || ui.patternScopeHeld || ui.partHeld
+            || ui.sceneHeld || ui.masterHeld;
+    }
+
     // dispatchDown — source-agnostic button-down handler fed by both keyboard
     // and mouse.  rawCode is the physical key code (keyboard) or 0 (mouse).
     bool LockstepEditor::dispatchDown(ControllerEvent ev, int rawCode)
@@ -1663,10 +1672,14 @@ namespace lockstep
                 return true;
 
             case ControllerButton::Snapshot:
+                // Reserved while a section-suite scope is held (see helper above):
+                // Func+scope+Yes is that scope's secondary, not a global snapshot.
+                if (sectionSuiteScopeHeld(uiState_)) return true;
                 processor_.pushCheckpoint();
                 repaint();
                 return true;
             case ControllerButton::Restore:
+                if (sectionSuiteScopeHeld(uiState_)) return true;
                 processor_.popCheckpoint();
                 repaint();
                 return true;

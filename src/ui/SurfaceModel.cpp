@@ -389,7 +389,6 @@ namespace lockstep
             else
                 c.funcHint = kl.hint;   // dim secondary when Func not held
 
-            const bool isMachPicker   = (sectionScope == PS::Part && s == 1);
             const bool isSrcNoteEdit = (!isScopedMode && ui.funcHeld && s == 1);  // SRC = note-edit anchor
             const bool isMasterActive = !isScopedMode && (ui.masterSection == s);
             const bool isTrackActive  = !isScopedMode && (ui.masterSection == -1
@@ -399,20 +398,25 @@ namespace lockstep
                 c.base = CellState::Pressed;
             else if (c.disabled)
                 c.base = CellState::Disabled;
-            else if (isTrackActive || isMasterActive || isMachPicker)
+            else if (isTrackActive || isMasterActive)
                 c.base = CellState::ModeActive;
             else
                 c.base = CellState::Resting;
 
             // baseColour distinguishes special visual modes for groupForCell()
-            if (isMachPicker)
-                c.baseColour = kScopeMachine;
-            else if (isMasterActive)
+            if (isMasterActive)
                 c.baseColour = 0xFF404010u;     // golden — master section active
             else if (isSrcNoteEdit)
                 c.baseColour = kScopeNoteEdit;
             else
                 c.baseColour = compatColour(c.base, kSecActive);
+
+            // Scope glow (DESIGN §6.6): a section key the held scope rebinds, and
+            // that has content, lights in the scope colour. Disabled scoped cells
+            // stay dim (no tint). (Machine picker now re-skins the step grid via
+            // Func+Part, not section[1], so SRC reads as part-base SRC under Part.)
+            if (isScopedMode && !c.disabled)
+                c.scopeTint = scopeColour(sectionScope).getARGB();
 
             // Invariant: non-disabled section keys always resolve to a non-empty primary.
             jassert(c.disabled || !c.primary.isEmpty());
@@ -488,10 +492,18 @@ namespace lockstep
                 if (def.role == KeyRole::VerbClear)  displayPrimary = "CLEAR";
             }
 
+            // SNAP/POP (Yes/No Func-layer) are bare-Func global checkpoint ops.
+            // Under a section-suite scope, Func+scope+verb is the scope's secondary
+            // variant — not a global op — so suppress the hint and its promotion.
+            const bool globalFuncOp = (def.role == KeyRole::VerbYes || def.role == KeyRole::VerbNo);
+            const bool suppressFuncLayer = sectionScopeHeld && globalFuncOp;
+            if (suppressFuncLayer)
+                displayHint = {};
+
             // Func-hint promotion: when Func held and key has a Func-layer variant,
             // funcLayer IS the live function — show it as primary, clear hint.
             const bool hasFuncLayer = (def.funcLayer[0] != static_cast<char8_t>(0));
-            if (ui.funcHeld && hasFuncLayer && !isModeActive)
+            if (ui.funcHeld && hasFuncLayer && !isModeActive && !suppressFuncLayer)
             {
                 displayPrimary = juce::String(def.funcLayer);
                 displayHint    = {};
@@ -526,6 +538,20 @@ namespace lockstep
                 c.baseColour = ui.partHeld ? kScopePart : kScopePartDim;
             else
                 c.baseColour = compatColour(c.base, 0xFF404040u);
+
+            // Hybrid pass-through + scope glow (DESIGN §6.6): verbs are
+            // scope-combining. Under a section-suite scope a verb with a scoped op
+            // (COPY/PASTE/CLEAR/DEL) lights in the scope colour; a verb the scope
+            // leaves without an op (YES) is reserved (dim). Nav/TAP are ambient and
+            // untouched. (Pressing a reserved key still flashes — orientation aid.)
+            if (sectionScopeHeld)
+            {
+                if (def.role == KeyRole::VerbYes)
+                    c.disabled = true;
+                else if (def.role == KeyRole::VerbCopy || def.role == KeyRole::VerbPaste
+                      || def.role == KeyRole::VerbClear || def.role == KeyRole::VerbNo)
+                    c.scopeTint = scopeColour(sectionScope).getARGB();
+            }
 
             // Invariant: every function row cell has a non-empty primary label.
             jassert(!c.primary.isEmpty());

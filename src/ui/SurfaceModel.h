@@ -101,6 +101,12 @@ namespace lockstep
         juce::String keyHint;    // physical QWERTY legend ("D", "5", "Q" etc.)
         bool pressed  = false;   // physical OR mouse press, every modality
         bool disabled = false;   // dead key — base label visibly dimmed
+
+        // Scope-glow tint (MHZ.1.x, DESIGN §6.6): non-zero ARGB when this cell is
+        // *in scope* under a held modifier — i.e. the held scope rebinds it. The
+        // screen renders fill+border in this colour, brighter, so the surface shows
+        // exactly which keys the scope rewrites. 0 = not in scope (normal tint).
+        uint32_t scopeTint = 0;
     };
 
     // Returns a fallback ARGB colour for any CellState token.

@@ -11,6 +11,18 @@ namespace lockstep
     {
         const bool isMode = (c.base == CellState::ModeActive);
 
+        // Scope glow (DESIGN §6.6): an in-scope cell renders fill + border in the
+        // held scope's colour, brighter than a resting key, so the surface tells
+        // the performer exactly which keys the scope rewrites. Wins over the
+        // per-button scheme below; disabled cells never carry a tint.
+        if (c.scopeTint != 0u && !c.disabled)
+        {
+            const juce::Colour tint { c.scopeTint };
+            return { tint.withMultipliedBrightness(0.55f).getARGB(),  // resting in-scope fill
+                     tint.getARGB(),                                  // pressed/active fill
+                     tint.brighter(0.35f).getARGB() };                // border accent
+        }
+
         switch (c.button)
         {
             // --- Number-row utility ---
