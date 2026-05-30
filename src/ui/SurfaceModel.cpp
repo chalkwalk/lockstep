@@ -522,11 +522,11 @@ namespace lockstep
         model.modifiers[3].button = ControllerButton::PartScope;
 
         // =====================================================================
-        // step[0..15] — normal step grid cells (Slice 2)
+        // step[0..15] — step grid cells (Slices 2+)
         //
-        // Builder always populates the normal-step representation.
-        // Mute/scope/machine/note-edit/chromatic/levels overlays early-return
-        // in paintStepRows before consuming these cells; no wasted work.
+        // muteHeld: cells encode mute re-skin state (Slice 3).
+        // Otherwise: normal step representation — scope/machine/note-edit/
+        // chromatic/levels still early-return in paintStepRows.
         // =====================================================================
         {
             static constexpr int kStepKeyCodes[16] = {
@@ -537,6 +537,47 @@ namespace lockstep
                 "D","F","G","H","J","K","L",";",
                 "C","V","B","N","M",",",".","/"
             };
+
+            if (ui.muteHeld)
+            {
+                // Mute re-skin (Slice 3): cells encode per-track mute state so
+                // paintStepRows can consume a single model path and add press feedback.
+                const bool isPatternMute = ui.funcHeld;
+                const uint32_t muteCol   = isPatternMute ? kScopePMute : kScopeMute;
+
+                for (int i = 0; i < 16; ++i)
+                {
+                    SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                    c.button  = ControllerButton::Step;
+                    c.index   = i;
+                    c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                    c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+
+                    const bool avail = i < static_cast<int>(kNumTracks);
+                    if (!avail)
+                    {
+                        c.base      = CellState::SelectorOutRange;
+                        c.baseColour = kStepOutRange;
+                        continue;
+                    }
+
+                    const bool committed = isPatternMute
+                        ? proc.getPatternMute(i) : proc.getGlobalMute(i);
+                    const bool pending   = isPatternMute
+                        && ui.pendingPatternMuteToggle[static_cast<std::size_t>(i)];
+                    const bool muted = committed ^ pending;
+
+                    c.base = muted ? CellState::MuteMuted : CellState::MuteAudible;
+                    const juce::Colour muteJCol  { muteCol };
+                    const juce::Colour audibleCol = juce::Colour(kStepInactive)
+                                                     .interpolatedWith(muteJCol, 0.5f);
+                    c.baseColour = muted
+                        ? muteJCol.withAlpha(0.80f).getARGB()
+                        : audibleCol.getARGB();
+                }
+            }
+            else
+            {
 
             // Track length + playhead position
             const bool validTrack = activeTrack >= 0
@@ -676,6 +717,8 @@ namespace lockstep
                     c.pip.colour  = kScopeStep;
                 }
             }
+
+            } // end else (normal step grid)
         }
 
         return model;

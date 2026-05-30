@@ -1434,56 +1434,40 @@ namespace lockstep
             }
         }
 
-        // Mute re-skin — Mute held → per-track mute state viewer.
-        // Mute alone shows global mute; Func+Mute shows pattern mute.
-        // Cells 0-7 map to tracks 0-7; cells 8-15 are out-of-range and dim.
-        // Pressing a cell still routes through the normal ToggleMute handler.
+        // Mute re-skin — Slice 3: consume model.step[] built by builder.
+        // Fills derive from model; border and text stay inline (screen residual).
         if (uiState_.muteHeld)
         {
             const bool isPatternMute = uiState_.funcHeld;
-            const juce::Colour mutedCol   = col(isPatternMute ? kScopePMute : kScopeMute);
-            const juce::Colour audibleCol = col(kStepInactive).interpolatedWith(mutedCol, 0.5f);
+            const juce::Colour mutedCol = col(isPatternMute ? kScopePMute : kScopeMute);
 
             for (int row = 0; row < kRows; ++row)
             {
                 for (int col2 = 0; col2 < kCols; ++col2)
                 {
-                    const int idx  = row * kCols + col2;
-                    const bool avail = idx < static_cast<int>(kNumTracks);
-                    const int x    = colX(row, col2 + 2);
-                    const int y    = rowY(row);
+                    const int idx = row * kCols + col2;
+                    const SurfaceCell& sc = model.step[static_cast<std::size_t>(idx)];
+                    const int x   = colX(row, col2 + 2);
+                    const int y   = rowY(row);
                     const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
-                    juce::Colour fill;
-                    if (!avail)
-                    {
-                        fill = juce::Colour(kStepOutRange);
-                    }
-                    else
-                    {
-                        const bool committed = isPatternMute
-                            ? processor_.getPatternMute(idx)
-                            : processor_.getGlobalMute(idx);
-                        const bool pending = isPatternMute
-                            && uiState_.pendingPatternMuteToggle[static_cast<std::size_t>(idx)];
-                        const bool muted = committed ^ pending;
-                        fill = muted ? mutedCol.withAlpha(0.80f) : audibleCol;
-                    }
-
-                    g.setColour(fill);
+                    // Fill from model (fixes: builder now computes correct colour)
+                    g.setColour(juce::Colour(sc.baseColour));
                     g.fillRoundedRectangle(cell.toFloat(), 4.0f);
 
-                    if (avail)
+                    if (sc.base != CellState::SelectorOutRange)
                     {
-                        const bool committed = isPatternMute
-                            ? processor_.getPatternMute(idx)
-                            : processor_.getGlobalMute(idx);
-                        const bool pending = isPatternMute
-                            && uiState_.pendingPatternMuteToggle[static_cast<std::size_t>(idx)];
-                        const bool muted = committed ^ pending;
+                        const bool muted = sc.base == CellState::MuteMuted;
                         g.setColour(muted ? mutedCol.brighter(0.2f).withAlpha(0.90f)
                                           : juce::Colour(kScopeStep).withAlpha(0.40f));
                         g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
+
+                        // Press feedback (Slice 3 fix: was missing)
+                        if (sc.pressed)
+                        {
+                            g.setColour(juce::Colours::white.withAlpha(0.65f));
+                            g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
+                        }
 
                         g.setColour(muted ? juce::Colours::white.withAlpha(0.90f)
                                           : juce::Colours::white.withAlpha(0.45f));
@@ -1494,7 +1478,7 @@ namespace lockstep
 
                     if (showKeyLetters)
                         paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(idx)],
-                                         avail ? 1.0f : 0.45f);
+                                         sc.base != CellState::SelectorOutRange ? 1.0f : 0.45f);
                 }
             }
 
