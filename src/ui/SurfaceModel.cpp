@@ -268,8 +268,8 @@ namespace lockstep
                          activeMuteCol, kScopeMuteDim,
                          hasCompound && ui.muteHeld);
             // Hint band = Func-layer only; promoted when Func held.
-            if (ui.funcHeld) c.primary = "PMUTE";
-            else             c.funcHint = "PMUTE";
+            if (ui.funcHeld) c.primary = "P-MUTE";
+            else             c.funcHint = "P-MUTE";
             if (ui.latch.mute) c.pip.colour = kScopeMute;  // pip = base colour, not pattern-mute
         }
         {
@@ -436,9 +436,9 @@ namespace lockstep
         static const std::array<FRowDef, 10> kFRowDefs = {{
             { 'Q', u8"Q", u8"PAT",   u8"",       ControllerButton::PatternScope, KeyRole::Modifier  },
             { 'W', u8"W", u8"PART",  u8"MACH",   ControllerButton::PartScope,    KeyRole::Modifier  },
-            { 'E', u8"E", u8"←",     u8"RST",    ControllerButton::NavLeft,      KeyRole::Nav       },
+            { 'E', u8"E", u8"←",     u8"←ROT",    ControllerButton::NavLeft,      KeyRole::Nav       },
             { 'R', u8"R", u8"↓",     u8"÷2",     ControllerButton::NavDown,      KeyRole::Nav       },
-            { 'T', u8"T", u8"→",     u8"ROT",    ControllerButton::NavRight,     KeyRole::Nav       },
+            { 'T', u8"T", u8"→",     u8"ROT→",    ControllerButton::NavRight,     KeyRole::Nav       },
             { 'Y', u8"Y", u8"YES",   u8"SNAP",   ControllerButton::VerbYes,      KeyRole::VerbYes   },
             { 'U', u8"U", u8"REC",   u8"",       ControllerButton::VerbRecord,   KeyRole::VerbCopy  },
             { 'I', u8"I", u8"PLAY",  u8"",       ControllerButton::VerbPlay,     KeyRole::VerbPaste },

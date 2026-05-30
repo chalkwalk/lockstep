@@ -906,7 +906,7 @@ namespace lockstep
         }
 
         // Step-row modifier cells (A/S/Z/X) — rendered from model.modifiers[4..7].
-        // Model carries funcHint (PMUTE for Mute, etc.), pressed, pip, and strip.
+        // Model carries funcHint (P-MUTE for Mute, etc.), pressed, pip, and strip.
         // modifiers index: 4=Scene(A), 5=Master(S), 6=Mute(Z), 7=Fill(X).
         {
             for (int row = 0; row < kRows; ++row)
