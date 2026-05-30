@@ -966,6 +966,7 @@ namespace lockstep
             case CB::TrackScope:
                 physHeld_.track = true;
                 uiState_.trackHeld = true;
+                noHeld_ = false;  // reset delete-qualifier on each Track press
                 processor_.setControlAllActive(true);  // MD.10: active until a track is selected
                 editMode_.onScopeEvent(ev);
                 handleModifierTap(CB::TrackScope, uiState_.latch.track);
@@ -1484,6 +1485,14 @@ namespace lockstep
             }
 
             case ControllerButton::SelectTrack:
+                // Track + No (held) + step = delete that track.
+                if (noHeld_ && uiState_.trackHeld)
+                {
+                    processor_.pushCheckpoint();
+                    processor_.deleteTrack(ev.index);
+                    repaint();
+                    return true;
+                }
                 if (uiState_.trackHeld && processor_.isTrackEmpty(ev.index))
                 {
                     // Track+empty step = copy current track's machine+params (no steps).
@@ -1679,10 +1688,27 @@ namespace lockstep
 
             case ControllerButton::VerbYes:
                 yesHeld_ = true;
+                // Double-tap Yes with no scope = drop top checkpoint (discard without restoring).
+                // First tap pushes (non-destructive), so net effect of successful double is a no-op.
+                if (editMode_.primaryScope() == EditMode::PrimaryScope::None
+                    || editMode_.primaryScope() == EditMode::PrimaryScope::Func)
+                {
+                    const double now = juce::Time::getMillisecondCounterHiRes();
+                    const bool isDbl = doubleTap_.recordAndCheck(
+                        1000 + static_cast<int>(ControllerButton::VerbYes), now);
+                    if (isDbl) { processor_.dropCheckpoint(); return true; }
+                }
                 editMode_.onVerb(ev.button);
                 return true;
 
             case ControllerButton::VerbNo:
+                // Track scope held: No becomes a held qualifier for the delete gesture.
+                // Pressing a step while noHeld_ deletes that track (handled in SelectTrack).
+                if (uiState_.trackHeld)
+                {
+                    noHeld_ = true;
+                    return true;
+                }
                 editMode_.onVerb(ev.button);
                 return true;
 
@@ -2184,9 +2210,12 @@ namespace lockstep
                 yesHeld_ = false;
                 break;
 
+            case CB::VerbNo:
+                noHeld_ = false;
+                break;
+
             case CB::VerbRecord:
             case CB::VerbStop:
-            case CB::VerbNo:
             case CB::Snapshot:
             case CB::Restore:
             case CB::TrigModeKeyboard:
@@ -2576,12 +2605,6 @@ namespace lockstep
                         s.overrides  = PLock{};
                         s.trigOverride = TrigOverride{};
                     }
-                }
-                else if (verb == CB::VerbNo)
-                {
-                    // Delete: return track to absent state (StubMachine + cleared steps).
-                    processor_.pushCheckpoint();
-                    processor_.deleteTrack(activeTrack);
                 }
                 releaseTransientLatch(CB::TrackScope);
                 break;

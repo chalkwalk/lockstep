@@ -88,6 +88,11 @@ namespace lockstep
         // Used by Mute+Yes+step = solo gesture (additive toggle).
         bool yesHeld_ = false;
 
+        // No-held flag: true while VerbNo is physically pressed.
+        // Used by Track+No+step = delete gesture: tapping a step while No is held
+        // deletes that specific track.
+        bool noHeld_ = false;
+
         // Last-known transport state: lets timerCallback detect play/pause
         // transitions so the keyboard PLAY/PAUSE label updates promptly.
         bool lastPlayingState_ = false;

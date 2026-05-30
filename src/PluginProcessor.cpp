@@ -1865,6 +1865,14 @@ namespace lockstep
         return true;
     }
 
+    void LockstepProcessor::dropCheckpoint()
+    {
+        const int key = activeBankIdx_ * kPatternsPerBank + activePatternIdx_;
+        auto it = checkpoints_.find(key);
+        if (it != checkpoints_.end() && !it->second.empty())
+            it->second.pop_back();
+    }
+
     int LockstepProcessor::checkpointDepth() const
     {
         const int key = activeBankIdx_ * kPatternsPerBank + activePatternIdx_;

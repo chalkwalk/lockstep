@@ -195,6 +195,9 @@ namespace lockstep
         void deleteTrack(int track);   // → StubMachine + cleared steps
         void deletePart();             // → all tracks in active part → StubMachine
 
+        // Discard the top checkpoint without restoring state (cleans up after deliberate deletes).
+        void dropCheckpoint();
+
         // MD.7: Pattern mutes — per-track, live in the active Pattern.
         bool getPatternMute(int track) const;
         void setPatternMute(int track, bool muted);

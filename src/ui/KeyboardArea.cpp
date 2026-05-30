@@ -994,7 +994,7 @@ namespace lockstep
             { 'Y', u8"Y", u8"YES",   u8"SNAP",  { kActInactive,  kActActive,  kActAccent  }, KeyRole::VerbYes   },
             { 'U', u8"U", u8"REC",   u8"",      { kRecInactive,  kRecActive,  kRecAccent  }, KeyRole::VerbCopy  },
             { 'I', u8"I", u8"PLAY",  u8"",      { kTrnInactive,  kTrnActive,  kTrnAccent  }, KeyRole::VerbPaste },
-            { 'O', u8"O", u8"STOP",  u8"RST",   { kTrnInactive,  kTrnActive,  kTrnAccent  }, KeyRole::VerbClear },
+            { 'O', u8"O", u8"PANIC", u8"RST",   { kTrnInactive,  kTrnActive,  kTrnAccent  }, KeyRole::VerbClear },
             { 'P', u8"P", u8"NO",    u8"POP",   { kActInactive,  kActActive,  kActAccent  }, KeyRole::VerbNo    },
         }};
 
@@ -1102,6 +1102,10 @@ namespace lockstep
             // (matches the transport-bar button behaviour).
             if (isPlaying && def.keyCode == 'I' && !sectionScopeHeld && !uiState_.stepHeld)
                 displayPrimary = "PAUSE";
+
+            // Track scope active: relabel P key to "DEL" to signal the delete gesture.
+            if (def.keyCode == 'P' && uiState_.trackHeld)
+                displayPrimary = "DEL";
 
             // Overdub armed: label becomes "OD" and the group switches to amber.
             if (isOverdub)
