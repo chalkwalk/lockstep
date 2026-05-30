@@ -1696,7 +1696,14 @@ namespace lockstep
                     const double now = juce::Time::getMillisecondCounterHiRes();
                     const bool isDbl = doubleTap_.recordAndCheck(
                         1000 + static_cast<int>(ControllerButton::VerbYes), now);
-                    if (isDbl) { processor_.dropCheckpoint(); return true; }
+                    if (isDbl)
+                    {
+                        // Drop the checkpoint pushed by tap 1, then drop the
+                        // pre-existing top (the one from e.g. a delete operation).
+                        processor_.dropCheckpoint();
+                        processor_.dropCheckpoint();
+                        return true;
+                    }
                 }
                 editMode_.onVerb(ev.button);
                 return true;
@@ -1707,6 +1714,7 @@ namespace lockstep
                 if (uiState_.trackHeld)
                 {
                     noHeld_ = true;
+                    keyboardArea_.repaint();
                     return true;
                 }
                 editMode_.onVerb(ev.button);
