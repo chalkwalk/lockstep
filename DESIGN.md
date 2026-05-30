@@ -955,8 +955,11 @@ place; every renderer calls this rather than defining its own tints.
 machine picker.)
 
 Used by:
-- key tints when a modifier is held (the held key, and any keys it
-  reinterprets, glow in its scope colour) — wired in MHZ.2;
+- key tints when a modifier is held — the held key, and any key it
+  *reinterprets* (relabelled section keys, scope-combining verbs),
+  glow fill+border in its scope colour via `SurfaceCell::scopeTint`.
+  Keys the scope doesn't bind stay neutral (ambient utilities) or dim
+  (reserved verbs). See §13 (scope-combining vs ambient);
 - the step-grid scope re-skin (§6.7) — wired in MHZ.2;
 - the held-context preview band (§6.8) — wired in MHZ.2;
 - any badge or chrome that needs to say *what scope am I in?*.
@@ -1220,6 +1223,21 @@ The verb set is small and uniform:
 The same grammar drives §13.2 Copy/Paste/Clear, §13.3 Performance
 Mutes, and the Checkpoint stack in §13.6. The verbs never mean
 different things in different scopes — only the scope changes.
+
+**Scope-combining vs ambient (no silent pass-through).** Keys split
+into two classes under a held scope. *Scope-combining* keys — the
+section keys, the step grid, and the verbs — show **only** their
+scoped meaning; if the scope defines no meaning for that key it is
+**reserved** (dim, inert), never silently doing its no-scope thing.
+*Ambient* utilities — navigation and tap/metronome — keep working and
+render neutral. The consequence for the Func layer: a bare-`Func`
+global op is reachable only when `Func` is the operative scope. With a
+section-suite scope also held, `Func+scope+Yes/No` is that scope's
+secondary variant, so the global snapshot/restore (and their `SNAP`/
+`POP` hints) are **suppressed** — they are not a "track-scoped
+snapshot," which does not exist. In-scope keys glow in the scope
+colour (§6.6); reserved verbs dim. This is the operational form of
+PRINCIPLES §8 ("a held scope recolours the keys it rebinds").
 
 ### 13.1 Control-All
 

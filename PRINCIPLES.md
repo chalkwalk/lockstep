@@ -167,6 +167,15 @@ every pending clipboard, every queued pattern, every checkpoint
 depth, every trig-grid mode, and every fill / mute / record-arm
 state must be **announced loudly** in chrome. No silent modes.
 
+**A held scope recolours the keys it rebinds.** When a scope is held,
+every key whose meaning it changes lights in that scope's colour;
+keys it does not bind stay neutral. An unbound key is either an
+*ambient* utility (navigation, tap / metronome — it keeps its normal
+action) or *reserved* (dimmed, inert). Verbs and operands never
+silently pass through into a different scope's meaning: an op that
+would read as scope-qualified but isn't — snapshot / restore live on
+bare `Func` — is suppressed under that scope, not offered ambiguously.
+
 A beginner sees a chrome densely annotated with current state and
 "next action will do X" hints; a power user toggles individual hints
 off as fluency grows. Both see the same grammar; the difference is

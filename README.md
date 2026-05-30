@@ -195,7 +195,7 @@ other naturally with no master-bar concept.
 | **Sample pool** | The project-wide library of samples, stored as `{path, hash}` references rather than embedded audio. |
 | **Sound Pool** *(planned)* | A project-scope library of saved per-track sounds, recallable or P-lockable per step. |
 | **Scene / crossfader** *(planned)* | A per-Part pair of parameter snapshots blended by a continuous fader. |
-| **Scope colour grammar** *(planned, MHZ.1)* | A canonical palette per scope (`step` = light grey, plus distinct hues for `track / pattern / part / machine / scene / master`) used by key tints, the step-grid scope re-skin, and any badge that needs to say "which scope is held". |
+| **Scope colour grammar** *(MHZ.1)* | A canonical palette per scope (`step` = light grey, plus distinct hues for `track / pattern / part / machine / scene / master`) used by key tints, the step-grid scope re-skin, and any badge that needs to say "which scope is held". In-scope keys (the section keys and verbs the scope rebinds) light fill+border in the scope colour; ambient keys stay neutral; reserved keys dim. |
 | **Scope re-skin** | When a scope modifier maps to a 1-of-16 selector (Track / Pattern / Part; `Func + Part` = machine picker), the 16 step keys become a non-paginated index for that scope. Unavailable indices dim. Cells tint in the scope's colour. |
 | **Top-bar dashboard** *(planned, MHZ.2)* | The top of the editor splits into a persistent performance dashboard (BPM, Bank/Pattern/Part, transport position, chain queue, checkpoint depth) on the left, and a live held-context preview on the right. |
 | **Value-label table** *(planned, MHZ.2)* | A `ParamSpec` field carrying textual names for stepped/enum positions (`LP24 / LP12 / HP / BP`, `MONO / PARA`, …). The MZ renders the textual name in place of a number when present. |
@@ -401,11 +401,19 @@ with anything.
 
 | Key | Verb | Meaning |
 |---|---|---|
-| `Y` | **Yes** | Affirmative — confirm a prompt; `Func+Yes` = snapshot push. |
+| `Y` | **Yes** | Affirmative — confirm a prompt; `Func+Yes` = snapshot push (bare `Func` only — see note). |
 | `U` | **Record** | Copy the current scope into the clipboard. |
 | `I` | **Play** | Paste the clipboard into the scope. |
 | `O` | **Stop** | Clear the scope. |
-| `P` | **No** | Negative — dismiss a prompt; `Func+No` = snapshot pop. |
+| `P` | **No** | Negative — dismiss a prompt; `Func+No` = snapshot pop (bare `Func` only — see note). |
+
+> **Snapshot/restore are bare-`Func` ops.** While a section-suite scope
+> (`Track` / `Pattern` / `Part` / `Scene` / `Master`) is also held,
+> `Func+scope+Yes/No` is that scope's secondary variant, **not** a global
+> checkpoint — so snapshot/restore are reserved (inert) until you release
+> the scope. `Yes` itself is reserved (dim) under a scope; the other verbs
+> show their scoped op (COPY/PASTE/CLEAR, and DEL on `Track+No`) and light
+> in the scope colour.
 
 ### 5.4 Transport and navigation
 
@@ -428,7 +436,7 @@ Lockstep has 16 tracks. The track header shows 8 at a time; the **"1–8" / "9�
 | `Track (Q) + C–/` | Select / focus track 9–16 (`Q + C` = track 9, … `Q + /` = track 16). |
 | Page button (click) | Flip track header between tracks 1–8 and 9–16. |
 
-Tracks 1–8 default to `SamplerMachine` and tracks 9–16 to `MidiOutMachine` (Digitakt-style default split). Any track can be reassigned to any machine via **`Part + SRC`** (`W + 6` — opens the machine selector popup; replaces the retired `Func+R` gesture). A small **"M"** badge in the top-right corner of a track button identifies MIDI-out tracks at a glance.
+Tracks 1–8 default to `SamplerMachine` and tracks 9–16 to `MidiOutMachine` (Digitakt-style default split). Any track can be reassigned to any machine via **`Func + Part`** (hold `1`, tap `W` — the step grid re-skins to machine names; press a step to assign; replaces the retired `Func+R` gesture). A small **"M"** badge in the top-right corner of a track button identifies MIDI-out tracks at a glance.
 
 #### Machine catalogue
 
@@ -631,7 +639,7 @@ remaining MH machine catalogue resumes.
 
 - **Step-grid scope re-skin.** Hold `Track` and the 16 step keys
   become a 1-of-16 track picker; `Pattern` → pattern picker; `Part`
-  → part picker; `Part + SRC` → machine picker showing machine names.
+  → part picker; `Func + Part` → machine picker showing machine names.
   **Pagination is suppressed in this mode** — only "which key was
   pressed" matters. Unavailable indices dim; cells tint with the
   scope colour.
@@ -639,7 +647,7 @@ remaining MH machine catalogue resumes.
   chips" row is replaced by a persistent performance dashboard (BPM,
   Bank / Pattern / Part identity, transport position, chain queue,
   checkpoint depth) on the left, and a live held-context preview on
-  the right (e.g. `TRACK 3 + …`, `PART + SRC → machine picker`).
+  the right (e.g. `TRACK 3 + …`, `FUNC + PART → machine picker`).
 - **MZ streamline.** Each slot collapses to a larger rotary plus a
   single value display; stepped/enum params show textual values
   (`LP24 / LP12 / HP / BP`, `MONO / PARA`) instead of numbers when
@@ -768,7 +776,7 @@ mode; trig-grid mode selectors with chrome badges; the **FM synthesizer**
 (`FMMachine`) — 4-operator FM with free modulation matrix, per-operator
 ADSR, ratio / fine-tune / mix per operator, macro attack / release /
 sustain scalars, **Mono / Poly voice modes** (Poly: 4-voice pool with
-oldest-voice stealing); machine selection via `Part + SRC` (post-MHY; was `Func + R`); **runtime
+oldest-voice stealing); machine selection via `Func + Part` (post-MHY; was `Func + R`); **runtime
 polyphony** — each machine reports its live voice count per trig, and
 chord steps are clamped via a per-track Top-bias / Bottom-bias
 "spread-with-bias" selector (editable in the TRIG meta-section as "Bias =
