@@ -103,10 +103,10 @@ The boundary is deliberately narrow but deliberately *not* fixed-shape
   any number of parameter slots. Each slot is a `ParamSpec` carrying:
   a stable string id, a display label, range, default, stepped flag,
   unit hint, the section index it belongs to (0..5; see §6.1.1), a
-  **variant** (`Primary` or `Secondary` — MHY) declaring whether the
+  **variant** (`Primary` or `Secondary` — 3.2) declaring whether the
   slot lives on the no-modifier page or under `Func+section`, an
   optional **role tag** (see below), and an optional **value-label
-  table** (`valueLabels`, MHZ.2) supplying textual names for stepped /
+  table** (`valueLabels`, 3.4) supplying textual names for stepped /
   enum positions (`LP24 / LP12 / HP / BP`, `MONO / PARA`, sine / saw /
   pulse / tri…). Slot count and layout are entirely the machine's
   choice; only the section-key it sits under is constrained by the
@@ -114,7 +114,7 @@ The boundary is deliberately narrow but deliberately *not* fixed-shape
   storage, MZ rendering, and CC mapping are all driven by the schema
   the machine reports. When `valueLabels` is populated the MZ
   renders the textual name in the single value display (§26.2);
-  empty = numeric. An optional **skew** (`ParamSpec::skew`, MHZ.5,
+  empty = numeric. An optional **skew** (`ParamSpec::skew`, 3.7,
   default `1.0` = linear; JUCE `NormalisableRange::skew` semantics)
   gives non-linear encoder mapping for parameters whose useful
   resolution is bunched at one end of the range — envelope times
@@ -192,7 +192,7 @@ exactly three kinds of machine:
 - **Routers** — a machine that *carries* audio from an `input_source`
   into the track's own signal path. There is exactly one: `ThruMachine`
   (§29). It is near-empty by design — the actual shaping is done by the
-  canonical post-machine FLTR / AMP / FX (§14), not by the machine.
+  canonical post-machine FILTER / AMP / FX (§14), not by the machine.
 - **Capture engines** — machines whose value is *stateful audio
   capture*: `RecorderMachine` (overwrite) and `LooperMachine` (overdub).
 
@@ -202,7 +202,7 @@ out" colourist is an **`IEffect`** (§32) — inserted post-AMP or on the
 master bus, reusing the same `ParamSpec` / `role` / P-Lock
 infrastructure. Building such a processor as a machine would waste a
 generator slot, duplicate the FX system, and break the §6.1 promise that
-FLTR / AMP / FX mean the same thing on every track (`PRINCIPLES.md` §7).
+FILTER / AMP / FX mean the same thing on every track (`PRINCIPLES.md` §8).
 The litmus test: *does it originate or capture sound, or merely colour an
 existing signal?* Originate/capture → machine; colour → `IEffect`. Thru
 is the single deliberate exception, and it earns it by doing no colouring
@@ -211,7 +211,7 @@ of its own.
 This is also where catalogue scope is drawn. A machine ships **stock**
 only when it is iconic and foundational to the reference lineage (§29);
 anything more specialised is a **third-party module** authored against
-`sdk::MachineBase` and loaded via the M10 ABI (§36) — including engines
+`sdk::MachineBase` and loaded via the 6.7 ABI (§36) — including engines
 the author maintains in their own separate repositories. "Would this be
 better as a separate download?" is a real question for every proposed
 machine, not a formality.
@@ -251,7 +251,7 @@ sibling (**Static**) and the input-consuming machines (**Thru**,
 
 ### 3.1 Sample trim, loop, and the envelope-bound tail
 
-(Details deferred to MK in `ROADMAP.md`.)
+(Details deferred to 4.4 in `ROADMAP.md`.)
 
 The baseline sampler exposes four additional P-lockable slots
 governing playback region: `start_sample`, `end_sample`,
@@ -476,7 +476,7 @@ Project
 - **Part.** The per-track *machine state*: machine identity per
   track slot, the machine's resolved base ParamFrame, per-track
   sample references and trig defaults that the machine cares
-  about, the optional post-machine FLTR/AMP block state (§14),
+  about, the optional post-machine FILTER/AMP block state (§14),
   and the pattern-scope mute mask (§13.4). Multiple Patterns in
   a Bank can share one Part, so swapping pattern keeps the same
   sounds; or each Pattern can reference its own Part for total
@@ -502,7 +502,7 @@ fork: `Func + W` copies the Part into the first free Part slot and
 updates `activePattern().partRef` to point at it. The SHR:N chrome
 badge shows when sharing is active; fork is the escape hatch. (The
 Pattern+Record gesture is reserved for copy-pattern, not fork — that
-was an early implementation error fixed in MD.)
+was an early implementation error fixed in 2.3.)
 
 Pattern switching at runtime is a performance gesture, not a state
 reload: the next Pattern is queued and the swap happens at the
@@ -593,18 +593,18 @@ machine (`currentVoices() = V1`) the last note-on within the hold wins;
 for a polyphonic machine the overrides accumulate into a chord (the
 exact encoding for chord storage is deferred — see §12).
 
-**Key-as-PLock for drum patterns (record arm, M7).** With record arm
+**Key-as-PLock for drum patterns (record arm, 1.8).** With record arm
 engaged, individual note keys write P-Lock values to a chosen machine
 slot — typically the sampler's `sample_id` slot — derived from the
 key index, e.g. routing different pad keys to different sample IDs
 across one drum track. This is a recording-mode-specific gesture, not
 a live editing gesture, and the target slot is a per-track config
-choice rather than a hardcoded behaviour. See M7.4.
+choice rather than a hardcoded behaviour. See 1.8.4.
 
 ### 5.5 QWERTY overlay
 
-The QWERTY overlay uses a **10×4** layout (revamped in MHX §33, with
-identities re-shuffled in MHY by measured chord-value). The **left two
+The QWERTY overlay uses a **10×4** layout (revamped in 3.1 §33, with
+identities re-shuffled in 3.2 by measured chord-value). The **left two
 columns** are an eight-key modifier cluster reachable by one hand; the
 **right eight columns** are the functional block — function/section
 keys (top two rows) and step keys (bottom two rows). Keeping the
@@ -613,7 +613,7 @@ canonical sections unchanged.
 
 ```
  MODIFIERS    │  FUNCTIONAL BLOCK                                 keys
- [Func][Track]│ [TAP ][ ^  ][TRIG][SRC ][FLTR][AMP ][MOD ][ FX ]  1 2 3 4 5 6 7 8 9 0
+ [Func][Track]│ [TAP ][ ^  ][TRIG][SRC ][FILTER][AMP ][MOD ][ FX ]  1 2 3 4 5 6 7 8 9 0
  [Patt][Part ]│ [ <  ][ v  ][ >  ][Yes ][REC ][PLY ][STP ][ No ]  Q W E R T Y U I O P
  ─────────────┼──────────────────────────────────────────────────
  [Scn ][Mstr ]│ [ steps 0 - 7 ]                                   A S D F G H J K L ;
@@ -625,7 +625,7 @@ slots on row 0 are `3=TAP` and `4=NavUp`; sections fill `5–0`. Row 1's
 right side is `E=NavLeft / R=NavDown / T=NavRight` followed by the
 verb cluster `Y U I O P`. The 16 step keys live on rows 2 and 3.)
 
-**Modifier cluster (left two columns, MHY identities).** Eight
+**Modifier cluster (left two columns, 3.2 identities).** Eight
 persistent first-class scopes, six of which are "section scopes"
 (each owns a six-cell row in the scope-section matrix, §6), and two
 of which are performance specialists.
@@ -633,7 +633,7 @@ of which are performance specialists.
 | Key | Modifier | Role | Chord notes |
 |---|---|---|---|
 | `1` | Func    | section scope + universal qualifier | composes with every other scope to give the "secondary variant" |
-| `2` | Track   | section scope | focused-track edits, post-machine FLTR/AMP cells |
+| `2` | Track   | section scope | focused-track edits, post-machine FILTER/AMP cells |
 | `Q` | Pattern | section scope | pattern length / tempo / chain |
 | `W` | Part    | section scope | kit identity, base ParamFrame, sample refs. `Func+Part` (relabels to MACH) activates the machine picker. |
 | `A` | Scene   | section scope | scene-assign per section |
@@ -645,7 +645,7 @@ Column 1 (`1 Q A Z`) and column 2 (`2 W S X`) compound only **cross-
 column** per the §13 compound-chord rule. The two specialists on row 3
 signal the semantic split: they don't take a section. `Cue` is
 reserved as a scope (DESIGN §31) but is not bound to a cluster key
-until MU; cue-scene functionality folds under `Func+Scene` and
+until 6.4; cue-scene functionality folds under `Func+Scene` and
 master-scope cells in the interim.
 
 Frequency-of-use rationale: Func and Track are the most-touched modifiers
@@ -654,13 +654,13 @@ Scene and Master hold the performance-bus slots (row 2); specialists
 sit at row 3 where they're easy to find but don't compete for prime
 real estate.
 
-**Function strip (top two rows of the functional block).** As of MHY:
+**Function strip (top two rows of the functional block).** As of 3.2:
 
 - `3` = Tap Tempo (TAP/SPL on the Func layer).
 - `4 / E R T` = inverted-T navigation (Up / Left / Down / Right).
-- `5–0` = the six canonical sections TRIG / SRC / FLTR / AMP / MOD / FX
-  (note `LFO`→`MOD` rename from MHY; see §6.1.1).
-- `Y U I O P` = verbs `Yes / Record / Play / Stop / No` (MHY remap).
+- `5–0` = the six canonical sections TRIG / SRC / FILTER / AMP / MOD / FX
+  (note `LFO`→`MOD` rename from 3.2; see §6.1.1).
+- `Y U I O P` = verbs `Yes / Record / Play / Stop / No` (3.2 remap).
   Snapshot push/pop are `Func+Yes` / `Func+No`; `Record-Arm` /
   `Play-Stop` chords on `9 / 0` are deferred — see §33.1.
 
@@ -671,10 +671,10 @@ The `Func` layer (hold `1`) reaches the secondary assignments for
 every key it composes with (snapshot push/pop, metronome via
 `Func+I`, stop-and-reset, etc.) and — via the scope-section matrix
 (§6.1.2) — the secondary variant of any held scope's cells. The old
-`Func+R = MachineSelect` gesture is retired in MHY; machine selection
+`Func+R = MachineSelect` gesture is retired in 3.2; machine selection
 is `Func+Part` (hold `1`, tap `W`; the Part key relabels to `MACH`) —
 the 16 step cells re-skin to show available machine names and a step
-press confirms the selection (scope-select pattern, §PRINCIPLES §4).
+press confirms the selection (scope-select pattern, PRINCIPLES §5).
 Holding any other modifier
 reinterprets the functional block per the **compound-chord rule**
 (§13): a second held modifier *qualifies* the scope, it never invents
@@ -695,13 +695,13 @@ The UI is built around three regions whose layout matches a future
 hardware surface 1:1:
 
 - **The Manipulation Zone.** `kMZSlots` primary parameters visible at
-  any time — **8** as of MHX (§26.2, §33), laid out 4×2. Their labels,
+  any time — **8** as of 3.1 (§26.2, §33), laid out 4×2. Their labels,
   ranges, and visualisations come from the active Machine's metadata.
   When a section contains more than `kMZSlots` slots, repeated
   section-key presses cycle pages within it.
 - **The Section Bar.** Six section buttons (keys `5`–`0`) that
   resolve through a **scope-indexed matrix** (§6.1.2, introduced in
-  MHY). The key meaning depends on which scope modifier is held: no
+  3.2). The key meaning depends on which scope modifier is held: no
   modifier = the focused track's machine sections; a section-scope
   modifier (`Track / Pattern / Part / Scene / Master`) opens that
   scope's six-section row; `Func` is the universal qualifier that
@@ -713,7 +713,7 @@ hardware surface 1:1:
 press always navigates the MZ to a parameter page — it never opens a
 picker or popup. When the UI needs "pick one of N," the 16 step keys
 are the selection surface and the step cells re-skin to show the
-options. There are two picker patterns (see also PRINCIPLES §4):
+options. There are two picker patterns (see also PRINCIPLES §5):
 
 - *Scope-select* (machine, track, pattern, part): hold modifier →
   step cells re-skin for the duration of the hold → press step to
@@ -725,7 +725,7 @@ options. There are two picker patterns (see also PRINCIPLES §4):
 
 ### 6.1 Canonical sections
 
-#### 6.1.1 The canonical six (MHY)
+#### 6.1.1 The canonical six (3.2)
 
 The six section keys carry a fixed canonical taxonomy:
 
@@ -733,9 +733,9 @@ The six section keys carry a fixed canonical taxonomy:
   |---|---|---|---|
   | 5 | 0 | **TRIG** | Trig defaults: note, velocity, gate. Also the host of track-meta `COND` / `TRIG` content (track-default conditions + step overrides). |
   | 6 | 1 | **SRC**  | Primary sound source: sampler controls, oscillator controls, FM ratios, MIDI program/channel for MIDI-out machines. |
-  | 7 | 2 | **FLTR** | Filter — usually the post-machine FLTR block (§14), but machines may opt out (`hasInternalFilter()`) and present their own. |
+  | 7 | 2 | **FILTER** | Filter — usually the post-machine FILTER block (§14), but machines may opt out (`hasInternalFilter()`) and present their own. |
   | 8 | 3 | **AMP**  | Amplitude envelope + output mix (Level, Pan, Sends) — usually the post-machine AMP block (§14). |
-  | 9 | 4 | **MOD**  | Modulation: LFO, modulation matrices, per-operator envelopes, voice/portamento. (Renamed from `LFO` in MHY — every deep synth has modulation that isn't LFO, and conflating the two pushed the FM matrix five presses deep.) |
+  | 9 | 4 | **MOD**  | Modulation: LFO, modulation matrices, per-operator envelopes, voice/portamento. (Renamed from `LFO` in 3.2 — every deep synth has modulation that isn't LFO, and conflating the two pushed the FM matrix five presses deep.) |
   | 0 | 5 | **FX**   | Effects: machine-intrinsic (drive / bit-reduction) at primary; foundation-owned inserts on `Track+FX`; master FX on `Master+FX`. |
 
   A machine that has nothing to fill a canonical section leaves it
@@ -743,13 +743,13 @@ The six section keys carry a fixed canonical taxonomy:
   six declares *extension sections* on additional section-bar pages,
   reached by repeated press of the same section key.
 
-  **Snap-to-canonical discipline (MHY).** A machine's no-scope pages
+  **Snap-to-canonical discipline (3.2).** A machine's no-scope pages
   belong to the machine: it may relabel any section (a wave-folder
-  might print `MORPH` over the FLTR-key label). But canonical
-  *placement* governs — a filter-like control belongs under FLTR
+  might print `MORPH` over the FILTER-key label). But canonical
+  *placement* governs — a filter-like control belongs under FILTER
   (key 7) even when relabelled; a modulation matrix under MOD (key 9);
   an envelope under AMP (key 8). The discipline lets cross-machine
-  workflows survive — `hold FLTR + COPY` always means "copy whatever
+  workflows survive — `hold FILTER + COPY` always means "copy whatever
   the focused machine treats as its filter stage," and Control-All
   by `role` still finds matching slots across renamed labels.
 
@@ -757,25 +757,25 @@ The six section keys carry a fixed canonical taxonomy:
 
 Held scope modifiers reinterpret the six section keys. The cell map
 below is normative; concrete content accretes through the milestones
-that own each row (ME for Track-scope, MC for Part-scope, MI for
-Scene-scope, MV for FX cells, MU for Cue-scope reactivation).
+that own each row (2.4 for Track-scope, 2.2 for Part-scope, 5.2 for
+Scene-scope, 6.5 for FX cells, 6.4 for Cue-scope reactivation).
 
-  | Scope     | 5 TRIG | 6 SRC | 7 FLTR | 8 AMP | 9 MOD | 0 FX |
+  | Scope     | 5 TRIG | 6 SRC | 7 FILTER | 8 AMP | 9 MOD | 0 FX |
   |-----------|--------|-------|--------|-------|-------|------|
-  | *(none)*  | machine trig | machine SRC | machine FLTR (opt) | machine AMP (opt) | machine MOD | machine FX (drive/bit) |
-  | `Func`    | conditions / fill | machine SRC alt | machine FLTR alt | machine AMP alt | machine MOD alt | machine FX alt |
-  | `Track`   | per-track condition defaults | input_source / Thru | post-machine FLTR | post-machine AMP + sends | per-track LFO (if any) | IEffect insert 1+2 |
+  | *(none)*  | machine trig | machine SRC | machine FILTER (opt) | machine AMP (opt) | machine MOD | machine FX (drive/bit) |
+  | `Func`    | conditions / fill | machine SRC alt | machine FILTER alt | machine AMP alt | machine MOD alt | machine FX alt |
+  | `Track`   | per-track condition defaults | input_source / Thru | post-machine FILTER | post-machine AMP + sends | per-track LFO (if any) | IEffect insert 1+2 |
   | `Pattern` | length / scale lock | (dim) | (dim) | pattern gain | tempo / chain queue | pattern-FX snapshot |
-  | `Part`    | trig templates | part-base SRC | part-base FLTR | part-base AMP | part-base MOD | part-base FX |
-  | `Scene`   | (renamed `CXFD`) | scene-assign SRC | scene-assign FLTR | scene-assign AMP | scene-assign MOD | scene-assign FX |
-  | `Master`  | (dim) | (dim) | master FLTR (if any) | master gain + sends | (dim) | master FX 1+2 |
+  | `Part`    | trig templates | part-base SRC | part-base FILTER | part-base AMP | part-base MOD | part-base FX |
+  | `Scene`   | (renamed `CXFD`) | scene-assign SRC | scene-assign FILTER | scene-assign AMP | scene-assign MOD | scene-assign FX |
+  | `Master`  | (dim) | (dim) | master FILTER (if any) | master gain + sends | (dim) | master FX 1+2 |
 
 Three rules govern the matrix:
 
 1. **`Func` is the universal qualifier.** `Func + section` alone =
    the machine's secondary page (`ParamSpec.variant = Secondary` —
    §2). `Func + scope + section` = the secondary variant of the
-   scope's cell (e.g. `Func+Scene+FLTR` = the *other* scene's filter
+   scope's cell (e.g. `Func+Scene+FILTER` = the *other* scene's filter
    assignments, `Func+Master+FX` = master FX 2 vs FX 1, etc.).
 2. **N/A cells are dim or renamed.** A scope+section combination
    with no content dims its key. Where a near-canonical alternative
@@ -785,12 +785,12 @@ Three rules govern the matrix:
 3. **The section bar is reactive.** Holding a scope relabels the
    key chrome to that scope's row; holding `Func` in addition flips
    to the secondary variant. This is the operational form of
-   `PRINCIPLES.md` §8 ("chrome must announce state").
+   `PRINCIPLES.md` §10 ("chrome must announce state").
 
-### 6.2 Track-meta content lives on `Func+TRIG` (MHY)
+### 6.2 Track-meta content lives on `Func+TRIG` (3.2)
 
-Pre-MHY, the section bar had a separate "track meta" layer reached
-by Shift (`COND` / `TRIG` / `TRACK` / `GLOBAL`). MHY folds that
+Pre-3.2, the section bar had a separate "track meta" layer reached
+by Shift (`COND` / `TRIG` / `TRACK` / `GLOBAL`). 3.2 folds that
 layer into the matrix: track-meta `COND` content (probability, m:n,
 prev-dep) lives under `Func+TRIG`; trig defaults (default note,
 default velocity, gate length) live under `TRIG` itself. Track
@@ -810,7 +810,7 @@ the cell.
 
 ### 6.3 COND meta section — manipulation zone layout
 
-When the COND track meta layer is active (`Func+TRIG` post-MHY, §6.2),
+When the COND track meta layer is active (`Func+TRIG` post-3.2, §6.2),
 the four encoder slots show the trig condition controls for the
 current track:
 
@@ -879,14 +879,14 @@ quick-start, but power users edit individual toggles directly.
 Toggle state is not P-lockable and does not affect playback or MIDI
 routing.
 
-### 6.5 Contextual chrome and label resolution (MHZ.1) ✓
+### 6.5 Contextual chrome and label resolution (3.3) ✓
 
-The MHY rollout introduced enough contextual relabelling
+The 3.2 rollout introduced enough contextual relabelling
 (`COPY/PASTE/CLEAR` on verb keys when a scope is held; the scope-section
 matrix relabelling six section keys under five different scopes;
 section-bar dimming for `hasContent=false` cells) that the original
 "primary label / fixed secondary label" cell layout no longer carries
-the meaning a held modifier puts on the key. MHZ.1 consolidates the
+the meaning a held modifier puts on the key. 3.3 consolidates the
 contextual chrome under a single rule:
 
 **One resolver decides every key's label.** A pure helper
@@ -925,14 +925,14 @@ The resolver follows three policies:
    nothing (e.g. `Pattern + SRC`). The paint pipeline trusts
    `disabled` and never adds its own relabelling.
 
-**Label expansion (MHZ.1.2):** canonical section names and modifier-key
+**Label expansion (3.3):** canonical section names and modifier-key
 labels now use up to 6 characters where they benefit: `FILTER` (was
-`FLTR`), `TRACK` (`TRK`), `SCENE` (`SCN`), `MASTER` (`MST`), `MUTE`
+`FILTER`), `TRACK` (`TRK`), `SCENE` (`SCN`), `MASTER` (`MST`), `MUTE`
 (`MUT`), `PART` (`PRT`), `FUNC` (`FNC`), `PLAY` (`PLY`), `STOP`
 (`STP`), `FILL` (`FIL`), `COPY`/`PASTE`/`CLEAR` (`COP`/`PST`/`CLR`),
 `RETRIG` (`RTG`), `POOL` (`SPL`).
 
-### 6.6 Scope colour grammar (MHZ.1) ✓
+### 6.6 Scope colour grammar (3.3) ✓
 
 The scope identity that a held modifier puts on the surface is now
 **visible**, not just functional. Each scope has a canonical colour
@@ -960,15 +960,15 @@ Used by:
   glow fill+border in its scope colour via `SurfaceCell::scopeTint`.
   Keys the scope doesn't bind stay neutral (ambient utilities) or dim
   (reserved verbs). See §13 (scope-combining vs ambient);
-- the step-grid scope re-skin (§6.7) — wired in MHZ.2;
-- the held-context preview band (§6.8) — wired in MHZ.2;
+- the step-grid scope re-skin (§6.7) — wired in 3.4;
+- the held-context preview band (§6.8) — wired in 3.4;
 - any badge or chrome that needs to say *what scope am I in?*.
 
 **Taxonomy only.** Placeholder RGB values are distinguishable but
 deferred to the later visual-design pass (§24 policy). The *set*
 is fixed so hardware LEDs and the software surface stay in lockstep.
 
-### 6.7 Scope-driven step-grid re-skin (MHZ.2)
+### 6.7 Scope-driven step-grid re-skin (3.4)
 
 When a scope modifier maps to a 1-of-16 selector, the 16 step keys
 are re-skinned for the duration of the hold:
@@ -998,10 +998,10 @@ Implementation: an extended scoped-cell table (sibling of
 labelStyle, labelForIndex }`. The paint pipeline consults the table;
 no scope-specific paint code.
 
-### 6.8 Top-bar dashboard and held-context preview (MHZ.2)
+### 6.8 Top-bar dashboard and held-context preview (3.4)
 
-The pre-MHZ "mode chips" row duplicated information already encoded
-in the held cluster keys. MHZ.2 replaces it with two zones reading a
+The pre-Phase 3 "mode chips" row duplicated information already encoded
+in the held cluster keys. 3.4 replaces it with two zones reading a
 single view-model:
 
 - **Left dashboard.** Persistent performance state: BPM,
@@ -1037,7 +1037,7 @@ The hash defends against silent file substitution.
 
 A `kCurrentVersion` constant on `PluginState` provides a forward
 upgrade path. v0 ships a minimal serializer (APVTS only); the full
-payload lands when P-Locks become first-class (M7).
+payload lands when P-Locks become first-class (1.8).
 
 ## 8. Voice Lifecycle and Choke
 
@@ -1067,7 +1067,7 @@ not a sequencer feature.
 ## 9. Machine modules and arbitrary-plugin hosting
 
 The successor to the earlier "wrap arbitrary plugins" sketch is the
-**Machine Module ABI** (milestone M10), specified in full in §36. It
+**Machine Module ABI** (milestone 6.7), specified in full in §36. It
 is *not* a CLAP/VST3 sub-host: it is a purpose-built, JUCE-free C ABI
 for machines designed specifically for Lockstep, loaded as native
 modules and fronted by a `WrapperMachine`. That is the sanctioned
@@ -1173,10 +1173,10 @@ cluster in the left two columns of the 10×4 QWERTY layout (see §5.5,
 | `Trig` (hold a step) | `D–;` / `C–/` | The held step(s); multi-step hold is allowed. | Verb, encoder, or note key. |
 | Section key | `5–0` | The held section's slots. | Verb, scope modifier (scope-section matrix, §6.1.2). |
 
-The cluster identities above are the MHY layout (frequency-of-use
+The cluster identities above are the 3.2 layout (frequency-of-use
 ordered, with the two performance specialists on row 3). `Cue` is
 reserved as a scope (§31) but is not bound to a cluster key until
-MU; its functionality currently lives under `Func+Scene` (cue scene)
+6.4; its functionality currently lives under `Func+Scene` (cue scene)
 and `Master`-scope cells (cue routing) — see §31.
 
 **The compound-chord rule.** Two modifiers may be held together, and
@@ -1237,7 +1237,7 @@ secondary variant, so the global snapshot/restore (and their `SNAP`/
 `POP` hints) are **suppressed** — they are not a "track-scoped
 snapshot," which does not exist. In-scope keys glow in the scope
 colour (§6.6); reserved verbs dim. This is the operational form of
-PRINCIPLES §8 ("a held scope recolours the keys it rebinds").
+PRINCIPLES §10 ("a held scope recolours the keys it rebinds").
 
 ### 13.1 Control-All
 
@@ -1480,12 +1480,12 @@ two double-tap families cleanly separated.
 | Double-tap `Func` | Universal escape — clear all latches |
 | Double-press a verb | Amplified action (e.g. Play = stop + reset) |
 
-## 14. Signal Path and Post-Machine FLTR / AMP
+## 14. Signal Path and Post-Machine FILTER / AMP
 
 The sequencer-side signal path for an internal-audio track is:
 
 ```
-[input fill] → machine.process() → [FLTR] → [AMP] → [FX1] → [FX2] → track sum
+[input fill] → machine.process() → [FILTER] → [AMP] → [FX1] → [FX2] → track sum
 track sum → [master FX 1] → [master FX 2] → master gain → out (+ cue split)
 ```
 
@@ -1495,10 +1495,10 @@ machine synthesises into an empty buffer and the stage is a no-op.
 `[FX1]`/`[FX2]` are the per-track insert effects and `[master FX 1/2]`
 the global effects — both described in §32.
 
-`[FLTR]` and `[AMP]` are sequencer-side DSP blocks owned by the
+`[FILTER]` and `[AMP]` are sequencer-side DSP blocks owned by the
 track (not the machine):
 
-- **FLTR.** A multi-mode state-variable filter (LP / BP / HP / Notch),
+- **FILTER.** A multi-mode state-variable filter (LP / BP / HP / Notch),
   parameterised by Cutoff, Resonance, Drive, and an
   Envelope-amount-to-cutoff that follows AMP's envelope.
 - **AMP.** The track's amplitude envelope (AHDSR), plus the track's
@@ -1518,14 +1518,14 @@ track (not the machine):
     retriggering.
 
 This is the Elektron model: a machine focuses on producing raw
-audio at unity gain; the surrounding FLTR + AMP + FX is uniform. The
-canonical FLTR (key 5), AMP (key 6), and FX (key 8) section buttons
+audio at unity gain; the surrounding FILTER + AMP + FX is uniform. The
+canonical FILTER (key 5), AMP (key 6), and FX (key 8) section buttons
 drive these blocks regardless of which machine the track hosts.
 
 Machines may opt out:
 
 - `IMachine::hasInternalFilter()` returning `true` causes the
-  sequencer to bypass the FLTR block; the FLTR section button on
+  sequencer to bypass the FILTER block; the FILTER section button on
   that track is repurposed as a passthrough to the machine's
   internal filter slots.
 - `IMachine::hasInternalAmp()` similarly bypasses AMP.
@@ -1534,9 +1534,9 @@ Opt-out is rare and reserved for analog-emulation engines where
 filter and envelope are tightly coupled to the sound (e.g. an
 Analog Four-style synth). Most machines accept the default.
 
-For a MIDI-out track (§15), both FLTR and AMP are bypassed
+For a MIDI-out track (§15), both FILTER and AMP are bypassed
 implicitly — there is no audio to filter or amplitude-shape — and
-the FLTR/AMP section buttons are repurposed to expose
+the FILTER/AMP section buttons are repurposed to expose
 MIDI-output-relevant CC banks for that track instead.
 
 ## 15. MIDI-out Machine (First-Class)
@@ -1686,7 +1686,7 @@ trig grid or change which steps fire. Morphing trigs is ill-defined
 (the same step P-locked differently in A and B would demand
 polyphony from a monophonic machine) and is already served by
 pattern switching (§16) and mutes (§13.4). This keeps the resolver a
-clean OEB-plus-lerp model (`PRINCIPLES.md` §6).
+clean OEB-plus-lerp model (`PRINCIPLES.md` §7).
 
 ### 17.3 Assignment gesture
 
@@ -1739,7 +1739,7 @@ from mouse / CC / hardware fader only — consistent with pillar 1
 axis the hardware can't reduce to a button.
 
 The assignment gesture uses a **single `Scene` modifier** (one key,
-not the old Scene A / Scene B pair — MHX, §33). Endpoint selection is
+not the old Scene A / Scene B pair — 3.1, §33). Endpoint selection is
 a compound: `Scene + ^` (NavUp) targets **Scene A**, `Scene + v`
 (NavDown) targets **Scene B** — mirroring the vertical fader's A-top /
 B-bottom throw. On hardware the fader position picks the near endpoint
@@ -1786,7 +1786,7 @@ Rules:
   in neither scene edits the track base exactly as today. (Auto-
   assigning at an endpoint was rejected: the fader rests at the A end
   as "home", so base tweaks there would silently enrol slots into the
-  scene system — a silent mode, `PRINCIPLES.md` §8.)
+  scene system — a silent mode, `PRINCIPLES.md` §10.)
 - **Stepped slots** cannot be split; a morph-aware edit writes to the
   currently-resolved side (`f < 0.5 → A`, else `B`).
 - **P-Locks still dominate** — editing a slot that the held step
@@ -1795,21 +1795,11 @@ Rules:
 
 ## 18. Roadmap Reference
 
-The milestone plan and progress checkboxes live in `ROADMAP.md`.
-After the current M8 (state serialization), the next milestones
-expand on the performance vision in this document — UI/input
-rethink, the Project/Bank/Pattern/Part hierarchy, the performance
-modifier cluster, canonical sections + post-machine FLTR/AMP, the
-MIDI-out machine, alternate trig modes, the machine catalogue
-expansion (FM, VA, DrumSynth, Slicer, Static, Percussion, Digital —
-§29), scenes + crossfader, and
-the depth pass (MJ–MP): pattern/part management, sampler
-depth, sequencer refinement, 16-levels, sampling+resampling,
-audition, and UI polish. The Octatrack-derived cluster (MQ–MU) then
-adds special trig types (§30), the audio-input boundary + routing
-(§27), recorder buffers (§28), the Static / Thru / Recorder / Looper
-machines (§29), and the cue bus (§31); morph-aware scene editing
-(§17.6) and fluid mute land within MI.
+The milestone plan, phase grouping, status flags, and progress
+checkboxes live in `ROADMAP.md` — the single source of truth for *what
+ships when*. This document specifies the *what* and *why*; the roadmap
+sequences it. (`ROADMAP.md` cites the relevant section here from each
+milestone.)
 
 ## 19. Microtiming, Swing, and Quantize
 
@@ -1833,7 +1823,7 @@ would push the trig into another step's cell, which makes
 contexts. Capping at ±50% keeps the mental model "every step fires
 within its own cell, possibly nudged."
 
-Microtiming is captured automatically by live record (M7): a
+Microtiming is captured automatically by live record (1.8): a
 note-on arriving between step boundaries records to the nearest
 step with the residual delta stored as the offset. It is also
 P-lockable per step via the usual EditContext gestures (held step +
@@ -1881,7 +1871,7 @@ overrides — only the timing offset. To remove a trig entirely, use
 Swing is not affected by Quantize. To reset swing, set it via the
 TRACK meta section like any other parameter.
 
-### 19.4 Musical gate values (MHZ.6)
+### 19.4 Musical gate values (3.8)
 
 Gate length is **musical**, not absolute. `TrigOverride.gateValue`
 is a closed enum: note value `{1/64, 1/32, 1/16, 1/8, 1/4, 1/2, 1,
@@ -1905,17 +1895,17 @@ captured chord's gate.
 
 ## 20. 16-levels Trig-Grid Mode
 
-**Implementation note (MHZ.7).** 16-levels lands as the **LEVELS**
+**Implementation note (3.9).** 16-levels lands as the **LEVELS**
 input mode on a per-track basis (see §34, `TrackInputMode`), not as
 a momentary chord on top of the trig grid. The §20 design below
 still describes the *behaviour* of the mode; what's changed is the
 *entry*: instead of "hold a mode chord," the user puts the focused
 track into `LEVELS` mode via the `Track + Nav` mode selector
 (§34.1), and the step cells reinterpret as quantised value
-buckets while the mode is active. MHZ.7 ships **velocity-first**
+buckets while the mode is active. 3.9 ships **velocity-first**
 (binding fixed to `velocity`); §20.1's eligibility set and §20.2's
 encoder-binding selector remain the design target for the follow-up
-generic sub-mode but are not in MHZ.7 itself.
+generic sub-mode but are not in 3.9 itself.
 
 The 16-levels mode (DESIGN §13.5 extension) repurposes the trig
 grid into a value-selection surface. While the mode is active,
@@ -1977,14 +1967,14 @@ grammar:
 Both bypass the sequencer event stream: the sequencer injects a
 one-shot note-on/off pair directly onto the target track's
 MidiBuffer for the current block. The audio path is otherwise
-identical (post-machine FLTR/AMP applies). Neither gesture writes
+identical (post-machine FILTER/AMP applies). Neither gesture writes
 into the pattern.
 
 ### 21.2 Cross-track live record
 
 Live-record behaviour follows the channel mode (DESIGN §5.4):
 
-- **Omni mode.** Recording is global: the existing M7 record-arm
+- **Omni mode.** Recording is global: the existing 1.8 record-arm
   state is the single toggle, and every note-on captures to the
   *focused* track's pattern only. Switching focus mid-record is
   the gesture for capturing across tracks.
@@ -2004,16 +1994,17 @@ fork for audition.
 
 ### 21.3 Step-as-keyboard live record
 
-When MG.1's Keyboard trig-grid mode is active and record-arm is on,
-each trig-key press writes the corresponding note onto the
-*next emitted step* on the armed-set (or focused) track. This is
+When 3.9's CHROMATIC input mode (the shipped form of the old keyboard
+trig-grid mode) is active and record-arm is on, each trig-key press
+writes the corresponding note onto the *next emitted step* on the
+armed-set (or focused) track. This is
 the canonical "play in a melodic line" gesture, and it composes
-identically with Retrig (MG.2), Slice (MG.3), and Sound Pool
-(MG.5) modes — each writes its respective payload (rate-P-Lock,
+identically with Retrig (5.7), Slice (5.7), and Sound Pool
+(5.7) modes — each writes its respective payload (rate-P-Lock,
 slice-index, sound-id) onto the next emitted step. The grammar is
 the same; only the payload differs.
 
-### 21.4 Step-hold capture window (MHZ.3 — implemented)
+### 21.4 Step-hold capture window (3.5 — implemented)
 
 Hold-step + play notes + release is the **canonical chord-edit path**
 on a step. The transport need not be running and record-arm need not
@@ -2024,7 +2015,7 @@ temporary chord buffer; releasing the step commits the buffer.
 Commit semantics:
 
 - The committed chord replaces the step's
-  `TrigOverride.notes[] / noteCount` (reusing the MH.2 chord-step
+  `TrigOverride.notes[] / noteCount` (reusing the 4.2 chord-step
   model, up to `kMaxNotesPerStep = 4`). Notes are written
   immediately as they arrive; the chord is finalised (velocity,
   gate) on step release or last note-off.
@@ -2052,14 +2043,14 @@ Coexistence:
   during step-hold can still be augmented with section-page
   P-Locks before release.
 
-There is no per-note add/remove/swap editor in MHZ; **replace on
+There is no per-note add/remove/swap editor in Phase 3; **replace on
 hold** is the editor. A finer-grained editor only lands later if
 play-testing proves replace-only too coarse.
 
-#### 21.4.1 Velocity and gate (MHZ.6 amendment)
+#### 21.4.1 Velocity and gate (3.8 amendment)
 
-The MHZ.3 implementation captured **one** velocity (max across the
-chord) and a raw-ms `gateMs`. MHZ.6 lifts both:
+The 3.5 implementation captured **one** velocity (max across the
+chord) and a raw-ms `gateMs`. 3.8 lifts both:
 
 - `TrigOverride.velocities[kMaxNotesPerStep]` (`uint8`, gated by
   `hasNoteVelocities`) gives each note its own velocity. **Realtime
@@ -2082,8 +2073,8 @@ chord) and a raw-ms `gateMs`. MHZ.6 lifts both:
 `step.trig`, `trigOverride.notes[]` (with velocities + gateValue),
 and the step's P-Locks are **three independent storage axes**.
 Toggling any one of them does not touch the others. This was
-latent in the data model from MHZ.3 but only becomes visible in
-MHZ.5:
+latent in the data model from 3.5 but only becomes visible in
+3.7:
 
 - Step cells with `trig == false` but `noteCount > 0` or P-Locks
   present render dim while still showing the note-count badge and
@@ -2137,7 +2128,7 @@ opens a non-modal capture surface with a source picker:
 | Source | Meaning |
 |---|---|
 | **Plugin audio input** | The plugin's sidechain / audio input bus. Whatever the host (or standalone audio device) routes in. Default. |
-| **Track N** | The audio output of track `N`, post-machine and post-FLTR/AMP, pre-master. Selectable via `Track + Sampling` chord. |
+| **Track N** | The audio output of track `N`, post-machine and post-FILTER/AMP, pre-master. Selectable via `Track + Sampling` chord. |
 | **Master** | The plugin's stereo main output, post-master gain. Selectable via `Pattern + Sampling` chord (Pattern scope reads as "the whole project's output"). |
 
 System / device input is explicitly **not** a source. The user
@@ -2187,7 +2178,7 @@ paths still supported for drag-and-drop samples). After write,
 the sample is indistinguishable from any other pool entry —
 P-lockable, slice-able, refed by `xxHash32`.
 
-This keeps `PRINCIPLES.md` §10 intact: even captured audio leaves
+This keeps `PRINCIPLES.md` §12 intact: even captured audio leaves
 the plugin state as a `{path, xxHash32}` ref, never embedded PCM.
 
 **Freeze-to-disk.** The naming flow is also the promotion path for
@@ -2201,7 +2192,7 @@ one capture target (a volatile pool entry) and one promotion gesture
 
 ## 23. Pattern/Part Management UI
 
-MC introduced the data hierarchy (DESIGN §4.7) and the queue gesture
+2.2 introduced the data hierarchy (DESIGN §4.7) and the queue gesture
 for live pattern switching. The management UI sits on top: it lets a
 performer navigate, label, and re-arrange the hierarchy *during
 performance* without halting playback.
@@ -2292,7 +2283,7 @@ emerges):
 | `scope.colour.scene` | Scene-scope held. |
 | `scope.colour.master` | Master-scope held. |
 
-The seven `scope.colour.*` entries (MHZ.1 ✓) are the **scope colour
+The seven `scope.colour.*` entries (3.3 ✓) are the **scope colour
 grammar**: the visible side of "which scope is on the surface right
 now". They drive key tints when a modifier is held, the step-grid
 re-skin cells (§6.7), the held-context preview band (§6.8), and any
@@ -2376,11 +2367,11 @@ needs.
 The ManipulationZone sits *above* the StepGrid in the final
 layout (closer to the top-row encoders on the hardware); the
 on-screen MIDI keyboard moves into a collapsible drawer below
-the StepGrid. The exact pixel layout is the subject of MP.1;
+the StepGrid. The exact pixel layout is the subject of 5.8.1;
 the constraint is "every cell that maps to a hardware key is
 square, and the window grows vertically."
 
-**Encoder band (MHX, §33).** The 8 MZ encoders render as a band above
+**Encoder band (3.1, §33).** The 8 MZ encoders render as a band above
 the key grid, **two staggered rows of four**, narrower than the
 10-column grid below them — the stagger gives each knob breathing
 room (the 10-key width is wide) and visually decouples the encoder
@@ -2389,7 +2380,7 @@ right of this band, sharing its row-space, with **Scene A at the top
 and Scene B at the bottom** (§17.5). The software UI mirrors the
 intended hardware layout 1:1.
 
-**Cell typography (MHX, §33).** Every functional cell carries up to
+**Cell typography (3.1, §33).** Every functional cell carries up to
 four registers in fixed positions, for a consistent read across the
 whole grid:
 
@@ -2400,14 +2391,14 @@ whole grid:
 - *Held-chord overlay (accent colour):* when a modifier or compound is
   active, the cell's contextual meaning takes the centre in an accent
   colour — this is the per-cell form of "chrome announces state"
-  (PRINCIPLES §8).
+  (PRINCIPLES §10).
 
 Abbreviations may run to ~5 characters now that cells are larger;
 canonical section names stay ≤4 so they never reflow.
 
 ### 26.2 Manipulation Zone size
 
-The MZ shows **8 slots** as of MHX (§33), matching **8 endless
+The MZ shows **8 slots** as of 3.1 (§33), matching **8 endless
 encoders** on the hardware, laid out **4×2** (two staggered rows of
 four — see §26.1). This halves the pagination count for any section
 larger than 8 slots and maps the encoders cleanly onto the section
@@ -2417,12 +2408,12 @@ The size remains a single named constant (`lockstep::kMZSlots`, now
 `8`); no code outside the MZ may hard-code the slot count, so the
 value stays the one place a future re-size is made.
 
-### 26.3 Slot layout streamline (MHZ.2)
+### 26.3 Slot layout streamline (3.4)
 
-Pre-MHZ each MZ slot rendered a parameter name label, a rotary
+Pre-Phase 3 each MZ slot rendered a parameter name label, a rotary
 encoder, a separately-rendered numeric value label, and a "clear
 P-Lock" `x` button — four widgets per slot, with the label and the
-value duplicating information. MHZ.2 collapses each slot to **rotary
+value duplicating information. 3.4 collapses each slot to **rotary
 + one value display**, where:
 
 - The value display reads textual when the slot's `ParamSpec` carries
@@ -2455,7 +2446,7 @@ machine that consumes audio declares an `input_source` slot:
 |---|---|
 | **None** | Default. The machine synthesises into an empty buffer (every synth/sampler). |
 | **External bus** | The plugin's audio input bus (sidechain / standalone device input). |
-| **Track N** | Track `N`'s output, post-machine and post-FLTR/AMP, pre-track-sum. |
+| **Track N** | Track `N`'s output, post-machine and post-FILTER/AMP, pre-track-sum. |
 | **Master** | The plugin's master sum (prior block — see below). |
 
 There is no implicit neighbour chaining and no patch matrix: a track
@@ -2470,7 +2461,7 @@ computed before its consumer. This is a topological sort over the
 create a cycle is **refused at assignment time**, with a chrome
 message — audio feedback loops are a deliberate non-feature (an
 opinion of the instrument), and refusing them up front keeps the
-block deterministic (`PRINCIPLES.md` §9). Because routing is by
+block deterministic (`PRINCIPLES.md` §11). Because routing is by
 *source selection* rather than track position, the user never has to
 reorder tracks to re-route — the sort handles ordering for them.
 
@@ -2491,7 +2482,7 @@ not a live audio edge. This is what lets loopers work under the
 **MIDI-out tracks declare no input source** — they have no audio to
 consume — so inter-track routing is simply a capability some machines
 have, not a sequencer-wide rule that needs a MIDI-out special case
-(`PRINCIPLES.md` §5).
+(`PRINCIPLES.md` §6).
 
 ## 28. Recorder Buffers and the Unified Audio-Source Pool
 
@@ -2501,7 +2492,7 @@ entries in the existing sample pool**:
 
 - A **volatile** pool entry is RAM-only, has no file backing, is
   badged (`REC`) in the UI, and is **not serialised** with the
-  project (consistent with `PRINCIPLES.md` §10 — and matching the
+  project (consistent with `PRINCIPLES.md` §12 — and matching the
   Octatrack, whose recordings are lost on power-down unless saved).
 - A **persistent** pool entry is file-backed (`{path, xxHash32}`),
   exactly as today. Samples dragged in from disk are born persistent.
@@ -2556,7 +2547,7 @@ the foundation provide:
 - **Syntakt → existing voices + master drive.** The Syntakt is its drum
   and digital voices (covered by `DrumSynthMachine` / `FMMachine` /
   `VAMachine`) plus a *master analog overdrive/filter*. The drive and
-  filter are an `IEffect` (§32) and the canonical FLTR (§14), not a new
+  filter are an `IEffect` (§32) and the canonical FILTER (§14), not a new
   machine. There is no `SyntaktMachine`; the box is a Sound-Pool +
   master-FX preset.
 
@@ -2578,7 +2569,7 @@ covers the digital timbres that `VAMachine` (analog) and `FMMachine`
 
 `currentVoices() = V1` (mono) with a Mono/Poly voice-mode slot, pulled
 live like `FMMachine` (§2). It does **not** opt out of the canonical
-FLTR/AMP (§14): its character is in the oscillator/model, so the
+FILTER/AMP (§14): its character is in the oscillator/model, so the
 multimode SVF and the AMP envelope sit downstream as usual; the
 Monomachine's "+Drive" is a `drive`-role `IEffect` (§32), not internal.
 
@@ -2600,11 +2591,11 @@ first is an ordinary playback engine; the latter three consume audio via
   (full songs, long field recordings) that should not be decoded
   into RAM. Same slot vocabulary as Flex where it overlaps
   (start/end, level), minus the RAM-only manipulations that streaming
-  cannot cheaply support. Reinforces `PRINCIPLES.md` §10: the audio
+  cannot cheaply support. Reinforces `PRINCIPLES.md` §12: the audio
   never enters RAM wholesale, let alone the project state.
 - **Thru.** Turns a track into a processing block: `input_source`
   feeds audio into the track's signal path, the machine passes it
-  through at unity, and the canonical post-machine FLTR/AMP/FX (§14)
+  through at unity, and the canonical post-machine FILTER/AMP/FX (§14)
   do the work. The machine itself is nearly empty — its value is
   routing audio *into* the uniform per-track processing the sequencer
   already provides. Thru subsumes the Octatrack's separate Thru vs.
@@ -2643,17 +2634,17 @@ three live within the existing trig model and the OEB resolver.
   A lock-only trig applies its parameter overrides to the
   already-sounding voice without retriggering it — the canonical use
   is a parameter sweep that rides a long note. Cleanly OEB
-  (`PRINCIPLES.md` §6); a new colour in the §24 state taxonomy marks
+  (`PRINCIPLES.md` §7); a new colour in the §24 state taxonomy marks
   lock-only cells.
 - **One-shot trig.** Fires once, then is **spent** until re-armed —
   a performance accent that does not repeat every loop. Modelled as a
   `TrigCondition` variant; the armed/spent flag is RAM-only runtime
   state, so the grammar stays deterministic *given* arm state
-  (`PRINCIPLES.md` §9). Re-arm follows the Octatrack: **automatic** on
+  (`PRINCIPLES.md` §11). Re-arm follows the Octatrack: **automatic** on
   pattern (re)entry and on transport stop→start, plus a per-track
   **arm-all / disarm-all** command on the Func layer for re-arming a
   continuously looping pattern without restarting it. Armed vs. spent
-  is announced in chrome (`PRINCIPLES.md` §8).
+  is announced in chrome (`PRINCIPLES.md` §10).
 - **Recorder trig.** Only meaningful on a Recorder track (§29):
   "capture `input_source` into `target_buffer` for `rec_length`,
   starting now." `rec_length` (the Octatrack RLEN) is a P-lockable
@@ -2672,7 +2663,7 @@ the grammar as a single new scope, `Cue`, with no bespoke buttons.
 
 - **Cue + track (audio track).** Adds that track to the cue bus as an
   **additive monitor send**: the track stays in the main mix; the cue
-  send is tapped **post-FLTR/AMP/Level** (you hear it as it sits in
+  send is tapped **post-FILTER/AMP/Level** (you hear it as it sits in
   the mix). Cue never alters the main output — it is "let me hear
   this", not solo.
 - **Cue + Scene.** Auditions the resolved scene on the cue bus
@@ -2683,7 +2674,7 @@ the grammar as a single new scope, `Cue`, with no bespoke buttons.
 - **Cue + track (MIDI-out track).** Sends a *copy* of the track's MIDI
   events to a configured **cue MIDI destination**, leaving the main
   destination untouched — exact parity with the audio additive send
-  (`PRINCIPLES.md` §5). If no cue MIDI destination is configured, the
+  (`PRINCIPLES.md` §6). If no cue MIDI destination is configured, the
   gesture is a no-op with a chrome note. (Cue is deliberately *not*
   reinterpreted as solo when no cue output exists: that would make one
   scope mean two things and let cue alter the main output — a silent
@@ -2699,7 +2690,7 @@ output.
 
 Effects are owned and managed by the sequencer foundation, not left
 entirely to machines. This is what makes the canonical **FX section
-(key 8)** mean the same thing on every track — exactly as FLTR (key 5)
+(key 8)** mean the same thing on every track — exactly as FILTER (key 5)
 and AMP (key 6) do — and it is what lets Lockstep double as a small
 performance mixer (Thru tracks in, effects, cue out) without becoming
 a mixer that happens to sequence (`PRINCIPLES.md` §3).
@@ -2722,7 +2713,7 @@ An effect is a schema-bearing DSP processor — `audio in → audio out`
 
 Effects are a contributor surface like machines: the catalogue
 (delay, reverb, chorus, bitcrush, EQ, compressor, …) grows over time
-and can ship via the same "pack" format as machines (ROADMAP MH.5).
+and can ship via the same "pack" format as machines (ROADMAP 6.7).
 A machine may *also* carry internal effects; those surface as
 extension sections, leaving the canonical FX section for the
 foundation inserts.
@@ -2733,7 +2724,7 @@ Two **insert** slots per track, **fixed**, positioned **post-AMP**:
 `… → AMP → FX1 → FX2 → track sum` (§14). Each slot is empty or hosts
 one `IEffect`. Insert state — effect identity, base params, and the
 per-step P-Locks (which live with the Pattern) — belongs to the
-**Part** (per-track), consistent with where FLTR/AMP state lives
+**Part** (per-track), consistent with where FILTER/AMP state lives
 (§4.7). The FX section paginates across the two slots' pages via the
 canonical extension-section mechanism (repeated key-8 press cycles
 slot-1 pages, then slot-2 pages). Assigning an effect to a slot from
@@ -2776,33 +2767,33 @@ bus" simple until performance testing argues otherwise.
 ### 32.4 MIDI-out and parity
 
 MIDI-out tracks have no audio, so they carry no inserts and no sends;
-their FX section is repurposed to a MIDI CC bank exactly as ME.7
-already specifies for FLTR/AMP. No performance feature special-cases
+their FX section is repurposed to a MIDI CC bank exactly as 2.4.7
+already specifies for FILTER/AMP. No performance feature special-cases
 audio vs. MIDI-out here — the FX section simply renders whatever that
-track type exposes (`PRINCIPLES.md` §5).
+track type exposes (`PRINCIPLES.md` §6).
 
-## 33. MHX — The 10×4 Surface Revamp (amended by MHY)
+## 33. 3.1 — The 10×4 Surface Revamp (amended by 3.2)
 
 The intended *final* control surface and UX grammar. Earlier
 milestones built on a 9×4 layout (one left modifier column + an 8-wide
-functional block); MHX widens that to **10×4** to give the performance
-grammar room to breathe before the machine catalogue (MH) and scenes
-(MI) pile on more scopes. This section is the consolidated decision
+functional block); 3.1 widens that to **10×4** to give the performance
+grammar room to breathe before the machine catalogue (Phase 4) and scenes
+(5.2) pile on more scopes. This section is the consolidated decision
 record; the authoritative key map lives in §5.5, the grammar in §13,
 the scene/fader surface in §17.5, and the MZ/encoder/typography in §26.
 
-MHX was intended as the last large UI/UX revamp. In practice the
+3.1 was intended as the last large UI/UX revamp. In practice the
 cluster identities it shipped were assigned by intuition rather than
 measured chord-value, and the canonical six elided the distinction
-between LFOs and modulation more generally. **MHY** (ROADMAP §MHY)
+between LFOs and modulation more generally. **3.2** (ROADMAP §3.2)
 amends the cluster identities, the right-utility row, and the
-canonical-six naming — without moving any key. The MHX *geometry*
+canonical-six naming — without moving any key. The 3.1 *geometry*
 (10×4 footprint, cluster region in cols 0–1, section bar on row 0,
 16-step grid on rows 2–3, nav inverted-T at `4/E/R/T`) remains frozen.
 
-In short: MHX = the shape; MHY = the labels. Sections §5.5, §6, §13
-have already been rewritten to the MHY layout; what follows is the
-historical MHX-as-shipped record.
+In short: 3.1 = the shape; 3.2 = the labels. Sections §5.5, §6, §13
+have already been rewritten to the 3.2 layout; what follows is the
+historical 3.1-as-shipped record.
 
 **33.1 Geometry.** Ten columns, four rows. The **left two columns** are
 an eight-key modifier cluster, all reachable by one (left) hand; the
@@ -2837,20 +2828,20 @@ cells follow a fixed four-register typography (corner key-legend /
 centre primary / bottom Func-label / accent held-chord overlay). See
 §26.
 
-**33.5 Open within MHX.** The canonical sections (`3–8`) are fixed, but
+**33.5 Open within 3.1.** The canonical sections (`3–8`) are fixed, but
 the function-strip *nav arrangement* and the use of keys `9`/`0` are
-provisional and may move as MHX implementation firms up.
+provisional and may move as 3.1 implementation firms up.
 
-**33.6 Implementation note.** Landing MHX touches the
+**33.6 Implementation note.** Landing 3.1 touches the
 `QwertyOverlay` tables (modifier set, step keys moving to `D–;` /
 `C–/`, the relocated function strip), `isEdgeKey` (the decorative-edge
 set changes for a 10-wide grid), `kMZSlots` (4 → 8) and the editor
 re-layout (encoder band + vertical fader), plus the chrome that
 announces the new modifiers. Until it ships, the running build remains
 on the 9×4 layout; docs that describe the 10×4 surface are describing
-the MHX *target*.
+the 3.1 *target*.
 
-## 34. Per-Track Input Modes (MHZ.7)
+## 34. Per-Track Input Modes (3.9)
 
 The scope+verb grammar (§13) governs what the user is operating *on*.
 Per-track **input modes** govern what raw input *means* on the focused
@@ -2881,7 +2872,7 @@ Compound qualifier: `Track + track-key + NavUp/Down` sets the mode
 on a specific track without changing focus (per the standard §13
 compound-chord rule).
 
-> **Supersedes (MHZ.9).** MHZ.7 shipped an interim selector that
+> **Supersedes (3.10).** 3.9 shipped an interim selector that
 > repurposed the verb row as a radio (`Track + Y/U/I/O` =
 > PLAY/EDIT/CHROMATIC/LEVELS). That mapping was grammatically
 > arbitrary (a verb meant a mode) and the exit was undiscoverable, so
@@ -2904,7 +2895,7 @@ the machine hears them identically to a QWERTY MIDI overlay key.
 
 With record-arm on and transport running, captured notes route
 through the §21 realtime record path (including the §21.4.1 per-note
-velocity and §19.4 musical gate capture from MHZ.6) and land on
+velocity and §19.4 musical gate capture from 3.8) and land on
 steps. CHROMATIC composes with all scope modifiers — holding a scope
 key during CHROMATIC reinterprets the step grid per the scope re-skin
 (§6.7) and suspends CHROMATIC playback for the duration of the hold.
@@ -2921,13 +2912,13 @@ quantised velocity buckets: cell `i ∈ [0..15]` represents velocity
 | No step held, transport stopped | Set the focused track's base velocity (`track.defaultVelocity`) at the chosen level. |
 | No step held, record-arm + transport running | Fire the focused track's machine at the chosen velocity (using the last-played pitch or the track's default note); write the trig + velocity to the next quantised step. |
 
-MHZ.7 ships **velocity-only** LEVELS. The role-tagged generic
+3.9 ships **velocity-only** LEVELS. The role-tagged generic
 (`cutoff`, `pitch.coarse`, `attack`, `cutoff`, …) per §20.1's
-eligibility set lands as a follow-up sub-mode on top of MHZ.7 — the
+eligibility set lands as a follow-up sub-mode on top of 3.9 — the
 binding selector (encoder cycles eligible roles, §20.2) sits on the
 same surface as today's mode chord.
 
-### 34.4 Pattern-length authoring (MHZ.8)
+### 34.4 Pattern-length authoring (3.11)
 
 Pattern length sits in the §13 grammar under the `Pattern` scope:
 
@@ -2952,8 +2943,14 @@ QWERTY (and its denser hardware twin, §33, §26, `PRINCIPLES.md` §4).
 But performers already own generic MIDI controllers (encoder boxes,
 pad grids, fader banks). This section defines how such a device
 *augments* the canonical surface without becoming a second, divergent
-input language. It is a planned milestone (ROADMAP **MW**), not yet
-built; the design exists so the build stays inside the grammar.
+input language. This is ROADMAP **6.6**, *in progress*: the load-bearing
+**surface model** (§35.8) has landed — `SurfaceModel.{h,cpp}`, the
+`CellState` taxonomy + decoration channels, `tests/SurfaceModelTest.cpp`,
+and the screen renderers re-pointed at it (6.6.5a) — while the controller
+I/O ports, input router, and feedback emitter (6.6.1–6.6.4, 6.6.5b, 6.6.6)
+are still to come. The design exists so the remaining build stays inside
+the grammar. The worked example throughout is the Behringer X-Touch Mini;
+its MCU/Mackie control map is captured in `XTOUCHMINI_MCU.md`.
 
 ### 35.1 Two classes of surface
 
@@ -3064,10 +3061,10 @@ key:
 | Physical control | Compiles to | Notes |
 |---|---|---|
 | Encoder | `CCMapping{ isRelative, scope = Contextual, mzPosition = k }` | Rides `CCMappingTable` via the §35.2 FIFO; follows focus track + MZ exactly as §5.3 / §26.2. 8 encoders ↔ `kMZSlots = 8`. |
-| Button | `ControllerButton` + `index` → `ControllerEvent` | Note-on (vel > 0) = `ButtonDown`, note-off / vel 0 = `ButtonUp`. The MB.1 stream, no parallel path. A button may instead bind to a CC where its natural target is a parameter. |
-| Fader | Scene crossfader (§17.5) | The fader axis has no QWERTY mapping by design (§17.5); the augmentation surface *honours* that omission rather than inventing a button for it. **Depends on MI** for the final scene-fader parameter; until then it drives the software crossfader slider directly. |
+| Button | `ControllerButton` + `index` → `ControllerEvent` | Note-on (vel > 0) = `ButtonDown`, note-off / vel 0 = `ButtonUp`. The 2.1.1 stream, no parallel path. A button may instead bind to a CC where its natural target is a parameter. |
+| Fader | Scene crossfader (§17.5) | The fader axis has no QWERTY mapping by design (§17.5); the augmentation surface *honours* that omission rather than inventing a button for it. **Depends on 5.2** for the final scene-fader parameter; until then it drives the software crossfader slider directly. |
 
-This is the concrete realisation of MB.1's promise: hardware-controller
+This is the concrete realisation of 2.1.1's promise: hardware-controller
 integration "wires its own producer onto the same stream — no parallel
 code path."
 
@@ -3193,7 +3190,7 @@ surface is attached and the user enables it. It does not revoke §26.1;
 the square-cell / vertical-growth invariants still hold in both modes,
 and the default experience is unchanged.
 
-It is sequenced last (ROADMAP MW.8) because it touches the one
+It is sequenced last (ROADMAP 6.6.8) because it touches the one
 hardcoded layout method, needs a covering device to test against, and
 adds ergonomics, not capability (`PRINCIPLES.md` §1). Note that the
 X-Touch Mini is *not* `covering` (only 16 grid buttons, no spare
@@ -3226,7 +3223,7 @@ grid — another reason the work genuinely defers.
 ### 35.8 The surface model and the controller authoring seam
 
 §35.3 (input) and §35.4 (feedback) both lean on one structure. This
-section defines it. It is the load-bearing decision of MW: the on-screen
+section defines it. It is the load-bearing decision of 6.6: the on-screen
 renderer and every controller render from **one** description of the
 surface, so they cannot diverge, and a new sequencer mode lights up on
 hardware with **zero per-mode controller code**.
@@ -3239,10 +3236,10 @@ keys via `KeyButtonState` + `KeyGroup`) and `KeyboardArea::paintStepRows`
 (step cells, computing fill / probability-brightness / playhead+held
 borders / P-Lock dots / fill states / scope tint *inline*). Feedback that
 re-derived that logic would be a second source of truth — the exact
-divergence MW exists to avoid.
+divergence 6.6 exists to avoid.
 
 Instead, a **pure** `buildSurfaceModel()` is the single computation.
-Concrete signature (MW.5(a) expansion of the `Focus` placeholder):
+Concrete signature (6.6.5(a) expansion of the `Focus` placeholder):
 
 ```cpp
 SurfaceModel buildSurfaceModel(const UiState&,
@@ -3279,7 +3276,7 @@ identity from `io/ControllerEvent.h`:
 
 Because a cell's model identity **is** its input identity, press and light
 are two halves of one key: to actuate a cell, a controller emits the same
-`ControllerEvent{ButtonDown/Up, button, index}` onto the MB.1 stream that
+`ControllerEvent{ButtonDown/Up, button, index}` onto the 2.1.1 stream that
 the QWERTY surface emits (§35.3) — the editor reacts identically, by
 construction. **Generality follows directly:** a new trig-grid mode (a
 future "mode that uses the sequencer steps") changes the *state tokens*
@@ -3306,9 +3303,9 @@ struct SurfaceCell {
   CellDecoration border;     // playhead / held / mode-active outline
   CellDecoration dot;        // P-Lock presence
   CellDecoration strip;      // compound-chord / fill marker
-  CellDecoration pip;        // latch / virtual-hold (MHZ.9.6)
+  CellDecoration pip;        // latch / virtual-hold (3.10)
 
-  // Screen-text extension (MW.5(a)) — appended after frozen block; controllers ignore.
+  // Screen-text extension (6.6.5(a)) — appended after frozen block; controllers ignore.
   // Adding these fields is NOT a contract break: the frozen prefix is unaffected and
   // controllers never read past it. Do not insert fields before `pip`.
   juce::String primary;    // ALWAYS the live function (decision 1)
@@ -3354,7 +3351,7 @@ as loadable modules.
 class IControllerSurface {
 public:
   virtual ~IControllerSurface() = default;
-  // device MIDI in -> ControllerEvent (MB.1) / CC FIFO (§35.2)
+  // device MIDI in -> ControllerEvent (2.1.1) / CC FIFO (§35.2)
   virtual void onInput(const juce::MidiMessage&, ControllerEventSink&) = 0;
   // diff against shadow cache + emit feedback for this device (§35.4)
   virtual void render(const SurfaceModel&, juce::MidiOutput&) = 0;
@@ -3412,7 +3409,7 @@ can't display → ignore it. `statesOfInterest()` (and the JSON
 token that is unknown or deprecated, while still rendering it. The model
 grows; old controllers keep working.
 
-## 36. The Machine Module ABI (M10)
+## 36. The Machine Module ABI (6.7)
 
 §2 introduced the machine boundary as "one authoring model, two link
 paths." This section specifies that machinery: the C ABI a loadable
@@ -3569,7 +3566,7 @@ module can write against the raw C ABI with no JUCE at all.
 Passed at entry and retained by the module; every callback takes an
 opaque `hostCtx` first. POD C, JUCE-free. This is how a module reaches
 the **single shared sample pool** every machine draws from — upholding
-"state refs, not state contents" (PRINCIPLES §10): the module resolves
+"state refs, not state contents" (PRINCIPLES §12): the module resolves
 a `{path, xxHash32}` ref to a handle and reads *borrowed* PCM; it never
 owns or serialises bytes.
 
@@ -3586,7 +3583,7 @@ struct LsmHostVTable {
     /* transport / rate */
     double (*hostSampleRate)(void* ctx);
     void   (*transport)(void* ctx, double* ppqPosition, double* bpm, int32_t* isPlaying);
-    /* sanctioned RNG (PRINCIPLES §9 — the only RNG a module may use) */
+    /* sanctioned RNG (PRINCIPLES §11 — the only RNG a module may use) */
     uint32_t (*rngNext)(void* ctx);
     /* lock-free logging */
     void (*log)(void* ctx, int32_t level, const char* msg);
@@ -3617,10 +3614,10 @@ modules → `StubMachine` fallback (§36.7).
 plus discovered-module manifests merged into one list; `MachineInfo`
 gains a `badge`, an `origin {Static, Module}`, and an `abiOk` flag so
 the picker can show third-party badges and grey out version-mismatched
-modules. The post-machine FLTR/AMP virtual-slot append and the
+modules. The post-machine FILTER/AMP virtual-slot append and the
 `hasInternalFilter()` / `hasInternalAmp()` opt-outs stay entirely
 host-side and ABI-agnostic — only the two booleans cross (via `flags`);
-the module never sees the FLTR/AMP slots that live past its
+the module never sees the FILTER/AMP slots that live past its
 `numParams()` range. This registry is the static/dynamic sibling of the
 planned `ControllerRegistry` (§35.8.4).
 
@@ -3646,7 +3643,7 @@ the host's concern, §5).
 ### 36.7 Missing-module round-trip
 
 A patch may reference a machine module the user has not installed.
-This reuses the missing-sample discipline (PRINCIPLES §10): on load,
+This reuses the missing-sample discipline (PRINCIPLES §12): on load,
 an unknown `machineId` resolves to a `StubMachine` carrying the
 unresolved id, and the UI offers it as a relink/replace target, exactly
 as a missing sample offers relink. Crucially the stub **retains and
