@@ -2122,9 +2122,15 @@ namespace lockstep
             handled = true;
         }
 
-        // Always repaint on key-up so pressed indicators clear immediately.
-        if (!isKeyDown)
-            keyboardArea_.repaint();
+        // Repaint on every physical key transition — press AND release — so that
+        // *every* key flashes when struck, including disabled section keys and the
+        // off-grid edge keys (` Tab Caps Shift - = [ ] '), which dispatch no bound
+        // event and would otherwise never trigger a repaint. keyStateChanged fires
+        // for modifier keys too (Shift), which never reach keyPressed. The paint
+        // path reads live physical state, so this is order-independent with
+        // keyPressed. (Orientation aid: PRINCIPLES §8 — no silent keys.)
+        juce::ignoreUnused(isKeyDown);
+        keyboardArea_.repaint();
 
         return handled;
     }
