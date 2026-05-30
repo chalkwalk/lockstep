@@ -267,7 +267,9 @@ namespace lockstep
                          ui.muteHeld, ui.latch.mute,
                          activeMuteCol, kScopeMuteDim,
                          hasCompound && ui.muteHeld);
-            c.funcHint = "PMUTE";  // Func+Mute = pattern mute
+            // Hint band = Func-layer only; promoted when Func held.
+            if (ui.funcHeld) c.primary = "PMUTE";
+            else             c.funcHint = "PMUTE";
             if (ui.latch.mute) c.pip.colour = kScopeMute;  // pip = base colour, not pattern-mute
         }
         {
@@ -375,13 +377,17 @@ namespace lockstep
             c.primary  = kl.primary;
             c.pressed  = physPressed(kSectionKeyCodes[s], ControllerButton::Section, s);
 
-            // Secondary: scoped mode suppresses meta; reserved meta gets em-dash.
-            if (isScopedMode)
+            // Hint band = Func-layer only. AMP/MOD have no Func action → no hint.
+            // Func-promotion: when Func held, meta label becomes the live primary.
+            if (isScopedMode || isReservedMeta(s))
                 c.funcHint = {};
-            else if (isReservedMeta(s))
-                c.funcHint = juce::String::charToString(0x2014);  // em-dash (U+2014)
+            else if (ui.funcHeld)
+            {
+                c.primary  = kl.hint;   // e.g. TRIG→COND, SRC→NOTE, FILTER→TRACK
+                c.funcHint = {};
+            }
             else
-                c.funcHint = kl.hint;
+                c.funcHint = kl.hint;   // dim secondary when Func not held
 
             const bool isMachPicker   = (sectionScope == PS::Part && s == 1);
             const bool isTrigNoteEdit = (!isScopedMode && ui.funcHeld && s == 0);
@@ -429,14 +435,14 @@ namespace lockstep
 
         static const std::array<FRowDef, 10> kFRowDefs = {{
             { 'Q', u8"Q", u8"PAT",   u8"",       ControllerButton::PatternScope, KeyRole::Modifier  },
-            { 'W', u8"W", u8"PART",  u8"",       ControllerButton::PartScope,    KeyRole::Modifier  },
+            { 'W', u8"W", u8"PART",  u8"MACH",   ControllerButton::PartScope,    KeyRole::Modifier  },
             { 'E', u8"E", u8"←",     u8"RST",    ControllerButton::NavLeft,      KeyRole::Nav       },
             { 'R', u8"R", u8"↓",     u8"KEY",    ControllerButton::NavDown,      KeyRole::Nav       },
             { 'T', u8"T", u8"→",     u8"RETRIG", ControllerButton::NavRight,     KeyRole::Nav       },
             { 'Y', u8"Y", u8"YES",   u8"SNAP",   ControllerButton::VerbYes,      KeyRole::VerbYes   },
             { 'U', u8"U", u8"REC",   u8"",       ControllerButton::VerbRecord,   KeyRole::VerbCopy  },
             { 'I', u8"I", u8"PLAY",  u8"",       ControllerButton::VerbPlay,     KeyRole::VerbPaste },
-            { 'O', u8"O", u8"PANIC", u8"RST",    ControllerButton::VerbStop,     KeyRole::VerbClear },
+            { 'O', u8"O", u8"PANIC", u8"",        ControllerButton::VerbStop,     KeyRole::VerbClear },
             { 'P', u8"P", u8"NO",    u8"POP",    ControllerButton::VerbNo,       KeyRole::VerbNo    },
         }};
 
@@ -460,24 +466,8 @@ namespace lockstep
             const bool isPrtHeld  = (def.keyCode == 'W') && ui.partHeld;
             const bool isModeActive = isArmed || isPlaying || isPatHeld || isPrtHeld;
 
-            // Base label and hint via resolveKeyLabel for CPC verb keys.
             juce::String displayPrimary { def.natural };
             juce::String displayHint    { def.funcLayer };
-
-            if (def.role == KeyRole::VerbCopy
-             || def.role == KeyRole::VerbPaste
-             || def.role == KeyRole::VerbClear)
-            {
-                const KeyDef kd {
-                    def.role,
-                    reinterpret_cast<const char*>(def.natural),
-                    reinterpret_cast<const char*>(def.funcLayer),
-                    -1, true
-                };
-                const KeyLabel kl = resolveKeyLabel(kd, ui, ec);
-                displayPrimary = kl.primary;
-                displayHint    = kl.hint;
-            }
 
             // Four live relabels (MACH / PAUSE / DEL / OD) — override after resolver.
             if (def.keyCode == 'W' && ui.funcPartHeld)
@@ -489,15 +479,10 @@ namespace lockstep
             if (isOverdub)
                 displayPrimary = "OD";
 
-            // Func-hint promotion (decision 1): when Func held and key has a true
-            // Func-layer variant, the funcLayer IS the live function — show it as primary.
-            // CPC keys are excluded: resolveKeyLabel already handles them, and VerbClear
-            // (PANIC) has a non-empty funcLayer ("RST") that must remain a hint, not primary.
-            const bool isCpcKey    = (def.role == KeyRole::VerbCopy
-                                   || def.role == KeyRole::VerbPaste
-                                   || def.role == KeyRole::VerbClear);
+            // Func-hint promotion: when Func held and key has a Func-layer variant,
+            // funcLayer IS the live function — show it as primary, clear hint.
             const bool hasFuncLayer = (def.funcLayer[0] != static_cast<char8_t>(0));
-            if (ui.funcHeld && hasFuncLayer && !isModeActive && !isCpcKey)
+            if (ui.funcHeld && hasFuncLayer && !isModeActive)
             {
                 displayPrimary = juce::String(def.funcLayer);
                 displayHint    = {};

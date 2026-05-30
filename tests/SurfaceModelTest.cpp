@@ -40,56 +40,58 @@ namespace lockstep
 
     // -------------------------------------------------------------------------
     // Test: resolveKeyLabel() for VerbClear (PANIC/O key)
+    //
+    // New rule: PANIC has no funcLayer → hint is always empty.
+    // CPC (COPY/PASTE/CLEAR) relabelling happens at the builder level under
+    // scope modifiers, not in resolveKeyLabel.
     // -------------------------------------------------------------------------
     static void testPanicKeyLabel()
     {
         const KeyDef kd {
             KeyRole::VerbClear,
             "PANIC",  // natural
-            "RST",    // funcLayer
+            "",       // funcLayer — no Func action on PANIC; hint absent
             -1, true
         };
 
-        // 1. No modifier held: primary="PANIC", hint="CLEAR" (always-on CPC hint).
+        // 1. No modifier held: primary="PANIC", hint="" (hint absent when no funcLayer).
         {
             const auto ui = makeUiState();
             const auto ec = makeEditContext();
             const auto kl = resolveKeyLabel(kd, ui, ec);
             CHECK(kl.primary == "PANIC", "PANIC no-mod: primary should be PANIC");
-            CHECK(kl.hint    == "CLEAR", "PANIC no-mod: hint should be CLEAR");
+            CHECK(kl.hint.isEmpty(),     "PANIC no-mod: hint should be empty (no funcLayer)");
             CHECK(!kl.disabled,          "PANIC no-mod: should not be disabled");
         }
 
-        // 2. Func held only: primary="PANIC", hint="RST" (func-layer hint, not primary).
-        //    This was the bug fixed in commit 7b71c16.
+        // 2. Func held: still primary="PANIC", hint="" — Func is a no-op on PANIC.
         {
             auto ui = makeUiState();
             ui.funcHeld = true;
             const auto ec = makeEditContext();
             const auto kl = resolveKeyLabel(kd, ui, ec);
-            CHECK(kl.primary == "PANIC", "PANIC func-held: primary must stay PANIC (not RST)");
-            CHECK(kl.hint    == "RST",   "PANIC func-held: hint should be RST");
+            CHECK(kl.primary == "PANIC", "PANIC func-held: primary must stay PANIC");
+            CHECK(kl.hint.isEmpty(),     "PANIC func-held: hint must be empty");
         }
 
-        // 3. Track scope held: primary stays "PANIC", hint stays "CLEAR".
-        //    (Primary never swaps to CPC label — scope doesn't change it.)
+        // 3. Track scope held: primary="PANIC", hint="" (CPC relabel is builder-level).
         {
             auto ui = makeUiState();
             ui.trackHeld = true;
             const auto ec = makeEditContext();
             const auto kl = resolveKeyLabel(kd, ui, ec);
             CHECK(kl.primary == "PANIC", "PANIC track-scope: primary must stay PANIC");
-            CHECK(kl.hint    == "CLEAR", "PANIC track-scope: hint must stay CLEAR");
+            CHECK(kl.hint.isEmpty(),     "PANIC track-scope: hint must be empty");
         }
 
-        // 4. Step held: primary stays "PANIC", hint stays "CLEAR".
+        // 4. Step held: primary="PANIC", hint="".
         {
             auto ui = makeUiState();
             ui.stepHeld = true;
             const auto ec = makeEditContext();
             const auto kl = resolveKeyLabel(kd, ui, ec);
             CHECK(kl.primary == "PANIC", "PANIC step-held: primary must stay PANIC");
-            CHECK(kl.hint    == "CLEAR", "PANIC step-held: hint must stay CLEAR");
+            CHECK(kl.hint.isEmpty(),     "PANIC step-held: hint must be empty");
         }
     }
 

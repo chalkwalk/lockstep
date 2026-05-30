@@ -60,14 +60,12 @@ namespace lockstep
     // -------------------------------------------------------------------------
     // Key label resolver (MHZ.1.3 + MHZ.1.5, DESIGN §6.5)
     //
-    // resolveKeyLabel() is the single rule that produces {primary, hint} for
-    // every painted key.  The three policies it encodes:
-    //
-    //  1. Primary label swaps when a modifier reinterprets the key.
-    //  2. An always-on hint survives only for genuinely-invariant secondary
-    //     meanings (COPY/PASTE/CLEAR on verb keys under any scope).  All
-    //     other secondaries appear only when their relevant modifier is held.
-    //  3. Empty / disabled is a first-class return (no-content scoped cells).
+    // resolveKeyLabel() applies the single hint-band rule:
+    //   • hint = funcLayer label (dim at rest; promoted to primary when Func held).
+    //   • hint is absent when Func has no action on the key (funcLayer empty).
+    //   • disabled = true for no-content scoped cells.
+    // Func-layer promotion itself (swapping primary ↔ hint) is performed at the
+    // builder level (SurfaceModel.cpp), not inside this function.
     // -------------------------------------------------------------------------
 
     // Role of a key within the performance grammar.
@@ -75,9 +73,9 @@ namespace lockstep
     {
         Modifier,    // Func, Track, Pattern, Part, Scene, Master, Mute, Fill
         SectionKey,  // TRIG / SRC / FILTER / AMP / MOD / FX (index 0-5)
-        VerbCopy,    // U / REC — becomes COPY under any scope or step-hold
-        VerbPaste,   // I / PLY — becomes PASTE under any scope or step-hold
-        VerbClear,   // O / STP — becomes CLEAR under any scope or step-hold
+        VerbCopy,    // U / REC — COPY when scope+verb compound; no Func action
+        VerbPaste,   // I / PLY — PASTE when scope+verb compound; no Func action
+        VerbClear,   // O / STP — CLEAR when scope+verb compound; no Func action
         VerbYes,     // Y / YES — unchanged across scopes
         VerbNo,      // P / NO  — unchanged across scopes
         Nav,         // E / R / T — navigation
@@ -137,30 +135,9 @@ namespace lockstep
             return { juce::String(label), {}, !info.hasContent };
         }
 
-        // --- Verb keys with COPY / PASTE / CLEAR semantics ----------------
-        // Policy 2: these hints are invariant — shown in the hint band always.
-        // The natural primary (REC/PLAY/PANIC) never changes regardless of
-        // which scope or step is held; only the hint may change.
-        // Exception: when Func is held and a funcLayer is set (e.g., PANIC → RST),
-        // the Func-layer overrides the CPC hint for that modifier.
-        const char* cpcLabel = nullptr;
-        if      (def.role == KeyRole::VerbCopy)  cpcLabel = "COPY";
-        else if (def.role == KeyRole::VerbPaste)  cpcLabel = "PASTE";
-        else if (def.role == KeyRole::VerbClear)  cpcLabel = "CLEAR";
-
-        if (cpcLabel != nullptr)
-        {
-            // Func held with a Func-layer variant: hint becomes the Func action.
-            if (ui.funcHeld && def.funcLayer[0] != '\0')
-                return { juce::String(def.natural), juce::String(def.funcLayer), false };
-
-            // All other states: primary stays natural, hint stays CPC label.
-            return { juce::String(def.natural), juce::String(cpcLabel), false };
-        }
-
-        // --- All other keys -----------------------------------------------
-        // Primary is the natural label; hint is the Func-layer secondary
-        // (shown at reduced alpha always, full brightness when Func is held).
+        // --- All other keys (including verb keys) --------------------------------
+        // hint = funcLayer (empty when Func has no action on this key).
+        // Func-layer promotion to primary happens in the builder (SurfaceModel.cpp).
         return { juce::String(def.natural), juce::String(def.funcLayer), false };
     }
 }
