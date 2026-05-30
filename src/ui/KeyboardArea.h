@@ -11,6 +11,7 @@
 #include "../io/PressTracker.h"
 #include "../state/UiState.h"
 #include "GridDisplayMode.h"
+#include "SurfaceModel.h"
 
 namespace lockstep
 {
@@ -110,9 +111,11 @@ namespace lockstep
         ControllerEvent hitTestModifierCell(juce::Point<int> pos, juce::Rectangle<int> stepArea) const;
 
         // Paint helpers
-        void paintSectionRow(juce::Graphics& g, juce::Rectangle<int> area);
-        void paintFunctionRow(juce::Graphics& g, juce::Rectangle<int> area);
-        void paintStepRows  (juce::Graphics& g, juce::Rectangle<int> area);
+        void paintSectionRow (juce::Graphics& g, juce::Rectangle<int> area,
+                              const SurfaceModel& model);
+        void paintFunctionRow(juce::Graphics& g, juce::Rectangle<int> area,
+                              const SurfaceModel& model);
+        void paintStepRows   (juce::Graphics& g, juce::Rectangle<int> area);
         // Decorative edge/anchor keys rendered just outside each main row (ORL and STG
         // only; rowIndex 0-3 for number/Q/A/Z rows; JUCE clips the outer halves).
         void paintEdgeRow   (juce::Graphics& g, int rowIndex, juce::Rectangle<int> rowArea) const;

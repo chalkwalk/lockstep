@@ -754,8 +754,11 @@ namespace lockstep
     {
         g.fillAll(juce::Colour::fromRGB(20, 22, 26));
         const auto areas = computeRowAreas();
-        paintSectionRow (g, areas.section);
-        paintFunctionRow(g, areas.function);
+        const SurfaceModel model = buildSurfaceModel(
+            uiState_, processor_.editContext(), pressTracker_,
+            processor_, activeTrack_, stepPage_, displayMode_);
+        paintSectionRow (g, areas.section,  model);
+        paintFunctionRow(g, areas.function, model);
         paintStepRows   (g, areas.step);
     }
 
@@ -764,82 +767,22 @@ namespace lockstep
     //   Func(1)  Track(2)  TAP(3)  ^(4)  TRIG(5) SRC(6) FLTR(7) AMP(8) MOD(9) FX(0)
     //   cell 0   cell 1    cell 2  cell3  cell 4   ...                          cell 9
 
-    void KeyboardArea::paintSectionRow(juce::Graphics& g, juce::Rectangle<int> area)
+    void KeyboardArea::paintSectionRow(juce::Graphics& g, juce::Rectangle<int> area,
+                                        const SurfaceModel& model)
     {
         paintEdgeRow(g, 0, area);
         const bool showKeyHint = (displayMode_ != GridDisplayMode::Clean);
-        const int  activeTrack = activeTrack_;
 
-        static constexpr const char* kKeyHints[kTotalSectionCells] = {
-            "1", "2", "3", "4", "5", "6", "7", "8", "9", "0"
-        };
+        // Fixed cells: Func, Track, TAP, NavUp — rendered from model
+        paintCell(g, sectionCellBounds(0, area), model.modifiers[0], showKeyHint);
+        paintCell(g, sectionCellBounds(1, area), model.modifiers[1], showKeyHint);
+        paintCell(g, sectionCellBounds(2, area), model.tap,          showKeyHint);
+        paintCell(g, sectionCellBounds(3, area), model.navUp,        showKeyHint);
 
-        // Compound-chord overlay: show on modifier cells when two cross-column modifiers held.
-        // MHY columns: col-1 non-Func = {pattern, scene, mute}; col-2 = {track, part, master, fill}.
-        const bool col1any = uiState_.patternScopeHeld || uiState_.sceneHeld || uiState_.muteHeld;
-        const bool col2any = uiState_.trackHeld || uiState_.partHeld
-                                                || uiState_.masterHeld || uiState_.fillHeld;
-        const bool hasCompound = (uiState_.funcHeld && (col1any || col2any)) || (col1any && col2any);
-
-        // Cell 0: Func (key 1) — amber, universal qualifier (col-1 row 0).
-        {
-            const bool pressed = isKeyPressed('1');
-            KeyButtonState st = KeyButtonState::Normal;
-            if      (pressed)           st = KeyButtonState::Pressed;
-            else if (uiState_.funcHeld) st = KeyButtonState::ModeActive;
-            const KeyGroup grp { kFuncInactive, kFuncActive, kFuncAccent };
-            const bool overlay = hasCompound && uiState_.funcHeld;
-            paintKeyButton(g, sectionCellBounds(0, area), kKeyHints[0], "FUNC", "",
-                           grp, st, showKeyHint, overlay);
-        }
-
-        // Cell 1: Track (key 2) — section-scope (col-2 row 0).
-        {
-            const bool pressed = isKeyPressed('2');
-            KeyButtonState st = KeyButtonState::Normal;
-            if      (pressed)            st = KeyButtonState::Pressed;
-            else if (uiState_.trackHeld) st = KeyButtonState::ModeActive;
-            else if (uiState_.funcHeld)  st = KeyButtonState::FuncHeld;
-            const KeyGroup grp = uiState_.trackHeld
-                ? KeyGroup{ kScopeTrackDim, kScopeTrack, kScopeTrack }
-                : KeyGroup{ kScopeTrackDim, kPerfActive, kPerfAccent };
-            const bool overlay = hasCompound && uiState_.trackHeld;
-            // MHZ.9.6: latch pip.
-            const juce::Colour latchCol = uiState_.latch.track
-                ? juce::Colour(kScopeTrack) : juce::Colours::transparentBlack;
-            paintKeyButton(g, sectionCellBounds(1, area), kKeyHints[1], "TRACK", "",
-                           grp, st, showKeyHint, overlay, latchCol);
-        }
-
-        // Cell 2: TAP (key 3) — tap tempo; Func+3 = MetronomeToggle.
-        {
-            const bool pressed = isKeyPressed('3');
-            KeyButtonState st = KeyButtonState::Normal;
-            if      (pressed)           st = KeyButtonState::Pressed;
-            else if (uiState_.funcHeld) st = KeyButtonState::FuncHeld;
-            const KeyGroup grp { kTapInactive, kTapActive, kTapAccent };
-            paintKeyButton(g, sectionCellBounds(2, area), kKeyHints[2], "TAP", "MET",
-                           grp, st, showKeyHint);
-        }
-
-        // Cell 3: NavUp (key 4) — nav up; Func-layer: TrigModeSoundPool
-        {
-            const bool pressed = isKeyPressed('4');
-            KeyButtonState st = KeyButtonState::Normal;
-            if      (pressed)           st = KeyButtonState::Pressed;
-            else if (uiState_.funcHeld) st = KeyButtonState::FuncHeld;
-            const KeyGroup grp { kNavInactive, kNavActive, kNavAccent };
-            paintKeyButton(g, sectionCellBounds(3, area), kKeyHints[3], u8"↑", "POOL",
-                           grp, st, showKeyHint);
-        }
-
-        // Section key codes for keys 5,6,7,8,9,0 (can't use arithmetic: '0' != '5'+5).
-        static constexpr int kSectionKeyCodes[IMachine::kMaxSections] = {
-            '5', '6', '7', '8', '9', '0'
-        };
-
-        // Determine the active section-suite scope (MHY.5). Performance-specialist
-        // scopes (Mute, Fill) have no section suite so they don't override labels.
+        // Section keys 5-0 (cells 4-9): render from model + page dots (screen-only)
+        const bool isScopedMode = uiState_.trackHeld || uiState_.patternScopeHeld
+                                || uiState_.partHeld  || uiState_.sceneHeld
+                                || uiState_.masterHeld;
         using PS = EditMode::PrimaryScope;
         PS sectionScope = PS::None;
         if      (uiState_.trackHeld)        sectionScope = PS::Track;
@@ -847,89 +790,24 @@ namespace lockstep
         else if (uiState_.partHeld)         sectionScope = PS::Part;
         else if (uiState_.sceneHeld)        sectionScope = PS::Scene;
         else if (uiState_.masterHeld)       sectionScope = PS::Master;
-        const bool isScopedMode = (sectionScope != PS::None);
 
-        // Cells 4-9: section keys 5-0 — canonical TRIG/SRC/FILTER/AMP/MOD/FX.
-        // resolveKeyLabel() drives label + availability; page-dots paint separately.
         for (int s = 0; s < IMachine::kMaxSections; ++s)
         {
             const int cellIdx = kFixedSectionCells + s;
+            const auto cell = sectionCellBounds(cellIdx, area);
+            paintCell(g, cell, model.section[static_cast<std::size_t>(s)], showKeyHint);
 
-            const auto groups         = sectionsForKey(activeTrack, s);
-            const bool machineHasSection = !groups.empty();
-
-            // Build a KeyDef for the resolver.  funcLayer carries the meta-section
-            // secondary (em-dash for reserved cells, label otherwise); the resolver
-            // returns it in KeyLabel.hint for non-scoped mode.
-            const char* metaLabel = isReservedMeta(s)
-                ? nullptr  // em-dash handled below; can't store non-ASCII in const char*
-                : kMetaLabels[static_cast<std::size_t>(s)];
-            const KeyDef kd {
-                KeyRole::SectionKey,
-                IMachine::kCanonicalSectionNames[static_cast<std::size_t>(s)],
-                (metaLabel != nullptr) ? metaLabel : "",
-                s,
-                machineHasSection
-            };
-            const KeyLabel kl = resolveKeyLabel(kd, uiState_, processor_.editContext());
-
-            const bool available = !kl.disabled;
-
-            if (!available)
-            {
-                const bool pressed = isKeyPressed(kSectionKeyCodes[s]);
-                const KeyGroup grp { kSecInactive, kSecActive, kSecAccent };
-                paintKeyButton(g, sectionCellBounds(cellIdx, area),
-                               kKeyHints[cellIdx], kl.primary, "", grp,
-                               pressed ? KeyButtonState::Pressed : KeyButtonState::Disabled,
-                               showKeyHint);
-                continue;
-            }
-
+            // Page dots — screen-only decoration, not in model (residual §35.8.1)
+            const auto groups = sectionsForKey(activeTrack_, s);
+            int totalPageCount = 0;
+            for (const auto& grp2 : groups) totalPageCount += grp2.pageCount;
             const bool isMasterActive = !isScopedMode && (uiState_.masterSection == s);
             const bool isTrackActive  = !isScopedMode && (uiState_.masterSection == -1
-                && uiState_.trackSection[static_cast<std::size_t>(activeTrack)] == s);
-            // SRC (s==1) becomes the machine picker when Part is held.
-            const bool isMachPicker   = (sectionScope == PS::Part && s == 1);
-            // TRIG (s==0) telegraphs note-edit entry when Func is held alone (no scope modifier).
-            const bool isTrigNoteEdit = (!isScopedMode && uiState_.funcHeld && s == 0);
+                && uiState_.trackSection[static_cast<std::size_t>(activeTrack_)] == s);
 
-            const bool pressed = isKeyPressed(kSectionKeyCodes[s]);
-
-            KeyButtonState st = KeyButtonState::Normal;
-            if      (pressed)                           st = KeyButtonState::Pressed;
-            else if (isTrackActive || isMasterActive)   st = KeyButtonState::ModeActive;
-            else if (isMachPicker)                      st = KeyButtonState::ModeActive;
-            else if (uiState_.funcHeld)                 st = KeyButtonState::FuncHeld;
-
-            KeyGroup secGrp;
-            if (isMachPicker)
-                secGrp = KeyGroup{ kSecInactive, kScopeMachine, kScopeMachine };
-            else if (isMasterActive)
-                secGrp = KeyGroup{ kSecInactive, 0xFF404010u, 0xFFFFB432u };
-            else if (isTrigNoteEdit)
-                secGrp = KeyGroup{ kSecInactive, kScopeNoteEdit, kScopeNoteEdit };
-            else
-                secGrp = KeyGroup{ kSecInactive, kSecActive, kSecAccent };
-
-            // Secondary (meta) label: resolver supplies it for normal mode; em-dash for
-            // reserved-meta sections (non-ASCII, handled outside resolver).
-            const juce::String secLabel = isScopedMode
-                ? juce::String{}
-                : (isReservedMeta(s)
-                    ? juce::String::charToString(0x2014)
-                    : kl.hint);
-
-            const auto cell = sectionCellBounds(cellIdx, area);
-            paintKeyButton(g, cell, kKeyHints[cellIdx],
-                           kl.primary, secLabel, secGrp, st, showKeyHint);
-
-            // Page dots — reflect total combined pages (canonical + extension).
-            int totalPageCount = 0;
-            for (const auto& grp : groups) totalPageCount += grp.pageCount;
             if (totalPageCount > 1 && !isMasterActive)
             {
-                const auto ti        = static_cast<std::size_t>(activeTrack);
+                const auto ti        = static_cast<std::size_t>(activeTrack_);
                 const auto si        = static_cast<std::size_t>(s);
                 const int activePage = uiState_.trackPage[ti][si];
 
@@ -958,7 +836,6 @@ namespace lockstep
                 }
             }
         }
-
     }
 
     // -------------------------------------------------------------------------
@@ -966,46 +843,14 @@ namespace lockstep
     //   Q/PAT  W/PART  E/<  R/v  T/>  Y/YES  U/REC  I/PLAY  O/STOP  P/NO
     //   MHZ.1: labels expanded to 6-char cap; resolveKeyLabel() drives U/I/O.
 
-    void KeyboardArea::paintFunctionRow(juce::Graphics& g, juce::Rectangle<int> area)
+    void KeyboardArea::paintFunctionRow(juce::Graphics& g, juce::Rectangle<int> area,
+                                         const SurfaceModel& model)
     {
         paintEdgeRow(g, 1, area);
-        // Note: string fields use const char8_t* so nav-key arrow glyphs (E/R/T)
-        // can be stored as U+2190/2193/2192 UTF-8 sequences. juce::String has a
-        // dedicated const char8_t* overload. Plain-ASCII labels use u8"..." for
-        // type-consistency across the array.
-        struct QKeyDef
-        {
-            int             keyCode;
-            const char8_t*  keyHint;
-            const char8_t*  primary;    // natural label (default state)
-            const char8_t*  secondary;  // Func-layer secondary; "" = none
-            KeyGroup        group;
-            KeyRole         role = KeyRole::Utility;
-        };
-
-        // MHZ.1.2: labels expanded where they benefit (≤ 6 chars hard cap).
-        // U/I/O carry KeyRole so resolveKeyLabel() drives their primary + hint.
-        static const std::array<QKeyDef, 10> kDefs = {{
-            { 'Q', u8"Q", u8"PAT",   u8"",      { kModInactive,  kModActive,  kModAccent  }, KeyRole::Modifier  },
-            { 'W', u8"W", u8"PART",  u8"",      { kPerfInactive, kPerfActive, kPerfAccent }, KeyRole::Modifier  },
-            { 'E', u8"E", u8"←",     u8"RST",   { kNavInactive,  kNavActive,  kNavAccent  }, KeyRole::Nav       },
-            { 'R', u8"R", u8"↓",     u8"KEY",   { kNavInactive,  kNavActive,  kNavAccent  }, KeyRole::Nav       },
-            { 'T', u8"T", u8"→",     u8"RETRIG",{ kNavInactive,  kNavActive,  kNavAccent  }, KeyRole::Nav       },
-            { 'Y', u8"Y", u8"YES",   u8"SNAP",  { kActInactive,  kActActive,  kActAccent  }, KeyRole::VerbYes   },
-            { 'U', u8"U", u8"REC",   u8"",      { kRecInactive,  kRecActive,  kRecAccent  }, KeyRole::VerbCopy  },
-            { 'I', u8"I", u8"PLAY",  u8"",      { kTrnInactive,  kTrnActive,  kTrnAccent  }, KeyRole::VerbPaste },
-            { 'O', u8"O", u8"PANIC", u8"RST",   { kTrnInactive,  kTrnActive,  kTrnAccent  }, KeyRole::VerbClear },
-            { 'P', u8"P", u8"NO",    u8"POP",   { kActInactive,  kActActive,  kActAccent  }, KeyRole::VerbNo    },
-        }};
-
         const bool showKeyHint = (displayMode_ != GridDisplayMode::Clean);
 
-        // Compound overlay on Q (Pattern) and W (Part) — MHY identities.
-        const bool col1any = uiState_.patternScopeHeld || uiState_.sceneHeld || uiState_.muteHeld;
-        const bool col2any = uiState_.trackHeld || uiState_.partHeld
-                                                || uiState_.masterHeld || uiState_.fillHeld;
-        const bool hasCompound = (uiState_.funcHeld && (col1any || col2any)) || (col1any && col2any);
-
+        // Layout geometry (unchanged — depends on display mode)
+        static constexpr int kNumCells = 10;
         int leftPad, cellW;
         if (displayMode_ == GridDisplayMode::Staggered)
         {
@@ -1015,126 +860,31 @@ namespace lockstep
         }
         else if (displayMode_ == GridDisplayMode::Clean)
         {
-            cellW   = (area.getWidth() - kClnColGap) / static_cast<int>(kDefs.size());
+            cellW   = (area.getWidth() - kClnColGap) / kNumCells;
             leftPad = 0;
         }
         else  // Ortholinear
         {
-            const int n = static_cast<int>(kDefs.size());
-            cellW   = (area.getWidth() - (n - 1) * kOrlGap) / n;
+            cellW   = (area.getWidth() - (kNumCells - 1) * kOrlGap) / kNumCells;
             leftPad = 0;
         }
 
-        for (int i = 0; i < static_cast<int>(kDefs.size()); ++i)
+        for (int i = 0; i < kNumCells; ++i)
         {
-            const auto& def = kDefs[static_cast<std::size_t>(i)];
-
             int x;
             if (displayMode_ == GridDisplayMode::Clean)
             {
                 // Gap between the 2 modifier cells (Q, W) and the nav/verb keys.
-                if (i >= 2)
-                    x = area.getX() + 2 * cellW + kClnColGap + (i - 2) * cellW;
-                else
-                    x = area.getX() + i * cellW;
+                x = (i >= 2) ? area.getX() + 2 * cellW + kClnColGap + (i - 2) * cellW
+                             : area.getX() + i * cellW;
             }
             else if (displayMode_ == GridDisplayMode::Ortholinear)
                 x = area.getX() + i * (cellW + kOrlGap);
             else  // Staggered
                 x = area.getX() + leftPad + i * cellW;
 
-            const auto cell = juce::Rectangle<int>(x, area.getY(), cellW, area.getHeight());
-
-            const bool isPressed    = isKeyPressed(def.keyCode);
-            const bool isOverdub    = (def.keyCode == 'U') && processor_.clock().isOverdubArmed();
-            const bool isArmed      = (def.keyCode == 'U') && processor_.clock().isRecordArmed();
-            const bool isPlaying    = (def.keyCode == 'I') && processor_.clock().inPluginPlaying();
-            const bool isPatHeld    = (def.keyCode == 'Q') && uiState_.patternScopeHeld;
-            const bool isPrtHeld    = (def.keyCode == 'W') && uiState_.partHeld;
-            const bool isModeActive = isArmed || isPlaying || isPatHeld || isPrtHeld;
-
-            const bool sectionScopeHeld = uiState_.trackHeld || uiState_.patternScopeHeld
-                || uiState_.partHeld || uiState_.sceneHeld || uiState_.masterHeld;
-            const bool isVerbKey = (def.keyCode == 'Y' || def.keyCode == 'U'
-                                 || def.keyCode == 'I' || def.keyCode == 'O'
-                                 || def.keyCode == 'P');
-
-            KeyButtonState state = KeyButtonState::Normal;
-            if      (isPressed)                         state = KeyButtonState::Pressed;
-            else if (isModeActive)                      state = KeyButtonState::ModeActive;
-            else if (sectionScopeHeld && isVerbKey)     state = KeyButtonState::FuncHeld;
-            else if (uiState_.funcHeld)                 state = KeyButtonState::FuncHeld;
-
-            const bool overlay = hasCompound
-                && ((def.keyCode == 'Q' && uiState_.patternScopeHeld)
-                 || (def.keyCode == 'W' && uiState_.partHeld));
-
-            // MHZ.1.3: resolveKeyLabel() drives primary + hint for verb keys.
-            // Nav/Modifier keys use def.primary / def.secondary directly (arrows
-            // are stored as char8_t* and cannot pass through the const char* resolver).
-            juce::String displayPrimary { def.primary };
-            juce::String displayHint    { def.secondary };
-
-            // MACH picker is entered via Part+SRC; the Part key (W) relabels when
-            // the picker is active so the user sees what state they're in.
-            if (def.keyCode == 'W' && uiState_.funcPartHeld)
-                displayPrimary = "MACH";
-
-            if (def.role == KeyRole::VerbCopy
-             || def.role == KeyRole::VerbPaste
-             || def.role == KeyRole::VerbClear)
-            {
-                // secondary is ASCII (RST / empty) — safe to reinterpret.
-                const KeyDef kd {
-                    def.role,
-                    reinterpret_cast<const char*>(def.primary),
-                    reinterpret_cast<const char*>(def.secondary),
-                    -1, true
-                };
-                const KeyLabel kl = resolveKeyLabel(kd, uiState_, processor_.editContext());
-                displayPrimary = kl.primary;
-                displayHint    = kl.hint;
-            }
-
-            // MHZ.9.7: mode selector moved to Track+NavUp/Down; verb relabels removed.
-
-            // Dynamic Play label: show PAUSE when transport is running and no scope is held
-            // (matches the transport-bar button behaviour).
-            if (isPlaying && def.keyCode == 'I' && !sectionScopeHeld && !uiState_.stepHeld)
-                displayPrimary = "PAUSE";
-
-            // Track scope active: relabel P key to "DEL" to signal the delete gesture.
-            if (def.keyCode == 'P' && uiState_.trackHeld)
-                displayPrimary = "DEL";
-
-            // Overdub armed: label becomes "OD" and the group switches to amber.
-            if (isOverdub)
-                displayPrimary = "OD";
-
-            // Modifier keys (Q=Pattern, W=Part) always show their dim scope colour at rest
-            // and fill with the full scope colour when active.
-            KeyGroup activeGroup = def.group;
-            if (isOverdub)
-                activeGroup = KeyGroup{ 0xFF2E1E08u, 0xFFD2821Eu, 0xFFE0A040u };
-            if (def.keyCode == 'Q')
-                activeGroup = uiState_.patternScopeHeld
-                    ? KeyGroup{ kScopePatternDim, kScopePattern, kScopePattern }
-                    : KeyGroup{ kScopePatternDim, kModActive,    kModAccent    };
-            else if (def.keyCode == 'W')
-                activeGroup = uiState_.partHeld
-                    ? KeyGroup{ kScopePartDim, kScopePart, kScopePart }
-                    : KeyGroup{ kScopePartDim, kPerfActive, kPerfAccent };
-
-            // MHZ.9.6: latch pip in scope colour for Pattern (Q) and Part (W).
-            juce::Colour latchCol = juce::Colours::transparentBlack;
-            if (def.keyCode == 'Q' && uiState_.latch.pattern)
-                latchCol = juce::Colour(kScopePattern);
-            else if (def.keyCode == 'W' && uiState_.latch.part)
-                latchCol = juce::Colour(kScopePart);
-
-            paintKeyButton(g, cell,
-                           def.keyHint, displayPrimary, displayHint,
-                           activeGroup, state, showKeyHint, overlay, latchCol);
+            const auto cellRect = juce::Rectangle<int>(x, area.getY(), cellW, area.getHeight());
+            paintCell(g, cellRect, model.functionRow[static_cast<std::size_t>(i)], showKeyHint);
         }
     }
 
