@@ -6,6 +6,7 @@
 #include "../io/EditContext.h"
 #include "../io/PressTracker.h"
 #include "../PluginProcessor.h"
+#include "../ParameterIDs.h"
 #include <algorithm>
 
 namespace lockstep
@@ -89,12 +90,59 @@ namespace lockstep
     // buildSurfaceModel — implementation
     // =========================================================================
 
+    // Probability preview helper — mirrors computePagePreview in KeyboardArea.cpp.
+    // Returns per-step firing probability for the current page.
+    static std::array<float, 16>
+    stepPagePreview(const Track& track, int trackLen, std::int64_t loopBase,
+                    int pageBase, bool fillActive) noexcept
+    {
+        std::array<float, 16> out{};
+        const int limit = std::min(pageBase + 16, trackLen);
+        float prevProb = 0.5f;
+
+        for (int i = 0; i < limit; ++i)
+        {
+            const auto& stp = track.steps[static_cast<std::size_t>(i)];
+            float prob = 0.0f;
+            const bool fires = [&]() -> bool {
+                if (fillActive)
+                {
+                    if (stp.fillTrigState == FillTrigState::On)  return true;
+                    if (stp.fillTrigState == FillTrigState::Off) return false;
+                }
+                return stp.trig;
+            }();
+            if (fires)
+            {
+                const auto& cond = stp.condition.isTrivial() ? track.baseCond : stp.condition;
+                bool iterPass = true;
+                if (cond.iterDenominator > 1)
+                {
+                    const auto len   = static_cast<std::int64_t>(std::max(trackLen, 1));
+                    const auto denom = static_cast<std::int64_t>(cond.iterDenominator);
+                    const auto iter  = (loopBase + static_cast<std::int64_t>(i)) / len;
+                    iterPass = (iter % denom == static_cast<std::int64_t>(cond.iterNumerator) - 1);
+                }
+                if (iterPass)
+                {
+                    prob = std::clamp(static_cast<float>(cond.probabilityPercent) / 100.0f, 0.0f, 1.0f);
+                    if      (cond.prevDependency == 1) prob *= prevProb;
+                    else if (cond.prevDependency == 2) prob *= (1.0f - prevProb);
+                }
+            }
+            prevProb = prob;
+            if (i >= pageBase)
+                out[static_cast<std::size_t>(i - pageBase)] = prob;
+        }
+        return out;
+    }
+
     SurfaceModel buildSurfaceModel(const UiState&      ui,
                                    const EditContext&  ec,
                                    const PressTracker* press,
                                    LockstepProcessor&  proc,
                                    int                 activeTrack,
-                                   int                 /*stepPage*/,
+                                   int                 stepPage,
                                    GridDisplayMode     /*displayMode*/)
     {
         SurfaceModel model;
@@ -472,6 +520,163 @@ namespace lockstep
         model.modifiers[2].button = ControllerButton::PatternScope;
         model.modifiers[3]        = model.functionRow[1];
         model.modifiers[3].button = ControllerButton::PartScope;
+
+        // =====================================================================
+        // step[0..15] — normal step grid cells (Slice 2)
+        //
+        // Builder always populates the normal-step representation.
+        // Mute/scope/machine/note-edit/chromatic/levels overlays early-return
+        // in paintStepRows before consuming these cells; no wasted work.
+        // =====================================================================
+        {
+            static constexpr int kStepKeyCodes[16] = {
+                'D','F','G','H','J','K','L', 59,
+                'C','V','B','N','M', 44, 46, 47
+            };
+            static constexpr const char* kStepKeyHints[16] = {
+                "D","F","G","H","J","K","L",";",
+                "C","V","B","N","M",",",".","/"
+            };
+
+            // Track length + playhead position
+            const bool validTrack = activeTrack >= 0
+                                 && activeTrack < static_cast<int>(kNumTracks);
+            auto* lenP = validTrack
+                ? proc.apvts().getRawParameterValue(ParamIDs::trackLength(activeTrack))
+                : nullptr;
+            auto* divP = validTrack
+                ? proc.apvts().getRawParameterValue(ParamIDs::trackDivider(activeTrack))
+                : nullptr;
+            const int trackLen  = lenP ? std::max(1, static_cast<int>(lenP->load())) : 16;
+            const int div       = divP ? std::max(1, static_cast<int>(divP->load())) : 1;
+            const double divPpq = 0.25 * static_cast<double>(div);
+
+            int playheadAbs = -1;
+            std::int64_t loopBase = 0;
+            if (divPpq > 0.0 && trackLen > 0 && validTrack)
+            {
+                const auto stepNum = static_cast<std::int64_t>(
+                    proc.clock().cumulativePpq() / divPpq);
+                playheadAbs = static_cast<int>(stepNum % trackLen);
+                loopBase    = (stepNum / static_cast<std::int64_t>(trackLen))
+                              * static_cast<std::int64_t>(trackLen);
+            }
+
+            const int baseStep   = stepPage * 16;
+            const bool fillOn    = proc.fillActive();
+            const auto& trk      = proc.sequence().tracks[static_cast<std::size_t>(
+                                       validTrack ? activeTrack : 0)];
+            const auto  preview  = stepPagePreview(trk, trackLen, loopBase, baseStep, fillOn);
+            const auto& ctx      = ec;
+            const auto& heldSteps = ctx.heldSteps();
+
+            // Scope body colour: adopt whichever modifier is held (fixes always-green).
+            const juce::Colour scopeBodyCol = fillOn
+                ? juce::Colour(kScopeFill)
+                : scopeColourFromState(ui);
+            const juce::Colour inactiveCol(kStepInactive);
+
+            for (int i = 0; i < 16; ++i)
+            {
+                SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                c.button  = ControllerButton::Step;
+                c.index   = i;
+                c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+
+                const int absIdx  = baseStep + i;
+                const bool inRange = absIdx < trackLen && validTrack;
+
+                if (!inRange)
+                {
+                    c.base      = CellState::StepOutOfRange;
+                    c.baseColour = kStepOutRange;
+                    continue;
+                }
+
+                const auto& stepRef  = trk.steps[static_cast<std::size_t>(absIdx)];
+                const bool hasTrig   = stepRef.trig;
+                const bool isHeld    = ctx.heldTrackIndex() == activeTrack
+                                    && std::find(heldSteps.begin(), heldSteps.end(), absIdx)
+                                       != heldSteps.end();
+                const bool hasLock   = !stepRef.overrides.empty();
+                const bool hasFillLock = !stepRef.fillOverrides.empty();
+                const bool isHead    = (absIdx == playheadAbs);
+                const FillTrigState fts = stepRef.fillTrigState;
+
+                const float prob = [&]() -> float
+                {
+                    if (!hasTrig && fts == FillTrigState::On && !fillOn)
+                    {
+                        const auto& cond = stepRef.condition.isTrivial()
+                                           ? trk.baseCond : stepRef.condition;
+                        return std::clamp(
+                            static_cast<float>(cond.probabilityPercent) / 100.0f, 0.0f, 1.0f);
+                    }
+                    return preview[static_cast<std::size_t>(i)];
+                }();
+
+                float lerpFrac = 0.0f;
+                if (hasTrig)
+                {
+                    if (fts == FillTrigState::Off)
+                        lerpFrac = juce::jlimit(0.05f, 0.33f, 0.05f + prob * 0.28f);
+                    else
+                        lerpFrac = juce::jlimit(0.15f, 1.0f, 0.15f + prob * 0.85f);
+                }
+                else if (fts == FillTrigState::On)
+                {
+                    lerpFrac = juce::jlimit(0.10f, 0.67f, 0.10f + prob * 0.57f);
+                }
+
+                c.level      = lerpFrac;
+                c.baseColour = inactiveCol.interpolatedWith(scopeBodyCol, lerpFrac).getARGB();
+
+                // CellState token — StepHeld overrides trig state for border rendering;
+                // paintStepRows checks stepRef.trig directly for note-count colour.
+                if (isHeld)
+                    c.base = CellState::StepHeld;
+                else if (hasTrig && fts == FillTrigState::Off)
+                    c.base = CellState::StepTrigSuppressed;
+                else if (hasTrig && prob < 0.999f && fts != FillTrigState::Off)
+                    c.base = CellState::StepTrigProbable;
+                else if (hasTrig)
+                    c.base = CellState::StepTrigCertain;
+                else if (fts == FillTrigState::On)
+                    c.base = CellState::StepFillAdd;
+                else
+                    c.base = CellState::StepEmpty;
+
+                // Decorations
+                if (isHead)
+                {
+                    c.border.present = true;
+                    c.border.colour  = kStepPlayhead;
+                    c.border.token   = CellState::StepPlayhead;
+                }
+                if (hasLock)
+                {
+                    c.dot.present = true;
+                    c.dot.colour  = kStepPLock;
+                }
+                // strip: fill-mode border takes priority over fill P-Lock badge
+                if (fillOn && fts != FillTrigState::Inherit)
+                {
+                    c.strip.present = true;
+                    c.strip.colour  = (fts == FillTrigState::On) ? kStepFillAdd : kStepFillSuppress;
+                }
+                else if (hasFillLock)
+                {
+                    c.strip.present = true;
+                    c.strip.colour  = kStepFillPLock;
+                }
+                if (ctx.isLatched(absIdx))
+                {
+                    c.pip.present = true;
+                    c.pip.colour  = kScopeStep;
+                }
+            }
+        }
 
         return model;
     }

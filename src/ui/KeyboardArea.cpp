@@ -24,69 +24,6 @@ namespace lockstep
     const juce::Colour KeyboardArea::kColourShiftActive  = juce::Colour::fromRGB(160, 175, 195);
 
     // -------------------------------------------------------------------------
-    // Step-grid preview (unchanged from StepGrid.cpp)
-
-    static std::array<float, KeyboardArea::kPageSteps>
-    computePagePreview(const Track& track,
-                       int          trackLen,
-                       std::int64_t loopBase,
-                       int          pageBase,
-                       bool         fillActive) noexcept
-    {
-        std::array<float, KeyboardArea::kPageSteps> out{};
-        const int limit = std::min(pageBase + KeyboardArea::kPageSteps, trackLen);
-
-        float prevProb = 0.5f;
-
-        for (int i = 0; i < limit; ++i)
-        {
-            const auto& step = track.steps[static_cast<std::size_t>(i)];
-            float prob = 0.0f;
-
-            // Determine whether the step fires in the current fill context.
-            const bool stepFiresInContext = [&]() -> bool
-            {
-                if (fillActive)
-                {
-                    if (step.fillTrigState == FillTrigState::On)  return true;
-                    if (step.fillTrigState == FillTrigState::Off) return false;
-                }
-                return step.trig;
-            }();
-
-            if (stepFiresInContext)
-            {
-                const auto& cond = step.condition.isTrivial()
-                                       ? track.baseCond : step.condition;
-
-                bool iterPass = true;
-                if (cond.iterDenominator > 1)
-                {
-                    const auto len   = static_cast<std::int64_t>(std::max(trackLen, 1));
-                    const auto denom = static_cast<std::int64_t>(cond.iterDenominator);
-                    const auto iter  = (loopBase + static_cast<std::int64_t>(i)) / len;
-                    iterPass = (iter % denom
-                                == static_cast<std::int64_t>(cond.iterNumerator) - 1);
-                }
-
-                if (iterPass)
-                {
-                    prob = std::clamp(
-                        static_cast<float>(cond.probabilityPercent) / 100.0f,
-                        0.0f, 1.0f);
-                    if      (cond.prevDependency == 1) prob *= prevProb;
-                    else if (cond.prevDependency == 2) prob *= (1.0f - prevProb);
-                }
-            }
-
-            prevProb = prob;
-            if (i >= pageBase)
-                out[static_cast<std::size_t>(i - pageBase)] = prob;
-        }
-
-        return out;
-    }
-
     // -------------------------------------------------------------------------
     // Constructor / destructor
 
@@ -759,7 +696,7 @@ namespace lockstep
             processor_, activeTrack_, stepPage_, displayMode_);
         paintSectionRow (g, areas.section,  model);
         paintFunctionRow(g, areas.function, model);
-        paintStepRows   (g, areas.step);
+        paintStepRows   (g, areas.step, model);
     }
 
     // -------------------------------------------------------------------------
@@ -889,13 +826,13 @@ namespace lockstep
     }
 
     // -------------------------------------------------------------------------
-    // paintStepRows — reproduces StepGrid::paint() exactly
+    // paintStepRows — main step area renderer.
+    // Normal step cells consume model.step[] (Slice 2+).
+    // Overlay re-skins (mute/scope/machine/etc.) early-return before consuming step cells.
 
-    void KeyboardArea::paintStepRows(juce::Graphics& g, juce::Rectangle<int> area)
+    void KeyboardArea::paintStepRows(juce::Graphics& g, juce::Rectangle<int> area,
+                                      const SurfaceModel& model)
     {
-        static const juce::Colour kColActive   { kStepActive   };
-        static const juce::Colour kColFillOnly { kStepFillOnly };
-        static const juce::Colour kColInactive { kStepInactive };
         static const juce::Colour kColOutRange { kStepOutRange };
         static const juce::Colour kColPlayhead { kStepPlayhead };
         static const juce::Colour kColHeld     { kStepHeld     };
@@ -904,28 +841,10 @@ namespace lockstep
         const auto navArea  = area.removeFromBottom(kNavRowH);
         const auto cellArea = area;
 
-        const int trackLen = trackLength();
-        const auto& clk = processor_.clock();
-        auto* divP = processor_.apvts().getRawParameterValue(
-            ParamIDs::trackDivider(activeTrack_));
-        const int div = divP ? std::max(1, static_cast<int>(divP->load())) : 1;
-        const double divisionPpq = 0.25 * static_cast<double>(div);
-
-        int playheadAbs = -1;
-        std::int64_t loopBase = 0;
-        if (divisionPpq > 0.0 && trackLen > 0)
-        {
-            const auto stepNum = static_cast<std::int64_t>(
-                clk.cumulativePpq() / divisionPpq);
-            playheadAbs = static_cast<int>(stepNum % trackLen);
-            loopBase    = (stepNum / static_cast<std::int64_t>(trackLen))
-                          * static_cast<std::int64_t>(trackLen);
-        }
-
-        const int baseStep = stepPage_ * kPageSteps;
-        const auto& track = processor_.sequence().tracks[static_cast<std::size_t>(activeTrack_)];
+        const int trackLen  = trackLength();
+        const int baseStep  = stepPage_ * kPageSteps;
+        const auto& track   = processor_.sequence().tracks[static_cast<std::size_t>(activeTrack_)];
         const bool fillActive = processor_.fillActive();
-        const auto preview = computePagePreview(track, trackLen, loopBase, baseStep, fillActive);
 
         // MHX step keys: D-; (steps 0-7, A row), C-/ (steps 8-15, Z row).
         static constexpr const char* kKeyLetters[kPageSteps] = {
@@ -1757,9 +1676,14 @@ namespace lockstep
             return;
         }
 
-        // Step cells
+        // Step cells — Slice 2: consume model.step[] for body fill, press feedback,
+        // and major decorations. Screen-only residuals (note-count ticks, key hints,
+        // step numbers, track labels, keyboard note names) stay inline per §35.8.1.
+        static const juce::Colour kColFillAdd      { kStepFillAdd      };
+        static const juce::Colour kColFillSuppress { kStepFillSuppress };
+        static const juce::Colour kColFillPLock    { kStepFillPLock    };
+
         const auto& ctx = processor_.editContext();
-        const auto& held = ctx.heldSteps();
 
         for (int row = 0; row < kRows; ++row)
         {
@@ -1768,99 +1692,40 @@ namespace lockstep
                 const int localIdx = row * kCols + col;
                 const int absIdx   = baseStep + localIdx;
                 const bool inRange = absIdx < trackLen;
-                const bool isHeld  = inRange
-                    && ctx.heldTrackIndex() == activeTrack_
-                    && std::find(held.begin(), held.end(), absIdx) != held.end();
-                const bool hasTrig = inRange
-                    && track.steps[static_cast<std::size_t>(absIdx)].trig;
-                const int activeSlot = ctx.activeSlot();
-                const auto& stepRef = track.steps[static_cast<std::size_t>(absIdx)];
-                const bool hasLock   = inRange && !stepRef.overrides.empty();
-                const bool hasActiveLock = hasLock && activeSlot >= 0
-                    && stepRef.overrides.has(activeSlot);
-                const bool hasFillLock = inRange && !stepRef.fillOverrides.empty();
-                const bool isHead = (absIdx == playheadAbs);
+                const SurfaceCell& sc = model.step[static_cast<std::size_t>(localIdx)];
 
-                const int x = colX(row, col + 2);  // +2: skip the two modifier columns
+                const int x = colX(row, col + 2);
                 const int y = rowY(row);
                 const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
-                const FillTrigState fts = inRange
-                    ? stepRef.fillTrigState : FillTrigState::Inherit;
-
-                static const juce::Colour kColFillAdd     { kStepFillAdd     };
-                static const juce::Colour kColFillSuppress { kStepFillSuppress };
-                static const juce::Colour kColFillPLock   { kStepFillPLock   };
-                static const juce::Colour kColScopeFill   { kScopeFill       };
-
-                // For fill-only steps (seq-off, FillTrigState::On) in non-fill mode,
-                // computePagePreview returns 0 (they don't fire). Use the step's condition
-                // probability directly so brightness is consistent with fill mode.
-                const float prob = [&]() -> float
-                {
-                    if (!inRange) return 0.0f;
-                    if (!hasTrig && fts == FillTrigState::On && !fillActive)
-                    {
-                        const auto& cond = stepRef.condition.isTrivial()
-                                           ? track.baseCond : stepRef.condition;
-                        return std::clamp(
-                            static_cast<float>(cond.probabilityPercent) / 100.0f,
-                            0.0f, 1.0f);
-                    }
-                    return preview[static_cast<std::size_t>(localIdx)];
-                }();
-
-                // Body colour: lerp from kColInactive (empty) toward the scope colour
-                // (green normally, chartreuse in fill mode). This guarantees every
-                // non-empty state is visually brighter than an empty step.
-                //
-                //   seq-on  + Inherit/On → full   (lerp = 0.15+prob*0.85)
-                //   seq-off + On         → 2/3    (lerp = 0.10+prob*0.57)
-                //   seq-on  + Off        → 1/3    (lerp = 0.05+prob*0.28)
-                //   seq-off + Off/Inherit → 0     (empty, kColInactive)
-                if (!inRange)
+                // Body fill — from model (fixes always-green: baseColour uses scopeColourFromState)
+                if (sc.base == CellState::StepOutOfRange)
                 {
                     g.setColour(kColOutRange);
                     g.fillRoundedRectangle(cell.toFloat(), 4.0f);
                 }
                 else
                 {
-                    const juce::Colour baseCol = fillActive ? kColScopeFill : kColActive;
-
-                    float lerpFrac = 0.0f;
-                    if (hasTrig)
-                    {
-                        if (fts == FillTrigState::Off)
-                            lerpFrac = juce::jlimit(0.05f, 0.33f, 0.05f + prob * 0.28f);
-                        else
-                            lerpFrac = juce::jlimit(0.15f, 1.0f, 0.15f + prob * 0.85f);
-                    }
-                    else if (fts == FillTrigState::On)
-                    {
-                        lerpFrac = juce::jlimit(0.10f, 0.67f, 0.10f + prob * 0.57f);
-                    }
-
-                    g.setColour(kColInactive.interpolatedWith(baseCol, lerpFrac));
+                    g.setColour(juce::Colour(sc.baseColour));
                     g.fillRoundedRectangle(cell.toFloat(), 4.0f);
 
-                    // Subtle outline on empty steps (not playhead, not held).
-                    if (lerpFrac < 0.001f && !isHead)
+                    // Subtle outline on empty in-range steps (not playhead)
+                    if (sc.level < 0.001f && !sc.border.present)
                     {
                         g.setColour(juce::Colour::fromRGB(70, 85, 100));
                         g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
                     }
 
-                    // Fill-mode border: orange = FillOn, blue = FillOff.
-                    if (fillActive && fts != FillTrigState::Inherit)
+                    // Fill-mode border (strip channel: orange=FillOn, blue=FillOff)
+                    if (sc.strip.present && fillActive)
                     {
-                        const juce::Colour borderCol =
-                            (fts == FillTrigState::On) ? kColFillAdd : kColFillSuppress;
-                        g.setColour(borderCol);
+                        g.setColour(juce::Colour(sc.strip.colour));
                         g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
                     }
                 }
 
-                if (isHead)
+                // Playhead overlay (border channel)
+                if (sc.border.present)
                 {
                     g.setColour(kColPlayhead.withAlpha(0.35f));
                     g.fillRoundedRectangle(cell.toFloat(), 4.0f);
@@ -1868,54 +1733,72 @@ namespace lockstep
                     g.drawRoundedRectangle(cell.toFloat(), 4.0f, 2.0f);
                 }
 
-                if (hasLock)
+                // P-Lock dot (dot channel) + active-slot outline (inline: screen only)
+                if (sc.dot.present)
                 {
                     g.setColour(kColPLock);
                     g.fillRect(juce::Rectangle<int>(cell.getRight() - 5,
                                                     cell.getY() + 2, 4, 4));
+                    const int activeSlot = ctx.activeSlot();
+                    if (inRange && activeSlot >= 0)
+                    {
+                        const auto& stepRef = track.steps[static_cast<std::size_t>(absIdx)];
+                        if (stepRef.overrides.has(activeSlot))
+                        {
+                            g.setColour(kColPLock);
+                            g.drawRoundedRectangle(cell.toFloat(), 4.0f, 2.0f);
+                        }
+                    }
                 }
-                if (hasActiveLock)
-                {
-                    g.setColour(kColPLock);
-                    g.drawRoundedRectangle(cell.toFloat(), 4.0f, 2.0f);
-                }
-                // Fill P-Lock badge: second dot below the normal P-Lock dot.
-                if (hasFillLock)
+
+                // Fill P-Lock badge (strip channel, in non-fill mode only)
+                if (sc.strip.present && !fillActive)
                 {
                     g.setColour(kColFillPLock);
                     g.fillRect(juce::Rectangle<int>(cell.getRight() - 5,
                                                     cell.getY() + 7, 4, 4));
                 }
-                if (isHeld)
+
+                // Held step outline
+                if (sc.base == CellState::StepHeld)
                 {
                     g.setColour(kColHeld);
                     g.drawRoundedRectangle(cell.toFloat(), 4.0f, 2.0f);
                 }
 
-                // MHZ.9.6: latched step — draw a scope-coloured dot at bottom-left.
-                if (inRange && ctx.isLatched(absIdx))
+                // Pressed step outline (Slice 2: new press feedback)
+                if (sc.pressed && sc.base != CellState::StepOutOfRange)
                 {
-                    const int pipSz = 5;
-                    g.setColour(juce::Colour(kScopeStep));
-                    g.fillEllipse(juce::Rectangle<int>(cell.getX() + 2,
-                                                       cell.getBottom() - pipSz - 2,
-                                                       pipSz, pipSz).toFloat());
+                    g.setColour(juce::Colours::white.withAlpha(0.65f));
+                    g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
                 }
 
-                // Note-count badge: 1–4 stacked tick marks on the left edge,
-                // one per note in the step's trig override chord.
+                // Latch pip (pip channel)
+                if (sc.pip.present)
+                {
+                    constexpr int kPipSz = 5;
+                    g.setColour(juce::Colour(sc.pip.colour));
+                    g.fillEllipse(juce::Rectangle<int>(cell.getX() + 2,
+                                                       cell.getBottom() - kPipSz - 2,
+                                                       kPipSz, kPipSz).toFloat());
+                }
+
+                // --- Screen-only residuals (controllers ignore) ---
+
+                // Note-count badge: stacked tick marks on the left edge, one per note.
                 if (inRange)
                 {
+                    const auto& stepRef = track.steps[static_cast<std::size_t>(absIdx)];
                     const int nc = stepRef.trigOverride.noteCount;
                     if (nc > 0)
                     {
-                        const juce::Colour noteCol = hasTrig
+                        const juce::Colour noteCol = stepRef.trig
                             ? juce::Colours::white.withAlpha(0.75f)
                             : juce::Colour::fromRGB(120, 180, 220).withAlpha(0.70f);
                         g.setColour(noteCol);
-                        const int dotH  = 3;
-                        const int dotW  = 3;
-                        const int gap   = 1;
+                        const int dotH   = 3;
+                        const int dotW   = 3;
+                        const int gap    = 1;
                         const int blockH = nc * dotH + (nc - 1) * gap;
                         int dotY = cell.getCentreY() - blockH / 2;
                         for (int n = 0; n < nc; ++n)

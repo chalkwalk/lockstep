@@ -115,7 +115,8 @@ namespace lockstep
                               const SurfaceModel& model);
         void paintFunctionRow(juce::Graphics& g, juce::Rectangle<int> area,
                               const SurfaceModel& model);
-        void paintStepRows   (juce::Graphics& g, juce::Rectangle<int> area);
+        void paintStepRows   (juce::Graphics& g, juce::Rectangle<int> area,
+                              const SurfaceModel& model);
         // Decorative edge/anchor keys rendered just outside each main row (ORL and STG
         // only; rowIndex 0-3 for number/Q/A/Z rows; JUCE clips the outer halves).
         void paintEdgeRow   (juce::Graphics& g, int rowIndex, juce::Rectangle<int> rowArea) const;
