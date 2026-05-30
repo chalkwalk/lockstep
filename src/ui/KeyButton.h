@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include "SurfaceModel.h"
 
 namespace lockstep
 {
@@ -47,4 +48,12 @@ namespace lockstep
                         bool                 showKeyHint,
                         bool                 compoundOverlay = false,
                         juce::Colour         latchColour     = juce::Colours::transparentBlack);
+
+    // Thin adapter: renders one SurfaceCell using paintKeyButton.
+    // groupForCell() resolves KeyGroup from button identity + cell state.
+    // All state needed for rendering is carried by the cell.
+    void paintCell(juce::Graphics&        g,
+                   juce::Rectangle<int>   cell,
+                   const SurfaceCell&     c,
+                   bool                   showKeyHint);
 }

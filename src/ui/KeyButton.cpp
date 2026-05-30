@@ -1,7 +1,105 @@
 #include "KeyButton.h"
+#include "UITheme.h"
 
 namespace lockstep
 {
+    using namespace theme;
+
+    // Maps a SurfaceCell's button identity and state to a KeyGroup.
+    // This is the single place that encodes the colour scheme for each key type.
+    static KeyGroup groupForCell(const SurfaceCell& c) noexcept
+    {
+        const bool isMode = (c.base == CellState::ModeActive);
+
+        switch (c.button)
+        {
+            // --- Number-row utility ---
+            case ControllerButton::Func:
+                return { kFuncInactive, kFuncActive, kFuncAccent };
+
+            case ControllerButton::TapTempo:
+                return { kTapInactive, kTapActive, kTapAccent };
+
+            // --- Number-row modifier (Track) ---
+            case ControllerButton::TrackScope:
+                return isMode
+                    ? KeyGroup{ kScopeTrackDim, kScopeTrack, kScopeTrack }
+                    : KeyGroup{ kScopeTrackDim, kPerfActive, kPerfAccent };
+
+            // --- Q-row modifiers (Pattern, Part) ---
+            case ControllerButton::PatternScope:
+                return isMode
+                    ? KeyGroup{ kScopePatternDim, kScopePattern, kScopePattern }
+                    : KeyGroup{ kScopePatternDim, kModActive,    kModAccent    };
+
+            case ControllerButton::PartScope:
+                return isMode
+                    ? KeyGroup{ kScopePartDim, kScopePart, kScopePart }
+                    : KeyGroup{ kScopePartDim, kPerfActive, kPerfAccent };
+
+            // --- Step-row modifiers (Scene, Master, Mute, Fill) ---
+            case ControllerButton::SceneScope:
+                return isMode
+                    ? KeyGroup{ kScopeSceneDim, kScopeScene, kScopeScene }
+                    : KeyGroup{ kScopeSceneDim, kModActive,  kModAccent  };
+
+            case ControllerButton::MasterScope:
+                return isMode
+                    ? KeyGroup{ kScopeMasterDim, kScopeMaster, kScopeMaster }
+                    : KeyGroup{ kScopeMasterDim, kPerfActive,  kPerfAccent  };
+
+            case ControllerButton::MuteScope:
+                // When ModeActive, baseColour carries kScopePMute or kScopeMute depending on Func.
+                return isMode
+                    ? KeyGroup{ kScopeMuteDim, c.baseColour, c.baseColour }
+                    : KeyGroup{ kScopeMuteDim, kModActive,   kModAccent   };
+
+            case ControllerButton::FillScope:
+                return isMode
+                    ? KeyGroup{ kScopeFillDim, kScopeFill, kScopeFill }
+                    : KeyGroup{ kScopeFillDim, kPerfActive, kPerfAccent };
+
+            // --- Navigation ---
+            case ControllerButton::NavUp:
+            case ControllerButton::NavLeft:
+            case ControllerButton::NavDown:
+            case ControllerButton::NavRight:
+                return { kNavInactive, kNavActive, kNavAccent };
+
+            // --- Verb keys ---
+            case ControllerButton::VerbYes:
+            case ControllerButton::VerbNo:
+                return { kActInactive, kActActive, kActAccent };
+
+            case ControllerButton::VerbRecord:
+                // OD armed: baseColour carries the amber active colour.
+                if (c.baseColour == 0xFFD2821Eu)
+                    return { 0xFF2E1E08u, 0xFFD2821Eu, 0xFFE0A040u };
+                return { kRecInactive, kRecActive, kRecAccent };
+
+            case ControllerButton::VerbPlay:
+            case ControllerButton::VerbStop:
+                return { kTrnInactive, kTrnActive, kTrnAccent };
+
+            // --- Section keys (canonical TRIG/SRC/FILTER/AMP/MOD/FX) ---
+            case ControllerButton::Section:
+                // baseColour distinguishes special visual modes
+                if (c.baseColour == kScopeMachine)
+                    return { kSecInactive, kScopeMachine,  kScopeMachine  };
+                if (c.baseColour == kScopeNoteEdit)
+                    return { kSecInactive, kScopeNoteEdit, kScopeNoteEdit };
+                if (c.baseColour == 0xFF404010u)            // master-active golden
+                    return { kSecInactive, 0xFF404010u, 0xFFFFB432u };
+                return { kSecInactive, kSecActive, kSecAccent };
+
+            default:
+                // Fallback: derive inactive from baseColour (for unknown future button types).
+                return { juce::Colour(c.baseColour).withMultipliedBrightness(0.25f).getARGB(),
+                         c.baseColour, c.baseColour };
+        }
+    }
+
+
     void paintCellKeyHint(juce::Graphics& g, juce::Rectangle<int> inner,
                           const juce::String& hint, float alpha)
     {
@@ -106,5 +204,28 @@ namespace lockstep
             g.setColour(latchColour);
             g.fillEllipse(pip.toFloat());
         }
+    }
+
+    void paintCell(juce::Graphics& g, juce::Rectangle<int> cell,
+                   const SurfaceCell& c, bool showKeyHint)
+    {
+        // Derive KeyButtonState from cell flags.
+        KeyButtonState st;
+        if (c.pressed)
+            st = KeyButtonState::Pressed;
+        else if (c.disabled)
+            st = KeyButtonState::Disabled;
+        else if (c.base == CellState::ModeActive)
+            st = KeyButtonState::ModeActive;
+        else
+            st = KeyButtonState::Normal;
+
+        const KeyGroup   grp         = groupForCell(c);
+        const bool       compound    = c.strip.present;
+        const juce::Colour latchCol  = c.pip.present
+            ? juce::Colour(c.pip.colour) : juce::Colours::transparentBlack;
+
+        paintKeyButton(g, cell, c.keyHint, c.primary, c.funcHint,
+                       grp, st, showKeyHint, compound, latchCol);
     }
 }
