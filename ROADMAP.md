@@ -1946,9 +1946,13 @@ seam later, not built now).
         `paintSectionRow`/`paintFunctionRow` re-pointed; dead inline code removed.
         Screen acceptance criteria: Func-hint promotion ✓, held-modifier scope tint ✓,
         press highlight uniform ✓.
-      - [ ] Slice 2: Normal step grid tint (scope colour; fixes always-green; `pressed`).
-      - [ ] Slice 3: Mute re-skin → model (fixes missing press-highlight).
-      - [ ] Slice 4: Scope re-skin → model (fixes missing press-highlight).
+      - [x] Slice 2: Normal step grid tint (scope colour; fixes always-green; `pressed`).
+        Body colour from `scopeColourFromState`; press outline; decoration channels for
+        playhead/P-Lock/fill-border/latch; `stepPagePreview` in builder.
+      - [x] Slice 3: Mute re-skin → model (fixes missing press-highlight when mute held).
+        Builder conditionally fills `MuteMuted`/`MuteAudible`/`SelectorOutRange` tokens.
+      - [x] Slice 4: Scope re-skin → model (fixes missing press-highlight when scope held).
+        `SelectorCurrent/Next/Chain/Occupied/Empty/OutRange`; chain pos in `level`.
       - [ ] Slice 5: Remaining overlays (machine picker, note-edit, P-Lock clear,
         chromatic, levels).
       - [ ] Slice 6: `jassert` invariant + headless `SurfaceModelTest`.
