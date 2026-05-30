@@ -1489,123 +1489,36 @@ namespace lockstep
             return;
         }
 
-        // MHZ.2.1: scope re-skin — Track/Pattern/Part held → 1-of-N index picker.
-        // The 16 step cells become a flat non-paginated selector tinted with the
-        // scope colour. Unavailable indices are dimmed. Normal step rendering is
-        // suppressed entirely while the re-skin is active.
+        // MHZ.2.1: scope re-skin — Slice 4: consume model.step[] built by builder.
+        // Fill and pressed derive from model; border, text, badge stay inline.
         const bool scopeReskin = uiState_.trackHeld || uiState_.patternScopeHeld
                                                      || uiState_.partHeld;
         if (scopeReskin)
         {
             const juce::Colour scopeTint = scopeColourFromState(uiState_);
-            int maxAvail;
-            int activeIdx;
-            if (uiState_.trackHeld)
-            {
-                maxAvail  = static_cast<int>(kNumTracks);
-                activeIdx = activeTrack_;
-            }
-            else if (uiState_.patternScopeHeld)
-            {
-                maxAvail  = kPatternsPerBank;
-                activeIdx = processor_.activePatternIdx();
-            }
-            else // partHeld
-            {
-                maxAvail  = kPartsPerBank;
-                activeIdx = static_cast<int>(processor_.activePattern().partRef);
-            }
-
-            // For Pattern scope, build a per-cell chain-position map so each cell
-            // can show a distinct visual state: active / next (pos 1) / chain (pos 2+).
-            // chainPos[idx] = 1 for the queued-next pattern, 2+ for chain entries,
-            // 0 means not in the queue/chain. The first occurrence wins (a pattern
-            // can repeat in the chain; show the earliest position).
-            // chainPos[idx]: 0 = not queued, 1 = next, 2+ = chain position.
-            // Playing: queuedPattern is position 1, chain_ entries follow as 2, 3…
-            // Stopped:  no queuedPattern; chain_ entries are positions 1, 2, 3…
-            //           (immediate swap already updated activePatternIdx, so chain
-            //            entries are the upcoming patterns after the current one).
-            std::array<int, kPatternsPerBank> chainPos{};
-            if (uiState_.patternScopeHeld)
-            {
-                int nextChainPos;   // position number for chain_[0]
-                if (processor_.hasQueuedPattern())
-                {
-                    const int qi = processor_.queuedPatternPatIdx();
-                    if (qi >= 0 && qi < kPatternsPerBank && chainPos[static_cast<std::size_t>(qi)] == 0)
-                        chainPos[static_cast<std::size_t>(qi)] = 1;
-                    nextChainPos = 2;
-                }
-                else
-                {
-                    nextChainPos = 1;  // stopped: chain[0] is the very next pattern
-                }
-
-                const int chainLen = processor_.chainLength();
-                for (int ci = 0; ci < chainLen; ++ci)
-                {
-                    const auto [bi, pi] = processor_.chainEntry(ci);
-                    (void)bi;
-                    if (pi >= 0 && pi < kPatternsPerBank && chainPos[static_cast<std::size_t>(pi)] == 0)
-                        chainPos[static_cast<std::size_t>(pi)] = nextChainPos + ci;
-                }
-            }
-
-            // Pre-compute isEmpty per cell: uninitialised slots get a distinct visual.
-            const int activeBankIdx = processor_.activeBankIdx();
-            std::array<bool, 16> slotEmpty{};
-            for (int i = 0; i < maxAvail; ++i)
-            {
-                if (uiState_.trackHeld)
-                    slotEmpty[static_cast<std::size_t>(i)] = processor_.isTrackEmpty(i);
-                else if (uiState_.patternScopeHeld)
-                    slotEmpty[static_cast<std::size_t>(i)] =
-                        !processor_.isPatternInitialised(activeBankIdx, i);
-                else  // partHeld
-                    slotEmpty[static_cast<std::size_t>(i)] =
-                        !processor_.isPartInitialised(activeBankIdx, i);
-            }
 
             for (int row = 0; row < kRows; ++row)
             {
                 for (int col = 0; col < kCols; ++col)
                 {
-                    const int idx        = row * kCols + col;
-                    const bool avail     = idx < maxAvail;
-                    const bool isEmpty   = avail && slotEmpty[static_cast<std::size_t>(idx)];
-                    const bool isCurrent = avail && !isEmpty && (idx == activeIdx);
-                    const int  cpos      = (uiState_.patternScopeHeld && avail && !isEmpty)
-                                           ? chainPos[static_cast<std::size_t>(idx)] : 0;
-                    const bool isNext    = cpos == 1;
-                    const bool isChain   = cpos >= 2;
-
-                    const int x    = colX(row, col + 2);
-                    const int y    = rowY(row);
+                    const int idx = row * kCols + col;
+                    const SurfaceCell& sc = model.step[static_cast<std::size_t>(idx)];
+                    const int x   = colX(row, col + 2);
+                    const int y   = rowY(row);
                     const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
-                    // Three-state fill: all cells derive from scopeTint.
-                    // Out-of-range / empty: faint tint (black overlay).
-                    // Present not selected (idle/chain): moderate tint.
-                    // Selected (current): white overlay — bright scope colour.
-                    juce::Colour fill;
-                    if (!avail)
-                        fill = scopeTint.withAlpha(0.04f);
-                    else if (isEmpty)
-                        fill = scopeTint.withAlpha(0.09f);
-                    else if (isCurrent && !isNext)
-                        fill = juce::Colours::white.interpolatedWith(scopeTint, 0.30f);
-                    else if (isNext)
-                        fill = scopeTint.withAlpha(0.80f);
-                    else if (isChain)
-                        fill = scopeTint.withAlpha(0.42f);
-                    else
-                        fill = scopeTint.withAlpha(0.18f);
+                    const bool avail    = sc.base != CellState::SelectorOutRange;
+                    const bool isEmpty  = sc.base == CellState::SelectorEmpty;
+                    const bool isCurrent = sc.base == CellState::SelectorCurrent;
+                    const bool isNext   = sc.base == CellState::SelectorNext;
+                    const bool isChain  = sc.base == CellState::SelectorChain;
+                    const int  cpos     = static_cast<int>(sc.level);
 
-                    g.setColour(fill);
+                    // Fill from model
+                    g.setColour(juce::Colour(sc.baseColour));
                     g.fillRoundedRectangle(cell.toFloat(), 4.0f);
 
-                    // Border: occupied slots get a rim; empty and out-of-range do not.
+                    // Border: occupied slots get a rim
                     if (!isEmpty && avail && isCurrent && !isNext)
                     {
                         g.setColour(juce::Colours::white.withAlpha(0.70f));
@@ -1617,12 +1530,18 @@ namespace lockstep
                         g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
                     }
 
-                    // Label: number for occupied/out-of-range; ~ or + for empty slots.
-                    // ~ = "press to copy current here" (no Func); + = "create default" (Func held).
+                    // Press feedback (Slice 4 fix: was missing)
+                    if (sc.pressed && avail)
+                    {
+                        g.setColour(juce::Colours::white.withAlpha(0.65f));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
+                    }
+
+                    // Label
                     const juce::String label = isEmpty
                         ? (uiState_.funcHeld ? "+" : "~")
                         : juce::String(idx + 1);
-                    const juce::Colour textCol = (!avail)
+                    const juce::Colour textCol = !avail
                         ? juce::Colour::fromRGB(50, 55, 60)
                         : isEmpty
                             ? juce::Colour::fromRGB(80, 85, 90)
@@ -1632,7 +1551,7 @@ namespace lockstep
                     g.setFont(juce::Font(juce::FontOptions(9.0f)));
                     g.drawText(label, cell.reduced(2), juce::Justification::centred);
 
-                    // Chain-position badge: only for occupied, queued entries.
+                    // Chain-position badge (cpos encoded in sc.level by builder)
                     if (cpos > 0 && !isEmpty)
                     {
                         const auto badge = cell.withWidth(11).withHeight(11)
@@ -1651,7 +1570,6 @@ namespace lockstep
                                          !avail ? 0.45f : isNext ? 0.4f : 1.0f);
                 }
             }
-            // Nav row hint
             g.setColour(juce::Colour::fromRGB(80, 95, 115));
             g.setFont(juce::Font(juce::FontOptions(10.0f)));
             g.drawText(uiState_.trackHeld          ? "SELECT TRACK"

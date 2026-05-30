@@ -576,6 +576,119 @@ namespace lockstep
                         : audibleCol.getARGB();
                 }
             }
+            else if (ui.trackHeld || ui.patternScopeHeld || ui.partHeld)
+            {
+                // Scope re-skin (Slice 4): cells encode track/pattern/part selector state.
+                // fill colour + pressed → builder; border/text/badge → inline screen residuals.
+                const juce::Colour scopeTint = scopeColourFromState(ui);
+
+                int maxAvail = 0;
+                int activeIdx = 0;
+                if (ui.trackHeld)
+                {
+                    maxAvail  = static_cast<int>(kNumTracks);
+                    activeIdx = activeTrack;
+                }
+                else if (ui.patternScopeHeld)
+                {
+                    maxAvail  = kPatternsPerBank;
+                    activeIdx = proc.activePatternIdx();
+                }
+                else // partHeld
+                {
+                    maxAvail  = kPartsPerBank;
+                    activeIdx = static_cast<int>(proc.activePattern().partRef);
+                }
+
+                std::array<int, kPatternsPerBank> chainPos{};
+                if (ui.patternScopeHeld)
+                {
+                    int nextChainPos;
+                    if (proc.hasQueuedPattern())
+                    {
+                        const int qi = proc.queuedPatternPatIdx();
+                        if (qi >= 0 && qi < kPatternsPerBank && chainPos[static_cast<std::size_t>(qi)] == 0)
+                            chainPos[static_cast<std::size_t>(qi)] = 1;
+                        nextChainPos = 2;
+                    }
+                    else
+                    {
+                        nextChainPos = 1;
+                    }
+                    const int chainLen = proc.chainLength();
+                    for (int ci = 0; ci < chainLen; ++ci)
+                    {
+                        const auto [bi, pi] = proc.chainEntry(ci);
+                        (void)bi;
+                        if (pi >= 0 && pi < kPatternsPerBank && chainPos[static_cast<std::size_t>(pi)] == 0)
+                            chainPos[static_cast<std::size_t>(pi)] = nextChainPos + ci;
+                    }
+                }
+
+                const int bankIdx = proc.activeBankIdx();
+                std::array<bool, 16> slotEmpty{};
+                for (int i = 0; i < maxAvail; ++i)
+                {
+                    if (ui.trackHeld)
+                        slotEmpty[static_cast<std::size_t>(i)] = proc.isTrackEmpty(i);
+                    else if (ui.patternScopeHeld)
+                        slotEmpty[static_cast<std::size_t>(i)] = !proc.isPatternInitialised(bankIdx, i);
+                    else
+                        slotEmpty[static_cast<std::size_t>(i)] = !proc.isPartInitialised(bankIdx, i);
+                }
+
+                for (int i = 0; i < 16; ++i)
+                {
+                    SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                    c.button  = ControllerButton::Step;
+                    c.index   = i;
+                    c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                    c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+
+                    const bool avail   = i < maxAvail;
+                    const bool isEmpty = avail && slotEmpty[static_cast<std::size_t>(i)];
+                    const bool isCurrent = avail && !isEmpty && (i == activeIdx);
+                    const int  cpos = (ui.patternScopeHeld && avail && !isEmpty)
+                                      ? chainPos[static_cast<std::size_t>(i)] : 0;
+                    const bool isNext  = cpos == 1;
+                    const bool isChain = cpos >= 2;
+
+                    // CellState token + fill colour
+                    if (!avail)
+                    {
+                        c.base      = CellState::SelectorOutRange;
+                        c.baseColour = scopeTint.withAlpha(0.04f).getARGB();
+                    }
+                    else if (isEmpty)
+                    {
+                        c.base      = CellState::SelectorEmpty;
+                        c.baseColour = scopeTint.withAlpha(0.09f).getARGB();
+                    }
+                    else if (isNext)
+                    {
+                        c.base      = CellState::SelectorNext;
+                        c.baseColour = scopeTint.withAlpha(0.80f).getARGB();
+                    }
+                    else if (isChain)
+                    {
+                        c.base      = CellState::SelectorChain;
+                        c.baseColour = scopeTint.withAlpha(0.42f).getARGB();
+                    }
+                    else if (isCurrent)
+                    {
+                        c.base      = CellState::SelectorCurrent;
+                        c.baseColour = juce::Colours::white.interpolatedWith(scopeTint, 0.30f).getARGB();
+                    }
+                    else
+                    {
+                        c.base      = CellState::SelectorOccupied;
+                        c.baseColour = scopeTint.withAlpha(0.18f).getARGB();
+                    }
+
+                    // level encodes chain position for badge rendering in paintStepRows
+                    c.level = static_cast<float>(cpos);
+                }
+            }
             else
             {
 
