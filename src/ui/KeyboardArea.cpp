@@ -905,88 +905,20 @@ namespace lockstep
             paintEdgeRow(g, 2 + row, rowRect);
         }
 
-        // Compound overlay state — MHY columns.
-        const bool col1any = uiState_.patternScopeHeld || uiState_.sceneHeld || uiState_.muteHeld;
-        const bool col2any = uiState_.trackHeld || uiState_.partHeld
-                                                || uiState_.masterHeld || uiState_.fillHeld;
-        const bool hasCompound = (uiState_.funcHeld && (col1any || col2any)) || (col1any && col2any);
-
-        // Two modifier columns per row (MHY identities):
-        //   col-1: row 0 = A/SCN, row 1 = Z/MUT
-        //   col-2: row 0 = S/MST, row 1 = X/FIL
+        // Step-row modifier cells (A/S/Z/X) — rendered from model.modifiers[4..7].
+        // Model carries funcHint (PMUTE for Mute, etc.), pressed, pip, and strip.
+        // modifiers index: 4=Scene(A), 5=Master(S), 6=Mute(Z), 7=Fill(X).
         {
-            struct ModDef {
-                int         keyCode;
-                const char* keyHint;
-                const char* label;
-                bool        isHeld;
-                KeyGroup    grp;
-                bool        overlay;
-                uint32_t    scopeActive;  // colour used when ModeActive
-                uint32_t    scopeDim;     // dark tint used for inactive background
-            };
-
-            const std::array<std::array<ModDef, 2>, kRows> mods = {{
-                // Row 0 (A row): A=Scene (col-1), S=Master (col-2)
-                std::array<ModDef, 2>{{
-                    { 'A', "A", "SCENE",  uiState_.sceneHeld,
-                      { kScopeSceneDim, kModActive, kModAccent },
-                      hasCompound && uiState_.sceneHeld, kScopeScene, kScopeSceneDim },
-                    { 'S', "S", "MASTER", uiState_.masterHeld,
-                      { kScopeMasterDim, kPerfActive, kPerfAccent },
-                      hasCompound && uiState_.masterHeld, kScopeMaster, kScopeMasterDim },
-                }},
-                // Row 1 (Z row): Z=Mute (col-1), X=Fill (col-2)
-                std::array<ModDef, 2>{{
-                    { 'Z', "Z", "MUTE", uiState_.muteHeld,
-                      { kScopeMuteDim, kModActive, kModAccent },
-                      hasCompound && uiState_.muteHeld, kScopeMute, kScopeMuteDim },
-                    { 'X', "X", "FILL", uiState_.fillHeld,
-                      { kScopeFillDim, kPerfActive, kPerfAccent },
-                      hasCompound && uiState_.fillHeld, kScopeFill, kScopeFillDim },
-                }},
-            }};
-
-            // MHZ.9.6: latch pip colours for Scene/Master/Mute/Fill (A/S/Z/X).
-            const std::array<std::array<uint32_t, 2>, kRows> kLatchCols = {{
-                { kScopeScene, kScopeMaster },
-                { kScopeMute,  kScopeFill   },
-            }};
-            const std::array<std::array<bool, 2>, kRows> modLatched = {{
-                { uiState_.latch.scene,  uiState_.latch.master },
-                { uiState_.latch.mute,   uiState_.latch.fill   },
-            }};
-
             for (int row = 0; row < kRows; ++row)
             {
                 for (int mc = 0; mc < 2; ++mc)
                 {
-                    const auto& md  = mods[static_cast<std::size_t>(row)]
-                                         [static_cast<std::size_t>(mc)];
-                    const int x     = colX(row, mc);
-                    const int y     = rowY(row);
-                    const auto cell = juce::Rectangle<int>(x, y, cellW, cellH);
-
-                    const bool keyDown = isKeyPressed(md.keyCode);
-                    KeyButtonState st  = KeyButtonState::Normal;
-                    if      (keyDown)    st = KeyButtonState::Pressed;
-                    else if (md.isHeld)  st = KeyButtonState::ModeActive;
-
-                    // Always show dim scope colour at rest; full scope colour when active.
-                    KeyGroup grp = md.grp;
-                    if (st == KeyButtonState::ModeActive)
-                        grp = KeyGroup{ md.scopeDim, md.scopeActive, md.scopeActive };
-
-                    const juce::Colour latchCol = modLatched[static_cast<std::size_t>(row)]
-                                                             [static_cast<std::size_t>(mc)]
-                        ? juce::Colour(kLatchCols[static_cast<std::size_t>(row)]
-                                                 [static_cast<std::size_t>(mc)])
-                        : juce::Colours::transparentBlack;
-
-                    paintKeyButton(g, cell,
-                                   showKeyLetters ? md.keyHint : "",
-                                   md.label, "",
-                                   grp, st, showKeyLetters, md.overlay, latchCol);
+                    const int modIdx = 4 + row * 2 + mc;
+                    const int x      = colX(row, mc);
+                    const int y      = rowY(row);
+                    const auto cell  = juce::Rectangle<int>(x, y, cellW, cellH);
+                    paintCell(g, cell, model.modifiers[static_cast<std::size_t>(modIdx)],
+                              showKeyLetters);
                 }
             }
         }
@@ -1724,31 +1656,10 @@ namespace lockstep
                     }
                 }
 
-                const bool hasTrackSelect = inRange && (row == 0);
-                const bool shiftHeld = uiState_.funcHeld;
-                static constexpr int kTrackLabelH = 11;
-                const auto stepNumArea = hasTrackSelect
-                    ? cell.withTrimmedBottom(kTrackLabelH) : cell;
-                const float stepNumAlpha = (hasTrackSelect && shiftHeld) ? 0.35f : 1.0f;
-                g.setColour((inRange ? juce::Colour::fromRGB(110, 130, 150)
-                                     : juce::Colour::fromRGB(40, 46, 54))
-                            .withMultipliedAlpha(stepNumAlpha));
+                g.setColour(inRange ? juce::Colour::fromRGB(110, 130, 150)
+                                   : juce::Colour::fromRGB(40, 46, 54));
                 g.setFont(juce::Font(juce::FontOptions(9.0f)));
-                g.drawText(juce::String(absIdx + 1), stepNumArea,
-                           juce::Justification::centred);
-
-                if (hasTrackSelect)
-                {
-                    static constexpr const char* kTrackLabels[kCols] = {
-                        "T1","T2","T3","T4","T5","T6","T7","T8"
-                    };
-                    const float trackAlpha = shiftHeld ? 1.0f : 0.3f;
-                    g.setFont(juce::Font(juce::FontOptions(8.0f)));
-                    g.setColour(juce::Colour::fromRGB(160, 185, 210).withAlpha(trackAlpha));
-                    g.drawText(kTrackLabels[col],
-                               cell.withTrimmedTop(cell.getHeight() - kTrackLabelH).reduced(2, 0),
-                               juce::Justification::centredBottom);
-                }
+                g.drawText(juce::String(absIdx + 1), cell, juce::Justification::centred);
             }
         }
 
