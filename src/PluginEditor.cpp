@@ -1426,6 +1426,14 @@ namespace lockstep
             case ControllerButton::NavUp:
             {
                 const int t = keyboardArea_.getActiveTrack();
+                // Func+↑ = double the focused track's pattern length.
+                if (uiState_.funcHeld && !uiState_.trackHeld)
+                {
+                    if (t >= 0 && t < static_cast<int>(kNumTracks))
+                        processor_.doubleTrackLength(t);
+                    keyboardArea_.repaint();
+                    return true;
+                }
                 // MHZ.9.7: Track (no specific track selected) + NavUp → cycle input mode upward.
                 if (uiState_.trackHeld && processor_.controlAllActive()
                     && t >= 0 && t < static_cast<int>(kNumTracks))
@@ -1452,6 +1460,14 @@ namespace lockstep
             case ControllerButton::NavDown:
             {
                 const int t = keyboardArea_.getActiveTrack();
+                // Func+↓ = halve the focused track's pattern length.
+                if (uiState_.funcHeld && !uiState_.trackHeld)
+                {
+                    if (t >= 0 && t < static_cast<int>(kNumTracks))
+                        processor_.halveTrackLength(t);
+                    keyboardArea_.repaint();
+                    return true;
+                }
                 // MHZ.9.7: Track (no specific track selected) + NavDown → cycle input mode downward.
                 if (uiState_.trackHeld && processor_.controlAllActive()
                     && t >= 0 && t < static_cast<int>(kNumTracks))
@@ -1495,6 +1511,15 @@ namespace lockstep
                 const int tr = keyboardArea_.getActiveTrack();
                 const bool chromR = tr >= 0 && tr < static_cast<int>(kNumTracks)
                     && uiState_.trackInputMode[static_cast<std::size_t>(tr)] == TrackInputMode::Chromatic;
+                // Func+→ = rotate the focused track's sequence one step right.
+                // In note-edit or Chromatic mode, Func+→ keeps its octave-shift role.
+                if (uiState_.funcHeld && !uiState_.noteEditMode && !chromR)
+                {
+                    if (tr >= 0 && tr < static_cast<int>(kNumTracks))
+                        processor_.rotateTrackSteps(tr, +1);
+                    keyboardArea_.repaint();
+                    return true;
+                }
                 if (uiState_.noteEditMode || chromR)
                 {
                     uiState_.noteEditOctave = std::min(uiState_.noteEditOctave + 1, 8);

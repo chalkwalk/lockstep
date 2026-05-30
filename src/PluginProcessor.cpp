@@ -1880,6 +1880,47 @@ namespace lockstep
         return (it != checkpoints_.end()) ? static_cast<int>(it->second.size()) : 0;
     }
 
+    void LockstepProcessor::rotateTrackSteps(int track, int dir)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        auto& trk = sequence().tracks[static_cast<std::size_t>(track)];
+        const int len = std::max(1, trk.length);
+        if (len <= 1) return;
+        if (dir > 0)
+            std::rotate(trk.steps.begin(), trk.steps.begin() + 1,
+                        trk.steps.begin() + len);
+        else
+            std::rotate(trk.steps.begin(), trk.steps.begin() + (len - 1),
+                        trk.steps.begin() + len);
+    }
+
+    void LockstepProcessor::doubleTrackLength(int track)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        auto& trk = sequence().tracks[static_cast<std::size_t>(track)];
+        const int len = std::max(1, trk.length);
+        const int newLen = std::min(len * 2, kMaxStepsPerTrack);
+        if (newLen <= len) return;
+        for (int i = len; i < newLen; ++i)
+            trk.steps[static_cast<std::size_t>(i)] =
+                trk.steps[static_cast<std::size_t>(i % len)];
+        trk.length = newLen;
+        if (auto* p = apvts_.getRawParameterValue(ParamIDs::trackLength(track)))
+            p->store(static_cast<float>(newLen));
+    }
+
+    void LockstepProcessor::halveTrackLength(int track)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        auto& trk = sequence().tracks[static_cast<std::size_t>(track)];
+        const int len = std::max(1, trk.length);
+        const int newLen = std::max(1, len / 2);
+        if (newLen >= len) return;
+        trk.length = newLen;
+        if (auto* p = apvts_.getRawParameterValue(ParamIDs::trackLength(track)))
+            p->store(static_cast<float>(newLen));
+    }
+
     bool LockstepProcessor::isTrackMidiOut(int track) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;

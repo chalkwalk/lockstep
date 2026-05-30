@@ -307,9 +307,9 @@ namespace lockstep
             c.pressed  = physPressed('4', ControllerButton::NavUp);
             c.base     = c.pressed ? CellState::Pressed : CellState::Resting;
             c.baseColour = kNavActive;
-            // Func-hint promotion: when Func held, POOL is the live function.
-            if (ui.funcHeld) { c.primary = "POOL";                c.funcHint = {};      }
-            else             { c.primary = juce::String(u8"↑");  c.funcHint = "POOL"; }
+            // Func-hint promotion: when Func held, ×2 (double length) is the live function.
+            if (ui.funcHeld) { c.primary = juce::String(u8"×2"); c.funcHint = {};             }
+            else             { c.primary = juce::String(u8"↑");  c.funcHint = juce::String(u8"×2"); }
             jassert(!c.primary.isEmpty());
         }
 
@@ -437,8 +437,8 @@ namespace lockstep
             { 'Q', u8"Q", u8"PAT",   u8"",       ControllerButton::PatternScope, KeyRole::Modifier  },
             { 'W', u8"W", u8"PART",  u8"MACH",   ControllerButton::PartScope,    KeyRole::Modifier  },
             { 'E', u8"E", u8"←",     u8"RST",    ControllerButton::NavLeft,      KeyRole::Nav       },
-            { 'R', u8"R", u8"↓",     u8"KEY",    ControllerButton::NavDown,      KeyRole::Nav       },
-            { 'T', u8"T", u8"→",     u8"RETRIG", ControllerButton::NavRight,     KeyRole::Nav       },
+            { 'R', u8"R", u8"↓",     u8"÷2",     ControllerButton::NavDown,      KeyRole::Nav       },
+            { 'T', u8"T", u8"→",     u8"ROT",    ControllerButton::NavRight,     KeyRole::Nav       },
             { 'Y', u8"Y", u8"YES",   u8"SNAP",   ControllerButton::VerbYes,      KeyRole::VerbYes   },
             { 'U', u8"U", u8"REC",   u8"",       ControllerButton::VerbRecord,   KeyRole::VerbCopy  },
             { 'I', u8"I", u8"PLAY",  u8"",       ControllerButton::VerbPlay,     KeyRole::VerbPaste },
