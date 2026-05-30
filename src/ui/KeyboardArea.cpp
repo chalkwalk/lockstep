@@ -1613,49 +1613,6 @@ namespace lockstep
                     paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(localIdx)],
                                      inRange ? 1.0f : 0.45f);
 
-                // MG.1: In Keyboard mode show the note name centred on the cell.
-                if (uiState_.trigGridMode == TrigGridMode::Keyboard && inRange)
-                {
-                    static constexpr const char* kNoteNames[] = {
-                        "C","C#","D","D#","E","F","F#","G","G#","A","A#","B"
-                    };
-                    const int midiNote  = juce::jlimit(0, 127,
-                                             uiState_.keyboardRoot + localIdx);
-                    const int noteClass = midiNote % 12;
-                    const bool isSharp  = (noteClass == 1 || noteClass == 3 || noteClass == 6
-                                        || noteClass == 8 || noteClass == 10);
-                    g.setFont(juce::Font(juce::FontOptions(9.0f)));
-                    g.setColour(isSharp ? juce::Colour::fromRGB(200, 160, 100)
-                                       : juce::Colour::fromRGB(220, 220, 220));
-                    g.drawText(juce::String(kNoteNames[noteClass]),
-                               cell.reduced(2),
-                               juce::Justification::centred, false);
-                }
-
-                // MG.5: In Sound Pool mode show the pool entry index on the cell.
-                if (uiState_.trigGridMode == TrigGridMode::SoundPool && inRange)
-                {
-                    const int poolSize = processor_.soundPoolSize();
-                    const bool hasEntry = localIdx < poolSize;
-                    g.setFont(juce::Font(juce::FontOptions(9.0f)));
-                    if (hasEntry)
-                    {
-                        const auto* e = processor_.soundPoolEntry(localIdx);
-                        g.setColour(juce::Colour::fromRGB(180, 220, 180));
-                        const juce::String label = (e != nullptr)
-                            ? juce::String(localIdx + 1) + " " + juce::String(e->name).substring(0, 6)
-                            : juce::String(localIdx + 1);
-                        g.drawText(label, cell.reduced(2),
-                                   juce::Justification::centred, true);
-                    }
-                    else
-                    {
-                        g.setColour(juce::Colour::fromRGB(60, 70, 80));
-                        g.drawText("--", cell.reduced(2),
-                                   juce::Justification::centred, false);
-                    }
-                }
-
                 g.setColour(inRange ? juce::Colour::fromRGB(110, 130, 150)
                                    : juce::Colour::fromRGB(40, 46, 54));
                 g.setFont(juce::Font(juce::FontOptions(9.0f)));
@@ -1673,30 +1630,6 @@ namespace lockstep
                 + "     Length:",
             infoRect, juce::Justification::centredLeft);
 
-        // Trig grid mode indicator badge
-        const auto mode = uiState_.trigGridMode;
-        if (mode != TrigGridMode::Default)
-        {
-            static constexpr const char* kRateLabels[] = {
-                "RTG 1/16", "RTG 1/32", "RTG 1/48", "RTG 1/96"
-            };
-            const char* label;
-            int badgeW;
-            if (mode == TrigGridMode::Keyboard)  { label = "KEY"; badgeW = 36; }
-            else if (mode == TrigGridMode::Retrig)
-            {
-                label  = kRateLabels[juce::jlimit(0, 3, uiState_.retrigRateIndex)];
-                badgeW = 68;
-            }
-            else { label = "SPL"; badgeW = 36; }
-
-            const auto badgeRect = cellArea.withHeight(18).withWidth(badgeW).reduced(3);
-            g.setColour(juce::Colour(0xFFD07030u));
-            g.fillRoundedRectangle(badgeRect.toFloat(), 4.0f);
-            g.setColour(juce::Colours::white);
-            g.setFont(juce::Font(juce::FontOptions(11.0f)));
-            g.drawText(label, badgeRect, juce::Justification::centred);
-        }
     }
 
     // -------------------------------------------------------------------------

@@ -48,11 +48,6 @@ namespace lockstep
         Snapshot,         // Func+Y: push checkpoint
         Restore,          // Func+P: pop checkpoint
 
-        // Trig-grid mode chords: held = mode active, exit on release.
-        TrigModeKeyboard, // Func+R: 16 trig keys -> chromatic keyboard
-        TrigModeRetrig,   // Func+T: 16 trig keys -> retrigger pads
-        TrigModeSoundPool,// Func+4: 16 trig keys -> sound pool browser
-
         // Navigation (E=Left, R=Up, T=Down, Y=Right).
         NavUp, NavLeft, NavDown, NavRight,
 

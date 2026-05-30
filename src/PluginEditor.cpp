@@ -869,9 +869,6 @@ namespace lockstep
             case CB::VerbNo:
             case CB::Snapshot:
             case CB::Restore:
-            case CB::TrigModeKeyboard:
-            case CB::TrigModeRetrig:
-            case CB::TrigModeSoundPool:
             case CB::NavUp:
             case CB::NavLeft:
             case CB::NavDown:
@@ -1094,7 +1091,7 @@ namespace lockstep
                     const int at = keyboardArea_.getActiveTrack();
                     if (at >= 0 && at < static_cast<int>(kNumTracks)
                         && uiState_.trackInputMode[static_cast<std::size_t>(at)] == TrackInputMode::Chromatic
-                        && uiState_.trigGridMode == TrigGridMode::Default)
+                        )
                     {
                         if (ev.index < 0 || ev.index >= 16) return true;
                         const int semitone = kPianoNoteOffset[static_cast<std::size_t>(ev.index)];
@@ -1136,7 +1133,7 @@ namespace lockstep
                     const int at = keyboardArea_.getActiveTrack();
                     if (at >= 0 && at < static_cast<int>(kNumTracks)
                         && uiState_.trackInputMode[static_cast<std::size_t>(at)] == TrackInputMode::Levels
-                        && uiState_.trigGridMode == TrigGridMode::Default)
+                        )
                     {
                         const int vel = juce::roundToInt((ev.index + 1.0f) / 16.0f * 127.0f);
                         const int pitch = uiState_.lastPlayedNote[static_cast<std::size_t>(at)];
@@ -1172,95 +1169,6 @@ namespace lockstep
                         keyboardArea_.repaint();
                         return true;
                     }
-                }
-
-                // MG.5: Sound Pool mode — step keys select pool entries by index.
-                // Holding a key live-swaps the focused track's sound; record-arm
-                // captures the pool index as a sound_id override on the held step.
-                if (uiState_.trigGridMode == TrigGridMode::SoundPool)
-                {
-                    const int activeTrack = keyboardArea_.getActiveTrack();
-                    if (!uiState_.soundPoolKeyHeld && ev.index < processor_.soundPoolSize())
-                    {
-                        auto& ctx = processor_.editContext();
-                        if (ctx.isActiveForEditing()
-                            && ctx.heldTrackIndex() == activeTrack)
-                        {
-                            auto& trk = processor_.sequence()
-                                            .tracks[static_cast<std::size_t>(activeTrack)];
-                            for (int heldIdx : ctx.heldSteps())
-                            {
-                                if (heldIdx < 0 || heldIdx >= kMaxStepsPerTrack) continue;
-                                auto& s = trk.steps[static_cast<std::size_t>(heldIdx)];
-                                s.trigOverride.hasSoundId = true;
-                                s.trigOverride.soundId    = ev.index;
-                                s.trig = true;
-                            }
-                            ctx.markParamWritten();
-                        }
-                        uiState_.soundPoolKeyHeld = true;
-                        uiState_.soundPoolKeyCode = rawCode;
-                        processor_.liveSwapTrackSound(activeTrack, ev.index);
-                    }
-                    return true;
-                }
-
-                // MG.2/MG.3: Retrig mode.
-                // Func+step cycles the retrig rate.
-                // On a sampler track with slice data, keys play slices (Slice sub-mode).
-                // Otherwise, holding any key retrigs the focused track continuously.
-                if (uiState_.trigGridMode == TrigGridMode::Retrig)
-                {
-                    const int activeTrack = keyboardArea_.getActiveTrack();
-                    if (uiState_.funcHeld)
-                    {
-                        uiState_.retrigRateIndex = (uiState_.retrigRateIndex + 1) % 4;
-                        keyboardArea_.repaint();
-                    }
-                    else if (processor_.hasTrackSlices(activeTrack))
-                    {
-                        // MG.3: Slice sub-mode — each key plays a different slice.
-                        // Use note numbers 0-15 so the sampler can identify them as slice triggers.
-                        processor_.triggerNote(activeTrack, ev.index, 300);
-                    }
-                    else if (!uiState_.retrigKeyHeld)
-                    {
-                        uiState_.retrigKeyHeld = true;
-                        uiState_.retrigKeyCode = rawCode;
-                        processor_.setRetrigActive(
-                            activeTrack,
-                            true,
-                            UiState::retrigRatePpq(uiState_.retrigRateIndex));
-                    }
-                    return true;
-                }
-
-                // MG.1: Keyboard mode — step keys play chromatic notes; no step editing.
-                if (uiState_.trigGridMode == TrigGridMode::Keyboard)
-                {
-                    const int note = juce::jlimit(0, 127, uiState_.keyboardRoot + ev.index);
-                    const int activeTrack = keyboardArea_.getActiveTrack();
-
-                    // If a step is held in the EditContext, write noteOverride to it.
-                    auto& ctx = processor_.editContext();
-                    if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == activeTrack)
-                    {
-                        auto& trk = processor_.sequence()
-                                        .tracks[static_cast<std::size_t>(activeTrack)];
-                        for (int heldIdx : ctx.heldSteps())
-                        {
-                            if (heldIdx < 0 || heldIdx >= kMaxStepsPerTrack) continue;
-                            auto& s = trk.steps[static_cast<std::size_t>(heldIdx)];
-                            if (s.trigOverride.noteCount == 0)
-                                s.trigOverride.noteCount = 1;
-                            s.trigOverride.notes[0] = note;
-                            s.trig                 = true;
-                        }
-                        ctx.markParamWritten();
-                    }
-
-                    processor_.triggerNote(activeTrack, note);
-                    return true;
                 }
 
                 // PatternScope + step:
@@ -1764,79 +1672,6 @@ namespace lockstep
                 return true;
             }
 
-            // Trig grid mode selection (Func+T/Y/U). Pressing the active mode
-            // a second time resets to Default (MG.6: exit cleanly — cancel any
-            // in-flight retrig or live sound swap on mode exit).
-            case ControllerButton::TrigModeKeyboard:
-            {
-                const auto next = (uiState_.trigGridMode == TrigGridMode::Keyboard)
-                                  ? TrigGridMode::Default : TrigGridMode::Keyboard;
-                // MG.6: exiting SoundPool or Retrig when switching to Keyboard.
-                if (uiState_.trigGridMode == TrigGridMode::Retrig)
-                {
-                    uiState_.retrigKeyHeld = false;
-                    uiState_.retrigKeyCode = -1;
-                    processor_.setRetrigActive(0, false);
-                }
-                else if (uiState_.trigGridMode == TrigGridMode::SoundPool)
-                {
-                    uiState_.soundPoolKeyHeld = false;
-                    uiState_.soundPoolKeyCode = -1;
-                    processor_.clearLiveSwap(keyboardArea_.getActiveTrack());
-                }
-                uiState_.trigGridMode = next;
-                keyboardArea_.repaint();
-                return true;
-            }
-            case ControllerButton::TrigModeRetrig:
-            {
-                if (uiState_.noteEditMode)  // Func+T = NavRight: octave up
-                {
-                    uiState_.noteEditOctave = std::min(uiState_.noteEditOctave + 1, 8);
-                    keyboardArea_.repaint();
-                    return true;
-                }
-                const auto next = (uiState_.trigGridMode == TrigGridMode::Retrig)
-                                  ? TrigGridMode::Default : TrigGridMode::Retrig;
-                // MG.6: cancel retrig when exiting the mode.
-                if (uiState_.trigGridMode == TrigGridMode::Retrig)
-                {
-                    uiState_.retrigKeyHeld = false;
-                    uiState_.retrigKeyCode = -1;
-                    processor_.setRetrigActive(0, false);
-                }
-                else if (uiState_.trigGridMode == TrigGridMode::SoundPool)
-                {
-                    uiState_.soundPoolKeyHeld = false;
-                    uiState_.soundPoolKeyCode = -1;
-                    processor_.clearLiveSwap(keyboardArea_.getActiveTrack());
-                }
-                uiState_.trigGridMode = next;
-                keyboardArea_.repaint();
-                return true;
-            }
-            case ControllerButton::TrigModeSoundPool:
-            {
-                const auto next = (uiState_.trigGridMode == TrigGridMode::SoundPool)
-                                  ? TrigGridMode::Default : TrigGridMode::SoundPool;
-                // MG.6: cancel retrig or live swap when exiting the mode.
-                if (uiState_.trigGridMode == TrigGridMode::Retrig)
-                {
-                    uiState_.retrigKeyHeld = false;
-                    uiState_.retrigKeyCode = -1;
-                    processor_.setRetrigActive(0, false);
-                }
-                else if (uiState_.trigGridMode == TrigGridMode::SoundPool)
-                {
-                    uiState_.soundPoolKeyHeld = false;
-                    uiState_.soundPoolKeyCode = -1;
-                    processor_.clearLiveSwap(keyboardArea_.getActiveTrack());
-                }
-                uiState_.trigGridMode = next;
-                keyboardArea_.repaint();
-                return true;
-            }
-
             // MD.6/MD.7: Mute toggle.
             // Mute+Yes+step → additive solo toggle.
             // Mute+step (no Func) → immediate global mute toggle.
@@ -2131,8 +1966,7 @@ namespace lockstep
                     if (at >= 0 && at < static_cast<int>(kNumTracks))
                     {
                         const auto m = uiState_.trackInputMode[static_cast<std::size_t>(at)];
-                        if ((m == TrackInputMode::Chromatic || m == TrackInputMode::Levels)
-                            && uiState_.trigGridMode == TrigGridMode::Default)
+                        if (m == TrackInputMode::Chromatic || m == TrackInputMode::Levels)
                         {
                             keyboardArea_.repaint();
                             break;
@@ -2140,22 +1974,6 @@ namespace lockstep
                     }
                 }
 
-                // MG.2: retrig key release — this step key started continuous retrig.
-                if (uiState_.retrigKeyHeld && uiState_.retrigKeyCode == rawCode)
-                {
-                    uiState_.retrigKeyHeld = false;
-                    uiState_.retrigKeyCode = -1;
-                    processor_.setRetrigActive(0, false);
-                    break;
-                }
-                // MG.5: sound-pool key release — restore track's original sound.
-                if (uiState_.soundPoolKeyHeld && uiState_.soundPoolKeyCode == rawCode)
-                {
-                    uiState_.soundPoolKeyHeld = false;
-                    uiState_.soundPoolKeyCode = -1;
-                    processor_.clearLiveSwap(keyboardArea_.getActiveTrack());
-                    break;
-                }
                 // Normal step release: look up absStep by rawCode and commit.
                 for (int i = static_cast<int>(heldStepKeys_.size()) - 1; i >= 0; --i)
                 {
@@ -2229,9 +2047,6 @@ namespace lockstep
             case CB::VerbStop:
             case CB::Snapshot:
             case CB::Restore:
-            case CB::TrigModeKeyboard:
-            case CB::TrigModeRetrig:
-            case CB::TrigModeSoundPool:
             case CB::NavUp:
             case CB::NavLeft:
             case CB::NavDown:

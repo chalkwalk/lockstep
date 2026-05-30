@@ -19,11 +19,10 @@ namespace lockstep
     //   Col 2 (2/W/S/X) = Track / Part / Master / Fill.
     //   (Cue is reserved for MU but no key is bound to it post-MHY.)
     //   Inverted-T nav: 4=NavUp above E=NavLeft, R=NavDown, T=NavRight.
-    //   Func layer: Func+3=MetronomeToggle, Func+4=TrigModeSoundPool,
-    //               Func+5-0=MetaSections 0-5,
-    //               Func+E=StopReset, Func+R=TrigModeKeyboard, Func+T=TrigModeRetrig,
-    //               Func+Y=ForkPart, Func+U=Restore, Func+I=VerbRecord(CPY),
-    //               Func+O=VerbPlay(PST), Func+P=VerbStop(CLR).
+    //   Func layer: Func+3=MetronomeToggle, Func+4/R/T fall through to primary nav,
+    //               Func+5-0=MetaSections 0-5, Func+E=StopReset,
+    //               Func+Y=Snapshot, Func+O=StopReset, Func+P=Restore,
+    //               Func+U=ForkPart (placeholder).
     //   Track layer: Track+D-; = SelectTrack 0-7; Track+C-/ = SelectTrack 8-15.
     //   Mute layer:  Mute+D-;  = ToggleMute 0-7;  Mute+C-/  = ToggleMute 8-15.
     class QwertyOverlay

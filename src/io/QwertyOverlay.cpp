@@ -69,10 +69,9 @@ namespace lockstep
 
         // Func layer — applied when Func (key 1) is held.
         // Keys not listed here fall through to the primary table.
-        constexpr std::array<Entry, 16> kFunc = { {
-            // Func+4(NavUp) = sound pool trig mode (Func+3 no longer = metronome).
-            { code('4'), B::TrigModeSoundPool,-1 },
-
+        // Nav arrows (E/R/T) fall through to primary (NavLeft/Down/Right) so the
+        // builder-level Func-promotion (rotate/double/halve) handles them.
+        constexpr std::array<Entry, 12> kFunc = { {
             // Meta sections (keys 5-0)
             { code('5'), B::MetaSection,       0 },
             { code('6'), B::MetaSection,       1 },
@@ -81,16 +80,13 @@ namespace lockstep
             { code('9'), B::MetaSection,       4 },
             { code('0'), B::MetaSection,       5 },
 
-            // Nav Func-layer.
-            { code('E'), B::StopReset,        -1 },  // Func+E(NavLeft)  = StopReset (alias)
-            { code('R'), B::TrigModeKeyboard, -1 },  // Func+R(NavDown)  = keyboard trig mode
-            { code('T'), B::TrigModeRetrig,   -1 },  // Func+T(NavRight) = retrig trig mode
-            { code('Y'), B::Snapshot,         -1 },  // Func+Y(Yes)      = push checkpoint (MHY.4)
-            { code('3'), B::MetronomeToggle,  -1 },  // Func+3(TAP)      = metronome toggle
-            { code('O'), B::StopReset,        -1 },  // Func+O(Stop)     = stop+reset (MHY.4)
-            { code('P'), B::Restore,          -1 },  // Func+P(No)       = pop checkpoint (MHY.4)
-            // Func+U falls through to primary VerbRecord (arm transport record).
-            { code('U'), B::ForkPart,         -1 },  // Func+U(Rec)      = fork active Part (placeholder)
+            // Func+E = StopReset; Func+R/T/4 fall through to primary nav
+            { code('E'), B::StopReset,        -1 },
+            { code('Y'), B::Snapshot,         -1 },  // Func+Y(Yes) = push checkpoint (MHY.4)
+            { code('3'), B::MetronomeToggle,  -1 },  // Func+3(TAP) = metronome toggle
+            { code('O'), B::StopReset,        -1 },  // Func+O(Stop) = stop+reset (MHY.4)
+            { code('P'), B::Restore,          -1 },  // Func+P(No)  = pop checkpoint (MHY.4)
+            { code('U'), B::ForkPart,         -1 },  // Func+U(Rec) = fork active Part (placeholder)
         } };
 
         // Track layer — applied when Track (key Q) is held.

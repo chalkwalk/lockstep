@@ -71,9 +71,6 @@ namespace lockstep
             case ControllerButton::VerbNo:
             case ControllerButton::Snapshot:
             case ControllerButton::Restore:
-            case ControllerButton::TrigModeKeyboard:
-            case ControllerButton::TrigModeRetrig:
-            case ControllerButton::TrigModeSoundPool:
             case ControllerButton::NavUp:
             case ControllerButton::NavLeft:
             case ControllerButton::NavDown:
