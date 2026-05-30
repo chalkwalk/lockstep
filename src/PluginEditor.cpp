@@ -948,6 +948,9 @@ namespace lockstep
         {
             case CB::Func:
                 uiState_.funcHeld = true;
+                // MHZ.3.5: Func+Part is the sole machine-picker gesture — entering
+                // the compound re-skins the step grid to machine names directly.
+                uiState_.funcPartHeld = uiState_.partHeld;
                 editMode_.onScopeEvent(ev);
                 updateFillActivation();
                 keyboardArea_.repaint();
@@ -1025,6 +1028,7 @@ namespace lockstep
             case CB::PartScope:
                 physHeld_.part = true;
                 uiState_.partHeld = true;
+                uiState_.funcPartHeld = uiState_.funcHeld;  // MHZ.3.5: Func+Part picker
                 editMode_.onScopeEvent(ev);
                 handleModifierTap(CB::PartScope, uiState_.latch.part);
                 keyboardArea_.repaint();
@@ -1052,13 +1056,6 @@ namespace lockstep
                     {
                         // Pattern+LEN: track length/divider lives in the TRACK meta section.
                         keyboardArea_.selectMetaSection(2);
-                        return true;
-                    }
-                    if (sectionScope == PS::Part && ev.index == 1)
-                    {
-                        // Part+SRC: machine picker — re-skin the step grid to show machines.
-                        uiState_.funcPartHeld = true;
-                        keyboardArea_.repaint();
                         return true;
                     }
                     // All other non-dim scope cells fall through to the machine's own
