@@ -475,9 +475,13 @@ namespace lockstep
 
             // Func-hint promotion (decision 1): when Func held and key has a true
             // Func-layer variant, the funcLayer IS the live function — show it as primary.
-            // CPC keys (funcLayer=="") are not promoted; their always-on hint stays.
+            // CPC keys are excluded: resolveKeyLabel already handles them, and VerbClear
+            // (PANIC) has a non-empty funcLayer ("RST") that must remain a hint, not primary.
+            const bool isCpcKey    = (def.role == KeyRole::VerbCopy
+                                   || def.role == KeyRole::VerbPaste
+                                   || def.role == KeyRole::VerbClear);
             const bool hasFuncLayer = (def.funcLayer[0] != static_cast<char8_t>(0));
-            if (ui.funcHeld && hasFuncLayer && !isModeActive)
+            if (ui.funcHeld && hasFuncLayer && !isModeActive && !isCpcKey)
             {
                 displayPrimary = juce::String(def.funcLayer);
                 displayHint    = {};
