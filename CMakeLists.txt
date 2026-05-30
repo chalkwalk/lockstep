@@ -21,3 +21,6 @@ add_subdirectory(modules/clap-juce-extensions EXCLUDE_FROM_ALL)
 
 # Sources
 add_subdirectory(src)
+
+# Headless unit tests
+add_subdirectory(tests)

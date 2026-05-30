@@ -205,6 +205,7 @@ namespace lockstep
             else if (isHeld)    c.base = CellState::ModeActive;
             else                c.base = CellState::Resting;
             c.baseColour = (c.base == CellState::ModeActive) ? scopeCol : dimCol;
+            jassert(!c.primary.isEmpty());  // invariant: modifier cells always have a label
         };
 
         // =====================================================================
@@ -290,6 +291,7 @@ namespace lockstep
             // Func-hint promotion: when Func held, MET becomes the live function.
             if (ui.funcHeld) { c.primary = "MET";  c.funcHint = {};    }
             else             { c.primary = "TAP";  c.funcHint = "MET"; }
+            jassert(!c.primary.isEmpty());
         }
 
         // =====================================================================
@@ -305,6 +307,7 @@ namespace lockstep
             // Func-hint promotion: when Func held, POOL is the live function.
             if (ui.funcHeld) { c.primary = "POOL";                c.funcHint = {};      }
             else             { c.primary = juce::String(u8"↑");  c.funcHint = "POOL"; }
+            jassert(!c.primary.isEmpty());
         }
 
         // =====================================================================
@@ -403,6 +406,9 @@ namespace lockstep
                 c.baseColour = kScopeNoteEdit;
             else
                 c.baseColour = compatColour(c.base, kSecActive);
+
+            // Invariant: non-disabled section keys always resolve to a non-empty primary.
+            jassert(c.disabled || !c.primary.isEmpty());
         }
 
         // =====================================================================
@@ -525,6 +531,9 @@ namespace lockstep
                 c.baseColour = ui.partHeld ? kScopePart : kScopePartDim;
             else
                 c.baseColour = compatColour(c.base, 0xFF404040u);
+
+            // Invariant: every function row cell has a non-empty primary label.
+            jassert(!c.primary.isEmpty());
         }
 
         // Mirror Q and W into modifiers[2/3] for byButton() lookup.

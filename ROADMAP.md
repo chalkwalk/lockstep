@@ -1953,9 +1953,13 @@ seam later, not built now).
         Builder conditionally fills `MuteMuted`/`MuteAudible`/`SelectorOutRange` tokens.
       - [x] Slice 4: Scope re-skin → model (fixes missing press-highlight when scope held).
         `SelectorCurrent/Next/Chain/Occupied/Empty/OutRange`; chain pos in `level`.
-      - [ ] Slice 5: Remaining overlays (machine picker, note-edit, P-Lock clear,
-        chromatic, levels).
-      - [ ] Slice 6: `jassert` invariant + headless `SurfaceModelTest`.
+      - [x] Slice 5: Remaining overlays (machine picker, note-edit, P-Lock clear,
+        chromatic, levels). New tokens: `NoteEditActive/Staged/Other/Resting` (60-63),
+        `ChromaticWhite/Black` (70-71), `LevelsCell` (80). Press feedback added to
+        machine picker, NoteEdit, P-Lock clear. `kStepKeyCodes` removed from consumer.
+      - [x] Slice 6: `jassert(!c.primary.isEmpty())` in `fillModifier`, section,
+        function-row, tap, navUp builder paths. `tests/SurfaceModelTest.cpp` headless
+        runner (8 cases: PANIC label, Nav promotion, SectionKey disable).
       **(b)** `ControllerFeedbackEmitter` = the `render()` half of
       `JsonControllerSurface`: 30 Hz timer (reuse the MZ cadence), calls
       `buildSurfaceModel()`, per-indicator diff/throttle against a shadow
