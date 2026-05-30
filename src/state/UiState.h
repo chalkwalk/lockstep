@@ -114,10 +114,10 @@ namespace lockstep
         // the machine for the active track.
         bool funcPartHeld = false;
 
-        // Note-edit mode: Func+Trig+step gesture. Step cells become a 1-octave
+        // Note-edit mode: Func+Src(NOTE)+step gesture. Step cells become a 1-octave
         // chromatic keyboard; pressing a cell toggles a pitch on the target steps.
-        // Entered when a step is released while Func+Section(0) are still held.
-        bool funcTrigHeld    = false;  // true while Func + Section(0) are both held
+        // Entered when a step is released while Func+Section(1/SRC) are still held.
+        bool funcSrcHeld     = false;  // true while Func + Section(1/SRC) are both held
         bool noteEditMode    = false;
         int  noteEditOctave  = 3;  // current view octave (C3 = MIDI 48, C4 = MIDI 60)
         std::set<int> noteEditSteps;  // step indices currently being edited

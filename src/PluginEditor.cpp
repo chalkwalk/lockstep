@@ -1077,8 +1077,8 @@ namespace lockstep
             }
 
             case ControllerButton::MetaSection:
-                if (uiState_.funcHeld && ev.index == 0)
-                    uiState_.funcTrigHeld = true;  // Func+Trig compound — enables note-edit gesture
+                if (uiState_.funcHeld && ev.index == 1)
+                    uiState_.funcSrcHeld = true;  // Func+Src(NOTE) — enables note-edit gesture
                 keyboardArea_.selectMetaSection(ev.index);
                 return true;
 
@@ -1362,9 +1362,9 @@ namespace lockstep
                     return true;
                 }
 
-                // Func+Trig+step: tentative note-edit entry.
+                // Func+Src+step: tentative note-edit entry.
                 // Suppress pLockClearMode; NoteEdit mode activates on step key release.
-                if (uiState_.funcTrigHeld && !uiState_.noteEditMode)
+                if (uiState_.funcSrcHeld && !uiState_.noteEditMode)
                 {
                     const int absStep = keyboardArea_.currentPage() * KeyboardArea::kPageSteps
                                         + ev.index;
@@ -1956,7 +1956,7 @@ namespace lockstep
                     uiState_.noteEditSteps.clear();
                     uiState_.noteEditStaged.clear();
                 }
-                uiState_.funcTrigHeld = false;
+                uiState_.funcSrcHeld = false;
                 // MHZ.3.4: Func release commits staged P-Lock clears, then exits mode.
                 if (uiState_.pLockClearMode)
                 {
@@ -2068,7 +2068,7 @@ namespace lockstep
             case CB::Section:
             case CB::MetaSection:
                 heldSectionRawCode_ = -1;
-                uiState_.funcTrigHeld = false;  // Trig released: no longer in Func+Trig compound
+                uiState_.funcSrcHeld = false;  // Src released: no longer in Func+Src compound
                 editMode_.setSectionHeld(false);
                 break;
 
@@ -2078,8 +2078,8 @@ namespace lockstep
 
             case CB::Step:
             {
-                // Func+Trig+step: step release while funcTrigHeld → enter NoteEdit mode.
-                if (uiState_.funcTrigHeld && !uiState_.noteEditMode
+                // Func+Src+step: step release while funcSrcHeld → enter NoteEdit mode.
+                if (uiState_.funcSrcHeld && !uiState_.noteEditMode
                     && !uiState_.noteEditSteps.empty())
                 {
                     uiState_.noteEditMode = true;

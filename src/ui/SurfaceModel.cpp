@@ -390,7 +390,7 @@ namespace lockstep
                 c.funcHint = kl.hint;   // dim secondary when Func not held
 
             const bool isMachPicker   = (sectionScope == PS::Part && s == 1);
-            const bool isTrigNoteEdit = (!isScopedMode && ui.funcHeld && s == 0);
+            const bool isSrcNoteEdit = (!isScopedMode && ui.funcHeld && s == 1);  // SRC = note-edit anchor
             const bool isMasterActive = !isScopedMode && (ui.masterSection == s);
             const bool isTrackActive  = !isScopedMode && (ui.masterSection == -1
                 && ui.trackSection[static_cast<std::size_t>(activeTrack)] == s);
@@ -409,7 +409,7 @@ namespace lockstep
                 c.baseColour = kScopeMachine;
             else if (isMasterActive)
                 c.baseColour = 0xFF404010u;     // golden — master section active
-            else if (isTrigNoteEdit)
+            else if (isSrcNoteEdit)
                 c.baseColour = kScopeNoteEdit;
             else
                 c.baseColour = compatColour(c.base, kSecActive);
