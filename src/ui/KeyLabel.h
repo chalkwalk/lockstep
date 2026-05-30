@@ -104,9 +104,9 @@ namespace lockstep
 
     // Returns the label pair for one key given the current UI and edit-context
     // state.  Pure function — all contextual resolution happens here.
-    inline KeyLabel resolveKeyLabel(const KeyDef&     def,
-                                    const UiState&    ui,
-                                    const EditContext& ec) noexcept
+    inline KeyLabel resolveKeyLabel(const KeyDef&      def,
+                                    const UiState&     ui,
+                                    [[maybe_unused]] const EditContext& ec) noexcept
     {
         using PS = EditMode::PrimaryScope;
 
@@ -119,7 +119,6 @@ namespace lockstep
         else if (ui.masterHeld)       sectionScope = PS::Master;
 
         const bool isScopedMode = (sectionScope != PS::None);
-        const bool isStepHeld   = ui.stepHeld || ec.isActiveForEditing();
 
         // --- Section keys (TRIG / SRC / FILTER / AMP / MOD / FX) ----------
         if (def.role == KeyRole::SectionKey)
@@ -139,10 +138,11 @@ namespace lockstep
         }
 
         // --- Verb keys with COPY / PASTE / CLEAR semantics ----------------
-        // Policy 2: these hints are invariant — shown in the hint band even
-        // with no modifier held.  When a scope or step is held the copy/paste/
-        // clear action becomes the primary (the hint is then redundant, so it
-        // is suppressed to avoid repetition).
+        // Policy 2: these hints are invariant — shown in the hint band always.
+        // The natural primary (REC/PLAY/PANIC) never changes regardless of
+        // which scope or step is held; only the hint may change.
+        // Exception: when Func is held and a funcLayer is set (e.g., PANIC → RST),
+        // the Func-layer overrides the CPC hint for that modifier.
         const char* cpcLabel = nullptr;
         if      (def.role == KeyRole::VerbCopy)  cpcLabel = "COPY";
         else if (def.role == KeyRole::VerbPaste)  cpcLabel = "PASTE";
@@ -150,15 +150,11 @@ namespace lockstep
 
         if (cpcLabel != nullptr)
         {
-            const bool cpcActive = isScopedMode || isStepHeld;
-            if (cpcActive)
-                return { juce::String(cpcLabel), {}, false };
-
-            // Func held: Func-layer takes over the hint band (brightened).
+            // Func held with a Func-layer variant: hint becomes the Func action.
             if (ui.funcHeld && def.funcLayer[0] != '\0')
                 return { juce::String(def.natural), juce::String(def.funcLayer), false };
 
-            // Default: natural primary + always-on COPY/PASTE/CLEAR hint.
+            // All other states: primary stays natural, hint stays CPC label.
             return { juce::String(def.natural), juce::String(cpcLabel), false };
         }
 

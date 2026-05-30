@@ -267,6 +267,7 @@ namespace lockstep
                          ui.muteHeld, ui.latch.mute,
                          activeMuteCol, kScopeMuteDim,
                          hasCompound && ui.muteHeld);
+            c.funcHint = "PMUTE";  // Func+Mute = pattern mute
             if (ui.latch.mute) c.pip.colour = kScopeMute;  // pip = base colour, not pattern-mute
         }
         {

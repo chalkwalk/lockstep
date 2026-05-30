@@ -71,23 +71,25 @@ namespace lockstep
             CHECK(kl.hint    == "RST",   "PANIC func-held: hint should be RST");
         }
 
-        // 3. Track scope held: primary="CLEAR" (CPC active path).
+        // 3. Track scope held: primary stays "PANIC", hint stays "CLEAR".
+        //    (Primary never swaps to CPC label — scope doesn't change it.)
         {
             auto ui = makeUiState();
             ui.trackHeld = true;
             const auto ec = makeEditContext();
             const auto kl = resolveKeyLabel(kd, ui, ec);
-            CHECK(kl.primary == "CLEAR", "PANIC track-scope: primary should be CLEAR");
-            CHECK(kl.hint.isEmpty(),     "PANIC track-scope: hint should be empty");
+            CHECK(kl.primary == "PANIC", "PANIC track-scope: primary must stay PANIC");
+            CHECK(kl.hint    == "CLEAR", "PANIC track-scope: hint must stay CLEAR");
         }
 
-        // 4. Step held: primary="CLEAR" (CPC active path via isStepHeld).
+        // 4. Step held: primary stays "PANIC", hint stays "CLEAR".
         {
             auto ui = makeUiState();
             ui.stepHeld = true;
             const auto ec = makeEditContext();
             const auto kl = resolveKeyLabel(kd, ui, ec);
-            CHECK(kl.primary == "CLEAR", "PANIC step-held: primary should be CLEAR");
+            CHECK(kl.primary == "PANIC", "PANIC step-held: primary must stay PANIC");
+            CHECK(kl.hint    == "CLEAR", "PANIC step-held: hint must stay CLEAR");
         }
     }
 
