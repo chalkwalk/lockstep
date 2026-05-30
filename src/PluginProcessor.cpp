@@ -1887,10 +1887,12 @@ namespace lockstep
         const int len = std::max(1, trk.length);
         if (len <= 1) return;
         if (dir > 0)
-            std::rotate(trk.steps.begin(), trk.steps.begin() + 1,
+            // Shift content toward higher index (notes move right); step[len-1] wraps to step[0].
+            std::rotate(trk.steps.begin(), trk.steps.begin() + (len - 1),
                         trk.steps.begin() + len);
         else
-            std::rotate(trk.steps.begin(), trk.steps.begin() + (len - 1),
+            // Shift content toward lower index (notes move left); step[0] wraps to step[len-1].
+            std::rotate(trk.steps.begin(), trk.steps.begin() + 1,
                         trk.steps.begin() + len);
     }
 
@@ -1905,8 +1907,8 @@ namespace lockstep
             trk.steps[static_cast<std::size_t>(i)] =
                 trk.steps[static_cast<std::size_t>(i % len)];
         trk.length = newLen;
-        if (auto* p = apvts_.getRawParameterValue(ParamIDs::trackLength(track)))
-            p->store(static_cast<float>(newLen));
+        if (auto* p = apvts_.getParameter(ParamIDs::trackLength(track)))
+            p->setValueNotifyingHost(p->convertTo0to1(static_cast<float>(newLen)));
     }
 
     void LockstepProcessor::halveTrackLength(int track)
@@ -1917,8 +1919,8 @@ namespace lockstep
         const int newLen = std::max(1, len / 2);
         if (newLen >= len) return;
         trk.length = newLen;
-        if (auto* p = apvts_.getRawParameterValue(ParamIDs::trackLength(track)))
-            p->store(static_cast<float>(newLen));
+        if (auto* p = apvts_.getParameter(ParamIDs::trackLength(track)))
+            p->setValueNotifyingHost(p->convertTo0to1(static_cast<float>(newLen)));
     }
 
     bool LockstepProcessor::isTrackMidiOut(int track) const

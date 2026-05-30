@@ -71,7 +71,7 @@ namespace lockstep
         // Keys not listed here fall through to the primary table.
         // Nav arrows (E/R/T) fall through to primary (NavLeft/Down/Right) so the
         // builder-level Func-promotion (rotate/double/halve) handles them.
-        constexpr std::array<Entry, 12> kFunc = { {
+        constexpr std::array<Entry, 11> kFunc = { {
             // Meta sections (keys 5-0)
             { code('5'), B::MetaSection,       0 },
             { code('6'), B::MetaSection,       1 },
@@ -80,8 +80,9 @@ namespace lockstep
             { code('9'), B::MetaSection,       4 },
             { code('0'), B::MetaSection,       5 },
 
-            // Func+E = StopReset; Func+R/T/4 fall through to primary nav
-            { code('E'), B::StopReset,        -1 },
+            // Nav arrows E/R/T/4 all fall through to primary nav so the builder-level
+            // Func-promotion handles them (rotate-left / ÷2 / rotate-right / ×2).
+            // StopReset remains available on Func+O below.
             { code('Y'), B::Snapshot,         -1 },  // Func+Y(Yes) = push checkpoint (MHY.4)
             { code('3'), B::MetronomeToggle,  -1 },  // Func+3(TAP) = metronome toggle
             { code('O'), B::StopReset,        -1 },  // Func+O(Stop) = stop+reset (MHY.4)

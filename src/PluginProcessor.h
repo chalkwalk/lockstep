@@ -296,8 +296,8 @@ namespace lockstep
         bool relinkSample(int index, const juce::String& newPath);
 
         // Sequence editing helpers — message thread only.
-        // rotateTrackSteps: shift all steps in [0, trackLen) by +1 (dir>0) or -1 (dir<0),
-        //   wrapping so the sequence sounds the same but starts one step earlier/later.
+        // rotateTrackSteps: rotate steps in [0, trackLen) one place, wrapping. dir>0 shifts
+        //   content right (toward higher index); dir<0 shifts left (toward lower index).
         void rotateTrackSteps(int track, int dir);
         // doubleTrackLength: copy steps [0,len) into [len, 2*len), up to kMaxStepsPerTrack.
         //   No-op if already at max. APVTS trackLength param is updated.

@@ -1496,6 +1496,15 @@ namespace lockstep
                 const int tl = keyboardArea_.getActiveTrack();
                 const bool chromL = tl >= 0 && tl < static_cast<int>(kNumTracks)
                     && uiState_.trackInputMode[static_cast<std::size_t>(tl)] == TrackInputMode::Chromatic;
+                // Func+← = rotate the focused track's sequence one step left.
+                // In note-edit or Chromatic mode, Func+← keeps its octave-shift role.
+                if (uiState_.funcHeld && !uiState_.noteEditMode && !chromL)
+                {
+                    if (tl >= 0 && tl < static_cast<int>(kNumTracks))
+                        processor_.rotateTrackSteps(tl, -1);
+                    keyboardArea_.repaint();
+                    return true;
+                }
                 if (uiState_.noteEditMode || chromL)
                 {
                     uiState_.noteEditOctave = std::max(uiState_.noteEditOctave - 1, 0);

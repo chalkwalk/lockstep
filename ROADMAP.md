@@ -1966,8 +1966,9 @@ seam later, not built now).
         step-row modifiers to `paintCell`, drops T1-T8 vestigial labels, moves note-edit
         gesture from Func+Trig to Func+Src(NOTE), adds CPC primary relabel under scope
         with transient status line, removes `TrigGridMode` (Retrig/Pool deferred),
-        adds Func+arrow rotate/double/halve gestures (Func+→ rotates, Func+↑=×2,
-        Func+↓=÷2). Retrig redesigned as "ratchet" is deferred; Sound Pool deferred
+        adds Func+arrow rotate/double/halve gestures (Func+→ rotates right,
+        Func+← rotates left, Func+↑=×2, Func+↓=÷2). Retrig redesigned as
+        "ratchet" is deferred; Sound Pool deferred
         pending M10 dynamic-machine story.
       **(b)** `ControllerFeedbackEmitter` = the `render()` half of
       `JsonControllerSurface`: 30 Hz timer (reuse the MZ cadence), calls
