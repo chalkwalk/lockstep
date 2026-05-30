@@ -103,33 +103,43 @@ namespace lockstep
     // -------------------------------------------------------------------------
     static void testNavKeyFuncPromotion()
     {
-        // Use ASCII natural to avoid juce::String(const char*) non-ASCII assert.
+        // Use ASCII to avoid juce::String(const char*) non-ASCII assert.
         // (Real builder stores char8_t* and uses the char8_t* constructor path.)
         const KeyDef kd {
             KeyRole::Nav,
-            "NAV",   // stand-in for ← (ASCII, avoids juce::String assert)
-            "RST",
+            "NAV",   // stand-in for → (ASCII, avoids juce::String assert)
+            "ROT",   // funcLayer (Func+→ = rotate in Slice 6)
             -1, true
         };
 
-        // No modifier: primary=natural, hint=funcLayer
+        // No modifier: primary=natural, hint=funcLayer (dim)
         {
             const auto ui = makeUiState();
             const auto ec = makeEditContext();
             const auto kl = resolveKeyLabel(kd, ui, ec);
             CHECK(kl.primary == "NAV", "Nav key: primary should be natural");
-            CHECK(kl.hint    == "RST", "Nav key: hint should be funcLayer");
+            CHECK(kl.hint    == "ROT", "Nav key: hint should be funcLayer");
         }
 
         // Func held: resolveKeyLabel still returns { natural, funcLayer } for Nav.
-        // Builder promotion (primary=funcLayer) happens after resolveKeyLabel is called.
+        // Builder promotion (primary=funcLayer, hint={}) happens after resolveKeyLabel.
         {
             auto ui = makeUiState();
             ui.funcHeld = true;
             const auto ec = makeEditContext();
             const auto kl = resolveKeyLabel(kd, ui, ec);
             CHECK(kl.primary == "NAV", "Nav key func-held: resolveKeyLabel primary stays natural");
-            CHECK(kl.hint    == "RST", "Nav key func-held: hint stays funcLayer");
+            CHECK(kl.hint    == "ROT", "Nav key func-held: hint stays funcLayer (builder promotes)");
+        }
+
+        // No funcLayer: hint is empty (Func is a no-op on keys without funcLayer).
+        {
+            const KeyDef kdNoFunc { KeyRole::Nav, "NAV", "", -1, true };
+            const auto ui = makeUiState();
+            const auto ec = makeEditContext();
+            const auto kl = resolveKeyLabel(kdNoFunc, ui, ec);
+            CHECK(kl.primary == "NAV", "Nav key no funcLayer: primary stays natural");
+            CHECK(kl.hint.isEmpty(),   "Nav key no funcLayer: hint absent");
         }
     }
 

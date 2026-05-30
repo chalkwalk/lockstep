@@ -1960,6 +1960,15 @@ seam later, not built now).
       - [x] Slice 6: `jassert(!c.primary.isEmpty())` in `fillModifier`, section,
         function-row, tap, navUp builder paths. `tests/SurfaceModelTest.cpp` headless
         runner (8 cases: PANIC label, Nav promotion, SectionKey disable).
+      - [x] **MW.5a UX consistency pass** (separate commit chain): establishes the
+        unified hint-band rule (hint = Func-layer only; absent when Func is a no-op;
+        promoted to primary on Func-hold), removes em-dash AMP/MOD placeholders, moves
+        step-row modifiers to `paintCell`, drops T1-T8 vestigial labels, moves note-edit
+        gesture from Func+Trig to Func+Src(NOTE), adds CPC primary relabel under scope
+        with transient status line, removes `TrigGridMode` (Retrig/Pool deferred),
+        adds Func+arrow rotate/double/halve gestures (Func+→ rotates, Func+↑=×2,
+        Func+↓=÷2). Retrig redesigned as "ratchet" is deferred; Sound Pool deferred
+        pending M10 dynamic-machine story.
       **(b)** `ControllerFeedbackEmitter` = the `render()` half of
       `JsonControllerSurface`: 30 Hz timer (reuse the MZ cadence), calls
       `buildSurfaceModel()`, per-indicator diff/throttle against a shadow
