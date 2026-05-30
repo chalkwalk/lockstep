@@ -129,7 +129,7 @@ are sequencing decisions with no other home.
   `buildSurfaceModel()` both render from; `CellState` is add-only; base layer +
   closed decoration channels; controllers authored via `IControllerSurface` +
   `ControllerRegistry`. → DESIGN §24, §35.8.
-- *(roadmap)* **Surface frozen at the 10×4 shape (3.1) / MHY identities (3.2).**
+- *(roadmap)* **Surface frozen at the 10×4 shape (3.1) / cluster identities (3.2).**
   Phases 4–6 author against that frozen surface; surface-affecting changes must
   re-open Phase 3, not bolt on.
 - *(roadmap)* **The machine catalogue waits on the surface freeze and the SDK.**
@@ -206,7 +206,7 @@ The refactor that retired the 48-slot fixed `IMachine` for per-machine schema.
 - [x] Dropped `noteMode`; pitch-record writes `step.noteOverride`.
 - [x] SectionBar + ManipulationZone re-wired to read schema; meta sections
       re-laid-out. Sampler cleanup (gate now sequencer-scope).
-- [x] M1–M5 features verified end-to-end through the new boundary.
+- [x] 1.1–1.5 features verified end-to-end through the new boundary.
 
 ### 1.7 — QWERTY overlay + Manipulation Zone  *[shipped]*  *(was M6)*
 - [x] `QwertyOverlay::resolve` mapping; MZ live parameter widgets from machine
@@ -285,7 +285,7 @@ FLTR/AMP, the first-class MIDI-out machine, and the 16-track expansion.
 - [x] Track + Mute layers extended to 16; track-header pagination (`1–8` / `9–16`
       page toggle, keyboard auto-flip); MIDI-out `M` badge.
 - [x] Runtime machine reassignment shipped via the Func+Part picker (see 3.5),
-      superseding the deferred MGX.6 stub.
+      superseding this milestone's deferred machine-select stub.
 
 ---
 
@@ -383,7 +383,7 @@ hold.
       latches exist, so deferred `Func` key-up flows are untouched).
 - [x] Step latch / operand (net-zero trig on latch-in); latch-pip chrome.
 - [x] `Track + NavUp/Down` cycles `PLAY ↔ CHROMATIC ↔ LEVELS` (supersedes the
-      MHZ.7.2 verb radio); a mode switch escapes all latches.
+      earlier interim verb radio); a mode switch escapes all latches.
 - [ ] Standalone verification sweep (a–f) — feature shipped; final scripted
       run pending.
 
@@ -612,7 +612,7 @@ controllers render from. Contributors add controllers via `IControllerSurface` +
 - [~] **6.6.5** Surface model + feedback. **(a)** Extract pure
       `buildSurfaceModel()` → `SurfaceModel` and re-point the screen at it —
       **done**: slices 0–6 (`SurfaceModel.{h,cpp}`, `CellState`, decoration
-      channels, `tests/SurfaceModelTest.cpp`) + the **MW.5a UX-consistency pass**
+      channels, `tests/SurfaceModelTest.cpp`) + the **6.6.5a UX-consistency pass**
       (unified hint-band rule, note-edit → `Func+Src`, CPC under-scope relabel,
       `TrigGridMode` removed, `Func+arrow` rotate/×2/÷2). **(b)** [pending]
       `ControllerFeedbackEmitter` (30 Hz, diff/throttle, dedicated-port output).
