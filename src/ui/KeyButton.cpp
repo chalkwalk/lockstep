@@ -147,7 +147,10 @@ namespace lockstep
             paintCellKeyHint(g, inner, keyHint, isDisabled ? 0.45f : 1.0f);
 
         // MHZ.1.1: secondary band grown from 12 px to 14 px.
-        const bool hasSec = secondary.isNotEmpty();
+        // Disabled keys never draw their secondary (early-out below), so reserve
+        // no band for it — otherwise a reserved section's primary (e.g. FX, whose
+        // funcHint "GLOBAL" never renders while disabled) floats upward off-centre.
+        const bool hasSec = secondary.isNotEmpty() && !isDisabled;
         const int secH   = hasSec ? 14 : 0;
         const auto primArea = inner.withTrimmedBottom(secH);
         const auto secArea  = inner.withTrimmedTop(inner.getHeight() - secH).reduced(2, 0);
