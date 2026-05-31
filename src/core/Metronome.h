@@ -6,8 +6,11 @@
 
 namespace lockstep
 {
-    // Generates metronome click audio (4/4 assumed).
-    // Beats fall at every integer PPQ value; beat 1 of the bar is any multiple of 4.
+    // Generates metronome click audio.
+    // Beat interval and bar length are driven by the active Section's TimeSig
+    // (Phase 7 / DESIGN §4.8): beatPpq = 4.0 / denominator; strong click every
+    // numerator beats.  Defaults (4/4: beatPpq=1.0, numerator=4) are backward
+    // compatible with callers that don't pass a time signature.
     // Call process() once per block while the sequencer is running; the output is
     // additive — it writes directly into the existing buffer samples.
     class Metronome
@@ -17,8 +20,10 @@ namespace lockstep
 
         // blockStartPpq / blockEndPpq must be the ppqOffset-adjusted positions
         // (same coordinate space used by the sequencer tick loop).
+        // numerator / denominator describe the current Section's core time (§4.8).
         void process(double blockStartPpq, double blockEndPpq,
-                     double samplesPerPpq, juce::AudioBuffer<float>& buffer);
+                     double samplesPerPpq, juce::AudioBuffer<float>& buffer,
+                     int numerator = 4, int denominator = 4);
 
         void reset() { amplitude_ = 0.0f; phase_ = 0.0; }
 

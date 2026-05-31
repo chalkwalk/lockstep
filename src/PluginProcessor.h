@@ -141,6 +141,15 @@ namespace lockstep
         // True when the installed machine on the given track is a stub (empty track).
         [[nodiscard]] bool isTrackEmpty(int track) const;
 
+        // ── New hierarchy launch queue (Phase 7 / DESIGN §4.8, §16) ─────────
+        // Queue a Section launch to fire at the next core-time bar boundary.
+        // Safe to call from the message thread. cancelQueuedSection() clears it.
+        void queueSection(int sectionIdx);
+        void cancelQueuedSection();
+        bool hasQueuedSection() const;
+        int  queuedSectionIdx() const;
+
+        // ── Legacy pattern queue (kept for editor compat; removed in Stage D) ──
         // Queue a pattern switch to fire at the next grid boundary (end of the
         // longest running track's cycle). Safe to call from the message thread.
         // cancelQueuedPattern() clears any pending switch.
@@ -468,8 +477,10 @@ namespace lockstep
 
         // Preview request: message thread writes both fields (track first, then
         // poolIndex with release ordering); audio thread consumes with acq_rel exchange.
-        // Queued pattern switch: message thread writes, audio thread consumes at
-        // the next grid boundary. -1/-1 means no switch is pending.
+        // Queued Section launch: fires at next core-time bar boundary (Phase 7).
+        // -1 = none pending.
+        std::atomic<int> queuedSectionIdx_ { -1 };
+        // Legacy: queued pattern switch. -1/-1 means no switch pending.
         std::atomic<int> queuedPatternBankIdx_ { -1 };
         std::atomic<int> queuedPatternPatIdx_  { -1 };
 

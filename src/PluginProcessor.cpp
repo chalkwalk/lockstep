@@ -280,6 +280,27 @@ namespace lockstep
         chain_.clear();
     }
 
+    void LockstepProcessor::queueSection(int sectionIdx)
+    {
+        if (sectionIdx < 0 || sectionIdx >= kSectionsPerPiece) return;
+        queuedSectionIdx_.store(sectionIdx, std::memory_order_release);
+    }
+
+    void LockstepProcessor::cancelQueuedSection()
+    {
+        queuedSectionIdx_.store(-1, std::memory_order_release);
+    }
+
+    bool LockstepProcessor::hasQueuedSection() const
+    {
+        return queuedSectionIdx_.load(std::memory_order_acquire) >= 0;
+    }
+
+    int LockstepProcessor::queuedSectionIdx() const
+    {
+        return queuedSectionIdx_.load(std::memory_order_acquire);
+    }
+
     void LockstepProcessor::queuePattern(int bankIdx, int patternIdx)
     {
         if (bankIdx    < 0 || bankIdx    >= static_cast<int>(kNumBanks))        return;
@@ -1143,9 +1164,37 @@ namespace lockstep
             return;
         }
 
-        // Determine the "grid boundary" track: the one with the longest cycle
-        // in PPQ (trackLen * divPpq). The queued pattern switch fires when that
-        // track wraps back to step 0.
+        // ── Section launch engine (Phase 7 / DESIGN §4.8, §16) ───────────────
+        // A queued Section fires at the next core-time bar boundary.
+        {
+            const int qSecIdx = queuedSectionIdx_.load(std::memory_order_acquire);
+            if (qSecIdx >= 0 && samplesPerPpq > 0.0)
+            {
+                const auto& ct     = section().coreTime;
+                const double barPpq = ct.barPpq()
+                                    * static_cast<double>(project_.launchQuantizeBars);
+                if (barPpq > 0.0)
+                {
+                    // Next bar boundary at or after blockStart.
+                    const double boundary =
+                        std::ceil(blockStart / barPpq) * barPpq;
+                    if (boundary < blockEnd)
+                    {
+                        queuedSectionIdx_.store(-1, std::memory_order_release);
+                        juce::MessageManager::callAsync(
+                            [this, qSecIdx]
+                            {
+                                setActiveSection(qSecIdx);
+                                if (onActivePatternChanged)
+                                    onActivePatternChanged();
+                            });
+                    }
+                }
+            }
+        }
+
+        // ── Legacy pattern launch engine (removed in Stage D) ─────────────────
+        // Queued pattern switch fires at end of the longest playing track's cycle.
         {
             const int qBankIdx = queuedPatternBankIdx_.load(std::memory_order_relaxed);
             const int qPatIdx  = queuedPatternPatIdx_ .load(std::memory_order_acquire);
@@ -1162,7 +1211,6 @@ namespace lockstep
                     if (ppq > longestCycle) { longestCycle = ppq; longestTrack = i; }
                 }
 
-                // Check whether the longest track fires step 0 in this block.
                 const int   tl     = static_cast<int>(trackLengthParams_[longestTrack]->load());
                 const int   td     = static_cast<int>(trackDividerParams_[longestTrack]->load());
                 const double divPpqL = 0.25 * static_cast<double>(td <= 0 ? 1 : td);
@@ -1180,15 +1228,12 @@ namespace lockstep
                                 stepNum % static_cast<std::int64_t>(tl));
                             if (si == 0)
                             {
-                                // Fire on message thread so setActivePattern() can safely
-                                // update project data structures.
                                 queuedPatternBankIdx_.store(-1, std::memory_order_relaxed);
                                 queuedPatternPatIdx_ .store(-1, std::memory_order_release);
                                 juce::MessageManager::callAsync(
                                     [this, qBankIdx, qPatIdx]
                                     {
                                         setActivePattern(qBankIdx, qPatIdx);
-                                        // Advance chain: pop the next entry and queue it.
                                         if (!chain_.empty())
                                         {
                                             auto [nextBank, nextPat] = chain_.front();
@@ -1554,7 +1599,9 @@ namespace lockstep
                 buffer.addFrom(ch, 0, trackBuffers_[ti], ch, 0, numBlockSamples);
 
         if (clock_.isMetronomeEnabled())
-            metronome_.process(blockStart, blockEnd, samplesPerPpq, buffer);
+            metronome_.process(blockStart, blockEnd, samplesPerPpq, buffer,
+                               section().coreTime.numerator,
+                               section().coreTime.denominator);
 
         // Output stage: smoothed gain → DC blocker → soft-clip
         const float targetGainDb = apvts_.getRawParameterValue(ParamIDs::outputGain)->load();

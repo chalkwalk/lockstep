@@ -41,30 +41,40 @@ namespace lockstep
     }
 
     void Metronome::process(double blockStartPpq, double blockEndPpq,
-                             double samplesPerPpq, juce::AudioBuffer<float>& buffer)
+                             double samplesPerPpq, juce::AudioBuffer<float>& buffer,
+                             int numerator, int denominator)
     {
         if (samplesPerPpq <= 0.0) return;
         const int numSamples = buffer.getNumSamples();
         const int numCh      = buffer.getNumChannels();
         if (numSamples <= 0 || numCh <= 0) return;
 
-        // Pre-compute trigger points: beats at every integer PPQ value.
+        // Beat interval: one denominator-note in PPQ.  Quarter note (denom=4) = 1.0 PPQ.
+        const double beatPpq = (denominator > 0)
+                              ? (4.0 / static_cast<double>(denominator))
+                              : 1.0;
+        const int beatsPerBar = (numerator > 0) ? numerator : 4;
+
+        // Pre-compute trigger points: beats at beatPpq intervals.
+        // Strong beat (bar 1): every beatsPerBar beats (beat index % beatsPerBar == 0).
         struct TrigPoint { int sample; bool strong; };
-        std::array<TrigPoint, 8> trigs{};
+        std::array<TrigPoint, 16> trigs{};
         int numTrigs = 0;
 
-        const auto firstBeat =
-            static_cast<std::int64_t>(std::floor(blockStartPpq)) + 1;
-        for (auto beat = firstBeat; numTrigs < static_cast<int>(trigs.size()); ++beat)
+        const auto firstBeatIdx =
+            static_cast<std::int64_t>(std::floor(blockStartPpq / beatPpq)) + 1;
+        for (auto beatIdx = firstBeatIdx;
+             numTrigs < static_cast<int>(trigs.size()); ++beatIdx)
         {
-            const double ppq = static_cast<double>(beat);
+            const double ppq = static_cast<double>(beatIdx) * beatPpq;
             if (ppq >= blockEndPpq) break;
             if (ppq >= blockStartPpq)
             {
+                const bool strong = (beatIdx % static_cast<std::int64_t>(beatsPerBar) == 0);
                 const int at = std::clamp(
                     static_cast<int>((ppq - blockStartPpq) * samplesPerPpq),
                     0, numSamples - 1);
-                trigs[static_cast<std::size_t>(numTrigs++)] = { at, (beat % 4 == 0) };
+                trigs[static_cast<std::size_t>(numTrigs++)] = { at, strong };
             }
         }
 
