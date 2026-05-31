@@ -503,23 +503,27 @@ migrates in Stage D+). Old Bank/Pattern/Part/Sequence kept as compat stubs.
 - [ ] VST3/CLAP save → reload round-trips the new format.
 - [ ] Update "Active focus" to next milestone on completion.
 
-### 7.9 — Stage I: Vocabulary rename  *[docs done; code pending]*
+### 7.9 — Stage I: Vocabulary rename  *[a–d shipped; e + redesigns pending]*
 Align names with DESIGN's refined vocabulary (`Set/Song/Scene/Phrase` + Morph;
-see the Phase 7 header note). Docs landed first; code is the tracked follow-up.
+see the Phase 7 header note). Docs landed first; the pure rename followed in
+build-verified sub-stages 7.9a–d.
 - [x] Docs: DESIGN (§4.7/§4.8/§13.6/§16/§17 + reference tables), PRINCIPLES §13,
       this ROADMAP (summary + planned items + legacy note).
-- [ ] Code structs: `Piece→Song`, `Section→Scene`, `Section.sceneA/B →
-      Scene.morphA/B`; drop `Lane` (use `SongTrack`); `Kit`/`TrackKit` stays.
-- [ ] Scope enum + colour constants: `Pattern→Phrase`, `Part→Scene`,
-      `Scene→Morph`, `Master→Song` (`kScopePhrase/Scene/Morph/Song`).
-- [ ] Cap labels → full words `FUNC TRACK PHRASE SCENE MORPH SONG MUTE FILL`;
-      machine picker `Func+Part → Func+Track`; `Func+Song = Global`.
-- [ ] Checkpoint: migrate `CheckpointEntry{Pattern,Part}` → scope-respecting
-      stacks (default Song; Track/Scene/Phrase), floor = saved state,
-      reload-on-release (DESIGN §13.6).
+- [x] **7.9a** Visible label strings (caps full words `FUNC TRACK PHRASE SCENE
+      MORPH SONG MUTE FILL`; verb `RECORD`; `S-MUTE`; nav/chrome).
+- [x] **7.9b** Scope enum + UiState/LatchState/ModPhysHeld + ControllerButton +
+      colour constants (`Pattern→Phrase`, `Part→Scene`, `Scene→Morph`,
+      `Master→Song`; `kScopePhrase/Scene/Morph/Song`).
+- [x] **7.9c** Core structs `Piece→Song`, `Section→Scene`, `Lane→SongTrack`
+      (files moved); coupled methods/members; serializer tags + state version
+      `5→6` (`Song/SongTrack/Scene/MorphA/MorphB`). `sceneA/B→morphA/B`.
+- [x] **7.9d** Machine/Kit picker `Func+Part → Func+Track`; `KIT` + `GLOBAL`
+      func-labels; `MACH` removed from the Scene key.
+- [ ] **7.9e** Checkpoint: migrate `CheckpointEntry{Pattern,Part}` →
+      scope-respecting stacks (default Song; Track/Scene/Phrase), floor = saved
+      state, reload-on-release (DESIGN §13.6). *(deferred — redesign, not rename)*
 - [ ] Resolve flagged ⚑ redesigns: §6.1.2 Phrase/Scene matrix rows, whole-Scene
       copy verb (Scene+Record collision), §23 management UI, §33.2 slate.
-- [ ] State version bump for the struct / morph-field renames.
 
 ---
 
