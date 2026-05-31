@@ -585,7 +585,7 @@ namespace lockstep
                 juce::String ctx;
                 const auto& ui = uiState_;
                 // MHZ.3.5: Func+Part = machine picker — show dedicated hint.
-                if (ui.funcPartHeld)
+                if (ui.funcTrackHeld)
                 {
                     ctx = "FUNC + MACH  |  press step to select machine";
                 }
@@ -625,7 +625,7 @@ namespace lockstep
                 if (ctx.isEmpty()) return;   // nothing held — preview is blank
 
                 // Qualify with Func if held alongside another modifier (normal path only).
-                if (!ui.funcPartHeld && !ui.pLockClearMode
+                if (!ui.funcTrackHeld && !ui.pLockClearMode
                     && ui.funcHeld && ctx != "FUNC")
                     ctx = "FUNC + " + ctx;
 
@@ -957,9 +957,9 @@ namespace lockstep
         {
             case CB::Func:
                 uiState_.funcHeld = true;
-                // MHZ.3.5: Func+Part is the sole machine-picker gesture — entering
+                // Func+Track is the machine/Kit picker gesture (§4.7.2) — entering
                 // the compound re-skins the step grid to machine names directly.
-                uiState_.funcPartHeld = uiState_.sceneHeld;
+                uiState_.funcTrackHeld = uiState_.trackHeld;
                 editMode_.onScopeEvent(ev);
                 updateFillActivation();
                 keyboardArea_.repaint();
@@ -978,6 +978,8 @@ namespace lockstep
             case CB::TrackScope:
                 physHeld_.track = true;
                 uiState_.trackHeld = true;
+                // Func+Track = machine/Kit picker (§4.7.2): arm when Track pressed with Func held.
+                uiState_.funcTrackHeld = uiState_.funcHeld;
                 noHeld_ = false;  // reset delete-qualifier on each Track press
                 processor_.setControlAllActive(true);  // MD.10: active until a track is selected
                 editMode_.onScopeEvent(ev);
@@ -1036,8 +1038,7 @@ namespace lockstep
 
             case CB::SceneScope:
                 physHeld_.scene = true;
-                uiState_.funcPartHeld = uiState_.funcHeld;
-                // Track + Part: re-sync focused musician to current Section (Phase 7).
+                // Track + Scene: re-sync focused musician to current Scene (Phase 7).
                 if (uiState_.trackHeld)
                 {
                     processor_.resyncTrackToScene(processor_.focusTrack());
@@ -1214,8 +1215,8 @@ namespace lockstep
                     return true;
                 }
 
-                // Part + step: Section launch (Phase 7 / DESIGN §16).
-                if (uiState_.sceneHeld && !uiState_.funcPartHeld)
+                // Scene + step: Scene launch (Phase 7 / DESIGN §16).
+                if (uiState_.sceneHeld && !uiState_.funcTrackHeld)
                 {
                     if (ev.index >= 0 && ev.index < kScenesPerSong)
                     {
@@ -1229,8 +1230,8 @@ namespace lockstep
                     return true;
                 }
 
-                // MHZ.3.5: Func+Part (machine picker) + step: assign machine by index.
-                if (uiState_.funcPartHeld)
+                // Func+Track (machine/Kit picker) + step: assign machine by index (§4.7.2).
+                if (uiState_.funcTrackHeld)
                 {
                     const int numMachines = processor_.numAvailableMachines();
                     if (ev.index >= 0 && ev.index < numMachines)
@@ -1239,7 +1240,7 @@ namespace lockstep
                             processor_.availableMachineInfo(ev.index).id };
                         processor_.setTrackMachine(keyboardArea_.getActiveTrack(), machineId);
                         keyboardArea_.syncToActiveTrack();
-                        releaseTransientLatch(CB::SceneScope);
+                        releaseTransientLatch(CB::TrackScope);
                     }
                     keyboardArea_.repaint();
                     return true;
@@ -1872,7 +1873,7 @@ namespace lockstep
                 uiState_.pLockClearTrack = -1;
                 uiState_.pLockClearStep  = -1;
                 // MHZ.3.5: Func release exits machine picker mode.
-                uiState_.funcPartHeld = false;
+                uiState_.funcTrackHeld = false;
                 editMode_.onScopeEvent({ T::ButtonUp, CB::Func });
                 updateFillActivation();
                 keyboardArea_.repaint();
@@ -1881,6 +1882,7 @@ namespace lockstep
 
             case CB::TrackScope:
                 physHeld_.track = false;
+                uiState_.funcTrackHeld = false;  // exit machine/Kit picker on Track release
                 if (!uiState_.latch.track)
                 {
                     uiState_.trackHeld = false;
@@ -1906,7 +1908,6 @@ namespace lockstep
                 if (!uiState_.latch.scene)
                 {
                     uiState_.sceneHeld = false;
-                    uiState_.funcPartHeld = false;  // MHZ.3.5
                     editMode_.onScopeEvent({ T::ButtonUp, CB::SceneScope });
                     repaint();
                 }

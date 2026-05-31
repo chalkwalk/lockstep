@@ -240,6 +240,9 @@ namespace lockstep
                          ui.trackHeld, ui.latch.track,
                          kScopeTrack, kScopeTrackDim,
                          hasCompound && ui.trackHeld);
+            // Func-layer = KIT (machine/Kit picker, §4.7.2); promoted when Func held.
+            if (ui.funcHeld) c.primary = "KIT";
+            else             c.funcHint = "KIT";
         }
 
         // =====================================================================
@@ -261,6 +264,9 @@ namespace lockstep
                          ui.songHeld, ui.latch.song,
                          kScopeSong, kScopeSongDim,
                          hasCompound && ui.songHeld);
+            // Func-layer = GLOBAL (Func+Song → Global/project params).
+            if (ui.funcHeld) c.primary = "GLOBAL";
+            else             c.funcHint = "GLOBAL";
         }
         {
             SurfaceCell& c = model.modifiers[6];
@@ -443,7 +449,7 @@ namespace lockstep
 
         static const std::array<FRowDef, 10> kFRowDefs = {{
             { 'Q', u8"Q", u8"PHRASE", u8"",      ControllerButton::PhraseScope, KeyRole::Modifier  },
-            { 'W', u8"W", u8"SCENE", u8"MACH",   ControllerButton::SceneScope,    KeyRole::Modifier  },
+            { 'W', u8"W", u8"SCENE", u8"",       ControllerButton::SceneScope,    KeyRole::Modifier  },
             { 'E', u8"E", u8"←",     u8"←ROT",    ControllerButton::NavLeft,      KeyRole::Nav       },
             { 'R', u8"R", u8"↓",     u8"÷2",     ControllerButton::NavDown,      KeyRole::Nav       },
             { 'T', u8"T", u8"→",     u8"ROT→",    ControllerButton::NavRight,     KeyRole::Nav       },
@@ -477,9 +483,8 @@ namespace lockstep
             juce::String displayPrimary { def.natural };
             juce::String displayHint    { def.funcLayer };
 
-            // Four live relabels (MACH / PAUSE / DEL / OD) — override after resolver.
-            if (def.keyCode == 'W' && ui.funcPartHeld)
-                displayPrimary = "MACH";
+            // Live relabels (PAUSE / DEL / OD) — override after resolver.
+            // (The machine/Kit picker label KIT lives on the Track modifier cell, key 2.)
             if (def.keyCode == 'I' && isPlaying && !sectionScopeHeld && !ui.stepHeld)
                 displayPrimary = "PAUSE";
             if (def.keyCode == 'P' && ui.trackHeld)
@@ -572,7 +577,7 @@ namespace lockstep
         // step[0..15] — step grid cells (Slices 2–5)
         //
         // Priority order mirrors paintStepRows early-returns:
-        //   funcPartHeld → noteEdit → pLockClear → Chromatic → Levels
+        //   funcTrackHeld → noteEdit → pLockClear → Chromatic → Levels
         //   → muteHeld → scope re-skin → normal step grid.
         // =====================================================================
         {
@@ -592,7 +597,7 @@ namespace lockstep
                 ? ui.trackInputMode[static_cast<std::size_t>(activeTrack)]
                 : TrackInputMode::Play;
 
-            if (ui.funcPartHeld)
+            if (ui.funcTrackHeld)
             {
                 // Machine picker (MHZ.3.5): cells encode available machine slots.
                 const juce::Colour machineTint { kScopeMachine };
@@ -845,7 +850,7 @@ namespace lockstep
             // Pattern+Func (focused track, purple) or Scene+Func (all tracks, orange).
             // Momentary: active exactly as long as the modifiers are held.
             else if ((ui.phraseScopeHeld || ui.morphHeld) && ui.funcHeld
-                     && !ui.funcPartHeld)
+                     && !ui.funcTrackHeld)
             {
                 const bool broadcastMode = ui.morphHeld && ui.funcHeld;
                 const juce::Colour tint  = broadcastMode

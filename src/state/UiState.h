@@ -84,7 +84,7 @@ namespace lockstep
         // MHZ.3.5: true while Func+Part are both held (machine picker mode).
         // Step cells re-skin to show available machine names; pressing a cell assigns
         // the machine for the active track.
-        bool funcPartHeld = false;
+        bool funcTrackHeld = false;
 
         // Note-edit mode: Func+Src(NOTE)+step gesture. Step cells become a 1-octave
         // chromatic keyboard; pressing a cell toggles a pitch on the target steps.

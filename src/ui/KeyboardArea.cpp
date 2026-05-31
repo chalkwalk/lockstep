@@ -925,7 +925,7 @@ namespace lockstep
 
         // MHZ.3.5: Func+Part machine picker — step cells show available machine names.
         // Fill and press come from model; machine name text is a screen residual.
-        if (uiState_.funcPartHeld)
+        if (uiState_.funcTrackHeld)
         {
             const juce::Colour machineTint = scopeColour(EditMode::PrimaryScope::Scene, true);
 
