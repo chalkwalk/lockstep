@@ -520,7 +520,12 @@ see §4.7.1 for what that costs and how it is recovered.
   FILTER/AMP state (§14), MIDI CC config, and the track's clock divider.
   It stays fixed for the Song and may differ between Songs. Machine
   identity is a stable string id; unknown ids fall back to a stub
-  machine that preserves base params and trigs but produces silence.
+  machine that preserves base params and trigs but produces silence. The
+  Kit is a **named, recallable unit** — name / save / load / reload under
+  `Func+Track` (§4.7.2) — but it is **not** selectable per-Scene (one Kit
+  per track per song). The Kit is the track's fixed *sound*, not its
+  sequencer feel or content: swing is per-Track (§19); phrase length /
+  steps / notes are per-Phrase; Scene assignment is per-Scene.
 - **Phrase.** One musician's repeating musical idea. Carries: `length`
   (1–64 steps; see §34.4 and §4.8 for the default-seeding rule), the
   step array (trig + P-Locks), trig defaults, base trig condition, and
@@ -594,6 +599,39 @@ musician per song); OEB resolution gains no Pattern→Part indirection.
 The recovery lever, if live re-instrumentation is later wanted, is a
 small per-Track **Kit pool** plus a `kitIdx[track]` on the Scene — a
 model extension, not a renaming. Deferred; not in the current model.
+
+#### 4.7.2 Kit as a recall unit (under `Func+Track`)
+
+The Kit is *light first-class*: a real, **named** object you can save,
+recall, and reset — but with **no dedicated cluster key and no per-Scene
+selection** (the noun stays off the surface; cf. the dropped "Lane").
+Every affordance lives inside the existing `Func+Track` **machine/Kit
+picker** — the same place machine identity is chosen — so the picker is
+"this track's whole sound for the song," not just its engine.
+
+This mirrors the Digitakt Kit (name / save / load / **reload**), which
+Elektron users reach for, without a new key:
+
+- **Name.** Each Kit carries a short name (≤16 chars), edited inline in
+  the picker chrome (no modal dialog; cf. §23). Default = the machine's
+  display name.
+- **Save / load.** The picker has two faces, toggled by Nav: **machines**
+  (pick an engine) and the **Kit library** (a Set-level pool of saved
+  Kits). In the library face, a step press **loads** that saved Kit into
+  the focused track's Kit for this Song; `Func+Track + Record` **saves**
+  the current Kit into the library. Loading copies the whole bundle
+  (machine + base params + FILTER/AMP + CC config + divider).
+- **Reload (revert to saved).** Not a bespoke gesture: it is the
+  `Track`-scope floor of the Checkpoint stack (§13.6) — hold `Func+No`
+  with `Track` held to revert the live Kit to its on-disk saved state.
+  This is the generalised Octatrack "Part-reload" (§4.7.1).
+
+> ⚑ **Provisional gesture detail.** The machine-vs-library paging of the
+> picker and the exact save/load verbs are a UI-design detail to settle
+> when the picker is built (it ships as part of the §23 management pass);
+> the *model* commitment here is only that the Kit is a named, library-
+> recallable unit reached through `Func+Track`, not a selectable per-Scene
+> object.
 
 ### 4.8 Core time and launch quantize
 

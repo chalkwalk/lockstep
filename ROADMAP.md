@@ -613,6 +613,10 @@ to manage Songs and Scenes in the Phase 7 model.
       selection reuses the launch gesture.
 - [ ] Copy / move / duplicate Phrases across tracks or Songs.
 - [ ] In-browser Scene queue cue (`Yes` cues, `No` cancels).
+- [ ] Kit as a recall unit (DESIGN §4.7.2): Kit name (inline); save/load
+      against a Set-level Kit library; machine-vs-library paging in the
+      `Func+Track` picker. (Kit reload = `Track`-scope Checkpoint floor,
+      §13.6 — no separate gesture.)
 
 ### 5.4 — Sampling + resampling  *[planned]*  *(was MN)*
 DESIGN §22.
