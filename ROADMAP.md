@@ -10,7 +10,8 @@ satisfy, see `PRINCIPLES.md`. **Before adding a milestone here, confirm it is
 expressible within those principles and within the existing scope+verb grammar
 (DESIGN §13).**
 
-**Active focus:** `7.8` — Stage H: verification sweep (Stages 0–G shipped).
+**Active focus:** `7.8` — Stage H: verification sweep (Stages 0–G shipped);
+`7.9` — vocabulary rename (`Set/Song/Scene/Phrase` + Morph): docs landed, code pending.
 **Last completed:** `3.10` — Latch (virtual-hold) + Track+Nav mode cycle.
 **Next up:** `7.1–7.8` (full musical hierarchy re-architecture, absorbs `3.11`),
 then `6.7` — the Machine Module ABI.
@@ -68,14 +69,14 @@ are sequencing decisions with no other home.
   precedence flags. → PRINCIPLES "Override-ELSE-Base"; DESIGN §4.1.
 - **Focus is first-class state** (`{Global, Track1..16}`); `SelectedTrack`-scoped
   CCs and the contextual encoders follow it. → DESIGN §5.3.
-- **Musical hierarchy: Set / Piece / Section / Phrase** (Phase 7; supersedes the
+- **Musical hierarchy: Set / Song / Scene / Phrase** (Phase 7; supersedes the
   earlier Octatrack-style `Project / Bank / Pattern / Part` from 2.2). Kit per
-  (track, Piece); Sections launched live; Phrases shared by reference; core time
-  per-Section drives launch-quantize grid. → DESIGN §4.7, §4.8.
+  (track, Song); Scenes launched live; Phrases shared by reference; core time
+  per-Scene drives launch-quantize grid. → DESIGN §4.7, §4.8.
 - **Auto-sync degradation:** clock dropout = freewheel; explicit stop = freeze.
   → DESIGN §4.3.
-- **Performance grammar = scope + verb.** Cluster `Func/Track | Pattern/Part |
-  Scene/Master | Mute/Fill` + held-step + section keys; verbs `Record/Play/Stop/
+- **Performance grammar = scope + verb.** Cluster `Func/Track | Phrase/Scene |
+  Morph/Song | Mute/Fill` + held-step + section keys; verbs `Record/Play/Stop/
   Yes/No`. Cross-column compounds only; `Func` is the universal qualifier; `Cue`
   reserved until 6.4. → PRINCIPLES "One grammar"; DESIGN §13.
 - **Canonical sections reserved + machine extensions.** Keys 5–0 = TRIG / SRC /
@@ -97,12 +98,12 @@ are sequencing decisions with no other home.
   DESIGN §6.4.
 - **Post-machine FLTR + AMP, machine-opt-out** via `hasInternalFilter()` /
   `hasInternalAmp()`; MIDI-out bypasses both. → DESIGN §14.
-- **No song arrangement.** Sections are launched live (`Part + step`); Pieces
-  queued via `Master + step`. No arrangement track, no chain queue — the set
+- **No song arrangement.** Scenes are launched live (`Scene + step`); Songs
+  queued via `Song + step`. No arrangement track, no chain queue — the set
   order is performed, not stored. → DESIGN §16, §4.8.
-- **More specific scope wins.** A live phrase deviation sticks; Section launch
+- **More specific scope wins.** A live phrase deviation sticks; Scene launch
   re-asserts only non-deviated tracks; global unison swap skips already-deviated
-  tracks. Re-sync is explicit (`Track + Part` / `Part + Yes`). → PRINCIPLES §13.
+  tracks. Re-sync is explicit (`Track + Scene` / `Scene + Yes`). → PRINCIPLES §13.
 - **16-levels eligibility = role-tagged subset.** → DESIGN §20.
 - **Microtiming = per-step P-lockable offset, ±50% of step**; `Quantize` zeros
   offsets in scope. → DESIGN §19.
@@ -121,10 +122,10 @@ are sequencing decisions with no other home.
   path. → DESIGN §29.
 - **Three special trig types:** trigless/lock-only, one-shot, recorder trig.
   → DESIGN §30.
-- **Scenes morph parameters only, never trigs;** fader lerps continuous slots /
-  snaps stepped slots. "Fluid mute" = scene-assigning AMP `Level`. → DESIGN §17.
+- **The Morph morphs parameters only, never trigs;** fader lerps continuous slots /
+  snaps stepped slots. "Fluid mute" = morph-assigning AMP `Level`. → DESIGN §17.
 - **Morph-aware editing (PolyBrute-style), 1:1 normalised**, coexists with the
-  explicit `Scene A/B` assignment; no auto-assign at endpoints. → DESIGN §17.6.
+  explicit `Morph + ^/v` assignment; no auto-assign at endpoints. → DESIGN §17.6.
 - **Cue = additive monitor send, never solo.** No cue output = no-op. → DESIGN §31.
 - **AMP gate source `{Envelope | Held-open}`** — the basis of continuous Thru and
   drones; subsumes the Thru/Neighbour split. → DESIGN §14, §29.
@@ -248,7 +249,7 @@ FLTR/AMP, the first-class MIDI-out machine, and the 16-track expansion.
 
 ### 2.2 — Project / Bank / Pattern / Part hierarchy  *[shipped → superseded by Phase 7]*  *(was MC)*
 The Octatrack-style hierarchy shipped here is fully replaced by the
-musical hierarchy in Phase 7 (`Set / Piece / Section / Phrase`). The
+musical hierarchy in Phase 7 (`Set / Song / Scene / Phrase`). The
 Phase 7 stages carry out the re-architecture; the code from 2.2 is the
 starting point for the refactor.
 - [x] `Project` / `Bank` / `Pattern` / `Part` data model (machine identity in
@@ -409,11 +410,20 @@ The gestures are updated in §34.4. See 7.5 for the full checklist.
 ## Phase 7 — Musical Hierarchy Re-architecture  *[active]*
 
 Full replacement of the `Project > Bank > Pattern > Part` (Octatrack-style)
-container model with a musically-derived `Set > Piece > Section > Phrase` model
-(see DESIGN §4.7, §4.8, §16). Supersedes **2.2**; absorbs **3.11**; rescopes
-**5.2** and **5.3**. Data model constants: `kNumPieces = kSectionsPerPiece =
-kPhrasesPerTrack = 16`. State format: **clean break + version bump** (pre-release;
-no faithful legacy migration). One commit per stage minimum.
+container model with a musically-derived model (see DESIGN §4.7, §4.8, §16).
+Supersedes **2.2**; absorbs **3.11**; rescopes **5.2** and **5.3**. State
+format: **clean break + version bump** (pre-release; no faithful legacy
+migration). One commit per stage minimum.
+
+> **Vocabulary refinement (post-ship).** Stages 7.0–7.7 shipped the model
+> with the working names `Set / Piece / Section / Phrase` (structs `Piece`,
+> `Section`, `TrackKit`; gestures `Part/Master + step`). A naming pass then
+> aligned the user-facing vocabulary with DAW convention — **`Set / Song /
+> Scene / Phrase`**, the A/B morph renamed **Morph**, the per-`(Track,Song)`
+> container `SongTrack`, full-word caps `FUNC TRACK PHRASE SCENE MORPH SONG
+> MUTE FILL`. **Docs are updated; the code struct/symbol rename is a tracked
+> follow-up (Stage 7.9).** Shipped `[x]` items below keep their original
+> code-symbol names because the code still uses them.
 
 ### 7.0 — Stage 0: Documentation  *[shipped]*
 Docs first — PRINCIPLES → DESIGN → ROADMAP — before any code changes.
@@ -493,6 +503,24 @@ migrates in Stage D+). Old Bank/Pattern/Part/Sequence kept as compat stubs.
 - [ ] VST3/CLAP save → reload round-trips the new format.
 - [ ] Update "Active focus" to next milestone on completion.
 
+### 7.9 — Stage I: Vocabulary rename  *[docs done; code pending]*
+Align names with DESIGN's refined vocabulary (`Set/Song/Scene/Phrase` + Morph;
+see the Phase 7 header note). Docs landed first; code is the tracked follow-up.
+- [x] Docs: DESIGN (§4.7/§4.8/§13.6/§16/§17 + reference tables), PRINCIPLES §13,
+      this ROADMAP (summary + planned items + legacy note).
+- [ ] Code structs: `Piece→Song`, `Section→Scene`, `Section.sceneA/B →
+      Scene.morphA/B`; drop `Lane` (use `SongTrack`); `Kit`/`TrackKit` stays.
+- [ ] Scope enum + colour constants: `Pattern→Phrase`, `Part→Scene`,
+      `Scene→Morph`, `Master→Song` (`kScopePhrase/Scene/Morph/Song`).
+- [ ] Cap labels → full words `FUNC TRACK PHRASE SCENE MORPH SONG MUTE FILL`;
+      machine picker `Func+Part → Func+Track`; `Func+Song = Global`.
+- [ ] Checkpoint: migrate `CheckpointEntry{Pattern,Part}` → scope-respecting
+      stacks (default Song; Track/Scene/Phrase), floor = saved state,
+      reload-on-release (DESIGN §13.6).
+- [ ] Resolve flagged ⚑ redesigns: §6.1.2 Phrase/Scene matrix rows, whole-Scene
+      copy verb (Scene+Record collision), §23 management UI, §33.2 slate.
+- [ ] State version bump for the struct / morph-field renames.
+
 ---
 
 ## Phase 4 — Machine Catalogue  *[partial]*
@@ -560,30 +588,31 @@ Completes the record-time capture story (gate / velocity / microtiming).
 - [ ] `Quantize` verb (`<scope> + No`) zeroing microOffsets in scope.
 - [ ] Step-grid nudge-direction tick indicator.
 
-### 5.2 — Scenes + crossfader  *[planned]*  *(was MI)*
-DESIGN §17. *(Scene A/B snapshot fields are carried on `Section` after Phase 7
-Stage G; a placeholder crossfader slider exists from 3.1. The full crossfader
+### 5.2 — Morph + crossfader  *[planned]*  *(was MI)*
+DESIGN §17. *(Morph A/B snapshot fields are carried on the Scene after Phase 7
+Stage G — shipped as `Section.sceneA/B`, renamed `Scene.morphA/B` in 7.9; a
+placeholder crossfader slider exists from 3.1. The full crossfader
 implementation ships here.)*
-- [ ] `Section::sceneA / sceneB` sparse `map<(track,slot)->float>`, serialized
+- [ ] `Scene::morphA / morphB` sparse `map<(track,slot)->float>`, serialized
       (fields already present from 7.7; this stage wires the runtime resolver).
 - [ ] `faderValue` (RAM-only, smoothed).
-- [ ] Resolver scene-pair consult (lerp continuous / snap stepped at 0.5).
-- [ ] `Scene A/B` assignment gesture + `Scene+Stop` removal; MZ A/B indicators.
+- [ ] Resolver morph-pair consult (lerp continuous / snap stepped at 0.5).
+- [ ] `Morph + ^/v` assignment gesture + `Morph+Stop` removal; MZ A/B indicators.
 - [ ] MIDI-out parity (cc lerp, channel/program snap + All-Notes-Off).
 - [ ] Hardware fader axis 1:1 + auto CC map; no QWERTY axis.
-- [ ] P-Lock dominance over scene mix.
+- [ ] P-Lock dominance over Morph mix.
 - [ ] Morph-aware editing (1:1 normalised through the fader position).
-- [ ] Fluid mute (`Scene+Mute` captures `Level→silence`).
+- [ ] Fluid mute (`Morph+Mute` captures `Level→silence`).
 
-### 5.3 — Piece/Section management UI  *[planned]*  *(was MJ; re-scoped for Phase 7)*
-DESIGN §23 (to be updated). The old Pattern/Part management UI is re-scoped
-to manage Pieces and Sections in the Phase 7 model.
-- [ ] Piece + Section names (≤16 chars, inline editor).
-- [ ] Piece + Section colours + tags (palette tied to §24).
-- [ ] Non-modal browser overlay (Pieces → Sections), navigable while playing;
+### 5.3 — Song/Scene management UI  *[planned]*  *(was MJ; re-scoped for Phase 7)*
+DESIGN §23 (flagged for redesign). The old Pattern/Part management UI is re-scoped
+to manage Songs and Scenes in the Phase 7 model.
+- [ ] Song + Scene names (≤16 chars, inline editor).
+- [ ] Song + Scene colours + tags (palette tied to §24).
+- [ ] Non-modal browser overlay (Songs → Scenes), navigable while playing;
       selection reuses the launch gesture.
-- [ ] Copy / move / duplicate Phrases across Lanes or Pieces.
-- [ ] In-browser Section queue cue (`Yes` cues, `No` cancels).
+- [ ] Copy / move / duplicate Phrases across tracks or Songs.
+- [ ] In-browser Scene queue cue (`Yes` cues, `No` cancels).
 
 ### 5.4 — Sampling + resampling  *[planned]*  *(was MN)*
 DESIGN §22.
@@ -591,7 +620,7 @@ DESIGN §22.
       Master}` (no system/device input).
 - [ ] Free-form capture (`Record`/`Stop` in the Sampling scope) → temp buffer →
       naming flow.
-- [ ] Capture-N-bars; resample taps (`Track+Sampling`, `Pattern+Sampling`).
+- [ ] Capture-N-bars; resample taps (`Track+Sampling`, `Song+Sampling`).
 - [ ] Naming flow (4 curated + 1 hash-derived) from a bundled wordlist.
 - [ ] Pool integration (`samples/recorded/`, standard `xxHash32` ref).
 - [ ] Resample-time stretch/pitch decision (preserve pitch / length / independent
@@ -771,7 +800,8 @@ For tracing historical commit messages and notes against the renumbered scheme.
 
 Dissolved: old MG Keyboard mode → 3.9 (CHROMATIC); old MM 16-levels → 3.9
 (LEVELS); their remainders → 5.7. Bank / Pattern / Part / Chain model (2.2 /
-MC) → Phase 7 re-architecture (`Set / Piece / Section / Phrase`).
+MC) → Phase 7 re-architecture (`Set / Song / Scene / Phrase`; shipped as
+`Set / Piece / Section / Phrase`, renamed in 7.9).
 
 ---
 
