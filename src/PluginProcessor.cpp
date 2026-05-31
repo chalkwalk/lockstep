@@ -2724,6 +2724,70 @@ namespace lockstep
         reinstallMachinesFromActiveKit();
     }
 
+    void LockstepProcessor::swapPhraseForTrack(int t, int phraseIdx)
+    {
+        if (t < 0 || t >= static_cast<int>(kNumTracks)) return;
+        const int clamped = std::clamp(phraseIdx, 0, kPhrasesPerTrack - 1);
+        deviated_[static_cast<std::size_t>(t)] = true;
+        deviationPhraseIdx_[static_cast<std::size_t>(t)] = clamped;
+        // Sync this track's sequence data from the new active phrase.
+        const auto& phr = activePhrase(t);
+        auto& seqTrack = sequence().tracks[static_cast<std::size_t>(t)];
+        seqTrack.baseParams   = kit(t).baseParams;
+        seqTrack.length       = phr.length;
+        seqTrack.steps        = phr.steps;
+        seqTrack.trigDefaults = phr.trigDefaults;
+        seqTrack.baseCond     = phr.baseCond;
+        seqTrack.noteSelection = phr.noteSelection;
+    }
+
+    void LockstepProcessor::swapPhraseForAll(int phraseIdx)
+    {
+        const int clamped = std::clamp(phraseIdx, 0, kPhrasesPerTrack - 1);
+        auto& sec = section();
+        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+        {
+            if (!deviated_[static_cast<std::size_t>(t)])
+                sec.phraseIdx[static_cast<std::size_t>(t)] = clamped;
+        }
+        syncSequenceFromCurrentSection();
+    }
+
+    void LockstepProcessor::resyncTrackToSection(int t)
+    {
+        if (t < 0 || t >= static_cast<int>(kNumTracks)) return;
+        deviated_[static_cast<std::size_t>(t)] = false;
+        // Sync this track from section's phrase now that deviation is cleared.
+        const auto& phr = activePhrase(t);
+        auto& seqTrack = sequence().tracks[static_cast<std::size_t>(t)];
+        seqTrack.baseParams   = kit(t).baseParams;
+        seqTrack.length       = phr.length;
+        seqTrack.steps        = phr.steps;
+        seqTrack.trigDefaults = phr.trigDefaults;
+        seqTrack.baseCond     = phr.baseCond;
+        seqTrack.noteSelection = phr.noteSelection;
+    }
+
+    void LockstepProcessor::resyncAllToSection()
+    {
+        deviated_.fill(false);
+        syncSequenceFromCurrentSection();
+    }
+
+    void LockstepProcessor::commitSectionState()
+    {
+        // Write any live deviations into the Section's phraseIdx, then clear them.
+        auto& sec = section();
+        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+        {
+            if (deviated_[static_cast<std::size_t>(t)])
+                sec.phraseIdx[static_cast<std::size_t>(t)] =
+                    deviationPhraseIdx_[static_cast<std::size_t>(t)];
+        }
+        deviated_.fill(false);
+        syncSequenceFromCurrentSection();
+    }
+
     // ── End Phase 7 new-hierarchy methods ────────────────────────────────────
 
     void LockstepProcessor::reinstallMachinesFromActivePart()

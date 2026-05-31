@@ -98,16 +98,18 @@ namespace lockstep
         int activeBankIdx()    const { return activeBankIdx_; }
         int activePatternIdx() const { return activePatternIdx_; }
 
-        // ── New hierarchy navigation (Phase 7) ───────────────────────────────
-        // Switch the active Piece (song); syncs sequence tracks from the new kit+phrase.
+        // ── New hierarchy navigation + gestures (Phase 7) ────────────────────
         void setActivePiece(int pieceIdx);
-        // Switch the active Section within the current Piece; syncs sequence tracks.
-        // Clears all phrase deviations (Section launch re-asserts non-deviated tracks;
-        // full per-track deviation stickiness is wired in Stage D gestures).
         void setActiveSection(int sectionIdx);
-        // Active phrase for a track: deviationPhrase if deviated, else section's phrase.
         Phrase&       activePhrase(int t);
         const Phrase& activePhrase(int t) const;
+        // swapPhraseForTrack: sticky local deviation (Track + Pattern + step).
+        void swapPhraseForTrack(int t, int phraseIdx);
+        // swapPhraseForAll: unison swap, non-deviated tracks only (Pattern + step).
+        void swapPhraseForAll(int phraseIdx);
+        void resyncTrackToSection(int t);    // Track + Part
+        void resyncAllToSection();           // Part + Yes
+        void commitSectionState();           // Part + Record
 
         // ── Legacy pattern navigation (kept for editor compat; removed in Stage D) ──
         // Switch the active pattern (no-op if indices unchanged or out of range).

@@ -1036,8 +1036,16 @@ namespace lockstep
 
             case CB::PartScope:
                 physHeld_.part = true;
+                uiState_.funcPartHeld = uiState_.funcHeld;
+                // Track + Part: re-sync focused musician to current Section (Phase 7).
+                if (uiState_.trackHeld)
+                {
+                    processor_.resyncTrackToSection(processor_.focusTrack());
+                    keyboardArea_.repaint();
+                    repaint();
+                    return true;
+                }
                 uiState_.partHeld = true;
-                uiState_.funcPartHeld = uiState_.funcHeld;  // MHZ.3.5: Func+Part picker
                 editMode_.onScopeEvent(ev);
                 handleModifierTap(CB::PartScope, uiState_.latch.part);
                 keyboardArea_.repaint();
@@ -1177,33 +1185,28 @@ namespace lockstep
                     }
                 }
 
-                // PatternScope + step:
-                //   Stopped — first press: instant swap; subsequent: build chain.
-                //   Playing — every press: queue/append (fires at pattern boundary).
+                // Master + step: Piece (song) select (Phase 7 / DESIGN §16).
+                if (uiState_.masterHeld && !uiState_.sceneHeld)
+                {
+                    if (ev.index >= 0 && ev.index < kNumPieces)
+                        processor_.setActivePiece(ev.index);
+                    repaint();
+                    keyboardArea_.repaint();
+                    return true;
+                }
+
+                // Pattern + step: phrase swap (Phase 7 / DESIGN §4.7).
+                //   Track + Pattern + step → local deviation for focused musician.
+                //   Pattern + step alone  → global unison swap (non-deviated tracks).
                 if (uiState_.patternScopeHeld)
                 {
-                    const int bank     = processor_.activeBankIdx();
-                    const bool playing = processor_.clock().inPluginPlaying();
-                    // Materialise empty slot before selecting it.
-                    // Pat+step = copy current; Func+Pat+step = blank (inherits Part ref).
-                    if (!processor_.isPatternInitialised(bank, ev.index))
-                        processor_.materialisePattern(bank, ev.index, !uiState_.funcHeld);
-                    if (!uiState_.patternScopeUsed && !playing)
+                    if (ev.index >= 0 && ev.index < kPhrasesPerTrack)
                     {
-                        // Immediate swap when stopped; wipes any existing chain.
-                        processor_.clearChain();
-                        processor_.setActivePattern(bank, ev.index);
-                    }
-                    else if (!uiState_.patternScopeUsed)
-                    {
-                        // First press while playing: queue for end of current pattern.
-                        processor_.clearChain();
-                        processor_.queuePattern(bank, ev.index);
-                    }
-                    else
-                    {
-                        // Subsequent presses: append to chain regardless of transport state.
-                        processor_.appendToChain(bank, ev.index);
+                        if (uiState_.trackHeld)
+                            processor_.swapPhraseForTrack(
+                                keyboardArea_.getActiveTrack(), ev.index);
+                        else
+                            processor_.swapPhraseForAll(ev.index);
                     }
                     uiState_.patternScopeUsed = true;
                     repaint();
@@ -1211,19 +1214,16 @@ namespace lockstep
                     return true;
                 }
 
-                // PartScope + step: assign the pattern's Part reference.
-                // Part+step = copy current Part into empty slot (or plain select if occupied).
-                // Func+Part+step = create default Part in empty slot (or plain select if occupied).
+                // Part + step: Section launch (Phase 7 / DESIGN §16).
                 if (uiState_.partHeld && !uiState_.funcPartHeld)
                 {
-                    const int bank = processor_.activeBankIdx();
-                    if (ev.index >= 0 && ev.index < static_cast<int>(kPartsPerBank)
-                        && !processor_.isPartInitialised(bank, ev.index))
+                    if (ev.index >= 0 && ev.index < kSectionsPerPiece)
                     {
-                        // copy=true → copy current Part; copy=false → default Part.
-                        processor_.materialisePart(bank, ev.index, !uiState_.funcHeld);
+                        if (processor_.clock().inPluginPlaying())
+                            processor_.queueSection(ev.index);
+                        else
+                            processor_.setActiveSection(ev.index);
                     }
-                    processor_.setActivePatternPart(ev.index);
                     repaint();
                     keyboardArea_.repaint();
                     return true;
@@ -1541,14 +1541,6 @@ namespace lockstep
                     keyboardArea_.repaint();
                     return true;
                 }
-                if (uiState_.patternScopeHeld)
-                {
-                    // PatternScope + NavRight (Func+2 + R): toggle chain loop mode.
-                    processor_.setChainLoopEnabled(!processor_.chainLoopEnabled());
-                    uiState_.patternScopeUsed = true;
-                    repaint();
-                    return true;
-                }
                 keyboardArea_.nextPage();
                 return true;
             }
@@ -1589,6 +1581,13 @@ namespace lockstep
             case ControllerButton::VerbStop:
             {
                 using PS = EditMode::PrimaryScope;
+                // Part + Stop: cancel queued Section launch (Phase 7).
+                if (uiState_.partHeld)
+                {
+                    processor_.cancelQueuedSection();
+                    repaint();
+                    return true;
+                }
                 // Scope held → grammar verb (e.g. clear).  No scope → panic.
                 if (editMode_.primaryScope() != PS::None
                     && editMode_.primaryScope() != PS::Func)
@@ -1611,6 +1610,14 @@ namespace lockstep
             case ControllerButton::VerbRecord:
             {
                 using PS = EditMode::PrimaryScope;
+                // Part + Record: commit live phrase selections into the Section (Phase 7).
+                if (uiState_.partHeld)
+                {
+                    processor_.commitSectionState();
+                    repaint();
+                    keyboardArea_.repaint();
+                    return true;
+                }
                 // Scope held → grammar verb (e.g. copy).  No scope → arm recording.
                 if (editMode_.primaryScope() != PS::None
                     && editMode_.primaryScope() != PS::Func)
@@ -1639,6 +1646,14 @@ namespace lockstep
 
             case ControllerButton::VerbYes:
                 yesHeld_ = true;
+                // Part + Yes: re-sync all musicians to the current Section (Phase 7).
+                if (uiState_.partHeld)
+                {
+                    processor_.resyncAllToSection();
+                    repaint();
+                    keyboardArea_.repaint();
+                    return true;
+                }
                 // Double-tap Yes with no scope = drop top checkpoint (discard without restoring).
                 // First tap pushes (non-destructive), so net effect of successful double is a no-op.
                 if (editMode_.primaryScope() == EditMode::PrimaryScope::None
@@ -1750,8 +1765,7 @@ namespace lockstep
             }
 
             case ControllerButton::ForkPart:
-                processor_.forkActivePart();
-                repaint();
+                // Part fork removed in Phase 7; gesture is a no-op until repurposed.
                 return true;
 
             case ControllerButton::MachineSelect:
