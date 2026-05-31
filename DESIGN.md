@@ -449,127 +449,185 @@ the same buffer the sequencer writes to, so the machine sees one
 unified event stream. Routing rules (Omni vs Per-Track, focus follows)
 determine which track's buffer external MIDI lands on.
 
-### 4.7 Set / Piece / Section / Phrase hierarchy
+### 4.7 Set / Song / Scene / Phrase hierarchy
 
 The container hierarchy follows **musical purpose**: a performer
-delivering a live set of songs, where each song has sections, each
-section specifies which phrases its musicians play. The hierarchy was
-re-derived from this model in ROADMAP Phase 7; it supersedes the earlier
+delivering a live set of songs, where each song has scenes, each scene
+specifies which phrases its musicians play. The hierarchy was re-derived
+from this model in ROADMAP Phase 7; it supersedes the earlier
 Octatrack-style `Project > Bank > Pattern > Part` (ROADMAP 2.2).
 
 ```
-Set (Project)
- └── Piece             × 16   (= song)
-      ├── Lane          × 16 tracks
-      │    ├── Kit      (machine identity + base params for this song)
-      │    └── Phrase   × 16  (one musician's repeating musical idea)
-      └── Section       × 16  (= song section; intro / verse / chorus / …)
+Set                                (the live set / document)
+ └── Song              × 16        (a song)
+      ├── [per Track]
+      │     ├── Kit                (the musician's instrument for this song)
+      │     └── Phrase  × 16       (the musician's repeating musical ideas)
+      └── Scene         × 16       (a launchable moment: intro / verse / chorus / …)
 ```
 
-The vocabulary maps directly onto the performance-modifier cluster
-(`Func/Track | Pattern/Part | Scene/Master | Mute/Fill`):
+The vocabulary maps onto the performance-modifier cluster
+(`Func/Track | Phrase/Scene | Morph/Song | Mute/Fill`):
 
-| Cluster key | Musical meaning |
+| Cluster key | Selects / scopes |
 |---|---|
-| **Part** | Section — a moment in a song |
-| **Pattern** | Phrase — one musician's musical idea |
-| **Scene** | Sound variation (A/B fader morph within a Section) |
-| **Master** | Piece (song) select |
-| **Mute** | Live global mute layer |
-| **Fill** | Phrase variation |
+| **Phrase** (was Pattern) | Phrase — one musician's musical idea |
+| **Scene** (was Part) | Scene — a launchable moment in a song |
+| **Morph** (was Scene) | the A/B fader morph within a Scene (§17) |
+| **Song** (was Master) | Song select; `Func+Song` = Global/project params |
+| **Track** | the musician (channel); `Func+Track` = machine/Kit picker |
+| **Mute** | live global mute layer |
+| **Fill** | phrase variation |
 
-- **Set (Project).** Top-level container; one Set = one plugin-instance
-  state blob. Owns: all Pieces, the project-global sample pool, MIDI CC
-  mappings, focus state, channel mode, clock settings, the global Sound
-  Pool (§13.5), and `launchQuantizeBars` (global launch-quantize amount
-  in core-time bars; default 1).
-- **Piece.** A song. Holds 16 per-track Lanes and 16 Sections. All the
-  musical content of one piece of music lives here.
-- **Lane (per-track, per-Piece).** Each of the 16 tracks in a Piece has
-  a Lane holding two things:
-  - A **Kit** (`TrackKit`): machine identity, destination, base
-    parameter frame, post-machine FILTER/AMP state (§14), MIDI CC
-    config, and the track's clock divider. The Kit is the musician's
-    instrument *within this song* — it stays fixed for the Piece and may
-    differ between Pieces. Machine identity in a Kit is a stable string
-    id; unknown ids fall back to a stub machine that preserves base
-    params and trigs but produces silence.
-  - A **phrase pool** of 16 `Phrase` entries — the musician's vocabulary
-    for this song.
+**Naming, vs. the reference instruments.** Lockstep keeps Elektron's
+words *only where the behaviour still matches*, and adopts the dominant
+DAW word where the behaviour moved toward a clip-launcher. This keeps
+false friends out of the surface:
+
+| Lockstep | Octatrack | Ableton / clip-launcher DAWs | Same behaviour? |
+|---|---|---|---|
+| **Set** | Project | **Set** | ✅ document / live set |
+| **Song** | Bank | *(Arrangement)* | renamed (Bank was non-musical) |
+| **Scene** | Pattern | **Scene** | ✅ a launchable cross-track row |
+| **Phrase** | *(per-track length)* | Clip | per-track content (kept "Phrase": pure notes, no audio) |
+| **Kit** | Part | Patch / Instrument | the per-song instrument (Part's kit role) |
+| **Morph** | Scene (crossfader) | *(macro variation)* | ✅ A/B two-pole morph |
+
+The notable trade: an Octatrack user's "Scene = crossfader" now reads
+**Morph**, and **Scene** moves to the launchable row — matching every
+clip-launcher DAW (Ableton, Bitwig, Logic Live Loops, Studio One). The
+Octatrack "Part" (kit container) is dissolved into the per-Song **Kit**;
+see §4.7.1 for what that costs and how it is recovered.
+
+- **Set.** Top-level container; one Set = one plugin-instance state blob.
+  Owns: all Songs, the project-global sample pool, MIDI CC mappings,
+  focus state, channel mode, clock settings, the global Sound Pool
+  (§13.5), and `launchQuantizeBars` (global launch-quantize amount in
+  core-time bars; default 1). Matches Ableton's "Live Set" and the
+  product's "perform a live set" framing.
+- **Song.** Holds, for each of the 16 tracks, a **Kit** and a 16-entry
+  **Phrase** pool; plus 16 **Scenes**. All the musical content of one
+  song lives here. (The internal per-`(Track, Song)` container that
+  bundles a track's Kit + Phrase pool is `SongTrack`; it is not a
+  user-facing concept — the performer only ever thinks "this track, in
+  this song.")
+- **Track.** The channel / the musician — a whole-Set identity (one of
+  16). It owns the `Track` scope (Control-All, focus) and, under
+  `Func+Track`, the machine/Kit picker. A Track plays a (possibly)
+  different Kit and Phrase pool in every Song.
+- **Kit.** The musician's instrument *for this song* (`TrackKit`):
+  machine identity, destination, base parameter frame, post-machine
+  FILTER/AMP state (§14), MIDI CC config, and the track's clock divider.
+  It stays fixed for the Song and may differ between Songs. Machine
+  identity is a stable string id; unknown ids fall back to a stub
+  machine that preserves base params and trigs but produces silence.
 - **Phrase.** One musician's repeating musical idea. Carries: `length`
   (1–64 steps; see §34.4 and §4.8 for the default-seeding rule), the
   step array (trig + P-Locks), trig defaults, base trig condition, and
   note selection. Phrases are **pure musical content** — they carry no
-  machine or kit info.
-- **Section.** A moment in a song (intro / verse / chorus / bridge / …).
-  Launched live; **no intrinsic length** — it plays until the next
-  Section is launched. Carries:
-  - `phraseIdx[track]` — which phrase in the Lane's pool this Section
+  machine or kit info. (We keep "Phrase" rather than the DAW-standard
+  "Clip" precisely because a Clip implies bundled audio/warp state; a
+  Phrase is notes only.)
+- **Scene.** A launchable moment in a song (intro / verse / chorus /
+  bridge / …). Launched live; **no intrinsic length** — it plays until
+  the next Scene is launched. Carries *assignment*, not content:
+  - `phraseIdx[track]` — which phrase in the track's pool this Scene
     calls for, per musician.
-  - `activeMask[track]` — which musicians play in this section (replaces
+  - `activeMask[track]` — which musicians play in this scene (replaces
     the old per-Pattern mute mask; runtime silence =
     `globalMute[t] || !activeMask[t]`).
-  - `coreTime` — the Section's time signature; see §4.8.
-  - Scene A/B snapshot fields; full crossfader implementation: §17/5.2.
+  - `coreTime` — the Scene's time signature; see §4.8.
+  - Morph A/B snapshot fields; full crossfader implementation: §17/5.2.
 
-**The Phrase / Section split.** A Phrase is *material* — a musical idea
-that may be referenced by multiple Sections (the chorus phrase reused
-in two different moments of the song). A Section is *assignment +
-context* — who plays, what they play (phrase indices), the meter, and
-the current sound state. Editing a Phrase ripples instantly to every
-Section that references it.
+**The Phrase / Scene split.** A Phrase is *material* — a musical idea
+that may be referenced by multiple Scenes (the chorus phrase reused in
+two different moments of the song). A Scene is *assignment + context* —
+who plays, what they play (phrase indices), the meter, and the current
+morph state. Editing a Phrase ripples instantly to every Scene that
+references it. (This sharing is load-bearing for the snapshot model:
+because content is Song-owned and only *referenced* by Scenes, the
+natural unit of a whole-state snapshot is the Song, not the Scene —
+see §13.6.)
 
-**Kit is per-(track, Piece), not per-Section.** An instrument change
+**Kit is per-(track, Song), not per-Scene.** An instrument change
 (machine swap, base params, divider) applies to a musician throughout
-the whole Piece. A Piece may give the same track a different instrument
-from another Piece. The musician plays the same kit throughout the song;
+the whole Song. A Song may give the same track a different instrument
+from another Song. The musician plays the same kit throughout the song;
 they may play a different kit in a different song.
 
-**Live phrase deviation.** While a Section is active, the performer can
-swap one musician's phrase via `Track + Pattern + step`. This sets a
-sticky per-track deviation: the musician plays the new phrase even as
-Sections launch around them. `PRINCIPLES.md` §13 (*"More specific scope
-wins"*) governs: a Section launch re-asserts phrases **only for
-non-deviated tracks**. Re-sync gestures clear deviations: `Track + Part`
-(one musician) and `Part + Yes` (whole band). See §16 for the full
-launch model and §13 for all gesture bindings.
+**Live phrase deviation.** While a Scene is active, the performer can
+swap one musician's phrase via `Track + Phrase + step`. This sets a sticky
+per-track deviation: the musician plays the new phrase even as Scenes
+launch around them. `PRINCIPLES.md` §13 (*"More specific scope wins"*)
+governs: a Scene launch re-asserts phrases **only for non-deviated
+tracks**. Re-sync gestures clear deviations: `Track + Scene` (one
+musician) and `Scene + Yes` (whole band). See §16 for the full launch
+model and §13 for all gesture bindings.
 
-**Sections are launched, not chained.** There is no stored Section
-arrangement or Piece arrangement — the order is performed live. See §16.
+**Scenes are launched, not chained.** There is no stored Scene
+arrangement or Song arrangement — the order is performed live. See §16.
+
+#### 4.7.1 What the dissolved Part costs, and how it is recovered
+
+The Octatrack **Part** bundled a kit + sound + the crossfader scenes,
+with four Parts per Bank and a *reload* gesture. Lockstep moves the kit
+role into the per-`(Track, Song)` **Kit** and the morph role onto the
+**Scene**. That trade gives up the Octatrack performance moves that
+depend on a *swappable* Part:
+
+- **Live Part-swap** (same sequence, a different sound bundle, mid-song)
+  — not available, because Kit is fixed per Song. The substitutes are
+  the **Morph** (continuous A/B, §17), per-step **P-Locks**, or a **Song**
+  change.
+- **Per-section instrumentation** ("verse uses sound A, chorus sound B"
+  *at the kit level*) — a Scene carries `phraseIdx[]`, not a `kitIdx[]`,
+  so a kit-level change cannot be pinned to a Scene; approximate it with
+  Morph, `activeMask`, or P-Locks.
+- **Part reload** (revert live sound-mangling to the saved baseline) —
+  recovered, but generalised: it is **not** a bespoke kit feature. It is
+  the floor of the scope-respecting Checkpoint stack — "reload saved" =
+  walk a scope's stack down to its persisted floor (§13.6).
+
+What the trade *buys*: Phrases stay pure content and are freely reusable
+across Scenes; the "band" mental model stays clean (one instrument per
+musician per song); OEB resolution gains no Pattern→Part indirection.
+The recovery lever, if live re-instrumentation is later wanted, is a
+small per-Track **Kit pool** plus a `kitIdx[track]` on the Scene — a
+model extension, not a renaming. Deferred; not in the current model.
 
 ### 4.8 Core time and launch quantize
 
-**Core time** is a per-Section `TimeSig { int numerator; int denominator; }`
+**Core time** is a per-Scene `TimeSig { int numerator; int denominator; }`
 (default `{4, 4}`). It serves three roles:
 
 1. **Launch-quantize grid.** The global `launchQuantizeBars` setting
-   (Project-level; default 1) measures in core-time bars. A bar =
-   `numerator × (4.0 / denominator)` quarter-note PPQ. A Section or
-   Piece launch fires at the next multiple of
+   (Set-level; default 1) measures in core-time bars. A bar =
+   `numerator × (4.0 / denominator)` quarter-note PPQ. A Scene or
+   Song launch fires at the next multiple of
    `launchQuantizeBars × barPpq` past the current playhead.
    Example: 4/4, 1 bar → fires at each 4-beat boundary. 7/8 core time,
-   1 bar → fires at each 3.5-beat boundary. Polymeter within a Section is
+   1 bar → fires at each 3.5-beat boundary. Polymeter within a Scene is
    unrestricted — phrase lengths are independent of core time (§4.2).
 2. **Metronome downbeat.** The metronome accent pattern is derived from
    core time; the "1" fires at `barPpq` intervals. Core time is the
    only place the metronome reads a sense of a "bar".
 3. **Default phrase length.** When a new Phrase is created while a
-   Section is active, its length is seeded from core time:
+   Scene is active, its length is seeded from core time:
    `numerator × (4 / denominator)` steps at the default step resolution
-   (1/16 note = 1 step), so a 4/4 Section seeds 16-step phrases and a
-   7/8 Section seeds 7-step phrases. This is a *default only* — the
+   (1/16 note = 1 step), so a 4/4 Scene seeds 16-step phrases and a
+   7/8 Scene seeds 7-step phrases. This is a *default only* — the
    phrase length is freely editable afterward and never constrained by
    core time.
 
 **Per-track phrase-end override.** Each track has a `launchMode` flag
 (`GlobalBar` default | `PhraseEnd`). Tracks set to `PhraseEnd` switch to
-a new Section assignment at the *end of their current phrase cycle*
+a new Scene assignment at the *end of their current phrase cycle*
 rather than at the shared core-time boundary. This is the per-musician
 flexibility layer on top of the global grid — a musician may finish their
-phrase before snapping to the new Section's assignment.
+phrase before snapping to the new Scene's assignment.
 
 `Clock.h` has no time-signature state today. Core time is new state held
-in the Section and consumed by the launch engine in `PluginProcessor`.
+in the Scene and consumed by the launch engine in `PluginProcessor`.
 
 ## 5. Input Layer
 
@@ -1452,31 +1510,65 @@ authored pattern.
 
 ### 13.6 Checkpoint Stack
 
-A bounded LIFO stack of Pattern + Part snapshots, scoped per pattern,
-capped at 8 entries (configurable). Two gestures:
+Snapshot is **not** a bespoke global feature — it is a scope-respecting
+verb, exactly like every other gesture on the surface (PRINCIPLES §13).
+`Func+Yes` snapshots **whatever scope is currently held**, onto *that
+scope's own* LIFO stack; `Func+No` walks that same scope's stack back
+down. With **no scope held, the scope is the Song** — the default
+working unit.
 
-- `Func + Yes` — push the current Pattern+Part state onto the
-  pattern's checkpoint stack.
-- `Func + No` — pop the top of the stack and restore.
+| Held scope | `Func+Yes` snapshots | `Func+No` restores |
+|---|---|---|
+| *(none)* | the whole **Song** | the Song |
+| `Track` | that track's Kit + current Phrase + base params | that track |
+| `Scene` | that Scene's assignment (`phraseIdx[]`, `activeMask[]`, coreTime, Morph) | that Scene |
+| `Phrase` | that Phrase (steps, P-Locks, defaults) | that Phrase |
+
+Why these scopes and no finer: content is **Song-owned** and only
+*referenced* by Scenes (§4.7), so each scope above captures a distinct,
+well-defined slice — a Scene snapshot is *assignment only*, which is
+exactly what a Scene owns.
+
+**The floor is the saved state.** Each scope's stack is seeded, on Song
+load / Song switch, with a single **floor** entry = that scope's
+on-disk saved state. `Func+Yes` pushes working snapshots above the
+floor; the floor itself can never be popped away. This folds the
+Octatrack "Part-reload" into the stack:
+
+> **"Reload saved" = walk a scope's stack down to its floor.** `Func+No`
+> resolves **on key release**, and the hold duration picks the action
+> (reusing the tap/hold threshold of §13.7): a brief **tap** pops one
+> entry; a **hold** then release jumps straight to the floor (the live
+> "reset this to saved, now" move). Resolving on *release* rather than
+> press is deliberate — it guarantees a single press produces exactly
+> **one** action, never a pop immediately followed by a reload. At the
+> floor the gesture is idempotent.
 
 Behaviour notes:
 
-- The stack is RAM-only and does not persist across project save /
-  reload. (This is intentional: checkpoints are a "scratch take"
-  tool; the project save is the canonical state.)
-- Pushing while the stack is full evicts the **oldest** entry,
-  preserving the most recent 8.
-- Pop restores Pattern + Part *only* — it never replaces the active
-  Bank, the Project's global mute mask, or the Sound Pool. The
-  checkpoint is a pattern-scoped scratchpad.
-- A small UI chip in the transport bar shows the stack depth so the
-  user can see how many undos remain.
+- Only the *floor* is derived from persisted state; entries above it are
+  RAM-only and do **not** survive a project save / reload (checkpoints
+  are a "scratch take" tool — the project save is the canonical state).
+  After reload, the floor is re-seeded from disk, so "reload saved"
+  still works even though the scratch pushes are gone.
+- Pushing while a stack is full evicts the **oldest** *non-floor* entry,
+  preserving the most recent 8 plus the floor.
+- A pop is a **deliberate, exact restore** of its scope — it is *exempt*
+  from the §13 "broadcast skips deviated tracks" rule (that rule governs
+  launch/unison gestures, not explicit undo). You get back exactly what
+  the entry held, even if it clobbers a finer edit made afterward.
+- A restore never reaches above its scope: a Song-scope pop restores the
+  whole Song but never the Set-level sample pool, CC maps, or global
+  mute mask — those sit above Song.
+- A small UI chip in the transport bar shows the **currently-scoped**
+  stack's depth (`CK:N`), so the user sees how many undos remain for
+  whatever they are holding.
 
-Checkpoints emerge naturally as a live performance undo: experiment
-with a destructive copy/paste or a Control-All sweep, then revert
-with `Func + No` if it didn't land. The stack depth gives a few
-levels of "two-mistakes-deep" recovery without bloating into a full
-DAW-style history.
+Checkpoints emerge naturally as a live performance undo: experiment with
+a destructive copy/paste or a Control-All sweep, then revert with
+`Func+No` if it didn't land — at the grain you were working at. The
+stack depth gives a few levels of "two-mistakes-deep" recovery without
+bloating into a full DAW-style history.
 
 ### 13.7 Latch — virtual hold ✓
 
@@ -1694,7 +1786,12 @@ is removed). The performer's plan for the set lives in muscle memory and
 rehearsal: queuing the next Section now, and adjusting in real time. The
 Checkpoint stack (§13.6) provides the last-second undo layer.
 
-## 17. Scenes and the Crossfader
+## 17. Morph and the Crossfader
+
+> **Naming.** The continuous A/B crossfader morph was called a "Scene"
+> in earlier drafts (after the Octatrack). It is now **Morph**, because
+> "Scene" was reassigned to the launchable row (§4.7) to match every
+> clip-launcher DAW. The Morph lives *on* a Scene.
 
 The Octatrack's crossfader is the one continuous-axis performance
 control in the design. It is not a duplicate of the Checkpoint
@@ -1702,97 +1799,99 @@ stack (§13.6): checkpoints are *discrete, whole-state, stack-shaped*
 ("snapshot now, jump back later"); the crossfader is *continuous,
 selective, two-pole* ("morph smoothly between two curated parameter
 sets"). They complement each other — a typical workflow is to
-checkpoint a pattern before authoring a Scene A/B pair, then perform
+checkpoint a Scene before authoring a Morph A/B pair, then perform
 the live morph itself with the fader.
 
 ### 17.1 Data model
 
-Scenes live on the **Section** (DESIGN §4.7). Each Section carries a
-pair of scene snapshots:
+The Morph lives on the **Scene** (DESIGN §4.7). Each Scene carries a
+pair of morph snapshots:
 
 ```
-Section.sceneA : map<(trackIdx, slotIdx) -> float>
-Section.sceneB : map<(trackIdx, slotIdx) -> float>
+Scene.morphA : map<(trackIdx, slotIdx) -> float>
+Scene.morphB : map<(trackIdx, slotIdx) -> float>
 ```
 
-Each scene is a sparse map covering whichever (track, slot) pairs the
-user has assigned to that scene. The map shape is identical to a P-Lock
-map but addressed across the whole Section rather than per-step.
+Each endpoint is a sparse map covering whichever (track, slot) pairs the
+user has assigned to that endpoint. The map shape is identical to a
+P-Lock map but addressed across the whole Scene rather than per-step.
 
-Attaching scenes to the Section (rather than the Phrase) means all the
-musicians playing a given Section share one scene pair — consistent with
+Attaching the Morph to the Scene (rather than the Phrase) means all the
+musicians playing a given Scene share one morph pair — consistent with
 the musical meaning: "verse" has its own sound space that applies to
-everyone in that section, regardless of which specific phrase each
-musician happens to be playing. Authoring a different scene pair means
-authoring a different Section.
+everyone in that scene, regardless of which specific phrase each
+musician happens to be playing. Authoring a different morph pair means
+authoring a different Scene.
 
 ### 17.2 Runtime state and resolution
 
 The fader value `f ∈ [0, 1]` is RAM-only runtime state (it does not
-serialize with the Part — it is a controller axis, like a held key,
-not a stored field).
+serialize — it is a controller axis, like a held key, not a stored
+field).
 
 Resolution order, per (track, slot):
 
 ```
 effective(track, slot, step) =
     step.pLock[slot]                                  // wins if present
-  ∨ lerp(sceneA_val, sceneB_val, f) [if in any scene] // otherwise mix
+  ∨ lerp(morphA_val, morphB_val, f) [if in any morph] // otherwise mix
   ∨ track.baseParams[slot]                            // otherwise base
 ```
 
-where `sceneA_val = Section.sceneA[(track,slot)] ?? lane.kit.baseParams[slot]`
-(and likewise for B). A slot not present in either scene is
+where `morphA_val = Scene.morphA[(track,slot)] ?? kit.baseParams[slot]`
+(and likewise for B). A slot not present in either endpoint is
 unaffected by the fader; its base value resolves directly.
 
 Stepped slots (those with `ParamSpec::stepped == true`) snap at
 `f = 0.5` instead of lerping. This includes MIDI-out
-`channel` and `program` slots (§15) — they are scene-assignable
+`channel` and `program` slots (§15) — they are morph-assignable
 but morph discretely, with a clean note-off on the previous channel
 emitted at the snap point to prevent stuck notes downstream.
 
 P-Locks still win at the step level: a step that locks a slot
-bypasses the fader on that slot for that step. This makes scenes
+bypasses the fader on that slot for that step. This makes the Morph
 non-destructive to authored intent at the step layer.
 
-**Scenes morph parameters only — never trigs.** The fader lerps
+**The Morph morphs parameters only — never trigs.** The fader lerps
 continuous slots and snaps stepped slots; it does *not* rewrite the
 trig grid or change which steps fire. Morphing trigs is ill-defined
 (the same step P-locked differently in A and B would demand
 polyphony from a monophonic machine) and is already served by
-pattern switching (§16) and mutes (§13.4). This keeps the resolver a
+scene switching (§16) and mutes (§13.4). This keeps the resolver a
 clean OEB-plus-lerp model (`PRINCIPLES.md` §7).
 
 ### 17.3 Assignment gesture
 
-The scene assignment gesture follows the scope+verb grammar (§13):
+The morph assignment gesture follows the scope+verb grammar (§13). The
+endpoints are addressed by the single `Morph` modifier plus a Nav
+qualifier (§17.5):
 
-- Hold `Scene A` (a scope button) + turn an encoder → adds the
-  current value of that slot to Scene A's map.
-- Hold `Scene B` + turn an encoder → adds to Scene B's map.
-- Hold `Scene A` + press the trig-`Stop` verb on an assigned slot
-  → removes it from Scene A.
-- Hold both `Scene A` and `Scene B` and turn → assigns the same
-  value to both scenes (rarely useful by itself, but the natural
+- Hold `Morph + ^` + turn an encoder → adds the current value of that
+  slot to endpoint **A**'s map.
+- Hold `Morph + v` + turn an encoder → adds to endpoint **B**'s map.
+- Hold `Morph + ^` + press the trig-`Stop` verb on an assigned slot
+  → removes it from endpoint A.
+- Hold `Morph` with both `^` and `v` and turn → assigns the same
+  value to both endpoints (rarely useful by itself, but the natural
   "make this the rest position" gesture).
 
 The MZ renders assigned slots with a small A / B indicator and the
-two captured endpoint values. Slots in both scenes morph; slots in
-only one effectively go from "base" to "scene value" as the fader
+two captured endpoint values. Slots in both endpoints morph; slots in
+only one effectively go from "base" to "endpoint value" as the fader
 crosses (because the missing side falls back to base).
 
-**Fluid mute.** "Mute a track in one scene" is not a separate
-mechanism — it is the track's AMP `Level` slot assigned to scenes
-(e.g. Scene A = unity, Scene B = −∞), which then *fades* the track
-in/out as the fader moves rather than snapping. A convenience
-gesture, `Scene + Mute` on a track, captures `Level → silence` into
-the held scene so the performer does not have to assign Level by
-hand. The binary performance mutes (§13.4) remain a separate,
-instantaneous mechanism; the scene fade is their continuous sibling.
+**Fluid mute.** "Mute a track across the morph" is not a separate
+mechanism — it is the track's AMP `Level` slot assigned to the morph
+(e.g. A = unity, B = −∞), which then *fades* the track in/out as the
+fader moves rather than snapping. A convenience gesture, `Morph + Mute`
+on a track, captures `Level → silence` into the held endpoint so the
+performer does not have to assign Level by hand. The binary performance
+mutes (§13.4) remain a separate, instantaneous mechanism; the morph
+fade is their continuous sibling.
 
 ### 17.4 MIDI-out parity
 
-Scenes apply identically to MIDI-out tracks (§15): the generic
+The Morph applies identically to MIDI-out tracks (§15): the generic
 `cc[0..15]` slots are continuous and lerp smoothly; `channel` and
 `program` are stepped and snap. The live-morph use case
 ("crossfade between two Digitone patches by morphing 16 CCs at
@@ -1813,10 +1912,10 @@ from mouse / CC / hardware fader only — consistent with pillar 1
 ("hardware = fewer-key QWERTY"): the QWERTY layer omits the one
 axis the hardware can't reduce to a button.
 
-The assignment gesture uses a **single `Scene` modifier** (one key,
-not the old Scene A / Scene B pair — 3.1, §33). Endpoint selection is
-a compound: `Scene + ^` (NavUp) targets **Scene A**, `Scene + v`
-(NavDown) targets **Scene B** — mirroring the vertical fader's A-top /
+The assignment gesture uses a **single `Morph` modifier** (one key,
+not a Morph A / Morph B pair — 3.1, §33). Endpoint selection is
+a compound: `Morph + ^` (NavUp) targets **endpoint A**, `Morph + v`
+(NavDown) targets **endpoint B** — mirroring the vertical fader's A-top /
 B-bottom throw. On hardware the fader position picks the near endpoint
 directly, so the explicit `^`/`v` qualifier is the QWERTY-only path.
 The software fader sits as a vertical slider on the right of the
@@ -1825,7 +1924,7 @@ encoder band (§26.1), spatially aligned with the encoder rows.
 ### 17.6 Morph-aware editing
 
 Inspired by the PolyBrute's morph knob: for a slot **already
-assigned** to a scene, a bare encoder turn (no `Scene` scope held)
+assigned** to the morph, a bare encoder turn (no `Morph` scope held)
 writes through the *current fader position* rather than to a single
 endpoint. The performer never thinks "am I editing A or B" — they
 just move the control and the sound follows.
@@ -1836,8 +1935,8 @@ position `f`, **normalised so the heard value tracks the gesture
 
 ```
 let D = (1−f)² + f²
-da = Δ · (1−f) / D      // change applied to Scene A value
-db = Δ · f / D          // change applied to Scene B value
+da = Δ · (1−f) / D      // change applied to endpoint A value
+db = Δ · f / D          // change applied to endpoint B value
 ```
 
 This gives `da·(1−f) + db·f = Δ` for all `f`, so the effective
@@ -1854,14 +1953,14 @@ half the gesture at the midpoint.
 Rules:
 
 - **Coexists with, does not replace, the §17.3 assignment gesture.**
-  Holding `Scene A/B` is still the only way to *assign* a slot (and
+  Holding `Morph + ^/v` is still the only way to *assign* a slot (and
   the only path that works on QWERTY, which has no fader — §17.5).
   Morph-aware editing acts only on already-assigned slots.
 - **Unassigned slots are unaffected** — a bare encoder turn on a slot
-  in neither scene edits the track base exactly as today. (Auto-
+  in neither endpoint edits the track base exactly as today. (Auto-
   assigning at an endpoint was rejected: the fader rests at the A end
   as "home", so base tweaks there would silently enrol slots into the
-  scene system — a silent mode, `PRINCIPLES.md` §10.)
+  morph system — a silent mode, `PRINCIPLES.md` §10.)
 - **Stepped slots** cannot be split; a morph-aware edit writes to the
   currently-resolved side (`f < 0.5 → A`, else `B`).
 - **P-Locks still dominate** — editing a slot that the held step
