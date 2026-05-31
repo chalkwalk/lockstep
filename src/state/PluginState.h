@@ -17,7 +17,9 @@ namespace lockstep
         // v3: TrigOverride gate stored as MusicalGate enum; per-note velocity added
         // v4: Pattern/Part nodes gain explicit "init=1" attribute; uninitialised
         //     slots are empty by default; PartTrack may hold "lockstep.stub" machineId
-        inline constexpr int kCurrentVersion = 4;
+        // v5: Phase 7 musical hierarchy — old Project/Bank/Pattern/Part nodes dropped
+        //     (clean break); new NewHierarchy node with Piece/Lane/Kit/Phrase/Section
+        inline constexpr int kCurrentVersion = 5;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);

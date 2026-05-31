@@ -3,9 +3,13 @@
 #include "../core/Bank.h"
 #include "../core/Pattern.h"
 #include "../core/Part.h"
+#include "../core/Phrase.h"
+#include "../core/Piece.h"
 #include "../core/Project.h"
 #include "../core/Sequence.h"
+#include "../core/TrackKit.h"
 #include "../core/TrigCondition.h"
+#include "../machine/StubMachine.h"
 #include "../machine/MidiDevicePresets.h"
 #include "../machine/MidiOutMachine.h"
 #include "../machine/SamplerMachine.h"
@@ -136,6 +140,349 @@ namespace lockstep::PluginState
 
     // Writes the full Project hierarchy as a <Project> node.
     // Uses proc for slot-ID lookups and step P-Lock resolution.
+    // ── Phase 7 / Stage F: new musical hierarchy serialization ───────────────
+
+    static juce::ValueTree writePhraseNode(int phraseIdx, const Phrase& phrase)
+    {
+        juce::ValueTree node("Phrase");
+        node.setProperty("i",   phraseIdx,     nullptr);
+        node.setProperty("len", phrase.length, nullptr);
+
+        if (phrase.noteSelection != NoteSelection::TopBias)
+            node.setProperty("nsel", static_cast<int>(phrase.noteSelection), nullptr);
+        if (!phrase.baseCond.isTrivial())
+            node.appendChild(condToTree("BaseCond", phrase.baseCond), nullptr);
+
+        const auto& td = phrase.trigDefaults;
+        if (td.note != 60 || td.velocity != 100 || td.gateValue != MusicalGate::None)
+        {
+            juce::ValueTree tdNode("TrigDefaults");
+            tdNode.setProperty("note",  td.note,     nullptr);
+            tdNode.setProperty("vel",   td.velocity,  nullptr);
+            tdNode.setProperty("gateV", static_cast<int>(static_cast<uint8_t>(td.gateValue)), nullptr);
+            node.appendChild(tdNode, nullptr);
+        }
+
+        juce::ValueTree stepsNode("Steps");
+        bool hasSteps = false;
+        for (int s = 0; s < kMaxStepsPerTrack; ++s)
+        {
+            const auto& step = phrase.steps[static_cast<std::size_t>(s)];
+            if (!step.trig && step.overrides.empty()
+                && step.trigOverride.noteCount == 0 && !step.trigOverride.hasVelocity
+                && !step.trigOverride.hasGate && step.condition.isTrivial()
+                && step.fillTrigState == FillTrigState::Inherit
+                && step.fillOverrides.empty()
+                && step.fillTrigOverride.noteCount == 0) continue;
+            hasSteps = true;
+            juce::ValueTree stepNode("S");
+            stepNode.setProperty("i", s,                 nullptr);
+            stepNode.setProperty("t", step.trig ? 1 : 0, nullptr);
+            if (!step.condition.isTrivial())
+                stepNode.appendChild(condToTree("C", step.condition), nullptr);
+            if (step.trigOverride.noteCount > 0 || step.trigOverride.hasVelocity
+                || step.trigOverride.hasGate)
+            {
+                juce::ValueTree toNode("TO");
+                if (step.trigOverride.noteCount > 0)
+                {
+                    toNode.setProperty("nc", step.trigOverride.noteCount, nullptr);
+                    for (int ni = 0; ni < step.trigOverride.noteCount; ++ni)
+                        toNode.setProperty("n" + juce::String(ni),
+                                           step.trigOverride.notes[static_cast<std::size_t>(ni)], nullptr);
+                }
+                if (step.trigOverride.hasVelocity)
+                { toNode.setProperty("hv", 1, nullptr); toNode.setProperty("v", step.trigOverride.velocity, nullptr); }
+                if (step.trigOverride.hasGate)
+                { toNode.setProperty("hg", 1, nullptr); toNode.setProperty("gv", static_cast<int>(static_cast<uint8_t>(step.trigOverride.gateValue)), nullptr); }
+                stepNode.appendChild(toNode, nullptr);
+            }
+            if (!step.overrides.empty())
+            {
+                juce::ValueTree plNode("PL");
+                step.overrides.forEach([&](int slot, float value)
+                {
+                    juce::ValueTree pNode("P");
+                    pNode.setProperty("s", slot, nullptr);
+                    pNode.setProperty("v", static_cast<double>(value), nullptr);
+                    plNode.appendChild(pNode, nullptr);
+                });
+                stepNode.appendChild(plNode, nullptr);
+            }
+            stepsNode.appendChild(stepNode, nullptr);
+        }
+        if (hasSteps) node.appendChild(stepsNode, nullptr);
+        return node;
+    }
+
+    static void readPhraseFromNode(const juce::ValueTree& node, Phrase& phrase)
+    {
+        phrase.length = std::clamp(static_cast<int>(node.getProperty("len", 16)), 1, kMaxStepsPerTrack);
+        if (node.hasProperty("nsel"))
+            phrase.noteSelection = static_cast<NoteSelection>(static_cast<int>(node.getProperty("nsel", 0)));
+
+        const auto bcNode = node.getChildWithName("BaseCond");
+        if (bcNode.isValid()) phrase.baseCond = condFromTree(bcNode);
+
+        const auto tdNode = node.getChildWithName("TrigDefaults");
+        if (tdNode.isValid())
+        {
+            phrase.trigDefaults.note      = static_cast<int>(tdNode.getProperty("note",  60));
+            phrase.trigDefaults.velocity  = static_cast<int>(tdNode.getProperty("vel",  100));
+            phrase.trigDefaults.gateValue = static_cast<MusicalGate>(
+                static_cast<uint8_t>(static_cast<int>(tdNode.getProperty("gateV", 0))));
+        }
+
+        const auto stepsNode = node.getChildWithName("Steps");
+        if (!stepsNode.isValid()) return;
+        for (auto stepNode : stepsNode)
+        {
+            const int s = static_cast<int>(stepNode.getProperty("i", -1));
+            if (s < 0 || s >= kMaxStepsPerTrack) continue;
+            auto& step = phrase.steps[static_cast<std::size_t>(s)];
+            step.trig  = (static_cast<int>(stepNode.getProperty("t", 0)) != 0);
+            const auto cNode = stepNode.getChildWithName("C");
+            if (cNode.isValid()) step.condition = condFromTree(cNode);
+            const auto toNode = stepNode.getChildWithName("TO");
+            if (toNode.isValid())
+            {
+                step.trigOverride.noteCount = static_cast<int>(toNode.getProperty("nc", 0));
+                for (int ni = 0; ni < step.trigOverride.noteCount; ++ni)
+                    step.trigOverride.notes[static_cast<std::size_t>(ni)] =
+                        static_cast<int>(toNode.getProperty("n" + juce::String(ni), 60));
+                if (static_cast<int>(toNode.getProperty("hv", 0)) != 0)
+                { step.trigOverride.hasVelocity = true; step.trigOverride.velocity = static_cast<int>(toNode.getProperty("v", 100)); }
+                if (static_cast<int>(toNode.getProperty("hg", 0)) != 0)
+                { step.trigOverride.hasGate = true; step.trigOverride.gateValue = static_cast<MusicalGate>(static_cast<uint8_t>(static_cast<int>(toNode.getProperty("gv", 0)))); }
+            }
+            const auto plNode = stepNode.getChildWithName("PL");
+            if (plNode.isValid())
+                for (auto pNode : plNode)
+                {
+                    const int sl = static_cast<int>(pNode.getProperty("s", -1));
+                    if (sl >= 0) step.overrides.set(sl, getFloat(pNode, "v", 0.0f));
+                }
+        }
+    }
+
+    static juce::ValueTree writeKitNode(int trackIdx, const TrackKit& kit, LockstepProcessor& proc)
+    {
+        juce::ValueTree node("Kit");
+        node.setProperty("t",       trackIdx,              nullptr);
+        node.setProperty("mId",     juce::String(kit.machineId),   nullptr);
+        if (!kit.destinationId.empty())
+            node.setProperty("dId", juce::String(kit.destinationId), nullptr);
+        if (!kit.midiPresetName.empty())
+            node.setProperty("mPreset", juce::String(kit.midiPresetName), nullptr);
+        if (kit.divider != 1)
+            node.setProperty("div", kit.divider, nullptr);
+
+        // Base params via temp machine to get correct slot IDs.
+        auto tempMachine = proc.createMachineForId(kit.machineId);
+        const int np = tempMachine->numParams();
+        if (np > 0 && !kit.baseParams.empty())
+        {
+            juce::ValueTree bpNode("BP");
+            for (int s = 0; s < np && s < static_cast<int>(kit.baseParams.size()); ++s)
+            {
+                const float defVal = tempMachine->paramSpec(s).defaultValue;
+                const float val    = kit.baseParams[static_cast<std::size_t>(s)];
+                if (floatNe(val, defVal))
+                {
+                    juce::ValueTree pNode("P");
+                    pNode.setProperty("id", juce::String(tempMachine->paramSpec(s).id), nullptr);
+                    pNode.setProperty("v",  static_cast<double>(val), nullptr);
+                    bpNode.appendChild(pNode, nullptr);
+                }
+            }
+            if (bpNode.getNumChildren() > 0)
+                node.appendChild(bpNode, nullptr);
+        }
+        return node;
+    }
+
+    static void readKitFromNode(const juce::ValueTree& node, TrackKit& kit, LockstepProcessor& proc)
+    {
+        kit.machineId    = node.getProperty("mId",    juce::String(SamplerMachine::kMachineId)).toString().toStdString();
+        kit.destinationId = node.getProperty("dId",   "").toString().toStdString();
+        kit.midiPresetName = node.getProperty("mPreset", "").toString().toStdString();
+        kit.divider = static_cast<int>(node.getProperty("div", 1));
+
+        auto tempMachine = proc.createMachineForId(kit.machineId);
+        const int np = tempMachine->numParams();
+        kit.baseParams.assign(static_cast<std::size_t>(np), 0.0f);
+        for (int s = 0; s < np; ++s)
+            kit.baseParams[static_cast<std::size_t>(s)] = tempMachine->paramSpec(s).defaultValue;
+
+        const auto bpNode = node.getChildWithName("BP");
+        if (bpNode.isValid())
+        {
+            for (auto pNode : bpNode)
+            {
+                const juce::String id = pNode.getProperty("id", "").toString();
+                const float val = getFloat(pNode, "v", 0.0f);
+                for (int s = 0; s < np; ++s)
+                    if (juce::String(tempMachine->paramSpec(s).id) == id)
+                        { kit.baseParams[static_cast<std::size_t>(s)] = val; break; }
+            }
+        }
+    }
+
+    static void writeNewHierarchyNode(juce::ValueTree& root, LockstepProcessor& proc)
+    {
+        juce::ValueTree nhNode("NewHierarchy");
+        nhNode.setProperty("activePiece", proc.activePieceIdx(),   nullptr);
+        nhNode.setProperty("activeSect",  proc.activeSectionIdx(), nullptr);
+        nhNode.setProperty("launchQuant", proc.project().launchQuantizeBars, nullptr);
+
+        for (int pi = 0; pi < kNumPieces; ++pi)
+        {
+            const auto& piece = proc.project().pieces[static_cast<std::size_t>(pi)];
+            bool pieceHasContent = false;
+
+            juce::ValueTree pieceNode("Piece");
+            pieceNode.setProperty("i", pi, nullptr);
+
+            for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+            {
+                const auto& lane = piece.tracks[static_cast<std::size_t>(t)];
+                bool laneHasContent = false;
+                juce::ValueTree laneNode("Lane");
+                laneNode.setProperty("t", t, nullptr);
+
+                // Write kit only if non-default.
+                if (lane.kit.machineId != StubMachine::kMachineId || !lane.kit.baseParams.empty())
+                {
+                    laneNode.appendChild(writeKitNode(t, lane.kit, proc), nullptr);
+                    laneHasContent = true;
+                }
+                // Write non-default phrases.
+                for (int ph = 0; ph < kPhrasesPerTrack; ++ph)
+                {
+                    const auto& phrase = lane.phrases[static_cast<std::size_t>(ph)];
+                    if (!phrase.initialised && phrase.length == 16) continue;
+                    bool hasData = phrase.length != 16 || phrase.initialised;
+                    if (!hasData) for (const auto& s : phrase.steps) if (s.trig) { hasData = true; break; }
+                    if (!hasData) continue;
+                    laneNode.appendChild(writePhraseNode(ph, phrase), nullptr);
+                    laneHasContent = true;
+                }
+                if (laneHasContent)
+                {
+                    pieceNode.appendChild(laneNode, nullptr);
+                    pieceHasContent = true;
+                }
+            }
+
+            // Write non-default sections.
+            for (int si = 0; si < kSectionsPerPiece; ++si)
+            {
+                const auto& sec = piece.sections[static_cast<std::size_t>(si)];
+                if (!sec.initialised) continue;
+                juce::ValueTree secNode("Section");
+                secNode.setProperty("i", si, nullptr);
+                secNode.setProperty("ct_n", sec.coreTime.numerator,   nullptr);
+                secNode.setProperty("ct_d", sec.coreTime.denominator, nullptr);
+                // phraseIdx bitfield (default all 0, only write non-zero).
+                int anyNonZero = 0;
+                for (const int idx : sec.phraseIdx) anyNonZero |= idx;
+                if (anyNonZero != 0)
+                {
+                    juce::ValueTree piNode("PhraseIdx");
+                    for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+                        piNode.setProperty("t" + juce::String(t), sec.phraseIdx[static_cast<std::size_t>(t)], nullptr);
+                    secNode.appendChild(piNode, nullptr);
+                }
+                // activeMask (default all true; only write if any false).
+                bool anyMasked = false;
+                for (const bool m : sec.activeMask) if (!m) { anyMasked = true; break; }
+                if (anyMasked)
+                {
+                    int maskBits = 0;
+                    for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+                        if (!sec.activeMask[static_cast<std::size_t>(t)]) maskBits |= (1 << t);
+                    secNode.setProperty("mutesMask", maskBits, nullptr);
+                }
+                pieceNode.appendChild(secNode, nullptr);
+                pieceHasContent = true;
+            }
+
+            if (pieceHasContent || pi == proc.activePieceIdx())
+                nhNode.appendChild(pieceNode, nullptr);
+        }
+        root.appendChild(nhNode, nullptr);
+    }
+
+    static void readNewHierarchyNode(const juce::ValueTree& root, LockstepProcessor& proc)
+    {
+        const auto nhNode = root.getChildWithName("NewHierarchy");
+        if (!nhNode.isValid()) return;
+
+        const int activePiece = static_cast<int>(nhNode.getProperty("activePiece", 0));
+        const int activeSect  = static_cast<int>(nhNode.getProperty("activeSect",  0));
+        proc.project().launchQuantizeBars = static_cast<int>(nhNode.getProperty("launchQuant", 1));
+
+        for (auto pieceNode : nhNode)
+        {
+            if (pieceNode.getType() != juce::Identifier("Piece")) continue;
+            const int pi = static_cast<int>(pieceNode.getProperty("i", -1));
+            if (pi < 0 || pi >= kNumPieces) continue;
+            auto& piece = proc.project().pieces[static_cast<std::size_t>(pi)];
+
+            for (auto child : pieceNode)
+            {
+                if (child.getType() == juce::Identifier("Lane"))
+                {
+                    const int t = static_cast<int>(child.getProperty("t", -1));
+                    if (t < 0 || t >= static_cast<int>(kNumTracks)) continue;
+                    auto& lane = piece.tracks[static_cast<std::size_t>(t)];
+
+                    const auto kitNode = child.getChildWithName("Kit");
+                    if (kitNode.isValid())
+                        readKitFromNode(kitNode, lane.kit, proc);
+
+                    for (auto phraseNode : child)
+                    {
+                        if (phraseNode.getType() != juce::Identifier("Phrase")) continue;
+                        const int ph = static_cast<int>(phraseNode.getProperty("i", -1));
+                        if (ph < 0 || ph >= kPhrasesPerTrack) continue;
+                        auto& phrase = piece.tracks[static_cast<std::size_t>(t)].phrases[static_cast<std::size_t>(ph)];
+                        readPhraseFromNode(phraseNode, phrase);
+                        phrase.initialised = true;
+                    }
+                }
+                else if (child.getType() == juce::Identifier("Section"))
+                {
+                    const int si = static_cast<int>(child.getProperty("i", -1));
+                    if (si < 0 || si >= kSectionsPerPiece) continue;
+                    auto& sec = piece.sections[static_cast<std::size_t>(si)];
+                    sec.coreTime.numerator   = static_cast<int>(child.getProperty("ct_n", 4));
+                    sec.coreTime.denominator = static_cast<int>(child.getProperty("ct_d", 4));
+                    sec.initialised = true;
+
+                    const auto piNode = child.getChildWithName("PhraseIdx");
+                    if (piNode.isValid())
+                        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+                            sec.phraseIdx[static_cast<std::size_t>(t)] =
+                                static_cast<int>(piNode.getProperty("t" + juce::String(t), 0));
+
+                    if (child.hasProperty("mutesMask"))
+                    {
+                        const int maskBits = static_cast<int>(child.getProperty("mutesMask", 0));
+                        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+                            sec.activeMask[static_cast<std::size_t>(t)] = !(maskBits & (1 << t));
+                    }
+                }
+            }
+        }
+
+        // Apply active indices after all data is loaded.
+        proc.setActivePiece(std::clamp(activePiece, 0, kNumPieces - 1));
+        proc.setActiveSection(std::clamp(activeSect, 0, kSectionsPerPiece - 1));
+    }
+
+    // ── End Phase 7 new hierarchy serialization ───────────────────────────────
+
     static void writeProjectNode(juce::ValueTree& root, LockstepProcessor& proc)
     {
         juce::ValueTree projNode("Project");
@@ -1051,6 +1398,23 @@ namespace lockstep::PluginState
         return v4;
     }
 
+    // v4 → v5: Phase 7 clean break.
+    // Drop the old Project/Bank/Pattern/Part nodes; preserve APVTS, SamplePool, Misc.
+    // New NewHierarchy node starts empty — the processor seeds Piece[0] on startup.
+    juce::ValueTree upgrade_v4_to_v5(const juce::ValueTree& v4)
+    {
+        juce::ValueTree v5("LockstepState");
+        v5.setProperty("version", 5, nullptr);
+        for (int i = 0; i < v4.getNumChildren(); ++i)
+        {
+            const auto child = v4.getChild(i);
+            if (child.getType() != juce::Identifier("Project"))
+                v5.appendChild(child.createCopy(), nullptr);
+        }
+        DBG("PluginState: upgraded v4 → v5 (Phase 7): old Project/Bank/Pattern/Part data discarded.");
+        return v5;
+    }
+
     juce::ValueTree applyUpgrades(juce::ValueTree tree)
     {
         // Determine the version. v0 has root type "Lockstep" and no version attribute.
@@ -1069,6 +1433,7 @@ namespace lockstep::PluginState
         if (version < 2) tree = upgrade_v1_to_v2(tree);
         if (version < 3) tree = upgrade_v2_to_v3(tree);
         if (version < 4) tree = upgrade_v3_to_v4(tree);
+        if (version < 5) tree = upgrade_v4_to_v5(tree);
 
         return tree;
     }
@@ -1087,7 +1452,10 @@ namespace lockstep::PluginState
         // Sample pool ({path, hash} refs — no PCM bytes)
         writeSamplePool(root, proc);
 
-        // Full Project hierarchy (all banks, patterns, parts)
+        // Phase 7 new hierarchy: Piece/Lane/Kit/Phrase/Section
+        writeNewHierarchyNode(root, proc);
+
+        // Legacy hierarchy retained for reference (can be removed in a later cleanup).
         writeProjectNode(root, proc);
 
         // CC mappings, focus track, standalone BPM
@@ -1113,11 +1481,13 @@ namespace lockstep::PluginState
         if (apvtsChild.isValid())
             proc.apvts().replaceState(apvtsChild);
 
-        // Sample pool must be restored before sequence so that pool indices
-        // referenced by P-Locks and baseParams resolve to the right entries.
+        // Sample pool must be restored before hierarchy so pool indices resolve.
         readSamplePool(root, proc);
-        // readProject reads the full hierarchy; readMiscState sets the active pattern.
+        // Phase 7 new hierarchy.
+        readNewHierarchyNode(root, proc);
+        // Legacy hierarchy (kept for fallback; no-op if NewHierarchy node exists).
         readProjectNode(root, proc);
+        // readMiscState sets focus track and legacy active pattern.
         readMiscState(root, proc);
     }
 
