@@ -16,12 +16,12 @@ namespace lockstep
     //   qualifier and composes with any other modifier. Two same-column
     //   modifiers are ignored.
     //
-    //   Col 1 (1/Q/A/Z): Func, Pattern, Scene, Mute.
-    //   Col 2 (2/W/S/X): Track, Part,    Master, Fill.
+    //   Col 1 (1/Q/A/Z): Func, Phrase, Morph, Mute.
+    //   Col 2 (2/W/S/X): Track, Scene, Song,  Fill.
     //
     // Scope hierarchy (highest to lowest priority when multiple are held):
-    //   Trig (held step) > Section > Track > Pattern > Part > Mute > Scene >
-    //   Master > Fill > Func.
+    //   Trig (held step) > Section > Track > Phrase > Scene > Mute > Morph >
+    //   Song > Fill > Func.
     //   (Cue is reserved as a PrimaryScope but is not bound to a key
     //   post-MHY; left in for MU reactivation.)
     class EditMode
@@ -32,13 +32,13 @@ namespace lockstep
         {
             // Column 1 (1/Q/A/Z):
             bool func    = false;  // key 1
-            bool pattern = false;  // key Q
-            bool scene   = false;  // key A (§17)
+            bool phrase  = false;  // key Q
+            bool morph   = false;  // key A (§17)
             bool mute    = false;  // key Z
             // Column 2 (2/W/S/X):
             bool track   = false;  // key 2: Control-All if no trig held
-            bool part    = false;  // key W (§4.7) — kit identity, Part+SRC = machine select
-            bool master  = false;  // key S (§32.3)
+            bool scene   = false;  // key W (§4.7) — Scene launch / re-sync
+            bool song    = false;  // key S (§32.3; Func+Song = Global)
             bool fill    = false;  // key X
             // Reserved for MU (Cue bus) — no key bound:
             bool cue     = false;
@@ -53,13 +53,13 @@ namespace lockstep
             Func,     // Func held without another scope
             Trig,     // one or more steps held
             Track,    // Track scope (Control-All if trig not also held)
-            Pattern,  // Pattern scope
-            Part,     // Part scope (§4.7) — MHY
+            Phrase,   // Phrase scope (key Q)
+            Scene,    // Scene scope (§4.7; launch / re-sync) — key W
             Mute,     // Mute scope
             Fill,     // Fill scope (momentary; verb is less common here)
             Cue,      // Cue/monitor scope (§31; reserved until MU)
-            Scene,    // Scene assignment scope (§17)
-            Master,   // Master-bus / FX focus (§32.3)
+            Morph,    // Morph (A/B crossfader) assignment scope (§17) — key A
+            Song,     // Song select; Func+Song = Global/master-bus (§32.3) — key S
             Section,  // a section key is held (set externally when section held)
         };
 

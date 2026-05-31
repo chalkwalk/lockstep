@@ -49,7 +49,7 @@ namespace lockstep
             { "FX",     true  },   // IEffect inserts 1+2 (MV)
         }};
 
-        static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kPattern = {{
+        static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kPhrase = {{
             { "LEN",  true  },   // length / scale lock → routes to TRACK meta (Length/Divider)
             { nullptr,false },   // dim — no content planned
             { nullptr,false },   // dim — no content planned
@@ -58,7 +58,7 @@ namespace lockstep
             { nullptr,false },   // dim — no content planned
         }};
 
-        static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kPart = {{
+        static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kScene = {{
             { "TRIG",   true  },   // trig templates (MC)
             { nullptr,  true  },   // part-base SRC — machine picker now lives on Func+Part (MHZ.3.5)
             { "FILTER", true  },   // part-base FLTR (MC)
@@ -67,7 +67,7 @@ namespace lockstep
             { "FX",     true  },   // part-base FX (MC)
         }};
 
-        static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kScene = {{
+        static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kMorph = {{
             { nullptr,false },   // CXFD — crossfader curve (MI, not yet implemented)
             { nullptr,false },   // SRC — scene-assign SRC (MI, not yet implemented)
             { nullptr,false },   // FLTR — scene-assign FLTR (MI, not yet implemented)
@@ -76,7 +76,7 @@ namespace lockstep
             { nullptr,false },   // FX — scene-assign FX (MI, not yet implemented)
         }};
 
-        static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kMaster = {{
+        static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kSong = {{
             { nullptr,false },   // dim — no content planned
             { nullptr,false },   // dim — no content planned
             { nullptr,false },   // FLTR — master FLTR (MV, not yet implemented)
@@ -91,10 +91,10 @@ namespace lockstep
         switch (scope)
         {
             case PS::Track:   return kTrack  [static_cast<std::size_t>(section)];
-            case PS::Pattern: return kPattern[static_cast<std::size_t>(section)];
-            case PS::Part:    return kPart   [static_cast<std::size_t>(section)];
-            case PS::Scene:   return kScene  [static_cast<std::size_t>(section)];
-            case PS::Master:  return kMaster [static_cast<std::size_t>(section)];
+            case PS::Phrase: return kPhrase[static_cast<std::size_t>(section)];
+            case PS::Scene:    return kScene   [static_cast<std::size_t>(section)];
+            case PS::Morph:   return kMorph  [static_cast<std::size_t>(section)];
+            case PS::Song:  return kSong [static_cast<std::size_t>(section)];
 
             // Performance specialists and non-section scopes: no label override.
             case PS::None:

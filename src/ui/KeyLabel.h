@@ -26,10 +26,10 @@ namespace lockstep
         switch (scope)
         {
             case PS::Track:   return col(kScopeTrack);
-            case PS::Pattern: return col(kScopePattern);
-            case PS::Part:    return col(kScopePart);
-            case PS::Scene:   return col(kScopeScene);
-            case PS::Master:  return col(kScopeMaster);
+            case PS::Phrase: return col(kScopePhrase);
+            case PS::Scene:    return col(kScopeScene);
+            case PS::Morph:   return col(kScopeMorph);
+            case PS::Song:  return col(kScopeSong);
             case PS::Mute:    return col(kScopeMute);
             case PS::Fill:    return col(kScopeFill);
             // Non-section scopes and None use the default step colour.
@@ -48,10 +48,10 @@ namespace lockstep
         using namespace theme;
         using PS = EditMode::PrimaryScope;
         if (ui.trackHeld)        return scopeColour(PS::Track);
-        if (ui.patternScopeHeld) return scopeColour(PS::Pattern);
-        if (ui.partHeld)         return scopeColour(PS::Part);
-        if (ui.sceneHeld)        return scopeColour(PS::Scene);
-        if (ui.masterHeld)       return scopeColour(PS::Master);
+        if (ui.phraseScopeHeld) return scopeColour(PS::Phrase);
+        if (ui.sceneHeld)         return scopeColour(PS::Scene);
+        if (ui.morphHeld)        return scopeColour(PS::Morph);
+        if (ui.songHeld)       return scopeColour(PS::Song);
         if (ui.muteHeld)         return col(ui.funcHeld ? kScopePMute : kScopeMute);
         if (ui.fillHeld)         return scopeColour(PS::Fill);
         return scopeColour(PS::None);
@@ -111,10 +111,10 @@ namespace lockstep
         // Determine the held section-suite scope modifier (if any).
         PS sectionScope = PS::None;
         if      (ui.trackHeld)        sectionScope = PS::Track;
-        else if (ui.patternScopeHeld) sectionScope = PS::Pattern;
-        else if (ui.partHeld)         sectionScope = PS::Part;
-        else if (ui.sceneHeld)        sectionScope = PS::Scene;
-        else if (ui.masterHeld)       sectionScope = PS::Master;
+        else if (ui.phraseScopeHeld) sectionScope = PS::Phrase;
+        else if (ui.sceneHeld)         sectionScope = PS::Scene;
+        else if (ui.morphHeld)        sectionScope = PS::Morph;
+        else if (ui.songHeld)       sectionScope = PS::Song;
 
         const bool isScopedMode = (sectionScope != PS::None);
 

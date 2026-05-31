@@ -25,12 +25,12 @@ namespace lockstep
                 scope_.func = isDown;
                 recomputePrimary();
                 return true;
-            case ControllerButton::PatternScope:
-                scope_.pattern = isDown;
+            case ControllerButton::PhraseScope:
+                scope_.phrase = isDown;
                 recomputePrimary();
                 return true;
-            case ControllerButton::SceneScope:
-                scope_.scene = isDown;
+            case ControllerButton::MorphScope:
+                scope_.morph = isDown;
                 recomputePrimary();
                 return true;
             case ControllerButton::MuteScope:
@@ -43,12 +43,12 @@ namespace lockstep
                 scope_.track = isDown;
                 recomputePrimary();
                 return true;
-            case ControllerButton::PartScope:
-                scope_.part = isDown;
+            case ControllerButton::SceneScope:
+                scope_.scene = isDown;
                 recomputePrimary();
                 return true;
-            case ControllerButton::MasterScope:
-                scope_.master = isDown;
+            case ControllerButton::SongScope:
+                scope_.song = isDown;
                 recomputePrimary();
                 return true;
             case ControllerButton::FillScope:
@@ -104,8 +104,8 @@ namespace lockstep
         //   Col 1 (non-Func): pattern, scene, mute.
         //   Col 2:            track, part, master, fill.
         // Func is the universal qualifier and pairs with anything.
-        const bool col1NonFunc = scope_.pattern || scope_.scene || scope_.mute;
-        const bool col2        = scope_.track   || scope_.part  || scope_.master || scope_.fill;
+        const bool col1NonFunc = scope_.phrase || scope_.morph || scope_.mute;
+        const bool col2        = scope_.track   || scope_.scene  || scope_.song || scope_.fill;
         if (scope_.func && (col1NonFunc || col2)) { return true; }
         if (col1NonFunc && col2) { return true; }
         return false;
@@ -114,12 +114,12 @@ namespace lockstep
     bool EditMode::hasSameColumnConflict() const noexcept
     {
         // MHY columns. Two of the same column non-Func held = no-op conflict.
-        const int col1Count = (scope_.pattern ? 1 : 0)
-                            + (scope_.scene   ? 1 : 0)
+        const int col1Count = (scope_.phrase ? 1 : 0)
+                            + (scope_.morph   ? 1 : 0)
                             + (scope_.mute    ? 1 : 0);
         const int col2Count = (scope_.track   ? 1 : 0)
-                            + (scope_.part    ? 1 : 0)
-                            + (scope_.master  ? 1 : 0)
+                            + (scope_.scene    ? 1 : 0)
+                            + (scope_.song  ? 1 : 0)
                             + (scope_.fill    ? 1 : 0);
         return (col1Count >= 2) || (col2Count >= 2);
     }
@@ -132,12 +132,12 @@ namespace lockstep
         if (scope_.trig)    { primary_ = PrimaryScope::Trig;    return; }
         if (sectionHeld_)   { primary_ = PrimaryScope::Section; return; }
         if (scope_.track)   { primary_ = PrimaryScope::Track;   return; }
-        if (scope_.pattern) { primary_ = PrimaryScope::Pattern; return; }
-        if (scope_.part)    { primary_ = PrimaryScope::Part;    return; }
+        if (scope_.phrase) { primary_ = PrimaryScope::Phrase; return; }
+        if (scope_.scene)    { primary_ = PrimaryScope::Scene;    return; }
         if (scope_.mute)    { primary_ = PrimaryScope::Mute;    return; }
         if (scope_.cue)     { primary_ = PrimaryScope::Cue;     return; }
-        if (scope_.scene)   { primary_ = PrimaryScope::Scene;   return; }
-        if (scope_.master)  { primary_ = PrimaryScope::Master;  return; }
+        if (scope_.morph)   { primary_ = PrimaryScope::Morph;   return; }
+        if (scope_.song)  { primary_ = PrimaryScope::Song;  return; }
         if (scope_.fill)    { primary_ = PrimaryScope::Fill;    return; }
         if (scope_.func)    { primary_ = PrimaryScope::Func;    return; }
         primary_ = PrimaryScope::None;

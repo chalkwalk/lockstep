@@ -613,10 +613,10 @@ namespace lockstep
                         ctx = juce::String(u8"TRACK  |  ↑↓ cycle PLAY/CHROM/LEVLS");
                     }
                     else if (ui.trackHeld)        ctx = "TRACK " + juce::String(keyboardArea_.getActiveTrack() + 1);
-                    else if (ui.patternScopeHeld) ctx = "PHRASE";
-                    else if (ui.partHeld)         ctx = "SCENE";
-                    else if (ui.sceneHeld)        ctx = "MORPH";
-                    else if (ui.masterHeld)       ctx = "SONG";
+                    else if (ui.phraseScopeHeld) ctx = "PHRASE";
+                    else if (ui.sceneHeld)         ctx = "SCENE";
+                    else if (ui.morphHeld)        ctx = "MORPH";
+                    else if (ui.songHeld)       ctx = "SONG";
                     else if (ui.muteHeld)         ctx = "MUTE";
                     else if (ui.fillHeld)         ctx = "FILL";
                     else if (ui.funcHeld)         ctx = "FUNC";
@@ -773,18 +773,18 @@ namespace lockstep
 
         // For each latched modifier that isn't physically held, do a full release.
         // dispatchUp now checks !uiState_.latch.xxx (already false), so it runs completely.
-        if (prevLatch.pattern && !physHeld_.pattern)
-            dispatchUp({ T::ButtonUp, CB::PatternScope });
-        if (prevLatch.scene && !physHeld_.scene)
-            dispatchUp({ T::ButtonUp, CB::SceneScope });
+        if (prevLatch.phrase && !physHeld_.phrase)
+            dispatchUp({ T::ButtonUp, CB::PhraseScope });
+        if (prevLatch.morph && !physHeld_.morph)
+            dispatchUp({ T::ButtonUp, CB::MorphScope });
         if (prevLatch.mute && !physHeld_.mute)
             dispatchUp({ T::ButtonUp, CB::MuteScope });
         if (prevLatch.track && !physHeld_.track)
             dispatchUp({ T::ButtonUp, CB::TrackScope });
-        if (prevLatch.part && !physHeld_.part)
-            dispatchUp({ T::ButtonUp, CB::PartScope });
-        if (prevLatch.master && !physHeld_.master)
-            dispatchUp({ T::ButtonUp, CB::MasterScope });
+        if (prevLatch.scene && !physHeld_.scene)
+            dispatchUp({ T::ButtonUp, CB::SceneScope });
+        if (prevLatch.song && !physHeld_.song)
+            dispatchUp({ T::ButtonUp, CB::SongScope });
         if (prevLatch.fill && !physHeld_.fill)
             dispatchUp({ T::ButtonUp, CB::FillScope });
 
@@ -826,7 +826,7 @@ namespace lockstep
             // Enforce column exclusivity by releasing any existing latch in the same column.
             // Calling dispatchUp (after clearing the latch bool) does the full release with
             // side effects (setControlAllActive, updateFillActivation, etc.).
-            const bool isCol1 = (cb == CB::PatternScope || cb == CB::SceneScope
+            const bool isCol1 = (cb == CB::PhraseScope || cb == CB::MorphScope
                                  || cb == CB::MuteScope);
 
             auto releaseOther = [&](bool& latchBool, bool physHeld, CB btn) {
@@ -838,27 +838,27 @@ namespace lockstep
 
             if (isCol1)
             {
-                releaseOther(uiState_.latch.pattern, physHeld_.pattern, CB::PatternScope);
-                releaseOther(uiState_.latch.scene,   physHeld_.scene,   CB::SceneScope);
+                releaseOther(uiState_.latch.phrase, physHeld_.phrase, CB::PhraseScope);
+                releaseOther(uiState_.latch.morph,   physHeld_.morph,   CB::MorphScope);
                 releaseOther(uiState_.latch.mute,    physHeld_.mute,    CB::MuteScope);
             }
             else
             {
                 releaseOther(uiState_.latch.track,  physHeld_.track,  CB::TrackScope);
-                releaseOther(uiState_.latch.part,   physHeld_.part,   CB::PartScope);
-                releaseOther(uiState_.latch.master, physHeld_.master, CB::MasterScope);
+                releaseOther(uiState_.latch.scene,   physHeld_.scene,   CB::SceneScope);
+                releaseOther(uiState_.latch.song, physHeld_.song, CB::SongScope);
                 releaseOther(uiState_.latch.fill,   physHeld_.fill,   CB::FillScope);
             }
         }
 
         switch (cb)
         {
-            case CB::PatternScope: uiState_.latch.pattern = set; break;
-            case CB::SceneScope:   uiState_.latch.scene   = set; break;
+            case CB::PhraseScope: uiState_.latch.phrase = set; break;
+            case CB::MorphScope:   uiState_.latch.morph   = set; break;
             case CB::MuteScope:    uiState_.latch.mute    = set; break;
             case CB::TrackScope:   uiState_.latch.track   = set; break;
-            case CB::PartScope:    uiState_.latch.part    = set; break;
-            case CB::MasterScope:  uiState_.latch.master  = set; break;
+            case CB::SceneScope:    uiState_.latch.scene    = set; break;
+            case CB::SongScope:  uiState_.latch.song  = set; break;
             case CB::FillScope:    uiState_.latch.fill    = set; break;
             case CB::Func:
             case CB::CueScope:
@@ -921,9 +921,9 @@ namespace lockstep
         {
             latched = uiState_.latch.track; phys = physHeld_.track;
         }
-        else if (cb == ControllerButton::PartScope)
+        else if (cb == ControllerButton::SceneScope)
         {
-            latched = uiState_.latch.part; phys = physHeld_.part;
+            latched = uiState_.latch.scene; phys = physHeld_.scene;
         }
         else
         {
@@ -944,8 +944,8 @@ namespace lockstep
     // Func+scope+verb is that scope's secondary variant — not a global checkpoint.
     static bool sectionSuiteScopeHeld(const UiState& ui) noexcept
     {
-        return ui.trackHeld || ui.patternScopeHeld || ui.partHeld
-            || ui.sceneHeld || ui.masterHeld;
+        return ui.trackHeld || ui.phraseScopeHeld || ui.sceneHeld
+            || ui.morphHeld || ui.songHeld;
     }
 
     // dispatchDown — source-agnostic button-down handler fed by both keyboard
@@ -959,7 +959,7 @@ namespace lockstep
                 uiState_.funcHeld = true;
                 // MHZ.3.5: Func+Part is the sole machine-picker gesture — entering
                 // the compound re-skins the step grid to machine names directly.
-                uiState_.funcPartHeld = uiState_.partHeld;
+                uiState_.funcPartHeld = uiState_.sceneHeld;
                 editMode_.onScopeEvent(ev);
                 updateFillActivation();
                 keyboardArea_.repaint();
@@ -985,12 +985,12 @@ namespace lockstep
                 repaint();
                 return true;
 
-            case CB::PatternScope:
-                physHeld_.pattern = true;
-                uiState_.patternScopeHeld = true;
-                uiState_.patternScopeUsed = false;
+            case CB::PhraseScope:
+                physHeld_.phrase = true;
+                uiState_.phraseScopeHeld = true;
+                uiState_.phraseScopeUsed = false;
                 editMode_.onScopeEvent(ev);
-                handleModifierTap(CB::PatternScope, uiState_.latch.pattern);
+                handleModifierTap(CB::PhraseScope, uiState_.latch.phrase);
                 repaint();
                 return true;
 
@@ -1018,24 +1018,24 @@ namespace lockstep
                 repaint();
                 return true;
 
+            case CB::MorphScope:
+                physHeld_.morph = true;
+                uiState_.morphHeld = true;
+                editMode_.onScopeEvent(ev);
+                handleModifierTap(CB::MorphScope, uiState_.latch.morph);
+                repaint();
+                return true;
+
+            case CB::SongScope:
+                physHeld_.song = true;
+                uiState_.songHeld = true;
+                editMode_.onScopeEvent(ev);
+                handleModifierTap(CB::SongScope, uiState_.latch.song);
+                repaint();
+                return true;
+
             case CB::SceneScope:
                 physHeld_.scene = true;
-                uiState_.sceneHeld = true;
-                editMode_.onScopeEvent(ev);
-                handleModifierTap(CB::SceneScope, uiState_.latch.scene);
-                repaint();
-                return true;
-
-            case CB::MasterScope:
-                physHeld_.master = true;
-                uiState_.masterHeld = true;
-                editMode_.onScopeEvent(ev);
-                handleModifierTap(CB::MasterScope, uiState_.latch.master);
-                repaint();
-                return true;
-
-            case CB::PartScope:
-                physHeld_.part = true;
                 uiState_.funcPartHeld = uiState_.funcHeld;
                 // Track + Part: re-sync focused musician to current Section (Phase 7).
                 if (uiState_.trackHeld)
@@ -1045,9 +1045,9 @@ namespace lockstep
                     repaint();
                     return true;
                 }
-                uiState_.partHeld = true;
+                uiState_.sceneHeld = true;
                 editMode_.onScopeEvent(ev);
-                handleModifierTap(CB::PartScope, uiState_.latch.part);
+                handleModifierTap(CB::SceneScope, uiState_.latch.scene);
                 keyboardArea_.repaint();
                 repaint();
                 return true;
@@ -1058,10 +1058,10 @@ namespace lockstep
                 using PS = EditMode::PrimaryScope;
                 PS sectionScope = PS::None;
                 if      (uiState_.trackHeld)        sectionScope = PS::Track;
-                else if (uiState_.patternScopeHeld) sectionScope = PS::Pattern;
-                else if (uiState_.partHeld)         sectionScope = PS::Part;
-                else if (uiState_.sceneHeld)        sectionScope = PS::Scene;
-                else if (uiState_.masterHeld)       sectionScope = PS::Master;
+                else if (uiState_.phraseScopeHeld) sectionScope = PS::Phrase;
+                else if (uiState_.sceneHeld)         sectionScope = PS::Scene;
+                else if (uiState_.morphHeld)        sectionScope = PS::Morph;
+                else if (uiState_.songHeld)       sectionScope = PS::Song;
 
                 if (sectionScope != PS::None)
                 {
@@ -1069,7 +1069,7 @@ namespace lockstep
                     if (!scopedCell(sectionScope, ev.index).hasContent) return true;
 
                     // Scope-specific dispatch for cells whose content is implemented.
-                    if (sectionScope == PS::Pattern && ev.index == 0)
+                    if (sectionScope == PS::Phrase && ev.index == 0)
                     {
                         // Pattern+LEN: track length/divider lives in the TRACK meta section.
                         keyboardArea_.selectMetaSection(2);
@@ -1186,7 +1186,7 @@ namespace lockstep
                 }
 
                 // Master + step: Piece (song) select (Phase 7 / DESIGN §16).
-                if (uiState_.masterHeld && !uiState_.sceneHeld)
+                if (uiState_.songHeld && !uiState_.morphHeld)
                 {
                     if (ev.index >= 0 && ev.index < kNumPieces)
                         processor_.setActivePiece(ev.index);
@@ -1198,7 +1198,7 @@ namespace lockstep
                 // Pattern + step: phrase swap (Phase 7 / DESIGN §4.7).
                 //   Track + Pattern + step → local deviation for focused musician.
                 //   Pattern + step alone  → global unison swap (non-deviated tracks).
-                if (uiState_.patternScopeHeld)
+                if (uiState_.phraseScopeHeld)
                 {
                     if (ev.index >= 0 && ev.index < kPhrasesPerTrack)
                     {
@@ -1208,14 +1208,14 @@ namespace lockstep
                         else
                             processor_.swapPhraseForAll(ev.index);
                     }
-                    uiState_.patternScopeUsed = true;
+                    uiState_.phraseScopeUsed = true;
                     repaint();
                     keyboardArea_.repaint();
                     return true;
                 }
 
                 // Part + step: Section launch (Phase 7 / DESIGN §16).
-                if (uiState_.partHeld && !uiState_.funcPartHeld)
+                if (uiState_.sceneHeld && !uiState_.funcPartHeld)
                 {
                     if (ev.index >= 0 && ev.index < kSectionsPerPiece)
                     {
@@ -1239,7 +1239,7 @@ namespace lockstep
                             processor_.availableMachineInfo(ev.index).id };
                         processor_.setTrackMachine(keyboardArea_.getActiveTrack(), machineId);
                         keyboardArea_.syncToActiveTrack();
-                        releaseTransientLatch(CB::PartScope);
+                        releaseTransientLatch(CB::SceneScope);
                     }
                     keyboardArea_.repaint();
                     return true;
@@ -1582,7 +1582,7 @@ namespace lockstep
             {
                 using PS = EditMode::PrimaryScope;
                 // Part + Stop: cancel queued Section launch (Phase 7).
-                if (uiState_.partHeld)
+                if (uiState_.sceneHeld)
                 {
                     processor_.cancelQueuedSection();
                     repaint();
@@ -1595,10 +1595,10 @@ namespace lockstep
                     editMode_.onVerb(ev.button);
                     return true;
                 }
-                if (uiState_.patternScopeHeld)
+                if (uiState_.phraseScopeHeld)
                 {
                     processor_.cancelQueuedPattern();
-                    uiState_.patternScopeUsed = true;
+                    uiState_.phraseScopeUsed = true;
                     repaint();
                     return true;
                 }
@@ -1611,7 +1611,7 @@ namespace lockstep
             {
                 using PS = EditMode::PrimaryScope;
                 // Part + Record: commit live phrase selections into the Section (Phase 7).
-                if (uiState_.partHeld)
+                if (uiState_.sceneHeld)
                 {
                     processor_.commitSectionState();
                     repaint();
@@ -1647,7 +1647,7 @@ namespace lockstep
             case ControllerButton::VerbYes:
                 yesHeld_ = true;
                 // Part + Yes: re-sync all musicians to the current Section (Phase 7).
-                if (uiState_.partHeld)
+                if (uiState_.sceneHeld)
                 {
                     processor_.resyncAllToSection();
                     repaint();
@@ -1890,24 +1890,24 @@ namespace lockstep
                 }
                 break;
 
-            case CB::PatternScope:
-                physHeld_.pattern = false;
-                if (!uiState_.latch.pattern)
+            case CB::PhraseScope:
+                physHeld_.phrase = false;
+                if (!uiState_.latch.phrase)
                 {
-                    uiState_.patternScopeHeld = false;
-                    uiState_.patternScopeUsed = false;
-                    editMode_.onScopeEvent({ T::ButtonUp, CB::PatternScope });
+                    uiState_.phraseScopeHeld = false;
+                    uiState_.phraseScopeUsed = false;
+                    editMode_.onScopeEvent({ T::ButtonUp, CB::PhraseScope });
                     repaint();
                 }
                 break;
 
-            case CB::PartScope:
-                physHeld_.part = false;
-                if (!uiState_.latch.part)
+            case CB::SceneScope:
+                physHeld_.scene = false;
+                if (!uiState_.latch.scene)
                 {
-                    uiState_.partHeld = false;
+                    uiState_.sceneHeld = false;
                     uiState_.funcPartHeld = false;  // MHZ.3.5
-                    editMode_.onScopeEvent({ T::ButtonUp, CB::PartScope });
+                    editMode_.onScopeEvent({ T::ButtonUp, CB::SceneScope });
                     repaint();
                 }
                 break;
@@ -1941,22 +1941,22 @@ namespace lockstep
                 repaint();
                 break;
 
-            case CB::SceneScope:
-                physHeld_.scene = false;
-                if (!uiState_.latch.scene)
+            case CB::MorphScope:
+                physHeld_.morph = false;
+                if (!uiState_.latch.morph)
                 {
-                    uiState_.sceneHeld = false;
-                    editMode_.onScopeEvent({ T::ButtonUp, CB::SceneScope });
+                    uiState_.morphHeld = false;
+                    editMode_.onScopeEvent({ T::ButtonUp, CB::MorphScope });
                     repaint();
                 }
                 break;
 
-            case CB::MasterScope:
-                physHeld_.master = false;
-                if (!uiState_.latch.master)
+            case CB::SongScope:
+                physHeld_.song = false;
+                if (!uiState_.latch.song)
                 {
-                    uiState_.masterHeld = false;
-                    editMode_.onScopeEvent({ T::ButtonUp, CB::MasterScope });
+                    uiState_.songHeld = false;
+                    editMode_.onScopeEvent({ T::ButtonUp, CB::SongScope });
                     repaint();
                 }
                 break;
@@ -2530,7 +2530,7 @@ namespace lockstep
             // -----------------------------------------------------------------------
             // MD.5  Pattern copy / paste / clear / delete
             // -----------------------------------------------------------------------
-            case PS::Pattern:
+            case PS::Phrase:
             {
                 auto& pat = processor_.activePattern();
                 const juce::String patName = "Pattern " + juce::String(processor_.activePatternIdx() + 1);
@@ -2576,14 +2576,14 @@ namespace lockstep
             // -----------------------------------------------------------------------
             // Part delete (No verb only; copy/paste/clear TBD once kit verbs are wired)
             // -----------------------------------------------------------------------
-            case PS::Part:
+            case PS::Scene:
             {
                 if (verb == CB::VerbNo)
                 {
                     // Delete: return all tracks in active part to absent (StubMachine).
                     processor_.pushCheckpoint();
                     processor_.deletePart();
-                    releaseTransientLatch(CB::PartScope);
+                    releaseTransientLatch(CB::SceneScope);
                     setStatus("Deleted Part");
                 }
                 break;
@@ -2593,8 +2593,8 @@ namespace lockstep
             case PS::Mute:
             case PS::Fill:
             case PS::Cue:
-            case PS::Scene:
-            case PS::Master:
+            case PS::Morph:
+            case PS::Song:
                 break;
 
             case PS::None:

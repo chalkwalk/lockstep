@@ -39,26 +39,26 @@ namespace lockstep
                     : KeyGroup{ kScopeTrackDim, kPerfActive, kPerfAccent };
 
             // --- Q-row modifiers (Pattern, Part) ---
-            case ControllerButton::PatternScope:
+            case ControllerButton::PhraseScope:
                 return isMode
-                    ? KeyGroup{ kScopePatternDim, kScopePattern, kScopePattern }
-                    : KeyGroup{ kScopePatternDim, kModActive,    kModAccent    };
+                    ? KeyGroup{ kScopePhraseDim, kScopePhrase, kScopePhrase }
+                    : KeyGroup{ kScopePhraseDim, kModActive,    kModAccent    };
 
-            case ControllerButton::PartScope:
-                return isMode
-                    ? KeyGroup{ kScopePartDim, kScopePart, kScopePart }
-                    : KeyGroup{ kScopePartDim, kPerfActive, kPerfAccent };
-
-            // --- Step-row modifiers (Scene, Master, Mute, Fill) ---
             case ControllerButton::SceneScope:
                 return isMode
                     ? KeyGroup{ kScopeSceneDim, kScopeScene, kScopeScene }
-                    : KeyGroup{ kScopeSceneDim, kModActive,  kModAccent  };
+                    : KeyGroup{ kScopeSceneDim, kPerfActive, kPerfAccent };
 
-            case ControllerButton::MasterScope:
+            // --- Step-row modifiers (Scene, Master, Mute, Fill) ---
+            case ControllerButton::MorphScope:
                 return isMode
-                    ? KeyGroup{ kScopeMasterDim, kScopeMaster, kScopeMaster }
-                    : KeyGroup{ kScopeMasterDim, kPerfActive,  kPerfAccent  };
+                    ? KeyGroup{ kScopeMorphDim, kScopeMorph, kScopeMorph }
+                    : KeyGroup{ kScopeMorphDim, kModActive,  kModAccent  };
+
+            case ControllerButton::SongScope:
+                return isMode
+                    ? KeyGroup{ kScopeSongDim, kScopeSong, kScopeSong }
+                    : KeyGroup{ kScopeSongDim, kPerfActive,  kPerfAccent  };
 
             case ControllerButton::MuteScope:
                 // When ModeActive, baseColour carries kScopePMute or kScopeMute depending on Func.

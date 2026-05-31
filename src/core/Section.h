@@ -29,8 +29,8 @@ namespace lockstep
         // Scene A/B parameter snapshots (Phase 7.7 / DESIGN §17).
         // Full crossfader implementation: ROADMAP 5.2.
         // Key = (trackIdx << 16) | slotIdx for a flat map lookup.
-        std::map<std::pair<int,int>, float> sceneA{};
-        std::map<std::pair<int,int>, float> sceneB{};
+        std::map<std::pair<int,int>, float> morphA{};
+        std::map<std::pair<int,int>, float> morphB{};
 
         // True once explicitly initialised.
         bool initialised = false;

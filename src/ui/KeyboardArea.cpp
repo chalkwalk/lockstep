@@ -462,7 +462,7 @@ namespace lockstep
         // Q-row logical button mapping (matches kDefs order in paintFunctionRow).
         using CB = ControllerButton;
         static constexpr std::array<CB, 10> kButtons = {{
-            CB::PatternScope, CB::PartScope,
+            CB::PhraseScope, CB::SceneScope,
             CB::NavLeft, CB::NavDown, CB::NavRight,
             CB::VerbYes, CB::VerbRecord, CB::VerbPlay, CB::VerbStop, CB::VerbNo,
         }};
@@ -556,7 +556,7 @@ namespace lockstep
         //   row 1, col 0 = Z (Mute)    row 1, col 1 = X (Fill)
         using CB = ControllerButton;
         static constexpr CB kModButtons[2][2] = {
-            { CB::SceneScope,  CB::MasterScope },
+            { CB::MorphScope,  CB::SongScope },
             { CB::MuteScope,   CB::FillScope   },
         };
 
@@ -717,16 +717,16 @@ namespace lockstep
         paintCell(g, sectionCellBounds(3, area), model.navUp,        showKeyHint);
 
         // Section keys 5-0 (cells 4-9): render from model + page dots (screen-only)
-        const bool isScopedMode = uiState_.trackHeld || uiState_.patternScopeHeld
-                                || uiState_.partHeld  || uiState_.sceneHeld
-                                || uiState_.masterHeld;
+        const bool isScopedMode = uiState_.trackHeld || uiState_.phraseScopeHeld
+                                || uiState_.sceneHeld  || uiState_.morphHeld
+                                || uiState_.songHeld;
         using PS = EditMode::PrimaryScope;
         PS sectionScope = PS::None;
         if      (uiState_.trackHeld)        sectionScope = PS::Track;
-        else if (uiState_.patternScopeHeld) sectionScope = PS::Pattern;
-        else if (uiState_.partHeld)         sectionScope = PS::Part;
-        else if (uiState_.sceneHeld)        sectionScope = PS::Scene;
-        else if (uiState_.masterHeld)       sectionScope = PS::Master;
+        else if (uiState_.phraseScopeHeld) sectionScope = PS::Phrase;
+        else if (uiState_.sceneHeld)         sectionScope = PS::Scene;
+        else if (uiState_.morphHeld)        sectionScope = PS::Morph;
+        else if (uiState_.songHeld)       sectionScope = PS::Song;
 
         for (int s = 0; s < IMachine::kMaxSections; ++s)
         {
@@ -927,7 +927,7 @@ namespace lockstep
         // Fill and press come from model; machine name text is a screen residual.
         if (uiState_.funcPartHeld)
         {
-            const juce::Colour machineTint = scopeColour(EditMode::PrimaryScope::Part, true);
+            const juce::Colour machineTint = scopeColour(EditMode::PrimaryScope::Scene, true);
 
             for (int row = 0; row < kRows; ++row)
             {
@@ -1389,8 +1389,8 @@ namespace lockstep
 
         // MHZ.2.1: scope re-skin — Slice 4: consume model.step[] built by builder.
         // Fill and pressed derive from model; border, text, badge stay inline.
-        const bool scopeReskin = uiState_.trackHeld || uiState_.patternScopeHeld
-                                                     || uiState_.partHeld;
+        const bool scopeReskin = uiState_.trackHeld || uiState_.phraseScopeHeld
+                                                     || uiState_.sceneHeld;
         if (scopeReskin)
         {
             const juce::Colour scopeTint = scopeColourFromState(uiState_);
@@ -1471,7 +1471,7 @@ namespace lockstep
             g.setColour(juce::Colour::fromRGB(80, 95, 115));
             g.setFont(juce::Font(juce::FontOptions(10.0f)));
             g.drawText(uiState_.trackHeld          ? "SELECT TRACK"
-                       : uiState_.patternScopeHeld ? "SELECT PHRASE" : "SELECT SCENE",
+                       : uiState_.phraseScopeHeld ? "SELECT PHRASE" : "SELECT SCENE",
                        navArea, juce::Justification::centred);
             return;
         }

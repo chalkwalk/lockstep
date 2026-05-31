@@ -101,12 +101,12 @@ namespace lockstep
         // xxxHeld in UiState = physHeld_.xxx OR uiState_.latch.xxx (effective).
         struct ModPhysHeld
         {
-            bool pattern = false;
-            bool scene   = false;
+            bool phrase  = false;
+            bool morph   = false;
             bool mute    = false;
             bool track   = false;
-            bool part    = false;
-            bool master  = false;
+            bool scene   = false;
+            bool song    = false;
             bool fill    = false;
             bool cue     = false;
         } physHeld_;

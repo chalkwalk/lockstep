@@ -81,10 +81,10 @@ namespace lockstep::theme
 
     // Section-suite scope modifiers — each gets a distinct hue.
     inline constexpr uint32_t kScopeTrack   = 0xFF30A0C0u;  // cyan-blue
-    inline constexpr uint32_t kScopePattern = 0xFF8040C0u;  // purple
-    inline constexpr uint32_t kScopePart    = 0xFF20A060u;  // green
-    inline constexpr uint32_t kScopeScene   = 0xFFD06020u;  // orange
-    inline constexpr uint32_t kScopeMaster  = 0xFFC0A000u;  // gold
+    inline constexpr uint32_t kScopePhrase = 0xFF8040C0u;  // purple
+    inline constexpr uint32_t kScopeScene    = 0xFF20A060u;  // green
+    inline constexpr uint32_t kScopeMorph   = 0xFFD06020u;  // orange
+    inline constexpr uint32_t kScopeSong  = 0xFFC0A000u;  // gold
 
     // Performance-specialist modifiers.
     inline constexpr uint32_t kScopeMute    = 0xFFC03030u;  // red   (global mute)
@@ -103,10 +103,10 @@ namespace lockstep::theme
     // Each is ~25% of the scope hue blended into black, giving a clearly-hued resting state.
     // -------------------------------------------------------------------------
     inline constexpr uint32_t kScopeTrackDim   = 0xFF0C2830u;  // dark cyan   (kScopeTrack)
-    inline constexpr uint32_t kScopePatternDim = 0xFF201030u;  // dark violet (kScopePattern)
-    inline constexpr uint32_t kScopePartDim    = 0xFF082818u;  // dark green  (kScopePart)
-    inline constexpr uint32_t kScopeSceneDim   = 0xFF341808u;  // dark orange (kScopeScene)
-    inline constexpr uint32_t kScopeMasterDim  = 0xFF302800u;  // dark gold   (kScopeMaster)
+    inline constexpr uint32_t kScopePhraseDim = 0xFF201030u;  // dark violet (kScopePhrase)
+    inline constexpr uint32_t kScopeSceneDim    = 0xFF082818u;  // dark green  (kScopeScene)
+    inline constexpr uint32_t kScopeMorphDim   = 0xFF341808u;  // dark orange (kScopeMorph)
+    inline constexpr uint32_t kScopeSongDim  = 0xFF302800u;  // dark gold   (kScopeSong)
     inline constexpr uint32_t kScopeMuteDim    = 0xFF300C0Cu;  // dark red    (kScopeMute)
     inline constexpr uint32_t kScopeFillDim    = 0xFF203008u;  // dark chartreuse (kScopeFill)
 

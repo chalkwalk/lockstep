@@ -13,21 +13,21 @@ namespace lockstep
     // Func never latches. Each bool, when true, means that modifier is held
     // hands-free; its corresponding xxxHeld flag in UiState stays true even
     // while the physical key is up. Column exclusivity is enforced at set time:
-    // at most one latch per column ({pattern,scene,mute} vs {track,part,master,fill}).
+    // at most one latch per column ({phrase,morph,mute} vs {track,scene,song,fill}).
     struct LatchState
     {
         // Col 1 (Func is not latchable):
-        bool pattern = false;
-        bool scene   = false;
+        bool phrase  = false;
+        bool morph   = false;
         bool mute    = false;
         // Col 2:
         bool track   = false;
-        bool part    = false;
-        bool master  = false;
+        bool scene   = false;
+        bool song    = false;
         bool fill    = false;
 
         [[nodiscard]] bool any() const noexcept
-        { return pattern || scene || mute || track || part || master || fill; }
+        { return phrase || morph || mute || track || scene || song || fill; }
 
         // Returns true if any step latch is engaged (via EditContext — checked externally).
         // Placed here for structural symmetry with modifier latches.
@@ -44,19 +44,19 @@ namespace lockstep
         std::array<std::array<int, IMachine::kMaxSections>, kNumTracks> trackPage{};
 
         // Modifier key states (updated by PluginEditor key events).
-        // MHY cluster:
-        //   Col 1 (1/Q/A/Z): Func / Pattern / Scene / Mute.
-        //   Col 2 (2/W/S/X): Track / Part / Master / Fill.
+        // Cluster:
+        //   Col 1 (1/Q/A/Z): Func / Phrase / Morph / Mute.
+        //   Col 2 (2/W/S/X): Track / Scene / Song / Fill.
         // Col 1:
         bool funcHeld         = false;  // key 1
-        bool patternScopeHeld = false;  // key Q (MHY: moved from A)
-        bool patternScopeUsed = false;  // true if a step was pressed while PatternScope held
-        bool sceneHeld        = false;  // key A (MHY: moved from S)
+        bool phraseScopeHeld = false;  // key Q (MHY: moved from A)
+        bool phraseScopeUsed = false;  // true if a step was pressed while PhraseScope held
+        bool morphHeld        = false;  // key A (MHY: moved from S)
         bool muteHeld         = false;  // key Z
         // Col 2:
         bool trackHeld        = false;  // key 2 (MHY: moved from Q)
-        bool partHeld         = false;  // key W (MHY new — §4.7)
-        bool masterHeld       = false;  // key S (MHY: moved from X)
+        bool sceneHeld         = false;  // key W (MHY new — §4.7)
+        bool songHeld       = false;  // key S (MHY: moved from X)
         bool fillHeld         = false;  // key X (MHY: moved from 2)
         // Cue is reserved (MU); no key bound post-MHY.
         bool cueHeld          = false;

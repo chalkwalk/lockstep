@@ -41,8 +41,8 @@ namespace lockstep
             case CellState::SelectorOccupied:   return kScopeStep;
             case CellState::SelectorEmpty:      return 0xFF404040u;
             case CellState::SelectorOutRange:   return kStepOutRange;
-            case CellState::SelectorNext:       return kScopePattern;
-            case CellState::SelectorChain:      return kScopePattern;
+            case CellState::SelectorNext:       return kScopePhrase;
+            case CellState::SelectorChain:      return kScopePhrase;
             case CellState::MuteMuted:          return kScopeMute;
             case CellState::MuteAudible:        return kStepInactive;
             case CellState::MachineCurrent:     return 0xFFFFFFFFu;
@@ -55,10 +55,10 @@ namespace lockstep
             case CellState::ChromaticWhite:     return kScopeTrack;
             case CellState::ChromaticBlack:     return kScopeTrack;
             case CellState::LevelsCell:         return 0xFF204060u;
-            case CellState::LengthInRun:        return kScopePattern;
+            case CellState::LengthInRun:        return kScopePhrase;
             case CellState::LengthBoundary:     return 0xFFCCAAFFu;  // bright purple edge
             case CellState::LengthOutRun:       return kStepOutRange;
-            case CellState::SelectorDeviated:   return kScopePattern;
+            case CellState::SelectorDeviated:   return kScopePhrase;
             default: return fallback;
         }
     }
@@ -73,10 +73,10 @@ namespace lockstep
         {
             case ControllerButton::Func:         return &modifiers[0];
             case ControllerButton::TrackScope:   return &modifiers[1];
-            case ControllerButton::PatternScope: return &modifiers[2];
-            case ControllerButton::PartScope:    return &modifiers[3];
-            case ControllerButton::SceneScope:   return &modifiers[4];
-            case ControllerButton::MasterScope:  return &modifiers[5];
+            case ControllerButton::PhraseScope: return &modifiers[2];
+            case ControllerButton::SceneScope:    return &modifiers[3];
+            case ControllerButton::MorphScope:   return &modifiers[4];
+            case ControllerButton::SongScope:  return &modifiers[5];
             case ControllerButton::MuteScope:    return &modifiers[6];
             case ControllerButton::FillScope:    return &modifiers[7];
             case ControllerButton::TapTempo:     return &tap;
@@ -176,8 +176,8 @@ namespace lockstep
         };
 
         // Compound-chord overlay condition (MHY cross-column pair)
-        const bool col1any = ui.patternScopeHeld || ui.sceneHeld || ui.muteHeld;
-        const bool col2any = ui.trackHeld || ui.partHeld || ui.masterHeld || ui.fillHeld;
+        const bool col1any = ui.phraseScopeHeld || ui.morphHeld || ui.muteHeld;
+        const bool col2any = ui.trackHeld || ui.sceneHeld || ui.songHeld || ui.fillHeld;
         const bool hasCompound = (ui.funcHeld && (col1any || col2any))
                                || (col1any && col2any);
         static constexpr uint32_t kAmberStrip = 0xFFD0A020u;
@@ -249,18 +249,18 @@ namespace lockstep
         {
             SurfaceCell& c = model.modifiers[4];
             c.keyHint = "A";
-            fillModifier(c, ControllerButton::SceneScope, 'A', "MORPH",
-                         ui.sceneHeld, ui.latch.scene,
-                         kScopeScene, kScopeSceneDim,
-                         hasCompound && ui.sceneHeld);
+            fillModifier(c, ControllerButton::MorphScope, 'A', "MORPH",
+                         ui.morphHeld, ui.latch.morph,
+                         kScopeMorph, kScopeMorphDim,
+                         hasCompound && ui.morphHeld);
         }
         {
             SurfaceCell& c = model.modifiers[5];
             c.keyHint = "S";
-            fillModifier(c, ControllerButton::MasterScope, 'S', "SONG",
-                         ui.masterHeld, ui.latch.master,
-                         kScopeMaster, kScopeMasterDim,
-                         hasCompound && ui.masterHeld);
+            fillModifier(c, ControllerButton::SongScope, 'S', "SONG",
+                         ui.songHeld, ui.latch.song,
+                         kScopeSong, kScopeSongDim,
+                         hasCompound && ui.songHeld);
         }
         {
             SurfaceCell& c = model.modifiers[6];
@@ -324,10 +324,10 @@ namespace lockstep
         using PS = EditMode::PrimaryScope;
         PS sectionScope = PS::None;
         if      (ui.trackHeld)        sectionScope = PS::Track;
-        else if (ui.patternScopeHeld) sectionScope = PS::Pattern;
-        else if (ui.partHeld)         sectionScope = PS::Part;
-        else if (ui.sceneHeld)        sectionScope = PS::Scene;
-        else if (ui.masterHeld)       sectionScope = PS::Master;
+        else if (ui.phraseScopeHeld) sectionScope = PS::Phrase;
+        else if (ui.sceneHeld)         sectionScope = PS::Scene;
+        else if (ui.morphHeld)        sectionScope = PS::Morph;
+        else if (ui.songHeld)       sectionScope = PS::Song;
         const bool isScopedMode = (sectionScope != PS::None);
 
         static constexpr int kSectionKeyCodes[IMachine::kMaxSections] = {
@@ -442,8 +442,8 @@ namespace lockstep
         };
 
         static const std::array<FRowDef, 10> kFRowDefs = {{
-            { 'Q', u8"Q", u8"PHRASE", u8"",      ControllerButton::PatternScope, KeyRole::Modifier  },
-            { 'W', u8"W", u8"SCENE", u8"MACH",   ControllerButton::PartScope,    KeyRole::Modifier  },
+            { 'Q', u8"Q", u8"PHRASE", u8"",      ControllerButton::PhraseScope, KeyRole::Modifier  },
+            { 'W', u8"W", u8"SCENE", u8"MACH",   ControllerButton::SceneScope,    KeyRole::Modifier  },
             { 'E', u8"E", u8"←",     u8"←ROT",    ControllerButton::NavLeft,      KeyRole::Nav       },
             { 'R', u8"R", u8"↓",     u8"÷2",     ControllerButton::NavDown,      KeyRole::Nav       },
             { 'T', u8"T", u8"→",     u8"ROT→",    ControllerButton::NavRight,     KeyRole::Nav       },
@@ -454,8 +454,8 @@ namespace lockstep
             { 'P', u8"P", u8"NO",    u8"POP",    ControllerButton::VerbNo,       KeyRole::VerbNo    },
         }};
 
-        const bool sectionScopeHeld = ui.trackHeld || ui.patternScopeHeld
-                                   || ui.partHeld || ui.sceneHeld || ui.masterHeld;
+        const bool sectionScopeHeld = ui.trackHeld || ui.phraseScopeHeld
+                                   || ui.sceneHeld || ui.morphHeld || ui.songHeld;
 
         for (int i = 0; i < 10; ++i)
         {
@@ -470,8 +470,8 @@ namespace lockstep
             const bool isOverdub  = (def.keyCode == 'U') && proc.clock().isOverdubArmed();
             const bool isArmed    = (def.keyCode == 'U') && proc.clock().isRecordArmed();
             const bool isPlaying  = (def.keyCode == 'I') && proc.clock().inPluginPlaying();
-            const bool isPatHeld  = (def.keyCode == 'Q') && ui.patternScopeHeld;
-            const bool isPrtHeld  = (def.keyCode == 'W') && ui.partHeld;
+            const bool isPatHeld  = (def.keyCode == 'Q') && ui.phraseScopeHeld;
+            const bool isPrtHeld  = (def.keyCode == 'W') && ui.sceneHeld;
             const bool isModeActive = isArmed || isPlaying || isPatHeld || isPrtHeld;
 
             juce::String displayPrimary { def.natural };
@@ -518,15 +518,15 @@ namespace lockstep
 
             // Compound overlay on Q (Pattern) and W (Part)
             c.strip.present = hasCompound
-                && ((def.keyCode == 'Q' && ui.patternScopeHeld)
-                 || (def.keyCode == 'W' && ui.partHeld));
+                && ((def.keyCode == 'Q' && ui.phraseScopeHeld)
+                 || (def.keyCode == 'W' && ui.sceneHeld));
             c.strip.colour  = kAmberStrip;
 
             // Latch pips: Pattern (Q) and Part (W)
-            if (def.keyCode == 'Q' && ui.latch.pattern)
-                { c.pip.present = true; c.pip.colour = kScopePattern; }
-            else if (def.keyCode == 'W' && ui.latch.part)
-                { c.pip.present = true; c.pip.colour = kScopePart; }
+            if (def.keyCode == 'Q' && ui.latch.phrase)
+                { c.pip.present = true; c.pip.colour = kScopePhrase; }
+            else if (def.keyCode == 'W' && ui.latch.scene)
+                { c.pip.present = true; c.pip.colour = kScopeScene; }
 
             // Cell state
             if (c.pressed)         c.base = CellState::Pressed;
@@ -537,9 +537,9 @@ namespace lockstep
             if (isOverdub)
                 c.baseColour = 0xFFD2821Eu;                                 // amber for OD
             else if (def.keyCode == 'Q')
-                c.baseColour = ui.patternScopeHeld ? kScopePattern : kScopePatternDim;
+                c.baseColour = ui.phraseScopeHeld ? kScopePhrase : kScopePhraseDim;
             else if (def.keyCode == 'W')
-                c.baseColour = ui.partHeld ? kScopePart : kScopePartDim;
+                c.baseColour = ui.sceneHeld ? kScopeScene : kScopeSceneDim;
             else
                 c.baseColour = compatColour(c.base, 0xFF404040u);
 
@@ -564,9 +564,9 @@ namespace lockstep
         // Mirror Q and W into modifiers[2/3] for byButton() lookup.
         // Screen renders Q/W from functionRow[0/1]; controllers look up via modifiers.
         model.modifiers[2]        = model.functionRow[0];
-        model.modifiers[2].button = ControllerButton::PatternScope;
+        model.modifiers[2].button = ControllerButton::PhraseScope;
         model.modifiers[3]        = model.functionRow[1];
-        model.modifiers[3].button = ControllerButton::PartScope;
+        model.modifiers[3].button = ControllerButton::SceneScope;
 
         // =====================================================================
         // step[0..15] — step grid cells (Slices 2–5)
@@ -844,13 +844,13 @@ namespace lockstep
             // ── Phase 7 / DESIGN §34.4: Phrase-length authoring re-skin ─────────
             // Pattern+Func (focused track, purple) or Scene+Func (all tracks, orange).
             // Momentary: active exactly as long as the modifiers are held.
-            else if ((ui.patternScopeHeld || ui.sceneHeld) && ui.funcHeld
+            else if ((ui.phraseScopeHeld || ui.morphHeld) && ui.funcHeld
                      && !ui.funcPartHeld)
             {
-                const bool broadcastMode = ui.sceneHeld && ui.funcHeld;
+                const bool broadcastMode = ui.morphHeld && ui.funcHeld;
                 const juce::Colour tint  = broadcastMode
-                    ? juce::Colour(kScopeScene)
-                    : juce::Colour(kScopePattern);
+                    ? juce::Colour(kScopeMorph)
+                    : juce::Colour(kScopePhrase);
 
                 // Resolve phrase length from the focused track (or longest if broadcast).
                 const int lenTrack = (activeTrack >= 0) ? activeTrack : 0;
@@ -887,7 +887,7 @@ namespace lockstep
             }
             // ── End length-edit re-skin ──────────────────────────────────────────
 
-            else if (ui.trackHeld || ui.patternScopeHeld || ui.partHeld)
+            else if (ui.trackHeld || ui.phraseScopeHeld || ui.sceneHeld)
             {
                 // Scope re-skin (Slice 4): cells encode track/pattern/part selector state.
                 // fill colour + pressed → builder; border/text/badge → inline screen residuals.
@@ -900,14 +900,14 @@ namespace lockstep
                     maxAvail  = static_cast<int>(kNumTracks);
                     activeIdx = activeTrack;
                 }
-                else if (ui.patternScopeHeld)
+                else if (ui.phraseScopeHeld)
                 {
                     // Phase 7: show per-track phrase pool (16 phrases).
                     maxAvail  = kPhrasesPerTrack;
                     activeIdx = proc.section().phraseIdx[static_cast<std::size_t>(
                         activeTrack >= 0 ? activeTrack : 0)];
                 }
-                else // partHeld
+                else // sceneHeld
                 {
                     // Phase 7: show sections within the active Piece.
                     maxAvail  = kSectionsPerPiece;
@@ -916,7 +916,7 @@ namespace lockstep
 
                 // Phase 7: Section queue indicator (replaces old pattern chain).
                 std::array<int, 16> sectionQueuePos{};
-                if (ui.partHeld && proc.hasQueuedSection())
+                if (ui.sceneHeld && proc.hasQueuedSection())
                 {
                     const int qi = proc.queuedSectionIdx();
                     if (qi >= 0 && qi < kSectionsPerPiece)
@@ -924,7 +924,7 @@ namespace lockstep
                 }
 
                 // Phase 7: per-phrase deviation badge for patternScope view.
-                const int devTrack = (activeTrack >= 0 && ui.patternScopeHeld) ? activeTrack : -1;
+                const int devTrack = (activeTrack >= 0 && ui.phraseScopeHeld) ? activeTrack : -1;
 
                 std::array<bool, 16> slotEmpty{};
                 for (int i = 0; i < maxAvail; ++i)
@@ -947,9 +947,9 @@ namespace lockstep
                     const bool isEmpty = avail && slotEmpty[static_cast<std::size_t>(i)];
                     const bool isCurrent = avail && !isEmpty && (i == activeIdx);
                     // Phase 7: section queue badge (Part scope) or deviation badge (Pattern scope).
-                    const int  cpos = (ui.partHeld && avail)
+                    const int  cpos = (ui.sceneHeld && avail)
                                       ? sectionQueuePos[static_cast<std::size_t>(i)] : 0;
-                    const bool isDeviated = ui.patternScopeHeld && avail
+                    const bool isDeviated = ui.phraseScopeHeld && avail
                                          && devTrack >= 0
                                          && proc.isTrackDeviated(devTrack)
                                          && i == proc.deviationPhraseIdxForTrack(devTrack);

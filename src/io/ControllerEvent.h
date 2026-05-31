@@ -22,16 +22,16 @@ namespace lockstep
     //   until MU; the CueScope enum value remains for future reactivation.
     enum class ControllerButton : std::uint8_t
     {
-        // Column-1 modifiers (MHY): Func / Pattern / Scene / Mute.
+        // Column-1 modifiers: Func / Phrase / Morph / Mute.
         Func,         // key 1: universal qualifier (secondary functions via Func+key)
-        PatternScope, // key Q: pattern-level scope (MHY: moved from A)
-        SceneScope,   // key A: scene assignment scope (§17, MHY: moved from S); Scene+^/v picks endpoint A/B
-        MuteScope,    // key Z: mute scope (Z+step=toggle track mute)
+        PhraseScope,  // key Q: Phrase scope (per-track phrase select / swap)
+        MorphScope,   // key A: Morph (A/B crossfader) assignment scope (§17); Morph+^/v picks endpoint A/B
+        MuteScope,    // key Z: mute scope (Z+step=toggle track mute; Func+Z=scene mute)
 
-        // Column-2 modifiers (MHY): Track / Part / Master / Fill.
-        TrackScope,   // key 2: track scope (MHY: moved from Q); Track+step=SelectTrack, Track alone=Control-All
-        PartScope,    // key W: part scope (MHY new — kit identity, machine select via Part+SRC, §4.7)
-        MasterScope,  // key S: master-bus / FX focus (§32.3, MHY: moved from X)
+        // Column-2 modifiers: Track / Scene / Song / Fill.
+        TrackScope,   // key 2: track scope; Track+step=SelectTrack, Track alone=Control-All; Func+Track=machine/Kit picker
+        SceneScope,   // key W: Scene scope (§4.7 — launch / re-sync / commit a Scene)
+        SongScope,    // key S: Song select; Func+Song = Global / master-bus / FX focus (§32.3)
         FillScope,    // key X: fill modifier (MHY: moved from 2; held=fill conditions evaluate true)
 
         // Cue scope: reserved for MU reactivation, currently not bound to any key.

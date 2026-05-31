@@ -419,8 +419,8 @@ namespace lockstep::PluginState
                     }
                     secNode.appendChild(scNode, nullptr);
                 };
-                writeSceneMap("SceneA", sec.sceneA);
-                writeSceneMap("SceneB", sec.sceneB);
+                writeSceneMap("SceneA", sec.morphA);
+                writeSceneMap("SceneB", sec.morphB);
                 pieceNode.appendChild(secNode, nullptr);
                 pieceHasContent = true;
             }
@@ -504,8 +504,8 @@ namespace lockstep::PluginState
                                 sceneMap[{t2, s2}] = getFloat(eNode, "v", 0.0f);
                         }
                     };
-                    readSceneMap("SceneA", sec.sceneA);
-                    readSceneMap("SceneB", sec.sceneB);
+                    readSceneMap("SceneA", sec.morphA);
+                    readSceneMap("SceneB", sec.morphB);
                 }
             }
         }
