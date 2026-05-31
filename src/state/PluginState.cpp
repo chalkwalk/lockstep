@@ -403,6 +403,24 @@ namespace lockstep::PluginState
                         if (!sec.activeMask[static_cast<std::size_t>(t)]) maskBits |= (1 << t);
                     secNode.setProperty("mutesMask", maskBits, nullptr);
                 }
+                // Scene A/B snapshots (Phase 7 Stage G; full morph impl = 5.2).
+                auto writeSceneMap = [&](const char* tag,
+                    const std::map<std::pair<int,int>,float>& sceneMap)
+                {
+                    if (sceneMap.empty()) return;
+                    juce::ValueTree scNode(tag);
+                    for (const auto& [key, val] : sceneMap)
+                    {
+                        juce::ValueTree eNode("E");
+                        eNode.setProperty("t",  key.first,  nullptr);
+                        eNode.setProperty("s",  key.second, nullptr);
+                        eNode.setProperty("v",  static_cast<double>(val), nullptr);
+                        scNode.appendChild(eNode, nullptr);
+                    }
+                    secNode.appendChild(scNode, nullptr);
+                };
+                writeSceneMap("SceneA", sec.sceneA);
+                writeSceneMap("SceneB", sec.sceneB);
                 pieceNode.appendChild(secNode, nullptr);
                 pieceHasContent = true;
             }
@@ -472,6 +490,22 @@ namespace lockstep::PluginState
                         for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
                             sec.activeMask[static_cast<std::size_t>(t)] = !(maskBits & (1 << t));
                     }
+                    // Scene A/B
+                    auto readSceneMap = [&](const char* tag,
+                        std::map<std::pair<int,int>,float>& sceneMap)
+                    {
+                        const auto scNode = child.getChildWithName(tag);
+                        if (!scNode.isValid()) return;
+                        for (auto eNode : scNode)
+                        {
+                            const int t2 = static_cast<int>(eNode.getProperty("t", -1));
+                            const int s2 = static_cast<int>(eNode.getProperty("s", -1));
+                            if (t2 >= 0 && s2 >= 0)
+                                sceneMap[{t2, s2}] = getFloat(eNode, "v", 0.0f);
+                        }
+                    };
+                    readSceneMap("SceneA", sec.sceneA);
+                    readSceneMap("SceneB", sec.sceneB);
                 }
             }
         }
