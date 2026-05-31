@@ -98,6 +98,18 @@ namespace lockstep
         int activeBankIdx()    const { return activeBankIdx_; }
         int activePatternIdx() const { return activePatternIdx_; }
 
+        // ── New hierarchy navigation (Phase 7) ───────────────────────────────
+        // Switch the active Piece (song); syncs sequence tracks from the new kit+phrase.
+        void setActivePiece(int pieceIdx);
+        // Switch the active Section within the current Piece; syncs sequence tracks.
+        // Clears all phrase deviations (Section launch re-asserts non-deviated tracks;
+        // full per-track deviation stickiness is wired in Stage D gestures).
+        void setActiveSection(int sectionIdx);
+        // Active phrase for a track: deviationPhrase if deviated, else section's phrase.
+        Phrase&       activePhrase(int t);
+        const Phrase& activePhrase(int t) const;
+
+        // ── Legacy pattern navigation (kept for editor compat; removed in Stage D) ──
         // Switch the active pattern (no-op if indices unchanged or out of range).
         // Always syncs Track.baseParams from the new active Part.
         void setActivePattern(int bankIdx, int patternIdx);
@@ -393,6 +405,11 @@ namespace lockstep
         using juce::AudioProcessor::processBlock;
 
     private:
+        // Reinstalls machines_ from the current Piece's kit machineIds (Phase 7).
+        void reinstallMachinesFromActiveKit();
+        // Copies active section's phrase data + kit baseParams into sequence tracks.
+        void syncSequenceFromCurrentSection();
+
         // Reinstalls machines_ entries that don't match activePart()'s machineIds,
         // then syncs all sequence baseParams. Suspends audio only if needed.
         void reinstallMachinesFromActivePart();
@@ -408,7 +425,15 @@ namespace lockstep
         // New hierarchy active indices (Phase 7).
         int activePieceIdx_   = 0;
         int activeSectionIdx_ = 0;
-        // Legacy active indices (kept for Stage A; removed in Stage B).
+        // Per-track phrase deviation state (Phase 7 / DESIGN §4.7).
+        // deviated_[t] = true when the track has a live phrase deviation;
+        // deviationPhraseIdx_[t] = which phrase it's playing.
+        std::array<bool, kNumTracks> deviated_{};
+        std::array<int,  kNumTracks> deviationPhraseIdx_{};
+        // Per-track launch mode: false = fire at global bar boundary,
+        // true = fire at end of current phrase cycle.
+        std::array<bool, kNumTracks> phraseEndMode_{};
+        // Legacy active indices (kept for editor compat; removed in Stage D).
         int activeBankIdx_    = 0;
         int activePatternIdx_ = 0;
         Clock clock_;

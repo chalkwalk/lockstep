@@ -164,6 +164,24 @@ namespace lockstep
             // Only T0 has real baseParams; T1-T15 stay empty.
             pat0.sequence.tracks[0].baseParams = part0.tracks[0].baseParams;
         }
+
+        // Seed the new hierarchy (Phase 7): Piece[0], Lane[0] kit = sampler,
+        // Lane[1..15] kit = stub; Section[0] activeMask = all true (default).
+        {
+            auto& p0 = project_.pieces[0];
+
+            p0.tracks[0].kit.machineId  = SamplerMachine::kMachineId;
+            p0.tracks[0].kit.baseParams =
+                project_.banks[0].parts[0].tracks[0].baseParams;  // reuse seed above
+
+            for (std::size_t t = 1; t < kNumTracks; ++t)
+            {
+                p0.tracks[t].kit.machineId = StubMachine::kMachineId;
+                p0.tracks[t].kit.baseParams.clear();
+            }
+            // Section[0]: all tracks active, coreTime 4/4, phrase indices = 0.
+            // phraseIdx and activeMask default correctly (0s and trues).
+        }
     }
 
     LockstepProcessor::~LockstepProcessor() = default;
@@ -1008,7 +1026,7 @@ namespace lockstep
             for (std::size_t i = 0; i < kNumTracks; ++i)
             {
                 const bool muted  = (trackMuteParams_[i]->load() >= 0.5f)
-                                   || activePattern().patternMutes[i];
+                                   || !section().activeMask[i];
                 const bool soloed = trackSoloParams_[i]->load() >= 0.5f;
                 if (muted || (anySoloed && !soloed)) continue;
                 // Resolve against the held step so P-Locks written by the note-on
@@ -1044,7 +1062,7 @@ namespace lockstep
 
                     if (!mi->hasInternalFilter())
                     {
-                        TrackFltrState fltr = activePart().tracks[i].fltrState;
+                        TrackFltrState fltr = kit(static_cast<int>(i)).fltrState;
                         if (resolveStep >= 0 && resolveStep < kMaxStepsPerTrack)
                         {
                             const auto& step =
@@ -1063,7 +1081,7 @@ namespace lockstep
 
                     if (!mi->hasInternalAmp())
                     {
-                        TrackAmpState amp = activePart().tracks[i].ampState;
+                        TrackAmpState amp = kit(static_cast<int>(i)).ampState;
                         if (resolveStep >= 0 && resolveStep < kMaxStepsPerTrack)
                         {
                             const auto& step =
@@ -1197,10 +1215,10 @@ namespace lockstep
 
             const int trackLen = static_cast<int>(trackLengthParams_[i]->load());
             const int trackDiv = static_cast<int>(trackDividerParams_[i]->load());
-            // MD.6/MD.7: combined mute = global (APVTS) || pattern mute.
+            // MD.6/MD.7: combined mute = global (APVTS) || section active-mask.
             const bool globalMuted  = trackMuteParams_[i]->load() >= 0.5f;
-            const bool patternMuted = activePattern().patternMutes[i];
-            const bool muted   = globalMuted || patternMuted;
+            const bool sectionMuted = !section().activeMask[i];
+            const bool muted   = globalMuted || sectionMuted;
             const bool soloed  = trackSoloParams_[i]->load() >= 0.5f;
             const bool silent  = muted || (anySoloed && !soloed);
 
@@ -1479,7 +1497,7 @@ namespace lockstep
 
                 if (!mi->hasInternalFilter())
                 {
-                    TrackFltrState fltr = activePart().tracks[i].fltrState;
+                    TrackFltrState fltr = kit(static_cast<int>(i)).fltrState;
                     if (fsi >= 0 && fsi < kMaxStepsPerTrack)
                     {
                         const auto& step = sequence().tracks[i].steps[static_cast<std::size_t>(fsi)];
@@ -1497,7 +1515,7 @@ namespace lockstep
 
                 if (!mi->hasInternalAmp())
                 {
-                    TrackAmpState amp = activePart().tracks[i].ampState;
+                    TrackAmpState amp = kit(static_cast<int>(i)).ampState;
                     if (fsi >= 0 && fsi < kMaxStepsPerTrack)
                     {
                         const auto& step = sequence().tracks[i].steps[static_cast<std::size_t>(fsi)];
@@ -1804,6 +1822,13 @@ namespace lockstep
             part.tracks[t].baseParams.clear();
             part.tracks[t].fltrState  = TrackFltrState{};
             part.tracks[t].ampState   = TrackAmpState{};
+
+            // Mirror into the new kit hierarchy (Phase 7).
+            auto& k   = kit(static_cast<int>(t));
+            k.machineId  = StubMachine::kMachineId;
+            k.baseParams.clear();
+            k.fltrState  = TrackFltrState{};
+            k.ampState   = TrackAmpState{};
         }
         reinstallMachinesFromActivePart();
     }
@@ -1811,13 +1836,13 @@ namespace lockstep
     bool LockstepProcessor::getPatternMute(int track) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
-        return activePattern().patternMutes[static_cast<std::size_t>(track)];
+        return !section().activeMask[static_cast<std::size_t>(track)];
     }
 
     void LockstepProcessor::setPatternMute(int track, bool muted)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
-        activePattern().patternMutes[static_cast<std::size_t>(track)] = muted;
+        section().activeMask[static_cast<std::size_t>(track)] = !muted;
     }
 
     void LockstepProcessor::togglePatternMute(int track)
@@ -2563,6 +2588,97 @@ namespace lockstep
         return activePattern().partRef;
     }
 
+    // ── Phase 7 new-hierarchy methods ────────────────────────────────────────
+
+    Phrase& LockstepProcessor::activePhrase(int t)
+    {
+        const int pIdx = deviated_[static_cast<std::size_t>(t)]
+                       ? deviationPhraseIdx_[static_cast<std::size_t>(t)]
+                       : section().phraseIdx[static_cast<std::size_t>(t)];
+        const int clamped = std::clamp(pIdx, 0, kPhrasesPerTrack - 1);
+        return piece().tracks[static_cast<std::size_t>(t)].phrases[static_cast<std::size_t>(clamped)];
+    }
+
+    const Phrase& LockstepProcessor::activePhrase(int t) const
+    {
+        const int pIdx = deviated_[static_cast<std::size_t>(t)]
+                       ? deviationPhraseIdx_[static_cast<std::size_t>(t)]
+                       : section().phraseIdx[static_cast<std::size_t>(t)];
+        const int clamped = std::clamp(pIdx, 0, kPhrasesPerTrack - 1);
+        return piece().tracks[static_cast<std::size_t>(t)].phrases[static_cast<std::size_t>(clamped)];
+    }
+
+    void LockstepProcessor::syncSequenceFromCurrentSection()
+    {
+        for (std::size_t t = 0; t < kNumTracks; ++t)
+        {
+            const auto& phr      = activePhrase(static_cast<int>(t));
+            auto&       seqTrack = sequence().tracks[t];
+            seqTrack.baseParams  = kit(static_cast<int>(t)).baseParams;
+            seqTrack.length      = phr.length;
+            seqTrack.steps       = phr.steps;
+            seqTrack.trigDefaults = phr.trigDefaults;
+            seqTrack.baseCond    = phr.baseCond;
+            seqTrack.noteSelection = phr.noteSelection;
+        }
+    }
+
+    void LockstepProcessor::reinstallMachinesFromActiveKit()
+    {
+        bool needsSuspend = false;
+        for (std::size_t t = 0; t < kNumTracks; ++t)
+        {
+            const auto* m = machines_[t].get();
+            if (m && m->machineId() != kit(static_cast<int>(t)).machineId)
+                needsSuspend = true;
+        }
+        if (needsSuspend) suspendProcessing(true);
+        for (std::size_t t = 0; t < kNumTracks; ++t)
+        {
+            const auto& desired = kit(static_cast<int>(t)).machineId;
+            const auto* m = machines_[t].get();
+            if (!m || m->machineId() != desired)
+            {
+                auto nm = makeMachineForId(desired, samplePool_);
+                nm->prepare(getSampleRate(), getBlockSize());
+                machines_[t] = std::move(nm);
+            }
+        }
+        if (needsSuspend) suspendProcessing(false);
+        for (std::size_t t = 0; t < kNumTracks; ++t)
+        {
+            sequence().tracks[t].baseParams = kit(static_cast<int>(t)).baseParams;
+            recomputeSlicesIfNeeded(static_cast<int>(t),
+                                    slotForId(static_cast<int>(t), "slicer_sample_id"),
+                                    sequence().tracks[t].baseParams);
+        }
+    }
+
+    void LockstepProcessor::setActivePiece(int pieceIdx)
+    {
+        if (pieceIdx < 0 || pieceIdx >= kNumPieces) return;
+        if (pieceIdx == activePieceIdx_) return;
+        activePieceIdx_ = pieceIdx;
+        activeSectionIdx_ = 0;
+        deviated_.fill(false);
+        syncSequenceFromCurrentSection();
+        reinstallMachinesFromActiveKit();
+    }
+
+    void LockstepProcessor::setActiveSection(int sectionIdx)
+    {
+        if (sectionIdx < 0 || sectionIdx >= kSectionsPerPiece) return;
+        if (sectionIdx == activeSectionIdx_) return;
+        activeSectionIdx_ = sectionIdx;
+        deviated_.fill(false);   // Section launch re-asserts non-deviated tracks
+        syncSequenceFromCurrentSection();
+        // Machine ids are per-Piece (Kit), not per-Section, so reinstall only if
+        // the kit has different ids than the current machines.
+        reinstallMachinesFromActiveKit();
+    }
+
+    // ── End Phase 7 new-hierarchy methods ────────────────────────────────────
+
     void LockstepProcessor::reinstallMachinesFromActivePart()
     {
         const auto& part = activePart();
@@ -2619,6 +2735,11 @@ namespace lockstep
                 machines_[ti]->paramSpec(s).defaultValue;
 
         sequence().tracks[ti].baseParams = partTrack.baseParams;
+
+        // Mirror into the new kit hierarchy (Phase 7).
+        auto& k = kit(track);
+        k.machineId  = machineId;
+        k.baseParams = partTrack.baseParams;
 
         // Seed slices for slicer machine on first install so trigs fire immediately.
         recomputeSlicesIfNeeded(track,
