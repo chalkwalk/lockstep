@@ -1040,7 +1040,7 @@ namespace lockstep
                 // Track + Part: re-sync focused musician to current Section (Phase 7).
                 if (uiState_.trackHeld)
                 {
-                    processor_.resyncTrackToSection(processor_.focusTrack());
+                    processor_.resyncTrackToScene(processor_.focusTrack());
                     keyboardArea_.repaint();
                     repaint();
                     return true;
@@ -1185,11 +1185,11 @@ namespace lockstep
                     }
                 }
 
-                // Master + step: Piece (song) select (Phase 7 / DESIGN §16).
+                // Master + step: Song (song) select (Phase 7 / DESIGN §16).
                 if (uiState_.songHeld && !uiState_.morphHeld)
                 {
-                    if (ev.index >= 0 && ev.index < kNumPieces)
-                        processor_.setActivePiece(ev.index);
+                    if (ev.index >= 0 && ev.index < kNumSongs)
+                        processor_.setActiveSong(ev.index);
                     repaint();
                     keyboardArea_.repaint();
                     return true;
@@ -1217,12 +1217,12 @@ namespace lockstep
                 // Part + step: Section launch (Phase 7 / DESIGN §16).
                 if (uiState_.sceneHeld && !uiState_.funcPartHeld)
                 {
-                    if (ev.index >= 0 && ev.index < kSectionsPerPiece)
+                    if (ev.index >= 0 && ev.index < kScenesPerSong)
                     {
                         if (processor_.clock().inPluginPlaying())
-                            processor_.queueSection(ev.index);
+                            processor_.queueScene(ev.index);
                         else
-                            processor_.setActiveSection(ev.index);
+                            processor_.setActiveScene(ev.index);
                     }
                     repaint();
                     keyboardArea_.repaint();
@@ -1584,7 +1584,7 @@ namespace lockstep
                 // Part + Stop: cancel queued Section launch (Phase 7).
                 if (uiState_.sceneHeld)
                 {
-                    processor_.cancelQueuedSection();
+                    processor_.cancelQueuedScene();
                     repaint();
                     return true;
                 }
@@ -1613,7 +1613,7 @@ namespace lockstep
                 // Part + Record: commit live phrase selections into the Section (Phase 7).
                 if (uiState_.sceneHeld)
                 {
-                    processor_.commitSectionState();
+                    processor_.commitSceneState();
                     repaint();
                     keyboardArea_.repaint();
                     return true;
@@ -1649,7 +1649,7 @@ namespace lockstep
                 // Part + Yes: re-sync all musicians to the current Section (Phase 7).
                 if (uiState_.sceneHeld)
                 {
-                    processor_.resyncAllToSection();
+                    processor_.resyncAllToScene();
                     repaint();
                     keyboardArea_.repaint();
                     return true;

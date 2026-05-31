@@ -12,9 +12,9 @@ namespace lockstep
     // intrinsic length — plays until the next Section is launched.
     //
     // Phase 7 / DESIGN §4.7.  Replaces Part (kit use) and Pattern::patternMutes.
-    struct Section
+    struct Scene
     {
-        // Which phrase (index into Piece::Lane::phrases) each musician plays.
+        // Which phrase (index into Song::SongTrack::phrases) each musician plays.
         // Default 0 = first phrase in the lane.
         std::array<int, kNumTracks> phraseIdx{};
 
@@ -35,7 +35,7 @@ namespace lockstep
         // True once explicitly initialised.
         bool initialised = false;
 
-        Section()
+        Scene()
         {
             activeMask.fill(true);   // all musicians active by default
         }

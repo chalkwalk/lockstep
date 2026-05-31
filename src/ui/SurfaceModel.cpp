@@ -909,17 +909,17 @@ namespace lockstep
                 }
                 else // sceneHeld
                 {
-                    // Phase 7: show sections within the active Piece.
-                    maxAvail  = kSectionsPerPiece;
+                    // Phase 7: show sections within the active Song.
+                    maxAvail  = kScenesPerSong;
                     activeIdx = proc.activeSectionIdx();
                 }
 
                 // Phase 7: Section queue indicator (replaces old pattern chain).
                 std::array<int, 16> sectionQueuePos{};
-                if (ui.sceneHeld && proc.hasQueuedSection())
+                if (ui.sceneHeld && proc.hasQueuedScene())
                 {
                     const int qi = proc.queuedSectionIdx();
-                    if (qi >= 0 && qi < kSectionsPerPiece)
+                    if (qi >= 0 && qi < kScenesPerSong)
                         sectionQueuePos[static_cast<std::size_t>(qi)] = 1;
                 }
 

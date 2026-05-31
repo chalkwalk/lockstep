@@ -4,7 +4,7 @@
 #include "../core/Pattern.h"
 #include "../core/Part.h"
 #include "../core/Phrase.h"
-#include "../core/Piece.h"
+#include "../core/Song.h"
 #include "../core/Project.h"
 #include "../core/Sequence.h"
 #include "../core/TrackKit.h"
@@ -335,25 +335,25 @@ namespace lockstep::PluginState
         nhNode.setProperty("activeSect",  proc.activeSectionIdx(), nullptr);
         nhNode.setProperty("launchQuant", proc.project().launchQuantizeBars, nullptr);
 
-        for (int pi = 0; pi < kNumPieces; ++pi)
+        for (int pi = 0; pi < kNumSongs; ++pi)
         {
-            const auto& piece = proc.project().pieces[static_cast<std::size_t>(pi)];
+            const auto& song = proc.project().pieces[static_cast<std::size_t>(pi)];
             bool pieceHasContent = false;
 
-            juce::ValueTree pieceNode("Piece");
-            pieceNode.setProperty("i", pi, nullptr);
+            juce::ValueTree songNode("Song");
+            songNode.setProperty("i", pi, nullptr);
 
             for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
             {
-                const auto& lane = piece.tracks[static_cast<std::size_t>(t)];
+                const auto& lane = song.tracks[static_cast<std::size_t>(t)];
                 bool laneHasContent = false;
-                juce::ValueTree laneNode("Lane");
-                laneNode.setProperty("t", t, nullptr);
+                juce::ValueTree songTrackNode("SongTrack");
+                songTrackNode.setProperty("t", t, nullptr);
 
                 // Write kit only if non-default.
                 if (lane.kit.machineId != StubMachine::kMachineId || !lane.kit.baseParams.empty())
                 {
-                    laneNode.appendChild(writeKitNode(t, lane.kit, proc), nullptr);
+                    songTrackNode.appendChild(writeKitNode(t, lane.kit, proc), nullptr);
                     laneHasContent = true;
                 }
                 // Write non-default phrases.
@@ -364,25 +364,25 @@ namespace lockstep::PluginState
                     bool hasData = phrase.length != 16 || phrase.initialised;
                     if (!hasData) for (const auto& s : phrase.steps) if (s.trig) { hasData = true; break; }
                     if (!hasData) continue;
-                    laneNode.appendChild(writePhraseNode(ph, phrase), nullptr);
+                    songTrackNode.appendChild(writePhraseNode(ph, phrase), nullptr);
                     laneHasContent = true;
                 }
                 if (laneHasContent)
                 {
-                    pieceNode.appendChild(laneNode, nullptr);
+                    songNode.appendChild(songTrackNode, nullptr);
                     pieceHasContent = true;
                 }
             }
 
             // Write non-default sections.
-            for (int si = 0; si < kSectionsPerPiece; ++si)
+            for (int si = 0; si < kScenesPerSong; ++si)
             {
-                const auto& sec = piece.sections[static_cast<std::size_t>(si)];
+                const auto& sec = song.scenes[static_cast<std::size_t>(si)];
                 if (!sec.initialised) continue;
-                juce::ValueTree secNode("Section");
-                secNode.setProperty("i", si, nullptr);
-                secNode.setProperty("ct_n", sec.coreTime.numerator,   nullptr);
-                secNode.setProperty("ct_d", sec.coreTime.denominator, nullptr);
+                juce::ValueTree sceneNode("Scene");
+                sceneNode.setProperty("i", si, nullptr);
+                sceneNode.setProperty("ct_n", sec.coreTime.numerator,   nullptr);
+                sceneNode.setProperty("ct_d", sec.coreTime.denominator, nullptr);
                 // phraseIdx bitfield (default all 0, only write non-zero).
                 int anyNonZero = 0;
                 for (const int idx : sec.phraseIdx) anyNonZero |= idx;
@@ -391,7 +391,7 @@ namespace lockstep::PluginState
                     juce::ValueTree piNode("PhraseIdx");
                     for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
                         piNode.setProperty("t" + juce::String(t), sec.phraseIdx[static_cast<std::size_t>(t)], nullptr);
-                    secNode.appendChild(piNode, nullptr);
+                    sceneNode.appendChild(piNode, nullptr);
                 }
                 // activeMask (default all true; only write if any false).
                 bool anyMasked = false;
@@ -401,7 +401,7 @@ namespace lockstep::PluginState
                     int maskBits = 0;
                     for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
                         if (!sec.activeMask[static_cast<std::size_t>(t)]) maskBits |= (1 << t);
-                    secNode.setProperty("mutesMask", maskBits, nullptr);
+                    sceneNode.setProperty("mutesMask", maskBits, nullptr);
                 }
                 // Scene A/B snapshots (Phase 7 Stage G; full morph impl = 5.2).
                 auto writeSceneMap = [&](const char* tag,
@@ -417,16 +417,16 @@ namespace lockstep::PluginState
                         eNode.setProperty("v",  static_cast<double>(val), nullptr);
                         scNode.appendChild(eNode, nullptr);
                     }
-                    secNode.appendChild(scNode, nullptr);
+                    sceneNode.appendChild(scNode, nullptr);
                 };
-                writeSceneMap("SceneA", sec.morphA);
-                writeSceneMap("SceneB", sec.morphB);
-                pieceNode.appendChild(secNode, nullptr);
+                writeSceneMap("MorphA", sec.morphA);
+                writeSceneMap("MorphB", sec.morphB);
+                songNode.appendChild(sceneNode, nullptr);
                 pieceHasContent = true;
             }
 
             if (pieceHasContent || pi == proc.activePieceIdx())
-                nhNode.appendChild(pieceNode, nullptr);
+                nhNode.appendChild(songNode, nullptr);
         }
         root.appendChild(nhNode, nullptr);
     }
@@ -440,20 +440,20 @@ namespace lockstep::PluginState
         const int activeSect  = static_cast<int>(nhNode.getProperty("activeSect",  0));
         proc.project().launchQuantizeBars = static_cast<int>(nhNode.getProperty("launchQuant", 1));
 
-        for (auto pieceNode : nhNode)
+        for (auto songNode : nhNode)
         {
-            if (pieceNode.getType() != juce::Identifier("Piece")) continue;
-            const int pi = static_cast<int>(pieceNode.getProperty("i", -1));
-            if (pi < 0 || pi >= kNumPieces) continue;
-            auto& piece = proc.project().pieces[static_cast<std::size_t>(pi)];
+            if (songNode.getType() != juce::Identifier("Song")) continue;
+            const int pi = static_cast<int>(songNode.getProperty("i", -1));
+            if (pi < 0 || pi >= kNumSongs) continue;
+            auto& song = proc.project().pieces[static_cast<std::size_t>(pi)];
 
-            for (auto child : pieceNode)
+            for (auto child : songNode)
             {
-                if (child.getType() == juce::Identifier("Lane"))
+                if (child.getType() == juce::Identifier("SongTrack"))
                 {
                     const int t = static_cast<int>(child.getProperty("t", -1));
                     if (t < 0 || t >= static_cast<int>(kNumTracks)) continue;
-                    auto& lane = piece.tracks[static_cast<std::size_t>(t)];
+                    auto& lane = song.tracks[static_cast<std::size_t>(t)];
 
                     const auto kitNode = child.getChildWithName("Kit");
                     if (kitNode.isValid())
@@ -464,16 +464,16 @@ namespace lockstep::PluginState
                         if (phraseNode.getType() != juce::Identifier("Phrase")) continue;
                         const int ph = static_cast<int>(phraseNode.getProperty("i", -1));
                         if (ph < 0 || ph >= kPhrasesPerTrack) continue;
-                        auto& phrase = piece.tracks[static_cast<std::size_t>(t)].phrases[static_cast<std::size_t>(ph)];
+                        auto& phrase = song.tracks[static_cast<std::size_t>(t)].phrases[static_cast<std::size_t>(ph)];
                         readPhraseFromNode(phraseNode, phrase);
                         phrase.initialised = true;
                     }
                 }
-                else if (child.getType() == juce::Identifier("Section"))
+                else if (child.getType() == juce::Identifier("Scene"))
                 {
                     const int si = static_cast<int>(child.getProperty("i", -1));
-                    if (si < 0 || si >= kSectionsPerPiece) continue;
-                    auto& sec = piece.sections[static_cast<std::size_t>(si)];
+                    if (si < 0 || si >= kScenesPerSong) continue;
+                    auto& sec = song.scenes[static_cast<std::size_t>(si)];
                     sec.coreTime.numerator   = static_cast<int>(child.getProperty("ct_n", 4));
                     sec.coreTime.denominator = static_cast<int>(child.getProperty("ct_d", 4));
                     sec.initialised = true;
@@ -504,15 +504,15 @@ namespace lockstep::PluginState
                                 sceneMap[{t2, s2}] = getFloat(eNode, "v", 0.0f);
                         }
                     };
-                    readSceneMap("SceneA", sec.morphA);
-                    readSceneMap("SceneB", sec.morphB);
+                    readSceneMap("MorphA", sec.morphA);
+                    readSceneMap("MorphB", sec.morphB);
                 }
             }
         }
 
         // Apply active indices after all data is loaded.
-        proc.setActivePiece(std::clamp(activePiece, 0, kNumPieces - 1));
-        proc.setActiveSection(std::clamp(activeSect, 0, kSectionsPerPiece - 1));
+        proc.setActiveSong(std::clamp(activePiece, 0, kNumSongs - 1));
+        proc.setActiveScene(std::clamp(activeSect, 0, kScenesPerSong - 1));
     }
 
     // ── End Phase 7 new hierarchy serialization ───────────────────────────────
@@ -1434,7 +1434,7 @@ namespace lockstep::PluginState
 
     // v4 → v5: Phase 7 clean break.
     // Drop the old Project/Bank/Pattern/Part nodes; preserve APVTS, SamplePool, Misc.
-    // New NewHierarchy node starts empty — the processor seeds Piece[0] on startup.
+    // New NewHierarchy node starts empty — the processor seeds Song[0] on startup.
     juce::ValueTree upgrade_v4_to_v5(const juce::ValueTree& v4)
     {
         juce::ValueTree v5("LockstepState");
@@ -1486,7 +1486,7 @@ namespace lockstep::PluginState
         // Sample pool ({path, hash} refs — no PCM bytes)
         writeSamplePool(root, proc);
 
-        // Phase 7 new hierarchy: Piece/Lane/Kit/Phrase/Section
+        // Phase 7 new hierarchy: Song/SongTrack/Kit/Phrase/Section
         writeNewHierarchyNode(root, proc);
 
         // Legacy hierarchy retained for reference (can be removed in a later cleanup).

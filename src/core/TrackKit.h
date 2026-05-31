@@ -8,9 +8,9 @@
 
 namespace lockstep
 {
-    // Per-(track, Piece) instrument identity and base parameter state.
-    // A musician plays the same Kit throughout a Piece; Kits may differ
-    // between Pieces.  Replaces PartTrack (Phase 7 / DESIGN §4.7).
+    // Per-(track, Song) instrument identity and base parameter state.
+    // A musician plays the same Kit throughout a Song; Kits may differ
+    // between Songs.  Replaces PartTrack (Phase 7 / DESIGN §4.7).
     struct TrackKit
     {
         // Stable machine string id (e.g. "lockstep.sampler.v1").

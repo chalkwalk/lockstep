@@ -165,8 +165,8 @@ namespace lockstep
             pat0.sequence.tracks[0].baseParams = part0.tracks[0].baseParams;
         }
 
-        // Seed the new hierarchy (Phase 7): Piece[0], Lane[0] kit = sampler,
-        // Lane[1..15] kit = stub; Section[0] activeMask = all true (default).
+        // Seed the new hierarchy (Phase 7): Song[0], SongTrack[0] kit = sampler,
+        // SongTrack[1..15] kit = stub; Section[0] activeMask = all true (default).
         {
             auto& p0 = project_.pieces[0];
 
@@ -280,25 +280,25 @@ namespace lockstep
         chain_.clear();
     }
 
-    void LockstepProcessor::queueSection(int sectionIdx)
+    void LockstepProcessor::queueScene(int sectionIdx)
     {
-        if (sectionIdx < 0 || sectionIdx >= kSectionsPerPiece) return;
-        queuedSectionIdx_.store(sectionIdx, std::memory_order_release);
+        if (sectionIdx < 0 || sectionIdx >= kScenesPerSong) return;
+        queuedSceneIdx_.store(sectionIdx, std::memory_order_release);
     }
 
-    void LockstepProcessor::cancelQueuedSection()
+    void LockstepProcessor::cancelQueuedScene()
     {
-        queuedSectionIdx_.store(-1, std::memory_order_release);
+        queuedSceneIdx_.store(-1, std::memory_order_release);
     }
 
-    bool LockstepProcessor::hasQueuedSection() const
+    bool LockstepProcessor::hasQueuedScene() const
     {
-        return queuedSectionIdx_.load(std::memory_order_acquire) >= 0;
+        return queuedSceneIdx_.load(std::memory_order_acquire) >= 0;
     }
 
     int LockstepProcessor::queuedSectionIdx() const
     {
-        return queuedSectionIdx_.load(std::memory_order_acquire);
+        return queuedSceneIdx_.load(std::memory_order_acquire);
     }
 
     void LockstepProcessor::queuePattern(int bankIdx, int patternIdx)
@@ -1167,7 +1167,7 @@ namespace lockstep
         // ── Section launch engine (Phase 7 / DESIGN §4.8, §16) ───────────────
         // A queued Section fires at the next core-time bar boundary.
         {
-            const int qSecIdx = queuedSectionIdx_.load(std::memory_order_acquire);
+            const int qSecIdx = queuedSceneIdx_.load(std::memory_order_acquire);
             if (qSecIdx >= 0 && samplesPerPpq > 0.0)
             {
                 const auto& ct     = section().coreTime;
@@ -1180,11 +1180,11 @@ namespace lockstep
                         std::ceil(blockStart / barPpq) * barPpq;
                     if (boundary < blockEnd)
                     {
-                        queuedSectionIdx_.store(-1, std::memory_order_release);
+                        queuedSceneIdx_.store(-1, std::memory_order_release);
                         juce::MessageManager::callAsync(
                             [this, qSecIdx]
                             {
-                                setActiveSection(qSecIdx);
+                                setActiveScene(qSecIdx);
                                 if (onActivePatternChanged)
                                     onActivePatternChanged();
                             });
@@ -2643,7 +2643,7 @@ namespace lockstep
                        ? deviationPhraseIdx_[static_cast<std::size_t>(t)]
                        : section().phraseIdx[static_cast<std::size_t>(t)];
         const int clamped = std::clamp(pIdx, 0, kPhrasesPerTrack - 1);
-        return piece().tracks[static_cast<std::size_t>(t)].phrases[static_cast<std::size_t>(clamped)];
+        return song().tracks[static_cast<std::size_t>(t)].phrases[static_cast<std::size_t>(clamped)];
     }
 
     const Phrase& LockstepProcessor::activePhrase(int t) const
@@ -2652,10 +2652,10 @@ namespace lockstep
                        ? deviationPhraseIdx_[static_cast<std::size_t>(t)]
                        : section().phraseIdx[static_cast<std::size_t>(t)];
         const int clamped = std::clamp(pIdx, 0, kPhrasesPerTrack - 1);
-        return piece().tracks[static_cast<std::size_t>(t)].phrases[static_cast<std::size_t>(clamped)];
+        return song().tracks[static_cast<std::size_t>(t)].phrases[static_cast<std::size_t>(clamped)];
     }
 
-    void LockstepProcessor::syncSequenceFromCurrentSection()
+    void LockstepProcessor::syncSequenceFromCurrentScene()
     {
         for (std::size_t t = 0; t < kNumTracks; ++t)
         {
@@ -2701,25 +2701,25 @@ namespace lockstep
         }
     }
 
-    void LockstepProcessor::setActivePiece(int pieceIdx)
+    void LockstepProcessor::setActiveSong(int pieceIdx)
     {
-        if (pieceIdx < 0 || pieceIdx >= kNumPieces) return;
-        if (pieceIdx == activePieceIdx_) return;
-        activePieceIdx_ = pieceIdx;
-        activeSectionIdx_ = 0;
+        if (pieceIdx < 0 || pieceIdx >= kNumSongs) return;
+        if (pieceIdx == activeSongIdx_) return;
+        activeSongIdx_ = pieceIdx;
+        activeSceneIdx_ = 0;
         deviated_.fill(false);
-        syncSequenceFromCurrentSection();
+        syncSequenceFromCurrentScene();
         reinstallMachinesFromActiveKit();
     }
 
-    void LockstepProcessor::setActiveSection(int sectionIdx)
+    void LockstepProcessor::setActiveScene(int sectionIdx)
     {
-        if (sectionIdx < 0 || sectionIdx >= kSectionsPerPiece) return;
-        if (sectionIdx == activeSectionIdx_) return;
-        activeSectionIdx_ = sectionIdx;
+        if (sectionIdx < 0 || sectionIdx >= kScenesPerSong) return;
+        if (sectionIdx == activeSceneIdx_) return;
+        activeSceneIdx_ = sectionIdx;
         deviated_.fill(false);   // Section launch re-asserts non-deviated tracks
-        syncSequenceFromCurrentSection();
-        // Machine ids are per-Piece (Kit), not per-Section, so reinstall only if
+        syncSequenceFromCurrentScene();
+        // Machine ids are per-Song (Kit), not per-Section, so reinstall only if
         // the kit has different ids than the current machines.
         reinstallMachinesFromActiveKit();
     }
@@ -2750,10 +2750,10 @@ namespace lockstep
             if (!deviated_[static_cast<std::size_t>(t)])
                 sec.phraseIdx[static_cast<std::size_t>(t)] = clamped;
         }
-        syncSequenceFromCurrentSection();
+        syncSequenceFromCurrentScene();
     }
 
-    void LockstepProcessor::resyncTrackToSection(int t)
+    void LockstepProcessor::resyncTrackToScene(int t)
     {
         if (t < 0 || t >= static_cast<int>(kNumTracks)) return;
         deviated_[static_cast<std::size_t>(t)] = false;
@@ -2768,10 +2768,10 @@ namespace lockstep
         seqTrack.noteSelection = phr.noteSelection;
     }
 
-    void LockstepProcessor::resyncAllToSection()
+    void LockstepProcessor::resyncAllToScene()
     {
         deviated_.fill(false);
-        syncSequenceFromCurrentSection();
+        syncSequenceFromCurrentScene();
     }
 
     bool LockstepProcessor::isTrackDeviated(int t) const
@@ -2786,7 +2786,7 @@ namespace lockstep
         return deviationPhraseIdx_[static_cast<std::size_t>(t)];
     }
 
-    void LockstepProcessor::commitSectionState()
+    void LockstepProcessor::commitSceneState()
     {
         // Write any live deviations into the Section's phraseIdx, then clear them.
         auto& sec = section();
@@ -2797,7 +2797,7 @@ namespace lockstep
                     deviationPhraseIdx_[static_cast<std::size_t>(t)];
         }
         deviated_.fill(false);
-        syncSequenceFromCurrentSection();
+        syncSequenceFromCurrentScene();
     }
 
     // ── End Phase 7 new-hierarchy methods ────────────────────────────────────

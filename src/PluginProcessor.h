@@ -12,9 +12,9 @@
 #include "core/ChannelMode.h"
 #include "core/Clock.h"
 #include "core/Metronome.h"
-#include "core/Piece.h"
+#include "core/Song.h"
 #include "core/Project.h"
-#include "core/Section.h"
+#include "core/Scene.h"
 #include "core/TrackKit.h"
 #include "core/SoundPool.h"
 #include "core/SyncMode.h"
@@ -73,17 +73,17 @@ namespace lockstep
         juce::AudioProcessorValueTreeState& apvts() { return apvts_; }
 
         // ── New hierarchy accessors (Phase 7 / DESIGN §4.7) ──────────────────
-        Piece&         piece()              { return project_.pieces[static_cast<std::size_t>(activePieceIdx_)]; }
-        const Piece&   piece()        const { return project_.pieces[static_cast<std::size_t>(activePieceIdx_)]; }
-        Section&       section()            { return piece().sections[static_cast<std::size_t>(activeSectionIdx_)]; }
-        const Section& section()      const { return piece().sections[static_cast<std::size_t>(activeSectionIdx_)]; }
-        Piece::Lane&        lane(int t)       { return piece().tracks[static_cast<std::size_t>(t)]; }
-        const Piece::Lane&  lane(int t) const { return piece().tracks[static_cast<std::size_t>(t)]; }
+        Song&         song()              { return project_.pieces[static_cast<std::size_t>(activeSongIdx_)]; }
+        const Song&   song()        const { return project_.pieces[static_cast<std::size_t>(activeSongIdx_)]; }
+        Scene&       section()            { return song().scenes[static_cast<std::size_t>(activeSceneIdx_)]; }
+        const Scene& section()      const { return song().scenes[static_cast<std::size_t>(activeSceneIdx_)]; }
+        Song::SongTrack&        lane(int t)       { return song().tracks[static_cast<std::size_t>(t)]; }
+        const Song::SongTrack&  lane(int t) const { return song().tracks[static_cast<std::size_t>(t)]; }
         TrackKit&           kit(int t)        { return lane(t).kit; }
         const TrackKit&     kit(int t)  const { return lane(t).kit; }
 
-        int activePieceIdx()   const { return activePieceIdx_; }
-        int activeSectionIdx() const { return activeSectionIdx_; }
+        int activePieceIdx()   const { return activeSongIdx_; }
+        int activeSectionIdx() const { return activeSceneIdx_; }
 
         // ── Legacy accessors (kept for Stage A; removed in Stage B) ──────────
         Sequence&       sequence()       { return activePattern().sequence; }
@@ -99,17 +99,17 @@ namespace lockstep
         int activePatternIdx() const { return activePatternIdx_; }
 
         // ── New hierarchy navigation + gestures (Phase 7) ────────────────────
-        void setActivePiece(int pieceIdx);
-        void setActiveSection(int sectionIdx);
+        void setActiveSong(int pieceIdx);
+        void setActiveScene(int sectionIdx);
         Phrase&       activePhrase(int t);
         const Phrase& activePhrase(int t) const;
         // swapPhraseForTrack: sticky local deviation (Track + Pattern + step).
         void swapPhraseForTrack(int t, int phraseIdx);
         // swapPhraseForAll: unison swap, non-deviated tracks only (Pattern + step).
         void swapPhraseForAll(int phraseIdx);
-        void resyncTrackToSection(int t);    // Track + Part
-        void resyncAllToSection();           // Part + Yes
-        void commitSectionState();           // Part + Record
+        void resyncTrackToScene(int t);    // Track + Part
+        void resyncAllToScene();           // Part + Yes
+        void commitSceneState();           // Part + Record
         // Read-only deviation state for UI (surface model, badge rendering).
         bool isTrackDeviated(int t) const;
         int  deviationPhraseIdxForTrack(int t) const;
@@ -148,10 +148,10 @@ namespace lockstep
 
         // ── New hierarchy launch queue (Phase 7 / DESIGN §4.8, §16) ─────────
         // Queue a Section launch to fire at the next core-time bar boundary.
-        // Safe to call from the message thread. cancelQueuedSection() clears it.
-        void queueSection(int sectionIdx);
-        void cancelQueuedSection();
-        bool hasQueuedSection() const;
+        // Safe to call from the message thread. cancelQueuedScene() clears it.
+        void queueScene(int sectionIdx);
+        void cancelQueuedScene();
+        bool hasQueuedScene() const;
         int  queuedSectionIdx() const;
 
         // ── Legacy pattern queue (kept for editor compat; removed in Stage D) ──
@@ -419,10 +419,10 @@ namespace lockstep
         using juce::AudioProcessor::processBlock;
 
     private:
-        // Reinstalls machines_ from the current Piece's kit machineIds (Phase 7).
+        // Reinstalls machines_ from the current Song's kit machineIds (Phase 7).
         void reinstallMachinesFromActiveKit();
         // Copies active section's phrase data + kit baseParams into sequence tracks.
-        void syncSequenceFromCurrentSection();
+        void syncSequenceFromCurrentScene();
 
         // Reinstalls machines_ entries that don't match activePart()'s machineIds,
         // then syncs all sequence baseParams. Suspends audio only if needed.
@@ -437,8 +437,8 @@ namespace lockstep
         SamplePool samplePool_;
         Project project_;
         // New hierarchy active indices (Phase 7).
-        int activePieceIdx_   = 0;
-        int activeSectionIdx_ = 0;
+        int activeSongIdx_   = 0;
+        int activeSceneIdx_ = 0;
         // Per-track phrase deviation state (Phase 7 / DESIGN §4.7).
         // deviated_[t] = true when the track has a live phrase deviation;
         // deviationPhraseIdx_[t] = which phrase it's playing.
@@ -484,7 +484,7 @@ namespace lockstep
         // poolIndex with release ordering); audio thread consumes with acq_rel exchange.
         // Queued Section launch: fires at next core-time bar boundary (Phase 7).
         // -1 = none pending.
-        std::atomic<int> queuedSectionIdx_ { -1 };
+        std::atomic<int> queuedSceneIdx_ { -1 };
         // Legacy: queued pattern switch. -1/-1 means no switch pending.
         std::atomic<int> queuedPatternBankIdx_ { -1 };
         std::atomic<int> queuedPatternPatIdx_  { -1 };
