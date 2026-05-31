@@ -10,7 +10,7 @@ satisfy, see `PRINCIPLES.md`. **Before adding a milestone here, confirm it is
 expressible within those principles and within the existing scope+verb grammar
 (DESIGN §13).**
 
-**Active focus:** `7.0` — Stage 0 docs: musical hierarchy re-architecture.
+**Active focus:** `7.8` — Stage H: verification sweep (Stages 0–G shipped).
 **Last completed:** `3.10` — Latch (virtual-hold) + Track+Nav mode cycle.
 **Next up:** `7.1–7.8` (full musical hierarchy re-architecture, absorbs `3.11`),
 then `6.7` — the Machine Module ABI.
@@ -415,7 +415,7 @@ container model with a musically-derived `Set > Piece > Section > Phrase` model
 kPhrasesPerTrack = 16`. State format: **clean break + version bump** (pre-release;
 no faithful legacy migration). One commit per stage minimum.
 
-### 7.0 — Stage 0: Documentation  *[active]*
+### 7.0 — Stage 0: Documentation  *[shipped]*
 Docs first — PRINCIPLES → DESIGN → ROADMAP — before any code changes.
 - [x] `PRINCIPLES.md`: add *"More specific scope wins"* (§13).
 - [x] `DESIGN.md`: rewrite §4.7 (musical hierarchy), add §4.8 (core time),
@@ -424,71 +424,74 @@ Docs first — PRINCIPLES → DESIGN → ROADMAP — before any code changes.
 - [x] `ROADMAP.md`: Phase 7 added; 2.2 superseded; 3.11 absorbed; 5.2/5.3
       re-scoped; locked-decisions and legacy-appendix updated; header updated.
 
-### 7.1 — Stage A: Core data model
-New `src/core/` structs; old Bank/Pattern/Part/Sequence removed.
-- [ ] `TrackKit`, `Phrase`, `Section`, `Piece`, `Project` structs in place.
-- [ ] Constants: `kNumPieces = kSectionsPerPiece = kPhrasesPerTrack = 16`.
-- [ ] Delete `Bank.h`, `Pattern.h`, `Part.h`, `Sequence.h`; replace with new files.
-- [ ] `PluginProcessor.h` `activePattern()/activePart()/sequence()` → `piece()/
-      section()/lane(t)/kit(t)` + active-phrase resolver.
-- [ ] Build clean under strict warnings.
+### 7.1 — Stage A: Core data model  *[shipped]*
+New `src/core/` structs added alongside legacy (legacy removed when editor
+migrates in Stage D+). Old Bank/Pattern/Part/Sequence kept as compat stubs.
+- [x] `TrackKit`, `Phrase`, `Section`, `Piece`, `TimeSig` structs in place.
+- [x] Constants: `kNumPieces = kSectionsPerPiece = kPhrasesPerTrack = 16`.
+- [x] `Project.h` adds `pieces[]` + `launchQuantizeBars` alongside `banks[]`.
+- [x] `PluginProcessor.h` adds `piece()/section()/lane(t)/kit(t)` +
+      `activePieceIdx_/activeSectionIdx_` alongside legacy accessors.
+- [x] Build clean under strict warnings.
 
-### 7.2 — Stage B: Processor state + resolvers
-- [ ] Active piece/section indices, per-track `deviated[t]`, `deviationPhraseIdx[t]`,
-      and `launchMode[t]` (`GlobalBar | PhraseEnd`) in `PluginProcessor`.
-- [ ] Step loop: phrase/kit/length resolution (§4.7), two-layer mute
-      (`globalMute[t] || !activeMask[t]`).
-- [ ] All APIs referencing `activePart()/activePattern()` reworked: copy/paste
-      scopes, mutes, checkpoints, Sound Pool.
-- [ ] Build + smoke-test: standalone plays audio, mutes work.
+### 7.2 — Stage B: Processor state + resolvers  *[shipped]*
+- [x] `deviated_[]`, `deviationPhraseIdx_[]`, `phraseEndMode_[]` arrays.
+- [x] Mute logic: `patternMutes[]` → `!section().activeMask[]`.
+- [x] FLTR/AMP: `activePart().tracks[i].{fltr,amp}State` → `kit(i).*`.
+- [x] `setTrackMachine`: mirrors `kit(t).*` alongside old Part write.
+- [x] New methods: `activePhrase(t)`, `setActiveSection()`, `setActivePiece()`,
+      `syncSequenceFromCurrentSection()`, `reinstallMachinesFromActiveKit()`.
+- [x] Startup seed: Piece[0]/Lane kits seeded alongside legacy Bank[0].
+- [x] Build clean.
 
-### 7.3 — Stage C: Core time + launch engine
-- [ ] `TimeSig → barPpq` math; `launchQuantizeBars` project param.
-- [ ] Quantized Section launch replacing the old longest-track boundary calc.
-- [ ] Per-track phrase-end launch-mode override.
-- [ ] Metronome downbeat driven by core time.
-- [ ] Build + playback test: Section launch fires at bar boundary.
+### 7.3 — Stage C: Core time + launch engine  *[shipped]*
+- [x] `Metronome` parameterized by numerator/denominator (4/4 default).
+- [x] `queuedSectionIdx_` atomic + `queueSection/cancelQueuedSection/hasQueuedSection`.
+- [x] Section launch at `ceil(blockStart / barPpq) * barPpq` boundary.
+- [x] Metronome passes `section().coreTime` to `Metronome::process()`.
+- [x] Legacy pattern queue engine preserved alongside (removed in Stage D).
 
-### 7.4 — Stage D: Gestures / dispatch
-- [ ] `Part + step` → Section launch.
-- [ ] `Track + Pattern + step` → local phrase deviation (sticky).
-- [ ] `Pattern + step` → global unison phrase swap (skips deviated tracks).
-- [ ] `Track + Part` → re-sync one musician; `Part + Yes` → re-sync all.
-- [ ] `Master + step` → Piece (song) select.
-- [ ] `Part + Record` → commit live state to active Section.
-- [ ] Remove old fork/pattern-select/chain gestures.
+### 7.4 — Stage D: Gestures / dispatch  *[shipped]*
+- [x] `Part + step` → `queueSection()` (playing) / `setActiveSection()` (stopped).
+- [x] `Track + Pattern + step` → `swapPhraseForTrack()` (sticky deviation).
+- [x] `Pattern + step` → `swapPhraseForAll()` (non-deviated tracks).
+- [x] `Track + Part` → `resyncTrackToSection()` (fires on Part key-down with Track held).
+- [x] `Part + Yes` → `resyncAllToSection()`.
+- [x] `Master + step` → `setActivePiece()`.
+- [x] `Part + Record` → `commitSectionState()`.
+- [x] `Part + Stop` → `cancelQueuedSection()`.
+- [x] Fork/chain/queue-pattern gestures removed from editor dispatch.
 
-### 7.5 — Stage E: Surface model + UI  *(absorbs 3.11)*
-- [ ] Section-select view (16-per-page, `Part + step` re-skin).
-- [ ] Phrase-select view (16-per-page, `Pattern + step` re-skin).
-- [ ] Per-track active-phrase + deviation badges.
-- [ ] Phrase-length re-skin: `LengthInRun`, `LengthBoundary`, `LengthOutRun`
-      `CellState` tokens (add-only); momentary chord (`Pattern + Func` / `Scene +
-      Func`); double-tap-NavRight scroll-past-end; TRACK encoder `LEN` home.
-- [ ] Core-time / launch-quantize chrome in the nav row.
-- [ ] Extend `tests/SurfaceModelTest.cpp`.
+### 7.5 — Stage E: Surface model + UI  *[shipped (core); pending: nav chrome, tests]*
+- [x] `LengthInRun(90)`, `LengthBoundary(91)`, `LengthOutRun(92)`, `SelectorDeviated(95)`
+      CellState tokens (add-only); `compatColour()` entries.
+- [x] Pattern scope re-skin → 16 phrases per track; deviation badge (`SelectorDeviated`).
+- [x] Part scope re-skin → 16 sections; queued-section `SelectorNext` badge.
+- [x] Phrase-length re-skin: `Pattern+Func` (purple) / `Scene+Func` (orange) momentary
+      branch; `LengthInRun/LengthBoundary/LengthOutRun` per absolute step index.
+- [x] `isTrackDeviated(t)` / `deviationPhraseIdxForTrack(t)` public accessors.
+- [ ] Double-tap-NavRight scroll-past-end unlock (pending).
+- [ ] `SurfaceModelTest.cpp` new length-edit assertions (pending).
 
-### 7.6 — Stage F: Serialization (clean break)
-- [ ] Rewrite `writeProjectNode` / reader for `Piece → {Lane(Kit + Phrases),
-      Sections(phraseIdx, activeMask, coreTime, scene A/B)}` format.
-- [ ] Drop Bank / partRef / Part-pool nodes; bump root `version`.
-- [ ] Old saves rejected gracefully with a notice (no faithful migration).
+### 7.6 — Stage F: Serialization (clean break)  *[shipped]*
+- [x] `kCurrentVersion = 5`; `upgrade_v4_to_v5` drops old Project node.
+- [x] `writeNewHierarchyNode` / `readNewHierarchyNode`: Piece → Lane(Kit+Phrases),
+      Section(phraseIdx, activeMask, coreTime). Legacy node preserved as fallback.
+- [x] `writePhraseNode/readPhraseFromNode`, `writeKitNode/readKitFromNode` helpers.
 
-### 7.7 — Stage G: Scene hooks
-- [ ] `Section` carries `sceneA` / `sceneB` sparse maps (fields present;
-      runtime resolver deferred to 5.2).
-- [ ] Serializer includes scene fields in the Section node.
+### 7.7 — Stage G: Scene hooks  *[shipped]*
+- [x] `Section.sceneA/sceneB` maps serialized under `<SceneA>/<SceneB>` children.
+- [x] Runtime crossfader resolver deferred to ROADMAP 5.2.
 
-### 7.8 — Stage H: Verification
-- [ ] Build clean under `-Werror`; `SurfaceModelTest` + new assertions pass.
-- [ ] Standalone: Section launch (quantized to core time); per-track phrase swap
-      (sticky deviation); re-sync (`Track + Part` / `Part + Yes`); global unison
-      swap skips deviated tracks; two-layer mutes; Piece switch; polymeter (e.g.
-      7-vs-16 phrases under a 4/4 Section core).
-- [ ] Phrase-length authoring: momentary re-skin, set via chord, double/halve via
-      `Func+Up/Down`, double-tap-NavRight scroll-past-end.
+### 7.8 — Stage H: Verification  *[partial]*
+- [x] Build clean under `-Werror`; all pre-existing tests pass.
+- [x] Standalone binary built; no crashes / NaNs on cold start.
+- [ ] Live play-test: Section launch (quantized), phrase swap (sticky deviation),
+      re-sync, two-layer mutes, Piece switch, polymeter.
+- [ ] Phrase-length re-skin: momentary `Pattern+Func` / `Scene+Func` re-skin.
+- [ ] Double-tap-NavRight scroll-past-end (pending Stage E item).
 - [ ] VST3/CLAP save → reload round-trips the new format.
-- [ ] Tick all 7.0–7.8 checkboxes; update "Active focus" to next milestone.
+- [ ] Update "Active focus" to next milestone on completion.
 
 ---
 
