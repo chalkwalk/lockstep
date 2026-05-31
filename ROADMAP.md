@@ -10,10 +10,10 @@ satisfy, see `PRINCIPLES.md`. **Before adding a milestone here, confirm it is
 expressible within those principles and within the existing scope+verb grammar
 (DESIGN §13).**
 
-**Active focus:** `3.11` — Pattern-length authoring.
+**Active focus:** `7.0` — Stage 0 docs: musical hierarchy re-architecture.
 **Last completed:** `3.10` — Latch (virtual-hold) + Track+Nav mode cycle.
-**Next up:** `3.11` (pattern length), then `6.7` — the Machine Module ABI (the
-loadable-machine re-architecture).
+**Next up:** `7.1–7.8` (full musical hierarchy re-architecture, absorbs `3.11`),
+then `6.7` — the Machine Module ABI.
 
 Phases 1–3 took Lockstep from an empty plugin to a frozen, playable performance
 surface; Phase 4 fills the machine catalogue; Phases 5–6 are the depth and
@@ -68,8 +68,10 @@ are sequencing decisions with no other home.
   precedence flags. → PRINCIPLES "Override-ELSE-Base"; DESIGN §4.1.
 - **Focus is first-class state** (`{Global, Track1..16}`); `SelectedTrack`-scoped
   CCs and the contextual encoders follow it. → DESIGN §5.3.
-- **Octatrack hierarchy: Project / Bank / Pattern / Part**, with per-track machine
-  identity in the Part so "swap pattern, keep kit" is one gesture. → DESIGN §4.7.
+- **Musical hierarchy: Set / Piece / Section / Phrase** (Phase 7; supersedes the
+  earlier Octatrack-style `Project / Bank / Pattern / Part` from 2.2). Kit per
+  (track, Piece); Sections launched live; Phrases shared by reference; core time
+  per-Section drives launch-quantize grid. → DESIGN §4.7, §4.8.
 - **Auto-sync degradation:** clock dropout = freewheel; explicit stop = freeze.
   → DESIGN §4.3.
 - **Performance grammar = scope + verb.** Cluster `Func/Track | Pattern/Part |
@@ -95,8 +97,12 @@ are sequencing decisions with no other home.
   DESIGN §6.4.
 - **Post-machine FLTR + AMP, machine-opt-out** via `hasInternalFilter()` /
   `hasInternalAmp()`; MIDI-out bypasses both. → DESIGN §14.
-- **No song timeline.** The Chain (RAM-only queue) is the whole song-level
-  surface. → DESIGN §16.
+- **No song arrangement.** Sections are launched live (`Part + step`); Pieces
+  queued via `Master + step`. No arrangement track, no chain queue — the set
+  order is performed, not stored. → DESIGN §16, §4.8.
+- **More specific scope wins.** A live phrase deviation sticks; Section launch
+  re-asserts only non-deviated tracks; global unison swap skips already-deviated
+  tracks. Re-sync is explicit (`Track + Part` / `Part + Yes`). → PRINCIPLES §13.
 - **16-levels eligibility = role-tagged subset.** → DESIGN §20.
 - **Microtiming = per-step P-lockable offset, ±50% of step**; `Quantize` zeros
   offsets in scope. → DESIGN §19.
@@ -240,7 +246,11 @@ FLTR/AMP, the first-class MIDI-out machine, and the 16-track expansion.
 - [x] Step-grid modal-surface scaffold + mode-indicator chrome.
 - [x] Chosen QWERTY keys for the scopes; scope-state chrome.
 
-### 2.2 — Project / Bank / Pattern / Part hierarchy  *[shipped]*  *(was MC)*
+### 2.2 — Project / Bank / Pattern / Part hierarchy  *[shipped → superseded by Phase 7]*  *(was MC)*
+The Octatrack-style hierarchy shipped here is fully replaced by the
+musical hierarchy in Phase 7 (`Set / Piece / Section / Phrase`). The
+Phase 7 stages carry out the re-architecture; the code from 2.2 is the
+starting point for the refactor.
 - [x] `Project` / `Bank` / `Pattern` / `Part` data model (machine identity in
       the Part); resolver against the active (Pattern, Part).
 - [x] v2 serialization with v1 auto-upgrade.
@@ -387,24 +397,98 @@ hold.
 - [ ] Standalone verification sweep (a–f) — feature shipped; final scripted
       run pending.
 
-### 3.11 — Pattern-length authoring  *[active]*  *(was MHZ.8)*
-Keyboard / encoder paths to set, double, and halve pattern length without
-leaving the surface. Closes the gap where `trackLengthParams_[t]` has no gesture.
-- [ ] **3.11.1** Encoder path: `LEN` slot in the TRIG meta-section (1–64), writes
-      `trackLengthParams_[focusedTrack]`; `valueLabels` may annotate page
-      boundaries.
-- [ ] **3.11.2** Page navigation: `Pattern + Func + NavLeft/Right` moves between
-      step-grid pages, including pages past current length (rendered very dim).
-- [ ] **3.11.3** Length-set chord: `Pattern + Func + step` sets length to the
-      page-aware absolute index; `Pattern + Track + Func + step` sets one track's
-      length.
-- [ ] **3.11.4** Multiply / halve: `Pattern + Func + Yes` doubles + duplicates
-      step data into the new tail; `Pattern + Func + No` halves + truncates (auto
-      checkpoint first).
-- [ ] **3.11.5** Documentation: DESIGN §13 grammar table + §34.4; CLAUDE.md
-      glossary; README §5 shortcut table.
-- [ ] **3.11.6** Verification across the 1–64 range + the chord/double/halve
-      gestures.
+### 3.11 — Pattern-length authoring  *[absorbed → Phase 7.5]*  *(was MHZ.8)*
+The length-authoring UX is fully absorbed into **Phase 7, Stage E** (7.5),
+where it ships as part of the complete phrase model: per-track `Phrase.length`,
+the momentary re-skin, the double-tap-NavRight scroll-past-end, the TRACK encoder
+home, and the CellState tokens (`LengthInRun / LengthBoundary / LengthOutRun`).
+The gestures are updated in §34.4. See 7.5 for the full checklist.
+
+---
+
+## Phase 7 — Musical Hierarchy Re-architecture  *[active]*
+
+Full replacement of the `Project > Bank > Pattern > Part` (Octatrack-style)
+container model with a musically-derived `Set > Piece > Section > Phrase` model
+(see DESIGN §4.7, §4.8, §16). Supersedes **2.2**; absorbs **3.11**; rescopes
+**5.2** and **5.3**. Data model constants: `kNumPieces = kSectionsPerPiece =
+kPhrasesPerTrack = 16`. State format: **clean break + version bump** (pre-release;
+no faithful legacy migration). One commit per stage minimum.
+
+### 7.0 — Stage 0: Documentation  *[active]*
+Docs first — PRINCIPLES → DESIGN → ROADMAP — before any code changes.
+- [x] `PRINCIPLES.md`: add *"More specific scope wins"* (§13).
+- [x] `DESIGN.md`: rewrite §4.7 (musical hierarchy), add §4.8 (core time),
+      rewrite §16 (launch model), update §17.1 (scenes on Section), update §13
+      scope+verb grammar table, rewrite §34.4 (phrase-length authoring).
+- [x] `ROADMAP.md`: Phase 7 added; 2.2 superseded; 3.11 absorbed; 5.2/5.3
+      re-scoped; locked-decisions and legacy-appendix updated; header updated.
+
+### 7.1 — Stage A: Core data model
+New `src/core/` structs; old Bank/Pattern/Part/Sequence removed.
+- [ ] `TrackKit`, `Phrase`, `Section`, `Piece`, `Project` structs in place.
+- [ ] Constants: `kNumPieces = kSectionsPerPiece = kPhrasesPerTrack = 16`.
+- [ ] Delete `Bank.h`, `Pattern.h`, `Part.h`, `Sequence.h`; replace with new files.
+- [ ] `PluginProcessor.h` `activePattern()/activePart()/sequence()` → `piece()/
+      section()/lane(t)/kit(t)` + active-phrase resolver.
+- [ ] Build clean under strict warnings.
+
+### 7.2 — Stage B: Processor state + resolvers
+- [ ] Active piece/section indices, per-track `deviated[t]`, `deviationPhraseIdx[t]`,
+      and `launchMode[t]` (`GlobalBar | PhraseEnd`) in `PluginProcessor`.
+- [ ] Step loop: phrase/kit/length resolution (§4.7), two-layer mute
+      (`globalMute[t] || !activeMask[t]`).
+- [ ] All APIs referencing `activePart()/activePattern()` reworked: copy/paste
+      scopes, mutes, checkpoints, Sound Pool.
+- [ ] Build + smoke-test: standalone plays audio, mutes work.
+
+### 7.3 — Stage C: Core time + launch engine
+- [ ] `TimeSig → barPpq` math; `launchQuantizeBars` project param.
+- [ ] Quantized Section launch replacing the old longest-track boundary calc.
+- [ ] Per-track phrase-end launch-mode override.
+- [ ] Metronome downbeat driven by core time.
+- [ ] Build + playback test: Section launch fires at bar boundary.
+
+### 7.4 — Stage D: Gestures / dispatch
+- [ ] `Part + step` → Section launch.
+- [ ] `Track + Pattern + step` → local phrase deviation (sticky).
+- [ ] `Pattern + step` → global unison phrase swap (skips deviated tracks).
+- [ ] `Track + Part` → re-sync one musician; `Part + Yes` → re-sync all.
+- [ ] `Master + step` → Piece (song) select.
+- [ ] `Part + Record` → commit live state to active Section.
+- [ ] Remove old fork/pattern-select/chain gestures.
+
+### 7.5 — Stage E: Surface model + UI  *(absorbs 3.11)*
+- [ ] Section-select view (16-per-page, `Part + step` re-skin).
+- [ ] Phrase-select view (16-per-page, `Pattern + step` re-skin).
+- [ ] Per-track active-phrase + deviation badges.
+- [ ] Phrase-length re-skin: `LengthInRun`, `LengthBoundary`, `LengthOutRun`
+      `CellState` tokens (add-only); momentary chord (`Pattern + Func` / `Scene +
+      Func`); double-tap-NavRight scroll-past-end; TRACK encoder `LEN` home.
+- [ ] Core-time / launch-quantize chrome in the nav row.
+- [ ] Extend `tests/SurfaceModelTest.cpp`.
+
+### 7.6 — Stage F: Serialization (clean break)
+- [ ] Rewrite `writeProjectNode` / reader for `Piece → {Lane(Kit + Phrases),
+      Sections(phraseIdx, activeMask, coreTime, scene A/B)}` format.
+- [ ] Drop Bank / partRef / Part-pool nodes; bump root `version`.
+- [ ] Old saves rejected gracefully with a notice (no faithful migration).
+
+### 7.7 — Stage G: Scene hooks
+- [ ] `Section` carries `sceneA` / `sceneB` sparse maps (fields present;
+      runtime resolver deferred to 5.2).
+- [ ] Serializer includes scene fields in the Section node.
+
+### 7.8 — Stage H: Verification
+- [ ] Build clean under `-Werror`; `SurfaceModelTest` + new assertions pass.
+- [ ] Standalone: Section launch (quantized to core time); per-track phrase swap
+      (sticky deviation); re-sync (`Track + Part` / `Part + Yes`); global unison
+      swap skips deviated tracks; two-layer mutes; Piece switch; polymeter (e.g.
+      7-vs-16 phrases under a 4/4 Section core).
+- [ ] Phrase-length authoring: momentary re-skin, set via chord, double/halve via
+      `Func+Up/Down`, double-tap-NavRight scroll-past-end.
+- [ ] VST3/CLAP save → reload round-trips the new format.
+- [ ] Tick all 7.0–7.8 checkboxes; update "Active focus" to next milestone.
 
 ---
 
@@ -474,10 +558,12 @@ Completes the record-time capture story (gate / velocity / microtiming).
 - [ ] Step-grid nudge-direction tick indicator.
 
 ### 5.2 — Scenes + crossfader  *[planned]*  *(was MI)*
-DESIGN §17. *(A placeholder crossfader slider exists from 3.1; no scene data
-model yet.)*
-- [ ] `Part::sceneA / sceneB` sparse `map<(track,slot)->float>`, serialized.
-- [ ] `Sequence::faderValue` (RAM-only, smoothed).
+DESIGN §17. *(Scene A/B snapshot fields are carried on `Section` after Phase 7
+Stage G; a placeholder crossfader slider exists from 3.1. The full crossfader
+implementation ships here.)*
+- [ ] `Section::sceneA / sceneB` sparse `map<(track,slot)->float>`, serialized
+      (fields already present from 7.7; this stage wires the runtime resolver).
+- [ ] `faderValue` (RAM-only, smoothed).
 - [ ] Resolver scene-pair consult (lerp continuous / snap stepped at 0.5).
 - [ ] `Scene A/B` assignment gesture + `Scene+Stop` removal; MZ A/B indicators.
 - [ ] MIDI-out parity (cc lerp, channel/program snap + All-Notes-Off).
@@ -486,14 +572,15 @@ model yet.)*
 - [ ] Morph-aware editing (1:1 normalised through the fader position).
 - [ ] Fluid mute (`Scene+Mute` captures `Level→silence`).
 
-### 5.3 — Pattern/Part management UI  *[planned]*  *(was MJ)*
-DESIGN §23.
-- [ ] Pattern + Part names (≤16 chars, inline editor).
-- [ ] Pattern + Part colours + tags (palette tied to §24).
-- [ ] Non-modal browser overlay (banks → patterns → parts), navigable while
-      playing; selection reuses the queue gesture.
-- [ ] Copy / move / duplicate across banks (destination-bank prefix gesture).
-- [ ] In-browser queue cue (`Yes` cues, `No` cancels).
+### 5.3 — Piece/Section management UI  *[planned]*  *(was MJ; re-scoped for Phase 7)*
+DESIGN §23 (to be updated). The old Pattern/Part management UI is re-scoped
+to manage Pieces and Sections in the Phase 7 model.
+- [ ] Piece + Section names (≤16 chars, inline editor).
+- [ ] Piece + Section colours + tags (palette tied to §24).
+- [ ] Non-modal browser overlay (Pieces → Sections), navigable while playing;
+      selection reuses the launch gesture.
+- [ ] Copy / move / duplicate Phrases across Lanes or Pieces.
+- [ ] In-browser Section queue cue (`Yes` cues, `No` cancels).
 
 ### 5.4 — Sampling + resampling  *[planned]*  *(was MN)*
 DESIGN §22.
@@ -663,7 +750,7 @@ For tracing historical commit messages and notes against the renumbered scheme.
 | M7 | 1.8 | MHZ.6 | 3.8 |
 | M8 | 1.8 | MHZ.7 / MHZ.7.x | 3.9 |
 | MB | 2.1 | MHZ.9 | 3.10 |
-| MC | 2.2 | MHZ.8 | 3.11 |
+| MC | 2.2 → 7.x | MHZ.8 | 3.11 → 7.5 |
 | MD | 2.3 | MH.1 | 4.1 |
 | ME | 2.4 | MH.2 | 4.2 |
 | MF | 2.5 | MH.3 | 4.3 |
@@ -680,7 +767,8 @@ For tracing historical commit messages and notes against the renumbered scheme.
 | M9 | 6.8 | | |
 
 Dissolved: old MG Keyboard mode → 3.9 (CHROMATIC); old MM 16-levels → 3.9
-(LEVELS); their remainders → 5.7.
+(LEVELS); their remainders → 5.7. Bank / Pattern / Part / Chain model (2.2 /
+MC) → Phase 7 re-architecture (`Set / Piece / Section / Phrase`).
 
 ---
 

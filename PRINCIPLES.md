@@ -248,3 +248,29 @@ machine module is **trusted, in-process native code** — loaded by the
 user like any plugin they choose to install. Lockstep ships **no sandbox
 and no IPC** (DESIGN §2, §36); the contract and the CI-tested template
 module are the quality gate, not process isolation.
+
+## 13. More specific scope wins
+
+When a global gesture and a local gesture both target the same thing,
+the more specific (local) one takes precedence and stays in force until
+explicitly cleared. A live per-track phrase deviation (`Track + Pattern +
+step`) is not overridden by the next Section launch — the Section
+re-asserts only non-deviated tracks. A per-track phrase chain explicitly
+set on a track is not replaced when the performer issues a global
+unison phrase swap — the deviation is already the more specific claim.
+
+**Consequence.** Features that "cast wide" — Section launch, global
+unison phrase swap — must document what they *skip*, not what they
+*smash*. An explicit re-sync gesture (`Track + Part` for one musician,
+`Part + Yes` for the whole band) is the only way to return a deviated
+track to the Section's default. This keeps improvised deviations safe
+from accidental overwrite during a live set.
+
+**In the grammar (DESIGN §13).** Specificity is an *observable scope
+level*, not a flag. The grammar is always "most recent explicit action at
+the finest scope wins." A broad gesture that would trample a narrower
+one that already has explicit state simply skips it — it does not trump
+it. This applies across the whole surface: P-Locks win over scene mixes
+win over base params; local deviations win over Section launch; per-step
+overrides win over track base. The resolution stack is always traversed
+finest-to-coarsest, stopping at the first explicitly-set layer.

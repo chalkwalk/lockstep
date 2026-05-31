@@ -449,66 +449,127 @@ the same buffer the sequencer writes to, so the machine sees one
 unified event stream. Routing rules (Omni vs Per-Track, focus follows)
 determine which track's buffer external MIDI lands on.
 
-### 4.7 Project / Bank / Pattern / Part hierarchy
+### 4.7 Set / Piece / Section / Phrase hierarchy
 
-The container hierarchy follows the Octatrack model, adapted to
-variable-schema machines:
+The container hierarchy follows **musical purpose**: a performer
+delivering a live set of songs, where each song has sections, each
+section specifies which phrases its musicians play. The hierarchy was
+re-derived from this model in ROADMAP Phase 7; it supersedes the earlier
+Octatrack-style `Project > Bank > Pattern > Part` (ROADMAP 2.2).
 
 ```
-Project
- └── Bank        × N   (default 8)
-      └── Pattern × 16
-           └── (references) Part × P-per-bank   (default 4)
+Set (Project)
+ └── Piece             × 16   (= song)
+      ├── Lane          × 16 tracks
+      │    ├── Kit      (machine identity + base params for this song)
+      │    └── Phrase   × 16  (one musician's repeating musical idea)
+      └── Section       × 16  (= song section; intro / verse / chorus / …)
 ```
 
-- **Project.** The top-level container; one Project = one
-  plugin-instance state blob. Owns: all banks, the (project-global)
-  sample pool, MIDI CC mappings, focus state, channel mode, clock
-  settings, and the global Sound Pool (§13.5).
-- **Bank.** A namespace of patterns and parts. Banks exist purely to
-  give patterns memorable addresses ("Bank A, Pattern 03") that map
-  onto physical scope buttons during live performance.
-- **Pattern.** The trig grid plus everything that varies *with*
-  trigs: per-step trig overrides, per-step P-Locks, per-track step
-  length and divider, per-track trig defaults (note/velocity/gate),
-  per-track condition base. Each Pattern references exactly one
-  Part within its bank.
-- **Part.** The per-track *machine state*: machine identity per
-  track slot, the machine's resolved base ParamFrame, per-track
-  sample references and trig defaults that the machine cares
-  about, the optional post-machine FILTER/AMP block state (§14),
-  and the pattern-scope mute mask (§13.4). Multiple Patterns in
-  a Bank can share one Part, so swapping pattern keeps the same
-  sounds; or each Pattern can reference its own Part for total
-  kit changes.
+The vocabulary maps directly onto the performance-modifier cluster
+(`Func/Track | Pattern/Part | Scene/Master | Mute/Fill`):
 
-The split between Pattern and Part is the same one Octatrack draws,
-and it is what lets a project mix heterogeneous machines per track:
-the Part stores `track[i].machineId` independently per slot, and
-the resolver simply asks "what machine is on track i of this Part?"
-at attachment time. The 1-Part-per-Bank simplification was
-considered and rejected: live "switch the kit but keep the trigs"
-is one of the workflows the hierarchy exists to support.
+| Cluster key | Musical meaning |
+|---|---|
+| **Part** | Section — a moment in a song |
+| **Pattern** | Phrase — one musician's musical idea |
+| **Scene** | Sound variation (A/B fader morph within a Section) |
+| **Master** | Piece (song) select |
+| **Mute** | Live global mute layer |
+| **Fill** | Phrase variation |
 
-On disk, machine identity in a Part is a stable string id
-(`"lockstep.sampler.v1"`, `"lockstep.midi_out.v1"`, …). On load,
-unknown machine ids cause the track to fall back to a stub machine
-that preserves its base params and trigs but produces silence,
-with a relink/replace dialog offered.
+- **Set (Project).** Top-level container; one Set = one plugin-instance
+  state blob. Owns: all Pieces, the project-global sample pool, MIDI CC
+  mappings, focus state, channel mode, clock settings, the global Sound
+  Pool (§13.5), and `launchQuantizeBars` (global launch-quantize amount
+  in core-time bars; default 1).
+- **Piece.** A song. Holds 16 per-track Lanes and 16 Sections. All the
+  musical content of one piece of music lives here.
+- **Lane (per-track, per-Piece).** Each of the 16 tracks in a Piece has
+  a Lane holding two things:
+  - A **Kit** (`TrackKit`): machine identity, destination, base
+    parameter frame, post-machine FILTER/AMP state (§14), MIDI CC
+    config, and the track's clock divider. The Kit is the musician's
+    instrument *within this song* — it stays fixed for the Piece and may
+    differ between Pieces. Machine identity in a Kit is a stable string
+    id; unknown ids fall back to a stub machine that preserves base
+    params and trigs but produces silence.
+  - A **phrase pool** of 16 `Phrase` entries — the musician's vocabulary
+    for this song.
+- **Phrase.** One musician's repeating musical idea. Carries: `length`
+  (1–64 steps; see §34.4 and §4.8 for the default-seeding rule), the
+  step array (trig + P-Locks), trig defaults, base trig condition, and
+  note selection. Phrases are **pure musical content** — they carry no
+  machine or kit info.
+- **Section.** A moment in a song (intro / verse / chorus / bridge / …).
+  Launched live; **no intrinsic length** — it plays until the next
+  Section is launched. Carries:
+  - `phraseIdx[track]` — which phrase in the Lane's pool this Section
+    calls for, per musician.
+  - `activeMask[track]` — which musicians play in this section (replaces
+    the old per-Pattern mute mask; runtime silence =
+    `globalMute[t] || !activeMask[t]`).
+  - `coreTime` — the Section's time signature; see §4.8.
+  - Scene A/B snapshot fields; full crossfader implementation: §17/5.2.
 
-**Fork Part.** When multiple Patterns in a bank share a Part and the
-user wants to author a variant kit just for the active Pattern, they
-fork: `Func + W` copies the Part into the first free Part slot and
-updates `activePattern().partRef` to point at it. The SHR:N chrome
-badge shows when sharing is active; fork is the escape hatch. (The
-Pattern+Record gesture is reserved for copy-pattern, not fork — that
-was an early implementation error fixed in 2.3.)
+**The Phrase / Section split.** A Phrase is *material* — a musical idea
+that may be referenced by multiple Sections (the chorus phrase reused
+in two different moments of the song). A Section is *assignment +
+context* — who plays, what they play (phrase indices), the meter, and
+the current sound state. Editing a Phrase ripples instantly to every
+Section that references it.
 
-Pattern switching at runtime is a performance gesture, not a state
-reload: the next Pattern is queued and the swap happens at the
-nearest configured grid boundary (default: end of the longest
-playing pattern). Banks have their own queueing semantics — see
-the Chain mode in §16.
+**Kit is per-(track, Piece), not per-Section.** An instrument change
+(machine swap, base params, divider) applies to a musician throughout
+the whole Piece. A Piece may give the same track a different instrument
+from another Piece. The musician plays the same kit throughout the song;
+they may play a different kit in a different song.
+
+**Live phrase deviation.** While a Section is active, the performer can
+swap one musician's phrase via `Track + Pattern + step`. This sets a
+sticky per-track deviation: the musician plays the new phrase even as
+Sections launch around them. `PRINCIPLES.md` §13 (*"More specific scope
+wins"*) governs: a Section launch re-asserts phrases **only for
+non-deviated tracks**. Re-sync gestures clear deviations: `Track + Part`
+(one musician) and `Part + Yes` (whole band). See §16 for the full
+launch model and §13 for all gesture bindings.
+
+**Sections are launched, not chained.** There is no stored Section
+arrangement or Piece arrangement — the order is performed live. See §16.
+
+### 4.8 Core time and launch quantize
+
+**Core time** is a per-Section `TimeSig { int numerator; int denominator; }`
+(default `{4, 4}`). It serves three roles:
+
+1. **Launch-quantize grid.** The global `launchQuantizeBars` setting
+   (Project-level; default 1) measures in core-time bars. A bar =
+   `numerator × (4.0 / denominator)` quarter-note PPQ. A Section or
+   Piece launch fires at the next multiple of
+   `launchQuantizeBars × barPpq` past the current playhead.
+   Example: 4/4, 1 bar → fires at each 4-beat boundary. 7/8 core time,
+   1 bar → fires at each 3.5-beat boundary. Polymeter within a Section is
+   unrestricted — phrase lengths are independent of core time (§4.2).
+2. **Metronome downbeat.** The metronome accent pattern is derived from
+   core time; the "1" fires at `barPpq` intervals. Core time is the
+   only place the metronome reads a sense of a "bar".
+3. **Default phrase length.** When a new Phrase is created while a
+   Section is active, its length is seeded from core time:
+   `numerator × (4 / denominator)` steps at the default step resolution
+   (1/16 note = 1 step), so a 4/4 Section seeds 16-step phrases and a
+   7/8 Section seeds 7-step phrases. This is a *default only* — the
+   phrase length is freely editable afterward and never constrained by
+   core time.
+
+**Per-track phrase-end override.** Each track has a `launchMode` flag
+(`GlobalBar` default | `PhraseEnd`). Tracks set to `PhraseEnd` switch to
+a new Section assignment at the *end of their current phrase cycle*
+rather than at the shared core-time boundary. This is the per-musician
+flexibility layer on top of the global grid — a musician may finish their
+phrase before snapping to the new Section's assignment.
+
+`Clock.h` has no time-signature state today. Core time is new state held
+in the Section and consumed by the launch engine in `PluginProcessor`.
 
 ## 5. Input Layer
 
@@ -1163,12 +1224,12 @@ cluster in the left two columns of the 10×4 QWERTY layout (see §5.5,
 | Scope button | QWERTY key | Selects | Held alongside |
 |---|---|---|---|
 | `Func` | `1` (col 1) | Modifier for verb keys and meta sections; the universal qualifier. | Any. |
-| `Pattern` | `Q` (col 1) | One pattern (or, in chain mode, several). | Verb, or a pattern key. |
+| `Pattern` | `Q` (col 1) | Phrase selection: `Pattern + step` = global unison phrase swap (all non-deviated tracks); `Track + Pattern + step` = local per-track phrase swap (sticky deviation). | Verb, step key, `Track`. |
 | `Scene` | `A` (col 1) | Scene assignment; `Scene + ^/v` picks endpoint A/B (§17.5). | Nav, encoder, `Master`, `Fill`. |
-| `Mute` | `Z` (col 1) | The mute mask (hold and tap many). | Track/step keys. |
-| `Track` | `2` (col 2) | One or more track slots; none selected = Control-All. | Verb, encoder, or a col-1 modifier. |
-| `Part` | `W` (col 2) | The kit half of the Part/Pattern split (§4.7) — machine identity, base ParamFrame, sample refs. `Func+Part` (relabels to MACH) activates the machine picker via step-cell re-skin. | Verb, section key. |
-| `Master` | `S` (col 2) | Master-bus / FX focus (§32.3). | Verb, section key, `Scene`. |
+| `Mute` | `Z` (col 1) | Live global mute layer (hold and tap many). | Track/step keys. |
+| `Track` | `2` (col 2) | One or more track slots; none selected = Control-All. Also `Track + Part` = re-sync one musician to the current Section. | Verb, encoder, or a col-1 modifier. |
+| `Part` | `W` (col 2) | Section launch and re-sync: `Part + step` launches a Section (§16); `Part + Yes` re-syncs all musicians; `Part + Record` commits live state to the Section. `Func+Part` (relabels to MACH) activates the machine picker via step-cell re-skin. | Verb, step key, `Track`. |
+| `Master` | `S` (col 2) | Piece (song) select: `Master + step` queues a Piece change (§16). Also Master-bus / FX focus (§32.3). | Verb, step key, section key, `Scene`. |
 | `Fill` | `X` (col 2) | "While I'm holding this, fill conditions evaluate true." | Step keys; (no verb needed — it's the state itself). |
 | `Trig` (hold a step) | `D–;` / `C–/` | The held step(s); multi-step hold is allowed. | Verb, encoder, or note key. |
 | Section key | `5–0` | The held section's slots. | Verb, scope modifier (scope-section matrix, §6.1.2). |
@@ -1580,45 +1641,58 @@ sequencer passes the step's full chord through unchanged, with no
 clamp; note-offs are scheduled by gate length as for any track, and
 overlapping note-ons are forwarded verbatim.
 
-## 16. Banks and Chain Mode
+## 16. Pieces and Sections — Live Launch Model
 
-Banks (§4.7) hold up to 16 patterns each, addressed `A01..A16` and
-so on. The default project has 8 banks. Bank selection is a
-two-key gesture: `Pattern + bank_letter`, then a step-row key for
-the pattern within the bank.
+The performance model is **launch-based, not arrangement-based**. The
+performer navigates the Set by launching Sections (within the active
+Piece) and switching Pieces (to change songs), improvising deviations on
+top via per-track phrase swaps. This is the Ableton Session View /
+Deluge / Polyend Tracker model: rows are triggered live, not played back
+from a written timeline.
 
-**Pattern switching** at runtime is *queued*, not immediate:
+**Section launch.** `Part + step` queues a Section to fire at the next
+core-time launch boundary (§4.8). At the boundary:
 
-- `Pattern + <stepkey>` queues the named pattern to start at the
-  next configured grid boundary (default: end of the longest
-  playing track in the current pattern; configurable to bar / 2 bars
-  / pattern-end).
-- The transport bar shows the queued pattern as a "next" chip.
-- A second `Pattern + <stepkey>` before the boundary replaces the
-  queued pattern (the user can "change their mind").
-- `Pattern + Stop` cancels the queued change.
+- Non-deviated tracks switch to the Section's assigned phrases
+  (`phraseIdx[t]`).
+- The active mask (`activeMask[t]`) takes effect: newly-masked tracks go
+  silent, newly-unmasked tracks start playing.
+- Core time and scene snapshots update.
+- Deviated tracks (*"More specific scope wins"*, `PRINCIPLES.md` §13)
+  continue unaffected — they were already playing an explicit deviation.
 
-**Chain mode** extends this to a *queue of upcoming changes*. While
-holding `Pattern + Chain` (chord TBD in UI rethink), each pattern
-key pressed *appends* to the chain rather than replacing the queued
-one. The chain then plays in order, each pattern occupying one
-"chain slot" worth of time (default: one pattern length).
+A pending Section shows as a badge in the top bar. A second `Part + step`
+before the boundary replaces the queue ("change your mind"). There is no
+cancel gesture — queuing the currently active Section is a no-op.
 
-Chain semantics deliberately stay light:
+**Piece switch.** `Master + step` queues a Piece (song) change,
+quantized by the *currently playing* Section's core time. At the
+boundary, the incoming Piece's first Section establishes the new meter
+and phrase assignments, and all tracks' kits update. **Deviations are
+cleared on a Piece switch** — a song change is a full performer reset;
+the musician steps up with fresh assignments.
 
-- The chain is RAM-only; it is not part of the project save. Chains
-  are performance plans, not arrangements.
-- A chain has no repeat count per slot in v1 (one slot = one
-  play-through); a per-slot repeat is a likely v1.1 addition.
-- The chain loops by default; a single-shot mode is a toggle.
-- The chain is interruptible at any time by a plain `Pattern + key`
-  — that discards the rest of the chain and queues just the new
-  pattern.
+**Re-sync.** `Track + Part` clears one musician's phrase deviation and
+returns them to the current Section's assignment. `Part + Yes` clears all
+deviations (the whole band snaps back). These are the only gestures that
+remove a deviation; a Section launch alone does not.
 
-The Pyramid's full arrangement / song view is intentionally out of
-scope. The chain is the entire song-level surface, and it exists to
-let the performer plan two or three pattern changes ahead while
-their hands are busy with other modifiers.
+**Section authoring.** `Part + Record` commits the current live state
+into the active Section: phrase indices that are now playing become that
+Section's stored assignments, and the current active mask is written in.
+This is the "capture live → write to section" gesture.
+
+**Unison phrase swap.** `Pattern + step` is a "global" phrase swap
+shortcut: all non-deviated tracks switch to phrase N in their Lane's
+pool. Because it skips already-deviated tracks (*specificity wins*) it
+reads as "set the default phrase, don't override anyone already doing
+their own thing."
+
+**No stored arrangement.** There is no song timeline, no arrangement
+track, and no chain queue (the RAM-only pattern chain of earlier versions
+is removed). The performer's plan for the set lives in muscle memory and
+rehearsal: queuing the next Section now, and adjusting in real time. The
+Checkpoint stack (§13.6) provides the last-second undo layer.
 
 ## 17. Scenes and the Crossfader
 
@@ -1633,23 +1707,24 @@ the live morph itself with the fader.
 
 ### 17.1 Data model
 
-Scenes live on the **Part** (not the Pattern). A Part carries a pair
-of scenes:
+Scenes live on the **Section** (DESIGN §4.7). Each Section carries a
+pair of scene snapshots:
 
 ```
-Part.sceneA : map<(trackIdx, slotIdx) -> float>
-Part.sceneB : map<(trackIdx, slotIdx) -> float>
+Section.sceneA : map<(trackIdx, slotIdx) -> float>
+Section.sceneB : map<(trackIdx, slotIdx) -> float>
 ```
 
 Each scene is a sparse map covering whichever (track, slot) pairs the
-user has assigned to that scene. The map shape is identical to a
-P-Lock map but addressed across the whole Part rather than per-step.
+user has assigned to that scene. The map shape is identical to a P-Lock
+map but addressed across the whole Section rather than per-step.
 
-Attaching scenes to the Part (rather than the Pattern) means
-patterns sharing a Part also share scenes — consistent with the
-"swap pattern, keep the kit" gesture (DESIGN §4.7). Authoring a
-different scene pair requires forking the Part, same as authoring
-different base params.
+Attaching scenes to the Section (rather than the Phrase) means all the
+musicians playing a given Section share one scene pair — consistent with
+the musical meaning: "verse" has its own sound space that applies to
+everyone in that section, regardless of which specific phrase each
+musician happens to be playing. Authoring a different scene pair means
+authoring a different Section.
 
 ### 17.2 Runtime state and resolution
 
@@ -1666,7 +1741,7 @@ effective(track, slot, step) =
   ∨ track.baseParams[slot]                            // otherwise base
 ```
 
-where `sceneA_val = Part.sceneA[(track,slot)] ?? track.baseParams[slot]`
+where `sceneA_val = Section.sceneA[(track,slot)] ?? lane.kit.baseParams[slot]`
 (and likewise for B). A slot not present in either scene is
 unaffected by the fader; its base value resolves directly.
 
@@ -2918,23 +2993,44 @@ eligibility set lands as a follow-up sub-mode on top of 3.9 — the
 binding selector (encoder cycles eligible roles, §20.2) sits on the
 same surface as today's mode chord.
 
-### 34.4 Pattern-length authoring (3.11)
+### 34.4 Phrase-length authoring (Phase 7 / 3.11)
 
-Pattern length sits in the §13 grammar under the `Pattern` scope:
+In the §4.7 model, *pattern length* is **Phrase length** — each track's
+`Phrase.length` (1–64 steps). The per-track polymeter model (§4.2) is
+fully preserved: the focused musician's phrase may be 16 steps while
+another's is 7. Phrase length is independent of the Section's core time
+(`§4.8`); core time only seeds the *default* length of newly-created
+phrases.
+
+Length authoring sits in the §13 grammar under the `Pattern` scope:
 
 | Gesture | Effect |
 |---|---|
-| `Pattern + Func + NavLeft/NavRight` | Paginate the step grid past current pattern length. Cells beyond current length render very dim. |
-| `Pattern + Func + step` | Set the pattern's length to that absolute (page-aware) step index. |
-| `Pattern + Track + Func + step` | Set just that track's length (per-track length already in the model). |
-| `Pattern + Func + Yes` | Double current length, duplicating all step data (trigs, notes, P-Locks, overrides) into the new tail. |
-| `Pattern + Func + No` | Halve current length, truncating the tail. One automatic checkpoint push fires before truncation so the data is recoverable via the §13.6 checkpoint stack. |
+| `Pattern + Func + step` | Set the focused track's active phrase length to that absolute (page-aware) step index. Grid re-skins in scope colour showing run / boundary / out-of-range. |
+| `Scene + Func + step` | Broadcast: set **all** tracks' phrase length = N. `Scene` is the all-tracks qualifier. Grid re-skins in Scene colour to distinguish from the focused-track skin. |
+| `Func + Up` | Double current phrase length, duplicating all step data (trigs, notes, P-Locks, overrides) into the new tail. |
+| `Func + Down` | Halve current phrase length, truncating the tail. One automatic checkpoint push fires before truncation so the data is recoverable via the §13.6 checkpoint stack. |
 
-The same value also lives as an `LEN` encoder in the TRIG
-meta-section (1–64, `valueLabels` annotate page boundaries), so a
-user can dial pattern length without leaving the MZ. The encoder and
-chord gestures write the same `Parameters::trackLengthParams_[t]`
-APVTS parameter — no divergence.
+Page navigation past the current phrase length is unlocked by a
+**double-tap `NavRight`** (reusing `DoubleTapDetector`): the first tap
+does nothing past the last in-length page; the double-tap steps onto the
+empty page. The unlock clears once the currently-visible page again
+contains the final step (either because a longer length was set on the
+empty page, or because the performer navigated back). Out-of-range pages
+render very dim; the nav row shows the full page count plus the live
+`Length: N` while unlocked.
+
+The `LEN` encoder in the TRACK meta-section provides the same write path
+without leaving the MZ; it and the chord gestures write the same
+underlying per-track length parameter — no divergence.
+
+**The re-skin rule.** While `Pattern + Func` or `Scene + Func` is held,
+the step grid re-skins (momentary; "the hold is the mode"):
+- Cells within the run → `LengthInRun` token (scope colour body).
+- The boundary cell → `LengthBoundary` token (brighter edge).
+- Cells outside the run → `LengthOutRun` token (dim near-black).
+All appearances route through `buildSurfaceModel()` as `CellState`
+tokens (add-only); no ad-hoc paint.
 
 ## 35. External Controller Surfaces
 
