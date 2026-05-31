@@ -489,7 +489,7 @@ namespace lockstep
                     case ClipboardType::Step:    cbLabel = "CPY:STP"; break;
                     case ClipboardType::Section: cbLabel = "CPY:SEC"; break;
                     case ClipboardType::Track:   cbLabel = "CPY:TRK"; break;
-                    case ClipboardType::Pattern: cbLabel = "CPY:PAT"; break;
+                    case ClipboardType::Pattern: cbLabel = "CPY:PHR"; break;
                 }
                 if (cbLabel != nullptr && bx + 56 < kSplitX)
                 {
@@ -613,10 +613,10 @@ namespace lockstep
                         ctx = juce::String(u8"TRACK  |  ↑↓ cycle PLAY/CHROM/LEVLS");
                     }
                     else if (ui.trackHeld)        ctx = "TRACK " + juce::String(keyboardArea_.getActiveTrack() + 1);
-                    else if (ui.patternScopeHeld) ctx = "PATTERN";
-                    else if (ui.partHeld)         ctx = "PART";
-                    else if (ui.sceneHeld)        ctx = "SCENE";
-                    else if (ui.masterHeld)       ctx = "MASTER";
+                    else if (ui.patternScopeHeld) ctx = "PHRASE";
+                    else if (ui.partHeld)         ctx = "SCENE";
+                    else if (ui.sceneHeld)        ctx = "MORPH";
+                    else if (ui.masterHeld)       ctx = "SONG";
                     else if (ui.muteHeld)         ctx = "MUTE";
                     else if (ui.fillHeld)         ctx = "FILL";
                     else if (ui.funcHeld)         ctx = "FUNC";

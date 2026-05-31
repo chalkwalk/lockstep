@@ -249,7 +249,7 @@ namespace lockstep
         {
             SurfaceCell& c = model.modifiers[4];
             c.keyHint = "A";
-            fillModifier(c, ControllerButton::SceneScope, 'A', "SCENE",
+            fillModifier(c, ControllerButton::SceneScope, 'A', "MORPH",
                          ui.sceneHeld, ui.latch.scene,
                          kScopeScene, kScopeSceneDim,
                          hasCompound && ui.sceneHeld);
@@ -257,7 +257,7 @@ namespace lockstep
         {
             SurfaceCell& c = model.modifiers[5];
             c.keyHint = "S";
-            fillModifier(c, ControllerButton::MasterScope, 'S', "MASTER",
+            fillModifier(c, ControllerButton::MasterScope, 'S', "SONG",
                          ui.masterHeld, ui.latch.master,
                          kScopeMaster, kScopeMasterDim,
                          hasCompound && ui.masterHeld);
@@ -265,16 +265,16 @@ namespace lockstep
         {
             SurfaceCell& c = model.modifiers[6];
             c.keyHint = "Z";
-            // Func+Mute activates pattern-mute (kScopePMute); latch pip stays kScopeMute.
+            // Func+Mute activates scene-mute (kScopePMute); latch pip stays kScopeMute.
             const uint32_t activeMuteCol = ui.funcHeld ? kScopePMute : kScopeMute;
             fillModifier(c, ControllerButton::MuteScope, 'Z', "MUTE",
                          ui.muteHeld, ui.latch.mute,
                          activeMuteCol, kScopeMuteDim,
                          hasCompound && ui.muteHeld);
             // Hint band = Func-layer only; promoted when Func held.
-            if (ui.funcHeld) c.primary = "P-MUTE";
-            else             c.funcHint = "P-MUTE";
-            if (ui.latch.mute) c.pip.colour = kScopeMute;  // pip = base colour, not pattern-mute
+            if (ui.funcHeld) c.primary = "S-MUTE";
+            else             c.funcHint = "S-MUTE";
+            if (ui.latch.mute) c.pip.colour = kScopeMute;  // pip = base colour, not scene-mute
         }
         {
             SurfaceCell& c = model.modifiers[7];
@@ -442,13 +442,13 @@ namespace lockstep
         };
 
         static const std::array<FRowDef, 10> kFRowDefs = {{
-            { 'Q', u8"Q", u8"PAT",   u8"",       ControllerButton::PatternScope, KeyRole::Modifier  },
-            { 'W', u8"W", u8"PART",  u8"MACH",   ControllerButton::PartScope,    KeyRole::Modifier  },
+            { 'Q', u8"Q", u8"PHRASE", u8"",      ControllerButton::PatternScope, KeyRole::Modifier  },
+            { 'W', u8"W", u8"SCENE", u8"MACH",   ControllerButton::PartScope,    KeyRole::Modifier  },
             { 'E', u8"E", u8"←",     u8"←ROT",    ControllerButton::NavLeft,      KeyRole::Nav       },
             { 'R', u8"R", u8"↓",     u8"÷2",     ControllerButton::NavDown,      KeyRole::Nav       },
             { 'T', u8"T", u8"→",     u8"ROT→",    ControllerButton::NavRight,     KeyRole::Nav       },
             { 'Y', u8"Y", u8"YES",   u8"SNAP",   ControllerButton::VerbYes,      KeyRole::VerbYes   },
-            { 'U', u8"U", u8"REC",   u8"",       ControllerButton::VerbRecord,   KeyRole::VerbCopy  },
+            { 'U', u8"U", u8"RECORD", u8"",      ControllerButton::VerbRecord,   KeyRole::VerbCopy  },
             { 'I', u8"I", u8"PLAY",  u8"",       ControllerButton::VerbPlay,     KeyRole::VerbPaste },
             { 'O', u8"O", u8"PANIC", u8"",        ControllerButton::VerbStop,     KeyRole::VerbClear },
             { 'P', u8"P", u8"NO",    u8"POP",    ControllerButton::VerbNo,       KeyRole::VerbNo    },

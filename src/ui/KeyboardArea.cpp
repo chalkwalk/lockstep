@@ -1382,7 +1382,7 @@ namespace lockstep
 
             g.setColour(juce::Colour::fromRGB(80, 95, 115));
             g.setFont(juce::Font(juce::FontOptions(10.0f)));
-            g.drawText(isPatternMute ? "PATTERN MUTE" : "GLOBAL MUTE",
+            g.drawText(isPatternMute ? "SCENE MUTE" : "GLOBAL MUTE",
                        navArea, juce::Justification::centred);
             return;
         }
@@ -1471,7 +1471,7 @@ namespace lockstep
             g.setColour(juce::Colour::fromRGB(80, 95, 115));
             g.setFont(juce::Font(juce::FontOptions(10.0f)));
             g.drawText(uiState_.trackHeld          ? "SELECT TRACK"
-                       : uiState_.patternScopeHeld ? "SELECT PATTERN" : "SELECT PART",
+                       : uiState_.patternScopeHeld ? "SELECT PHRASE" : "SELECT SCENE",
                        navArea, juce::Justification::centred);
             return;
         }
