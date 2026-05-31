@@ -36,7 +36,7 @@ density of on-screen annotation changes.
 
 Every action in Lockstep is some combination of **scope + verb**. Scopes
 are the held modifiers — the eight-key cluster (`Func`, `Track`,
-`Pattern`, `Part`, `Scene`, `Master`, `Mute`, `Fill`), plus a **held
+`Phrase`, `Scene`, `Morph`, `Song`, `Mute`, `Fill`), plus a **held
 step** (`Trig`) and a **section** key — combined cross-column into
 compound scopes. Verbs are the small fixed set (`Record`, `Play`,
 `Stop`, `Yes`, `No`, plus encoder turns for live tweaks). New features
@@ -134,7 +134,7 @@ answer involves "well, except…", redesign until it doesn't.
 
 Effective value = step override **if present** else track base. This
 rule applies to machine ParamFrames, to sequencer-scope trig fields
-(note / velocity / gate / condition), to scene mixes (which extend OEB
+(note / velocity / gate / condition), to Morph mixes (which extend OEB
 with a continuous lerp layer between base and override), and to
 control-all broadcasts. There is no reset sentinel; there are no
 per-parameter precedence flags; there is no second model.
@@ -253,24 +253,24 @@ module are the quality gate, not process isolation.
 
 When a global gesture and a local gesture both target the same thing,
 the more specific (local) one takes precedence and stays in force until
-explicitly cleared. A live per-track phrase deviation (`Track + Pattern +
-step`) is not overridden by the next Section launch — the Section
+explicitly cleared. A live per-track phrase deviation (`Track + Phrase +
+step`) is not overridden by the next Scene launch — the Scene
 re-asserts only non-deviated tracks. A per-track phrase chain explicitly
 set on a track is not replaced when the performer issues a global
 unison phrase swap — the deviation is already the more specific claim.
 
-**Consequence.** Features that "cast wide" — Section launch, global
+**Consequence.** Features that "cast wide" — Scene launch, global
 unison phrase swap — must document what they *skip*, not what they
-*smash*. An explicit re-sync gesture (`Track + Part` for one musician,
-`Part + Yes` for the whole band) is the only way to return a deviated
-track to the Section's default. This keeps improvised deviations safe
+*smash*. An explicit re-sync gesture (`Track + Scene` for one musician,
+`Scene + Yes` for the whole band) is the only way to return a deviated
+track to the Scene's default. This keeps improvised deviations safe
 from accidental overwrite during a live set.
 
 **In the grammar (DESIGN §13).** Specificity is an *observable scope
 level*, not a flag. The grammar is always "most recent explicit action at
 the finest scope wins." A broad gesture that would trample a narrower
 one that already has explicit state simply skips it — it does not trump
-it. This applies across the whole surface: P-Locks win over scene mixes
-win over base params; local deviations win over Section launch; per-step
+it. This applies across the whole surface: P-Locks win over Morph mixes
+win over base params; local deviations win over Scene launch; per-step
 overrides win over track base. The resolution stack is always traversed
 finest-to-coarsest, stopping at the first explicitly-set layer.
