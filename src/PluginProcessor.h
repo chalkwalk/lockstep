@@ -12,7 +12,10 @@
 #include "core/ChannelMode.h"
 #include "core/Clock.h"
 #include "core/Metronome.h"
+#include "core/Piece.h"
 #include "core/Project.h"
+#include "core/Section.h"
+#include "core/TrackKit.h"
 #include "core/SoundPool.h"
 #include "core/SyncMode.h"
 #include "io/CCMappingTable.h"
@@ -69,7 +72,20 @@ namespace lockstep
 
         juce::AudioProcessorValueTreeState& apvts() { return apvts_; }
 
-        // Active pattern / part accessors — point into the live project.
+        // ── New hierarchy accessors (Phase 7 / DESIGN §4.7) ──────────────────
+        Piece&         piece()              { return project_.pieces[static_cast<std::size_t>(activePieceIdx_)]; }
+        const Piece&   piece()        const { return project_.pieces[static_cast<std::size_t>(activePieceIdx_)]; }
+        Section&       section()            { return piece().sections[static_cast<std::size_t>(activeSectionIdx_)]; }
+        const Section& section()      const { return piece().sections[static_cast<std::size_t>(activeSectionIdx_)]; }
+        Piece::Lane&        lane(int t)       { return piece().tracks[static_cast<std::size_t>(t)]; }
+        const Piece::Lane&  lane(int t) const { return piece().tracks[static_cast<std::size_t>(t)]; }
+        TrackKit&           kit(int t)        { return lane(t).kit; }
+        const TrackKit&     kit(int t)  const { return lane(t).kit; }
+
+        int activePieceIdx()   const { return activePieceIdx_; }
+        int activeSectionIdx() const { return activeSectionIdx_; }
+
+        // ── Legacy accessors (kept for Stage A; removed in Stage B) ──────────
         Sequence&       sequence()       { return activePattern().sequence; }
         const Sequence& sequence() const { return activePattern().sequence; }
         Pattern&        activePattern()  { return project_.banks[static_cast<std::size_t>(activeBankIdx_)].patterns[static_cast<std::size_t>(activePatternIdx_)]; }
@@ -388,7 +404,11 @@ namespace lockstep
 
         juce::AudioProcessorValueTreeState apvts_;
         SamplePool samplePool_;
-        Project project_;          // full Project/Bank/Pattern/Part hierarchy
+        Project project_;
+        // New hierarchy active indices (Phase 7).
+        int activePieceIdx_   = 0;
+        int activeSectionIdx_ = 0;
+        // Legacy active indices (kept for Stage A; removed in Stage B).
         int activeBankIdx_    = 0;
         int activePatternIdx_ = 0;
         Clock clock_;
