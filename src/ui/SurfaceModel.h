@@ -64,6 +64,15 @@ namespace lockstep
 
         // Levels velocity picker
         LevelsCell       = 80,
+
+        // Phrase-length authoring re-skin (Phase 7 / DESIGN §34.4).
+        // Applied while Pattern+Func or Scene+Func is held (momentary).
+        LengthInRun    = 90,   // step falls within the active phrase length
+        LengthBoundary = 91,   // the exact last step (length boundary marker)
+        LengthOutRun   = 92,   // step falls outside the active phrase length
+
+        // Phrase/Section selector badges (Phase 7 / DESIGN §4.7).
+        SelectorDeviated = 95, // phrase currently playing due to a live deviation
     };
 
     // =========================================================================

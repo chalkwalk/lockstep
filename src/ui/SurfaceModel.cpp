@@ -55,6 +55,10 @@ namespace lockstep
             case CellState::ChromaticWhite:     return kScopeTrack;
             case CellState::ChromaticBlack:     return kScopeTrack;
             case CellState::LevelsCell:         return 0xFF204060u;
+            case CellState::LengthInRun:        return kScopePattern;
+            case CellState::LengthBoundary:     return 0xFFCCAAFFu;  // bright purple edge
+            case CellState::LengthOutRun:       return kStepOutRange;
+            case CellState::SelectorDeviated:   return kScopePattern;
             default: return fallback;
         }
     }
@@ -837,6 +841,52 @@ namespace lockstep
                         : audibleCol.getARGB();
                 }
             }
+            // ── Phase 7 / DESIGN §34.4: Phrase-length authoring re-skin ─────────
+            // Pattern+Func (focused track, purple) or Scene+Func (all tracks, orange).
+            // Momentary: active exactly as long as the modifiers are held.
+            else if ((ui.patternScopeHeld || ui.sceneHeld) && ui.funcHeld
+                     && !ui.funcPartHeld)
+            {
+                const bool broadcastMode = ui.sceneHeld && ui.funcHeld;
+                const juce::Colour tint  = broadcastMode
+                    ? juce::Colour(kScopeScene)
+                    : juce::Colour(kScopePattern);
+
+                // Resolve phrase length from the focused track (or longest if broadcast).
+                const int lenTrack = (activeTrack >= 0) ? activeTrack : 0;
+                const int phraseLen = proc.activePhrase(lenTrack).length;
+
+                for (int i = 0; i < 16; ++i)
+                {
+                    SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                    c.button  = ControllerButton::Step;
+                    c.index   = i;
+                    c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                    c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+
+                    const int absIdx = stepPage * 16 + i;
+                    (void)broadcastMode;  // both modes use focused track for ref currently
+
+                    if (absIdx + 1 < phraseLen)
+                    {
+                        c.base      = CellState::LengthInRun;
+                        c.baseColour = tint.withAlpha(0.35f).getARGB();
+                    }
+                    else if (absIdx + 1 == phraseLen)
+                    {
+                        c.base      = CellState::LengthBoundary;
+                        c.baseColour = tint.withAlpha(0.85f).getARGB();
+                    }
+                    else
+                    {
+                        c.base      = CellState::LengthOutRun;
+                        c.baseColour = tint.withAlpha(0.04f).getARGB();
+                    }
+                    if (c.pressed) c.baseColour = 0xFFFFFFFFu;
+                }
+            }
+            // ── End length-edit re-skin ──────────────────────────────────────────
+
             else if (ui.trackHeld || ui.patternScopeHeld || ui.partHeld)
             {
                 // Scope re-skin (Slice 4): cells encode track/pattern/part selector state.
@@ -852,50 +902,37 @@ namespace lockstep
                 }
                 else if (ui.patternScopeHeld)
                 {
-                    maxAvail  = kPatternsPerBank;
-                    activeIdx = proc.activePatternIdx();
+                    // Phase 7: show per-track phrase pool (16 phrases).
+                    maxAvail  = kPhrasesPerTrack;
+                    activeIdx = proc.section().phraseIdx[static_cast<std::size_t>(
+                        activeTrack >= 0 ? activeTrack : 0)];
                 }
                 else // partHeld
                 {
-                    maxAvail  = kPartsPerBank;
-                    activeIdx = static_cast<int>(proc.activePattern().partRef);
+                    // Phase 7: show sections within the active Piece.
+                    maxAvail  = kSectionsPerPiece;
+                    activeIdx = proc.activeSectionIdx();
                 }
 
-                std::array<int, kPatternsPerBank> chainPos{};
-                if (ui.patternScopeHeld)
+                // Phase 7: Section queue indicator (replaces old pattern chain).
+                std::array<int, 16> sectionQueuePos{};
+                if (ui.partHeld && proc.hasQueuedSection())
                 {
-                    int nextChainPos;
-                    if (proc.hasQueuedPattern())
-                    {
-                        const int qi = proc.queuedPatternPatIdx();
-                        if (qi >= 0 && qi < kPatternsPerBank && chainPos[static_cast<std::size_t>(qi)] == 0)
-                            chainPos[static_cast<std::size_t>(qi)] = 1;
-                        nextChainPos = 2;
-                    }
-                    else
-                    {
-                        nextChainPos = 1;
-                    }
-                    const int chainLen = proc.chainLength();
-                    for (int ci = 0; ci < chainLen; ++ci)
-                    {
-                        const auto [bi, pi] = proc.chainEntry(ci);
-                        (void)bi;
-                        if (pi >= 0 && pi < kPatternsPerBank && chainPos[static_cast<std::size_t>(pi)] == 0)
-                            chainPos[static_cast<std::size_t>(pi)] = nextChainPos + ci;
-                    }
+                    const int qi = proc.queuedSectionIdx();
+                    if (qi >= 0 && qi < kSectionsPerPiece)
+                        sectionQueuePos[static_cast<std::size_t>(qi)] = 1;
                 }
 
-                const int bankIdx = proc.activeBankIdx();
+                // Phase 7: per-phrase deviation badge for patternScope view.
+                const int devTrack = (activeTrack >= 0 && ui.patternScopeHeld) ? activeTrack : -1;
+
                 std::array<bool, 16> slotEmpty{};
                 for (int i = 0; i < maxAvail; ++i)
                 {
                     if (ui.trackHeld)
                         slotEmpty[static_cast<std::size_t>(i)] = proc.isTrackEmpty(i);
-                    else if (ui.patternScopeHeld)
-                        slotEmpty[static_cast<std::size_t>(i)] = !proc.isPatternInitialised(bankIdx, i);
                     else
-                        slotEmpty[static_cast<std::size_t>(i)] = !proc.isPartInitialised(bankIdx, i);
+                        slotEmpty[static_cast<std::size_t>(i)] = false;  // Phase 7: all phrases/sections exist
                 }
 
                 for (int i = 0; i < 16; ++i)
@@ -909,8 +946,13 @@ namespace lockstep
                     const bool avail   = i < maxAvail;
                     const bool isEmpty = avail && slotEmpty[static_cast<std::size_t>(i)];
                     const bool isCurrent = avail && !isEmpty && (i == activeIdx);
-                    const int  cpos = (ui.patternScopeHeld && avail && !isEmpty)
-                                      ? chainPos[static_cast<std::size_t>(i)] : 0;
+                    // Phase 7: section queue badge (Part scope) or deviation badge (Pattern scope).
+                    const int  cpos = (ui.partHeld && avail)
+                                      ? sectionQueuePos[static_cast<std::size_t>(i)] : 0;
+                    const bool isDeviated = ui.patternScopeHeld && avail
+                                         && devTrack >= 0
+                                         && proc.isTrackDeviated(devTrack)
+                                         && i == proc.deviationPhraseIdxForTrack(devTrack);
                     const bool isNext  = cpos == 1;
                     const bool isChain = cpos >= 2;
 
@@ -935,6 +977,12 @@ namespace lockstep
                         c.base      = CellState::SelectorChain;
                         c.baseColour = scopeTint.withAlpha(0.42f).getARGB();
                     }
+                    else if (isDeviated)
+                    {
+                        // Phrase currently playing due to a live track deviation.
+                        c.base      = CellState::SelectorDeviated;
+                        c.baseColour = scopeTint.withAlpha(0.70f).getARGB();
+                    }
                     else if (isCurrent)
                     {
                         c.base      = CellState::SelectorCurrent;
@@ -946,7 +994,7 @@ namespace lockstep
                         c.baseColour = scopeTint.withAlpha(0.18f).getARGB();
                     }
 
-                    // level encodes chain position for badge rendering in paintStepRows
+                    // level encodes queue position for badge rendering in paintStepRows
                     c.level = static_cast<float>(cpos);
                 }
             }

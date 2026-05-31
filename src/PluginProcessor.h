@@ -110,6 +110,9 @@ namespace lockstep
         void resyncTrackToSection(int t);    // Track + Part
         void resyncAllToSection();           // Part + Yes
         void commitSectionState();           // Part + Record
+        // Read-only deviation state for UI (surface model, badge rendering).
+        bool isTrackDeviated(int t) const;
+        int  deviationPhraseIdxForTrack(int t) const;
 
         // ── Legacy pattern navigation (kept for editor compat; removed in Stage D) ──
         // Switch the active pattern (no-op if indices unchanged or out of range).

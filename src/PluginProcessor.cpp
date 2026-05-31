@@ -2774,6 +2774,18 @@ namespace lockstep
         syncSequenceFromCurrentSection();
     }
 
+    bool LockstepProcessor::isTrackDeviated(int t) const
+    {
+        if (t < 0 || t >= static_cast<int>(kNumTracks)) return false;
+        return deviated_[static_cast<std::size_t>(t)];
+    }
+
+    int LockstepProcessor::deviationPhraseIdxForTrack(int t) const
+    {
+        if (t < 0 || t >= static_cast<int>(kNumTracks)) return 0;
+        return deviationPhraseIdx_[static_cast<std::size_t>(t)];
+    }
+
     void LockstepProcessor::commitSectionState()
     {
         // Write any live deviations into the Section's phraseIdx, then clear them.
