@@ -55,6 +55,12 @@ namespace lockstep::theme
     inline constexpr uint32_t kTrnActive    = 0xFF208040u;
     inline constexpr uint32_t kTrnAccent    = 0xFF30C060u;
 
+    // Panic / clear key (O / PANIC verb) — red, deliberately distinct from the
+    // green Play so a destructive stop/clear is not mistaken for transport play.
+    inline constexpr uint32_t kPanicInactive = 0xFF200C0Cu;
+    inline constexpr uint32_t kPanicActive   = 0xFF983232u;
+    inline constexpr uint32_t kPanicAccent   = 0xFFD85454u;
+
     // -------------------------------------------------------------------------
     // Step-grid colours
     // -------------------------------------------------------------------------

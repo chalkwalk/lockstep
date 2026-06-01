@@ -90,8 +90,10 @@ namespace lockstep
                 return { kRecInactive, kRecActive, kRecAccent };
 
             case ControllerButton::VerbPlay:
-            case ControllerButton::VerbStop:
                 return { kTrnInactive, kTrnActive, kTrnAccent };
+
+            case ControllerButton::VerbStop:   // PANIC / clear — red, not green
+                return { kPanicInactive, kPanicActive, kPanicAccent };
 
             // --- Section keys (canonical TRIG/SRC/FILTER/AMP/MOD/FX) ---
             case ControllerButton::Section:

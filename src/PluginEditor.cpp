@@ -1775,19 +1775,17 @@ namespace lockstep
                     // Mute+Yes+step = solo (additive toggle).
                     processor_.toggleSolo(trackIdx);
                 }
-                else if (uiState_.funcHeld)
+                else if (uiState_.sceneHeld)
                 {
-                    // Deferred pattern mute (MD.7 + MD.8).
-                    deferredPatternMutes_.push_back(trackIdx);
-                    // Flip the pending-display flag so the re-skin shows the
-                    // net result immediately (XOR on each press, same as commit).
-                    const auto ti = static_cast<std::size_t>(trackIdx);
-                    uiState_.pendingPatternMuteToggle[ti] =
-                        !uiState_.pendingPatternMuteToggle[ti];
+                    // Scene+Mute+step = scene mute: toggle this track's active-mask
+                    // for the current scene (immediate). Moved off Func+Mute so the
+                    // scope+verb grammar's cross-column compound owns it (DESIGN §13).
+                    processor_.togglePatternMute(trackIdx);
                 }
                 else
                 {
-                    // Immediate global mute (MD.6).
+                    // Immediate global mute (MD.6). (Func is now a no-op qualifier
+                    // on Mute; scene mute is the Scene+Mute compound above.)
                     processor_.toggleGlobalMute(trackIdx);
                 }
                 repaint();

@@ -271,16 +271,13 @@ namespace lockstep
         {
             SurfaceCell& c = model.modifiers[6];
             c.keyHint = "Z";
-            // Func+Mute activates scene-mute (kScopePMute); latch pip stays kScopeMute.
-            const uint32_t activeMuteCol = ui.funcHeld ? kScopePMute : kScopeMute;
+            // Bare Mute = global mute. Scene mute is the Scene+Mute compound
+            // (DESIGN §13), not a Func-layer on this key — so no Func hint here.
             fillModifier(c, ControllerButton::MuteScope, 'Z', "MUTE",
                          ui.muteHeld, ui.latch.mute,
-                         activeMuteCol, kScopeMuteDim,
+                         kScopeMute, kScopeMuteDim,
                          hasCompound && ui.muteHeld);
-            // Hint band = Func-layer only; promoted when Func held.
-            if (ui.funcHeld) c.primary = "S-MUTE";
-            else             c.funcHint = "S-MUTE";
-            if (ui.latch.mute) c.pip.colour = kScopeMute;  // pip = base colour, not scene-mute
+            if (ui.latch.mute) c.pip.colour = kScopeMute;
         }
         {
             SurfaceCell& c = model.modifiers[7];
@@ -317,9 +314,11 @@ namespace lockstep
             c.pressed  = physPressed('4', ControllerButton::NavUp);
             c.base     = c.pressed ? CellState::Pressed : CellState::Resting;
             c.baseColour = kNavActive;
-            // Func-hint promotion: when Func held, ×2 (double length) is the live function.
-            if (ui.funcHeld) { c.primary = juce::String(u8"×2"); c.funcHint = {};             }
-            else             { c.primary = juce::String(u8"↑");  c.funcHint = juce::String(u8"×2"); }
+            // Func+↑ doubles track length ONLY without Track held; with Track held
+            // the nav keys cycle the track input mode, so don't advertise ×2 there.
+            if (ui.funcHeld && !ui.trackHeld) { c.primary = juce::String(u8"×2"); c.funcHint = {}; }
+            else if (ui.trackHeld)            { c.primary = juce::String(u8"↑");  c.funcHint = {}; }
+            else                              { c.primary = juce::String(u8"↑");  c.funcHint = juce::String(u8"×2"); }
             jassert(!c.primary.isEmpty());
         }
 
@@ -509,10 +508,17 @@ namespace lockstep
             if (suppressFuncLayer)
                 displayHint = {};
 
+            // Nav keys (E/R/T) cycle track input-mode / navigate when Track is
+            // held — NOT the Func length/rotate ops — so don't advertise (or
+            // promote) their Func layer there. Mirrors the NavUp cell.
+            const bool navUnderTrack = (def.role == KeyRole::Nav) && ui.trackHeld;
+            if (navUnderTrack)
+                displayHint = {};
+
             // Func-hint promotion: when Func held and key has a Func-layer variant,
             // funcLayer IS the live function — show it as primary, clear hint.
             const bool hasFuncLayer = (def.funcLayer[0] != static_cast<char8_t>(0));
-            if (ui.funcHeld && hasFuncLayer && !isModeActive && !suppressFuncLayer)
+            if (ui.funcHeld && hasFuncLayer && !isModeActive && !suppressFuncLayer && !navUnderTrack)
             {
                 displayPrimary = juce::String(def.funcLayer);
                 displayHint    = {};
