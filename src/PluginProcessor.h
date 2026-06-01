@@ -13,6 +13,7 @@
 #include "core/Clock.h"
 #include "core/Metronome.h"
 #include "core/Song.h"
+#include "core/Arrangement.h"
 #include "core/Project.h"
 #include "core/Scene.h"
 #include "core/TrackKit.h"
@@ -73,21 +74,25 @@ namespace lockstep
         juce::AudioProcessorValueTreeState& apvts() { return apvts_; }
 
         // ── New hierarchy accessors (Phase 7 / DESIGN §4.7) ──────────────────
-        Song&         song()              { return project_.pieces[static_cast<std::size_t>(activeSongIdx_)]; }
-        const Song&   song()        const { return project_.pieces[static_cast<std::size_t>(activeSongIdx_)]; }
-        Scene&       section()            { return song().scenes[static_cast<std::size_t>(activeSceneIdx_)]; }
-        const Scene& section()      const { return song().scenes[static_cast<std::size_t>(activeSceneIdx_)]; }
+        // The Songs, playhead position, per-track deviation, and the working
+        // Sequence the resolver reads all live in arrangement_ (7.9e-pre 2b).
+        Song&         song()              { return arrangement_.song(); }
+        const Song&   song()        const { return arrangement_.song(); }
+        Song&         songAt(int i)       { return arrangement_.songs[static_cast<std::size_t>(i)]; }
+        const Song&   songAt(int i) const { return arrangement_.songs[static_cast<std::size_t>(i)]; }
+        Scene&       section()            { return arrangement_.scene(); }
+        const Scene& section()      const { return arrangement_.scene(); }
         Song::SongTrack&        lane(int t)       { return song().tracks[static_cast<std::size_t>(t)]; }
         const Song::SongTrack&  lane(int t) const { return song().tracks[static_cast<std::size_t>(t)]; }
-        TrackKit&           kit(int t)        { return lane(t).kit; }
-        const TrackKit&     kit(int t)  const { return lane(t).kit; }
+        TrackKit&           kit(int t)        { return arrangement_.kit(t); }
+        const TrackKit&     kit(int t)  const { return arrangement_.kit(t); }
 
-        int activePieceIdx()   const { return activeSongIdx_; }
-        int activeSectionIdx() const { return activeSceneIdx_; }
+        int activePieceIdx()   const { return arrangement_.songIdx; }
+        int activeSectionIdx() const { return arrangement_.sceneIdx; }
 
-        // ── Legacy accessors (kept for Stage A; removed in Stage B) ──────────
-        Sequence&       sequence()       { return activePattern().sequence; }
-        const Sequence& sequence() const { return activePattern().sequence; }
+        // ── Working buffer = arrangement_.working (the resolver reads this) ───
+        Sequence&       sequence()       { return arrangement_.working; }
+        const Sequence& sequence() const { return arrangement_.working; }
         Pattern&        activePattern()  { return project_.banks[static_cast<std::size_t>(activeBankIdx_)].patterns[static_cast<std::size_t>(activePatternIdx_)]; }
         const Pattern&  activePattern()  const { return project_.banks[static_cast<std::size_t>(activeBankIdx_)].patterns[static_cast<std::size_t>(activePatternIdx_)]; }
         Part&           activePart()     { return project_.banks[static_cast<std::size_t>(activeBankIdx_)].parts[static_cast<std::size_t>(activePattern().partRef)]; }
@@ -435,15 +440,8 @@ namespace lockstep
 
         juce::AudioProcessorValueTreeState apvts_;
         SamplePool samplePool_;
-        Project project_;
-        // New hierarchy active indices (Phase 7).
-        int activeSongIdx_   = 0;
-        int activeSceneIdx_ = 0;
-        // Per-track phrase deviation state (Phase 7 / DESIGN §4.7).
-        // deviated_[t] = true when the track has a live phrase deviation;
-        // deviationPhraseIdx_[t] = which phrase it's playing.
-        std::array<bool, kNumTracks> deviated_{};
-        std::array<int,  kNumTracks> deviationPhraseIdx_{};
+        Project project_;          // legacy Bank/Pattern/Part (sound FLTR/AMP); soundPool
+        Arrangement arrangement_;  // new hierarchy: Songs + playhead + working buffer
         // Per-track launch mode: false = fire at global bar boundary,
         // true = fire at end of current phrase cycle.
         std::array<bool, kNumTracks> phraseEndMode_{};

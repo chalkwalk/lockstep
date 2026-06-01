@@ -120,6 +120,18 @@ namespace lockstep
             syncWorkingFromActive();
         }
 
+        // Scene authoring (Scene + Record, §16): commit the live deviations into
+        // the active Scene's stored assignment, then clear them.
+        void commitSceneState()
+        {
+            writeBackWorkingToActive();
+            for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+                if (deviated[idx(t)])
+                    scene().phraseIdx[idx(t)] = deviationPhraseIdx[idx(t)];
+            deviated.fill(false);
+            syncWorkingFromActive();
+        }
+
         // ── Sync primitives (active model ⇄ working buffer) ───────────────────
         void syncWorkingTrackFromActive(int t)
         {

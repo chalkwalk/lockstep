@@ -168,7 +168,7 @@ namespace lockstep
         // Seed the new hierarchy (Phase 7): Song[0], SongTrack[0] kit = sampler,
         // SongTrack[1..15] kit = stub; Section[0] activeMask = all true (default).
         {
-            auto& p0 = project_.pieces[0];
+            auto& p0 = arrangement_.songs[0];
 
             p0.tracks[0].kit.machineId  = SamplerMachine::kMachineId;
             p0.tracks[0].kit.baseParams =
@@ -182,6 +182,11 @@ namespace lockstep
             // Section[0]: all tracks active, coreTime 4/4, phrase indices = 0.
             // phraseIdx and activeMask default correctly (0s and trues).
         }
+
+        // Project the seeded Song[0] into the working buffer. Arrangement's own
+        // constructor synced from an empty kit (it ran before this seed), so the
+        // working buffer must be refreshed now that Song[0]'s kit is populated.
+        arrangement_.syncWorkingFromActive();
     }
 
     LockstepProcessor::~LockstepProcessor() = default;
@@ -2639,35 +2644,19 @@ namespace lockstep
 
     Phrase& LockstepProcessor::activePhrase(int t)
     {
-        const int pIdx = deviated_[static_cast<std::size_t>(t)]
-                       ? deviationPhraseIdx_[static_cast<std::size_t>(t)]
-                       : section().phraseIdx[static_cast<std::size_t>(t)];
-        const int clamped = std::clamp(pIdx, 0, kPhrasesPerTrack - 1);
-        return song().tracks[static_cast<std::size_t>(t)].phrases[static_cast<std::size_t>(clamped)];
+        return arrangement_.activePhrase(t);
     }
 
     const Phrase& LockstepProcessor::activePhrase(int t) const
     {
-        const int pIdx = deviated_[static_cast<std::size_t>(t)]
-                       ? deviationPhraseIdx_[static_cast<std::size_t>(t)]
-                       : section().phraseIdx[static_cast<std::size_t>(t)];
-        const int clamped = std::clamp(pIdx, 0, kPhrasesPerTrack - 1);
-        return song().tracks[static_cast<std::size_t>(t)].phrases[static_cast<std::size_t>(clamped)];
+        return arrangement_.activePhrase(t);
     }
 
     void LockstepProcessor::syncSequenceFromCurrentScene()
     {
-        for (std::size_t t = 0; t < kNumTracks; ++t)
-        {
-            const auto& phr      = activePhrase(static_cast<int>(t));
-            auto&       seqTrack = sequence().tracks[t];
-            seqTrack.baseParams  = kit(static_cast<int>(t)).baseParams;
-            seqTrack.length      = phr.length;
-            seqTrack.steps       = phr.steps;
-            seqTrack.trigDefaults = phr.trigDefaults;
-            seqTrack.baseCond    = phr.baseCond;
-            seqTrack.noteSelection = phr.noteSelection;
-        }
+        // Project the active Phrase + Kit of every track into the working buffer
+        // (arrangement_.working). See Arrangement / HierarchyNav for the contract.
+        arrangement_.syncWorkingFromActive();
     }
 
     void LockstepProcessor::reinstallMachinesFromActiveKit()
@@ -2701,103 +2690,61 @@ namespace lockstep
         }
     }
 
+    // The switching + write-back logic lives in Arrangement (tested in isolation);
+    // the processor wrappers add only the machine (re)install where the Kit can
+    // change. A Scene switch keeps the per-Song Kit, but its machine ids may still
+    // differ from what is installed, so reinstall is guarded inside.
     void LockstepProcessor::setActiveSong(int pieceIdx)
     {
-        if (pieceIdx < 0 || pieceIdx >= kNumSongs) return;
-        if (pieceIdx == activeSongIdx_) return;
-        activeSongIdx_ = pieceIdx;
-        activeSceneIdx_ = 0;
-        deviated_.fill(false);
-        syncSequenceFromCurrentScene();
+        if (pieceIdx < 0 || pieceIdx >= kNumSongs || pieceIdx == arrangement_.songIdx)
+            return;
+        arrangement_.setActiveSong(pieceIdx);
         reinstallMachinesFromActiveKit();
     }
 
     void LockstepProcessor::setActiveScene(int sectionIdx)
     {
-        if (sectionIdx < 0 || sectionIdx >= kScenesPerSong) return;
-        if (sectionIdx == activeSceneIdx_) return;
-        activeSceneIdx_ = sectionIdx;
-        deviated_.fill(false);   // Section launch re-asserts non-deviated tracks
-        syncSequenceFromCurrentScene();
-        // Machine ids are per-Song (Kit), not per-Section, so reinstall only if
-        // the kit has different ids than the current machines.
+        if (sectionIdx < 0 || sectionIdx >= kScenesPerSong || sectionIdx == arrangement_.sceneIdx)
+            return;
+        arrangement_.setActiveScene(sectionIdx);
         reinstallMachinesFromActiveKit();
     }
 
     void LockstepProcessor::swapPhraseForTrack(int t, int phraseIdx)
     {
-        if (t < 0 || t >= static_cast<int>(kNumTracks)) return;
-        const int clamped = std::clamp(phraseIdx, 0, kPhrasesPerTrack - 1);
-        deviated_[static_cast<std::size_t>(t)] = true;
-        deviationPhraseIdx_[static_cast<std::size_t>(t)] = clamped;
-        // Sync this track's sequence data from the new active phrase.
-        const auto& phr = activePhrase(t);
-        auto& seqTrack = sequence().tracks[static_cast<std::size_t>(t)];
-        seqTrack.baseParams   = kit(t).baseParams;
-        seqTrack.length       = phr.length;
-        seqTrack.steps        = phr.steps;
-        seqTrack.trigDefaults = phr.trigDefaults;
-        seqTrack.baseCond     = phr.baseCond;
-        seqTrack.noteSelection = phr.noteSelection;
+        arrangement_.swapPhraseForTrack(t, phraseIdx);
     }
 
     void LockstepProcessor::swapPhraseForAll(int phraseIdx)
     {
-        const int clamped = std::clamp(phraseIdx, 0, kPhrasesPerTrack - 1);
-        auto& sec = section();
-        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
-        {
-            if (!deviated_[static_cast<std::size_t>(t)])
-                sec.phraseIdx[static_cast<std::size_t>(t)] = clamped;
-        }
-        syncSequenceFromCurrentScene();
+        arrangement_.swapPhraseForAll(phraseIdx);
     }
 
     void LockstepProcessor::resyncTrackToScene(int t)
     {
-        if (t < 0 || t >= static_cast<int>(kNumTracks)) return;
-        deviated_[static_cast<std::size_t>(t)] = false;
-        // Sync this track from section's phrase now that deviation is cleared.
-        const auto& phr = activePhrase(t);
-        auto& seqTrack = sequence().tracks[static_cast<std::size_t>(t)];
-        seqTrack.baseParams   = kit(t).baseParams;
-        seqTrack.length       = phr.length;
-        seqTrack.steps        = phr.steps;
-        seqTrack.trigDefaults = phr.trigDefaults;
-        seqTrack.baseCond     = phr.baseCond;
-        seqTrack.noteSelection = phr.noteSelection;
+        arrangement_.resyncTrackToScene(t);
     }
 
     void LockstepProcessor::resyncAllToScene()
     {
-        deviated_.fill(false);
-        syncSequenceFromCurrentScene();
+        arrangement_.resyncAllToScene();
     }
 
     bool LockstepProcessor::isTrackDeviated(int t) const
     {
         if (t < 0 || t >= static_cast<int>(kNumTracks)) return false;
-        return deviated_[static_cast<std::size_t>(t)];
+        return arrangement_.deviated[static_cast<std::size_t>(t)];
     }
 
     int LockstepProcessor::deviationPhraseIdxForTrack(int t) const
     {
         if (t < 0 || t >= static_cast<int>(kNumTracks)) return 0;
-        return deviationPhraseIdx_[static_cast<std::size_t>(t)];
+        return arrangement_.deviationPhraseIdx[static_cast<std::size_t>(t)];
     }
 
     void LockstepProcessor::commitSceneState()
     {
-        // Write any live deviations into the Section's phraseIdx, then clear them.
-        auto& sec = section();
-        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
-        {
-            if (deviated_[static_cast<std::size_t>(t)])
-                sec.phraseIdx[static_cast<std::size_t>(t)] =
-                    deviationPhraseIdx_[static_cast<std::size_t>(t)];
-        }
-        deviated_.fill(false);
-        syncSequenceFromCurrentScene();
+        arrangement_.commitSceneState();
     }
 
     // ── End Phase 7 new-hierarchy methods ────────────────────────────────────
@@ -2993,12 +2940,23 @@ namespace lockstep
 
     void LockstepProcessor::getStateInformation(juce::MemoryBlock& dest)
     {
+        // Flush the working buffer into the active Phrase/Kit before serializing.
+        // Live edits land in arrangement_.working and are otherwise only written
+        // back on a scene/song/phrase switch, so a save without an intervening
+        // switch would persist stale Phrases. (Stage 3 removes the working buffer.)
+        arrangement_.writeBackWorkingToActive();
         PluginState::writeTo(dest, *this);
     }
 
     void LockstepProcessor::setStateInformation(const void* data, int sizeInBytes)
     {
         PluginState::readFrom(data, sizeInBytes, *this);
+
+        // Project the freshly-loaded Songs into the working buffer. The serializer's
+        // setActiveSong/Scene calls early-return when the saved active indices equal
+        // the defaults (the common 0/0 case), so an explicit sync is required —
+        // otherwise the working buffer would keep the empty constructor state.
+        syncSequenceFromCurrentScene();
 
         // Push all MIDI-out config from a PartTrack to an already-installed machine.
         auto pushMidiOutConfig = [](MidiOutMachine* mom, const PartTrack& pt)

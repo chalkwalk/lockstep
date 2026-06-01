@@ -337,7 +337,7 @@ namespace lockstep::PluginState
 
         for (int pi = 0; pi < kNumSongs; ++pi)
         {
-            const auto& song = proc.project().pieces[static_cast<std::size_t>(pi)];
+            const auto& song = proc.songAt(pi);
             bool pieceHasContent = false;
 
             juce::ValueTree songNode("Song");
@@ -445,7 +445,7 @@ namespace lockstep::PluginState
             if (songNode.getType() != juce::Identifier("Song")) continue;
             const int pi = static_cast<int>(songNode.getProperty("i", -1));
             if (pi < 0 || pi >= kNumSongs) continue;
-            auto& song = proc.project().pieces[static_cast<std::size_t>(pi)];
+            auto& song = proc.songAt(pi);
 
             for (auto child : songNode)
             {
