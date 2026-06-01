@@ -1273,13 +1273,20 @@ namespace lockstep
                     return true;
                 }
 
-                // Scene + step: Scene launch (Phase 7 / DESIGN §16).
+                // Scene + step: Scene launch (Phase 7 / DESIGN §16). Single-tap =
+                // go to the scene keeping its remembered live overlay; double-tap =
+                // go to the scene at its saved floor (discard that overlay).
                 if (uiState_.sceneHeld && !uiState_.funcTrackHeld)
                 {
                     if (ev.index >= 0 && ev.index < kScenesPerSong)
                     {
+                        const double now = juce::Time::getMillisecondCounterHiRes();
+                        const bool toFloor =
+                            doubleTap_.recordAndCheck(3000 + ev.index, now);
                         if (processor_.clock().inPluginPlaying())
-                            processor_.queueScene(ev.index);
+                            processor_.queueScene(ev.index, toFloor);
+                        else if (toFloor)
+                            processor_.setActiveSceneToFloor(ev.index);
                         else
                             processor_.setActiveScene(ev.index);
                     }

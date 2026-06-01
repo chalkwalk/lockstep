@@ -285,9 +285,10 @@ namespace lockstep
         chain_.clear();
     }
 
-    void LockstepProcessor::queueScene(int sectionIdx)
+    void LockstepProcessor::queueScene(int sectionIdx, bool toFloor)
     {
         if (sectionIdx < 0 || sectionIdx >= kScenesPerSong) return;
+        queuedSceneToFloor_.store(toFloor, std::memory_order_release);
         queuedSceneIdx_.store(sectionIdx, std::memory_order_release);
     }
 
@@ -1189,10 +1190,13 @@ namespace lockstep
                     if (boundary < blockEnd)
                     {
                         queuedSceneIdx_.store(-1, std::memory_order_release);
+                        const bool toFloor =
+                            queuedSceneToFloor_.load(std::memory_order_acquire);
                         juce::MessageManager::callAsync(
-                            [this, qSecIdx]
+                            [this, qSecIdx, toFloor]
                             {
-                                setActiveScene(qSecIdx);
+                                if (toFloor) setActiveSceneToFloor(qSecIdx);
+                                else         setActiveScene(qSecIdx);
                                 if (onActivePatternChanged)
                                     onActivePatternChanged();
                             });
@@ -2710,6 +2714,14 @@ namespace lockstep
         if (sectionIdx < 0 || sectionIdx >= kScenesPerSong || sectionIdx == arrangement_.sceneIdx)
             return;
         arrangement_.setActiveScene(sectionIdx);
+        reinstallMachinesFromActiveKit();
+    }
+
+    void LockstepProcessor::setActiveSceneToFloor(int sectionIdx)
+    {
+        if (sectionIdx < 0 || sectionIdx >= kScenesPerSong)
+            return;
+        arrangement_.setActiveSceneToFloor(sectionIdx);
         reinstallMachinesFromActiveKit();
     }
 

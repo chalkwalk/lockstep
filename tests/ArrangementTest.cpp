@@ -158,6 +158,54 @@ namespace lockstep
         CHECK(arr->activePhraseIdx(1) == 4,       "force-all: previously-deviated track to global");
     }
 
+    // Build 3: a scene remembers its own live overlay (deviations) across a
+    // single-tap launch away and back (DESIGN §16).
+    static void testOverlayRememberedAcrossSceneSwitch()
+    {
+        auto arr = makeSeededArrangement();
+        arr->swapPhraseForTrack(0, 3);            // deviate track 0 in scene 0
+        CHECK(arr->deviated[0], "pre: track 0 deviated in scene 0");
+
+        arr->setActiveScene(1);                   // single-tap launch scene 1
+        CHECK(!arr->deviated[0], "scene 1 carries no remembered overlay");
+
+        arr->setActiveScene(0);                   // single-tap back to scene 0
+        CHECK(arr->deviated[0],             "scene 0 overlay remembered on return");
+        CHECK(arr->activePhraseIdx(0) == 3, "remembered deviation phrase restored");
+    }
+
+    // Build 3: a double-tap launch arrives at the saved floor, discarding the
+    // scene's live overlay — and the discard is permanent (no resurrection).
+    static void testDoubleTapToFloorDiscardsOverlay()
+    {
+        auto arr = makeSeededArrangement();
+        arr->swapPhraseForTrack(0, 3);            // deviate track 0 in scene 0
+        CHECK(arr->deviated[0], "pre: track 0 deviated");
+
+        arr->setActiveSceneToFloor(0);            // double-tap current = revert to stock
+        CHECK(!arr->deviated[0],            "double-tap floor clears live deviation");
+        CHECK(arr->activePhraseIdx(0) == 0, "track 0 back on its floor phrase");
+
+        arr->setActiveScene(1);
+        arr->setActiveScene(0);
+        CHECK(!arr->deviated[0], "floored overlay is not resurrected on return");
+    }
+
+    // Build 3: committing folds the overlay into the floor and forgets it.
+    static void testCommitFoldsOverlayIntoFloor()
+    {
+        auto arr = makeSeededArrangement();
+        arr->swapPhraseForTrack(0, 3);            // deviate track 0 in scene 0
+        arr->commitSceneState();                  // Scene + Record
+        CHECK(!arr->deviated[0],                 "commit clears the live deviation");
+        CHECK(arr->scene().phraseIdx[0] == 3,    "commit writes the deviation into the floor");
+
+        arr->setActiveScene(1);
+        arr->setActiveScene(0);
+        CHECK(!arr->deviated[0],                 "no stale overlay survives a commit");
+        CHECK(arr->activePhraseIdx(0) == 3,      "committed floor phrase persists");
+    }
+
     void runArrangementTests()
     {
         testSceneSwitchPreservesEdit();
@@ -166,5 +214,8 @@ namespace lockstep
         testSongSwitchClearsDeviationAndSwapsKit();
         testLoadPositionDoesNotClobber();
         testGlobalPhraseGrammar();
+        testOverlayRememberedAcrossSceneSwitch();
+        testDoubleTapToFloorDiscardsOverlay();
+        testCommitFoldsOverlayIntoFloor();
     }
 }

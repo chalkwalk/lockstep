@@ -105,7 +105,8 @@ namespace lockstep
 
         // ── New hierarchy navigation + gestures (Phase 7) ────────────────────
         void setActiveSong(int pieceIdx);
-        void setActiveScene(int sectionIdx);
+        void setActiveScene(int sectionIdx);          // single-tap: keep overlay
+        void setActiveSceneToFloor(int sectionIdx);   // double-tap: discard overlay
         // Load path only: jump to a saved position without writing the (stale)
         // working buffer back over the loaded phrases. See Arrangement::loadPosition.
         void loadActivePosition(int songIdx, int sceneIdx);
@@ -161,7 +162,8 @@ namespace lockstep
         // ── New hierarchy launch queue (Phase 7 / DESIGN §4.8, §16) ─────────
         // Queue a Section launch to fire at the next core-time bar boundary.
         // Safe to call from the message thread. cancelQueuedScene() clears it.
-        void queueScene(int sectionIdx);
+        // toFloor = double-tap launch (arrive at saved floor, discard overlay).
+        void queueScene(int sectionIdx, bool toFloor = false);
         void cancelQueuedScene();
         bool hasQueuedScene() const;
         int  queuedSectionIdx() const;
@@ -496,6 +498,8 @@ namespace lockstep
         // Queued Section launch: fires at next core-time bar boundary (Phase 7).
         // -1 = none pending.
         std::atomic<int> queuedSceneIdx_ { -1 };
+        // Pairs with queuedSceneIdx_: true = double-tap launch to the saved floor.
+        std::atomic<bool> queuedSceneToFloor_ { false };
         // Legacy: queued pattern switch. -1/-1 means no switch pending.
         std::atomic<int> queuedPatternBankIdx_ { -1 };
         std::atomic<int> queuedPatternPatIdx_  { -1 };

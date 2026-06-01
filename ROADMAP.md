@@ -564,7 +564,7 @@ this is retired. Plan: test net → SoT fix → go direct → 7.9e.
 > the serializer's pure `applyUpgrades` chain stays covered by the existing
 > `PluginState` UnitTest, and `Arrangement` covers the switching contract.
 
-### 7.10 — Scene model redesign (floor + overlay)  *[design landed; build pending]*
+### 7.10 — Scene model redesign (floor + overlay)  *[shipped]*
 From the manual-test design conversation: a Scene = a **saved floor** (global
 pattern + committed deviations, + activeMask/coreTime/Morph) plus a **live
 overlay**; single/double-tap launch (single keeps the overlay, double reverts to
@@ -577,10 +577,13 @@ re-sync dropped. See DESIGN §4.7/§16/§13.6, PRINCIPLES §13.
 - [x] **Build 2**: dual-marker phrase selector (home/global border = new add-only
       `CellState::SelectorHome`; fill = current playing phrase) + persistent
       deviation badge (`SurfaceModel::trackDeviated[]` + amber strip marker).
-- [ ] **Build 3**: per-scene live overlay (remembered) + single/double-tap launch
-      (single keeps overlay, double reverts to floor) + `Scene+Record` commit.
-      `Scene+Record` (`commitSceneState`) already commits deviations; remaining is
-      the per-scene overlay + the single/double-tap launch semantics.
+- [x] **Build 3**: per-scene live overlay (remembered) + single/double-tap launch.
+      `Arrangement` keeps a runtime per-(song,scene) overlay store; single-tap
+      launch stashes the departing scene's deviations and restores the arriving
+      scene's; double-tap (`setActiveSceneToFloor`, `queueScene(toFloor)`) arrives
+      at the saved floor and discards the overlay; `commitSceneState` folds the
+      overlay into the floor and clears the stash. `ArrangementTest` pins remember /
+      double-tap-discard / commit-fold.
 - [ ] (Later) scene-copy-on-create + conflict hints (§23); pattern chaining (§16).
 
 ### 7.11 — Manual-test bug fixes

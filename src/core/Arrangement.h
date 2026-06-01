@@ -35,8 +35,23 @@ namespace lockstep
         int songIdx  = 0;
         int sceneIdx = 0;
         // Sticky per-track phrase deviation (a musician doing their own thing).
+        // This is the LIVE overlay for the scene currently under the playhead.
         std::array<bool, kNumTracks> deviated{};
         std::array<int,  kNumTracks> deviationPhraseIdx{};
+
+        // ── Per-scene remembered live overlay (DESIGN §4.7/§16, build 3) ──────
+        // Each scene remembers its own uncommitted deviations while the set runs.
+        // Runtime-only: NOT serialized (an overlay is discarded on commit / not
+        // part of the saved floor). On a single-tap launch the departing scene's
+        // overlay is stashed here and the arriving scene's is restored; a
+        // double-tap launch arrives at the saved floor (overlay discarded).
+        struct SceneOverlay
+        {
+            bool active = false;   // has a remembered overlay been stashed?
+            std::array<bool, kNumTracks> deviated{};
+            std::array<int,  kNumTracks> deviationPhraseIdx{};
+        };
+        std::array<std::array<SceneOverlay, kScenesPerSong>, kNumSongs> overlays{};
 
         // ── Accessors ────────────────────────────────────────────────────────
         [[nodiscard]] Song&        song()        { return songs[idx(songIdx)]; }
@@ -67,12 +82,31 @@ namespace lockstep
         [[nodiscard]] const Track& workingTrack(int t) const { return working.tracks[idx(t)]; }
 
         // ── Switching (write-back THEN re-project, so edits survive) ──────────
+        // Single-tap Scene launch: stash the departing scene's live overlay and
+        // restore the arriving scene's remembered overlay (DESIGN §16). Live
+        // deviations therefore persist per scene across launches.
         void setActiveScene(int s)
         {
             if (s < 0 || s >= kScenesPerSong || s == sceneIdx) return;
             writeBackWorkingToActive();      // capture live edits into current phrases/kits
+            stashCurrentOverlay();           // remember this scene's deviations
             sceneIdx = s;
-            deviated.fill(false);            // a Scene launch re-asserts non-deviated tracks
+            restoreOverlayForCurrent();      // bring back the target scene's overlay
+            syncWorkingFromActive();
+        }
+
+        // Double-tap Scene launch: arrive at the scene's SAVED FLOOR, discarding
+        // its remembered overlay (DESIGN §16). Double-tapping the *current* scene
+        // is "revert to stock", so s == sceneIdx is allowed here.
+        void setActiveSceneToFloor(int s)
+        {
+            if (s < 0 || s >= kScenesPerSong) return;
+            writeBackWorkingToActive();
+            if (s != sceneIdx) stashCurrentOverlay();   // remember departing scene
+            sceneIdx = s;
+            clearOverlayForCurrent();                   // drop the target's overlay
+            deviated.fill(false);
+            deviationPhraseIdx.fill(0);
             syncWorkingFromActive();
         }
 
@@ -80,9 +114,10 @@ namespace lockstep
         {
             if (s < 0 || s >= kNumSongs || s == songIdx) return;
             writeBackWorkingToActive();
+            stashCurrentOverlay();
             songIdx  = s;
             sceneIdx = 0;
-            deviated.fill(false);            // a Song switch is a full performer reset
+            restoreOverlayForCurrent();      // remembered overlay for the new song's scene 0
             syncWorkingFromActive();
         }
 
@@ -97,6 +132,7 @@ namespace lockstep
             sceneIdx = std::clamp(scene, 0, kScenesPerSong - 1);
             deviated.fill(false);
             deviationPhraseIdx.fill(0);
+            clearAllOverlays();              // a fresh load carries no live overlay
             syncWorkingFromActive();
         }
 
@@ -164,7 +200,41 @@ namespace lockstep
                 if (deviated[idx(t)])
                     scene().phraseIdx[idx(t)] = deviationPhraseIdx[idx(t)];
             deviated.fill(false);
+            clearOverlayForCurrent();        // overlay is now part of the floor
             syncWorkingFromActive();
+        }
+
+        // ── Per-scene overlay store helpers (build 3) ─────────────────────────
+        void stashCurrentOverlay()
+        {
+            auto& o = overlays[idx(songIdx)][idx(sceneIdx)];
+            o.active             = true;
+            o.deviated           = deviated;
+            o.deviationPhraseIdx = deviationPhraseIdx;
+        }
+        void restoreOverlayForCurrent()
+        {
+            const auto& o = overlays[idx(songIdx)][idx(sceneIdx)];
+            if (o.active)
+            {
+                deviated           = o.deviated;
+                deviationPhraseIdx = o.deviationPhraseIdx;
+            }
+            else
+            {
+                deviated.fill(false);
+                deviationPhraseIdx.fill(0);
+            }
+        }
+        void clearOverlayForCurrent()
+        {
+            overlays[idx(songIdx)][idx(sceneIdx)] = SceneOverlay{};
+        }
+        void clearAllOverlays()
+        {
+            for (auto& song : overlays)
+                for (auto& o : song)
+                    o = SceneOverlay{};
         }
 
         // ── Sync primitives (active model ⇄ working buffer) ───────────────────
