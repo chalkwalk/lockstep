@@ -571,13 +571,16 @@ overlay**; single/double-tap launch (single keeps the overlay, double reverts to
 floor); `Scene+Record` commits. New phrase grammar; `Track+Scene`/`Scene+Yes`
 re-sync dropped. See DESIGN §4.7/§16/§13.6, PRINCIPLES §13.
 - [x] Design written into DESIGN §4.7/§16/§13.6 + gesture tables + PRINCIPLES §13.
-- [ ] Store an explicit `globalPhrase` per Scene + the live-overlay layer in
-      `Arrangement` (committed deviations vs live deviations).
-- [ ] Gestures: `Phrase+step` (set-global, un-deviate focused), `Scene+Phrase+step`
-      (force-all), single/double-tap launch, `Scene+Record` commit; remove re-sync.
-- [ ] Visuals: dual-marker phrase selector (global border + current fill) + a
-      persistent deviation badge (SurfaceModel `trackDeviated[]`, like `trackHasMachine[]`).
-- [ ] Scene-assignment persistence: global + committed deviations round-trip.
+- [x] **Build 1**: `Scene::globalPhrase` (serialized) + grammar — `setGlobalPhrase`
+      (Phrase+step: set global, focused rejoins, others kept), `forceAllToPhrase`
+      (Scene+Phrase+step); editor/processor rewired; `ArrangementTest` pins it.
+- [x] **Build 2**: dual-marker phrase selector (home/global border = new add-only
+      `CellState::SelectorHome`; fill = current playing phrase) + persistent
+      deviation badge (`SurfaceModel::trackDeviated[]` + amber strip marker).
+- [ ] **Build 3**: per-scene live overlay (remembered) + single/double-tap launch
+      (single keeps overlay, double reverts to floor) + `Scene+Record` commit.
+      `Scene+Record` (`commitSceneState`) already commits deviations; remaining is
+      the per-scene overlay + the single/double-tap launch semantics.
 - [ ] (Later) scene-copy-on-create + conflict hints (§23); pattern chaining (§16).
 
 ### 7.11 — Manual-test bug fixes
