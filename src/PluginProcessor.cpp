@@ -585,9 +585,9 @@ namespace lockstep
             if (static_cast<std::size_t>(s) < trk.baseParams.size())
                 base = trk.baseParams[static_cast<std::size_t>(s)];
             else if (!m->hasInternalFilter() && s >= fltrOff && s < fltrOff + kFltrSlots)
-                base = activePart().tracks[ti].fltrState.getSlot(s - fltrOff);
+                base = kit(static_cast<int>(ti)).fltrState.getSlot(s - fltrOff);
             else if (!m->hasInternalAmp() && s >= ampOff && s < ampOff + kAmpSlots)
-                base = activePart().tracks[ti].ampState.getSlot(s - ampOff);
+                base = kit(static_cast<int>(ti)).ampState.getSlot(s - ampOff);
             else
                 base = 0.0f;
             // When a step is held on this track, apply its P-Lock overlay.
@@ -1717,11 +1717,11 @@ namespace lockstep
                     }
                     else if (!dm->hasInternalFilter() && dstSlot < dstAmpOff)
                     {
-                        activePart().tracks[ti].fltrState.setSlot(dstSlot - dstMnp, value);
+                        kit(static_cast<int>(ti)).fltrState.setSlot(dstSlot - dstMnp, value);
                     }
                     else if (!dm->hasInternalAmp())
                     {
-                        activePart().tracks[ti].ampState.setSlot(dstSlot - dstAmpOff, value);
+                        kit(static_cast<int>(ti)).ampState.setSlot(dstSlot - dstAmpOff, value);
                     }
                 }
             }
@@ -1757,11 +1757,11 @@ namespace lockstep
             }
             else if (!wm->hasInternalFilter() && slot < ampOff)
             {
-                activePart().tracks[ti].fltrState.setSlot(slot - mnp, value);
+                kit(static_cast<int>(ti)).fltrState.setSlot(slot - mnp, value);
             }
             else if (!wm->hasInternalAmp())
             {
-                activePart().tracks[ti].ampState.setSlot(slot - ampOff, value);
+                kit(static_cast<int>(ti)).ampState.setSlot(slot - ampOff, value);
             }
         }
     }
@@ -2208,9 +2208,9 @@ namespace lockstep
         const int  fltrOff = mnp;
         const int  ampOff  = mnp + (m->hasInternalFilter() ? 0 : kFltrSlots);
         if (!m->hasInternalFilter() && slot >= fltrOff && slot < fltrOff + kFltrSlots)
-            return activePart().tracks[ti].fltrState.getSlot(slot - fltrOff);
+            return kit(static_cast<int>(ti)).fltrState.getSlot(slot - fltrOff);
         if (!m->hasInternalAmp() && slot >= ampOff && slot < ampOff + kAmpSlots)
-            return activePart().tracks[ti].ampState.getSlot(slot - ampOff);
+            return kit(static_cast<int>(ti)).ampState.getSlot(slot - ampOff);
         return 0.0f;
     }
 

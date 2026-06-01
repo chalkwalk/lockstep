@@ -277,23 +277,40 @@ namespace lockstep::PluginState
         if (kit.divider != 1)
             node.setProperty("div", kit.divider, nullptr);
 
-        // Base params via temp machine to get correct slot IDs.
+        // Base params + post-machine FLTR/AMP via temp machine to get correct
+        // slot IDs. The slot range covers machine params, then the foundation
+        // FLTR block, then AMP (ids "lockstep.fltr.*" / "lockstep.amp.*") — same
+        // id-keyed scheme as the legacy PartTrack so the kit owns its sound.
         auto tempMachine = proc.createMachineForId(kit.machineId);
-        const int np = tempMachine->numParams();
-        if (np > 0 && !kit.baseParams.empty())
+        const int machinNp = tempMachine->numParams();
+        const int np       = proc.numSlotsWithMachine(*tempMachine);
+        if (np > 0)
         {
             juce::ValueTree bpNode("BP");
-            for (int s = 0; s < np && s < static_cast<int>(kit.baseParams.size()); ++s)
+            for (int s = 0; s < np; ++s)
             {
-                const float defVal = tempMachine->paramSpec(s).defaultValue;
-                const float val    = kit.baseParams[static_cast<std::size_t>(s)];
-                if (floatNe(val, defVal))
+                const auto spec = proc.paramSpecWithMachine(*tempMachine, s);
+                const juce::String id = spec.id;
+                if (id.isEmpty()) continue;
+                const float def = spec.defaultValue;
+                float val;
+                if (s < machinNp && static_cast<std::size_t>(s) < kit.baseParams.size())
+                    val = kit.baseParams[static_cast<std::size_t>(s)];
+                else if (id.startsWith("lockstep.fltr."))
+                    val = kit.fltrState.getSlot(s - machinNp);
+                else if (id.startsWith("lockstep.amp."))
                 {
-                    juce::ValueTree pNode("P");
-                    pNode.setProperty("id", juce::String(tempMachine->paramSpec(s).id), nullptr);
-                    pNode.setProperty("v",  static_cast<double>(val), nullptr);
-                    bpNode.appendChild(pNode, nullptr);
+                    const int ampBase = machinNp
+                        + (tempMachine->hasInternalFilter() ? 0 : TrackFltrState::kNumSlots);
+                    val = kit.ampState.getSlot(s - ampBase);
                 }
+                else
+                    val = 0.0f;
+                if (!floatNe(val, def)) continue;
+                juce::ValueTree pNode("P");
+                pNode.setProperty("id", id,                       nullptr);
+                pNode.setProperty("v",  static_cast<double>(val), nullptr);
+                bpNode.appendChild(pNode, nullptr);
             }
             if (bpNode.getNumChildren() > 0)
                 node.appendChild(bpNode, nullptr);
@@ -309,9 +326,9 @@ namespace lockstep::PluginState
         kit.divider = static_cast<int>(node.getProperty("div", 1));
 
         auto tempMachine = proc.createMachineForId(kit.machineId);
-        const int np = tempMachine->numParams();
-        kit.baseParams.assign(static_cast<std::size_t>(np), 0.0f);
-        for (int s = 0; s < np; ++s)
+        const int machinNp = tempMachine->numParams();
+        kit.baseParams.assign(static_cast<std::size_t>(machinNp), 0.0f);
+        for (int s = 0; s < machinNp; ++s)
             kit.baseParams[static_cast<std::size_t>(s)] = tempMachine->paramSpec(s).defaultValue;
 
         const auto bpNode = node.getChildWithName("BP");
@@ -319,11 +336,20 @@ namespace lockstep::PluginState
         {
             for (auto pNode : bpNode)
             {
-                const juce::String id = pNode.getProperty("id", "").toString();
-                const float val = getFloat(pNode, "v", 0.0f);
-                for (int s = 0; s < np; ++s)
-                    if (juce::String(tempMachine->paramSpec(s).id) == id)
-                        { kit.baseParams[static_cast<std::size_t>(s)] = val; break; }
+                const juce::String id  = pNode.getProperty("id", "").toString();
+                const float        val = getFloat(pNode, "v", 0.0f);
+                const int slot = proc.slotForIdWithMachine(*tempMachine, id);
+                if (slot < 0) continue;  // unknown id (e.g. machine changed) — skip
+                if (slot < machinNp)
+                    kit.baseParams[static_cast<std::size_t>(slot)] = val;
+                else if (id.startsWith("lockstep.fltr."))
+                    kit.fltrState.setSlot(slot - machinNp, val);
+                else if (id.startsWith("lockstep.amp."))
+                {
+                    const int ampBase = machinNp
+                        + (tempMachine->hasInternalFilter() ? 0 : TrackFltrState::kNumSlots);
+                    kit.ampState.setSlot(slot - ampBase, val);
+                }
             }
         }
     }
