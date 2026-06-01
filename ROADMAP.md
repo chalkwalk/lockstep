@@ -585,12 +585,14 @@ re-sync dropped. See DESIGN §4.7/§16/§13.6, PRINCIPLES §13.
 dispatch (machine picker, Track+Phrase deviation) + P-lock clear no-toggle;
 FLTR/AMP→Kit (audio); AMP held-open (one-shots); transport pause/resume;
 scene-mute→`Scene+Mute` + nav labels + PANIC teal; empty-track overlay; README refresh.
-**Round 2 *[pending — model-independent]***:
-- [ ] Sample-pool `addItem(0)` assertion (`ManipulationZone.cpp:767` → section header).
-- [ ] MZ "X" P-lock clear toggling the trig (`ManipulationZone.cpp:63-76` → `markParamWritten`).
-- [ ] P-lock latch exit on any step (`PluginEditor.cpp` step-release).
-- [ ] Scene-mute **visuals** (`S-MUTE` under Scene-held + scene-mute grid view).
-- [ ] **Phrase-content persistence** (a phrase losing its trigs on save/reload).
+**Round 2 *[shipped]***:
+- [x] Sample-pool `addItem(0)` assertion → section header.
+- [x] MZ "X" P-lock clear toggling the trig → `markParamWritten`.
+- [x] P-lock latch exit on any step.
+- [x] Scene-mute **visuals** (`S-MUTE` under Scene-held + scene-mute grid view).
+- [x] **Phrase-content persistence** — load clobbered non-active scenes' phrases via
+      a stale write-back; added `Arrangement::loadPosition` (no write-back) for the
+      load path; `ArrangementTest` regression.
 
 ---
 
