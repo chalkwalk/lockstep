@@ -923,20 +923,28 @@ reactivation).
   | *(none)*  | machine trig | machine SRC | machine FILTER (opt) | machine AMP (opt) | machine MOD | machine FX (drive/bit) |
   | `Func`    | conditions / fill | machine SRC alt | machine FILTER alt | machine AMP alt | machine MOD alt | machine FX alt |
   | `Track`   | per-track condition defaults | input_source / Thru | post-machine FILTER | post-machine AMP + sends | per-track LFO (if any) | IEffect insert 1+2 |
-  | `Phrase` ⚑ | length / scale lock | (dim) | (dim) | (dim) | (dim) | (dim) |
-  | `Scene` ⚑ | launch / re-sync · coreTime | (dim) | (dim) | active-mask | (dim) | (dim) |
+  | `Phrase`  | length / scale lock | (dim) | (dim) | (dim) | (dim) | (dim) |
+  | `Scene`   | launch / re-sync · coreTime | phrase-assign map | (dim) | active-mask | Morph snapshot | (dim) |
   | `Morph`   | (renamed `CXFD`) | morph-assign SRC | morph-assign FILTER | morph-assign AMP | morph-assign MOD | morph-assign FX |
   | `Song`    | (dim) | (dim) | master FILTER (if any) | master gain + sends | (dim) | master FX 1+2 |
 
-> ⚑ **Content redesign pending.** The `Phrase` (was `Pattern`) and
-> `Scene` (was `Part`) rows changed *meaning*, not just name: a Phrase is
-> now pure per-track content (no sound — so the sound cells dim; the old
-> kit-base params it shared with `Part` now live in the **no-scope /
-> Track-base** row, since machine params write to the track's Kit base),
-> and a Scene now carries *assignment* (phrase indices, active mask,
-> coreTime, Morph) rather than kit-base params. The cell contents above
-> are a provisional mapping from the §4.7 ownership split and want a
-> dedicated content pass before they are treated as final.
+The `Phrase` and `Scene` rows follow directly from the §4.7 ownership
+split (this is the resolved content pass — the rows are no longer
+provisional):
+
+- A **Phrase** is pure per-track *content* — steps, P-Locks, length, a
+  per-phrase scale lock — and carries **no sound**. So only the timing-
+  domain `TRIG` cell is live (length / scale lock); every sound cell
+  (`SRC`–`FX`) dims, because the kit-base params a Pattern used to share
+  with its Part now live in the **no-scope / Track-base** row (machine
+  params write to the track's **Kit** base, §4.7.2).
+- A **Scene** owns *assignment*, not sound: the per-track phrase indices
+  (`phraseIdx[]`), the `activeMask[]`, `coreTime`, and the Morph
+  snapshot. Those map onto the section keys by domain — `TRIG` =
+  launch / re-sync · coreTime (timing); `SRC` = the per-track
+  phrase-assignment map (which phrase each musician plays); `AMP` =
+  active-mask (the mute/level domain); `MOD` = the Morph snapshot. The
+  remaining cells (`FILTER`, `FX`) dim — a Scene has no DSP of its own.
 
 Three rules govern the matrix:
 
@@ -1453,12 +1461,20 @@ A single uniform grammar: **hold scope, press verb**.
 | `Phrase` + Record | Copy the focused track's phrase. |
 | `Phrase` + Play | Paste phrase. |
 | `Phrase` + Stop | Clear phrase (back to empty). |
+| `Func` + `Scene` + Record | Copy the whole Scene (all tracks' `phraseIdx[]`, `activeMask[]`, `coreTime`, Morph snapshot) to the clipboard. |
+| `Func` + `Scene` + Play | Paste the Scene clipboard onto the active (or destination-prefixed) Scene. |
+| `Func` + `Scene` + Stop | Clear the Scene to empty / default. |
 
-> ⚑ **Whole-Scene copy needs a verb.** The old all-track `Pattern + Record`
-> copy maps to a *Scene*, but `Scene + Record` now means "author / commit
-> live state" (§16). Copy/paste of a whole Scene therefore needs a
-> non-`Record` verb (or a `Func`-qualified Scene chord) — open, pending the
-> §23 management-UI pass.
+> **Why `Scene` copy is `Func`-qualified.** Every other scope's bare
+> copy/paste/clear triad is `Record`/`Play`/`Stop`. `Scene` is the one
+> exception: its *bare* triad is reserved for live launch-unit verbs —
+> `Scene + Record` = **author** (commit live state into the Scene, §16),
+> `Scene + Play` = **launch now**, `Scene + Stop` = **revert to stored**
+> (§16). `Func` therefore *lifts* the clipboard triad up one level
+> (`Func + Scene + Record/Play/Stop` = copy/paste/clear of a Scene as
+> data), exactly as `Func` narrows `Trig + Stop` (clear step) to
+> `Trig + Func + Stop` (clear locks only). The clipboard is typed: a
+> Scene clipboard pastes only into a Scene slot.
 
 Multi-step holds copy a contiguous *or* discontinuous group: the
 clipboard preserves the relative offsets and pastes them back over
@@ -1828,6 +1844,21 @@ remove a deviation; a Scene launch alone does not.
 into the active Scene: phrase indices that are now playing become that
 Scene's stored assignments, and the current active mask is written in.
 This is the "capture live → write to scene" gesture.
+
+**Scene launch-now / revert.** The rest of the bare `Scene` triad acts on
+the active Scene as a live launch unit (the copy/paste/clear meanings are
+`Func`-qualified, §13.2):
+
+- `Scene + Play` **launches the active Scene immediately** — an
+  unquantized re-fire of its stored assignment onto all non-deviated
+  tracks (re-apply phrase indices + active mask now, not at the next
+  core-time boundary). The deliberate "snap this Scene back into place"
+  move; deviated tracks are left alone (*specificity wins*).
+- `Scene + Stop` **reverts the active Scene to its on-disk stored
+  assignment** — discarding any uncommitted authoring. This is the
+  Scene-level "reload saved", and is the same restore the §13.6
+  Checkpoint floor reaches via `Func + No` walked to a Scene scope's
+  floor; the two are one behaviour exposed two ways.
 
 **Unison phrase swap.** `Phrase + step` is a "global" phrase swap
 shortcut: all non-deviated tracks switch to phrase N in their per-track
@@ -2421,13 +2452,12 @@ one capture target (a volatile pool entry) and one promotion gesture
 
 ## 23. Song/Scene Management UI
 
-> ⚑ **Redesign pending.** This section was authored against the old
-> Pattern/Part/Bank model. Its *intent* (navigate, label, re-arrange the
-> hierarchy live) carries over unchanged, but the gesture details — copy
-> across "banks", the Fork-Part chord, the Pattern verbs — need re-deriving
-> against `Song/Scene/Phrase/Kit` (§4.7) and the §16 verb assignments
-> (note the `Scene + Record` collision flagged in §13). Tokens below are
-> lightly relabelled, not yet redesigned.
+This section is derived against the `Set > Song > {Scene, per-Track
+Phrase, per-Track Kit}` hierarchy (§4.7) and the §16 launch model. The
+old Bank/Pattern/Part gestures (copy-across-banks, the Fork-Part chord)
+are gone: Parts dissolved into Kits (§4.7.1–2, recalled live via
+`Func + Track`), and there is no bank dimension — a Song *is* the bank-
+sized unit.
 
 The hierarchy (DESIGN §4.7) and the queue gesture (§16) underlie this:
 the management UI sits on top, letting a performer navigate, label, and
@@ -2438,7 +2468,8 @@ re-arrange the hierarchy *during performance* without halting playback.
 Each Song, Scene, and Phrase carries:
 
 - A short user-editable **name** (≤16 chars). Defaults are
-  `Song+slot` (e.g. `A03`). Editable inline; no modal dialog.
+  slot-derived (e.g. Song `A`, Scene `A03`, Phrase `A03·T2·p4`).
+  Editable inline; no modal dialog.
 - A **colour** from a small palette tied to the §24 state-colour
   taxonomy. Used in the queued-pattern chip, chain badges, and
   the browser. Tracks-by-eye colour grouping ("intro / chorus /
@@ -2449,34 +2480,41 @@ Each Song, Scene, and Phrase carries:
 ### 23.2 Browser overlay
 
 A non-modal Browser opens via a Func-layer chord (TBD, consistent
-with §13). It shows banks → patterns → parts as a focusable
-tree, with names, colours, tags, and the share-count badge
-(SHR:N) on Parts. Navigation is keyboard-driven (the existing
-arrow-row keys).
+with §13). It shows **Song → Scene** as a focusable tree, with a
+secondary per-track view (each track's **Phrase** pool and current
+**Kit**), carrying names, colours, tags, and a **share-count badge
+(SHR:N) on Phrases** — how many Scenes in the Song assign that phrase
+(`phraseIdx[]`), the share relationship that survived the Part→Kit
+dissolve. Navigation is keyboard-driven (the existing arrow-row keys).
 
 The browser is non-modal: playback continues, the sequencer
 continues advancing, all existing chrome remains visible. Pressing
-a step-row key on a highlighted pattern triggers the existing
+a step-row key on a highlighted **Scene** triggers the existing
 queue gesture (DESIGN §16); pressing `Yes` cues it (queue without
 immediately playing); pressing `No` cancels a pending cue.
 
-### 23.3 Copy / move / duplicate across banks
+### 23.3 Copy / move / duplicate
 
-The existing Pattern verbs (Record = copy, Play = paste, Stop =
-clear) gain a destination-bank prefix:
+There is no bank dimension to copy across — the Set holds Songs, a Song
+holds Scenes and per-track Phrase pools. Copy/paste/clear reuse the
+§13.2 verbs with an optional destination prefix:
 
-- After `Pattern + Record`, the clipboard holds a pattern.
-- Holding `Pattern + bank_letter` selects the destination bank.
-- `Pattern + step_key` pastes the clipboard into that slot in
-  the selected bank. If no bank prefix is held, paste lands in
-  the current bank — the existing behaviour.
-- Move = paste-then-clear-source, available as `Pattern + Yes`
-  after a copy (so the paste verb is `Yes` only when a copy
-  clipboard is loaded).
+- **Scene.** `Func + Scene + Record` copies the whole Scene (§13.2);
+  holding a destination **step_key** under `Func + Scene + Play` pastes
+  the clipboard into that Scene slot (no prefix = paste onto the active
+  Scene). Move = paste-then-clear-source, `Func + Scene + Yes` while a
+  Scene clipboard is loaded.
+- **Phrase.** `Phrase + Record` copies the focused track's phrase
+  (§13.2); `Phrase + step_key` pastes into that phrase slot in the
+  track's pool. Because a phrase can be shared by several Scenes (the
+  SHR:N badge, §23.2), paste-into-a-shared-slot prompts to *fork* (paste
+  as a fresh phrase, leaving the other Scenes' assignment intact) — this
+  is the Kit-era replacement for the old Fork-Part chord.
+- **Song.** Whole-Song duplication is a Browser-level action (no live
+  chord): select a Song, `Record` to copy, `Play` onto a free Song slot.
 
-The same gesture applies to Parts via the existing Fork-Part
-chord (`Func + W`): with a destination Bank prefix held, fork
-into a specific bank.
+Kit recall is **not** a Browser operation — it lives on the live surface
+under `Func + Track` (§4.7.2).
 
 ## 24. State Colour Taxonomy
 
@@ -3043,9 +3081,11 @@ left rather than widening the step grid keeps the Digitakt-lineage
 `Phrase` `Mute`. Column 2 (performance): `Fill` `Cue` `Morph`
 `Song`. Rationale for the slate (§5.5 has the key map):
 
-> ⚑ This is the 3.1-era slate and predates the launch-row `Scene` key;
-> it still lists `Cue` in column 2. The canonical 8-key cluster is
-> `Func/Track | Phrase/Scene | Morph/Song | Mute/Fill` (§13 / §5.5).
+> **Superseded — historical record.** This is the 3.1-era slate: it
+> predates the launch-row `Scene` key and still lists `Cue` in column 2.
+> The canonical 8-key cluster is `Func/Track | Phrase/Scene | Morph/Song
+> | Mute/Fill` (§13 / §5.5); read this subsection only as the 3.1 shape
+> it shipped as, not as current truth.
 
 - `Phrase` is promoted from `Func+2` to its own key.
 - `Mute` keeps a dedicated key specifically to preserve its

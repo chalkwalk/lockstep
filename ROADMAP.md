@@ -503,7 +503,7 @@ migrates in Stage D+). Old Bank/Pattern/Part/Sequence kept as compat stubs.
 - [ ] VST3/CLAP save → reload round-trips the new format.
 - [ ] Update "Active focus" to next milestone on completion.
 
-### 7.9 — Stage I: Vocabulary rename  *[a–d shipped; e + redesigns pending]*
+### 7.9 — Stage I: Vocabulary rename  *[a–d + doc redesigns shipped; e pending]*
 Align names with DESIGN's refined vocabulary (`Set/Song/Scene/Phrase` + Morph;
 see the Phase 7 header note). Docs landed first; the pure rename followed in
 build-verified sub-stages 7.9a–d.
@@ -519,11 +519,27 @@ build-verified sub-stages 7.9a–d.
       `5→6` (`Song/SongTrack/Scene/MorphA/MorphB`). `sceneA/B→morphA/B`.
 - [x] **7.9d** Machine/Kit picker `Func+Part → Func+Track`; `KIT` + `GLOBAL`
       func-labels; `MACH` removed from the Scene key.
-- [ ] **7.9e** Checkpoint: migrate `CheckpointEntry{Pattern,Part}` →
-      scope-respecting stacks (default Song; Track/Scene/Phrase), floor = saved
-      state, reload-on-release (DESIGN §13.6). *(deferred — redesign, not rename)*
-- [ ] Resolve flagged ⚑ redesigns: §6.1.2 Phrase/Scene matrix rows, whole-Scene
-      copy verb (Scene+Record collision), §23 management UI, §33.2 slate.
+- [x] Resolve flagged ⚑ DESIGN redesigns: §6.1.2 Phrase/Scene matrix rows
+      (content pass from §4.7 ownership), whole-Scene copy verb (`Func+Scene`
+      lifts copy/paste/clear; bare `Scene+Play`=launch-now, `Scene+Stop`=revert,
+      §16), §23 management UI (re-derived Song/Scene/Phrase/Kit; SHR:N moves to
+      Phrases; Fork-Part → Phrase-fork), §33.2 slate (settled to historical record).
+- [ ] **7.9e** Checkpoint scope-respecting stacks (DESIGN §13.6: default Song;
+      Track/Scene/Phrase; floor = saved state; reload-on-release). **Gated on the
+      legacy-state consolidation below** — a faithful Song/Track/Phrase snapshot
+      needs the live sound-state to be Song/Kit-owned, not legacy `Part`.
+
+#### 7.9e-pre — Legacy `Pattern/Part/Bank` consolidation *(the unfinished Stage B/D removal)*
+The processor still runs sound-state on the legacy `project_.banks[].patterns/
+parts` (`activePattern()`/`activePart()`, 36 call sites) kept as Phase-7 compat
+stubs. 7.9e cannot snapshot a Song/Kit faithfully until this is retired.
+- [ ] Move per-track sound-state (base params, FLTR/AMP slot state, machineId)
+      out of legacy `Part` into the new `TrackKit` / `Song::SongTrack`.
+- [ ] Retire `activePattern()/activePart()/setActivePattern()/forkActivePart()`
+      and the legacy pattern queue; rewire the ~36 processor call sites onto
+      `song()/section()/kit()/activePhrase()`.
+- [ ] Drop the legacy `Bank/Pattern/Part` structs + serializer fallback nodes.
+- [ ] Then build 7.9e on the consolidated model.
 
 ---
 
@@ -609,8 +625,8 @@ implementation ships here.)*
 - [ ] Fluid mute (`Morph+Mute` captures `Level→silence`).
 
 ### 5.3 — Song/Scene management UI  *[planned]*  *(was MJ; re-scoped for Phase 7)*
-DESIGN §23 (flagged for redesign). The old Pattern/Part management UI is re-scoped
-to manage Songs and Scenes in the Phase 7 model.
+DESIGN §23 (re-derived for the Phase 7 model). The old Pattern/Part management UI
+is re-scoped to manage Songs and Scenes.
 - [ ] Song + Scene names (≤16 chars, inline editor).
 - [ ] Song + Scene colours + tags (palette tied to §24).
 - [ ] Non-modal browser overlay (Songs → Scenes), navigable while playing;
