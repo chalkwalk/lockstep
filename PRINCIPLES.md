@@ -255,16 +255,20 @@ When a global gesture and a local gesture both target the same thing,
 the more specific (local) one takes precedence and stays in force until
 explicitly cleared. A live per-track phrase deviation (`Track + Phrase +
 step`) is not overridden by the next Scene launch — the Scene
-re-asserts only non-deviated tracks. A per-track phrase chain explicitly
-set on a track is not replaced when the performer issues a global
-unison phrase swap — the deviation is already the more specific claim.
+re-asserts only non-deviated tracks. A global unison phrase swap
+(`Phrase + step`) likewise *skips* the tracks already deviating — except
+the **focused** track, which the performer is explicitly looking at and so
+deliberately pulls back into the unison (DESIGN §4.7/§16). The skip is the
+default; the focused-track exception is a *targeted* act, not a wide gesture
+trampling a narrow one.
 
-**Consequence.** Features that "cast wide" — Scene launch, global
-unison phrase swap — must document what they *skip*, not what they
-*smash*. An explicit re-sync gesture (`Track + Scene` for one musician,
-`Scene + Yes` for the whole band) is the only way to return a deviated
-track to the Scene's default. This keeps improvised deviations safe
-from accidental overwrite during a live set.
+**Consequence.** Features that "cast wide" — Scene launch, unison phrase
+swap — must document what they *skip*, not what they *smash*. Returning a
+deviated track to its home is never a blind broadcast: you pick its home
+(global) phrase in the visible selector, double-tap the Scene to revert the
+whole overlay, or `Scene + Phrase + step` to force the band — all
+observable, no bespoke re-sync gesture (DESIGN §16). This keeps improvised
+deviations safe from accidental overwrite during a live set.
 
 **In the grammar (DESIGN §13).** Specificity is an *observable scope
 level*, not a flag. The grammar is always "most recent explicit action at

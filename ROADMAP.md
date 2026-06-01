@@ -548,11 +548,11 @@ this is retired. Plan: test net → SoT fix → go direct → 7.9e.
       + the switch gestures delegate to it; dropped `Project::pieces` (~50MB) and the
       `activeSongIdx_/...` members. Write-back wired at save / load / ctor-seed.
       Legacy `Part` kept for FLTR/AMP + machineId sound state (still serialized).
-- [ ] **Move sound-state into Kit** (stage 3a — must precede dropping legacy
-      serialization): migrate FLTR/AMP + machineId + MIDI-out config from `Part`
-      into `TrackKit`; audio + param-edit sites + the machine picker
-      (`setActivePatternPart` → Kit) read/write the Kit; param-edit dual-write to
-      `activePart` removed.
+- [~] **Move sound-state into Kit** (stage 3a — must precede dropping legacy
+      serialization): **FLTR/AMP done** (edits + display + serialization retargeted
+      `activePart`→`kit` in the manual-test bug-fix round, §7.11). Remaining:
+      machineId + MIDI-out config still dual-maintained; the machine picker still
+      uses `setActivePatternPart`.
 - [ ] **Drop legacy + go direct** (stage 3b): delete `Bank/Pattern/Part` structs +
       legacy serializer nodes + dead nav (`activePattern/activePart/setActivePattern/
       forkActivePart/materialise*`); resolver feed comes purely from `arrangement_`;
@@ -563,6 +563,34 @@ this is retired. Plan: test net → SoT fix → go direct → 7.9e.
 > (its `createEditor` pulls the UI in), so it is out of the headless net for now;
 > the serializer's pure `applyUpgrades` chain stays covered by the existing
 > `PluginState` UnitTest, and `Arrangement` covers the switching contract.
+
+### 7.10 — Scene model redesign (floor + overlay)  *[design landed; build pending]*
+From the manual-test design conversation: a Scene = a **saved floor** (global
+pattern + committed deviations, + activeMask/coreTime/Morph) plus a **live
+overlay**; single/double-tap launch (single keeps the overlay, double reverts to
+floor); `Scene+Record` commits. New phrase grammar; `Track+Scene`/`Scene+Yes`
+re-sync dropped. See DESIGN §4.7/§16/§13.6, PRINCIPLES §13.
+- [x] Design written into DESIGN §4.7/§16/§13.6 + gesture tables + PRINCIPLES §13.
+- [ ] Store an explicit `globalPhrase` per Scene + the live-overlay layer in
+      `Arrangement` (committed deviations vs live deviations).
+- [ ] Gestures: `Phrase+step` (set-global, un-deviate focused), `Scene+Phrase+step`
+      (force-all), single/double-tap launch, `Scene+Record` commit; remove re-sync.
+- [ ] Visuals: dual-marker phrase selector (global border + current fill) + a
+      persistent deviation badge (SurfaceModel `trackDeviated[]`, like `trackHasMachine[]`).
+- [ ] Scene-assignment persistence: global + committed deviations round-trip.
+- [ ] (Later) scene-copy-on-create + conflict hints (§23); pattern chaining (§16).
+
+### 7.11 — Manual-test bug fixes
+**Round 1 *[shipped]***: serializer scene persistence + version chain; Track-compound
+dispatch (machine picker, Track+Phrase deviation) + P-lock clear no-toggle;
+FLTR/AMP→Kit (audio); AMP held-open (one-shots); transport pause/resume;
+scene-mute→`Scene+Mute` + nav labels + PANIC teal; empty-track overlay; README refresh.
+**Round 2 *[pending — model-independent]***:
+- [ ] Sample-pool `addItem(0)` assertion (`ManipulationZone.cpp:767` → section header).
+- [ ] MZ "X" P-lock clear toggling the trig (`ManipulationZone.cpp:63-76` → `markParamWritten`).
+- [ ] P-lock latch exit on any step (`PluginEditor.cpp` step-release).
+- [ ] Scene-mute **visuals** (`S-MUTE` under Scene-held + scene-mute grid view).
+- [ ] **Phrase-content persistence** (a phrase losing its trigs on save/reload).
 
 ---
 

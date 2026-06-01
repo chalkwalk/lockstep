@@ -535,24 +535,44 @@ see §4.7.1 for what that costs and how it is recovered.
   Phrase is notes only.)
 - **Scene.** A launchable moment in a song (intro / verse / chorus /
   bridge / …). Launched live; **no intrinsic length** — it plays until
-  the next Scene is launched. Carries *assignment*, not content:
-  - `phraseIdx[track]` — which phrase in the track's pool this Scene
-    calls for, per musician.
+  the next Scene is launched. A Scene is *assignment + context*, not
+  content. Its phrase assignment is a **global pattern + committed
+  deviations** (the grid mental model: columns = tracks, rows = phrase
+  index; a Scene is, by default, a row):
+  - **Global pattern** `N` — one phrase-pool row index, the Scene's
+    "home" row. Default: Scene `N` → global `N`; freely changeable, so
+    two Scenes may share a global and differ only by their deviations.
+  - **Committed deviations** — per-track exceptions pinning a musician to
+    a phrase ≠ the global. The Scene's effective phrase for track *t* is
+    `committedDeviation(t) ?? globalPattern`. (Storage may be a flat
+    `phraseIdx[track]` array — global + deviations is the *meaning*, not
+    necessarily a second field.)
   - `activeMask[track]` — which musicians play in this scene (replaces
     the old per-Pattern mute mask; runtime silence =
     `globalMute[t] || !activeMask[t]`).
   - `coreTime` — the Scene's time signature; see §4.8.
   - Morph A/B snapshot fields; full crossfader implementation: §17/5.2.
 
+**Scene = saved floor + live overlay.** The fields above are the Scene's
+**saved floor** — its identity, serialized, and the §13.6 Scene-scope
+checkpoint floor. On top sits a **live overlay**: in-the-moment phrase
+changes (live deviations and live global-pattern changes) that are *not*
+saved until committed. The effective live phrase for a track is
+`liveOverlay(t) ?? floor(t)`. Each Scene **remembers its own** overlay
+while the set is running. `Scene + Record` commits the overlay into the
+floor; **double-tapping** a Scene launch discards that Scene's overlay and
+returns to its floor (§16). This split is the same machinery as the
+scope-respecting Checkpoint (§13.6): the floor is the saved state, the
+overlay is working state above it.
+
 **The Phrase / Scene split.** A Phrase is *material* — a musical idea
 that may be referenced by multiple Scenes (the chorus phrase reused in
 two different moments of the song). A Scene is *assignment + context* —
-who plays, what they play (phrase indices), the meter, and the current
-morph state. Editing a Phrase ripples instantly to every Scene that
-references it. (This sharing is load-bearing for the snapshot model:
-because content is Song-owned and only *referenced* by Scenes, the
-natural unit of a whole-state snapshot is the Song, not the Scene —
-see §13.6.)
+who plays, which row/deviations they play, the meter, and the morph
+state. Editing a Phrase ripples instantly to every Scene that references
+it. (This sharing is load-bearing for the snapshot model: because content
+is Song-owned and only *referenced* by Scenes, the natural unit of a
+whole-state snapshot is the Song, not the Scene — see §13.6.)
 
 **Kit is per-(track, Song), not per-Scene.** An instrument change
 (machine swap, base params, divider) applies to a musician throughout
@@ -560,14 +580,39 @@ the whole Song. A Song may give the same track a different instrument
 from another Song. The musician plays the same kit throughout the song;
 they may play a different kit in a different song.
 
-**Live phrase deviation.** While a Scene is active, the performer can
-swap one musician's phrase via `Track + Phrase + step`. This sets a sticky
-per-track deviation: the musician plays the new phrase even as Scenes
-launch around them. `PRINCIPLES.md` §13 (*"More specific scope wins"*)
-governs: a Scene launch re-asserts phrases **only for non-deviated
-tracks**. Re-sync gestures clear deviations: `Track + Scene` (one
-musician) and `Scene + Yes` (whole band). See §16 for the full launch
-model and §13 for all gesture bindings.
+**Live phrase grammar.** `Track` selects breadth = *one musician*, `Scene`
+selects breadth = *the whole band*; `+ Phrase + step` jumps to the phrase
+you pick. So:
+
+- `Track + Phrase + step` — **deviate** the focused musician (the track
+  highlighted in the VU bar) to the picked phrase. A live overlay change.
+- `Phrase + step` — **unison / set-global**: set the Scene's global pattern
+  to the picked phrase; the **focused** musician un-deviates and joins the
+  unison; other deviated musicians keep their deviation (*"more specific
+  scope wins"*, `PRINCIPLES.md` §13). A live overlay change.
+- `Scene + Phrase + step` — **force-all**: clear every deviation and put the
+  whole band on the picked phrase.
+
+Deviation management needs no separate re-sync gesture: "rejoin one
+musician" = pick their **home** (global) phrase, which the selector marks
+with a border (below); "revert the whole Scene" = **double-tap** it (§16).
+The old `Track + Scene` / `Scene + Yes` re-sync gestures are therefore
+**dropped** — replaced by the visible selector and double-tap-revert. See
+§16 for the launch model and §13 for all gesture bindings.
+
+**Deviation must be visible.** Two surface affordances make the floor /
+overlay legible (both add-only `CellState` / per-track-flag work on the
+surface model, §35.8, so an external controller mirrors them):
+
+- **Dual-marker phrase selector** — while `Phrase` is held, the step grid
+  is the focused track's phrase selector. A **border** marks the Scene's
+  global / home phrase for that track; a **fill** marks the track's
+  *current* (possibly deviated) phrase. A deviation reads as fill ≠ border;
+  "rejoin" is picking the bordered cell.
+- **Deviation badge** — a persistent per-track indicator (on the track
+  strip / VU area and the track-select cells), driven by `isTrackDeviated`,
+  so you can see *which* musicians are off their home row without holding
+  `Phrase`.
 
 **Scenes are launched, not chained.** There is no stored Scene
 arrangement or Song arrangement — the order is performed live. See §16.
@@ -792,7 +837,7 @@ of which are performance specialists.
 | `1` | Func    | section scope + universal qualifier | composes with every other scope to give the "secondary variant" |
 | `2` | Track   | section scope | focused-track edits, post-machine FILTER/AMP cells |
 | `Q` | Phrase  | section scope | phrase length / scale |
-| `W` | Scene   | section scope | scene launch / re-sync / commit (§16). The Kit / machine picker is on `Func+Track`. |
+| `W` | Scene   | section scope | scene launch (single/double-tap) / commit / revert (§16). The Kit / machine picker is on `Func+Track`. |
 | `A` | Morph   | section scope | morph-assign per scene |
 | `S` | Song    | section scope | song select; `Func+Song` = Global / master FX / gain cells |
 | `Z` | Mute    | performance specialist | hold-and-tap-many multi-mute |
@@ -924,7 +969,7 @@ reactivation).
   | `Func`    | conditions / fill | machine SRC alt | machine FILTER alt | machine AMP alt | machine MOD alt | machine FX alt |
   | `Track`   | per-track condition defaults | input_source / Thru | post-machine FILTER | post-machine AMP + sends | per-track LFO (if any) | IEffect insert 1+2 |
   | `Phrase`  | length / scale lock | (dim) | (dim) | (dim) | (dim) | (dim) |
-  | `Scene`   | launch / re-sync · coreTime | phrase-assign map | (dim) | active-mask | Morph snapshot | (dim) |
+  | `Scene`   | launch / commit · coreTime | global + deviations | (dim) | active-mask | Morph snapshot | (dim) |
   | `Morph`   | (renamed `CXFD`) | morph-assign SRC | morph-assign FILTER | morph-assign AMP | morph-assign MOD | morph-assign FX |
   | `Song`    | (dim) | (dim) | master FILTER (if any) | master gain + sends | (dim) | master FX 1+2 |
 
@@ -938,13 +983,14 @@ provisional):
   (`SRC`–`FX`) dims, because the kit-base params a Pattern used to share
   with its Part now live in the **no-scope / Track-base** row (machine
   params write to the track's **Kit** base, §4.7.2).
-- A **Scene** owns *assignment*, not sound: the per-track phrase indices
-  (`phraseIdx[]`), the `activeMask[]`, `coreTime`, and the Morph
+- A **Scene** owns *assignment*, not sound: its global pattern + committed
+  deviations (§4.7), the `activeMask[]`, `coreTime`, and the Morph
   snapshot. Those map onto the section keys by domain — `TRIG` =
-  launch / re-sync · coreTime (timing); `SRC` = the per-track
-  phrase-assignment map (which phrase each musician plays); `AMP` =
-  active-mask (the mute/level domain); `MOD` = the Morph snapshot. The
-  remaining cells (`FILTER`, `FX`) dim — a Scene has no DSP of its own.
+  launch / commit · coreTime (timing); `SRC` = the global pattern + the
+  per-track deviation map (which phrase each musician plays, and which
+  deviate from the home row); `AMP` = active-mask (the mute/level domain);
+  `MOD` = the Morph snapshot. The remaining cells (`FILTER`, `FX`) dim — a
+  Scene has no DSP of its own.
 
 Three rules govern the matrix:
 
@@ -1339,11 +1385,11 @@ cluster in the left two columns of the 10×4 QWERTY layout (see §5.5,
 | Scope button | QWERTY key | Selects | Held alongside |
 |---|---|---|---|
 | `Func` | `1` (col 1) | Modifier for verb keys and meta sections; the universal qualifier. | Any. |
-| `Phrase` | `Q` (col 1) | Phrase selection: `Phrase + step` = global unison phrase swap (all non-deviated tracks); `Track + Phrase + step` = local per-track phrase swap (sticky deviation). | Verb, step key, `Track`. |
+| `Phrase` | `Q` (col 1) | Phrase selection (§4.7/§16): `Phrase + step` = unison/set-global (focused musician un-deviates and joins; others kept); `Track + Phrase + step` = deviate the focused musician; `Scene + Phrase + step` = force-all (clear deviations, whole band to the picked phrase). | Verb, step key, `Track`, `Scene`. |
 | `Morph` | `A` (col 1) | Morph assignment; `Morph + ^/v` picks endpoint A/B (§17.5). | Nav, encoder, `Song`, `Fill`. |
-| `Mute` | `Z` (col 1) | Live global mute layer (hold and tap many). | Track/step keys. |
-| `Track` | `2` (col 2) | One or more track slots; none selected = Control-All. `Func+Track` activates the machine/Kit picker via step-cell re-skin. Also `Track + Scene` = re-sync one musician to the current Scene. | Verb, encoder, or a col-1 modifier. |
-| `Scene` | `W` (col 2) | Scene launch and re-sync: `Scene + step` launches a Scene (§16); `Scene + Yes` re-syncs all musicians; `Scene + Record` commits live state to the Scene. | Verb, step key, `Track`. |
+| `Mute` | `Z` (col 1) | Live global mute layer (hold and tap many); `Scene + Mute + step` = per-scene mute. | Track/step keys, `Scene`. |
+| `Track` | `2` (col 2) | One or more track slots; none selected = Control-All. `Func+Track` activates the machine/Kit picker via step-cell re-skin. | Verb, encoder, or a col-1 modifier. |
+| `Scene` | `W` (col 2) | Scene launch + commit/revert (§16): `Scene + step` launches (single-tap keeps the overlay, double-tap reverts to the saved floor); `Scene + Record` commits the overlay; `Scene + Stop` reverts. | Verb, step key, `Track`, `Phrase`. |
 | `Song` | `S` (col 2) | Song select: `Song + step` queues a Song change (§16). `Func+Song` = Global/project params (incl. master-bus / FX focus, §32.3). | Verb, step key, section key, `Morph`. |
 | `Fill` | `X` (col 2) | "While I'm holding this, fill conditions evaluate true." | Step keys; (no verb needed — it's the state itself). |
 | `Trig` (hold a step) | `D–;` / `C–/` | The held step(s); multi-step hold is allowed. | Verb, encoder, or note key. |
@@ -1592,13 +1638,19 @@ working unit.
 |---|---|---|
 | *(none)* | the whole **Song** | the Song |
 | `Track` | that track's Kit + current Phrase + base params | that track |
-| `Scene` | that Scene's assignment (`phraseIdx[]`, `activeMask[]`, coreTime, Morph) | that Scene |
+| `Scene` | that Scene's saved floor (global pattern + committed deviations, `activeMask[]`, coreTime, Morph) | that Scene |
 | `Phrase` | that Phrase (steps, P-Locks, defaults) | that Phrase |
 
 Why these scopes and no finer: content is **Song-owned** and only
 *referenced* by Scenes (§4.7), so each scope above captures a distinct,
 well-defined slice — a Scene snapshot is *assignment only*, which is
 exactly what a Scene owns.
+
+This is the **same floor/overlay split** a Scene already runs (§4.7/§16):
+the Scene-scope checkpoint floor **is** the Scene's saved floor, and a
+Scene's live overlay is working state above it. So the Scene-level reverts
+are one behaviour reached several ways — double-tap a Scene launch,
+`Scene + Stop`, or `Func + No` walked to the Scene's floor.
 
 **The floor is the saved state.** Each scope's stack is seeded, on Song
 load / Song switch, with a single **floor** entry = that scope's
@@ -1813,20 +1865,26 @@ top via per-track phrase swaps. This is the Ableton Session View /
 Deluge / Polyend Tracker model: rows are triggered live, not played back
 from a written timeline.
 
+Each Scene is a **saved floor + a live overlay** (§4.7): the floor is the
+Scene's stored global pattern + committed deviations; the overlay is the
+in-the-moment phrase changes layered on top. Each Scene remembers its own
+overlay while the set runs.
+
 **Scene launch.** `Scene + step` queues a Scene to fire at the next
-core-time launch boundary (§4.8). At the boundary:
+core-time launch boundary (§4.8), with a **single/double-tap** distinction
+(reusing the transport double-tap = reset convention):
 
-- Non-deviated tracks switch to the Scene's assigned phrases
-  (`phraseIdx[t]`).
-- The active mask (`activeMask[t]`) takes effect: newly-masked tracks go
-  silent, newly-unmasked tracks start playing.
-- Core time and Morph snapshots update.
-- Deviated tracks (*"More specific scope wins"*, `PRINCIPLES.md` §13)
-  continue unaffected — they were already playing an explicit deviation.
+- **Single-tap** — launch the Scene *keeping its remembered live overlay*
+  (whatever live deviations / global changes you last left on it).
+- **Double-tap** — launch the Scene at its **saved floor**, discarding that
+  Scene's overlay. Double-tapping the *currently active* Scene is the
+  "revert to stock" move (equivalent to `Scene + Stop`, below).
 
-A pending Scene shows as a badge in the top bar. A second `Scene + step`
-before the boundary replaces the queue ("change your mind"). There is no
-cancel gesture — queuing the currently active Scene is a no-op.
+At the launch boundary the band takes the Scene's effective phrases
+(floor, or floor+overlay for a single-tap), the active mask
+(`activeMask[t]`) takes effect, and core time + Morph snapshots update. A
+pending Scene shows as a badge in the top bar; a second `Scene + step`
+before the boundary replaces the queue ("change your mind").
 
 **Song switch.** `Song + step` queues a Song change, quantized by the
 *currently playing* Scene's core time. At the boundary, the incoming
@@ -1835,42 +1893,46 @@ all tracks' kits update. **Deviations are cleared on a Song switch** — a
 song change is a full performer reset; the musician steps up with fresh
 assignments.
 
-**Re-sync.** `Track + Scene` clears one musician's phrase deviation and
-returns them to the current Scene's assignment. `Scene + Yes` clears all
-deviations (the whole band snaps back). These are the only gestures that
-remove a deviation; a Scene launch alone does not.
+**Phrase swaps and deviation** (the live overlay; full grammar in §4.7):
 
-**Scene authoring.** `Scene + Record` commits the current live state
-into the active Scene: phrase indices that are now playing become that
-Scene's stored assignments, and the current active mask is written in.
-This is the "capture live → write to scene" gesture.
+- `Track + Phrase + step` — **deviate** the focused musician to the picked
+  phrase.
+- `Phrase + step` — **unison / set-global**: set the Scene's global pattern
+  to the picked phrase; the focused musician un-deviates and joins; other
+  deviated musicians keep their deviation (*"more specific scope wins"*).
+- `Scene + Phrase + step` — **force-all**: clear every deviation and put the
+  whole band on the picked phrase.
 
-**Scene launch-now / revert.** The rest of the bare `Scene` triad acts on
-the active Scene as a live launch unit (the copy/paste/clear meanings are
-`Func`-qualified, §13.2):
+There is **no separate re-sync gesture**. To rejoin one musician, pick
+their **home** (global) phrase — the phrase selector borders it (§4.7); to
+revert the whole Scene, double-tap it (or `Scene + Stop`). The old
+`Track + Scene` and `Scene + Yes` re-sync gestures are removed.
 
-- `Scene + Play` **launches the active Scene immediately** — an
-  unquantized re-fire of its stored assignment onto all non-deviated
-  tracks (re-apply phrase indices + active mask now, not at the next
-  core-time boundary). The deliberate "snap this Scene back into place"
-  move; deviated tracks are left alone (*specificity wins*).
-- `Scene + Stop` **reverts the active Scene to its on-disk stored
-  assignment** — discarding any uncommitted authoring. This is the
-  Scene-level "reload saved", and is the same restore the §13.6
-  Checkpoint floor reaches via `Func + No` walked to a Scene scope's
-  floor; the two are one behaviour exposed two ways.
+**Scene commit / revert** (the bare `Scene` triad; the copy/paste/clear
+meanings are `Func`-qualified, §13.2):
 
-**Unison phrase swap.** `Phrase + step` is a "global" phrase swap
-shortcut: all non-deviated tracks switch to phrase N in their per-track
-pool. Because it skips already-deviated tracks (*specificity wins*) it
-reads as "set the default phrase, don't override anyone already doing
-their own thing."
+- `Scene + Record` — **commit**: write the live overlay into the Scene's
+  saved floor. The "capture live → write to scene" gesture.
+- `Scene + Play` — **launch now**: an unquantized re-fire of the active
+  Scene immediately (apply its phrases + active mask now, not at the next
+  core-time boundary).
+- `Scene + Stop` — **revert**: discard the live overlay, return to the
+  Scene's saved floor. Same behaviour as a double-tap launch of the active
+  Scene, and the same restore the §13.6 Checkpoint floor reaches via
+  `Func + No` walked to a Scene scope's floor — one behaviour, several
+  doors.
 
 **No stored arrangement.** There is no song timeline, no arrangement
 track, and no chain queue (the RAM-only pattern chain of earlier versions
 is removed). The performer's plan for the set lives in muscle memory and
 rehearsal: queuing the next Scene now, and adjusting in real time. The
 Checkpoint stack (§13.6) provides the last-second undo layer.
+
+> ⚑ **Pattern chaining (planned, future).** If a hands-off "play these
+> phrases in sequence" tool is later wanted, it rides *on top* of this
+> model as **automation that drives the global pattern / deviations over
+> time** — not a return of the fixed pattern chain. It changes nothing in
+> the floor/overlay model; it just scripts the same live gestures.
 
 ## 17. Morph and the Crossfader
 
@@ -2515,6 +2577,16 @@ holds Scenes and per-track Phrase pools. Copy/paste/clear reuse the
 
 Kit recall is **not** a Browser operation — it lives on the live surface
 under `Func + Track` (§4.7.2).
+
+> ⚑ **Scene create-on-make + conflict hints (planned).** Lazy slots:
+> Scenes (and Phrases) don't exist until made; empty slots show capacity,
+> and a made Scene defaults its global pattern to its own index (§4.7).
+> Mirroring new-track-copies-current, *making* a new Scene may copy the
+> current Scene's effective layout (global + deviations) into the new
+> Scene's saved floor. The open detail is **conflict**: when the target
+> Scene's tracks already have phrase content at the copied indices, surface
+> a "stock-pattern conflict" hint and an explicit overwrite gesture rather
+> than silently clobbering. To be specified with the scene-management pass.
 
 ## 24. State Colour Taxonomy
 
