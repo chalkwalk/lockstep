@@ -531,15 +531,28 @@ build-verified sub-stages 7.9a–d.
 
 #### 7.9e-pre — Legacy `Pattern/Part/Bank` consolidation *(the unfinished Stage B/D removal)*
 The processor still runs sound-state on the legacy `project_.banks[].patterns/
-parts` (`activePattern()`/`activePart()`, 36 call sites) kept as Phase-7 compat
-stubs. 7.9e cannot snapshot a Song/Kit faithfully until this is retired.
-- [ ] Move per-track sound-state (base params, FLTR/AMP slot state, machineId)
-      out of legacy `Part` into the new `TrackKit` / `Song::SongTrack`.
-- [ ] Retire `activePattern()/activePart()/setActivePattern()/forkActivePart()`
-      and the legacy pattern queue; rewire the ~36 processor call sites onto
-      `song()/section()/kit()/activePhrase()`.
-- [ ] Drop the legacy `Bank/Pattern/Part` structs + serializer fallback nodes.
-- [ ] Then build 7.9e on the consolidated model.
+parts` (`activePattern()`/`activePart()`). The new Song/Phrase/Kit model was a
+one-way shadow: `syncSequenceFromCurrentScene()` projected Phrase/Kit → the
+legacy working `sequence()` but never wrote back, so a scene/song/phrase switch
+silently dropped live edits. 7.9e cannot snapshot a Song/Kit faithfully until
+this is retired. Plan: test net → SoT fix → go direct → 7.9e.
+- [x] **Test net** (stage 1): `StateResolverTest` (OEB merge) + `HierarchyNavTest`
+      pin the Phrase/Kit⇄Track projection contract. New pure seam
+      `src/core/HierarchyNav.h` (`projectPhraseToTrack` + reversible write-back).
+- [x] **Extract switching to core** (stage 2a): `src/core/Arrangement.h` owns the
+      Songs + playhead + working Sequence; every switch writes back before
+      re-projecting (fixes the lost-edits bug). `ArrangementTest` proves it.
+      Pure/JUCE-free; processor not yet wired.
+- [ ] **Wire processor to Arrangement** (stage 2b): hold an `Arrangement`; repoint
+      `song()/section()/kit()/activePhrase()/sequence()` + the switch gestures at
+      it; drop `activeSongIdx_/activeSceneIdx_/deviated_` members + the inline
+      `syncSequenceFromCurrentScene`. Keep legacy `Part` for FLTR/AMP for now.
+- [ ] **Serializer onto Arrangement** (stage 2c): persist only the new hierarchy;
+      seed the working buffer on load; bump state version `6→7`; round-trip tests.
+- [ ] **Go direct** (stage 3): move FLTR/AMP + machineId into `Kit` (retarget the
+      machine picker off `setActivePatternPart`); audio reads Kit for sound; drop
+      `Bank/Pattern/Part` structs + the legacy serializer nodes + dead nav.
+- [ ] Then build **7.9e** (DESIGN §13.6) on the consolidated model.
 
 ---
 
