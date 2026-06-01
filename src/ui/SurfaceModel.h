@@ -74,6 +74,7 @@ namespace lockstep
 
         // Phrase/Section selector badges (Phase 7 / DESIGN §4.7).
         SelectorDeviated = 95, // phrase currently playing due to a live deviation
+        SelectorHome     = 96, // the scene's global/home phrase (dual-marker border)
     };
 
     // =========================================================================
@@ -155,6 +156,11 @@ namespace lockstep
         // be mirrored on a controller's track-select LEDs. Sourced from
         // LockstepProcessor::isTrackEmpty so screen and controller never diverge.
         std::array<bool, kNumTracks> trackHasMachine{};
+
+        // Per-track: is this track playing a phrase OTHER than its scene's home
+        // (global) phrase — i.e. deviated off the row (DESIGN §4.7)? Drives a
+        // persistent deviation badge on screen and a controller's track LEDs.
+        std::array<bool, kNumTracks> trackDeviated{};
 
         // Lookup by (ControllerButton, index). Returns nullptr if not found.
         [[nodiscard]] const SurfaceCell* byButton(ControllerButton btn, int idx = -1) const noexcept;

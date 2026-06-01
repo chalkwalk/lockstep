@@ -713,6 +713,30 @@ namespace lockstep
             }
         }
 
+        // ---- Deviation badge: an amber corner marker on every track playing off
+        // its scene's home (global) phrase (DESIGN §4.7) — persistent, visible
+        // without holding Phrase. Matches the home/global marker colour.
+        {
+            const int home = processor_.section().globalPhrase;
+            g.setColour(juce::Colour(juce::uint32(0xFFFFC020u)));
+            for (std::size_t t = 0; t < kNumTracks; ++t)
+            {
+                if (!trackBtns_[t].isVisible()) continue;
+                const int ti  = static_cast<int>(t);
+                const int cur = processor_.isTrackDeviated(ti)
+                    ? processor_.deviationPhraseIdxForTrack(ti)
+                    : processor_.section().phraseIdx[t];
+                if (cur == home) continue;
+                const auto r = trackBtns_[t].getBounds();
+                const float s = 7.0f;
+                juce::Path tri;
+                tri.addTriangle(static_cast<float>(r.getX()),     static_cast<float>(r.getY()),
+                                static_cast<float>(r.getX()) + s,  static_cast<float>(r.getY()),
+                                static_cast<float>(r.getX()),      static_cast<float>(r.getY()) + s);
+                g.fillPath(tri);
+            }
+        }
+
         if (!isDraggingFiles_)
             return;
         g.setColour(juce::Colour::fromRGB(255, 180, 50).withAlpha(0.12f));

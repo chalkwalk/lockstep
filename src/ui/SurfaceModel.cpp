@@ -59,6 +59,7 @@ namespace lockstep
             case CellState::LengthBoundary:     return 0xFFCCAAFFu;  // bright purple edge
             case CellState::LengthOutRun:       return kStepOutRange;
             case CellState::SelectorDeviated:   return kScopePhrase;
+            case CellState::SelectorHome:       return 0xFFFFC020u;  // amber home/global border
             default: return fallback;
         }
     }
@@ -164,6 +165,16 @@ namespace lockstep
         // a controller's track LEDs). Single source: LockstepProcessor::isTrackEmpty.
         for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
             model.trackHasMachine[static_cast<std::size_t>(t)] = !proc.isTrackEmpty(t);
+
+        // Per-track deviation = playing a phrase other than the scene's home/global.
+        const int homePhrase = proc.section().globalPhrase;
+        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+        {
+            const int cur = proc.isTrackDeviated(t)
+                ? proc.deviationPhraseIdxForTrack(t)
+                : proc.section().phraseIdx[static_cast<std::size_t>(t)];
+            model.trackDeviated[static_cast<std::size_t>(t)] = (cur != homePhrase);
+        }
 
         // Press-state helpers
         auto keyDown = [&](int rawCode) -> bool
@@ -920,10 +931,15 @@ namespace lockstep
                 }
                 else if (ui.phraseScopeHeld)
                 {
-                    // Phase 7: show per-track phrase pool (16 phrases).
+                    // Phase 7: show the focused track's phrase pool (16 phrases).
+                    // The fill marks the CURRENT playing phrase (a live deviation if
+                    // one is active, else the floor); the home border (below) marks
+                    // the scene's global phrase, so deviation reads as fill ≠ border.
                     maxAvail  = kPhrasesPerTrack;
-                    activeIdx = proc.section().phraseIdx[static_cast<std::size_t>(
-                        activeTrack >= 0 ? activeTrack : 0)];
+                    const int at = activeTrack >= 0 ? activeTrack : 0;
+                    activeIdx = proc.isTrackDeviated(at)
+                        ? proc.deviationPhraseIdxForTrack(at)
+                        : proc.section().phraseIdx[static_cast<std::size_t>(at)];
                 }
                 else // sceneHeld
                 {
@@ -943,6 +959,8 @@ namespace lockstep
 
                 // Phase 7: per-phrase deviation badge for patternScope view.
                 const int devTrack = (activeTrack >= 0 && ui.phraseScopeHeld) ? activeTrack : -1;
+                // Dual-marker selector (DESIGN §4.7): the scene's global/home phrase.
+                const int globalIdx = ui.phraseScopeHeld ? proc.section().globalPhrase : -1;
 
                 std::array<bool, 16> slotEmpty{};
                 for (int i = 0; i < maxAvail; ++i)
@@ -1010,6 +1028,15 @@ namespace lockstep
                     {
                         c.base      = CellState::SelectorOccupied;
                         c.baseColour = scopeTint.withAlpha(0.18f).getARGB();
+                    }
+
+                    // Dual-marker (DESIGN §4.7): border the scene's global/home
+                    // phrase, so a deviation reads as fill (current) ≠ border (home).
+                    if (ui.phraseScopeHeld && avail && i == globalIdx)
+                    {
+                        c.border.present = true;
+                        c.border.token   = CellState::SelectorHome;
+                        c.border.colour  = 0xFFFFC020u;
                     }
 
                     // level encodes queue position for badge rendering in paintStepRows
