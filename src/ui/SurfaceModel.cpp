@@ -276,11 +276,14 @@ namespace lockstep
         {
             SurfaceCell& c = model.modifiers[6];
             c.keyHint = "Z";
-            // Bare Mute = global mute. Scene mute is the Scene+Mute compound
-            // (DESIGN §13), not a Func-layer on this key — so no Func hint here.
-            fillModifier(c, ControllerButton::MuteScope, 'Z', "MUTE",
+            // Bare Mute = global mute; Scene+Mute = scene mute. While Scene is held
+            // the key reads S-MUTE in the scene-mute colour, signalling the
+            // scene-mute grid view (DESIGN §13/§16).
+            const bool sceneMuteMode = ui.sceneHeld;
+            fillModifier(c, ControllerButton::MuteScope, 'Z',
+                         sceneMuteMode ? "S-MUTE" : "MUTE",
                          ui.muteHeld, ui.latch.mute,
-                         kScopeMute, kScopeMuteDim,
+                         sceneMuteMode ? kScopePMute : kScopeMute, kScopeMuteDim,
                          hasCompound && ui.muteHeld);
             if (ui.latch.mute) c.pip.colour = kScopeMute;
         }
@@ -823,8 +826,10 @@ namespace lockstep
             {
                 // Mute re-skin (Slice 3): cells encode per-track mute state so
                 // paintStepRows can consume a single model path and add press feedback.
-                const bool isPatternMute = ui.funcHeld;
-                const uint32_t muteCol   = isPatternMute ? kScopePMute : kScopeMute;
+                // Bare Mute = global mute view; Scene+Mute = scene-mute view (the
+                // scene's active-mask), in a distinct colour.
+                const bool sceneMute   = ui.sceneHeld;
+                const uint32_t muteCol = sceneMute ? kScopePMute : kScopeMute;
 
                 for (int i = 0; i < 16; ++i)
                 {
@@ -842,11 +847,8 @@ namespace lockstep
                         continue;
                     }
 
-                    const bool committed = isPatternMute
+                    const bool muted = sceneMute
                         ? proc.getPatternMute(i) : proc.getGlobalMute(i);
-                    const bool pending   = isPatternMute
-                        && ui.pendingPatternMuteToggle[static_cast<std::size_t>(i)];
-                    const bool muted = committed ^ pending;
 
                     c.base = muted ? CellState::MuteMuted : CellState::MuteAudible;
                     const juce::Colour muteJCol  { muteCol };
