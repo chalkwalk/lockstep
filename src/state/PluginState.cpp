@@ -409,6 +409,8 @@ namespace lockstep::PluginState
                 sceneNode.setProperty("i", si, nullptr);
                 sceneNode.setProperty("ct_n", sec.coreTime.numerator,   nullptr);
                 sceneNode.setProperty("ct_d", sec.coreTime.denominator, nullptr);
+                if (sec.globalPhrase != 0)
+                    sceneNode.setProperty("gp", sec.globalPhrase, nullptr);
                 // phraseIdx bitfield (default all 0, only write non-zero).
                 int anyNonZero = 0;
                 for (const int idx : sec.phraseIdx) anyNonZero |= idx;
@@ -502,6 +504,7 @@ namespace lockstep::PluginState
                     auto& sec = song.scenes[static_cast<std::size_t>(si)];
                     sec.coreTime.numerator   = static_cast<int>(child.getProperty("ct_n", 4));
                     sec.coreTime.denominator = static_cast<int>(child.getProperty("ct_d", 4));
+                    sec.globalPhrase         = static_cast<int>(child.getProperty("gp", 0));
                     sec.initialised = true;
 
                     const auto piNode = child.getChildWithName("PhraseIdx");

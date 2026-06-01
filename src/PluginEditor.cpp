@@ -1225,18 +1225,19 @@ namespace lockstep
                     return true;
                 }
 
-                // Pattern + step: phrase swap (Phase 7 / DESIGN §4.7).
-                //   Track + Pattern + step → local deviation for focused musician.
-                //   Pattern + step alone  → global unison swap (non-deviated tracks).
+                // Phrase + step (Phase 7 / DESIGN §4.7/§16). Track+Phrase routes to
+                // the SelectTrack case (deviate the focused track); here we handle:
+                //   Scene + Phrase + step → force the whole band onto that phrase.
+                //   Phrase + step alone   → set the scene's global phrase (the
+                //                           focused track un-deviates and rejoins).
                 if (uiState_.phraseScopeHeld)
                 {
                     if (ev.index >= 0 && ev.index < kPhrasesPerTrack)
                     {
-                        if (uiState_.trackHeld)
-                            processor_.swapPhraseForTrack(
-                                keyboardArea_.getActiveTrack(), ev.index);
+                        if (uiState_.sceneHeld)
+                            processor_.forceAllToPhrase(ev.index);
                         else
-                            processor_.swapPhraseForAll(ev.index);
+                            processor_.setGlobalPhrase(keyboardArea_.getActiveTrack(), ev.index);
                     }
                     uiState_.phraseScopeUsed = true;
                     repaint();

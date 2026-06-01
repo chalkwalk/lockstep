@@ -131,6 +131,33 @@ namespace lockstep
               "setActiveScene write-back clobbers stale content (the bug loadPosition avoids)");
     }
 
+    // The new phrase grammar (DESIGN §4.7/§16): setGlobalPhrase un-deviates the
+    // focused track + moves non-deviated tracks, keeping other deviations;
+    // forceAllToPhrase clears every deviation and moves the whole band.
+    static void testGlobalPhraseGrammar()
+    {
+        auto arr = makeSeededArrangement();          // scene 0 active
+        arr->swapPhraseForTrack(0, 3);               // deviate track 0 → phrase 3
+        arr->swapPhraseForTrack(1, 5);               // deviate track 1 → phrase 5
+        CHECK(arr->deviated[0] && arr->deviated[1], "pre: tracks 0 and 1 deviated");
+
+        // Phrase+step focusing track 0, picking phrase 2.
+        arr->setGlobalPhrase(0, 2);
+        CHECK(arr->scene().globalPhrase == 2,     "set-global: scene globalPhrase updated");
+        CHECK(!arr->deviated[0],                  "set-global: focused track un-deviated (rejoins)");
+        CHECK(arr->activePhraseIdx(0) == 2,       "set-global: focused track follows the global");
+        CHECK(arr->deviated[1],                   "set-global: OTHER deviated track is kept");
+        CHECK(arr->activePhraseIdx(1) == 5,       "set-global: other deviated track unchanged");
+        CHECK(arr->activePhraseIdx(2) == 2,       "set-global: a non-deviated track follows global");
+
+        // Scene+Phrase+step force-all to phrase 4.
+        arr->forceAllToPhrase(4);
+        CHECK(arr->scene().globalPhrase == 4,     "force-all: globalPhrase updated");
+        CHECK(!arr->deviated[1],                  "force-all: every deviation cleared");
+        CHECK(arr->activePhraseIdx(0) == 4,       "force-all: focused track to global");
+        CHECK(arr->activePhraseIdx(1) == 4,       "force-all: previously-deviated track to global");
+    }
+
     void runArrangementTests()
     {
         testSceneSwitchPreservesEdit();
@@ -138,5 +165,6 @@ namespace lockstep
         testDeviationSwapAndResync();
         testSongSwitchClearsDeviationAndSwapsKit();
         testLoadPositionDoesNotClobber();
+        testGlobalPhraseGrammar();
     }
 }

@@ -109,13 +109,34 @@ namespace lockstep
             syncWorkingTrackFromActive(t);
         }
 
-        void swapPhraseForAll(int phraseIdx)
+        // Phrase+step: set the scene's global (home) phrase. Non-deviated tracks
+        // follow it; the FOCUSED track un-deviates and rejoins the unison; other
+        // deviated tracks keep their deviation (DESIGN §4.7/§16). focusedTrack < 0
+        // = none focused. Write-back runs first (with the OLD assignment) so live
+        // edits land on the right phrases before the reassignment.
+        void setGlobalPhrase(int focusedTrack, int phrase)
         {
-            const int clamped = std::clamp(phraseIdx, 0, kPhrasesPerTrack - 1);
+            const int N = std::clamp(phrase, 0, kPhrasesPerTrack - 1);
             writeBackWorkingToActive();
+            if (focusedTrack >= 0 && focusedTrack < static_cast<int>(kNumTracks))
+                deviated[idx(focusedTrack)] = false;   // focused rejoins the unison
+            scene().globalPhrase = N;
             for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
                 if (!deviated[idx(t)])
-                    scene().phraseIdx[idx(t)] = clamped;
+                    scene().phraseIdx[idx(t)] = N;      // non-deviated follow global
+            syncWorkingFromActive();
+        }
+
+        // Scene+Phrase+step: force the whole band onto one phrase, clearing every
+        // deviation (the breadth=all variant of the swap, DESIGN §16).
+        void forceAllToPhrase(int phrase)
+        {
+            const int N = std::clamp(phrase, 0, kPhrasesPerTrack - 1);
+            writeBackWorkingToActive();
+            deviated.fill(false);
+            scene().globalPhrase = N;
+            for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+                scene().phraseIdx[idx(t)] = N;
             syncWorkingFromActive();
         }
 
