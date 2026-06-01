@@ -103,11 +103,40 @@ namespace lockstep
               "song switch: working reflects song 1's kit");
     }
 
+    // Regression for the multi-scene save/reload content-loss bug: on load the
+    // model is the source of truth and the working buffer is stale; jumping the
+    // playhead via the normal switch would write that stale buffer back over the
+    // previous scene's just-loaded phrases. loadPosition must not.
+    static void testLoadPositionDoesNotClobber()
+    {
+        auto arr = makeSeededArrangement();   // scene 0 → phrase 0, scene 1 → phrase 1
+        // Content placed directly into the stored phrases AFTER the working buffer
+        // was synced — so working is now stale/empty relative to them (as on load).
+        arr->songs[0].tracks[0].phrases[0].steps[3].trig = true;   // scene 0's phrase
+        arr->songs[0].tracks[0].phrases[1].steps[5].trig = true;   // scene 1's phrase
+
+        arr->loadPosition(0, 1);   // jump to scene 1 as the load path does
+
+        CHECK(arr->songs[0].tracks[0].phrases[0].steps[3].trig,
+              "loadPosition: the previous scene's loaded phrase is NOT clobbered");
+        CHECK(arr->workingTrack(0).steps[5].trig,
+              "loadPosition: working reflects the new active scene's phrase");
+
+        // Contrast: the normal switch writes the stale working buffer back and
+        // clobbers it — which is exactly why the load path must use loadPosition.
+        auto arr2 = makeSeededArrangement();
+        arr2->songs[0].tracks[0].phrases[0].steps[3].trig = true;
+        arr2->setActiveScene(1);
+        CHECK(!arr2->songs[0].tracks[0].phrases[0].steps[3].trig,
+              "setActiveScene write-back clobbers stale content (the bug loadPosition avoids)");
+    }
+
     void runArrangementTests()
     {
         testSceneSwitchPreservesEdit();
         testBaseParamEditSurvivesViaKit();
         testDeviationSwapAndResync();
         testSongSwitchClearsDeviationAndSwapsKit();
+        testLoadPositionDoesNotClobber();
     }
 }

@@ -537,8 +537,10 @@ namespace lockstep::PluginState
         }
 
         // Apply active indices after all data is loaded.
-        proc.setActiveSong(std::clamp(activePiece, 0, kNumSongs - 1));
-        proc.setActiveScene(std::clamp(activeSect, 0, kScenesPerSong - 1));
+        // Load path: set the playhead WITHOUT a write-back. setActiveSong/Scene
+        // would flush the stale working buffer over the previous scene's
+        // just-loaded phrases (the multi-scene save/reload content-loss bug).
+        proc.loadActivePosition(activePiece, activeSect);
     }
 
     // ── End Phase 7 new hierarchy serialization ───────────────────────────────

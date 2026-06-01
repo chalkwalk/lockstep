@@ -2713,6 +2713,12 @@ namespace lockstep
         reinstallMachinesFromActiveKit();
     }
 
+    void LockstepProcessor::loadActivePosition(int songIdx, int sceneIdx)
+    {
+        arrangement_.loadPosition(songIdx, sceneIdx);
+        reinstallMachinesFromActiveKit();
+    }
+
     void LockstepProcessor::swapPhraseForTrack(int t, int phraseIdx)
     {
         arrangement_.swapPhraseForTrack(t, phraseIdx);

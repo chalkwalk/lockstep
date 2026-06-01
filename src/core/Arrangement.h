@@ -86,6 +86,20 @@ namespace lockstep
             syncWorkingFromActive();
         }
 
+        // Jump the playhead to a loaded position WITHOUT writing back. On state
+        // load the model (songs/phrases/scenes) is the source of truth and the
+        // working buffer is stale; the normal switch would write that stale buffer
+        // over the just-loaded phrases of the *previous* scene. Use this from the
+        // serializer's load path instead of setActiveSong/setActiveScene.
+        void loadPosition(int song, int scene)
+        {
+            songIdx  = std::clamp(song,  0, kNumSongs - 1);
+            sceneIdx = std::clamp(scene, 0, kScenesPerSong - 1);
+            deviated.fill(false);
+            deviationPhraseIdx.fill(0);
+            syncWorkingFromActive();
+        }
+
         void swapPhraseForTrack(int t, int phraseIdx)
         {
             if (t < 0 || t >= static_cast<int>(kNumTracks)) return;

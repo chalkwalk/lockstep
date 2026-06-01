@@ -106,6 +106,9 @@ namespace lockstep
         // ── New hierarchy navigation + gestures (Phase 7) ────────────────────
         void setActiveSong(int pieceIdx);
         void setActiveScene(int sectionIdx);
+        // Load path only: jump to a saved position without writing the (stale)
+        // working buffer back over the loaded phrases. See Arrangement::loadPosition.
+        void loadActivePosition(int songIdx, int sceneIdx);
         Phrase&       activePhrase(int t);
         const Phrase& activePhrase(int t) const;
         // swapPhraseForTrack: sticky local deviation (Track + Pattern + step).
