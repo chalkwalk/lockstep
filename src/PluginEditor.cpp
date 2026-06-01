@@ -1403,6 +1403,35 @@ namespace lockstep
             }
 
             case ControllerButton::SelectTrack:
+            {
+                // When Track is held, QwertyOverlay routes step keys to this case
+                // (not the Step case). So the Track-compound gestures must be
+                // handled HERE, before the plain track-select fallback below.
+
+                // Func+Track (machine/Kit picker) + step = assign the indexed
+                // machine to the focused track (§4.7.2).
+                if (uiState_.funcTrackHeld)
+                {
+                    if (ev.index >= 0 && ev.index < processor_.numAvailableMachines())
+                    {
+                        processor_.setTrackMachine(keyboardArea_.getActiveTrack(),
+                            std::string(processor_.availableMachineInfo(ev.index).id));
+                        keyboardArea_.syncToActiveTrack();
+                    }
+                    keyboardArea_.repaint();
+                    return true;
+                }
+                // Track+Phrase+step = sticky per-track deviation for the focused
+                // musician (Phrase-alone = unison swap, handled in the Step case).
+                if (uiState_.phraseScopeHeld)
+                {
+                    if (ev.index >= 0 && ev.index < kPhrasesPerTrack)
+                        processor_.swapPhraseForTrack(keyboardArea_.getActiveTrack(), ev.index);
+                    uiState_.phraseScopeUsed = true;
+                    repaint();
+                    keyboardArea_.repaint();
+                    return true;
+                }
                 // Track + No (held) + step = delete that track.
                 if (noHeld_ && uiState_.trackHeld)
                 {
@@ -1414,12 +1443,7 @@ namespace lockstep
                 if (uiState_.trackHeld && processor_.isTrackEmpty(ev.index))
                 {
                     // Track+empty step = copy current track's machine+params (no steps).
-                    // Func+Track+empty step = create a default sampler track.
-                    if (uiState_.funcHeld)
-                        processor_.setTrackMachine(ev.index,
-                            std::string(SamplerMachine::kMachineId));
-                    else
-                        processor_.copyPartTrack(keyboardArea_.getActiveTrack(), ev.index);
+                    processor_.copyPartTrack(keyboardArea_.getActiveTrack(), ev.index);
                     releaseTransientLatch(CB::TrackScope);
                     repaint();
                     keyboardArea_.repaint();
@@ -1429,6 +1453,7 @@ namespace lockstep
                 processor_.setControlAllActive(false);  // specific track chosen; disable control-all
                 releaseTransientLatch(CB::TrackScope);
                 return true;
+            }
 
             case ControllerButton::NavUp:
             {
@@ -2409,6 +2434,11 @@ namespace lockstep
                             s.condition = TrigCondition{};
                         }
                     }
+                    // Clearing a P-Lock (or the whole step) is an edit, exactly
+                    // like writing one — mark it so the step-release handler does
+                    // not also toggle the trig (it suppresses the toggle whenever
+                    // a param was written during the hold).
+                    processor_.editContext().markParamWritten();
                 }
                 else if (verb == CB::VerbNo && editMode_.scopeState().func)
                 {
@@ -2603,11 +2633,15 @@ namespace lockstep
                 // VerbStop with no scope: clear the active-slot P-Lock.
                 if (verb == CB::VerbStop)
                 {
-                    const auto& ctx = processor_.editContext();
+                    auto& ctx = processor_.editContext();
                     if (ctx.isActiveForEditing() && ctx.activeSlot() >= 0)
+                    {
                         processor_.clearParam(ctx.heldTrackIndex(),
                                               ctx.heldStepIndex(),
                                               ctx.activeSlot());
+                        // Removing a P-Lock is an edit; suppress the release toggle.
+                        ctx.markParamWritten();
+                    }
                 }
                 // VerbYes / VerbNo with no scope: checkpoint push / pop.
                 else if (verb == CB::VerbYes)
