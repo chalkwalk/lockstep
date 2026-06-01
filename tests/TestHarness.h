@@ -33,4 +33,5 @@ namespace lockstep
     void runHierarchyNavTests();
     void runArrangementTests();
     void runSerializerTests();
+    void runAmpDspTests();
 }

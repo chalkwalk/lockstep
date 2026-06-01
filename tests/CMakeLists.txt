@@ -8,7 +8,8 @@ add_executable(lockstep_tests
     StateResolverTest.cpp
     HierarchyNavTest.cpp
     ArrangementTest.cpp
-    SerializerTest.cpp)
+    SerializerTest.cpp
+    AmpDspTest.cpp)
 
 target_link_libraries(lockstep_tests PRIVATE
     lockstep_core

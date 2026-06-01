@@ -10,7 +10,13 @@ namespace lockstep
 
         float level    = 0.5f;   // 0..1
         float pan      = 0.0f;   // -1..1
-        float gateSrc  = 0.0f;   // stepped: 0=Envelope, 1=Held-open
+        // stepped: 0=Envelope (amp follows the note gate), 1=Held-open (gate
+        // ignored; the source plays its full length). Default Held-open so a
+        // one-shot sample (e.g. a sub kick) is not cut short by the step gate —
+        // the gate-following envelope chops the sample body and leaves only the
+        // transient, which sounds like a high-pass. Pitched/sustained sources
+        // can opt into Envelope mode.
+        float gateSrc  = 1.0f;
         float attack   = 1.0f;   // 0..5000 ms; default 1 ms (instant-feel)
         float hold     = 0.0f;   // 0..5000 ms
         float decay    = 0.0f;   // 0..5000 ms
