@@ -1428,6 +1428,15 @@ namespace lockstep
                         g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
                     }
 
+                    // Home/global marker (DESIGN §4.7): amber outline on the scene's
+                    // home phrase, set by the builder as sc.border (SelectorHome).
+                    // Drawn on top so deviation reads as fill (current) ≠ border (home).
+                    if (sc.border.present && avail)
+                    {
+                        g.setColour(juce::Colour(sc.border.colour));
+                        g.drawRoundedRectangle(cell.toFloat().reduced(0.5f), 4.0f, 2.0f);
+                    }
+
                     // Press feedback (Slice 4 fix: was missing)
                     if (sc.pressed && avail)
                     {
