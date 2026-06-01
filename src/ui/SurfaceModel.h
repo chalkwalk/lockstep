@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "../io/ControllerEvent.h"
+#include "../core/Sequence.h"   // kNumTracks
 #include "GridDisplayMode.h"
 
 namespace lockstep
@@ -148,6 +149,12 @@ namespace lockstep
 
         // Step grid: page-relative steps 0-15 (Slice 2+; initialised to defaults).
         std::array<SurfaceCell, 16> step{};
+
+        // Per-track: does this track carry a real (non-stub) machine? Empty tracks
+        // are greyed on screen (track strip + the edit area when focused) and can
+        // be mirrored on a controller's track-select LEDs. Sourced from
+        // LockstepProcessor::isTrackEmpty so screen and controller never diverge.
+        std::array<bool, kNumTracks> trackHasMachine{};
 
         // Lookup by (ControllerButton, index). Returns nullptr if not found.
         [[nodiscard]] const SurfaceCell* byButton(ControllerButton btn, int idx = -1) const noexcept;

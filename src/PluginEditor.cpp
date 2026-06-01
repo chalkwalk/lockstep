@@ -684,6 +684,35 @@ namespace lockstep
             }
         }
 
+        // ---- Empty-track greying (visual hint only; controls still work) ----
+        // Two non-overlapping overlays at the same translucent grey so the alpha
+        // never doubles: (A) each empty track's strip; (B) when the *focused*
+        // track is empty, the edit surfaces (MZ + crossfader + KeyboardArea),
+        // which sit above/below the strip rows and so don't overlap (A).
+        {
+            const juce::Colour emptyGrey { juce::uint32(0x66444444u) };  // #4446 RGBA
+            g.setColour(emptyGrey);
+
+            // (A) per-empty-track strip = number button ∪ mute ∪ solo.
+            for (std::size_t t = 0; t < kNumTracks; ++t)
+            {
+                if (!trackBtns_[t].isVisible()) continue;
+                if (!processor_.isTrackEmpty(static_cast<int>(t))) continue;
+                g.fillRect(trackBtns_[t].getBounds()
+                               .getUnion(muteBtns_[t].getBounds())
+                               .getUnion(soloBtns_[t].getBounds()));
+            }
+
+            // (B) focused track empty → grey the edit area (not the strip rows).
+            const int at = keyboardArea_.getActiveTrack();
+            if (at >= 0 && at < static_cast<int>(kNumTracks)
+                && processor_.isTrackEmpty(at))
+            {
+                g.fillRect(manipulationZone_.getBounds().getUnion(crossfader_.getBounds()));
+                g.fillRect(keyboardArea_.getBounds());
+            }
+        }
+
         if (!isDraggingFiles_)
             return;
         g.setColour(juce::Colour::fromRGB(255, 180, 50).withAlpha(0.12f));

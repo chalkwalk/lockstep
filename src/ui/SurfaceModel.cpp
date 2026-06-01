@@ -160,6 +160,11 @@ namespace lockstep
     {
         SurfaceModel model;
 
+        // Per-track machine presence (drives the empty-track greying on screen and
+        // a controller's track LEDs). Single source: LockstepProcessor::isTrackEmpty.
+        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+            model.trackHasMachine[static_cast<std::size_t>(t)] = !proc.isTrackEmpty(t);
+
         // Press-state helpers
         auto keyDown = [&](int rawCode) -> bool
         {
