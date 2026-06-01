@@ -40,4 +40,16 @@ namespace lockstep
             activeMask.fill(true);   // all musicians active by default
         }
     };
+
+    // True when a Scene differs from a freshly-constructed default and is
+    // therefore worth persisting. This is the serializer's write gate: the old
+    // gate used Scene::initialised, which was never set true anywhere, so every
+    // scene's per-scene assignment (phraseIdx) was silently dropped on save.
+    [[nodiscard]] inline bool sceneHasContent(const Scene& s)
+    {
+        for (const int idx : s.phraseIdx)  if (idx != 0) return true;
+        for (const bool m  : s.activeMask) if (!m)       return true;
+        if (!(s.coreTime == TimeSig{}))                  return true;
+        return !s.morphA.empty() || !s.morphB.empty();
+    }
 }

@@ -378,7 +378,7 @@ namespace lockstep::PluginState
             for (int si = 0; si < kScenesPerSong; ++si)
             {
                 const auto& sec = song.scenes[static_cast<std::size_t>(si)];
-                if (!sec.initialised) continue;
+                if (!sceneHasContent(sec)) continue;
                 juce::ValueTree sceneNode("Scene");
                 sceneNode.setProperty("i", si, nullptr);
                 sceneNode.setProperty("ct_n", sec.coreTime.numerator,   nullptr);
@@ -1432,21 +1432,29 @@ namespace lockstep::PluginState
         return v4;
     }
 
-    // v4 → v5: Phase 7 clean break.
-    // Drop the old Project/Bank/Pattern/Part nodes; preserve APVTS, SamplePool, Misc.
-    // New NewHierarchy node starts empty — the processor seeds Song[0] on startup.
-    juce::ValueTree upgrade_v4_to_v5(const juce::ValueTree& v4)
+    // Phase 7 clean break (pre-release). Any older version is collapsed to the
+    // current version: drop the legacy Project/Bank/Pattern/Part node, preserve
+    // APVTS / SamplePool / Misc / NewHierarchy. The processor seeds Song[0] on
+    // startup, and a NewHierarchy node (if present, e.g. from an interim v5/v6
+    // build) is carried forward as-is. No faithful legacy migration — this is a
+    // pre-release format with no shipped users.
+    juce::ValueTree cleanBreakToCurrent(const juce::ValueTree& old)
     {
-        juce::ValueTree v5("LockstepState");
-        v5.setProperty("version", 5, nullptr);
-        for (int i = 0; i < v4.getNumChildren(); ++i)
+        juce::ValueTree cur("LockstepState");
+        cur.setProperty("version", kCurrentVersion, nullptr);
+        for (int i = 0; i < old.getNumChildren(); ++i)
         {
-            const auto child = v4.getChild(i);
-            if (child.getType() != juce::Identifier("Project"))
-                v5.appendChild(child.createCopy(), nullptr);
+            const auto child = old.getChild(i);
+            // Drop every legacy hierarchy node: "Project" (v2+) and the flat
+            // pre-v2 "Sequence". Preserve APVTS ("Lockstep"), SamplePool, Misc,
+            // CCMappings, and any already-present NewHierarchy.
+            if (child.getType() != juce::Identifier("Project")
+                && child.getType() != juce::Identifier("Sequence"))
+                cur.appendChild(child.createCopy(), nullptr);
         }
-        DBG("PluginState: upgraded v4 → v5 (Phase 7): old Project/Bank/Pattern/Part data discarded.");
-        return v5;
+        DBG("PluginState: clean break to v" + juce::String(kCurrentVersion)
+            + ": legacy Project/Bank/Pattern/Part data discarded.");
+        return cur;
     }
 
     juce::ValueTree applyUpgrades(juce::ValueTree tree)
@@ -1463,11 +1471,11 @@ namespace lockstep::PluginState
 
         // Apply each upgrade in order. Upgrades are idempotent with respect
         // to the chain: each runs only when needed by the version guard.
+        // Pre-v1 trees (bare "Lockstep" APVTS root) are first normalised into a
+        // LockstepState wrapper; everything below the current version then
+        // collapses to the current format via the clean break.
         if (version < 1) tree = upgrade_v0_to_v1(tree);
-        if (version < 2) tree = upgrade_v1_to_v2(tree);
-        if (version < 3) tree = upgrade_v2_to_v3(tree);
-        if (version < 4) tree = upgrade_v3_to_v4(tree);
-        if (version < 5) tree = upgrade_v4_to_v5(tree);
+        if (version < kCurrentVersion) tree = cleanBreakToCurrent(tree);
 
         return tree;
     }
@@ -1566,137 +1574,80 @@ namespace
                        "v0 upgrades must not invent a Sequence node");
             }
 
-            beginTest("v1 -> v2: Sequence split into Project/Bank/Pattern+Part");
+            beginTest("v1 (flat Sequence) clean-breaks to current");
             {
-                // Build a minimal v1 tree with a Track containing BaseParams and Steps.
+                // A pre-v2 tree carried a flat "Sequence" node. The Phase 7 clean
+                // break discards all legacy hierarchy; APVTS/SamplePool/Misc stay.
                 juce::ValueTree v1("LockstepState");
                 v1.setProperty("version", 1, nullptr);
                 v1.appendChild(juce::ValueTree("Lockstep"),   nullptr);
                 v1.appendChild(juce::ValueTree("SamplePool"), nullptr);
-
-                juce::ValueTree seq("Sequence");
-                juce::ValueTree track0("Track");
-                track0.setProperty("i", 0, nullptr);
-
-                juce::ValueTree bp("BaseParams");
-                juce::ValueTree p("P");
-                p.setProperty("id", "sample_id", nullptr);
-                p.setProperty("v",  1.0,          nullptr);
-                bp.appendChild(p, nullptr);
-                track0.appendChild(bp, nullptr);
-
-                juce::ValueTree steps("Steps");
-                juce::ValueTree s("S");
-                s.setProperty("i", 0, nullptr);
-                s.setProperty("t", 1, nullptr);
-                steps.appendChild(s, nullptr);
-                track0.appendChild(steps, nullptr);
-                seq.appendChild(track0, nullptr);
-                v1.appendChild(seq, nullptr);
-
-                v1.appendChild(juce::ValueTree("CCMappings"), nullptr);
+                v1.appendChild(juce::ValueTree("Sequence"),   nullptr);
                 v1.appendChild(juce::ValueTree("Misc"),       nullptr);
 
                 const auto result = lockstep::PluginState::applyUpgrades(v1);
 
                 expectEquals(static_cast<int>(result.getProperty("version", -1)),
                              lockstep::PluginState::kCurrentVersion,
-                             "version upgraded to current");
+                             "version collapsed to current");
                 expect(!result.getChildWithName("Sequence").isValid(),
-                       "old Sequence node removed");
-                const auto proj = result.getChildWithName("Project");
-                expect(proj.isValid(), "Project node present");
-
-                const auto bank0 = proj.getChildWithName("Bank");
-                expect(bank0.isValid(), "Bank[0] present");
-
-                const auto pat0  = bank0.getChildWithName("Pattern");
-                expect(pat0.isValid(), "Pattern[0] present");
-                expectEquals(static_cast<int>(pat0.getProperty("partRef", -1)), 0,
-                             "Pattern[0] references Part[0]");
-
-                // Track[0] in Pattern[0] must have Steps but no BaseParams.
-                const auto patTrack0 = pat0.getChildWithName("Track");
-                expect(patTrack0.isValid(), "Pattern Track[0] present");
-                expect(patTrack0.getChildWithName("Steps").isValid(),
-                       "Steps moved to Pattern track");
-                expect(!patTrack0.getChildWithName("BaseParams").isValid(),
-                       "BaseParams must NOT be in Pattern track");
-
-                // Part[0]/PartTrack[0] must have BaseParams.
-                const auto part0 = bank0.getChildWithName("Part");
-                expect(part0.isValid(), "Part[0] present");
-                const auto pt0 = part0.getChildWithName("PartTrack");
-                expect(pt0.isValid(), "PartTrack[0] present");
-                expect(pt0.getChildWithName("BaseParams").isValid(),
-                       "BaseParams present in PartTrack");
-                expect(pt0.getProperty("machineId").toString()
-                       == lockstep::SamplerMachine::kMachineId,
-                       "machineId set to sampler.v1");
+                       "legacy flat Sequence discarded");
+                expect(!result.getChildWithName("Project").isValid(),
+                       "no legacy Project remains");
+                expect(result.getChildWithName("Lockstep").isValid(),
+                       "APVTS preserved");
+                expect(result.getChildWithName("SamplePool").isValid(),
+                       "SamplePool preserved");
+                expect(result.getChildWithName("Misc").isValid(),
+                       "Misc preserved");
             }
 
-            beginTest("v2 passthrough: current format unchanged");
+            beginTest("legacy Project (v2-v4) clean-breaks to current");
             {
+                // Any legacy Bank/Pattern/Part hierarchy is dropped wholesale by
+                // the pre-release clean break; the processor re-seeds defaults.
                 juce::ValueTree v2("LockstepState");
                 v2.setProperty("version", 2, nullptr);
                 v2.appendChild(juce::ValueTree("Lockstep"),    nullptr);
                 v2.appendChild(juce::ValueTree("SamplePool"),  nullptr);
-                v2.appendChild(juce::ValueTree("Project"),     nullptr);
-                v2.appendChild(juce::ValueTree("CCMappings"),  nullptr);
-                v2.appendChild(juce::ValueTree("Misc"),        nullptr);
+
+                juce::ValueTree proj("Project");
+                juce::ValueTree bank("Bank");
+                bank.appendChild(juce::ValueTree("Pattern"), nullptr);
+                bank.appendChild(juce::ValueTree("Part"),    nullptr);
+                proj.appendChild(bank, nullptr);
+                v2.appendChild(proj, nullptr);
+                v2.appendChild(juce::ValueTree("Misc"), nullptr);
 
                 const auto result = lockstep::PluginState::applyUpgrades(v2);
 
                 expectEquals(static_cast<int>(result.getProperty("version", -1)),
                              lockstep::PluginState::kCurrentVersion,
-                             "version upgraded to current");
-                expect(result.getChildWithName("Project").isValid(), "Project child present");
-                expect(!result.getChildWithName("Sequence").isValid(), "no legacy Sequence");
+                             "version collapsed to current");
+                expect(!result.getChildWithName("Project").isValid(),
+                       "legacy Project/Bank/Pattern/Part discarded");
+                expect(result.getChildWithName("Lockstep").isValid(),
+                       "APVTS preserved");
+                expect(result.getChildWithName("SamplePool").isValid(),
+                       "SamplePool preserved");
+                expect(result.getChildWithName("Misc").isValid(),
+                       "Misc preserved");
             }
 
-            beginTest("v3 -> v4: Pattern and Part nodes gain init=1");
+            beginTest("current version passes through unchanged");
             {
-                // Build a minimal v3 tree with one Bank containing one Pattern
-                // and one Part (as they would appear in a pre-v4 session).
-                juce::ValueTree v3("LockstepState");
-                v3.setProperty("version", 3, nullptr);
+                juce::ValueTree cur("LockstepState");
+                cur.setProperty("version", lockstep::PluginState::kCurrentVersion, nullptr);
+                cur.appendChild(juce::ValueTree("Lockstep"),     nullptr);
+                cur.appendChild(juce::ValueTree("NewHierarchy"), nullptr);
 
-                juce::ValueTree proj("Project");
-                juce::ValueTree bank("Bank");
-                bank.setProperty("i", 0, nullptr);
-
-                juce::ValueTree pat("Pattern");
-                pat.setProperty("i",       0, nullptr);
-                pat.setProperty("partRef", 0, nullptr);
-
-                juce::ValueTree part("Part");
-                part.setProperty("i", 0, nullptr);
-
-                bank.appendChild(pat,  nullptr);
-                bank.appendChild(part, nullptr);
-                proj.appendChild(bank, nullptr);
-                v3.appendChild(proj,   nullptr);
-
-                const auto result = lockstep::PluginState::applyUpgrades(v3);
+                const auto result = lockstep::PluginState::applyUpgrades(cur);
 
                 expectEquals(static_cast<int>(result.getProperty("version", -1)),
                              lockstep::PluginState::kCurrentVersion,
-                             "version upgraded to current");
-
-                const auto rBank = result.getChildWithName("Project")
-                                         .getChildWithName("Bank");
-                expect(rBank.isValid(), "Bank present");
-
-                const auto rPat  = rBank.getChildWithName("Pattern");
-                const auto rPart = rBank.getChildWithName("Part");
-
-                expect(rPat.isValid(),  "Pattern node present");
-                expect(rPart.isValid(), "Part node present");
-
-                expectEquals(static_cast<int>(rPat.getProperty("init",  0)), 1,
-                             "Pattern has init=1 after v3->v4 upgrade");
-                expectEquals(static_cast<int>(rPart.getProperty("init", 0)), 1,
-                             "Part has init=1 after v3->v4 upgrade");
+                             "current version unchanged");
+                expect(result.getChildWithName("NewHierarchy").isValid(),
+                       "NewHierarchy node preserved at current version");
             }
 
             beginTest("future version: valid tree returned without crash");
