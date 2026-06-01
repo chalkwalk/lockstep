@@ -31,4 +31,5 @@ namespace lockstep
     void runSurfaceModelTests();
     void runStateResolverTests();
     void runHierarchyNavTests();
+    void runArrangementTests();
 }

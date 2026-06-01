@@ -6,7 +6,8 @@ add_executable(lockstep_tests
     TestMain.cpp
     SurfaceModelTest.cpp
     StateResolverTest.cpp
-    HierarchyNavTest.cpp)
+    HierarchyNavTest.cpp
+    ArrangementTest.cpp)
 
 target_link_libraries(lockstep_tests PRIVATE
     lockstep_core

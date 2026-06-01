@@ -12,6 +12,7 @@ int main()
     lockstep::runSurfaceModelTests();
     lockstep::runStateResolverTests();
     lockstep::runHierarchyNavTests();
+    lockstep::runArrangementTests();
 
     const int failed = lockstep::gFailed;
     if (failed == 0)
