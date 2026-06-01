@@ -455,6 +455,63 @@ namespace lockstep
 
     void LockstepEditor::paintOverChildren(juce::Graphics& g)
     {
+        // Persistent per-track state overlays FIRST — they must show in every mode
+        // (incl. the unmodified resting state). The held-context preview below
+        // early-returns when nothing is held, so these have to precede it.
+
+        // ---- Empty-track greying (visual hint only; controls still work) ----
+        // Two non-overlapping overlays at the same translucent grey so the alpha
+        // never doubles: (A) each empty track's strip; (B) when the *focused*
+        // track is empty, the edit surfaces (MZ + crossfader + KeyboardArea),
+        // which sit above/below the strip rows and so don't overlap (A).
+        {
+            const juce::Colour emptyGrey { juce::uint32(0x66444444u) };  // #4446 RGBA
+            g.setColour(emptyGrey);
+
+            // (A) per-empty-track strip = number button ∪ mute ∪ solo.
+            for (std::size_t t = 0; t < kNumTracks; ++t)
+            {
+                if (!trackBtns_[t].isVisible()) continue;
+                if (!processor_.isTrackEmpty(static_cast<int>(t))) continue;
+                g.fillRect(trackBtns_[t].getBounds()
+                               .getUnion(muteBtns_[t].getBounds())
+                               .getUnion(soloBtns_[t].getBounds()));
+            }
+
+            // (B) focused track empty → grey the edit area (not the strip rows).
+            const int at = keyboardArea_.getActiveTrack();
+            if (at >= 0 && at < static_cast<int>(kNumTracks)
+                && processor_.isTrackEmpty(at))
+            {
+                g.fillRect(manipulationZone_.getBounds().getUnion(crossfader_.getBounds()));
+                g.fillRect(keyboardArea_.getBounds());
+            }
+        }
+
+        // ---- Deviation badge: an amber corner triangle on every track playing
+        // off its scene's home (global) phrase (DESIGN §4.7) — persistent in the
+        // track / VU row, visible in every mode (no modifier needed).
+        {
+            const int home = processor_.section().globalPhrase;
+            g.setColour(juce::Colour(juce::uint32(0xFFFFC020u)));
+            for (std::size_t t = 0; t < kNumTracks; ++t)
+            {
+                if (!trackBtns_[t].isVisible()) continue;
+                const int ti  = static_cast<int>(t);
+                const int cur = processor_.isTrackDeviated(ti)
+                    ? processor_.deviationPhraseIdxForTrack(ti)
+                    : processor_.section().phraseIdx[t];
+                if (cur == home) continue;
+                const auto r = trackBtns_[t].getBounds();
+                const float s = 7.0f;
+                juce::Path tri;
+                tri.addTriangle(static_cast<float>(r.getX()),     static_cast<float>(r.getY()),
+                                static_cast<float>(r.getX()) + s,  static_cast<float>(r.getY()),
+                                static_cast<float>(r.getX()),      static_cast<float>(r.getY()) + s);
+                g.fillPath(tri);
+            }
+        }
+
         // ---- MHZ.2.2: top-bar dashboard (free space between left controls and right buttons) ----
         // Left zone (~420..640): Bank/Pattern/Part identity + state badges (CK, CHN, QUE, SHR, CPY).
         // Right zone (~640..800): Held-context preview derived from modifier cluster state.
@@ -687,60 +744,6 @@ namespace lockstep
                 g.setColour(juce::Colour::fromRGB(230, 80, 220).withAlpha(midiBlink_[i]));
                 g.fillEllipse(static_cast<float>(r.getRight() - 2 - d),
                               static_cast<float>(r.getY() + 2), d, d);
-            }
-        }
-
-        // ---- Empty-track greying (visual hint only; controls still work) ----
-        // Two non-overlapping overlays at the same translucent grey so the alpha
-        // never doubles: (A) each empty track's strip; (B) when the *focused*
-        // track is empty, the edit surfaces (MZ + crossfader + KeyboardArea),
-        // which sit above/below the strip rows and so don't overlap (A).
-        {
-            const juce::Colour emptyGrey { juce::uint32(0x66444444u) };  // #4446 RGBA
-            g.setColour(emptyGrey);
-
-            // (A) per-empty-track strip = number button ∪ mute ∪ solo.
-            for (std::size_t t = 0; t < kNumTracks; ++t)
-            {
-                if (!trackBtns_[t].isVisible()) continue;
-                if (!processor_.isTrackEmpty(static_cast<int>(t))) continue;
-                g.fillRect(trackBtns_[t].getBounds()
-                               .getUnion(muteBtns_[t].getBounds())
-                               .getUnion(soloBtns_[t].getBounds()));
-            }
-
-            // (B) focused track empty → grey the edit area (not the strip rows).
-            const int at = keyboardArea_.getActiveTrack();
-            if (at >= 0 && at < static_cast<int>(kNumTracks)
-                && processor_.isTrackEmpty(at))
-            {
-                g.fillRect(manipulationZone_.getBounds().getUnion(crossfader_.getBounds()));
-                g.fillRect(keyboardArea_.getBounds());
-            }
-        }
-
-        // ---- Deviation badge: an amber corner triangle on every track playing
-        // off its scene's home (global) phrase (DESIGN §4.7) — persistent in the
-        // track / VU row, visible in every mode (no modifier needed). Matches the
-        // home-marker colour.
-        {
-            const int home = processor_.section().globalPhrase;
-            g.setColour(juce::Colour(juce::uint32(0xFFFFC020u)));
-            for (std::size_t t = 0; t < kNumTracks; ++t)
-            {
-                if (!trackBtns_[t].isVisible()) continue;
-                const int ti  = static_cast<int>(t);
-                const int cur = processor_.isTrackDeviated(ti)
-                    ? processor_.deviationPhraseIdxForTrack(ti)
-                    : processor_.section().phraseIdx[t];
-                if (cur == home) continue;
-                const auto r = trackBtns_[t].getBounds();
-                const float s = 7.0f;
-                juce::Path tri;
-                tri.addTriangle(static_cast<float>(r.getX()),     static_cast<float>(r.getY()),
-                                static_cast<float>(r.getX()) + s,  static_cast<float>(r.getY()),
-                                static_cast<float>(r.getX()),      static_cast<float>(r.getY()) + s);
-                g.fillPath(tri);
             }
         }
 
