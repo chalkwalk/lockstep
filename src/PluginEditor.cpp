@@ -311,13 +311,7 @@ namespace lockstep
         const bool nowPlaying = processor_.clock().inPluginPlaying();
         if (nowPlaying != lastPlayingState_) { lastPlayingState_ = nowPlaying; dirty = true; }
 
-        // Always repaint: the persistent over-paint indicators (empty-track
-        // greying, deviation badges) live in paintOverChildren and must stay
-        // visible in the resting/unmodified state too, not only while meters
-        // animate or a modifier forces a repaint. (dirty is still used to floor
-        // the meter decay above.)
-        juce::ignoreUnused(dirty);
-        repaint();
+        if (dirty) repaint();
 
         // Reconcile: release any keyboard press whose key is no longer physically
         // down (catches stuck modifiers/steps after Alt-Tab or window deactivation).
