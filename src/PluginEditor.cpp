@@ -311,7 +311,13 @@ namespace lockstep
         const bool nowPlaying = processor_.clock().inPluginPlaying();
         if (nowPlaying != lastPlayingState_) { lastPlayingState_ = nowPlaying; dirty = true; }
 
-        if (dirty) repaint();
+        // Always repaint: the persistent over-paint indicators (empty-track
+        // greying, deviation badges) live in paintOverChildren and must stay
+        // visible in the resting/unmodified state too, not only while meters
+        // animate or a modifier forces a repaint. (dirty is still used to floor
+        // the meter decay above.)
+        juce::ignoreUnused(dirty);
+        repaint();
 
         // Reconcile: release any keyboard press whose key is no longer physically
         // down (catches stuck modifiers/steps after Alt-Tab or window deactivation).
@@ -713,9 +719,10 @@ namespace lockstep
             }
         }
 
-        // ---- Deviation badge: an amber left-edge stripe on every track playing
+        // ---- Deviation badge: an amber corner triangle on every track playing
         // off its scene's home (global) phrase (DESIGN §4.7) — persistent in the
-        // track / VU row, visible without holding Phrase. Matches the home marker.
+        // track / VU row, visible in every mode (no modifier needed). Matches the
+        // home-marker colour.
         {
             const int home = processor_.section().globalPhrase;
             g.setColour(juce::Colour(juce::uint32(0xFFFFC020u)));
@@ -727,11 +734,13 @@ namespace lockstep
                     ? processor_.deviationPhraseIdxForTrack(ti)
                     : processor_.section().phraseIdx[t];
                 if (cur == home) continue;
-                // A 3px amber bar down the left edge of the track + mute/solo cells.
-                const auto r = trackBtns_[t].getBounds()
-                                   .getUnion(muteBtns_[t].getBounds())
-                                   .getUnion(soloBtns_[t].getBounds());
-                g.fillRect(r.getX(), r.getY(), 3, r.getHeight());
+                const auto r = trackBtns_[t].getBounds();
+                const float s = 7.0f;
+                juce::Path tri;
+                tri.addTriangle(static_cast<float>(r.getX()),     static_cast<float>(r.getY()),
+                                static_cast<float>(r.getX()) + s,  static_cast<float>(r.getY()),
+                                static_cast<float>(r.getX()),      static_cast<float>(r.getY()) + s);
+                g.fillPath(tri);
             }
         }
 
