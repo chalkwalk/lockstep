@@ -62,7 +62,7 @@ namespace lockstep
             clearBtns_[si].setWantsKeyboardFocus(false);
             clearBtns_[si].onClick = [this, i]
             {
-                const auto& ctx = processor_.editContext();
+                auto& ctx = processor_.editContext();
                 if (!ctx.isActiveForEditing()) return;
                 if (metaSection_ == 1)
                     processor_.clearTrigOverrideField(ctx.heldTrackIndex(),
@@ -73,6 +73,9 @@ namespace lockstep
                 else
                     processor_.clearParam(ctx.heldTrackIndex(), ctx.heldStepIndex(),
                                           slotOffset_ + i);
+                // Removing a P-Lock is an edit, like writing one — mark it so the
+                // held-step release does not also toggle the step's trig.
+                ctx.markParamWritten();
             };
             addAndMakeVisible(clearBtns_[si]);
         }
@@ -764,7 +767,8 @@ namespace lockstep
         juce::PopupMenu menu;
         if (poolSize == 0)
         {
-            menu.addItem(0, "(pool is empty)", false);
+            // A disabled section header, not addItem(0) — JUCE asserts on item id 0.
+            menu.addSectionHeader("(pool is empty)");
         }
         else
         {

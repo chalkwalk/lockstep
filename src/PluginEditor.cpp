@@ -1370,6 +1370,18 @@ namespace lockstep
                     return true;
                 }
 
+                // MHZ.9.5: any plain step press while a P-lock latch is active exits
+                // the latch (consumed — no trig toggle, no new hold), so you no longer
+                // need Func+Func. Checked before the key-repeat guard below so it also
+                // fires when you re-press the latched step itself.
+                if (processor_.editContext().hasAnyLatchedStep())
+                {
+                    escapeAllLatches();
+                    keyboardArea_.repaint();
+                    repaint();
+                    return true;
+                }
+
                 // Ignore key-repeat (same physical key already in list).
                 {
                     bool alreadyHeld = false;
