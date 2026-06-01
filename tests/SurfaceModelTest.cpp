@@ -3,7 +3,7 @@
 // Tests resolveKeyLabel() for key scenarios without a LockstepProcessor.
 // Run via: lockstep_tests (exit 0 = pass, exit 1 = fail).
 
-#include <juce_core/juce_core.h>
+#include "TestHarness.h"
 #include "../src/ui/KeyLabel.h"
 #include "../src/ui/SurfaceModel.h"
 
@@ -24,19 +24,6 @@ namespace lockstep
     // EditContext stub — default: no step held, no active edit.
     static EditContext makeEditContext() { return EditContext{}; }
 
-    // -------------------------------------------------------------------------
-    // CHECK macro — prints failure info, increments counter.
-    // -------------------------------------------------------------------------
-    static int gFailed = 0;
-
-    #define CHECK(cond, msg) \
-        do { \
-            if (!(cond)) { \
-                juce::Logger::writeToLog(juce::String("FAIL [") + __FILE__ ":" \
-                    + juce::String(__LINE__) + "] " + (msg)); \
-                ++gFailed; \
-            } \
-        } while (false)
 
     // -------------------------------------------------------------------------
     // Test: resolveKeyLabel() for VerbClear (PANIC/O key)
@@ -188,26 +175,11 @@ namespace lockstep
         }
     }
 
+    void runSurfaceModelTests()
+    {
+        testPanicKeyLabel();
+        testNavKeyFuncPromotion();
+        testSectionKeyLabel();
+    }
+
 } // namespace lockstep
-
-// -------------------------------------------------------------------------
-// main
-// -------------------------------------------------------------------------
-int main()
-{
-    // JUCE needs a minimal initialisation for juce::String in some configurations.
-    juce::initialiseJuce_GUI();
-
-    lockstep::testPanicKeyLabel();
-    lockstep::testNavKeyFuncPromotion();
-    lockstep::testSectionKeyLabel();
-
-    const int failed = lockstep::gFailed;
-    if (failed == 0)
-        juce::Logger::writeToLog("All tests passed.");
-    else
-        juce::Logger::writeToLog(juce::String(failed) + " test(s) FAILED.");
-
-    juce::shutdownJuce_GUI();
-    return failed > 0 ? 1 : 0;
-}

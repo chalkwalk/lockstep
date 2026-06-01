@@ -1,7 +1,12 @@
 # Headless unit tests — no audio device, no plugin host required.
-# Tests pure functions (resolveKeyLabel, etc.) from the UI/model layer.
+# Tests pure functions (resolveKeyLabel, StateResolver OEB merge, the
+# HierarchyNav Phrase/Kit projection seam) from the core/model layer.
 
-add_executable(lockstep_tests SurfaceModelTest.cpp)
+add_executable(lockstep_tests
+    TestMain.cpp
+    SurfaceModelTest.cpp
+    StateResolverTest.cpp
+    HierarchyNavTest.cpp)
 
 target_link_libraries(lockstep_tests PRIVATE
     lockstep_core
