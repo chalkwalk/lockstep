@@ -543,16 +543,26 @@ this is retired. Plan: test net → SoT fix → go direct → 7.9e.
       Songs + playhead + working Sequence; every switch writes back before
       re-projecting (fixes the lost-edits bug). `ArrangementTest` proves it.
       Pure/JUCE-free; processor not yet wired.
-- [ ] **Wire processor to Arrangement** (stage 2b): hold an `Arrangement`; repoint
-      `song()/section()/kit()/activePhrase()/sequence()` + the switch gestures at
-      it; drop `activeSongIdx_/activeSceneIdx_/deviated_` members + the inline
-      `syncSequenceFromCurrentScene`. Keep legacy `Part` for FLTR/AMP for now.
-- [ ] **Serializer onto Arrangement** (stage 2c): persist only the new hierarchy;
-      seed the working buffer on load; bump state version `6→7`; round-trip tests.
-- [ ] **Go direct** (stage 3): move FLTR/AMP + machineId into `Kit` (retarget the
-      machine picker off `setActivePatternPart`); audio reads Kit for sound; drop
-      `Bank/Pattern/Part` structs + the legacy serializer nodes + dead nav.
+- [x] **Wire processor to Arrangement** (stage 2b): Songs + playhead + deviation +
+      working buffer now live in `arrangement_`; `song()/section()/kit()/sequence()`
+      + the switch gestures delegate to it; dropped `Project::pieces` (~50MB) and the
+      `activeSongIdx_/...` members. Write-back wired at save / load / ctor-seed.
+      Legacy `Part` kept for FLTR/AMP + machineId sound state (still serialized).
+- [ ] **Move sound-state into Kit** (stage 3a — must precede dropping legacy
+      serialization): migrate FLTR/AMP + machineId + MIDI-out config from `Part`
+      into `TrackKit`; audio + param-edit sites + the machine picker
+      (`setActivePatternPart` → Kit) read/write the Kit; param-edit dual-write to
+      `activePart` removed.
+- [ ] **Drop legacy + go direct** (stage 3b): delete `Bank/Pattern/Part` structs +
+      legacy serializer nodes + dead nav (`activePattern/activePart/setActivePattern/
+      forkActivePart/materialise*`); resolver feed comes purely from `arrangement_`;
+      bump state version `6→7`; (round-trip is then only-new by construction).
 - [ ] Then build **7.9e** (DESIGN §13.6) on the consolidated model.
+
+> Note: a full save→load round-trip test needs `LockstepProcessor` under test
+> (its `createEditor` pulls the UI in), so it is out of the headless net for now;
+> the serializer's pure `applyUpgrades` chain stays covered by the existing
+> `PluginState` UnitTest, and `Arrangement` covers the switching contract.
 
 ---
 
