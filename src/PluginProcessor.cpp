@@ -476,8 +476,11 @@ namespace lockstep
         else  // Auto
         {
             sequencerRunning = clock_.inPluginPlaying();
-            // Rising edge: record anchor PPQ so Auto mode starts from step 0.
-            if (sequencerRunning && !wasInPluginPlaying_)
+            // Rising edge. A fresh start (after stop/reset) re-anchors so the
+            // pattern plays from step 0 at the current position. A resume from
+            // pause keeps the existing anchor and pending trig schedule so the
+            // pattern continues in phase with the playhead (no audible restart).
+            if (sequencerRunning && !wasInPluginPlaying_ && freshStartPending_.exchange(false))
             {
                 anchorPpq_ = clock_.ppqAtBlockStart();
                 nextTriggerPpq_.fill(anchorPpq_);

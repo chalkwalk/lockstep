@@ -1594,11 +1594,14 @@ namespace lockstep
 
                 if (isDouble)
                 {
+                    // Double-tap = stop + reset: next start re-anchors to step 0.
                     processor_.clock().setInPluginPlaying(false);
                     processor_.clock().resetPhase();
+                    processor_.requestFreshStart();
                 }
                 else
                 {
+                    // Single tap toggles play/pause; resume continues in phase.
                     processor_.clock().setInPluginPlaying(!processor_.clock().inPluginPlaying());
                 }
                 return true;
@@ -1738,6 +1741,7 @@ namespace lockstep
                 }
                 processor_.clock().setInPluginPlaying(false);
                 processor_.clock().resetPhase();
+                processor_.requestFreshStart();
                 return true;
             case ControllerButton::RecordArm:
             {

@@ -186,6 +186,12 @@ namespace lockstep
 
         Clock&       clock()       { return clock_; }
         const Clock& clock() const { return clock_; }
+
+        // Mark that the next transport start should re-anchor the pattern to step 0
+        // (call alongside a stop/reset). Without it, a plain resume-from-pause would
+        // restart the pattern phase while the playhead continued — an audio/visual
+        // desync. Safe to call from the message thread.
+        void requestFreshStart() { freshStartPending_.store(true, std::memory_order_relaxed); }
         SamplePool& samplePool() { return samplePool_; }
         EditContext& editContext() { return editContext_; }
         CCMappingTable& ccMappingTable() { return ccMappingTable_; }
@@ -585,6 +591,10 @@ namespace lockstep
         std::array<double, kNumTracks> nextTriggerPpq_{};
         std::array<bool, kNumTracks>   lastStepFired_{};
         double anchorPpq_ = 0.0;
+        // When true, the next transport rising edge re-anchors the pattern to the
+        // current position (step 0 here). Set on stop/reset; cleared on resume so
+        // pause→resume continues in phase instead of restarting the pattern.
+        std::atomic<bool> freshStartPending_{ true };
         bool   wasInPluginPlaying_  = false;
         bool   wasSequencerRunning_ = false;  // MF.6: falling-edge transport stop detection
         std::array<bool, kNumTracks> wasSilent_{};  // MF.7: per-track mute rising-edge detection
