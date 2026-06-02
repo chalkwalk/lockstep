@@ -600,6 +600,21 @@ scene-mute→`Scene+Mute` + nav labels + PANIC teal; empty-track overlay; README
       a stale write-back; added `Arrangement::loadPosition` (no write-back) for the
       load path; `ArrangementTest` regression.
 
+### 7.12 — Colour vocabulary + verb-row rethink  *[shipped]*
+UITheme rewrite: one hue per modality (resting/active/accent stepped from B~35%/80%/94%);
+role-neighbourhood hue map (Func=amber, structural scopes=cool arc, Morph=magenta,
+Performance=warm, Verbs=neutral-slate with conventional-on-active); removed generic
+violet/indigo modifier borrow. Verb row redesigned Y U I O P →
+Snapshot/Record/Play/Clear/Yes with Func-layer Restore/Panic/Delete/No.
+See DESIGN §6.6, §13.
+
+- [x] Stage 1: append `VerbClear` / `VerbDelete` / `VerbPanic` to `ControllerButton` enum (ABI add-only); exhaustive-switch audit.
+- [x] Stage 2: QwertyOverlay rebind + dispatch semantics + pending-confirm state + re-homed solo/delete gestures.
+- [x] Stage 3: SurfaceModel `kFRowDefs` labels + relabels + scope-glow / reserved-dim update.
+- [x] Stage 4: UITheme taxonomy rewrite + `groupForCell()` + named decoration constants.
+- [x] Stage 5: fold stray hardcoded colour literals into UITheme constants.
+- [x] Stage 6: DESIGN §6.6 + §13 verb table updated; ROADMAP marked.
+
 ---
 
 ## Phase 4 — Machine Catalogue  *[partial]*

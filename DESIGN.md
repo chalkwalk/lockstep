@@ -862,9 +862,10 @@ real estate.
 - `4 / E R T` = inverted-T navigation (Up / Left / Down / Right).
 - `5–0` = the six canonical sections TRIG / SRC / FILTER / AMP / MOD / FX
   (note `LFO`→`MOD` rename from 3.2; see §6.1.1).
-- `Y U I O P` = verbs `Yes / Record / Play / Stop / No` (3.2 remap).
-  Snapshot push/pop are `Func+Yes` / `Func+No`; `Record-Arm` /
-  `Play-Stop` chords on `9 / 0` are deferred — see §33.1.
+- `Y U I O P` = verbs `Snapshot / Record / Play / Clear / Yes` (colour-rethink).
+  `Func+Y` = Restore (pop checkpoint); `Func+I` = Panic; `Func+O` = Delete (+ confirm);
+  `Func+P` = No / cancel. `Record-Arm` / `Play-Stop` chords on `9 / 0` are deferred —
+  see §33.1.
 
 **Step keys.** Row 3 `D F G H J K L ;` = steps 0–7; row 4
 `C V B N M , . /` = steps 8–15.
@@ -1154,41 +1155,46 @@ labels now use up to 6 characters where they benefit: `FILTER` (was
 (`STP`), `FILL` (`FIL`), `COPY`/`PASTE`/`CLEAR` (`COP`/`PST`/`CLR`),
 `RETRIG` (`RTG`), `POOL` (`SPL`).
 
-### 6.6 Scope colour grammar (3.3) ✓
+### 6.6 Scope colour grammar (3.3 / colour-rethink) ✓
 
-The scope identity that a held modifier puts on the surface is now
-**visible**, not just functional. Each scope has a canonical colour
-slot in `UITheme` (`src/ui/UITheme.h`):
+The scope identity that a held modifier puts on the surface is
+**visible**, not just functional. Each modality owns **one hue** used at
+three brightness levels (resting / active / accent), so a modifier
+always wears its own colour — no generic violet borrowed when unlit.
 
-| Scope     | Colour slot         | Constant       |
-|-----------|---------------------|----------------|
-| *(none)* / step | `kScopeStep`  | light grey     |
-| `Track`   | `kScopeTrack`       | cyan-blue      |
-| `Phrase`  | `kScopePhrase`      | purple         |
-| `Scene`   | `kScopeScene`       | green          |
-| `Machine` (Func+Track picker) | `kScopeMachine` | lime |
-| `Morph`   | `kScopeMorph`       | orange         |
-| `Song`    | `kScopeSong`        | gold           |
+**Role-neighbourhood hue map** (UITheme.h):
+
+| Family | Members | Hue band | Notes |
+|--------|---------|----------|-------|
+| **Func** (qualifier) | Func | amber ~36° | signature |
+| **Structural scopes** (cool arc) | Scene ~150°, Track ~192°, Phrase ~225°, Song ~50° | green→cyan→indigo→gold | cool = hierarchy depth |
+| **Morph** | Morph | magenta ~315° | expressive crossfader; apart from cool arc |
+| **Performance** | Mute red ~2°, PMute rose ~345°, Fill chartreuse ~78° | warm+chartreuse | Mute removes / Fill adds |
+| **Verbs** (neutral) | Y U I O P | slate H~215 S~0.18 at rest | conventional on-active: Record→red, Play→green, Clear→warm-red, Snapshot→violet-blue |
+| **Edit sub-modes** | Note-edit azure, P-lock violet, Machine lime | own band | mutually exclusive with scope-hold |
+| **Sections** (TRIG…FX) | all six | steel-teal | uniform; takes scope colour under scope-hold |
+
+Three brightness levels per modality (starting points; tuned by eye against screenshots):
+- **resting** ~B 35% (clearly hued, not near-black)
+- **active** ~B 80% (full brightness on press / mode-on)
+- **accent** ~B 94% (border highlight)
 
 The helper `scopeColour(PrimaryScope, machinePicker=false)` in
-`src/ui/KeyLabel.h` maps a scope enum value to its colour in one
-place; every renderer calls this rather than defining its own tints.
-(`machinePicker=true` is set when the active scope is the `Func+Track`
-machine picker.)
+`src/ui/KeyLabel.h` maps a scope enum value to its bright colour in one
+place; `groupForCell()` in `KeyButton.cpp` picks resting/active/accent
+from the UITheme constants for each button identity.
 
 Used by:
+- modifier keys at rest (scope dim), pressed (scope bright), and latched (scope bright + 2px border);
 - key tints when a modifier is held — the held key, and any key it
   *reinterprets* (relabelled section keys, scope-combining verbs),
-  glow fill+border in its scope colour via `SurfaceCell::scopeTint`.
-  Keys the scope doesn't bind stay neutral (ambient utilities) or dim
-  (reserved verbs). See §13 (scope-combining vs ambient);
+  glow fill+border in its scope colour via `SurfaceCell::scopeTint`;
 - the step-grid scope re-skin (§6.7) — wired in 3.4;
 - the held-context preview band (§6.8) — wired in 3.4;
 - any badge or chrome that needs to say *what scope am I in?*.
 
-**Taxonomy only.** Placeholder RGB values are distinguishable but
-deferred to the later visual-design pass (§24 policy). The *set*
-is fixed so hardware LEDs and the software surface stay in lockstep.
+**Taxonomy is fixed; specific RGB values are tunable.** Hardware LEDs
+and the software surface share the same `UITheme.h` constants.
 
 ### 6.7 Scope-driven step-grid re-skin (3.4)
 
@@ -1433,14 +1439,22 @@ it):
 
 The verb set is small and uniform:
 
-| Verb | QWERTY key | Func-layer key | Meaning |
+| Key | Idle (no scope) | Under scope | Func-secondary |
 |---|---|---|---|
-| Record | `Y` | — | Capture the scope into the clipboard. |
-| Play | `U` | — | Paste the clipboard into the scope. |
-| Stop | `I` | — | Clear the scope. |
-| Yes | `Func+T` | — | Push a checkpoint / confirm dialog. |
-| No | `Func+O` | — | Pop a checkpoint / cancel dialog. |
-| RecordArm | `T` | — | Toggle sequencer record-arm state. |
+| `Y` | **Snapshot** — push checkpoint | scope-specific snapshot | **Restore** — pop checkpoint |
+| `U` | **Record** — arm / toggle overdub | **Copy** — clipboard capture | *(fork Part, placeholder)* |
+| `I` | **Play/Pause** — double-tap = Stop-to-top | **Paste** — clipboard write | **Panic** — kill voices + hard stop |
+| `O` | **Clear** — clear active P-Lock; inert if nothing to clear | **Clear** scope contents | **Delete** — remove entity (+ confirm) |
+| `P` | **Yes** — confirm a pending destructive op | *(reserved / dim)* | **No** — cancel / reject |
+
+- Under any section-suite scope (Track / Phrase / Scene / Song / Morph), `Y U I O` glow
+  in the scope colour and take their scoped meaning. `P` dims (reserved for the
+  confirm/cancel channel).
+- `Func+O` = Delete sets a **pending-confirm** visible in the status band
+  ("Delete X?  P=Yes  Func+P=No"). `P` = confirm; `Func+P` = cancel.
+  No modal popup — PRINCIPLES §5.
+- `P` without Func = Yes/confirm also sets the `yesHeld` flag, enabling
+  the `Mute+P+step` = solo gesture.
 
 The same grammar drives §13.2 Copy/Paste/Clear, §13.3 Performance
 Mutes, and the Checkpoint stack in §13.6. The verbs never mean
@@ -1452,14 +1466,9 @@ section keys, the step grid, and the verbs — show **only** their
 scoped meaning; if the scope defines no meaning for that key it is
 **reserved** (dim, inert), never silently doing its no-scope thing.
 *Ambient* utilities — navigation and tap/metronome — keep working and
-render neutral. The consequence for the Func layer: a bare-`Func`
-global op is reachable only when `Func` is the operative scope. With a
-section-suite scope also held, `Func+scope+Yes/No` is that scope's
-secondary variant, so the global snapshot/restore (and their `SNAP`/
-`POP` hints) are **suppressed** — they are not a "track-scoped
-snapshot," which does not exist. In-scope keys glow in the scope
-colour (§6.6); reserved verbs dim. This is the operational form of
-PRINCIPLES §10 ("a held scope recolours the keys it rebinds").
+render neutral. In-scope keys glow in the scope colour (§6.6);
+reserved verbs dim. This is the operational form of PRINCIPLES §10
+("a held scope recolours the keys it rebinds").
 
 ### 13.1 Control-All
 
