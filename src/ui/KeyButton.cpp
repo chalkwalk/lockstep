@@ -214,7 +214,7 @@ namespace lockstep
         if (compoundOverlay)
         {
             const auto strip = inner.withHeight(3).reduced(3, 0);
-            g.setColour(juce::Colour(0xFFD0A020u));
+            g.setColour(juce::Colour(kAmberStrip));
             g.fillRect(strip);
         }
 

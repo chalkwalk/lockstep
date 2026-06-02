@@ -559,7 +559,7 @@ namespace lockstep
 
             // baseColour for controller feedback and groupForCell()
             if (isOverdub)
-                c.baseColour = 0xFFD2821Eu;                                 // amber for OD
+                c.baseColour = kVerbODActive;                               // amber for OD
             else if (def.keyCode == 'Q')
                 c.baseColour = ui.phraseScopeHeld ? kScopePhrase : kScopePhraseDim;
             else if (def.keyCode == 'W')
@@ -1031,7 +1031,7 @@ namespace lockstep
                     {
                         c.border.present = true;
                         c.border.token   = CellState::SelectorHome;
-                        c.border.colour  = 0xFFFFC020u;
+                        c.border.colour  = kHomeAmber;
                     }
 
                     // level encodes queue position for badge rendering in paintStepRows
