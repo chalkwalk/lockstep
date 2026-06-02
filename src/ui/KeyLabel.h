@@ -73,12 +73,12 @@ namespace lockstep
     {
         Modifier,    // Func, Track, Pattern, Part, Scene, Master, Mute, Fill
         SectionKey,  // TRIG / SRC / FILTER / AMP / MOD / FX (index 0-5)
-        VerbCopy,    // U / REC — COPY when scope+verb compound; no Func action
-        VerbPaste,   // I / PLY — PASTE when scope+verb compound; no Func action
-        VerbClear,   // O / STP — CLEAR when scope+verb compound; no Func action
-        VerbYes,     // Y / YES — unchanged across scopes
-        VerbNo,      // P / NO  — unchanged across scopes
-        Nav,         // E / R / T — navigation
+        VerbCopy,    // U / REC    — COPY when scope+verb compound; no Func action
+        VerbPaste,   // I / PLAY   — PASTE when scope+verb compound; Func = PANIC
+        VerbClear,   // O / CLEAR  — CLEAR when scope+verb compound; Func = DEL
+        VerbYes,     // Y / SNAP   — Snapshot; scope variant under scope; Func = RESTORE
+        VerbNo,      // P / YES    — Yes/confirm (primary); No/cancel (Func+P); dims under scope
+        Nav,         // E / R / T  — navigation
         Utility,     // TAP (3), NavUp (4), anything else
     };
 

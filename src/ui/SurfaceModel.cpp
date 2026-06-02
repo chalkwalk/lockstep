@@ -471,11 +471,11 @@ namespace lockstep
             { 'E', u8"E", u8"←",     u8"←ROT",    ControllerButton::NavLeft,      KeyRole::Nav       },
             { 'R', u8"R", u8"↓",     u8"÷2",     ControllerButton::NavDown,      KeyRole::Nav       },
             { 'T', u8"T", u8"→",     u8"ROT→",    ControllerButton::NavRight,     KeyRole::Nav       },
-            { 'Y', u8"Y", u8"YES",   u8"SNAP",   ControllerButton::VerbYes,      KeyRole::VerbYes   },
-            { 'U', u8"U", u8"RECORD", u8"",      ControllerButton::VerbRecord,   KeyRole::VerbCopy  },
-            { 'I', u8"I", u8"PLAY",  u8"",       ControllerButton::VerbPlay,     KeyRole::VerbPaste },
-            { 'O', u8"O", u8"PANIC", u8"",        ControllerButton::VerbStop,     KeyRole::VerbClear },
-            { 'P', u8"P", u8"NO",    u8"POP",    ControllerButton::VerbNo,       KeyRole::VerbNo    },
+            { 'Y', u8"Y", u8"SNAP",  u8"RESTORE", ControllerButton::VerbYes,      KeyRole::VerbYes   },
+            { 'U', u8"U", u8"REC",   u8"",        ControllerButton::VerbRecord,   KeyRole::VerbCopy  },
+            { 'I', u8"I", u8"PLAY",  u8"PANIC",   ControllerButton::VerbPlay,     KeyRole::VerbPaste },
+            { 'O', u8"O", u8"CLEAR", u8"DEL",     ControllerButton::VerbClear,    KeyRole::VerbClear },
+            { 'P', u8"P", u8"YES",   u8"NO",      ControllerButton::VerbNo,       KeyRole::VerbNo    },
         }};
 
         const bool sectionScopeHeld = ui.trackHeld || ui.phraseScopeHeld
@@ -501,12 +501,10 @@ namespace lockstep
             juce::String displayPrimary { def.natural };
             juce::String displayHint    { def.funcLayer };
 
-            // Live relabels (PAUSE / DEL / OD) — override after resolver.
+            // Live relabels (PAUSE / OD) — override after resolver.
             // (The machine/Kit picker label KIT lives on the Track modifier cell, key 2.)
             if (def.keyCode == 'I' && isPlaying && !sectionScopeHeld && !ui.stepHeld)
                 displayPrimary = "PAUSE";
-            if (def.keyCode == 'P' && ui.trackHeld)
-                displayPrimary = "DEL";
             if (isOverdub)
                 displayPrimary = "OD";
 
@@ -519,13 +517,9 @@ namespace lockstep
                 if (def.role == KeyRole::VerbClear)  displayPrimary = "CLEAR";
             }
 
-            // SNAP/POP (Yes/No Func-layer) are bare-Func global checkpoint ops.
-            // Under a section-suite scope, Func+scope+verb is the scope's secondary
-            // variant — not a global op — so suppress the hint and its promotion.
-            const bool globalFuncOp = (def.role == KeyRole::VerbYes || def.role == KeyRole::VerbNo);
-            const bool suppressFuncLayer = sectionScopeHeld && globalFuncOp;
-            if (suppressFuncLayer)
-                displayHint = {};
+            // RESTORE/NO func-layer hints are always shown (Func+Y=Restore and Func+P=No
+            // are valid even under a scope, so no suppression needed).
+            const bool suppressFuncLayer = false;
 
             // Nav keys (E/R/T) cycle track input-mode / navigate when Track is
             // held — NOT the Func length/rotate ops — so don't advertise (or
@@ -574,16 +568,17 @@ namespace lockstep
                 c.baseColour = compatColour(c.base, 0xFF404040u);
 
             // Hybrid pass-through + scope glow (DESIGN §6.6): verbs are
-            // scope-combining. Under a section-suite scope a verb with a scoped op
-            // (COPY/PASTE/CLEAR/DEL) lights in the scope colour; a verb the scope
-            // leaves without an op (YES) is reserved (dim). Nav/TAP are ambient and
-            // untouched. (Pressing a reserved key still flashes — orientation aid.)
+            // scope-combining. Under a section-suite scope, Y/U/I/O (Snapshot/Copy/
+            // Paste/Clear) all participate in the scope grammar and glow in the scope
+            // colour. P (Yes/confirm) is the confirm/cancel channel — reserved/dim
+            // under scope, but still fires for pending-confirm resolution.
+            // Nav/TAP are ambient and untouched.
             if (sectionScopeHeld)
             {
-                if (def.role == KeyRole::VerbYes)
+                if (def.role == KeyRole::VerbNo)
                     c.disabled = true;
-                else if (def.role == KeyRole::VerbCopy || def.role == KeyRole::VerbPaste
-                      || def.role == KeyRole::VerbClear || def.role == KeyRole::VerbNo)
+                else if (def.role == KeyRole::VerbYes || def.role == KeyRole::VerbCopy
+                      || def.role == KeyRole::VerbPaste || def.role == KeyRole::VerbClear)
                     c.scopeTint = scopeColour(sectionScope).getARGB();
             }
 
