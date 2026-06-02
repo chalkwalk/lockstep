@@ -32,44 +32,30 @@ namespace lockstep
             case ControllerButton::TapTempo:
                 return { kTapInactive, kTapActive, kTapAccent };
 
-            // --- Number-row modifier (Track) ---
+            // --- Structural scope modifiers: one hue in every state, no generic borrow ---
             case ControllerButton::TrackScope:
-                return isMode
-                    ? KeyGroup{ kScopeTrackDim, kScopeTrack, kScopeTrack }
-                    : KeyGroup{ kScopeTrackDim, kPerfActive, kPerfAccent };
+                return { kScopeTrackDim, kScopeTrack, kScopeTrackAcc };
 
-            // --- Q-row modifiers (Pattern, Part) ---
             case ControllerButton::PhraseScope:
-                return isMode
-                    ? KeyGroup{ kScopePhraseDim, kScopePhrase, kScopePhrase }
-                    : KeyGroup{ kScopePhraseDim, kModActive,    kModAccent    };
+                return { kScopePhraseDim, kScopePhrase, kScopePhraseAcc };
 
             case ControllerButton::SceneScope:
-                return isMode
-                    ? KeyGroup{ kScopeSceneDim, kScopeScene, kScopeScene }
-                    : KeyGroup{ kScopeSceneDim, kPerfActive, kPerfAccent };
+                return { kScopeSceneDim, kScopeScene, kScopeSceneAcc };
 
-            // --- Step-row modifiers (Scene, Master, Mute, Fill) ---
             case ControllerButton::MorphScope:
-                return isMode
-                    ? KeyGroup{ kScopeMorphDim, kScopeMorph, kScopeMorph }
-                    : KeyGroup{ kScopeMorphDim, kModActive,  kModAccent  };
+                return { kScopeMorphDim, kScopeMorph, kScopeMorphAcc };
 
             case ControllerButton::SongScope:
-                return isMode
-                    ? KeyGroup{ kScopeSongDim, kScopeSong, kScopeSong }
-                    : KeyGroup{ kScopeSongDim, kPerfActive,  kPerfAccent  };
+                return { kScopeSongDim, kScopeSong, kScopeSongAcc };
 
             case ControllerButton::MuteScope:
-                // When ModeActive, baseColour carries kScopePMute or kScopeMute depending on Func.
+                // ModeActive: baseColour carries kScopePMute (Func+Mute) or kScopeMute.
                 return isMode
                     ? KeyGroup{ kScopeMuteDim, c.baseColour, c.baseColour }
-                    : KeyGroup{ kScopeMuteDim, kModActive,   kModAccent   };
+                    : KeyGroup{ kScopeMuteDim, kScopeMute,   kScopeMuteAcc };
 
             case ControllerButton::FillScope:
-                return isMode
-                    ? KeyGroup{ kScopeFillDim, kScopeFill, kScopeFill }
-                    : KeyGroup{ kScopeFillDim, kPerfActive, kPerfAccent };
+                return { kScopeFillDim, kScopeFill, kScopeFillAcc };
 
             // --- Navigation ---
             case ControllerButton::NavUp:
@@ -78,22 +64,43 @@ namespace lockstep
             case ControllerButton::NavRight:
                 return { kNavInactive, kNavActive, kNavAccent };
 
-            // --- Verb keys ---
+            // --- Verb keys: neutral slate at rest; conventional colour on-active ---
             case ControllerButton::VerbYes:
+                // Y = Snapshot. ModeActive not currently used; resting is always slate.
+                return { kVerbInactive, kVerbSnapActive, kVerbSnapAccent };
+
             case ControllerButton::VerbNo:
-                return { kActInactive, kActActive, kActAccent };
+                // P = Yes/confirm. Neutral slate resting.
+                return { kVerbInactive, kVerbActive, kVerbAccent };
 
             case ControllerButton::VerbRecord:
-                // OD armed: baseColour carries the amber active colour.
-                if (c.baseColour == 0xFFD2821Eu)
-                    return { 0xFF2E1E08u, 0xFFD2821Eu, 0xFFE0A040u };
-                return { kRecInactive, kRecActive, kRecAccent };
+                // OD armed: baseColour carries the amber sentinel.
+                if (c.baseColour == kVerbODActive)
+                    return { 0xFF2E1E08u, kVerbODActive, kVerbODAccent };
+                // Armed (ModeActive) → red; otherwise neutral slate.
+                return isMode
+                    ? KeyGroup{ kVerbInactive, kVerbRecActive, kVerbRecAccent }
+                    : KeyGroup{ kVerbInactive, kVerbActive,    kVerbAccent    };
 
             case ControllerButton::VerbPlay:
-                return { kTrnInactive, kTrnActive, kTrnAccent };
+                // Playing (ModeActive) → green; otherwise neutral slate.
+                return isMode
+                    ? KeyGroup{ kVerbInactive, kVerbPlayActive, kVerbPlayAccent }
+                    : KeyGroup{ kVerbInactive, kVerbActive,     kVerbAccent     };
 
-            case ControllerButton::VerbStop:   // PANIC / clear — red, not green
-                return { kPanicInactive, kPanicActive, kPanicAccent };
+            case ControllerButton::VerbStop:
+                // Legacy — no key emits this anymore. Show as neutral.
+                return { kVerbInactive, kVerbActive, kVerbAccent };
+
+            case ControllerButton::VerbClear:
+                // O = Clear. ModeActive would indicate a pending-confirm prompt.
+                return isMode
+                    ? KeyGroup{ kVerbInactive, kVerbClearActive, kVerbClearAccent }
+                    : KeyGroup{ kVerbInactive, kVerbActive,      kVerbAccent      };
+
+            case ControllerButton::VerbDelete:
+            case ControllerButton::VerbPanic:
+                return { kVerbInactive, kVerbClearActive, kVerbClearAccent };
 
             // --- Section keys (canonical TRIG/SRC/FILTER/AMP/MOD/FX) ---
             case ControllerButton::Section:

@@ -196,7 +196,7 @@ namespace lockstep
         const bool col2any = ui.trackHeld || ui.sceneHeld || ui.songHeld || ui.fillHeld;
         const bool hasCompound = (ui.funcHeld && (col1any || col2any))
                                || (col1any && col2any);
-        static constexpr uint32_t kAmberStrip = 0xFFD0A020u;
+        // (kAmberStrip lives in UITheme.h)
 
         // =====================================================================
         // Modifier helper: fill a step-row or number-row modifier cell.
