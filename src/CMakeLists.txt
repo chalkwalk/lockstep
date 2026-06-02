@@ -93,7 +93,6 @@ target_sources(Lockstep
         ui/InPluginTransport.cpp
         ui/ManipulationZone.cpp
         ui/SamplePoolOverlay.cpp
-        ui/MachineSelectOverlay.cpp
         ui/SoundBankOverlay.cpp
         ui/StandaloneTempoBar.cpp)
 

@@ -72,9 +72,6 @@ namespace lockstep
         // Fork the active Part (make it unique). Gesture: Func+Y. (MD.5)
         ForkPart,
 
-        // Open / close the machine selector overlay. Gesture: Func+R. (MGX.6)
-        MachineSelect,
-
         // Transport / utility.
         RecordArm,       // key 9 (Func not held)
         TapTempo,        // key P (Func not held)

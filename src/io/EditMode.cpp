@@ -81,7 +81,6 @@ namespace lockstep
             case ControllerButton::SelectTrack:
             case ControllerButton::ToggleMute:
             case ControllerButton::ForkPart:
-            case ControllerButton::MachineSelect:
             case ControllerButton::RecordArm:
             case ControllerButton::TapTempo:
             case ControllerButton::MetronomeToggle:

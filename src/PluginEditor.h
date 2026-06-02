@@ -19,7 +19,6 @@
 #include "ui/KeyboardArea.h"
 #include "ui/ManipulationZone.h"
 #include "ui/SamplePoolOverlay.h"
-#include "ui/MachineSelectOverlay.h"
 #include "ui/SoundBankOverlay.h"
 #include "ui/StandaloneTempoBar.h"
 
@@ -147,6 +146,18 @@ namespace lockstep
                    kNumTracks> soloAttachments_;
         KeyboardArea keyboardArea_;
         ManipulationZone manipulationZone_;  // after keyboardArea_ — ctor takes KeyboardArea&
+
+        // Transparent layer that draws the empty-track grey-out hints. Declared
+        // before poolOverlay_ / soundBankOverlay_ so addAndMakeVisible inserts it
+        // below them in JUCE's z-order, letting the popups always paint on top.
+        struct GreyoutLayer : juce::Component
+        {
+            std::function<void(juce::Graphics&)> onPaint;
+            GreyoutLayer() { setInterceptsMouseClicks(false, false); }
+            void paint(juce::Graphics& g) override { if (onPaint) onPaint(g); }
+        };
+        GreyoutLayer greyoutLayer_;
+
         SamplePoolOverlay poolOverlay_;      // after processor_ — ctor takes LockstepProcessor&
 
         GridDisplayMode gridMode_ = GridDisplayMode::Ortholinear;
@@ -185,7 +196,6 @@ namespace lockstep
         juce::TextButton poolBtn_{ "Pool..." };
         juce::TextButton soundBankBtn_{ "SND..." };
         SoundBankOverlay soundBankOverlay_;
-        MachineSelectOverlay machineSelectOverlay_;
         bool isDraggingFiles_ = false;
 
         // MHX.5: vertical crossfader to the right of the encoder band (Scene A top / B bottom).

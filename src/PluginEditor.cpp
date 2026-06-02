@@ -15,8 +15,7 @@ namespace lockstep
           keyboardArea_(proc, uiState_),
           manipulationZone_(proc, keyboardArea_),
           poolOverlay_(proc),
-          soundBankOverlay_(proc),
-          machineSelectOverlay_(proc)
+          soundBankOverlay_(proc)
     {
         // Load persisted display mode.
         {
@@ -160,6 +159,32 @@ namespace lockstep
         addAndMakeVisible(manipulationZone_);
         addAndMakeVisible(keyboardArea_);
 
+        greyoutLayer_.onPaint = [this](juce::Graphics& g)
+        {
+            const juce::Colour emptyGrey { juce::uint32(0x66444444u) };
+            g.setColour(emptyGrey);
+
+            // (A) per-empty-track strip = number button ∪ mute ∪ solo.
+            for (std::size_t t = 0; t < kNumTracks; ++t)
+            {
+                if (!trackBtns_[t].isVisible()) continue;
+                if (!processor_.isTrackEmpty(static_cast<int>(t))) continue;
+                g.fillRect(trackBtns_[t].getBounds()
+                               .getUnion(muteBtns_[t].getBounds())
+                               .getUnion(soloBtns_[t].getBounds()));
+            }
+
+            // (B) focused track empty → grey the edit area (not the strip rows).
+            const int at = keyboardArea_.getActiveTrack();
+            if (at >= 0 && at < static_cast<int>(kNumTracks)
+                && processor_.isTrackEmpty(at))
+            {
+                g.fillRect(manipulationZone_.getBounds().getUnion(crossfader_.getBounds()));
+                g.fillRect(keyboardArea_.getBounds());
+            }
+        };
+        addAndMakeVisible(greyoutLayer_);
+
         poolBtn_.setWantsKeyboardFocus(false);
         poolBtn_.onClick = [this]
         {
@@ -185,10 +210,6 @@ namespace lockstep
         soundBankOverlay_.onClose = [this] { soundBankOverlay_.setVisible(false); };
         soundBankOverlay_.getActiveTrack = [this]() { return keyboardArea_.getActiveTrack(); };
         addChildComponent(soundBankOverlay_);
-
-        machineSelectOverlay_.onClose = [this] { machineSelectOverlay_.setVisible(false); };
-        machineSelectOverlay_.getActiveTrack = [this]() { return keyboardArea_.getActiveTrack(); };
-        addChildComponent(machineSelectOverlay_);
 
         manipulationZone_.onOpenPoolManager = [this]
         {
@@ -452,35 +473,6 @@ namespace lockstep
         // Persistent per-track state overlays FIRST — they must show in every mode
         // (incl. the unmodified resting state). The held-context preview below
         // early-returns when nothing is held, so these have to precede it.
-
-        // ---- Empty-track greying (visual hint only; controls still work) ----
-        // Two non-overlapping overlays at the same translucent grey so the alpha
-        // never doubles: (A) each empty track's strip; (B) when the *focused*
-        // track is empty, the edit surfaces (MZ + crossfader + KeyboardArea),
-        // which sit above/below the strip rows and so don't overlap (A).
-        {
-            const juce::Colour emptyGrey { juce::uint32(0x66444444u) };  // #4446 RGBA
-            g.setColour(emptyGrey);
-
-            // (A) per-empty-track strip = number button ∪ mute ∪ solo.
-            for (std::size_t t = 0; t < kNumTracks; ++t)
-            {
-                if (!trackBtns_[t].isVisible()) continue;
-                if (!processor_.isTrackEmpty(static_cast<int>(t))) continue;
-                g.fillRect(trackBtns_[t].getBounds()
-                               .getUnion(muteBtns_[t].getBounds())
-                               .getUnion(soloBtns_[t].getBounds()));
-            }
-
-            // (B) focused track empty → grey the edit area (not the strip rows).
-            const int at = keyboardArea_.getActiveTrack();
-            if (at >= 0 && at < static_cast<int>(kNumTracks)
-                && processor_.isTrackEmpty(at))
-            {
-                g.fillRect(manipulationZone_.getBounds().getUnion(crossfader_.getBounds()));
-                g.fillRect(keyboardArea_.getBounds());
-            }
-        }
 
         // ---- Deviation badge: an amber corner triangle on every track playing
         // off its scene's home (global) phrase (DESIGN §4.7) — persistent in the
@@ -936,7 +928,6 @@ namespace lockstep
             case CB::SelectTrack:
             case CB::ToggleMute:
             case CB::ForkPart:
-            case CB::MachineSelect:
             case CB::RecordArm:
             case CB::TapTempo:
             case CB::MetronomeToggle:
@@ -1987,12 +1978,6 @@ namespace lockstep
                 // Part fork removed in Phase 7; gesture is a no-op until repurposed.
                 return true;
 
-            case ControllerButton::MachineSelect:
-                machineSelectOverlay_.setVisible(!machineSelectOverlay_.isVisible());
-                if (machineSelectOverlay_.isVisible())
-                    machineSelectOverlay_.toFront(false);
-                return true;
-
             case ControllerButton::MetronomeToggle:
                 processor_.clock().setMetronomeEnabled(!processor_.clock().isMetronomeEnabled());
                 return true;
@@ -2333,7 +2318,6 @@ namespace lockstep
             case CB::SelectTrack:
             case CB::ToggleMute:
             case CB::ForkPart:
-            case CB::MachineSelect:
             case CB::RecordArm:
             case CB::TapTempo:
             case CB::MetronomeToggle:
@@ -2518,14 +2502,14 @@ namespace lockstep
         // and the nav row. Give it the remaining space; it handles the internal layout.
         keyboardArea_.setBounds(bounds);
 
+        greyoutLayer_.setBounds(getLocalBounds());
+
         poolOverlay_.setBounds(manipulationZone_.getBounds()
             .withBottom(keyboardArea_.getY() + keyboardArea_.stepRowsLocalY()));
 
         soundBankOverlay_.setBounds(manipulationZone_.getBounds()
             .withBottom(keyboardArea_.getY() + keyboardArea_.stepRowsLocalY()));
 
-        machineSelectOverlay_.setBounds(manipulationZone_.getBounds()
-            .withBottom(keyboardArea_.getY() + keyboardArea_.stepRowsLocalY()));
     }
 
     // -------------------------------------------------------------------------
