@@ -942,6 +942,9 @@ namespace lockstep
             case CB::MetronomeToggle:
             case CB::PlayStop:
             case CB::StopReset:
+            case CB::VerbClear:
+            case CB::VerbDelete:
+            case CB::VerbPanic:
             case CB::None:
                 break;
         }

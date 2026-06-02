@@ -87,6 +87,9 @@ namespace lockstep
             case ControllerButton::MetronomeToggle:
             case ControllerButton::PlayStop:
             case ControllerButton::StopReset:
+            case ControllerButton::VerbClear:
+            case ControllerButton::VerbDelete:
+            case ControllerButton::VerbPanic:
             case ControllerButton::None:
                 return false;
         }

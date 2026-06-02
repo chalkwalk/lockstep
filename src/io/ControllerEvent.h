@@ -10,12 +10,12 @@ namespace lockstep
     //
     // 10x4 layout (MHX shape, MHY identities; DESIGN §33, §5.5):
     //   Left two columns = eight modifier cluster (MHY frequency-of-use order):
-    //     Col 1 (1/Q/A/Z): Func / Pattern / Scene / Mute
-    //     Col 2 (2/W/S/X): Track / Part / Master / Fill
+    //     Col 1 (1/Q/A/Z): Func / Phrase / Morph / Mute
+    //     Col 2 (2/W/S/X): Track / Scene / Song / Fill
     //   Right 8x4 functional block:
     //     Row 1 (3-0): TAP(3), NavUp(4), six canonical sections(5-0)
     //     Row 2 (E-P): NavLeft(E), NavDown(R), NavRight(T),
-    //                  Yes(Y), Rec(U), Play(I), Stop(O), No(P)
+    //                  Snapshot(Y), Rec(U), Play(I), Clear(O), Yes(P)
     //     Row 3 (D-;):       steps 0-7
     //     Row 4 (C-/):       steps 8-15
     //   Cue is reserved as a scope (§31) but is not bound to a cluster key
@@ -38,15 +38,20 @@ namespace lockstep
         CueScope,
 
         // Verb keys (MHY: primary layer Y/U/I/O/P; meaning changes with active scope).
-        VerbYes,          // key Y: affirmative verb (confirm, assign, push checkpoint via Func)
-        VerbRecord,       // key U: record / copy / capture (transport arm when no scope)
-        VerbPlay,         // key I: play / paste (transport play/stop when no scope)
-        VerbStop,         // key O: stop / clear (transport stop-and-reset via Func; no scope = stop)
-        VerbNo,           // key P: negative / cancel (pop checkpoint via Func+P)
+        VerbYes,          // key Y: Snapshot (push checkpoint); under scope = scope snapshot; Func+Y = Restore
+        VerbRecord,       // key U: Record / arm overdub; under scope = Copy
+        VerbPlay,         // key I: Play/Pause (double-tap = Stop-to-top); under scope = Paste; Func+I = Panic
+        VerbStop,         // key O: (legacy — superseded by VerbClear; kept for ABI stability)
+        VerbNo,           // key P: Yes / confirm prompt; Func+P = No / cancel
 
         // Checkpoint operations — triggered via Func+verb layer.
-        Snapshot,         // Func+Y: push checkpoint
-        Restore,          // Func+P: pop checkpoint
+        Snapshot,         // Func+Y: push checkpoint (now primary Y)
+        Restore,          // Func+Y: pop checkpoint (Func+Y)
+
+        // New verb keys appended for colour-rethink (ABI: add-only, never reorder).
+        VerbClear,        // key O: Clear active operand; under scope = clear scope contents; Func+O = Delete
+        VerbDelete,       // Func+O: delete the active entity (requires confirm via VerbYes/VerbNo)
+        VerbPanic,        // Func+I: kill all voices + hard stop
 
         // Navigation (E=Left, R=Up, T=Down, Y=Right).
         NavUp, NavLeft, NavDown, NavRight,
