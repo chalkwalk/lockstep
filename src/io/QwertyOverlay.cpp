@@ -39,11 +39,11 @@ namespace lockstep
             { code('R'), B::NavDown,    -1 },
             { code('T'), B::NavRight,   -1 },
 
-            // Right-utility verbs (MHY.4): Yes / Rec / Play / Stop / No
+            // Right-utility verbs (MHY.4): Snapshot / Rec / Play / Clear / Yes
             { code('Y'), B::VerbYes,    -1 },
             { code('U'), B::VerbRecord, -1 },
             { code('I'), B::VerbPlay,   -1 },
-            { code('O'), B::VerbStop,   -1 },
+            { code('O'), B::VerbClear,  -1 },
             { code('P'), B::VerbNo,     -1 },
 
             // Step grid row 1 (D-; = steps 0-7)
@@ -71,7 +71,7 @@ namespace lockstep
         // Keys not listed here fall through to the primary table.
         // Nav arrows (E/R/T) fall through to primary (NavLeft/Down/Right) so the
         // builder-level Func-promotion (rotate/double/halve) handles them.
-        constexpr std::array<Entry, 11> kFunc = { {
+        constexpr std::array<Entry, 12> kFunc = { {
             // Meta sections (keys 5-0)
             { code('5'), B::MetaSection,       0 },
             { code('6'), B::MetaSection,       1 },
@@ -82,12 +82,12 @@ namespace lockstep
 
             // Nav arrows E/R/T/4 all fall through to primary nav so the builder-level
             // Func-promotion handles them (rotate-left / ÷2 / rotate-right / ×2).
-            // StopReset remains available on Func+O below.
-            { code('Y'), B::Snapshot,         -1 },  // Func+Y(Yes) = push checkpoint (MHY.4)
-            { code('3'), B::MetronomeToggle,  -1 },  // Func+3(TAP) = metronome toggle
-            { code('O'), B::StopReset,        -1 },  // Func+O(Stop) = stop+reset (MHY.4)
-            { code('P'), B::Restore,          -1 },  // Func+P(No)  = pop checkpoint (MHY.4)
-            { code('U'), B::ForkPart,         -1 },  // Func+U(Rec) = fork active Part (placeholder)
+            { code('Y'), B::Restore,          -1 },  // Func+Y(Snap) = pop checkpoint (Restore)
+            { code('3'), B::MetronomeToggle,  -1 },  // Func+3(TAP)  = metronome toggle
+            { code('I'), B::VerbPanic,        -1 },  // Func+I(Play) = panic (kill voices)
+            { code('O'), B::VerbDelete,       -1 },  // Func+O(Clear)= delete entity (+ confirm)
+            { code('P'), B::VerbNo,           -1 },  // Func+P(Yes)  = No / cancel confirm
+            { code('U'), B::ForkPart,         -1 },  // Func+U(Rec)  = fork active Part (placeholder)
         } };
 
         // Track layer — applied when Track (key Q) is held.

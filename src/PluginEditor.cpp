@@ -1040,7 +1040,6 @@ namespace lockstep
                 uiState_.trackHeld = true;
                 // Func+Track = machine/Kit picker (§4.7.2): arm when Track pressed with Func held.
                 uiState_.funcTrackHeld = uiState_.funcHeld;
-                noHeld_ = false;  // reset delete-qualifier on each Track press
                 processor_.setControlAllActive(true);  // MD.10: active until a track is selected
                 editMode_.onScopeEvent(ev);
                 handleModifierTap(CB::TrackScope, uiState_.latch.track);
@@ -1512,14 +1511,7 @@ namespace lockstep
                     keyboardArea_.repaint();
                     return true;
                 }
-                // Track + No (held) + step = delete that track.
-                if (noHeld_ && uiState_.trackHeld)
-                {
-                    processor_.pushCheckpoint();
-                    processor_.deleteTrack(ev.index);
-                    repaint();
-                    return true;
-                }
+                // (Track + No delete gesture removed; use Track + Func+O to delete.)
                 if (uiState_.trackHeld && processor_.isTrackEmpty(ev.index))
                 {
                     // Track+empty step = copy current track's machine+params (no steps).
@@ -1658,11 +1650,17 @@ namespace lockstep
             case ControllerButton::VerbPlay:
             {
                 using PS = EditMode::PrimaryScope;
-                // Scope held → grammar verb (e.g. paste).  No scope → play/stop.
+                // Scope held → grammar verb (Paste).
                 if (editMode_.primaryScope() != PS::None
                     && editMode_.primaryScope() != PS::Func)
                 {
                     editMode_.onVerb(ev.button);
+                    return true;
+                }
+                // Func+I (no non-trivial scope) = Panic.
+                if (editMode_.scopeState().func)
+                {
+                    processor_.requestPanic();
                     return true;
                 }
                 if (playKeyHeld_) return true;  // ignore key repeat
@@ -1688,22 +1686,20 @@ namespace lockstep
             }
 
             case ControllerButton::VerbStop:
+                // Legacy — superseded by VerbClear on the O key; nothing emits this anymore.
+                return true;
+
+            case ControllerButton::VerbClear:
             {
                 using PS = EditMode::PrimaryScope;
-                // Part + Stop: cancel queued Section launch (Phase 7).
+                // Scene scope held → cancel queued scene.
                 if (uiState_.sceneHeld)
                 {
                     processor_.cancelQueuedScene();
                     repaint();
                     return true;
                 }
-                // Scope held → grammar verb (e.g. clear).  No scope → panic.
-                if (editMode_.primaryScope() != PS::None
-                    && editMode_.primaryScope() != PS::Func)
-                {
-                    editMode_.onVerb(ev.button);
-                    return true;
-                }
+                // Phrase scope → cancel queued pattern.
                 if (uiState_.phraseScopeHeld)
                 {
                     processor_.cancelQueuedPattern();
@@ -1711,10 +1707,55 @@ namespace lockstep
                     repaint();
                     return true;
                 }
-                // No scope: panic — flush voices + All-Notes-Off without moving the playhead.
-                processor_.requestPanic();
+                // Non-trivial scope → grammar verb (Clear scope contents).
+                if (editMode_.primaryScope() != PS::None
+                    && editMode_.primaryScope() != PS::Func)
+                {
+                    editMode_.onVerb(ev.button);
+                    return true;
+                }
+                // No scope: clear the active P-Lock slot if one is active.
+                {
+                    auto& ctx = processor_.editContext();
+                    if (ctx.isActiveForEditing() && ctx.activeSlot() >= 0)
+                    {
+                        processor_.clearParam(ctx.heldTrackIndex(),
+                                              ctx.heldStepIndex(),
+                                              ctx.activeSlot());
+                        ctx.markParamWritten();
+                    }
+                }
                 return true;
             }
+
+            case ControllerButton::VerbDelete:
+            {
+                using PS = EditMode::PrimaryScope;
+                // Build a description of the entity to delete based on current scope.
+                juce::String entityName;
+                switch (editMode_.primaryScope())
+                {
+                    case PS::Track:
+                        entityName = "Track " + juce::String(keyboardArea_.getActiveTrack() + 1);
+                        break;
+                    case PS::Phrase:
+                        entityName = "Pattern " + juce::String(processor_.activePatternIdx() + 1);
+                        break;
+                    case PS::Scene:
+                        entityName = "Part";
+                        break;
+                    default:
+                        return true;  // No operand — inert.
+                }
+                pendingConfirm_ = PendingConfirm::Delete;
+                setStatus("Delete " + entityName + "?  P=Yes  Func+P=No");
+                keyboardArea_.repaint();
+                return true;
+            }
+
+            case ControllerButton::VerbPanic:
+                processor_.requestPanic();
+                return true;
 
             case ControllerButton::VerbRecord:
             {
@@ -1754,8 +1795,9 @@ namespace lockstep
             }
 
             case ControllerButton::VerbYes:
-                yesHeld_ = true;
-                // Part + Yes: re-sync all musicians to the current Section (Phase 7).
+            {
+                using PS = EditMode::PrimaryScope;
+                // Y = Snapshot. Under scene scope → re-sync all to scene (scope-specific snapshot).
                 if (uiState_.sceneHeld)
                 {
                     processor_.resyncAllToScene();
@@ -1763,37 +1805,106 @@ namespace lockstep
                     keyboardArea_.repaint();
                     return true;
                 }
-                // Double-tap Yes with no scope = drop top checkpoint (discard without restoring).
-                // First tap pushes (non-destructive), so net effect of successful double is a no-op.
-                if (editMode_.primaryScope() == EditMode::PrimaryScope::None
-                    || editMode_.primaryScope() == EditMode::PrimaryScope::Func)
+                // Non-trivial scope → scope-specific snapshot via dispatchVerb.
+                if (editMode_.primaryScope() != PS::None
+                    && editMode_.primaryScope() != PS::Func)
                 {
-                    const double now = juce::Time::getMillisecondCounterHiRes();
-                    const bool isDbl = doubleTap_.recordAndCheck(
-                        1000 + static_cast<int>(ControllerButton::VerbYes), now);
-                    if (isDbl)
-                    {
-                        // Drop the checkpoint pushed by tap 1, then drop the
-                        // pre-existing top (the one from e.g. a delete operation).
-                        processor_.dropCheckpoint();
-                        processor_.dropCheckpoint();
-                        return true;
-                    }
+                    editMode_.onVerb(ev.button);
+                    return true;
                 }
-                editMode_.onVerb(ev.button);
+                // No scope → push checkpoint (Snapshot).
+                processor_.pushCheckpoint();
+                repaint();
                 return true;
+            }
 
             case ControllerButton::VerbNo:
-                // Track scope held: No becomes a held qualifier for the delete gesture.
-                // Pressing a step while noHeld_ deletes that track (handled in SelectTrack).
-                if (uiState_.trackHeld)
+            {
+                using PS = EditMode::PrimaryScope;
+                const bool funcHeld = editMode_.scopeState().func;
+
+                // Both primary P (Yes/confirm) and Func+P (No/cancel) arrive here as VerbNo.
+                // Distinguish by whether Func is held.
+
+                // Pending-confirm: P = execute, Func+P = cancel.
+                if (pendingConfirm_ != PendingConfirm::None)
                 {
-                    noHeld_ = true;
+                    if (!funcHeld)
+                    {
+                        // Execute the pending delete against the current scope.
+                        switch (editMode_.primaryScope())
+                        {
+                            case PS::Track:
+                            {
+                                const int t = keyboardArea_.getActiveTrack();
+                                if (t >= 0 && t < static_cast<int>(kNumTracks))
+                                {
+                                    processor_.pushCheckpoint();
+                                    processor_.deleteTrack(t);
+                                    setStatus("Deleted Track " + juce::String(t + 1));
+                                }
+                                break;
+                            }
+                            case PS::Phrase:
+                            {
+                                auto& pat = processor_.activePattern();
+                                processor_.pushCheckpoint();
+                                for (auto& trk : pat.sequence.tracks)
+                                {
+                                    for (auto& s : trk.steps)
+                                    {
+                                        s.trig           = false;
+                                        s.condition      = TrigCondition{};
+                                        s.overrides      = PLock{};
+                                        s.trigOverride   = TrigOverride{};
+                                        s.fillTrigState  = FillTrigState::Off;
+                                        s.fillOverrides  = PLock{};
+                                        s.fillTrigOverride = TrigOverride{};
+                                    }
+                                }
+                                pat.patternMutes.fill(false);
+                                setStatus("Deleted Pattern " + juce::String(processor_.activePatternIdx() + 1));
+                                break;
+                            }
+                            case PS::Scene:
+                                processor_.pushCheckpoint();
+                                processor_.deletePart();
+                                releaseTransientLatch(CB::SceneScope);
+                                setStatus("Deleted Part");
+                                break;
+                            default:
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        setStatus("Cancelled");
+                    }
+                    pendingConfirm_ = PendingConfirm::None;
+                    repaint();
+                    return true;
+                }
+
+                // No pending confirm. P (no func) = Yes/confirm: set yesHeld_ for Mute+P+step solo.
+                if (!funcHeld)
+                {
+                    yesHeld_ = true;
                     keyboardArea_.repaint();
+                    editMode_.onVerb(ev.button);
+                    return true;
+                }
+
+                // Func+P = No/cancel. No scope → pop checkpoint (Restore-like legacy undo).
+                if (editMode_.primaryScope() == PS::None
+                    || editMode_.primaryScope() == PS::Func)
+                {
+                    processor_.popCheckpoint();
+                    repaint();
                     return true;
                 }
                 editMode_.onVerb(ev.button);
                 return true;
+            }
 
             case ControllerButton::Snapshot:
                 // Reserved while a section-suite scope is held (see helper above):
@@ -2202,15 +2313,17 @@ namespace lockstep
             }
 
             case CB::VerbYes:
-                yesHeld_ = false;
-                break;
+                break;  // Y = Snapshot; no held-state to clear.
 
             case CB::VerbNo:
-                noHeld_ = false;
+                yesHeld_ = false;  // P = Yes/confirm; clear the hold on key-up.
                 break;
 
             case CB::VerbRecord:
             case CB::VerbStop:
+            case CB::VerbClear:
+            case CB::VerbDelete:
+            case CB::VerbPanic:
             case CB::Snapshot:
             case CB::Restore:
             case CB::NavUp:
@@ -2487,7 +2600,7 @@ namespace lockstep
                         trk.steps[static_cast<std::size_t>(dst)] = entry.data;
                     }
                 }
-                else if (verb == CB::VerbStop)
+                else if (verb == CB::VerbClear)
                 {
                     const bool funcIsHeld = editMode_.scopeState().func;
                     const int  activeSlot = ctx.activeSlot();
@@ -2589,7 +2702,7 @@ namespace lockstep
                         }
                     }
                 }
-                else if (verb == CB::VerbStop)
+                else if (verb == CB::VerbClear)
                 {
                     for (int sl = 0; sl < numSlots; ++sl)
                     {
@@ -2624,7 +2737,7 @@ namespace lockstep
                     trk = clipboard_.clipTrack;
                     setStatus("Pasted → " + trkName);
                 }
-                else if (verb == CB::VerbStop)
+                else if (verb == CB::VerbClear)
                 {
                     // Clear steps; preserve length, divider, and base params.
                     for (auto& s : trk.steps)
@@ -2662,11 +2775,11 @@ namespace lockstep
                     pat.patternMutes = clipboard_.clipPatternMutes;
                     setStatus("Pasted → " + patName);
                 }
-                else if (verb == CB::VerbStop || verb == CB::VerbNo)
+                else if (verb == CB::VerbClear || verb == CB::VerbDelete)
                 {
-                    // Clear (Stop) and Delete (No) are identical for patterns:
+                    // Clear (VerbClear) and Delete (VerbDelete) are identical for patterns:
                     // empty sequence+mutes is the absent state.
-                    if (verb == CB::VerbNo) processor_.pushCheckpoint();
+                    if (verb == CB::VerbDelete) processor_.pushCheckpoint();
                     for (auto& trk : pat.sequence.tracks)
                     {
                         for (auto& s : trk.steps)
@@ -2687,20 +2800,11 @@ namespace lockstep
             }
 
             // -----------------------------------------------------------------------
-            // Part delete (No verb only; copy/paste/clear TBD once kit verbs are wired)
+            // Part delete (via confirm path; copy/paste/clear TBD once kit verbs are wired)
             // -----------------------------------------------------------------------
             case PS::Scene:
-            {
-                if (verb == CB::VerbNo)
-                {
-                    // Delete: return all tracks in active part to absent (StubMachine).
-                    processor_.pushCheckpoint();
-                    processor_.deletePart();
-                    releaseTransientLatch(CB::SceneScope);
-                    setStatus("Deleted Part");
-                }
+                // VerbDelete goes through the pending-confirm path in dispatchDown, not here.
                 break;
-            }
 
             case PS::Func:
             case PS::Mute:
@@ -2711,31 +2815,12 @@ namespace lockstep
                 break;
 
             case PS::None:
-            {
-                // VerbStop with no scope: clear the active-slot P-Lock.
-                if (verb == CB::VerbStop)
-                {
-                    auto& ctx = processor_.editContext();
-                    if (ctx.isActiveForEditing() && ctx.activeSlot() >= 0)
-                    {
-                        processor_.clearParam(ctx.heldTrackIndex(),
-                                              ctx.heldStepIndex(),
-                                              ctx.activeSlot());
-                        // Removing a P-Lock is an edit; suppress the release toggle.
-                        ctx.markParamWritten();
-                    }
-                }
-                // VerbYes / VerbNo with no scope: checkpoint push / pop.
-                else if (verb == CB::VerbYes)
-                {
+                // VerbYes (Y = Snapshot) with no scope: push checkpoint.
+                // VerbClear no-scope P-Lock clear is handled in dispatchDown.
+                // VerbNo (P = Yes/confirm) routing is handled in dispatchDown.
+                if (verb == CB::VerbYes)
                     processor_.pushCheckpoint();
-                }
-                else if (verb == CB::VerbNo)
-                {
-                    processor_.popCheckpoint();
-                }
                 break;
-            }
 
             default:
                 break;
