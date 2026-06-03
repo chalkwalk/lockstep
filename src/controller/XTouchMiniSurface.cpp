@@ -33,25 +33,32 @@ namespace lockstep
 
         // CellState is add-only: list all known tokens so the compiler warns
         // when a new token is added without updating the controller mapping.
+        //
+        // Three LED states:  0 = off,  1 = flash (cursor/selected),  127 = solid (occupied/active).
         switch (state)
         {
+            // Flash: "this is the cursor / currently selected item" — distinguishes
+            // selection from mere occupancy in list/picker/selector modes.
+            case CellState::StepHeld:           // step being held for P-Lock edit
+            case CellState::SelectorCurrent:    // selected phrase / pattern
+            case CellState::MachineCurrent:     // active machine in picker
+            case CellState::NoteEditActive:     // this note is present and active
+            case CellState::NoteEditStaged:     // staged for removal
+            case CellState::LengthBoundary:     // exact phrase-length boundary
+                return 1;
+
+            // Solid on: "this position is occupied / this mode is on".
             case CellState::StepTrigCertain:
             case CellState::StepTrigProbable:
-            case CellState::StepHeld:
             case CellState::StepFillAdd:
-            case CellState::SelectorCurrent:
             case CellState::SelectorOccupied:
             case CellState::SelectorNext:
             case CellState::SelectorChain:
             case CellState::SelectorDeviated:
             case CellState::SelectorHome:
-            case CellState::MachineCurrent:
             case CellState::MachineAvailable:
             case CellState::ModeActive:
             case CellState::Pressed:
-            case CellState::NoteEditActive:
-            case CellState::NoteEditStaged:
-            case CellState::LengthBoundary:
             case CellState::LengthInRun:
             case CellState::ChromaticWhite:
             case CellState::ChromaticBlack:
@@ -59,6 +66,7 @@ namespace lockstep
             case CellState::MuteAudible:
                 return 127;
 
+            // Off: empty, suppressed, out-of-range, muted, or background.
             case CellState::Resting:
             case CellState::FuncHeld:
             case CellState::Disabled:

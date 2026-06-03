@@ -2855,6 +2855,17 @@ namespace lockstep
 
         sink.emitEvent = [this](ControllerEvent ev)
         {
+            // Mirror QwertyOverlay::resolve() modifier priority for Step events:
+            // trackHeld → SelectTrack, muteHeld → ToggleMute (same index).
+            // This makes the controller equivalent to keyboard for these modes.
+            if (ev.button == ControllerButton::Step)
+            {
+                if (uiState_.trackHeld)
+                    ev.button = ControllerButton::SelectTrack;
+                else if (uiState_.muteHeld)
+                    ev.button = ControllerButton::ToggleMute;
+            }
+
             if (ev.type == ControllerEvent::Type::ButtonDown)
             {
                 pressTracker_.press(PressTracker::kControllerSource, ev.button, ev.index);
