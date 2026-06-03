@@ -24,3 +24,6 @@ add_subdirectory(src)
 
 # Headless unit tests
 add_subdirectory(tests)
+
+# Developer tools (probe app, etc.)
+add_subdirectory(tools)
