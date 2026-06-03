@@ -85,7 +85,7 @@ The note assignments are non-sequential — do not assume note N = step N.
 
 **Encoder delta range:** up to ±7 per message (accelerated encoder).
 
-**Button LED states — three levels via velocity:**
+**Button LED states — exactly three legal velocities:**
 
 | Velocity | LED state |
 |---|---|
@@ -93,8 +93,18 @@ The note assignments are non-sequential — do not assume note N = step N.
 | 1 | Flash (rapid blink — confirmed on all 18 buttons) |
 | 127 | Solid on |
 
-Velocities 2–126 appear to trigger the same flash as vel=1; solid on requires vel=127.
-There is no intermediate brightness. `SurfaceCell::level` cannot be expressed on this
-device; LED state maps to off/flash/on from `CellState`.
+**Any other velocity value leaves the LED unchanged** (the device ignores it and the
+LED stays in whatever state it was in). Only 0, 1, and 127 have any effect.
+There is no brightness gradient. `SurfaceCell::level` cannot be expressed on this
+device; LED state maps to off / flash / solid from `CellState`.
 
-**Encoder rings:** All four modes (single / boost-cut / wrap / spread) render correctly as documented.
+**Encoder LED ring modes — visual behaviour:**
+
+| Mode | `pm` bits | Visual behaviour |
+|---|---|---|
+| Single | `0x00` | Single dot at position — tick indicator (unipolar pointer) |
+| Boost/cut | `0x10` | Fills from the centre outward to the position — bipolar fill (left of centre = negative, right = positive) |
+| Wrap | `0x20` | Fills from the far-left up to the position — standard unipolar LED ring |
+| Spread | `0x30` | Fills outward from the centre in both directions to the position — width indicator |
+
+All four modes confirmed working on all 8 rings.
