@@ -197,9 +197,24 @@ namespace lockstep
         // Reads current MZ slot values directly from processor (SurfaceSlot not yet
         // in SurfaceModel; deferred to §35.8.5).
         const auto [track, slotBase] = getTrackAndSlot_();
+        const int numSlots = proc_.numParams(track);
         for (int enc = 0; enc < 8; ++enc)
         {
             const int absSlot = slotBase + enc;
+            const auto ri = static_cast<std::size_t>(enc);
+
+            // Slot out of range for this machine → ring off.
+            if (absSlot >= numSlots)
+            {
+                if (ringShadow_[ri] != 0)
+                {
+                    ringShadow_[ri] = 0;
+                    out.sendMessageNow(juce::MidiMessage::controllerEvent(
+                        1, kRingCCBase + enc, 0));
+                }
+                continue;
+            }
+
             const auto spec = proc_.paramSpec(track, absSlot);
             const float raw = proc_.baseParamValue(track, absSlot);
 
@@ -218,7 +233,6 @@ namespace lockstep
                 mode = 0x20;  // wrap — standard unipolar fill
 
             const uint8_t ringByte = static_cast<uint8_t>(mode | pos);
-            const auto    ri       = static_cast<std::size_t>(enc);
             if (ringByte != ringShadow_[ri])
             {
                 ringShadow_[ri] = ringByte;

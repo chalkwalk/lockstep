@@ -2869,10 +2869,12 @@ namespace lockstep
 
         sink.applyParamDelta = [this](int mzSlot, int rawDelta)
         {
-            const int   track   = keyboardArea_.getActiveTrack();
-            const int   absSlot = manipulationZone_.slotOffset() + mzSlot;
-            const auto  spec    = processor_.paramSpec(track, absSlot);
-            const float range   = spec.maxValue - spec.minValue;
+            const int track   = keyboardArea_.getActiveTrack();
+            const int absSlot = manipulationZone_.slotOffset() + mzSlot;
+            if (absSlot >= processor_.numParams(track)) return;
+
+            const auto  spec  = processor_.paramSpec(track, absSlot);
+            const float range = spec.maxValue - spec.minValue;
             if (range <= 0.0f) return;
 
             const float cur     = processor_.baseParamValue(track, absSlot);
@@ -2885,7 +2887,10 @@ namespace lockstep
 
         sink.resetSlot = [this](int mzSlot)
         {
+            const int track   = keyboardArea_.getActiveTrack();
             const int absSlot = manipulationZone_.slotOffset() + mzSlot;
+            if (absSlot >= processor_.numParams(track)) return;
+
             auto& ctx = processor_.editContext();
             if (ctx.isActiveForEditing())
             {
@@ -2893,8 +2898,8 @@ namespace lockstep
             }
             else
             {
-                const auto spec = processor_.paramSpec(keyboardArea_.getActiveTrack(), absSlot);
-                processor_.writeParam(keyboardArea_.getActiveTrack(), absSlot, spec.defaultValue);
+                const auto spec = processor_.paramSpec(track, absSlot);
+                processor_.writeParam(track, absSlot, spec.defaultValue);
             }
             ctx.markParamWritten();
         };

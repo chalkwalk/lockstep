@@ -851,19 +851,21 @@ namespace lockstep
         static constexpr int kCols = kMZSlots / 2;
         const int baseW   = getWidth() / kCols;
         const int narrowW = baseW * 7 / 8;
-        const int rowH    = getHeight() / 2;
+        const int rowH    = getHeight() * 9 / 20;
         const int upperX  = getWidth() - kCols * narrowW;
+        const int lowerY  = getHeight() - rowH;
         const bool pulse  = (juce::Time::getMillisecondCounter() / 300) % 2 == 0;
 
         juce::ignoreUnused(track);
 
         for (int i = 0; i < kMZSlots; ++i)
         {
-            const int slot = slotOffset_ + i;
-            const int row  = i / kCols;
-            const int ci   = i % kCols;
-            const int x    = (row == 0) ? upperX + ci * narrowW : ci * narrowW;
-            const juce::Rectangle<int> col (x, row * rowH, narrowW, rowH);
+            const int  slot    = slotOffset_ + i;
+            const bool isUpper = (i % 2 != 0);
+            const int  ci      = i / 2;
+            const int  x       = isUpper ? upperX + ci * narrowW : ci * narrowW;
+            const int  y       = isUpper ? 0 : lowerY;
+            const juce::Rectangle<int> col (x, y, narrowW, rowH);
 
             // Listening overlay: pulsing highlight on the slot being learned.
             if (i == learningSlotIndex_)
@@ -916,40 +918,37 @@ namespace lockstep
 
     void ManipulationZone::resized()
     {
-        // 4×2 staggered layout (MHX §26.2, §33.4):
-        // Each cell is 7/8 of the base column width (12.5% narrower).
-        // Lower row (row 1) is left-justified; upper row (row 0) is right-justified,
-        // so upper cell centres land near the right edge of each lower cell.
-        static constexpr int kCols   = kMZSlots / 2;  // 4
+        // Interleaved 4×2 layout: bottom row = even slots (0,2,4,6),
+        // top row = odd slots (1,3,5,7).  Visual L→R order is slot 0..7,
+        // so encoder N maps trivially to slot N (no interleave table).
+        // Each cell is 7/8 of the base column width; odd (upper) cells are
+        // shifted right to stagger, matching the original visual language.
+        // Rows are packed tighter (45% of height each) for a denser band.
+        static constexpr int kCols = kMZSlots / 2;  // 4
         auto bounds = getLocalBounds().reduced(4);
-        const int baseW  = bounds.getWidth() / kCols;
+        const int baseW   = bounds.getWidth() / kCols;
         const int narrowW = baseW * 7 / 8;
-        const int rowH    = bounds.getHeight() / 2;
+        const int rowH    = bounds.getHeight() * 9 / 20;  // 45% each → 10% gap
         const int upperX  = bounds.getX() + (bounds.getWidth() - kCols * narrowW);
+        const int lowerY  = bounds.getBottom() - rowH;
 
         for (int i = 0; i < kMZSlots; ++i)
         {
-            const auto si  = static_cast<std::size_t>(i);
-            const int  row = i / kCols;
-            const int  col = i % kCols;
+            const auto si      = static_cast<std::size_t>(i);
+            const bool isUpper = (i % 2 != 0);   // odd slots → upper row
+            const int  col     = i / 2;
 
-            const int x = (row == 0)
+            const int x = isUpper
                 ? upperX + col * narrowW           // upper: right-justified
                 : bounds.getX() + col * narrowW;   // lower: left-justified
+            const int y = isUpper ? bounds.getY() : lowerY;
 
-            auto cell = juce::Rectangle<int>(
-                x, bounds.getY() + row * rowH,
-                narrowW, rowH).reduced(2, 2);
+            auto cell = juce::Rectangle<int>(x, y, narrowW, rowH).reduced(2, 2);
 
-            // Top strip: param name left, clear button right.
             auto header = cell.removeFromTop(14);
             clearBtns_[si].setBounds(header.removeFromRight(16));
             labels_[si].setBounds(header);
-
-            // Bottom strip: value display.
             valueLabels_[si].setBounds(cell.removeFromBottom(10));
-
-            // Middle: rotary knob (bigger than old layout).
             sliders_[si].setBounds(cell);
             if (i == 0)
                 samplePickerBtn_.setBounds(cell.reduced(2, 2));
