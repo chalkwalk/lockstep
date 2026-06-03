@@ -4,6 +4,7 @@
 #include "machine/IMachine.h"
 #include "machine/SamplerMachine.h"
 #include "ui/ScopedSectionMatrix.h"
+#include "ui/SurfaceModel.h"
 #include <algorithm>
 
 namespace lockstep
@@ -248,6 +249,23 @@ namespace lockstep
         setSize(990, 596);  // MHX: taller for 4x2 MZ encoder band
         setWantsKeyboardFocus(true);
 
+        // Controller surface: bespoke X-Touch Mini integration (DESIGN §35 MVP).
+        xTouchSurface_ = std::make_unique<XTouchMiniSurface>(
+            processor_,
+            [this]() -> std::pair<int, int> {
+                return { keyboardArea_.getActiveTrack(), manipulationZone_.slotOffset() };
+            });
+
+        controllerPorts_.onStateChange = [this](bool open)
+        {
+            setStatus(open ? "Controller: X-Touch Mini connected"
+                           : "Controller: X-Touch Mini disconnected");
+            // Note: in standalone mode, ensure the X-Touch Mini is NOT also selected
+            // in JUCE's MIDI input dropdown — if it is, button-notes will also fire
+            // instruments. Programmatic deconfliction via StandalonePluginHolder is
+            // deferred; for now the user must deselect it in Audio/MIDI Settings.
+        };
+
         startTimerHz(30);  // diagnostic VU meters / activity blinks
     }
 
@@ -333,6 +351,20 @@ namespace lockstep
         if (nowPlaying != lastPlayingState_) { lastPlayingState_ = nowPlaying; dirty = true; }
 
         if (dirty) repaint();
+
+        // Controller: drain MIDI FIFO → surface.onInput(), then render feedback LEDs.
+        if (xTouchSurface_ && controllerPorts_.isOpen())
+        {
+            auto sink = buildControllerSink();
+            const auto model = buildSurfaceModel(uiState_,
+                                                  processor_.editContext(),
+                                                  &pressTracker_,
+                                                  processor_,
+                                                  keyboardArea_.getActiveTrack(),
+                                                  keyboardArea_.currentPage(),
+                                                  gridMode_);
+            controllerPorts_.drain(*xTouchSurface_, sink, model);
+        }
 
         // Reconcile: release any keyboard press whose key is no longer physically
         // down (catches stuck modifiers/steps after Alt-Tab or window deactivation).
@@ -2812,5 +2844,66 @@ namespace lockstep
 
         // Chrome must repaint after any verb that may change clipboard or checkpoint state.
         repaint();
+    }
+
+    // -------------------------------------------------------------------------
+    // Controller surface — sink construction
+
+    ControllerEventSink LockstepEditor::buildControllerSink()
+    {
+        ControllerEventSink sink;
+
+        sink.emitEvent = [this](ControllerEvent ev)
+        {
+            if (ev.type == ControllerEvent::Type::ButtonDown)
+            {
+                pressTracker_.press(PressTracker::kControllerSource, ev.button, ev.index);
+                dispatchDown(ev, PressTracker::kControllerSource);
+            }
+            else if (ev.type == ControllerEvent::Type::ButtonUp)
+            {
+                pressTracker_.release(PressTracker::kControllerSource);
+                dispatchUp(ev, PressTracker::kControllerSource);
+            }
+        };
+
+        sink.applyParamDelta = [this](int mzSlot, int rawDelta)
+        {
+            const int   track   = keyboardArea_.getActiveTrack();
+            const int   absSlot = manipulationZone_.slotOffset() + mzSlot;
+            const auto  spec    = processor_.paramSpec(track, absSlot);
+            const float range   = spec.maxValue - spec.minValue;
+            if (range <= 0.0f) return;
+
+            const float cur     = processor_.baseParamValue(track, absSlot);
+            const float norm    = juce::jlimit(0.0f, 1.0f, (cur - spec.minValue) / range);
+            const float newNorm = juce::jlimit(0.0f, 1.0f,
+                                               norm + static_cast<float>(rawDelta) / 128.0f);
+            processor_.writeParam(track, absSlot, spec.minValue + newNorm * range);
+            processor_.editContext().markParamWritten();
+        };
+
+        sink.resetSlot = [this](int mzSlot)
+        {
+            const int absSlot = manipulationZone_.slotOffset() + mzSlot;
+            auto& ctx = processor_.editContext();
+            if (ctx.isActiveForEditing())
+            {
+                processor_.clearParam(ctx.heldTrackIndex(), ctx.heldStepIndex(), absSlot);
+            }
+            else
+            {
+                const auto spec = processor_.paramSpec(keyboardArea_.getActiveTrack(), absSlot);
+                processor_.writeParam(keyboardArea_.getActiveTrack(), absSlot, spec.defaultValue);
+            }
+            ctx.markParamWritten();
+        };
+
+        sink.setCrossfader = [this](float normValue)
+        {
+            crossfader_.setValue(static_cast<double>(normValue), juce::sendNotificationAsync);
+        };
+
+        return sink;
     }
 }

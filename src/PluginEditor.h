@@ -7,8 +7,11 @@
 #include <vector>
 
 #include "PluginProcessor.h"
+#include "controller/IControllerSurface.h"
+#include "controller/XTouchMiniSurface.h"
 #include "io/Clipboard.h"
 #include "io/ControllerEvent.h"
+#include "io/ControllerPortManager.h"
 #include "io/DoubleTapDetector.h"
 #include "io/EditMode.h"
 #include "io/PressTracker.h"
@@ -181,7 +184,7 @@ namespace lockstep
         void applyDisplayMode(GridDisplayMode mode);
 
         // Unified input dispatch — both keyPressed and mouse callbacks route here.
-        // rawCode = physical key code (keyboard) or 0 (mouse).
+        // rawCode = physical key code (keyboard), 0 (mouse), or kControllerSource.
         bool dispatchDown(ControllerEvent ev, int rawCode = 0);
         void dispatchUp  (ControllerEvent ev, int rawCode = 0);
         void handleTapTempo();
@@ -200,6 +203,11 @@ namespace lockstep
 
         // MHX.5: vertical crossfader to the right of the encoder band (Scene A top / B bottom).
         juce::Slider crossfader_;
+
+        // Controller surface integration (Phase 6.6 / DESIGN §35).
+        ControllerPortManager              controllerPorts_{ "X-TOUCH MINI" };
+        std::unique_ptr<XTouchMiniSurface> xTouchSurface_;
+        ControllerEventSink buildControllerSink();
 
         void updateTransportGhosting();
 

@@ -13,9 +13,10 @@ namespace lockstep
     // can push decoded events and param writes without coupling to the editor.
     struct ControllerEventSink
     {
-        std::function<void(ControllerEvent)>      emitEvent;       // injects into editor dispatch
-        std::function<void(int mzSlot, float d)>  applyParamDelta; // relative MZ slot write (normalised)
-        std::function<void(float normValue)>       setCrossfader;   // sets crossfader to 0..1
+        std::function<void(ControllerEvent)>           emitEvent;       // injects into editor dispatch
+        std::function<void(int mzSlot, int rawDelta)>  applyParamDelta; // encoder delta → MZ slot write
+        std::function<void(int mzSlot)>                resetSlot;       // double-click reset to default
+        std::function<void(float normValue)>           setCrossfader;   // sets crossfader to 0..1
     };
 
     // Authoring seam for hardware controller surfaces (§35.8.4 / DESIGN §35).

@@ -14,7 +14,8 @@ namespace lockstep
     class PressTracker
     {
     public:
-        static constexpr int kMouseSource = 0;  // keyboard uses positive raw key codes
+        static constexpr int kMouseSource      = 0;   // keyboard uses positive raw key codes
+        static constexpr int kControllerSource = -1;  // hardware controller (distinct from mouse/keyboard)
 
         // Register a button-down.  source = rawKeyCode (keyboard) or kMouseSource (mouse).
         void press(int source, ControllerButton button, int index = -1)
@@ -59,7 +60,7 @@ namespace lockstep
         {
             for (const auto& [src, entry] : entries_)
             {
-                if (src == kMouseSource)
+                if (src <= 0)   // skip kMouseSource (0) and kControllerSource (-1)
                     continue;
                 if (!juce::KeyPress::isKeyCurrentlyDown(src))
                     fn(src, entry.button, entry.index);
