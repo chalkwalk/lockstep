@@ -26,6 +26,7 @@ add_library(lockstep_core STATIC
     io/AbsoluteCC.cpp
     io/RelativeCC.cpp
     io/CCMappingTable.cpp
+    io/ControllerPortManager.cpp
     io/MidiClockReceiver.cpp
     io/MidiInput.cpp
     io/EditMode.cpp
