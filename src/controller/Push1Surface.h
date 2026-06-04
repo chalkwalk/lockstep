@@ -55,7 +55,8 @@ namespace lockstep
 
         // Colour-space helpers
         static uint8_t rgbPaletteFor(CellState state, const CellDecoration& border,
-                                     const CellDecoration& pip, float level) noexcept;
+                                     const CellDecoration& pip, float level,
+                                     uint32_t baseColour = 0) noexcept;
         static uint8_t biColourFor(CellState state) noexcept;
         static uint8_t monoFor(CellState state) noexcept;
 

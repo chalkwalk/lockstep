@@ -2894,7 +2894,24 @@ namespace lockstep
             const float range = spec.maxValue - spec.minValue;
             if (range <= 0.0f) return;
 
-            const float cur     = processor_.baseParamValue(track, absSlot);
+            // Read the OEB-resolved current value (Override-ELSE-Base) so that
+            // encoder deltas accumulate correctly when P-lock editing is active.
+            // Without this, every turn would restart from the track base value
+            // causing the parameter to oscillate instead of advancing.
+            float cur = processor_.baseParamValue(track, absSlot);
+            const auto& ec = processor_.editContext();
+            if (ec.isActiveForEditing() && ec.heldTrackIndex() == track)
+            {
+                const int heldStep = ec.heldStepIndex();
+                if (heldStep >= 0)
+                {
+                    const auto& s = processor_.sequence()
+                        .tracks[static_cast<std::size_t>(track)]
+                        .steps[static_cast<std::size_t>(heldStep)];
+                    cur = s.overrides.get(absSlot, cur);
+                }
+            }
+
             const float norm    = juce::jlimit(0.0f, 1.0f, (cur - spec.minValue) / range);
             const float newNorm = juce::jlimit(0.0f, 1.0f,
                                                norm + static_cast<float>(rawDelta) / 128.0f);
