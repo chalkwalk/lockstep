@@ -1,4 +1,5 @@
 #include "ManipulationZone.h"
+#include "ParamFormat.h"
 #include "../ParameterIDs.h"
 #include "../PluginProcessor.h"
 #include "../core/TrigCondition.h"
@@ -219,29 +220,6 @@ namespace lockstep
             repaint();
     }
 
-    static juce::String formatValue(float v, ParamSpec::Unit unit, bool isStepped)  // NOLINT
-    {
-        if (isStepped)
-            return juce::String(static_cast<int>(std::round(v)));
-
-        switch (unit)
-        {
-            case ParamSpec::Unit::Ms:
-                return v < 10.0f ? juce::String(v, 1) + " ms"
-                                 : juce::String(static_cast<int>(v)) + " ms";
-            case ParamSpec::Unit::Semitones:
-            {
-                const int st = static_cast<int>(std::round(v));
-                return (st >= 0 ? "+" : "") + juce::String(st) + " st";
-            }
-            case ParamSpec::Unit::Percent:
-                return juce::String(static_cast<int>(v * 100.0f)) + "%";
-            case ParamSpec::Unit::None:
-            default:
-                return juce::String(v, 2);
-        }
-    }
-
     void ManipulationZone::refreshSliders()
     {
         switch (metaSection_)
@@ -359,7 +337,7 @@ namespace lockstep
                 }
                 else
                 {
-                    valueText = formatValue(value, meta.unit, meta.isStepped);
+                    valueText = formatParamValue(value, meta);
                 }
                 if (hasLock)
                     valueText += " *";

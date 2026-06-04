@@ -125,6 +125,29 @@ namespace lockstep
     uint32_t compatColour(CellState state, uint32_t fallback = 0xFF303030u) noexcept;
 
     // =========================================================================
+    // SurfaceSlot — one manipulation-zone encoder slot (§35.8.5)
+    //
+    // Populated by buildSurfaceModel and consumed by controller render() paths.
+    // Allows render() to be fully model-driven without poking LockstepProcessor.
+    // =========================================================================
+    enum class RingMode : uint8_t
+    {
+        Dot,              // single dot — stepped or enum params
+        UnipolarFill,     // fill from bottom — standard continuous (min >= 0)
+        BipolarFromCentre // fill from centre — bipolar (min < 0)
+    };
+
+    struct SurfaceSlot
+    {
+        juce::String label;       // parameter label (empty when slot is out of range)
+        juce::String valueText;   // formatted value string (empty when out of range)
+        float        position  = 0.0f; // normalised 0..1 for ring/display
+        RingMode     ringMode  = RingMode::UnipolarFill;
+        bool         hasOverride = false; // true when a P-Lock is active for this slot
+        bool         inRange     = false; // false when slot index exceeds machine's schema
+    };
+
+    // =========================================================================
     // SurfaceModel — complete per-frame surface description (§35.8.2)
     //
     // Zone arrays indexed by §35.8.2 zones; byButton() provides reverse lookup.
@@ -132,7 +155,7 @@ namespace lockstep
     // =========================================================================
     struct SurfaceModel
     {
-        static constexpr uint32_t kCurrentSchema = 1;
+        static constexpr uint32_t kCurrentSchema = 2;
         uint32_t schemaVersion = kCurrentSchema;
 
         // Modifier cluster: Func/Track/Pattern/Part/Scene/Master/Mute/Fill (indices 0-7).
@@ -162,6 +185,15 @@ namespace lockstep
         // persistent deviation badge on screen and a controller's track LEDs.
         std::array<bool, kNumTracks> trackDeviated{};
 
+        // Manipulation-zone encoder band (§35.8.5).
+        // 8 slots starting at slotOffset (passed to buildSurfaceModel).
+        // Controllers read these for ring LED positions and display text.
+        std::array<SurfaceSlot, 8> slots{};
+
+        // Scene A/B crossfader value normalised 0..1 (0 = full A, 1 = full B).
+        // Passed explicitly to buildSurfaceModel since it lives in the editor.
+        float crossfader = 0.0f;
+
         // Lookup by (ControllerButton, index). Returns nullptr if not found.
         [[nodiscard]] const SurfaceCell* byButton(ControllerButton btn, int idx = -1) const noexcept;
     };
@@ -179,5 +211,7 @@ namespace lockstep
                                    LockstepProcessor&  proc,
                                    int                 activeTrack,
                                    int                 stepPage,
-                                   GridDisplayMode     displayMode);
+                                   GridDisplayMode     displayMode,
+                                   int                 slotOffset      = 0,
+                                   float               crossfaderValue = 0.5f);
 }

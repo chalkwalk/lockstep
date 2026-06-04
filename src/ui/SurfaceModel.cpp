@@ -1,6 +1,7 @@
 #include "SurfaceModel.h"
 #include "UITheme.h"
 #include "KeyLabel.h"
+#include "ParamFormat.h"
 #include "ScopedSectionMatrix.h"
 #include "../state/UiState.h"
 #include "../io/EditContext.h"
@@ -157,7 +158,9 @@ namespace lockstep
                                    LockstepProcessor&  proc,
                                    int                 activeTrack,
                                    int                 stepPage,
-                                   GridDisplayMode     /*displayMode*/)
+                                   GridDisplayMode     /*displayMode*/,
+                                   int                 slotOffset,
+                                   float               crossfaderValue)
     {
         SurfaceModel model;
 
@@ -1181,6 +1184,83 @@ namespace lockstep
             }
 
             } // end else (normal step grid)
+        }
+
+        // =====================================================================
+        // Manipulation-zone encoder slots (§35.8.5)
+        // Fills model.slots[0..7] for the 8 encoders at slotOffset..slotOffset+7.
+        // Uses Override-ELSE-Base resolution mirroring ManipulationZone::refreshSliders.
+        // =====================================================================
+        model.crossfader = crossfaderValue;
+        {
+            const bool stepHeld = ec.isActiveForEditing()
+                               && ec.heldTrackIndex() == activeTrack;
+            const int  heldStep = ec.heldStepIndex();
+            const bool fillHeld = proc.fillActive();
+            const bool fillEdit = stepHeld && fillHeld && heldStep >= 0;
+
+            const int numParams = (activeTrack >= 0) ? proc.numParams(activeTrack) : 0;
+
+            for (int i = 0; i < 8; ++i)
+            {
+                const int absSlot = slotOffset + i;
+                auto& slot = model.slots[static_cast<std::size_t>(i)];
+
+                if (activeTrack < 0 || absSlot >= numParams)
+                {
+                    slot.inRange = false;
+                    continue;
+                }
+
+                const auto spec = proc.paramSpec(activeTrack, absSlot);
+                slot.inRange = true;
+                slot.label   = spec.label.isEmpty() ? juce::String(absSlot) : spec.label;
+
+                // Override-ELSE-Base resolution
+                float value = proc.baseParamValue(activeTrack, absSlot);
+                bool  hasLock = false;
+
+                if (stepHeld && heldStep >= 0)
+                {
+                    const auto& s = proc.sequence().tracks[static_cast<std::size_t>(activeTrack)]
+                                        .steps[static_cast<std::size_t>(heldStep)];
+                    if (fillEdit)
+                    {
+                        if (s.fillOverrides.has(absSlot))
+                        {
+                            value   = s.fillOverrides.get(absSlot, value);
+                            hasLock = true;
+                        }
+                        else
+                        {
+                            value = s.overrides.get(absSlot, value);
+                        }
+                    }
+                    else
+                    {
+                        value   = s.overrides.get(absSlot, value);
+                        hasLock = s.overrides.has(absSlot);
+                    }
+                }
+
+                slot.hasOverride = hasLock;
+                slot.valueText   = formatParamValue(value, spec);
+                if (hasLock)
+                    slot.valueText += " *";
+
+                // Normalised position for ring LEDs
+                const float range = spec.maxValue - spec.minValue;
+                slot.position = (range > 0.0f)
+                    ? juce::jlimit(0.0f, 1.0f, (value - spec.minValue) / range)
+                    : 0.0f;
+
+                if (!spec.valueLabels.empty() || spec.isStepped)
+                    slot.ringMode = RingMode::Dot;
+                else if (spec.minValue < 0.0f)
+                    slot.ringMode = RingMode::BipolarFromCentre;
+                else
+                    slot.ringMode = RingMode::UnipolarFill;
+            }
         }
 
         return model;
