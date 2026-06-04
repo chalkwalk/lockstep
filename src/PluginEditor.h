@@ -9,6 +9,7 @@
 #include "PluginProcessor.h"
 #include "controller/IControllerSurface.h"
 #include "controller/XTouchMiniSurface.h"
+#include "controller/Push1Surface.h"
 #include "io/Clipboard.h"
 #include "io/ControllerEvent.h"
 #include "io/ControllerPortManager.h"
@@ -205,8 +206,10 @@ namespace lockstep
         juce::Slider crossfader_;
 
         // Controller surface integration (Phase 6.6 / DESIGN §35).
-        ControllerPortManager              controllerPorts_{ "X-TOUCH MINI" };
+        ControllerPortManager              controllerPorts_    { "X-TOUCH MINI" };
         std::unique_ptr<XTouchMiniSurface> xTouchSurface_;
+        ControllerPortManager              push1Ports_         { "Ableton Push User Port" };
+        std::unique_ptr<Push1Surface>      push1Surface_;
         ControllerEventSink buildControllerSink();
 
         void updateTransportGhosting();

@@ -24,6 +24,7 @@ add_library(lockstep_core STATIC
     machine/SamplePool.cpp
     machine/VoiceChoke.cpp
     controller/XTouchMiniSurface.cpp
+    controller/Push1Surface.cpp
     io/AbsoluteCC.cpp
     io/RelativeCC.cpp
     io/CCMappingTable.cpp

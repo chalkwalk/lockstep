@@ -249,17 +249,20 @@ namespace lockstep
         setSize(990, 596);  // MHX: taller for 4x2 MZ encoder band
         setWantsKeyboardFocus(true);
 
-        // Controller surface: bespoke X-Touch Mini integration (DESIGN §35 MVP).
+        // Controller surfaces (DESIGN §35).
         xTouchSurface_ = std::make_unique<XTouchMiniSurface>();
+        push1Surface_  = std::make_unique<Push1Surface>();
 
         controllerPorts_.onStateChange = [this](bool open)
         {
             setStatus(open ? "Controller: X-Touch Mini connected"
                            : "Controller: X-Touch Mini disconnected");
-            // Note: in standalone mode, ensure the X-Touch Mini is NOT also selected
-            // in JUCE's MIDI input dropdown — if it is, button-notes will also fire
-            // instruments. Programmatic deconfliction via StandalonePluginHolder is
-            // deferred; for now the user must deselect it in Audio/MIDI Settings.
+        };
+
+        push1Ports_.onStateChange = [this](bool open)
+        {
+            setStatus(open ? "Controller: Ableton Push 1 connected"
+                           : "Controller: Ableton Push 1 disconnected");
         };
 
         startTimerHz(30);  // diagnostic VU meters / activity blinks
@@ -349,7 +352,9 @@ namespace lockstep
         if (dirty) repaint();
 
         // Controller: drain MIDI FIFO → surface.onInput(), then render feedback LEDs.
-        if (xTouchSurface_ && controllerPorts_.isOpen())
+        // Build the model once and share it with all connected surfaces.
+        if ((xTouchSurface_ && controllerPorts_.isOpen())
+            || (push1Surface_ && push1Ports_.isOpen()))
         {
             auto sink = buildControllerSink();
             const auto model = buildSurfaceModel(uiState_,
@@ -361,7 +366,10 @@ namespace lockstep
                                                   gridMode_,
                                                   manipulationZone_.slotOffset(),
                                                   static_cast<float>(crossfader_.getValue()));
-            controllerPorts_.drain(*xTouchSurface_, sink, model);
+            if (xTouchSurface_ && controllerPorts_.isOpen())
+                controllerPorts_.drain(*xTouchSurface_, sink, model);
+            if (push1Surface_ && push1Ports_.isOpen())
+                push1Ports_.drain(*push1Surface_, sink, model);
         }
 
         // Reconcile: release any keyboard press whose key is no longer physically
