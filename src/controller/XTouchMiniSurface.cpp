@@ -1,13 +1,9 @@
 #include "XTouchMiniSurface.h"
-#include "../PluginProcessor.h"
-#include "../machine/IMachine.h"
 #include <juce_audio_devices/juce_audio_devices.h>
 
 namespace lockstep
 {
-    XTouchMiniSurface::XTouchMiniSurface(LockstepProcessor& proc, TrackSlotFn getTrackAndSlot)
-        : proc_(proc)
-        , getTrackAndSlot_(std::move(getTrackAndSlot))
+    XTouchMiniSurface::XTouchMiniSurface()
     {
         ledShadow_.fill(255);   // 255 = uninitialised → forces first-frame emit
         ringShadow_.fill(255);
@@ -201,18 +197,15 @@ namespace lockstep
         sendButton(16, kLayerANote, model.navUp.base);
         sendButton(17, kLayerBNote, model.functionRow[3].base);
 
-        // --- Encoder ring LEDs ---
-        // Reads current MZ slot values directly from processor (SurfaceSlot not yet
-        // in SurfaceModel; deferred to §35.8.5).
-        const auto [track, slotBase] = getTrackAndSlot_();
-        const int numSlots = proc_.numParams(track);
+        // --- Encoder ring LEDs (§35.8.5) ---
+        // Reads ring position and mode from model.slots[], which buildSurfaceModel
+        // fills from the processor via OEB resolution. No direct proc_ access needed.
         for (int enc = 0; enc < 8; ++enc)
         {
-            const int absSlot = slotBase + enc;
-            const auto ri = static_cast<std::size_t>(enc);
+            const auto ri   = static_cast<std::size_t>(enc);
+            const auto& slot = model.slots[ri];
 
-            // Slot out of range for this machine → ring off.
-            if (absSlot >= numSlots)
+            if (!slot.inRange)
             {
                 if (ringShadow_[ri] != 0)
                 {
@@ -223,22 +216,16 @@ namespace lockstep
                 continue;
             }
 
-            const auto spec = proc_.paramSpec(track, absSlot);
-            const float raw = proc_.baseParamValue(track, absSlot);
-
-            const float range  = spec.maxValue - spec.minValue;
-            const float norm   = (range > 0.0f)
-                                 ? juce::jlimit(0.0f, 1.0f, (raw - spec.minValue) / range)
-                                 : 0.0f;
-            const int   pos    = juce::roundToInt(norm * 11.0f);
+            const int pos = juce::roundToInt(slot.position * 11.0f);
 
             uint8_t mode;
-            if (spec.isStepped || !spec.valueLabels.empty())
-                mode = 0x00;  // single dot — enum/list pointer
-            else if (spec.minValue < 0.0f)
-                mode = 0x10;  // boost/cut — bipolar fill from centre
-            else
-                mode = 0x20;  // wrap — standard unipolar fill
+            switch (slot.ringMode)
+            {
+                case RingMode::Dot:               mode = 0x00; break;
+                case RingMode::BipolarFromCentre: mode = 0x10; break;
+                case RingMode::UnipolarFill:
+                default:                          mode = 0x20; break;
+            }
 
             const uint8_t ringByte = static_cast<uint8_t>(mode | pos);
             if (ringByte != ringShadow_[ri])

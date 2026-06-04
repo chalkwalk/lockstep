@@ -1,14 +1,10 @@
 #pragma once
 
 #include <array>
-#include <functional>
-#include <utility>
 #include "IControllerSurface.h"
 
 namespace lockstep
 {
-    class LockstepProcessor;
-
     // Bespoke controller surface for the Behringer X-Touch Mini in MCU mode.
     //
     // Input (onInput):
@@ -22,18 +18,14 @@ namespace lockstep
     // Feedback (render):
     //   Grid buttons  → off / flash (vel=1) / on (vel=127) from CellState
     //   A/B buttons   → lit when mode-active
-    //   Encoder rings → mode + position from active MZ param type and value
+    //   Encoder rings → mode + position from model.slots (§35.8.5)
     //   Diffs against shadow cache; only changed cells generate MIDI output.
     //
     // Hardware reference: XTOUCHMINI_MCU.md (confirmed 2026-06-02).
     class XTouchMiniSurface : public IControllerSurface
     {
     public:
-        // getTrackAndSlot — returns (activeTrack, slotOffset) from the editor's
-        // KeyboardArea / ManipulationZone without coupling to those classes.
-        using TrackSlotFn = std::function<std::pair<int,int>()>;
-
-        explicit XTouchMiniSurface(LockstepProcessor& proc, TrackSlotFn getTrackAndSlot);
+        XTouchMiniSurface();
 
         void onInput(const juce::MidiMessage& msg, ControllerEventSink& sink) override;
         void render(const SurfaceModel& model, juce::MidiOutput& out) override;
@@ -41,9 +33,6 @@ namespace lockstep
     private:
         static int decodeDelta(int ccValue) noexcept;
         static uint8_t cellStateToVelocity(CellState state, const CellDecoration& border) noexcept;
-
-        LockstepProcessor& proc_;
-        TrackSlotFn        getTrackAndSlot_;
 
         // Per-encoder double-click tracking (Note 32-39 = encoders 0-7).
         std::array<juce::int64, 8> lastPushMs_{};

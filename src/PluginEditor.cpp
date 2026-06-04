@@ -250,11 +250,7 @@ namespace lockstep
         setWantsKeyboardFocus(true);
 
         // Controller surface: bespoke X-Touch Mini integration (DESIGN §35 MVP).
-        xTouchSurface_ = std::make_unique<XTouchMiniSurface>(
-            processor_,
-            [this]() -> std::pair<int, int> {
-                return { keyboardArea_.getActiveTrack(), manipulationZone_.slotOffset() };
-            });
+        xTouchSurface_ = std::make_unique<XTouchMiniSurface>();
 
         controllerPorts_.onStateChange = [this](bool open)
         {
@@ -362,7 +358,9 @@ namespace lockstep
                                                   processor_,
                                                   keyboardArea_.getActiveTrack(),
                                                   keyboardArea_.currentPage(),
-                                                  gridMode_);
+                                                  gridMode_,
+                                                  manipulationZone_.slotOffset(),
+                                                  static_cast<float>(crossfader_.getValue()));
             controllerPorts_.drain(*xTouchSurface_, sink, model);
         }
 
