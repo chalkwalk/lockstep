@@ -218,6 +218,20 @@ colours (full RGB table is in `DrivenByMoss` `PushColorManager.DEFAULT_PALETTE`)
 The palette is **fixed** — Push 1 (unlike Push 2) cannot be sent arbitrary RGB
 per pad; you choose the nearest palette index.
 
+### Capturing the *as-displayed* palette
+
+`DEFAULT_PALETTE`'s RGB are *nominal* — what the firmware is told, not what the
+LED visibly emits. Matching a UI colour against the nominal values picks poorly.
+To match against what the unit actually shows, capture the displayed palette:
+
+1. Open `tools/push_probe`, connect the **User Port**.
+2. Click **Palette 0-63**, photograph the grid (the log prints a top-row-first
+   index legend), then **Palette 64-127** and photograph again.
+3. Read each pad's colour off the photos as a web hex value, keyed by the index
+   in the legend. That yields a 128-entry *as-displayed* table.
+4. `Push1Surface` matches incoming UI colours against this table (perceptually
+   weighted), so the chosen index is the closest *visible* colour.
+
 ---
 
 ## Bi-colour table (upper display + scene buttons)
@@ -440,3 +454,12 @@ Still to confirm on a focused pass (the probe has a control for each):
    (*Strip LED fill* in a CUSTOM mode vs *Strip value (pitch-bend)*).
 6. Display block layout: does the *Ruler* render as four clean 17-char runs
    (linear buffer) or scrambled (column reordering)?
+7. *As-displayed* palette colours via **Palette 0-63** / **Palette 64-127** (one
+   photo each; see *Capturing the as-displayed palette*).
+8. Display bar glyphs via **Glyph/Bars**: which low control codes (`\x03`–`\x06`
+   per pushbase) render as partial-block bar segments vs the ASCII fallback.
+9. Pad animation via **Blink/Pulse**: which MIDI channel(s) make a pad fade
+   (pulse) vs hard-toggle (blink) between its ch-1 colour and a 2nd-channel
+   colour, the rate per channel, and how **Stop anim** cancels it. (pushbase:
+   Pulse on ch 6–10, Blink on ch 11–15, 0-based; DrivenByMoss uses ch 10/14 —
+   the 0/1-based convention is what this confirms.)
