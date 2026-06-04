@@ -45,8 +45,8 @@ are sequencing decisions with no other home.
 - **Stock catalogue = the iconic set keyed to the lineage.** Sampler/Slicer (DT),
   FM (DN), VA (A4), DrumSynth (RYTM), Digital (Monomachine), Percussion (modal),
   Static/Thru/Recorder/Looper (OT). Neighbour folds into Thru; Syntakt = voices +
-  a master-drive `IEffect`. Anything more specialised is a third-party module.
-  → DESIGN §29.
+  a master-drive `IEffect`. Anything more specialised is a third-party module
+  (e.g. granular — Aira P-6 / Tonverk — is a module, not stock). → DESIGN §29.
 - **Variable parameter schema, declared per machine.** No fixed slot count; MZ
   shows `kMZSlots` (8) at a time, section bar has 6 keys; both paginate within
   what the machine declares. → DESIGN §2, §6.1.
@@ -142,6 +142,21 @@ are sequencing decisions with no other home.
 - *(roadmap)* **The machine catalogue waits on the surface freeze and the SDK.**
   Catalogue machines 4.5+ are authored against the frozen surface and the Machine
   Module ABI (6.7), so they ship as modules from day one.
+- **Reward mastery — no crutches, no dead weight.** A feature earns its place only
+  if it rewards practice; it is rejected as a *crutch* (does the musical work for
+  the user) or *dead weight* (cost never repaid in performance). → PRINCIPLES §14.
+- **Deterministic generators print; stochastic authoring is refused.** A Euclidean
+  fill or Chance macro is admissible *because* it is deterministic and prints
+  ordinary trigs; engines that roll dice at edit time are out. → PRINCIPLES
+  "Pragmatic determinism" / "Reward mastery"; DESIGN §13.5.
+- **MOD is a shallow canonical promise.** Minimal performable modulation in the
+  canonical section; deep modulation is machine-internal; no custom-LFO designer,
+  no free automation lanes. → DESIGN §6.1.
+- **Performance punch-in = thin Animate toggle, not a mode.** Momentary enable /
+  bypass of existing inserts; no dedicated performance-FX mode. → DESIGN §32.5.
+- **Non-goals are a maintained record.** What Lockstep refuses to become, with the
+  competitor feature and rejecting principle for each. → `NON-GOALS.md`; PRINCIPLES
+  "Non-Goals".
 
 ---
 
@@ -763,6 +778,27 @@ DESIGN §24, §25, §26.
 - [ ] MZ size single constant verified at `kMZSlots = 8`.
 - [ ] MIDI-device preset-selection UI (deferred from 2.5).
 
+### 5.9 — Deterministic generators + performance macros (groovebox sweep)  *[planned]*
+From the competitive sweep (see `NON-GOALS.md`): the admitted, principle-clean
+additions. Each is authored against the frozen surface and must stay within
+scope+verb. Stochastic / generative authoring is explicitly *not* here (NON-GOALS).
+- [ ] **Euclidean print-on-release** (DESIGN §13.5): held-modifier scope re-skin;
+      encoders set pulses / rotation / (accent) against `Phrase.length`; live
+      audible + visible; release **replaces** the trigs in the length; a checkpoint
+      pushes first. Output is ordinary, hand-editable trig data.
+- [ ] **Chance macro**: a global scalar over the *existing* conditional-trig
+      probabilities (`Func` + encoder candidate) to thin / build a pattern live —
+      no new randomness, deterministic given the pattern seed.
+- [ ] **Scale-aware CHROMATIC layout** (DESIGN §34.2): the per-phrase scale lock
+      remaps the CHROMATIC keyboard to scale degrees — a *playable layout*, never
+      note auto-correct (out-of-scale entry stays verbatim and reachable).
+- [ ] **Arpeggiator** — *design-stub only* (DESIGN §13.5 DRAFT). PRINCIPLES-cleared
+      as a performable engine; **gated**: must close the grammar-fit open questions
+      in DESIGN before it earns a checklist here.
+
+> The **Animate** momentary insert-toggle — the punch-in answer — lands with the
+> FX system; see 6.5.
+
 ---
 
 ## Phase 6 — Routing, FX & Platform  *[planned; 6.6 in progress]*
@@ -808,6 +844,9 @@ DESIGN §32. Depends on 2.4 + the §14 path (independent of 6.1–6.4).
 - [ ] Per-track 2-insert chain (post-AMP, Part-scope).
 - [ ] FX canonical-section rendering + effect-load gesture.
 - [ ] Two master FX slots (`Insert | Send`), Master-focus edited, Project-scope.
+- [ ] **Animate** momentary insert toggle (DESIGN §32.5): a held gesture enables
+      (or bypasses) an insert slot for its duration — the thin punch-in answer, no
+      performance-FX mode. Master inserts carry the same toggle.
 - [ ] Send routing (per-track Send A/B in the AMP mix).
 - [ ] Performance-grammar parity (P-Lock / scene / Control-All / section copy).
 - [ ] MIDI-out tracks carry no inserts/sends.
