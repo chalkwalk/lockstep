@@ -300,27 +300,122 @@ namespace lockstep
     }
 
     // =========================================================================
-    // render — placeholder (Stage 5)
+    // Colour helpers
     // =========================================================================
 
-    void Push1Surface::render(const SurfaceModel& /*model*/, juce::MidiOutput& /*out*/)
+    // Maps a CellState + decorations to a pad/lower-button palette index (0-127).
+    // Decorations collapse into the palette index (e.g. playhead → amber blink).
+    // "PUSH1_COLOR2_*" indices from DrivenByMoss PushColorManager.java.
+    uint8_t Push1Surface::rgbPaletteFor(CellState state,
+                                          const CellDecoration& border,
+                                          const CellDecoration& pip,
+                                          float level) noexcept
     {
-        // Implemented in Stage 5.
+        // Border decoration overrides: playhead = amber, held step = white.
+        if (border.present)
+        {
+            if (border.token == CellState::StepPlayhead) return 9;   // amber hi
+            if (border.token == CellState::StepHeld)     return 3;   // white
+        }
+        // Latch pip = scope tint dim
+        if (pip.present) return 2;  // grey light
+
+        switch (state)
+        {
+            case CellState::Resting:            return 0;
+            case CellState::Pressed:            return 3;   // white
+            case CellState::ModeActive:         return 21;  // green hi
+            case CellState::FuncHeld:           return 9;   // amber hi
+            case CellState::Disabled:           return 0;
+
+            // Step family
+            case CellState::StepEmpty:          return 0;
+            case CellState::StepTrigCertain:
+            {
+                // Level dims the colour (probability).
+                if (level >= 0.75f) return 22;  // green hi
+                if (level >= 0.5f)  return 19;  // green lo
+                return 1;                        // grey lo
+            }
+            case CellState::StepTrigProbable:   return 19;  // green lo
+            case CellState::StepTrigSuppressed: return 1;   // grey lo
+            case CellState::StepFillAdd:        return 10;  // amber hi (orange)
+            case CellState::StepFillSuppress:   return 46;  // blue
+            case CellState::StepOutOfRange:     return 0;
+            case CellState::StepPlayhead:       return 9;   // amber hi
+            case CellState::StepHeld:           return 3;   // white
+
+            // Selector family
+            case CellState::SelectorCurrent:    return 3;   // white
+            case CellState::SelectorOccupied:   return 22;  // green hi
+            case CellState::SelectorEmpty:      return 1;   // grey lo
+            case CellState::SelectorOutRange:   return 0;
+            case CellState::SelectorNext:       return 50;  // orchid
+            case CellState::SelectorChain:      return 50;  // orchid
+            case CellState::SelectorDeviated:   return 50;  // orchid
+            case CellState::SelectorHome:       return 9;   // amber
+
+            // Mute
+            case CellState::MuteMuted:          return 6;   // red
+            case CellState::MuteAudible:        return 22;  // green hi
+
+            // Machine picker
+            case CellState::MachineCurrent:     return 3;   // white
+            case CellState::MachineAvailable:   return 22;  // green hi
+            case CellState::MachineUnavailable: return 1;   // grey lo
+
+            // NoteEdit overlay
+            case CellState::NoteEditActive:     return 22;  // green hi
+            case CellState::NoteEditStaged:     return 8;   // red-amber
+            case CellState::NoteEditOther:      return 19;  // green lo
+            case CellState::NoteEditResting:    return 0;
+
+            // Chromatic keyboard
+            case CellState::ChromaticWhite:     return 22;  // green hi
+            case CellState::ChromaticBlack:     return 19;  // green lo
+
+            // Levels velocity picker
+            case CellState::LevelsCell:         return 46;  // blue
+
+            // Phrase-length authoring
+            case CellState::LengthInRun:        return 50;  // orchid
+            case CellState::LengthBoundary:     return 3;   // white (edge marker)
+            case CellState::LengthOutRun:       return 0;
+
+            default: return 1;  // grey lo for unknown tokens
+        }
     }
 
-    // =========================================================================
-    // Colour helpers — placeholder implementations for Stage 5
-    // =========================================================================
-
-    uint8_t Push1Surface::rgbPaletteFor(CellState, const CellDecoration&,
-                                          const CellDecoration&, float) noexcept
+    // Maps a CellState to a bi-colour value 0-24 for upper/scene buttons.
+    // Green = active/occupied, Orange = attention, Red = muted/off.
+    uint8_t Push1Surface::biColourFor(CellState state) noexcept
     {
-        return 0;
+        switch (state)
+        {
+            case CellState::ModeActive:         return 22;  // green hi
+            case CellState::Pressed:            return 22;  // green hi
+            case CellState::SelectorCurrent:    return 22;  // green hi
+            case CellState::SelectorOccupied:   return 19;  // green lo
+            case CellState::MuteAudible:        return 22;  // green hi
+            case CellState::MuteMuted:          return 4;   // red hi
+            case CellState::StepTrigCertain:    return 22;  // green hi
+            case CellState::StepFillAdd:        return 10;  // orange hi
+            default:                            return 0;   // off
+        }
     }
 
-    uint8_t Push1Surface::biColourFor(CellState) noexcept { return 0; }
-
-    uint8_t Push1Surface::monoFor(CellState) noexcept { return 0; }
+    // Maps a CellState to a mono button LED value: 0=off, 1=dim, 4=bright.
+    uint8_t Push1Surface::monoFor(CellState state) noexcept
+    {
+        switch (state)
+        {
+            case CellState::ModeActive:  return 4;
+            case CellState::Pressed:     return 4;
+            case CellState::Resting:     return 0;
+            case CellState::Disabled:    return 0;
+            default:                     return 1;
+        }
+    }
 
     int Push1Surface::monoCC(ControllerButton btn) noexcept
     {
@@ -330,6 +425,178 @@ namespace lockstep
                 return entry.cc;
         }
         return 0;
+    }
+
+    // =========================================================================
+    // render — LED and display feedback
+    // =========================================================================
+
+    void Push1Surface::render(const SurfaceModel& model, juce::MidiOutput& out)
+    {
+        // --- Pad grid (notes 36-99) ---
+        // Modifier pads (top-left 2×4)
+        for (int i = 0; i < 8; ++i)
+        {
+            const auto& cell = model.modifiers[static_cast<std::size_t>(i)];
+            const uint8_t colour = rgbPaletteFor(cell.base, cell.border, cell.pip, cell.level);
+            const int note = kModifierNotes[static_cast<std::size_t>(i)];
+            const auto si = static_cast<std::size_t>(note - 36);
+            if (colour != padShadow_[si])
+            {
+                padShadow_[si] = colour;
+                out.sendMessageNow(juce::MidiMessage::noteOn(1, note, static_cast<juce::uint8>(colour)));
+            }
+        }
+
+        // Section row (row 4: notes 60-67)
+        // note 60 = TAP, note 61 = NavUp, notes 62-67 = sections 0-5
+        {
+            const auto& tap  = model.tap;
+            const uint8_t tapC = rgbPaletteFor(tap.base, tap.border, tap.pip, tap.level);
+            const auto si60 = static_cast<std::size_t>(60 - 36);
+            if (tapC != padShadow_[si60])
+            {
+                padShadow_[si60] = tapC;
+                out.sendMessageNow(juce::MidiMessage::noteOn(1, 60, static_cast<juce::uint8>(tapC)));
+            }
+        }
+        {
+            const auto& nav  = model.navUp;
+            const uint8_t navC = rgbPaletteFor(nav.base, nav.border, nav.pip, nav.level);
+            const auto si61 = static_cast<std::size_t>(61 - 36);
+            if (navC != padShadow_[si61])
+            {
+                padShadow_[si61] = navC;
+                out.sendMessageNow(juce::MidiMessage::noteOn(1, 61, static_cast<juce::uint8>(navC)));
+            }
+        }
+        for (int s = 0; s < 6; ++s)
+        {
+            const auto& cell = model.section[static_cast<std::size_t>(s)];
+            const uint8_t colour = rgbPaletteFor(cell.base, cell.border, cell.pip, cell.level);
+            const int note = 62 + s;
+            const auto si = static_cast<std::size_t>(note - 36);
+            if (colour != padShadow_[si])
+            {
+                padShadow_[si] = colour;
+                out.sendMessageNow(juce::MidiMessage::noteOn(1, note, static_cast<juce::uint8>(colour)));
+            }
+        }
+
+        // Verb/nav row (row 3: notes 52-59)
+        for (int i = 0; i < 8; ++i)
+        {
+            const SurfaceCell* cell = model.byButton(kVerbRowButtons[static_cast<std::size_t>(i)]);
+            const uint8_t colour = cell
+                ? rgbPaletteFor(cell->base, cell->border, cell->pip, cell->level)
+                : uint8_t(0);
+            const int note = 52 + i;
+            const auto si = static_cast<std::size_t>(note - 36);
+            if (colour != padShadow_[si])
+            {
+                padShadow_[si] = colour;
+                out.sendMessageNow(juce::MidiMessage::noteOn(1, note, static_cast<juce::uint8>(colour)));
+            }
+        }
+
+        // Step rows (row 2: 44-51 = steps 0-7; row 1: 36-43 = steps 8-15)
+        for (int s = 0; s < 16; ++s)
+        {
+            const auto& cell = model.step[static_cast<std::size_t>(s)];
+            const uint8_t colour = rgbPaletteFor(cell.base, cell.border, cell.pip, cell.level);
+            const int note = kStepNotes[static_cast<std::size_t>(s)];
+            const auto si = static_cast<std::size_t>(note - 36);
+            if (colour != padShadow_[si])
+            {
+                padShadow_[si] = colour;
+                out.sendMessageNow(juce::MidiMessage::noteOn(1, note, static_cast<juce::uint8>(colour)));
+            }
+        }
+
+        // --- Upper display buttons (CC 20-27) — bi-colour ---
+        // Map to function row (Q-row items).
+        static constexpr std::array<int, 8> kUpperRowFn = { 0,1,2,3,4,5,6,7 };
+        for (int i = 0; i < 8; ++i)
+        {
+            const auto& cell = model.functionRow[static_cast<std::size_t>(kUpperRowFn[static_cast<std::size_t>(i)])];
+            const uint8_t colour = biColourFor(cell.base);
+            const auto si = static_cast<std::size_t>(i);
+            if (colour != upperShadow_[si])
+            {
+                upperShadow_[si] = colour;
+                out.sendMessageNow(juce::MidiMessage::controllerEvent(1, 20 + i, colour));
+            }
+        }
+
+        // --- Scene buttons (CC 36-43) — bi-colour ---
+        // Dark for now (no direct mapping to scene-launch in this pass).
+        for (int i = 0; i < 8; ++i)
+        {
+            const auto si = static_cast<std::size_t>(i);
+            if (sceneShadow_[si] != 0)
+            {
+                sceneShadow_[si] = 0;
+                out.sendMessageNow(juce::MidiMessage::controllerEvent(1, 36 + i, 0));
+            }
+        }
+
+        // --- Mono function buttons ---
+        for (int i = 0; i < static_cast<int>(kMonoButtons.size()); ++i)
+        {
+            const auto& entry = kMonoButtons[static_cast<std::size_t>(i)];
+            const SurfaceCell* cell = model.byButton(entry.button);
+            const uint8_t val = cell ? monoFor(cell->base) : uint8_t(0);
+            const auto si = static_cast<std::size_t>(i);
+            if (val != monoShadow_[si])
+            {
+                monoShadow_[si] = val;
+                out.sendMessageNow(juce::MidiMessage::controllerEvent(1, entry.cc, val));
+            }
+        }
+
+        // --- Touch strip LED (pitch-bend out from model.crossfader) ---
+        {
+            const int stripVal = juce::roundToInt(
+                juce::jlimit(0.0f, 1.0f, model.crossfader) * 16383.0f);
+            if (stripVal != stripShadow_)
+            {
+                stripShadow_ = stripVal;
+                out.sendMessageNow(juce::MidiMessage::pitchWheel(1, stripVal));
+            }
+        }
+
+        // --- Display (4 × 68 characters) ---
+        // 8 encoder columns, 8 chars each.
+        // Top 2 lines = value text; bottom 2 lines = param name.
+        // Each line is built as 8 × 8-char columns = 64 chars + 4 padding.
+        auto buildDisplayLine = [&](bool isValueLine) -> juce::String
+        {
+            juce::String line;
+            line.preallocateBytes(68);
+            for (int enc = 0; enc < 8; ++enc)
+            {
+                const auto& slot = model.slots[static_cast<std::size_t>(enc)];
+                juce::String col = slot.inRange
+                    ? (isValueLine ? slot.valueText : slot.label)
+                    : juce::String();
+                // Truncate or pad to exactly 8 chars.
+                if (col.length() > 8) col = col.substring(0, 8);
+                while (col.length() < 8) col += ' ';
+                line += col;
+            }
+            // Pad to 68 chars.
+            while (line.length() < 68) line += ' ';
+            return line.substring(0, 68);
+        };
+
+        const juce::String valueLine = buildDisplayLine(true);
+        const juce::String nameLine  = buildDisplayLine(false);
+
+        // Lines 0-1 = value; lines 2-3 = name.
+        if (valueLine != displayShadow_[0]) { displayShadow_[0] = valueLine; writeDisplayLine(out, 0, valueLine); }
+        if (valueLine != displayShadow_[1]) { displayShadow_[1] = valueLine; writeDisplayLine(out, 1, valueLine); }
+        if (nameLine  != displayShadow_[2]) { displayShadow_[2] = nameLine;  writeDisplayLine(out, 2, nameLine);  }
+        if (nameLine  != displayShadow_[3]) { displayShadow_[3] = nameLine;  writeDisplayLine(out, 3, nameLine);  }
     }
 
 }  // namespace lockstep
