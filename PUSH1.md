@@ -365,12 +365,23 @@ Display brightness: SysEx command `0x08`.
 | Welcome / Goodbye logo | `0x01` | `… 01 01 F7` (welcome) / `… 01 00 F7` (goodbye) |
 | Aftertouch mode (poly/channel) | `0x5C` | `… 5C 00 01 <0=poly|1=mono> F7` |
 | Pad sensitivity / velocity curve | `0x5D` | `… 5D 00 20 <8-byte threshold> <24-byte curve> F7` |
-| LED brightness (global) | `0x06` | `… 06 <0-127> F7` |
-| Display brightness | `0x08` | `… 08 <lsb> <msb> F7` |
 
 The header `F0 47 7F 15` is Akai/Ableton's Push-1 manufacturer block; all of the
 above are Push-1-specific and are ignored by Push 2/3 (which use a different
 header `F0 00 21 1D 01 01 …`).
+
+> **No host-settable brightness on Push 1.** Earlier drafts listed an "LED
+> brightness `0x06`" and a "display brightness `0x08`" command — these were
+> wrong. `0x06` is the universal Identity/Device-Inquiry command (see above), not
+> a Push brightness command. Cross-checked against both reference drivers
+> (DrivenByMoss `PushControlSurface`/`PushColorManager` and Ableton's
+> `Push`/`pushbase` scripts): **neither sends any LED- or display-brightness SysEx
+> for Push 1.** A global LED-brightness command exists only on Push 2/3 (different
+> header). On Push 1, **the palette index *is* the brightness** — a pad/button
+> takes a single colour index and there is no separate brightness or per-pad
+> intensity channel. To make a pad brighter you choose a brighter palette entry;
+> the surface relies on accurate nearest-colour matching (see *Pad / RGB
+> palette*) rather than any intensity control.
 
 ---
 

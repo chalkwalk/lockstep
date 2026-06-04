@@ -53,10 +53,11 @@ namespace lockstep
         void writeDisplayLine(juce::MidiOutput& out, int line, const juce::String& text);
         void clearDisplay(juce::MidiOutput& out);
 
-        // Colour-space helpers
-        static uint8_t rgbPaletteFor(CellState state, const CellDecoration& border,
-                                     const CellDecoration& pip, float level,
-                                     uint32_t baseColour = 0) noexcept;
+        // Colour-space helpers.
+        // rgbPaletteFor is cell-driven: it resolves from cell.baseColour (the same
+        // scope-tinted ARGB the on-screen renderer draws) so the Push mirrors the
+        // screen, with semantic overrides for press / held / playhead / off.
+        static uint8_t rgbPaletteFor(const SurfaceCell& cell) noexcept;
         static uint8_t biColourFor(CellState state) noexcept;
         static uint8_t monoFor(CellState state) noexcept;
 

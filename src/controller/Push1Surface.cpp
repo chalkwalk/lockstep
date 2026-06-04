@@ -341,13 +341,31 @@ namespace lockstep
         {0xB9,0xB0,0x00}, {0x3F,0x31,0x00}, {0xB3,0x5F,0x00}, {0x4B,0x15,0x02},  // 124-127
     }};
 
-    // Finds the palette index whose RGB is nearest to the given ARGB colour.
-    // Skips index 0 (black) so dim colours don't snap to off.
-    static uint8_t nearestPaletteIndex(uint32_t argb) noexcept
+    // Flattens an ARGB colour over black, premultiplying by alpha. The model
+    // encodes "dim" two ways: as genuinely dark RGB (opaque) and as a bright RGB
+    // at low alpha (the on-screen renderer composites it over the near-black
+    // grid). Push pads have no alpha, so we bake the alpha into the RGB here —
+    // otherwise a 9%-alpha scope colour would map to a *bright* palette entry
+    // instead of the faint one the screen shows. Opaque colours pass through.
+    static uint32_t flattenOverBlack(uint32_t argb) noexcept
     {
-        const int tr = static_cast<int>((argb >> 16) & 0xFF);
-        const int tg = static_cast<int>((argb >>  8) & 0xFF);
-        const int tb = static_cast<int>( argb        & 0xFF);
+        const float a = static_cast<float>((argb >> 24) & 0xFF) / 255.0f;
+        const int   r = static_cast<int>(static_cast<float>((argb >> 16) & 0xFF) * a);
+        const int   g = static_cast<int>(static_cast<float>((argb >>  8) & 0xFF) * a);
+        const int   b = static_cast<int>(static_cast<float>( argb        & 0xFF) * a);
+        return (static_cast<uint32_t>(r) << 16)
+             | (static_cast<uint32_t>(g) <<  8)
+             |  static_cast<uint32_t>(b);
+    }
+
+    // Finds the palette index whose RGB is nearest to the given (already
+    // alpha-flattened) RGB colour. Skips index 0 (black) so in-range but dim
+    // cells floor to a visible dark grey rather than snapping to off.
+    static uint8_t nearestPaletteIndex(uint32_t rgb) noexcept
+    {
+        const int tr = static_cast<int>((rgb >> 16) & 0xFF);
+        const int tg = static_cast<int>((rgb >>  8) & 0xFF);
+        const int tb = static_cast<int>( rgb        & 0xFF);
 
         // If the colour is very close to black, show a minimum dim (index 1).
         if (tr < 8 && tg < 8 && tb < 8)
@@ -373,88 +391,41 @@ namespace lockstep
     }
 
     // Maps a SurfaceCell to a pad/lower-button palette index (0-127).
-    // Decorations collapse into the index (playhead → amber, held → white).
-    // For Resting and Disabled states the baseColour drives the palette lookup
-    // so the on-screen scope/section colours are faithfully reflected.
-    uint8_t Push1Surface::rgbPaletteFor(CellState state,
-                                          const CellDecoration& border,
-                                          const CellDecoration& pip,
-                                          float level,
-                                          uint32_t baseColour) noexcept
+    //
+    // Cell-driven (mirrors the on-screen paint path): the body colour comes from
+    // cell.baseColour, which buildSurfaceModel already tints with the held scope
+    // — so the Push grid recolours with the scope exactly like the screen, rather
+    // than re-deriving a fixed colour per CellState token. Only a few semantics
+    // override that body colour: a press, a held/selected step, the playhead, and
+    // the genuinely-unused (out-of-range) cells.
+    uint8_t Push1Surface::rgbPaletteFor(const SurfaceCell& cell) noexcept
     {
-        // Border decoration overrides: playhead = amber, held step = white.
-        if (border.present)
+        // 1. Press feedback wins on every pad, including steps.
+        if (cell.pressed) return 3;  // white
+
+        // 2. Held / selected step (the on-screen white-border selection).
+        if (cell.base == CellState::StepHeld
+            || (cell.border.present && cell.border.token == CellState::StepHeld))
+            return 3;  // white
+
+        // 3. Playhead.
+        if (cell.border.present && cell.border.token == CellState::StepPlayhead)
+            return 9;  // amber hi
+
+        // 4. Genuinely unused cells → off (kept distinct from in-range dim cells,
+        //    which floor to a visible dark grey in nearestPaletteIndex).
+        switch (cell.base)
         {
-            if (border.token == CellState::StepPlayhead) return 9;   // amber hi
-            if (border.token == CellState::StepHeld)     return 3;   // white
+            case CellState::StepOutOfRange:
+            case CellState::SelectorOutRange:
+            case CellState::MachineUnavailable:
+                return 0;
+            default:
+                break;
         }
-        // Latch pip = scope tint dim
-        if (pip.present) return 2;  // grey light
 
-        switch (state)
-        {
-            case CellState::Resting:            return nearestPaletteIndex(baseColour);
-            case CellState::Pressed:            return 3;   // white
-            case CellState::ModeActive:         return nearestPaletteIndex(baseColour ? baseColour : 0xFF00FF00u);
-            case CellState::FuncHeld:           return 9;   // amber hi
-            case CellState::Disabled:           return 1;   // grey lo — visible but clearly inactive
-
-            // Step family
-            case CellState::StepEmpty:          return 0;
-            case CellState::StepTrigCertain:
-            {
-                // Level dims the colour (probability).
-                if (level >= 0.75f) return 22;  // green hi
-                if (level >= 0.5f)  return 19;  // green lo
-                return 1;                        // grey lo
-            }
-            case CellState::StepTrigProbable:   return 19;  // green lo
-            case CellState::StepTrigSuppressed: return 1;   // grey lo
-            case CellState::StepFillAdd:        return 10;  // amber hi (orange)
-            case CellState::StepFillSuppress:   return 46;  // blue
-            case CellState::StepOutOfRange:     return 0;
-            case CellState::StepPlayhead:       return 9;   // amber hi
-            case CellState::StepHeld:           return 3;   // white
-
-            // Selector family
-            case CellState::SelectorCurrent:    return 3;   // white
-            case CellState::SelectorOccupied:   return 22;  // green hi
-            case CellState::SelectorEmpty:      return 1;   // grey lo
-            case CellState::SelectorOutRange:   return 0;
-            case CellState::SelectorNext:       return 50;  // orchid
-            case CellState::SelectorChain:      return 50;  // orchid
-            case CellState::SelectorDeviated:   return 50;  // orchid
-            case CellState::SelectorHome:       return 9;   // amber
-
-            // Mute
-            case CellState::MuteMuted:          return 6;   // red
-            case CellState::MuteAudible:        return 22;  // green hi
-
-            // Machine picker
-            case CellState::MachineCurrent:     return 3;   // white
-            case CellState::MachineAvailable:   return 22;  // green hi
-            case CellState::MachineUnavailable: return 1;   // grey lo
-
-            // NoteEdit overlay
-            case CellState::NoteEditActive:     return 22;  // green hi
-            case CellState::NoteEditStaged:     return 8;   // red-amber
-            case CellState::NoteEditOther:      return 19;  // green lo
-            case CellState::NoteEditResting:    return 0;
-
-            // Chromatic keyboard
-            case CellState::ChromaticWhite:     return 22;  // green hi
-            case CellState::ChromaticBlack:     return 19;  // green lo
-
-            // Levels velocity picker
-            case CellState::LevelsCell:         return 46;  // blue
-
-            // Phrase-length authoring
-            case CellState::LengthInRun:        return 50;  // orchid
-            case CellState::LengthBoundary:     return 3;   // white (edge marker)
-            case CellState::LengthOutRun:       return 0;
-
-            default: return 1;  // grey lo for unknown tokens
-        }
+        // 5. Body colour = the scope-tinted ARGB the screen draws.
+        return nearestPaletteIndex(flattenOverBlack(cell.baseColour));
     }
 
     // Maps a CellState to a bi-colour value 0-24 for upper/scene buttons.
@@ -508,7 +479,7 @@ namespace lockstep
         for (int i = 0; i < 8; ++i)
         {
             const auto& cell = model.modifiers[static_cast<std::size_t>(i)];
-            const uint8_t colour = rgbPaletteFor(cell.base, cell.border, cell.pip, cell.level, cell.baseColour);
+            const uint8_t colour = rgbPaletteFor(cell);
             const int note = kModifierNotes[static_cast<std::size_t>(i)];
             const auto si = static_cast<std::size_t>(note - 36);
             if (colour != padShadow_[si])
@@ -522,7 +493,7 @@ namespace lockstep
         // note 60 = TAP, note 61 = NavUp, notes 62-67 = sections 0-5
         {
             const auto& tap  = model.tap;
-            const uint8_t tapC = rgbPaletteFor(tap.base, tap.border, tap.pip, tap.level, tap.baseColour);
+            const uint8_t tapC = rgbPaletteFor(tap);
             const auto si60 = static_cast<std::size_t>(60 - 36);
             if (tapC != padShadow_[si60])
             {
@@ -532,7 +503,7 @@ namespace lockstep
         }
         {
             const auto& nav  = model.navUp;
-            const uint8_t navC = rgbPaletteFor(nav.base, nav.border, nav.pip, nav.level, nav.baseColour);
+            const uint8_t navC = rgbPaletteFor(nav);
             const auto si61 = static_cast<std::size_t>(61 - 36);
             if (navC != padShadow_[si61])
             {
@@ -543,7 +514,7 @@ namespace lockstep
         for (int s = 0; s < 6; ++s)
         {
             const auto& cell = model.section[static_cast<std::size_t>(s)];
-            const uint8_t colour = rgbPaletteFor(cell.base, cell.border, cell.pip, cell.level, cell.baseColour);
+            const uint8_t colour = rgbPaletteFor(cell);
             const int note = 62 + s;
             const auto si = static_cast<std::size_t>(note - 36);
             if (colour != padShadow_[si])
@@ -557,9 +528,7 @@ namespace lockstep
         for (int i = 0; i < 8; ++i)
         {
             const SurfaceCell* cell = model.byButton(kVerbRowButtons[static_cast<std::size_t>(i)]);
-            const uint8_t colour = cell
-                ? rgbPaletteFor(cell->base, cell->border, cell->pip, cell->level, cell->baseColour)
-                : uint8_t(0);
+            const uint8_t colour = cell ? rgbPaletteFor(*cell) : uint8_t(0);
             const int note = 52 + i;
             const auto si = static_cast<std::size_t>(note - 36);
             if (colour != padShadow_[si])
@@ -573,13 +542,31 @@ namespace lockstep
         for (int s = 0; s < 16; ++s)
         {
             const auto& cell = model.step[static_cast<std::size_t>(s)];
-            const uint8_t colour = rgbPaletteFor(cell.base, cell.border, cell.pip, cell.level, cell.baseColour);
+            const uint8_t colour = rgbPaletteFor(cell);
             const int note = kStepNotes[static_cast<std::size_t>(s)];
             const auto si = static_cast<std::size_t>(note - 36);
             if (colour != padShadow_[si])
             {
                 padShadow_[si] = colour;
                 out.sendMessageNow(juce::MidiMessage::noteOn(1, note, static_cast<juce::uint8>(colour)));
+            }
+        }
+
+        // Unused top-right pad block (rows 5-8, cols 2-7) — explicitly off, so a
+        // colour left from a prior frame/session can't linger. Shadow-tracked.
+        // notes = 70-75, 78-83, 86-91, 94-99 (the 6 columns right of the 2×4
+        // modifier block in the top four rows).
+        for (int rowFromBottom = 4; rowFromBottom <= 7; ++rowFromBottom)
+        {
+            for (int col = 2; col < 8; ++col)
+            {
+                const int note = 36 + rowFromBottom * 8 + col;
+                const auto si = static_cast<std::size_t>(note - 36);
+                if (padShadow_[si] != 0)
+                {
+                    padShadow_[si] = 0;
+                    out.sendMessageNow(juce::MidiMessage::noteOn(1, note, static_cast<juce::uint8>(0)));
+                }
             }
         }
 
