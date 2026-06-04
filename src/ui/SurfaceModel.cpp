@@ -1216,6 +1216,18 @@ namespace lockstep
                 slot.inRange = true;
                 slot.label   = spec.label.isEmpty() ? juce::String(absSlot) : spec.label;
 
+                // Owning section name (machine label, falling back to canonical) —
+                // used as a header line on the Push display.
+                {
+                    const int secIdx = juce::jlimit(0, IMachine::kMaxSections - 1,
+                                                    spec.sectionIndex);
+                    const auto& secInfo = proc.section(activeTrack, secIdx);
+                    slot.sectionLabel = secInfo.label.isNotEmpty()
+                        ? secInfo.label
+                        : juce::String(IMachine::kCanonicalSectionNames[
+                              static_cast<std::size_t>(secIdx)]);
+                }
+
                 // Override-ELSE-Base resolution
                 float value = proc.baseParamValue(activeTrack, absSlot);
                 bool  hasLock = false;

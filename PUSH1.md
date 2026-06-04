@@ -365,9 +365,32 @@ Clear line N:   F0 47 7F 15  <1C..1F>  00 00     F7
 | 4 (bottom)| `0x1B` | `0x1F` |
 
 (`0x45` = 69 is the firmware's framing byte; supply exactly 68 character bytes.)
-Each line is visually divided into **four 17-character blocks**, one above/below
-each pair of encoders — useful for labelling the 8 encoders with name + value.
-Display brightness: SysEx command `0x08`.
+Each line is visually divided into **four 17-character blocks**, one above each
+pair of encoders. A block is `[enc:8][gap:1][enc:8]`: the 1-char gap sits in the
+*middle* of each block (mirroring the physical gap between the two encoders under
+it); there is **no** extra space between adjacent blocks. So the full 68-char
+line is `8 + 1 + 8 + 8 + 1 + 8 + 8 + 1 + 8 + 8 + 1 + 8`, giving each encoder its
+own **8-wide column** across all four lines (an 8×4 character cell per encoder).
+
+### Lockstep's per-encoder layout
+
+Each encoder's 8×4 cell shows, top to bottom:
+
+| Line | Content |
+|---|---|
+| 1 (`0x18`) | **value bar** — a horizontal fill/graph of the parameter |
+| 2 (`0x19`) | value text (e.g. `12.5ms`) |
+| 3 (`0x1A`) | owning **section** name (e.g. `FILTER`) |
+| 4 (`0x1B`) | parameter name (e.g. `CUTOFF`) |
+
+The value bar is drawn with Push 1's built-in **block-bar glyphs** — control
+codes `\x03`–`\x06` (ascending partial fills, full at `\x06`), the same set
+pushbase uses for `GRAPH_VOL`/`GRAPH_PAN`/`GRAPH_SIN`. Bipolar params fill from
+the centre; stepped/enum params draw a single caret. (Confirm the glyphs render
+via push_probe **Glyph/Bars**; the surface has an ASCII-bar fallback flag.)
+
+Display brightness via SysEx `0x08` is **unverified** and likely absent on Push 1
+(see the no-brightness note under *Other useful SysEx*).
 
 ---
 

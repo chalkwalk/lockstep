@@ -140,6 +140,7 @@ namespace lockstep
     struct SurfaceSlot
     {
         juce::String label;       // parameter label (empty when slot is out of range)
+        juce::String sectionLabel; // owning section name (e.g. "FILTER"); for displays
         juce::String valueText;   // formatted value string (empty when out of range)
         float        position  = 0.0f; // normalised 0..1 for ring/display
         RingMode     ringMode  = RingMode::UnipolarFill;

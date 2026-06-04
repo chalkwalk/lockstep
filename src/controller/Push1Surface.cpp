@@ -468,6 +468,63 @@ namespace lockstep
         return 0;
     }
 
+    // Build a `width`-char value bar for one encoder's display cell. Uses Push 1
+    // block-bar glyphs (pushbase GRAPH_* set: \x03 = 1/4 … \x06 = full) when
+    // kUseBlockGlyphs, else a coarse ASCII bar. The glyph rendering is confirmed
+    // via push_probe 'Glyph/Bars'; flip kUseBlockGlyphs if a unit lacks them.
+    static constexpr bool kUseBlockGlyphs = true;
+
+    static juce::String buildBar(float position, RingMode mode, int width) noexcept
+    {
+        position = juce::jlimit(0.0f, 1.0f, position);
+        const juce::juce_wchar full  =
+            kUseBlockGlyphs ? static_cast<juce::juce_wchar>(0x06)
+                            : static_cast<juce::juce_wchar>('#');
+        const juce::juce_wchar blank = ' ';
+
+        // Sub-char leading-edge glyph for the fractional fill (block mode only).
+        auto partial = [&](float frac) -> juce::juce_wchar
+        {
+            if (!kUseBlockGlyphs) return blank;
+            const int q = juce::jlimit(0, 3, static_cast<int>(frac * 4.0f));  // 0..3
+            if (q <= 0) return blank;
+            return static_cast<juce::juce_wchar>(0x03 + (q - 1));  // 0x03/04/05
+        };
+
+        juce::String bar;
+        if (mode == RingMode::Dot)
+        {
+            const int pos = juce::jlimit(0, width - 1,
+                static_cast<int>(position * static_cast<float>(width - 1) + 0.5f));
+            for (int i = 0; i < width; ++i)
+                bar += (i == pos) ? full : blank;
+            return bar;
+        }
+        if (mode == RingMode::BipolarFromCentre)
+        {
+            const int mid = width / 2;
+            const int ext = juce::roundToInt((position - 0.5f) * 2.0f * static_cast<float>(mid));
+            for (int i = 0; i < width; ++i)
+            {
+                const bool on = (ext >= 0) ? (i >= mid && i < mid + ext)
+                                           : (i >= mid + ext && i < mid);
+                bar += on ? full : blank;
+            }
+            return bar;
+        }
+        // UnipolarFill — fill from the left, with a sub-char leading edge.
+        const float filled = position * static_cast<float>(width);
+        const int   fullCount = static_cast<int>(filled);
+        const float frac = filled - static_cast<float>(fullCount);
+        for (int i = 0; i < width; ++i)
+        {
+            if (i < fullCount)        bar += full;
+            else if (i == fullCount)  bar += partial(frac);
+            else                      bar += blank;
+        }
+        return bar;
+    }
+
     // =========================================================================
     // render — LED and display feedback
     // =========================================================================
@@ -629,37 +686,43 @@ namespace lockstep
         // between them. Pattern across the full line:
         //   [enc0:8][ ][enc1:8] [enc2:8][ ][enc3:8] [enc4:8][ ][enc5:8] [enc6:8][ ][enc7:8]
         //    ←── display 0 ──→  ←── display 1 ──→   ←── display 2 ──→   ←── display 3 ──→
-        // Top 2 lines = value text; bottom 2 lines = param name.
-        auto buildDisplayLine = [&](bool isValueLine) -> juce::String
+        // Per encoder (8×4 chars): row0 = value bar, row1 = value text,
+        // row2 = section name, row3 = param name.
+        auto buildLine = [&](auto&& cellFn) -> juce::String
         {
             juce::String line;
-            line.preallocateBytes(68);
+            line.preallocateBytes(72);
             for (int enc = 0; enc < 8; ++enc)
             {
                 const auto& slot = model.slots[static_cast<std::size_t>(enc)];
-                juce::String col = slot.inRange
-                    ? (isValueLine ? slot.valueText : slot.label)
-                    : juce::String();
-                // Truncate or pad to exactly 8 chars.
+                juce::String col = slot.inRange ? cellFn(slot) : juce::String();
+                // Truncate or pad to exactly 8 chars (bar glyphs count as 1 char each).
                 if (col.length() > 8) col = col.substring(0, 8);
                 while (col.length() < 8) col += ' ';
                 line += col;
-                // Insert the within-display separator after the left encoder of each pair.
+                // Within-display separator after the left encoder of each pair.
                 if (enc % 2 == 0)
                     line += ' ';
             }
-            // Should be exactly 8*8 + 4 = 68 chars.
-            return line;
+            return line;  // exactly 8*8 + 4 = 68 chars
         };
 
-        const juce::String valueLine = buildDisplayLine(true);
-        const juce::String nameLine  = buildDisplayLine(false);
+        const std::array<juce::String, 4> lines = {
+            buildLine([](const SurfaceSlot& s) { return buildBar(s.position, s.ringMode, 8); }),
+            buildLine([](const SurfaceSlot& s) { return s.valueText; }),
+            buildLine([](const SurfaceSlot& s) { return s.sectionLabel; }),
+            buildLine([](const SurfaceSlot& s) { return s.label; }),
+        };
 
-        // Lines 0-1 = value; lines 2-3 = name.
-        if (valueLine != displayShadow_[0]) { displayShadow_[0] = valueLine; writeDisplayLine(out, 0, valueLine); }
-        if (valueLine != displayShadow_[1]) { displayShadow_[1] = valueLine; writeDisplayLine(out, 1, valueLine); }
-        if (nameLine  != displayShadow_[2]) { displayShadow_[2] = nameLine;  writeDisplayLine(out, 2, nameLine);  }
-        if (nameLine  != displayShadow_[3]) { displayShadow_[3] = nameLine;  writeDisplayLine(out, 3, nameLine);  }
+        for (int l = 0; l < 4; ++l)
+        {
+            const auto li = static_cast<std::size_t>(l);
+            if (lines[li] != displayShadow_[li])
+            {
+                displayShadow_[li] = lines[li];
+                writeDisplayLine(out, l, lines[li]);
+            }
+        }
     }
 
 }  // namespace lockstep
