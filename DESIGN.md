@@ -938,7 +938,7 @@ The six section keys carry a fixed canonical taxonomy:
   | 6 | 1 | **SRC**  | Primary sound source: sampler controls, oscillator controls, FM ratios, MIDI program/channel for MIDI-out machines. |
   | 7 | 2 | **FILTER** | Filter — usually the post-machine FILTER block (§14), but machines may opt out (`hasInternalFilter()`) and present their own. |
   | 8 | 3 | **AMP**  | Amplitude envelope + output mix (Level, Pan, Sends) — usually the post-machine AMP block (§14). |
-  | 9 | 4 | **MOD**  | Modulation: LFO, modulation matrices, per-operator envelopes, voice/portamento. (Renamed from `LFO` in 3.2 — every deep synth has modulation that isn't LFO, and conflating the two pushed the FM matrix five presses deep.) |
+  | 9 | 4 | **MOD**  | Modulation, *deliberately shallow*: a minimal, performable set of live-tweakable modulators (e.g. one or two LFOs with canonical targets) at the primary page. Deep modulation — full matrices, per-operator envelopes, custom shapes — is machine-internal on MOD *extension* pages, not a uniform canonical promise (see the shallow-contract note below). (Renamed from `LFO` in 3.2.) |
   | 0 | 5 | **FX**   | Effects: machine-intrinsic (drive / bit-reduction) at primary; foundation-owned inserts on `Track+FX`; master FX on `Song+FX`. |
 
   A machine that has nothing to fill a canonical section leaves it
@@ -955,6 +955,18 @@ The six section keys carry a fixed canonical taxonomy:
   workflows survive — `hold FILTER + COPY` always means "copy whatever
   the focused machine treats as its filter stage," and Control-All
   by `role` still finds matching slots across renamed labels.
+
+  **MOD is deliberately shallow (PRINCIPLES *"Reward mastery"*).** The
+  canonical MOD section promises only a *minimal, performable* modulation
+  surface — live-tweakable, P-lockable modulators with canonical targets that
+  a performer reaches for mid-set. A machine's *deep* modulation (FM's full
+  4×4 matrix, per-operator envelopes, any drawable shape) stays machine-
+  internal on MOD *extension* pages; it is **not** hoisted into a uniform
+  cross-machine contract every user must learn. Snap-to-canonical still
+  governs *placement* (a matrix lives under MOD key 9); the demotion is about
+  the canonical *promise*, not the key. Lockstep ships no custom-LFO designer
+  and no free automation lanes — stepped P-Locks and Morph (§17) are the
+  modulation model (NON-GOALS).
 
 #### 6.1.2 The scope-section matrix
 
@@ -979,7 +991,8 @@ split (this is the resolved content pass — the rows are no longer
 provisional):
 
 - A **Phrase** is pure per-track *content* — steps, P-Locks, length, a
-  per-phrase scale lock — and carries **no sound**. So only the timing-
+  per-phrase scale lock (§34.2 — a *playable layout*, not auto-correct) — and
+  carries **no sound**. So only the timing-
   domain `TRIG` cell is live (length / scale lock); every sound cell
   (`SRC`–`FX`) dims, because the kit-base params a Pattern used to share
   with its Part now live in the **no-scope / Track-base** row (machine
@@ -1633,6 +1646,55 @@ permanently-reassigned one.
 All three modes share the property that they are *playback / capture*
 gestures, not destructive edits — leaving the mode never alters the
 authored pattern.
+
+#### Euclidean print-on-release (deterministic generator)
+
+Distinct from the three modes above — which never alter the pattern — the
+**Euclidean generator** is an authoring aid that *writes*. Held as a scope
+chord (precise chord at the UI milestone), it re-skins the focused track's
+step row and turns the encoders into Euclidean parameters against that track's
+`Phrase.length` slots:
+
+- **Pulses** — how many hits are distributed evenly across the length.
+- **Rotation / offset** — rotate the pattern's starting position.
+- *(optional)* **Accent / velocity** of the generated hits.
+
+While the chord is held, the generated rhythm is **audible and visible** in
+real time — the performer dials it in against the playing sequence. On
+**release** it *prints*: it **replaces** the trigs within the track length
+with the generated pattern (existing trigs in range are overwritten; a
+checkpoint pushes first — §13.6 — so the prior pattern is recoverable). The
+printed output is **ordinary trig data**, indistinguishable from hand entry
+and fully hand-editable afterward.
+
+This is deliberately the deterministic, *prints-to-real-state* form sanctioned
+by PRINCIPLES *"Pragmatic determinism"* and *"Reward mastery"*: Lockstep
+refuses stochastic / generative authoring (NON-GOALS), but a clocked,
+repeatable generator that the performer drives live and commits is welcome.
+Euclidean density is not a "make it good for me" button; it is a rhythm you
+shape and time.
+
+#### Arpeggiator — DRAFT (PRINCIPLES-cleared, DESIGN-pending)
+
+> **Status:** admitted in principle, *not yet specified*. Recorded here so the
+> ROADMAP gate (PRINCIPLES → DESIGN → ROADMAP) has a home to point at; it does
+> **not** earn a ROADMAP checklist until the grammar fit below is resolved.
+
+An arpeggiator is admitted **only as a performable engine**, never a
+set-and-forget noodler (PRINCIPLES *"Reward mastery"*). Any spec must satisfy:
+
+- **Per-track, deterministic.** Rate, order (up / down / up-down / as-played),
+  range / octaves, gate — all deterministic; *no* "random" order (that would
+  be stochastic authoring, NON-GOALS).
+- **Driven live, P-lockable.** Its parameters live on a section (candidate:
+  TRIG or MOD) and are P-lockable per step, scene-assignable, and Control-All-
+  able like any slot — so the arp is *played*, not armed and forgotten.
+- **Composes, doesn't replace.** It transforms the track's chord-step notes
+  (§3.6) and coexists with Morph; it is not a separate authoring mode.
+- **Open questions (close before ROADMAP):** which scope/gesture toggles and
+  edits it; whether it emits to the pattern (print-on-release, like Euclidean)
+  or stays a live transform; interaction with retrig (§13.5) and microtiming
+  (§5.1).
 
 ### 13.6 Checkpoint Stack
 
@@ -2906,6 +2968,14 @@ the foundation provide:
   machine. There is no `SyntaktMachine`; the box is a Sound-Pool +
   master-FX preset.
 
+**Granular is a module, not stock.** Granular synthesis (Roland Aira P-6, and
+the Tonverk lineage) is a genuinely useful but *specialised* engine: per
+PRINCIPLES *"Machines generate; effects process"*, a specialised engine ships
+as a third-party machine module (§36), not as a reason to grow the stock
+catalogue. The stock set stays the iconic-and-foundational lineage above;
+granular — and physical-model specialities beyond `PercussionMachine` — are
+first examples of what the module ABI is *for*.
+
 ### 29.1 `DigitalMachine` — the Monomachine archetype
 
 A **model-based digital monosynth** (built the way `DrumSynthMachine` is:
@@ -3127,6 +3197,25 @@ already specifies for FILTER/AMP. No performance feature special-cases
 audio vs. MIDI-out here — the FX section simply renders whatever that
 track type exposes (`PRINCIPLES.md` §6).
 
+### 32.5 Animate — momentary insert toggle (performance punch-in)
+
+Grooveboxes lean hard on momentary "performance FX" — glitch / stutter /
+filter macros punched in on a held key (Polyend Play, OP-Z, MC-707 Scatter).
+Lockstep **refuses a dedicated performance-FX mode** (NON-GOALS: it is dead
+weight and a design/perform split). Instead it offers the thin, Novation-Peak-
+"Animate" form — a **momentary toggle of effects that already exist**.
+
+A bound gesture (exact key at the FX milestone) **enables an insert slot only
+while held**; the effect is otherwise bypassed. The dual binding *bypasses* an
+otherwise-active insert while held (the "drop the reverb" move). Releasing
+returns to the resting state. Because inserts are already P-lockable, scene-
+assignable, and Control-All-able (§32.1), Animate adds **no new effect surface
+and no new mode** — it is one momentary *verb over existing inserts*, exactly
+the weight a punch-in should cost. The toggled state is performance-only (never
+written to the pattern); the effect's parameters are tweaked the normal way
+(encoders / P-Locks). Master inserts (§32.3) carry the same momentary toggle,
+giving a one-key master-FX punch-in without a master-FX mode.
+
 ## 33. 3.1 — The 10×4 Surface Revamp (amended by 3.2)
 
 The intended *final* control surface and UX grammar. Earlier
@@ -3260,6 +3349,18 @@ velocity and §19.4 musical gate capture from 3.8) and land on
 steps. CHROMATIC composes with all scope modifiers — holding a scope
 key during CHROMATIC reinterprets the step grid per the scope re-skin
 (§6.7) and suspends CHROMATIC playback for the duration of the hold.
+
+**Scale-aware layout (not auto-correct).** A phrase carries an optional
+*scale lock* (§6.1.2 Phrase row): a root + scale. When set, CHROMATIC remaps
+the step cells from raw semitones to the *degrees* of that scale (cell 0 =
+root, ascending through the scale, NavUp/NavDown shifting octaves), so the
+in-key notes sit under the fingers and melodic play is faster. This is a
+**playable layout — frets, not a net.** Per PRINCIPLES *"Reward mastery"*,
+the scale never *corrects* input: notes entered any other way (held-step
+pitch capture, external MIDI) are written verbatim, out-of-scale notes stay
+reachable, and nothing is silently snapped. The scale changes which notes are
+*easy to reach*, never which are *possible*. With no scale lock set, CHROMATIC
+is the raw 1-octave chromatic layout described above.
 
 ### 34.3 LEVELS
 
