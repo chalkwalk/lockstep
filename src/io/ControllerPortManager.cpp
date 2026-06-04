@@ -33,6 +33,13 @@ namespace lockstep
                                        ControllerEventSink& sink,
                                        const SurfaceModel& model)
     {
+        // Fire onConnect once per successful open (and on each hotplug reconnect).
+        if (justOpened_ && midiOut_)
+        {
+            justOpened_ = false;
+            surface.onConnect(*midiOut_);
+        }
+
         int s1, n1, s2, n2;
         fifo_.prepareToRead(fifo_.getNumReady(), s1, n1, s2, n2);
 
@@ -96,8 +103,12 @@ namespace lockstep
             }
         }
 
-        if (midiIn_ && onStateChange)
-            onStateChange(true);
+        if (midiIn_)
+        {
+            justOpened_ = true;
+            if (onStateChange)
+                onStateChange(true);
+        }
     }
 
     void ControllerPortManager::closeAll()

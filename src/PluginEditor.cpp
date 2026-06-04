@@ -2918,6 +2918,35 @@ namespace lockstep
             crossfader_.setValue(static_cast<double>(normValue), juce::sendNotificationAsync);
         };
 
+        sink.applyGlobalDelta = [this](GlobalTarget target, int rawDelta)
+        {
+            switch (target)
+            {
+                case GlobalTarget::Tempo:
+                {
+                    const double cur = processor_.clock().localBpm();
+                    processor_.clock().setLocalBpm(
+                        std::clamp(cur + static_cast<double>(rawDelta) * 0.5,
+                                   20.0, 300.0));
+                    break;
+                }
+                case GlobalTarget::Master:
+                {
+                    auto* p = processor_.apvts().getParameter(ParamIDs::outputGain);
+                    if (p)
+                    {
+                        const float cur    = p->getValue();  // normalised 0..1
+                        const float newVal = juce::jlimit(0.0f, 1.0f,
+                                                          cur + static_cast<float>(rawDelta) / 128.0f);
+                        p->setValueNotifyingHost(newVal);
+                    }
+                    break;
+                }
+                case GlobalTarget::Swing:
+                    break;  // not yet implemented in sequencer core
+            }
+        };
+
         return sink;
     }
 }

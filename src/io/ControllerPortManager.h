@@ -59,6 +59,7 @@ namespace lockstep
         std::unique_ptr<juce::MidiInput>  midiIn_;
         std::unique_ptr<juce::MidiOutput> midiOut_;
         std::string lastInputId_;
+        bool        justOpened_ = false; // consumed by drain() to call onConnect once
 
         static constexpr int kFifoSize = 256;
         juce::AbstractFifo                       fifo_{ kFifoSize };
