@@ -32,6 +32,11 @@ of *"Ergonomics first; chrome announces state"* below.)
 underlying gestures are identical at every level of skill; only the
 density of on-screen annotation changes.
 
+Its mirror is *"Reward mastery — no crutches, no dead weight"* below: this
+principle refuses to strip capability for beginners; that one refuses to
+*admit* capability that doesn't reward practice. Together they fence both
+sides — Lockstep is neither dumbed down nor padded out.
+
 ## 2. One grammar, no exceptions
 
 Every action in Lockstep is some combination of **scope + verb**. Scopes
@@ -86,6 +91,14 @@ honestly.
 Every key earns its placement by participating in the same scope+verb
 system everywhere it appears.
 
+This also fences off whole input paradigms before they reach DESIGN. Any
+feature that needs a control axis the planned hardware cannot honestly
+provide is rejected here, not worked around: MPE / per-pad pressure /
+tilt-and-motion sensing (Push 3, EP-133, Aira), or a wall of per-track
+physical faders and channel strips (MC-707). The single continuous axis is
+the crossfader; there is no second one, and there is no axis a typing
+keyboard cannot stand in for.
+
 ## 5. The grid is the menu; the hold is the mode
 
 When a workflow reaches a "pick one of N" decision — machine type, P-lock
@@ -115,6 +128,13 @@ loudly chromed; it adds no new meaning, only duration.)
 **Consequence.** This is what keeps the surface portable to hardware
 (*"Hardware = fewer-key QWERTY"*): a pad grid can be a picker, but a
 hardware panel can't grow a popup menu.
+
+By the same logic we refuse two adjacent paradigms. The tracker
+command-column / hex-FX text grid (M8, Polyend Tracker) replaces the picker
+with a typed command language — coherent, but the opposite of "the grid is
+the menu." The unbounded scrolling canvas (Deluge) trades the fixed,
+memorisable surface for an infinite one, so muscle memory never settles. Both
+are good designs; neither is *this* design.
 
 ## 6. Internal-audio and MIDI-out tracks are equal citizens
 
@@ -161,6 +181,15 @@ under MOD.
 because FILTER means the same thing everywhere. Machine authors who
 deviate from canonical taxonomy break those workflows; we don't let them.
 
+**MOD is deliberately shallow.** The canonical MOD section carries only
+*minimal, performable* modulation — a small set of live-tweakable,
+P-lockable modulators with canonical targets. Rich modulation (deep matrices,
+custom-drawn LFO shapes, per-op tables) lives *inside* a machine, reached
+through its own pages, never hoisted into a canonical section every user must
+learn. MOD keeps its canonical slot by being playable, not by being deep —
+the test in *"Reward mastery — no crutches, no dead weight"* applied to a
+section we already ship.
+
 ## 9. Machines generate or capture; effects process
 
 A machine *originates* sound (a synth or sampler) or *routes/captures*
@@ -173,8 +202,9 @@ it earns it by doing no colouring of its own — the foundation
 FILTER/AMP/FX do the work.
 
 **Consequence.** The stock catalogue is the iconic-and-foundational set
-keyed to the reference lineage (DESIGN §29); a specialised engine is a
-third-party module (DESIGN §36), not a reason to grow the in-box
+keyed to the reference lineage (DESIGN §29); a specialised engine — a
+granular voice, a physical-model resonator, any Tonverk-class speciality —
+is a third-party module (DESIGN §36), not a reason to grow the in-box
 catalogue. This keeps both the catalogue and the section taxonomy
 (*"Canonical sections are reserved"*) from sprawling.
 
@@ -221,6 +251,17 @@ for the grammar and the resolver, not for every sample of audio.
 surface — no random LFO start phase, no probabilistic voice steal, no
 "humanize" toggles smeared across the sequence layer. If randomness is
 desired, it expresses through trig conditions.
+
+**Deterministic generators are not randomness.** A Euclidean fill, a
+pendulum playback direction, a `Chance` macro that scales the *existing*
+trig-condition probabilities — these are admissible precisely because they
+are deterministic: same state, same result, and the output is ordinary,
+hand-editable trig data (the Euclidean rhythm *prints* to plain trigs when
+the modifier is released). The line is drawn at *stochastic authoring* —
+engines that pick the notes or the pattern for you by rolling dice at edit
+time (Oxi's stochastic modes, Polyend's smart genre fills, Torso's generative
+voicing). Those we refuse; a clocked, repeatable generator we welcome, in the
+performable form that *"Reward mastery"* demands.
 
 ## 12. State refs, not state contents
 
@@ -278,3 +319,71 @@ it. This applies across the whole surface: P-Locks win over Morph mixes
 win over base params; local deviations win over Scene launch; per-step
 overrides win over track base. The resolution stack is always traversed
 finest-to-coarsest, stopping at the first explicitly-set layer.
+
+## 14. Reward mastery — no crutches, no dead weight
+
+Lockstep is an instrument you *learn*. Every gesture a user must carry in
+their head is a tax paid on the way to mastery, and the surface has a finite
+budget. A feature is admitted only when it **rewards practice** — a performer
+measurably improves at it over time and it widens what they can express live.
+Two failure modes get a feature rejected:
+
+- **Crutch.** It does the musical work *for* the user — lowering the skill
+  floor without raising the ceiling. Note auto-correct ("no wrong notes"),
+  smart generators that pick the notes, genre-template fills, anything that
+  makes *wrong* impossible. This is the mirror of *"Vim, not nano"*: that
+  principle refuses to strip capability for beginners; this one refuses to
+  paper over the learning curve.
+- **Dead weight.** Its cognitive cost is never repaid in performance — a
+  set-and-forget knob, a studio convenience, a mode you configure once and
+  never touch on stage.
+
+The test is **constructive**: it does not only say no, it says *"yes, but
+only in the performable form."* A generator is welcome if you drive it live
+and it prints to ordinary state (Euclidean — DESIGN §13.5); an arpeggiator is
+welcome only as an engine you *perform* — live-driven, P-lockable — not a
+noodler you arm and leave; a scale is welcome as a *playable layout* (frets
+that let you move faster), never as note auto-correct.
+
+**Consequence.** "It's a popular feature" is never sufficient justification.
+Before a feature reaches `DESIGN.md`, name the practised skill it rewards and
+the live moment it pays that practice back. If the honest answer is "it makes
+music easier" or "you set it up once," it belongs in a DAW — not in Lockstep.
+The *Non-Goals* below, and `NON-GOALS.md`, are this principle and its siblings
+applied to the competitive landscape.
+
+---
+
+## Non-Goals — what Lockstep refuses to become
+
+The standing refusals, each tied to the principle that does the rejecting.
+`NON-GOALS.md` carries the long form — which groovebox prompted each fence and
+the performable alternative we offer instead. The summary:
+
+1. **No song / arrangement / linear chaining.** The set order is performed,
+   not stored. → *Performance is the goal*; DESIGN §16.
+2. **No stochastic or generative authoring.** Engines that pick the notes or
+   the pattern by rolling dice at edit time are out; deterministic generators
+   that print ordinary trigs are in. → *Pragmatic determinism*; *Reward
+   mastery*.
+3. **No un-clocked or "organic" timing.** No free-running analog drift, no
+   quantize-off "flux" mode. → *Pragmatic determinism*.
+4. **No tracker command-column / hex-FX paradigm.** The grid is a picker, not
+   a typed command language. → *The grid is the menu*.
+5. **No unbounded / scrolling canvas.** The surface is fixed and memorisable.
+   → *The grid is the menu*; *Hardware = fewer-key QWERTY*.
+6. **No control axis the hardware can't honestly provide.** No MPE, per-pad
+   pressure, or tilt/motion; one crossfader, no wall of per-track faders. →
+   *Hardware = fewer-key QWERTY*.
+7. **No foreign-plugin or standalone-host ecosystem.** The machine ABI is a
+   bespoke in-process contract, not a CLAP/VST3 sub-host. → DESIGN §2, §36.
+8. **No destructive tape workflow.** State is references and overrides, never
+   baked-in audio. → *State refs, not contents*.
+9. **No companion app as the primary surface.** One surface model; the DAW is
+   the screen. → DESIGN §35.8.
+10. **No heavyweight performance-FX *mode*.** Momentary effect punch-in is a
+    thin toggle over the existing inserts, not a mode of its own. → *Reward
+    mastery*; *Performance is the goal*.
+11. **No crutch tooling.** Note auto-correct, custom-LFO designers, free
+    automation lanes — capability that lowers the floor or never gets played.
+    → *Reward mastery*.
