@@ -439,10 +439,26 @@ record the intent discussed:
   4-line display annotating name/value per encoder — a natural fit for the
   `ManipulationZone` 8-param band, though Push has one display row set vs the 4×2
   band (two encoder *pushes*/pages may be needed).
-- **Convenience bindings** → the dedicated transport/function buttons (Play 85,
-  Record 86, etc.) map onto Lockstep verbs as secondary aliases, but per the
-  project rule the whole surface must remain operable from the 8×8 grid +
-  encoders + touch strip alone.
+- **Convenience bindings** → the dedicated transport/function buttons map onto
+  Lockstep verbs/modifiers as secondary aliases (lit whenever they have a live
+  function), but per the project rule the whole surface must remain operable from
+  the 8×8 grid + encoders + touch strip alone. Currently bound (`kMonoButtons`):
+
+  | CC | Button | → Lockstep |
+  |---|---|---|
+  | 85 / 86 | Play / Record | VerbPlay / VerbRecord |
+  | 44–47 | ◄►▲▼ | Nav Left/Right/Up/Down |
+  | 54 / 55 | Octave Down / Up | NavLeft / NavRight (= octave shift in note/chromatic) |
+  | 3 / 9 | Tap / Metronome | TapTempo / MetronomeToggle |
+  | 87 / 118 / 119 | New / Delete / Undo | VerbClear / VerbDelete / VerbNo |
+  | 49 | Shift | Func |
+  | 60 | Mute | MuteScope (hold-to-mute, = grid key Z) |
+  | 29 | Stop Clip | StopReset (stop + reset to top) |
+
+  Deliberately **unbound** (no clean 1:1 to a live action; would need new
+  plumbing or violate the no-bespoke-button rule): Master 28, Solo 61, Note 50 /
+  Session 51 (track input-mode cycle is a `Track`+Nav *compound*, not a single
+  button), Duplicate 88. Revisit if a generic controller-affordance seam is added.
 
 The 8×8 + bi-colour-flanks + white-function-buttons split means Lockstep's
 `SurfaceModel` → device renderer must pick **per-target colour spaces**: full

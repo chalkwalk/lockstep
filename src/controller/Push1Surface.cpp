@@ -659,7 +659,10 @@ namespace lockstep
         {
             const auto& entry = kMonoButtons[static_cast<std::size_t>(i)];
             const SurfaceCell* cell = model.byButton(entry.button);
-            const uint8_t val = cell ? monoFor(cell->base) : uint8_t(0);
+            // Every entry is a live binding, so light it at least dim even when it
+            // has no model cell (e.g. StopReset/Metronome) — an unlit labelled
+            // button is unreadable on the unit.
+            const uint8_t val = cell ? monoFor(cell->base) : uint8_t(1);
             const auto si = static_cast<std::size_t>(i);
             if (val != monoShadow_[si])
             {

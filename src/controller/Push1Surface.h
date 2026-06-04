@@ -158,7 +158,7 @@ namespace lockstep
         // Mono CC button table: {cc, ControllerButton}.
         // Only the subset that maps to a Lockstep action is wired; the rest stay dark.
         struct MonoEntry { int cc; ControllerButton button; };
-        static constexpr std::array<MonoEntry, 12> kMonoButtons = {{
+        static constexpr std::array<MonoEntry, 16> kMonoButtons = {{
             {  85, ControllerButton::VerbPlay        },
             {  86, ControllerButton::VerbRecord      },
             {  44, ControllerButton::NavLeft         },
@@ -171,6 +171,10 @@ namespace lockstep
             { 118, ControllerButton::VerbDelete      },  // Delete
             { 119, ControllerButton::VerbNo          },  // Undo → No/cancel alias
             {  49, ControllerButton::Func            },  // Shift → Func alias
+            {  60, ControllerButton::MuteScope       },  // Mute → hold-to-mute (= Z)
+            {  29, ControllerButton::StopReset       },  // Stop Clip → stop + reset to top
+            {  54, ControllerButton::NavLeft         },  // Octave Down → NavLeft (octave in note/chrom)
+            {  55, ControllerButton::NavRight        },  // Octave Up → NavRight (octave in note/chrom)
         }};
     };
 }
