@@ -3,8 +3,10 @@
 
 namespace lockstep
 {
-    ControllerPortManager::ControllerPortManager(juce::String nameSubstring)
+    ControllerPortManager::ControllerPortManager(juce::String nameSubstring,
+                                                   juce::String fallbackSubstring)
         : nameSubstring_(std::move(nameSubstring))
+        , fallbackSubstring_(std::move(fallbackSubstring))
     {
         tryOpen();
         startTimerHz(1);
@@ -79,9 +81,19 @@ namespace lockstep
 
     void ControllerPortManager::tryOpen()
     {
+        // Try primary match, then fallback (e.g. Linux ALSA uses "…MIDI 2" instead
+        // of "…User Port" for the Push 1's second port).
+        auto tryMatch = [](const juce::String& name,
+                           const juce::String& primary,
+                           const juce::String& fallback) -> bool
+        {
+            if (name.containsIgnoreCase(primary)) return true;
+            return !fallback.isEmpty() && name.containsIgnoreCase(fallback);
+        };
+
         for (const auto& d : juce::MidiInput::getAvailableDevices())
         {
-            if (d.name.containsIgnoreCase(nameSubstring_))
+            if (tryMatch(d.name, nameSubstring_, fallbackSubstring_))
             {
                 midiIn_ = juce::MidiInput::openDevice(d.identifier, this);
                 if (midiIn_)
@@ -96,7 +108,7 @@ namespace lockstep
         // Output scan is separate — on Linux ALSA, in/out have independent identifiers.
         for (const auto& d : juce::MidiOutput::getAvailableDevices())
         {
-            if (d.name.containsIgnoreCase(nameSubstring_))
+            if (tryMatch(d.name, nameSubstring_, fallbackSubstring_))
             {
                 midiOut_ = juce::MidiOutput::openDevice(d.identifier);
                 break;

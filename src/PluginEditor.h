@@ -208,7 +208,8 @@ namespace lockstep
         // Controller surface integration (Phase 6.6 / DESIGN §35).
         ControllerPortManager              controllerPorts_    { "X-TOUCH MINI" };
         std::unique_ptr<XTouchMiniSurface> xTouchSurface_;
-        ControllerPortManager              push1Ports_         { "Ableton Push User Port" };
+        ControllerPortManager              push1Ports_         { "Ableton Push User Port",
+                                                                  "Ableton Push MIDI 2" };
         std::unique_ptr<Push1Surface>      push1Surface_;
         ControllerEventSink buildControllerSink();
 

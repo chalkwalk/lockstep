@@ -24,7 +24,11 @@ namespace lockstep
                                    private juce::Timer
     {
     public:
-        explicit ControllerPortManager(juce::String nameSubstring);
+        // nameSubstring: primary case-insensitive name match (e.g. "X-TOUCH MINI").
+        // fallbackSubstring: tried if the primary matches nothing (e.g. Linux ALSA
+        //   names a second port "…MIDI 2" rather than "…User Port"). Empty = unused.
+        explicit ControllerPortManager(juce::String nameSubstring,
+                                       juce::String fallbackSubstring = {});
         ~ControllerPortManager() override;
 
         // Call on the message thread. Drains the FIFO into surface.onInput(),
@@ -55,6 +59,7 @@ namespace lockstep
         void closeAll();
 
         juce::String nameSubstring_;
+        juce::String fallbackSubstring_;
 
         std::unique_ptr<juce::MidiInput>  midiIn_;
         std::unique_ptr<juce::MidiOutput> midiOut_;
