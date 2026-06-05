@@ -517,3 +517,53 @@ Still to confirm on a focused pass (the probe has a control for each):
    colour, the rate per channel, and how **Stop anim** cancels it. (pushbase:
    Pulse on ch 6–10, Blink on ch 11–15, 0-based; DrivenByMoss uses ch 10/14 —
    the 0/1-based convention is what this confirms.)
+
+---
+
+## Deferred: palette reprogramming + calibration (RGB-reprogrammable controllers)
+
+**Status: indefinitely deferred — not implemented, and not applicable to Push 1.**
+Captured here so the design isn't lost if we later target a controller that *can*
+be sent arbitrary RGB (e.g. **Push 2/3**). Push 1's palette is treated as fixed
+(see *Pad / lower-button RGB palette*); the runtime matches against it in Oklab
+rather than reprogramming it.
+
+The richer scheme — useful only on a reprogrammable device — was: reprogram the
+device palette to a perceptually-optimal set with per-unit colour + brightness
+correction, so the software keeps working in plain RGB and renders faithfully.
+
+1. **Palette-write SysEx.** Confirmed on **Push 2/3** only (header
+   `F0 00 21 1D 01 01`): write one entry with cmd `03` —
+   `… 01 01 03 <idx> <r_lo> <r_hi> <g_lo> <g_hi> <b_lo> <b_hi> <w_lo> <w_hi> F7`
+   (each channel 14-bit, 7-low/7-high; includes a white-balance channel) — then
+   apply with `… 01 01 05 F7`. Push 2 is even firmware-gated (only re-uploads on
+   firmware < 1.0.63). Push 1 (header `F0 47 7F 15`) has **no** colour-upload
+   command in either reference driver; a `push_probe` write-test (try the Push-2
+   form + Push-1-header `F0 47 7F 15 <cmd> <idx> <r> <g> <b> F7` variants) would
+   settle any lingering doubt before pursuing this.
+
+2. **Per-device calibration** (offline, in a probe tool):
+   - *White balance* — per brightness level, three independent ± passes (R, then
+     G, then B), narrowing over ~3 rounds, to find the device triple that reads as
+     neutral grey.
+   - *Brightness linearity* — three per-channel gamma curves (encoders on the
+     R/G/B gradient columns; W/C/M/Y columns as live cross-checks) tuned until each
+     gradient is perceptually linear.
+   - Combine into **three per-channel LUTs** `deviceVal_c = LUT_c(intensity)`
+     (16–32 samples, interpolated) capturing both gamma and white balance.
+
+3. **Oklab k-means palette generator** (`tools/palette_gen`, C++): build an sRGB
+   grid (5/6/5-bit), map to Oklab, k-means to 128 with **anchors pinned**
+   (black = off, white, R/G/B, C/M/Y, greys 25/50/75%), drop black → emit a
+   127-entry palette constant. Anchors keep extremal colours exact (k-means alone
+   never picks them).
+
+4. **Connect-time upload** (once, never per frame — palette writes are ~0.6 ms/LED
+   vs ~0.2 ms to recolour, so per-frame reprogramming blows the ~20 ms realtime
+   budget): for each entry, Oklab → linear sRGB → per-channel LUT → device 7/14-bit
+   RGB → palette-write SysEx, then apply.
+
+Also deferred (separate cycle): **MIDI-channel colour layering** (a pad's colour
+on a higher channel overrides ch 1 until note-off — base/overlay layers) and the
+**flash/pulse** animation channels (pulse ch 6–10 fade, blink ch 11–15 toggle),
+which need a `SurfaceModel` layer design.
