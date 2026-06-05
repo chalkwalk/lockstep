@@ -346,8 +346,8 @@ namespace lockstep
     //
     // Note this is a true saturation boost (pushing chroma out), unlike an RGB
     // *gain which only rescales brightness and preserves saturation.
-    static constexpr float kTargetLGain = 1.25f;
-    static constexpr float kTargetCGain = 1.80f;
+    static constexpr float kTargetLGain = 1.5f;
+    static constexpr float kTargetCGain = 2.40f;
 
     // Flattens an ARGB colour over black, premultiplying by alpha. The model
     // encodes "dim" two ways: as genuinely dark RGB (opaque) and as a bright RGB
