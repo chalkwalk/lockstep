@@ -520,6 +520,70 @@ Still to confirm on a focused pass (the probe has a control for each):
 
 ---
 
+## Fill + border collapse — single-colour resolution for the Push
+
+**Status: input spec for the next plan (the static semantic→palette-index
+table). No Push code change here.**
+
+On screen a cell signals with a *body fill* **and** independent decoration
+channels (`border` / `dot` / `strip` / `pip`, see `SurfaceCell`). A Push 1 pad
+has exactly one colour and no border. So every place the screen uses a decoration
+to carry meaning the fill does not, the Push must fold the combined state into a
+**single** index. The forthcoming static table is authored against the precedence
+and folds below; states already settled on screen by the Stage A2 contrast pass
+(`tools/color_audit`) keep their distinctness once collapsed.
+
+### Step cells — precedence for the one pad colour (high → low)
+1. **Physical press** → white. Momentary touch feedback, always wins.
+2. **Held-for-edit** (`CellState::StepHeld`) → white. Beats playhead (an active
+   user hold is more important than the transient cursor). *Current Push code
+   already orders press/held white above playhead amber — keep.*
+3. **Playhead** (screen: amber `border` over the body) → amber. Unmistakable,
+   transient.
+4. **Body trig state** (no press/held/playhead): Empty / TrigCertain /
+   TrigProbable (brightness-dimmed) / TrigSuppressed / FillAdd / FillSuppress /
+   OutOfRange → the body colour. These are the Stage-A2-separated fills.
+
+Decorations with no border/dot/strip on the Push — **open folds for the table
+plan to decide** (each is a secondary signal layered on a step that already has a
+body state):
+- **P-Lock present** (screen: violet `dot`): show a distinct "trig-with-P-Lock"
+  pad colour, or ignore the dot and show the plain trig? (Leaning: ignore on
+  Push — automation presence is not performance-critical; the screen keeps it.)
+- **Fill marker** (screen: orange/blue `strip` when fill mode held): the body
+  already becomes FillAdd/FillSuppress, so the strip is largely redundant — fold
+  to body.
+- **Fill P-Lock** (cyan `strip`): same treatment as P-Lock dot.
+- **Latch / virtual-hold** (screen: grey `pip`): a latched step behaves as held →
+  resolve to the held colour, or ignore. (Leaning: ignore on Push.)
+
+### Key cells (modifiers / verbs / sections / nav)
+- **ModeActive** (screen: 2 px accent `border`): the *fill* already switches to
+  the active colour, so the border is redundant — Push uses the active fill. No
+  fold needed.
+- **Compound-chord armed** (screen: amber `strip`): minor; fold to the key's
+  active fill or ignore. (Leaning: ignore on Push.)
+- **Latched modifier** (screen: scope-coloured `pip`): a latched modifier is
+  effectively held → resolve to the modifier's **active** colour.
+- **Master-active section** (screen: golden fill `0xFF404010` + golden accent):
+  give it a dedicated golden pad index.
+
+### Selector cells
+- **SelectorHome** (screen: amber `kHomeAmber` `border` over the phrase body):
+  the home/global phrase. Fold to a dedicated amber-tinted index, or amber-flood
+  the home cell. (Leaning: dedicated index.)
+- **SelectorDeviated** (screen: phrase-family border badge): a track playing off
+  its home phrase. Fold to a distinct index or ignore on the pad grid.
+
+### Not a contrast problem — a collapse problem
+Mute **Muted vs Audible** read 0.284 ΔE apart on screen (fine) yet looked alike
+on the Push: red `kScopeMute` and dark-slate `kStepInactive` both land near the
+factory palette's clumped low region under nearest-neighbour. The static table
+fixes this directly — Muted → a **bold** red index, Audible → a clearly **dim /
+neutral** index — rather than touching the (already-distinct) screen colours.
+
+---
+
 ## Deferred: palette reprogramming + calibration (RGB-reprogrammable controllers)
 
 **Status: indefinitely deferred — not implemented, and not applicable to Push 1.**
