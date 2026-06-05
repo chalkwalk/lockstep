@@ -12,6 +12,24 @@ namespace lockstep
     // =========================================================================
     static constexpr uint8_t kPush1Header[] = { 0xF0, 0x47, 0x7F, 0x15 };
 
+    // Push 1 drops MIDI when it arrives too fast — most visibly the connect burst
+    // (mode change + clear + a full grid of LED writes), which left some pads
+    // unlit until the next frame. Space each message a little. This is a brief
+    // busy-wait: render runs on the message thread and the bursts are bounded
+    // (~70 messages on connect), so the worst-case stall is a few ms.
+    static void paceMidi() noexcept
+    {
+        const auto wait = juce::Time::getHighResolutionTicksPerSecond() / 5000;  // ~200 us
+        const auto end  = juce::Time::getHighResolutionTicks() + wait;
+        while (juce::Time::getHighResolutionTicks() < end) { /* spin */ }
+    }
+
+    static void sendPaced(juce::MidiOutput& out, const juce::MidiMessage& m) noexcept
+    {
+        out.sendMessageNow(m);
+        paceMidi();
+    }
+
     Push1Surface::Push1Surface()
     {
         padShadow_.fill(255);
@@ -32,7 +50,7 @@ namespace lockstep
         for (auto b : payload)      block.append(&b, 1);
         const uint8_t eox = 0xF7;
         block.append(&eox, 1);
-        out.sendMessageNow(juce::MidiMessage(block.getData(),
+        sendPaced(out, juce::MidiMessage(block.getData(),
                                               static_cast<int>(block.getSize())));
     }
 
@@ -71,7 +89,7 @@ namespace lockstep
         }
         const uint8_t eox = 0xF7;
         block.append(&eox, 1);
-        out.sendMessageNow(juce::MidiMessage(block.getData(),
+        sendPaced(out, juce::MidiMessage(block.getData(),
                                               static_cast<int>(block.getSize())));
     }
 
@@ -554,7 +572,7 @@ namespace lockstep
             if (colour != padShadow_[si])
             {
                 padShadow_[si] = colour;
-                out.sendMessageNow(juce::MidiMessage::noteOn(1, note, static_cast<juce::uint8>(colour)));
+                sendPaced(out, juce::MidiMessage::noteOn(1, note, static_cast<juce::uint8>(colour)));
             }
         }
 
@@ -567,7 +585,7 @@ namespace lockstep
             if (tapC != padShadow_[si60])
             {
                 padShadow_[si60] = tapC;
-                out.sendMessageNow(juce::MidiMessage::noteOn(1, 60, static_cast<juce::uint8>(tapC)));
+                sendPaced(out, juce::MidiMessage::noteOn(1, 60, static_cast<juce::uint8>(tapC)));
             }
         }
         {
@@ -577,7 +595,7 @@ namespace lockstep
             if (navC != padShadow_[si61])
             {
                 padShadow_[si61] = navC;
-                out.sendMessageNow(juce::MidiMessage::noteOn(1, 61, static_cast<juce::uint8>(navC)));
+                sendPaced(out, juce::MidiMessage::noteOn(1, 61, static_cast<juce::uint8>(navC)));
             }
         }
         for (int s = 0; s < 6; ++s)
@@ -589,7 +607,7 @@ namespace lockstep
             if (colour != padShadow_[si])
             {
                 padShadow_[si] = colour;
-                out.sendMessageNow(juce::MidiMessage::noteOn(1, note, static_cast<juce::uint8>(colour)));
+                sendPaced(out, juce::MidiMessage::noteOn(1, note, static_cast<juce::uint8>(colour)));
             }
         }
 
@@ -603,7 +621,7 @@ namespace lockstep
             if (colour != padShadow_[si])
             {
                 padShadow_[si] = colour;
-                out.sendMessageNow(juce::MidiMessage::noteOn(1, note, static_cast<juce::uint8>(colour)));
+                sendPaced(out, juce::MidiMessage::noteOn(1, note, static_cast<juce::uint8>(colour)));
             }
         }
 
@@ -617,7 +635,7 @@ namespace lockstep
             if (colour != padShadow_[si])
             {
                 padShadow_[si] = colour;
-                out.sendMessageNow(juce::MidiMessage::noteOn(1, note, static_cast<juce::uint8>(colour)));
+                sendPaced(out, juce::MidiMessage::noteOn(1, note, static_cast<juce::uint8>(colour)));
             }
         }
 
@@ -634,7 +652,7 @@ namespace lockstep
                 if (padShadow_[si] != 0)
                 {
                     padShadow_[si] = 0;
-                    out.sendMessageNow(juce::MidiMessage::noteOn(1, note, static_cast<juce::uint8>(0)));
+                    sendPaced(out, juce::MidiMessage::noteOn(1, note, static_cast<juce::uint8>(0)));
                 }
             }
         }
@@ -650,7 +668,7 @@ namespace lockstep
             if (colour != upperShadow_[si])
             {
                 upperShadow_[si] = colour;
-                out.sendMessageNow(juce::MidiMessage::controllerEvent(1, 20 + i, colour));
+                sendPaced(out, juce::MidiMessage::controllerEvent(1, 20 + i, colour));
             }
         }
 
@@ -662,7 +680,7 @@ namespace lockstep
             if (sceneShadow_[si] != 0)
             {
                 sceneShadow_[si] = 0;
-                out.sendMessageNow(juce::MidiMessage::controllerEvent(1, 36 + i, 0));
+                sendPaced(out, juce::MidiMessage::controllerEvent(1, 36 + i, 0));
             }
         }
 
@@ -679,7 +697,7 @@ namespace lockstep
             if (val != monoShadow_[si])
             {
                 monoShadow_[si] = val;
-                out.sendMessageNow(juce::MidiMessage::controllerEvent(1, entry.cc, val));
+                sendPaced(out, juce::MidiMessage::controllerEvent(1, entry.cc, val));
             }
         }
 
@@ -690,7 +708,7 @@ namespace lockstep
             if (stripVal != stripShadow_)
             {
                 stripShadow_ = stripVal;
-                out.sendMessageNow(juce::MidiMessage::pitchWheel(1, stripVal));
+                sendPaced(out, juce::MidiMessage::pitchWheel(1, stripVal));
             }
         }
 
