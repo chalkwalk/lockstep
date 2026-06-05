@@ -218,19 +218,34 @@ colours (full RGB table is in `DrivenByMoss` `PushColorManager.DEFAULT_PALETTE`)
 The palette is **fixed** — Push 1 (unlike Push 2) cannot be sent arbitrary RGB
 per pad; you choose the nearest palette index.
 
-### Capturing the *as-displayed* palette
+### Capturing the *as-displayed* palette and matching in Oklab
 
 `DEFAULT_PALETTE`'s RGB are *nominal* — what the firmware is told, not what the
-LED visibly emits. Matching a UI colour against the nominal values picks poorly.
-To match against what the unit actually shows, capture the displayed palette:
+LED visibly emits. The surface instead matches against the palette's
+**as-displayed** colours, captured from a photo, in **Oklab** (perceptually
+uniform — Euclidean distance ≈ perceived difference). Workflow:
 
-1. Open `tools/push_probe`, connect the **User Port**.
-2. Click **Palette 0-63**, photograph the grid (the log prints a top-row-first
-   index legend), then **Palette 64-127** and photograph again.
-3. Read each pad's colour off the photos as a web hex value, keyed by the index
-   in the legend. That yields a 128-entry *as-displayed* table.
-4. `Push1Surface` matches incoming UI colours against this table (perceptually
-   weighted), so the chosen index is the closest *visible* colour.
+1. `tools/push_probe` (User Port) → **Palette 0-63** / **Palette 64-127** light
+   each page; photograph both roughly top-down.
+2. `tools/palette_capture` → load each photo, click the 4 pad-array corners
+   (TL/TR/BR/BL → perspective homography), tune the pad/gap ratios + sample-square
+   size so the overlay squares sit on the lit pads, pick the page, **Sample**
+   (linear-light average per pad), then **Export** `Push1Palette.h`
+   (`kCapturedPalette[128]`, index 0 = off). It also reports the
+   off↔darkest-lit Oklab distance.
+3. `Push1Surface` builds a matching table from `kCapturedPalette`, then
+   `nearestPaletteIndex(rgb)` returns the nearest entry in Oklab.
+
+**Gamut stretch.** The device gamut is smaller than sRGB — elevated black floor,
+weaker saturation — so before matching the captured entries are stretched in
+Oklab: lightness fully toward [0,1], chroma mildly toward a vivid target, **hue
+fixed** (strengths `kStretchL`/`kStretchC` in `Push1Surface.cpp`, tune on
+hardware). This uses the whole palette and preserves the screen's
+dim/bright/scope contrast instead of washing out and clumping. In-use cells never
+map to index 0 (off) — dim ones floor at the darkest lit entry, so only genuinely
+unused pads are dark. Until a real capture is taken, `Push1Palette.h` ships the
+nominal `DEFAULT_PALETTE` values as a placeholder; the Oklab match already
+improves on a raw RGB Euclidean match.
 
 ---
 

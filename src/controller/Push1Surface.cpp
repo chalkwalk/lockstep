@@ -1,5 +1,8 @@
 #include "Push1Surface.h"
+#include "Oklab.h"
+#include "Push1Palette.h"
 #include <juce_audio_devices/juce_audio_devices.h>
+#include <algorithm>
 
 namespace lockstep
 {
@@ -303,43 +306,15 @@ namespace lockstep
     // Colour helpers
     // =========================================================================
 
-    // Full 128-entry Push 1 RGB palette (DEFAULT_PALETTE from DrivenByMoss).
-    // Used by nearestPaletteIndex() to map arbitrary ARGB to the closest index.
-    struct PaletteEntry { uint8_t r, g, b; };
-    static constexpr std::array<PaletteEntry, 128> kPalette = {{
-        {0x00,0x00,0x00}, {0x1E,0x1E,0x1E}, {0x7F,0x7F,0x7F}, {0xFF,0xFF,0xFF},  //   0-3
-        {0xFF,0x4C,0x4C}, {0xFF,0x00,0x00}, {0x59,0x00,0x00}, {0x19,0x00,0x00},  //   4-7
-        {0xFF,0xBD,0x6C}, {0xFF,0x54,0x00}, {0x59,0x1D,0x00}, {0x27,0x1B,0x00},  //   8-11
-        {0xFF,0xFF,0x4C}, {0xFF,0xFF,0x00}, {0x59,0x59,0x00}, {0x19,0x19,0x00},  //  12-15
-        {0x88,0xFF,0x4C}, {0x54,0xFF,0x00}, {0x1D,0x59,0x00}, {0x14,0x2B,0x00},  //  16-19
-        {0x4C,0xFF,0x4C}, {0x00,0xFF,0x00}, {0x00,0x59,0x00}, {0x00,0x19,0x00},  //  20-23
-        {0x4C,0xFF,0x5E}, {0x00,0xFF,0x19}, {0x00,0x59,0x0D}, {0x00,0x19,0x02},  //  24-27
-        {0x4C,0xFF,0x88}, {0x00,0xFF,0x55}, {0x00,0x59,0x1D}, {0x00,0x1F,0x12},  //  28-31
-        {0x4C,0xFF,0xB7}, {0x00,0xFF,0x99}, {0x00,0x59,0x35}, {0x00,0x19,0x12},  //  32-35
-        {0x4C,0xC3,0xFF}, {0x00,0xA9,0xFF}, {0x00,0x41,0x52}, {0x00,0x10,0x19},  //  36-39
-        {0x4C,0x88,0xFF}, {0x00,0x55,0xFF}, {0x00,0x1D,0x59}, {0x00,0x08,0x19},  //  40-43
-        {0x4C,0x4C,0xFF}, {0x00,0x00,0xFF}, {0x00,0x00,0x59}, {0x00,0x00,0x19},  //  44-47
-        {0x87,0x4C,0xFF}, {0x54,0x00,0xFF}, {0x19,0x00,0x64}, {0x0F,0x00,0x30},  //  48-51
-        {0xFF,0x4C,0xFF}, {0xFF,0x00,0xFF}, {0x59,0x00,0x59}, {0x19,0x00,0x19},  //  52-55
-        {0xFF,0x4C,0x87}, {0xFF,0x00,0x54}, {0x59,0x00,0x1D}, {0x22,0x00,0x13},  //  56-59
-        {0xFF,0x15,0x00}, {0x99,0x35,0x00}, {0x79,0x51,0x00}, {0x43,0x64,0x00},  //  60-63
-        {0x03,0x39,0x00}, {0x00,0x57,0x35}, {0x00,0x54,0x7F}, {0x00,0x00,0xFF},  //  64-67
-        {0x00,0x45,0x4F}, {0x25,0x00,0xCC}, {0x7F,0x7F,0x7F}, {0x20,0x20,0x20},  //  68-71
-        {0xFF,0x00,0x00}, {0xBD,0xFF,0x2D}, {0xAF,0xED,0x06}, {0x64,0xFF,0x09},  //  72-75
-        {0x10,0x8B,0x00}, {0x00,0xFF,0x87}, {0x00,0xA9,0xFF}, {0x00,0x2A,0xFF},  //  76-79
-        {0x3F,0x00,0xFF}, {0x7A,0x00,0xFF}, {0xB2,0x1A,0x7D}, {0x40,0x21,0x00},  //  80-83
-        {0xFF,0x4A,0x00}, {0x88,0xE1,0x06}, {0x72,0xFF,0x15}, {0x00,0xFF,0x00},  //  84-87
-        {0x3B,0xFF,0x26}, {0x59,0xFF,0x71}, {0x38,0xFF,0xCC}, {0x5B,0x8A,0xFF},  //  88-91
-        {0x31,0x51,0xC6}, {0x87,0x7F,0xE9}, {0xD3,0x1D,0xFF}, {0xFF,0x00,0x5D},  //  92-95
-        {0xFF,0x7F,0x00}, {0xB9,0xB0,0x00}, {0x90,0xFF,0x00}, {0x83,0x5D,0x07},  //  96-99
-        {0x39,0x2B,0x00}, {0x14,0x4C,0x10}, {0x0D,0x50,0x38}, {0x15,0x15,0x2A},  // 100-103
-        {0x16,0x20,0x5A}, {0x69,0x3C,0x1C}, {0xA8,0x00,0x0A}, {0xDE,0x51,0x3D},  // 104-107
-        {0xD8,0x6A,0x1C}, {0xFF,0xE1,0x26}, {0x9E,0xE1,0x2F}, {0x67,0xB5,0x0F},  // 108-111
-        {0x1E,0x1E,0x30}, {0xDC,0xFF,0x6B}, {0x80,0xFF,0xBD}, {0x9A,0x99,0xFF},  // 112-115
-        {0x8E,0x66,0xFF}, {0x40,0x40,0x40}, {0x75,0x75,0x75}, {0xE0,0xFF,0xFF},  // 116-119
-        {0xA0,0x00,0x00}, {0x35,0x00,0x00}, {0x1A,0xD0,0x00}, {0x07,0x42,0x00},  // 120-123
-        {0xB9,0xB0,0x00}, {0x3F,0x31,0x00}, {0xB3,0x5F,0x00}, {0x4B,0x15,0x02},  // 124-127
-    }};
+    // Gamut-stretch strengths for matching against the as-displayed palette
+    // (`kCapturedPalette`, from Push1Palette.h). The device gamut is smaller than
+    // sRGB — elevated black floor, weaker saturation — so before matching we
+    // stretch the captured entries in Oklab: lightness fully toward [0,1], chroma
+    // mildly toward a vivid target, hue fixed. This uses the whole palette and
+    // preserves the screen's dim/bright/scope contrast. 0 = absolute fidelity,
+    // 1 = full stretch; tune on hardware.
+    static constexpr float kStretchL = 1.0f;
+    static constexpr float kStretchC = 0.5f;
 
     // Flattens an ARGB colour over black, premultiplying by alpha. The model
     // encodes "dim" two ways: as genuinely dark RGB (opaque) and as a bright RGB
@@ -358,34 +333,54 @@ namespace lockstep
              |  static_cast<uint32_t>(b);
     }
 
-    // Finds the palette index whose RGB is nearest to the given (already
-    // alpha-flattened) RGB colour. Skips index 0 (black) so in-range but dim
-    // cells floor to a visible dark grey rather than snapping to off.
+    // The 127 lit palette entries in stretched Oklab, built once from
+    // kCapturedPalette. index 0 (off) is excluded — in-use cells never map to it.
+    static const std::array<oklab::Lab, 128>& matchTable() noexcept
+    {
+        static const std::array<oklab::Lab, 128> table = []() noexcept
+        {
+            std::array<oklab::LCh, 128> lch{};
+            float lmin = 1.0e9f, lmax = -1.0e9f, cmax = 1.0e-6f;
+            for (int i = 1; i < 128; ++i)
+            {
+                const auto e = oklab::labToLCh(
+                    oklab::packedRgbToOklab(kCapturedPalette[static_cast<std::size_t>(i)]));
+                lch[static_cast<std::size_t>(i)] = e;
+                lmin = std::min(lmin, e.L);
+                lmax = std::max(lmax, e.L);
+                cmax = std::max(cmax, e.C);
+            }
+            const float lspan   = std::max(1.0e-6f, lmax - lmin);
+            const float cTarget = 0.32f;            // ~ vivid sRGB chroma in Oklab
+            const float cScale  = cTarget / cmax;
+
+            std::array<oklab::Lab, 128> t{};
+            for (int i = 1; i < 128; ++i)
+            {
+                oklab::LCh s = lch[static_cast<std::size_t>(i)];
+                const float lNorm = (s.L - lmin) / lspan;          // device range -> [0,1]
+                s.L = s.L + kStretchL * (lNorm        - s.L);
+                s.C = s.C + kStretchC * (s.C * cScale - s.C);
+                t[static_cast<std::size_t>(i)] = oklab::lChToLab(s);
+            }
+            return t;
+        }();
+        return table;
+    }
+
+    // Nearest lit palette index (1-127) to an alpha-flattened RGB, matched in
+    // stretched Oklab (perceptually uniform). Never returns 0 (off): dim in-use
+    // cells floor at the darkest lit entry, staying distinct from off/unused pads.
     static uint8_t nearestPaletteIndex(uint32_t rgb) noexcept
     {
-        const int tr = static_cast<int>((rgb >> 16) & 0xFF);
-        const int tg = static_cast<int>((rgb >>  8) & 0xFF);
-        const int tb = static_cast<int>( rgb        & 0xFF);
-
-        // If the colour is very close to black, show a minimum dim (index 1).
-        if (tr < 8 && tg < 8 && tb < 8)
-            return 1;
-
-        uint32_t bestDist = UINT32_MAX;
-        uint8_t  bestIdx  = 1;
-
+        const auto  target = oklab::packedRgbToOklab(rgb);
+        const auto& tbl     = matchTable();
+        float   best    = 1.0e30f;
+        uint8_t bestIdx = 1;
         for (int i = 1; i < 128; ++i)
         {
-            const auto& p   = kPalette[static_cast<std::size_t>(i)];
-            const int   dr  = tr - static_cast<int>(p.r);
-            const int   dg  = tg - static_cast<int>(p.g);
-            const int   db  = tb - static_cast<int>(p.b);
-            const auto  d   = static_cast<uint32_t>(dr*dr + dg*dg + db*db);
-            if (d < bestDist)
-            {
-                bestDist = d;
-                bestIdx  = static_cast<uint8_t>(i);
-            }
+            const float d = oklab::distanceSq(target, tbl[static_cast<std::size_t>(i)]);
+            if (d < best) { best = d; bestIdx = static_cast<uint8_t>(i); }
         }
         return bestIdx;
     }
@@ -400,17 +395,22 @@ namespace lockstep
     // the genuinely-unused (out-of-range) cells.
     uint8_t Push1Surface::rgbPaletteFor(const SurfaceCell& cell) noexcept
     {
+        // White / amber resolved against the loaded palette once (the old fixed
+        // indices 3/9 assumed the nominal palette; a captured palette may differ).
+        static const uint8_t kWhiteIdx = nearestPaletteIndex(0xFFFFFFu);
+        static const uint8_t kAmberIdx = nearestPaletteIndex(0xFFCC44u);
+
         // 1. Press feedback wins on every pad, including steps.
-        if (cell.pressed) return 3;  // white
+        if (cell.pressed) return kWhiteIdx;
 
         // 2. Held / selected step (the on-screen white-border selection).
         if (cell.base == CellState::StepHeld
             || (cell.border.present && cell.border.token == CellState::StepHeld))
-            return 3;  // white
+            return kWhiteIdx;
 
         // 3. Playhead.
         if (cell.border.present && cell.border.token == CellState::StepPlayhead)
-            return 9;  // amber hi
+            return kAmberIdx;
 
         // 4. Genuinely unused cells → off (kept distinct from in-range dim cells,
         //    which floor to a visible dark grey in nearestPaletteIndex).
