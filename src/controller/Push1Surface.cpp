@@ -1,7 +1,5 @@
 #include "Push1Surface.h"
-#include "Oklab.h"
-#include "Push1Palette.h"
-#include "../ui/KeyButton.h"   // cellFillColour — screen colour authority for key cells
+#include "../ui/UITheme.h"      // theme::kScope* / kVerb* sentinels for state→index mapping
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <algorithm>
 
@@ -328,149 +326,192 @@ namespace lockstep
     // Colour helpers
     // =========================================================================
 
-    // Gamut-stretch strengths for matching against the as-displayed palette
-    // (`kCapturedPalette`, from Push1Palette.h). The device gamut is smaller than
-    // sRGB — elevated black floor, weaker saturation — so a *real capture* can be
-    // stretched in Oklab before matching: lightness toward [0,1], chroma toward a
-    // vivid target, hue fixed (0 = absolute fidelity, 1 = full stretch).
+    // -------------------------------------------------------------------------
+    // Static semantic → palette-index table (DESIGN §35.8; replaces the dynamic
+    // Oklab matcher). Pad indices are fixed in the Push 1 firmware, so the table
+    // is literal indices — no runtime palette/match needed. Each index was
+    // hand-picked from the *as-displayed* factory palette (tools/color_audit)
+    // top-down: the boldest/most-important states take the boldest (highest
+    // chroma) device entries; secondary states take dim/dark variants; states
+    // that never co-occur may share an entry. Tweak any single role here without
+    // touching the others — that is the whole point of going static (the dynamic
+    // match clumped distinct-but-similar UI colours onto identical pads).
     //
-    // Enabled now that Push1Palette.h holds a real (gamut-compressed) capture:
-    // expand lightness toward [0,1] (lift the device's elevated floor so dim UI
-    // cells read dim) and chroma toward a vivid target (so saturated UI colours
-    // reach the device's most-saturated entries instead of clipping). Hue fixed.
-    static constexpr float kStretchL = 0.8f;
-    static constexpr float kStretchC = 0.4f;
-
-    // Controller-only target boost. The UI palette skews dim and low-saturation,
-    // which reads poorly against the fixed Push 1 palette (dim colours collapse
-    // onto a grayish floor). Before matching we lift the target colour in Oklab:
-    // L (brightness) so it climbs off the floor, and C (chroma/saturation) so it
-    // reads as its hue rather than grey. Hue is left untouched. 1.0 = off.
-    //
-    // Note this is a true saturation boost (pushing chroma out), unlike an RGB
-    // *gain which only rescales brightness and preserves saturation.
-    static constexpr float kTargetLGain = 1.5f;
-    static constexpr float kTargetCGain = 2.40f;
-
-    // Flattens an ARGB colour over black, premultiplying by alpha. The model
-    // encodes "dim" two ways: as genuinely dark RGB (opaque) and as a bright RGB
-    // at low alpha (the on-screen renderer composites it over the near-black
-    // grid). Push pads have no alpha, so we bake the alpha into the RGB here —
-    // otherwise a 9%-alpha scope colour would map to a *bright* palette entry
-    // instead of the faint one the screen shows. Opaque colours pass through.
-    static uint32_t flattenOverBlack(uint32_t argb) noexcept
+    // Roles named by the device colour they land on (verified mutually distinct
+    // within each surface/view). The on-screen renderer keeps its own RGB
+    // vocabulary (UITheme.h); screen and Push agree on the CellState *meaning*,
+    // each styled for its medium.
+    namespace pidx
     {
-        const float a = static_cast<float>((argb >> 24) & 0xFF) / 255.0f;
-        const int   r = static_cast<int>(static_cast<float>((argb >> 16) & 0xFF) * a);
-        const int   g = static_cast<int>(static_cast<float>((argb >>  8) & 0xFF) * a);
-        const int   b = static_cast<int>(static_cast<float>( argb        & 0xFF) * a);
-        return (static_cast<uint32_t>(r) << 16)
-             | (static_cast<uint32_t>(g) <<  8)
-             |  static_cast<uint32_t>(b);
+        // Neutrals.
+        constexpr uint8_t kOff = 0, kWhite = 119, kGreyMid = 2, kGreyDim = 71;
+        // Bold hues — active / high-importance states.
+        constexpr uint8_t kAmber = 9, kRed = 5, kGreen = 21, kOrange = 61,
+                          kBlue = 46, kCyan = 37, kAzure = 41, kIndigo = 50,
+                          kMagenta = 53, kGold = 97, kChartreuse = 17,
+                          kSpring = 25, kViolet = 80, kTeal = 34, kLime = 18,
+                          kRose = 57;
+        // Step-grid green variants.
+        constexpr uint8_t kGreenDim = 23, kTealDk = 31;
+        // Dark hues — resting modifiers / dim variants.
+        constexpr uint8_t kAmberDk = 11, kCyanDk = 39, kSpringDk = 27,
+                          kIndigoDk = 51, kGoldDk = 15, kMagentaDk = 55,
+                          kRedDk = 7, kChartreuseDk = 19, kAzureDk = 43,
+                          kOrangeDk = 10;
+        // Navigation slate.
+        constexpr uint8_t kSlate = 103;
     }
 
-    // The 127 lit palette entries in stretched Oklab, built once from
-    // kCapturedPalette. index 0 (off) is excluded — in-use cells never map to it.
-    static const std::array<oklab::Lab, 128>& matchTable() noexcept
+    // The 8 scope hues (buildSurfaceModel stores the exact theme constant in
+    // scopeTint) → their bold pad index, so an in-scope cell lights the scope's
+    // colour exactly like the on-screen glow.
+    static uint8_t scopeTintIndex(uint32_t argb) noexcept
     {
-        static const std::array<oklab::Lab, 128> table = []() noexcept
+        using namespace theme;
+        switch (argb)
         {
-            std::array<oklab::LCh, 128> lch{};
-            float lmin = 1.0e9f, lmax = -1.0e9f, cmax = 1.0e-6f;
-            for (int i = 1; i < 128; ++i)
-            {
-                const auto e = oklab::labToLCh(
-                    oklab::packedRgbToOklab(kCapturedPalette[static_cast<std::size_t>(i)]));
-                lch[static_cast<std::size_t>(i)] = e;
-                lmin = std::min(lmin, e.L);
-                lmax = std::max(lmax, e.L);
-                cmax = std::max(cmax, e.C);
-            }
-            const float lspan   = std::max(1.0e-6f, lmax - lmin);
-            const float cTarget = 0.32f;            // ~ vivid sRGB chroma in Oklab
-            const float cScale  = cTarget / cmax;
-
-            std::array<oklab::Lab, 128> t{};
-            for (int i = 1; i < 128; ++i)
-            {
-                oklab::LCh s = lch[static_cast<std::size_t>(i)];
-                const float lNorm = (s.L - lmin) / lspan;          // device range -> [0,1]
-                s.L = s.L + kStretchL * (lNorm        - s.L);
-                s.C = s.C + kStretchC * (s.C * cScale - s.C);
-                t[static_cast<std::size_t>(i)] = oklab::lChToLab(s);
-            }
-            return t;
-        }();
-        return table;
-    }
-
-    // Nearest lit palette index (1-127) to an alpha-flattened RGB, matched in
-    // stretched Oklab (perceptually uniform). Never returns 0 (off): dim in-use
-    // cells floor at the darkest lit entry, staying distinct from off/unused pads.
-    static uint8_t nearestPaletteIndex(uint32_t rgb) noexcept
-    {
-        // Lift the target's brightness + saturation in Oklab (hue fixed) so dim,
-        // low-chroma UI colours read on the device's narrow palette.
-        oklab::LCh t = oklab::labToLCh(oklab::packedRgbToOklab(rgb));
-        t.L = std::min(1.0f, t.L * kTargetLGain);
-        t.C *= kTargetCGain;
-        const auto  target = oklab::lChToLab(t);
-        const auto& tbl     = matchTable();
-        float   best    = 1.0e30f;
-        uint8_t bestIdx = 1;
-        for (int i = 1; i < 128; ++i)
-        {
-            const float d = oklab::distanceSq(target, tbl[static_cast<std::size_t>(i)]);
-            if (d < best) { best = d; bestIdx = static_cast<uint8_t>(i); }
+            case kScopeTrack:   return pidx::kCyan;
+            case kScopePhrase:  return pidx::kIndigo;
+            case kScopeScene:   return pidx::kSpring;
+            case kScopeMorph:   return pidx::kMagenta;
+            case kScopeSong:    return pidx::kGold;
+            case kScopeMute:    return pidx::kRed;
+            case kScopePMute:   return pidx::kRose;
+            case kScopeFill:    return pidx::kChartreuse;
+            case kScopeMachine: return pidx::kLime;
+            default:            return pidx::kGreyMid;   // kScopeStep / none
         }
-        return bestIdx;
     }
 
-    // Maps a SurfaceCell to a pad/lower-button palette index (0-127).
-    //
-    // Cell-driven (mirrors the on-screen paint path): the body colour comes from
-    // cell.baseColour, which buildSurfaceModel already tints with the held scope
-    // — so the Push grid recolours with the scope exactly like the screen, rather
-    // than re-deriving a fixed colour per CellState token. Only a few semantics
-    // override that body colour: a press, a held/selected step, the playhead, and
-    // the genuinely-unused (out-of-range) cells.
+    // Grid-area cells (cell.button == Step): all the CellState families share the
+    // step grid. Overlays (held/playhead/home border, press) win over the body
+    // token — see PUSH1.md "Fill + border collapse".
+    static uint8_t stepGridIndex(const SurfaceCell& c) noexcept
+    {
+        using S = CellState;
+        if (c.pressed) return pidx::kWhite;
+        if (c.base == S::StepHeld
+            || (c.border.present && c.border.token == S::StepHeld))
+            return pidx::kWhite;
+        if (c.border.present && c.border.token == S::StepPlayhead)
+            return pidx::kAmber;
+        if (c.border.present && c.border.token == S::SelectorHome)
+            return pidx::kAmber;
+        if (c.scopeTint != 0)
+            return scopeTintIndex(c.scopeTint);
+
+        switch (c.base)
+        {
+            case S::StepEmpty:          return pidx::kGreyDim;
+            case S::StepTrigCertain:    return pidx::kGreen;
+            case S::StepTrigProbable:   return pidx::kGreenDim;
+            case S::StepTrigSuppressed: return pidx::kTealDk;
+            case S::StepFillAdd:        return pidx::kOrange;
+            case S::StepFillSuppress:   return pidx::kBlue;
+            case S::StepOutOfRange:     return pidx::kOff;
+            case S::SelectorCurrent:    return pidx::kWhite;
+            case S::SelectorOccupied:   return pidx::kGreyMid;
+            case S::SelectorEmpty:      return pidx::kGreyDim;
+            case S::SelectorOutRange:   return pidx::kOff;
+            case S::SelectorNext:       return pidx::kIndigo;
+            case S::SelectorChain:      return pidx::kIndigoDk;
+            case S::SelectorDeviated:   return pidx::kRose;
+            case S::SelectorHome:       return pidx::kAmber;
+            case S::MuteMuted:          return pidx::kRed;      // bold vs...
+            case S::MuteAudible:        return pidx::kGreyDim;  // ...clearly dim
+            case S::MachineCurrent:     return pidx::kWhite;
+            case S::MachineAvailable:   return pidx::kLime;
+            case S::MachineUnavailable: return pidx::kOff;
+            case S::NoteEditActive:     return pidx::kAzure;
+            case S::NoteEditStaged:     return pidx::kRed;
+            case S::NoteEditOther:      return pidx::kAzureDk;
+            case S::NoteEditResting:    return pidx::kOff;
+            case S::ChromaticWhite:     return pidx::kCyan;
+            case S::ChromaticBlack:     return pidx::kCyanDk;
+            case S::LevelsCell:         return pidx::kBlue;
+            case S::LengthInRun:        return pidx::kIndigo;
+            case S::LengthBoundary:     return pidx::kViolet;
+            case S::LengthOutRun:       return pidx::kOff;
+            default:                    return pidx::kGreyDim;
+        }
+    }
+
+    // Key cells (modifiers / verbs / sections / nav / tap). Active = pressed or
+    // ModeActive → the bold hue; resting → the dark/dim variant. A held scope
+    // glow (scopeTint set) wins, exactly as on screen.
+    static uint8_t keyIndex(const SurfaceCell& c) noexcept
+    {
+        using namespace theme;
+        if (c.disabled) return pidx::kOff;
+        if (c.scopeTint != 0) return scopeTintIndex(c.scopeTint);
+        const bool active = c.pressed || c.base == CellState::ModeActive;
+
+        switch (c.button)
+        {
+            case ControllerButton::Func:
+                return active ? pidx::kAmber : pidx::kAmberDk;
+            case ControllerButton::TapTempo:
+                return active ? pidx::kWhite : pidx::kGreyDim;
+
+            case ControllerButton::TrackScope:
+                return active ? pidx::kCyan : pidx::kCyanDk;
+            case ControllerButton::PhraseScope:
+                return active ? pidx::kIndigo : pidx::kIndigoDk;
+            case ControllerButton::SceneScope:
+                return active ? pidx::kSpring : pidx::kSpringDk;
+            case ControllerButton::MorphScope:
+                return active ? pidx::kMagenta : pidx::kMagentaDk;
+            case ControllerButton::SongScope:
+                return active ? pidx::kGold : pidx::kGoldDk;
+            case ControllerButton::MuteScope:
+                // PMute (Func+Mute) → rose; otherwise red.
+                return active ? (c.baseColour == kScopePMute ? pidx::kRose
+                                                             : pidx::kRed)
+                              : pidx::kRedDk;
+            case ControllerButton::FillScope:
+                return active ? pidx::kChartreuse : pidx::kChartreuseDk;
+
+            case ControllerButton::NavUp:
+            case ControllerButton::NavLeft:
+            case ControllerButton::NavDown:
+            case ControllerButton::NavRight:
+                return active ? pidx::kSlate : pidx::kGreyDim;
+
+            case ControllerButton::VerbRecord:
+                if (c.baseColour == kVerbODActive) return pidx::kAmber;  // overdub armed
+                return active ? pidx::kRed : pidx::kGreyDim;
+            case ControllerButton::VerbPlay:
+                return active ? pidx::kGreen : pidx::kGreyDim;
+            case ControllerButton::VerbClear:
+                return active ? pidx::kOrangeDk : pidx::kGreyDim;
+            case ControllerButton::VerbYes:                 // Snapshot
+                return active ? pidx::kViolet : pidx::kGreyDim;
+            case ControllerButton::VerbNo:                  // confirm
+                return active ? pidx::kGreen : pidx::kGreyDim;
+            case ControllerButton::VerbDelete:
+            case ControllerButton::VerbPanic:
+                return pidx::kRed;
+            case ControllerButton::VerbStop:                // legacy — neutral
+                return pidx::kGreyDim;
+
+            case ControllerButton::Section:
+                if (c.baseColour == kScopeMachine)  return pidx::kLime;
+                if (c.baseColour == kScopeNoteEdit) return pidx::kAzure;
+                if (c.baseColour == 0xFF404010u)    return pidx::kGoldDk;  // master-active
+                return active ? pidx::kTeal : pidx::kTealDk;
+
+            default:
+                return active ? pidx::kWhite : pidx::kGreyDim;
+        }
+    }
+
+    // Maps a SurfaceCell to a pad/lower-button palette index (0-127) via the
+    // static semantic table. Grid-area cells dispatch by CellState; key cells by
+    // button + state.
     uint8_t Push1Surface::rgbPaletteFor(const SurfaceCell& cell) noexcept
     {
-        // White / amber resolved against the loaded palette once (the old fixed
-        // indices 3/9 assumed the nominal palette; a captured palette may differ).
-        static const uint8_t kWhiteIdx = nearestPaletteIndex(0xFFFFFFu);
-        static const uint8_t kAmberIdx = nearestPaletteIndex(0xFFCC44u);
-
-        // Key cells (modifiers, sections, verbs, nav, tap): the body fill IS the
-        // final, state-resolved colour the on-screen key shows — cellFillColour is
-        // the shared resolver, so a pressed/active key lights its *modal* colour
-        // here exactly as on screen (not a fixed white).
-        if (cell.button != ControllerButton::Step)
-            return nearestPaletteIndex(flattenOverBlack(cellFillColour(cell)));
-
-        // Step-grid cells. On screen these keep their body colour and gain a white
-        // (held/press) or amber (playhead) *outline*; a single-colour pad can't
-        // outline, so we substitute a white/amber fill for those states.
-        if (cell.pressed) return kWhiteIdx;
-        if (cell.base == CellState::StepHeld
-            || (cell.border.present && cell.border.token == CellState::StepHeld))
-            return kWhiteIdx;
-        if (cell.border.present && cell.border.token == CellState::StepPlayhead)
-            return kAmberIdx;
-
-        // Genuinely unused cells → off (distinct from in-range dim cells, which
-        // floor to the darkest lit entry in nearestPaletteIndex).
-        switch (cell.base)
-        {
-            case CellState::StepOutOfRange:
-            case CellState::SelectorOutRange:
-            case CellState::MachineUnavailable:
-                return 0;
-            default:
-                break;
-        }
-
-        return nearestPaletteIndex(flattenOverBlack(cell.baseColour));
+        return cell.button == ControllerButton::Step ? stepGridIndex(cell)
+                                                      : keyIndex(cell);
     }
 
     // Maps a CellState to a bi-colour value 0-24 for upper/scene buttons.
