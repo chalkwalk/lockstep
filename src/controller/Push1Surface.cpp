@@ -308,13 +308,16 @@ namespace lockstep
 
     // Gamut-stretch strengths for matching against the as-displayed palette
     // (`kCapturedPalette`, from Push1Palette.h). The device gamut is smaller than
-    // sRGB — elevated black floor, weaker saturation — so before matching we
-    // stretch the captured entries in Oklab: lightness fully toward [0,1], chroma
-    // mildly toward a vivid target, hue fixed. This uses the whole palette and
-    // preserves the screen's dim/bright/scope contrast. 0 = absolute fidelity,
-    // 1 = full stretch; tune on hardware.
-    static constexpr float kStretchL = 1.0f;
-    static constexpr float kStretchC = 0.5f;
+    // sRGB — elevated black floor, weaker saturation — so a *real capture* can be
+    // stretched in Oklab before matching: lightness toward [0,1], chroma toward a
+    // vivid target, hue fixed (0 = absolute fidelity, 1 = full stretch).
+    //
+    // Disabled (0) while Push1Palette.h holds the *nominal* full-gamut palette:
+    // there is nothing to expand, and a stretch would only distort it (darken
+    // mids, over-saturate). This makes matching plain Oklab nearest-neighbour.
+    // Raise these once a genuine (gamut-compressed) photo capture is baked in.
+    static constexpr float kStretchL = 0.0f;
+    static constexpr float kStretchC = 0.0f;
 
     // Flattens an ARGB colour over black, premultiplying by alpha. The model
     // encodes "dim" two ways: as genuinely dark RGB (opaque) and as a bright RGB
