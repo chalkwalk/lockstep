@@ -121,6 +121,28 @@ namespace lockstep
     }
 
 
+    // Single source of truth for a key cell's state and resolved background fill.
+    // Both the on-screen paint path (paintCell/paintKeyButton) and external
+    // surfaces (cellFillColour, used by the Push) funnel through these, so the
+    // fill colour cannot diverge between renderers.
+    static KeyButtonState stateOf(const SurfaceCell& c) noexcept
+    {
+        if (c.pressed)                          return KeyButtonState::Pressed;
+        if (c.disabled)                         return KeyButtonState::Disabled;
+        if (c.base == CellState::ModeActive)    return KeyButtonState::ModeActive;
+        return KeyButtonState::Normal;
+    }
+
+    static juce::Colour resolveFill(const KeyGroup& g, KeyButtonState st) noexcept
+    {
+        const bool active = (st == KeyButtonState::Pressed
+                          || st == KeyButtonState::ModeActive);
+        juce::Colour bg = active ? juce::Colour(g.active) : juce::Colour(g.inactive);
+        if (st == KeyButtonState::Disabled)
+            bg = bg.withAlpha(0.2f);
+        return bg;
+    }
+
     void paintCellKeyHint(juce::Graphics& g, juce::Rectangle<int> inner,
                           const juce::String& hint, float alpha)
     {
@@ -149,12 +171,8 @@ namespace lockstep
         const bool isFuncHeld   = (state == KeyButtonState::FuncHeld);
         const bool isDisabled   = (state == KeyButtonState::Disabled);
 
-        // Background
-        const juce::Colour bg = (isPressed || isModeActive)
-            ? juce::Colour(group.active)
-            : juce::Colour(group.inactive);
-
-        g.setColour(isDisabled ? bg.withAlpha(0.2f) : bg);
+        // Background — shared resolver (same one external surfaces use).
+        g.setColour(resolveFill(group, state));
         g.fillRoundedRectangle(inner.toFloat(), 4.0f);
 
         // Border: 2 px for ModeActive, 1 px otherwise
@@ -233,17 +251,7 @@ namespace lockstep
     void paintCell(juce::Graphics& g, juce::Rectangle<int> cell,
                    const SurfaceCell& c, bool showKeyHint)
     {
-        // Derive KeyButtonState from cell flags.
-        KeyButtonState st;
-        if (c.pressed)
-            st = KeyButtonState::Pressed;
-        else if (c.disabled)
-            st = KeyButtonState::Disabled;
-        else if (c.base == CellState::ModeActive)
-            st = KeyButtonState::ModeActive;
-        else
-            st = KeyButtonState::Normal;
-
+        const KeyButtonState st      = stateOf(c);
         const KeyGroup   grp         = groupForCell(c);
         const bool       compound    = c.strip.present;
         const juce::Colour latchCol  = c.pip.present
@@ -255,18 +263,8 @@ namespace lockstep
 
     uint32_t cellFillColour(const SurfaceCell& c) noexcept
     {
-        // Mirror paintCell's state derivation + paintKeyButton's background pick,
-        // so a controller's key LED equals the on-screen fill.
-        const bool isPressed    = c.pressed;
-        const bool isDisabled   = !isPressed && c.disabled;
-        const bool isModeActive = !isPressed && !isDisabled
-                                && (c.base == CellState::ModeActive);
-
-        const KeyGroup grp = groupForCell(c);
-        juce::Colour bg = (isPressed || isModeActive)
-            ? juce::Colour(grp.active) : juce::Colour(grp.inactive);
-        if (isDisabled)
-            bg = bg.withAlpha(0.2f);
-        return bg.getARGB();
+        // Same resolver the on-screen paintCell/paintKeyButton use — guaranteed
+        // identical fill for the on-screen key and the controller's LED.
+        return resolveFill(groupForCell(c), stateOf(c)).getARGB();
     }
 }
