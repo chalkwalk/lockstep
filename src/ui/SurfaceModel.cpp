@@ -32,7 +32,7 @@ namespace lockstep
             case CellState::StepEmpty:          return kStepInactive;
             case CellState::StepTrigCertain:    return kStepActive;
             case CellState::StepTrigProbable:   return kStepActive;
-            case CellState::StepTrigSuppressed: return 0xFF304838u;
+            case CellState::StepTrigSuppressed: return 0xFF3E6B50u;  // lifted desaturated green — separate from empty slate
             case CellState::StepFillAdd:        return kStepFillAdd;
             case CellState::StepFillSuppress:   return kStepFillSuppress;
             case CellState::StepOutOfRange:     return kStepOutRange;
@@ -43,7 +43,7 @@ namespace lockstep
             case CellState::SelectorEmpty:      return 0xFF404040u;
             case CellState::SelectorOutRange:   return kStepOutRange;
             case CellState::SelectorNext:       return kScopePhrase;
-            case CellState::SelectorChain:      return kScopePhrase;
+            case CellState::SelectorChain:      return 0xFF3A2A78u;  // deep indigo — phrase-family but dimmer than imminent Next
             case CellState::MuteMuted:          return kScopeMute;
             case CellState::MuteAudible:        return kStepInactive;
             case CellState::MachineCurrent:     return 0xFFFFFFFFu;
@@ -51,7 +51,7 @@ namespace lockstep
             case CellState::MachineUnavailable: return kStepOutRange;
             case CellState::NoteEditActive:     return kScopeNoteEdit;
             case CellState::NoteEditStaged:     return 0xFFDC643Cu;
-            case CellState::NoteEditOther:      return kScopeNoteEdit;
+            case CellState::NoteEditOther:      return 0xFF16486Eu;  // dimmed azure — note in other octave only, distinct from active
             case CellState::NoteEditResting:    return kStepOutRange;
             case CellState::ChromaticWhite:     return kScopeTrack;
             case CellState::ChromaticBlack:     return kScopeTrack;

@@ -59,10 +59,10 @@ namespace lockstep::theme
     inline constexpr uint32_t kScopePhraseDim= 0xFF221448u;  // resting
     inline constexpr uint32_t kScopePhraseAcc= 0xFF9880E8u;
 
-    // Song   (gold  ~50°)  — distinct from Func amber
-    inline constexpr uint32_t kScopeSong     = 0xFFB88800u;
+    // Song   (gold  ~50°)  — brighter, yellower gold to clear amber Func + chartreuse Fill
+    inline constexpr uint32_t kScopeSong     = 0xFFD8B020u;
     inline constexpr uint32_t kScopeSongDim  = 0xFF403000u;  // resting
-    inline constexpr uint32_t kScopeSongAcc  = 0xFFDDB020u;
+    inline constexpr uint32_t kScopeSongAcc  = 0xFFF0D050u;
 
     // -------------------------------------------------------------------------
     // Morph — magenta ~315° (expressive A/B crossfader; apart from cool arc)
@@ -118,8 +118,8 @@ namespace lockstep::theme
     inline constexpr uint32_t kVerbPlayActive = 0xFF208040u;
     inline constexpr uint32_t kVerbPlayAccent = 0xFF30C060u;
 
-    // VerbClear / Delete / Panic: warm-red (destructive; clearly != Record)
-    inline constexpr uint32_t kVerbClearActive= 0xFF905020u;
+    // VerbClear / Delete / Panic: warm-orange (destructive; pushed off Record red)
+    inline constexpr uint32_t kVerbClearActive= 0xFF8A5A1Cu;
     inline constexpr uint32_t kVerbClearAccent= 0xFFBB6030u;
 
     // Snapshot (VerbYes): violet-blue (distinct from slate verbs)
@@ -155,7 +155,7 @@ namespace lockstep::theme
     inline constexpr uint32_t kStepFillSuppress= 0xFF3060A0u;  // cool blue — suppressed in fill
     inline constexpr uint32_t kStepFillPLock   = 0xFF40A0D0u;  // cyan — fill-layer P-Lock dot
     inline constexpr uint32_t kStepInactive    = 0xFF2D3741u;  // dark — in-range, no trig
-    inline constexpr uint32_t kStepOutRange    = 0xFF1C2026u;  // near-black — out of range
+    inline constexpr uint32_t kStepOutRange    = 0xFF12151Au;  // near-black — out of range (darkened: separate from empty-in-range)
     inline constexpr uint32_t kStepPlayhead    = 0xFFFFCC44u;  // amber border
     inline constexpr uint32_t kStepHeld        = 0xFFFFFFFFu;  // white — held-step border
     inline constexpr uint32_t kStepPLock       = 0xFF8060E0u;  // violet — P-Lock dot
