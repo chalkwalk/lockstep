@@ -338,23 +338,16 @@ namespace lockstep
     static constexpr float kStretchL = 0.8f;
     static constexpr float kStretchC = 0.4f;
 
-    // Controller-only brightness boost. The UI palette skews dark, but the device
-    // can't render dark (its darkest lit entries aren't very dark), so dim colours
-    // all collapse onto a grayish floor. Lifting every target colour before
-    // matching pushes them up off that floor so they read as their hue. 1.0 = off.
-    static constexpr float kBrightnessBoost = 1.2f;
-
-    static uint32_t boostBrightness(uint32_t rgb) noexcept
-    {
-        auto ch = [](uint32_t v) -> uint32_t
-        {
-            const int b = static_cast<int>(static_cast<float>(v) * kBrightnessBoost + 0.5f);
-            return static_cast<uint32_t>(b > 255 ? 255 : b);
-        };
-        return (ch((rgb >> 16) & 0xFF) << 16)
-             | (ch((rgb >>  8) & 0xFF) <<  8)
-             |  ch( rgb        & 0xFF);
-    }
+    // Controller-only target boost. The UI palette skews dim and low-saturation,
+    // which reads poorly against the fixed Push 1 palette (dim colours collapse
+    // onto a grayish floor). Before matching we lift the target colour in Oklab:
+    // L (brightness) so it climbs off the floor, and C (chroma/saturation) so it
+    // reads as its hue rather than grey. Hue is left untouched. 1.0 = off.
+    //
+    // Note this is a true saturation boost (pushing chroma out), unlike an RGB
+    // *gain which only rescales brightness and preserves saturation.
+    static constexpr float kTargetLGain = 1.15f;
+    static constexpr float kTargetCGain = 1.50f;
 
     // Flattens an ARGB colour over black, premultiplying by alpha. The model
     // encodes "dim" two ways: as genuinely dark RGB (opaque) and as a bright RGB
@@ -413,7 +406,12 @@ namespace lockstep
     // cells floor at the darkest lit entry, staying distinct from off/unused pads.
     static uint8_t nearestPaletteIndex(uint32_t rgb) noexcept
     {
-        const auto  target = oklab::packedRgbToOklab(rgb);
+        // Lift the target's brightness + saturation in Oklab (hue fixed) so dim,
+        // low-chroma UI colours read on the device's narrow palette.
+        oklab::LCh t = oklab::labToLCh(oklab::packedRgbToOklab(rgb));
+        t.L = std::min(1.0f, t.L * kTargetLGain);
+        t.C *= kTargetCGain;
+        const auto  target = oklab::lChToLab(t);
         const auto& tbl     = matchTable();
         float   best    = 1.0e30f;
         uint8_t bestIdx = 1;
@@ -445,7 +443,7 @@ namespace lockstep
         // the shared resolver, so a pressed/active key lights its *modal* colour
         // here exactly as on screen (not a fixed white).
         if (cell.button != ControllerButton::Step)
-            return nearestPaletteIndex(boostBrightness(flattenOverBlack(cellFillColour(cell))));
+            return nearestPaletteIndex(flattenOverBlack(cellFillColour(cell)));
 
         // Step-grid cells. On screen these keep their body colour and gain a white
         // (held/press) or amber (playhead) *outline*; a single-colour pad can't
@@ -469,7 +467,7 @@ namespace lockstep
                 break;
         }
 
-        return nearestPaletteIndex(boostBrightness(flattenOverBlack(cell.baseColour)));
+        return nearestPaletteIndex(flattenOverBlack(cell.baseColour));
     }
 
     // Maps a CellState to a bi-colour value 0-24 for upper/scene buttons.
