@@ -189,9 +189,15 @@ namespace lockstep
         {
             return press && press->isMouseHeld(btn, idx);
         };
+        // Hardware-controller presses (e.g. a Push pad) must highlight on screen
+        // exactly like mouse/keyboard — they are tracked under kControllerSource.
+        auto controllerDown = [&](ControllerButton btn, int idx = -1) -> bool
+        {
+            return press && press->isControllerHeld(btn, idx);
+        };
         auto physPressed = [&](int rawCode, ControllerButton btn, int idx = -1) -> bool
         {
-            return keyDown(rawCode) || mouseDown(btn, idx);
+            return keyDown(rawCode) || mouseDown(btn, idx) || controllerDown(btn, idx);
         };
 
         // Compound-chord overlay condition (MHY cross-column pair)

@@ -32,16 +32,29 @@ namespace lockstep
             return entries_.count(rawCode) > 0;
         }
 
-        // True if the mouse is currently holding the given (button, index) cell.
-        // Pass index = -1 to match any held index for that button.
-        [[nodiscard]] bool isMouseHeld(ControllerButton button, int index = -1) const
+        // True if the given source is currently holding the (button, index) cell.
+        [[nodiscard]] bool isSourceHeld(int source, ControllerButton button, int index = -1) const
         {
-            const auto it = entries_.find(kMouseSource);
+            const auto it = entries_.find(source);
             if (it == entries_.end())
                 return false;
             if (it->second.button != button)
                 return false;
             return (index == -1 || it->second.index == index);
+        }
+
+        // True if the mouse is currently holding the given (button, index) cell.
+        // Pass index = -1 to match any held index for that button.
+        [[nodiscard]] bool isMouseHeld(ControllerButton button, int index = -1) const
+        {
+            return isSourceHeld(kMouseSource, button, index);
+        }
+
+        // True if a hardware controller is currently holding the (button, index)
+        // cell. Lets controller presses highlight on screen just like mouse/keyboard.
+        [[nodiscard]] bool isControllerHeld(ControllerButton button, int index = -1) const
+        {
+            return isSourceHeld(kControllerSource, button, index);
         }
 
         // Returns the current mouse-held entry if one exists, or nullopt.
