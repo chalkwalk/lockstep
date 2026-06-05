@@ -1221,7 +1221,20 @@ namespace lockstep
                         }
 
                         uiState_.lastPlayedNote[static_cast<std::size_t>(at)] = note;
-                        processor_.triggerNote(at, note);
+
+                        // Poly + velocity: sustain the note until the pad is
+                        // released (gate). Push pads supply velocity; QWERTY/mouse
+                        // leave ev.velocity 0 → fall back to a default.
+                        const int vel = ev.velocity > 0 ? ev.velocity : 100;
+                        const auto pad = static_cast<std::size_t>(ev.index);
+                        // Release a stale note still parked on this pad (e.g. a
+                        // missed note-off) before re-sounding it.
+                        if (chromaticHeldNote_[pad] >= 0)
+                            processor_.liveNoteOff(chromaticHeldTrack_[pad],
+                                                   chromaticHeldNote_[pad]);
+                        chromaticHeldNote_[pad]  = note;
+                        chromaticHeldTrack_[pad] = at;
+                        processor_.liveNoteOn(at, note, vel);
                         return true;
                     }
                 }
@@ -2216,6 +2229,21 @@ namespace lockstep
 
             case CB::Step:
             {
+                // CHROMATIC gate: a pad-release always ends the note it sounded —
+                // before any mode-specific handling, and regardless of the current
+                // mode/octave/track (we release the exact note we stored on press),
+                // so notes can never hang. Poly: each pad releases independently.
+                if (ev.index >= 0 && ev.index < 16)
+                {
+                    const auto pad = static_cast<std::size_t>(ev.index);
+                    if (chromaticHeldNote_[pad] >= 0)
+                    {
+                        processor_.liveNoteOff(chromaticHeldTrack_[pad],
+                                               chromaticHeldNote_[pad]);
+                        chromaticHeldNote_[pad] = -1;
+                    }
+                }
+
                 // Func+Src+step: step release while funcSrcHeld → enter NoteEdit mode.
                 if (uiState_.funcSrcHeld && !uiState_.noteEditMode
                     && !uiState_.noteEditSteps.empty())

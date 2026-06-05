@@ -70,6 +70,13 @@ namespace lockstep
         UiState uiState_;
         // (rawKeyCode, absStepIndex) pairs, ordered by press time.
         std::vector<std::pair<int,int>> heldStepKeys_;
+        // CHROMATIC play-in: the live note a held step-pad is sounding, per pad
+        // index (-1 = none), plus the track it was played on. Lets a pad-release
+        // send the exact note-off (gate) even if the octave/track changed while
+        // held, and lets chords ring independently (poly).
+        std::array<int, 16> chromaticHeldNote_  { -1,-1,-1,-1,-1,-1,-1,-1,
+                                                  -1,-1,-1,-1,-1,-1,-1,-1 };
+        std::array<int, 16> chromaticHeldTrack_ {};
         // Key codes currently held down — used to suppress OS key-repeat in keyPressed().
         std::set<int> heldKeys_;
 

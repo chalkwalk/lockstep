@@ -235,6 +235,8 @@ namespace lockstep
             }
 
             // Step rows (row 2: 44-51 = steps 0-7; row 1: 36-43 = steps 8-15)
+            // Push pads are velocity-sensitive: forward the note-on velocity so
+            // chromatic/levels play-in can use the real dynamics (where available).
             for (int s = 0; s < 16; ++s)
             {
                 if (note == kStepNotes[static_cast<std::size_t>(s)])
@@ -243,7 +245,8 @@ namespace lockstep
                         sink.emitEvent({
                             isDown ? ControllerEvent::Type::ButtonDown
                                    : ControllerEvent::Type::ButtonUp,
-                            ControllerButton::Step, s, 0 });
+                            ControllerButton::Step, s, 0,
+                            isDown ? msg.getVelocity() : 0 });
                     return;
                 }
             }

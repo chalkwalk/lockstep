@@ -96,5 +96,8 @@ namespace lockstep
         ControllerButton button = ControllerButton::None;
         int              index  = -1;  // step / section / track index
         int              delta  = 0;   // for EncoderDelta only
+        int              velocity = 0; // 0 = none/unknown; >0 = source-supplied
+                                       // note velocity (Push pads). QWERTY/mouse
+                                       // leave 0 → callers use the default.
     };
 }
