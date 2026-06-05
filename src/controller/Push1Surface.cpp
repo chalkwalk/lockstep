@@ -338,6 +338,24 @@ namespace lockstep
     static constexpr float kStretchL = 0.8f;
     static constexpr float kStretchC = 0.4f;
 
+    // Controller-only brightness boost. The UI palette skews dark, but the device
+    // can't render dark (its darkest lit entries aren't very dark), so dim colours
+    // all collapse onto a grayish floor. Lifting every target colour before
+    // matching pushes them up off that floor so they read as their hue. 1.0 = off.
+    static constexpr float kBrightnessBoost = 1.2f;
+
+    static uint32_t boostBrightness(uint32_t rgb) noexcept
+    {
+        auto ch = [](uint32_t v) -> uint32_t
+        {
+            const int b = static_cast<int>(static_cast<float>(v) * kBrightnessBoost + 0.5f);
+            return static_cast<uint32_t>(b > 255 ? 255 : b);
+        };
+        return (ch((rgb >> 16) & 0xFF) << 16)
+             | (ch((rgb >>  8) & 0xFF) <<  8)
+             |  ch( rgb        & 0xFF);
+    }
+
     // Flattens an ARGB colour over black, premultiplying by alpha. The model
     // encodes "dim" two ways: as genuinely dark RGB (opaque) and as a bright RGB
     // at low alpha (the on-screen renderer composites it over the near-black
@@ -422,20 +440,25 @@ namespace lockstep
         static const uint8_t kWhiteIdx = nearestPaletteIndex(0xFFFFFFu);
         static const uint8_t kAmberIdx = nearestPaletteIndex(0xFFCC44u);
 
-        // 1. Press feedback wins on every pad, including steps.
-        if (cell.pressed) return kWhiteIdx;
+        // Key cells (modifiers, sections, verbs, nav, tap): the body fill IS the
+        // final, state-resolved colour the on-screen key shows — cellFillColour is
+        // the shared resolver, so a pressed/active key lights its *modal* colour
+        // here exactly as on screen (not a fixed white).
+        if (cell.button != ControllerButton::Step)
+            return nearestPaletteIndex(boostBrightness(flattenOverBlack(cellFillColour(cell))));
 
-        // 2. Held / selected step (the on-screen white-border selection).
+        // Step-grid cells. On screen these keep their body colour and gain a white
+        // (held/press) or amber (playhead) *outline*; a single-colour pad can't
+        // outline, so we substitute a white/amber fill for those states.
+        if (cell.pressed) return kWhiteIdx;
         if (cell.base == CellState::StepHeld
             || (cell.border.present && cell.border.token == CellState::StepHeld))
             return kWhiteIdx;
-
-        // 3. Playhead.
         if (cell.border.present && cell.border.token == CellState::StepPlayhead)
             return kAmberIdx;
 
-        // 4. Genuinely unused cells → off (kept distinct from in-range dim cells,
-        //    which floor to a visible dark grey in nearestPaletteIndex).
+        // Genuinely unused cells → off (distinct from in-range dim cells, which
+        // floor to the darkest lit entry in nearestPaletteIndex).
         switch (cell.base)
         {
             case CellState::StepOutOfRange:
@@ -446,16 +469,7 @@ namespace lockstep
                 break;
         }
 
-        // 5. Body colour. Step-grid cells are painted from baseColour on screen,
-        //    so the Push uses it too. Every other (key) cell — modifiers, sections,
-        //    verbs, nav, tap — is coloured on screen by groupForCell via paintCell;
-        //    the builder's baseColour for those is inconsistent (e.g. all four nav
-        //    keys look identical on screen but carry different baseColours), so we
-        //    resolve the *screen* fill via cellFillColour and match that.
-        const uint32_t fill = (cell.button == ControllerButton::Step)
-            ? cell.baseColour
-            : cellFillColour(cell);
-        return nearestPaletteIndex(flattenOverBlack(fill));
+        return nearestPaletteIndex(boostBrightness(flattenOverBlack(cell.baseColour)));
     }
 
     // Maps a CellState to a bi-colour value 0-24 for upper/scene buttons.
