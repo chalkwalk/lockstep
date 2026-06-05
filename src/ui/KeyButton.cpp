@@ -252,4 +252,21 @@ namespace lockstep
         paintKeyButton(g, cell, c.keyHint, c.primary, c.funcHint,
                        grp, st, showKeyHint, compound, latchCol);
     }
+
+    uint32_t cellFillColour(const SurfaceCell& c) noexcept
+    {
+        // Mirror paintCell's state derivation + paintKeyButton's background pick,
+        // so a controller's key LED equals the on-screen fill.
+        const bool isPressed    = c.pressed;
+        const bool isDisabled   = !isPressed && c.disabled;
+        const bool isModeActive = !isPressed && !isDisabled
+                                && (c.base == CellState::ModeActive);
+
+        const KeyGroup grp = groupForCell(c);
+        juce::Colour bg = (isPressed || isModeActive)
+            ? juce::Colour(grp.active) : juce::Colour(grp.inactive);
+        if (isDisabled)
+            bg = bg.withAlpha(0.2f);
+        return bg.getARGB();
+    }
 }

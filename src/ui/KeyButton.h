@@ -56,4 +56,12 @@ namespace lockstep
                    juce::Rectangle<int>   cell,
                    const SurfaceCell&     c,
                    bool                   showKeyHint);
+
+    // Resolved background fill (ARGB) that paintCell/paintKeyButton would draw for
+    // this key cell — the single screen colour authority (groupForCell + state).
+    // External controllers (e.g. Push) call this so their key LEDs match the
+    // on-screen keyboard exactly, instead of reading cell.baseColour (which the
+    // builder sets inconsistently for non-step cells). Not for step-grid cells —
+    // those are painted directly from cell.baseColour.
+    uint32_t cellFillColour(const SurfaceCell& c) noexcept;
 }

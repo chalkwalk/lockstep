@@ -1,6 +1,7 @@
 #include "Push1Surface.h"
 #include "Oklab.h"
 #include "Push1Palette.h"
+#include "../ui/KeyButton.h"   // cellFillColour — screen colour authority for key cells
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <algorithm>
 
@@ -427,8 +428,16 @@ namespace lockstep
                 break;
         }
 
-        // 5. Body colour = the scope-tinted ARGB the screen draws.
-        return nearestPaletteIndex(flattenOverBlack(cell.baseColour));
+        // 5. Body colour. Step-grid cells are painted from baseColour on screen,
+        //    so the Push uses it too. Every other (key) cell — modifiers, sections,
+        //    verbs, nav, tap — is coloured on screen by groupForCell via paintCell;
+        //    the builder's baseColour for those is inconsistent (e.g. all four nav
+        //    keys look identical on screen but carry different baseColours), so we
+        //    resolve the *screen* fill via cellFillColour and match that.
+        const uint32_t fill = (cell.button == ControllerButton::Step)
+            ? cell.baseColour
+            : cellFillColour(cell);
+        return nearestPaletteIndex(flattenOverBlack(fill));
     }
 
     // Maps a CellState to a bi-colour value 0-24 for upper/scene buttons.
