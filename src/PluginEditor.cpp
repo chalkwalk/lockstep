@@ -2882,6 +2882,10 @@ namespace lockstep
                 pressTracker_.release(PressTracker::kControllerSource);
                 dispatchUp(ev, PressTracker::kControllerSource);
             }
+            // Mirror the mouse/keyboard paths: repaint so a controller press/release
+            // updates the on-screen highlight immediately (else a released key's
+            // highlight lingers until the next unrelated repaint).
+            keyboardArea_.repaint();
         };
 
         sink.applyParamDelta = [this](int mzSlot, int rawDelta)
