@@ -924,50 +924,88 @@ namespace lockstep
             }
         }
 
-        // MG.1: consume keyboard note request from the UI thread.
-        // Bit 23 = bypassEditorial flag (set by LEVELS step-held audition).
-        // When clear: routes through onNoteOn so record-arm path (M7.2, MHZ.6) fires.
-        // When set: raw note-on injection — no P-Lock writes, no chord capture.
+        // MG.1 / poly: drain keyboard note commands from the UI thread.
+        // Each note-on takes a live voice; gate notes (durationMs == 0) ring until
+        // a matching note-off (pad release), fixed-duration notes auto-off after
+        // their countdown. Non-bypass notes route through onNoteOn/onNoteOff so a
+        // held chord both sounds and is captured (record + step-held chord paths);
+        // bypass notes inject raw (LEVELS audition — no chord capture).
         {
-            const int req = kbdNoteReq_.exchange(-1, std::memory_order_acq_rel);
-            if (req >= 0)
+            auto emitVoiceOff = [&](LiveVoice& v, int off)
             {
-                const int kbdVel    = (req >> 24) & 0x7F;
-                const bool bypass   = ((req >> 23) & 1) != 0;
-                const int midiNote  = (req >> 16) & 0x7F;
-                const int durMs     = req & 0xFFFF;
-                const int noteTrack = kbdNoteTrack_.load(std::memory_order_acquire);
-                const int noteVel   = kbdVel > 0 ? kbdVel : 100;
-
-                // Cancel any in-flight keyboard note-off.
-                if (kbdNoteOffRemaining_ >= 0)
-                    trackMidi[static_cast<std::size_t>(kbdNoteActiveTrack_)].addEvent(
-                        juce::MidiMessage::noteOff(1, kbdNoteActive_), 0);
-
-                kbdNoteActiveTrack_  = noteTrack;
-                kbdNoteActive_       = midiNote;
-                kbdNoteOffRemaining_ =
-                    static_cast<int>(getSampleRate() * static_cast<double>(durMs) / 1000.0);
-                if (bypass)
-                    trackMidi[static_cast<std::size_t>(noteTrack)].addEvent(
-                        juce::MidiMessage::noteOn(1, static_cast<juce::uint8>(midiNote),
-                                                  static_cast<juce::uint8>(noteVel)), 0);
+                if (v.bypass)
+                    trackMidi[static_cast<std::size_t>(v.track)].addEvent(
+                        juce::MidiMessage::noteOff(1, v.note), off);
                 else
-                    ccCtx.onNoteOn(noteTrack, 0, midiNote, noteVel);
-            }
+                    ccCtx.onNoteOff(v.track, off, v.note);
+            };
 
-            if (kbdNoteOffRemaining_ >= 0)
+            auto allocVoice = [&]() -> LiveVoice&
             {
-                if (kbdNoteOffRemaining_ < numBlockSamples)
+                for (auto& v : liveVoices_)
+                    if (!v.active) return v;
+                // All voices busy → steal the first, releasing its note so the
+                // synth does not leave it hanging.
+                emitVoiceOff(liveVoices_[0], 0);
+                liveVoices_[0].active = false;
+                return liveVoices_[0];
+            };
+
+            int s1, n1, s2, n2;
+            kbdFifo_.prepareToRead(kbdFifo_.getNumReady(), s1, n1, s2, n2);
+            auto handle = [&](const KbdNoteCmd& c)
+            {
+                const int track = juce::jlimit(0, static_cast<int>(kNumTracks) - 1,
+                                               static_cast<int>(c.track));
+                // Release any voice already holding this (track, note) — both for a
+                // note-off and to retrigger a repeated note-on cleanly.
+                for (auto& v : liveVoices_)
+                    if (v.active && v.track == track && v.note == c.note)
+                    {
+                        emitVoiceOff(v, 0);
+                        v.active = false;
+                    }
+                if (c.noteOff)
+                    return;
+
+                const int vel = c.velocity > 0 ? c.velocity : 100;
+                if (c.bypassEditorial)
+                    trackMidi[static_cast<std::size_t>(track)].addEvent(
+                        juce::MidiMessage::noteOn(1, static_cast<juce::uint8>(c.note),
+                                                  static_cast<juce::uint8>(vel)), 0);
+                else
+                    ccCtx.onNoteOn(track, 0, c.note, vel);
+
+                LiveVoice& v = allocVoice();
+                v.track  = track;
+                v.note   = c.note;
+                v.bypass = c.bypassEditorial;
+                // Gate notes (durationMs == 0) ring until note-off, but get a
+                // generous safety cap so a lost note-off (focus change, dropped
+                // MIDI) can never hang a note forever.
+                constexpr double kMaxGateSeconds = 30.0;
+                const double secs = (c.durationMs > 0)
+                    ? static_cast<double>(c.durationMs) / 1000.0
+                    : kMaxGateSeconds;
+                v.samplesRemaining = static_cast<int>(getSampleRate() * secs);
+                v.active = true;
+            };
+            for (int i = 0; i < n1; ++i) handle(kbdQueue_[static_cast<std::size_t>(s1 + i)]);
+            for (int i = 0; i < n2; ++i) handle(kbdQueue_[static_cast<std::size_t>(s2 + i)]);
+            kbdFifo_.finishedRead(n1 + n2);
+
+            // Advance fixed-duration voices; emit their note-off when expired.
+            for (auto& v : liveVoices_)
+            {
+                if (!v.active || v.samplesRemaining < 0) continue;
+                if (v.samplesRemaining < numBlockSamples)
                 {
-                    trackMidi[static_cast<std::size_t>(kbdNoteActiveTrack_)].addEvent(
-                        juce::MidiMessage::noteOff(1, kbdNoteActive_),
-                        kbdNoteOffRemaining_);
-                    kbdNoteOffRemaining_ = -1;
+                    emitVoiceOff(v, v.samplesRemaining);
+                    v.active = false;
                 }
                 else
                 {
-                    kbdNoteOffRemaining_ -= numBlockSamples;
+                    v.samplesRemaining -= numBlockSamples;
                 }
             }
         }
@@ -2227,17 +2265,47 @@ namespace lockstep
         previewPoolIndex_.store(poolIndex, std::memory_order_release);
     }
 
+    void LockstepProcessor::pushKbdCmd(const KbdNoteCmd& c) noexcept
+    {
+        int s1, n1, s2, n2;
+        kbdFifo_.prepareToWrite(1, s1, n1, s2, n2);
+        if (n1 > 0)
+        {
+            kbdQueue_[static_cast<std::size_t>(s1)] = c;
+            kbdFifo_.finishedWrite(1);
+        }
+        // Queue full → drop. A chord is a handful of commands; overflow only under
+        // pathological spam, and a dropped audition is harmless.
+    }
+
     void LockstepProcessor::triggerNote(int track, int midiNote, int durationMs, int velocity, bool bypassEditorial)
     {
-        kbdNoteTrack_.store(juce::jlimit(0, static_cast<int>(kNumTracks) - 1, track),
-                            std::memory_order_relaxed);
-        // Pack: bit 31=0 (keep positive), bits 30-24 = velocity (7-bit),
-        //       bit 23 = bypassEditorial, bits 22-16 = note (7-bit), bits 15-0 = durationMs.
-        const int packed = (juce::jlimit(1, 127, velocity) << 24)
-                           | (bypassEditorial ? (1 << 23) : 0)
-                           | (juce::jlimit(0, 127, midiNote) << 16)
-                           | juce::jlimit(1, 0xFFFF, durationMs);
-        kbdNoteReq_.store(packed, std::memory_order_release);
+        KbdNoteCmd c;
+        c.track           = static_cast<int16_t>(juce::jlimit(0, static_cast<int>(kNumTracks) - 1, track));
+        c.note            = static_cast<uint8_t>(juce::jlimit(0, 127, midiNote));
+        c.velocity        = static_cast<uint8_t>(juce::jlimit(1, 127, velocity));
+        c.durationMs      = static_cast<uint16_t>(juce::jlimit(1, 0xFFFF, durationMs));
+        c.bypassEditorial = bypassEditorial;
+        pushKbdCmd(c);
+    }
+
+    void LockstepProcessor::liveNoteOn(int track, int midiNote, int velocity)
+    {
+        KbdNoteCmd c;
+        c.track      = static_cast<int16_t>(juce::jlimit(0, static_cast<int>(kNumTracks) - 1, track));
+        c.note       = static_cast<uint8_t>(juce::jlimit(0, 127, midiNote));
+        c.velocity   = static_cast<uint8_t>(juce::jlimit(1, 127, velocity));
+        c.durationMs = 0;   // 0 = gate: sustain until the matching liveNoteOff
+        pushKbdCmd(c);
+    }
+
+    void LockstepProcessor::liveNoteOff(int track, int midiNote)
+    {
+        KbdNoteCmd c;
+        c.track   = static_cast<int16_t>(juce::jlimit(0, static_cast<int>(kNumTracks) - 1, track));
+        c.note    = static_cast<uint8_t>(juce::jlimit(0, 127, midiNote));
+        c.noteOff = true;
+        pushKbdCmd(c);
     }
 
     bool LockstepProcessor::hasTrackSlices(int track) const

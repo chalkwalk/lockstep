@@ -313,10 +313,17 @@ namespace lockstep
 
         // MG.1: trigger a note-on + scheduled note-off for the given MIDI note on the given track.
         // durationMs is approximate (rounded to the next block boundary).
-        // MHZ.7.4: velocity (1-127, default 100) is carried via upper bits of kbdNoteReq_.
+        // MHZ.7.4: velocity (1-127, default 100). Queued via the poly note FIFO.
         // bypassEditorial = true: raw note-on injected directly (no record-arm, no P-Lock writes).
         // Use this for LEVELS step-held audition to avoid the note-chord-capture path in onNoteOn.
         void triggerNote(int track, int midiNote, int durationMs = 350, int velocity = 100, bool bypassEditorial = false);
+
+        // Poly play-in: sustained note that rings until liveNoteOff (gate). Routes
+        // through the record/chord-capture path (onNoteOn/onNoteOff), so held
+        // chords both sound and capture. Safe from the message thread; multiple
+        // simultaneous notes are honoured (up to kMaxLiveVoices).
+        void liveNoteOn(int track, int midiNote, int velocity);
+        void liveNoteOff(int track, int midiNote);
 
         // MG.2: start / stop retrig on the focused track.
         // ratePpq: 0.25=1/16, 0.125=1/32, 1/12.0=1/48, 1/24.0=1/96.
@@ -514,10 +521,23 @@ namespace lockstep
         // to send All-Notes-Off on MIDI-out tracks and flush pending audio note-offs.
         std::atomic<bool> panicPending_ { false };
 
-        // MG.1: keyboard note trigger request (UI thread writes, audio thread consumes).
-        // kbdNoteReq_ stores (midiNote << 16 | durationMs); -1 = no request.
-        std::atomic<int> kbdNoteReq_   { -1 };
-        std::atomic<int> kbdNoteTrack_ { 0 };
+        // MG.1 / poly: keyboard note command queue (UI thread writes, audio thread
+        // drains). Replaces the old single-slot mailbox, which collapsed a chord to
+        // its last note. SPSC lock-free; commands carry a note-on (durationMs > 0 =
+        // fixed audition, 0 = sustain until matching note-off) or a note-off.
+        struct KbdNoteCmd
+        {
+            int16_t  track      = 0;
+            uint8_t  note       = 60;
+            uint8_t  velocity   = 100;
+            uint16_t durationMs = 0;     // 0 = gate (sustain until note-off)
+            bool     noteOff    = false; // true = release (track, note)
+            bool     bypassEditorial = false;
+        };
+        static constexpr int kKbdQueueSize = 64;
+        juce::AbstractFifo               kbdFifo_ { kKbdQueueSize };
+        std::array<KbdNoteCmd, kKbdQueueSize> kbdQueue_{};
+        void pushKbdCmd(const KbdNoteCmd& c) noexcept;
 
         // Preview playback state — audio thread only (no atomics needed).
         bool previewActive_           = false;
@@ -526,10 +546,19 @@ namespace lockstep
         int  previewNoteOffRemaining_ = -1;  // samples until note-off; -1 = inactive
         int  previewNote_             = 60;
 
-        // MG.1: keyboard note one-shot state — audio thread only.
-        int kbdNoteOffRemaining_ = -1;  // samples until note-off; -1 = inactive
-        int kbdNoteActiveTrack_  = 0;
-        int kbdNoteActive_       = 60;
+        // MG.1 / poly: live keyboard voices — audio thread only. Each holds one
+        // ringing note so chords sustain independently. samplesRemaining < 0 =
+        // gate (held until a matching note-off); >= 0 = fixed-duration countdown.
+        struct LiveVoice
+        {
+            int  track = -1;
+            int  note  = -1;
+            int  samplesRemaining = -1;
+            bool bypass = false;
+            bool active = false;
+        };
+        static constexpr int kMaxLiveVoices = 16;
+        std::array<LiveVoice, kMaxLiveVoices> liveVoices_{};
 
         // MG.2: retrig state.
         // retrigReqTrack_: -1 = cancel, >=0 = activate on that track.
