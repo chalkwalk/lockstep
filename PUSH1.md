@@ -218,34 +218,44 @@ colours (full RGB table is in `DrivenByMoss` `PushColorManager.DEFAULT_PALETTE`)
 The palette is **fixed** — Push 1 (unlike Push 2) cannot be sent arbitrary RGB
 per pad; you choose the nearest palette index.
 
-### Capturing the *as-displayed* palette and matching in Oklab
+### Colouring the pads — static semantic table (not runtime matching)
 
-`DEFAULT_PALETTE`'s RGB are *nominal* — what the firmware is told, not what the
-LED visibly emits. The surface instead matches against the palette's
-**as-displayed** colours, captured from a photo, in **Oklab** (perceptually
-uniform — Euclidean distance ≈ perceived difference). Workflow:
+The runtime does **not** match colours per frame. `Push1Surface::rgbPaletteFor`
+is a **static table**: each cell's semantic `CellState` (grid families) or
+`button` + state (modifiers / verbs / sections / nav) maps to a literal,
+hand-picked palette index. Pad indices are fixed in firmware, so once chosen they
+need no palette data at runtime.
+
+**Why static, not nearest-neighbour.** The earlier dynamic path matched each
+cell's on-screen RGB to the nearest palette entry in Oklab. The factory palette
+has few usable *dim* entries, so distinct-but-similar UI colours collapsed onto
+near-identical pads (worst in the low-value and high-value/low-saturation
+regions). A static table lets every important state claim a **distinct bold**
+device entry and — crucially — lets you tweak one role without globally shifting
+the others.
+
+**How the indices were chosen (offline authoring).** `DEFAULT_PALETTE`'s RGB are
+*nominal* — what the firmware is told, not what the LED visibly emits — so the
+indices are picked against the palette's **as-displayed** colours:
 
 1. `tools/push_probe` (User Port) → **Palette 0-63** / **Palette 64-127** light
    each page; photograph both roughly top-down.
-2. `tools/palette_capture` → load each photo, click the 4 pad-array corners
-   (TL/TR/BR/BL → perspective homography), tune the pad/gap ratios + sample-square
-   size so the overlay squares sit on the lit pads, pick the page, **Sample**
-   (linear-light average per pad), then **Export** `Push1Palette.h`
-   (`kCapturedPalette[128]`, index 0 = off). It also reports the
-   off↔darkest-lit Oklab distance.
-3. `Push1Surface` builds a matching table from `kCapturedPalette`, then
-   `nearestPaletteIndex(rgb)` returns the nearest entry in Oklab.
+2. `tools/palette_capture` → mark the 4 pad-array corners (homography), tune the
+   pad/gap + sample-square overlay, **Sample** (linear-light average per pad),
+   **Export** `Push1Palette.h` (`kCapturedPalette[128]`, index 0 = off).
+3. `tools/color_audit` resolves curated ideal anchors (bold/dim per hue +
+   neutrals) to their nearest captured index in Oklab, and checks the picks are
+   mutually distinct within each view (≈0.09 ΔE floor). Those literal indices are
+   then written into the `pidx` table in `Push1Surface.cpp`.
 
-**Gamut stretch.** The device gamut is smaller than sRGB — elevated black floor,
-weaker saturation — so before matching the captured entries are stretched in
-Oklab: lightness fully toward [0,1], chroma mildly toward a vivid target, **hue
-fixed** (strengths `kStretchL`/`kStretchC` in `Push1Surface.cpp`, tune on
-hardware). This uses the whole palette and preserves the screen's
-dim/bright/scope contrast instead of washing out and clumping. In-use cells never
-map to index 0 (off) — dim ones floor at the darkest lit entry, so only genuinely
-unused pads are dark. Until a real capture is taken, `Push1Palette.h` ships the
-nominal `DEFAULT_PALETTE` values as a placeholder; the Oklab match already
-improves on a raw RGB Euclidean match.
+`kCapturedPalette` (`Push1Palette.h`) is therefore an **offline reference** for
+re-tuning indices, not a runtime input. Assignment is top-down: boldest/most
+important states (selected=white 119, trig=green 21, playhead=amber 9,
+muted=red 5) → highest-chroma entries; resting/secondary states → dark/dim
+variants; states that never co-occur may reuse an entry. Modifier *active* = bold
+hue, *resting* = dark hue. Mute Muted (bold red) vs Audible (dim grey) is now
+unmistakable — the case the dynamic match could not separate. To change one pad
+colour, edit that one role in `pidx`; nothing else moves.
 
 ---
 

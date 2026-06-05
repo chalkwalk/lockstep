@@ -8,12 +8,14 @@ namespace lockstep
     // via tools/palette_capture. index 0 = off (true black).
     // Values are linear-averaged sRGB, packed 0xRRGGBB.
     //
-    // Real capture (replaces the nominal placeholder). Neutrals read close to grey
-    // with a mild ~10% blue lift; the device gamut is compressed (elevated black
-    // floor, white dimmer than the saturated primaries, primaries bleed into
-    // neighbouring channels). Because the gamut is now genuinely compressed, the
-    // Oklab gamut stretch in Push1Surface.cpp (kStretchL/kStretchC) is worth
-    // raising off 0 — see that file.
+    // Real capture. Neutrals read close to grey with a mild ~10% blue lift; the
+    // device gamut is compressed (elevated black floor, white dimmer than the
+    // saturated primaries, primaries bleed into neighbouring channels).
+    //
+    // OFFLINE REFERENCE ONLY. The runtime no longer matches against this — pad
+    // colours come from a static semantic→index table in Push1Surface.cpp. This
+    // capture exists so tools/color_audit can (re)derive good literal indices for
+    // that table; it is not included by the runtime surface.
     inline constexpr std::array<std::uint32_t, 128> kCapturedPalette = {{
         0x1A1708u, 0x5B5751u, 0x8D9195u, 0xA8A8BFu,
         0xE68685u, 0xFF4800u, 0xEF2A00u, 0xAD1800u,
