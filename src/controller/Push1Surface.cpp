@@ -195,10 +195,13 @@ namespace lockstep
                 const int col = note - 60;
                 if (col == 0)
                 {
-                    // TAP (note 60)
-                    if (isDown && sink.emitEvent)
-                        sink.emitEvent({ ControllerEvent::Type::ButtonDown,
-                                         ControllerButton::TapTempo, -1, 0 });
+                    // TAP (note 60) — momentary. Emit ButtonUp on release too, or
+                    // the press is never cleared and the pad stays lit after a tap.
+                    if (sink.emitEvent)
+                        sink.emitEvent({
+                            isDown ? ControllerEvent::Type::ButtonDown
+                                   : ControllerEvent::Type::ButtonUp,
+                            ControllerButton::TapTempo, -1, 0 });
                     return;
                 }
                 if (col == 1)
