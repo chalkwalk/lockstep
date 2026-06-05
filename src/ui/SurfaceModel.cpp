@@ -89,7 +89,11 @@ namespace lockstep
             case ControllerButton::VerbYes:      return &functionRow[5];
             case ControllerButton::VerbRecord:   return &functionRow[6];
             case ControllerButton::VerbPlay:     return &functionRow[7];
-            case ControllerButton::VerbStop:     return &functionRow[8];
+            // functionRow[8] is the O key = CLEAR (button VerbClear). VerbStop is
+            // the legacy identity for the same slot; map both so byButton(VerbClear)
+            // resolves (without it the Push Clear pad / New→Clear alias stayed off).
+            case ControllerButton::VerbStop:
+            case ControllerButton::VerbClear:    return &functionRow[8];
             case ControllerButton::VerbNo:       return &functionRow[9];
             case ControllerButton::Section:
                 if (idx >= 0 && idx < 6) return &section[static_cast<std::size_t>(idx)];
