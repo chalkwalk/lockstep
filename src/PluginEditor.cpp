@@ -551,13 +551,11 @@ namespace lockstep
 
             // ---- Left dashboard ----
             {
-                // Bank / Pattern / Part identity pill.
-                const int bk = processor_.activeBankIdx() + 1;
-                const int pt = processor_.activePatternIdx() + 1;
-                const int pr = processor_.activePattern().partRef + 1;
-                const juce::String identity = "Bk:" + juce::String(bk)
-                                            + "  Pt:" + juce::String(pt)
-                                            + "  Pr:" + juce::String(pr);
+                // Song / Scene identity pill.
+                const int sg = processor_.activePieceIdx() + 1;
+                const int sc = processor_.activeSectionIdx() + 1;
+                const juce::String identity = "Sg:" + juce::String(sg)
+                                            + "  Sc:" + juce::String(sc);
                 {
                     const auto r = juce::Rectangle<int>(kDashStartX, by, 120, kBadgeH);
                     g.setColour(juce::Colour(0xFF262830u));
@@ -612,18 +610,6 @@ namespace lockstep
                     g.drawText("Q:" + juce::String(qBank) + "." + juce::String(qPat),
                                r, juce::Justification::centred);
                     bx += 52 + kGap;
-                }
-
-                // SHR:N part-share badge.
-                const int shareCount = processor_.activePartShareCount();
-                if (shareCount > 1 && bx + 40 < kSplitX)
-                {
-                    const auto r = juce::Rectangle<int>(bx, by, 40, kBadgeH);
-                    g.setColour(juce::Colour(0xFF9040C0u));
-                    g.fillRoundedRectangle(r.toFloat(), 3.0f);
-                    g.setColour(juce::Colours::white);
-                    g.drawText("SHR:" + juce::String(shareCount), r, juce::Justification::centred);
-                    bx += 40 + kGap;
                 }
 
                 // CHN:N chain badge.
@@ -1557,7 +1543,7 @@ namespace lockstep
                 if (uiState_.trackHeld && processor_.isTrackEmpty(ev.index))
                 {
                     // Track+empty step = copy current track's machine+params (no steps).
-                    processor_.copyPartTrack(keyboardArea_.getActiveTrack(), ev.index);
+                    processor_.copyKitTrack(keyboardArea_.getActiveTrack(), ev.index);
                     releaseTransientLatch(CB::TrackScope);
                     repaint();
                     keyboardArea_.repaint();
@@ -1781,7 +1767,7 @@ namespace lockstep
                         entityName = "Track " + juce::String(keyboardArea_.getActiveTrack() + 1);
                         break;
                     case PS::Phrase:
-                        entityName = "Pattern " + juce::String(processor_.activePatternIdx() + 1);
+                        entityName = "Phrase";
                         break;
                     case PS::Scene:
                         entityName = "Part";
@@ -1889,23 +1875,21 @@ namespace lockstep
                             }
                             case PS::Phrase:
                             {
-                                auto& pat = processor_.activePattern();
                                 processor_.pushCheckpoint();
-                                for (auto& trk : pat.sequence.tracks)
+                                for (auto& trk : processor_.sequence().tracks)
                                 {
                                     for (auto& s : trk.steps)
                                     {
-                                        s.trig           = false;
-                                        s.condition      = TrigCondition{};
-                                        s.overrides      = PLock{};
-                                        s.trigOverride   = TrigOverride{};
-                                        s.fillTrigState  = FillTrigState::Off;
-                                        s.fillOverrides  = PLock{};
-                                        s.fillTrigOverride = TrigOverride{};
+                                        s.trig              = false;
+                                        s.condition         = TrigCondition{};
+                                        s.overrides         = PLock{};
+                                        s.trigOverride      = TrigOverride{};
+                                        s.fillTrigState     = FillTrigState::Off;
+                                        s.fillOverrides     = PLock{};
+                                        s.fillTrigOverride  = TrigOverride{};
                                     }
                                 }
-                                pat.patternMutes.fill(false);
-                                setStatus("Deleted Pattern " + juce::String(processor_.activePatternIdx() + 1));
+                                setStatus("Deleted Phrase");
                                 break;
                             }
                             case PS::Scene:
@@ -2808,43 +2792,35 @@ namespace lockstep
             // -----------------------------------------------------------------------
             case PS::Phrase:
             {
-                auto& pat = processor_.activePattern();
-                const juce::String patName = "Pattern " + juce::String(processor_.activePatternIdx() + 1);
-
                 if (verb == CB::VerbRecord)
                 {
-                    clipboard_.clipSequence    = pat.sequence;
-                    clipboard_.clipPatternMutes = pat.patternMutes;
-                    clipboard_.type            = ClipboardType::Pattern;
-                    setStatus("Copied " + patName);
+                    clipboard_.clipSequence = processor_.sequence();
+                    clipboard_.type = ClipboardType::Pattern;
+                    setStatus("Copied Phrase");
                 }
                 else if (verb == CB::VerbPlay)
                 {
                     if (clipboard_.type != ClipboardType::Pattern) break;
-                    pat.sequence     = clipboard_.clipSequence;
-                    pat.patternMutes = clipboard_.clipPatternMutes;
-                    setStatus("Pasted → " + patName);
+                    processor_.sequence() = clipboard_.clipSequence;
+                    setStatus("Pasted Phrase");
                 }
                 else if (verb == CB::VerbClear || verb == CB::VerbDelete)
                 {
-                    // Clear (VerbClear) and Delete (VerbDelete) are identical for patterns:
-                    // empty sequence+mutes is the absent state.
                     if (verb == CB::VerbDelete) processor_.pushCheckpoint();
-                    for (auto& trk : pat.sequence.tracks)
+                    for (auto& trk : processor_.sequence().tracks)
                     {
                         for (auto& s : trk.steps)
                         {
-                            s.trig           = false;
-                            s.condition      = TrigCondition{};
-                            s.overrides      = PLock{};
-                            s.trigOverride   = TrigOverride{};
-                            s.fillTrigState  = FillTrigState::Inherit;
-                            s.fillOverrides  = PLock{};
-                            s.fillTrigOverride = TrigOverride{};
+                            s.trig              = false;
+                            s.condition         = TrigCondition{};
+                            s.overrides         = PLock{};
+                            s.trigOverride      = TrigOverride{};
+                            s.fillTrigState     = FillTrigState::Inherit;
+                            s.fillOverrides     = PLock{};
+                            s.fillTrigOverride  = TrigOverride{};
                         }
                     }
-                    pat.patternMutes.fill(false);
-                    setStatus("Cleared " + patName);
+                    setStatus("Cleared Phrase");
                 }
                 break;
             }

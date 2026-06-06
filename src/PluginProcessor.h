@@ -127,34 +127,21 @@ namespace lockstep
         bool isTrackDeviated(int t) const;
         int  deviationPhraseIdxForTrack(int t) const;
 
-        // ── Legacy pattern navigation (kept for editor compat; removed in Stage D) ──
+        // ── Legacy pattern navigation (kept for serializer compat; removed in Stage 3) ──
         // Switch the active pattern (no-op if indices unchanged or out of range).
-        // Always syncs Track.baseParams from the new active Part.
+        // Syncs Track.baseParams from Kit (single source of truth after 7.9e-pre 3a).
         void setActivePattern(int bankIdx, int patternIdx);
-
-        // Fork the active Part: copy it into the first free Part slot so the
-        // active pattern no longer shares its Part with any other pattern.
-        // Returns true on success; false if the Part is not shared or all Part
-        // slots are occupied.
-        bool forkActivePart();
-
-        // Returns the number of patterns in the active bank that reference the
-        // same Part as the active pattern.
-        int activePartShareCount() const;
 
         // Empty-slot gestural archetype — see DESIGN for the copy/create convention.
         // materialisePattern copies the current active pattern if copy=true, else
         // creates a blank pattern referencing the current Part.
-        // materialisePart copies the active Part if copy=true, else creates a default
-        // Part (T0=sampler, T1-15=stub). Both mark the slot as initialised.
         [[nodiscard]] bool isPatternInitialised(int bankIdx, int patternIdx) const;
         [[nodiscard]] bool isPartInitialised(int bankIdx, int partIdx) const;
         void materialisePattern(int bankIdx, int patternIdx, bool copy);
-        void materialisePart(int bankIdx, int partIdx, bool copy);
 
-        // Copy the active Part's PartTrack (machine + base params) from srcTrack
-        // to dstTrack. Does NOT copy step data (sequence is per-pattern, not per-Part).
-        void copyPartTrack(int srcTrack, int dstTrack);
+        // Copy the Kit (machine + base params) from srcTrack to dstTrack.
+        // Does NOT copy step data (steps live per Phrase, not per Kit).
+        void copyKitTrack(int srcTrack, int dstTrack);
 
         // True when the installed machine on the given track is a stub (empty track).
         [[nodiscard]] bool isTrackEmpty(int track) const;
@@ -398,13 +385,6 @@ namespace lockstep
         [[nodiscard]] int      numSlotsWithMachine     (const IMachine& m) const;
         [[nodiscard]] ParamSpec paramSpecWithMachine   (const IMachine& m, int slot) const;
 
-        // Reassigns the active pattern to reference a different Part in the active bank.
-        // Reinstalls any machines whose type differs between the old and new Part.
-        void setActivePatternPart(int partIdx);
-
-        // Returns the Part index currently referenced by the active pattern.
-        [[nodiscard]] int activePatternPartRef() const;
-
         // Machine catalogue — list of all available machine types.
         struct MachineInfo { const char* id; const char* displayName; };
         [[nodiscard]] int         numAvailableMachines()        const;
@@ -450,10 +430,6 @@ namespace lockstep
         void reinstallMachinesFromActiveKit();
         // Copies active section's phrase data + kit baseParams into sequence tracks.
         void syncSequenceFromCurrentScene();
-
-        // Reinstalls machines_ entries that don't match activePart()'s machineIds,
-        // then syncs all sequence baseParams. Suspends audio only if needed.
-        void reinstallMachinesFromActivePart();
 
         // If the written slot on the given track governs slice layout
         // (slicer_sample_id, slicer_slice_src, slicer_slice_count), recompute
