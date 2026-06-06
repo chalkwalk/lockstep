@@ -24,6 +24,7 @@ behind the design, see `DESIGN.md`, `PRINCIPLES.md`, and `ROADMAP.md`.
 4. [Tutorial: your first piece of music](#4-tutorial)
 5. [Feature reference (appendix)](#5-feature-reference)
 6. [Implemented vs. planned](#6-implemented-vs-planned)
+7. [Gesture tree (every action, by press order)](#7-gesture-tree)
 
 ---
 
@@ -343,7 +344,7 @@ two rows) and step keys (bottom two rows).
 ```
  MODIFIERS    │  FUNCTIONAL BLOCK                                  keys
  [FUNC ][TRACK]│ [TAP][ ^ ][TRIG][SRC][FILTER][AMP][MOD][FX]      1 2 3 4 5 6 7 8 9 0
- [PHRASE][SCENE]│[ < ][ v ][ > ][YES][RECORD][PLAY][PANIC][NO]    Q W E R T Y U I O P
+ [PHRASE][SCENE]│[ < ][ v ][ > ][SNAP][REC ][PLAY][CLEAR][YES]   Q W E R T Y U I O P
  ──────────────┼──────────────────────────────────────────────────────────────────────
  [MORPH][SONG ]│ [ steps 1 - 8 ]                                  A S D F G H J K L ;
  [MUTE ][FILL ]│ [ steps 9 - 16 ]                                 Z X C V B N M , . /
@@ -352,18 +353,28 @@ two rows) and step keys (bottom two rows).
 (The two left columns in each row hold the eight modifiers; the next
 two slots on row 0 are `3=TAP` and `4=NavUp`; sections fill `5–0`.
 Row 1's right side is `E=NavLeft / R=NavDown / T=NavRight` followed
-by the verb cluster `Y U I O P` = `Yes / Rec / Play / PANIC / No`
-(the `O` clear/stop verb is labelled **PANIC**).)
+by the verb cluster `Y U I O P`, whose **on-screen legends** are
+`SNAP / REC / PLAY / CLEAR / YES`. Each verb key carries a `Func`-layer
+secondary legend: `Func+Y`=RESTORE, `Func+O`=DEL, `Func+P`=NO (the `U`
+key has no Func legend — `Func+U` is omni copy). The `I` key still paints
+a stale `PANIC` legend, but `Func+I` is **unqualified paste** — Panic
+moved to `Song+Clear`.)
 
-The verb keys `Yes / Rec / Play / Stop / No` on row 1 (`Y U I O P`) are
-**context-sensitive**: with **no scope held** they default to
-transport/confirmation — `Play` (`I`) starts/stops the transport, `Rec`
-(`U`) toggles record-arm, `Yes`/`No` confirm prompts. With a **scope
-held** the same keys become the scope verbs Copy / Paste / Clear
-(`Rec`/`Play`/`Stop`). Snapshots ride the bare-`Func` layer
-(`Func+Yes`=push, `Func+No`=pop). There is no separate transport key —
-the verb row does double duty, which is why the surface needs no extra
-buttons.
+The verb keys are **context-sensitive** — they read three layers:
+
+- **No scope held** — transport / confirm: `Y`(SNAP) pushes a checkpoint,
+  `U`(REC) toggles record-arm (double-tap = overdub), `I`(PLAY)
+  starts/stops the transport (double-tap = stop-to-top), `O`(CLEAR) clears
+  the active P-Lock slot, `P`(YES) confirms a pending prompt.
+- **A scope held** — the scope verbs: `U`=Copy, `I`=Paste, `O`=Clear.
+  `Y` is the scope's snapshot (reserved/dim on most scopes); `P` dims.
+- **`Func` qualifier** — `Func+Y`=Restore (pop/floor), `Func+U`=omni copy,
+  `Func+I`=unqualified paste, `Func+O`=delete entity, `Func+P`=cancel a
+  prompt.
+
+There is no separate transport key — the verb row does double duty, which
+is why the surface needs no extra buttons. The full action set is indexed
+by press-order in [§7](#7-gesture-tree).
 
 In **Ortholinear** and **Staggered** display modes the keys immediately
 outside the 10-column block — `` ` ``, `Tab`, `CapsLock`, `Shift` on
@@ -413,21 +424,24 @@ catalogued in DESIGN §13.0.
 
 ### 5.3 Verb keys
 
-| Key | Verb | Meaning |
-|---|---|---|
-| `Y` | **Yes** | Affirmative — confirm a prompt; `Func+Yes` = snapshot push (bare `Func` only — see note). |
-| `U` | **Record** | Copy the current scope into the clipboard. |
-| `I` | **Play** | Paste the clipboard into the scope. |
-| `O` | **Stop** | Clear the scope. |
-| `P` | **No** | Negative — dismiss a prompt; `Func+No` = snapshot pop (bare `Func` only — see note). |
+The five verb keys carry an on-screen primary legend, a `Func`-layer
+secondary legend, and a scope-compound meaning. (Note: the key the README
+historically called "Yes" is the `Y`/SNAP key; the confirm/"Yes" action
+actually lives on `P`.)
 
-> **Snapshot/restore are bare-`Func` ops.** While a section-suite scope
-> (`Track` / `Pattern` / `Part` / `Scene` / `Master`) is also held,
-> `Func+scope+Yes/No` is that scope's secondary variant, **not** a global
-> checkpoint — so snapshot/restore are reserved (inert) until you release
-> the scope. `Yes` itself is reserved (dim) under a scope; the other verbs
-> show their scoped op (COPY/PASTE/CLEAR, and DEL on `Track+No`) and light
-> in the scope colour.
+| Key | Legend | No scope | Under a scope | `Func + key` |
+|---|---|---|---|---|
+| `Y` | **SNAP** | Push a checkpoint (scope-respecting) | Scope snapshot (`Scene`=re-sync; most scopes reserved/dim) | **Restore** — tap = pop one, hold = jump to floor |
+| `U` | **REC** | Toggle record-arm (double-tap = overdub) | **Copy** scope → clipboard | **Omni copy** (scene + track + phrase) |
+| `I` | **PLAY** | Play / Stop transport (double-tap = stop-to-top) | **Paste** clipboard → scope | **Unqualified paste** (stamp the one captured layer) |
+| `O` | **CLEAR** | Clear active P-Lock slot (`Scene`/`Phrase` held = cancel queued scene; `Song` held = Panic) | **Clear** scope | **Delete** entity (+ confirm) |
+| `P` | **YES** | Confirm a pending prompt | Scope confirm (dims on most scopes) | **No** / cancel a pending prompt |
+
+> **Checkpoint push/restore.** Push is the bare `Y`(SNAP) key; restore is
+> `Func+Y`(RESTORE). Both are *scope-respecting*: with no scope held the
+> snapshot is the Song; with `Track` / `Scene` / `Phrase` held it captures
+> that scope. While a section-suite scope is held, `Y` is that scope's
+> snapshot rather than a global one. See [§5.15](#515-checkpoints-live-undo).
 
 ### 5.4 Transport and navigation
 
@@ -461,9 +475,33 @@ Tracks 1–8 default to `SamplerMachine` and tracks 9–16 to `MidiOutMachine` (
 | `SamplerMachine` | SP | Monophonic sample playback. SRC section: sample, pitch, trim window (`samp_start` / `samp_length`), loop mode (OFF / SUS / S+R / ALL), loop region (`samp_loop_start` / `samp_loop_len`). All position slots snap to zero-crossings on write. AMP section: level + AHDSR. |
 | `SlicerMachine` | SL | Slice/scrub sample playback. SLICE mode: incoming MIDI note selects slice 0–15; `slicer_start` / `slicer_length` are relative to the active slice. SCRUB mode: note drives playback rate vs. root 60 (identical to Sampler semantics). `slicer_rate` P-lockable for per-step rate; negative rate = reverse playback. `slicer_slice_src` (EQUAL / TRANS) and `slicer_slice_count` auto-recompute slices on change; transient detection uses 5 ms RMS blocks with fast/slow envelope ratio and centre-weighted search. VOICE section: MONO / POLY toggle (V4). |
 | `FMMachine` | FM | 4-operator FM synthesis. Free 4×4 modulation matrix. Per-operator ADSR, ratio, fine-tune, mix. Macro attack/release/sustain scalars. MONO / POLY voice modes (V4 pool). |
-| `VAMachine` | VA | Virtual-analog dual-osc synth. Saw/Pulse/Tri/Sin PolyBLEP oscillators + sub + shared noise. State-variable filter (LP4/LP2/HP/BP + drive). Filter ADSR + amp ADSR. LFO (6 shapes). Mono / Paraphonic-4 voice modes. Para topology: chord notes 1 & 3 → osc1+sub; notes 2 & 4 → osc2+sub. |
-| `DrumSynthMachine` | DR | Rytm-style per-track drum synthesis. Type param selects KICK / SNARE / HAT / TOM variant; each has dedicated DSP (exponential pitch sweep + waveshaper / bandpass noise / hipass noise / sine + tom body). |
+| `VAMachine` | VA | Virtual-analog dual-osc synth. PolyBLEP oscillators + sub + shared noise. State-variable filter (LP24/LP12/HP/BP + drive). Filter ADSR + amp ADSR. LFO (6 shapes). Mono / Paraphonic-4 voice modes. Para topology: chord notes 1 & 3 → osc1+sub; notes 2 & 4 → osc2+sub. |
+| `DrumSynthMachine` | DR | Rytm-style per-track drum synthesis. One stepped `Type` param selects the variant; each has dedicated DSP. Eight types ship: KICK, SNARE, HAT, TOM, CLAP, COWBELL, CYMBAL, RIMSHOT. |
 | `MidiOutMachine` | M | MIDI CC / note output to external gear. Configurable destination, channel, program, 16 CC slots with user-assignable numbers and labels. |
+
+**Stepped (enum) parameter values.** These are the closed value sets the
+Manipulation Zone shows as text instead of numbers (from each machine's
+`ParamSpec.valueLabels`; exhaustive as of Phase 4):
+
+| Machine | Parameter | Values |
+|---|---|---|
+| `SamplerMachine` | Loop mode | `OFF` · `SUS` · `S+R` · `ALL` |
+| | Retrig | `LEGATO` · `RETRIG` |
+| `SlicerMachine` | Mode | `SLICE` · `SCRUB` |
+| | Slice source | `EQUAL` · `TRANS` |
+| | Loop mode | `OFF` · `SUS` · `S+R` · `ALL` |
+| | Voice | `MONO` · `POLY` |
+| `FMMachine` | Voice mode | `MONO` · `POLY` |
+| | Retrig | `LEGATO` · `RETRIG` |
+| `VAMachine` | Voice mode | `MONO` · `PARA` |
+| | Filter type | `LP24` · `LP12` · `HP` · `BP` |
+| | Osc 1 wave | `SAW` · `TRI` · `SQR` · `SIN` |
+| | Osc 2 wave | `SAW` · `TRI` · `SQR` · `SIN` · `OFF` |
+| | LFO shape | `SIN` · `TRI` · `SAW` · `SQR` · `S&H` · `RND` |
+| | LFO target | `CUT` · `PITCH` · `PW` · `AMP` |
+| | LFO sync | `FREE` · `SYNC` |
+| | Retrig | `LEGATO` · `RETRIG` |
+| `DrumSynthMachine` | Type | `KICK` · `SNARE` · `HAT` · `TOM` · `CLAP` · `COWBELL` · `CYMBAL` · `RIMSHOT` |
 
 Focus determines what the contextual encoders edit and what selected-track MIDI mappings drive.
 
@@ -529,21 +567,24 @@ prev-dep) and `TRIG` itself (default note / velocity / gate). Track
 length and clock divider live under `Track+TRIG`. Output gain, sync
 mode, and clock settings live under master-scope cells.
 
+<a name="59-copy-paste-clear"></a>
 ### 5.9 Copy / paste / clear
 
 A single uniform grammar — **hold scope, press verb**:
 
-| Scope held | + Copy (`T`) | + Paste (`Y`) | + Clear (`U`) |
+| Scope held | + Copy (`U`/Rec) | + Paste (`I`/Play) | + Clear (`O`/Clear) |
 |---|---|---|---|
 | **Trig** (1+ steps) | Copy steps (trigs + conditions + P-Locks) | Paste onto held steps | Clear held steps' overrides |
 | **Section** key | Copy that section's params | Paste section to current track | Reset section to default |
-| **Track** (specific) | Copy whole track | Paste track | Clear track |
-| **Pattern** | Copy whole pattern | Paste pattern | Clear pattern |
+| **Track** (specific) | Copy whole track | Paste track | Clear track steps (keeps length/divider/base) |
+| **Phrase** (`Q`) | Copy whole phrase (all tracks' steps) | Paste phrase | Clear phrase |
 
-Multi-step copies preserve relative offsets. Pasting a 1-step clipboard
-over many held steps replicates; pasting many over one unrolls forward.
-The clipboard is in-memory only and **typed** — a step clipboard can't be
-pasted into a pattern scope, etc.
+(The clipboard's whole-sequence type is still named `Pattern` internally;
+the scope key that copies it is **Phrase**, `Q`.) Multi-step copies preserve
+relative offsets. Pasting a 1-step clipboard over many held steps replicates;
+pasting many over one unrolls forward. The clipboard is in-memory only and
+**typed** — a step clipboard can't be pasted into a phrase scope, etc. (An
+`All` omni grab, `Func+U`, can be pasted into any matching scope.)
 
 ### 5.10 Control-All
 
@@ -592,6 +633,10 @@ condition types, each valid at track level (no step held) or step level
 - **Previous-step dependency** — fire only if the previous step did (or
   didn't) fire. Step-level only.
 
+A fourth per-step firing rule, the **fill rule** (`Always` / `OnlyFill` /
+`NeverFill`), is set with the Fill modifier and documented separately in
+[§5.12](#512-fills).
+
 All conditions are **deterministic and pre-computable**, so the grid
 shows certain-fire / certain-skip / probabilistic states ahead of the
 playhead.
@@ -620,9 +665,9 @@ Scenes and switch Songs live.
 
 | Gesture | Action |
 |---|---|
-| `Func + Yes` (`Func + Y`) | Push the **currently-held scope** onto its checkpoint stack. |
-| `Func + No` (tap, `Func + P`) | Pop one entry from the scoped stack (restore last snapshot). |
-| `Func + No` (hold+release) | Jump straight to the floor (= the saved state at last load). |
+| `Yes` (`Y`, SNAP) | Push the **currently-held scope** onto its checkpoint stack. |
+| `Func + Yes` (`Func + Y`, RESTORE — tap) | Pop one entry from the scoped stack (restore last snapshot). |
+| `Func + Yes` (`Func + Y`, RESTORE — hold+release) | Jump straight to the floor (= the saved state at last load). |
 
 **Scope-respecting:** the snapshot captures whichever modifier is held — none = Song,
 `Track` = that track's Kit + current Phrase, `Scene` = that Scene's floor,
@@ -647,6 +692,7 @@ from disk so "reload saved" always works. The `CK:N` badge shows the scoped dept
   stop).
 - Transport controls bind to MIDI realtime / MMC, not to CC.
 
+<a name="517-keyboard-ui-revamp"></a>
 ### 5.17 Keyboard / UI revamp *(shipped — Phase 3)*
 
 The chrome-and-grammar pass over the 10×4 surface that 3.1/3.2 froze. It
@@ -812,14 +858,15 @@ shipped behaviour and the design intent. To avoid confusion:
 - **Machines:** `SamplerMachine` (trim + four loop modes + ZC-snap),
   `SlicerMachine` (SLICE / SCRUB, transient detection, MONO/POLY, reverse),
   `FMMachine` (4-op, free matrix, Mono/Poly), `VAMachine` (dual PolyBLEP +
-  SVF + LFO, Mono/Para-4), `DrumSynthMachine` (Rytm-style KICK/SNARE/HAT/TOM),
+  SVF + LFO, Mono/Para-4), `DrumSynthMachine` (Rytm-style, eight voices —
+  KICK/SNARE/HAT/TOM/CLAP/COWBELL/CYMBAL/RIMSHOT, each with dedicated DSP),
   plus the `StubMachine` fallback. Shared post-machine FILTER (SVF) + AMP.
 - The **surface-model foundation** for external controllers (6.6.5a):
   one pure `buildSurfaceModel()` the screen renders from.
 
 **Planned** — `3.11` pattern-length authoring (active); the rest of the
-machine catalogue (`4.5` Static, `4.6` Percussion, `4.7` Digital, `4.8`
-DrumSynth voice expansion); **Phase 5** performance depth (microtiming +
+machine catalogue (`4.5` Static, `4.6` Percussion, `4.7` Digital); **Phase 5**
+performance depth (microtiming +
 swing + quantize `5.1`; scenes + crossfader `5.2`; pattern/part management
 UI `5.3`; sampling + resampling `5.4`; audition + cross-track record `5.5`;
 special trig types `5.6`; the retrig/ratchet + Sound Pool trig-grid modes
@@ -831,4 +878,251 @@ beta polish `6.8`).
 
 See `ROADMAP.md` for the authoritative milestone breakdown and current
 status — it is the single source of truth for what ships when.
+
+---
+
+<a name="7-gesture-tree"></a>
+## 7. Gesture tree (every action, by press order)
+
+This appendix indexes **every live gesture** the surface interprets,
+organised the way your hands actually move. It is the *by-press-order*
+view of the grammar; `DESIGN.md` §13.0 is the **same set ordered by
+gesture cost** (how many keys a chord holds). When a gesture is added or
+changed, update both.
+
+### How to read a chord
+
+You **hold a chord of scope keys, then strike one operand last.** The
+operand is the only key you "press and release" to fire the action — a
+verb, a step, a nav arrow, or an encoder turn. Everything to its left is
+held down while you strike it.
+
+Chords are written in **press order**, left to right:
+
+```
+[ primary scope ] [ secondary scope ] [ Func ] → operand
+```
+
+- The **primary scope** is the one that most directly names what you're
+  operating on; a **secondary scope** (always from the *other* cluster
+  column) narrows it further. Two scopes from the *same* column never
+  combine.
+- **`Func`** is the universal qualifier — it flips a chord to its
+  secondary meaning. It is written last among the held keys (right before
+  the operand), matching how it reads as "…but the Func variant." (Note:
+  DESIGN §13.0 writes `Func` *first* for its cost-ladder bookkeeping; same
+  chord, different reading convention.)
+- The **operand** is struck last: a verb (`Y U I O P`), a step, a nav
+  arrow (`4 E R T`), or an encoder turn.
+
+**A step key plays two roles.** When you *hold* it first it is a **scope**
+(`Trig`) — e.g. `step + U` copies that step. When you *strike* it last it
+is an **operand/target** — e.g. `Scene + step` launches that step's scene.
+So "step last" is only true when the step is the target.
+
+The tree below roots each gesture under its **highest-priority held
+scope** (the resolution order is `Trig > Section > Track > Phrase > Scene >
+Mute > Morph > Song > Fill > Func`); `Func`-only gestures live under
+**Func**. `Cue` is a reserved scope with no key bound yet (6.4), and
+`Morph` assignment is a bound key whose verbs are still planned (5.2) —
+both are noted but carry no live leaves.
+
+Legends in parentheses are the on-screen key labels (see
+[§5.3](#53-verb-keys)).
+
+### No scope — strike a key alone
+
+```
+(nothing held)
+├─ step (tap)        → toggle a trig on the focused track — §5.6
+├─ step (double-tap) → latch the step into the edit context (hands-free) — §5.17
+├─ Y (SNAP)          → push a checkpoint on the held scope (Song if none) — §5.15
+├─ U (REC)           → toggle record-arm; double-tap = overdub — §5.4
+├─ I (PLAY)          → play / stop transport; double-tap = stop-to-top — §5.4
+├─ O (CLEAR)         → clear the active P-Lock slot — §5.4
+├─ P (YES)           → confirm a pending prompt — §5.3
+├─ 3 (TAP)           → tap tempo — §5.4
+└─ 4 / E / R / T     → navigate up / left / down / right (track + step page) — §5.4
+```
+
+When the focused track is in **CHROMATIC** or **LEVELS** input mode, the
+step keys instead play notes / set velocity buckets — see
+[§5.18](#518-modal-trig-grid-surfaces).
+
+Links: [§5.6](#56-step-editing) · [§5.17](#517-keyboard-ui-revamp) ·
+[§5.15](#515-checkpoints-live-undo) · [§5.4](#54-transport-and-navigation) ·
+[§5.3](#53-verb-keys)
+
+### Func — the qualifier, held alone
+
+```
+Func (1)
+├─ Func + Y (RESTORE) → restore checkpoint: tap = pop one, hold = jump to floor — §5.15
+├─ Func + U           → omni copy (scene + track + phrase; badge CPY:ALL) — §5.4
+├─ Func + I           → unqualified paste (stamp the one captured layer) — §5.4
+├─ Func + O           → delete the active entity (+ confirm) — §5.4
+├─ Func + P           → cancel a pending prompt — §5.3
+├─ Func + 3           → toggle the metronome — §5.4
+├─ Func + 5…0         → secondary section page (machine deep params; COND/NOTE/TRACK/GLOBAL meta) — §5.8
+├─ Func + ← / →       → rotate the focused track's steps −1 / +1 — §5.17
+├─ Func + ↑ / ↓       → double / halve the focused track length — §5.17
+└─ Func + step        → P-Lock clear mode (cells show set P-Locks; stage removals, release to commit) — §5.17
+```
+
+Links: [§5.15](#515-checkpoints-live-undo) ·
+[§5.4](#54-transport-and-navigation) · [§5.3](#53-verb-keys) ·
+[§5.8](#58-sections-and-the-manipulation-zone) ·
+[§5.17](#517-keyboard-ui-revamp)
+
+### Trig — one or more held steps
+
+```
+step(s) held
+├─ + U               → copy held step(s) (trigs + conditions + P-Locks) — §5.9
+├─ + I               → paste clipboard onto held step(s) — §5.9
+├─ + O               → clear held step(s) (full: trig + condition + P-Locks) — §5.9
+├─ + Func + O        → clear all P-Locks on held step(s), keep the trig — §5.17
+├─ + (MZ slot) + O   → clear only that one slot's P-Lock on held step(s) — §5.17
+├─ + Func + P (NO)   → clear notes / velocity / gate on held step(s) — §5.7
+├─ + section key     → edit that section's field as a step override (P-Lock / trig override) — §5.7
+└─ + encoder turn    → write a P-Lock on the held step(s) — §5.7
+```
+
+Links: [§5.9](#59-copy-paste-clear) · [§5.17](#517-keyboard-ui-revamp) ·
+[§5.7](#57-parameter-editing-p-locks)
+
+### Section — a held section key (5–0: TRIG/SRC/FILTER/AMP/MOD/FX)
+
+```
+section (5–0)
+├─ (tap)             → select / page that section's params into the MZ (8 at a time) — §5.8
+├─ + U               → copy that section's params (all steps) — §5.9
+├─ + I               → paste that section onto the current track — §5.9
+├─ + O               → reset that section to default — §5.9
+├─ Track + section   → track-foundation row (post-machine FILTER/AMP, inserts) — §5.8
+├─ Func + section    → the machine's secondary page / meta layer — §5.8
+└─ Func + SRC + step → note-edit mode (1-octave chromatic overlay on the step grid) — §5.17
+```
+
+(Section contents vary by machine — see the catalogue and value tables in
+[§5.5](#55-track-selection-and-focus).)
+
+Links: [§5.8](#58-sections-and-the-manipulation-zone) ·
+[§5.9](#59-copy-paste-clear) · [§5.17](#517-keyboard-ui-revamp)
+
+### Track (2)
+
+```
+Track (2)
+├─ + step (D–; / C–/) → select & focus track 1–8 / 9–16 — §5.5
+├─ + step (empty trk) → clone the active track's machine + params there, then focus it — §5.5
+├─ + param edit (no track selected) → Control-All: broadcast the edit to every matching track — §5.10
+├─ + ↑ / ↓ (no track selected) → cycle the focused track's input mode PLAY ↔ CHROMATIC ↔ LEVELS — §5.17
+├─ + track-key + Nav → set the input mode on that specific track — §5.18
+├─ + U / I / O       → copy / paste / clear the whole track — §5.9
+├─ + Func + O        → delete the track (then P confirms, Func+P cancels) — §5.9
+├─ + Scene           → re-sync the focused track to the active scene — §5.14
+└─ Func + Track      → machine / Kit picker (Track→KIT; press a step to assign) — §5.5
+```
+
+Links: [§5.5](#55-track-selection-and-focus) ·
+[§5.10](#510-control-all) · [§5.17](#517-keyboard-ui-revamp) ·
+[§5.18](#518-modal-trig-grid-surfaces) · [§5.9](#59-copy-paste-clear) ·
+[§5.14](#514-scenes-phrases-and-songs-the-launch-model)
+
+### Phrase (Q)
+
+```
+Phrase (Q)
+├─ + step            → unison swap: all non-deviated tracks switch to that phrase — §5.14
+├─ Track + Phrase + step → sticky deviation: only the focused track switches — §5.14
+├─ + U / I / O       → copy / paste / clear the whole phrase (all tracks) — §5.9
+└─ + O (queued scene pending) → cancel the queued scene — §5.14
+```
+
+Links: [§5.14](#514-scenes-phrases-and-songs-the-launch-model) ·
+[§5.9](#59-copy-paste-clear)
+
+### Scene (W)
+
+```
+Scene (W)
+├─ + step (occupied)        → launch (carries the live overlay); double-tap = floor launch — §5.14
+├─ + step (active scene)    → revert to the saved floor — §5.14
+├─ + step (empty slot)      → baked-copy create + launch (conflict-gated) — §5.14
+├─ Func + Scene + step (occupied) → floor launch (arrive at saved floor) — §5.14
+├─ Func + Scene + step (empty)    → default-create (blank) + launch — §5.14
+├─ + U (REC)                → commit-and-bake deviations (Yes/No confirm) — §5.14
+├─ + O (CLEAR)              → revert the active scene to its floor / cancel a queued scene — §5.14
+├─ + Y (SNAP)              → re-sync all tracks to the active scene — §5.14
+├─ Func + Scene + U         → copy the active scene to the clipboard (CPY:SCN) — §5.14
+├─ Func + Scene + I         → paste the clipboard scene (baked; conflict-gated) — §5.14
+├─ Mute + Func + Scene + I  → paste floor only (strip the content overlay) — §5.14
+└─ Scene + Mute + step      → per-scene mute (this track's active-mask) — §5.11
+```
+
+Links: [§5.14](#514-scenes-phrases-and-songs-the-launch-model) ·
+[§5.11](#511-mutes)
+
+### Song (S)
+
+```
+Song (S)
+├─ + step            → switch Songs (quantized; a full reset, live deviations clear) — §5.14
+├─ + O (CLEAR)       → Panic — kill all voices immediately — §5.14
+└─ Func + Song       → Global / master-bus focus — §5.2
+```
+
+Links: [§5.14](#514-scenes-phrases-and-songs-the-launch-model) ·
+[§5.2](#52-modifier-scope-keys)
+
+### Morph (A) — *assignment verbs planned (5.2)*
+
+```
+Morph (A)   (key bound; the A/B crossfader assignment lands in 5.2)
+└─ Morph + ↑ / ↓     → pick endpoint A / B (planned) — §5.2
+```
+
+Links: [§5.2](#52-modifier-scope-keys)
+
+### Mute (Z)
+
+```
+Mute (Z)
+├─ + step            → toggle global mute on that track (hold and tap several) — §5.11
+├─ Scene + Mute + step → toggle scene mute (active-mask for this scene) — §5.11
+└─ Func + Mute + step  → solo that track (additive) — §5.11
+```
+
+Links: [§5.11](#511-mutes)
+
+### Fill (X)
+
+```
+Fill (X)
+├─ (hold)            → while held, fill-conditioned steps fire — §5.12
+└─ + step            → mark that step fill-only — §5.12
+```
+
+Links: [§5.12](#512-fills)
+
+### Encoders — turn a control (any source)
+
+```
+encoder
+├─ turn (no step held)  → edit the track base parameter — §5.7
+├─ turn (step held)     → write / update a P-Lock on the held step — §5.7
+├─ reset (double-click) → restore the slot default (or clear the P-Lock if a step is held) — §5.7
+├─ tempo encoder        → ± BPM — §5.16
+└─ master encoder       → ± output gain — §5.16
+```
+
+The same edit-context rule governs encoders, mapped MIDI CCs, and QWERTY
+edits alike ([§5.7](#57-parameter-editing-p-locks),
+[§5.16](#516-midi-input)).
+
+> **Keeping this in sync.** This tree and `DESIGN.md` §13.0 are two views
+> of one gesture set (press-order vs. cost-rung). A new or changed gesture
+> must be reflected in both, and any new step-grid appearance must be a
+> `CellState` token (DESIGN §35.8), never ad-hoc paint.
 ```
