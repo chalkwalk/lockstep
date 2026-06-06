@@ -697,7 +697,8 @@ from disk so "reload saved" always works. The `CK:N` badge shows the scoped dept
 
 The chrome-and-grammar pass over the 10×4 surface that 3.1/3.2 froze. It
 shipped across 3.3–3.10; the detail below documents the behaviour now in
-the build. (Only 3.11, pattern-length authoring, remains open.)
+the build. (The old 3.11 pattern-length authoring was absorbed into Phase 7
+Stage E / 7.5 and has shipped — see *Phrase-length authoring* below.)
 
 **3.3 — Surface chrome.**
 
@@ -775,6 +776,22 @@ the build. (Only 3.11, pattern-length authoring, remains open.)
   track, then press `NavUp` (↑) or `NavDown` (↓) to cycle the focused track's
   input mode: `PLAY ↔ CHROMATIC ↔ LEVELS`. Mode switches call escape-all-latches
   per DESIGN §13.7 ("entering a new modality exits the current one").
+
+**Phrase-length authoring (old 3.11 → Phase 7 / 7.5, DESIGN §34.4).**
+
+- **Set length by step.** Hold `Phrase` (key `Q`) + `Func` and press a step: the
+  focused track's length becomes that absolute, page-aware step index + 1. Hold
+  `Morph` (key `A`) + `Func` instead to broadcast the same length to **all**
+  tracks. While held, the grid re-skins — body cells `LengthInRun`, the last step
+  `LengthBoundary`, beyond-length cells `LengthOutRun`.
+- **Double/halve.** `Func + ↑` doubles the focused track's length (duplicating the
+  step data into the new tail); `Func + ↓` halves it.
+- **The `LEN` encoder** in the `Track+TRIG` meta-layer writes the same underlying
+  per-track length — no divergence.
+- **Scroll past the end.** At the last in-length page a single `NavRight` is a
+  no-op; **double-tap `NavRight`** unlocks one empty page beyond the length so a
+  longer length can be set out there. The unlock auto-clears once the visible page
+  is back within range; the nav row reveals the empty page in its count.
 
 **3.6 — Polyphonic step authoring improvements.**
 
@@ -864,7 +881,7 @@ shipped behaviour and the design intent. To avoid confusion:
 - The **surface-model foundation** for external controllers (6.6.5a):
   one pure `buildSurfaceModel()` the screen renders from.
 
-**Planned** — `3.11` pattern-length authoring (active); the rest of the
+**Planned** — the rest of the
 machine catalogue (`4.5` Static, `4.6` Percussion, `4.7` Digital); **Phase 5**
 performance depth (microtiming +
 swing + quantize `5.1`; scenes + crossfader `5.2`; pattern/part management

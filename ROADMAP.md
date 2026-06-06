@@ -489,16 +489,20 @@ migrates in Stage D+). Old Bank/Pattern/Part/Sequence kept as compat stubs.
 - [x] `Part + Stop` → `cancelQueuedSection()`.
 - [x] Fork/chain/queue-pattern gestures removed from editor dispatch.
 
-### 7.5 — Stage E: Surface model + UI  *[shipped (core); pending: nav chrome, tests]*
+### 7.5 — Stage E: Surface model + UI  *[shipped]*
 - [x] `LengthInRun(90)`, `LengthBoundary(91)`, `LengthOutRun(92)`, `SelectorDeviated(95)`
       CellState tokens (add-only); `compatColour()` entries.
 - [x] Pattern scope re-skin → 16 phrases per track; deviation badge (`SelectorDeviated`).
 - [x] Part scope re-skin → 16 sections; queued-section `SelectorNext` badge.
-- [x] Phrase-length re-skin: `Pattern+Func` (purple) / `Scene+Func` (orange) momentary
+- [x] Phrase-length re-skin: `Phrase+Func` (focused) / `Morph+Func` (broadcast) momentary
       branch; `LengthInRun/LengthBoundary/LengthOutRun` per absolute step index.
+- [x] Length-**write** gestures wired (`Phrase+Func+step` focused / `Morph+Func+step`
+      broadcast → `setTrackLength`); the re-skin had shipped visual-only. (DESIGN §34.4.)
 - [x] `isTrackDeviated(t)` / `deviationPhraseIdxForTrack(t)` public accessors.
-- [ ] Double-tap-NavRight scroll-past-end unlock (pending).
-- [ ] `SurfaceModelTest.cpp` new length-edit assertions (pending).
+- [x] Double-tap-NavRight scroll-past-end unlock (`clampStepPage`/`PageNav.h`; nav-row
+      reveals the empty page).
+- [x] `SurfaceModelTest.cpp` length-edit + page-clamp assertions (`lengthEditCellState`,
+      `clampStepPage` pure helpers).
 
 ### 7.6 — Stage F: Serialization (clean break)  *[shipped]*
 - [x] `kCurrentVersion = 5`; `upgrade_v4_to_v5` drops old Project node.
@@ -510,15 +514,17 @@ migrates in Stage D+). Old Bank/Pattern/Part/Sequence kept as compat stubs.
 - [x] `Section.sceneA/sceneB` maps serialized under `<SceneA>/<SceneB>` children.
 - [x] Runtime crossfader resolver deferred to ROADMAP 5.2.
 
-### 7.8 — Stage H: Verification  *[partial]*
-- [x] Build clean under `-Werror`; all pre-existing tests pass.
-- [x] Standalone binary built; no crashes / NaNs on cold start.
-- [ ] Live play-test: Section launch (quantized), phrase swap (sticky deviation),
-      re-sync, two-layer mutes, Piece switch, polymeter.
-- [ ] Phrase-length re-skin: momentary `Pattern+Func` / `Scene+Func` re-skin.
-- [ ] Double-tap-NavRight scroll-past-end (pending Stage E item).
-- [ ] VST3/CLAP save → reload round-trips the new format.
-- [ ] Update "Active focus" to next milestone on completion.
+### 7.8 — Stage H: Verification  *[partial — code shipped; manual play-test pending]*
+- [x] Build clean (tests `-Werror` under Clang); all tests pass (incl. new 7.5).
+- [x] Standalone binary built; no crashes / NaNs on cold start (startup self-tests
+      pass, incl. the v8 serializer round-trip).
+- [x] Update "Active focus" to next milestone on completion (now: 6.7 ABI).
+- [ ] **Manual** live play-test: Scene launch (quantized), phrase swap (sticky
+      deviation), re-sync, two-layer mutes, Song switch, polymeter.
+- [ ] **Manual** phrase-length authoring: `Phrase+Func+step` (focused) /
+      `Morph+Func+step` (broadcast) write + re-skin; double-tap-NavRight
+      scroll-past-end reveals one empty page and the nav row shows `Length: N`.
+- [ ] **Manual** VST3/CLAP save → reload round-trips the v8 format (Reaper/Bitwig).
 
 ### 7.9 — Stage I: Vocabulary rename  *[a–d + doc redesigns shipped; e pending]*
 Align names with DESIGN's refined vocabulary (`Set/Song/Scene/Phrase` + Morph;
