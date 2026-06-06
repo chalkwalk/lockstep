@@ -101,7 +101,13 @@ namespace lockstep
 
         // Pending-confirm state: set by VerbDelete (Func+O); resolved by VerbNo (P=Yes) or
         // Func+P (No/cancel). While set, a status-band prompt is shown.
-        enum class PendingConfirm : uint8_t { None, Delete, BakeScene };
+        enum class PendingConfirm : uint8_t
+        {
+            None, Delete, BakeScene,
+            CreateScene,   // create-baked-copy on a conflicted slot
+            PasteScene,    // baked scene paste on a conflicted slot
+        };
+        int pendingTarget_ = 0;  // scratch slot for Create/PasteScene
         PendingConfirm pendingConfirm_ = PendingConfirm::None;
 
         // Last-known transport state: lets timerCallback detect play/pause
@@ -193,6 +199,10 @@ namespace lockstep
         // Capture the current live scene (effective floor + track phrases) into
         // clipboard_.scene. Sets clipboard_.type = Scene.
         void captureScene();
+
+        // True when writing phrase content into phraseSlot would overwrite shared
+        // or already-initialised content. Shows confirm when true.
+        bool phraseConflictAndConfirm(int phraseSlot, PendingConfirm action);
 
         void applyDisplayMode(GridDisplayMode mode);
 

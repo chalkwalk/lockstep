@@ -84,10 +84,9 @@ namespace lockstep
             // Func-promotion handles them (rotate-left / ÷2 / rotate-right / ×2).
             { code('Y'), B::Restore,          -1 },  // Func+Y(Snap) = pop checkpoint (Restore)
             { code('3'), B::MetronomeToggle,  -1 },  // Func+3(TAP)  = metronome toggle
-            { code('I'), B::VerbPanic,        -1 },  // Func+I(Play) = panic (kill voices)
             { code('O'), B::VerbDelete,       -1 },  // Func+O(Clear)= delete entity (+ confirm)
             { code('P'), B::VerbNo,           -1 },  // Func+P(Yes)  = No / cancel confirm
-            { code('U'), B::ForkPart,         -1 },  // Func+U(Rec)  = fork active Part (placeholder)
+            { code('U'), B::VerbRecord,       -1 },  // Func+U(Rec)  = omni copy (all layers)
         } };
 
         // Track layer — applied when Track (key Q) is held.

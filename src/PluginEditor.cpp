@@ -1311,6 +1311,10 @@ namespace lockstep
                         else if (!occupied && !funcHeld)
                         {
                             // Empty + no-func: baked copy of current state.
+                            // Conflict gate: target phrase slot may have content.
+                            if (phraseConflictAndConfirm(ev.index,
+                                                         PendingConfirm::CreateScene))
+                                break;   // waiting for Yes/No
                             processor_.snapshot(CheckpointScope::Song, 0);
                             processor_.createBakedCopyScene(ev.index);
                             if (processor_.clock().inPluginPlaying())
@@ -1698,10 +1702,36 @@ namespace lockstep
                     editMode_.onVerb(ev.button);
                     return true;
                 }
-                // Func+I (no non-trivial scope) = Panic.
+                // Func+I (no non-trivial scope) = unqualified paste.
+                // Stamps the single captured layer; rejects when type is All.
                 if (editMode_.scopeState().func)
                 {
-                    processor_.requestPanic();
+                    using CT = ClipboardType;
+                    if (clipboard_.type == CT::None)
+                    {
+                        setStatus("Nothing copied");
+                    }
+                    else if (clipboard_.type == CT::All)
+                    {
+                        setStatus("Paste: pick a scope");
+                    }
+                    else
+                    {
+                        // Map clipboard type → matching scope and dispatch paste.
+                        PS synScope = PS::None;
+                        switch (clipboard_.type)
+                        {
+                            case CT::None:    break;
+                            case CT::Step:    synScope = PS::Trig;    break;
+                            case CT::Section: synScope = PS::Section; break;
+                            case CT::Track:   synScope = PS::Track;   break;
+                            case CT::Pattern: synScope = PS::Phrase;  break;
+                            case CT::Scene:   synScope = PS::Scene;   break;
+                            case CT::All:     break;  // handled above
+                        }
+                        if (synScope != PS::None)
+                            dispatchVerb(synScope, ev.button);
+                    }
                     return true;
                 }
                 if (playKeyHeld_) return true;  // ignore key repeat
@@ -1830,6 +1860,22 @@ namespace lockstep
                     editMode_.onVerb(ev.button);
                     return true;
                 }
+                // Func+U with no non-trivial scope = omni copy (capture all layers).
+                if (editMode_.scopeState().func
+                    && editMode_.primaryScope() == PS::Func)
+                {
+                    captureScene();           // fills scene layer
+                    {
+                        const int t = keyboardArea_.getActiveTrack();
+                        if (t >= 0 && t < static_cast<int>(kNumTracks))
+                            clipboard_.clipTrack =
+                                processor_.sequence().tracks[static_cast<std::size_t>(t)];
+                    }
+                    clipboard_.clipSequence = processor_.sequence();
+                    clipboard_.type = ClipboardType::All;
+                    setStatus("Captured all");
+                    return true;
+                }
                 // Double-tap = overdub record; single tap = plain (overwrite) record.
                 {
                     const double now = juce::Time::getMillisecondCounterHiRes();
@@ -1894,6 +1940,46 @@ namespace lockstep
                             processor_.snapshot(CheckpointScope::Song, 0);
                             processor_.bakeSceneState();
                             setStatus("Baked");
+                            pendingConfirm_ = PendingConfirm::None;
+                            repaint();
+                            keyboardArea_.repaint();
+                            return true;
+                        }
+                        if (pendingConfirm_ == PendingConfirm::CreateScene)
+                        {
+                            const int tgt = pendingTarget_;
+                            processor_.snapshot(CheckpointScope::Song, 0);
+                            processor_.createBakedCopyScene(tgt);
+                            if (processor_.clock().inPluginPlaying())
+                                processor_.queueScene(tgt, false);
+                            else
+                                processor_.setActiveScene(tgt);
+                            setStatus("Scene " + juce::String(tgt + 1) + " created");
+                            pendingConfirm_ = PendingConfirm::None;
+                            repaint();
+                            keyboardArea_.repaint();
+                            return true;
+                        }
+                        if (pendingConfirm_ == PendingConfirm::PasteScene)
+                        {
+                            const int destG = pendingTarget_;
+                            processor_.snapshot(CheckpointScope::Song, 0);
+                            auto& dst = processor_.section();
+                            dst.activeMask  = clipboard_.scene.floor.activeMask;
+                            dst.coreTime    = clipboard_.scene.floor.coreTime;
+                            dst.morphA      = clipboard_.scene.floor.morphA;
+                            dst.morphB      = clipboard_.scene.floor.morphB;
+                            dst.initialised = true;
+                            for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+                            {
+                                auto& ph =
+                                    processor_.song().tracks[static_cast<std::size_t>(t)]
+                                        .phrases[static_cast<std::size_t>(destG)];
+                                ph = clipboard_.scene.phrases[static_cast<std::size_t>(t)];
+                                ph.initialised = true;
+                            }
+                            processor_.refreshWorkingFromModel();
+                            setStatus("Pasted Scene");
                             pendingConfirm_ = PendingConfirm::None;
                             repaint();
                             keyboardArea_.repaint();
@@ -2650,6 +2736,34 @@ namespace lockstep
         cl.type = ClipboardType::Scene;
     }
 
+    bool LockstepEditor::phraseConflictAndConfirm(int phraseSlot, PendingConfirm action)
+    {
+        const int sharers = processor_.phraseSlotSharers(phraseSlot);
+        bool slotHasContent = false;
+        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+        {
+            if (processor_.song().tracks[static_cast<std::size_t>(t)]
+                    .phrases[static_cast<std::size_t>(phraseSlot)].initialised)
+            {
+                slotHasContent = true;
+                break;
+            }
+        }
+        if (sharers == 0 && !slotHasContent)
+            return false;   // clean — no conflict
+
+        pendingConfirm_ = action;
+        pendingTarget_  = phraseSlot;
+        const int freeSlot = processor_.firstFreePhraseSlot();
+        juce::String msg = "Overwrite phrase slot " + juce::String(phraseSlot) + "?";
+        if (sharers > 0) msg += "  SHR:" + juce::String(sharers);
+        if (freeSlot >= 0) msg += "  free:P" + juce::String(freeSlot);
+        msg += "  P=Yes  Func+P=No";
+        setStatus(msg);
+        repaint();
+        return true;    // conflict raised — caller must wait for Yes/No
+    }
+
     // -------------------------------------------------------------------------
     // Transient status line
 
@@ -2957,6 +3071,8 @@ namespace lockstep
                     else
                     {
                         // Func+Scene+Play: baked paste — phrase content + floor.
+                        if (phraseConflictAndConfirm(destG, PendingConfirm::PasteScene))
+                            break;  // waiting for Yes/No
                         // Snapshot first (snapshot calls writeBackWorkingToActive
                         // so the working buffer is safe; then we overwrite the model).
                         processor_.snapshot(CheckpointScope::Song, 0);
@@ -2986,7 +3102,15 @@ namespace lockstep
             case PS::Fill:
             case PS::Cue:
             case PS::Morph:
+                break;
+
+            // Song+Clear: Panic (kill all voices). Previously Func+I.
             case PS::Song:
+                if (verb == CB::VerbClear)
+                {
+                    processor_.requestPanic();
+                    setStatus("Panic");
+                }
                 break;
 
             case PS::None:
