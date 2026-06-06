@@ -231,6 +231,32 @@ namespace lockstep
               "bake same-slot: working edit in home phrase (no self-overwrite needed)");
     }
 
+    static void testScenesSharingHomePhrase()
+    {
+        auto arr = makeSeededArrangement();
+        // scene 0: globalPhrase = 0 (default)
+        // scene 1: globalPhrase = 1
+        // No sharing initially.
+        CHECK(arr->scenesSharingHomePhrase() == 0,
+              "sharing: no other initialised scene shares globalPhrase=0");
+
+        // Make scene 2 share globalPhrase=0 with scene 0.
+        arr->songs[0].scenes[2].globalPhrase = 0;
+        arr->songs[0].scenes[2].initialised  = true;
+        CHECK(arr->scenesSharingHomePhrase() == 1,
+              "sharing: one other scene shares globalPhrase=0");
+
+        // Uninitialised scenes don't count.
+        arr->songs[0].scenes[3].globalPhrase = 0;   // NOT marked initialised
+        CHECK(arr->scenesSharingHomePhrase() == 1,
+              "sharing: uninitialised scene not counted");
+
+        // From scene 1 (globalPhrase=1), no other scene shares it.
+        arr->setActiveScene(1);
+        CHECK(arr->scenesSharingHomePhrase() == 0,
+              "sharing: no scene shares globalPhrase=1 when in scene 1");
+    }
+
     void runArrangementTests()
     {
         testSceneSwitchPreservesEdit();
@@ -244,5 +270,6 @@ namespace lockstep
         testBakeSceneState();
         testBakeSceneStateNoop();
         testBakeDeviationSameSlot();
+        testScenesSharingHomePhrase();
     }
 }

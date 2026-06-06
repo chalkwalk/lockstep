@@ -215,6 +215,22 @@ namespace lockstep
             return n;
         }
 
+        // Count OTHER initialised scenes in the active song that share the current
+        // scene's globalPhrase. A bake will overwrite content those scenes also
+        // render, so a non-zero result is shown as SHR:N in the confirm band.
+        [[nodiscard]] int scenesSharingHomePhrase() const
+        {
+            const int g = scene().globalPhrase;
+            int n = 0;
+            for (int s = 0; s < kScenesPerSong; ++s)
+            {
+                if (s == sceneIdx) continue;
+                const auto& sc = song().scenes[idx(s)];
+                if (sc.initialised && sc.globalPhrase == g) ++n;
+            }
+            return n;
+        }
+
 
         // ── Per-scene overlay store helpers (build 3) ─────────────────────────
         void stashCurrentOverlay()

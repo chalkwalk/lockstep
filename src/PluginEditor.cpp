@@ -1768,7 +1768,13 @@ namespace lockstep
                         return true;
                     }
                     pendingConfirm_ = PendingConfirm::BakeScene;
-                    setStatus("Bake " + juce::String(nd) + " track(s)?  P=Yes  Func+P=No");
+                    {
+                        const int ns = processor_.scenesSharingHomePhrase();
+                        juce::String msg = "Bake " + juce::String(nd) + " track(s)?";
+                        if (ns > 0) msg += "  SHR:" + juce::String(ns);
+                        msg += "  P=Yes  Func+P=No";
+                        setStatus(msg);
+                    }
                     repaint();
                     return true;
                 }

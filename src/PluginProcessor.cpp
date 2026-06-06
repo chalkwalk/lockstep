@@ -2613,6 +2613,11 @@ namespace lockstep
         return arrangement_.countDeviatedTracks();
     }
 
+    int LockstepProcessor::scenesSharingHomePhrase() const
+    {
+        return arrangement_.scenesSharingHomePhrase();
+    }
+
     // ── End Phase 7 new-hierarchy methods ────────────────────────────────────
 
 

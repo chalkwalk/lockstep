@@ -114,6 +114,7 @@ namespace lockstep
         void resyncAllToScene();           // Part + Yes
         void bakeSceneState();             // Scene + Record (Yes/No confirmed)
         int  countDeviatedTracks() const;
+        int  scenesSharingHomePhrase() const;
         // Read-only deviation state for UI (surface model, badge rendering).
         bool isTrackDeviated(int t) const;
         int  deviationPhraseIdxForTrack(int t) const;
