@@ -318,6 +318,12 @@ namespace lockstep
         // rotateTrackSteps: rotate steps in [0, trackLen) one place, wrapping. dir>0 shifts
         //   content right (toward higher index); dir<0 shifts left (toward lower index).
         void rotateTrackSteps(int track, int dir);
+        // setTrackLength: set the working track length, clamped to
+        //   [1, kMaxStepsPerTrack]. The single write path for phrase-length
+        //   authoring (DESIGN §34.4: Phrase+Func+step, Scene+Func+step, the LEN
+        //   encoder); mirrors to the APVTS trackLength param so display, audio,
+        //   and Phrase write-back stay single-sourced.
+        void setTrackLength(int track, int newLen);
         // doubleTrackLength: copy steps [0,len) into [len, 2*len), up to kMaxStepsPerTrack.
         //   No-op if already at max. APVTS trackLength param is updated.
         void doubleTrackLength(int track);

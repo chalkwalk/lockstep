@@ -889,9 +889,13 @@ namespace lockstep
                     ? juce::Colour(kScopeMorph)
                     : juce::Colour(kScopePhrase);
 
-                // Resolve phrase length from the focused track (or longest if broadcast).
+                // Resolve length from the focused track's *working* sequence
+                // (same source as numPages()/the LEN encoder) so a live
+                // Phrase+Func+step / Morph+Func+step edit shows immediately,
+                // before the next phrase/scene switch writes it back.
                 const int lenTrack = (activeTrack >= 0) ? activeTrack : 0;
-                const int phraseLen = proc.activePhrase(lenTrack).length;
+                const int phraseLen =
+                    proc.sequence().tracks[static_cast<std::size_t>(lenTrack)].length;
 
                 for (int i = 0; i < 16; ++i)
                 {

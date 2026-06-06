@@ -1256,6 +1256,35 @@ namespace lockstep
                     return true;
                 }
 
+                // Phrase-length authoring (DESIGN §34.4). The hold re-skins the
+                // grid (LengthInRun/Boundary/OutRun in SurfaceModel); the step
+                // press sets the length to that absolute (page-aware) index+1.
+                //   Phrase + Func + step → focused track's length.
+                //   Morph  + Func + step → broadcast: all tracks' length.
+                // (Morph is the old "Scene" all-tracks qualifier, renamed in 7.9.)
+                // Gated before the bare Phrase/Scene branches so Func qualifies.
+                if (uiState_.funcHeld && !uiState_.funcTrackHeld
+                    && (uiState_.phraseScopeHeld || uiState_.morphHeld))
+                {
+                    const int absStep = keyboardArea_.currentPage()
+                                            * KeyboardArea::kPageSteps + ev.index;
+                    const int newLen  = absStep + 1;
+                    if (uiState_.morphHeld)
+                    {
+                        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+                            processor_.setTrackLength(t, newLen);
+                        setStatus("Length " + juce::String(newLen) + " (all tracks)");
+                    }
+                    else
+                    {
+                        processor_.setTrackLength(keyboardArea_.getActiveTrack(), newLen);
+                        setStatus("Length " + juce::String(newLen));
+                    }
+                    keyboardArea_.repaint();
+                    repaint();
+                    return true;
+                }
+
                 // Phrase + step (Phase 7 / DESIGN §4.7/§16). Track+Phrase routes to
                 // the SelectTrack case (deviate the focused track); here:
                 //   Phrase + step → set the scene's global phrase (the focused

@@ -1782,6 +1782,17 @@ namespace lockstep
                         trk.steps.begin() + len);
     }
 
+    void LockstepProcessor::setTrackLength(int track, int newLen)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        auto& trk = sequence().tracks[static_cast<std::size_t>(track)];
+        const int clamped = std::clamp(newLen, 1, kMaxStepsPerTrack);
+        if (clamped == trk.length) return;
+        trk.length = clamped;
+        if (auto* p = apvts_.getParameter(ParamIDs::trackLength(track)))
+            p->setValueNotifyingHost(p->convertTo0to1(static_cast<float>(clamped)));
+    }
+
     void LockstepProcessor::doubleTrackLength(int track)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
@@ -1792,21 +1803,15 @@ namespace lockstep
         for (int i = len; i < newLen; ++i)
             trk.steps[static_cast<std::size_t>(i)] =
                 trk.steps[static_cast<std::size_t>(i % len)];
-        trk.length = newLen;
-        if (auto* p = apvts_.getParameter(ParamIDs::trackLength(track)))
-            p->setValueNotifyingHost(p->convertTo0to1(static_cast<float>(newLen)));
+        setTrackLength(track, newLen);
     }
 
     void LockstepProcessor::halveTrackLength(int track)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
-        auto& trk = sequence().tracks[static_cast<std::size_t>(track)];
+        const auto& trk = sequence().tracks[static_cast<std::size_t>(track)];
         const int len = std::max(1, trk.length);
-        const int newLen = std::max(1, len / 2);
-        if (newLen >= len) return;
-        trk.length = newLen;
-        if (auto* p = apvts_.getParameter(ParamIDs::trackLength(track)))
-            p->setValueNotifyingHost(p->convertTo0to1(static_cast<float>(newLen)));
+        setTrackLength(track, std::max(1, len / 2));
     }
 
     bool LockstepProcessor::isTrackMidiOut(int track) const

@@ -3540,7 +3540,7 @@ Length authoring sits in the §13 grammar under the `Phrase` scope:
 | Gesture | Effect |
 |---|---|
 | `Phrase + Func + step` | Set the focused track's active phrase length to that absolute (page-aware) step index. Grid re-skins in scope colour showing run / boundary / out-of-range. |
-| `Scene + Func + step` | Broadcast: set **all** tracks' phrase length = N. `Scene` is the all-tracks qualifier. Grid re-skins in Scene colour to distinguish from the focused-track skin. |
+| `Morph + Func + step` | Broadcast: set **all** tracks' phrase length = N. `Morph` (the column-3 primary; the pre-7.9 "Scene" key) is the all-tracks qualifier. Grid re-skins in Morph colour to distinguish from the focused-track skin. |
 | `Func + Up` | Double current phrase length, duplicating all step data (trigs, notes, P-Locks, overrides) into the new tail. |
 | `Func + Down` | Halve current phrase length, truncating the tail. One automatic checkpoint push fires before truncation so the data is recoverable via the §13.6 checkpoint stack. |
 
@@ -3557,7 +3557,7 @@ The `LEN` encoder in the TRACK meta-section provides the same write path
 without leaving the MZ; it and the chord gestures write the same
 underlying per-track length parameter — no divergence.
 
-**The re-skin rule.** While `Phrase + Func` or `Scene + Func` is held,
+**The re-skin rule.** While `Phrase + Func` or `Morph + Func` is held,
 the step grid re-skins (momentary; "the hold is the mode"):
 - Cells within the run → `LengthInRun` token (scope colour body).
 - The boundary cell → `LengthBoundary` token (brighter edge).
