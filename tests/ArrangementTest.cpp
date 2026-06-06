@@ -345,9 +345,74 @@ namespace lockstep
               "firstFree: all slots occupied → returns -1");
     }
 
+    static void testCreateBakedCopyScene()
+    {
+        auto arr = makeSeededArrangement();
+        // Give phrase 0 on track 0 a distinctive step (active state before create).
+        arr->songs[0].tracks[0].phrases[0].steps[2].trig = true;
+        arr->syncWorkingFromActive();
+
+        // Create baked copy at slot 3 (empty).
+        arr->createBakedCopyScene(3);
+
+        CHECK(arr->songs[0].scenes[3].initialised,      "baked create: target marked initialised");
+        CHECK(arr->songs[0].scenes[3].globalPhrase == 3, "baked create: globalPhrase = target index");
+
+        // Track 0's phrase at slot 3 should carry the baked step.
+        CHECK(arr->songs[0].tracks[0].phrases[3].steps[2].trig,
+              "baked create: track 0 effective phrase content copied to slot 3");
+        CHECK(arr->songs[0].tracks[0].phrases[3].initialised,
+              "baked create: target phrase marked initialised");
+
+        // Original scene (0) and phrase (0) must be unchanged.
+        CHECK(arr->songs[0].scenes[0].globalPhrase == 0,
+              "baked create: source scene globalPhrase unchanged");
+        CHECK(arr->songs[0].tracks[0].phrases[0].steps[2].trig,
+              "baked create: source phrase content intact");
+    }
+
+    static void testCreateDefaultScene()
+    {
+        auto arr = makeSeededArrangement();
+        // Give scene 4 some spurious state, then overwrite with default create.
+        arr->songs[0].scenes[4].globalPhrase = 7;
+        arr->songs[0].scenes[4].initialised  = true;
+        // Mark a distinct trig in the source phrase (phrase 0).
+        arr->songs[0].tracks[0].phrases[0].steps[11].trig = true;
+
+        arr->createDefaultScene(4);
+        CHECK(arr->songs[0].scenes[4].initialised,       "default create: target marked initialised");
+        CHECK(arr->songs[0].scenes[4].globalPhrase == 4, "default create: globalPhrase = target index");
+        // activeMask should be reset to the Scene default (all true).
+        for (const bool m : arr->songs[0].scenes[4].activeMask)
+            CHECK(m, "default create: activeMask reset to all-true");
+        // Track phrase at slot 4 must NOT carry the source phrase's trig.
+        CHECK(!arr->songs[0].tracks[0].phrases[4].steps[11].trig,
+              "default create: phrase content not copied to target slot");
+    }
+
+    static void testCreateBakedWithDeviation()
+    {
+        auto arr = makeSeededArrangement();
+        // Deviate track 0 to phrase 5.
+        arr->swapPhraseForTrack(0, 5);
+        arr->songs[0].tracks[0].phrases[5].steps[9].trig = true;
+        arr->syncWorkingFromActive();
+
+        // The baked copy should capture the DEVIATED (effective) phrase.
+        arr->createBakedCopyScene(6);
+        CHECK(arr->songs[0].tracks[0].phrases[6].steps[9].trig,
+              "baked create with deviation: deviated phrase content captured");
+        // Non-deviated track 1 plays globalPhrase=0.
+        CHECK(arr->songs[0].scenes[0].globalPhrase == 0, "sanity: scene 0 globalPhrase=0");
+    }
+
     void runArrangementTests()
     {
         testSceneSwitchPreservesEdit();
+        testCreateBakedCopyScene();
+        testCreateDefaultScene();
+        testCreateBakedWithDeviation();
         testBaseParamEditSurvivesViaKit();
         testDeviationSwapAndResync();
         testSongSwitchClearsDeviationAndSwapsKit();

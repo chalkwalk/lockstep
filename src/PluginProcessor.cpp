@@ -2609,6 +2609,16 @@ namespace lockstep
         arrangement_.bakeSceneState();
     }
 
+    void LockstepProcessor::createBakedCopyScene(int target)
+    {
+        arrangement_.createBakedCopyScene(target);
+    }
+
+    void LockstepProcessor::createDefaultScene(int target)
+    {
+        arrangement_.createDefaultScene(target);
+    }
+
     int LockstepProcessor::countDeviatedTracks() const
     {
         return arrangement_.countDeviatedTracks();

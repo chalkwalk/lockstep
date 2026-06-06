@@ -1270,22 +1270,64 @@ namespace lockstep
                     return true;
                 }
 
-                // Scene + step: Scene launch (Phase 7 / DESIGN §16). Single-tap =
-                // go to the scene keeping its remembered live overlay; double-tap =
-                // go to the scene at its saved floor (discard that overlay).
+                // Scene + step: scene launch or create-on-empty (DESIGN §16/§23.3).
+                //   occupied + no-func:  single-tap = overlay launch;
+                //                        double-tap = floor launch (revert)
+                //   occupied + func:     floor launch unconditionally
+                //   empty    + no-func:  baked-copy create → launch
+                //   empty    + func:     default create → launch
+                // The active scene is always treated as occupied (it is live).
                 if (uiState_.sceneHeld && !uiState_.funcTrackHeld)
                 {
                     if (ev.index >= 0 && ev.index < kScenesPerSong)
                     {
-                        const double now = juce::Time::getMillisecondCounterHiRes();
-                        const bool toFloor =
-                            doubleTap_.recordAndCheck(3000 + ev.index, now);
-                        if (processor_.clock().inPluginPlaying())
-                            processor_.queueScene(ev.index, toFloor);
-                        else if (toFloor)
-                            processor_.setActiveSceneToFloor(ev.index);
+                        const bool funcHeld = uiState_.funcHeld;
+                        const bool isActive = (ev.index == processor_.activeSectionIdx());
+                        const bool occupied = isActive
+                                              || processor_.sceneSlotOccupied(ev.index);
+                        if (occupied && !funcHeld)
+                        {
+                            // Existing: single-tap = overlay, double-tap = floor.
+                            const double now = juce::Time::getMillisecondCounterHiRes();
+                            const bool toFloor =
+                                doubleTap_.recordAndCheck(3000 + ev.index, now);
+                            if (processor_.clock().inPluginPlaying())
+                                processor_.queueScene(ev.index, toFloor);
+                            else if (toFloor)
+                                processor_.setActiveSceneToFloor(ev.index);
+                            else
+                                processor_.setActiveScene(ev.index);
+                        }
+                        else if (occupied && funcHeld)
+                        {
+                            // Func + occupied: floor launch.
+                            if (processor_.clock().inPluginPlaying())
+                                processor_.queueScene(ev.index, true);
+                            else
+                                processor_.setActiveSceneToFloor(ev.index);
+                        }
+                        else if (!occupied && !funcHeld)
+                        {
+                            // Empty + no-func: baked copy of current state.
+                            processor_.snapshot(CheckpointScope::Song, 0);
+                            processor_.createBakedCopyScene(ev.index);
+                            if (processor_.clock().inPluginPlaying())
+                                processor_.queueScene(ev.index, false);
+                            else
+                                processor_.setActiveScene(ev.index);
+                            setStatus("Scene " + juce::String(ev.index + 1) + " created");
+                        }
                         else
-                            processor_.setActiveScene(ev.index);
+                        {
+                            // Empty + func: blank default scene.
+                            processor_.snapshot(CheckpointScope::Song, 0);
+                            processor_.createDefaultScene(ev.index);
+                            if (processor_.clock().inPluginPlaying())
+                                processor_.queueScene(ev.index, false);
+                            else
+                                processor_.setActiveScene(ev.index);
+                            setStatus("Scene " + juce::String(ev.index + 1) + " (default)");
+                        }
                     }
                     repaint();
                     keyboardArea_.repaint();

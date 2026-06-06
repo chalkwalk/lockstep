@@ -113,6 +113,8 @@ namespace lockstep
         void resyncTrackToScene(int t);    // Track + Part
         void resyncAllToScene();           // Part + Yes
         void bakeSceneState();             // Scene + Record (Yes/No confirmed)
+        void createBakedCopyScene(int target);   // DESIGN §23.3 placeable payloads
+        void createDefaultScene(int target);
         int  countDeviatedTracks() const;
         int  scenesSharingHomePhrase() const;
         bool sceneSlotOccupied(int s) const;

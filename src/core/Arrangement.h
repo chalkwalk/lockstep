@@ -272,6 +272,44 @@ namespace lockstep
         }
 
 
+        // ── Placeable payload create operations (DESIGN §23.3) ───────────────
+        // Both are destructive; the caller must snapshot CheckpointScope::Song
+        // before calling. The target is launched by the caller afterwards.
+
+        // Baked-copy create: stamp the current effective state (live phrases +
+        // floor) into the target slot, then mark it initialised.
+        void createBakedCopyScene(int target)
+        {
+            if (target < 0 || target >= kScenesPerSong) return;
+            writeBackWorkingToActive();    // flush live edits into active phrases
+            auto& dst = song().scenes[idx(target)];
+            dst = Scene{};
+            dst.globalPhrase = target;
+            // Copy effective floor from the active scene.
+            dst.activeMask = scene().activeMask;
+            dst.coreTime   = scene().coreTime;
+            dst.morphA     = scene().morphA;
+            dst.morphB     = scene().morphB;
+            // Copy each track's effective phrase into the target slot.
+            for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+            {
+                auto& ph = song().tracks[idx(t)].phrases[idx(target)];
+                ph = activePhrase(t);
+                ph.initialised = true;
+            }
+            dst.initialised = true;
+        }
+
+        // Default create: allocate a blank scene at the target slot.
+        void createDefaultScene(int target)
+        {
+            if (target < 0 || target >= kScenesPerSong) return;
+            auto& dst = song().scenes[idx(target)];
+            dst = Scene{};
+            dst.globalPhrase = target;
+            dst.initialised  = true;
+        }
+
         // ── Per-scene overlay store helpers (build 3) ─────────────────────────
         void stashCurrentOverlay()
         {
