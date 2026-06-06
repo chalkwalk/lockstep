@@ -201,11 +201,15 @@ namespace lockstep
         void setControlAllActive(bool v) { controlAllActive_ = v; }
         bool controlAllActive()    const { return controlAllActive_; }
 
-        // MD.11: Checkpoint stack — RAM-only LIFO of (Pattern, Part) snapshots.
-        // Per active pattern, capped at kMaxCheckpoints (oldest evicted on overflow).
-        void pushCheckpoint();
-        bool popCheckpoint();    // returns false if stack empty for the active pattern
-        int  checkpointDepth() const;
+        // 7.9e: Scope-respecting Checkpoints (DESIGN §13.6).
+        // Delegate to arrangement_; the processor is a thin shell.
+        void snapshot       (CheckpointScope scope, int track) { arrangement_.snapshot(scope, track); }
+        bool restoreOne     (CheckpointScope scope, int track) { return arrangement_.restoreOne(scope, track); }
+        void restoreToFloor (CheckpointScope scope, int track) { arrangement_.restoreToFloor(scope, track); }
+        [[nodiscard]] int checkpointDepth(CheckpointScope scope, int track) const
+        {
+            return arrangement_.checkpointDepth(scope, track);
+        }
 
         // MD.9: Fill scope state — set by the UI thread, read by the audio thread.
         // Two activation scopes share the same fill data:
@@ -244,8 +248,6 @@ namespace lockstep
         void deleteTrack(int track);   // → StubMachine + cleared steps
         void deletePart();             // → all tracks in active part → StubMachine
 
-        // Discard the top checkpoint without restoring state (cleans up after deliberate deletes).
-        void dropCheckpoint();
 
         // MD.7: Pattern mutes — per-track, live in the active Pattern.
         bool getPatternMute(int track) const;
@@ -452,10 +454,6 @@ namespace lockstep
         int  focusTrack_       = -1;   // -1 = Global; 0-7 = Track
         bool controlAllActive_ = false;
 
-        // MD.11: per-pattern checkpoint stacks; key = bankIdx * kPatternsPerBank + patIdx.
-        struct CheckpointEntry { Pattern savedPattern; Part savedPart; };
-        static constexpr int kMaxCheckpoints = 8;
-        std::map<int, std::vector<CheckpointEntry>> checkpoints_;
         std::atomic<bool> fillActive_      { false };
         std::atomic<bool> fillAllTracks_   { true };
         std::atomic<int>  fillLockedTrack_ { -1 };

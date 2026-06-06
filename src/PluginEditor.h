@@ -85,6 +85,11 @@ namespace lockstep
         bool   playKeyHeld_                  = false;
         static constexpr double kDoublePressMsThreshold = 350.0;
 
+        // Restore hold detection: tap (< kHoldRestoreMs) = pop one; hold = jump to floor.
+        bool   restoreActive_    = false;
+        double restoreKeyDownMs_ = 0.0;
+        static constexpr double kHoldRestoreMs = 350.0;
+
         // MHZ.9.2: unified double-tap detector (modifiers + steps).
         DoubleTapDetector doubleTap_;
 
@@ -241,6 +246,10 @@ namespace lockstep
         // MHZ.9.x: auto-release a transient mode's latch after its terminal action.
         // No-op when not latched; leaves physically-held (non-latched) mods alone.
         void releaseTransientLatch(ControllerButton cb);
+
+        // Map the currently-held primary scope to a CheckpointScope + focused track.
+        // Used by snapshot / restore call sites to route to the right stack.
+        CheckpointScope ckScope(int& outTrack) const;
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LockstepEditor)
     };

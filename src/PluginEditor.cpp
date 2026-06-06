@@ -586,8 +586,10 @@ namespace lockstep
                     bx += 56 + kGap;
                 }
 
-                // CK:N checkpoint badge.
-                const int checkpointDepth = processor_.checkpointDepth();
+                // CK:N checkpoint badge — depth of the currently-held scope's stack.
+                int ckTrack = 0;
+                const CheckpointScope ckScp = ckScope(ckTrack);
+                const int checkpointDepth = processor_.checkpointDepth(ckScp, ckTrack);
                 if (checkpointDepth > 0 && bx + 38 < kSplitX)
                 {
                     const auto r = juce::Rectangle<int>(bx, by, 38, kBadgeH);
@@ -1840,8 +1842,11 @@ namespace lockstep
                     editMode_.onVerb(ev.button);
                     return true;
                 }
-                // No scope → push checkpoint (Snapshot).
-                processor_.pushCheckpoint();
+                // No scope → Song-scope snapshot.
+                {
+                    int ckTrk = 0;
+                    processor_.snapshot(ckScope(ckTrk), ckTrk);
+                }
                 repaint();
                 return true;
             }
@@ -1860,6 +1865,7 @@ namespace lockstep
                     if (!funcHeld)
                     {
                         // Execute the pending delete against the current scope.
+                        // Snapshot first so the delete is undoable via Restore.
                         switch (editMode_.primaryScope())
                         {
                             case PS::Track:
@@ -1867,7 +1873,7 @@ namespace lockstep
                                 const int t = keyboardArea_.getActiveTrack();
                                 if (t >= 0 && t < static_cast<int>(kNumTracks))
                                 {
-                                    processor_.pushCheckpoint();
+                                    processor_.snapshot(CheckpointScope::Track, t);
                                     processor_.deleteTrack(t);
                                     setStatus("Deleted Track " + juce::String(t + 1));
                                 }
@@ -1875,7 +1881,8 @@ namespace lockstep
                             }
                             case PS::Phrase:
                             {
-                                processor_.pushCheckpoint();
+                                int ckTrk = 0;
+                                processor_.snapshot(ckScope(ckTrk), ckTrk);
                                 for (auto& trk : processor_.sequence().tracks)
                                 {
                                     for (auto& s : trk.steps)
@@ -1893,11 +1900,14 @@ namespace lockstep
                                 break;
                             }
                             case PS::Scene:
-                                processor_.pushCheckpoint();
+                            {
+                                int ckTrk = 0;
+                                processor_.snapshot(ckScope(ckTrk), ckTrk);
                                 processor_.deletePart();
                                 releaseTransientLatch(CB::SceneScope);
                                 setStatus("Deleted Part");
                                 break;
+                            }
                             default:
                                 break;
                         }
@@ -1920,12 +1930,12 @@ namespace lockstep
                     return true;
                 }
 
-                // Func+P = No/cancel. No scope → pop checkpoint (Restore-like legacy undo).
+                // Func+P = No/cancel. No scope → scope-aware Restore (resolved on key-up).
                 if (editMode_.primaryScope() == PS::None
                     || editMode_.primaryScope() == PS::Func)
                 {
-                    processor_.popCheckpoint();
-                    repaint();
+                    restoreActive_    = true;
+                    restoreKeyDownMs_ = juce::Time::getMillisecondCounterHiRes();
                     return true;
                 }
                 editMode_.onVerb(ev.button);
@@ -1936,13 +1946,16 @@ namespace lockstep
                 // Reserved while a section-suite scope is held (see helper above):
                 // Func+scope+Yes is that scope's secondary, not a global snapshot.
                 if (sectionSuiteScopeHeld(uiState_)) return true;
-                processor_.pushCheckpoint();
+                {
+                    int ckTrk = 0;
+                    processor_.snapshot(ckScope(ckTrk), ckTrk);
+                }
                 repaint();
                 return true;
             case ControllerButton::Restore:
+                // Resolve on key-up (tap = pop one, hold = jump to floor).
                 if (sectionSuiteScopeHeld(uiState_)) return true;
-                processor_.popCheckpoint();
-                repaint();
+                restoreKeyDownMs_ = juce::Time::getMillisecondCounterHiRes();
                 return true;
 
             // Legacy transport buttons — kept for any code paths that still emit them.
@@ -2350,9 +2363,39 @@ namespace lockstep
             case CB::VerbYes:
                 break;  // Y = Snapshot; no held-state to clear.
 
+            case CB::Restore:
+            {
+                if (!restoreActive_) break;
+                const double held = juce::Time::getMillisecondCounterHiRes() - restoreKeyDownMs_;
+                restoreActive_ = false;
+                int ckTrk = 0;
+                const CheckpointScope scp = ckScope(ckTrk);
+                if (held >= kHoldRestoreMs)
+                    processor_.restoreToFloor(scp, ckTrk);
+                else
+                    processor_.restoreOne(scp, ckTrk);
+                repaint();
+                break;
+            }
+
             case CB::VerbNo:
+            {
+                // Func+P "Restore" path (recorded press time in dispatchDown).
+                if (restoreActive_)
+                {
+                    const double held = juce::Time::getMillisecondCounterHiRes() - restoreKeyDownMs_;
+                    restoreActive_ = false;
+                    int ckTrk = 0;
+                    const CheckpointScope scp = ckScope(ckTrk);
+                    if (held >= kHoldRestoreMs)
+                        processor_.restoreToFloor(scp, ckTrk);
+                    else
+                        processor_.restoreOne(scp, ckTrk);
+                    repaint();
+                }
                 yesHeld_ = false;  // P = Yes/confirm; clear the hold on key-up.
                 break;
+            }
 
             case CB::VerbRecord:
             case CB::VerbStop:
@@ -2360,7 +2403,6 @@ namespace lockstep
             case CB::VerbDelete:
             case CB::VerbPanic:
             case CB::Snapshot:
-            case CB::Restore:
             case CB::NavUp:
             case CB::NavLeft:
             case CB::NavDown:
@@ -2806,7 +2848,11 @@ namespace lockstep
                 }
                 else if (verb == CB::VerbClear || verb == CB::VerbDelete)
                 {
-                    if (verb == CB::VerbDelete) processor_.pushCheckpoint();
+                    if (verb == CB::VerbDelete)
+                    {
+                        int ckTrk = 0;
+                        processor_.snapshot(ckScope(ckTrk), ckTrk);
+                    }
                     for (auto& trk : processor_.sequence().tracks)
                     {
                         for (auto& s : trk.steps)
@@ -2841,11 +2887,14 @@ namespace lockstep
                 break;
 
             case PS::None:
-                // VerbYes (Y = Snapshot) with no scope: push checkpoint.
+                // VerbYes (Y = Snapshot) with no scope: Song-scope snapshot.
                 // VerbClear no-scope P-Lock clear is handled in dispatchDown.
                 // VerbNo (P = Yes/confirm) routing is handled in dispatchDown.
                 if (verb == CB::VerbYes)
-                    processor_.pushCheckpoint();
+                {
+                    int ckTrk = 0;
+                    processor_.snapshot(ckScope(ckTrk), ckTrk);
+                }
                 break;
 
             default:
@@ -2854,6 +2903,22 @@ namespace lockstep
 
         // Chrome must repaint after any verb that may change clipboard or checkpoint state.
         repaint();
+    }
+
+    // -------------------------------------------------------------------------
+    // Checkpoint scope helper
+
+    CheckpointScope LockstepEditor::ckScope(int& outTrack) const
+    {
+        using PS = EditMode::PrimaryScope;
+        outTrack = keyboardArea_.getActiveTrack();
+        switch (editMode_.primaryScope())
+        {
+            case PS::Track:  return CheckpointScope::Track;
+            case PS::Scene:  return CheckpointScope::Scene;
+            case PS::Phrase: return CheckpointScope::Phrase;
+            default:         return CheckpointScope::Song;
+        }
     }
 
     // -------------------------------------------------------------------------
