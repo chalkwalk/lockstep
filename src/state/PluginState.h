@@ -19,7 +19,9 @@ namespace lockstep
         //     slots are empty by default; PartTrack may hold "lockstep.stub" machineId
         // v5: Phase 7 musical hierarchy — old Project/Bank/Pattern/Part nodes dropped
         //     (clean break); new NewHierarchy node with Song/SongTrack/Kit/Phrase/Section
-        inline constexpr int kCurrentVersion = 6;
+        // v6: scope-respecting Checkpoints; floor seeded on Song load/switch
+        // v7: legacy Bank/Pattern/Part structs deleted; serializer emits new-hierarchy only
+        inline constexpr int kCurrentVersion = 7;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);

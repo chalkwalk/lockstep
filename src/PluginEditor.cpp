@@ -243,8 +243,6 @@ namespace lockstep
         // methods can query pressed state from both keyboard and mouse sources.
         keyboardArea_.setPressTracker(&pressTracker_);
 
-        // Repaint chrome when a queued pattern switch fires.
-        proc.onActivePatternChanged = [this] { repaint(); };
 
         setSize(990, 596);  // MHX: taller for 4x2 MZ encoder band
         setWantsKeyboardFocus(true);
@@ -270,7 +268,6 @@ namespace lockstep
 
     LockstepEditor::~LockstepEditor()
     {
-        processor_.onActivePatternChanged = nullptr;
         processor_.apvts().removeParameterListener(ParamIDs::syncMode, this);
         for (int i = 0; i < static_cast<int>(kNumTracks); ++i)
         {
@@ -600,34 +597,6 @@ namespace lockstep
                     bx += 38 + kGap;
                 }
 
-                // QUE:B.P queued pattern badge.
-                if (processor_.hasQueuedPattern() && bx + 52 < kSplitX)
-                {
-                    const int qBank = processor_.queuedPatternBankIdx() + 1;
-                    const int qPat  = processor_.queuedPatternPatIdx()  + 1;
-                    const auto r = juce::Rectangle<int>(bx, by, 52, kBadgeH);
-                    g.setColour(juce::Colour(0xFFC08020u));
-                    g.fillRoundedRectangle(r.toFloat(), 3.0f);
-                    g.setColour(juce::Colours::white);
-                    g.drawText("Q:" + juce::String(qBank) + "." + juce::String(qPat),
-                               r, juce::Justification::centred);
-                    bx += 52 + kGap;
-                }
-
-                // CHN:N chain badge.
-                const int chainLen = processor_.chainLength();
-                if (chainLen > 0 && bx + 50 < kSplitX)
-                {
-                    const bool looping = processor_.chainLoopEnabled();
-                    const int badgeW = looping ? 42 : 52;
-                    const auto r = juce::Rectangle<int>(bx, by, badgeW, kBadgeH);
-                    g.setColour(juce::Colour(0xFF20A0C0u));
-                    g.fillRoundedRectangle(r.toFloat(), 3.0f);
-                    g.setColour(juce::Colours::white);
-                    g.drawText(juce::String(looping ? "CHN:" : "CHN1:") + juce::String(chainLen),
-                               r, juce::Justification::centred);
-                    bx += badgeW + kGap;
-                }
 
                 // MHZ.7.1: per-track input-mode badge — shown when focused track is not in PLAY mode.
                 {
@@ -1544,8 +1513,10 @@ namespace lockstep
                 // (Track + No delete gesture removed; use Track + Func+O to delete.)
                 if (uiState_.trackHeld && processor_.isTrackEmpty(ev.index))
                 {
-                    // Track+empty step = copy current track's machine+params (no steps).
+                    // Track+empty step = copy current track's machine+params (no steps),
+                    // then select the destination so edits land on the new track.
                     processor_.copyKitTrack(keyboardArea_.getActiveTrack(), ev.index);
+                    keyboardArea_.setActiveTrack(ev.index);
                     releaseTransientLatch(CB::TrackScope);
                     repaint();
                     keyboardArea_.repaint();
@@ -1729,10 +1700,10 @@ namespace lockstep
                     repaint();
                     return true;
                 }
-                // Phrase scope → cancel queued pattern.
+                // Phrase scope → cancel queued scene.
                 if (uiState_.phraseScopeHeld)
                 {
-                    processor_.cancelQueuedPattern();
+                    processor_.cancelQueuedScene();
                     uiState_.phraseScopeUsed = true;
                     repaint();
                     return true;

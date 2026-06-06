@@ -5,7 +5,6 @@
 #include "UITheme.h"
 #include "../PluginProcessor.h"
 #include "../ParameterIDs.h"
-#include "../core/Bank.h"
 #include "../core/TrigCondition.h"
 #include <algorithm>
 #include <cstddef>

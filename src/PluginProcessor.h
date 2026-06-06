@@ -93,15 +93,8 @@ namespace lockstep
         // ── Working buffer = arrangement_.working (the resolver reads this) ───
         Sequence&       sequence()       { return arrangement_.working; }
         const Sequence& sequence() const { return arrangement_.working; }
-        Pattern&        activePattern()  { return project_.banks[static_cast<std::size_t>(activeBankIdx_)].patterns[static_cast<std::size_t>(activePatternIdx_)]; }
-        const Pattern&  activePattern()  const { return project_.banks[static_cast<std::size_t>(activeBankIdx_)].patterns[static_cast<std::size_t>(activePatternIdx_)]; }
-        Part&           activePart()     { return project_.banks[static_cast<std::size_t>(activeBankIdx_)].parts[static_cast<std::size_t>(activePattern().partRef)]; }
-        const Part&     activePart()     const { return project_.banks[static_cast<std::size_t>(activeBankIdx_)].parts[static_cast<std::size_t>(activePattern().partRef)]; }
         Project&        project()        { return project_; }
         const Project&  project()        const { return project_; }
-
-        int activeBankIdx()    const { return activeBankIdx_; }
-        int activePatternIdx() const { return activePatternIdx_; }
 
         // ── New hierarchy navigation + gestures (Phase 7) ────────────────────
         void setActiveSong(int pieceIdx);
@@ -127,18 +120,6 @@ namespace lockstep
         bool isTrackDeviated(int t) const;
         int  deviationPhraseIdxForTrack(int t) const;
 
-        // ── Legacy pattern navigation (kept for serializer compat; removed in Stage 3) ──
-        // Switch the active pattern (no-op if indices unchanged or out of range).
-        // Syncs Track.baseParams from Kit (single source of truth after 7.9e-pre 3a).
-        void setActivePattern(int bankIdx, int patternIdx);
-
-        // Empty-slot gestural archetype — see DESIGN for the copy/create convention.
-        // materialisePattern copies the current active pattern if copy=true, else
-        // creates a blank pattern referencing the current Part.
-        [[nodiscard]] bool isPatternInitialised(int bankIdx, int patternIdx) const;
-        [[nodiscard]] bool isPartInitialised(int bankIdx, int partIdx) const;
-        void materialisePattern(int bankIdx, int patternIdx, bool copy);
-
         // Copy the Kit (machine + base params) from srcTrack to dstTrack.
         // Does NOT copy step data (steps live per Phrase, not per Kit).
         void copyKitTrack(int srcTrack, int dstTrack);
@@ -146,7 +127,7 @@ namespace lockstep
         // True when the installed machine on the given track is a stub (empty track).
         [[nodiscard]] bool isTrackEmpty(int track) const;
 
-        // ── New hierarchy launch queue (Phase 7 / DESIGN §4.8, §16) ─────────
+        // ── Scene launch queue (Phase 7 / DESIGN §4.8, §16) ─────────────────
         // Queue a Section launch to fire at the next core-time bar boundary.
         // Safe to call from the message thread. cancelQueuedScene() clears it.
         // toFloor = double-tap launch (arrive at saved floor, discard overlay).
@@ -154,31 +135,6 @@ namespace lockstep
         void cancelQueuedScene();
         bool hasQueuedScene() const;
         int  queuedSectionIdx() const;
-
-        // ── Legacy pattern queue (kept for editor compat; removed in Stage D) ──
-        // Queue a pattern switch to fire at the next grid boundary (end of the
-        // longest running track's cycle). Safe to call from the message thread.
-        // cancelQueuedPattern() clears any pending switch.
-        void queuePattern(int bankIdx, int patternIdx);
-        void cancelQueuedPattern();
-        bool hasQueuedPattern()      const;
-        int  queuedPatternBankIdx()  const;
-        int  queuedPatternPatIdx()   const;
-
-        // Called on the message thread after a queued pattern switch fires.
-        std::function<void()> onActivePatternChanged;
-
-        // Chain mode: RAM-only ordered queue of upcoming pattern switches.
-        // appendToChain adds to the back; the queue advances automatically as
-        // each queued switch fires. clearChain cancels the remaining entries.
-        // When chainLoopEnabled the current pattern is re-appended when consumed.
-        void appendToChain(int bankIdx, int patternIdx);
-        void clearChain();
-        bool chainLoopEnabled() const { return chainLoopEnabled_; }
-        void setChainLoopEnabled(bool v) { chainLoopEnabled_ = v; }
-        int  chainLength()      const { return static_cast<int>(chain_.size()); }
-        // Message-thread-only: returns the (bankIdx, patIdx) for chain position i.
-        std::pair<int,int> chainEntry(int i) const { return chain_[static_cast<std::size_t>(i)]; }
 
         Clock&       clock()       { return clock_; }
         const Clock& clock() const { return clock_; }
@@ -440,14 +396,11 @@ namespace lockstep
 
         juce::AudioProcessorValueTreeState apvts_;
         SamplePool samplePool_;
-        Project project_;          // legacy Bank/Pattern/Part (sound FLTR/AMP); soundPool
+        Project project_;          // soundPool + launchQuantizeBars
         Arrangement arrangement_;  // new hierarchy: Songs + playhead + working buffer
         // Per-track launch mode: false = fire at global bar boundary,
         // true = fire at end of current phrase cycle.
         std::array<bool, kNumTracks> phraseEndMode_{};
-        // Legacy active indices (kept for editor compat; removed in Stage D).
-        int activeBankIdx_    = 0;
-        int activePatternIdx_ = 0;
         Clock clock_;
         EditContext editContext_;
         CCMappingTable ccMappingTable_;
@@ -482,13 +435,6 @@ namespace lockstep
         // Pairs with queuedSceneIdx_: true = double-tap launch to the saved floor.
         std::atomic<bool> queuedSceneToFloor_ { false };
         // Legacy: queued pattern switch. -1/-1 means no switch pending.
-        std::atomic<int> queuedPatternBankIdx_ { -1 };
-        std::atomic<int> queuedPatternPatIdx_  { -1 };
-
-        // Chain queue: message-thread only. Pair = (bankIdx, patternIdx).
-        std::deque<std::pair<int,int>> chain_;
-        bool chainLoopEnabled_ = true;
-
         std::atomic<int>  previewPoolIndex_ { -1 };
         std::atomic<int>  previewReqTrack_  { 0 };
         // Panic request: UI thread sets true; audio thread consumes (exchange false)

@@ -134,45 +134,19 @@ namespace lockstep
         }
        #endif
 
-        // Seed Bank[0]/Part[0] with one active sampler track; T1-T15 are empty stub
-        // tracks. All other patterns and parts start uninitialised — they are
-        // "empty slots" that materialise on first use via the copy/create gesture.
-        {
-            auto& part0 = project_.banks[0].parts[0];
-            part0.initialised = true;
-
-            // T0: sampler with default params.
-            {
-                part0.tracks[0].machineId = SamplerMachine::kMachineId;
-                const int np = machines_[0]->numParams();
-                part0.tracks[0].baseParams.assign(static_cast<std::size_t>(np), 0.0f);
-                for (int s = 0; s < np; ++s)
-                    part0.tracks[0].baseParams[static_cast<std::size_t>(s)] =
-                        machines_[0]->paramSpec(s).defaultValue;
-                part0.tracks[0].baseParams[0] = 0.0f;  // sample slot 0
-            }
-
-            // T1–T15: empty stub tracks.
-            for (std::size_t t = 1; t < kNumTracks; ++t)
-            {
-                part0.tracks[t].machineId = StubMachine::kMachineId;
-                part0.tracks[t].baseParams.clear();
-            }
-
-            auto& pat0 = project_.banks[0].patterns[0];
-            pat0.initialised = true;
-            // Only T0 has real baseParams; T1-T15 stay empty.
-            pat0.sequence.tracks[0].baseParams = part0.tracks[0].baseParams;
-        }
-
-        // Seed the new hierarchy (Phase 7): Song[0], SongTrack[0] kit = sampler,
-        // SongTrack[1..15] kit = stub; Section[0] activeMask = all true (default).
+        // Seed Song[0]: Track[0] kit = sampler with default params, T1-T15 = stub.
         {
             auto& p0 = arrangement_.songs[0];
 
-            p0.tracks[0].kit.machineId  = SamplerMachine::kMachineId;
-            p0.tracks[0].kit.baseParams =
-                project_.banks[0].parts[0].tracks[0].baseParams;  // reuse seed above
+            p0.tracks[0].kit.machineId = SamplerMachine::kMachineId;
+            {
+                const int np = machines_[0]->numParams();
+                auto& kbp = p0.tracks[0].kit.baseParams;
+                kbp.assign(static_cast<std::size_t>(np), 0.0f);
+                for (int s = 0; s < np; ++s)
+                    kbp[static_cast<std::size_t>(s)] = machines_[0]->paramSpec(s).defaultValue;
+                kbp[0] = 0.0f;  // sample slot 0
+            }
 
             for (std::size_t t = 1; t < kNumTracks; ++t)
             {
@@ -190,22 +164,6 @@ namespace lockstep
     }
 
     LockstepProcessor::~LockstepProcessor() = default;
-
-    void LockstepProcessor::setActivePattern(int bankIdx, int patternIdx)
-    {
-        if (bankIdx    < 0 || bankIdx    >= static_cast<int>(kNumBanks))        return;
-        if (patternIdx < 0 || patternIdx >= static_cast<int>(kPatternsPerBank)) return;
-        if (bankIdx == activeBankIdx_ && patternIdx == activePatternIdx_)        return;
-
-        activeBankIdx_    = bankIdx;
-        activePatternIdx_ = patternIdx;
-
-        // Sync Track.baseParams from Kit (single source of truth after 7.9e-pre 3a).
-        // Machines are installed via setTrackMachine / Kit before setActivePattern;
-        // no reinstall needed here.
-        for (std::size_t t = 0; t < kNumTracks; ++t)
-            sequence().tracks[t].baseParams = kit(static_cast<int>(t)).baseParams;
-    }
 
     void LockstepProcessor::setMZSlots(int slotOffset)
     {
@@ -230,18 +188,6 @@ namespace lockstep
     }
 
 
-    void LockstepProcessor::appendToChain(int bankIdx, int patternIdx)
-    {
-        if (bankIdx    < 0 || bankIdx    >= static_cast<int>(kNumBanks))        return;
-        if (patternIdx < 0 || patternIdx >= static_cast<int>(kPatternsPerBank)) return;
-        chain_.push_back({ bankIdx, patternIdx });
-    }
-
-    void LockstepProcessor::clearChain()
-    {
-        chain_.clear();
-    }
-
     void LockstepProcessor::queueScene(int sectionIdx, bool toFloor)
     {
         if (sectionIdx < 0 || sectionIdx >= kScenesPerSong) return;
@@ -264,35 +210,6 @@ namespace lockstep
         return queuedSceneIdx_.load(std::memory_order_acquire);
     }
 
-    void LockstepProcessor::queuePattern(int bankIdx, int patternIdx)
-    {
-        if (bankIdx    < 0 || bankIdx    >= static_cast<int>(kNumBanks))        return;
-        if (patternIdx < 0 || patternIdx >= static_cast<int>(kPatternsPerBank)) return;
-        queuedPatternBankIdx_.store(bankIdx,    std::memory_order_relaxed);
-        queuedPatternPatIdx_ .store(patternIdx, std::memory_order_release);
-    }
-
-    void LockstepProcessor::cancelQueuedPattern()
-    {
-        chain_.clear();
-        queuedPatternBankIdx_.store(-1, std::memory_order_relaxed);
-        queuedPatternPatIdx_ .store(-1, std::memory_order_release);
-    }
-
-    bool LockstepProcessor::hasQueuedPattern() const
-    {
-        return queuedPatternPatIdx_.load(std::memory_order_acquire) >= 0;
-    }
-
-    int LockstepProcessor::queuedPatternBankIdx() const
-    {
-        return queuedPatternBankIdx_.load(std::memory_order_relaxed);
-    }
-
-    int LockstepProcessor::queuedPatternPatIdx() const
-    {
-        return queuedPatternPatIdx_.load(std::memory_order_acquire);
-    }
 
     WidgetMappingInfo LockstepProcessor::queryWidgetMapping(int slot, int mzPosition) const
     {
@@ -1192,74 +1109,12 @@ namespace lockstep
                             {
                                 if (toFloor) setActiveSceneToFloor(qSecIdx);
                                 else         setActiveScene(qSecIdx);
-                                if (onActivePatternChanged)
-                                    onActivePatternChanged();
                             });
                     }
                 }
             }
         }
 
-        // ── Legacy pattern launch engine (removed in Stage D) ─────────────────
-        // Queued pattern switch fires at end of the longest playing track's cycle.
-        {
-            const int qBankIdx = queuedPatternBankIdx_.load(std::memory_order_relaxed);
-            const int qPatIdx  = queuedPatternPatIdx_ .load(std::memory_order_acquire);
-            if (qBankIdx >= 0 && qPatIdx >= 0)
-            {
-                std::size_t longestTrack = 0;
-                double      longestCycle = 0.0;
-                for (std::size_t i = 0; i < kNumTracks; ++i)
-                {
-                    const int    tl  = static_cast<int>(trackLengthParams_[i]->load());
-                    const int    td  = static_cast<int>(trackDividerParams_[i]->load());
-                    const double ppq = 0.25 * static_cast<double>(td <= 0 ? 1 : td)
-                                       * static_cast<double>(tl <= 0 ? 1 : tl);
-                    if (ppq > longestCycle) { longestCycle = ppq; longestTrack = i; }
-                }
-
-                const int   tl     = static_cast<int>(trackLengthParams_[longestTrack]->load());
-                const int   td     = static_cast<int>(trackDividerParams_[longestTrack]->load());
-                const double divPpqL = 0.25 * static_cast<double>(td <= 0 ? 1 : td);
-                if (divPpqL > 0.0 && samplesPerPpq > 0.0 && tl > 0)
-                {
-                    double cursor = nextTriggerPpq_[longestTrack];
-                    if (cursor < blockStart - divPpqL)
-                        cursor = std::floor(blockStart / divPpqL) * divPpqL;
-                    while (cursor < blockEnd)
-                    {
-                        if (cursor >= blockStart)
-                        {
-                            const auto stepNum = static_cast<std::int64_t>(cursor / divPpqL);
-                            const int  si      = static_cast<int>(
-                                stepNum % static_cast<std::int64_t>(tl));
-                            if (si == 0)
-                            {
-                                queuedPatternBankIdx_.store(-1, std::memory_order_relaxed);
-                                queuedPatternPatIdx_ .store(-1, std::memory_order_release);
-                                juce::MessageManager::callAsync(
-                                    [this, qBankIdx, qPatIdx]
-                                    {
-                                        setActivePattern(qBankIdx, qPatIdx);
-                                        if (!chain_.empty())
-                                        {
-                                            auto [nextBank, nextPat] = chain_.front();
-                                            chain_.pop_front();
-                                            if (chainLoopEnabled_)
-                                                chain_.push_back({ qBankIdx, qPatIdx });
-                                            queuePattern(nextBank, nextPat);
-                                        }
-                                        if (onActivePatternChanged)
-                                            onActivePatternChanged();
-                                    });
-                                break;
-                            }
-                        }
-                        cursor += divPpqL;
-                    }
-                }
-            }
-        }
 
         for (std::size_t i = 0; i < kNumTracks; ++i)
         {
@@ -1715,7 +1570,7 @@ namespace lockstep
                     if (dstSlot < dstMnp)
                     {
                         sequence().tracks[ti].baseParams[static_cast<std::size_t>(dstSlot)] = value;
-                        activePart().tracks[ti].baseParams[static_cast<std::size_t>(dstSlot)] = value;
+                        kit(static_cast<int>(ti)).baseParams[static_cast<std::size_t>(dstSlot)] = value;
                     }
                     else if (!dm->hasInternalFilter() && dstSlot < dstAmpOff)
                     {
@@ -1751,7 +1606,7 @@ namespace lockstep
             if (slot < mnp)
             {
                 sequence().tracks[ti].baseParams[static_cast<std::size_t>(slot)] = value;
-                activePart().tracks[ti].baseParams[static_cast<std::size_t>(slot)] = value;
+                kit(static_cast<int>(ti)).baseParams[static_cast<std::size_t>(slot)] = value;
 
                 // Recompute slices when a slice-governing base param changes.
                 recomputeSlicesIfNeeded(static_cast<int>(ti), slot,
@@ -2292,17 +2147,17 @@ namespace lockstep
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1;
         const auto ti = static_cast<std::size_t>(track);
-        const auto& partTrack = activePart().tracks[ti];
+        const auto& k = kit(track);
 
         SoundEntry entry;
         entry.name           = name.empty() ? "Sound" : name;
-        entry.machineId      = partTrack.machineId;
-        entry.baseParams     = partTrack.baseParams;
-        entry.destinationId  = partTrack.destinationId;
+        entry.machineId      = k.machineId;
+        entry.baseParams     = k.baseParams;
+        entry.destinationId  = k.destinationId;
 
         // Extract sample pool index from the first slot of baseParams (sampler tracks).
-        if (!machines_[ti]->isMidiOut() && !partTrack.baseParams.empty())
-            entry.samplePoolIndex = static_cast<int>(partTrack.baseParams[0]);
+        if (!machines_[ti]->isMidiOut() && !k.baseParams.empty())
+            entry.samplePoolIndex = static_cast<int>(k.baseParams[0]);
 
         return project_.soundPool.push(std::move(entry));
     }
@@ -2313,7 +2168,7 @@ namespace lockstep
         const auto* e = project_.soundPool.get(poolIndex);
         if (e == nullptr) return;
         const auto ti = static_cast<std::size_t>(track);
-        if (e->machineId != activePart().tracks[ti].machineId) return;
+        if (e->machineId != kit(track).machineId) return;
         // Write directly to sequence track — same pattern as writeParam().
         // Audio thread picks up the new baseParams on the next processBlock.
         sequence().tracks[ti].baseParams = e->baseParams;
@@ -2323,7 +2178,7 @@ namespace lockstep
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
         const auto ti = static_cast<std::size_t>(track);
-        sequence().tracks[ti].baseParams = activePart().tracks[ti].baseParams;
+        sequence().tracks[ti].baseParams = kit(track).baseParams;
     }
 
     bool LockstepProcessor::recallSoundFromPool(int track, int entryIndex)
@@ -2333,13 +2188,13 @@ namespace lockstep
         if (e == nullptr) return false;
 
         const auto ti = static_cast<std::size_t>(track);
-        auto& partTrack = activePart().tracks[ti];
+        auto& k = kit(track);
 
         // Only apply if machine types match to avoid mismatched param frames.
-        if (partTrack.machineId != e->machineId) return false;
+        if (k.machineId != e->machineId) return false;
 
-        partTrack.baseParams    = e->baseParams;
-        partTrack.destinationId = e->destinationId;
+        k.baseParams    = e->baseParams;
+        k.destinationId = e->destinationId;
 
         // Sync the sequence track's base params so the audio thread picks it up.
         sequence().tracks[ti].baseParams = e->baseParams;
@@ -2387,26 +2242,32 @@ namespace lockstep
                 return cur;
             };
 
-            // Remap Part baseParams across all banks.
-            for (auto& bank : project_.banks)
+            // Remap Kit baseParams and Phrase step P-locks across all songs.
+            for (auto& song : arrangement_.songs)
             {
-                for (auto& part : bank.parts)
+                auto& tk = song.tracks[static_cast<std::size_t>(t)];
+                auto& kbp = tk.kit.baseParams;
+                if (slotSz < kbp.size()) kbp[slotSz] = remapPoolIdx(kbp[slotSz]);
+                for (auto& phrase : tk.phrases)
                 {
-                    auto& bp = part.tracks[static_cast<std::size_t>(t)].baseParams;
-                    if (slotSz < bp.size()) bp[slotSz] = remapPoolIdx(bp[slotSz]);
-                }
-                // Remap Pattern tracks (baseParams + step overrides).
-                for (auto& pattern : bank.patterns)
-                {
-                    auto& track = pattern.sequence.tracks[static_cast<std::size_t>(t)];
-                    if (slotSz < track.baseParams.size())
-                        track.baseParams[slotSz] = remapPoolIdx(track.baseParams[slotSz]);
-                    for (auto& step : track.steps)
+                    for (auto& step : phrase.steps)
                     {
                         if (!step.overrides.has(sampleSlot)) continue;
                         step.overrides.set(sampleSlot,
                             remapPoolIdx(step.overrides.get(sampleSlot, 0.0f)));
                     }
+                }
+            }
+            // Remap the working buffer.
+            {
+                auto& seqTrk = sequence().tracks[static_cast<std::size_t>(t)];
+                if (slotSz < seqTrk.baseParams.size())
+                    seqTrk.baseParams[slotSz] = remapPoolIdx(seqTrk.baseParams[slotSz]);
+                for (auto& step : seqTrk.steps)
+                {
+                    if (!step.overrides.has(sampleSlot)) continue;
+                    step.overrides.set(sampleSlot,
+                        remapPoolIdx(step.overrides.get(sampleSlot, 0.0f)));
                 }
             }
         }
@@ -2430,24 +2291,32 @@ namespace lockstep
                 return cur;
             };
 
-            for (auto& bank : project_.banks)
+            // Swap Kit baseParams and Phrase step P-locks across all songs.
+            for (auto& song : arrangement_.songs)
             {
-                for (auto& part : bank.parts)
+                auto& tk = song.tracks[static_cast<std::size_t>(t)];
+                auto& kbp = tk.kit.baseParams;
+                if (slotSz < kbp.size()) kbp[slotSz] = swapPoolIdx(kbp[slotSz]);
+                for (auto& phrase : tk.phrases)
                 {
-                    auto& bp = part.tracks[static_cast<std::size_t>(t)].baseParams;
-                    if (slotSz < bp.size()) bp[slotSz] = swapPoolIdx(bp[slotSz]);
-                }
-                for (auto& pattern : bank.patterns)
-                {
-                    auto& track = pattern.sequence.tracks[static_cast<std::size_t>(t)];
-                    if (slotSz < track.baseParams.size())
-                        track.baseParams[slotSz] = swapPoolIdx(track.baseParams[slotSz]);
-                    for (auto& step : track.steps)
+                    for (auto& step : phrase.steps)
                     {
                         if (!step.overrides.has(sampleSlot)) continue;
                         step.overrides.set(sampleSlot,
                             swapPoolIdx(step.overrides.get(sampleSlot, 0.0f)));
                     }
+                }
+            }
+            // Swap the working buffer.
+            {
+                auto& seqTrk = sequence().tracks[static_cast<std::size_t>(t)];
+                if (slotSz < seqTrk.baseParams.size())
+                    seqTrk.baseParams[slotSz] = swapPoolIdx(seqTrk.baseParams[slotSz]);
+                for (auto& step : seqTrk.steps)
+                {
+                    if (!step.overrides.has(sampleSlot)) continue;
+                    step.overrides.set(sampleSlot,
+                        swapPoolIdx(step.overrides.get(sampleSlot, 0.0f)));
                 }
             }
         }
@@ -2464,7 +2333,7 @@ namespace lockstep
         return new LockstepEditor(*this);
     }
 
-    // Install machines whose IDs match the active Part's PartTrack machineIds.
+    // Install machines whose IDs match the active Kit's machineId per track.
     // Called from setStateInformation (sequencer is stopped during state load).
     // Unsupported IDs receive a silent StubMachine that preserves data.
     static std::unique_ptr<IMachine> makeMachineForId(const std::string& id,
@@ -2783,47 +2652,6 @@ namespace lockstep
     // -------------------------------------------------------------------------
     // Empty-slot gestural archetype
 
-    bool LockstepProcessor::isPatternInitialised(int bankIdx, int patternIdx) const
-    {
-        if (bankIdx    < 0 || bankIdx    >= static_cast<int>(kNumBanks))        return false;
-        if (patternIdx < 0 || patternIdx >= static_cast<int>(kPatternsPerBank)) return false;
-        return project_.banks[static_cast<std::size_t>(bankIdx)]
-                       .patterns[static_cast<std::size_t>(patternIdx)].initialised;
-    }
-
-    bool LockstepProcessor::isPartInitialised(int bankIdx, int partIdx) const
-    {
-        if (bankIdx  < 0 || bankIdx  >= static_cast<int>(kNumBanks))     return false;
-        if (partIdx  < 0 || partIdx  >= static_cast<int>(kPartsPerBank)) return false;
-        return project_.banks[static_cast<std::size_t>(bankIdx)]
-                       .parts[static_cast<std::size_t>(partIdx)].initialised;
-    }
-
-    void LockstepProcessor::materialisePattern(int bankIdx, int patternIdx, bool copy)
-    {
-        if (bankIdx    < 0 || bankIdx    >= static_cast<int>(kNumBanks))        return;
-        if (patternIdx < 0 || patternIdx >= static_cast<int>(kPatternsPerBank)) return;
-
-        auto& bank    = project_.banks[static_cast<std::size_t>(bankIdx)];
-        auto& pattern = bank.patterns[static_cast<std::size_t>(patternIdx)];
-
-        if (copy)
-            pattern = activePattern();  // full copy: sequence + partRef + mutes
-        else
-        {
-            // Blank pattern: clear sequence, inherit current Part reference.
-            pattern.sequence = Sequence{};
-            pattern.patternMutes = {};
-            pattern.partRef = activePattern().partRef;
-        }
-        pattern.initialised = true;
-
-        // Sync baseParams from the referenced Part so the audio thread has valid data.
-        const auto& part = bank.parts[static_cast<std::size_t>(pattern.partRef)];
-        for (std::size_t t = 0; t < kNumTracks; ++t)
-            pattern.sequence.tracks[t].baseParams = part.tracks[t].baseParams;
-    }
-
     void LockstepProcessor::copyKitTrack(int srcTrack, int dstTrack)
     {
         if (srcTrack < 0 || srcTrack >= static_cast<int>(kNumTracks)) return;
@@ -2871,38 +2699,37 @@ namespace lockstep
         // otherwise the working buffer would keep the empty constructor state.
         syncSequenceFromCurrentScene();
 
-        // Push all MIDI-out config from a PartTrack to an already-installed machine.
-        auto pushMidiOutConfig = [](MidiOutMachine* mom, const PartTrack& pt)
+        // Push all MIDI-out config from a Kit track to an already-installed machine.
+        auto pushMidiOutConfig = [](MidiOutMachine* mom, const TrackKit& k)
         {
-            mom->setDestinationId(pt.destinationId);
+            mom->setDestinationId(k.destinationId);
             for (int ci = 0; ci < MidiOutMachine::kNumCCs
-                          && ci < static_cast<int>(pt.midiCCNumbers.size()); ++ci)
-                mom->setCCNumber(ci, pt.midiCCNumbers[static_cast<std::size_t>(ci)]);
+                          && ci < static_cast<int>(k.midiCCNumbers.size()); ++ci)
+                mom->setCCNumber(ci, k.midiCCNumbers[static_cast<std::size_t>(ci)]);
             for (int ci = 0; ci < MidiOutMachine::kNumCCs
-                          && ci < static_cast<int>(pt.midiCCLabels.size()); ++ci)
-                mom->setCCLabel(ci, juce::String(pt.midiCCLabels[static_cast<std::size_t>(ci)]));
+                          && ci < static_cast<int>(k.midiCCLabels.size()); ++ci)
+                mom->setCCLabel(ci, juce::String(k.midiCCLabels[static_cast<std::size_t>(ci)]));
             // MF.8: restore hardware preset CC name table.
-            if (!pt.midiPresetName.empty())
-                mom->setCCNameTable(MidiDevicePresets::getTable(pt.midiPresetName));
+            if (!k.midiPresetName.empty())
+                mom->setCCNameTable(MidiDevicePresets::getTable(k.midiPresetName));
             else
                 mom->clearCCNameTable();
         };
 
-        // Reinstall machines from the active Part's stored machineIds so that
-        // any Part loaded from disk with an unknown machine ID gets StubMachine.
-        const auto& part = activePart();
+        // Reinstall machines from the active Kit so that any Kit loaded from disk
+        // with an unknown machine ID gets StubMachine.
         for (std::size_t t = 0; t < kNumTracks; ++t)
         {
-            const auto& pt = part.tracks[t];
-            if (machines_[t] && machines_[t]->machineId() == pt.machineId)
+            const auto& k = kit(static_cast<int>(t));
+            if (machines_[t] && machines_[t]->machineId() == k.machineId)
             {
                 if (machines_[t]->isMidiOut())
-                    pushMidiOutConfig(static_cast<MidiOutMachine*>(machines_[t].get()), pt);
+                    pushMidiOutConfig(static_cast<MidiOutMachine*>(machines_[t].get()), k);
                 continue;
             }
-            machines_[t] = makeMachineForId(pt.machineId, samplePool_);
+            machines_[t] = makeMachineForId(k.machineId, samplePool_);
             if (machines_[t]->isMidiOut())
-                pushMidiOutConfig(static_cast<MidiOutMachine*>(machines_[t].get()), pt);
+                pushMidiOutConfig(static_cast<MidiOutMachine*>(machines_[t].get()), k);
             if (getSampleRate() > 0.0)
                 machines_[t]->prepare(getSampleRate(), getBlockSize());
         }
