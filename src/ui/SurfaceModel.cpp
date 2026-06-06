@@ -486,7 +486,7 @@ namespace lockstep
             { 'T', u8"T", u8"→",     u8"ROT→",    ControllerButton::NavRight,     KeyRole::Nav       },
             { 'Y', u8"Y", u8"SNAP",  u8"RESTORE", ControllerButton::VerbYes,      KeyRole::VerbYes   },
             { 'U', u8"U", u8"REC",   u8"",        ControllerButton::VerbRecord,   KeyRole::VerbCopy  },
-            { 'I', u8"I", u8"PLAY",  u8"PANIC",   ControllerButton::VerbPlay,     KeyRole::VerbPaste },
+            { 'I', u8"I", u8"PLAY",  u8"",        ControllerButton::VerbPlay,     KeyRole::VerbPaste },
             { 'O', u8"O", u8"CLEAR", u8"DEL",     ControllerButton::VerbClear,    KeyRole::VerbClear },
             { 'P', u8"P", u8"YES",   u8"NO",      ControllerButton::VerbNo,       KeyRole::VerbNo    },
         }};

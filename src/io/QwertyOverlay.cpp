@@ -170,13 +170,13 @@ namespace lockstep
     {
         using T = ControllerEvent::Type;
 
-        // MHY cluster identities. Col 1 = Func / Pattern / Scene / Mute.
+        // MHY cluster identities. Col 1 = Func / Phrase / Morph / Mute.
         if (keyCode == code('1')) { return { T::ButtonDown, B::Func,         -1, 0 }; }
         if (keyCode == code('Q')) { return { T::ButtonDown, B::PhraseScope, -1, 0 }; }
         if (keyCode == code('A')) { return { T::ButtonDown, B::MorphScope,   -1, 0 }; }
         if (keyCode == code('Z')) { return { T::ButtonDown, B::MuteScope,    -1, 0 }; }
 
-        // MHY cluster identities. Col 2 = Track / Part / Master / Fill.
+        // MHY cluster identities. Col 2 = Track / Scene / Song / Fill.
         if (keyCode == code('2')) { return { T::ButtonDown, B::TrackScope,  -1, 0 }; }
         if (keyCode == code('W')) { return { T::ButtonDown, B::SceneScope,   -1, 0 }; }
         if (keyCode == code('S')) { return { T::ButtonDown, B::SongScope, -1, 0 }; }
