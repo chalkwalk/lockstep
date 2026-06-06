@@ -352,6 +352,50 @@ music easier" or "you set it up once," it belongs in a DAW — not in Lockstep.
 The *Non-Goals* below, and `NON-GOALS.md`, are this principle and its siblings
 applied to the competitive landscape.
 
+## 15. Gesture cost is graduated; cheap means common
+
+The ergonomic complement to *"One grammar, no exceptions"*: the grammar
+says every action is scope + verb; this says **how many keys an action
+costs is a budget, and the budget must track frequency.** A gesture's
+cost is the ladder below, cheapest first — and the earlier rungs must
+carry the most common actions:
+
+| Rung | Shape | Keys |
+|---|---|---|
+| 1 | `key` | 1 |
+| 2 | `Func + key` | 2 |
+| 3 | `mod + key` | 2 |
+| 4 | `Func + mod + key` | 3 |
+| 5 | `mod + mod + key` (cross-column) | 3 |
+| 6 | `Func + mod + mod + key` | 4 |
+
+`Func` is the **cheapest modifier** — it is key `1`, the universal
+qualifier (§2), and mentally free — so `Func + key` is easier than a
+column `mod + key`, and `Func + mod + key` is easier than `mod + mod`.
+"`key`" is the single operand (a verb, a step, a section, a nav, or an
+encoder turn).
+
+**Ceiling: four.** Rung 6 (`Func + mod + mod + key`, four simultaneous
+keys) is the maximum, and it is admitted only when the grammar and the
+value clearly earn it. **Five keys is forbidden** — there is no
+`Func + mod + mod + section + step`. Three is *not* a hard ceiling; four
+is.
+
+**Count scopes, not fingers.** The cost is the number of held
+*modifiers/scopes*, plus the one operand. Repeated same-class targets do
+**not** add cost: holding eight steps to copy them, or hold-tap-many on
+the mute layer, is one logical operand, not eight keys. Batch selection
+is free; *qualification* is what you pay for.
+
+**Consequence.** Before a gesture reaches `DESIGN.md`, name its rung and
+its expected frequency. A common live action on an expensive rung, or a
+rare set-and-forget action on a cheap one, is a design smell — rebind
+until cost tracks use. The cross-column rule (DESIGN §13) is *how* you
+climb to the `mod + mod` rungs legibly; this principle is *why* you
+should be reluctant to. See also §10 *"Ergonomics first"* — when speed
+and self-documentation conflict, the cheap rung wins, but it must still
+announce itself in chrome.
+
 ---
 
 ## Non-Goals — what Lockstep refuses to become

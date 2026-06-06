@@ -1422,31 +1422,40 @@ reserved as a scope (§31) but is not bound to a cluster key until
 6.4; its functionality currently lives under `Func+Morph` (cue morph)
 and `Song`-scope cells (cue routing) — see §31.
 
-**The compound-chord rule.** Two modifiers may be held together, and
-this is a deliberate part of the grammar — but under one hard rule so
-compounds never become bespoke two-key meanings:
+**The compound-chord rule.** Modifiers may be held together to qualify a
+scope, but under hard rules so compounds never become bespoke chords and
+so cost stays graduated (PRINCIPLES §15 — *gesture cost is graduated*):
 
-1. **Cross-column only.** A compound holds *at most one modifier from
-   each column*. Two column-1 modifiers (e.g. `Func+Track`) is
-   meaningless and ignored; the legal compound space is exactly "one
-   key from each column."
+1. **Cross-column only.** A column compound holds *at most one modifier
+   from each column*. Two column-1 modifiers (e.g. `Phrase+Mute`) is
+   meaningless and ignored; the legal column-compound space is exactly
+   "one key from each column."
 2. **A modifier+modifier compound never fires on its own** — it only
    sets a *compound scope*, still awaiting a verb or an encoder turn.
    Nothing happens from two modifiers alone, so there is no surprise.
    An action occurs only when a verb is pressed (`Track+Record`) or an
    encoder moves.
 3. **`Func` is the universal qualifier** — the one sanctioned crossing
-   of clause 1: it composes with anything as the secondary/advanced
-   layer, as it does today.
+   of clause 1, *and the cheapest modifier* (PRINCIPLES §15): it
+   composes with anything as the secondary/advanced layer, including on
+   top of a cross-column pair (`Func + mod + mod + key`, the rung-6
+   ceiling).
 
 The compound *qualifies* the scope; it does not change what a verb
 means. `Track + Section` = the section verb scoped to *this* track
 rather than current/all; `Scene + Mute` = assign the AMP-level slot to
 a scene (fluid mute, §17.2); `Cue + Scene` = preview that scene (§31).
 
-**Exceptions table** (high-value chords that knowingly bend clause 1;
-starts empty and grows only when the obvious meaning is clearly worth
-it):
+**The cost ceiling.** Per the PRINCIPLES §15 ladder, the maximum is
+**four simultaneous keys** (`Func + mod + mod + key`), admitted only
+when the grammar and value earn it; **five is forbidden**. Cost counts
+held scopes plus one operand — repeated same-class targets (multi-step
+holds, hold-tap-many mutes) are one operand, not many keys. The
+rung-by-rung inventory of every live gesture is §13.0.
+
+**Exceptions table** (high-value chords that knowingly bend clause 1
+*or* sit at the rung-6 ceiling; starts empty and grows only when the
+obvious meaning is clearly worth it):
 
 | Chord | Meaning | Why it earns the exception |
 |---|---|---|
@@ -1484,6 +1493,48 @@ scoped meaning; if the scope defines no meaning for that key it is
 render neutral. In-scope keys glow in the scope colour (§6.6);
 reserved verbs dim. This is the operational form of PRINCIPLES §10
 ("a held scope recolours the keys it rebinds").
+
+### 13.0 Gesture cost reference
+
+Every live gesture, grouped by its PRINCIPLES §15 rung. The rung is the
+held-scope count plus one operand; repeated same-class targets (multi-step
+holds, hold-tap-many mutes) do not add cost. This table is the audit made
+durable — a new gesture must slot into a rung here, and a *common* action
+must not sit deeper than a *rare* one.
+
+**Rung 1 — `key` (1 key).** Step tap = toggle trig; verb tap (`Y`
+snapshot / `U` record-arm / `I` play-pause, double-tap = stop-to-top /
+`O` clear active P-Lock / `P` no-cancel); navigation; tap-tempo.
+
+**Rung 2 — `Func + key` (2 keys, Func cheapest).** `Func+Y` push
+checkpoint; `Func+P` pop (tap) / floor (hold+release); `Func+I` panic;
+`Func+O` delete (+confirm); `Func+section` secondary section layer;
+`Func+Song` global/project params.
+
+**Rung 3 — `mod + key` (2 keys).** `Mute+step` global mute (hold-tap-
+many); `Scene+step` launch (carry overlay; double-tap = floor);
+`Song+step` queue song; `Phrase+step` unison/set-global; `Fill+step`
+mark fill; `section+verb` copy/paste/clear a section; `Trig+verb` step
+copy/paste/clear; `Track+Nav` cycle input mode (PLAY/CHROM/LEVELS);
+`Morph+^`/`Morph+v` pick endpoint A/B.
+
+**Rung 4 — `Func + mod + key` (3 keys).** `Func+Track+step` machine/Kit
+picker assign; `Func+Scene+step` baseline launch (floor, discard
+overlay); `Func+Section+step` note-edit entry; `Trig+Func+Stop` clear
+all P-Locks on the held step(s); **`Func+Mute+step` solo** (the
+secondary layer of mute).
+
+**Rung 5 — `mod + mod + key`, cross-column (3 keys).** `Scene+Mute+step`
+per-scene mute (active-mask); `Track+Phrase+step` per-track phrase
+deviation; `Track+section+verb` track-scoped section copy/paste/clear;
+`Track+track-key+Nav` set input mode on a specific track; `Morph+^+v`
+assign both endpoints at once.
+
+**Rung 6 — `Func + mod + mod + key` (4 keys, the ceiling).** *(None in
+use. Reserved; admit a gesture here only via the §13 Exceptions table.)*
+
+**Forbidden — 5+ keys.** No gesture may require a fifth simultaneous
+scope key (e.g. `Func + mod + mod + section + step`).
 
 ### 13.1 Control-All
 
@@ -3276,11 +3327,14 @@ left rather than widening the step grid keeps the Digitakt-lineage
   slot goes to `Song` (song select; `Func+Song` = master-bus / FX focus,
   §32.3), which previously had a focus state but no key.
 
-**33.3 Compound chords.** Two modifiers compose under the hard rule in
-§13: cross-column only, a modifier+modifier never fires on its own (it
-only sets a compound scope awaiting a verb), and `Func` is the
-universal qualifier. A compound *qualifies* the scope; it never changes
-what a verb means. An exceptions table (§13) starts empty.
+**33.3 Compound chords.** Modifiers compose under the hard rule in §13:
+cross-column only, a modifier+modifier never fires on its own (it only
+sets a compound scope awaiting a verb), and `Func` is the universal
+qualifier *and the cheapest modifier*. A compound *qualifies* the scope;
+it never changes what a verb means. Cost is graduated (PRINCIPLES §15):
+the ceiling is four simultaneous keys (`Func + mod + mod + key`),
+admitted only when earned; five is forbidden. The §13.0 inventory rungs
+every gesture; the §13 exceptions table starts empty.
 
 **33.4 Encoders, fader, typography.** 8 encoders (`kMZSlots = 8`) in a
 4×2 staggered band above the grid; the crossfader is a vertical slider

@@ -401,7 +401,15 @@ interim.)
 scopes (e.g. `Scene + Mute` = fade a track across the crossfader). The
 rule: cross-column only, a two-modifier hold never acts on its own (it
 just narrows the scope until you press a verb), and `Func` composes
-with anything.
+with anything as the cheapest qualifier.
+
+**Gesture cost is graduated** (PRINCIPLES §15). Cheaper chords carry the
+most common actions; cost rises with held-modifier count, in this order:
+`key` < `Func+key` < `mod+key` < `Func+mod+key` < `mod+mod+key` <
+`Func+mod+mod+key`. The ceiling is four simultaneous keys; five is
+forbidden. Counting is by held scopes — holding many steps or tapping
+many mutes is one operand, not many keys. Every live gesture's rung is
+catalogued in DESIGN §13.0.
 
 ### 5.3 Verb keys
 
