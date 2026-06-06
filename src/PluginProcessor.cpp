@@ -1738,6 +1738,7 @@ namespace lockstep
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
         section().activeMask[static_cast<std::size_t>(track)] = !muted;
+        section().initialised = true;
     }
 
     void LockstepProcessor::togglePatternMute(int track)
@@ -2616,6 +2617,21 @@ namespace lockstep
     int LockstepProcessor::scenesSharingHomePhrase() const
     {
         return arrangement_.scenesSharingHomePhrase();
+    }
+
+    bool LockstepProcessor::sceneSlotOccupied(int s) const
+    {
+        return arrangement_.sceneSlotOccupied(s);
+    }
+
+    int LockstepProcessor::firstFreePhraseSlot() const
+    {
+        return arrangement_.firstFreePhraseSlot();
+    }
+
+    int LockstepProcessor::phraseSlotSharers(int phraseIdx) const
+    {
+        return arrangement_.phraseSlotSharers(phraseIdx);
     }
 
     // ── End Phase 7 new-hierarchy methods ────────────────────────────────────

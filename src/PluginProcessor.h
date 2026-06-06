@@ -115,6 +115,9 @@ namespace lockstep
         void bakeSceneState();             // Scene + Record (Yes/No confirmed)
         int  countDeviatedTracks() const;
         int  scenesSharingHomePhrase() const;
+        bool sceneSlotOccupied(int s) const;
+        int  firstFreePhraseSlot() const;
+        int  phraseSlotSharers(int phraseIdx) const;
         // Read-only deviation state for UI (surface model, badge rendering).
         bool isTrackDeviated(int t) const;
         int  deviationPhraseIdxForTrack(int t) const;

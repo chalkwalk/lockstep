@@ -257,6 +257,94 @@ namespace lockstep
               "sharing: no scene shares globalPhrase=1 when in scene 1");
     }
 
+    static void testSceneInitialisedOnMutation()
+    {
+        auto arr = makeSeededArrangement();
+        arr->songs[0].scenes[0].initialised = false;
+
+        // setGlobalPhrase marks the scene initialised.
+        arr->setGlobalPhrase(-1, 3);
+        CHECK(arr->songs[0].scenes[0].initialised,
+              "setGlobalPhrase: scene marked initialised");
+
+        // bakeSceneState marks the scene initialised.
+        arr->songs[0].scenes[0].initialised = false;
+        arr->bakeSceneState();
+        CHECK(arr->songs[0].scenes[0].initialised,
+              "bakeSceneState: scene marked initialised");
+    }
+
+    static void testSceneSlotOccupied()
+    {
+        auto arr = makeSeededArrangement();
+        arr->songs[0].scenes[2].initialised = false;
+        arr->songs[0].scenes[3].initialised = true;
+
+        CHECK(!arr->sceneSlotOccupied(2), "occupied: uninitialised slot not occupied");
+        CHECK( arr->sceneSlotOccupied(3), "occupied: initialised slot is occupied");
+        // Out-of-range returns false without crashing.
+        CHECK(!arr->sceneSlotOccupied(-1), "occupied: negative index is not occupied");
+        CHECK(!arr->sceneSlotOccupied(kScenesPerSong), "occupied: out-of-range is not occupied");
+    }
+
+    static void testPhraseSlotSharers()
+    {
+        auto arr = makeSeededArrangement();
+        // scene 0: globalPhrase=0, scene 1: globalPhrase=1; both initialised.
+        arr->songs[0].scenes[0].initialised = true;
+        arr->songs[0].scenes[1].initialised = true;
+
+        // Active scene is 0 (globalPhrase=0). Sharers of phrase 0 = scene 1? No,
+        // scene 1 routes phrase 1. So no other scene routes phrase 0.
+        CHECK(arr->phraseSlotSharers(0) == 0, "sharers: no other scene routes phrase 0");
+
+        // Make scene 2 route phrase 0 as well.
+        arr->songs[0].scenes[2].globalPhrase = 0;
+        arr->songs[0].scenes[2].initialised  = true;
+        CHECK(arr->phraseSlotSharers(0) == 1, "sharers: one other initialised scene shares phrase 0");
+
+        // Uninitialised scenes are excluded.
+        arr->songs[0].scenes[3].globalPhrase = 0;
+        arr->songs[0].scenes[3].initialised  = false;
+        CHECK(arr->phraseSlotSharers(0) == 1,
+              "sharers: uninitialised scene not counted");
+
+        // scenesSharingHomePhrase is the wrapper.
+        CHECK(arr->scenesSharingHomePhrase() == arr->phraseSlotSharers(0),
+              "scenesSharingHomePhrase equals phraseSlotSharers(globalPhrase)");
+    }
+
+    static void testFirstFreePhraseSlot()
+    {
+        auto arr = std::make_unique<Arrangement>();
+        // Minimal arrangement: no initialised scenes, no initialised phrases.
+        // Everything is fresh; slot 0 should be the first free.
+        for (auto& song : arr->songs)
+            for (auto& st : song.tracks)
+                st.kit.baseParams.assign(2, 0.0f);
+        CHECK(arr->firstFreePhraseSlot() == 0,
+              "firstFree: slot 0 is free when nothing is initialised");
+
+        // Mark one scene as routing phrase 0.
+        arr->songs[0].scenes[0].globalPhrase = 0;
+        arr->songs[0].scenes[0].initialised  = true;
+        CHECK(arr->firstFreePhraseSlot() == 1,
+              "firstFree: slot 0 used by scene → first free is 1");
+
+        // Mark phrase slot 1 as having track content on track 0.
+        arr->songs[0].tracks[0].phrases[1].initialised = true;
+        CHECK(arr->firstFreePhraseSlot() == 2,
+              "firstFree: slot 1 used by track content → first free is 2");
+
+        // Fill all phrase slots in every track.
+        for (auto& song : arr->songs)
+            for (auto& st : song.tracks)
+                for (auto& phr : st.phrases)
+                    phr.initialised = true;
+        CHECK(arr->firstFreePhraseSlot() == -1,
+              "firstFree: all slots occupied → returns -1");
+    }
+
     void runArrangementTests()
     {
         testSceneSwitchPreservesEdit();
@@ -271,5 +359,9 @@ namespace lockstep
         testBakeSceneStateNoop();
         testBakeDeviationSameSlot();
         testScenesSharingHomePhrase();
+        testSceneInitialisedOnMutation();
+        testSceneSlotOccupied();
+        testPhraseSlotSharers();
+        testFirstFreePhraseSlot();
     }
 }

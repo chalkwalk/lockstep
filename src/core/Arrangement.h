@@ -166,6 +166,7 @@ namespace lockstep
             if (focusedTrack >= 0 && focusedTrack < static_cast<int>(kNumTracks))
                 deviated[idx(focusedTrack)] = false;   // focused rejoins the unison
             scene().globalPhrase = N;
+            scene().initialised  = true;
             syncWorkingFromActive();
         }
 
@@ -204,6 +205,7 @@ namespace lockstep
             deviated.fill(false);
             deviationPhraseIdx.fill(0);
             clearOverlayForCurrent();
+            scene().initialised = true;
             syncWorkingFromActive();
         }
 
@@ -215,20 +217,58 @@ namespace lockstep
             return n;
         }
 
-        // Count OTHER initialised scenes in the active song that share the current
-        // scene's globalPhrase. A bake will overwrite content those scenes also
-        // render, so a non-zero result is shown as SHR:N in the confirm band.
-        [[nodiscard]] int scenesSharingHomePhrase() const
+        // True if a scene slot has been explicitly initialised.
+        [[nodiscard]] bool sceneSlotOccupied(int s) const
         {
-            const int g = scene().globalPhrase;
+            if (s < 0 || s >= kScenesPerSong) return false;
+            return song().scenes[idx(s)].initialised;
+        }
+
+        // Count OTHER initialised scenes (excluding the active one) whose
+        // globalPhrase equals phraseIdx. Zero = no sharing conflict.
+        [[nodiscard]] int phraseSlotSharers(int phraseIdx) const
+        {
             int n = 0;
             for (int s = 0; s < kScenesPerSong; ++s)
             {
                 if (s == sceneIdx) continue;
                 const auto& sc = song().scenes[idx(s)];
-                if (sc.initialised && sc.globalPhrase == g) ++n;
+                if (sc.initialised && sc.globalPhrase == phraseIdx) ++n;
             }
             return n;
+        }
+
+        // Lowest phrase-slot index that no initialised scene routes through AND
+        // that no track has content in. Returns -1 if all slots are occupied.
+        [[nodiscard]] int firstFreePhraseSlot() const
+        {
+            for (int n = 0; n < kPhrasesPerTrack; ++n)
+            {
+                bool routedByScene = false;
+                for (int s = 0; s < kScenesPerSong; ++s)
+                {
+                    const auto& sc = song().scenes[idx(s)];
+                    if (sc.initialised && sc.globalPhrase == n) { routedByScene = true; break; }
+                }
+                if (routedByScene) continue;
+
+                bool hasTrackContent = false;
+                for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+                {
+                    if (song().tracks[idx(t)].phrases[idx(n)].initialised)
+                    { hasTrackContent = true; break; }
+                }
+                if (!hasTrackContent) return n;
+            }
+            return -1;
+        }
+
+        // Count OTHER initialised scenes in the active song that share the current
+        // scene's globalPhrase. A bake will overwrite content those scenes also
+        // render, so a non-zero result is shown as SHR:N in the confirm band.
+        [[nodiscard]] int scenesSharingHomePhrase() const
+        {
+            return phraseSlotSharers(scene().globalPhrase);
         }
 
 
