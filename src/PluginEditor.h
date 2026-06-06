@@ -101,7 +101,7 @@ namespace lockstep
 
         // Pending-confirm state: set by VerbDelete (Func+O); resolved by VerbNo (P=Yes) or
         // Func+P (No/cancel). While set, a status-band prompt is shown.
-        enum class PendingConfirm : uint8_t { None, Delete };
+        enum class PendingConfirm : uint8_t { None, Delete, BakeScene };
         PendingConfirm pendingConfirm_ = PendingConfirm::None;
 
         // Last-known transport state: lets timerCallback detect play/pause

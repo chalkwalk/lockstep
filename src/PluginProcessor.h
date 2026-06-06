@@ -112,7 +112,8 @@ namespace lockstep
         void setGlobalPhrase(int focusedTrack, int phrase);
         void resyncTrackToScene(int t);    // Track + Part
         void resyncAllToScene();           // Part + Yes
-        void commitSceneState();           // Part + Record
+        void bakeSceneState();             // Scene + Record (Yes/No confirmed)
+        int  countDeviatedTracks() const;
         // Read-only deviation state for UI (surface model, badge rendering).
         bool isTrackDeviated(int t) const;
         int  deviationPhraseIdxForTrack(int t) const;

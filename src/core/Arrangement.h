@@ -184,17 +184,37 @@ namespace lockstep
             syncWorkingFromActive();
         }
 
-        // Scene authoring (Scene + Record, §16): bake live deviations into home-row
-        // phrase content, then clear them. Content-destructive; see bakeSceneState()
-        // for the full operation. This stub clears deviations; bake logic lands in
-        // Stage 2 as bakeSceneState() with Yes/No confirmation.
-        void commitSceneState()
+        // Scene authoring (Scene + Record, §16): bake live deviations into the
+        // scene's home-row phrase content, then clear them. Destructive: for any
+        // deviated track the home-row slot is overwritten with the deviation's
+        // content; other scenes that share globalPhrase are silently affected.
+        // The caller is responsible for snapshotting before calling this.
+        void bakeSceneState()
         {
             writeBackWorkingToActive();
+            const int g = scene().globalPhrase;
+            for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+            {
+                if (!deviated[idx(t)]) continue;
+                const int src = deviationPhraseIdx[idx(t)];
+                if (src != g)
+                    song().tracks[idx(t)].phrases[idx(g)] =
+                        song().tracks[idx(t)].phrases[idx(src)];
+            }
             deviated.fill(false);
+            deviationPhraseIdx.fill(0);
             clearOverlayForCurrent();
             syncWorkingFromActive();
         }
+
+        // Count deviated tracks (used for the confirm status band).
+        [[nodiscard]] int countDeviatedTracks() const
+        {
+            int n = 0;
+            for (const bool d : deviated) if (d) ++n;
+            return n;
+        }
+
 
         // ── Per-scene overlay store helpers (build 3) ─────────────────────────
         void stashCurrentOverlay()

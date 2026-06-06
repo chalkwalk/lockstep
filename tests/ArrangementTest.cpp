@@ -185,18 +185,50 @@ namespace lockstep
         CHECK(!arr->deviated[0], "floored overlay is not resurrected on return");
     }
 
-    // commitSceneState clears deviations and overlay; bake-into-content semantics
-    // are tested in Stage 2 once bakeSceneState() replaces this stub.
-    static void testCommitClearsDeviation()
+    // bakeSceneState: deviated tracks have their deviation content copied into the
+    // scene's home-row phrase slot, then deviations are cleared.
+    static void testBakeSceneState()
     {
         auto arr = makeSeededArrangement();
-        arr->swapPhraseForTrack(0, 3);            // deviate track 0 in scene 0
-        arr->commitSceneState();
-        CHECK(!arr->deviated[0],                 "commit: live deviation cleared");
+        // Give phrase 3 on track 0 a trig so the bake is observable.
+        arr->songs[0].tracks[0].phrases[3].steps[1].trig = true;
+        arr->swapPhraseForTrack(0, 3);
+        arr->bakeSceneState();
 
+        // Deviation cleared.
+        CHECK(!arr->deviated[0],                      "bake: deviation cleared");
+        // Content baked: home slot (globalPhrase = 0) now has the deviation's trig.
+        CHECK(arr->songs[0].tracks[0].phrases[0].steps[1].trig,
+              "bake: deviation content copied into home-row phrase slot");
+
+        // After scene round-trip the overlay is gone and routing stays on global.
         arr->setActiveScene(1);
         arr->setActiveScene(0);
-        CHECK(!arr->deviated[0],                 "commit: no stale overlay on return");
+        CHECK(!arr->deviated[0],                      "bake: no stale overlay on return");
+        CHECK(arr->activePhraseIdx(0) == 0,           "bake: track 0 follows globalPhrase");
+    }
+
+    static void testBakeSceneStateNoop()
+    {
+        auto arr = makeSeededArrangement();
+        // No deviations: bake just runs write-back; content preserved.
+        arr->workingTrack(0).steps[5].trig = true;
+        arr->bakeSceneState();
+        CHECK(!arr->deviated[0], "bake no-op: no deviation present");
+        CHECK(arr->songs[0].tracks[0].phrases[0].steps[5].trig,
+              "bake no-op: working edit written back to home phrase");
+    }
+
+    static void testBakeDeviationSameSlot()
+    {
+        auto arr = makeSeededArrangement();
+        // Deviation points at the same slot as globalPhrase; no self-overwrite.
+        arr->swapPhraseForTrack(0, 0);   // deviate to slot 0 (same as globalPhrase=0)
+        arr->workingTrack(0).steps[7].trig = true;
+        arr->bakeSceneState();
+        CHECK(!arr->deviated[0], "bake same-slot: deviation cleared");
+        CHECK(arr->songs[0].tracks[0].phrases[0].steps[7].trig,
+              "bake same-slot: working edit in home phrase (no self-overwrite needed)");
     }
 
     void runArrangementTests()
@@ -209,6 +241,8 @@ namespace lockstep
         testGlobalPhraseGrammar();
         testOverlayRememberedAcrossSceneSwitch();
         testDoubleTapToFloorDiscardsOverlay();
-        testCommitClearsDeviation();
+        testBakeSceneState();
+        testBakeSceneStateNoop();
+        testBakeDeviationSameSlot();
     }
 }

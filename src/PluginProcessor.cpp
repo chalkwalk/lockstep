@@ -2603,9 +2603,14 @@ namespace lockstep
         return arrangement_.deviationPhraseIdx[static_cast<std::size_t>(t)];
     }
 
-    void LockstepProcessor::commitSceneState()
+    void LockstepProcessor::bakeSceneState()
     {
-        arrangement_.commitSceneState();
+        arrangement_.bakeSceneState();
+    }
+
+    int LockstepProcessor::countDeviatedTracks() const
+    {
+        return arrangement_.countDeviatedTracks();
     }
 
     // ── End Phase 7 new-hierarchy methods ────────────────────────────────────

@@ -1757,12 +1757,19 @@ namespace lockstep
             case ControllerButton::VerbRecord:
             {
                 using PS = EditMode::PrimaryScope;
-                // Part + Record: commit live phrase selections into the Section (Phase 7).
+                // Scene + Record: bake live deviations into home-row phrase content.
+                // Destructive — requires Yes/No confirmation.
                 if (uiState_.sceneHeld)
                 {
-                    processor_.commitSceneState();
+                    const int nd = processor_.countDeviatedTracks();
+                    if (nd == 0)
+                    {
+                        setStatus("No deviations to bake");
+                        return true;
+                    }
+                    pendingConfirm_ = PendingConfirm::BakeScene;
+                    setStatus("Bake " + juce::String(nd) + " track(s)?  P=Yes  Func+P=No");
                     repaint();
-                    keyboardArea_.repaint();
                     return true;
                 }
                 // Scope held → grammar verb (e.g. copy).  No scope → arm recording.
@@ -1831,6 +1838,16 @@ namespace lockstep
                 {
                     if (!funcHeld)
                     {
+                        if (pendingConfirm_ == PendingConfirm::BakeScene)
+                        {
+                            processor_.snapshot(CheckpointScope::Song, 0);
+                            processor_.bakeSceneState();
+                            setStatus("Baked");
+                            pendingConfirm_ = PendingConfirm::None;
+                            repaint();
+                            keyboardArea_.repaint();
+                            return true;
+                        }
                         // Execute the pending delete against the current scope.
                         // Snapshot first so the delete is undoable via Restore.
                         switch (editMode_.primaryScope())
