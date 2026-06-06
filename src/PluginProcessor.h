@@ -110,9 +110,6 @@ namespace lockstep
         // setGlobalPhrase: Phrase+step — set the scene's home phrase; non-deviated
         // tracks follow, the focused track rejoins (DESIGN §4.7/§16).
         void setGlobalPhrase(int focusedTrack, int phrase);
-        // forceAllToPhrase: Scene+Phrase+step — whole band to one phrase, clear all
-        // deviations.
-        void forceAllToPhrase(int phrase);
         void resyncTrackToScene(int t);    // Track + Part
         void resyncAllToScene();           // Part + Yes
         void commitSceneState();           // Part + Record

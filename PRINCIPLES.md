@@ -306,9 +306,10 @@ trampling a narrow one.
 **Consequence.** Features that "cast wide" — Scene launch, unison phrase
 swap — must document what they *skip*, not what they *smash*. Returning a
 deviated track to its home is never a blind broadcast: you pick its home
-(global) phrase in the visible selector, double-tap the Scene to revert the
-whole overlay, or `Scene + Phrase + step` to force the band — all
-observable, no bespoke re-sync gesture (DESIGN §16). This keeps improvised
+(global) phrase in the visible selector, or re-launch the Scene to its floor
+(double-tap the Scene, or `Func + Scene + step` baseline launch) to clear the
+whole overlay — all observable, no bespoke re-sync or force-all gesture
+(DESIGN §16). This keeps improvised
 deviations safe from accidental overwrite during a live set.
 
 **In the grammar (DESIGN §13).** Specificity is an *observable scope

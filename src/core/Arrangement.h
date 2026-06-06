@@ -172,19 +172,6 @@ namespace lockstep
             syncWorkingFromActive();
         }
 
-        // Scene+Phrase+step: force the whole band onto one phrase, clearing every
-        // deviation (the breadth=all variant of the swap, DESIGN §16).
-        void forceAllToPhrase(int phrase)
-        {
-            const int N = std::clamp(phrase, 0, kPhrasesPerTrack - 1);
-            writeBackWorkingToActive();
-            deviated.fill(false);
-            scene().globalPhrase = N;
-            for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
-                scene().phraseIdx[idx(t)] = N;
-            syncWorkingFromActive();
-        }
-
         void resyncTrackToScene(int t)
         {
             if (t < 0 || t >= static_cast<int>(kNumTracks)) return;

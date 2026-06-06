@@ -132,8 +132,8 @@ namespace lockstep
     }
 
     // The new phrase grammar (DESIGN §4.7/§16): setGlobalPhrase un-deviates the
-    // focused track + moves non-deviated tracks, keeping other deviations;
-    // forceAllToPhrase clears every deviation and moves the whole band.
+    // focused track + moves non-deviated tracks, keeping other deviations.
+    // (Force-all was dropped — baseline launch covers it; DESIGN §4.7.)
     static void testGlobalPhraseGrammar()
     {
         auto arr = makeSeededArrangement();          // scene 0 active
@@ -149,13 +149,6 @@ namespace lockstep
         CHECK(arr->deviated[1],                   "set-global: OTHER deviated track is kept");
         CHECK(arr->activePhraseIdx(1) == 5,       "set-global: other deviated track unchanged");
         CHECK(arr->activePhraseIdx(2) == 2,       "set-global: a non-deviated track follows global");
-
-        // Scene+Phrase+step force-all to phrase 4.
-        arr->forceAllToPhrase(4);
-        CHECK(arr->scene().globalPhrase == 4,     "force-all: globalPhrase updated");
-        CHECK(!arr->deviated[1],                  "force-all: every deviation cleared");
-        CHECK(arr->activePhraseIdx(0) == 4,       "force-all: focused track to global");
-        CHECK(arr->activePhraseIdx(1) == 4,       "force-all: previously-deviated track to global");
     }
 
     // Build 3: a scene remembers its own live overlay (deviations) across a

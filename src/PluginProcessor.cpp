@@ -2581,11 +2581,6 @@ namespace lockstep
         arrangement_.setGlobalPhrase(focusedTrack, phrase);
     }
 
-    void LockstepProcessor::forceAllToPhrase(int phrase)
-    {
-        arrangement_.forceAllToPhrase(phrase);
-    }
-
     void LockstepProcessor::resyncTrackToScene(int t)
     {
         arrangement_.resyncTrackToScene(t);
