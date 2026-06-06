@@ -32,6 +32,7 @@ namespace lockstep
     void runStateResolverTests();
     void runHierarchyNavTests();
     void runArrangementTests();
+    void runCheckpointTests();
     void runSerializerTests();
     void runAmpDspTests();
 }

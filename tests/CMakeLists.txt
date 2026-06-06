@@ -8,6 +8,7 @@ add_executable(lockstep_tests
     StateResolverTest.cpp
     HierarchyNavTest.cpp
     ArrangementTest.cpp
+    CheckpointTest.cpp
     SerializerTest.cpp
     AmpDspTest.cpp)
 

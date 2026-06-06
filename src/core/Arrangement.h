@@ -3,9 +3,16 @@
 #include "Song.h"
 #include "Sequence.h"
 #include "HierarchyNav.h"
+#include <map>
+#include <utility>
+#include <vector>
 
 namespace lockstep
 {
+    // Scope for scope-respecting Checkpoints (DESIGN §13.6).
+    // None-scope = Song; the enum here names the four explicit forms.
+    enum class CheckpointScope { Song, Track, Scene, Phrase };
+
     // Owns the new musical hierarchy (Songs) plus the live playhead position and
     // the working Sequence the resolver reads. This is the single source of truth
     // for per-track content (Phrase) and sound base (Kit); the working Sequence is
@@ -119,6 +126,7 @@ namespace lockstep
             sceneIdx = 0;
             restoreOverlayForCurrent();      // remembered overlay for the new song's scene 0
             syncWorkingFromActive();
+            seedFloor();                     // re-seed floor on song switch (DESIGN §13.6)
         }
 
         // Jump the playhead to a loaded position WITHOUT writing back. On state
@@ -134,6 +142,7 @@ namespace lockstep
             deviationPhraseIdx.fill(0);
             clearAllOverlays();              // a fresh load carries no live overlay
             syncWorkingFromActive();
+            seedFloor();                     // re-seed floor from loaded state (DESIGN §13.6)
         }
 
         void swapPhraseForTrack(int t, int phraseIdx)
@@ -258,10 +267,209 @@ namespace lockstep
                 writeBackWorkingTrack(t);
         }
 
+        // ── Scope-respecting Checkpoints (DESIGN §13.6) ───────────────────────
+        // Floor = the saved song state at load / song-switch time. Cannot be popped.
+        // Scratch stacks hold snapshots above the floor; depth capped at kMaxCkDepth.
+        static constexpr int kMaxCkDepth = 8;
+
+        void seedFloor()
+        {
+            floorSong_   = song();
+            songStack_.clear();
+            trackStack_.clear();
+            sceneStack_.clear();
+            phraseStack_.clear();
+        }
+
+        void snapshot(CheckpointScope scope, int track)
+        {
+            writeBackWorkingToActive();
+            switch (scope)
+            {
+                case CheckpointScope::Song:
+                {
+                    songStack_.push_back(song());
+                    if (static_cast<int>(songStack_.size()) > kMaxCkDepth)
+                        songStack_.erase(songStack_.begin());
+                    break;
+                }
+                case CheckpointScope::Track:
+                {
+                    if (track < 0 || track >= static_cast<int>(kNumTracks)) break;
+                    auto& stk = trackStack_[track];
+                    stk.push_back(song().tracks[idx(track)]);
+                    if (static_cast<int>(stk.size()) > kMaxCkDepth)
+                        stk.erase(stk.begin());
+                    break;
+                }
+                case CheckpointScope::Scene:
+                {
+                    auto& stk = sceneStack_[sceneIdx];
+                    stk.push_back(scene());
+                    if (static_cast<int>(stk.size()) > kMaxCkDepth)
+                        stk.erase(stk.begin());
+                    break;
+                }
+                case CheckpointScope::Phrase:
+                {
+                    if (track < 0 || track >= static_cast<int>(kNumTracks)) break;
+                    const int pIdx = activePhraseIdx(track);
+                    auto& stk = phraseStack_[{track, pIdx}];
+                    stk.push_back(activePhrase(track));
+                    if (static_cast<int>(stk.size()) > kMaxCkDepth)
+                        stk.erase(stk.begin());
+                    break;
+                }
+            }
+        }
+
+        // Restore one step toward the floor. Idempotent at floor (restores from
+        // floorSong_ when the scratch stack is empty). Returns false only if the
+        // scope+track arguments are out of range.
+        bool restoreOne(CheckpointScope scope, int track)
+        {
+            switch (scope)
+            {
+                case CheckpointScope::Song:
+                {
+                    if (!songStack_.empty())
+                    {
+                        song() = songStack_.back();
+                        songStack_.pop_back();
+                    }
+                    else
+                    {
+                        song() = floorSong_;
+                    }
+                    syncWorkingFromActive();
+                    return true;
+                }
+                case CheckpointScope::Track:
+                {
+                    if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
+                    auto it = trackStack_.find(track);
+                    if (it != trackStack_.end() && !it->second.empty())
+                    {
+                        song().tracks[idx(track)] = it->second.back();
+                        it->second.pop_back();
+                    }
+                    else
+                    {
+                        song().tracks[idx(track)] = floorSong_.tracks[idx(track)];
+                    }
+                    syncWorkingTrackFromActive(track);
+                    return true;
+                }
+                case CheckpointScope::Scene:
+                {
+                    auto it = sceneStack_.find(sceneIdx);
+                    if (it != sceneStack_.end() && !it->second.empty())
+                    {
+                        scene() = it->second.back();
+                        it->second.pop_back();
+                    }
+                    else
+                    {
+                        scene() = floorSong_.scenes[idx(sceneIdx)];
+                    }
+                    deviated.fill(false);      // live deviations are relative to old scene
+                    syncWorkingFromActive();
+                    return true;
+                }
+                case CheckpointScope::Phrase:
+                {
+                    if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
+                    const int pIdx = activePhraseIdx(track);
+                    auto it = phraseStack_.find({track, pIdx});
+                    if (it != phraseStack_.end() && !it->second.empty())
+                    {
+                        activePhrase(track) = it->second.back();
+                        it->second.pop_back();
+                    }
+                    else
+                    {
+                        activePhrase(track) = floorSong_.tracks[idx(track)].phrases[idx(pIdx)];
+                    }
+                    syncWorkingTrackFromActive(track);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // Restore directly to floor, clearing that scope's scratch stack.
+        void restoreToFloor(CheckpointScope scope, int track)
+        {
+            switch (scope)
+            {
+                case CheckpointScope::Song:
+                    song() = floorSong_;
+                    songStack_.clear();
+                    syncWorkingFromActive();
+                    break;
+                case CheckpointScope::Track:
+                    if (track < 0 || track >= static_cast<int>(kNumTracks)) break;
+                    song().tracks[idx(track)] = floorSong_.tracks[idx(track)];
+                    trackStack_.erase(track);
+                    syncWorkingTrackFromActive(track);
+                    break;
+                case CheckpointScope::Scene:
+                    scene() = floorSong_.scenes[idx(sceneIdx)];
+                    sceneStack_.erase(sceneIdx);
+                    deviated.fill(false);
+                    syncWorkingFromActive();
+                    break;
+                case CheckpointScope::Phrase:
+                    if (track < 0 || track >= static_cast<int>(kNumTracks)) break;
+                    {
+                        const int pIdx = activePhraseIdx(track);
+                        activePhrase(track) = floorSong_.tracks[idx(track)].phrases[idx(pIdx)];
+                        phraseStack_.erase({track, pIdx});
+                        syncWorkingTrackFromActive(track);
+                    }
+                    break;
+            }
+        }
+
+        [[nodiscard]] int checkpointDepth(CheckpointScope scope, int track) const
+        {
+            switch (scope)
+            {
+                case CheckpointScope::Song:
+                    return static_cast<int>(songStack_.size());
+                case CheckpointScope::Track:
+                {
+                    if (track < 0 || track >= static_cast<int>(kNumTracks)) return 0;
+                    auto it = trackStack_.find(track);
+                    return (it != trackStack_.end()) ? static_cast<int>(it->second.size()) : 0;
+                }
+                case CheckpointScope::Scene:
+                {
+                    auto it = sceneStack_.find(sceneIdx);
+                    return (it != sceneStack_.end()) ? static_cast<int>(it->second.size()) : 0;
+                }
+                case CheckpointScope::Phrase:
+                {
+                    if (track < 0 || track >= static_cast<int>(kNumTracks)) return 0;
+                    const int pIdx = activePhraseIdx(track);
+                    auto it = phraseStack_.find({track, pIdx});
+                    return (it != phraseStack_.end()) ? static_cast<int>(it->second.size()) : 0;
+                }
+            }
+            return 0;
+        }
+
     private:
         [[nodiscard]] static std::size_t idx(int i) noexcept
         {
             return static_cast<std::size_t>(i);
         }
+
+        // Checkpoint floor + scratch stacks (current song only; cleared on song switch).
+        Song floorSong_{};
+        std::vector<Song>                                     songStack_;
+        std::map<int, std::vector<Song::SongTrack>>           trackStack_;
+        std::map<int, std::vector<Scene>>                     sceneStack_;
+        std::map<std::pair<int,int>, std::vector<Phrase>>     phraseStack_;
     };
 }

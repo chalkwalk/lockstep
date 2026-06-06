@@ -13,6 +13,7 @@ int main()
     lockstep::runStateResolverTests();
     lockstep::runHierarchyNavTests();
     lockstep::runArrangementTests();
+    lockstep::runCheckpointTests();
     lockstep::runSerializerTests();
     lockstep::runAmpDspTests();
 
