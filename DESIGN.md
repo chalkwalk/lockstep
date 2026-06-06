@@ -875,7 +875,7 @@ real estate.
 - `5–0` = the six canonical sections TRIG / SRC / FILTER / AMP / MOD / FX
   (note `LFO`→`MOD` rename from 3.2; see §6.1.1).
 - `Y U I O P` = verbs `Snapshot / Record / Play / Clear / Yes` (colour-rethink).
-  `Func+Y` = Restore (pop checkpoint); `Func+I` = Panic; `Func+O` = Delete (+ confirm);
+  `Func+Y` = Restore (pop checkpoint); `Func+U` = Omni copy; `Func+I` = Unqualified paste; `Func+O` = Delete (+ confirm);
   `Func+P` = No / cancel. `Record-Arm` / `Play-Stop` chords on `9 / 0` are deferred —
   see §33.1.
 
@@ -1519,9 +1519,10 @@ snapshot / `U` record-arm / `I` play-pause, double-tap = stop-to-top /
 `O` clear active P-Lock / `P` no-cancel); navigation; tap-tempo.
 
 **Rung 2 — `Func + key` (2 keys, Func cheapest).** `Func+Y` push
-checkpoint; `Func+P` pop (tap) / floor (hold+release); `Func+I` panic;
-`Func+O` delete (+confirm); `Func+section` secondary section layer;
-`Func+Song` global/project params.
+checkpoint; `Func+P` pop (tap) / floor (hold+release); `Func+U` omni
+copy; `Func+I` unqualified paste; `Func+O` delete (+confirm);
+`Func+section` secondary section layer; `Func+Song` global/project
+params. **Panic** (kill voices): `Song + Clear (O)` — rung 3.
 
 **Rung 3 — `mod + key` (2 keys).** `Mute+step` global mute (hold-tap-
 many); `Scene+step` launch (carry overlay; double-tap = floor);
@@ -1597,10 +1598,12 @@ done via the Kit picker (`Func+Track`) instead.
 | `Phrase` + Record | Copy the focused track's phrase. |
 | `Phrase` + Play | Paste phrase. |
 | `Phrase` + Stop | Clear phrase (back to empty). |
-| `Func` + `Scene` + Record (+ source `step`) | Copy a Scene to the typed clipboard — `step` selects the source Scene (no step = active). The grab is the full **effective** layout (floor + live deviations as content), losslessly. **No move** (cf. the create-and-move `Scene + step`). Baked-vs-floor is chosen at *paste* (§23.3). |
-| `Func` + `Scene` + Play (+ dest `step`) | Paste the Scene clipboard onto the active (or destination-`step`-prefixed) Scene — lays down the **baked** layout. |
-| `Mute` + `Func` + `Scene` + Play (+ dest `step`) | Paste **floor only** (deviations stripped). `Mute` = the "floor-only / strip the overlay" qualifier; distinct from verbless scene-mute by the `Play` verb (§23.3). |
+| `Func` + `Scene` + Record | Copy the active Scene to the typed clipboard. The grab is the full **effective** layout (floor + live deviations as content), losslessly. **No move** (cf. the create-and-move `Scene + step`). Baked-vs-floor is chosen at *paste* (§23.3). Type tag = `Scene`; badge = `CPY:SCN`. |
+| `Func` + `Scene` + Play | Paste the Scene clipboard onto the active Scene — lays down the **baked** layout. Conflict-gated (§23.3). |
+| `Mute` + `Func` + `Scene` + Play | Paste **floor only** (deviations stripped). `Mute` = the "floor-only / strip the overlay" qualifier; distinct from verbless scene-mute by the `Play` verb (§23.3). |
 | `Func` + `Scene` + Stop | Clear the Scene to empty / default. |
+| `Func + U` (no scope) | **Omni copy** — captures the full live stack: scene + active track + pattern. Type tag = `All`; badge = `CPY:ALL`. |
+| `Func + I` (no scope) | **Unqualified paste** — stamps the single captured layer by reading the clipboard's type tag. Rejects with "Paste: pick a scope" if type is `All` (omni grab has no single default). `None` = "Nothing copied". |
 
 > **Why `Scene` copy is `Func`-qualified.** Every other scope's bare
 > copy/paste/clear triad is `Record`/`Play`/`Stop`. `Scene` is the one
@@ -1621,10 +1624,14 @@ the destination held step(s). Pasting a 1-step clipboard over N
 held steps replicates. Pasting an N-step clipboard over 1 held step
 unrolls forward from that step.
 
-The clipboard is in-memory only (not persisted) and typed: a step
-clipboard cannot be pasted into a section scope, a section clipboard
-cannot be pasted into a pattern. The UI shows the clipboard type as
-a small chip in the transport bar.
+The clipboard is in-memory only (not persisted) and typed. A qualified
+copy (`scope + Record`) tags the clipboard with that scope; a qualified
+paste (`scope + Play`) accepts that scope or `All`. An omni copy
+(`Func + U`) tags it `All`; an unqualified paste (`Func + I`) stamps
+the single captured layer using the type tag, and rejects `All` ("pick
+a scope"). The UI shows the clipboard type as a small chip in the
+transport bar (`CPY:STP` / `CPY:SEC` / `CPY:TRK` / `CPY:PHR` /
+`CPY:SCN` / `CPY:ALL`).
 
 ### 13.3 Fills
 
@@ -2742,52 +2749,48 @@ holds Scenes and per-track Phrase pools. Copy/paste/clear reuse the
 Kit recall is **not** a Browser operation — it lives on the live surface
 under `Func + Track` (§4.7.2).
 
-> ⚑ **Scene create / copy payloads (planned).** Lazy slots: Scenes (and
-> Phrases) don't exist until made; empty slots show capacity. Pressing an
-> empty Scene slot creates it. Only `Func` is a safe create qualifier —
-> `Mute + Scene + step` is **reserved for scene-mute** (under `Mute + Scene`
-> the step axis means *track*, not *scene*, so it cannot also address a scene
-> slot). So there are exactly **two direct create gestures**, and undeviated
-> duplication moves to the clipboard:
->
-> 1. **Baked copy** — bare `Scene + empty-step`. The current Scene's
->    **effective** layout (global + live deviations) is materialised onto the
->    new Scene's home-row content (the same op as `Scene + Record`, §16). This
->    is the clean **"save my experiment to another Scene"** gesture: bake a
->    Scene, deviate to explore, then create a new Scene as a baked copy — the
->    original is untouched and the exploration is preserved.
-> 2. **Default / empty** — `Func + Scene + empty-step`. A fresh Scene whose
->    global pattern defaults to its own index (§4.7); no content copied. This is
->    the **baseline** reading of `Func + Scene + step` (§16): on an existing
->    Scene it floor-launches; on an empty slot the baseline *is* a fresh
->    default. (For an empty slot "baseline" and "default" coincide, so they
->    share one gesture.)
->
-> **Undeviated duplication** (a Scene's floor only — global + mask + coreTime +
-> Morph, deviations stripped) is a *copy* act, not a create act, so it lives on
-> the Scene **clipboard** (§13.2). The clipboard is distinct from create: copy
-> is **source-`step`-selectable** (copy *any* Scene, no step = active) and does
-> **not move** the active Scene, whereas the create gesture (`Scene + step` on
-> an empty slot) seeds *and* relocates. Both copy and paste carry a **verb**
-> (`Record`/`Play`), which is what cleanly separates them from the *verbless*
-> scene-mute chord — so a `Mute` strip-qualifier is unambiguous in a clipboard
-> chord even though `Mute + Scene + step` alone is scene-mute.
->
-> **Baked-vs-floor is decided at *paste* time.** The grab is one gesture and
-> **lossless** (always the source's full effective layout); the destination
-> chooses how much to lay down — plain `Func + Scene + Play` pastes baked,
-> `Mute + Func + Scene + Play` strips to floor. This keeps a single grab
-> reusable both ways and never traps a live experiment. The cost is a heavy
-> floor-paste chord (three modifiers + verb + step), accepted because it is a
-> deliberate, rare librarian action. (The rejected alternative — choosing at
-> *copy* time with two grab gestures — was favoured only while the scene-mute
-> collision seemed to require a stepless copy chord; once copy takes a source
-> step that argument lapses.)
->
-> **Conflict.** When a copy/paste/bake target already holds phrase content at
-> a written index — especially a phrase shared by other Scenes (SHR:N, §23.2)
-> — surface a "stock-pattern conflict" hint and require an explicit overwrite
-> rather than silently clobbering.
+**Scene create / copy payloads (shipped).** Lazy slots: Scenes (and
+Phrases) don't exist until made; empty slots show capacity. Pressing an
+empty Scene slot creates it. Only `Func` is a safe create qualifier —
+`Mute + Scene + step` is **reserved for scene-mute** (under `Mute + Scene`
+the step axis means *track*, not *scene*, so it cannot also address a scene
+slot). So there are exactly **two direct create gestures**, and undeviated
+duplication moves to the clipboard:
+
+1. **Baked copy** — bare `Scene + empty-step`. The current Scene's
+   **effective** layout (global + live deviations) is materialised onto the
+   new Scene's home-row content (the same op as `Scene + Record`, §16). This
+   is the clean **"save my experiment to another Scene"** gesture: bake a
+   Scene, deviate to explore, then create a new Scene as a baked copy — the
+   original is untouched and the exploration is preserved.
+2. **Default / empty** — `Func + Scene + empty-step`. A fresh Scene whose
+   global pattern defaults to its own index (§4.7); no content copied. This is
+   the **baseline** reading of `Func + Scene + step` (§16): on an existing
+   Scene it floor-launches; on an empty slot the baseline *is* a fresh
+   default. (For an empty slot "baseline" and "default" coincide, so they
+   share one gesture.)
+
+**Undeviated duplication** (a Scene's floor only — global + mask + coreTime +
+Morph, deviations stripped) is a *copy* act, not a create act, so it lives on
+the Scene **clipboard** (§13.2). The clipboard is distinct from create: copy
+does **not move** the active Scene, whereas the create gesture (`Scene + step` on
+an empty slot) seeds *and* relocates. Both copy and paste carry a **verb**
+(`Record`/`Play`), which is what cleanly separates them from the *verbless*
+scene-mute chord — so a `Mute` strip-qualifier is unambiguous in a clipboard
+chord even though `Mute + Scene + step` alone is scene-mute.
+
+**Baked-vs-floor is decided at *paste* time.** The grab is one gesture and
+**lossless** (always the source's full effective layout); the destination
+chooses how much to lay down — plain `Func + Scene + Play` pastes baked,
+`Mute + Func + Scene + Play` strips to floor. This keeps a single grab
+reusable both ways and never traps a live experiment. The cost is a heavy
+floor-paste chord (three modifiers + verb + step), accepted because it is a
+deliberate, rare librarian action.
+
+**Conflict.** When a copy/paste/bake target already holds phrase content at
+a written index — especially a phrase shared by other Scenes (SHR:N, §23.2)
+— a "Overwrite phrase slot N? SHR:M free:Pk P=Yes Func+P=No" confirm is
+raised. `P=Yes` executes; `Func+P` cancels. Clean targets execute immediately.
 
 ## 24. State Colour Taxonomy
 

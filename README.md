@@ -384,7 +384,7 @@ in the scope-section matrix); two are **performance specialists**
 | `1` | **Func** | Universal qualifier — composes with any other scope to flip to its "secondary variant." Also the modifier layer for snapshots, verbs, and machine secondaries. |
 | `2` | **Track** | One or more tracks; or, with none selected, Control-All. `Track+section` opens the track-foundation row (post-machine FILTER/AMP, IEffect inserts). **`Func+Track`** opens the machine/Kit picker (step cells show machines; press one to assign it to the focused track). |
 | `Q` | **Phrase** | A per-track musical phrase (pure note content). `Phrase+step` swaps all non-deviated tracks to that phrase (unison); `Track+Phrase+step` deviates just the focused track. To clear all deviations, re-launch the active Scene or use `Func+Scene+step`. |
-| `W` | **Scene** | A launchable cross-track row (global phrase row + active-mask + core time). `Scene+step` on a different Scene = carry overlay; on the active Scene = revert to floor. `Func+Scene+step` = baseline launch (floor only). `Scene+Record` commits global-pattern/mask changes; `Func+Scene+Record/Play/Stop` copy/paste/clear a whole Scene. |
+| `W` | **Scene** | A launchable cross-track row (global phrase row + active-mask + core time). `Scene+step` occupied = carry overlay (double-tap = floor); on active = revert to floor; on **empty** = baked-copy create + launch. `Func+Scene+step` occupied = floor launch; empty = default create + launch. `Scene+Record` = commit-and-bake. `Func+Scene+Record/Play` = copy/paste. |
 | `A` | **Morph** | The A/B crossfader scope. `Morph + ^`/`v` picks endpoint A/B; `Morph+section` assigns slots to the morph. |
 | `S` | **Song** | Song select (`Song+step`). `Func+Song` = Global / master-bus focus. |
 | `Z` | **Mute** | Global mute mask (hold and tap several tracks). `Scene+Mute+step` = per-scene mute. |
@@ -435,10 +435,10 @@ Transport and record-arm ride the verb row (no scope held — see §5.1):
 
 | Key | Action |
 |---|---|
-| `I` (Play) | Play / Stop transport (no scope held). |
-| `O` (Stop) | Stop transport; `Func + O` = stop and reset to the start. |
-| `U` (Rec) | Toggle record-arm (overwrite). Double-tap = overdub (append). |
-| `3` | Tap tempo (`Func + I` = toggle metronome). |
+| `I` (Play) | Play / Stop transport (no scope held); `Func + I` = **unqualified paste** (stamps the single captured layer by type; rejects omni grab with "Paste: pick a scope"). |
+| `O` (Clear) | Clear active P-Lock slot (no scope held); `Func + O` = delete entity (+ confirm). |
+| `U` (Rec) | Toggle record-arm (overwrite). Double-tap = overdub (append); `Func + U` = **omni copy** (captures scene + active track + pattern in one grab; badge `CPY:ALL`). |
+| `3` | Tap tempo; `Func + 3` = toggle metronome. |
 | `4` | Navigate up (inverted-T above `E R T`). |
 | `E` / `R` / `T` | Navigate left / down / right. |
 
@@ -604,11 +604,14 @@ Scenes and switch Songs live.
 
 | Gesture | Action |
 |---|---|
-| `Scene (W) + step key` | Launch a Scene — quantized to the next core-time boundary while playing, immediate when stopped. On a *different* Scene: carries the current live overlay. On the *active* Scene: reverts to its saved floor. |
-| `Func + Scene + step key` | **Baseline launch** — switch to any Scene at its clean saved floor, discarding all live deviations. |
+| `Scene (W) + step key` | Launch a Scene (quantized when playing). On a *different* occupied Scene: carries the live overlay; double-tap = floor launch. On the *active* Scene: reverts to floor. On an **empty** slot: **baked-copy create** (current effective layout materialised to the new Scene) + launch. Conflict-gated when the target phrase slot has existing content. |
+| `Func + Scene + step key` | On an occupied Scene: **floor launch** (arrive at saved floor). On an **empty** slot: **default-create** (blank Scene, `globalPhrase` = target index) + launch. |
 | `Scene + Stop` | Revert the active Scene to its saved floor (same as re-launching it). |
 | `Scene + Record` | **Commit-and-bake** (Yes/No confirmed): for each deviated track, copy its effective phrase content into the Scene's home-row slot (`globalPhrase`), then clear the deviation. Destructive — shared-phrase scenes are warned via SHR:N in the confirm band. If no deviations are active, reports "No deviations to bake". |
-| `Func + Scene + Record / Play / Stop` | Copy / paste / clear a whole Scene (floor state only). |
+| `Func + Scene + Record` | Copy the active Scene (floor + all effective phrases) to the typed clipboard. Badge: `CPY:SCN`. |
+| `Func + Scene + Play` | Paste clipboard Scene onto the active Scene (baked layout). Conflict-gated. |
+| `Mute + Func + Scene + Play` | Paste **floor only** (strip deviations). The `Mute` qualifier reads as "strip the content overlay; apply floor metadata only". |
+| `Song (S) + Clear (O)` | **Panic** — kill all voices immediately. (Was `Func+I` before the copy/paste bindings shipped.) |
 | `Phrase (Q) + step key` | Unison phrase swap: all non-deviated tracks switch to that phrase. |
 | `Track + Phrase (Q) + step key` | Sticky per-track deviation: only the focused track switches. |
 | `Song (S) + step key` | Switch Songs (quantized) — a full reset; live deviations clear. |

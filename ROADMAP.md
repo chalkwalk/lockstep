@@ -626,7 +626,7 @@ See DESIGN §6.6, §13.
 - [x] Stage 5: fold stray hardcoded colour literals into UITheme constants.
 - [x] Stage 6: DESIGN §6.6 + §13 verb table updated; ROADMAP marked.
 
-### 7.13 — Scene commit-and-bake (deviation → content)  *[partial]*
+### 7.13 — Scene commit-and-bake + placeable payloads + Scene clipboard  *[shipped]*
 Resolves the model-2-vs-3 tension from the §4.7 design conversation **without
 growing the floor**: storage stays a single `globalPhrase` index, and a
 hand-curated heterogeneous arrangement is persisted by **baking** the live
@@ -636,7 +636,7 @@ overwrites phrase slots, severs phrase sharing). Enables the scratch-pad
 workflow — audition ideas into the high phrase slots via deviation, then bake
 the keepers. See DESIGN §4.7 / §16 / §13.2.
 
-Core shipped (Stages 1–3):
+Core shipped (Stages 1–3, prior plan):
 - [x] `Scene::phraseIdx[]` removed; floor routing is `globalPhrase` only
       (serializer bumped to v8 — clean break).
 - [x] `Scene + Record` dispatch → `PendingConfirm::BakeScene`; `P=Yes` bakes,
@@ -647,12 +647,20 @@ Core shipped (Stages 1–3):
 - [x] Confirm chrome: affected-track count + `SHR:N` when another initialised
       scene shares the home phrase; `scenesSharingHomePhrase()` is real detection.
 
-Deferred to follow-up plan (placeable payloads + scene clipboard):
-- [ ] **Placeable payloads** (§23.3): `Scene+step` = baked copy,
-      `Func+Scene+step` = default/empty. Make-new-Scene-bakes-current.
-- [ ] Clipboard copy (source-`step`-selectable); paste baked vs floor-strip:
-      `Func+Scene+Play` = baked, `Mute+Func+Scene+Play` = floor-strip. See §23.3.
-- [ ] SHR:N conflict hint for bake/copy/paste on shared phrase slots.
+Follow-up plan (placeable payloads + Scene clipboard + omni copy) shipped:
+- [x] **Scene occupancy helpers**: `Scene::initialised` set on all live-mutation
+      paths; `sceneSlotOccupied`, `firstFreePhraseSlot`, `phraseSlotSharers`.
+- [x] **Placeable payloads** (§23.3): `Scene+empty-step` = baked copy,
+      `Func+Scene+empty-step` = default/empty. `Func+Scene+occupied-step` = floor launch.
+      Conflict gate (`phraseSlotSharers` / phrase content) raises Yes/No confirm.
+- [x] **Scene clipboard** (`ClipboardType::Scene`, `SceneClip`): `Func+Scene+Record`
+      = capture active scene (floor + all effective phrases); `Func+Scene+Play` = baked
+      paste; `Mute+Func+Scene+Play` = floor-only paste. Conflict-gated (same gate).
+- [x] **Omni copy** `Func+U` (`ClipboardType::All`): captures all layers (scene +
+      track + pattern) in one grab; badge shows `CPY:ALL`.
+- [x] **Unqualified paste** `Func+I`: stamps the single captured layer via type tag;
+      rejects with "Paste: pick a scope" when type is `All` (omni grab).
+- [x] **Panic → Song + Clear (O)**. `Func+I` freed for unqualified paste.
 
 ---
 
