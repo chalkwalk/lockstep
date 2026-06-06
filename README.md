@@ -155,9 +155,10 @@ Set
 - **Kit** — the per-(track, Song) **sound**: which engine the track hosts,
   its base parameters, post-machine FILTER/AMP, and sample references.
   Recalled live via `Func+Track`. (The dissolved Octatrack "Part".)
-- **Scene** — a launchable cross-track moment: which Phrase each track
-  plays, the active-mask (who sounds), core time, and the Morph snapshot.
-  Launched live (`Scene+step`), not chained into a written arrangement.
+- **Scene** — a launchable cross-track row: the global phrase index (which
+  row all tracks default to), the active-mask (who sounds), core time, and
+  the Morph snapshot. Per-track phrase deviations are live/RAM-only — never
+  saved. Launched live (`Scene+step`), not chained into a written arrangement.
 
 Tracks are **polymetric**: each has its own length (1–64 steps) and
 clock divider, so a 7-step track and a 16-step track phase against each
@@ -178,7 +179,7 @@ other naturally with no master-bar concept.
 | **Machine module** *(planned, 6.7)* | A machine shipped as a loadable native module behind Lockstep's stable C ABI, rather than compiled into the core. First-party machines are statically linked; third-party machines are authored against the SDK and installed into a per-platform folder. Bespoke contract for purpose-built machines — not a VST3/CLAP host. See DESIGN §36. |
 | **Kit** | The per-(track, Song) sound: machine identity, base parameters, post-machine FILTER/AMP, sample refs. Recalled via `Func+Track`. |
 | **Phrase** | A track's pure note content — the trig grid and per-step data. Each track has a pool of 16; Scenes reference them by index. |
-| **Scene** | A launchable cross-track row: each track's phrase assignment + active-mask + core time + Morph snapshot. |
+| **Scene** | A launchable cross-track row: a global phrase index (all tracks default to that row) + active-mask + core time + Morph snapshot. Per-track phrase deviations are live/RAM-only and never saved. |
 | **Song** | A self-contained song (Kits + Phrase pools + Scenes). The bank-sized unit. |
 | **Scope** | A held modifier declaring what the next verb operates on. Eight in the left cluster (`Func`, `Track`, `Phrase`, `Scene`, `Morph`, `Song`, `Mute`, `Fill`), plus a held step and a section key. `Cue` is reserved for the cue bus (6.4) but not yet bound to a key. |
 | **Compound chord** | Two modifiers (one per column) held together to combine scopes. Cross-column only; never fires on its own — it just narrows the scope until a verb is pressed. `Func` composes with anything. |
@@ -382,8 +383,8 @@ in the scope-section matrix); two are **performance specialists**
 |---|---|---|
 | `1` | **Func** | Universal qualifier — composes with any other scope to flip to its "secondary variant." Also the modifier layer for snapshots, verbs, and machine secondaries. |
 | `2` | **Track** | One or more tracks; or, with none selected, Control-All. `Track+section` opens the track-foundation row (post-machine FILTER/AMP, IEffect inserts). **`Func+Track`** opens the machine/Kit picker (step cells show machines; press one to assign it to the focused track). |
-| `Q` | **Phrase** | A per-track musical phrase (pure note content). `Phrase+step` swaps all non-deviated tracks to that phrase (unison); `Track+Phrase+step` deviates just the focused track. |
-| `W` | **Scene** | A launchable cross-track row (each track's phrase + active-mask + core time). `Scene+step` queues/launches it (quantized while playing); `Scene+Record` authors the live state into it; `Func+Scene+Record/Play/Stop` copy/paste/clear a whole Scene. |
+| `Q` | **Phrase** | A per-track musical phrase (pure note content). `Phrase+step` swaps all non-deviated tracks to that phrase (unison); `Track+Phrase+step` deviates just the focused track. To clear all deviations, re-launch the active Scene or use `Func+Scene+step`. |
+| `W` | **Scene** | A launchable cross-track row (global phrase row + active-mask + core time). `Scene+step` on a different Scene = carry overlay; on the active Scene = revert to floor. `Func+Scene+step` = baseline launch (floor only). `Scene+Record` commits global-pattern/mask changes; `Func+Scene+Record/Play/Stop` copy/paste/clear a whole Scene. |
 | `A` | **Morph** | The A/B crossfader scope. `Morph + ^`/`v` picks endpoint A/B; `Morph+section` assigns slots to the morph. |
 | `S` | **Song** | Song select (`Song+step`). `Func+Song` = Global / master-bus focus. |
 | `Z` | **Mute** | Global mute mask (hold and tap several tracks). `Scene+Mute+step` = per-scene mute. |
@@ -593,13 +594,13 @@ Scenes and switch Songs live.
 
 | Gesture | Action |
 |---|---|
-| `Scene (W) + step key` | Launch a Scene — quantized to the next core-time boundary while playing, immediate when stopped. The transport chrome shows the pending Scene. |
-| `Scene + Record` | Author the current live state (each track's playing phrase + active-mask) into the Scene. |
-| `Scene + Yes` | Clear all live phrase deviations (the whole band snaps back to the Scene). |
-| `Func + Scene + Record / Play / Stop` | Copy / paste / clear a whole Scene. |
+| `Scene (W) + step key` | Launch a Scene — quantized to the next core-time boundary while playing, immediate when stopped. On a *different* Scene: carries the current live overlay. On the *active* Scene: reverts to its saved floor. |
+| `Func + Scene + step key` | **Baseline launch** — switch to any Scene at its clean saved floor, discarding all live deviations. |
+| `Scene + Stop` | Revert the active Scene to its saved floor (same as re-launching it). |
+| `Scene + Record` | Commit live global-pattern and mask changes into the Scene's floor. Per-track phrase deviations are **not** committed — they are always live/RAM-only. |
+| `Func + Scene + Record / Play / Stop` | Copy / paste / clear a whole Scene (floor state only). |
 | `Phrase (Q) + step key` | Unison phrase swap: all non-deviated tracks switch to that phrase. |
 | `Track + Phrase (Q) + step key` | Sticky per-track deviation: only the focused track switches. |
-| `Track + Scene (W)` | Re-sync one track's deviation back to the Scene. |
 | `Song (S) + step key` | Switch Songs (quantized) — a full reset; live deviations clear. |
 
 ### 5.15 Checkpoints (live undo)
