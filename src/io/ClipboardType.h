@@ -17,5 +17,7 @@ namespace lockstep
         Section,  // all slots of one section across all steps on a track
         Track,    // entire track
         Pattern,  // entire pattern
+        Scene,    // scene floor + all track phrases (DESIGN §23.3)
+        All,      // omni grab: full live stack; unqualified paste requires scope
     };
 }

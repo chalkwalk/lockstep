@@ -572,6 +572,8 @@ namespace lockstep
                     case ClipboardType::Section: cbLabel = "CPY:SEC"; break;
                     case ClipboardType::Track:   cbLabel = "CPY:TRK"; break;
                     case ClipboardType::Pattern: cbLabel = "CPY:PHR"; break;
+                    case ClipboardType::Scene:   cbLabel = "CPY:SCN"; break;
+                    case ClipboardType::All:     cbLabel = "CPY:ALL"; break;
                 }
                 if (cbLabel != nullptr && bx + 56 < kSplitX)
                 {
@@ -2633,6 +2635,18 @@ namespace lockstep
         soundBankOverlay_.setBounds(manipulationZone_.getBounds()
             .withBottom(keyboardArea_.getY() + keyboardArea_.stepRowsLocalY()));
 
+    }
+
+    // -------------------------------------------------------------------------
+    // Clipboard helpers
+
+    void LockstepEditor::captureScene()
+    {
+        auto& cl = clipboard_;
+        cl.scene.floor = processor_.section();
+        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+            cl.scene.phrases[static_cast<std::size_t>(t)] = processor_.activePhrase(t);
+        cl.type = ClipboardType::Scene;
     }
 
     // -------------------------------------------------------------------------

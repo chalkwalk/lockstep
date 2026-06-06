@@ -190,6 +190,10 @@ namespace lockstep
         void setStatus(const juce::String& msg);
         void paintStatus(juce::Graphics& g, juce::Rectangle<int> area);
 
+        // Capture the current live scene (effective floor + track phrases) into
+        // clipboard_.scene. Sets clipboard_.type = Scene.
+        void captureScene();
+
         void applyDisplayMode(GridDisplayMode mode);
 
         // Unified input dispatch — both keyPressed and mouse callbacks route here.

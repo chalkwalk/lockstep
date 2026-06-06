@@ -6,6 +6,8 @@
 
 #include "ClipboardType.h"
 #include "../core/Sequence.h"  // Step, Track, Sequence, kNumTracks, kMaxStepsPerTrack
+#include "../core/Phrase.h"    // Phrase
+#include "../core/Scene.h"     // Scene, kPhrasesPerTrack implied via Song.h deps
 
 namespace lockstep
 {
@@ -22,6 +24,13 @@ namespace lockstep
         int  slot = 0;
         // perStep[i] = (hasOverride, value); length == sectionTrackLength.
         std::vector<std::pair<bool, float>> perStep;
+    };
+
+    // Scene scope (DESIGN §23.3): the effective floor + all track phrases.
+    struct SceneClip
+    {
+        Scene                           floor{};
+        std::array<Phrase, kNumTracks>  phrases{};
     };
 
     // Typed in-memory clipboard (MD.1).  One instance in the editor; never serialized.
@@ -42,6 +51,9 @@ namespace lockstep
         // Pattern scope (MD.5): sequence + pattern mutes (partRef NOT included).
         Sequence                     clipSequence;
         std::array<bool, kNumTracks> clipPatternMutes{};
+
+        // Scene scope (DESIGN §23.3) and omni-grab container.
+        SceneClip scene;
 
         void clear()
         {
