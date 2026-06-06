@@ -26,8 +26,9 @@ namespace lockstep
         // Distinguish phrase lengths so a phrase switch is observable.
         arr->songs[0].tracks[0].phrases[0].length = 16;
         arr->songs[0].tracks[0].phrases[1].length = 8;
-        arr->songs[0].scenes[0].phraseIdx[0] = 0;
-        arr->songs[0].scenes[1].phraseIdx[0] = 1;
+        // scene 0 globalPhrase = 0 (default); scene 1 globalPhrase = 1 so track 0
+        // plays phrase 1 (length 8) when scene 1 is active.
+        arr->songs[0].scenes[1].globalPhrase = 1;
         arr->syncWorkingFromActive();
         return arr;
     }
@@ -184,19 +185,18 @@ namespace lockstep
         CHECK(!arr->deviated[0], "floored overlay is not resurrected on return");
     }
 
-    // Build 3: committing folds the overlay into the floor and forgets it.
-    static void testCommitFoldsOverlayIntoFloor()
+    // commitSceneState clears deviations and overlay; bake-into-content semantics
+    // are tested in Stage 2 once bakeSceneState() replaces this stub.
+    static void testCommitClearsDeviation()
     {
         auto arr = makeSeededArrangement();
         arr->swapPhraseForTrack(0, 3);            // deviate track 0 in scene 0
-        arr->commitSceneState();                  // Scene + Record
-        CHECK(!arr->deviated[0],                 "commit clears the live deviation");
-        CHECK(arr->scene().phraseIdx[0] == 3,    "commit writes the deviation into the floor");
+        arr->commitSceneState();
+        CHECK(!arr->deviated[0],                 "commit: live deviation cleared");
 
         arr->setActiveScene(1);
         arr->setActiveScene(0);
-        CHECK(!arr->deviated[0],                 "no stale overlay survives a commit");
-        CHECK(arr->activePhraseIdx(0) == 3,      "committed floor phrase persists");
+        CHECK(!arr->deviated[0],                 "commit: no stale overlay on return");
     }
 
     void runArrangementTests()
@@ -209,6 +209,6 @@ namespace lockstep
         testGlobalPhraseGrammar();
         testOverlayRememberedAcrossSceneSwitch();
         testDoubleTapToFloorDiscardsOverlay();
-        testCommitFoldsOverlayIntoFloor();
+        testCommitClearsDeviation();
     }
 }

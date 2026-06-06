@@ -10,18 +10,18 @@ namespace lockstep
 {
     // Regression for the dropped-scene-state bug: the serializer used to gate the
     // Scene write on Scene::initialised, which was never set true, so every
-    // per-scene assignment (phraseIdx) was silently discarded on save. The fix
-    // gates on sceneHasContent() (non-default content) instead.
+    // per-scene assignment was silently discarded on save. The fix gates on
+    // sceneHasContent() (non-default content) instead.
     static void testSceneHasContent()
     {
         // A freshly-constructed scene is default → not worth persisting.
         Scene fresh;
         CHECK(!sceneHasContent(fresh), "fresh scene is default (not persisted)");
 
-        // A per-scene phrase assignment makes it non-default → must persist.
+        // A non-zero globalPhrase makes it non-default — must persist.
         Scene assigned;
-        assigned.phraseIdx[2] = 1;
-        CHECK(sceneHasContent(assigned), "scene with a phraseIdx assignment has content");
+        assigned.globalPhrase = 1;
+        CHECK(sceneHasContent(assigned), "scene with a non-zero globalPhrase has content");
 
         // A muted track (activeMask false) is non-default content.
         Scene masked;

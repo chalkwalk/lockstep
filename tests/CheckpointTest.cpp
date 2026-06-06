@@ -21,8 +21,8 @@ namespace lockstep
             }
         arr->songs[0].tracks[0].phrases[0].length = 16;
         arr->songs[0].tracks[0].phrases[1].length = 8;
-        arr->songs[0].scenes[0].phraseIdx[0] = 0;
-        arr->songs[0].scenes[1].phraseIdx[0] = 1;
+        // scene 0 globalPhrase = 0 (default); scene 1 globalPhrase = 1.
+        arr->songs[0].scenes[1].globalPhrase = 1;
         arr->syncWorkingFromActive();
         arr->seedFloor();   // establish the floor at this known-good state
         return arr;

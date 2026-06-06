@@ -521,7 +521,7 @@ namespace lockstep
                 const int ti  = static_cast<int>(t);
                 const int cur = processor_.isTrackDeviated(ti)
                     ? processor_.deviationPhraseIdxForTrack(ti)
-                    : processor_.section().phraseIdx[t];
+                    : processor_.section().globalPhrase;
                 if (cur == home) continue;
                 const auto r = trackBtns_[t].getBounds();
                 const float s = 7.0f;

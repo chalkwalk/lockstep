@@ -179,7 +179,7 @@ namespace lockstep
         {
             const int cur = proc.isTrackDeviated(t)
                 ? proc.deviationPhraseIdxForTrack(t)
-                : proc.section().phraseIdx[static_cast<std::size_t>(t)];
+                : proc.section().globalPhrase;
             model.trackDeviated[static_cast<std::size_t>(t)] = (cur != homePhrase);
         }
 
@@ -947,7 +947,7 @@ namespace lockstep
                     const int at = activeTrack >= 0 ? activeTrack : 0;
                     activeIdx = proc.isTrackDeviated(at)
                         ? proc.deviationPhraseIdxForTrack(at)
-                        : proc.section().phraseIdx[static_cast<std::size_t>(at)];
+                        : proc.section().globalPhrase;
                 }
                 else // sceneHeld
                 {

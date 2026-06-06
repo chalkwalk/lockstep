@@ -328,16 +328,6 @@ namespace lockstep::PluginState
                 sceneNode.setProperty("ct_d", sec.coreTime.denominator, nullptr);
                 if (sec.globalPhrase != 0)
                     sceneNode.setProperty("gp", sec.globalPhrase, nullptr);
-                // phraseIdx bitfield (default all 0, only write non-zero).
-                int anyNonZero = 0;
-                for (const int idx : sec.phraseIdx) anyNonZero |= idx;
-                if (anyNonZero != 0)
-                {
-                    juce::ValueTree piNode("PhraseIdx");
-                    for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
-                        piNode.setProperty("t" + juce::String(t), sec.phraseIdx[static_cast<std::size_t>(t)], nullptr);
-                    sceneNode.appendChild(piNode, nullptr);
-                }
                 // activeMask (default all true; only write if any false).
                 bool anyMasked = false;
                 for (const bool m : sec.activeMask) if (!m) { anyMasked = true; break; }
@@ -423,12 +413,6 @@ namespace lockstep::PluginState
                     sec.coreTime.denominator = static_cast<int>(child.getProperty("ct_d", 4));
                     sec.globalPhrase         = static_cast<int>(child.getProperty("gp", 0));
                     sec.initialised = true;
-
-                    const auto piNode = child.getChildWithName("PhraseIdx");
-                    if (piNode.isValid())
-                        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
-                            sec.phraseIdx[static_cast<std::size_t>(t)] =
-                                static_cast<int>(piNode.getProperty("t" + juce::String(t), 0));
 
                     if (child.hasProperty("mutesMask"))
                     {

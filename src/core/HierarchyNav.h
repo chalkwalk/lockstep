@@ -24,11 +24,11 @@ namespace lockstep
     [[nodiscard]] inline int resolveActivePhraseIdx(const Scene& scene,
                                                     bool deviated,
                                                     int deviationIdx,
-                                                    int track) noexcept
+                                                    [[maybe_unused]] int track) noexcept
     {
         const int idx = deviated
                           ? deviationIdx
-                          : scene.phraseIdx[static_cast<std::size_t>(track)];
+                          : scene.globalPhrase;
         return std::clamp(idx, 0, kPhrasesPerTrack - 1);
     }
 

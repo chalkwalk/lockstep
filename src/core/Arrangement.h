@@ -166,9 +166,6 @@ namespace lockstep
             if (focusedTrack >= 0 && focusedTrack < static_cast<int>(kNumTracks))
                 deviated[idx(focusedTrack)] = false;   // focused rejoins the unison
             scene().globalPhrase = N;
-            for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
-                if (!deviated[idx(t)])
-                    scene().phraseIdx[idx(t)] = N;      // non-deviated follow global
             syncWorkingFromActive();
         }
 
@@ -187,16 +184,15 @@ namespace lockstep
             syncWorkingFromActive();
         }
 
-        // Scene authoring (Scene + Record, §16): commit the live deviations into
-        // the active Scene's stored assignment, then clear them.
+        // Scene authoring (Scene + Record, §16): bake live deviations into home-row
+        // phrase content, then clear them. Content-destructive; see bakeSceneState()
+        // for the full operation. This stub clears deviations; bake logic lands in
+        // Stage 2 as bakeSceneState() with Yes/No confirmation.
         void commitSceneState()
         {
             writeBackWorkingToActive();
-            for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
-                if (deviated[idx(t)])
-                    scene().phraseIdx[idx(t)] = deviationPhraseIdx[idx(t)];
             deviated.fill(false);
-            clearOverlayForCurrent();        // overlay is now part of the floor
+            clearOverlayForCurrent();
             syncWorkingFromActive();
         }
 

@@ -13,19 +13,19 @@ namespace lockstep
     static void testResolveActivePhraseIdx()
     {
         Scene scene;
-        scene.phraseIdx[0] = 3;
+        scene.globalPhrase = 3;
 
-        // Non-deviated: take the Scene's assignment.
+        // Non-deviated: take the Scene's globalPhrase.
         CHECK(resolveActivePhraseIdx(scene, false, 7, 0) == 3,
-              "phraseIdx: non-deviated uses scene assignment");
+              "globalPhrase: non-deviated uses scene globalPhrase");
         // Deviated: take the deviation index, ignore the scene.
         CHECK(resolveActivePhraseIdx(scene, true, 7, 0) == 7,
-              "phraseIdx: deviated uses deviation index");
+              "globalPhrase: deviated uses deviation index");
         // Out-of-range clamps into [0, kPhrasesPerTrack-1].
         CHECK(resolveActivePhraseIdx(scene, true, 999, 0) == kPhrasesPerTrack - 1,
-              "phraseIdx: over-range deviation clamps high");
+              "globalPhrase: over-range deviation clamps high");
         CHECK(resolveActivePhraseIdx(scene, true, -5, 0) == 0,
-              "phraseIdx: negative deviation clamps low");
+              "globalPhrase: negative deviation clamps low");
     }
 
     static void testProjectionSplit()
@@ -60,7 +60,7 @@ namespace lockstep
         st.phrases[1].length = 8;     // a second phrase to switch to and back
 
         Scene scene;
-        scene.phraseIdx[0] = 0;
+        scene.globalPhrase = 0;
 
         const auto idx = static_cast<std::size_t>(
             resolveActivePhraseIdx(scene, false, -1, 0));

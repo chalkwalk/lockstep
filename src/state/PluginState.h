@@ -21,7 +21,8 @@ namespace lockstep
         //     (clean break); new NewHierarchy node with Song/SongTrack/Kit/Phrase/Section
         // v6: scope-respecting Checkpoints; floor seeded on Song load/switch
         // v7: legacy Bank/Pattern/Part structs deleted; serializer emits new-hierarchy only
-        inline constexpr int kCurrentVersion = 7;
+        // v8: Scene::phraseIdx[] removed; floor routing is globalPhrase only
+        inline constexpr int kCurrentVersion = 8;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);

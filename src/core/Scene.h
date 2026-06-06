@@ -18,12 +18,6 @@ namespace lockstep
         // plays (DESIGN §4.7). Default 0; a made scene seeds this to its index.
         int globalPhrase = 0;
 
-        // Effective FLOOR phrase per track = a committed deviation if one is
-        // pinned, else globalPhrase. (A "committed deviation" is a track whose
-        // phraseIdx differs from globalPhrase.) The live, uncommitted overlay
-        // lives in Arrangement, not here.
-        std::array<int, kNumTracks> phraseIdx{};
-
         // Who plays in this section.  false = silent (replaces patternMutes).
         // Runtime silence: globalMute[t] || !activeMask[t].
         std::array<bool, kNumTracks> activeMask{};
@@ -54,7 +48,6 @@ namespace lockstep
     [[nodiscard]] inline bool sceneHasContent(const Scene& s)
     {
         if (s.globalPhrase != 0)                         return true;
-        for (const int idx : s.phraseIdx)  if (idx != 0) return true;
         for (const bool m  : s.activeMask) if (!m)       return true;
         if (!(s.coreTime == TimeSig{}))                  return true;
         return !s.morphA.empty() || !s.morphB.empty();
