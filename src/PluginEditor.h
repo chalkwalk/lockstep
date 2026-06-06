@@ -99,10 +99,6 @@ namespace lockstep
         int  lastTrigToggleTrack_   = -1;
         bool lastTrigToggleApplied_ = false;  // true iff the key-up actually toggled (paramWrote was false)
 
-        // Yes-held flag: true while VerbNo (P key = "Yes/confirm") is pressed without Func.
-        // Used by Mute+P+step = solo gesture (additive toggle).
-        bool yesHeld_ = false;
-
         // Pending-confirm state: set by VerbDelete (Func+O); resolved by VerbNo (P=Yes) or
         // Func+P (No/cancel). While set, a status-band prompt is shown.
         enum class PendingConfirm : uint8_t { None, Delete };

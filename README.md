@@ -558,16 +558,18 @@ sweeping a filter or tightening every decay across the kit at once.
 
 | Gesture | Action |
 |---|---|
-| `Mute (Z) + step key` | Toggle **global** mute on that track (survives scene/song changes). |
+| `Mute (Z) + step key` | Toggle **global** mute on that track (survives scene/song changes); hold Mute and tap many. |
 | `Scene (W) + Mute (Z) + step key` | Toggle **scene** mute (this track's active-mask in the current scene). |
-| `Func` held + multiple mute toggles | Deferred multi-select — all selected tracks toggle atomically on release ("kill four tracks at once"). |
-
-(`Func + Mute` is legal even though both are column-1 modifiers: `Func`
-is the universal qualifier.)
+| `Func (1) + Mute (Z) + step key` | **Solo** that track (additive toggle). Solo is the secondary/advanced layer of mute; `Func` is the cheapest qualifier (PRINCIPLES §15). |
 
 Mutes are non-destructive: trigs are suppressed at the output, no
-note-offs are forced. There is no separate solo — "solo" is "mute
-everything else," which the multi-select gesture already gives you.
+note-offs are forced.
+
+*Planned (not yet implemented):* a deferred **atomic** multi-mute — flag
+several tracks while a qualifier is held and commit them all on release,
+so a group drops in on the same beat. Its gesture is TBD: it cannot reuse
+`Func + Mute` (now solo). Today, plain `Mute + step` hold-tap-many is the
+immediate, one-track-at-a-time equivalent.
 
 ### 5.12 Fills
 

@@ -1477,8 +1477,9 @@ The verb set is small and uniform:
 - `Func+O` = Delete sets a **pending-confirm** visible in the status band
   ("Delete X?  Y=Yes  P=No"). `Y` = confirm; `P` = cancel.
   No modal popup — PRINCIPLES §5.
-- `Y` sets the `yesHeld` flag (even bare-pressed), enabling
-  the `Mute+Y+step` = solo gesture.
+- Solo is `Func + Mute + step` (rung 4 — solo reads as "the
+  secondary/advanced layer of mute"; PRINCIPLES §15). No verb acts as a
+  held modifier: `Y` is only ever a verb (snapshot / dialog-confirm).
 
 The same grammar drives §13.2 Copy/Paste/Clear, §13.3 Performance
 Mutes, and the Checkpoint stack in §13.6. The verbs never mean

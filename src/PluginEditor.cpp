@@ -1892,10 +1892,9 @@ namespace lockstep
                     return true;
                 }
 
-                // No pending confirm. P (no func) = Yes/confirm: set yesHeld_ for Mute+P+step solo.
+                // No pending confirm. Bare Yes (no Func) = snapshot/confirm verb.
                 if (!funcHeld)
                 {
-                    yesHeld_ = true;
                     keyboardArea_.repaint();
                     editMode_.onVerb(ev.button);
                     return true;
@@ -1962,18 +1961,19 @@ namespace lockstep
                 return true;
             }
 
-            // MD.6/MD.7: Mute toggle.
-            // Mute+Yes+step → additive solo toggle.
-            // Mute+step (no Func) → immediate global mute toggle.
-            // Func+Mute+step → deferred pattern mute (applied atomically on Func release).
+            // MD.6/MD.7: Mute toggle (PRINCIPLES §15 rungs; DESIGN §13.0).
+            // Func+Mute+step → additive solo toggle (rung 4 — solo is the
+            //   secondary/advanced layer of mute).
+            // Scene+Mute+step → per-scene mute (active-mask, rung 5).
+            // Mute+step → immediate global mute toggle (rung 3, hold-tap-many).
             case ControllerButton::ToggleMute:
             {
                 const int trackIdx = ev.index;
                 if (trackIdx < 0 || trackIdx >= static_cast<int>(kNumTracks))
                     return true;
-                if (yesHeld_)
+                if (uiState_.funcHeld)
                 {
-                    // Mute+Yes+step = solo (additive toggle).
+                    // Func+Mute+step = solo (additive toggle).
                     processor_.toggleSolo(trackIdx);
                 }
                 else if (uiState_.sceneHeld)
@@ -1985,8 +1985,8 @@ namespace lockstep
                 }
                 else
                 {
-                    // Immediate global mute (MD.6). (Func is now a no-op qualifier
-                    // on Mute; scene mute is the Scene+Mute compound above.)
+                    // Immediate global mute (MD.6). Func+Mute = solo and
+                    // Scene+Mute = scene mute are the compounds above.
                     processor_.toggleGlobalMute(trackIdx);
                 }
                 repaint();
@@ -2364,7 +2364,6 @@ namespace lockstep
                         processor_.restoreOne(scp, ckTrk);
                     repaint();
                 }
-                yesHeld_ = false;  // P = Yes/confirm; clear the hold on key-up.
                 break;
             }
 
