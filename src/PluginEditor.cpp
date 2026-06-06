@@ -1713,6 +1713,15 @@ namespace lockstep
                     keyboardArea_.repaint();
                     return true;
                 }
+                // DESIGN §34.4: at the last in-length page, a single NavRight is a
+                // no-op (clamped); a double-tap unlocks one empty page past the
+                // end so a longer length can be set out there.
+                if (keyboardArea_.currentPage() >= keyboardArea_.numPages() - 1)
+                {
+                    const double now = juce::Time::getMillisecondCounterHiRes();
+                    if (doubleTap_.recordAndCheck(4000, now))
+                        keyboardArea_.unlockScrollPastEnd();
+                }
                 keyboardArea_.nextPage();
                 return true;
             }

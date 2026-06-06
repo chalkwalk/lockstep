@@ -32,6 +32,12 @@ namespace lockstep
         int  currentPage()    const { return stepPage_; }
         void nextPage();
         void prevPage();
+        // Scroll-past-end (DESIGN §34.4): a double-tap NavRight unlocks one empty
+        // page beyond the track length so a longer length can be set out there.
+        // Auto-relocks once the visible page is back within the length.
+        void unlockScrollPastEnd();
+        bool isScrollPastEndUnlocked() const { return scrollPastEndUnlocked_; }
+        int  numPages() const;
 
         // Display mode
         void setDisplayMode(GridDisplayMode mode);
@@ -85,7 +91,6 @@ namespace lockstep
 
         // Step cell helpers (from StepGrid)
         int  trackLength()  const;
-        int  numPages()     const;
         void clampPage();
         void rebuildLengthAttachment();
         int  stepCellAt(juce::Point<int> pos) const;
@@ -141,6 +146,7 @@ namespace lockstep
 
         int             activeTrack_    = 0;
         int             stepPage_       = 0;
+        bool            scrollPastEndUnlocked_ = false;
         GridDisplayMode displayMode_    = GridDisplayMode::Ortholinear;
         int             mouseHeldStep_  = -1;
         ControllerEvent mouseHeldButton_{};  // non-step button held via mouse

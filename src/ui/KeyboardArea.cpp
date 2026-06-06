@@ -173,9 +173,24 @@ namespace lockstep
         return (trackLength() + kPageSteps - 1) / kPageSteps;
     }
 
+    void KeyboardArea::unlockScrollPastEnd()
+    {
+        // Set the flag without clamping: the caller advances onto the empty page
+        // immediately afterwards (via nextPage()). Clamping here would relock at
+        // once, since stepPage_ is still the last in-length page.
+        scrollPastEndUnlocked_ = true;
+    }
+
     void KeyboardArea::clampPage()
     {
-        stepPage_ = juce::jlimit(0, juce::jmax(0, numPages() - 1), stepPage_);
+        const int lastInRange = juce::jmax(0, numPages() - 1);
+        // While unlocked, one empty page past the last in-length page is reachable.
+        const int hardMax = scrollPastEndUnlocked_ ? numPages() : lastInRange;
+        stepPage_ = juce::jlimit(0, hardMax, stepPage_);
+        // Relock once the visible page is back within the length (navigated back,
+        // or a longer length grew the in-range span to include this page).
+        if (stepPage_ <= lastInRange)
+            scrollPastEndUnlocked_ = false;
         repaint();
     }
 
@@ -1628,8 +1643,9 @@ namespace lockstep
             }
         }
 
-        // Nav row: page info text
-        const int pages = numPages();
+        // Nav row: page info text. When scrolled onto the empty page past the
+        // track length (DESIGN §34.4), reveal it in the count (e.g. "3 / 3").
+        const int pages = juce::jmax(numPages(), stepPage_ + 1);
         g.setColour(juce::Colour::fromRGB(100, 120, 140));
         g.setFont(juce::Font(juce::FontOptions(10.0f)));
         const auto infoRect = navArea.withTrimmedLeft(96).withTrimmedRight(120);
