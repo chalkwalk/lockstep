@@ -708,10 +708,11 @@ the Machine Module ABI (6.7), so they ship as loadable modules.
       GND/FM/drum engines subsumed (Thru / FMMachine / DrumSynth). Authored
       against the 6.7 SDK + post-3.11 contract.
 
-### 4.8 — DrumSynth voice expansion  *[planned]*  *(was MH.9)*
-- [ ] Extend the DrumSynth `type` enum: CLAP, CYMBAL/METAL, COWBELL, RIMSHOT.
+### 4.8 — DrumSynth voice expansion  *[shipped]*  *(was MH.9)*
+- [x] Extended the DrumSynth `type` enum to eight voices: KICK, SNARE, HAT, TOM,
+      CLAP, COWBELL, CYMBAL, RIMSHOT — each with dedicated DSP.
       Boundary rule: 808/909 analog/FM-metal lives in DrumSynth; modal/waveguide
-      struck-metal stays in PercussionMachine. Ship as `type` values.
+      struck-metal stays in PercussionMachine. Shipped as `type` values.
 
 ---
 
