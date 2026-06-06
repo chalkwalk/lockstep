@@ -10,10 +10,13 @@ satisfy, see `PRINCIPLES.md`. **Before adding a milestone here, confirm it is
 expressible within those principles and within the existing scope+verb grammar
 (DESIGN §13).**
 
-**Active focus:** `7.9f` — vocabulary rename (`Set/Song/Scene/Phrase` + Morph): docs landed, code pending.
-**Last completed:** `7.9e` — scope-respecting Checkpoints + legacy Bank/Pattern/Part deleted (state v7).
-**Next up:** `7.1–7.8` (full musical hierarchy re-architecture, absorbs `3.11`),
-then `6.7` — the Machine Module ABI.
+**Active focus:** Phase 7 closeout — phrase-length authoring (DESIGN §34.4) +
+the pending `7.5`/`7.8`/`3.10` verification items.
+**Last completed:** `7.13` — Scene commit-and-bake + placeable payloads + Scene
+clipboard + omni copy (state v8). Vocabulary rename (`Set/Song/Scene/Phrase` +
+Morph) landed in `7.9a–e`.
+**Next up:** `6.7` — the Machine Module ABI (gates the rest of the Phase 4
+catalogue).
 
 Phases 1–3 took Lockstep from an empty plugin to a frozen, playable performance
 surface; Phase 4 fills the machine catalogue; Phases 5–6 are the depth and
