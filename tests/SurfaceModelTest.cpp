@@ -6,6 +6,7 @@
 #include "TestHarness.h"
 #include "../src/ui/KeyLabel.h"
 #include "../src/ui/SurfaceModel.h"
+#include "../src/ui/PageNav.h"
 
 namespace lockstep
 {
@@ -175,11 +176,89 @@ namespace lockstep
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Test: lengthEditCellState() — the §34.4 length-edit re-skin classifier.
+    // Boundary rule: in-run for abs+1 < len, boundary at abs+1 == len, out
+    // beyond. Shared by buildSurfaceModel() (focused Phrase+Func and broadcast
+    // Morph+Func paths use the same mapping) so the visual cannot diverge.
+    // -------------------------------------------------------------------------
+    static void testLengthEditCellState()
+    {
+        // length 4: steps 0..2 in-run, step 3 boundary, step 4+ out.
+        CHECK(lengthEditCellState(0, 4) == CellState::LengthInRun,
+              "abs 0 / len 4: in-run");
+        CHECK(lengthEditCellState(2, 4) == CellState::LengthInRun,
+              "abs 2 / len 4: in-run");
+        CHECK(lengthEditCellState(3, 4) == CellState::LengthBoundary,
+              "abs 3 / len 4: boundary (last step)");
+        CHECK(lengthEditCellState(4, 4) == CellState::LengthOutRun,
+              "abs 4 / len 4: out-of-run");
+
+        // length 1: only step 0 exists and it is the boundary.
+        CHECK(lengthEditCellState(0, 1) == CellState::LengthBoundary,
+              "abs 0 / len 1: boundary");
+        CHECK(lengthEditCellState(1, 1) == CellState::LengthOutRun,
+              "abs 1 / len 1: out-of-run");
+
+        // A page-2 step (abs 16) against a single-page length is out-of-run.
+        CHECK(lengthEditCellState(16, 16) == CellState::LengthOutRun,
+              "abs 16 / len 16: out-of-run (empty page)");
+        CHECK(lengthEditCellState(15, 16) == CellState::LengthBoundary,
+              "abs 15 / len 16: boundary (full first page)");
+    }
+
+    // -------------------------------------------------------------------------
+    // Test: clampStepPage() — the §34.4 double-tap scroll-past-end clamp.
+    // In-range pages are [0, numPages-1]; one empty page (numPages) is reachable
+    // only while unlocked, and the unlock auto-clears once back in range.
+    // -------------------------------------------------------------------------
+    static void testScrollPastEndClamp()
+    {
+        // Locked: cannot step past the last in-range page (numPages 2 → max 1).
+        {
+            const auto r = clampStepPage(/*desiredPage=*/2, /*numPages=*/2, /*unlocked=*/false);
+            CHECK(r.page == 1,    "locked: clamps to last in-range page");
+            CHECK(!r.unlocked,    "locked: stays locked");
+        }
+        // Unlocked: the empty page (index numPages) becomes reachable.
+        {
+            const auto r = clampStepPage(/*desiredPage=*/2, /*numPages=*/2, /*unlocked=*/true);
+            CHECK(r.page == 2,    "unlocked: reaches the empty page");
+            CHECK(r.unlocked,     "unlocked: stays unlocked while on the empty page");
+        }
+        // Unlocked but navigated back into range → auto-relock.
+        {
+            const auto r = clampStepPage(/*desiredPage=*/1, /*numPages=*/2, /*unlocked=*/true);
+            CHECK(r.page == 1,    "unlocked+back: lands on last in-range page");
+            CHECK(!r.unlocked,    "unlocked+back: auto-relocks once in range");
+        }
+        // Unlocked, but a longer length grew numPages so the former empty page is
+        // now in range → auto-relock (page unchanged, still valid).
+        {
+            const auto r = clampStepPage(/*desiredPage=*/2, /*numPages=*/3, /*unlocked=*/true);
+            CHECK(r.page == 2,    "length grew: page now in range");
+            CHECK(!r.unlocked,    "length grew: auto-relocks");
+        }
+        // Cannot reach two empty pages: unlocked grants exactly one.
+        {
+            const auto r = clampStepPage(/*desiredPage=*/3, /*numPages=*/2, /*unlocked=*/true);
+            CHECK(r.page == 2,    "unlocked grants exactly one empty page");
+            CHECK(r.unlocked,     "still on the (single) empty page");
+        }
+        // Negative desired clamps to 0.
+        {
+            const auto r = clampStepPage(/*desiredPage=*/-1, /*numPages=*/4, /*unlocked=*/false);
+            CHECK(r.page == 0,    "negative desired clamps to first page");
+        }
+    }
+
     void runSurfaceModelTests()
     {
         testPanicKeyLabel();
         testNavKeyFuncPromotion();
         testSectionKeyLabel();
+        testLengthEditCellState();
+        testScrollPastEndClamp();
     }
 
 } // namespace lockstep

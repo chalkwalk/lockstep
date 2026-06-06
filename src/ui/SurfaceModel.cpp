@@ -908,21 +908,11 @@ namespace lockstep
                     const int absIdx = stepPage * 16 + i;
                     (void)broadcastMode;  // both modes use focused track for ref currently
 
-                    if (absIdx + 1 < phraseLen)
-                    {
-                        c.base      = CellState::LengthInRun;
-                        c.baseColour = tint.withAlpha(0.35f).getARGB();
-                    }
-                    else if (absIdx + 1 == phraseLen)
-                    {
-                        c.base      = CellState::LengthBoundary;
-                        c.baseColour = tint.withAlpha(0.85f).getARGB();
-                    }
-                    else
-                    {
-                        c.base      = CellState::LengthOutRun;
-                        c.baseColour = tint.withAlpha(0.04f).getARGB();
-                    }
+                    c.base = lengthEditCellState(absIdx, phraseLen);
+                    const float alpha = (c.base == CellState::LengthInRun)    ? 0.35f
+                                      : (c.base == CellState::LengthBoundary) ? 0.85f
+                                                                              : 0.04f;
+                    c.baseColour = tint.withAlpha(alpha).getARGB();
                     if (c.pressed) c.baseColour = 0xFFFFFFFFu;
                 }
             }

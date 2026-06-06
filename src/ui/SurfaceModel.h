@@ -67,7 +67,7 @@ namespace lockstep
         LevelsCell       = 80,
 
         // Phrase-length authoring re-skin (Phase 7 / DESIGN §34.4).
-        // Applied while Pattern+Func or Scene+Func is held (momentary).
+        // Applied while Phrase+Func (focused) or Morph+Func (broadcast) is held.
         LengthInRun    = 90,   // step falls within the active phrase length
         LengthBoundary = 91,   // the exact last step (length boundary marker)
         LengthOutRun   = 92,   // step falls outside the active phrase length
@@ -76,6 +76,17 @@ namespace lockstep
         SelectorDeviated = 95, // phrase currently playing due to a live deviation
         SelectorHome     = 96, // the scene's global/home phrase (dual-marker border)
     };
+
+    // Pure mapping for the §34.4 length-edit re-skin: classify an absolute step
+    // index against the track length. Shared by buildSurfaceModel() and tests so
+    // the boundary rule cannot diverge.
+    inline CellState lengthEditCellState(int absStepIdx, int trackLength)
+    {
+        const int oneBased = absStepIdx + 1;
+        if (oneBased <  trackLength) return CellState::LengthInRun;
+        if (oneBased == trackLength) return CellState::LengthBoundary;
+        return CellState::LengthOutRun;
+    }
 
     // =========================================================================
     // CellDecoration — named overlay channel (§35.8.3)

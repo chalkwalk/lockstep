@@ -1,6 +1,7 @@
 #include "KeyboardArea.h"
 #include "KeyButton.h"
 #include "KeyLabel.h"
+#include "PageNav.h"
 #include "ScopedSectionMatrix.h"
 #include "UITheme.h"
 #include "../PluginProcessor.h"
@@ -183,14 +184,9 @@ namespace lockstep
 
     void KeyboardArea::clampPage()
     {
-        const int lastInRange = juce::jmax(0, numPages() - 1);
-        // While unlocked, one empty page past the last in-length page is reachable.
-        const int hardMax = scrollPastEndUnlocked_ ? numPages() : lastInRange;
-        stepPage_ = juce::jlimit(0, hardMax, stepPage_);
-        // Relock once the visible page is back within the length (navigated back,
-        // or a longer length grew the in-range span to include this page).
-        if (stepPage_ <= lastInRange)
-            scrollPastEndUnlocked_ = false;
+        const auto r = clampStepPage(stepPage_, numPages(), scrollPastEndUnlocked_);
+        stepPage_ = r.page;
+        scrollPastEndUnlocked_ = r.unlocked;
         repaint();
     }
 
