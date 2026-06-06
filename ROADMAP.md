@@ -10,9 +10,8 @@ satisfy, see `PRINCIPLES.md`. **Before adding a milestone here, confirm it is
 expressible within those principles and within the existing scope+verb grammar
 (DESIGN §13).**
 
-**Active focus:** `7.8` — Stage H: verification sweep (Stages 0–G shipped);
-`7.9` — vocabulary rename (`Set/Song/Scene/Phrase` + Morph): docs landed, code pending.
-**Last completed:** `3.10` — Latch (virtual-hold) + Track+Nav mode cycle.
+**Active focus:** `7.9f` — vocabulary rename (`Set/Song/Scene/Phrase` + Morph): docs landed, code pending.
+**Last completed:** `7.9e` — scope-respecting Checkpoints + legacy Bank/Pattern/Part deleted (state v7).
 **Next up:** `7.1–7.8` (full musical hierarchy re-architecture, absorbs `3.11`),
 then `6.7` — the Machine Module ABI.
 
@@ -539,10 +538,10 @@ build-verified sub-stages 7.9a–d.
       lifts copy/paste/clear; bare `Scene+Play`=launch-now, `Scene+Stop`=revert,
       §16), §23 management UI (re-derived Song/Scene/Phrase/Kit; SHR:N moves to
       Phrases; Fork-Part → Phrase-fork), §33.2 slate (settled to historical record).
-- [ ] **7.9e** Checkpoint scope-respecting stacks (DESIGN §13.6: default Song;
-      Track/Scene/Phrase; floor = saved state; reload-on-release). **Gated on the
-      legacy-state consolidation below** — a faithful Song/Track/Phrase snapshot
-      needs the live sound-state to be Song/Kit-owned, not legacy `Part`.
+- [x] **7.9e** Checkpoint scope-respecting stacks (DESIGN §13.6: default Song;
+      Track/Scene/Phrase; floor = saved state; reload-on-release). `Func+Yes`
+      snapshots the held scope; `Func+No` tap=pop/hold=floor. CK:N badge shows
+      scoped depth. Legacy Bank/Pattern/Part deleted; serializer v7.
 
 #### 7.9e-pre — Legacy `Pattern/Part/Bank` consolidation *(the unfinished Stage B/D removal)*
 The processor still runs sound-state on the legacy `project_.banks[].patterns/
@@ -563,16 +562,13 @@ this is retired. Plan: test net → SoT fix → go direct → 7.9e.
       + the switch gestures delegate to it; dropped `Project::pieces` (~50MB) and the
       `activeSongIdx_/...` members. Write-back wired at save / load / ctor-seed.
       Legacy `Part` kept for FLTR/AMP + machineId sound state (still serialized).
-- [~] **Move sound-state into Kit** (stage 3a — must precede dropping legacy
-      serialization): **FLTR/AMP done** (edits + display + serialization retargeted
-      `activePart`→`kit` in the manual-test bug-fix round, §7.11). Remaining:
-      machineId + MIDI-out config still dual-maintained; the machine picker still
-      uses `setActivePatternPart`.
-- [ ] **Drop legacy + go direct** (stage 3b): delete `Bank/Pattern/Part` structs +
-      legacy serializer nodes + dead nav (`activePattern/activePart/setActivePattern/
-      forkActivePart/materialise*`); resolver feed comes purely from `arrangement_`;
-      bump state version `6→7`; (round-trip is then only-new by construction).
-- [ ] Then build **7.9e** (DESIGN §13.6) on the consolidated model.
+- [x] **Move sound-state into Kit** (stage 3a): machineId + MIDI-out + base params
+      all single-sourced to `Kit`; `copyKitTrack` replaces `copyPartTrack`; dead
+      legacy nav (`setActivePatternPart`, `forkActivePart`, `materialise*`) removed.
+- [x] **Drop legacy + go direct** (stage 3b): `Bank/Pattern/Part` structs + source
+      files deleted; serializer v7 (new-hierarchy only); `project_.banks` removed;
+      `removeSample`/`swapSamples` remapped to Arrangement songs + working buffer.
+- [x] **7.9e** Checkpoint scope-respecting stacks built on the consolidated model.
 
 > Note: a full save→load round-trip test needs `LockstepProcessor` under test
 > (its `createEditor` pulls the UI in), so it is out of the headless net for now;

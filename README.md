@@ -194,7 +194,7 @@ other naturally with no master-bar concept.
 | **Mute** | Suppresses a track's trigs non-destructively. `Mute+step` = global mute (survives scene/song changes); `Scene+Mute+step` = per-scene mute (the scene's active-mask). |
 | **Fill** | A momentary modifier: while held, fill-conditioned steps fire. Used for live variation. |
 | **Trig condition** | A per-step (or per-track) firing rule: probability, iteration (m:n), previous-step dependency, and fill rule. |
-| **Checkpoint** | A RAM-only snapshot for live undo. `Func+Yes` pushes before a risky idea; `Func+No` pops to revert. Up to 8 deep, not saved to disk. *(Scope-respecting Checkpoint per scope — DESIGN §13.6 — is planned, not yet shipped.)* |
+| **Checkpoint** | A RAM-only snapshot for live undo. `Func+Yes` pushes before a risky idea; `Func+No` tap=pop/hold=floor. **Scope-respecting:** the snapshot captures whichever scope is held (none=Song, Track, Scene, Phrase). Up to 8 deep per scope; floor = saved state. |
 | **Launch model** | Performance is launch-based, not arrangement-based: queue a **Scene** (`Scene+step`) to fire at the next core-time boundary, or switch **Songs** (`Song+step`). There is no written timeline or pattern chain. |
 | **Sample pool** | The project-wide library of samples, stored as `{path, hash}` references rather than embedded audio. |
 | **Sound Pool** *(partial — data model + overlay shipped; trig-grid recall mode planned, 5.7)* | A project-scope library of saved per-track sounds, recallable or P-lockable per step. |
@@ -606,12 +606,17 @@ Scenes and switch Songs live.
 
 | Gesture | Action |
 |---|---|
-| `Func + Yes` (`Func + Y`) | Push the current pattern + kit onto the checkpoint stack. |
-| `Func + No` (`Func + P`) | Pop and restore the last checkpoint. |
+| `Func + Yes` (`Func + Y`) | Push the **currently-held scope** onto its checkpoint stack. |
+| `Func + No` (tap, `Func + P`) | Pop one entry from the scoped stack (restore last snapshot). |
+| `Func + No` (hold+release) | Jump straight to the floor (= the saved state at last load). |
 
-Up to 8 deep, oldest evicted on overflow. **RAM-only** — checkpoints are
-a scratch-take tool and do *not* persist across save/reload. The chrome
-shows the stack depth (`CK:N`).
+**Scope-respecting:** the snapshot captures whichever modifier is held — none = Song,
+`Track` = that track's Kit + current Phrase, `Scene` = that Scene's floor,
+`Phrase` = that Phrase's steps + P-Locks. Each scope has its own LIFO up to 8 deep;
+the floor (= on-disk saved state) is always present and can never be popped.
+
+**RAM-only** — scratch pushes do *not* survive save/reload; the floor is re-seeded
+from disk so "reload saved" always works. The `CK:N` badge shows the scoped depth.
 
 ### 5.16 MIDI input
 
