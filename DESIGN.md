@@ -1512,28 +1512,36 @@ Every live gesture, grouped by its PRINCIPLES §15 rung. The rung is the
 held-scope count plus one operand; repeated same-class targets (multi-step
 holds, hold-tap-many mutes) do not add cost. This table is the audit made
 durable — a new gesture must slot into a rung here, and a *common* action
-must not sit deeper than a *rare* one.
+must not sit deeper than a *rare* one. The user-facing, by-scope
+(press-order) view of this same gesture set is README §7; keep both in
+sync when a gesture is added or changed.
 
-**Rung 1 — `key` (1 key).** Step tap = toggle trig; verb tap (`Y`
-snapshot / `U` record-arm / `I` play-pause, double-tap = stop-to-top /
-`O` clear active P-Lock / `P` no-cancel); navigation; tap-tempo.
+**Rung 1 — `key` (1 key).** Step tap = toggle trig; verb tap (`Y` (SNAP)
+push checkpoint / `U` record-arm / `I` play-pause, double-tap = stop-to-
+top / `O` clear active P-Lock / `P` (YES) confirm a pending prompt);
+navigation; tap-tempo.
 
-**Rung 2 — `Func + key` (2 keys, Func cheapest).** `Func+Y` push
-checkpoint; `Func+P` pop (tap) / floor (hold+release); `Func+U` omni
-copy; `Func+I` unqualified paste; `Func+O` delete (+confirm);
-`Func+section` secondary section layer; `Func+Song` global/project
-params. **Panic** (kill voices): `Song + Clear (O)` — rung 3.
+**Rung 2 — `Func + key` (2 keys, Func cheapest).** `Func+Y` (RESTORE)
+checkpoint pop (tap) / floor (hold+release); `Func+P` cancel a pending
+prompt; `Func+U` omni copy; `Func+I` unqualified paste; `Func+O` delete
+(+confirm); `Func+step` P-Lock clear mode; `Func+section` secondary
+section layer; `Func+Song` global/project params. (Checkpoint **push** is
+the bare `Y` — rung 1.) **Panic** (kill voices): `Song + Clear (O)` —
+rung 3.
 
 **Rung 3 — `mod + key` (2 keys).** `Mute+step` global mute (hold-tap-
 many); `Scene+step` launch (carry overlay; double-tap = floor);
-`Song+step` queue song; `Phrase+step` unison/set-global; `Fill+step`
-mark fill; `section+verb` copy/paste/clear a section; `Trig+verb` step
-copy/paste/clear; `Track+Nav` cycle input mode (PLAY/CHROM/LEVELS);
-`Morph+^`/`Morph+v` pick endpoint A/B.
+`Scene+verb` bake (Rec) / revert (Clear) / re-sync-all (Snap);
+`Song+step` queue song; `Song+Clear` Panic; `Phrase+step`
+unison/set-global; `Fill+step` mark fill; `section+verb` copy/paste/clear
+a section; `Trig+verb` step copy/paste/clear; `Track+Nav` cycle input
+mode (PLAY/CHROM/LEVELS); `Morph+^`/`Morph+v` pick endpoint A/B (5.2,
+planned).
 
 **Rung 4 — `Func + mod + key` (3 keys).** `Func+Track+step` machine/Kit
 picker assign; `Func+Scene+step` baseline launch (floor, discard
-overlay); `Func+Section+step` note-edit entry; `Trig+Func+Stop` clear
+overlay); `Func+Scene+Rec`/`Func+Scene+Play` Scene copy / paste;
+`Func+Section+step` note-edit entry; `Trig+Func+Stop` clear
 all P-Locks on the held step(s); **`Func+Mute+step` solo** (the
 secondary layer of mute).
 
@@ -1543,8 +1551,10 @@ deviation; `Track+section+verb` track-scoped section copy/paste/clear;
 `Track+track-key+Nav` set input mode on a specific track; `Morph+^+v`
 assign both endpoints at once.
 
-**Rung 6 — `Func + mod + mod + key` (4 keys, the ceiling).** *(None in
-use. Reserved; admit a gesture here only via the §13 Exceptions table.)*
+**Rung 6 — `Func + mod + mod + key` (4 keys, the ceiling).**
+`Mute+Func+Scene+Play` floor-only Scene paste (strip the content overlay;
+apply floor metadata only). Reserved otherwise; admit a new gesture here
+only via the §13 Exceptions table.
 
 **Forbidden — 5+ keys.** No gesture may require a fifth simultaneous
 scope key (e.g. `Func + mod + mod + section + step`).
