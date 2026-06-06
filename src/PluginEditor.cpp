@@ -1803,7 +1803,8 @@ namespace lockstep
                 using PS = EditMode::PrimaryScope;
                 // Scene + Record: bake live deviations into home-row phrase content.
                 // Destructive — requires Yes/No confirmation.
-                if (uiState_.sceneHeld)
+                // Func+Scene+Record is "copy scene" — falls through to dispatchVerb.
+                if (uiState_.sceneHeld && !editMode_.scopeState().func)
                 {
                     const int nd = processor_.countDeviatedTracks();
                     if (nd == 0)
@@ -2711,7 +2712,8 @@ namespace lockstep
                 }
                 else if (verb == CB::VerbPlay)
                 {
-                    if (clipboard_.type != ClipboardType::Step) break;
+                    if (clipboard_.type != ClipboardType::Step
+                        && clipboard_.type != ClipboardType::All) break;
                     const int anchor  = ctx.heldStepIndex();
                     const int trkLen  = trk.length;
                     for (const auto& entry : clipboard_.stepEntries)
@@ -2809,7 +2811,8 @@ namespace lockstep
                 }
                 else if (verb == CB::VerbPlay)
                 {
-                    if (clipboard_.type != ClipboardType::Section) break;
+                    if (clipboard_.type != ClipboardType::Section
+                        && clipboard_.type != ClipboardType::All) break;
                     for (const auto& entry : clipboard_.sectionSlots)
                     {
                         const int steps = std::min(static_cast<int>(entry.perStep.size()), trkLen);
@@ -2854,7 +2857,8 @@ namespace lockstep
                 }
                 else if (verb == CB::VerbPlay)
                 {
-                    if (clipboard_.type != ClipboardType::Track) break;
+                    if (clipboard_.type != ClipboardType::Track
+                        && clipboard_.type != ClipboardType::All) break;
                     trk = clipboard_.clipTrack;
                     setStatus("Pasted → " + trkName);
                 }
@@ -2887,7 +2891,8 @@ namespace lockstep
                 }
                 else if (verb == CB::VerbPlay)
                 {
-                    if (clipboard_.type != ClipboardType::Pattern) break;
+                    if (clipboard_.type != ClipboardType::Pattern
+                        && clipboard_.type != ClipboardType::All) break;
                     processor_.sequence() = clipboard_.clipSequence;
                     setStatus("Pasted Phrase");
                 }
@@ -2917,11 +2922,64 @@ namespace lockstep
             }
 
             // -----------------------------------------------------------------------
-            // Part delete (via confirm path; copy/paste/clear TBD once kit verbs are wired)
+            // Scene copy / paste — DESIGN §23.3
+            // Gate on Func because bare Scene+Record = bake (handled in dispatchDown).
+            // VerbDelete goes through the pending-confirm path in dispatchDown.
             // -----------------------------------------------------------------------
             case PS::Scene:
-                // VerbDelete goes through the pending-confirm path in dispatchDown, not here.
+            {
+                const bool funcHeld = editMode_.scopeState().func;
+                const bool muteHeld = editMode_.scopeState().mute;
+                if (!funcHeld) break;
+
+                if (verb == CB::VerbRecord)
+                {
+                    captureScene();
+                    setStatus("Copied Scene");
+                }
+                else if (verb == CB::VerbPlay)
+                {
+                    if (clipboard_.type != ClipboardType::Scene
+                        && clipboard_.type != ClipboardType::All) break;
+
+                    const int destG = processor_.section().globalPhrase;
+                    if (muteHeld)
+                    {
+                        // Mute+Func+Scene+Play: floor-only paste (no phrase content).
+                        auto& dst = processor_.section();
+                        dst.activeMask = clipboard_.scene.floor.activeMask;
+                        dst.coreTime   = clipboard_.scene.floor.coreTime;
+                        dst.morphA     = clipboard_.scene.floor.morphA;
+                        dst.morphB     = clipboard_.scene.floor.morphB;
+                        dst.initialised = true;
+                        setStatus("Pasted Scene floor");
+                    }
+                    else
+                    {
+                        // Func+Scene+Play: baked paste — phrase content + floor.
+                        // Snapshot first (snapshot calls writeBackWorkingToActive
+                        // so the working buffer is safe; then we overwrite the model).
+                        processor_.snapshot(CheckpointScope::Song, 0);
+                        auto& dst = processor_.section();
+                        dst.activeMask  = clipboard_.scene.floor.activeMask;
+                        dst.coreTime    = clipboard_.scene.floor.coreTime;
+                        dst.morphA      = clipboard_.scene.floor.morphA;
+                        dst.morphB      = clipboard_.scene.floor.morphB;
+                        dst.initialised = true;
+                        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+                        {
+                            auto& ph =
+                                processor_.song().tracks[static_cast<std::size_t>(t)]
+                                    .phrases[static_cast<std::size_t>(destG)];
+                            ph = clipboard_.scene.phrases[static_cast<std::size_t>(t)];
+                            ph.initialised = true;
+                        }
+                        processor_.refreshWorkingFromModel();
+                        setStatus("Pasted Scene");
+                    }
+                }
                 break;
+            }
 
             case PS::Func:
             case PS::Mute:

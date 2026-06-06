@@ -112,6 +112,7 @@ namespace lockstep
         void setGlobalPhrase(int focusedTrack, int phrase);
         void resyncTrackToScene(int t);    // Track + Part
         void resyncAllToScene();           // Part + Yes
+        void refreshWorkingFromModel();    // re-project model → working (no write-back)
         void bakeSceneState();             // Scene + Record (Yes/No confirmed)
         void createBakedCopyScene(int target);   // DESIGN §23.3 placeable payloads
         void createDefaultScene(int target);

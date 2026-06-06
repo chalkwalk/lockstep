@@ -2592,6 +2592,11 @@ namespace lockstep
         arrangement_.resyncAllToScene();
     }
 
+    void LockstepProcessor::refreshWorkingFromModel()
+    {
+        arrangement_.syncWorkingFromActive();
+    }
+
     bool LockstepProcessor::isTrackDeviated(int t) const
     {
         if (t < 0 || t >= static_cast<int>(kNumTracks)) return false;
