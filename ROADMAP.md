@@ -626,37 +626,33 @@ See DESIGN §6.6, §13.
 - [x] Stage 5: fold stray hardcoded colour literals into UITheme constants.
 - [x] Stage 6: DESIGN §6.6 + §13 verb table updated; ROADMAP marked.
 
-### 7.13 — Scene commit-and-bake (deviation → content)  *[planned]*
+### 7.13 — Scene commit-and-bake (deviation → content)  *[partial]*
 Resolves the model-2-vs-3 tension from the §4.7 design conversation **without
-growing the floor**: storage stays a single `globalPattern` index, and a
+growing the floor**: storage stays a single `globalPhrase` index, and a
 hand-curated heterogeneous arrangement is persisted by **baking** the live
 per-track deviations into home-row phrase *content*. `Scene + Record` becomes
 **commit-and-bake**, guarded by the standard Yes/No confirmation (destructive:
 overwrites phrase slots, severs phrase sharing). Enables the scratch-pad
 workflow — audition ideas into the high phrase slots via deviation, then bake
 the keepers. See DESIGN §4.7 / §16 / §13.2.
-- [ ] `Scene + Record` dispatch → pending-confirm (reuse the §13 Yes/No
-      confirm state from 7.12); `Yes` bakes, `No` cancels.
-- [ ] Bake op in `Arrangement`: for each deviated track, copy effective phrase
-      → `globalPattern` slot, clear the deviation; fold live global/mask into
-      the floor (extends `commitSceneState`). `ArrangementTest` pins bake +
-      cancel + the no-deviation no-op case.
-- [ ] Confirm chrome: name the destructive op + affected-track count in the
-      hint band; respect phrase-sharing — warn when a bake overwrites a shared
-      slot (SHR:N, §23.2).
-- [ ] **Placeable payloads** (§23.3) so a deviated experiment isn't trapped in
-      the RAM-only overlay. Create-an-empty-Scene (only `Func` is a safe
-      qualifier — `Mute+Scene+step` is scene-mute, step=track): bare
-      `Scene+step` = baked copy · `Func+Scene+step` = default/empty (the
-      "baseline" reading). Undeviated (floor) duplication is a *clipboard* op,
-      not a create chord — seeds new and existing slots alike.
-      Make-new-Scene-bakes-current rides the same bake op.
-- [ ] Clipboard copy is source-`step`-selectable (copy any Scene, no-move),
-      distinct from create-and-move; verb separates clipboard chords from
-      verbless scene-mute. Baked-vs-floor chosen at **paste**:
+
+Core shipped (Stages 1–3):
+- [x] `Scene::phraseIdx[]` removed; floor routing is `globalPhrase` only
+      (serializer bumped to v8 — clean break).
+- [x] `Scene + Record` dispatch → `PendingConfirm::BakeScene`; `P=Yes` bakes,
+      `Func+P` cancels; zero-deviation case bails early with no confirm.
+- [x] Bake op in `Arrangement::bakeSceneState()`: for each deviated track, copy
+      effective phrase content into the `globalPhrase` slot, clear deviation.
+      `ArrangementTest` pins bake + no-op + same-slot cases.
+- [x] Confirm chrome: affected-track count + `SHR:N` when another initialised
+      scene shares the home phrase; `scenesSharingHomePhrase()` is real detection.
+
+Deferred to follow-up plan (placeable payloads + scene clipboard):
+- [ ] **Placeable payloads** (§23.3): `Scene+step` = baked copy,
+      `Func+Scene+step` = default/empty. Make-new-Scene-bakes-current.
+- [ ] Clipboard copy (source-`step`-selectable); paste baked vs floor-strip:
       `Func+Scene+Play` = baked, `Mute+Func+Scene+Play` = floor-strip. See §23.3.
-- [ ] Conflict hint when a bake/copy/paste overwrites a shared phrase slot (SHR:N).
-- [ ] README: shortcut table + Scenes section reflect commit-and-bake + payloads.
+- [ ] SHR:N conflict hint for bake/copy/paste on shared phrase slots.
 
 ---
 

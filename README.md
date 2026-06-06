@@ -607,7 +607,7 @@ Scenes and switch Songs live.
 | `Scene (W) + step key` | Launch a Scene — quantized to the next core-time boundary while playing, immediate when stopped. On a *different* Scene: carries the current live overlay. On the *active* Scene: reverts to its saved floor. |
 | `Func + Scene + step key` | **Baseline launch** — switch to any Scene at its clean saved floor, discarding all live deviations. |
 | `Scene + Stop` | Revert the active Scene to its saved floor (same as re-launching it). |
-| `Scene + Record` | Commit live global-pattern and mask changes into the Scene's floor. Per-track phrase deviations are **not** committed — they are always live/RAM-only. |
+| `Scene + Record` | **Commit-and-bake** (Yes/No confirmed): for each deviated track, copy its effective phrase content into the Scene's home-row slot (`globalPhrase`), then clear the deviation. Destructive — shared-phrase scenes are warned via SHR:N in the confirm band. If no deviations are active, reports "No deviations to bake". |
 | `Func + Scene + Record / Play / Stop` | Copy / paste / clear a whole Scene (floor state only). |
 | `Phrase (Q) + step key` | Unison phrase swap: all non-deviated tracks switch to that phrase. |
 | `Track + Phrase (Q) + step key` | Sticky per-track deviation: only the focused track switches. |
