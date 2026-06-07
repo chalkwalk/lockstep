@@ -2080,9 +2080,57 @@ namespace lockstep
                     return true;
                 }
 
-                // No pending confirm. Bare Yes (no Func) = snapshot/confirm verb.
+                // No pending confirm. Bare Yes (no Func) = Quantize or snapshot/confirm verb.
                 if (!funcHeld)
                 {
+                    // Quantize verb (DESIGN §19.3): scope + No zeros microOffset values.
+                    // Trig (held steps) → those steps; Track → whole track; Phrase → all tracks.
+                    // Bare No (no scope) falls through to snapshot/confirm.
+                    const auto qScope     = editMode_.primaryScope();
+                    const auto& qCtx      = processor_.editContext();
+                    const auto& heldSteps = qCtx.heldSteps();
+
+                    if (!heldSteps.empty())
+                    {
+                        const int t = keyboardArea_.getActiveTrack();
+                        if (t >= 0 && t < static_cast<int>(kNumTracks))
+                        {
+                            processor_.snapshot(CheckpointScope::Track, t);
+                            auto& trk = processor_.sequence().tracks[static_cast<std::size_t>(t)];
+                            for (int si : heldSteps)
+                                if (si >= 0 && si < kMaxStepsPerTrack)
+                                    trk.steps[static_cast<std::size_t>(si)].microOffset = 0.0f;
+                            setStatus("Quantized");
+                            keyboardArea_.repaint();
+                            return true;
+                        }
+                    }
+                    else if (qScope == PS::Track)
+                    {
+                        const int t = keyboardArea_.getActiveTrack();
+                        if (t >= 0 && t < static_cast<int>(kNumTracks))
+                        {
+                            processor_.snapshot(CheckpointScope::Track, t);
+                            for (auto& s : processor_.sequence().tracks[static_cast<std::size_t>(t)].steps)
+                                s.microOffset = 0.0f;
+                            setStatus("Quantized");
+                            keyboardArea_.repaint();
+                            return true;
+                        }
+                    }
+                    else if (qScope == PS::Phrase)
+                    {
+                        int ckTrk = 0;
+                        processor_.snapshot(ckScope(ckTrk), ckTrk);
+                        for (auto& trk : processor_.sequence().tracks)
+                            for (auto& s : trk.steps)
+                                s.microOffset = 0.0f;
+                        setStatus("Quantized");
+                        keyboardArea_.repaint();
+                        return true;
+                    }
+
+                    // Bare No (no scope held): snapshot/confirm verb.
                     keyboardArea_.repaint();
                     editMode_.onVerb(ev.button);
                     return true;
