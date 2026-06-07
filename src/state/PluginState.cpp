@@ -88,7 +88,7 @@ namespace lockstep::PluginState
             if (!step.trig && step.overrides.empty()
                 && step.trigOverride.noteCount == 0 && !step.trigOverride.hasVelocity
                 && !step.trigOverride.hasGate && step.condition.isTrivial()
-                && step.microOffset == 0.0f
+                && !floatNe(step.microOffset, 0.0f)
                 && step.fillTrigState == FillTrigState::Inherit
                 && step.fillOverrides.empty()
                 && step.fillTrigOverride.noteCount == 0) continue;
@@ -96,7 +96,7 @@ namespace lockstep::PluginState
             juce::ValueTree stepNode("S");
             stepNode.setProperty("i", s,                 nullptr);
             stepNode.setProperty("t", step.trig ? 1 : 0, nullptr);
-            if (step.microOffset != 0.0f)
+            if (floatNe(step.microOffset, 0.0f))
                 stepNode.setProperty("mo", static_cast<double>(step.microOffset), nullptr);
             if (!step.condition.isTrivial())
                 stepNode.appendChild(condToTree("C", step.condition), nullptr);

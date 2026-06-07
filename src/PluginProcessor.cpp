@@ -3,6 +3,7 @@
 #include "Parameters.h"
 #include "ParameterIDs.h"
 #include "core/StateResolver.h"
+#include "core/Swing.h"
 #include "core/TrigEvaluator.h"
 #include "machine/MidiDevicePresets.h"
 #include "machine/DrumSynthMachine.h"
@@ -255,7 +256,9 @@ namespace lockstep
             pnf.openEnded        = false;
         }
         firedStepIdx_.fill(-1);
+        lastScheduledStepNum_.fill(-1);
         nextTriggerPpq_.fill(0.0);
+        for (auto& pt : pendingTrigs_) pt.pending = false;
 
         gainSmoothed_.reset(sampleRate, 0.05);  // 50 ms ramp
         const float initGainDb = apvts_.getRawParameterValue(ParamIDs::outputGain)->load();
@@ -438,7 +441,9 @@ namespace lockstep
                 pnf.samplesRemaining = -1;
                 pnf.openEnded        = false;
             }
+            for (auto& pt : pendingTrigs_) pt.pending = false;
             firedStepIdx_.fill(-1);
+            lastScheduledStepNum_.fill(-1);
             metronome_.reset();
         }
 
@@ -1155,67 +1160,23 @@ namespace lockstep
                 nextTriggerPpq_[i] = std::floor(blockStart / divPpq) * divPpq;
 
             const bool curFillActive = fillActiveForTrack(static_cast<int>(i));
-            int triggerAt = -1;
-            int stepIndex = 0;
 
-            while (nextTriggerPpq_[i] < blockEnd)
-            {
-                if (nextTriggerPpq_[i] >= blockStart)
-                {
-                    const auto stepNum = static_cast<std::int64_t>(
-                        nextTriggerPpq_[i] / divPpq);
-                    stepIndex = static_cast<int>(
-                        stepNum % static_cast<std::int64_t>(trackLen));
+            // Read effective swing for this track (DESIGN §19.2).
+            const float trackSw  = trackSwingParams_[i]->load();
+            const float globalSw = globalSwingParam_->load();
+            const float effSwing = effectiveSwing(globalSw, trackSw);
+            const double halfDiv = 0.5 * divPpq;
 
-                    const auto& step = track.steps[static_cast<std::size_t>(stepIndex)];
-                    const TrigCondition& cond = step.condition.isTrivial()
-                                                    ? track.baseCond
-                                                    : step.condition;
-                    const bool fired =
-                        TrigEvaluator::shouldFire(step, cond, i, stepNum, trackLen,
-                                                   lastStepFired_[i], curFillActive);
-                    if (fired)
-                    {
-                        const double offset =
-                            (nextTriggerPpq_[i] - blockStart) * samplesPerPpq;
-                        triggerAt = std::max(0, static_cast<int>(offset));
-                        firedStepIdx_[i] = stepIndex;  // ME.4: track last-fired step for FLTR P-Locks
-                    }
-                    else if (stepIndex == firedStepIdx_[i] && firedStepIdx_[i] >= 0)
-                    {
-                        // The step that last fired has cycled back but doesn't fire now
-                        // (user toggled it off, or condition failed). Close any open-ended
-                        // note that was left sounding by that step.
-                        auto& pnf = pendingNoteOffs_[i];
-                        if (pnf.openEnded)
-                        {
-                            const double off = (nextTriggerPpq_[i] - blockStart) * samplesPerPpq;
-                            const int nofAt  = std::clamp(static_cast<int>(off), 0,
-                                                          numBlockSamples - 1);
-                            for (int n = 0; n < pnf.noteCount; ++n)
-                                trackMidi[i].addEvent(
-                                    juce::MidiMessage::noteOff(
-                                        1, pnf.notes[static_cast<std::size_t>(n)]),
-                                    nofAt);
-                            pnf.openEnded = false;
-                        }
-                    }
-                    lastStepFired_[i] = fired;
-                }
-                nextTriggerPpq_[i] += divPpq;
-            }
-
-            // Inject sequencer note-on(s) with resolved trig fields (note(s)/velocity/gate).
-            if (triggerAt >= 0)
+            // Emit a sequencer trig: note-on(s) + gate scheduling.
+            // fireAt is a sample offset within this block, clamped to [0, numBlockSamples−1].
+            auto emitTrig = [&](int stepIdx, int fireAt)
             {
                 trigPulse_[i].store(1.0f, std::memory_order_relaxed);
-                const auto trig = StateResolver::resolveTrig(track, stepIndex, curFillActive);
+                const auto trig = StateResolver::resolveTrig(track, stepIdx, curFillActive);
 
                 // If a previous trig's note-off is still pending (gate longer than
-                // the step interval), emit it immediately at triggerAt so the
-                // voice releases and then retriggers cleanly. Inserting before the
-                // new note-on at the same sample preserves event order because
-                // juce::MidiBuffer iterates same-position events in insertion order.
+                // the step interval), emit it now so the voice releases and retriggers
+                // cleanly. Same-position insertion preserves note-off before note-on.
                 {
                     auto& pnf = pendingNoteOffs_[i];
                     if (pnf.samplesRemaining >= 0 || pnf.openEnded)
@@ -1224,7 +1185,7 @@ namespace lockstep
                             trackMidi[i].addEvent(
                                 juce::MidiMessage::noteOff(
                                     1, pnf.notes[static_cast<std::size_t>(n)]),
-                                triggerAt);
+                                fireAt);
                         pnf.samplesRemaining = -1;
                         pnf.openEnded        = false;
                     }
@@ -1240,8 +1201,6 @@ namespace lockstep
                     : IMachine::Polyphony::V1;
                 const int machineVoices = static_cast<int>(poly);
 
-                // Sort (note, velocity) pairs together ascending by pitch so the
-                // spread-with-bias picker and per-note velocity lookup stay in sync.
                 struct NoteVelPair { int note; uint8_t vel; };
                 std::array<NoteVelPair, kMaxNotesPerStep> nvPairs{};
                 for (int n = 0; n < trig.noteCount; ++n)
@@ -1253,7 +1212,9 @@ namespace lockstep
                         : static_cast<uint8_t>(std::clamp(trig.velocity, 1, 127));
                 }
                 std::sort(nvPairs.begin(), nvPairs.begin() + trig.noteCount,
-                          [](const NoteVelPair& a, const NoteVelPair& b) { return a.note < b.note; });
+                          [](const NoteVelPair& a, const NoteVelPair& b) {
+                              return a.note < b.note;
+                          });
 
                 std::array<int, kMaxNotesPerStep> sortedNotes{};
                 std::array<uint8_t, kMaxNotesPerStep> sortedVels{};
@@ -1268,9 +1229,7 @@ namespace lockstep
                 if (machineVoices == 0)
                 {
                     for (int n = 0; n < trig.noteCount; ++n)
-                    {
                         emitNotes[static_cast<std::size_t>(n)] = sortedNotes[static_cast<std::size_t>(n)];
-                    }
                     notesToEmit = trig.noteCount;
                 }
                 else
@@ -1279,29 +1238,32 @@ namespace lockstep
                                     track.noteSelection, emitNotes, notesToEmit);
                 }
 
-                // Reconstruct per-note velocities for the emitted subset.
                 std::array<uint8_t, kMaxNotesPerStep> emitVels{};
                 for (int j = 0; j < notesToEmit; ++j)
                 {
                     for (int k = 0; k < trig.noteCount; ++k)
                     {
-                        if (sortedNotes[static_cast<std::size_t>(k)] == emitNotes[static_cast<std::size_t>(j)])
+                        if (sortedNotes[static_cast<std::size_t>(k)]
+                                == emitNotes[static_cast<std::size_t>(j)])
                         {
-                            emitVels[static_cast<std::size_t>(j)] = sortedVels[static_cast<std::size_t>(k)];
+                            emitVels[static_cast<std::size_t>(j)] =
+                                sortedVels[static_cast<std::size_t>(k)];
                             break;
                         }
                     }
                 }
 
-                const auto uniformVel = static_cast<juce::uint8>(std::clamp(trig.velocity, 1, 127));
+                const auto uniformVel =
+                    static_cast<juce::uint8>(std::clamp(trig.velocity, 1, 127));
                 for (int n = 0; n < notesToEmit; ++n)
                 {
                     const auto ni  = static_cast<std::size_t>(n);
                     const auto vel = trig.hasNoteVelocities
-                        ? static_cast<juce::uint8>(std::clamp(static_cast<int>(emitVels[ni]), 1, 127))
+                        ? static_cast<juce::uint8>(
+                              std::clamp(static_cast<int>(emitVels[ni]), 1, 127))
                         : uniformVel;
                     trackMidi[i].addEvent(
-                        juce::MidiMessage::noteOn(1, emitNotes[ni], vel), triggerAt);
+                        juce::MidiMessage::noteOn(1, emitNotes[ni], vel), fireAt);
                 }
 
                 if (trig.gateValue != MusicalGate::None)
@@ -1311,12 +1273,13 @@ namespace lockstep
                         : clock_.localBpm();
                     const int gateSamples = musicalGateToSamples(
                         trig.gateValue, liveBpm, getSampleRate());
-                    const int noteOffAt = triggerAt + gateSamples;
+                    const int noteOffAt = fireAt + gateSamples;
                     if (noteOffAt < numBlockSamples)
                     {
                         for (int n = 0; n < notesToEmit; ++n)
                             trackMidi[i].addEvent(
-                                juce::MidiMessage::noteOff(1, emitNotes[static_cast<std::size_t>(n)]),
+                                juce::MidiMessage::noteOff(
+                                    1, emitNotes[static_cast<std::size_t>(n)]),
                                 noteOffAt);
                     }
                     else
@@ -1330,13 +1293,143 @@ namespace lockstep
                 }
                 else
                 {
-                    // gate=None: voices play to their envelope end. Track the open notes
-                    // so they can be closed if the step is toggled off or the sequencer stops.
+                    // gate=None: voices play to their envelope end.
                     auto& pnf     = pendingNoteOffs_[i];
                     pnf.openEnded = true;
                     pnf.noteCount = notesToEmit;
                     pnf.notes     = emitNotes;
-                    // samplesRemaining stays -1 — no scheduled release.
+                }
+            }; // end emitTrig
+
+            // Drain pending trig deferred by a late shift from the previous block.
+            if (pendingTrigs_[i].pending)
+            {
+                const int    ptStep  = pendingTrigs_[i].stepIndex;
+                const auto   ptStNum = pendingTrigs_[i].stepNum;
+                const double ptFire  = pendingTrigs_[i].firePpq;
+                pendingTrigs_[i].pending = false;
+                if (ptFire >= blockStart && ptFire < blockEnd)
+                {
+                    const int fireAt = std::clamp(
+                        static_cast<int>((ptFire - blockStart) * samplesPerPpq),
+                        0, numBlockSamples - 1);
+                    firedStepIdx_[i]         = ptStep;
+                    lastScheduledStepNum_[i] = ptStNum;
+                    lastStepFired_[i]        = true;
+                    emitTrig(ptStep, fireAt);
+                }
+            }
+
+            // Main scan: walk the grid and emit per fired step with shift applied.
+            while (nextTriggerPpq_[i] < blockEnd)
+            {
+                if (nextTriggerPpq_[i] >= blockStart)
+                {
+                    const auto stepNum = static_cast<std::int64_t>(
+                        nextTriggerPpq_[i] / divPpq);
+                    const int stepIdx  = static_cast<int>(
+                        stepNum % static_cast<std::int64_t>(trackLen));
+
+                    // Dedup: skip if emitted during pendingTrigs drain above.
+                    if (stepNum != lastScheduledStepNum_[i])
+                    {
+                        const auto& step = track.steps[static_cast<std::size_t>(stepIdx)];
+                        const TrigCondition& cond = step.condition.isTrivial()
+                                                        ? track.baseCond
+                                                        : step.condition;
+                        const bool fired = TrigEvaluator::shouldFire(
+                            step, cond, i, stepNum, trackLen,
+                            lastStepFired_[i], curFillActive);
+
+                        if (fired)
+                        {
+                            const bool isOdd = (stepNum % 2) == 1;
+                            const float swingDelta = isOdd ? effSwing : 0.0f;
+                            const float shift = totalStepShift(swingDelta, step.microOffset);
+                            const double firePpq = nextTriggerPpq_[i]
+                                + static_cast<double>(shift) * divPpq;
+
+                            firedStepIdx_[i]         = stepIdx;  // ME.4: for FLTR P-Locks
+                            lastScheduledStepNum_[i] = stepNum;
+                            lastStepFired_[i]        = true;
+
+                            if (firePpq < blockEnd)
+                            {
+                                const int fireAt = std::max(
+                                    0, static_cast<int>(
+                                        (firePpq - blockStart) * samplesPerPpq));
+                                emitTrig(stepIdx, fireAt);
+                            }
+                            else
+                            {
+                                // Late shift: fire in the next block.
+                                pendingTrigs_[i] = { true, stepIdx, stepNum, firePpq };
+                            }
+                        }
+                        else
+                        {
+                            // Step that last fired has cycled back but doesn't fire now
+                            // (toggled off or condition failed). Close any open-ended note.
+                            if (stepIdx == firedStepIdx_[i] && firedStepIdx_[i] >= 0)
+                            {
+                                auto& pnf = pendingNoteOffs_[i];
+                                if (pnf.openEnded)
+                                {
+                                    const double off =
+                                        (nextTriggerPpq_[i] - blockStart) * samplesPerPpq;
+                                    const int nofAt = std::clamp(
+                                        static_cast<int>(off), 0, numBlockSamples - 1);
+                                    for (int n = 0; n < pnf.noteCount; ++n)
+                                        trackMidi[i].addEvent(
+                                            juce::MidiMessage::noteOff(
+                                                1, pnf.notes[static_cast<std::size_t>(n)]),
+                                            nofAt);
+                                    pnf.openEnded = false;
+                                }
+                            }
+                            lastStepFired_[i] = false;
+                        }
+                    }
+                }
+                nextTriggerPpq_[i] += divPpq;
+            }
+
+            // Lookahead: the first grid step past blockEnd may have a large negative
+            // shift (early) that pulls its fire time back into this block. Check once.
+            {
+                const double nextGridPpq = nextTriggerPpq_[i];
+                if (nextGridPpq < blockEnd + halfDiv)
+                {
+                    const auto stepNum = static_cast<std::int64_t>(nextGridPpq / divPpq);
+                    if (stepNum != lastScheduledStepNum_[i])
+                    {
+                        const int stepIdx = static_cast<int>(
+                            stepNum % static_cast<std::int64_t>(trackLen));
+                        const auto& step = track.steps[static_cast<std::size_t>(stepIdx)];
+                        const TrigCondition& cond = step.condition.isTrivial()
+                                                        ? track.baseCond
+                                                        : step.condition;
+                        if (TrigEvaluator::shouldFire(step, cond, i, stepNum, trackLen,
+                                                      lastStepFired_[i], curFillActive))
+                        {
+                            const bool isOdd = (stepNum % 2) == 1;
+                            const float swingDelta = isOdd ? effSwing : 0.0f;
+                            const float shift = totalStepShift(swingDelta, step.microOffset);
+                            const double firePpq = nextGridPpq
+                                + static_cast<double>(shift) * divPpq;
+                            if (firePpq >= blockStart && firePpq < blockEnd)
+                            {
+                                const int fireAt = std::clamp(
+                                    static_cast<int>((firePpq - blockStart) * samplesPerPpq),
+                                    0, numBlockSamples - 1);
+                                firedStepIdx_[i]         = stepIdx;
+                                lastScheduledStepNum_[i] = stepNum;
+                                lastStepFired_[i]        = true;
+                                emitTrig(stepIdx, fireAt);
+                                // nextTriggerPpq_[i] is not advanced; dedup prevents re-fire.
+                            }
+                        }
+                    }
                 }
             }
 

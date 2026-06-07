@@ -534,6 +534,21 @@ namespace lockstep
         };
         std::array<PendingNoteOff, kNumTracks> pendingNoteOffs_{};
 
+        // Pending sequencer trigs deferred by a late swing/microOffset shift past a block edge.
+        struct PendingTrig
+        {
+            bool    pending   = false;
+            int     stepIndex = 0;
+            int64_t stepNum   = 0;   // for dedup with lastScheduledStepNum_
+            double  firePpq   = 0.0; // absolute PPQ at which to fire
+        };
+        std::array<PendingTrig, kNumTracks> pendingTrigs_{};
+
+        // Per-track absolute step number of the last step scheduled (emitted or deferred).
+        // -1 = none. Used to prevent double-emitting when the extended look-ahead or
+        // deferred-trig drain visits a step that was already handled.
+        std::array<int64_t, kNumTracks> lastScheduledStepNum_{};
+
         // Chord capture: snapshot-currently-held semantics.
         // Each note-on snapshots the physically-held MIDI set into all held steps.
         // Gate timing is finalised when all MIDI notes are released.
