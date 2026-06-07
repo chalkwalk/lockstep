@@ -556,18 +556,19 @@ namespace lockstep
         // (incl. the unmodified resting state). The held-context preview below
         // early-returns when nothing is held, so these have to precede it.
 
-        // ---- Crossfader A/B endpoint labels above and below the slider.
+        // ---- Crossfader A/B endpoint labels: inset 25% from each end toward
+        // the centre so they sit inside the slider and don't clip adjacent UI.
         {
             static const juce::Colour kMorphMagenta { 0xffb060d0 };
-            const auto fb = crossfader_.getBounds();
+            const auto fb       = crossfader_.getBounds();
+            const int  labelH   = 12;
+            const int  inset    = fb.getHeight() / 4;  // 25% of fader height
             g.setFont(juce::Font(juce::FontOptions(9.0f)).boldened());
-            // "A" above the slider
             g.setColour(kMorphMagenta.withAlpha(0.9f));
-            g.drawText("A", fb.getX(), fb.getY() - 12, fb.getWidth(), 12,
+            g.drawText("A", fb.getX(), fb.getY() + inset - labelH / 2, fb.getWidth(), labelH,
                        juce::Justification::centred);
-            // "B" below the slider
             g.setColour(kMorphMagenta.darker(0.3f).withAlpha(0.9f));
-            g.drawText("B", fb.getX(), fb.getBottom(), fb.getWidth(), 12,
+            g.drawText("B", fb.getX(), fb.getBottom() - inset - labelH / 2, fb.getWidth(), labelH,
                        juce::Justification::centred);
         }
 

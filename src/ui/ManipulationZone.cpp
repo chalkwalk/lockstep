@@ -288,7 +288,12 @@ namespace lockstep
             sliders_[si].setDoubleClickReturnValue(true,
                                                    static_cast<double>(meta.defaultValue));
 
-            float value = processor_.baseParamValue(track, slot);
+            // If morph data exists for this slot, show the fader-blended value so
+            // the knob animates as the crossfader moves.
+            const auto  mInfo    = processor_.morphWidgetInfo(track, slot);
+            float value = mInfo.exists
+                ? processor_.morphEffectiveValue(track, slot)
+                : processor_.baseParamValue(track, slot);
 
             const bool stepHeld  = ctx.isActiveForEditing() && ctx.heldTrackIndex() == track;
             const int  heldStep  = ctx.heldStepIndex();

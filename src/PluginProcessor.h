@@ -277,6 +277,10 @@ namespace lockstep
         // Returns morph endpoint data for a ManipulationZone widget slot.
         MorphWidgetInfo morphWidgetInfo(int track, int slot) const;
 
+        // Returns the fader-blended effective value for a slot, or the kit base
+        // if the slot has no morph data. Stepped slots snap instead of lerping.
+        float morphEffectiveValue(int track, int slot) const;
+
         // Remove the P-Lock override for one slot on a specific step.
         void clearParam(int track, int step, int slot);
 

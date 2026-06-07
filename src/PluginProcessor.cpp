@@ -1920,6 +1920,22 @@ namespace lockstep
                  hasB ? itB->second : 0.0f };
     }
 
+    float LockstepProcessor::morphEffectiveValue(int track, int slot) const
+    {
+        const float base = baseParamValue(track, slot);
+        const auto& sc  = section();
+        const auto  key = std::make_pair(track, slot);
+        const bool  hasA = (sc.morphA.count(key) > 0);
+        const bool  hasB = (sc.morphB.count(key) > 0);
+        if (!hasA && !hasB) return base;
+
+        const float f    = morphFader();
+        const float aVal = hasA ? sc.morphA.at(key) : (hasB ? sc.morphB.at(key) : base);
+        const float bVal = hasB ? sc.morphB.at(key) : (hasA ? sc.morphA.at(key) : base);
+        if (paramSpec(track, slot).isStepped) return (f < 0.5f) ? aVal : bVal;
+        return aVal + (bVal - aVal) * f;
+    }
+
     void LockstepProcessor::writeFillParam(int track, int slot, float value)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
