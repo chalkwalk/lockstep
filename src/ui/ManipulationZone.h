@@ -34,6 +34,10 @@ namespace lockstep
         // Meta content (COND/TRACK/GLOBAL widgets) fills in at M6.5/M6.6.
         void setMetaSection(int metaSection);
 
+        // 0 = none (show fader-blended value), 1 = preview A pole, 2 = preview B pole.
+        // Set when the Morph+^/v qualifier is active so knobs show the raw endpoint.
+        void setMorphQualifier(int q) { morphQualifier_ = q; }
+
         // Called when the user clicks "Manage pool..." from the sample picker menu.
         std::function<void()> onOpenPoolManager;
 
@@ -59,8 +63,9 @@ namespace lockstep
 
         LockstepProcessor& processor_;
         KeyboardArea& area_;
-        int slotOffset_   = 0;
-        int metaSection_  = -1;  // -1 = normal machine params; 0/1/2/5 = COND/TRIG/TRACK/GLOBAL
+        int slotOffset_      = 0;
+        int metaSection_     = -1;  // -1 = normal machine params; 0/1/2/5 = COND/TRIG/TRACK/GLOBAL
+        int morphQualifier_  = 0;   // 0=blend, 1=A-pole preview, 2=B-pole preview
 
         // Index of the slot column currently in "listening for CC" state, or -1.
         int learningSlotIndex_ = -1;

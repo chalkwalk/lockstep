@@ -47,14 +47,34 @@ namespace lockstep
                     case 2:  writeTrackField(i, v);  break;
                     case 5:  writeGlobalField(i, v); break;
                     default:
+                    {
                         // Route to fill P-Lock layer when fill is held + step is held.
-                        if (processor_.fillActive())
-                            processor_.writeFillParam(area_.getActiveTrack(),
-                                                      slotOffset_ + i, v);
+                        if (processor_.fillActive()) {
+                            processor_.writeFillParam(area_.getActiveTrack(), slotOffset_ + i, v);
+                            break;
+                        }
+                        const int track = area_.getActiveTrack();
+                        const int slot  = slotOffset_ + i;
+                        // Auto-morph-aware: if morph data exists, write into the
+                        // overlay rather than kit base (mirrors encoder delta logic).
+                        const auto mInfo = processor_.morphWidgetInfo(track, slot);
+                        if (mInfo.exists)
+                        {
+                            if (mInfo.inA && !mInfo.inB)
+                                processor_.writeMorphPole(track, slot, v, 0);
+                            else if (!mInfo.inA && mInfo.inB)
+                                processor_.writeMorphPole(track, slot, v, 1);
+                            else
+                            {
+                                // Both set: delta from current blend → proportional split.
+                                const float cur = processor_.morphEffectiveValue(track, slot);
+                                processor_.writeMorph(track, slot, v - cur, processor_.morphFader());
+                            }
+                        }
                         else
-                            processor_.writeParam(area_.getActiveTrack(),
-                                                  slotOffset_ + i, v);
+                            processor_.writeParam(track, slot, v);
                         break;
+                    }
                 }
             };
             sliders_[si].addMouseListener(static_cast<juce::MouseListener*>(this), false);
@@ -288,12 +308,23 @@ namespace lockstep
             sliders_[si].setDoubleClickReturnValue(true,
                                                    static_cast<double>(meta.defaultValue));
 
-            // If morph data exists for this slot, show the fader-blended value so
-            // the knob animates as the crossfader moves.
-            const auto  mInfo    = processor_.morphWidgetInfo(track, slot);
-            float value = mInfo.exists
-                ? processor_.morphEffectiveValue(track, slot)
-                : processor_.baseParamValue(track, slot);
+            // Show the morph-appropriate value when morph data exists:
+            //   qualifier=1 → raw A endpoint (pole preview while editing A)
+            //   qualifier=2 → raw B endpoint
+            //   qualifier=0 → fader-blended value (animates with crossfader)
+            //   no morph data → kit base (existing behaviour)
+            const auto  mInfo = processor_.morphWidgetInfo(track, slot);
+            float value = processor_.baseParamValue(track, slot);
+            if (mInfo.exists)
+            {
+                const float base = value;
+                if (morphQualifier_ == 1)
+                    value = mInfo.inA ? mInfo.aValue : base;
+                else if (morphQualifier_ == 2)
+                    value = mInfo.inB ? mInfo.bValue : base;
+                else
+                    value = processor_.morphEffectiveValue(track, slot);
+            }
 
             const bool stepHeld  = ctx.isActiveForEditing() && ctx.heldTrackIndex() == track;
             const int  heldStep  = ctx.heldStepIndex();

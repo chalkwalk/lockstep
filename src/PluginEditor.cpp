@@ -1671,6 +1671,7 @@ namespace lockstep
                 if (uiState_.morphHeld)
                 {
                     uiState_.morphNavQualifier = 1;
+                    manipulationZone_.setMorphQualifier(1);
                     repaint();
                     return true;
                 }
@@ -1712,6 +1713,7 @@ namespace lockstep
                 if (uiState_.morphHeld)
                 {
                     uiState_.morphNavQualifier = 2;
+                    manipulationZone_.setMorphQualifier(2);
                     repaint();
                     return true;
                 }
@@ -2487,6 +2489,7 @@ namespace lockstep
             case CB::MorphScope:
                 physHeld_.morph = false;
                 uiState_.morphNavQualifier = 0;
+                manipulationZone_.setMorphQualifier(0);
                 if (!uiState_.latch.morph)
                 {
                     uiState_.morphHeld = false;
@@ -2691,6 +2694,7 @@ namespace lockstep
             case CB::NavUp:
             case CB::NavDown:
                 uiState_.morphNavQualifier = 0;
+                manipulationZone_.setMorphQualifier(0);
                 break;
 
             case CB::VerbRecord:
@@ -3412,7 +3416,39 @@ namespace lockstep
             const float norm    = juce::jlimit(0.0f, 1.0f, (cur - spec.minValue) / range);
             const float newNorm = juce::jlimit(0.0f, 1.0f,
                                                norm + static_cast<float>(rawDelta) / 128.0f);
-            processor_.writeParam(track, absSlot, spec.minValue + newNorm * range);
+            const float newVal  = spec.minValue + newNorm * range;
+
+            // Auto-morph-aware: bare encoder follows morph state of the slot.
+            // No-morph → kit base (as before). One pole set → write that pole
+            // directly (fader irrelevant). Both set → proportional split.
+            if (!stepHeld)
+            {
+                const auto mInfo = processor_.morphWidgetInfo(track, absSlot);
+                if (mInfo.exists)
+                {
+                    const float deltaAbs = static_cast<float>(rawDelta) / 128.0f * range;
+                    if (mInfo.inA && !mInfo.inB)
+                    {
+                        const float curA = mInfo.aValue;
+                        processor_.writeMorphPole(track, absSlot,
+                            juce::jlimit(spec.minValue, spec.maxValue, curA + deltaAbs), 0);
+                    }
+                    else if (!mInfo.inA && mInfo.inB)
+                    {
+                        const float curB = mInfo.bValue;
+                        processor_.writeMorphPole(track, absSlot,
+                            juce::jlimit(spec.minValue, spec.maxValue, curB + deltaAbs), 1);
+                    }
+                    else
+                    {
+                        processor_.writeMorph(track, absSlot, deltaAbs, processor_.morphFader());
+                    }
+                    processor_.editContext().markParamWritten();
+                    return;
+                }
+            }
+
+            processor_.writeParam(track, absSlot, newVal);
             processor_.editContext().markParamWritten();
         };
 
@@ -3425,10 +3461,15 @@ namespace lockstep
             auto& ctx      = processor_.editContext();
             const bool stepHeld = ctx.isActiveForEditing() && ctx.heldTrackIndex() == track;
 
-            // Morph+Stop: remove slot from morph maps (DESIGN §17.3).
+            // Morph+Stop: bake the current fader-blended value into kit base,
+            // then erase morph data (default = bake).
+            // Func+Morph+Stop: revert to kit base without baking (erases only).
             if (uiState_.morphHeld && !stepHeld)
             {
-                processor_.removeMorph(track, absSlot);
+                if (uiState_.funcHeld)
+                    processor_.removeMorph(track, absSlot);   // revert
+                else
+                    processor_.bakeMorph(track, absSlot);     // bake (default)
                 return;
             }
 

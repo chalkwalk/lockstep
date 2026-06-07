@@ -277,6 +277,10 @@ namespace lockstep
         // Returns morph endpoint data for a ManipulationZone widget slot.
         MorphWidgetInfo morphWidgetInfo(int track, int slot) const;
 
+        // Bake: write the fader-blended value to kit base, then erase morph data.
+        // Default delete gesture. Use removeMorph() for revert-without-bake.
+        void bakeMorph(int track, int slot);
+
         // Returns the fader-blended effective value for a slot, or the kit base
         // if the slot has no morph data. Stepped slots snap instead of lerping.
         float morphEffectiveValue(int track, int slot) const;

@@ -1905,6 +1905,19 @@ namespace lockstep
         section().morphB.erase(key);
     }
 
+    void LockstepProcessor::bakeMorph(int track, int slot)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        const auto& sc  = section();
+        const auto  key = std::make_pair(track, slot);
+        const bool  hasA = (sc.morphA.count(key) > 0);
+        const bool  hasB = (sc.morphB.count(key) > 0);
+        if (!hasA && !hasB) return;
+        const float baked = morphEffectiveValue(track, slot);
+        removeMorph(track, slot);
+        writeParam(track, slot, baked);
+    }
+
     MorphWidgetInfo LockstepProcessor::morphWidgetInfo(int track, int slot) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return {};
