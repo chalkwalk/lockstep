@@ -733,11 +733,17 @@ the UI-polish/palette pass.
 
 ### 5.1 — Microtiming + swing + quantize  *[planned]*  *(was ML)*
 Completes the record-time capture story (gate / velocity / microtiming).
-- [ ] `Step::microOffset ∈ [-0.5, +0.5]`; resolver shifts trig sample position.
-- [ ] Realtime record writes `microOffset` (residual delta to nearest step).
-- [ ] Per-track `swing ∈ [0,1]` (default 0.5), delaying odd-indexed steps.
+- [ ] `Step::microOffset ∈ [-0.5, +0.5]`; serializer v9 (`mo` property).
+- [ ] Sample-accurate look-ahead scheduler: per-step emit, `pendingTrigs_`
+      deferral, combined ±0.5 cap (DESIGN §19.2). Extracts `emitTrigForStep`.
+- [ ] Realtime record writes `microOffset` (residual to nearest swung position).
+- [ ] Signed additive swing (DESIGN §19.2): global `swing` + per-track
+      `track_t_swing` ∈ [-0.5, +0.5], `effectiveSwing = clamp(sum, ±0.5)`.
+      Both APVTS. Summation seam reserves Scene/Song/Phrase slots.
 - [ ] `Quantize` verb (`<scope> + No`) zeroing microOffsets in scope.
-- [ ] Step-grid nudge-direction tick indicator.
+- [ ] Authoring UI: MicroTime widget (TRIG band, P-lockable); Swing widget
+      (TRACK band + global encoder); per-track effective-swing readout.
+- [ ] Step-grid nudge-direction tick indicator (`show-microtiming-ticks`).
 
 ### 5.2 — Morph + crossfader  *[planned]*  *(was MI)*
 DESIGN §17. *(Morph A/B snapshot fields are carried on the Scene after Phase 7

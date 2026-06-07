@@ -2302,8 +2302,9 @@ milestone.)
 ## 19. Microtiming, Swing, and Quantize
 
 Two independent mechanisms shape sub-step timing: a per-step
-microtiming offset, and a per-track swing parameter. They compose
-linearly.
+microtiming offset, and swing. They compose linearly. Swing itself
+operates at two granularities — a project-global master pocket and a
+per-track groove — summed additively into a single effective value.
 
 ### 19.1 Per-step microtiming offset
 
@@ -2328,23 +2329,60 @@ P-lockable per step via the usual EditContext gestures (held step +
 encoder turn on the appropriate slot — the TRIG meta section gains
 a `MicroTime` column when extended).
 
-### 19.2 Per-track Swing
+### 19.2 Swing (global + per-track, additive)
 
-Each `Track` carries `swing : float ∈ [0, 1]`, default `0.5`
-(no swing). For `swing > 0.5`, every odd-indexed step in the
-track's grid is delayed by `(swing - 0.5) × step_samples`, giving
-the classic shuffle feel. Swing applies at resolve time **before**
-microtiming offsets are summed in, so a step's effective trigger
-sample is `grid_position + swing_delta + (microOffset × step_samples)`.
+Swing is a **signed** off-beat displacement, expressed as a fraction
+of the step length. `0` (the default) is perfectly straight. `+0.5`
+pushes every odd-indexed step a full half-step late (classic
+maximum-shuffle). `−0.25` pulls odd steps a quarter-step early
+(slightly rushed, ahead-of-the-beat feel). The range mirrors
+`microOffset`: ±50% of the step length.
 
-Swing is per-track because polymetric tracks (DESIGN §4.2) have
-independent step lengths; a project-global swing would mean
-something different on each track. Per-track swing is also what
-makes layered hi-hat tracks possible at different swing depths.
+Two levels contribute:
 
-Swing lives on `Track`, not on the `Kit`: it is a sequencer-scope
-feel, not a kit-scope feel, and it persists across scene changes
-within a song even when the Kit changes.
+| Level | APVTS parameter | Range | Default |
+|---|---|---|---|
+| Global | `swing` | `[-0.5, +0.5]` | `0` |
+| Per-track | `track_t_swing` | `[-0.5, +0.5]` | `0` |
+
+They are **composed additively** at resolve time and clamped:
+
+```
+effectiveSwing(t) = clamp(globalSwing + trackSwing[t], −0.5, +0.5)
+```
+
+Both levels live in APVTS (instance-global, like `track_t_length`
+and `track_t_divider`), so they persist across scene and song
+changes. This matches the same "feel is a global/track property,
+not a phrase property" reasoning that puts per-track `divider` in
+APVTS rather than in `TrackKit`.
+
+**Summation seam.** The implementation is a single summation:
+`effectiveSwing = Σ (levels present)` clamped at the end.
+Reserved slot for Scene-level swing (the sanctioned next level
+to add): `effectiveSwing(t) = clamp(globalSwing + sceneSwing +
+trackSwing[t], ±0.5)`. Song- and Phrase-level are further deferred;
+if added, they each contribute one addend to the same sum.
+
+**Combined cap.** At emit time the total sub-step shift on a step is:
+
+```
+totalShift = clamp(effectiveSwing(t) × {1 if odd step, 0 if even}
+             + step.microOffset, −0.5, +0.5)
+```
+
+This preserves §19.1's "every step fires within its own cell"
+guarantee and bounds the look-ahead scan to ≤ half a step.
+
+**Effective-swing readout.** The TRACK meta section shows the
+current `effectiveSwing(t)` value so the additive composition is
+never opaque. The readout updates live as either level changes.
+
+Swing is per-track (and per-track different from the global addend)
+because polymetric tracks have independent step lengths; the global
+value anchors the project groove and the per-track value allows
+independent depth for layered parts (e.g. hi-hat at deeper swing
+than bass).
 
 ### 19.3 The Quantize verb
 
