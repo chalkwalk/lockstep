@@ -156,15 +156,16 @@ namespace lockstep
         return out;
     }
 
-    SurfaceModel buildSurfaceModel(const UiState&      ui,
-                                   const EditContext&  ec,
-                                   const PressTracker* press,
-                                   LockstepProcessor&  proc,
-                                   int                 activeTrack,
-                                   int                 stepPage,
-                                   GridDisplayMode     /*displayMode*/,
-                                   int                 slotOffset,
-                                   float               crossfaderValue)
+    SurfaceModel buildSurfaceModel(const UiState&         ui,
+                                   const EditContext&      ec,
+                                   const PressTracker*     press,
+                                   LockstepProcessor&      proc,
+                                   int                     activeTrack,
+                                   int                     stepPage,
+                                   GridDisplayMode         /*displayMode*/,
+                                   int                     slotOffset,
+                                   float                   crossfaderValue,
+                                   const MorphViewState&   morphView)
     {
         SurfaceModel model;
 
@@ -345,13 +346,24 @@ namespace lockstep
             c.keyHint = "4";
             c.pressed  = physPressed('4', ControllerButton::NavUp);
             c.base     = c.pressed ? CellState::Pressed : CellState::Resting;
-            // Morph: A-pole qualifier active → accent; Morph held → morph dim.
+            // Morph: A-pole qualifier active → accent; Morph held → morph tint.
+            // scopeTint drives on-screen colour (groupForCell reads it); baseColour
+            // drives controller LEDs — set both so neither renderer diverges.
             if (ui.morphHeld && ui.morphNavQualifier == 1)
+            {
+                c.scopeTint  = juce::Colour(kScopeMorphAcc).getARGB();
                 c.baseColour = juce::Colour(kScopeMorphAcc).getARGB();
+            }
             else if (ui.morphHeld)
+            {
+                c.scopeTint  = juce::Colour(kScopeMorph).getARGB();
                 c.baseColour = juce::Colour(kScopeMorph).getARGB();
+            }
             else
+            {
+                c.scopeTint  = 0u;
                 c.baseColour = kNavActive;
+            }
             // Func+↑ doubles track length ONLY without Track held; with Track held
             // the nav keys cycle the track input mode, so don't advertise ×2 there.
             if (ui.funcHeld && !ui.trackHeld) { c.primary = juce::String(u8"×2"); c.funcHint = {}; }
@@ -589,9 +601,15 @@ namespace lockstep
             else if (def.keyCode == 'W')
                 c.baseColour = ui.sceneHeld ? kScopeScene : kScopeSceneDim;
             else if (def.keyCode == 'R' && ui.morphHeld && ui.morphNavQualifier == 2)
+            {
+                c.scopeTint  = juce::Colour(kScopeMorphAcc).getARGB();
                 c.baseColour = juce::Colour(kScopeMorphAcc).getARGB();
+            }
             else if (def.keyCode == 'R' && ui.morphHeld)
+            {
+                c.scopeTint  = juce::Colour(kScopeMorph).getARGB();
                 c.baseColour = juce::Colour(kScopeMorph).getARGB();
+            }
             else
                 c.baseColour = compatColour(c.base, 0xFF404040u);
 
@@ -934,6 +952,72 @@ namespace lockstep
                 }
             }
             // ── End length-edit re-skin ──────────────────────────────────────────
+
+            // ── 5.2 Morph step view ───────────────────────────────────────────────
+            // Morph held (no Func) → step grid shows A/B pole states per MZ slot.
+            // Row 0 (D-;, steps 0-7) = A poles; Row 1 (C-/, steps 8-15) = B poles.
+            // Three visual states: active (lit magenta), dormant (dim), dark (none).
+            else if (ui.morphHeld && !ui.funcHeld)
+            {
+                const int nmp = (activeTrack >= 0) ? proc.numParams(activeTrack) : 0;
+                const int anchorSec = (slotOffset < nmp && activeTrack >= 0)
+                    ? proc.paramSpec(activeTrack, slotOffset).sectionIndex : -1;
+
+                for (int i = 0; i < 16; ++i)
+                {
+                    SurfaceCell& c  = model.step[static_cast<std::size_t>(i)];
+                    c.button   = ControllerButton::Step;
+                    c.index    = i;
+                    c.keyHint  = kStepKeyHints[static_cast<std::size_t>(i)];
+                    c.pressed  = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+
+                    const int mzLocal  = i % 8;             // slot index within MZ page
+                    const int absSlot  = slotOffset + mzLocal;
+                    const bool poleA   = (i < 8);           // top row = A, bottom = B
+
+                    // Blank out-of-schema and cross-section slots.
+                    const bool outOfSchema = absSlot >= nmp;
+                    const bool outOfSec    = !outOfSchema && activeTrack >= 0
+                        && proc.paramSpec(activeTrack, absSlot).sectionIndex != anchorSec;
+                    if (outOfSchema || outOfSec)
+                    {
+                        c.base      = CellState::MorphPoleDark;
+                        c.baseColour = kStepOutRange;
+                        continue;
+                    }
+
+                    const auto& ms   = morphView.slots[static_cast<std::size_t>(mzLocal)];
+                    const auto  pole = poleA ? ms.a : ms.b;
+                    using MPS = MorphViewState::PoleState;
+
+                    if (pole == MPS::Active)
+                    {
+                        c.base      = CellState::MorphPoleActive;
+                        c.baseColour = c.pressed
+                            ? juce::Colours::white.withAlpha(0.90f).getARGB()
+                            : juce::Colour(kScopeMorph).withAlpha(0.80f).getARGB();
+                    }
+                    else if (pole == MPS::Dormant)
+                    {
+                        c.base      = CellState::MorphPoleDormant;
+                        c.baseColour = c.pressed
+                            ? juce::Colour(kScopeMorph).withAlpha(0.50f).getARGB()
+                            : juce::Colour(kScopeMorphDim).withAlpha(0.70f).getARGB();
+                    }
+                    else
+                    {
+                        c.base      = CellState::MorphPoleDark;
+                        c.baseColour = c.pressed
+                            ? juce::Colour(kScopeMorphDim).withAlpha(0.40f).getARGB()
+                            : juce::Colour(kStepInactive).withAlpha(0.35f).getARGB();
+                    }
+
+                    // Store the param label for the inline screen residual.
+                    c.primary = (activeTrack >= 0)
+                        ? juce::String(proc.paramSpec(activeTrack, absSlot).label) : juce::String{};
+                }
+            }
+            // ── End morph step view ──────────────────────────────────────────────
 
             else if (ui.trackHeld || ui.phraseScopeHeld || ui.sceneHeld)
             {

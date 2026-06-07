@@ -266,9 +266,11 @@ namespace lockstep
         // writeMorph: normalised proportional split at fader position f.
         // writeMorphPole: pole-forced write (pole 0=A, 1=B; for ^/v qualifiers).
         // removeMorph: erases (track, slot) from both morphA and morphB maps.
+        // removeMorphPole: erases only one pole (0=A, 1=B).
         void writeMorph(int track, int slot, float deltaAbs, float fader);
         void writeMorphPole(int track, int slot, float value, int pole);
         void removeMorph(int track, int slot);
+        void removeMorphPole(int track, int slot, int pole);
         // Fluid mute: Morph+Mute on a track — captures AMP Level→silence into
         // the near pole (the one the fader favours) and current level into the
         // far pole, so sweeping the fader fades the track in/out (DESIGN §17.3).

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <map>
 #include <memory>
 #include <set>
 #include <utility>
@@ -227,6 +228,13 @@ namespace lockstep
 
         // MHX.5: vertical crossfader to the right of the encoder band (Scene A top / B bottom).
         juce::Slider crossfader_;
+
+        // 5.2 Morph step view: dormant pole values (in-memory, not serialized).
+        // Keyed by (track, slot). Cleared whenever morphHeld goes false.
+        // A dormant pole is functionally absent (blend mirrors the other side) but
+        // can be re-activated by tapping its step cell again.
+        std::map<std::pair<int,int>, float> morphDormantA_, morphDormantB_;
+        MorphViewState buildMorphViewState() const;
 
         // Controller surface integration (Phase 6.6 / DESIGN §35).
         ControllerPortManager              controllerPorts_    { "X-TOUCH MINI" };

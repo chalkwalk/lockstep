@@ -75,6 +75,12 @@ namespace lockstep
         // Phrase/Section selector badges (Phase 7 / DESIGN §4.7).
         SelectorDeviated = 95, // phrase currently playing due to a live deviation
         SelectorHome     = 96, // the scene's global/home phrase (dual-marker border)
+
+        // Morph step view (5.2): step grid in morph mode shows A/B pole states.
+        // Row 0 (D-;) = A poles, Row 1 (C-/) = B poles.
+        MorphPoleActive  = 100,  // pole has a live value in the morph overlay
+        MorphPoleDormant = 101,  // pole value saved in UI memory, suppressed from blend
+        MorphPoleDark    = 102,  // no value has been captured for this pole
     };
 
     // Pure mapping for the §34.4 length-edit re-skin: classify an absolute step
@@ -211,19 +217,32 @@ namespace lockstep
     };
 
     // =========================================================================
+    // MorphViewState — per-slot A/B pole state for the morph step view (5.2).
+    // Built by the editor (which holds dormant maps) and passed into
+    // buildSurfaceModel so the model faithfully represents dormant values.
+    // =========================================================================
+    struct MorphViewState
+    {
+        enum class PoleState : uint8_t { Dark, Dormant, Active };
+        struct SlotState { PoleState a = PoleState::Dark; PoleState b = PoleState::Dark; };
+        std::array<SlotState, 8> slots{};
+    };
+
+    // =========================================================================
     // buildSurfaceModel — pure builder: the single computation (§35.8.1)
     //
     // Produces all cell appearances for one frame from the given state.
     // Both the screen renderer and controller feedback call this; they cannot
     // diverge because they call the same function with the same state.
     // =========================================================================
-    SurfaceModel buildSurfaceModel(const UiState&      ui,
-                                   const EditContext&  ec,
-                                   const PressTracker* press,
-                                   LockstepProcessor&  proc,
-                                   int                 activeTrack,
-                                   int                 stepPage,
-                                   GridDisplayMode     displayMode,
-                                   int                 slotOffset      = 0,
-                                   float               crossfaderValue = 0.5f);
+    SurfaceModel buildSurfaceModel(const UiState&         ui,
+                                   const EditContext&      ec,
+                                   const PressTracker*     press,
+                                   LockstepProcessor&      proc,
+                                   int                     activeTrack,
+                                   int                     stepPage,
+                                   GridDisplayMode         displayMode,
+                                   int                     slotOffset      = 0,
+                                   float                   crossfaderValue = 0.5f,
+                                   const MorphViewState&   morphView       = {});
 }

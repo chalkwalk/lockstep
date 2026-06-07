@@ -368,7 +368,8 @@ namespace lockstep
                                                   keyboardArea_.currentPage(),
                                                   gridMode_,
                                                   manipulationZone_.slotOffset(),
-                                                  1.0f - processor_.morphFader());
+                                                  1.0f - processor_.morphFader(),
+                                                  buildMorphViewState());
             if (xTouchSurface_ && controllerPorts_.isOpen())
                 controllerPorts_.drain(*xTouchSurface_, sink, model);
             if (push1Surface_ && push1Ports_.isOpen())
@@ -1529,6 +1530,52 @@ namespace lockstep
                     return true;
                 }
 
+                // 5.2: Morph step view — step press toggles A/B pole state.
+                // Row 0 (steps 0-7) = A poles, Row 1 (steps 8-15) = B poles.
+                // Gate on !funcHeld so Func+step still enters pLockClearMode.
+                if (uiState_.morphHeld && !uiState_.funcHeld)
+                {
+                    const int track = keyboardArea_.getActiveTrack();
+                    if (track >= 0)
+                    {
+                        const int mzLocal = ev.index % 8;
+                        const int absSlot = manipulationZone_.slotOffset() + mzLocal;
+                        const int pole    = (ev.index < 8) ? 0 : 1;
+                        const auto key    = std::make_pair(track, absSlot);
+                        auto& dormant     = (pole == 0) ? morphDormantA_ : morphDormantB_;
+                        const auto info   = processor_.morphWidgetInfo(track, absSlot);
+                        const bool isActive  = (pole == 0) ? info.inA : info.inB;
+                        const bool isDormant = (dormant.count(key) > 0);
+
+                        if (isActive)
+                        {
+                            // Active → dormant: stash value, remove from overlay.
+                            dormant[key] = (pole == 0) ? info.aValue : info.bValue;
+                            processor_.removeMorphPole(track, absSlot, pole);
+                        }
+                        else if (isDormant)
+                        {
+                            // Dormant → active: restore from stash.
+                            processor_.writeMorphPole(track, absSlot, dormant[key], pole);
+                            dormant.erase(key);
+                        }
+                        else
+                        {
+                            // Dark → active: capture other pole's active value or kit base.
+                            float captureVal = processor_.baseParamValue(track, absSlot);
+                            if (pole == 0 && info.inB) captureVal = info.bValue;
+                            if (pole == 1 && info.inA) captureVal = info.aValue;
+                            processor_.writeMorphPole(track, absSlot, captureVal, pole);
+                        }
+
+                        // Focus the slot in the MZ so encoders operate on it.
+                        processor_.editContext().setActiveSlot(absSlot);
+                    }
+                    keyboardArea_.repaint();
+                    repaint();
+                    return true;
+                }
+
                 // MHZ.3.4: Func + step (no existing step held) → enter P-Lock clear mode.
                 // MHZ.9.5: use ctx.heldSteps().empty() so latched steps keep the edit context alive.
                 if (uiState_.funcHeld && processor_.editContext().heldSteps().empty())
@@ -2493,6 +2540,8 @@ namespace lockstep
                 if (!uiState_.latch.morph)
                 {
                     uiState_.morphHeld = false;
+                    morphDormantA_.clear();
+                    morphDormantB_.clear();
                     editMode_.onScopeEvent({ T::ButtonUp, CB::MorphScope });
                     repaint();
                 }
@@ -3551,5 +3600,34 @@ namespace lockstep
         };
 
         return sink;
+    }
+
+    // -------------------------------------------------------------------------
+    // buildMorphViewState — builds per-slot A/B pole states from live morph data
+    // and in-memory dormant maps, for the 8 currently visible MZ slots.
+    MorphViewState LockstepEditor::buildMorphViewState() const
+    {
+        MorphViewState mv;
+        if (!uiState_.morphHeld) return mv;
+
+        const int track = keyboardArea_.getActiveTrack();
+        if (track < 0) return mv;
+
+        const int slotOff = manipulationZone_.slotOffset();
+        using MPS = MorphViewState::PoleState;
+
+        for (int i = 0; i < 8; ++i)
+        {
+            const int absSlot = slotOff + i;
+            auto& s = mv.slots[static_cast<std::size_t>(i)];
+            const auto key = std::make_pair(track, absSlot);
+            const auto info = processor_.morphWidgetInfo(track, absSlot);
+
+            s.a = info.inA ? MPS::Active
+                : (morphDormantA_.count(key) > 0 ? MPS::Dormant : MPS::Dark);
+            s.b = info.inB ? MPS::Active
+                : (morphDormantB_.count(key) > 0 ? MPS::Dormant : MPS::Dark);
+        }
+        return mv;
     }
 }

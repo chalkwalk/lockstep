@@ -1495,6 +1495,54 @@ namespace lockstep
             return;
         }
 
+        // ── 5.2 Morph step view ──────────────────────────────────────────────────
+        // Morph held (no Func): step grid shows A/B pole states per MZ slot.
+        // Row 0 (D-;) = A poles, Row 1 (C-/) = B poles.
+        // Model cell base is MorphPoleActive/Dormant/Dark; primary holds param label.
+        if (uiState_.morphHeld && !uiState_.funcHeld)
+        {
+            for (int row = 0; row < kRows; ++row)
+            {
+                for (int col = 0; col < kCols; ++col)
+                {
+                    const int localIdx = row * kCols + col;
+                    const SurfaceCell& sc = model.step[static_cast<std::size_t>(localIdx)];
+                    const int x = colX(row, col + 2);
+                    const int y = rowY(row);
+                    const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+
+                    g.setColour(juce::Colour(sc.baseColour));
+                    g.fillRoundedRectangle(cell.toFloat(), 4.0f);
+
+                    if (sc.pressed)
+                    {
+                        g.setColour(juce::Colours::white.withAlpha(0.65f));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
+                    }
+
+                    // Param label (screen-only residual from model.primary)
+                    if (sc.base != CellState::MorphPoleDark && sc.primary.isNotEmpty())
+                    {
+                        const float alpha = (sc.base == CellState::MorphPoleActive) ? 0.90f : 0.50f;
+                        g.setColour(juce::Colours::white.withAlpha(alpha));
+                        g.setFont(juce::Font(juce::FontOptions(8.0f)));
+                        g.drawText(sc.primary, cell.reduced(2), juce::Justification::centred, true);
+                    }
+
+                    if (showKeyLetters && sc.base != CellState::MorphPoleDark)
+                        paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(localIdx)], 0.6f);
+                }
+            }
+
+            // Nav area: row labels
+            g.setColour(juce::Colour::fromRGB(80, 95, 115));
+            g.setFont(juce::Font(juce::FontOptions(10.0f)));
+            g.drawText("A (top row) | B (bottom row)  --  tap to toggle  *  dark = capture  *  dim = dormant",
+                       navArea, juce::Justification::centred);
+            return;
+        }
+        // ── End morph step view ──────────────────────────────────────────────────
+
         // Step cells — Slice 2: consume model.step[] for body fill, press feedback,
         // and major decorations. Screen-only residuals (note-count ticks, key hints,
         // step numbers, track labels, keyboard note names) stay inline per §35.8.1.
