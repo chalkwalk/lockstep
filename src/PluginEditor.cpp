@@ -2225,6 +2225,13 @@ namespace lockstep
                 const int trackIdx = ev.index;
                 if (trackIdx < 0 || trackIdx >= static_cast<int>(kNumTracks))
                     return true;
+                // Morph+Mute: capture AMP Level fade into near/far poles (DESIGN §17.3).
+                if (uiState_.morphHeld)
+                {
+                    processor_.fluidMuteTrack(trackIdx, processor_.morphFader());
+                    repaint();
+                    return true;
+                }
                 if (uiState_.funcHeld)
                 {
                     // Func+Mute+step = solo (additive toggle).

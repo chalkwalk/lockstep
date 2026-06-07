@@ -269,6 +269,10 @@ namespace lockstep
         void writeMorph(int track, int slot, float deltaAbs, float fader);
         void writeMorphPole(int track, int slot, float value, int pole);
         void removeMorph(int track, int slot);
+        // Fluid mute: Morph+Mute on a track — captures AMP Level→silence into
+        // the near pole (the one the fader favours) and current level into the
+        // far pole, so sweeping the fader fades the track in/out (DESIGN §17.3).
+        void fluidMuteTrack(int track, float fader);
 
         // Returns morph endpoint data for a ManipulationZone widget slot.
         MorphWidgetInfo morphWidgetInfo(int track, int slot) const;

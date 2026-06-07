@@ -1853,6 +1853,23 @@ namespace lockstep
             section().morphB[key] = v;
     }
 
+    void LockstepProcessor::fluidMuteTrack(int track, float fader)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        const auto* mi = machines_[static_cast<std::size_t>(track)].get();
+        if (mi->isMidiOut() || mi->hasInternalAmp()) return;
+        const int mnp     = mi->numParams();
+        const int ampOff  = mnp + (mi->hasInternalFilter() ? 0 : kFltrSlots);
+        const int levelSlot = ampOff;  // TrackAmpState slot 0 = Level
+        const float f    = juce::jlimit(0.0f, 1.0f, fader);
+        const float base = baseParamValue(track, levelSlot);
+        // Near pole = the pole the fader favours; write silence there, unity into far.
+        const int nearPole = (f < 0.5f) ? 0 : 1;
+        const int farPole  = 1 - nearPole;
+        writeMorphPole(track, levelSlot, 0.0f, nearPole);
+        writeMorphPole(track, levelSlot, base, farPole);
+    }
+
     void LockstepProcessor::removeMorph(int track, int slot)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
