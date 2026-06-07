@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../machine/IMachine.h"
+#include "Scene.h"
 #include "Track.h"
 
 namespace lockstep
@@ -18,12 +19,44 @@ namespace lockstep
         MusicalGate gateValue         = MusicalGate::None;
     };
 
+    // Morph context passed to the resolver — carries scene, track index, and fader
+    // position so the resolver can apply the three-tier P-Lock ▷ morph ▷ kit-base
+    // stack (DESIGN §17.2). Null = no morph (resolves as before).
+    struct MorphContext
+    {
+        const Scene* scene      = nullptr;
+        int          trackIndex = 0;
+        float        fader      = 0.0f;  // 0 = A, 1 = B
+    };
+
+    // Returns the morph-blended value for (trackIdx, slot) using mirror resolution:
+    // absent endpoint reads as the other endpoint, then falls to kitBase.
+    // Returns kitBase unchanged if the slot is in neither morphA nor morphB.
+    inline float morphBlend(const Scene& scene, int trackIdx, int slot,
+                            float kitBase, float fader) noexcept
+    {
+        const auto key = std::make_pair(trackIdx, slot);
+        const auto itA = scene.morphA.find(key);
+        const auto itB = scene.morphB.find(key);
+        const bool hasA = itA != scene.morphA.end();
+        const bool hasB = itB != scene.morphB.end();
+        if (!hasA && !hasB) { return kitBase; }
+        float aVal = kitBase;
+        float bVal = kitBase;
+        if (hasA) { aVal = itA->second; } else if (hasB) { aVal = itB->second; }
+        if (hasB) { bVal = itB->second; } else if (hasA) { bVal = itA->second; }
+        return aVal + ((bVal - aVal) * fader);
+    }
+
     // Effective Value = Step Override State [if exists] ELSE Track Base State.
     // When fillActive, FillOverride takes precedence over Override (three-tier resolution).
-    // The resolver merges the two (or three) into a single ParamFrame the IMachine sees.
+    // When morph != nullptr, the morph tier is applied between base and P-Lock
+    // (P-Lock ▷ morph-lerp ▷ kit-base — DESIGN §17.2).
     namespace StateResolver
     {
-        ParamFrame resolve(const Track& track, int stepIndex, bool fillActive = false);
+        ParamFrame resolve(const Track& track, int stepIndex,
+                           bool fillActive = false,
+                           const MorphContext* morph = nullptr);
 
         // Resolves sequencer-scope trig fields (note / velocity / gate) for one
         // fired step using Override-ELSE-Base against the track's TrigDefaults.

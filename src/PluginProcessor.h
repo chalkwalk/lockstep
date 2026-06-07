@@ -172,6 +172,19 @@ namespace lockstep
             return arrangement_.checkpointDepth(scope, track);
         }
 
+        // 5.2: Morph crossfader — fader position f ∈ [0,1] (0=A, 1=B).
+        // UI / message thread writes morphFaderTarget_; audio thread reads it
+        // each block and advances a smoothed follower (DESIGN §17.2).
+        void setMorphFader(float f)
+        {
+            morphFaderTarget_.store(juce::jlimit(0.0f, 1.0f, f),
+                                    std::memory_order_relaxed);
+        }
+        float morphFader() const
+        {
+            return morphFaderTarget_.load(std::memory_order_relaxed);
+        }
+
         // MD.9: Fill scope state — set by the UI thread, read by the audio thread.
         // Two activation scopes share the same fill data:
         //   * Fill alone  → allTracks=true:  every track sees fillActive during play.
@@ -594,6 +607,12 @@ namespace lockstep
         std::array<std::atomic<float>*, kNumTracks> trackSoloParams_{};
         std::array<std::atomic<float>*, kNumTracks> trackSwingParams_{};
         std::atomic<float>* globalSwingParam_ = nullptr;
+
+        // 5.2: Morph crossfader fader state (audio-thread only; not serialized).
+        // morphFaderTarget_ is written by any thread via setMorphFader().
+        // The audio thread reads it each block and drives morphFaderSmoothed_.
+        std::atomic<float> morphFaderTarget_ { 0.0f };
+        juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> morphFaderSmoothed_;
 
         juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> gainSmoothed_;
         std::array<float, 2> dcX1_{};

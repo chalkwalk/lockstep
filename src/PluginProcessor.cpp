@@ -260,6 +260,10 @@ namespace lockstep
         nextTriggerPpq_.fill(0.0);
         for (auto& pt : pendingTrigs_) pt.pending = false;
 
+        morphFaderSmoothed_.reset(sampleRate, 0.05);  // 50 ms ramp
+        morphFaderSmoothed_.setCurrentAndTargetValue(
+            morphFaderTarget_.load(std::memory_order_relaxed));
+
         gainSmoothed_.reset(sampleRate, 0.05);  // 50 ms ramp
         const float initGainDb = apvts_.getRawParameterValue(ParamIDs::outputGain)->load();
         gainSmoothed_.setCurrentAndTargetValue(
@@ -981,6 +985,13 @@ namespace lockstep
         for (std::size_t i = 0; i < kNumTracks; ++i)
             if (trackSoloParams_[i]->load() >= 0.5f) { anySoloed = true; break; }
 
+        // Advance morph fader smoother once per block (DESIGN §17.2).
+        morphFaderSmoothed_.setTargetValue(
+            morphFaderTarget_.load(std::memory_order_relaxed));
+        if (numBlockSamples > 1)
+            morphFaderSmoothed_.skip(numBlockSamples - 1);
+        const float faderNow = morphFaderSmoothed_.getNextValue();
+
         if (!sequencerRunning)
         {
             // Render voice tails and any externally-triggered notes.
@@ -998,7 +1009,8 @@ namespace lockstep
                     && editContext_.heldTrackIndex() == static_cast<int>(i))
                     resolveStep = editContext_.heldStepIndex();
                 const bool fillNow = fillActiveForTrack(static_cast<int>(i));
-                auto frame = StateResolver::resolve(sequence().tracks[i], resolveStep, fillNow);
+                const MorphContext mc0 { &section(), static_cast<int>(i), faderNow };
+                auto frame = StateResolver::resolve(sequence().tracks[i], resolveStep, fillNow, &mc0);
                 if (previewActive_ && static_cast<int>(i) == previewTrack_)
                 {
                     const int ss = slotForId(static_cast<int>(i), "sample_id");
@@ -1025,6 +1037,10 @@ namespace lockstep
                     if (!mi->hasInternalFilter())
                     {
                         TrackFltrState fltr = kit(static_cast<int>(i)).fltrState;
+                        // Morph tier for FLTR slots (before P-Lock override).
+                        for (int fs = 0; fs < TrackFltrState::kNumSlots; ++fs)
+                            fltr.setSlot(fs, morphBlend(section(), static_cast<int>(i),
+                                                        fltrOff + fs, fltr.getSlot(fs), faderNow));
                         if (resolveStep >= 0 && resolveStep < kMaxStepsPerTrack)
                         {
                             const auto& step =
@@ -1044,6 +1060,10 @@ namespace lockstep
                     if (!mi->hasInternalAmp())
                     {
                         TrackAmpState amp = kit(static_cast<int>(i)).ampState;
+                        // Morph tier for AMP slots (before P-Lock override).
+                        for (int as = 0; as < TrackAmpState::kNumSlots; ++as)
+                            amp.setSlot(as, morphBlend(section(), static_cast<int>(i),
+                                                       ampOff + as, amp.getSlot(as), faderNow));
                         if (resolveStep >= 0 && resolveStep < kMaxStepsPerTrack)
                         {
                             const auto& step =
@@ -1485,7 +1505,8 @@ namespace lockstep
                         }
                     }
                 }
-                return StateResolver::resolve(track, fi, curFillActive);
+                const MorphContext mcR { &section(), static_cast<int>(i), faderNow };
+                return StateResolver::resolve(track, fi, curFillActive, &mcR);
             }();
             if (previewActive_ && static_cast<int>(i) == previewTrack_)
             {
@@ -1513,6 +1534,10 @@ namespace lockstep
                 if (!mi->hasInternalFilter())
                 {
                     TrackFltrState fltr = kit(static_cast<int>(i)).fltrState;
+                    // Morph tier for FLTR slots (before P-Lock override).
+                    for (int fs = 0; fs < TrackFltrState::kNumSlots; ++fs)
+                        fltr.setSlot(fs, morphBlend(section(), static_cast<int>(i),
+                                                    fltrOff + fs, fltr.getSlot(fs), faderNow));
                     if (fsi >= 0 && fsi < kMaxStepsPerTrack)
                     {
                         const auto& step = sequence().tracks[i].steps[static_cast<std::size_t>(fsi)];
@@ -1531,6 +1556,10 @@ namespace lockstep
                 if (!mi->hasInternalAmp())
                 {
                     TrackAmpState amp = kit(static_cast<int>(i)).ampState;
+                    // Morph tier for AMP slots (before P-Lock override).
+                    for (int as = 0; as < TrackAmpState::kNumSlots; ++as)
+                        amp.setSlot(as, morphBlend(section(), static_cast<int>(i),
+                                                   ampOff + as, amp.getSlot(as), faderNow));
                     if (fsi >= 0 && fsi < kMaxStepsPerTrack)
                     {
                         const auto& step = sequence().tracks[i].steps[static_cast<std::size_t>(fsi)];

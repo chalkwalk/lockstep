@@ -146,15 +146,19 @@ namespace lockstep
                 (static_cast<int>(gridMode_) + 1) % 3));
         };
         addAndMakeVisible(displayModeBtn_);
-        // MHX.5: vertical crossfader — Scene A at top, Scene B at bottom.
+        // MHX.5: vertical crossfader — A=0 (bottom), B=1 (top); fader rest = A.
         crossfader_.setSliderStyle(juce::Slider::LinearBarVertical);
         crossfader_.setRange(0.0, 1.0, 0.0);
-        crossfader_.setValue(0.5, juce::dontSendNotification);
+        crossfader_.setValue(0.0, juce::dontSendNotification);
         crossfader_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
         crossfader_.setColour(juce::Slider::trackColourId,
                               juce::Colour::fromRGB(100, 80, 200).withAlpha(0.6f));
         crossfader_.setWantsKeyboardFocus(false);
-        crossfader_.setTooltip("Scene crossfader (A=top / B=bottom)");
+        crossfader_.setTooltip("Morph crossfader (0=A / 1=B)");
+        crossfader_.onValueChange = [this]
+        {
+            processor_.setMorphFader(static_cast<float>(crossfader_.getValue()));
+        };
         addAndMakeVisible(crossfader_);
 
         addAndMakeVisible(manipulationZone_);
@@ -362,7 +366,7 @@ namespace lockstep
                                                   keyboardArea_.currentPage(),
                                                   gridMode_,
                                                   manipulationZone_.slotOffset(),
-                                                  static_cast<float>(crossfader_.getValue()));
+                                                  processor_.morphFader());
             if (xTouchSurface_ && controllerPorts_.isOpen())
                 controllerPorts_.drain(*xTouchSurface_, sink, model);
             if (push1Surface_ && push1Ports_.isOpen())
@@ -3326,6 +3330,7 @@ namespace lockstep
 
         sink.setCrossfader = [this](float normValue)
         {
+            // setValue triggers onValueChange which calls setMorphFader().
             crossfader_.setValue(static_cast<double>(normValue), juce::sendNotificationAsync);
         };
 

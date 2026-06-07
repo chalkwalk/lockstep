@@ -2,16 +2,30 @@
 
 namespace lockstep::StateResolver
 {
-    ParamFrame resolve(const Track& track, int stepIndex, bool fillActive)
+    ParamFrame resolve(const Track& track, int stepIndex,
+                       bool fillActive, const MorphContext* morph)
     {
         ParamFrame frame = track.baseParams;
+
+        // Morph tier: between base and P-Lock (P-Lock ▷ morph ▷ kit-base).
+        // Only applied when the scene has morph data; skipped when maps are empty.
+        if (morph && morph->scene
+            && (!morph->scene->morphA.empty() || !morph->scene->morphB.empty()))
+        {
+            for (int slot = 0; slot < static_cast<int>(frame.size()); ++slot)
+            {
+                frame[static_cast<std::size_t>(slot)] =
+                    morphBlend(*morph->scene, morph->trackIndex, slot,
+                               frame[static_cast<std::size_t>(slot)], morph->fader);
+            }
+        }
 
         if (stepIndex < 0 || stepIndex >= static_cast<int>(track.steps.size()))
             return frame;
 
         const auto& step = track.steps[static_cast<std::size_t>(stepIndex)];
 
-        // Apply base Override layer.
+        // P-Lock Override layer (wins over morph).
         for (int slot = 0; slot < static_cast<int>(frame.size()); ++slot)
         {
             if (step.overrides.has(slot))
