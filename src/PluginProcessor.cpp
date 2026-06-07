@@ -588,7 +588,20 @@ namespace lockstep
                         {
                             s.trigOverride.noteCount         = 0;
                             s.trigOverride.hasNoteVelocities = false;
+                            s.microOffset = 0.0f;  // clear before residual capture below
                         }
+                        // Capture sub-step timing residual (DESIGN §19.1). Measure the
+                        // note-on position against the swung step location so that a
+                        // consistently swung performance records near-zero residuals.
+                        const bool isOdd = (nearestNum % 2) == 1;
+                        const float trackSw  = trackSwingParams_[ti]->load();
+                        const float globalSw = globalSwingParam_->load();
+                        const float effSwg   = effectiveSwing(globalSw, trackSw);
+                        const float swingDelta = isOdd ? effSwg : 0.0f;
+                        const float residual = static_cast<float>(
+                            noteOnPpq / divPpq
+                            - static_cast<double>(nearestNum)) - swingDelta;
+                        s.microOffset = std::clamp(residual, -0.5f, 0.5f);
                     }
                     s.trig = true;
                     if (s.trigOverride.noteCount < kMaxNotesPerStep)
