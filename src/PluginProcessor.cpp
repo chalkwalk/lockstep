@@ -1823,7 +1823,30 @@ namespace lockstep
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
         if (slot  < 0 || slot  >= numParams(track))             return;
 
+        // ~1.5 % dead zone at each extreme: write only to the near pole so
+        // that pushing the fader to an end never creates a surprise two-sided
+        // entry.  This is also the code path for exactly f=0 and f=1, fixing a
+        // latent bug where the proportional split wrote a zero-delta to the far
+        // pole and created a spurious map entry.
+        static constexpr float kDeadZone = 0.015f;
         const float f = juce::jlimit(0.0f, 1.0f, fader);
+        if (f <= kDeadZone || f >= 1.0f - kDeadZone)
+        {
+            const int   pole    = (f >= 1.0f - kDeadZone) ? 1 : 0;
+            const auto& sc      = section();
+            const auto  key     = std::make_pair(track, slot);
+            const bool  hasA    = (sc.morphA.count(key) > 0);
+            const bool  hasB    = (sc.morphB.count(key) > 0);
+            const float kitBase = baseParamValue(track, slot);
+            const float curPole = (pole == 0)
+                ? (hasA ? sc.morphA.at(key) : (hasB  ? sc.morphB.at(key) : kitBase))
+                : (hasB ? sc.morphB.at(key) : (hasA  ? sc.morphA.at(key) : kitBase));
+            const auto spec = paramSpec(track, slot);
+            writeMorphPole(track, slot,
+                juce::jlimit(spec.minValue, spec.maxValue, curPole + deltaAbs), pole);
+            return;
+        }
+
         const float D = ((1.0f - f) * (1.0f - f)) + (f * f);
         if (D < 1e-6f) return;
 
@@ -1834,8 +1857,8 @@ namespace lockstep
         const bool  hasB    = (sc.morphB.count(key) > 0);
         const float kitBase = baseParamValue(track, slot);
 
-        float aVal = hasA ? sc.morphA.at(key) : (hasB ? sc.morphB.at(key) : kitBase);
-        float bVal = hasB ? sc.morphB.at(key) : (hasA ? sc.morphA.at(key) : kitBase);
+        const float aVal = hasA ? sc.morphA.at(key) : (hasB ? sc.morphB.at(key) : kitBase);
+        const float bVal = hasB ? sc.morphB.at(key) : (hasA ? sc.morphA.at(key) : kitBase);
 
         const float da = deltaAbs * (1.0f - f) / D;
         const float db = deltaAbs * f / D;
