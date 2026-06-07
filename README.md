@@ -186,7 +186,7 @@ other naturally with no master-bar concept.
 | **Compound chord** | Two modifiers (one per column) held together to combine scopes. Cross-column only; never fires on its own — it just narrows the scope until a verb is pressed. `Func` composes with anything. |
 | **Verb** | The action applied to the scope (`Record`=copy, `Play`=paste, `Stop`=clear, `Yes`, `No`). |
 | **Section** | A grouping of parameters on the section bar (keys `5–0`). Canonical six: TRIG / SRC / FILTER / AMP / MOD / FX. Held scope modifiers reinterpret each key (e.g. `Track+FILTER` = post-machine filter, `Song+FX` = master FX). The Manipulation Zone shows eight parameters (4×2) of the active cell at a time. |
-| **Morph / Crossfader** *(planned, 5.2)* | A per-Scene pair of sparse parameter maps (A and B) blended by one continuous fader. The `Morph` modifier assigns slots; `Morph + ^/v` picks endpoint A/B. The fader is mouse/CC/hardware-only (no QWERTY). |
+| **Morph / Crossfader** *(planned, 5.2)* | A per-Scene pair of sparse parameter maps (A and B) blended by one continuous fader. Hold/latch `Morph` + encoder sculpts both poles at the normalised fader-split (scene-layer selector, symmetric with holding a step for P-Lock). `Morph + ^/v` forces pure A/B writes (QWERTY path). Absent pole mirrors the set pole — fader is inert until A ≠ B. The fader is mouse/CC/hardware-only (no QWERTY axis). |
 | **Manipulation Zone (MZ)** | The eight-parameter (4×2) editing band. What you are tweaking right now. |
 | **Step Grid** | The 2×8 matrix of step keys mirroring the bottom two QWERTY rows. |
 | **Focus / focused track** | The currently selected track (or Global). Determines what contextual encoders and selected-track MIDI map to. |
@@ -1101,11 +1101,17 @@ Song (S)
 Links: [§5.14](#514-scenes-phrases-and-songs-the-launch-model) ·
 [§5.2](#52-modifier-scope-keys)
 
-### Morph (A) — *assignment verbs planned (5.2)*
+### Morph (A) — *planned (5.2)*
 
 ```
-Morph (A)   (key bound; the A/B crossfader assignment lands in 5.2)
-└─ Morph + ↑ / ↓     → pick endpoint A / B (planned) — §5.2
+Morph (A)   hold/latch = scene-layer selector (symmetric with held step → P-Lock)
+├─ + encoder            → sculpt morph at fader split (da/db normalised 1:1) — §5.2
+├─ + ↑ + encoder        → pure A write (fader ignored) — §5.2
+├─ + ↓ + encoder        → pure B write (fader ignored) — §5.2
+├─ + ↑ + Stop on slot   → remove slot from A's map — §5.2
+├─ + ↓ + Stop on slot   → remove slot from B's map — §5.2
+├─ + Stop on slot        → clear slot from both maps — §5.2
+└─ + Mute on track       → fluid mute (AMP Level → silence into near pole) — §5.2
 ```
 
 Links: [§5.2](#52-modifier-scope-keys)

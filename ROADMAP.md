@@ -126,8 +126,7 @@ are sequencing decisions with no other home.
   → DESIGN §30.
 - **The Morph morphs parameters only, never trigs;** fader lerps continuous slots /
   snaps stepped slots. "Fluid mute" = morph-assigning AMP `Level`. → DESIGN §17.
-- **Morph-aware editing (PolyBrute-style), 1:1 normalised**, coexists with the
-  explicit `Morph + ^/v` assignment; no auto-assign at endpoints. → DESIGN §17.6.
+- **Modifier-gated sculpting**: hold/latch `Morph` + encoder writes morph overlay at 1:1 normalised fader split; bare encoder writes kit base. `Morph + ^/v` forces pure A/B. → DESIGN §17.3/§17.6.
 - **Cue = additive monitor send, never solo.** No cue output = no-op. → DESIGN §31.
 - **AMP gate source `{Envelope | Held-open}`** — the basis of continuous Thru and
   drones; subsumes the Thru/Neighbour split. → DESIGN §14, §29.
@@ -751,16 +750,13 @@ DESIGN §17. *(Morph A/B snapshot fields are carried on the Scene after Phase 7
 Stage G — shipped as `Section.sceneA/B`, renamed `Scene.morphA/B` in 7.9; a
 placeholder crossfader slider exists from 3.1. The full crossfader
 implementation ships here.)*
-- [ ] `Scene::morphA / morphB` sparse `map<(track,slot)->float>`, serialized
-      (fields already present from 7.7; this stage wires the runtime resolver).
-- [ ] `faderValue` (RAM-only, smoothed).
-- [ ] Resolver morph-pair consult (lerp continuous / snap stepped at 0.5).
-- [ ] `Morph + ^/v` assignment gesture + `Morph+Stop` removal; MZ A/B indicators.
-- [ ] MIDI-out parity (cc lerp, channel/program snap + All-Notes-Off).
-- [ ] Hardware fader axis 1:1 + auto CC map; no QWERTY axis.
-- [ ] P-Lock dominance over Morph mix.
-- [ ] Morph-aware editing (1:1 normalised through the fader position).
-- [ ] Fluid mute (`Morph+Mute` captures `Level→silence`).
+- [ ] `faderValue` `std::atomic<float>` + smoothed follower (RAM-only, not serialized; default f=0/A).
+- [ ] Resolver: three-tier P-Lock ▷ morph-lerp ▷ kit-base; **mirror resolution** (absent pole = other pole ?? kit base); fader inert until A ≠ B. Both process paths (stopped + running).
+- [ ] Modifier-gated sculpting: hold/latch `Morph` + encoder → normalised split `da=Δ(1-f)/D, db=Δf/D`; bare encoder → kit base (DESIGN §17.3/§17.6).
+- [ ] `Morph + ^/v` pole-forcing + `Morph+Stop` removal; MZ A/B indicators.
+- [ ] Stepped snap (f<0.5 → A, else B) + MIDI-out parity (cc lerp, channel/program snap + All-Notes-Off on channel flip).
+- [ ] Fluid mute: `Morph+Mute` captures AMP `Level→silence` into near pole, unity into far pole.
+- [ ] Fader MIDI-learn: `CCScope::Crossfader`; right-click on crossfader_ slider → learn.
 
 ### 5.3 — Song/Scene management UI  *[planned]*  *(was MJ; re-scoped for Phase 7)*
 DESIGN §23 (re-derived for the Phase 7 model). The old Pattern/Part management UI

@@ -2151,67 +2151,107 @@ authoring a different Scene.
 
 The fader value `f ∈ [0, 1]` is RAM-only runtime state (it does not
 serialize — it is a controller axis, like a held key, not a stored
-field).
+field). Default rest = A (f = 0).
 
-Resolution order, per (track, slot):
+Resolution follows a three-tier precedence per (track, slot, step):
 
 ```
 effective(track, slot, step) =
-    step.pLock[slot]                                  // wins if present
-  ∨ lerp(morphA_val, morphB_val, f) [if in any morph] // otherwise mix
-  ∨ track.baseParams[slot]                            // otherwise base
+    step.pLock[slot]           // P-Lock — phrase layer wins
+  ∨ morphBlend(track, slot, f) // morph tier — only if slot in A ∨ B
+  ∨ kit.baseParams[slot]       // kit base — song layer
 ```
 
-where `morphA_val = Scene.morphA[(track,slot)] ?? kit.baseParams[slot]`
-(and likewise for B). A slot not present in either endpoint is
-unaffected by the fader; its base value resolves directly.
+`morphBlend` uses **mirror resolution**: an absent endpoint reads as the
+*other* endpoint (then falls to kit base if both are absent):
 
-Stepped slots (those with `ParamSpec::stepped == true`) snap at
-`f = 0.5` instead of lerping. This includes MIDI-out
-`channel` and `program` slots (§15) — they are morph-assignable
-but morph discretely, with a clean note-off on the previous channel
-emitted at the snap point to prevent stuck notes downstream.
+```
+aVal = morphA[(t,s)] ?? morphB[(t,s)] ?? kit.baseParams[s]
+bVal = morphB[(t,s)] ?? morphA[(t,s)] ?? kit.baseParams[s]
+morphBlend = stepped ? (f < 0.5 ? aVal : bVal) : lerp(aVal, bVal, f)
+```
 
-P-Locks still win at the step level: a step that locks a slot
-bypasses the fader on that slot for that step. This makes the Morph
-non-destructive to authored intent at the step layer.
+Mirror semantics mean the fader is **inert until A and B genuinely
+differ** — a half-authored morph (one pole only) does nothing to the
+sound, so incomplete edits never cause unintended fades. Both poles
+must be explicitly sculpted before the fader does anything.
 
-**The Morph morphs parameters only — never trigs.** The fader lerps
-continuous slots and snaps stepped slots; it does *not* rewrite the
-trig grid or change which steps fire. Morphing trigs is ill-defined
-(the same step P-locked differently in A and B would demand
-polyphony from a monophonic machine) and is already served by
-scene switching (§16) and mutes (§13.4). This keeps the resolver a
-clean OEB-plus-lerp model (`PRINCIPLES.md` §7).
+Stepped slots (`ParamSpec::stepped == true`) snap at `f = 0.5` instead
+of lerping. MIDI-out `channel` and `program` (§15) are stepped and snap
+with a clean note-off on the previous channel at the crossing point.
 
-### 17.3 Assignment gesture
+**P-Locks still dominate.** A step that P-Locks a slot bypasses the
+fader for that step — the Morph is non-destructive to phrase-layer
+intent.
 
-The morph assignment gesture follows the scope+verb grammar (§13). The
-endpoints are addressed by the single `Morph` modifier plus a Nav
-qualifier (§17.5):
+**The Morph morphs parameters only — never trigs.** Morphing trigs is
+ill-defined and is served by scene switching (§16) and mutes (§13.4).
+This keeps the resolver a clean OEB-plus-lerp model (`PRINCIPLES.md` §7).
 
-- Hold `Morph + ^` + turn an encoder → adds the current value of that
-  slot to endpoint **A**'s map.
-- Hold `Morph + v` + turn an encoder → adds to endpoint **B**'s map.
-- Hold `Morph + ^` + press the trig-`Stop` verb on an assigned slot
-  → removes it from endpoint A.
-- Hold `Morph` with both `^` and `v` and turn → assigns the same
-  value to both endpoints (rarely useful by itself, but the natural
-  "make this the rest position" gesture).
+**Kit invariant.** A track runs the same machine in every scene of a
+song (the Kit is Song-scoped, §4.7). Scene-scoped morph is coherent
+because the slot address space is identical across all scenes —
+morph overlays address the same slots regardless of which scene plays.
 
-The MZ renders assigned slots with a small A / B indicator and the
-two captured endpoint values. Slots in both endpoints morph; slots in
-only one effectively go from "base" to "endpoint value" as the fader
-crosses (because the missing side falls back to base).
+**Shadowing footgun.** Morph values are absolute (not deltas). A kit
+edit of a morphed slot is overshadowed by the morph overlay in any
+scene that assigns that slot. The MZ flags morph-owned slots with A/B
+chips so the performer can see which slots are morph-controlled
+(PRINCIPLES §10).
 
-**Fluid mute.** "Mute a track across the morph" is not a separate
-mechanism — it is the track's AMP `Level` slot assigned to the morph
-(e.g. A = unity, B = −∞), which then *fades* the track in/out as the
-fader moves rather than snapping. A convenience gesture, `Morph + Mute`
-on a track, captures `Level → silence` into the held endpoint so the
-performer does not have to assign Level by hand. The binary performance
-mutes (§13.4) remain a separate, instantaneous mechanism; the morph
-fade is their continuous sibling.
+### 17.3 Modifier-gated sculpting
+
+The `Morph` key is the **scene-layer selector**: holding or latching it
+routes encoder edits into the morph overlay, exactly as holding a step
+routes edits into a P-Lock. Bare encoder edits (no `Morph` held) always
+write to the kit base.
+
+**Sculpting at fader position.** Hold or latch `Morph`, turn an
+encoder → the edit is split across A and B at the normalised
+proportional split for fader position `f`:
+
+```
+D  = (1−f)² + f²
+da = Δ · (1−f) / D   // added to morphA[(track, slot)]
+db = Δ · f / D        // added to morphB[(track, slot)]
+```
+
+This ensures the **heard value tracks the gesture 1:1** at every
+position — `da·(1−f) + db·f = Δ`. At f = 0 the whole edit lands in A;
+at f = 1, in B; at f = 0.5 both endpoints move by Δ together.
+
+If either endpoint map entry does not yet exist, it is initialised from
+the resolved value (via mirror resolution) before the delta is applied —
+so the first edit at any fader position is always heard as Δ.
+
+**Pole-forcing with `^`/`v`.** QWERTY has no fader; Nav qualifiers
+override the ratio:
+
+- `Morph + ^` + encoder → pure A write (ignores fader position)
+- `Morph + v` + encoder → pure B write (ignores fader position)
+- `Morph + ^` + `Stop` on a slot → removes from A's map
+- `Morph + v` + `Stop` on a slot → removes from B's map
+- `Morph + Stop` on a slot → removes from both maps (clears assignment)
+
+On a hardware surface with a physical fader, `^`/`v` are natural
+"commit this exact position" shortcuts; on QWERTY they are the primary
+assignment path.
+
+**Stepped slots.** Stepped slots cannot be split; a sculpt write goes
+to the resolved side (f < 0.5 → A, else B).
+
+**P-Lock dominance.** When a step is held (EditContext active), the
+edit targets the step's P-Lock regardless of Morph scope.
+
+The MZ renders morph-assigned slots with A/B chips showing the captured
+endpoint values, flagging that kit edits of those slots are shadowed
+here (the footgun from §17.2).
+
+**Fluid mute.** `Morph + Mute` on a track captures `AMP Level →
+silence` into the near pole (A if f ≤ 0.5, B if f > 0.5) and writes
+unity into the far pole, giving a continuous fade path across the
+fader. Binary performance mutes (§13.4) remain a separate,
+instantaneous mechanism.
 
 ### 17.4 MIDI-out parity
 
@@ -2226,8 +2266,8 @@ MIDI-out as a first-class machine.
 
 The hardware controller carries one physical fader. In software,
 the same axis appears as a vertical slider in the transport chrome,
-mouse-draggable, plus an automatic CC mapping (default CC number
-TBD; user-remappable) so any external surface can drive it.
+mouse-draggable, plus a user-assignable CC mapping (MIDI-learn, 5.2) so any external
+surface can drive it.
 
 There is no QWERTY mapping for the fader axis: continuous gestures
 on a typing keyboard are a poor fit and would only invite muscle
@@ -2245,51 +2285,19 @@ directly, so the explicit `^`/`v` qualifier is the QWERTY-only path.
 The software fader sits as a vertical slider on the right of the
 encoder band (§26.1), spatially aligned with the encoder rows.
 
-### 17.6 Morph-aware editing
+### 17.6 Write routing summary
 
-Inspired by the PolyBrute's morph knob: for a slot **already
-assigned** to the morph, a bare encoder turn (no `Morph` scope held)
-writes through the *current fader position* rather than to a single
-endpoint. The performer never thinks "am I editing A or B" — they
-just move the control and the sound follows.
+| Morph held? | Step held? | Edit destination |
+|---|---|---|
+| No | No | Kit base (`track.baseParams`) |
+| No | Yes | Step P-Lock |
+| Yes | No | Morph overlay at fader split (§17.3) |
+| Yes | Yes | Step P-Lock (P-Lock always wins) |
 
-The write splits the delta Δ across the two endpoints by fader
-position `f`, **normalised so the heard value tracks the gesture
-1:1** everywhere:
-
-```
-let D = (1−f)² + f²
-da = Δ · (1−f) / D      // change applied to endpoint A value
-db = Δ · f / D          // change applied to endpoint B value
-```
-
-This gives `da·(1−f) + db·f = Δ` for all `f`, so the effective
-(heard) value always moves by exactly Δ. At `f = 0` the whole edit
-lands in A; at `f = 1`, in B; at `f = 0.5` both endpoints move by Δ
-(preserving the A/B contrast while you sculpt the middle). Endpoints
-may move slightly more than Δ in the mid-morph zone (peak ≈ 1.2 Δ
-near `f ≈ 0.3`); this is invisible during performance and is the
-accepted cost of honest 1:1 tracking. The alternative un-normalised
-"literal proportional" split (`da = Δ(1−f)`, `db = Δf`) was rejected
-because it makes the knob feel "heavy" — the sound moves as little as
-half the gesture at the midpoint.
-
-Rules:
-
-- **Coexists with, does not replace, the §17.3 assignment gesture.**
-  Holding `Morph + ^/v` is still the only way to *assign* a slot (and
-  the only path that works on QWERTY, which has no fader — §17.5).
-  Morph-aware editing acts only on already-assigned slots.
-- **Unassigned slots are unaffected** — a bare encoder turn on a slot
-  in neither endpoint edits the track base exactly as today. (Auto-
-  assigning at an endpoint was rejected: the fader rests at the A end
-  as "home", so base tweaks there would silently enrol slots into the
-  morph system — a silent mode, `PRINCIPLES.md` §10.)
-- **Stepped slots** cannot be split; a morph-aware edit writes to the
-  currently-resolved side (`f < 0.5 → A`, else `B`).
-- **P-Locks still dominate** — editing a slot that the held step
-  P-locks writes the P-Lock, not the scene (the EditContext rule is
-  unchanged).
+The `Morph` scope selects the **scene layer** for encoder edits.
+Everything else (base edits, P-Lock authoring) is unaffected by whether
+Morph is engaged. This is consistent with the modifier grammar: a scope
+declares what you are editing, not a separate mode.
 
 ## 18. Roadmap Reference
 
