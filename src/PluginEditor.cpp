@@ -3354,7 +3354,19 @@ namespace lockstep
                     break;
                 }
                 case GlobalTarget::Swing:
-                    break;  // not yet implemented in sequencer core
+                {
+                    auto* p = processor_.apvts().getParameter(ParamIDs::globalSwing);
+                    if (p)
+                    {
+                        // Normalise: globalSwing range is [-0.5, +0.5] → APVTS 0..1.
+                        // One encoder tick = ~0.01 step (1% of step length).
+                        const float cur    = p->getValue();  // normalised 0..1
+                        const float newVal = juce::jlimit(0.0f, 1.0f,
+                                                          cur + static_cast<float>(rawDelta) / 100.0f);
+                        p->setValueNotifyingHost(newVal);
+                    }
+                    break;
+                }
             }
         };
 

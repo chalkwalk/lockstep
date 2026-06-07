@@ -1744,13 +1744,15 @@ namespace lockstep
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
         if (step  < 0 || step  >= kMaxStepsPerTrack)             return;
-        auto& trig = sequence().tracks[static_cast<std::size_t>(track)]
-                         .steps[static_cast<std::size_t>(step)].trigOverride;
+        auto& s    = sequence().tracks[static_cast<std::size_t>(track)]
+                         .steps[static_cast<std::size_t>(step)];
+        auto& trig = s.trigOverride;
         switch (field)
         {
-            case 0: trig.noteCount = 0; break;
+            case 0: trig.noteCount = 0;       break;
             case 1: trig.hasVelocity = false; break;
-            case 2: trig.hasGate = false; break;
+            case 2: trig.hasGate = false;     break;
+            case 4: s.microOffset = 0.0f;     break;  // MicroTime: reset to on-grid
             default: break;
         }
     }

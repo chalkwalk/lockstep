@@ -880,11 +880,16 @@ shipped behaviour and the design intent. To avoid confusion:
   plus the `StubMachine` fallback. Shared post-machine FILTER (SVF) + AMP.
 - The **surface-model foundation** for external controllers (6.6.5a):
   one pure `buildSurfaceModel()` the screen renders from.
+- **Microtiming, Swing & Quantize** (`5.1`): per-step `microOffset` (±50% of step
+  length, P-lockable via TRIG meta section); signed additive swing (global + per-track,
+  ±50%, composed as `effectiveSwing = clamp(global + track, ±50%)`); sample-accurate
+  look-ahead scheduler; live-record residual capture; `Quantize` verb (`scope + No`
+  zeros microOffset); amber/cyan step-grid nudge ticks; TRACK band effective-swing
+  readout; global swing encoder.
 
 **Planned** — the rest of the
 machine catalogue (`4.5` Static, `4.6` Percussion, `4.7` Digital); **Phase 5**
-performance depth (microtiming +
-swing + quantize `5.1`; scenes + crossfader `5.2`; pattern/part management
+performance depth (scenes + crossfader `5.2`; pattern/part management
 UI `5.3`; sampling + resampling `5.4`; audition + cross-track record `5.5`;
 special trig types `5.6`; the retrig/ratchet + Sound Pool trig-grid modes
 `5.7`; UI polish + state-colour palette `5.8`); and **Phase 6** routing,
@@ -1001,6 +1006,7 @@ step(s) held
 ├─ + Func + O        → clear all P-Locks on held step(s), keep the trig — §5.17
 ├─ + (MZ slot) + O   → clear only that one slot's P-Lock on held step(s) — §5.17
 ├─ + Func + P (NO)   → clear notes / velocity / gate on held step(s) — §5.7
+├─ + P (YES)         → Quantize: zero microOffset on held step(s) — §5.1
 ├─ + section key     → edit that section's field as a step override (P-Lock / trig override) — §5.7
 └─ + encoder turn    → write a P-Lock on the held step(s) — §5.7
 ```
@@ -1038,6 +1044,7 @@ Track (2)
 ├─ + track-key + Nav → set the input mode on that specific track — §5.18
 ├─ + U / I / O       → copy / paste / clear the whole track — §5.9
 ├─ + Func + O        → delete the track (then P confirms, Func+P cancels) — §5.9
+├─ + P (YES)         → Quantize: zero microOffset on every step of the track — §5.1
 ├─ + Scene           → re-sync the focused track to the active scene — §5.14
 └─ Func + Track      → machine / Kit picker (Track→KIT; press a step to assign) — §5.5
 ```
@@ -1054,6 +1061,7 @@ Phrase (Q)
 ├─ + step            → unison swap: all non-deviated tracks switch to that phrase — §5.14
 ├─ Track + Phrase + step → sticky deviation: only the focused track switches — §5.14
 ├─ + U / I / O       → copy / paste / clear the whole phrase (all tracks) — §5.9
+├─ + P (YES)         → Quantize: zero microOffset across every step on every track — §5.1
 └─ + O (queued scene pending) → cancel the queued scene — §5.14
 ```
 

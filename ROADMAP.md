@@ -731,19 +731,20 @@ The depth pass on top of the frozen surface: timing feel, scenes, pattern/part
 management, sampling, audition, special trigs, the remaining trig-grid modes, and
 the UI-polish/palette pass.
 
-### 5.1 — Microtiming + swing + quantize  *[planned]*  *(was ML)*
+### 5.1 — Microtiming + swing + quantize  *[shipped]*  *(was ML)*
 Completes the record-time capture story (gate / velocity / microtiming).
-- [ ] `Step::microOffset ∈ [-0.5, +0.5]`; serializer v9 (`mo` property).
-- [ ] Sample-accurate look-ahead scheduler: per-step emit, `pendingTrigs_`
-      deferral, combined ±0.5 cap (DESIGN §19.2). Extracts `emitTrigForStep`.
-- [ ] Realtime record writes `microOffset` (residual to nearest swung position).
-- [ ] Signed additive swing (DESIGN §19.2): global `swing` + per-track
+- [x] `Step::microOffset ∈ [-0.5, +0.5]`; serializer v9 (`mo` property).
+- [x] Sample-accurate look-ahead scheduler: per-step emit, `pendingTrigs_`
+      deferral, combined ±0.5 cap (DESIGN §19.2). Also fixes the pre-existing
+      single-emit-per-block limitation.
+- [x] Realtime record writes `microOffset` (residual to nearest swung position).
+- [x] Signed additive swing (DESIGN §19.2): global `swing` + per-track
       `track_t_swing` ∈ [-0.5, +0.5], `effectiveSwing = clamp(sum, ±0.5)`.
       Both APVTS. Summation seam reserves Scene/Song/Phrase slots.
-- [ ] `Quantize` verb (`<scope> + No`) zeroing microOffsets in scope.
-- [ ] Authoring UI: MicroTime widget (TRIG band, P-lockable); Swing widget
+- [x] `Quantize` verb (`<scope> + No`) zeroing microOffsets in scope.
+- [x] Authoring UI: MicroTime widget (TRIG band, P-lockable); Swing widget
       (TRACK band + global encoder); per-track effective-swing readout.
-- [ ] Step-grid nudge-direction tick indicator (`show-microtiming-ticks`).
+- [x] Step-grid nudge-direction tick indicator (amber=late, cyan=early).
 
 ### 5.2 — Morph + crossfader  *[planned]*  *(was MI)*
 DESIGN §17. *(Morph A/B snapshot fields are carried on the Scene after Phase 7

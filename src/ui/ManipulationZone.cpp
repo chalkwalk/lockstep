@@ -2,6 +2,7 @@
 #include "ParamFormat.h"
 #include "../ParameterIDs.h"
 #include "../PluginProcessor.h"
+#include "../core/Swing.h"
 #include "../core/TrigCondition.h"
 #include "KeyboardArea.h"
 #include <algorithm>
@@ -475,9 +476,11 @@ namespace lockstep
 
         const bool stepHeld = ctx.isActiveForEditing() && ctx.heldTrackIndex() == track;
         const int  heldStep = ctx.heldStepIndex();
-        const auto* trig = (stepHeld && heldStep >= 0)
-            ? &t.steps[static_cast<std::size_t>(heldStep)].trigOverride
+        const bool stepValid = stepHeld && heldStep >= 0 && heldStep < kMaxStepsPerTrack;
+        const auto* step = stepValid
+            ? &t.steps[static_cast<std::size_t>(heldStep)]
             : nullptr;
+        const auto* trig = step ? &step->trigOverride : nullptr;
 
         // Override-ELSE-Base per field.
         const bool  hasNote  = trig && trig->noteCount > 0;
@@ -489,30 +492,35 @@ namespace lockstep
         // Extra notes beyond the primary (for chord display).
         const int   chordExtra = hasNote ? trig->noteCount - 1 : 0;
 
+        // MicroOffset: per-step only; reads from the step when held, else 0.
+        const float microVal  = step ? step->microOffset : 0.0f;
+        const bool  hasMicro  = stepValid;
+
         const float noteSel = static_cast<float>(
             t.noteSelection == NoteSelection::BottomBias ? 1 : 0);
 
         struct TrigFieldDef { const char* label; float lo; float hi; bool stepped; bool active; };
-        static constexpr std::array<TrigFieldDef, kNumSlots> kDefs = {{
-            { "Note",   0.0f,                          127.0f, true, true  },
-            { "Vel",    1.0f,                          127.0f, true, true  },
-            { "Gate",   0.0f, static_cast<float>(kMusicalGateCount - 1), true, true  },
-            { "Bias",   0.0f,                            1.0f, true, true  },
-            { "",       0.0f,                            1.0f, false, false },
-            { "",       0.0f,                            1.0f, false, false },
-            { "",       0.0f,                            1.0f, false, false },
-            { "",       0.0f,                            1.0f, false, false },
+        const std::array<TrigFieldDef, kNumSlots> kDefs = {{
+            { "Note",  0.0f,  127.0f,                                  true,  true     },
+            { "Vel",   1.0f,  127.0f,                                  true,  true     },
+            { "Gate",  0.0f,  static_cast<float>(kMusicalGateCount-1), true,  true     },
+            { "Bias",  0.0f,    1.0f,                                  true,  true     },
+            { "Micro", -0.5f,  0.5f,                                   false, stepValid},
+            { "",      0.0f,   1.0f,                                   false, false    },
+            { "",      0.0f,   1.0f,                                   false, false    },
+            { "",      0.0f,   1.0f,                                   false, false    },
         }};
         const std::array<float, kNumSlots> vals  = {
             static_cast<float>(note),
             static_cast<float>(velocity),
             static_cast<float>(static_cast<uint8_t>(gateVal)),
             noteSel,
-            0.0f, 0.0f, 0.0f, 0.0f
+            microVal,
+            0.0f, 0.0f, 0.0f
         };
         // Notes are not P-locks (not set via the param area) — no lock indicator or clear button.
-        const std::array<bool,  kNumSlots> locks = { false, hasVel, hasGate, false,
-                                                     false, false, false, false };
+        const std::array<bool, kNumSlots> locks = { false, hasVel, hasGate, false,
+                                                    hasMicro, false, false, false };
         static constexpr const char* kBiasLabels[] = { "TOP", "BOT" };
 
         updatingFromTimer_ = true;
@@ -538,6 +546,12 @@ namespace lockstep
                 else if (i == 3)
                 {
                     valueText = kBiasLabels[static_cast<int>(vals[si])];
+                }
+                else if (i == 4)
+                {
+                    // MicroTime: display as percentage of step (e.g. "+25%", "-50%").
+                    const int pct = static_cast<int>(std::round(vals[si] * 100.0f));
+                    valueText = (pct >= 0 ? "+" : "") + juce::String(pct) + "%";
                 }
                 else
                 {
@@ -571,7 +585,8 @@ namespace lockstep
 
         if (held && step >= 0)
         {
-            auto& trig = t.steps[static_cast<std::size_t>(step)].trigOverride;
+            auto& stepRef = t.steps[static_cast<std::size_t>(step)];
+            auto& trig    = stepRef.trigOverride;
             switch (field)
             {
                 case 0: // MZ note edit: always sets primary note; preserves chord size.
@@ -582,6 +597,7 @@ namespace lockstep
                 case 2: trig.hasGate  = true;
                         trig.gateValue  = static_cast<MusicalGate>(
                             std::clamp(static_cast<int>(value), 0, kMusicalGateCount - 1)); break;
+                case 4: stepRef.microOffset = std::clamp(value, -0.5f, 0.5f);              break;
                 default: break;
             }
             processor_.editContext().markParamWritten();
@@ -616,20 +632,25 @@ namespace lockstep
             .getRawParameterValue(ParamIDs::trackLength(track))->load();
         const float divider = processor_.apvts()
             .getRawParameterValue(ParamIDs::trackDivider(track))->load();
+        const float trackSw = processor_.apvts()
+            .getRawParameterValue(ParamIDs::trackSwing(track))->load();
+        const float globalSw = processor_.apvts()
+            .getRawParameterValue(ParamIDs::globalSwing)->load();
+        const float effSw = effectiveSwing(globalSw, trackSw);
 
         struct TrackFieldDef { const char* label; float lo; float hi; bool stepped; bool active; };
         static constexpr std::array<TrackFieldDef, kNumSlots> kDefs = {{
-            { "Length",  1.0f,  64.0f,  true,  true  },
-            { "Divider", 1.0f,  16.0f,  true,  true  },
-            { "",        0.0f,   1.0f,  false, false },
-            { "",        0.0f,   1.0f,  false, false },
-            { "",        0.0f,   1.0f,  false, false },
-            { "",        0.0f,   1.0f,  false, false },
-            { "",        0.0f,   1.0f,  false, false },
-            { "",        0.0f,   1.0f,  false, false },
+            { "Length",  1.0f,  64.0f, true,  true  },
+            { "Divider", 1.0f,  16.0f, true,  true  },
+            { "Swing",  -0.5f,   0.5f, false, true  },
+            { "Effct",  -0.5f,   0.5f, false, true  },  // effective swing (read-only display)
+            { "",        0.0f,   1.0f, false, false },
+            { "",        0.0f,   1.0f, false, false },
+            { "",        0.0f,   1.0f, false, false },
+            { "",        0.0f,   1.0f, false, false },
         }};
-        const std::array<float, kNumSlots> vals = { length, divider, 0.0f, 0.0f,
-                                                    0.0f,   0.0f,    0.0f, 0.0f };
+        const std::array<float, kNumSlots> vals = { length, divider, trackSw, effSw,
+                                                    0.0f,   0.0f,    0.0f,    0.0f };
 
         updatingFromTimer_ = true;
         for (int i = 0; i < kNumSlots; ++i)
@@ -639,12 +660,22 @@ namespace lockstep
                                   static_cast<double>(kDefs[si].hi),
                                   kDefs[si].stepped ? 1.0 : 0.0);
             sliders_[si].setValue(static_cast<double>(vals[si]), juce::dontSendNotification);
-            sliders_[si].setEnabled(kDefs[si].active);
+            sliders_[si].setEnabled(kDefs[si].active && i != 3);  // "Effct" is display-only
             sliders_[si].setAlpha(kDefs[si].active ? 1.0f : 0.0f);
 
-            const juce::String valueText = kDefs[si].active
-                ? juce::String(static_cast<int>(vals[si]))
-                : juce::String{};
+            juce::String valueText;
+            if (kDefs[si].active)
+            {
+                if (i == 2 || i == 3)
+                {
+                    const int pct = static_cast<int>(std::round(vals[si] * 100.0f));
+                    valueText = (pct >= 0 ? "+" : "") + juce::String(pct) + "%";
+                }
+                else
+                {
+                    valueText = juce::String(static_cast<int>(vals[si]));
+                }
+            }
 
             valueLabels_[si].setText(valueText, juce::dontSendNotification);
             labels_[si].setText(kDefs[si].label, juce::dontSendNotification);
@@ -673,8 +704,10 @@ namespace lockstep
 
         switch (field)
         {
-            case 0: writeApvts(ParamIDs::trackLength(track),  value, 1.0f, 64.0f); break;
-            case 1: writeApvts(ParamIDs::trackDivider(track), value, 1.0f, 16.0f); break;
+            case 0: writeApvts(ParamIDs::trackLength(track),  value,  1.0f, 64.0f); break;
+            case 1: writeApvts(ParamIDs::trackDivider(track), value,  1.0f, 16.0f); break;
+            case 2: writeApvts(ParamIDs::trackSwing(track),   value, -0.5f,  0.5f); break;
+            // case 3 is effective-swing readout — display-only, no write.
             default: break;
         }
     }
@@ -690,20 +723,22 @@ namespace lockstep
             .getRawParameterValue(ParamIDs::syncMode)->load();
         const float chan = processor_.apvts()
             .getRawParameterValue(ParamIDs::channelMode)->load();
+        const float gSwing = processor_.apvts()
+            .getRawParameterValue(ParamIDs::globalSwing)->load();
 
         struct GlobalFieldDef { const char* label; float lo; float hi; bool stepped; bool enabled; };
         static constexpr std::array<GlobalFieldDef, kNumSlots> kDefs = {{
             { "Gain",  -60.0f,  6.0f, false, true  },
             { "Sync",    0.0f,  1.0f, true,  true  },
             { "Chan",    0.0f,  1.0f, true,  true  },
-            { "",        0.0f,  1.0f, false, false },
+            { "Swing",  -0.5f,  0.5f, false, true  },
             { "",        0.0f,  1.0f, false, false },
             { "",        0.0f,  1.0f, false, false },
             { "",        0.0f,  1.0f, false, false },
             { "",        0.0f,  1.0f, false, false },
         }};
-        const std::array<float, kNumSlots> vals = { gain, sync, chan, 0.0f,
-                                                    0.0f, 0.0f, 0.0f, 0.0f };
+        const std::array<float, kNumSlots> vals = { gain, sync, chan, gSwing,
+                                                    0.0f, 0.0f, 0.0f, 0.0f  };
 
         updatingFromTimer_ = true;
         for (int i = 0; i < kNumSlots; ++i)
@@ -726,8 +761,13 @@ namespace lockstep
                 valueText = (static_cast<int>(vals[si]) == 0) ? "Locked" : "Auto";
             else if (i == 2)
                 valueText = (static_cast<int>(vals[si]) == 0) ? "Omni" : "Per-Trk";
+            else if (i == 3)
+            {
+                const int pct = static_cast<int>(std::round(vals[si] * 100.0f));
+                valueText = (pct >= 0 ? "+" : "") + juce::String(pct) + "%";
+            }
             else
-                valueText = juce::String(u8"—");
+                valueText = juce::String(u8"—");  // em-dash
 
             valueLabels_[si].setText(valueText, juce::dontSendNotification);
             labels_[si].setText(kDefs[si].label, juce::dontSendNotification);
@@ -780,9 +820,10 @@ namespace lockstep
 
         switch (field)
         {
-            case 0: writeApvts(ParamIDs::outputGain,  value, -60.0f, 6.0f); break;
-            case 1: writeApvts(ParamIDs::syncMode,    value,   0.0f, 1.0f); break;
-            case 2: writeApvts(ParamIDs::channelMode, value,   0.0f, 1.0f); break;
+            case 0: writeApvts(ParamIDs::outputGain,  value, -60.0f,  6.0f); break;
+            case 1: writeApvts(ParamIDs::syncMode,    value,   0.0f,  1.0f); break;
+            case 2: writeApvts(ParamIDs::channelMode, value,   0.0f,  1.0f); break;
+            case 3: writeApvts(ParamIDs::globalSwing, value,  -0.5f,  0.5f); break;
             default: break;
         }
     }

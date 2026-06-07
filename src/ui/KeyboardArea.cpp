@@ -1628,6 +1628,30 @@ namespace lockstep
                     }
                 }
 
+                // MicroOffset tick (DESIGN §19.1 / show-microtiming-ticks).
+                // A short bar at the bottom of the cell displaced left (early) or
+                // right (late) to show the sub-step nudge direction.
+                if (inRange)
+                {
+                    const float mo = track.steps[static_cast<std::size_t>(absIdx)].microOffset;
+                    if (mo > 0.005f || mo < -0.005f)
+                    {
+                        constexpr int kTickH = 3;
+                        constexpr int kTickW = 5;
+                        const int tickY = cell.getBottom() - kTickH - 1;
+                        const int cx    = cell.getCentreX();
+                        // Positive (late) → right of centre; negative (early) → left.
+                        const int tickX = (mo > 0.0f)
+                            ? (cx + 2)
+                            : (cx - kTickW - 2);
+                        const juce::Colour tickCol = (mo > 0.0f)
+                            ? juce::Colour::fromRGB(255, 200,  80).withAlpha(0.85f)  // late: amber
+                            : juce::Colour::fromRGB( 80, 200, 255).withAlpha(0.85f); // early: cyan
+                        g.setColour(tickCol);
+                        g.fillRect(tickX, tickY, kTickW, kTickH);
+                    }
+                }
+
                 if (showKeyLetters)
                     paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(localIdx)],
                                      inRange ? 1.0f : 0.45f);
