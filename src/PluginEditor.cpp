@@ -352,6 +352,11 @@ namespace lockstep
         const bool nowPlaying = processor_.clock().inPluginPlaying();
         if (nowPlaying != lastPlayingState_) { lastPlayingState_ = nowPlaying; dirty = true; }
 
+        // Push the morph view state to KeyboardArea so its paint() gets current slot states.
+        keyboardArea_.setMorphViewState(buildMorphViewState(),
+                                        manipulationZone_.slotOffset(),
+                                        1.0f - processor_.morphFader());
+
         if (dirty) repaint();
 
         // Controller: drain MIDI FIFO → surface.onInput(), then render feedback LEDs.
@@ -1571,6 +1576,9 @@ namespace lockstep
                         // Focus the slot in the MZ so encoders operate on it.
                         processor_.editContext().setActiveSlot(absSlot);
                     }
+                    keyboardArea_.setMorphViewState(buildMorphViewState(),
+                                                    manipulationZone_.slotOffset(),
+                                                    1.0f - processor_.morphFader());
                     keyboardArea_.repaint();
                     repaint();
                     return true;

@@ -67,6 +67,12 @@ namespace lockstep
         // Wired from PluginEditor so paint can query held state for both
         // keyboard and mouse without polling juce::KeyPress::isKeyCurrentlyDown.
         void setPressTracker(const PressTracker* pt) { pressTracker_ = pt; }
+        void setMorphViewState(const MorphViewState& mv, int slotOffset, float crossfaderValue)
+        {
+            morphView_       = mv;
+            slotOffset_      = slotOffset;
+            crossfaderValue_ = crossfaderValue;
+        }
 
         void paint(juce::Graphics& g) override;
         void resized() override;
@@ -142,7 +148,10 @@ namespace lockstep
 
         LockstepProcessor& processor_;
         UiState&           uiState_;
-        const PressTracker* pressTracker_ = nullptr;
+        const PressTracker* pressTracker_  = nullptr;
+        MorphViewState     morphView_;           // set by editor before repaint; drives morph step view
+        int                slotOffset_      = 0;
+        float              crossfaderValue_ = 0.5f;
 
         int             activeTrack_    = 0;
         int             stepPage_       = 0;

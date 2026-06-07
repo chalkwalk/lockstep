@@ -703,7 +703,8 @@ namespace lockstep
         const auto areas = computeRowAreas();
         const SurfaceModel model = buildSurfaceModel(
             uiState_, processor_.editContext(), pressTracker_,
-            processor_, activeTrack_, stepPage_, displayMode_);
+            processor_, activeTrack_, stepPage_, displayMode_,
+            slotOffset_, crossfaderValue_, morphView_);
         paintSectionRow (g, areas.section,  model);
         paintFunctionRow(g, areas.function, model);
         paintStepRows   (g, areas.step, model);
