@@ -1884,13 +1884,33 @@ namespace lockstep
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
         const auto* mi = machines_[static_cast<std::size_t>(track)].get();
-        if (mi->isMidiOut() || mi->hasInternalAmp()) return;
-        const int mnp     = mi->numParams();
-        const int ampOff  = mnp + (mi->hasInternalFilter() ? 0 : kFltrSlots);
-        const int levelSlot = ampOff;  // TrackAmpState slot 0 = Level
+        if (mi->isMidiOut()) return;  // no amplitude concept on MIDI-out tracks
+
+        // Find the Level slot. Machines with internal AMP carry Role::Level somewhere
+        // in their own param schema; machines without it use the external AMP frame.
+        int levelSlot = -1;
+        if (mi->hasInternalAmp())
+        {
+            for (int s = 0; s < mi->numParams(); ++s)
+            {
+                if (mi->paramSpec(s).role == ParamSpec::Role::Level)
+                {
+                    levelSlot = s;
+                    break;
+                }
+            }
+        }
+        else
+        {
+            const int ampOff = mi->numParams() + (mi->hasInternalFilter() ? 0 : kFltrSlots);
+            levelSlot = ampOff;  // TrackAmpState slot 0 = Level
+        }
+
+        if (levelSlot < 0) return;
+
         const float f    = juce::jlimit(0.0f, 1.0f, fader);
         const float base = baseParamValue(track, levelSlot);
-        // Near pole = the pole the fader favours; write silence there, unity into far.
+        // Near pole = the pole the fader currently favours; silence it, leave far at kit base.
         const int nearPole = (f < 0.5f) ? 0 : 1;
         const int farPole  = 1 - nearPole;
         writeMorphPole(track, levelSlot, 0.0f, nearPole);

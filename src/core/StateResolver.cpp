@@ -14,13 +14,15 @@ namespace lockstep::StateResolver
         {
             for (int slot = 0; slot < static_cast<int>(frame.size()); ++slot)
             {
-                const bool stepped = morph->machine
+                const bool stepped    = morph->machine
                     ? morph->machine->paramSpec(slot).isStepped
                     : false;
+                const bool equalPower = morph->machine
+                    && morph->machine->paramSpec(slot).role == ParamSpec::Role::Level;
                 frame[static_cast<std::size_t>(slot)] =
                     morphBlend(*morph->scene, morph->trackIndex, slot,
                                frame[static_cast<std::size_t>(slot)],
-                               morph->fader, stepped);
+                               morph->fader, stepped, equalPower);
             }
         }
 
