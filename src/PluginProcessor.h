@@ -634,6 +634,9 @@ namespace lockstep
         // The audio thread reads it each block and drives morphFaderSmoothed_.
         std::atomic<float> morphFaderTarget_ { 0.0f };
         juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> morphFaderSmoothed_;
+        // Per-track fader side from the previous block (false=A, true=B).
+        // Used to detect crossings and emit All-Notes-Off on MIDI-out tracks.
+        std::array<bool, kNumTracks> morphLastSide_ {};
 
         juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> gainSmoothed_;
         std::array<float, 2> dcX1_{};

@@ -19,21 +19,23 @@ namespace lockstep
         MusicalGate gateValue         = MusicalGate::None;
     };
 
-    // Morph context passed to the resolver — carries scene, track index, and fader
-    // position so the resolver can apply the three-tier P-Lock ▷ morph ▷ kit-base
-    // stack (DESIGN §17.2). Null = no morph (resolves as before).
+    // Morph context passed to the resolver — carries scene, track index, fader
+    // position, and optionally the machine (for stepped-snap resolution).
+    // Null = no morph (resolves as before). DESIGN §17.2.
     struct MorphContext
     {
-        const Scene* scene      = nullptr;
-        int          trackIndex = 0;
-        float        fader      = 0.0f;  // 0 = A, 1 = B
+        const Scene*    scene      = nullptr;
+        int             trackIndex = 0;
+        float           fader      = 0.0f;   // 0 = A, 1 = B
+        const IMachine* machine    = nullptr; // if non-null: use spec.isStepped for snap
     };
 
     // Returns the morph-blended value for (trackIdx, slot) using mirror resolution:
     // absent endpoint reads as the other endpoint, then falls to kitBase.
     // Returns kitBase unchanged if the slot is in neither morphA nor morphB.
+    // When stepped=true, snaps to A (f<0.5) or B (f>=0.5) instead of lerping.
     inline float morphBlend(const Scene& scene, int trackIdx, int slot,
-                            float kitBase, float fader) noexcept
+                            float kitBase, float fader, bool stepped = false) noexcept
     {
         const auto key = std::make_pair(trackIdx, slot);
         const auto itA = scene.morphA.find(key);
@@ -45,6 +47,7 @@ namespace lockstep
         float bVal = kitBase;
         if (hasA) { aVal = itA->second; } else if (hasB) { aVal = itB->second; }
         if (hasB) { bVal = itB->second; } else if (hasA) { bVal = itA->second; }
+        if (stepped) { return (fader < 0.5f) ? aVal : bVal; }
         return aVal + ((bVal - aVal) * fader);
     }
 

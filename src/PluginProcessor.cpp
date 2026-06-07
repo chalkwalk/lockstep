@@ -990,7 +990,35 @@ namespace lockstep
             morphFaderTarget_.load(std::memory_order_relaxed));
         if (numBlockSamples > 1)
             morphFaderSmoothed_.skip(numBlockSamples - 1);
-        const float faderNow = morphFaderSmoothed_.getNextValue();
+        const float faderNow    = morphFaderSmoothed_.getNextValue();
+        const bool  faderSideNow = (faderNow >= 0.5f);  // false=A, true=B
+
+        // Stepped-snap parity: when the fader crosses 0.5 on a MIDI-out track that has
+        // morphed params, emit All-Notes-Off on the old channel before the snap takes
+        // effect (DESIGN §17.2). Prevents hung notes on channel change.
+        for (std::size_t i = 0; i < kNumTracks; ++i)
+        {
+            if (faderSideNow != morphLastSide_[i] && machines_[i]->isMidiOut())
+            {
+                const Scene& sc = section();
+                const bool hasMorph = [&]() noexcept {
+                    for (const auto& kv : sc.morphA)
+                        if (kv.first.first == static_cast<int>(i)) return true;
+                    for (const auto& kv : sc.morphB)
+                        if (kv.first.first == static_cast<int>(i)) return true;
+                    return false;
+                }();
+                if (hasMorph)
+                {
+                    auto* mom = static_cast<MidiOutMachine*>(machines_[i].get());
+                    juce::MidiBuffer aonBuf;
+                    mom->allNotesOff(aonBuf);
+                    if (!isStandalone)
+                        midi.addEvents(aonBuf, 0, numBlockSamples, 0);
+                }
+            }
+            morphLastSide_[i] = faderSideNow;
+        }
 
         if (!sequencerRunning)
         {
@@ -1009,7 +1037,7 @@ namespace lockstep
                     && editContext_.heldTrackIndex() == static_cast<int>(i))
                     resolveStep = editContext_.heldStepIndex();
                 const bool fillNow = fillActiveForTrack(static_cast<int>(i));
-                const MorphContext mc0 { &section(), static_cast<int>(i), faderNow };
+                const MorphContext mc0 { &section(), static_cast<int>(i), faderNow, machines_[i].get() };
                 auto frame = StateResolver::resolve(sequence().tracks[i], resolveStep, fillNow, &mc0);
                 if (previewActive_ && static_cast<int>(i) == previewTrack_)
                 {
@@ -1505,7 +1533,7 @@ namespace lockstep
                         }
                     }
                 }
-                const MorphContext mcR { &section(), static_cast<int>(i), faderNow };
+                const MorphContext mcR { &section(), static_cast<int>(i), faderNow, machines_[i].get() };
                 return StateResolver::resolve(track, fi, curFillActive, &mcR);
             }();
             if (previewActive_ && static_cast<int>(i) == previewTrack_)
