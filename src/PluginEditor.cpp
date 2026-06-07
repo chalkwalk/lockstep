@@ -3446,8 +3446,8 @@ namespace lockstep
 
         sink.setCrossfader = [this](float normValue)
         {
-            // setValue triggers onValueChange which calls setMorphFader() (inverted).
-            crossfader_.setValue(1.0 - static_cast<double>(normValue), juce::sendNotificationAsync);
+            // setValue triggers onValueChange which applies the inversion.
+            crossfader_.setValue(static_cast<double>(normValue), juce::sendNotificationAsync);
         };
 
         sink.applyGlobalDelta = [this](GlobalTarget target, int rawDelta)
