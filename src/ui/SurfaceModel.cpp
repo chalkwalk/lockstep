@@ -992,10 +992,8 @@ namespace lockstep
 
                     if (pole == MPS::Active)
                     {
-                        c.base      = CellState::MorphPoleActive;
-                        c.baseColour = c.pressed
-                            ? juce::Colours::white.withAlpha(0.90f).getARGB()
-                            : juce::Colour(kScopeMorph).withAlpha(0.80f).getARGB();
+                        c.base       = CellState::MorphPoleActive;
+                        c.baseColour = juce::Colour(kScopeMorph).withAlpha(0.80f).getARGB();
                     }
                     else if (pole == MPS::Dormant)
                     {

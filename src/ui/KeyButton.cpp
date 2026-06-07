@@ -129,7 +129,8 @@ namespace lockstep
     {
         if (c.pressed)                          return KeyButtonState::Pressed;
         if (c.disabled)                         return KeyButtonState::Disabled;
-        if (c.base == CellState::ModeActive)    return KeyButtonState::ModeActive;
+        if (c.base == CellState::ModeActive
+         || c.base == CellState::MorphPoleActive) return KeyButtonState::ModeActive;
         return KeyButtonState::Normal;
     }
 
