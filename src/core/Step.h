@@ -42,6 +42,11 @@ namespace lockstep
         PLock         overrides;     // machine ParamFrame P-Locks
         TrigOverride  trigOverride;  // sequencer-scope trig field overrides
 
+        // Sub-step timing nudge, ±50% of the step's length (DESIGN §19.1).
+        // 0 = on-grid; +0.25 = quarter-step late; −0.5 = half-step early.
+        // Captured automatically by live record; P-lockable via TRIG meta section.
+        float microOffset = 0.0f;
+
         // Fill layer — evaluated only when Fill scope is held (FillOverride → Override → Base).
         FillTrigState fillTrigState  = FillTrigState::Inherit;
         PLock         fillOverrides;     // fill-specific machine param P-Locks

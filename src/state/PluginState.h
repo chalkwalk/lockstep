@@ -22,7 +22,8 @@ namespace lockstep
         // v6: scope-respecting Checkpoints; floor seeded on Song load/switch
         // v7: legacy Bank/Pattern/Part structs deleted; serializer emits new-hierarchy only
         // v8: Scene::phraseIdx[] removed; floor routing is globalPhrase only
-        inline constexpr int kCurrentVersion = 8;
+        // v9: Step::microOffset added; per-track + global swing APVTS params
+        inline constexpr int kCurrentVersion = 9;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);

@@ -109,6 +109,7 @@ namespace lockstep
 
         syncModeParam_    = apvts_.getRawParameterValue(ParamIDs::syncMode);
         channelModeParam_ = apvts_.getRawParameterValue(ParamIDs::channelMode);
+        globalSwingParam_ = apvts_.getRawParameterValue(ParamIDs::globalSwing);
 
         for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
         {
@@ -117,6 +118,7 @@ namespace lockstep
             trackDividerParams_[ti] = apvts_.getRawParameterValue(ParamIDs::trackDivider(t));
             trackMuteParams_[ti]    = apvts_.getRawParameterValue(ParamIDs::trackMute(t));
             trackSoloParams_[ti]    = apvts_.getRawParameterValue(ParamIDs::trackSolo(t));
+            trackSwingParams_[ti]   = apvts_.getRawParameterValue(ParamIDs::trackSwing(t));
         }
 
         // T0 starts as a sampler; T1–T15 are stub (empty) until materialised.

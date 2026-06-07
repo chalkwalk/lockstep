@@ -88,6 +88,7 @@ namespace lockstep::PluginState
             if (!step.trig && step.overrides.empty()
                 && step.trigOverride.noteCount == 0 && !step.trigOverride.hasVelocity
                 && !step.trigOverride.hasGate && step.condition.isTrivial()
+                && step.microOffset == 0.0f
                 && step.fillTrigState == FillTrigState::Inherit
                 && step.fillOverrides.empty()
                 && step.fillTrigOverride.noteCount == 0) continue;
@@ -95,6 +96,8 @@ namespace lockstep::PluginState
             juce::ValueTree stepNode("S");
             stepNode.setProperty("i", s,                 nullptr);
             stepNode.setProperty("t", step.trig ? 1 : 0, nullptr);
+            if (step.microOffset != 0.0f)
+                stepNode.setProperty("mo", static_cast<double>(step.microOffset), nullptr);
             if (!step.condition.isTrivial())
                 stepNode.appendChild(condToTree("C", step.condition), nullptr);
             if (step.trigOverride.noteCount > 0 || step.trigOverride.hasVelocity
@@ -157,7 +160,8 @@ namespace lockstep::PluginState
             const int s = static_cast<int>(stepNode.getProperty("i", -1));
             if (s < 0 || s >= kMaxStepsPerTrack) continue;
             auto& step = phrase.steps[static_cast<std::size_t>(s)];
-            step.trig  = (static_cast<int>(stepNode.getProperty("t", 0)) != 0);
+            step.trig        = (static_cast<int>(stepNode.getProperty("t", 0)) != 0);
+            step.microOffset = getFloat(stepNode, "mo", 0.0f);
             const auto cNode = stepNode.getChildWithName("C");
             if (cNode.isValid()) step.condition = condFromTree(cNode);
             const auto toNode = stepNode.getChildWithName("TO");

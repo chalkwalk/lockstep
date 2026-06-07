@@ -577,6 +577,8 @@ namespace lockstep
         std::array<std::atomic<float>*, kNumTracks> trackDividerParams_{};
         std::array<std::atomic<float>*, kNumTracks> trackMuteParams_{};
         std::array<std::atomic<float>*, kNumTracks> trackSoloParams_{};
+        std::array<std::atomic<float>*, kNumTracks> trackSwingParams_{};
+        std::atomic<float>* globalSwingParam_ = nullptr;
 
         juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> gainSmoothed_;
         std::array<float, 2> dcX1_{};
