@@ -10,7 +10,8 @@ namespace lockstep
         Global,       // targets a global APVTS parameter by ID
         Track,        // targets a fixed track by index
         SelectedTrack,// targets whichever track is currently focused
-        Contextual    // follows focus track + Manipulation Zone display position
+        Contextual,   // follows focus track + Manipulation Zone display position
+        Crossfader    // drives the morph crossfader (5.2 MIDI-learn)
     };
 
     // How a relative CC encodes its direction.

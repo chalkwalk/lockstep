@@ -59,7 +59,8 @@ namespace lockstep
                 cc.mzSlots,
                 cc.getCurrentTrackValue,
                 cc.getMetadata,
-                cc.writeTrackParam);
+                cc.writeTrackParam,
+                cc.setCrossfaderValue);
         }
     }
 }

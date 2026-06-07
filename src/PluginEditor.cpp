@@ -154,11 +154,12 @@ namespace lockstep
         crossfader_.setColour(juce::Slider::trackColourId,
                               juce::Colour::fromRGB(100, 80, 200).withAlpha(0.6f));
         crossfader_.setWantsKeyboardFocus(false);
-        crossfader_.setTooltip("Morph crossfader (0=A / 1=B)");
+        crossfader_.setTooltip("Morph crossfader (0=A / 1=B); right-click to MIDI-learn");
         crossfader_.onValueChange = [this]
         {
             processor_.setMorphFader(static_cast<float>(crossfader_.getValue()));
         };
+        crossfader_.addMouseListener(this, false);
         addAndMakeVisible(crossfader_);
 
         addAndMakeVisible(manipulationZone_);
@@ -499,6 +500,47 @@ namespace lockstep
                        PressTracker::kMouseSource);
             keyboardArea_.repaint();
         }
+    }
+
+    void LockstepEditor::mouseDown(const juce::MouseEvent& e)
+    {
+        if (e.eventComponent != &crossfader_ || !e.mods.isRightButtonDown())
+            return;
+        // Right-click on crossfader: show MIDI-learn / clear menu (DESIGN §17.5).
+        const auto existing = [&]() -> std::pair<bool, int> {
+            for (const auto& m : processor_.ccMappingTable().mappings())
+                if (m.scope == CCScope::Crossfader)
+                    return { true, m.ccNumber };
+            return { false, -1 };
+        }();
+
+        juce::PopupMenu menu;
+        if (existing.first)
+        {
+            menu.addSectionHeader("CC " + juce::String(existing.second) + " mapped (crossfader)");
+            menu.addItem(1, "Clear mapping");
+        }
+        else
+        {
+            menu.addSectionHeader("Crossfader MIDI Learn:");
+            menu.addItem(1, "Map crossfader via MIDI Learn");
+        }
+        menu.showMenuAsync(
+            juce::PopupMenu::Options().withTargetComponent(crossfader_),
+            [this, existing](int result)
+            {
+                if (result == 0)
+                    return;
+                if (existing.first)
+                {
+                    processor_.ccMappingTable().removeMapping(
+                        existing.second, CCScope::Crossfader, -1, -1);
+                }
+                else
+                {
+                    processor_.startLearn(CCScope::Crossfader, -1, -1);
+                }
+            });
     }
 
     void LockstepEditor::paint(juce::Graphics& g)

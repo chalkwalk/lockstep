@@ -34,13 +34,16 @@ namespace lockstep
         // getCurrentTrackValue: returns the current actual value for (track, slot).
         // getMetadata:          returns ParamSpec for (track, slot).
         // writeTrackParam:      called with (track, slot, newActualValue).
+        // setCrossfaderValue:   called with normalised [0,1] for Crossfader-scope mappings;
+        //                       may be nullptr if no crossfader mapping is expected.
         void dispatch(int ccNumber,
                       int rawValue,
                       int focusTrack,
                       const std::array<int, 4>&                        mzSlots,
                       const std::function<float(int, int)>&            getCurrentTrackValue,
                       const std::function<ParamSpec(int, int)>&        getMetadata,
-                      const std::function<void(int, int, float)>&      writeTrackParam);
+                      const std::function<void(int, int, float)>&      writeTrackParam,
+                      const std::function<void(float)>&                setCrossfaderValue = nullptr);
 
         const std::vector<CCMapping>& mappings() const { return mappings_; }
 

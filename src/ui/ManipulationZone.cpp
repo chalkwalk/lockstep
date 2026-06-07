@@ -167,6 +167,7 @@ namespace lockstep
                 case CCScope::SelectedTrack: header += "S";  break;
                 case CCScope::Contextual:    header += "C";  break;
                 case CCScope::Global:        header += "G";  break;
+                case CCScope::Crossfader:    header += "X";  break;
             }
             header += ")";
             menu.addSectionHeader(header);
@@ -922,6 +923,10 @@ namespace lockstep
                 case CCScope::Global:
                     badge = "G";
                     badgeColour = juce::Colour::fromRGB(200, 200, 200);
+                    break;
+                case CCScope::Crossfader:
+                    badge = "X";
+                    badgeColour = juce::Colour::fromRGB(180, 96, 208);
                     break;
             }
 

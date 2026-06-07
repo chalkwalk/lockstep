@@ -525,6 +525,7 @@ namespace lockstep::PluginState
         case CCScope::Track:         return "Track";
         case CCScope::SelectedTrack: return "SelectedTrack";
         case CCScope::Contextual:    return "Contextual";
+        case CCScope::Crossfader:    return "Crossfader";
         }
         return "Track";
     }
@@ -534,6 +535,7 @@ namespace lockstep::PluginState
         if (s == "Global")        return CCScope::Global;
         if (s == "SelectedTrack") return CCScope::SelectedTrack;
         if (s == "Contextual")    return CCScope::Contextual;
+        if (s == "Crossfader")    return CCScope::Crossfader;
         return CCScope::Track;
     }
 

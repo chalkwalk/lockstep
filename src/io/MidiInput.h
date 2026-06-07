@@ -27,6 +27,9 @@ namespace lockstep
         // Cleared by the callback itself (via the learn-complete path).
         std::function<void(int ccNumber)>       onLearnCapture;
 
+        // Drives the morph crossfader for CCScope::Crossfader mappings (5.2).
+        std::function<void(float)>              setCrossfaderValue;
+
         // Called for each note-on after channel-mode routing resolves the target track.
         // Args: (targetTrack 0-7, sampleOffset, midiNote 0-127, velocity 1-127).
         // Not called when focus is Global in Omni mode.

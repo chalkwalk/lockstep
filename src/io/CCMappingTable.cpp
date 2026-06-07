@@ -33,12 +33,22 @@ namespace lockstep
         const std::array<int, 4>&                      mzSlots,
         const std::function<float(int, int)>&           getCurrentTrackValue,
         const std::function<ParamSpec(int, int)>&        getMetadata,
-        const std::function<void(int, int, float)>&     writeTrackParam)
+        const std::function<void(int, int, float)>&     writeTrackParam,
+        const std::function<void(float)>&               setCrossfaderValue)
     {
         for (auto& m : mappings_)
         {
             if (m.ccNumber != ccNumber)
                 continue;
+
+            // Crossfader scope: normalised CC → morphFader directly (no soft-takeover;
+            // the fader is a performance control expected to be in sync with the CC).
+            if (m.scope == CCScope::Crossfader)
+            {
+                if (setCrossfaderValue)
+                    setCrossfaderValue(static_cast<float>(rawValue) / 127.0f);
+                continue;
+            }
 
             if (m.scope == CCScope::Global)
                 continue; // APVTS write path wired in M5.4 global handling

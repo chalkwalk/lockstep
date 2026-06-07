@@ -495,6 +495,9 @@ namespace lockstep
         ccCtx.writeTrackParam = [this](int t, int s, float v) {
             writeParam(t, s, v);
         };
+        ccCtx.setCrossfaderValue = [this](float v) {
+            setMorphFader(v);
+        };
         if (learnActive_.load(std::memory_order_acquire))
         {
             ccCtx.onLearnCapture = [this](int ccNum)
