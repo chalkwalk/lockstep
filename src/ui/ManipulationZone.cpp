@@ -55,6 +55,18 @@ namespace lockstep
                         }
                         const int track = area_.getActiveTrack();
                         const int slot  = slotOffset_ + i;
+                        // If a pole qualifier is active (Morph+^/v), write directly
+                        // to that pole irrespective of fader position or existing data.
+                        if (morphQualifier_ == 1)
+                        {
+                            processor_.writeMorphPole(track, slot, v, 0);
+                            break;
+                        }
+                        if (morphQualifier_ == 2)
+                        {
+                            processor_.writeMorphPole(track, slot, v, 1);
+                            break;
+                        }
                         // Auto-morph-aware: if morph data exists, write into the
                         // overlay rather than kit base (mirrors encoder delta logic).
                         const auto mInfo = processor_.morphWidgetInfo(track, slot);
@@ -976,10 +988,17 @@ namespace lockstep
         }
 
         // Morph A/B chips: drawn for any slot that has morph data on the active scene.
+        // Skip out-of-section cells (same guard as refreshSliders) to avoid badges
+        // bleeding onto empty slots or slots from a different section.
         static const juce::Colour kMorphMagenta { 0xffb060d0 };
+        const int nmp = processor_.numParams(track);
+        const int activeSec = (slotOffset_ < nmp)
+            ? processor_.paramSpec(track, slotOffset_).sectionIndex : -1;
         for (int i = 0; i < kMZSlots; ++i)
         {
             const int  slot    = slotOffset_ + i;
+            if (slot >= nmp) continue;
+            if (processor_.paramSpec(track, slot).sectionIndex != activeSec) continue;
             const auto mInfo   = processor_.morphWidgetInfo(track, slot);
             if (!mInfo.exists) continue;
 

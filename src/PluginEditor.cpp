@@ -3279,8 +3279,26 @@ namespace lockstep
             case PS::Mute:
             case PS::Fill:
             case PS::Cue:
-            case PS::Morph:
                 break;
+
+            case PS::Morph:
+            {
+                if (verb != CB::VerbClear) break;
+                const int track = keyboardArea_.getActiveTrack();
+                if (track < 0) break;
+                const bool funcHeld = editMode_.scopeState().func;
+                if (funcHeld)
+                {
+                    processor_.removeAllMorph(track);
+                    setStatus("Morph erased");
+                }
+                else
+                {
+                    processor_.bakeAllMorph(track);
+                    setStatus("Morph baked");
+                }
+                break;
+            }
 
             // Song+Clear: Panic (kill all voices). Previously Func+I.
             case PS::Song:

@@ -345,7 +345,13 @@ namespace lockstep
             c.keyHint = "4";
             c.pressed  = physPressed('4', ControllerButton::NavUp);
             c.base     = c.pressed ? CellState::Pressed : CellState::Resting;
-            c.baseColour = kNavActive;
+            // Morph: A-pole qualifier active → accent; Morph held → morph dim.
+            if (ui.morphHeld && ui.morphNavQualifier == 1)
+                c.baseColour = juce::Colour(kScopeMorphAcc).getARGB();
+            else if (ui.morphHeld)
+                c.baseColour = juce::Colour(kScopeMorph).getARGB();
+            else
+                c.baseColour = kNavActive;
             // Func+↑ doubles track length ONLY without Track held; with Track held
             // the nav keys cycle the track input mode, so don't advertise ×2 there.
             if (ui.funcHeld && !ui.trackHeld) { c.primary = juce::String(u8"×2"); c.funcHint = {}; }
@@ -529,9 +535,10 @@ namespace lockstep
             // show COPY/PASTE/CLEAR so the scope+verb grammar is immediately readable.
             if (sectionScopeHeld)
             {
-                if (def.role == KeyRole::VerbCopy)  displayPrimary = "COPY";
-                if (def.role == KeyRole::VerbPaste)  displayPrimary = "PASTE";
-                if (def.role == KeyRole::VerbClear)  displayPrimary = "CLEAR";
+                // Under Morph scope only CLEAR changes meaning; don't relabel REC/PLAY.
+                if (def.role == KeyRole::VerbCopy  && !ui.morphHeld) displayPrimary = "COPY";
+                if (def.role == KeyRole::VerbPaste && !ui.morphHeld) displayPrimary = "PASTE";
+                if (def.role == KeyRole::VerbClear) displayPrimary = "CLEAR";
             }
 
             // RESTORE/NO func-layer hints are always shown (Func+Y=Restore and Func+P=No
@@ -581,6 +588,10 @@ namespace lockstep
                 c.baseColour = ui.phraseScopeHeld ? kScopePhrase : kScopePhraseDim;
             else if (def.keyCode == 'W')
                 c.baseColour = ui.sceneHeld ? kScopeScene : kScopeSceneDim;
+            else if (def.keyCode == 'R' && ui.morphHeld && ui.morphNavQualifier == 2)
+                c.baseColour = juce::Colour(kScopeMorphAcc).getARGB();
+            else if (def.keyCode == 'R' && ui.morphHeld)
+                c.baseColour = juce::Colour(kScopeMorph).getARGB();
             else
                 c.baseColour = compatColour(c.base, 0xFF404040u);
 
@@ -594,8 +605,10 @@ namespace lockstep
             {
                 if (def.role == KeyRole::VerbNo)
                     c.disabled = true;
-                else if (def.role == KeyRole::VerbYes || def.role == KeyRole::VerbCopy
-                      || def.role == KeyRole::VerbPaste || def.role == KeyRole::VerbClear)
+                else if (def.role == KeyRole::VerbYes
+                      || (def.role == KeyRole::VerbCopy  && !ui.morphHeld)
+                      || (def.role == KeyRole::VerbPaste && !ui.morphHeld)
+                      || def.role == KeyRole::VerbClear)
                     c.scopeTint = scopeColour(sectionScope).getARGB();
             }
 
@@ -1085,9 +1098,12 @@ namespace lockstep
             const auto& heldSteps = ctx.heldSteps();
 
             // Scope body colour: adopt whichever modifier is held (fixes always-green).
+            // Morph has no per-step action, so exclude it from step tinting.
+            const bool morphOnlyScope = ui.morphHeld && !ui.trackHeld
+                                     && !ui.phraseScopeHeld && !ui.sceneHeld && !ui.songHeld;
             const juce::Colour scopeBodyCol = fillOn
                 ? juce::Colour(kScopeFill)
-                : scopeColourFromState(ui);
+                : (morphOnlyScope ? juce::Colour(kScopeStep) : scopeColourFromState(ui));
             const juce::Colour inactiveCol(kStepInactive);
 
             for (int i = 0; i < 16; ++i)

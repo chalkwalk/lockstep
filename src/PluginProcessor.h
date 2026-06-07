@@ -280,6 +280,9 @@ namespace lockstep
         // Bake: write the fader-blended value to kit base, then erase morph data.
         // Default delete gesture. Use removeMorph() for revert-without-bake.
         void bakeMorph(int track, int slot);
+        // Bulk variants: operate on all morph data for the given track.
+        void bakeAllMorph(int track);
+        void removeAllMorph(int track);
 
         // Returns the fader-blended effective value for a slot, or the kit base
         // if the slot has no morph data. Stepped slots snap instead of lerping.

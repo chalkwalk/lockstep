@@ -1918,6 +1918,39 @@ namespace lockstep
         writeParam(track, slot, baked);
     }
 
+    void LockstepProcessor::bakeAllMorph(int track)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        // Collect slots touched in either map before modifying either.
+        std::vector<int> slots;
+        for (const auto& kv : section().morphA)
+            if (kv.first.first == track) slots.push_back(kv.first.second);
+        for (const auto& kv : section().morphB)
+            if (kv.first.first == track)
+            {
+                if (std::find(slots.begin(), slots.end(), kv.first.second) == slots.end())
+                    slots.push_back(kv.first.second);
+            }
+        for (int s : slots)
+            bakeMorph(track, s);
+    }
+
+    void LockstepProcessor::removeAllMorph(int track)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        std::vector<int> slots;
+        for (const auto& kv : section().morphA)
+            if (kv.first.first == track) slots.push_back(kv.first.second);
+        for (const auto& kv : section().morphB)
+            if (kv.first.first == track)
+            {
+                if (std::find(slots.begin(), slots.end(), kv.first.second) == slots.end())
+                    slots.push_back(kv.first.second);
+            }
+        for (int s : slots)
+            removeMorph(track, s);
+    }
+
     MorphWidgetInfo LockstepProcessor::morphWidgetInfo(int track, int slot) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return {};
