@@ -2341,10 +2341,26 @@ namespace lockstep
                 const int trackIdx = ev.index;
                 if (trackIdx < 0 || trackIdx >= static_cast<int>(kNumTracks))
                     return true;
-                // Morph+Mute: capture AMP Level fade into near/far poles (DESIGN §17.3).
+                // Morph+Mute: toggle fluid-mute morph on the track's Level slot.
+                // Author (near pole = silence, far = kit base) if not yet set;
+                // remove both Level poles if already authored (tap to clear).
                 if (uiState_.morphHeld)
                 {
-                    processor_.fluidMuteTrack(trackIdx, processor_.morphFader());
+                    if (processor_.hasFluidMute(trackIdx))
+                    {
+                        const int slot = processor_.fluidMuteLevelSlot(trackIdx);
+                        if (slot >= 0)
+                        {
+                            processor_.removeMorphPole(trackIdx, slot, 0);
+                            processor_.removeMorphPole(trackIdx, slot, 1);
+                        }
+                        setStatus("Morph mute cleared");
+                    }
+                    else
+                    {
+                        processor_.fluidMuteTrack(trackIdx, processor_.morphFader());
+                        setStatus("Morph mute set");
+                    }
                     repaint();
                     return true;
                 }

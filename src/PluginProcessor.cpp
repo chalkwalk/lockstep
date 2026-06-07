@@ -1880,34 +1880,40 @@ namespace lockstep
             section().morphB[key] = v;
     }
 
-    void LockstepProcessor::fluidMuteTrack(int track, float fader)
+    int LockstepProcessor::fluidMuteLevelSlot(int track) const
     {
-        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1;
         const auto* mi = machines_[static_cast<std::size_t>(track)].get();
-        if (mi->isMidiOut()) return;  // no amplitude concept on MIDI-out tracks
-
-        // Find the Level slot. Machines with internal AMP carry Role::Level somewhere
-        // in their own param schema; machines without it use the external AMP frame.
-        int levelSlot = -1;
+        if (mi->isMidiOut()) return -1;
         if (mi->hasInternalAmp())
         {
             for (int s = 0; s < mi->numParams(); ++s)
-            {
                 if (mi->paramSpec(s).role == ParamSpec::Role::Level)
-                {
-                    levelSlot = s;
-                    break;
-                }
-            }
+                    return s;
+            return -1;
         }
-        else
-        {
-            const int ampOff = mi->numParams() + (mi->hasInternalFilter() ? 0 : kFltrSlots);
-            levelSlot = ampOff;  // TrackAmpState slot 0 = Level
-        }
+        return mi->numParams() + (mi->hasInternalFilter() ? 0 : kFltrSlots);
+    }
 
+    bool LockstepProcessor::hasFluidMute(int track) const
+    {
+        const int slot = fluidMuteLevelSlot(track);
+        if (slot < 0) return false;
+        const auto key = std::make_pair(track, slot);
+        return section().morphA.count(key) > 0 || section().morphB.count(key) > 0;
+    }
+
+    float LockstepProcessor::fluidMuteBlend(int track) const
+    {
+        const int slot = fluidMuteLevelSlot(track);
+        if (slot < 0) return 0.0f;
+        return morphEffectiveValue(track, slot);
+    }
+
+    void LockstepProcessor::fluidMuteTrack(int track, float fader)
+    {
+        const int levelSlot = fluidMuteLevelSlot(track);
         if (levelSlot < 0) return;
-
         const float f    = juce::jlimit(0.0f, 1.0f, fader);
         const float base = baseParamValue(track, levelSlot);
         // Near pole = the pole the fader currently favours; silence it, leave far at kit base.

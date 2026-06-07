@@ -876,6 +876,48 @@ namespace lockstep
                         : cellCol.withAlpha(0.55f + t * 0.30f).getARGB();
                 }
             }
+            else if (ui.morphHeld && ui.muteHeld)
+            {
+                // Morph+Mute view: one cell per track showing whether a fluid-mute
+                // morph is authored on the track's Level slot, and how blended it is
+                // now (live animation — cell brightness tracks the fader position).
+                // Tap = toggle: author if none, remove if present.
+                for (int i = 0; i < 16; ++i)
+                {
+                    SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                    c.button  = ControllerButton::Step;
+                    c.index   = i;
+                    c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                    c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+                    c.primary = juce::String(i + 1);
+
+                    if (i >= static_cast<int>(kNumTracks))
+                    {
+                        c.base       = CellState::SelectorOutRange;
+                        c.baseColour = kStepOutRange;
+                        continue;
+                    }
+
+                    if (proc.hasFluidMute(i))
+                    {
+                        // Blend value [0..1]: how much level is audible right now.
+                        // At f=muted side → near 0 (dim); at f=unity side → full (bright).
+                        const float blend = proc.fluidMuteBlend(i);
+                        c.base       = CellState::MorphPoleActive;
+                        c.baseColour = c.pressed
+                            ? juce::Colours::white.withAlpha(0.80f).getARGB()
+                            : juce::Colour(kScopeMorph)
+                                  .withAlpha(0.25f + blend * 0.65f).getARGB();
+                    }
+                    else
+                    {
+                        c.base       = CellState::MorphPoleDark;
+                        c.baseColour = c.pressed
+                            ? juce::Colour(kScopeMorphDim).withAlpha(0.40f).getARGB()
+                            : juce::Colour(kStepInactive).withAlpha(0.25f).getARGB();
+                    }
+                }
+            }
             else if (ui.muteHeld)
             {
                 // Mute re-skin (Slice 3): cells encode per-track mute state so

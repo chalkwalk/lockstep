@@ -275,6 +275,14 @@ namespace lockstep
         // the near pole (the one the fader favours) and current level into the
         // far pole, so sweeping the fader fades the track in/out (DESIGN §17.3).
         void fluidMuteTrack(int track, float fader);
+        // Returns the Level slot index within the machine's param schema for
+        // fluid mute purposes, or -1 if the track has no amplitude control.
+        int  fluidMuteLevelSlot(int track) const;
+        // True if the active scene has morph data on the Level slot for this track.
+        bool hasFluidMute(int track) const;
+        // Current equal-power blend of the Level slot morph poles at the live fader.
+        // Returns the kit-base level unchanged if no fluid mute is authored.
+        float fluidMuteBlend(int track) const;
 
         // Returns morph endpoint data for a ManipulationZone widget slot.
         MorphWidgetInfo morphWidgetInfo(int track, int slot) const;
