@@ -350,6 +350,7 @@ namespace lockstep
             // the nav keys cycle the track input mode, so don't advertise ×2 there.
             if (ui.funcHeld && !ui.trackHeld) { c.primary = juce::String(u8"×2"); c.funcHint = {}; }
             else if (ui.trackHeld)            { c.primary = juce::String(u8"↑");  c.funcHint = {}; }
+            else if (ui.morphHeld)            { c.primary = "A";                  c.funcHint = {}; }
             else                              { c.primary = juce::String(u8"↑");  c.funcHint = juce::String(u8"×2"); }
             jassert(!c.primary.isEmpty());
         }
@@ -520,6 +521,9 @@ namespace lockstep
                 displayPrimary = "PAUSE";
             if (isOverdub)
                 displayPrimary = "OD";
+
+            // Morph-held: nav ^ = A pole, nav v = B pole.
+            if (ui.morphHeld && def.keyCode == 'R') { displayPrimary = "B"; displayHint = {}; }
 
             // CPC relabel: when a section-suite scope is held, the verb primaries
             // show COPY/PASTE/CLEAR so the scope+verb grammar is immediately readable.

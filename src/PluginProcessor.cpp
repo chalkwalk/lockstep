@@ -496,7 +496,8 @@ namespace lockstep
             writeParam(t, s, v);
         };
         ccCtx.setCrossfaderValue = [this](float v) {
-            setMorphFader(v);
+            // CC is calibrated top=A: invert before storing so f=0=A remains canonical.
+            setMorphFader(1.0f - v);
         };
         if (learnActive_.load(std::memory_order_acquire))
         {

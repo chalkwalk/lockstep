@@ -959,12 +959,13 @@ namespace lockstep
             const int  y       = isUpper ? 0 : lowerY2;
             const juce::Rectangle<int> col2 (x, y, narrowW2, rowH2);
 
-            // Draw A chip bottom-left, B chip above it.
+            // A at top-right, B at bottom-right — both anchored to the right
+            // edge of the cell so the vertical arrangement mirrors the crossfader.
             const int chipW = 10, chipH = 8;
             if (mInfo.inA)
             {
-                const juce::Rectangle<int> aChip (col2.getX() + 2,
-                                                   col2.getBottom() - chipH - 2,
+                const juce::Rectangle<int> aChip (col2.getRight() - chipW - 1,
+                                                   col2.getY() + 2,
                                                    chipW, chipH);
                 g.setColour(kMorphMagenta.withAlpha(0.85f));
                 g.fillRoundedRectangle(aChip.toFloat(), 2.0f);
@@ -974,8 +975,8 @@ namespace lockstep
             }
             if (mInfo.inB)
             {
-                const juce::Rectangle<int> bChip (col2.getX() + 2,
-                                                   col2.getBottom() - (mInfo.inA ? (chipH * 2 + 3) : (chipH + 2)),
+                const juce::Rectangle<int> bChip (col2.getRight() - chipW - 1,
+                                                   col2.getBottom() - chipH - 2,
                                                    chipW, chipH);
                 g.setColour(kMorphMagenta.darker(0.3f).withAlpha(0.85f));
                 g.fillRoundedRectangle(bChip.toFloat(), 2.0f);

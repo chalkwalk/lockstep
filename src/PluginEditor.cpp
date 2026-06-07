@@ -149,7 +149,7 @@ namespace lockstep
         // MHX.5: vertical crossfader — A=0 (bottom), B=1 (top); fader rest = A.
         crossfader_.setSliderStyle(juce::Slider::LinearBarVertical);
         crossfader_.setRange(0.0, 1.0, 0.0);
-        crossfader_.setValue(0.0, juce::dontSendNotification);
+        crossfader_.setValue(1.0, juce::dontSendNotification);  // top = A (f=0)
         crossfader_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
         crossfader_.setColour(juce::Slider::trackColourId,
                               juce::Colour::fromRGB(100, 80, 200).withAlpha(0.6f));
@@ -157,7 +157,8 @@ namespace lockstep
         crossfader_.setTooltip("Morph crossfader (0=A / 1=B); right-click to MIDI-learn");
         crossfader_.onValueChange = [this]
         {
-            processor_.setMorphFader(static_cast<float>(crossfader_.getValue()));
+            // Slider is inverted: top (1.0) = A (f=0), bottom (0.0) = B (f=1).
+            processor_.setMorphFader(1.0f - static_cast<float>(crossfader_.getValue()));
         };
         crossfader_.addMouseListener(this, false);
         addAndMakeVisible(crossfader_);
@@ -367,7 +368,7 @@ namespace lockstep
                                                   keyboardArea_.currentPage(),
                                                   gridMode_,
                                                   manipulationZone_.slotOffset(),
-                                                  processor_.morphFader());
+                                                  1.0f - processor_.morphFader());
             if (xTouchSurface_ && controllerPorts_.isOpen())
                 controllerPorts_.drain(*xTouchSurface_, sink, model);
             if (push1Surface_ && push1Ports_.isOpen())
@@ -554,6 +555,21 @@ namespace lockstep
         // Persistent per-track state overlays FIRST — they must show in every mode
         // (incl. the unmodified resting state). The held-context preview below
         // early-returns when nothing is held, so these have to precede it.
+
+        // ---- Crossfader A/B endpoint labels above and below the slider.
+        {
+            static const juce::Colour kMorphMagenta { 0xffb060d0 };
+            const auto fb = crossfader_.getBounds();
+            g.setFont(juce::Font(juce::FontOptions(9.0f)).boldened());
+            // "A" above the slider
+            g.setColour(kMorphMagenta.withAlpha(0.9f));
+            g.drawText("A", fb.getX(), fb.getY() - 12, fb.getWidth(), 12,
+                       juce::Justification::centred);
+            // "B" below the slider
+            g.setColour(kMorphMagenta.darker(0.3f).withAlpha(0.9f));
+            g.drawText("B", fb.getX(), fb.getBottom(), fb.getWidth(), 12,
+                       juce::Justification::centred);
+        }
 
         // ---- Deviation badge: an amber corner triangle on every track playing
         // off its scene's home (global) phrase (DESIGN §4.7) — persistent in the
@@ -3429,8 +3445,8 @@ namespace lockstep
 
         sink.setCrossfader = [this](float normValue)
         {
-            // setValue triggers onValueChange which calls setMorphFader().
-            crossfader_.setValue(static_cast<double>(normValue), juce::sendNotificationAsync);
+            // setValue triggers onValueChange which calls setMorphFader() (inverted).
+            crossfader_.setValue(1.0 - static_cast<double>(normValue), juce::sendNotificationAsync);
         };
 
         sink.applyGlobalDelta = [this](GlobalTarget target, int rawDelta)
