@@ -745,18 +745,18 @@ Completes the record-time capture story (gate / velocity / microtiming).
       (TRACK band + global encoder); per-track effective-swing readout.
 - [x] Step-grid nudge-direction tick indicator (amber=late, cyan=early).
 
-### 5.2 — Morph + crossfader  *[planned]*  *(was MI)*
+### 5.2 — Morph + crossfader  *[shipped]*  *(was MI)*
 DESIGN §17. *(Morph A/B snapshot fields are carried on the Scene after Phase 7
 Stage G — shipped as `Section.sceneA/B`, renamed `Scene.morphA/B` in 7.9; a
 placeholder crossfader slider exists from 3.1. The full crossfader
 implementation ships here.)*
-- [ ] `faderValue` `std::atomic<float>` + smoothed follower (RAM-only, not serialized; default f=0/A).
-- [ ] Resolver: three-tier P-Lock ▷ morph-lerp ▷ kit-base; **mirror resolution** (absent pole = other pole ?? kit base); fader inert until A ≠ B. Both process paths (stopped + running).
-- [ ] Modifier-gated sculpting: hold/latch `Morph` + encoder → normalised split `da=Δ(1-f)/D, db=Δf/D`; bare encoder → kit base (DESIGN §17.3/§17.6).
-- [ ] `Morph + ^/v` pole-forcing + `Morph+Stop` removal; MZ A/B indicators.
-- [ ] Stepped snap (f<0.5 → A, else B) + MIDI-out parity (cc lerp, channel/program snap + All-Notes-Off on channel flip).
-- [ ] Fluid mute: `Morph+Mute` captures AMP `Level→silence` into near pole, unity into far pole.
-- [ ] Fader MIDI-learn: `CCScope::Crossfader`; right-click on crossfader_ slider → learn.
+- [x] `faderValue` `std::atomic<float>` + smoothed follower (RAM-only, not serialized; default f=0/A).
+- [x] Resolver: three-tier P-Lock ▷ morph-lerp ▷ kit-base; **mirror resolution** (absent pole = other pole ?? kit base); fader inert until A ≠ B. Both process paths (stopped + running).
+- [x] Modifier-gated sculpting: hold/latch `Morph` + encoder → normalised split `da=Δ(1-f)/D, db=Δf/D`; bare encoder → kit base (DESIGN §17.3/§17.6).
+- [x] `Morph + ^/v` pole-forcing + `Morph+Stop` removal; MZ A/B indicators.
+- [x] Stepped snap (f<0.5 → A, else B) + MIDI-out parity (channel/program snap + All-Notes-Off on channel flip).
+- [x] Fluid mute: `Morph+Mute` captures AMP `Level→silence` into near pole, unity into far pole.
+- [x] Fader MIDI-learn: `CCScope::Crossfader`; right-click on crossfader_ slider → learn.
 
 ### 5.3 — Song/Scene management UI  *[planned]*  *(was MJ; re-scoped for Phase 7)*
 DESIGN §23 (re-derived for the Phase 7 model). The old Pattern/Part management UI

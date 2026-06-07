@@ -186,7 +186,7 @@ other naturally with no master-bar concept.
 | **Compound chord** | Two modifiers (one per column) held together to combine scopes. Cross-column only; never fires on its own — it just narrows the scope until a verb is pressed. `Func` composes with anything. |
 | **Verb** | The action applied to the scope (`Record`=copy, `Play`=paste, `Stop`=clear, `Yes`, `No`). |
 | **Section** | A grouping of parameters on the section bar (keys `5–0`). Canonical six: TRIG / SRC / FILTER / AMP / MOD / FX. Held scope modifiers reinterpret each key (e.g. `Track+FILTER` = post-machine filter, `Song+FX` = master FX). The Manipulation Zone shows eight parameters (4×2) of the active cell at a time. |
-| **Morph / Crossfader** *(planned, 5.2)* | A per-Scene pair of sparse parameter maps (A and B) blended by one continuous fader. Hold/latch `Morph` + encoder sculpts both poles at the normalised fader-split (scene-layer selector, symmetric with holding a step for P-Lock). `Morph + ^/v` forces pure A/B writes (QWERTY path). Absent pole mirrors the set pole — fader is inert until A ≠ B. The fader is mouse/CC/hardware-only (no QWERTY axis). |
+| **Morph / Crossfader** *(5.2)* | A per-Scene pair of sparse parameter maps (A and B) blended by one continuous fader. Hold/latch `Morph` + encoder sculpts both poles at the normalised fader-split (scene-layer selector, symmetric with holding a step for P-Lock). `Morph + ^/v` forces pure A/B writes (QWERTY path). Absent pole mirrors the set pole — fader is inert until A ≠ B. Stepped params snap at f=0.5. Right-click the on-screen fader for MIDI-learn. |
 | **Manipulation Zone (MZ)** | The eight-parameter (4×2) editing band. What you are tweaking right now. |
 | **Step Grid** | The 2×8 matrix of step keys mirroring the bottom two QWERTY rows. |
 | **Focus / focused track** | The currently selected track (or Global). Determines what contextual encoders and selected-track MIDI map to. |
@@ -396,7 +396,7 @@ in the scope-section matrix); two are **performance specialists**
 | `2` | **Track** | One or more tracks; or, with none selected, Control-All. `Track+section` opens the track-foundation row (post-machine FILTER/AMP, IEffect inserts). **`Func+Track`** opens the machine/Kit picker (step cells show machines; press one to assign it to the focused track). |
 | `Q` | **Phrase** | A per-track musical phrase (pure note content). `Phrase+step` swaps all non-deviated tracks to that phrase (unison); `Track+Phrase+step` deviates just the focused track. To clear all deviations, re-launch the active Scene or use `Func+Scene+step`. |
 | `W` | **Scene** | A launchable cross-track row (global phrase row + active-mask + core time). `Scene+step` occupied = carry overlay (double-tap = floor); on active = revert to floor; on **empty** = baked-copy create + launch. `Func+Scene+step` occupied = floor launch; empty = default create + launch. `Scene+Record` = commit-and-bake. `Func+Scene+Record/Play` = copy/paste. |
-| `A` | **Morph** | The A/B crossfader scope. `Morph + ^`/`v` picks endpoint A/B; `Morph+section` assigns slots to the morph. |
+| `A` | **Morph** | The A/B crossfader scope. Hold/latch + encoder sculpts overlay at current fader split; `Morph+^`/`v` forces pure A/B writes; `Morph+Mute` = fluid mute a track. |
 | `S` | **Song** | Song select (`Song+step`). `Func+Song` = Global / master-bus focus. |
 | `Z` | **Mute** | Global mute mask (hold and tap several tracks). `Scene+Mute+step` = per-scene mute. |
 | `X` | **Fill** | "While held, fills fire." `Fill+step` marks step as fill-only. |
@@ -946,8 +946,8 @@ The tree below roots each gesture under its **highest-priority held
 scope** (the resolution order is `Trig > Section > Track > Phrase > Scene >
 Mute > Morph > Song > Fill > Func`); `Func`-only gestures live under
 **Func**. `Cue` is a reserved scope with no key bound yet (6.4), and
-`Morph` assignment is a bound key whose verbs are still planned (5.2) —
-both are noted but carry no live leaves.
+`Morph` is a fully live scope (5.2) with encoder, nav-qualifier, Stop,
+and Mute gestures; `Cue` is reserved with no key bound yet (6.4).
 
 Legends in parentheses are the on-screen key labels (see
 [§5.3](#53-verb-keys)).
@@ -1101,15 +1101,13 @@ Song (S)
 Links: [§5.14](#514-scenes-phrases-and-songs-the-launch-model) ·
 [§5.2](#52-modifier-scope-keys)
 
-### Morph (A) — *planned (5.2)*
+### Morph (A) — *implemented (5.2)*
 
 ```
 Morph (A)   hold/latch = scene-layer selector (symmetric with held step → P-Lock)
 ├─ + encoder            → sculpt morph at fader split (da/db normalised 1:1) — §5.2
 ├─ + ↑ + encoder        → pure A write (fader ignored) — §5.2
 ├─ + ↓ + encoder        → pure B write (fader ignored) — §5.2
-├─ + ↑ + Stop on slot   → remove slot from A's map — §5.2
-├─ + ↓ + Stop on slot   → remove slot from B's map — §5.2
 ├─ + Stop on slot        → clear slot from both maps — §5.2
 └─ + Mute on track       → fluid mute (AMP Level → silence into near pole) — §5.2
 ```
