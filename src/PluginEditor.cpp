@@ -1608,6 +1608,13 @@ namespace lockstep
             case ControllerButton::NavUp:
             {
                 const int t = keyboardArea_.getActiveTrack();
+                // Morph+^ = force A-pole edits while ^ is held (DESIGN §17.3).
+                if (uiState_.morphHeld)
+                {
+                    uiState_.morphNavQualifier = 1;
+                    repaint();
+                    return true;
+                }
                 // Func+↑ = double the focused track's pattern length.
                 if (uiState_.funcHeld && !uiState_.trackHeld)
                 {
@@ -1642,6 +1649,13 @@ namespace lockstep
             case ControllerButton::NavDown:
             {
                 const int t = keyboardArea_.getActiveTrack();
+                // Morph+v = force B-pole edits while v is held (DESIGN §17.3).
+                if (uiState_.morphHeld)
+                {
+                    uiState_.morphNavQualifier = 2;
+                    repaint();
+                    return true;
+                }
                 // Func+↓ = halve the focused track's pattern length.
                 if (uiState_.funcHeld && !uiState_.trackHeld)
                 {
@@ -2406,6 +2420,7 @@ namespace lockstep
 
             case CB::MorphScope:
                 physHeld_.morph = false;
+                uiState_.morphNavQualifier = 0;
                 if (!uiState_.latch.morph)
                 {
                     uiState_.morphHeld = false;
@@ -2607,15 +2622,18 @@ namespace lockstep
                 break;
             }
 
+            case CB::NavUp:
+            case CB::NavDown:
+                uiState_.morphNavQualifier = 0;
+                break;
+
             case CB::VerbRecord:
             case CB::VerbStop:
             case CB::VerbClear:
             case CB::VerbDelete:
             case CB::VerbPanic:
             case CB::Snapshot:
-            case CB::NavUp:
             case CB::NavLeft:
-            case CB::NavDown:
             case CB::NavRight:
             case CB::SelectTrack:
             case CB::ToggleMute:
@@ -3289,10 +3307,24 @@ namespace lockstep
                                    && ec.heldTrackIndex() == track;
 
             // Morph-held + no step held → write morph overlay (DESIGN §17.3).
+            // With ^/v qualifier: write directly to one pole (absolute delta).
             if (uiState_.morphHeld && !stepHeld)
             {
                 const float deltaAbs = static_cast<float>(rawDelta) / 128.0f * range;
-                processor_.writeMorph(track, absSlot, deltaAbs, processor_.morphFader());
+                if (uiState_.morphNavQualifier != 0)
+                {
+                    const int pole = uiState_.morphNavQualifier - 1;  // 0=A, 1=B
+                    const auto info = processor_.morphWidgetInfo(track, absSlot);
+                    const float curPole = (pole == 0)
+                        ? (info.inA ? info.aValue : processor_.baseParamValue(track, absSlot))
+                        : (info.inB ? info.bValue : processor_.baseParamValue(track, absSlot));
+                    processor_.writeMorphPole(track, absSlot,
+                        juce::jlimit(spec.minValue, spec.maxValue, curPole + deltaAbs), pole);
+                }
+                else
+                {
+                    processor_.writeMorph(track, absSlot, deltaAbs, processor_.morphFader());
+                }
                 return;
             }
 

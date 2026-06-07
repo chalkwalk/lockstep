@@ -52,6 +52,7 @@ namespace lockstep
         bool phraseScopeHeld = false;  // key Q (MHY: moved from A)
         bool phraseScopeUsed = false;  // true if a step was pressed while PhraseScope held
         bool morphHeld        = false;  // key A (MHY: moved from S)
+        int  morphNavQualifier = 0;    // 0=none 1=A-pole(^) 2=B-pole(v); held while Morph active
         bool muteHeld         = false;  // key Z
         // Col 2:
         bool trackHeld        = false;  // key 2 (MHY: moved from Q)
