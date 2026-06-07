@@ -3284,13 +3284,22 @@ namespace lockstep
             const float range = spec.maxValue - spec.minValue;
             if (range <= 0.0f) return;
 
+            const auto& ec       = processor_.editContext();
+            const bool  stepHeld = ec.isActiveForEditing()
+                                   && ec.heldTrackIndex() == track;
+
+            // Morph-held + no step held → write morph overlay (DESIGN §17.3).
+            if (uiState_.morphHeld && !stepHeld)
+            {
+                const float deltaAbs = static_cast<float>(rawDelta) / 128.0f * range;
+                processor_.writeMorph(track, absSlot, deltaAbs, processor_.morphFader());
+                return;
+            }
+
             // Read the OEB-resolved current value (Override-ELSE-Base) so that
             // encoder deltas accumulate correctly when P-lock editing is active.
-            // Without this, every turn would restart from the track base value
-            // causing the parameter to oscillate instead of advancing.
             float cur = processor_.baseParamValue(track, absSlot);
-            const auto& ec = processor_.editContext();
-            if (ec.isActiveForEditing() && ec.heldTrackIndex() == track)
+            if (stepHeld)
             {
                 const int heldStep = ec.heldStepIndex();
                 if (heldStep >= 0)
@@ -3315,7 +3324,16 @@ namespace lockstep
             const int absSlot = manipulationZone_.slotOffset() + mzSlot;
             if (absSlot >= processor_.numParams(track)) return;
 
-            auto& ctx = processor_.editContext();
+            auto& ctx      = processor_.editContext();
+            const bool stepHeld = ctx.isActiveForEditing() && ctx.heldTrackIndex() == track;
+
+            // Morph+Stop: remove slot from morph maps (DESIGN §17.3).
+            if (uiState_.morphHeld && !stepHeld)
+            {
+                processor_.removeMorph(track, absSlot);
+                return;
+            }
+
             if (ctx.isActiveForEditing())
             {
                 processor_.clearParam(ctx.heldTrackIndex(), ctx.heldStepIndex(), absSlot);

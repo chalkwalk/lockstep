@@ -933,6 +933,52 @@ namespace lockstep
             g.setFont(juce::Font(juce::FontOptions(8.0f)).boldened());
             g.drawText(badge, badgeArea, juce::Justification::centred);
         }
+
+        // Morph A/B chips: drawn for any slot that has morph data on the active scene.
+        static const juce::Colour kMorphMagenta { 0xffb060d0 };
+        for (int i = 0; i < kMZSlots; ++i)
+        {
+            const int  slot    = slotOffset_ + i;
+            const auto mInfo   = processor_.morphWidgetInfo(track, slot);
+            if (!mInfo.exists) continue;
+
+            const bool isUpper = (i % 2 != 0);
+            const int  ci      = i / 2;
+            static constexpr int kCols2 = kMZSlots / 2;
+            const int baseW2   = getWidth() / kCols2;
+            const int narrowW2 = baseW2 * 7 / 8;
+            const int rowH2    = getHeight() * 9 / 20;
+            const int upperX2  = getWidth() - kCols2 * narrowW2;
+            const int lowerY2  = getHeight() - rowH2;
+            const int  x       = isUpper ? upperX2 + ci * narrowW2 : ci * narrowW2;
+            const int  y       = isUpper ? 0 : lowerY2;
+            const juce::Rectangle<int> col2 (x, y, narrowW2, rowH2);
+
+            // Draw A chip bottom-left, B chip above it.
+            const int chipW = 10, chipH = 8;
+            if (mInfo.inA)
+            {
+                const juce::Rectangle<int> aChip (col2.getX() + 2,
+                                                   col2.getBottom() - chipH - 2,
+                                                   chipW, chipH);
+                g.setColour(kMorphMagenta.withAlpha(0.85f));
+                g.fillRoundedRectangle(aChip.toFloat(), 2.0f);
+                g.setColour(juce::Colours::white);
+                g.setFont(juce::Font(juce::FontOptions(7.0f)).boldened());
+                g.drawText("A", aChip, juce::Justification::centred);
+            }
+            if (mInfo.inB)
+            {
+                const juce::Rectangle<int> bChip (col2.getX() + 2,
+                                                   col2.getBottom() - (mInfo.inA ? (chipH * 2 + 3) : (chipH + 2)),
+                                                   chipW, chipH);
+                g.setColour(kMorphMagenta.darker(0.3f).withAlpha(0.85f));
+                g.fillRoundedRectangle(bChip.toFloat(), 2.0f);
+                g.setColour(juce::Colours::white);
+                g.setFont(juce::Font(juce::FontOptions(7.0f)).boldened());
+                g.drawText("B", bChip, juce::Justification::centred);
+            }
+        }
     }
 
     void ManipulationZone::resized()

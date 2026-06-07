@@ -31,6 +31,16 @@
 
 namespace lockstep
 {
+    // Info returned when querying whether a ManipulationZone widget has morph data.
+    struct MorphWidgetInfo
+    {
+        bool  exists = false;
+        bool  inA    = false;
+        bool  inB    = false;
+        float aValue = 0.0f;
+        float bValue = 0.0f;
+    };
+
     // Info returned when querying whether a ManipulationZone widget has a CC mapping.
     struct WidgetMappingInfo
     {
@@ -251,6 +261,17 @@ namespace lockstep
         // active for the given track, the value lands in the held step's
         // P-Lock; otherwise it updates the track's base params.
         void writeParam(int track, int slot, float value);
+
+        // 5.2: Morph overlay write paths (message thread; DESIGN §17.3).
+        // writeMorph: normalised proportional split at fader position f.
+        // writeMorphPole: pole-forced write (pole 0=A, 1=B; for ^/v qualifiers).
+        // removeMorph: erases (track, slot) from both morphA and morphB maps.
+        void writeMorph(int track, int slot, float deltaAbs, float fader);
+        void writeMorphPole(int track, int slot, float value, int pole);
+        void removeMorph(int track, int slot);
+
+        // Returns morph endpoint data for a ManipulationZone widget slot.
+        MorphWidgetInfo morphWidgetInfo(int track, int slot) const;
 
         // Remove the P-Lock override for one slot on a specific step.
         void clearParam(int track, int step, int slot);

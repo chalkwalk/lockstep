@@ -68,12 +68,12 @@ namespace lockstep
         }};
 
         static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kMorph = {{
-            { nullptr,false },   // CXFD — crossfader curve (MI, not yet implemented)
-            { nullptr,false },   // SRC — scene-assign SRC (MI, not yet implemented)
-            { nullptr,false },   // FLTR — scene-assign FLTR (MI, not yet implemented)
-            { nullptr,false },   // AMP — scene-assign AMP (MI, not yet implemented)
-            { nullptr,false },   // MOD — scene-assign MOD (MI, not yet implemented)
-            { nullptr,false },   // FX — scene-assign FX (MI, not yet implemented)
+            { nullptr,false },   // TRIG — Morph never affects trigs (DESIGN §17.2)
+            { "SRC",  true  },   // morph-assign SRC (5.2)
+            { "FLTR", true  },   // morph-assign FLTR (5.2)
+            { "AMP",  true  },   // morph-assign AMP (5.2)
+            { "MOD",  true  },   // morph-assign MOD (5.2)
+            { "FX",   true  },   // morph-assign FX (5.2)
         }};
 
         static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kSong = {{

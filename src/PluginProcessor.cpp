@@ -1786,6 +1786,68 @@ namespace lockstep
         }
     }
 
+    void LockstepProcessor::writeMorph(int track, int slot, float deltaAbs, float fader)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        if (slot  < 0 || slot  >= numParams(track))             return;
+
+        const float f = juce::jlimit(0.0f, 1.0f, fader);
+        const float D = ((1.0f - f) * (1.0f - f)) + (f * f);
+        if (D < 1e-6f) return;
+
+        const auto  spec    = paramSpec(track, slot);
+        Scene&      sc      = section();
+        const auto  key     = std::make_pair(track, slot);
+        const bool  hasA    = (sc.morphA.count(key) > 0);
+        const bool  hasB    = (sc.morphB.count(key) > 0);
+        const float kitBase = baseParamValue(track, slot);
+
+        float aVal = hasA ? sc.morphA.at(key) : (hasB ? sc.morphB.at(key) : kitBase);
+        float bVal = hasB ? sc.morphB.at(key) : (hasA ? sc.morphA.at(key) : kitBase);
+
+        const float da = deltaAbs * (1.0f - f) / D;
+        const float db = deltaAbs * f / D;
+        sc.morphA[key] = juce::jlimit(spec.minValue, spec.maxValue, aVal + da);
+        sc.morphB[key] = juce::jlimit(spec.minValue, spec.maxValue, bVal + db);
+    }
+
+    void LockstepProcessor::writeMorphPole(int track, int slot, float value, int pole)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        if (slot  < 0 || slot  >= numParams(track))             return;
+
+        const auto  spec = paramSpec(track, slot);
+        const float v    = juce::jlimit(spec.minValue, spec.maxValue, value);
+        const auto  key  = std::make_pair(track, slot);
+        if (pole == 0)
+            section().morphA[key] = v;
+        else
+            section().morphB[key] = v;
+    }
+
+    void LockstepProcessor::removeMorph(int track, int slot)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        const auto key = std::make_pair(track, slot);
+        section().morphA.erase(key);
+        section().morphB.erase(key);
+    }
+
+    MorphWidgetInfo LockstepProcessor::morphWidgetInfo(int track, int slot) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return {};
+        const Scene& sc  = section();
+        const auto   key = std::make_pair(track, slot);
+        const auto   itA = sc.morphA.find(key);
+        const auto   itB = sc.morphB.find(key);
+        const bool   hasA = (itA != sc.morphA.end());
+        const bool   hasB = (itB != sc.morphB.end());
+        if (!hasA && !hasB) return {};
+        return { true, hasA, hasB,
+                 hasA ? itA->second : 0.0f,
+                 hasB ? itB->second : 0.0f };
+    }
+
     void LockstepProcessor::writeFillParam(int track, int slot, float value)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
