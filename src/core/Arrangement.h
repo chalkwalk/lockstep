@@ -71,7 +71,7 @@ namespace lockstep
 
         [[nodiscard]] int activePhraseIdx(int t) const
         {
-            return resolveActivePhraseIdx(scene(), deviated[idx(t)],
+            return resolveActivePhraseIdx(sceneIdx, deviated[idx(t)],
                                           deviationPhraseIdx[idx(t)], t);
         }
         [[nodiscard]] Phrase& activePhrase(int t)
@@ -154,22 +154,6 @@ namespace lockstep
             syncWorkingTrackFromActive(t);
         }
 
-        // Phrase+step: set the scene's global (home) phrase. Non-deviated tracks
-        // follow it; the FOCUSED track un-deviates and rejoins the unison; other
-        // deviated tracks keep their deviation (DESIGN §4.7/§16). focusedTrack < 0
-        // = none focused. Write-back runs first (with the OLD assignment) so live
-        // edits land on the right phrases before the reassignment.
-        void setGlobalPhrase(int focusedTrack, int phrase)
-        {
-            const int N = std::clamp(phrase, 0, kPhrasesPerTrack - 1);
-            writeBackWorkingToActive();
-            if (focusedTrack >= 0 && focusedTrack < static_cast<int>(kNumTracks))
-                deviated[idx(focusedTrack)] = false;   // focused rejoins the unison
-            scene().globalPhrase = N;
-            scene().initialised  = true;
-            syncWorkingFromActive();
-        }
-
         void resyncTrackToScene(int t)
         {
             if (t < 0 || t >= static_cast<int>(kNumTracks)) return;
@@ -185,15 +169,13 @@ namespace lockstep
             syncWorkingFromActive();
         }
 
-        // Scene authoring (Scene + Record, §16): bake live deviations into the
-        // scene's home-row phrase content, then clear them. Destructive: for any
-        // deviated track the home-row slot is overwritten with the deviation's
-        // content; other scenes that share globalPhrase are silently affected.
+        // Scene authoring (Scene + Record, §16): bake live deviations onto the
+        // scene's diagonal row (row == sceneIdx), then clear them.
         // The caller is responsible for snapshotting before calling this.
         void bakeSceneState()
         {
             writeBackWorkingToActive();
-            const int g = scene().globalPhrase;
+            const int g = sceneIdx;
             for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
             {
                 if (!deviated[idx(t)]) continue;
@@ -224,33 +206,14 @@ namespace lockstep
             return song().scenes[idx(s)].initialised;
         }
 
-        // Count OTHER initialised scenes (excluding the active one) whose
-        // globalPhrase equals phraseIdx. Zero = no sharing conflict.
-        [[nodiscard]] int phraseSlotSharers(int phraseIdx) const
-        {
-            int n = 0;
-            for (int s = 0; s < kScenesPerSong; ++s)
-            {
-                if (s == sceneIdx) continue;
-                const auto& sc = song().scenes[idx(s)];
-                if (sc.initialised && sc.globalPhrase == phraseIdx) ++n;
-            }
-            return n;
-        }
-
-        // Lowest phrase-slot index that no initialised scene routes through AND
-        // that no track has content in. Returns -1 if all slots are occupied.
+        // Lowest phrase-slot index that is not the diagonal row of any initialised
+        // scene AND holds no track content. Returns -1 if all slots are occupied.
         [[nodiscard]] int firstFreePhraseSlot() const
         {
             for (int n = 0; n < kPhrasesPerTrack; ++n)
             {
-                bool routedByScene = false;
-                for (int s = 0; s < kScenesPerSong; ++s)
-                {
-                    const auto& sc = song().scenes[idx(s)];
-                    if (sc.initialised && sc.globalPhrase == n) { routedByScene = true; break; }
-                }
-                if (routedByScene) continue;
+                // Diagonal: scene N exclusively owns row N.
+                if (song().scenes[idx(n)].initialised) continue;
 
                 bool hasTrackContent = false;
                 for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
@@ -261,14 +224,6 @@ namespace lockstep
                 if (!hasTrackContent) return n;
             }
             return -1;
-        }
-
-        // Count OTHER initialised scenes in the active song that share the current
-        // scene's globalPhrase. A bake will overwrite content those scenes also
-        // render, so a non-zero result is shown as SHR:N in the confirm band.
-        [[nodiscard]] int scenesSharingHomePhrase() const
-        {
-            return phraseSlotSharers(scene().globalPhrase);
         }
 
 
@@ -284,7 +239,6 @@ namespace lockstep
             writeBackWorkingToActive();    // flush live edits into active phrases
             auto& dst = song().scenes[idx(target)];
             dst = Scene{};
-            dst.globalPhrase = target;
             // Copy effective floor from the active scene.
             dst.activeMask = scene().activeMask;
             dst.coreTime   = scene().coreTime;
@@ -306,8 +260,7 @@ namespace lockstep
             if (target < 0 || target >= kScenesPerSong) return;
             auto& dst = song().scenes[idx(target)];
             dst = Scene{};
-            dst.globalPhrase = target;
-            dst.initialised  = true;
+            dst.initialised = true;
         }
 
         // ── Per-scene overlay store helpers (build 3) ─────────────────────────

@@ -21,8 +21,7 @@ namespace lockstep
             }
         arr->songs[0].tracks[0].phrases[0].length = 16;
         arr->songs[0].tracks[0].phrases[1].length = 8;
-        // scene 0 globalPhrase = 0 (default); scene 1 globalPhrase = 1.
-        arr->songs[0].scenes[1].globalPhrase = 1;
+        // Diagonal: scene 0 plays row 0 (len 16), scene 1 plays row 1 (len 8).
         arr->syncWorkingFromActive();
         arr->seedFloor();   // establish the floor at this known-good state
         return arr;
@@ -160,12 +159,12 @@ namespace lockstep
     {
         auto arr = makeArrangement();
 
-        // Save the scene state, change the globalPhrase, then restore.
+        // Save the scene state, change the coreTime, then restore.
         arr->snapshot(CheckpointScope::Scene, 0);
-        arr->scene().globalPhrase = 5;
+        arr->scene().coreTime.numerator = 7;
         arr->restoreOne(CheckpointScope::Scene, 0);
-        CHECK(arr->scene().globalPhrase == 0,
-              "Scene restoreOne: globalPhrase restored");
+        CHECK(arr->scene().coreTime.numerator == 4,
+              "Scene restoreOne: coreTime restored to snapshot value");
     }
 
     static void testSceneRestoreClearsDeviation()

@@ -18,11 +18,6 @@ namespace lockstep
         Scene fresh;
         CHECK(!sceneHasContent(fresh), "fresh scene is default (not persisted)");
 
-        // A non-zero globalPhrase makes it non-default — must persist.
-        Scene assigned;
-        assigned.globalPhrase = 1;
-        CHECK(sceneHasContent(assigned), "scene with a non-zero globalPhrase has content");
-
         // A muted track (activeMask false) is non-default content.
         Scene masked;
         masked.activeMask[0] = false;

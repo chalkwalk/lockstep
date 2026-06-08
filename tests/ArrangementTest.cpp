@@ -24,11 +24,9 @@ namespace lockstep
                     phr.initialised = true;
             }
         // Distinguish phrase lengths so a phrase switch is observable.
+        // Diagonal: scene 0 plays row 0 (len 16), scene 1 plays row 1 (len 8).
         arr->songs[0].tracks[0].phrases[0].length = 16;
         arr->songs[0].tracks[0].phrases[1].length = 8;
-        // scene 0 globalPhrase = 0 (default); scene 1 globalPhrase = 1 so track 0
-        // plays phrase 1 (length 8) when scene 1 is active.
-        arr->songs[0].scenes[1].globalPhrase = 1;
         arr->syncWorkingFromActive();
         return arr;
     }
@@ -132,24 +130,27 @@ namespace lockstep
               "setActiveScene write-back clobbers stale content (the bug loadPosition avoids)");
     }
 
-    // The new phrase grammar (DESIGN §4.7/§16): setGlobalPhrase un-deviates the
-    // focused track + moves non-deviated tracks, keeping other deviations.
-    // (Force-all was dropped — baseline launch covers it; DESIGN §4.7.)
-    static void testGlobalPhraseGrammar()
+    // Diagonal routing: non-deviated tracks play row == sceneIdx (DESIGN §4.7).
+    // setGlobalPhrase is gone; the home row is fixed as the scene index.
+    static void testDiagonalRouting()
     {
         auto arr = makeSeededArrangement();          // scene 0 active
-        arr->swapPhraseForTrack(0, 3);               // deviate track 0 → phrase 3
-        arr->swapPhraseForTrack(1, 5);               // deviate track 1 → phrase 5
-        CHECK(arr->deviated[0] && arr->deviated[1], "pre: tracks 0 and 1 deviated");
 
-        // Phrase+step focusing track 0, picking phrase 2.
-        arr->setGlobalPhrase(0, 2);
-        CHECK(arr->scene().globalPhrase == 2,     "set-global: scene globalPhrase updated");
-        CHECK(!arr->deviated[0],                  "set-global: focused track un-deviated (rejoins)");
-        CHECK(arr->activePhraseIdx(0) == 2,       "set-global: focused track follows the global");
-        CHECK(arr->deviated[1],                   "set-global: OTHER deviated track is kept");
-        CHECK(arr->activePhraseIdx(1) == 5,       "set-global: other deviated track unchanged");
-        CHECK(arr->activePhraseIdx(2) == 2,       "set-global: a non-deviated track follows global");
+        // Scene 0: non-deviated track 0 plays row 0 (length 16).
+        CHECK(arr->activePhraseIdx(0) == 0, "diagonal: scene 0, track 0 plays row 0");
+
+        // Scene 1: non-deviated track 0 plays row 1 (length 8).
+        arr->setActiveScene(1);
+        CHECK(arr->activePhraseIdx(0) == 1, "diagonal: scene 1, track 0 plays row 1");
+
+        // Deviate track 0 to row 3; other tracks stay on the diagonal.
+        arr->swapPhraseForTrack(0, 3);
+        CHECK(arr->activePhraseIdx(0) == 3, "diagonal: deviation overrides row");
+        CHECK(arr->activePhraseIdx(1) == 1, "diagonal: non-deviated track 1 stays on row 1");
+
+        // Re-sync clears deviation and returns to diagonal.
+        arr->resyncTrackToScene(0);
+        CHECK(arr->activePhraseIdx(0) == 1, "diagonal: resync returns track 0 to scene row");
     }
 
     // Build 3: a scene remembers its own live overlay (deviations) across a
@@ -197,15 +198,15 @@ namespace lockstep
 
         // Deviation cleared.
         CHECK(!arr->deviated[0],                      "bake: deviation cleared");
-        // Content baked: home slot (globalPhrase = 0) now has the deviation's trig.
+        // Content baked: diagonal row 0 now has the deviation's trig.
         CHECK(arr->songs[0].tracks[0].phrases[0].steps[1].trig,
-              "bake: deviation content copied into home-row phrase slot");
+              "bake: deviation content copied into diagonal row 0");
 
-        // After scene round-trip the overlay is gone and routing stays on global.
+        // After scene round-trip the overlay is gone and routing stays on diagonal.
         arr->setActiveScene(1);
         arr->setActiveScene(0);
         CHECK(!arr->deviated[0],                      "bake: no stale overlay on return");
-        CHECK(arr->activePhraseIdx(0) == 0,           "bake: track 0 follows globalPhrase");
+        CHECK(arr->activePhraseIdx(0) == 0,           "bake: track 0 on diagonal row 0");
     }
 
     static void testBakeSceneStateNoop()
@@ -231,44 +232,12 @@ namespace lockstep
               "bake same-slot: working edit in home phrase (no self-overwrite needed)");
     }
 
-    static void testScenesSharingHomePhrase()
-    {
-        auto arr = makeSeededArrangement();
-        // scene 0: globalPhrase = 0 (default)
-        // scene 1: globalPhrase = 1
-        // No sharing initially.
-        CHECK(arr->scenesSharingHomePhrase() == 0,
-              "sharing: no other initialised scene shares globalPhrase=0");
-
-        // Make scene 2 share globalPhrase=0 with scene 0.
-        arr->songs[0].scenes[2].globalPhrase = 0;
-        arr->songs[0].scenes[2].initialised  = true;
-        CHECK(arr->scenesSharingHomePhrase() == 1,
-              "sharing: one other scene shares globalPhrase=0");
-
-        // Uninitialised scenes don't count.
-        arr->songs[0].scenes[3].globalPhrase = 0;   // NOT marked initialised
-        CHECK(arr->scenesSharingHomePhrase() == 1,
-              "sharing: uninitialised scene not counted");
-
-        // From scene 1 (globalPhrase=1), no other scene shares it.
-        arr->setActiveScene(1);
-        CHECK(arr->scenesSharingHomePhrase() == 0,
-              "sharing: no scene shares globalPhrase=1 when in scene 1");
-    }
-
     static void testSceneInitialisedOnMutation()
     {
         auto arr = makeSeededArrangement();
         arr->songs[0].scenes[0].initialised = false;
 
-        // setGlobalPhrase marks the scene initialised.
-        arr->setGlobalPhrase(-1, 3);
-        CHECK(arr->songs[0].scenes[0].initialised,
-              "setGlobalPhrase: scene marked initialised");
-
         // bakeSceneState marks the scene initialised.
-        arr->songs[0].scenes[0].initialised = false;
         arr->bakeSceneState();
         CHECK(arr->songs[0].scenes[0].initialised,
               "bakeSceneState: scene marked initialised");
@@ -287,33 +256,6 @@ namespace lockstep
         CHECK(!arr->sceneSlotOccupied(kScenesPerSong), "occupied: out-of-range is not occupied");
     }
 
-    static void testPhraseSlotSharers()
-    {
-        auto arr = makeSeededArrangement();
-        // scene 0: globalPhrase=0, scene 1: globalPhrase=1; both initialised.
-        arr->songs[0].scenes[0].initialised = true;
-        arr->songs[0].scenes[1].initialised = true;
-
-        // Active scene is 0 (globalPhrase=0). Sharers of phrase 0 = scene 1? No,
-        // scene 1 routes phrase 1. So no other scene routes phrase 0.
-        CHECK(arr->phraseSlotSharers(0) == 0, "sharers: no other scene routes phrase 0");
-
-        // Make scene 2 route phrase 0 as well.
-        arr->songs[0].scenes[2].globalPhrase = 0;
-        arr->songs[0].scenes[2].initialised  = true;
-        CHECK(arr->phraseSlotSharers(0) == 1, "sharers: one other initialised scene shares phrase 0");
-
-        // Uninitialised scenes are excluded.
-        arr->songs[0].scenes[3].globalPhrase = 0;
-        arr->songs[0].scenes[3].initialised  = false;
-        CHECK(arr->phraseSlotSharers(0) == 1,
-              "sharers: uninitialised scene not counted");
-
-        // scenesSharingHomePhrase is the wrapper.
-        CHECK(arr->scenesSharingHomePhrase() == arr->phraseSlotSharers(0),
-              "scenesSharingHomePhrase equals phraseSlotSharers(globalPhrase)");
-    }
-
     static void testFirstFreePhraseSlot()
     {
         auto arr = std::make_unique<Arrangement>();
@@ -325,11 +267,10 @@ namespace lockstep
         CHECK(arr->firstFreePhraseSlot() == 0,
               "firstFree: slot 0 is free when nothing is initialised");
 
-        // Mark one scene as routing phrase 0.
-        arr->songs[0].scenes[0].globalPhrase = 0;
-        arr->songs[0].scenes[0].initialised  = true;
+        // Diagonal: scene 0 owns row 0.
+        arr->songs[0].scenes[0].initialised = true;
         CHECK(arr->firstFreePhraseSlot() == 1,
-              "firstFree: slot 0 used by scene → first free is 1");
+              "firstFree: slot 0 used by scene 0's diagonal → first free is 1");
 
         // Mark phrase slot 1 as having track content on track 0.
         arr->songs[0].tracks[0].phrases[1].initialised = true;
@@ -356,7 +297,6 @@ namespace lockstep
         arr->createBakedCopyScene(3);
 
         CHECK(arr->songs[0].scenes[3].initialised,      "baked create: target marked initialised");
-        CHECK(arr->songs[0].scenes[3].globalPhrase == 3, "baked create: globalPhrase = target index");
 
         // Track 0's phrase at slot 3 should carry the baked step.
         CHECK(arr->songs[0].tracks[0].phrases[3].steps[2].trig,
@@ -365,8 +305,6 @@ namespace lockstep
               "baked create: target phrase marked initialised");
 
         // Original scene (0) and phrase (0) must be unchanged.
-        CHECK(arr->songs[0].scenes[0].globalPhrase == 0,
-              "baked create: source scene globalPhrase unchanged");
         CHECK(arr->songs[0].tracks[0].phrases[0].steps[2].trig,
               "baked create: source phrase content intact");
     }
@@ -375,14 +313,12 @@ namespace lockstep
     {
         auto arr = makeSeededArrangement();
         // Give scene 4 some spurious state, then overwrite with default create.
-        arr->songs[0].scenes[4].globalPhrase = 7;
-        arr->songs[0].scenes[4].initialised  = true;
+        arr->songs[0].scenes[4].initialised = true;
         // Mark a distinct trig in the source phrase (phrase 0).
         arr->songs[0].tracks[0].phrases[0].steps[11].trig = true;
 
         arr->createDefaultScene(4);
-        CHECK(arr->songs[0].scenes[4].initialised,       "default create: target marked initialised");
-        CHECK(arr->songs[0].scenes[4].globalPhrase == 4, "default create: globalPhrase = target index");
+        CHECK(arr->songs[0].scenes[4].initialised, "default create: target marked initialised");
         // activeMask should be reset to the Scene default (all true).
         for (const bool m : arr->songs[0].scenes[4].activeMask)
             CHECK(m, "default create: activeMask reset to all-true");
@@ -403,8 +339,6 @@ namespace lockstep
         arr->createBakedCopyScene(6);
         CHECK(arr->songs[0].tracks[0].phrases[6].steps[9].trig,
               "baked create with deviation: deviated phrase content captured");
-        // Non-deviated track 1 plays globalPhrase=0.
-        CHECK(arr->songs[0].scenes[0].globalPhrase == 0, "sanity: scene 0 globalPhrase=0");
     }
 
     void runArrangementTests()
@@ -417,16 +351,14 @@ namespace lockstep
         testDeviationSwapAndResync();
         testSongSwitchClearsDeviationAndSwapsKit();
         testLoadPositionDoesNotClobber();
-        testGlobalPhraseGrammar();
+        testDiagonalRouting();
         testOverlayRememberedAcrossSceneSwitch();
         testDoubleTapToFloorDiscardsOverlay();
         testBakeSceneState();
         testBakeSceneStateNoop();
         testBakeDeviationSameSlot();
-        testScenesSharingHomePhrase();
         testSceneInitialisedOnMutation();
         testSceneSlotOccupied();
-        testPhraseSlotSharers();
         testFirstFreePhraseSlot();
     }
 }

@@ -174,13 +174,13 @@ namespace lockstep
         for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
             model.trackHasMachine[static_cast<std::size_t>(t)] = !proc.isTrackEmpty(t);
 
-        // Per-track deviation = playing a phrase other than the scene's home/global.
-        const int homePhrase = proc.section().globalPhrase;
+        // Per-track deviation = playing a phrase other than the scene's diagonal row.
+        const int homePhrase = proc.activeSectionIdx();
         for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
         {
             const int cur = proc.isTrackDeviated(t)
                 ? proc.deviationPhraseIdxForTrack(t)
-                : proc.section().globalPhrase;
+                : proc.activeSectionIdx();
             model.trackDeviated[static_cast<std::size_t>(t)] = (cur != homePhrase);
         }
 
@@ -1106,7 +1106,7 @@ namespace lockstep
                     const int at = activeTrack >= 0 ? activeTrack : 0;
                     activeIdx = proc.isTrackDeviated(at)
                         ? proc.deviationPhraseIdxForTrack(at)
-                        : proc.section().globalPhrase;
+                        : proc.activeSectionIdx();
                 }
                 else // sceneHeld
                 {
@@ -1126,8 +1126,8 @@ namespace lockstep
 
                 // Phase 7: per-phrase deviation badge for patternScope view.
                 const int devTrack = (activeTrack >= 0 && ui.phraseScopeHeld) ? activeTrack : -1;
-                // Dual-marker selector (DESIGN §4.7): the scene's global/home phrase.
-                const int globalIdx = ui.phraseScopeHeld ? proc.section().globalPhrase : -1;
+                // Dual-marker selector (DESIGN §4.7): the scene's diagonal home row.
+                const int globalIdx = ui.phraseScopeHeld ? proc.activeSectionIdx() : -1;
 
                 std::array<bool, 16> slotEmpty{};
                 for (int i = 0; i < maxAvail; ++i)

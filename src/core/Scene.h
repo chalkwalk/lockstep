@@ -14,10 +14,6 @@ namespace lockstep
     // Phase 7 / DESIGN §4.7.  Replaces Part (kit use) and Pattern::patternMutes.
     struct Scene
     {
-        // The scene's "home" row — the phrase index every non-deviated track
-        // plays (DESIGN §4.7). Default 0; a made scene seeds this to its index.
-        int globalPhrase = 0;
-
         // Who plays in this section.  false = silent (replaces patternMutes).
         // Runtime silence: globalMute[t] || !activeMask[t].
         std::array<bool, kNumTracks> activeMask{};
@@ -51,7 +47,6 @@ namespace lockstep
     // scene's per-scene assignment (phraseIdx) was silently dropped on save.
     [[nodiscard]] inline bool sceneHasContent(const Scene& s)
     {
-        if (s.globalPhrase != 0)                         return true;
         for (const bool m  : s.activeMask) if (!m)       return true;
         if (!(s.coreTime == TimeSig{}))                  return true;
         if (s.swing != 0.0f)                             return true;

@@ -581,10 +581,10 @@ namespace lockstep
         }
 
         // ---- Deviation badge: an amber corner triangle on every track playing
-        // off its scene's home (global) phrase (DESIGN §4.7) — persistent in the
+        // off the scene's diagonal home row (DESIGN §4.7) — persistent in the
         // track / VU row, visible in every mode (no modifier needed).
         {
-            const int home = processor_.section().globalPhrase;
+            const int home = processor_.activeSectionIdx();
             g.setColour(juce::Colour(juce::uint32(0xFFFFC020u)));
             for (std::size_t t = 0; t < kNumTracks; ++t)
             {
@@ -592,7 +592,7 @@ namespace lockstep
                 const int ti  = static_cast<int>(t);
                 const int cur = processor_.isTrackDeviated(ti)
                     ? processor_.deviationPhraseIdxForTrack(ti)
-                    : processor_.section().globalPhrase;
+                    : processor_.activeSectionIdx();
                 if (cur == home) continue;
                 const auto r = trackBtns_[t].getBounds();
                 const float s = 7.0f;
@@ -1396,16 +1396,13 @@ namespace lockstep
                     return true;
                 }
 
-                // Phrase + step (Phase 7 / DESIGN §4.7/§16). Track+Phrase routes to
-                // the SelectTrack case (deviate the focused track); here:
-                //   Phrase + step → set the scene's global phrase (the focused
-                //                   track un-deviates and rejoins the unison).
-                // (Force-all was dropped — baseline launch, Func+Scene+step,
-                //  covers clearing deviations; DESIGN §4.7, PRINCIPLES §13/§15.)
+                // Phrase + step (Phase 7 / DESIGN §4.7/§16). Track+Phrase and bare
+                // Phrase both deviate the focused track. Scene+Phrase+step (Stage 4)
+                // will deviate the whole band; bare Phrase is an explicit synonym.
                 if (uiState_.phraseScopeHeld)
                 {
                     if (ev.index >= 0 && ev.index < kPhrasesPerTrack)
-                        processor_.setGlobalPhrase(keyboardArea_.getActiveTrack(), ev.index);
+                        processor_.swapPhraseForTrack(keyboardArea_.getActiveTrack(), ev.index);
                     uiState_.phraseScopeUsed = true;
                     repaint();
                     keyboardArea_.repaint();
@@ -2060,10 +2057,8 @@ namespace lockstep
                     }
                     pendingConfirm_ = PendingConfirm::BakeScene;
                     {
-                        const int ns = processor_.scenesSharingHomePhrase();
-                        juce::String msg = "Bake " + juce::String(nd) + " track(s)?";
-                        if (ns > 0) msg += "  SHR:" + juce::String(ns);
-                        msg += "  P=Yes  Func+P=No";
+                        juce::String msg = "Bake " + juce::String(nd) + " track(s) onto row "
+                            + juce::String(processor_.activeSectionIdx()) + "?  P=Yes  Func+P=No";
                         setStatus(msg);
                     }
                     repaint();
@@ -3039,7 +3034,6 @@ namespace lockstep
 
     bool LockstepEditor::phraseConflictAndConfirm(int phraseSlot, PendingConfirm action)
     {
-        const int sharers = processor_.phraseSlotSharers(phraseSlot);
         bool slotHasContent = false;
         for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
         {
@@ -3050,15 +3044,14 @@ namespace lockstep
                 break;
             }
         }
-        if (sharers == 0 && !slotHasContent)
-            return false;   // clean — no conflict
+        if (!slotHasContent)
+            return false;   // clean row — no conflict
 
         pendingConfirm_ = action;
         pendingTarget_  = phraseSlot;
         const int freeSlot = processor_.firstFreePhraseSlot();
-        juce::String msg = "Overwrite phrase slot " + juce::String(phraseSlot) + "?";
-        if (sharers > 0) msg += "  SHR:" + juce::String(sharers);
-        if (freeSlot >= 0) msg += "  free:P" + juce::String(freeSlot);
+        juce::String msg = "Overwrite phrase row " + juce::String(phraseSlot) + "?";
+        if (freeSlot >= 0) msg += "  free:S" + juce::String(freeSlot + 1);
         msg += "  P=Yes  Func+P=No";
         setStatus(msg);
         repaint();
@@ -3357,7 +3350,7 @@ namespace lockstep
                     if (clipboard_.type != ClipboardType::Scene
                         && clipboard_.type != ClipboardType::All) break;
 
-                    const int destG = processor_.section().globalPhrase;
+                    const int destG = processor_.activeSectionIdx();
                     if (muteHeld)
                     {
                         // Mute+Func+Scene+Play: floor-only paste (no phrase content).

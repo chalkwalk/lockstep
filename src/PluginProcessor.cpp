@@ -3040,11 +3040,6 @@ namespace lockstep
         arrangement_.swapPhraseForTrack(t, phraseIdx);
     }
 
-    void LockstepProcessor::setGlobalPhrase(int focusedTrack, int phrase)
-    {
-        arrangement_.setGlobalPhrase(focusedTrack, phrase);
-    }
-
     void LockstepProcessor::resyncTrackToScene(int t)
     {
         arrangement_.resyncTrackToScene(t);
@@ -3092,11 +3087,6 @@ namespace lockstep
         return arrangement_.countDeviatedTracks();
     }
 
-    int LockstepProcessor::scenesSharingHomePhrase() const
-    {
-        return arrangement_.scenesSharingHomePhrase();
-    }
-
     bool LockstepProcessor::sceneSlotOccupied(int s) const
     {
         return arrangement_.sceneSlotOccupied(s);
@@ -3107,10 +3097,6 @@ namespace lockstep
         return arrangement_.firstFreePhraseSlot();
     }
 
-    int LockstepProcessor::phraseSlotSharers(int phraseIdx) const
-    {
-        return arrangement_.phraseSlotSharers(phraseIdx);
-    }
 
     // ── End Phase 7 new-hierarchy methods ────────────────────────────────────
 

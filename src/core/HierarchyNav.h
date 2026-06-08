@@ -20,15 +20,13 @@ namespace lockstep
     // Pure, header-only, JUCE-free: directly unit-testable without a processor.
 
     // Which phrase index a track plays right now: its sticky deviation if it has
-    // one, else the active Scene's assignment. Always clamped to a valid slot.
-    [[nodiscard]] inline int resolveActivePhraseIdx(const Scene& scene,
+    // one, else the scene's own diagonal row (scene S plays row S). Always clamped.
+    [[nodiscard]] inline int resolveActivePhraseIdx(int sceneIdx,
                                                     bool deviated,
                                                     int deviationIdx,
                                                     [[maybe_unused]] int track) noexcept
     {
-        const int idx = deviated
-                          ? deviationIdx
-                          : scene.globalPhrase;
+        const int idx = deviated ? deviationIdx : sceneIdx;
         return std::clamp(idx, 0, kPhrasesPerTrack - 1);
     }
 

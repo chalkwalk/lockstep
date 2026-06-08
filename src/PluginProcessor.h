@@ -115,11 +115,8 @@ namespace lockstep
         void loadActivePosition(int songIdx, int sceneIdx);
         Phrase&       activePhrase(int t);
         const Phrase& activePhrase(int t) const;
-        // swapPhraseForTrack: sticky local deviation (Track + Pattern + step).
+        // swapPhraseForTrack: sticky local deviation (Track + Phrase + step / Phrase + step).
         void swapPhraseForTrack(int t, int phraseIdx);
-        // setGlobalPhrase: Phrase+step — set the scene's home phrase; non-deviated
-        // tracks follow, the focused track rejoins (DESIGN §4.7/§16).
-        void setGlobalPhrase(int focusedTrack, int phrase);
         void resyncTrackToScene(int t);    // Track + Part
         void resyncAllToScene();           // Part + Yes
         void refreshWorkingFromModel();    // re-project model → working (no write-back)
@@ -127,10 +124,8 @@ namespace lockstep
         void createBakedCopyScene(int target);   // DESIGN §23.3 placeable payloads
         void createDefaultScene(int target);
         int  countDeviatedTracks() const;
-        int  scenesSharingHomePhrase() const;
         bool sceneSlotOccupied(int s) const;
         int  firstFreePhraseSlot() const;
-        int  phraseSlotSharers(int phraseIdx) const;
         // Read-only deviation state for UI (surface model, badge rendering).
         bool isTrackDeviated(int t) const;
         int  deviationPhraseIdxForTrack(int t) const;

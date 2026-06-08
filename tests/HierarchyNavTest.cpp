@@ -12,20 +12,17 @@ namespace lockstep
 {
     static void testResolveActivePhraseIdx()
     {
-        Scene scene;
-        scene.globalPhrase = 3;
-
-        // Non-deviated: take the Scene's globalPhrase.
-        CHECK(resolveActivePhraseIdx(scene, false, 7, 0) == 3,
-              "globalPhrase: non-deviated uses scene globalPhrase");
-        // Deviated: take the deviation index, ignore the scene.
-        CHECK(resolveActivePhraseIdx(scene, true, 7, 0) == 7,
-              "globalPhrase: deviated uses deviation index");
+        // Non-deviated: returns the scene index (diagonal).
+        CHECK(resolveActivePhraseIdx(3, false, 7, 0) == 3,
+              "diagonal: non-deviated returns scene index");
+        // Deviated: take the deviation index, ignore the scene index.
+        CHECK(resolveActivePhraseIdx(3, true, 7, 0) == 7,
+              "diagonal: deviated uses deviation index");
         // Out-of-range clamps into [0, kPhrasesPerTrack-1].
-        CHECK(resolveActivePhraseIdx(scene, true, 999, 0) == kPhrasesPerTrack - 1,
-              "globalPhrase: over-range deviation clamps high");
-        CHECK(resolveActivePhraseIdx(scene, true, -5, 0) == 0,
-              "globalPhrase: negative deviation clamps low");
+        CHECK(resolveActivePhraseIdx(0, true, 999, 0) == kPhrasesPerTrack - 1,
+              "diagonal: over-range deviation clamps high");
+        CHECK(resolveActivePhraseIdx(0, true, -5, 0) == 0,
+              "diagonal: negative deviation clamps low");
     }
 
     static void testProjectionSplit()
@@ -59,11 +56,8 @@ namespace lockstep
         st.phrases[0].length = 16;
         st.phrases[1].length = 8;     // a second phrase to switch to and back
 
-        Scene scene;
-        scene.globalPhrase = 0;
-
         const auto idx = static_cast<std::size_t>(
-            resolveActivePhraseIdx(scene, false, -1, 0));
+            resolveActivePhraseIdx(0, false, -1, 0));
         Track work = projectPhraseToTrack(st.phrases[idx], st.kit);
 
         // Live edits on the working buffer (a trig, a length change, a base param).
