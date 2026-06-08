@@ -46,6 +46,10 @@ namespace lockstep
         // Section API (was in SectionBar)
         bool selectSection(int sectionIndex);
         void selectMetaSection(int sectionIndex);
+        // True if the section key carries a Func-row secondary (COND/NOTE only).
+        static bool isReservedMeta(int sectionIndex);
+        // True if metaSection_=contentIndex is a real MZ group (0/1/2/5).
+        static bool metaContentExists(int contentIndex);
         void syncToActiveTrack();
 
         // Returns the Y position (in this component's local space) of where the step-cell
@@ -105,7 +109,6 @@ namespace lockstep
         juce::Rectangle<int> sectionCellBounds(int cellIndex,
                                                 juce::Rectangle<int> area) const;
         static int  cellToSection(int cellIndex);
-        static bool isReservedMeta(int sectionIndex);
         void notifySectionChanged(int sectionIndex, int track);
 
         // One entry per section in the cycling order for a canonical key:
@@ -177,8 +180,11 @@ namespace lockstep
         static constexpr int kTotalSectionCells =
             kFixedSectionCells + IMachine::kMaxSections + kTailSectionCells; // 10
 
+        // Func-row secondary labels (Func-held section row); empty = dims under
+        // Func. TRACK (length/divider) relocated to Track+TRIG. The meta CONTENT
+        // groups still wired in the MZ are a superset — see metaContentExists().
         static constexpr std::array<const char*, IMachine::kMaxSections> kMetaLabels = {
-            "COND", "NOTE", "TRACK", "", "", "GLOBAL"
+            "COND", "NOTE", "", "", "", "GLOBAL"
         };
 
         // Colours (from SectionBar)

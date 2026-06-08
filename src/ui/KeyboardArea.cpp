@@ -327,6 +327,17 @@ namespace lockstep
         return kMetaLabels[static_cast<std::size_t>(sectionIndex)][0] == '\0';
     }
 
+    bool KeyboardArea::metaContentExists(int contentIndex)
+    {
+        // Meta CONTENT groups wired in the ManipulationZone (metaSection_ switch):
+        //   0=COND  1=NOTE  2=TRACK (length/divider)  5=GLOBAL (gain/sync/clock).
+        // This is the superset reached by various gestures (Func+TRIG/SRC,
+        // Track+TRIG, Phrase+LEN, Song+FX); distinct from the Func-row label set
+        // in kMetaLabels (which gates only the Func-held row's glow/routing).
+        return contentIndex == 0 || contentIndex == 1
+            || contentIndex == 2 || contentIndex == 5;
+    }
+
     void KeyboardArea::notifySectionChanged(int sectionIndex, int track)
     {
         if (!onSectionChanged)
@@ -424,7 +435,10 @@ namespace lockstep
 
     void KeyboardArea::selectMetaSection(int sectionIndex)
     {
-        if (isReservedMeta(sectionIndex))
+        // sectionIndex is a meta CONTENT index (0/1/2/5), not a Func-row label
+        // slot — scope gestures (Track+TRIG, Phrase+LEN, Song+FX) reach content
+        // the Func row no longer advertises, so validate against the content set.
+        if (!metaContentExists(sectionIndex))
             return;
         uiState_.masterSection = (uiState_.masterSection == sectionIndex) ? -1 : sectionIndex;
         repaint();

@@ -392,9 +392,12 @@ namespace lockstep
         static constexpr const char* kSectionKeyHints[IMachine::kMaxSections] = {
             "5", "6", "7", "8", "9", "0"
         };
-        // Meta-section secondary labels. Empty string = reserved (em-dash rendered by screen).
+        // Func-row secondary labels (the Func-held section row). Empty = no
+        // secondary on that key → it dims under Func (DESIGN §6.1 rule 3).
+        // TRACK (length/divider) relocated to Track+TRIG; only COND/NOTE/GLOBAL
+        // remain Func secondaries (GLOBAL relocates to Song+FX in 5.10 stage 4).
         static constexpr std::array<const char*, IMachine::kMaxSections> kMetaLabels = {
-            "COND", "NOTE", "TRACK", "", "", "GLOBAL"
+            "COND", "NOTE", "", "", "", "GLOBAL"
         };
         auto isReservedMeta = [](int s) -> bool
         {

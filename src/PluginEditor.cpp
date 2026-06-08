@@ -1192,6 +1192,13 @@ namespace lockstep
                         keyboardArea_.selectMetaSection(2);
                         return true;
                     }
+                    if (sectionScope == PS::Track && ev.index == 0)
+                    {
+                        // Track+TRIG: track length/divider (the TRACK meta) — relocated
+                        // here from Func+FILTER (DESIGN §6.2). Content index 2.
+                        keyboardArea_.selectMetaSection(2);
+                        return true;
+                    }
                     // All other non-dim scope cells fall through to the machine's own
                     // section (e.g. Track+FLTR → section 2 = post-machine FLTR block).
                 }
@@ -1208,6 +1215,12 @@ namespace lockstep
             }
 
             case ControllerButton::MetaSection:
+                // Func-row secondaries are COND (TRIG) and NOTE (SRC) only; other
+                // sections have no Func secondary (FILTER/FX metas relocated to
+                // Track+TRIG / Song+FX). Those cells dim under Func — ignore the
+                // press so Func doesn't silently open a meta the row hides.
+                if (KeyboardArea::isReservedMeta(ev.index))
+                    return true;
                 if (uiState_.funcHeld && ev.index == 1)
                     uiState_.funcSrcHeld = true;  // Func+Src(NOTE) — enables note-edit gesture
                 keyboardArea_.selectMetaSection(ev.index);
