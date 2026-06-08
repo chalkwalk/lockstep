@@ -3,6 +3,7 @@
 #include "core/TrackInputMode.h"
 #include "machine/IMachine.h"
 #include "machine/SamplerMachine.h"
+#include "ui/MetaBand.h"
 #include "ui/ScopedSectionMatrix.h"
 #include "ui/SurfaceModel.h"
 #include <algorithm>
@@ -71,11 +72,9 @@ namespace lockstep
         {
             manipulationZone_.setSlotOffset(firstSlot);
         };
-        keyboardArea_.onMetaSectionChanged = [this](int metaSection)
+        keyboardArea_.onMetaSectionChanged = [this](int /*metaSection*/)
         {
-            activeMetaSection_ = metaSection;
-            manipulationZone_.setMetaSection(metaSection);
-            updateSwingQualifier();
+            refreshMetaBand();
         };
 
         // Track page toggle: flips between tracks 1-8 and 9-16.
@@ -127,11 +126,9 @@ namespace lockstep
         keyboardArea_.onActiveTrackChanged = [this](int newTrack)
         {
             // Dismiss any sticky meta band so it never silently edits a stale track.
-            if (activeMetaSection_ != -1)
-            {
-                activeMetaSection_ = -1;
-                manipulationZone_.setMetaSection(-1);
-            }
+            if (uiState_.masterSection != -1)
+                uiState_.masterSection = -1;
+            refreshMetaBand();
 
             // Auto-flip page when the active track changes bank.
             const int newPage = (newTrack >= 8) ? 1 : 0;
@@ -867,18 +864,14 @@ namespace lockstep
         repaint();
     }
 
+    void LockstepEditor::refreshMetaBand()
+    {
+        manipulationZone_.setBand(resolveMetaBand(uiState_), swingScopeFor(uiState_));
+    }
+
     void LockstepEditor::updateSwingQualifier()
     {
-        // Surface the held scope's swing level directly, no meta prerequisite.
-        // swingScope: 0=none, 1=song-all (root), 2=scene-all delta, 3=song-track delta.
-        if (uiState_.songHeld)
-            manipulationZone_.setSwingScope(1);
-        else if (uiState_.sceneHeld)
-            manipulationZone_.setSwingScope(2);
-        else if (uiState_.trackHeld)
-            manipulationZone_.setSwingScope(3);
-        else
-            manipulationZone_.setSwingScope(0);
+        refreshMetaBand();
     }
 
     void LockstepEditor::updateFillActivation()
@@ -2731,9 +2724,7 @@ namespace lockstep
                     // Restore MZ to machine params — dismiss the TRIG meta section
                     // that Func+Trig brought up, so the user returns to where they were.
                     uiState_.masterSection = -1;
-                    activeMetaSection_ = -1;
-                    manipulationZone_.setMetaSection(-1);
-                    updateSwingQualifier();
+                    refreshMetaBand();
 
                     keyboardArea_.repaint();
                     repaint();

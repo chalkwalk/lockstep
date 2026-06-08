@@ -92,6 +92,7 @@ target_sources(Lockstep
         PluginEditor.cpp
         ui/KeyButton.cpp
         ui/KeyboardArea.cpp
+        ui/MetaBand.cpp
         ui/SurfaceModel.cpp
         ui/InPluginTransport.cpp
         ui/ManipulationZone.cpp

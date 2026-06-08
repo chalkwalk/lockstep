@@ -329,13 +329,12 @@ namespace lockstep
 
     bool KeyboardArea::metaContentExists(int contentIndex)
     {
-        // Meta CONTENT groups wired in the ManipulationZone (metaSection_ switch):
-        //   0=COND  1=NOTE  2=TRACK (length/divider)  5=GLOBAL (gain/sync/clock).
-        // This is the superset reached by various gestures (Func+TRIG/SRC,
-        // Track+TRIG, Phrase+LEN, Song+FX); distinct from the Func-row label set
-        // in kMetaLabels (which gates only the Func-held row's glow/routing).
+        // Meta CONTENT groups wired in ManipulationZone (MetaBand enum):
+        //   0=COND  1=TRIG  3=DIV  4=PHRASELEN  5=GLOBAL.
+        // Reached by gestures (Func+TRIG/SRC, Track+TRIG, Phrase+LEN, Song+FX).
+        // Distinct from the Func-row label set in kMetaLabels.
         return contentIndex == 0 || contentIndex == 1
-            || contentIndex == 2 || contentIndex == 5;
+            || contentIndex == 3 || contentIndex == 4 || contentIndex == 5;
     }
 
     void KeyboardArea::notifySectionChanged(int sectionIndex, int track)

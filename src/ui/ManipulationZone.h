@@ -3,6 +3,7 @@
 #include <array>
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include "MetaBand.h"
 
 namespace lockstep
 {
@@ -30,9 +31,9 @@ namespace lockstep
         void setSlotOffset(int offset);
         [[nodiscard]] int slotOffset() const { return slotOffset_; }
 
-        // Switch the zone into a meta-section display mode (-1 = normal machine params).
-        // Meta content (COND/TRACK/GLOBAL widgets) fills in at M6.5/M6.6.
-        void setMetaSection(int metaSection);
+        // Switch the zone to a MetaBand (resolveMetaBand result) with the given swing scope.
+        // MetaBand::None = normal machine params; anything else renders the meta surface.
+        void setBand(MetaBand band, int swingScope);
 
         // 0 = none (show fader-blended value), 1 = preview A pole, 2 = preview B pole.
         // Set when the Morph+^/v qualifier is active so knobs show the raw endpoint.
@@ -41,11 +42,6 @@ namespace lockstep
         // True while the Morph modifier is held (or latched).
         // When set, mouse-drag writes the morph overlay at fader split (matches encoder).
         void setMorphHeld(bool b) { morphHeld_ = b; }
-
-        // 0 = none, 1 = song-all (root), 2 = scene-all delta, 3 = song-track delta.
-        // Set when a scope key (Song/Scene/Track) is held; shows that scope's swing
-        // in the band without requiring any meta section to be open.
-        void setSwingScope(int scope);
 
 
         // Called when the user clicks "Manage pool..." from the sample picker menu.
@@ -60,18 +56,6 @@ namespace lockstep
         static constexpr int kNumSlots = kMZSlots;
 
         void refreshSliders();
-        void refreshCondSliders();
-        void refreshTrigSliders();
-        void refreshDivSliders();
-        void refreshPhraseLenSliders();
-        void refreshSwingSliders();
-        void refreshGlobalSliders();
-        void writeCondField(int field, float value);
-        void writeTrigField(int field, float value);
-        void writeDivField(int field, float value);
-        void writePhraseLenField(int field, float value);
-        void writeSwingField(int field, float value);
-        void writeGlobalField(int field, float value);
         void showMappingMenu(int slotIndex);
         void showSamplePicker(int absoluteSlot);
 
@@ -82,11 +66,11 @@ namespace lockstep
 
         LockstepProcessor& processor_;
         KeyboardArea& area_;
-        int slotOffset_      = 0;
-        int metaSection_     = -1;  // -1 = normal; 0=COND, 1=TRIG, 3=DIV, 4=PHRASELEN, 5=GLOBAL
-        int  morphQualifier_ = 0;    // 0=blend, 1=A-pole preview, 2=B-pole preview
-        bool morphHeld_      = false; // true while Morph modifier held/latched
-        int  swingScope_     = 0;    // 0=none, 1=song-all, 2=scene-all delta, 3=song-track delta
+        int      slotOffset_     = 0;
+        MetaBand band_           = MetaBand::None;
+        int      swingScope_     = 0;   // 0=none, 1=song-all, 2=scene-all delta, 3=song-track delta
+        int      morphQualifier_ = 0;   // 0=blend, 1=A-pole preview, 2=B-pole preview
+        bool     morphHeld_      = false;
 
         // Index of the slot column currently in "listening for CC" state, or -1.
         int learningSlotIndex_ = -1;

@@ -167,11 +167,13 @@ namespace lockstep
                    kNumTracks> soloAttachments_;
         KeyboardArea keyboardArea_;
         ManipulationZone manipulationZone_;  // after keyboardArea_ — ctor takes KeyboardArea&
-        int activeMetaSection_ = -1;  // mirrors ManipulationZone::metaSection_; -1 = normal params
 
-        // Update ManipulationZone::swingQualifier_ from held-scope state.
-        // Called on meta-section change and Song/Scene scope press/release.
-        // 0=song-all, 1=song-track, 2=scene-all; only active when TRACK meta (2) is shown.
+        // Drive ManipulationZone from resolveMetaBand(uiState_) + swingScopeFor(uiState_).
+        // Called on any state change that may affect the band (scope press/release,
+        // meta-section change, track change).
+        void refreshMetaBand();
+
+        // Thin alias for call sites that were wired before refreshMetaBand existed.
         void updateSwingQualifier();
 
         // Transparent layer that draws the empty-track grey-out hints. Declared

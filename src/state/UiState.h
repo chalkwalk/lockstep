@@ -68,6 +68,10 @@ namespace lockstep
         // Active master section (-1 = none).
         int masterSection = -1;
 
+        // Set true by any non-swing interaction while a swing scope is held (C3).
+        // Cleared on scope down/up so the swing default returns with the next hold.
+        bool swingDismissed = false;
+
         // True whenever at least one step key is held (heldStepKeys_ non-empty).
         // Set by PluginEditor so KeyboardArea can show COP/PST/CLR on verb keys.
         bool stepHeld = false;
