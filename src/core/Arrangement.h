@@ -250,8 +250,8 @@ namespace lockstep
 
 
         // ── Placeable payload create operations (DESIGN §23.3) ───────────────
-        // Both are destructive; the caller must snapshot CheckpointScope::Song
-        // before calling. The target is launched by the caller afterwards.
+        // All are destructive; caller must snapshot CheckpointScope::Song before
+        // calling. The target is launched by the caller afterwards.
 
         // Baked-copy create: stamp the current effective state (live phrases +
         // floor) into the target slot, then mark it initialised.
@@ -276,6 +276,27 @@ namespace lockstep
             dst.initialised = true;
         }
 
+        // Baseline-copy create: copy the floor's diagonal row (phrases[sceneIdx])
+        // into the target slot, ignoring live deviations.
+        void createBaselineCopyScene(int target)
+        {
+            if (target < 0 || target >= kScenesPerSong) return;
+            writeBackWorkingToActive();
+            auto& dst = song().scenes[idx(target)];
+            dst = Scene{};
+            dst.activeMask = scene().activeMask;
+            dst.coreTime   = scene().coreTime;
+            dst.morphA     = scene().morphA;
+            dst.morphB     = scene().morphB;
+            for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+            {
+                auto& ph = song().tracks[idx(t)].phrases[idx(target)];
+                ph = song().tracks[idx(t)].phrases[idx(sceneIdx)];
+                ph.initialised = true;
+            }
+            dst.initialised = true;
+        }
+
         // Default create: allocate a blank scene at the target slot.
         void createDefaultScene(int target)
         {
@@ -283,6 +304,25 @@ namespace lockstep
             auto& dst = song().scenes[idx(target)];
             dst = Scene{};
             dst.initialised = true;
+        }
+
+        // True if phrases[slot][t] matches activePhrase(t) (trig + length) for all
+        // tracks. Used to skip the overwrite-conflict prompt when re-stamping is a no-op.
+        [[nodiscard]] bool phraseRowMatchesActiveContent(int slot) const
+        {
+            if (slot < 0 || slot >= kPhrasesPerTrack) return false;
+            for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+            {
+                const auto& target = song().tracks[idx(t)].phrases[idx(slot)];
+                if (!target.initialised) return false;
+                const auto& active = activePhrase(t);
+                if (target.length != active.length) return false;
+                for (int s = 0; s < static_cast<int>(active.steps.size()); ++s)
+                    if (target.steps[static_cast<std::size_t>(s)].trig
+                        != active.steps[static_cast<std::size_t>(s)].trig)
+                        return false;
+            }
+            return true;
         }
 
         // ── Per-scene overlay store helpers (build 3) ─────────────────────────

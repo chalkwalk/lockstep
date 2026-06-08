@@ -106,8 +106,9 @@ namespace lockstep
         enum class PendingConfirm : uint8_t
         {
             None, Delete, BakeScene,
-            CreateScene,   // create-baked-copy on a conflicted slot
-            PasteScene,    // baked scene paste on a conflicted slot
+            CreateScene,         // create-baked-copy on a conflicted slot
+            CreateBaselineScene, // create-baseline-copy on a conflicted slot
+            PasteScene,          // baked scene paste on a conflicted slot
         };
         int pendingTarget_ = 0;  // scratch slot for Create/PasteScene
         PendingConfirm pendingConfirm_ = PendingConfirm::None;

@@ -1421,23 +1421,25 @@ namespace lockstep
                 }
 
                 // Scene + step: scene launch or create-on-empty (DESIGN §16/§23.3).
-                //   occupied + no-func:  single-tap = overlay launch;
-                //                        double-tap = floor launch (revert)
-                //   occupied + func:     floor launch unconditionally
-                //   empty    + no-func:  baked-copy create → launch
-                //   empty    + func:     default create → launch
+                //   occupied + no-func + no-mute:  single-tap=overlay, double-tap=floor
+                //   occupied + func:               floor launch unconditionally
+                //   occupied + mute:               reserved for scene-mute (§23.3, no-op)
+                //   empty    + no-func + no-mute:  baked-copy create → launch
+                //   empty    + func:               baseline-copy create → launch
+                //   empty    + mute:               blank scene create → launch
                 // The active scene is always treated as occupied (it is live).
                 if (uiState_.sceneHeld && !uiState_.funcTrackHeld)
                 {
                     if (ev.index >= 0 && ev.index < kScenesPerSong)
                     {
                         const bool funcHeld = uiState_.funcHeld;
+                        const bool muteHeld = uiState_.muteHeld;
                         const bool isActive = (ev.index == processor_.activeSectionIdx());
                         const bool occupied = isActive
                                               || processor_.sceneSlotOccupied(ev.index);
-                        if (occupied && !funcHeld)
+                        if (occupied && !funcHeld && !muteHeld)
                         {
-                            // Existing: single-tap = overlay, double-tap = floor.
+                            // Single-tap = overlay, double-tap = floor.
                             const double now = juce::Time::getMillisecondCounterHiRes();
                             const bool toFloor =
                                 doubleTap_.recordAndCheck(3000 + ev.index, now);
@@ -1456,10 +1458,13 @@ namespace lockstep
                             else
                                 processor_.setActiveSceneToFloor(ev.index);
                         }
-                        else if (!occupied && !funcHeld)
+                        else if (occupied && muteHeld)
                         {
-                            // Empty + no-func: baked copy of current state.
-                            // Conflict gate: target phrase slot may have content.
+                            // Mute + occupied: reserved for scene-mute (§23.3).
+                        }
+                        else if (!occupied && !funcHeld && !muteHeld)
+                        {
+                            // Empty + bare: baked copy (effective, follows deviations).
                             if (phraseConflictAndConfirm(ev.index,
                                                          PendingConfirm::CreateScene))
                                 break;   // waiting for Yes/No
@@ -1471,16 +1476,30 @@ namespace lockstep
                                 processor_.setActiveScene(ev.index);
                             setStatus("Scene " + juce::String(ev.index + 1) + " created");
                         }
-                        else
+                        else if (!occupied && funcHeld)
                         {
-                            // Empty + func: blank default scene.
+                            // Empty + Func: baseline copy (floor diagonal row, no deviations).
+                            if (phraseConflictAndConfirm(ev.index,
+                                                         PendingConfirm::CreateBaselineScene))
+                                break;   // waiting for Yes/No
+                            processor_.snapshot(CheckpointScope::Song, 0);
+                            processor_.createBaselineCopyScene(ev.index);
+                            if (processor_.clock().inPluginPlaying())
+                                processor_.queueScene(ev.index, false);
+                            else
+                                processor_.setActiveScene(ev.index);
+                            setStatus("Scene " + juce::String(ev.index + 1) + " (baseline)");
+                        }
+                        else if (!occupied && muteHeld)
+                        {
+                            // Empty + Mute: blank scene.
                             processor_.snapshot(CheckpointScope::Song, 0);
                             processor_.createDefaultScene(ev.index);
                             if (processor_.clock().inPluginPlaying())
                                 processor_.queueScene(ev.index, false);
                             else
                                 processor_.setActiveScene(ev.index);
-                            setStatus("Scene " + juce::String(ev.index + 1) + " (default)");
+                            setStatus("Scene " + juce::String(ev.index + 1) + " (blank)");
                         }
                     }
                     repaint();
@@ -2177,6 +2196,21 @@ namespace lockstep
                             else
                                 processor_.setActiveScene(tgt);
                             setStatus("Scene " + juce::String(tgt + 1) + " created");
+                            pendingConfirm_ = PendingConfirm::None;
+                            repaint();
+                            keyboardArea_.repaint();
+                            return true;
+                        }
+                        if (pendingConfirm_ == PendingConfirm::CreateBaselineScene)
+                        {
+                            const int tgt = pendingTarget_;
+                            processor_.snapshot(CheckpointScope::Song, 0);
+                            processor_.createBaselineCopyScene(tgt);
+                            if (processor_.clock().inPluginPlaying())
+                                processor_.queueScene(tgt, false);
+                            else
+                                processor_.setActiveScene(tgt);
+                            setStatus("Scene " + juce::String(tgt + 1) + " (baseline)");
                             pendingConfirm_ = PendingConfirm::None;
                             repaint();
                             keyboardArea_.repaint();
@@ -3045,6 +3079,11 @@ namespace lockstep
 
     bool LockstepEditor::phraseConflictAndConfirm(int phraseSlot, PendingConfirm action)
     {
+        // No-op skip: re-stamping identical content never needs a prompt.
+        if (action == PendingConfirm::CreateScene
+            && processor_.phraseRowMatchesActiveContent(phraseSlot))
+            return false;
+
         bool slotHasContent = false;
         for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
         {

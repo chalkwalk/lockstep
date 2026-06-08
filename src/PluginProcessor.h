@@ -124,8 +124,10 @@ namespace lockstep
         void resyncAllToScene();           // Part + Yes
         void refreshWorkingFromModel();    // re-project model → working (no write-back)
         void bakeSceneState();             // Scene + Record (Yes/No confirmed)
-        void createBakedCopyScene(int target);   // DESIGN §23.3 placeable payloads
-        void createDefaultScene(int target);
+        void createBakedCopyScene(int target);      // DESIGN §23.3 placeable payloads
+        void createBaselineCopyScene(int target);  // floor phrase only, no deviations
+        void createDefaultScene(int target);       // blank
+        bool phraseRowMatchesActiveContent(int slot) const;
         int  countDeviatedTracks() const;
         bool sceneSlotOccupied(int s) const;
         int  firstFreePhraseSlot() const;

@@ -3082,9 +3082,19 @@ namespace lockstep
         arrangement_.createBakedCopyScene(target);
     }
 
+    void LockstepProcessor::createBaselineCopyScene(int target)
+    {
+        arrangement_.createBaselineCopyScene(target);
+    }
+
     void LockstepProcessor::createDefaultScene(int target)
     {
         arrangement_.createDefaultScene(target);
+    }
+
+    bool LockstepProcessor::phraseRowMatchesActiveContent(int slot) const
+    {
+        return arrangement_.phraseRowMatchesActiveContent(slot);
     }
 
     int LockstepProcessor::countDeviatedTracks() const
