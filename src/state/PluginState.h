@@ -28,7 +28,7 @@ namespace lockstep
         //      v9 APVTS swing values migrated into Song[0] on first load.
         // v11: Scene::globalPhrase removed; diagonal pinned (scene N plays row N).
         //      Legacy "gp" values are materialised onto the diagonal at load time.
-        inline constexpr int kCurrentVersion = 11;
+        inline constexpr int kCurrentVersion = 12;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);

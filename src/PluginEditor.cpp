@@ -1,7 +1,9 @@
 #include "PluginEditor.h"
 #include "ParameterIDs.h"
 #include "core/TrackInputMode.h"
+#include "io/TrigGridMode.h"
 #include "machine/IMachine.h"
+#include "machine/ISliceable.h"
 #include "machine/SamplerMachine.h"
 #include "ui/MetaBand.h"
 #include "ui/ScopedSectionMatrix.h"
@@ -1223,6 +1225,21 @@ namespace lockstep
                 else if (uiState_.morphHeld)        sectionScope = PS::Morph;
                 else if (uiState_.songHeld)       sectionScope = PS::Song;
 
+                // 5.7: Fill+TRIG → Retrig overlay; Fill+SRC → SoundPool overlay.
+                // These are momentary: the overlay clears when Fill releases.
+                if (uiState_.fillHeld && ev.index == 0)
+                {
+                    uiState_.trigGridMode = TrigGridMode::Retrig;
+                    repaint();
+                    return true;
+                }
+                if (uiState_.fillHeld && ev.index == 1)
+                {
+                    uiState_.trigGridMode = TrigGridMode::SoundPool;
+                    repaint();
+                    return true;
+                }
+
                 if (sectionScope != PS::None)
                 {
                     // Dim under this scope — no content, block entirely.
@@ -1277,6 +1294,137 @@ namespace lockstep
 
             case ControllerButton::Step:
             {
+                // ----------------------------------------------------------------
+                // 5.7: Retrig overlay (Fill+TRIG held)
+                // ----------------------------------------------------------------
+                // PPQ per repetition for each grid cell. 8 rates (cells 0-7),
+                // cells 8-15 are dark/ignored.
+                static constexpr std::array<double, 8> kRetrigRates = {{
+                    1.0,          // /4   (quarter-note)
+                    2.0 / 3.0,    // /4T  (quarter triplet)
+                    0.5,          // /8
+                    1.0 / 3.0,    // /8T
+                    0.25,         // /16  (default)
+                    1.0 / 6.0,    // /16T
+                    0.125,        // /32
+                    1.0 / 12.0,   // /32T
+                }};
+
+                if (uiState_.trigGridMode == TrigGridMode::Retrig)
+                {
+                    if (ev.index < 0 || ev.index >= 16) return true;
+                    const int at = keyboardArea_.getActiveTrack();
+                    if (at < 0 || at >= static_cast<int>(kNumTracks)) return true;
+
+                    // Slice sub-mode: if the machine is ISliceable, cells address slices.
+                    const auto* machine = processor_.machineForTrack(at);
+                    const auto* sliceable = machine ? dynamic_cast<const ISliceable*>(machine) : nullptr;
+                    if (sliceable && sliceable->hasSlices())
+                    {
+                        // Cell → slice index. Write to held steps; outside range = no-op.
+                        const int sliceIdx = ev.index;
+                        if (sliceIdx >= sliceable->numSlices()) return true;
+                        auto& ctx = processor_.editContext();
+                        if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == at)
+                        {
+                            auto& trk = processor_.sequence()
+                                            .tracks[static_cast<std::size_t>(at)];
+                            for (int heldIdx : ctx.heldSteps())
+                            {
+                                if (heldIdx < 0 || heldIdx >= kMaxStepsPerTrack) continue;
+                                auto& s = trk.steps[static_cast<std::size_t>(heldIdx)];
+                                if (s.trigOverride.noteCount == 0)
+                                    s.trigOverride.noteCount = 1;
+                                s.trigOverride.notes[0] = sliceIdx;
+                                s.trig = true;
+                            }
+                            ctx.markParamWritten();
+                        }
+                        // Live audition: play the slice.
+                        processor_.setRetrigActive(at, true, kRetrigRates[4],
+                                                   juce::jlimit(0, 127, sliceIdx));
+                        return true;
+                    }
+
+                    // Rate sub-mode: cells 0-7 select retrig rates; 8-15 ignored.
+                    if (ev.index >= static_cast<int>(kRetrigRates.size())) return true;
+                    const double rate = kRetrigRates[static_cast<std::size_t>(ev.index)];
+
+                    // Resolve the track's primary note for the stutter.
+                    int retrigNote = uiState_.lastPlayedNote[static_cast<std::size_t>(at)];
+                    if (retrigNote <= 0)
+                    {
+                        // Fall back to the active step's note.
+                        const auto& trk = processor_.sequence()
+                                              .tracks[static_cast<std::size_t>(at)];
+                        const auto& ctx = processor_.editContext();
+                        if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == at
+                            && !ctx.heldSteps().empty())
+                        {
+                            const int si = ctx.heldSteps().front();
+                            if (si >= 0 && si < kMaxStepsPerTrack)
+                            {
+                                const auto& ov = trk.steps[static_cast<std::size_t>(si)]
+                                                     .trigOverride;
+                                retrigNote = (ov.noteCount > 0) ? ov.notes[0] : 60;
+                            }
+                        }
+                        if (retrigNote <= 0) retrigNote = 60;
+                    }
+
+                    // Live stutter.
+                    processor_.setRetrigActive(at, true, rate, retrigNote);
+
+                    // If a step is held, bake the rate as a per-step P-Lock.
+                    auto& ctx = processor_.editContext();
+                    if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == at)
+                    {
+                        auto& trk = processor_.sequence()
+                                        .tracks[static_cast<std::size_t>(at)];
+                        for (int heldIdx : ctx.heldSteps())
+                        {
+                            if (heldIdx < 0 || heldIdx >= kMaxStepsPerTrack) continue;
+                            auto& s = trk.steps[static_cast<std::size_t>(heldIdx)];
+                            s.trigOverride.hasRetrig  = true;
+                            s.trigOverride.retrigRate = rate;
+                        }
+                        ctx.markParamWritten();
+                    }
+                    return true;
+                }
+
+                // ----------------------------------------------------------------
+                // 5.7: SoundPool overlay (Fill+SRC held)
+                // ----------------------------------------------------------------
+                if (uiState_.trigGridMode == TrigGridMode::SoundPool)
+                {
+                    if (ev.index < 0 || ev.index >= 16) return true;
+                    const int at = keyboardArea_.getActiveTrack();
+                    if (at < 0 || at >= static_cast<int>(kNumTracks)) return true;
+                    const int poolSize = processor_.soundPoolSize();
+                    if (ev.index >= poolSize) return true;
+
+                    // Live audition.
+                    processor_.liveSwapTrackSound(at, ev.index);
+
+                    // If record-armed and a step is held, bake as a sound_id P-Lock.
+                    auto& ctx = processor_.editContext();
+                    if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == at)
+                    {
+                        auto& trk = processor_.sequence()
+                                        .tracks[static_cast<std::size_t>(at)];
+                        for (int heldIdx : ctx.heldSteps())
+                        {
+                            if (heldIdx < 0 || heldIdx >= kMaxStepsPerTrack) continue;
+                            auto& s = trk.steps[static_cast<std::size_t>(heldIdx)];
+                            s.trigOverride.hasSoundId = true;
+                            s.trigOverride.soundId    = ev.index;
+                        }
+                        ctx.markParamWritten();
+                    }
+                    return true;
+                }
+
                 // MHZ.7.3: CHROMATIC mode — step keys are a piano keyboard.
                 // Piano layout via kPianoNoteOffset; dead keys (offset -1) are no-ops.
                 // With step held: write noteOverride. Always: trigger live note.
@@ -2653,6 +2801,19 @@ namespace lockstep
                     uiState_.fillHeld = false;
                     editMode_.onScopeEvent({ T::ButtonUp, CB::FillScope });
                     updateFillActivation();
+                    // 5.7: release any momentary trig-grid overlay (Retrig / SoundPool).
+                    if (uiState_.trigGridMode == TrigGridMode::SoundPool)
+                    {
+                        // Restore the track's saved sound (exit audition mode).
+                        const int at = keyboardArea_.getActiveTrack();
+                        if (at >= 0 && at < static_cast<int>(kNumTracks))
+                            processor_.clearLiveSwap(at);
+                    }
+                    else if (uiState_.trigGridMode == TrigGridMode::Retrig)
+                    {
+                        processor_.setRetrigActive(0, false);  // stop any live retrig stutter
+                    }
+                    uiState_.trigGridMode = TrigGridMode::Default;
                     repaint();
                 }
                 break;

@@ -368,8 +368,9 @@ namespace lockstep
 
         // MG.2: start / stop retrig on the focused track.
         // ratePpq: 0.25=1/16, 0.125=1/32, 1/12.0=1/48, 1/24.0=1/96.
-        // Pass active=false to cancel (track is ignored on cancel).
-        void setRetrigActive(int track, bool active, double ratePpq = 0.25);
+        // note: the MIDI note to rattle (pass -1 to keep the current track note).
+        // Pass active=false to cancel (track/rate/note are ignored on cancel).
+        void setRetrigActive(int track, bool active, double ratePpq = 0.25, int note = 60);
 
         // MG.3: slice queries + set (message thread; don't call while audio thread is running).
         bool hasTrackSlices(int track)       const;
@@ -435,6 +436,10 @@ namespace lockstep
         // Returns the short display badge for the given track's live machine.
         // Empty string means no badge (stub / null machine).
         [[nodiscard]] const char* trackBadge(int track) const noexcept;
+
+        // Returns a const pointer to the live machine on the given track, or nullptr.
+        // Valid on the message thread only; do not cache across processBlock calls.
+        [[nodiscard]] const IMachine* machineForTrack(int track) const noexcept;
 
         // State-loading helpers: create a fresh machine for a given ID and compute
         // slot indices using an explicit machine rather than machines_[t].
@@ -582,13 +587,15 @@ namespace lockstep
         static constexpr int kMaxLiveVoices = 16;
         std::array<LiveVoice, kMaxLiveVoices> liveVoices_{};
 
-        // MG.2: retrig state.
-        // retrigReqTrack_: -1 = cancel, >=0 = activate on that track.
+        // MG.2 / 5.7: retrig state.
+        // retrigReqTrack_: -2 = cancel, -1 = idle, >=0 = activate on that track.
         std::atomic<int>    retrigReqTrack_  { -1 };
         std::atomic<double> retrigReqRatePpq_ { 0.25 };  // written UI thread, read audio
+        std::atomic<int>    retrigReqNote_    { 60 };     // MIDI note for the rattle
         // Audio-thread-only retrig state (no atomics needed).
         int    retrigActiveTrack_      = -1;
         double retrigRatePpq_          = 0.25;
+        int    retrigNote_             = 60;    // resolved note (not hardcoded anymore)
         double retrigNextFireSamples_  = 0.0;  // samples until next retrig fire
         int    retrigNoteOffRemaining_ = -1;
 

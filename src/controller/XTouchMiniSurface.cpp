@@ -78,7 +78,23 @@ namespace lockstep
             case CellState::NoteEditOther:
             case CellState::NoteEditResting:
             case CellState::LengthOutRun:
+            case CellState::MorphPoleDark:
+            case CellState::SoundPoolEmpty:
+            case CellState::SliceEmpty:
                 return 0;
+
+            // 5.7 overlay tokens.
+            case CellState::SoundPoolCurrent:
+            case CellState::RetrigSelected:
+            case CellState::SliceSelected:
+                return 1;   // flash: selected item
+
+            case CellState::SoundPoolOccupied:
+            case CellState::RetrigRate:
+            case CellState::SlicePoint:
+            case CellState::MorphPoleActive:
+            case CellState::MorphPoleDormant:
+                return 127;
         }
         return 0;  // unreachable; satisfies non-void return
     }

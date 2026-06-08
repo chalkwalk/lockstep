@@ -7,9 +7,11 @@
 #include "../state/UiState.h"
 #include "../io/EditContext.h"
 #include "../io/PressTracker.h"
+#include "../io/TrigGridMode.h"
 #include "../PluginProcessor.h"
 #include "../ParameterIDs.h"
 #include "../core/TrackInputMode.h"
+#include "../machine/ISliceable.h"
 #include <algorithm>
 #include <set>
 
@@ -62,6 +64,17 @@ namespace lockstep
             case CellState::LengthOutRun:       return kStepOutRange;
             case CellState::SelectorDeviated:   return kScopePhrase;
             case CellState::SelectorHome:       return 0xFFFFC020u;  // amber home/global border
+            case CellState::MorphPoleActive:    return 0xFF60C080u;
+            case CellState::MorphPoleDormant:   return 0xFF305040u;
+            case CellState::MorphPoleDark:      return kStepOutRange;
+            case CellState::SoundPoolOccupied:  return kScopeFill;
+            case CellState::SoundPoolEmpty:     return kStepOutRange;
+            case CellState::SoundPoolCurrent:   return 0xFFFFFFFFu;
+            case CellState::RetrigRate:         return kScopeFill;
+            case CellState::RetrigSelected:     return 0xFFFFFFFFu;
+            case CellState::SlicePoint:         return kScopeFill;
+            case CellState::SliceSelected:      return 0xFFFFFFFFu;
+            case CellState::SliceEmpty:         return kStepOutRange;
             default: return fallback;
         }
     }
@@ -683,7 +696,112 @@ namespace lockstep
                 ? ui.trackInputMode[static_cast<std::size_t>(activeTrack)]
                 : TrackInputMode::Play;
 
-            if (ui.funcTrackHeld)
+            // ----------------------------------------------------------------
+            // 5.7: momentary overlay branches — checked before all other modes
+            // ----------------------------------------------------------------
+            if (ui.trigGridMode == TrigGridMode::SoundPool)
+            {
+                // Sound Pool overlay: grid cells show saved sounds for the active track.
+                static constexpr std::array<double, 8> kRetrigRates = {{
+                    1.0, 2.0/3.0, 0.5, 1.0/3.0, 0.25, 1.0/6.0, 0.125, 1.0/12.0,
+                }};
+                (void)kRetrigRates;
+                const juce::Colour fillTint { kScopeFill };
+                const int poolSize = proc.soundPoolSize();
+                for (int i = 0; i < 16; ++i)
+                {
+                    SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                    c.button  = ControllerButton::Step;
+                    c.index   = i;
+                    c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                    c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+
+                    if (i >= poolSize)
+                    {
+                        c.base      = CellState::SoundPoolEmpty;
+                        c.baseColour = kStepOutRange;
+                    }
+                    else
+                    {
+                        c.base = CellState::SoundPoolOccupied;
+                        const auto* entry = proc.soundPoolEntry(i);
+                        const juce::String label = entry
+                            ? juce::String(entry->name.c_str()) : juce::String(i + 1);
+                        c.primary    = label;
+                        c.baseColour = c.pressed
+                            ? juce::Colours::white.withAlpha(0.22f).getARGB()
+                            : fillTint.withAlpha(0.18f).getARGB();
+                    }
+                }
+            }
+            else if (ui.trigGridMode == TrigGridMode::Retrig)
+            {
+                // Retrig overlay: check if the machine is ISliceable (slice picker)
+                // or show ratchet rates.
+                const auto* machine    = proc.machineForTrack(activeTrack);
+                const auto* sliceable  = machine
+                    ? dynamic_cast<const ISliceable*>(machine) : nullptr;
+                const juce::Colour fillTint { kScopeFill };
+
+                if (sliceable && sliceable->hasSlices())
+                {
+                    // Slice-point picker: one cell per slice.
+                    const int numSlices = sliceable->numSlices();
+                    for (int i = 0; i < 16; ++i)
+                    {
+                        SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                        c.button  = ControllerButton::Step;
+                        c.index   = i;
+                        c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                        c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+
+                        if (i >= numSlices)
+                        {
+                            c.base      = CellState::SliceEmpty;
+                            c.baseColour = kStepOutRange;
+                        }
+                        else
+                        {
+                            c.base      = CellState::SlicePoint;
+                            c.primary   = juce::String(i + 1);
+                            c.baseColour = c.pressed
+                                ? juce::Colours::white.withAlpha(0.70f).getARGB()
+                                : fillTint.withAlpha(0.20f + static_cast<float>(i)
+                                                              / static_cast<float>(numSlices) * 0.25f).getARGB();
+                        }
+                    }
+                }
+                else
+                {
+                    // Ratchet-rate picker: 8 rates (cells 0-7), remainder dimmed.
+                    static constexpr std::array<const char*, 8> kRateLabels = {{
+                        "/4", "/4T", "/8", "/8T", "/16", "/16T", "/32", "/32T"
+                    }};
+                    for (int i = 0; i < 16; ++i)
+                    {
+                        SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                        c.button  = ControllerButton::Step;
+                        c.index   = i;
+                        c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                        c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+
+                        if (i >= 8)
+                        {
+                            c.base      = CellState::StepOutOfRange;
+                            c.baseColour = kStepOutRange;
+                        }
+                        else
+                        {
+                            c.base    = CellState::RetrigRate;
+                            c.primary = juce::String(kRateLabels[static_cast<std::size_t>(i)]);
+                            c.baseColour = c.pressed
+                                ? juce::Colours::white.withAlpha(0.70f).getARGB()
+                                : fillTint.withAlpha(0.16f + static_cast<float>(7 - i) * 0.015f).getARGB();
+                        }
+                    }
+                }
+            }
+            else if (ui.funcTrackHeld)
             {
                 // Machine picker (MHZ.3.5): cells encode available machine slots.
                 const juce::Colour machineTint { kScopeMachine };

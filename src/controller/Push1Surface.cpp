@@ -440,6 +440,17 @@ namespace lockstep
             case S::LengthInRun:        return pidx::kIndigo;
             case S::LengthBoundary:     return pidx::kViolet;
             case S::LengthOutRun:       return pidx::kOff;
+            case S::MorphPoleActive:    return pidx::kGreen;
+            case S::MorphPoleDormant:   return pidx::kTealDk;
+            case S::MorphPoleDark:      return pidx::kOff;
+            case S::SoundPoolOccupied:  return pidx::kOrange;
+            case S::SoundPoolEmpty:     return pidx::kOff;
+            case S::SoundPoolCurrent:   return pidx::kWhite;
+            case S::RetrigRate:         return pidx::kOrange;
+            case S::RetrigSelected:     return pidx::kWhite;
+            case S::SlicePoint:         return pidx::kCyan;
+            case S::SliceSelected:      return pidx::kWhite;
+            case S::SliceEmpty:         return pidx::kOff;
             default:                    return pidx::kGreyDim;
         }
     }

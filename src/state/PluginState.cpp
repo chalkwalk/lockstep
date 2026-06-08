@@ -87,7 +87,9 @@ namespace lockstep::PluginState
             const auto& step = phrase.steps[static_cast<std::size_t>(s)];
             if (!step.trig && step.overrides.empty()
                 && step.trigOverride.noteCount == 0 && !step.trigOverride.hasVelocity
-                && !step.trigOverride.hasGate && step.condition.isTrivial()
+                && !step.trigOverride.hasGate && !step.trigOverride.hasSoundId
+                && !step.trigOverride.hasRetrig
+                && step.condition.isTrivial()
                 && !floatNe(step.microOffset, 0.0f)
                 && step.fillTrigState == FillTrigState::Inherit
                 && step.fillOverrides.empty()
@@ -101,7 +103,8 @@ namespace lockstep::PluginState
             if (!step.condition.isTrivial())
                 stepNode.appendChild(condToTree("C", step.condition), nullptr);
             if (step.trigOverride.noteCount > 0 || step.trigOverride.hasVelocity
-                || step.trigOverride.hasGate)
+                || step.trigOverride.hasGate || step.trigOverride.hasSoundId
+                || step.trigOverride.hasRetrig)
             {
                 juce::ValueTree toNode("TO");
                 if (step.trigOverride.noteCount > 0)
@@ -115,6 +118,10 @@ namespace lockstep::PluginState
                 { toNode.setProperty("hv", 1, nullptr); toNode.setProperty("v", step.trigOverride.velocity, nullptr); }
                 if (step.trigOverride.hasGate)
                 { toNode.setProperty("hg", 1, nullptr); toNode.setProperty("gv", static_cast<int>(static_cast<uint8_t>(step.trigOverride.gateValue)), nullptr); }
+                if (step.trigOverride.hasSoundId)
+                { toNode.setProperty("hsi", 1, nullptr); toNode.setProperty("si", step.trigOverride.soundId, nullptr); }
+                if (step.trigOverride.hasRetrig)
+                { toNode.setProperty("hrt", 1, nullptr); toNode.setProperty("rt", step.trigOverride.retrigRate, nullptr); }
                 stepNode.appendChild(toNode, nullptr);
             }
             if (!step.overrides.empty())
@@ -175,6 +182,10 @@ namespace lockstep::PluginState
                 { step.trigOverride.hasVelocity = true; step.trigOverride.velocity = static_cast<int>(toNode.getProperty("v", 100)); }
                 if (static_cast<int>(toNode.getProperty("hg", 0)) != 0)
                 { step.trigOverride.hasGate = true; step.trigOverride.gateValue = static_cast<MusicalGate>(static_cast<uint8_t>(static_cast<int>(toNode.getProperty("gv", 0)))); }
+                if (static_cast<int>(toNode.getProperty("hsi", 0)) != 0)
+                { step.trigOverride.hasSoundId = true; step.trigOverride.soundId = static_cast<int>(toNode.getProperty("si", -1)); }
+                if (static_cast<int>(toNode.getProperty("hrt", 0)) != 0)
+                { step.trigOverride.hasRetrig = true; step.trigOverride.retrigRate = static_cast<double>(toNode.getProperty("rt", 0.25)); }
             }
             const auto plNode = stepNode.getChildWithName("PL");
             if (plNode.isValid())
@@ -982,6 +993,17 @@ namespace lockstep::PluginState
         return v11;
     }
 
+    // v11 → v12
+    // Adds per-step retrig rate (hasRetrig/retrigRate) and persists the previously
+    // unserialised sound_id P-Lock (hasSoundId/soundId) to the TrigOverride "TO" node.
+    // Missing fields default correctly on load; no tree-level transform needed.
+    juce::ValueTree upgrade_v11_to_v12(const juce::ValueTree& v11)
+    {
+        juce::ValueTree v12 = v11.createCopy();
+        v12.setProperty("version", 12, nullptr);
+        return v12;
+    }
+
     juce::ValueTree applyUpgrades(juce::ValueTree tree)
     {
         // Determine the version. v0 has root type "Lockstep" and no version attribute.
@@ -1003,6 +1025,7 @@ namespace lockstep::PluginState
         if (version < 10) tree = cleanBreakToCurrent(tree);
         if (version == 9) tree = upgrade_v9_to_v10(tree);
         if (version < 11) tree = upgrade_v10_to_v11(tree);
+        if (version < 12) tree = upgrade_v11_to_v12(tree);
 
         return tree;
     }

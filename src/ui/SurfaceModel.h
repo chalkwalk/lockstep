@@ -81,6 +81,22 @@ namespace lockstep
         MorphPoleActive  = 100,  // pole has a live value in the morph overlay
         MorphPoleDormant = 101,  // pole value saved in UI memory, suppressed from blend
         MorphPoleDark    = 102,  // no value has been captured for this pole
+
+        // Sound Pool overlay (5.7): Fill+SRC re-skins the grid to saved sounds.
+        SoundPoolOccupied = 110,  // slot has a saved sound
+        SoundPoolEmpty    = 111,  // slot is empty
+        SoundPoolCurrent  = 112,  // the currently active sound on this track
+
+        // Retrig/ratchet overlay (5.7): Fill+TRIG re-skins the grid to rate choices.
+        // Cells show available retrig rates; selected = the rate set on the held step.
+        RetrigRate        = 120,  // an available ratchet rate
+        RetrigSelected    = 121,  // the rate currently selected / authored on this step
+
+        // Slice point picker (5.7): when the active track is ISliceable, the Retrig
+        // overlay cells address slice points instead of rates.
+        SlicePoint        = 130,  // an addressable slice point
+        SliceSelected     = 131,  // slice point currently set on the held step
+        SliceEmpty        = 132,  // no slice at this index
     };
 
     // Pure mapping for the §34.4 length-edit re-skin: classify an absolute step

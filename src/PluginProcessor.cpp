@@ -924,6 +924,7 @@ namespace lockstep
 
                 retrigActiveTrack_      = req;
                 retrigRatePpq_          = retrigReqRatePpq_.load(std::memory_order_relaxed);
+                retrigNote_             = retrigReqNote_.load(std::memory_order_relaxed);
                 retrigNextFireSamples_  = 0.0;
                 retrigNoteOffRemaining_ = -1;
             }
@@ -948,7 +949,7 @@ namespace lockstep
                     if (retrigNoteOffRemaining_ < numBlockSamples)
                     {
                         trackMidi[static_cast<std::size_t>(retrigActiveTrack_)].addEvent(
-                            juce::MidiMessage::noteOff(1, 60), retrigNoteOffRemaining_);
+                            juce::MidiMessage::noteOff(1, retrigNote_), retrigNoteOffRemaining_);
                         retrigNoteOffRemaining_ = -1;
                     }
                     else
@@ -965,7 +966,8 @@ namespace lockstep
                                                         static_cast<int>(firePos));
                     const auto ti = static_cast<std::size_t>(retrigActiveTrack_);
                     trackMidi[ti].addEvent(
-                        juce::MidiMessage::noteOn(1, static_cast<juce::uint8>(60),
+                        juce::MidiMessage::noteOn(1,
+                                                  static_cast<juce::uint8>(retrigNote_),
                                                   static_cast<juce::uint8>(100)),
                         samplePos);
                     // note-off ~75% through the interval
@@ -973,7 +975,8 @@ namespace lockstep
                         1, numBlockSamples - 1,
                         static_cast<int>(samplesPerRetrig * 0.75));
                     if (noteOffAt < numBlockSamples)
-                        trackMidi[ti].addEvent(juce::MidiMessage::noteOff(1, 60), noteOffAt);
+                        trackMidi[ti].addEvent(
+                            juce::MidiMessage::noteOff(1, retrigNote_), noteOffAt);
                     else
                         retrigNoteOffRemaining_ = noteOffAt - numBlockSamples;
 
@@ -1366,6 +1369,22 @@ namespace lockstep
                     pnf.openEnded = true;
                     pnf.noteCount = notesToEmit;
                     pnf.notes     = emitNotes;
+                }
+
+                // 5.7: per-step retrig. If the step has a baked retrig rate, start
+                // the rattle at the primary emitted note for this step's duration.
+                if (stepIdx >= 0 && stepIdx < kMaxStepsPerTrack)
+                {
+                    const auto& sto = track.steps[static_cast<std::size_t>(stepIdx)]
+                                          .trigOverride;
+                    if (sto.hasRetrig)
+                    {
+                        const int retNote = notesToEmit > 0 ? emitNotes[0] : 60;
+                        retrigReqNote_.store(retNote, std::memory_order_relaxed);
+                        retrigReqRatePpq_.store(sto.retrigRate, std::memory_order_relaxed);
+                        retrigReqTrack_.store(static_cast<int>(i),
+                                              std::memory_order_release);
+                    }
                 }
             }; // end emitTrig
 
@@ -2676,11 +2695,12 @@ namespace lockstep
         return true;
     }
 
-    void LockstepProcessor::setRetrigActive(int track, bool active, double ratePpq)
+    void LockstepProcessor::setRetrigActive(int track, bool active, double ratePpq, int note)
     {
         if (active)
         {
             retrigReqRatePpq_.store(ratePpq, std::memory_order_relaxed);
+            retrigReqNote_.store(juce::jlimit(0, 127, note), std::memory_order_relaxed);
             retrigReqTrack_.store(
                 juce::jlimit(0, static_cast<int>(kNumTracks) - 1, track),
                 std::memory_order_release);
@@ -2869,6 +2889,12 @@ namespace lockstep
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return "";
         const auto* m = machines_[static_cast<std::size_t>(track)].get();
         return m ? m->badge() : "";
+    }
+
+    const IMachine* LockstepProcessor::machineForTrack(int track) const noexcept
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return nullptr;
+        return machines_[static_cast<std::size_t>(track)].get();
     }
 
     std::unique_ptr<IMachine> LockstepProcessor::createMachineForId(const std::string& id)

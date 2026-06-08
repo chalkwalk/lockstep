@@ -33,6 +33,11 @@ namespace lockstep
         // base param set for this step (P-Locks on top still win).
         bool  hasSoundId  = false;
         int   soundId     = -1;
+
+        // 5.7: per-step retrig rate — when hasRetrig, the step auto-ratchets at
+        // retrigRate PPQ per repetition for the duration of the note gate.
+        bool   hasRetrig  = false;
+        double retrigRate = 0.25;  // PPQ per repetition (default = /16)
     };
 
     struct Step

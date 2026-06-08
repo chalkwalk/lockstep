@@ -5,6 +5,7 @@
 #include <set>
 #include "../core/Sequence.h"        // kNumTracks
 #include "../core/TrackInputMode.h"
+#include "../io/TrigGridMode.h"
 #include "../machine/IMachine.h"    // kMaxSections
 
 namespace lockstep
@@ -109,6 +110,10 @@ namespace lockstep
         // MHZ.7.1: per-track input mode. RAM-only; set by Track+verb gesture (MHZ.7.2).
         // Mode applies on the focused track; TrackInputMode::Play is the default.
         std::array<TrackInputMode, kNumTracks> trackInputMode{};
+
+        // 5.7: momentary trig-grid overlay. Default while no activating chord is held.
+        // Fill+TRIG sets Retrig; Fill+SRC sets SoundPool. Cleared on modifier release.
+        TrigGridMode trigGridMode = TrigGridMode::Default;
 
         // MHZ.7.4: last note played per-track, used as LEVELS record-arm pitch.
         // Updated whenever a note is triggered (keyboard overlay or CHROMATIC mode).
