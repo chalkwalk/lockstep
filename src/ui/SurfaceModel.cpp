@@ -1135,7 +1135,8 @@ namespace lockstep
                     if (ui.trackHeld)
                         slotEmpty[static_cast<std::size_t>(i)] = proc.isTrackEmpty(i);
                     else if (ui.sceneHeld)
-                        slotEmpty[static_cast<std::size_t>(i)] = !proc.sceneSlotOccupied(i);
+                        slotEmpty[static_cast<std::size_t>(i)] =
+                            (i != activeIdx) && !proc.sceneSlotOccupied(i);
                     else
                         slotEmpty[static_cast<std::size_t>(i)] = false;  // phrases: all rows exist
                 }

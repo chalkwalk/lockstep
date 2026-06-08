@@ -635,25 +635,24 @@ See DESIGN §6.6, §13.
 - [x] Stage 6: DESIGN §6.6 + §13 verb table updated; ROADMAP marked.
 
 ### 7.13 — Scene commit-and-bake + placeable payloads + Scene clipboard  *[shipped]*
-Resolves the model-2-vs-3 tension from the §4.7 design conversation **without
-growing the floor**: storage stays a single `globalPhrase` index, and a
+Resolves the model-2-vs-3 tension from the §4.7 design conversation: a
 hand-curated heterogeneous arrangement is persisted by **baking** the live
-per-track deviations into home-row phrase *content*. `Scene + Record` becomes
-**commit-and-bake**, guarded by the standard Yes/No confirmation (destructive:
-overwrites phrase slots, severs phrase sharing). Enables the scratch-pad
-workflow — audition ideas into the high phrase slots via deviation, then bake
-the keepers. See DESIGN §4.7 / §16 / §13.2.
+per-track deviations into phrase *content*. `Scene + Record` becomes
+**commit-and-bake**, guarded by Yes/No confirmation (destructive: overwrites
+phrase slots, severs phrase sharing). Enables the scratch-pad workflow —
+audition ideas via deviation, bake the keepers. See DESIGN §4.7 / §16 / §13.2.
+*(Note: `globalPhrase` routing field added here was later removed in 7.14.)*
 
 Core shipped (Stages 1–3, prior plan):
-- [x] `Scene::phraseIdx[]` removed; floor routing is `globalPhrase` only
-      (serializer bumped to v8 — clean break).
+- [x] `Scene::phraseIdx[]` removed; floor routing via `globalPhrase` index
+      (serializer bumped to v8 — clean break; v11 in 7.14 removes globalPhrase).
 - [x] `Scene + Record` dispatch → `PendingConfirm::BakeScene`; `P=Yes` bakes,
       `Func+P` cancels; zero-deviation case bails early with no confirm.
 - [x] Bake op in `Arrangement::bakeSceneState()`: for each deviated track, copy
-      effective phrase content into the `globalPhrase` slot, clear deviation.
+      effective phrase content into the home slot, clear deviation.
       `ArrangementTest` pins bake + no-op + same-slot cases.
 - [x] Confirm chrome: affected-track count + `SHR:N` when another initialised
-      scene shares the home phrase; `scenesSharingHomePhrase()` is real detection.
+      scene shares the home phrase.
 
 Follow-up plan (placeable payloads + Scene clipboard + omni copy) shipped:
 - [x] **Scene occupancy helpers**: `Scene::initialised` set on all live-mutation
@@ -669,6 +668,28 @@ Follow-up plan (placeable payloads + Scene clipboard + omni copy) shipped:
 - [x] **Unqualified paste** `Func+I`: stamps the single captured layer via type tag;
       rejects with "Paste: pick a scope" when type is `All` (omni grab).
 - [x] **Panic → Song + Clear (O)**. `Func+I` freed for unqualified paste.
+
+### 7.14 — Pin Scene→Phrase diagonal; remap gestures; morph drag fix  *[shipped]*
+
+Removes `Scene::globalPhrase` entirely (serializer v11). Scene N always plays
+phrase row N (the diagonal is a structural invariant, not a stored field).
+Migration: v10 states with a re-homed scene materialise the old row content
+onto the diagonal at load time, preserving playback. See DESIGN §4.7/§16/§23.3.
+
+- [x] `Scene::globalPhrase` removed; `resolveActivePhraseIdx` uses `sceneIdx`
+      directly; `ArrangementTest` tests updated.
+- [x] Serializer bump to v11; v10 `"gp"` field materialised at load time.
+- [x] **Gesture remap:** `Phrase+step` = deviate focused track (was set-global);
+      `Scene+Phrase+step` = deviate all tracks; diagonal row = clear all.
+      `deviateAllToPhrase()` added to `Arrangement`.
+- [x] **Morph drag fix:** bare `Morph` + mouse-drag on MZ param now writes the
+      morph overlay at the fader split, matching the encoder path.
+- [x] **Scene-held grid occupancy:** empty slots shown distinctly; active scene
+      always non-empty.
+- [x] **Three create variants** on empty slot: bare=baked, `Func`=baseline copy
+      (new `createBaselineCopyScene`), `Mute`=blank.
+- [x] **Overwrite guard:** no-op skip for identical content; free-slot hint.
+- [x] Default: `scenes[0].initialised=true` in fresh Song.
 
 ---
 

@@ -539,42 +539,38 @@ see §4.7.1 for what that costs and how it is recovered.
   content. Its phrase assignment is a single **global pattern** row (the
   grid mental model: columns = tracks, rows = phrase index; a Scene is, by
   default, a row):
-  - **Global pattern** `N` — one phrase-pool row index, the Scene's
-    "home" row. Default: Scene `N` → global `N`; freely changeable. All
-    non-deviated tracks play their phrase from this row. **This is the
-    only phrase-routing field in the saved floor** — per-track phrase
-    deviations are session-RAM-only and are never serialized.
+  - **Diagonal routing** — Scene `N` always plays phrase row `N` (the
+    diagonal is pinned; it is not a stored field). All non-deviated tracks
+    play their phrase from row `N`. Per-track phrase deviations are
+    session-RAM-only and are never serialized.
   - `activeMask[track]` — which musicians play in this scene (replaces
     the old per-Pattern mute mask; runtime silence =
     `globalMute[t] || !activeMask[t]`).
   - `coreTime` — the Scene's time signature; see §4.8.
   - Morph A/B snapshot fields; full crossfader implementation: §17/5.2.
 
-**Scene = saved floor + live overlay.** The fields above (globalPattern,
-activeMask, coreTime, Morph snapshot) are the Scene's **saved floor** —
-its identity, serialized, and the §13.6 Scene-scope checkpoint floor. On
-top sits a **live overlay**: in-the-moment global-pattern changes and
-per-track phrase deviations. Per-track phrase deviations are **always**
+**Scene = saved floor + live overlay.** The fields above (activeMask,
+coreTime, Morph snapshot) are the Scene's **saved floor** — its identity,
+serialized, and the §13.6 Scene-scope checkpoint floor. On top sits a
+**live overlay**: per-track phrase deviations. Deviations are **always**
 part of the overlay and are **never** promoted to the floor *as routing*
 (commit instead bakes them into phrase content — see below). The effective
-live phrase for a track is `liveDeviation(t) ?? globalPattern`. Each Scene
+live phrase for a track is `liveDeviation(t) ?? sceneIdx`. Each Scene
 **remembers its own** overlay while the set is running. **`Scene + Record` =
-commit-and-bake** (Yes/No-confirmed, §16): it writes the live global-pattern
-and mask changes into the floor *and* **bakes** the per-track deviations down
-into content — for each deviated track it copies that track's effective live
-phrase into its home-row (`globalPattern`) slot, then clears the deviation.
-The floor itself still stores **no per-track routing** (`globalPattern` stays
-the only phrase-routing field); a hand-curated heterogeneous arrangement
-persists by **materialising content onto the diagonal**, not by storing a
-routing vector. Because the bake **overwrites phrase content and severs
-sharing** — the baked slot becomes a snapshot, disconnected from the phrase
-it copied (the Phrase/Scene split, below) — it is destructive and prompts a
-**Yes/No confirmation** before writing. Discarding the overlay: re-launching
-the active Scene
-(`Scene + active-step` single-tap, or `Scene + Stop`) returns to the floor;
-`Func + Scene + step` launches any Scene at its clean floor (§16). This
-split is the same machinery as the scope-respecting Checkpoint (§13.6):
-the floor is the saved state, the overlay is working state above it.
+commit-and-bake** (Yes/No-confirmed, §16): it writes live mask changes into
+the floor *and* **bakes** the per-track deviations down into content — for
+each deviated track it copies that track's effective live phrase into its
+diagonal row (`sceneIdx`) slot, then clears the deviation. A hand-curated
+heterogeneous arrangement persists by **materialising content onto the
+diagonal**, not by storing a routing vector. Because the bake **overwrites
+phrase content and severs sharing** — the baked slot becomes a snapshot,
+disconnected from the phrase it copied (the Phrase/Scene split, below) — it
+is destructive and prompts a **Yes/No confirmation** before writing.
+Discarding the overlay: re-launching the active Scene (`Scene + active-step`
+single-tap, or `Scene + Stop`) returns to the floor; `Func + Scene + step`
+launches any Scene at its clean floor (§16). This split is the same machinery
+as the scope-respecting Checkpoint (§13.6): the floor is the saved state, the
+overlay is working state above it.
 
 **The Phrase / Scene split.** A Phrase is *material* — a musical idea
 that may be referenced by multiple Scenes (the chorus phrase reused in
@@ -591,26 +587,21 @@ the whole Song. A Song may give the same track a different instrument
 from another Song. The musician plays the same kit throughout the song;
 they may play a different kit in a different song.
 
-**Live phrase grammar.** `Track` selects breadth = *one musician*, `Scene`
-selects breadth = *the whole band*; `+ Phrase + step` jumps to the phrase
-you pick. So:
+**Live phrase grammar.** `Phrase` (or `Track + Phrase`) selects breadth =
+*the focused musician*; `Scene + Phrase` selects breadth = *the whole band*.
+Both then pick the phrase row from the step press. So:
 
-- `Track + Phrase + step` — **deviate** the focused musician (the track
-  highlighted in the VU bar) to the picked phrase. A live overlay change.
-- `Phrase + step` — **unison / set-global**: set the Scene's global pattern
-  to the picked phrase; the **focused** musician un-deviates and joins the
-  unison; other deviated musicians keep their deviation (*"more specific
-  scope wins"*, `PRINCIPLES.md` §13). A live overlay change.
+- `Phrase + step` (or `Track + Phrase + step`) — **deviate** the focused
+  musician (the track highlighted in the VU bar) to the picked phrase. A live
+  overlay change.
+- `Scene + Phrase + step` — **deviate the whole band** to the picked phrase.
+  Landing on the Scene's own diagonal row (`sceneIdx`) clears all deviations.
 
-Deviation management needs no separate re-sync or force-all gesture:
-"rejoin one musician" = pick their **home** (global) phrase, which the
-selector marks with a border (below); "clear all deviations / revert the
-whole Scene" = re-launch the active Scene (`Scene + active-step`) or
-`Func + Scene + step` for a baseline launch to any Scene's clean floor
-(§16). The old `Track + Scene` / `Scene + Yes` re-sync gestures and the
-`Scene + Phrase + step` force-all chord are **dropped** — the re-launch
-gesture covers the use case with no three-key chord required. See §16 for
-the launch model and §13 for all gesture bindings.
+Deviation management: "rejoin one musician" = pick the **diagonal** phrase
+(row N for Scene N), which the selector marks with a border (below); "clear
+all deviations" = `Scene + Phrase + step` on the diagonal, or re-launch the
+active Scene (`Scene + active-step`), or `Func + Scene + step` (baseline
+launch, §16). See §16 for the launch model and §13 for all gesture bindings.
 
 **Deviation must be visible.** Two surface affordances make the floor /
 overlay legible (both add-only `CellState` / per-track-flag work on the
@@ -2086,36 +2077,30 @@ assignments.
 
 **Phrase swaps and deviation** (the live overlay; full grammar in §4.7):
 
-- `Track + Phrase + step` — **deviate** the focused musician to the picked
-  phrase.
-- `Phrase + step` — **unison / set-global**: set the Scene's global pattern
-  to the picked phrase; the focused musician un-deviates and joins; other
-  deviated musicians keep their deviation (*"more specific scope wins"*).
+- `Phrase + step` (or `Track + Phrase + step`) — **deviate** the focused
+  musician to the picked phrase.
+- `Scene + Phrase + step` — **deviate the whole band** to the picked phrase.
+  Landing on the diagonal row (`sceneIdx`) clears all deviations.
 
-There is **no force-all or separate re-sync gesture**. To rejoin one
-musician, pick their **home** (global) phrase — the phrase selector borders
-it (§4.7). To clear all deviations, re-launch the active Scene
-(`Scene + active-step`) or use `Func + Scene + step` (baseline launch,
-above). The old `Track + Scene`, `Scene + Yes`, and `Scene + Phrase + step`
-gestures are removed.
+To rejoin one musician, pick the **diagonal** phrase (row N for Scene N) —
+the selector borders it (§4.7). To clear all deviations: `Scene + Phrase +
+step` on the diagonal, re-launch the active Scene (`Scene + active-step`), or
+use `Func + Scene + step` (baseline launch, above).
 
 **Scene commit / revert** (the bare `Scene` triad; the copy/paste/clear
 meanings are `Func`-qualified, §13.2):
 
-- `Scene + Record` — **commit-and-bake** (Yes/No-confirmed): write live
-  global-pattern and mask changes into the Scene's saved floor, *and*
-  **bake** the per-track deviations into content — each deviated track's
-  effective phrase is copied into its home-row (`globalPattern`) slot, then
-  the deviation clears. This is the **only persistence path for a
-  hand-curated heterogeneous arrangement**: the floor stores no routing
-  vector, so the curated phrases are materialised onto the diagonal *as
-  content*. Because it overwrites phrase slots and severs phrase sharing
-  (the baked slot is a snapshot, §4.7), it is destructive and **prompts a
-  Yes/No confirmation** — the standard guard for destructive ops, and the
-  reason the surface carries a Yes/No pair. *Scratch-pad workflow:* park on
-  one Scene, audition ideas into the high phrase slots via
-  `Track + Phrase + step` deviations, then `Scene + Record` → `Yes` bakes
-  the keepers onto the home row.
+- `Scene + Record` — **commit-and-bake** (Yes/No-confirmed): write live mask
+  changes into the Scene's saved floor, *and* **bake** the per-track deviations
+  into content — each deviated track's effective phrase is copied into its
+  diagonal row (`sceneIdx`) slot, then the deviation clears. This is the
+  **only persistence path for a hand-curated heterogeneous arrangement**:
+  the floor stores no routing vector, so curated phrases are materialised
+  onto the diagonal *as content*. Because it overwrites phrase slots and severs
+  phrase sharing (the baked slot is a snapshot, §4.7), it is destructive and
+  **prompts a Yes/No confirmation**. *Scratch-pad workflow:* park on one Scene,
+  audition ideas into high phrase slots via `Phrase + step` deviations, then
+  `Scene + Record` → `Yes` bakes the keepers onto the diagonal.
 - `Scene + Play` — **launch now**: an unquantized re-fire of the active
   Scene immediately (apply its phrases + active mask now, not at the next
   core-time boundary).
@@ -2809,8 +2794,8 @@ A non-modal Browser opens via a Func-layer chord (TBD, consistent
 with §13). It shows **Song → Scene** as a focusable tree, with a
 secondary per-track view (each track's **Phrase** pool and current
 **Kit**), carrying names, colours, tags, and a **share-count badge
-(SHR:N) on Phrases** — how many Scenes in the Song assign that phrase
-(count of Scenes whose `globalPattern` targets that row), the share
+(SHR:N) on Phrases** — how many Scenes in the Song play that phrase row
+(counting diagonal rows + any baked content that landed there), the share
 relationship that survived the Part→Kit dissolve. Navigation is keyboard-driven (the existing arrow-row keys).
 
 The browser is non-modal: playback continues, the sequencer
@@ -2847,35 +2832,24 @@ holds Scenes and per-track Phrase pools. Copy/paste/clear reuse the
 Kit recall is **not** a Browser operation — it lives on the live surface
 under `Func + Track` (§4.7.2).
 
-**Scene create / copy payloads (shipped).** Lazy slots: Scenes (and
-Phrases) don't exist until made; empty slots show capacity. Pressing an
-empty Scene slot creates it. Only `Func` is a safe create qualifier —
-`Mute + Scene + step` is **reserved for scene-mute** (under `Mute + Scene`
-the step axis means *track*, not *scene*, so it cannot also address a scene
-slot). So there are exactly **two direct create gestures**, and undeviated
-duplication moves to the clipboard:
+**Scene create / copy payloads (shipped).** Lazy slots: Scenes don't exist
+until made; empty slots show capacity. Pressing an empty Scene slot creates it.
+There are **three direct create gestures**:
 
-1. **Baked copy** — bare `Scene + empty-step`. The current Scene's
-   **effective** layout (global + live deviations) is materialised onto the
-   new Scene's home-row content (the same op as `Scene + Record`, §16). This
-   is the clean **"save my experiment to another Scene"** gesture: bake a
-   Scene, deviate to explore, then create a new Scene as a baked copy — the
-   original is untouched and the exploration is preserved.
-2. **Default / empty** — `Func + Scene + empty-step`. A fresh Scene whose
-   global pattern defaults to its own index (§4.7); no content copied. This is
-   the **baseline** reading of `Func + Scene + step` (§16): on an existing
-   Scene it floor-launches; on an empty slot the baseline *is* a fresh
-   default. (For an empty slot "baseline" and "default" coincide, so they
-   share one gesture.)
+1. **Baked copy** — bare `Scene + empty-step`. The current Scene's **effective**
+   layout (diagonal row + any live deviations baked down) is materialised as the
+   new Scene's diagonal content. Same op as `Scene + Record` but targets a new
+   slot — the **"save my experiment"** gesture.
+2. **Baseline copy** — `Func + Scene + empty-step`. Copies the current Scene's
+   **floor diagonal row only** (deviations ignored). On an *occupied* slot `Func`
+   is a floor-launch (§16); on an *empty* slot it stamps the clean saved content.
+3. **Blank** — `Mute + Scene + empty-step`. A fresh, empty Scene; no content
+   copied. (`Mute + Scene + occupied-step` is **reserved for scene-mute**, below.)
 
-**Undeviated duplication** (a Scene's floor only — global + mask + coreTime +
-Morph, deviations stripped) is a *copy* act, not a create act, so it lives on
-the Scene **clipboard** (§13.2). The clipboard is distinct from create: copy
-does **not move** the active Scene, whereas the create gesture (`Scene + step` on
-an empty slot) seeds *and* relocates. Both copy and paste carry a **verb**
-(`Record`/`Play`), which is what cleanly separates them from the *verbless*
-scene-mute chord — so a `Mute` strip-qualifier is unambiguous in a clipboard
-chord even though `Mute + Scene + step` alone is scene-mute.
+**Undeviated duplication** lives on the **clipboard** (§13.2): copy does not
+move the active Scene; only the create gesture seeds-and-relocates. Both copy
+and paste carry a **verb** (`Record`/`Play`), cleanly separating them from the
+verbless scene-mute chord.
 
 **Baked-vs-floor is decided at *paste* time.** The grab is one gesture and
 **lossless** (always the source's full effective layout); the destination
@@ -2885,10 +2859,11 @@ reusable both ways and never traps a live experiment. The cost is a heavy
 floor-paste chord (three modifiers + verb + step), accepted because it is a
 deliberate, rare librarian action.
 
-**Conflict.** When a copy/paste/bake target already holds phrase content at
-a written index — especially a phrase shared by other Scenes (SHR:N, §23.2)
-— a "Overwrite phrase slot N? SHR:M free:Pk P=Yes Func+P=No" confirm is
-raised. `P=Yes` executes; `Func+P` cancels. Clean targets execute immediately.
+**Conflict / no-op skip.** When a create/paste target already holds phrase
+content, a "Overwrite phrase row N? free:Sk P=Yes Func+P=No" confirm is
+raised. A free-slot hint (`free:Sk`) suggests an empty Scene. Re-stamping
+**identical** content skips the prompt and executes silently. `P=Yes` confirms;
+`Func+P` cancels. Clean rows execute immediately.
 
 ## 24. State Colour Taxonomy
 

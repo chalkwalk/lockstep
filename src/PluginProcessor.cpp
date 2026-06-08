@@ -156,6 +156,7 @@ namespace lockstep
             }
             // Section[0]: all tracks active, coreTime 4/4, phrase indices = 0.
             // phraseIdx and activeMask default correctly (0s and trues).
+            p0.scenes[0].initialised = true;  // only scene 1 populated by default
         }
 
         // Project the seeded Song[0] into the working buffer. Arrangement's own

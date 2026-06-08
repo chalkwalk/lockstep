@@ -394,8 +394,8 @@ in the scope-section matrix); two are **performance specialists**
 |---|---|---|
 | `1` | **Func** | Universal qualifier — composes with any other scope to flip to its "secondary variant." Also the modifier layer for snapshots, verbs, and machine secondaries. |
 | `2` | **Track** | One or more tracks; or, with none selected, Control-All. `Track+section` opens the track-foundation row (post-machine FILTER/AMP, IEffect inserts). **`Func+Track`** opens the machine/Kit picker (step cells show machines; press one to assign it to the focused track). |
-| `Q` | **Phrase** | A per-track musical phrase (pure note content). `Phrase+step` swaps all non-deviated tracks to that phrase (unison); `Track+Phrase+step` deviates just the focused track. To clear all deviations, re-launch the active Scene or use `Func+Scene+step`. |
-| `W` | **Scene** | A launchable cross-track row (global phrase row + active-mask + core time). `Scene+step` occupied = carry overlay (double-tap = floor); on active = revert to floor; on **empty** = baked-copy create + launch. `Func+Scene+step` occupied = floor launch; empty = default create + launch. `Scene+Record` = commit-and-bake. `Func+Scene+Record/Play` = copy/paste. |
+| `Q` | **Phrase** | A per-track musical phrase (pure note content). `Phrase+step` (or `Track+Phrase+step`) deviates the focused track to that phrase. `Scene+Phrase+step` deviates all tracks; landing on the diagonal row clears all deviations. To clear all deviations: `Scene+Phrase+step` on diagonal, re-launch active Scene, or `Func+Scene+step`. |
+| `W` | **Scene** | A launchable cross-track row (diagonal phrase row + active-mask + core time). Scene N always plays phrase row N. `Scene+step` occupied = carry overlay (double-tap = floor); on active = revert to floor; on **empty** = baked-copy create + launch. `Func+Scene+empty` = baseline-copy create; `Mute+Scene+empty` = blank create. `Func+Scene+occupied` = floor launch. `Scene+Record` = commit-and-bake. `Func+Scene+Record/Play` = copy/paste. |
 | `A` | **Morph** | The A/B crossfader scope. Hold/latch + encoder sculpts overlay at current fader split; `Morph+^`/`v` forces pure A/B writes; `Morph+Mute` = fluid mute a track. |
 | `S` | **Song** | Song select (`Song+step`). `Func+Song` = Global / master-bus focus. |
 | `Z` | **Mute** | Global mute mask (hold and tap several tracks). `Scene+Mute+step` = per-scene mute. |
@@ -670,16 +670,18 @@ Scenes and switch Songs live.
 
 | Gesture | Action |
 |---|---|
-| `Scene (W) + step key` | Launch a Scene (quantized when playing). On a *different* occupied Scene: carries the live overlay; double-tap = floor launch. On the *active* Scene: reverts to floor. On an **empty** slot: **baked-copy create** (current effective layout materialised to the new Scene) + launch. Conflict-gated when the target phrase slot has existing content. |
-| `Func + Scene + step key` | On an occupied Scene: **floor launch** (arrive at saved floor). On an **empty** slot: **default-create** (blank Scene, `globalPhrase` = target index) + launch. |
+| `Scene (W) + step key` | Launch a Scene (quantized when playing). On a *different* occupied Scene: carries the live overlay; double-tap = floor launch. On the *active* Scene: reverts to floor. On an **empty** slot: **baked-copy create** + launch (current effective content, including deviations). Conflict-gated when target phrase row has content; no-op skip when identical. |
+| `Func + Scene + step key` | On an occupied Scene: **floor launch**. On an **empty** slot: **baseline-copy create** (floor diagonal row only, no deviations) + launch. Conflict-gated. |
+| `Mute + Scene + empty-step` | **Blank create** — a fresh empty Scene, no content copied. |
 | `Scene + Stop` | Revert the active Scene to its saved floor (same as re-launching it). |
-| `Scene + Record` | **Commit-and-bake** (Yes/No confirmed): for each deviated track, copy its effective phrase content into the Scene's home-row slot (`globalPhrase`), then clear the deviation. Destructive — shared-phrase scenes are warned via SHR:N in the confirm band. If no deviations are active, reports "No deviations to bake". |
+| `Scene + Record` | **Commit-and-bake** (Yes/No confirmed): for each deviated track, copy its effective phrase content into the Scene's diagonal row (`sceneIdx`), then clear the deviation. If no deviations, no-op. |
 | `Func + Scene + Record` | Copy the active Scene (floor + all effective phrases) to the typed clipboard. Badge: `CPY:SCN`. |
 | `Func + Scene + Play` | Paste clipboard Scene onto the active Scene (baked layout). Conflict-gated. |
 | `Mute + Func + Scene + Play` | Paste **floor only** (strip deviations). The `Mute` qualifier reads as "strip the content overlay; apply floor metadata only". |
-| `Song (S) + Clear (O)` | **Panic** — kill all voices immediately. (Was `Func+I` before the copy/paste bindings shipped.) |
-| `Phrase (Q) + step key` | Unison phrase swap: all non-deviated tracks switch to that phrase. |
-| `Track + Phrase (Q) + step key` | Sticky per-track deviation: only the focused track switches. |
+| `Song (S) + Clear (O)` | **Panic** — kill all voices immediately. |
+| `Phrase (Q) + step key` | **Deviate focused track** to that phrase. Same as `Track+Phrase+step`. |
+| `Track + Phrase (Q) + step key` | Deviate the focused track to that phrase. |
+| `Scene + Phrase (Q) + step key` | **Deviate all tracks** to that phrase. Landing on the Scene's diagonal row (row N for Scene N) clears all deviations. |
 | `Song (S) + step key` | Switch Songs (quantized) — a full reset; live deviations clear. |
 
 ### 5.15 Checkpoints (live undo)
@@ -1086,8 +1088,9 @@ Links: [§5.5](#55-track-selection-and-focus) ·
 
 ```
 Phrase (Q)
-├─ + step            → unison swap: all non-deviated tracks switch to that phrase — §5.14
-├─ Track + Phrase + step → sticky deviation: only the focused track switches — §5.14
+├─ + step            → deviate focused track to that phrase (same as Track+Phrase+step) — §5.14
+├─ Track + Phrase + step → deviate the focused track to that phrase — §5.14
+├─ Scene + Phrase + step → deviate all tracks; diagonal row = clear all deviations — §5.14
 ├─ + U / I / O       → copy / paste / clear the whole phrase (all tracks) — §5.9
 ├─ + P (YES)         → Quantize: zero microOffset across every step on every track — §5.1
 └─ + O (queued scene pending) → cancel the queued scene — §5.14
