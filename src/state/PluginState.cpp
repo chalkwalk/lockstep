@@ -972,6 +972,16 @@ namespace lockstep::PluginState
         return v10;
     }
 
+    // v10 → v11
+    // Stopped persisting Scene::globalPhrase as 'gp'; reader materialises legacy
+    // re-homed phrases on load. No tree-level transform needed — just stamp the version.
+    juce::ValueTree upgrade_v10_to_v11(const juce::ValueTree& v10)
+    {
+        juce::ValueTree v11 = v10.createCopy();
+        v11.setProperty("version", 11, nullptr);
+        return v11;
+    }
+
     juce::ValueTree applyUpgrades(juce::ValueTree tree)
     {
         // Determine the version. v0 has root type "Lockstep" and no version attribute.
@@ -991,7 +1001,8 @@ namespace lockstep::PluginState
         // collapses to the current format via the clean break.
         if (version < 1)  tree = upgrade_v0_to_v1(tree);
         if (version < 10) tree = cleanBreakToCurrent(tree);
-        if (version < 10) tree = upgrade_v9_to_v10(tree);
+        if (version == 9) tree = upgrade_v9_to_v10(tree);
+        if (version < 11) tree = upgrade_v10_to_v11(tree);
 
         return tree;
     }
@@ -1183,8 +1194,9 @@ namespace
 
                 const auto result = lockstep::PluginState::applyUpgrades(v9);
 
-                expectEquals(static_cast<int>(result.getProperty("version", -1)), 10,
-                             "v9->v10: version bumped to 10");
+                expectEquals(static_cast<int>(result.getProperty("version", -1)),
+                             lockstep::PluginState::kCurrentVersion,
+                             "v9->v10+: version reaches current after full chain");
 
                 const auto nh = result.getChildWithName("NewHierarchy");
                 expect(nh.isValid(), "v9->v10: NewHierarchy present after migration");
