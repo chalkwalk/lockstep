@@ -900,21 +900,23 @@ namespace lockstep
 
                     if (proc.hasFluidMute(i))
                     {
-                        // Fixed bright magenta: "this track has a fluid mute".
-                        // The fader is its own animation; brightness tied to
-                        // blend was 25% alpha when fader was at the silent pole,
-                        // making it look like nothing happened.
+                        // Interpolate between pole-A colour (violet) and pole-B
+                        // colour (rose) based on fader so the cell signals which
+                        // layer is currently active — full A at f=0, full B at f=1.
+                        const juce::Colour colA(kScopeMorphA);
+                        const juce::Colour colB(kScopeMorphB);
+                        const juce::Colour blended = colA.interpolatedWith(colB, crossfaderValue);
                         c.base       = CellState::MorphPoleActive;
                         c.baseColour = c.pressed
                             ? juce::Colours::white.withAlpha(0.80f).getARGB()
-                            : juce::Colour(kScopeMorph).withAlpha(0.80f).getARGB();
+                            : blended.withAlpha(0.85f).getARGB();
                     }
                     else
                     {
                         c.base       = CellState::MorphPoleDark;
                         c.baseColour = c.pressed
                             ? juce::Colour(kScopeMorphDim).withAlpha(0.40f).getARGB()
-                            : juce::Colour(kStepInactive).withAlpha(0.25f).getARGB();
+                            : juce::Colour(kStepInactive).withAlpha(0.20f).getARGB();
                     }
                 }
             }

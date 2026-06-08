@@ -70,6 +70,10 @@ namespace lockstep::theme
     inline constexpr uint32_t kScopeMorph    = 0xFFBE3898u;
     inline constexpr uint32_t kScopeMorphDim = 0xFF3C1230u;
     inline constexpr uint32_t kScopeMorphAcc = 0xFFE060C0u;
+    // Pole A (violet ~270°) and pole B (rose ~345°) flank the core morph hue.
+    // Used in the Morph+Mute view to signal which side the fader favours.
+    inline constexpr uint32_t kScopeMorphA    = 0xFF6040D0u;   // violet-blue
+    inline constexpr uint32_t kScopeMorphB    = 0xFFD04060u;   // rose-red
 
     // -------------------------------------------------------------------------
     // Performance modifiers — high-alert character (Mute removes, Fill adds)
