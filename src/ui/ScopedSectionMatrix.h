@@ -82,7 +82,7 @@ namespace lockstep
             { nullptr,false },   // FLTR — master FLTR (MV, not yet implemented)
             { nullptr,false },   // AMP — master gain + sends (MV, not yet implemented)
             { nullptr,false },   // dim — no content planned
-            { nullptr,false },   // FX — master FX 1+2 (MV, not yet implemented)
+            { "GLBL", true  },   // GLOBAL meta: output gain / sync / clock (relocated, DESIGN §6.2)
         }};
 
         if (section < 0 || section >= IMachine::kMaxSections)

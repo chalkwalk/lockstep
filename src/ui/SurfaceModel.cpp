@@ -394,10 +394,10 @@ namespace lockstep
         };
         // Func-row secondary labels (the Func-held section row). Empty = no
         // secondary on that key → it dims under Func (DESIGN §6.1 rule 3).
-        // TRACK (length/divider) relocated to Track+TRIG; only COND/NOTE/GLOBAL
-        // remain Func secondaries (GLOBAL relocates to Song+FX in 5.10 stage 4).
+        // TRACK (length/divider) relocated to Track+TRIG; GLOBAL (gain/sync/clock)
+        // relocated to Song+FX. Only COND/NOTE remain Func secondaries (§6.2).
         static constexpr std::array<const char*, IMachine::kMaxSections> kMetaLabels = {
-            "COND", "NOTE", "", "", "", "GLOBAL"
+            "COND", "NOTE", "", "", "", ""
         };
         auto isReservedMeta = [](int s) -> bool
         {

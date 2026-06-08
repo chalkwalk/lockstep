@@ -1199,6 +1199,13 @@ namespace lockstep
                         keyboardArea_.selectMetaSection(2);
                         return true;
                     }
+                    if (sectionScope == PS::Song && ev.index == 5)
+                    {
+                        // Song+FX: output gain / sync / clock (the GLOBAL meta) —
+                        // relocated here from Func+FX (DESIGN §6.2). Content index 5.
+                        keyboardArea_.selectMetaSection(5);
+                        return true;
+                    }
                     // All other non-dim scope cells fall through to the machine's own
                     // section (e.g. Track+FLTR → section 2 = post-machine FLTR block).
                 }
