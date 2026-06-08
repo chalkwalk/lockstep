@@ -946,13 +946,26 @@ namespace lockstep
                 : juce::Colour::fromRGB(255, 180, 50);
             g.setColour(editCol.withAlpha(0.18f));
             g.fillAll();
+
+            // Banner sits in the top-left deliberately-empty half-cell (the gap
+            // to the left of where the upper row begins), so it never collides
+            // with name labels of the cells above.
+            const auto bounds  = getLocalBounds().reduced(4);
+            const int  baseW   = bounds.getWidth() / (kMZSlots / 2);
+            const int  narrowW = baseW * 7 / 8;
+            const int  rowH    = static_cast<int>(bounds.getHeight() * kRowHeightFrac);
+            const int  upperX  = bounds.getX() + (bounds.getWidth() - (kMZSlots / 2) * narrowW);
+            const juce::Rectangle<int> banner(bounds.getX(), bounds.getY(),
+                                              upperX - bounds.getX(), rowH);
+
             g.setColour(editCol);
-            g.setFont(juce::Font(juce::FontOptions(10.0f)));
-            const juce::String label = fillEdit ? "FILL P-LOCK" : "P-LOCK";
-            g.drawText(label + "  track " + juce::String(ctx.heldTrackIndex() + 1)
-                           + "  step " + juce::String(ctx.heldStepIndex() + 1),
-                       getLocalBounds().removeFromTop(14).reduced(4, 0),
-                       juce::Justification::centredLeft);
+            g.setFont(juce::Font(juce::FontOptions(9.0f)));
+            const auto topHalf = banner.withHeight(banner.getHeight() / 2).reduced(2, 0);
+            const auto btmHalf = banner.withTop(banner.getCentreY()).reduced(2, 0);
+            g.drawText(fillEdit ? "FILL" : "LOCK", topHalf, juce::Justification::centred);
+            g.drawText("T" + juce::String(ctx.heldTrackIndex() + 1)
+                       + " S" + juce::String(ctx.heldStepIndex() + 1),
+                       btmHalf, juce::Justification::centred);
         }
     }
 
