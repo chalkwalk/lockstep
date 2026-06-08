@@ -1158,6 +1158,7 @@ namespace lockstep
             case CB::MorphScope:
                 physHeld_.morph = true;
                 uiState_.morphHeld = true;
+                manipulationZone_.setMorphHeld(true);
                 editMode_.onScopeEvent(ev);
                 handleModifierTap(CB::MorphScope, uiState_.latch.morph);
                 repaint();
@@ -1768,6 +1769,7 @@ namespace lockstep
                 {
                     uiState_.morphNavQualifier = 1;
                     manipulationZone_.setMorphQualifier(1);
+                    manipulationZone_.setMorphHeld(uiState_.morphHeld);
                     repaint();
                     return true;
                 }
@@ -1810,6 +1812,7 @@ namespace lockstep
                 {
                     uiState_.morphNavQualifier = 2;
                     manipulationZone_.setMorphQualifier(2);
+                    manipulationZone_.setMorphHeld(uiState_.morphHeld);
                     repaint();
                     return true;
                 }
@@ -2611,6 +2614,7 @@ namespace lockstep
                     editMode_.onScopeEvent({ T::ButtonUp, CB::MorphScope });
                     repaint();
                 }
+                manipulationZone_.setMorphHeld(uiState_.morphHeld);
                 break;
 
             case CB::SongScope:
@@ -2813,6 +2817,7 @@ namespace lockstep
             case CB::NavDown:
                 uiState_.morphNavQualifier = 0;
                 manipulationZone_.setMorphQualifier(0);
+                manipulationZone_.setMorphHeld(uiState_.morphHeld);
                 break;
 
             case CB::VerbRecord:

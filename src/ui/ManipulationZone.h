@@ -38,6 +38,10 @@ namespace lockstep
         // Set when the Morph+^/v qualifier is active so knobs show the raw endpoint.
         void setMorphQualifier(int q) { morphQualifier_ = q; }
 
+        // True while the Morph modifier is held (or latched).
+        // When set, mouse-drag writes the morph overlay at fader split (matches encoder).
+        void setMorphHeld(bool b) { morphHeld_ = b; }
+
         // 0 = song-all (root), 1 = song-track delta, 2 = scene-all delta.
         // Set while TRACK meta is active: held Song → 1, held Scene → 2, none → 0.
         void setSwingQualifier(int q) { swingQualifier_ = q; }
@@ -74,8 +78,9 @@ namespace lockstep
         KeyboardArea& area_;
         int slotOffset_      = 0;
         int metaSection_     = -1;  // -1 = normal machine params; 0/1/2/5 = COND/TRIG/TRACK/GLOBAL
-        int morphQualifier_  = 0;   // 0=blend, 1=A-pole preview, 2=B-pole preview
-        int swingQualifier_  = 0;   // 0=song-all, 1=song-track, 2=scene-all
+        int  morphQualifier_ = 0;    // 0=blend, 1=A-pole preview, 2=B-pole preview
+        bool morphHeld_      = false; // true while Morph modifier held/latched
+        int  swingQualifier_ = 0;    // 0=song-all, 1=song-track, 2=scene-all
 
         // Index of the slot column currently in "listening for CC" state, or -1.
         int learningSlotIndex_ = -1;

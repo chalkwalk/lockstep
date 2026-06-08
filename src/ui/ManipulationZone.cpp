@@ -73,6 +73,13 @@ namespace lockstep
                             processor_.writeMorphPole(track, slot, v, 1);
                             break;
                         }
+                        // Bare Morph held: write overlay at fader split (matches encoder §17.6).
+                        if (morphHeld_)
+                        {
+                            const float cur = processor_.morphEffectiveValue(track, slot);
+                            processor_.writeMorph(track, slot, v - cur, processor_.morphFader());
+                            break;
+                        }
                         // Auto-morph-aware: if morph data exists, write into the
                         // overlay rather than kit base (mirrors encoder delta logic).
                         const auto mInfo = processor_.morphWidgetInfo(track, slot);
