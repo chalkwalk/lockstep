@@ -2075,6 +2075,21 @@ namespace lockstep
             removeMorph(track, s);
     }
 
+    void LockstepProcessor::removeAllMorphInSong(int track)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        // Morph lives per-scene, keyed by (track, slot). Wipe every entry for this
+        // track index across all scenes in the current song. erase_if on a map
+        // safely skips entries belonging to other tracks.
+        for (auto& sc : song().scenes)
+        {
+            const auto isThisTrack = [track](const auto& kv)
+            { return kv.first.first == track; };
+            std::erase_if(sc.morphA, isThisTrack);
+            std::erase_if(sc.morphB, isThisTrack);
+        }
+    }
+
     MorphWidgetInfo LockstepProcessor::morphWidgetInfo(int track, int slot) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return {};
@@ -2163,28 +2178,23 @@ namespace lockstep
     void LockstepProcessor::deleteTrack(int track)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
-        const auto ti = static_cast<std::size_t>(track);
-        // Replace machine with stub (absent) and reset base params.
+        // Replace machine with stub (absent) and reset base params to its defaults.
         setTrackMachine(track, StubMachine::kMachineId);
-        // Clear all step data.
-        auto& seqTrack = sequence().tracks[ti];
-        for (auto& s : seqTrack.steps)
-        {
-            s.trig           = false;
-            s.condition      = TrigCondition{};
-            s.overrides      = PLock{};
-            s.trigOverride   = TrigOverride{};
-            s.fillTrigState  = FillTrigState::Inherit;
-            s.fillOverrides  = PLock{};
-            s.fillTrigOverride = TrigOverride{};
-        }
-        seqTrack.trigDefaults = TrigDefaults{};
+        // Erase the track's morph layers across every scene in the song. Morph is
+        // sound-shaping bound to the kit we just reset; a stale layer (including
+        // one in an off-screen scene) would silently colour any track later made
+        // in this slot. Patterns are deliberately left intact — the lossy pattern
+        // overwrite is the user's obvious choice when they install a new machine.
+        removeAllMorphInSong(track);
     }
 
     void LockstepProcessor::deletePart()
     {
         for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+        {
             setTrackMachine(t, StubMachine::kMachineId);
+            removeAllMorphInSong(t);
+        }
     }
 
     bool LockstepProcessor::getPatternMute(int track) const
@@ -3106,6 +3116,11 @@ namespace lockstep
     bool LockstepProcessor::sceneSlotOccupied(int s) const
     {
         return arrangement_.sceneSlotOccupied(s);
+    }
+
+    bool LockstepProcessor::songSlotOccupied(int s) const
+    {
+        return arrangement_.songSlotOccupied(s);
     }
 
     int LockstepProcessor::firstFreePhraseSlot() const

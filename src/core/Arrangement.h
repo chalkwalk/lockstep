@@ -228,6 +228,13 @@ namespace lockstep
             return song().scenes[idx(s)].initialised;
         }
 
+        // True if a song slot is the active (used) song.
+        [[nodiscard]] bool songSlotOccupied(int s) const
+        {
+            if (s < 0 || s >= kNumSongs) return false;
+            return s == songIdx;
+        }
+
         // Lowest phrase-slot index that is not the diagonal row of any initialised
         // scene AND holds no track content. Returns -1 if all slots are occupied.
         [[nodiscard]] int firstFreePhraseSlot() const

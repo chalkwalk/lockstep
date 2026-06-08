@@ -1083,7 +1083,7 @@ namespace lockstep
             }
             // ── End morph step view ──────────────────────────────────────────────
 
-            else if (ui.trackHeld || ui.phraseScopeHeld || ui.sceneHeld)
+            else if (ui.trackHeld || ui.phraseScopeHeld || ui.sceneHeld || ui.songHeld)
             {
                 // Scope re-skin (Slice 4): cells encode track/pattern/part selector state.
                 // fill colour + pressed → builder; border/text/badge → inline screen residuals.
@@ -1107,6 +1107,12 @@ namespace lockstep
                     activeIdx = proc.isTrackDeviated(at)
                         ? proc.deviationPhraseIdxForTrack(at)
                         : proc.activeSectionIdx();
+                }
+                else if (ui.songHeld)
+                {
+                    // Phase 7: show song slots within the Set.
+                    maxAvail  = kNumSongs;
+                    activeIdx = proc.activePieceIdx();
                 }
                 else // sceneHeld
                 {
@@ -1137,6 +1143,8 @@ namespace lockstep
                     else if (ui.sceneHeld)
                         slotEmpty[static_cast<std::size_t>(i)] =
                             (i != activeIdx) && !proc.sceneSlotOccupied(i);
+                    else if (ui.songHeld)
+                        slotEmpty[static_cast<std::size_t>(i)] = !proc.songSlotOccupied(i);
                     else
                         slotEmpty[static_cast<std::size_t>(i)] = false;  // phrases: all rows exist
                 }

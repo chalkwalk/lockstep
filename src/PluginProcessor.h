@@ -130,6 +130,7 @@ namespace lockstep
         bool phraseRowMatchesActiveContent(int slot) const;
         int  countDeviatedTracks() const;
         bool sceneSlotOccupied(int s) const;
+        bool songSlotOccupied(int s)  const;
         int  firstFreePhraseSlot() const;
         // Read-only deviation state for UI (surface model, badge rendering).
         bool isTrackDeviated(int t) const;
@@ -229,8 +230,11 @@ namespace lockstep
         void requestPanic() { panicPending_.store(true, std::memory_order_release); }
 
         // Delete gestures (scope + No verb): return object to absent/empty state.
-        void deleteTrack(int track);   // → StubMachine + cleared steps
-        void deletePart();             // → all tracks in active part → StubMachine
+        // Resets the kit to StubMachine and wipes the track's morph layers across
+        // every scene in the song. Patterns are preserved — overwriting them is the
+        // user's obvious choice at the next machine install (a "lossy step").
+        void deleteTrack(int track);   // → StubMachine + song-wide morph wipe
+        void deletePart();             // → every track → StubMachine + morph wipe
 
 
         // MD.7: Pattern mutes — per-track, live in the active Pattern.
@@ -312,9 +316,15 @@ namespace lockstep
         // Bake: write the fader-blended value to kit base, then erase morph data.
         // Default delete gesture. Use removeMorph() for revert-without-bake.
         void bakeMorph(int track, int slot);
-        // Bulk variants: operate on all morph data for the given track.
+        // Bulk variants: operate on all morph data for the given track in the
+        // active scene only.
         void bakeAllMorph(int track);
         void removeAllMorph(int track);
+        // Song-wide variant: erase the track's morph layers in EVERY scene of the
+        // current song. Used by the delete gestures — morph is sound-shaping bound
+        // to the kit, which deleteTrack resets song-wide, so a stale layer in an
+        // off-screen scene would silently colour a freshly-created track.
+        void removeAllMorphInSong(int track);
 
         // Returns the fader-blended effective value for a slot, or the kit base
         // if the slot has no morph data. Stepped slots snap instead of lerping.
