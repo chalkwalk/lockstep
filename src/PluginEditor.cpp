@@ -2354,17 +2354,12 @@ namespace lockstep
                             processor_.removeMorphPole(trackIdx, slot, 0);
                             processor_.removeMorphPole(trackIdx, slot, 1);
                         }
-                        setStatus("Morph mute cleared (T" + juce::String(trackIdx + 1)
-                                  + " slot=" + juce::String(slot) + ")");
+                        setStatus("Morph mute cleared");
                     }
                     else
                     {
-                        const int slot = processor_.fluidMuteLevelSlot(trackIdx);
                         processor_.fluidMuteTrack(trackIdx, processor_.morphFader());
-                        const bool has = processor_.hasFluidMute(trackIdx);
-                        setStatus("Mute T" + juce::String(trackIdx + 1)
-                                  + " slot=" + juce::String(slot)
-                                  + (has ? " OK" : " FAIL"));
+                        setStatus("Morph mute set");
                     }
                     repaint();
                     return true;

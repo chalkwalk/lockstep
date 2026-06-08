@@ -914,9 +914,7 @@ namespace lockstep
                             : (1.0f - crossfaderValue);    // B-pole: full at crossfader=0 (B)
                         const float alpha = 0.25f + brightness * 0.60f;
                         c.base       = CellState::MorphPoleActive;
-                        c.baseColour = c.pressed
-                            ? juce::Colours::white.withAlpha(0.80f).getARGB()
-                            : poleCol.withAlpha(alpha).getARGB();
+                        c.baseColour = poleCol.withAlpha(alpha).getARGB();
                     }
                     else
                     {
