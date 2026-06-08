@@ -2389,24 +2389,42 @@ morph crossfader idiom, §17.3). Swing is surfaced **by held scope** —
 no separate meta band is needed. While a scope key is held the
 manipulation zone band shows that scope's swing level:
 
-| Held scope | Band shows | Write stores |
+| Held scope | Band shows (cumulative) | Write stores |
 |---|---|---|
 | **Song** (S key) | `Song::swing` | `Song::swing` (absolute — the root) |
-| **Scene** (W key) | `Scene::swing` | `Scene::swing` delta, label `SwScn (D)` |
-| **Track** (T key) | `SongTrack[t]::swing` | `SongTrack[t]::swing` delta, label `SwTrk (D)` |
+| **Scene** (W key) | `Song::swing + Scene::swing` | `Scene::swing` delta |
+| **Track** (T key) | `Song::swing + Scene::swing + SongTrack[t]::swing` (= effective) | `SongTrack[t]::swing` delta |
 | *(nothing)* | *(normal machine params)* | — |
 
-Slot 0 = editable swing; slot 1 = `Effct` (clamped sum, read-only).
+A single rotary (slot 0) is shown; label is always `"Swing"`. The
+value displayed is the **cumulative groove at the held scope** — what
+you hear for that layer — rather than a raw stored delta. The rotary
+edits that scope's contribution; the write path back-solves the stored
+delta from the cumulative value you set.
+
+**Reference ticks.** The rotary shows scope-coloured radial ticks
+marking the inherited floor from higher layers:
+
+- **Song scope:** no ticks (it is the root).
+- **Scene scope:** one **gold (Song colour)** tick at the song floor
+  (`Song::swing`). You set on top of this floor.
+- **Track scope:** two ticks — a **faint gold** tick at the song floor
+  (drawn first, underneath), then a **green (Scene colour)** tick at
+  the scene floor (`Song::swing + Scene::swing`). When `Scene::swing`
+  is zero the scene tick sits on the song tick and covers it, so only
+  one tick shows. You can read whether the track is pushing above or
+  pulling below the scene floor at a glance.
+
+The tick model (`ReferenceMark{present, position, colour, alpha}` in
+`SurfaceModel.h`) is **reusable for any layered/delta parameter** where
+a value is composed additively across scope levels — morph is the
+obvious next consumer.
+
 The swing band is a **transient default**: it disappears the moment any
 non-swing-scope interaction occurs (section press, verb, nav, step, other modifier).
 Releasing and re-holding the scope key restores it. DIV / PHRASELEN / GLOBAL bands
 (opened via Track+TRIG, Phrase+TRIG, Song+FX) are sticky — they persist until
 another section is selected or the track changes.
-
-**Isolated seeding**: Song-track seeds from song-all only (scene is
-ignored); Scene-all seeds from song-all only (track is ignored). They
-combine only in the always-visible `Effct` readout:
-`clamp(songAll + songTrk[focused] + sceneAll, ±0.5)`.
 
 **Combined cap.** At emit time the total sub-step shift on a step is:
 
@@ -2417,11 +2435,6 @@ totalShift = clamp(effectiveSwing(t) × {1 if odd step, 0 if even}
 
 This preserves §19.1's "every step fires within its own cell"
 guarantee and bounds the look-ahead scan to ≤ half a step.
-
-**Effective-swing readout.** The band always shows the full
-`effectiveSwing(t)` in the `Effct` slot so the additive composition
-is never opaque. The Swing slot shows the level being edited (with a
-`(D)` suffix for stored deltas rather than the root).
 
 The Song-all level anchors the project groove (the conductor). The
 Song-track level lets individual musicians deviate within the song

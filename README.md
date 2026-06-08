@@ -571,24 +571,27 @@ Only two metas sit on `Func`: **COND** (probability, m:n, prev-dep) on
 `Func+SRC`. Output **gain, sync mode, and clock** live under `Song+FX`
 (labelled `GLBL`). Trig defaults remain on bare `TRIG`.
 
-**Swing by held scope.** Holding a scope key shows that scope's swing level
-directly in the manipulation band — no separate meta needed:
+**Swing by held scope.** Holding a scope key shows a single `Swing` rotary
+whose value is the **cumulative groove at that scope level** — what you hear:
 
-| Held scope | Band shows | Label |
+| Held scope | Rotary value | Tick(s) |
 |---|---|---|
-| **Song** (S) | Song-all groove — the conductor's base (absolute) | `Swing` |
-| **Scene** (W) | Scene-all delta — this section's push/pull | `SwScn` + `(D)` |
-| **Track** (T) | Song-track delta — this track's deviation within the song | `SwTrk` + `(D)` |
+| **Song** (S) | Song-all (absolute root) | none |
+| **Scene** (W) | Song-all + Scene-all | gold tick at the song floor |
+| **Track** (T) | Song-all + Scene-all + Track (= effective) | faint gold (song) + green (scene) |
 
-Slot 0 = editable swing; slot 1 = `Effct` (full clamped sum
-`songAll + songTrk[t] + sceneAll` for the focused track — read-only).
+The ticks are scope-coloured radial marks showing the inherited floor from
+higher layers. At track scope you can see at a glance whether the track is
+pushing above or pulling below the scene floor: turn the rotary toward the
+green tick to match it, or overshoot for extra push/pull.
+
 The swing band is a **transient default**: pressing any section, verb, nav
 key, or step while a scope is held collapses back to the normal machine-param
 view so you can reach the sections you need. Release and re-hold the scope
 key to re-open the swing display. (DIV / PHRASELEN / GLOBAL bands are sticky —
 they stay open until you select a different section or change track.)
 The swing band is also accessible on hardware controllers (Push1, X-Touch):
-encoder 0 edits the swing level; encoder 1 shows the read-only effective value.
+the single encoder edits the cumulative swing level.
 Swing lives in musical state, not APVTS — it is not host-automatable.
 
 <a name="59-copy-paste-clear"></a>

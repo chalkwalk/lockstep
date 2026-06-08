@@ -12,8 +12,7 @@ expressible within those principles and within the existing scope+verb grammar
 
 **Active focus:** Phase 7 closeout — phrase-length authoring (DESIGN §34.4) +
 the pending `7.5`/`7.8`/`3.10` verification items.
-**Last completed:** `7.16` — MetaBand unification: controller exposure, picker fix,
-dead band fix (DIV/PHRASELEN), transient swing dismissal.
+**Last completed:** `7.17` — Swing anchored rotary + reusable reference-mark element.
 **Next up:** `6.7` — the Machine Module ABI (gates the rest of the Phase 4
 catalogue).
 
@@ -667,6 +666,34 @@ Follow-up plan (placeable payloads + Scene clipboard + omni copy) shipped:
 - [x] **Unqualified paste** `Func+I`: stamps the single captured layer via type tag;
       rejects with "Paste: pick a scope" when type is `All` (omni grab).
 - [x] **Panic → Song + Clear (O)**. `Func+I` freed for unqualified paste.
+
+### 7.17 — Swing anchored rotary + reusable reference-mark element  *[shipped]*
+
+Replaces the two-slot (editable + read-only `Effct`) swing band with a single
+`"Swing"` rotary showing the **cumulative groove at the held scope** and
+scope-coloured reference ticks marking the inherited floor:
+
+- [x] **`ReferenceMark`** struct added to `SurfaceModel.h`; `marks[2]` carried
+      on both `SurfaceSlot` and `MetaFieldView` — data-model is ready for
+      controllers (no controller render yet).
+- [x] **Semantic fix:** `swingSongTrackShown` and `setSwingSongTrack` now include
+      `section().swing` — track-scope cumulative was previously off by the scene
+      delta. Storage of the raw `SongTrack::swing` delta is unchanged; no
+      serializer bump.
+- [x] **Single rotary:** `buildSwingBand` builds one active slot whose value is
+      the cumulative swing at the held scope. Drops the `Effct` slot and the
+      `SwScn (D)` / `SwTrk (D)` labelling; label is `"Swing"` throughout.
+      Tick model: 0 ticks at song scope; 1 gold tick (song floor) at scene
+      scope; faint gold + green ticks (song + scene floors) at track scope.
+- [x] **`MetaRotaryLookAndFeel`** (new `src/ui/MetaRotary.{h,cpp}`) overrides
+      `drawRotarySlider` to honour `RingMode` on screen (fixes bipolar params
+      rendering as unipolar fill) and draw reference ticks.
+- [x] **`ManipulationZone`** uses `MetaRotary` instead of `juce::Slider`; machine-param
+      branch now sets `ringMode` from the param spec.
+- [x] **Docs:** DESIGN §19.2, README §5.8.
+
+The `ReferenceMark` element is reusable for any layered/delta parameter —
+morph is the obvious next consumer (DESIGN §19.2).
 
 ### 7.16 — MetaBand unification: controller exposure + transient dismissal  *[shipped]*
 
