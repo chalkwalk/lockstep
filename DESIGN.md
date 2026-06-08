@@ -2364,7 +2364,7 @@ P-lockable per step via the usual EditContext gestures (held step +
 encoder turn on the appropriate slot — the TRIG meta section gains
 a `MicroTime` column when extended).
 
-### 19.2 Swing (global + per-track, additive)
+### 19.2 Swing (Song / Scene / per-track, additive)
 
 Swing is a **signed** off-beat displacement, expressed as a fraction
 of the step length. `0` (the default) is perfectly straight. `+0.5`
@@ -2373,31 +2373,44 @@ maximum-shuffle). `−0.25` pulls odd steps a quarter-step early
 (slightly rushed, ahead-of-the-beat feel). The range mirrors
 `microOffset`: ±50% of the step length.
 
-Two levels contribute:
+Three levels contribute, stored as **musical state** (not APVTS):
 
-| Level | APVTS parameter | Range | Default |
-|---|---|---|---|
-| Global | `swing` | `[-0.5, +0.5]` | `0` |
-| Per-track | `track_t_swing` | `[-0.5, +0.5]` | `0` |
+| Level | Storage | Semantics |
+|---|---|---|
+| Song-all | `Song::swing` | The piece's base groove — the conductor's downbeat |
+| Song-track | `Song::SongTrack::swing` | Per-musician delta within the song |
+| Scene-all | `Scene::swing` | Section-wide delta (e.g. chorus pushes vs. intro straight) |
+
+A fourth level (Scene-per-track) is a **reserved, unbuilt addend**.
+Phrase-level swing is deliberately not planned; it would be inaudible
+at typical phrase lengths.
 
 They are **composed additively** at resolve time and clamped:
 
 ```
-effectiveSwing(t) = clamp(globalSwing + trackSwing[t], −0.5, +0.5)
+effectiveSwing(t) = clamp(Song::swing
+                        + Song::SongTrack[t]::swing
+                        + Scene::swing,  −0.5, +0.5)
 ```
 
-Both levels live in APVTS (instance-global, like `track_t_length`
-and `track_t_divider`), so they persist across scene and song
-changes. This matches the same "feel is a global/track property,
-not a phrase property" reasoning that puts per-track `divider` in
-APVTS rather than in `TrackKit`.
+Swing is part of the saved musical hierarchy, not APVTS. It is **not**
+host-automatable or MIDI-learnable; it is a feel property of the
+composition, not the instance.
 
-**Summation seam.** The implementation is a single summation:
-`effectiveSwing = Σ (levels present)` clamped at the end.
-Reserved slot for Scene-level swing (the sanctioned next level
-to add): `effectiveSwing(t) = clamp(globalSwing + sceneSwing +
-trackSwing[t], ±0.5)`. Song- and Phrase-level are further deferred;
-if added, they each contribute one addend to the same sum.
+**Editing model — "edit the effective, store the delta"** (mirrors the
+morph crossfader idiom, §17.3). One retargeted Swing control in the
+TRACK meta section:
+
+| Held scope while TRACK meta is shown | Control seeds at | Write stores |
+|---|---|---|
+| *(nothing)* | `Song::swing` | `Song::swing` (absolute — it is the root) |
+| **Song** (S key) | `Song::swing + SongTrack[t]::swing` | `SongTrack[t]::swing = shown − Song::swing`, label shows `SwTrk` + `(D)` |
+| **Scene** (W key) | `Song::swing + Scene::swing` | `Scene::swing = shown − Song::swing`, label shows `SwScn` + `(D)` |
+
+**Isolated seeding**: Song-track seeds from song-all only (scene is
+ignored); Scene-all seeds from song-all only (track is ignored). They
+combine only in the always-visible `Effct` readout:
+`clamp(songAll + songTrk[focused] + sceneAll, ±0.5)`.
 
 **Combined cap.** At emit time the total sub-step shift on a step is:
 
@@ -2409,15 +2422,17 @@ totalShift = clamp(effectiveSwing(t) × {1 if odd step, 0 if even}
 This preserves §19.1's "every step fires within its own cell"
 guarantee and bounds the look-ahead scan to ≤ half a step.
 
-**Effective-swing readout.** The TRACK meta section shows the
-current `effectiveSwing(t)` value so the additive composition is
-never opaque. The readout updates live as either level changes.
+**Effective-swing readout.** The TRACK meta section always shows
+the current full `effectiveSwing(t)` in the `Effct` slot so the
+additive composition is never opaque. The Swing slot shows the
+level-specific value being edited (with a `(D)` suffix when editing
+a stored delta rather than the root).
 
-Swing is per-track (and per-track different from the global addend)
-because polymetric tracks have independent step lengths; the global
-value anchors the project groove and the per-track value allows
-independent depth for layered parts (e.g. hi-hat at deeper swing
-than bass).
+The Song-all level anchors the project groove (the conductor). The
+Song-track level lets individual musicians deviate within the song
+(snare consistently a little late, hi-hat a little early). The
+Scene-all level adjusts the whole section's push/pull relative to the
+song base (the bridge rushes slightly, the outro lays back).
 
 ### 19.3 The Quantize verb
 

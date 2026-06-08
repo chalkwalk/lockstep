@@ -575,6 +575,19 @@ mode, and clock** live under `Song+FX` (labelled `GLBL`, the master-bus
 key). Trig defaults (default note / velocity / gate) remain on bare
 `TRIG`.
 
+The `Track+TRIG` (TRACK meta) band shows **Length / Divider / Swing /
+Effct**. The `Swing` encoder is retargeted by held scope:
+
+| Held scope (while TRACK meta open) | Swing encoder targets | Label |
+|---|---|---|
+| *(none)* | **Song-all** groove — the conductor's base (absolute edit) | `Swing` |
+| `Song` (S) | **Song-track delta** — this track's deviation within the song | `SwTrk` + `(D)` |
+| `Scene` (W) | **Scene-all delta** — this section's offset relative to the song | `SwScn` + `(D)` |
+
+`Effct` always shows the full clamped sum (`songAll + songTrk[t] + sceneAll`)
+for the focused track in the active scene. Swing lives in musical state,
+not APVTS — it is not host-automatable.
+
 <a name="59-copy-paste-clear"></a>
 ### 5.9 Copy / paste / clear
 
@@ -893,11 +906,12 @@ shipped behaviour and the design intent. To avoid confusion:
 - The **surface-model foundation** for external controllers (6.6.5a):
   one pure `buildSurfaceModel()` the screen renders from.
 - **Microtiming, Swing & Quantize** (`5.1`): per-step `microOffset` (±50% of step
-  length, P-lockable via TRIG meta section); signed additive swing (global + per-track,
-  ±50%, composed as `effectiveSwing = clamp(global + track, ±50%)`); sample-accurate
-  look-ahead scheduler; live-record residual capture; `Quantize` verb (`scope + No`
-  zeros microOffset); amber/cyan step-grid nudge ticks; TRACK band effective-swing
-  readout; global swing encoder.
+  length, P-lockable via TRIG meta section); hierarchical additive swing (song-all +
+  song-track + scene-all, ±50%, `effectiveSwing = clamp(sum, ±50%)`); morph-style
+  qualifier editing (hold Song or Scene while TRACK meta is open to retarget the
+  Swing encoder); sample-accurate look-ahead scheduler; live-record residual capture;
+  `Quantize` verb (`scope + No` zeros microOffset); amber/cyan step-grid nudge ticks;
+  TRACK band effective-swing readout.
 
 **Planned** — the rest of the
 machine catalogue (`4.5` Static, `4.6` Percussion, `4.7` Digital); **Phase 5**

@@ -737,12 +737,16 @@ Completes the record-time capture story (gate / velocity / microtiming).
       deferral, combined ±0.5 cap (DESIGN §19.2). Also fixes the pre-existing
       single-emit-per-block limitation.
 - [x] Realtime record writes `microOffset` (residual to nearest swung position).
-- [x] Signed additive swing (DESIGN §19.2): global `swing` + per-track
-      `track_t_swing` ∈ [-0.5, +0.5], `effectiveSwing = clamp(sum, ±0.5)`.
-      Both APVTS. Summation seam reserves Scene/Song/Phrase slots.
+- [x] Signed additive swing (DESIGN §19.2): initial implementation: global
+      `swing` + per-track `track_t_swing` ∈ [-0.5, +0.5], both APVTS.
+- [x] Hierarchical swing v2 (serializer v10): swing moved from APVTS into
+      Song/SongTrack/Scene musical state (Song-all + Song-track + Scene-all,
+      three additive levels, morph-style qualifier editing). v9→v10 upgrade
+      migrates legacy APVTS values. Swing is no longer host-automatable.
 - [x] `Quantize` verb (`<scope> + No`) zeroing microOffsets in scope.
 - [x] Authoring UI: MicroTime widget (TRIG band, P-lockable); Swing widget
-      (TRACK band + global encoder); per-track effective-swing readout.
+      in TRACK band — qualifier-driven (hold Song = song-track Δ, hold Scene =
+      scene-all Δ, no scope = song-all root); per-track effective-swing readout.
 - [x] Step-grid nudge-direction tick indicator (amber=late, cyan=early).
 
 ### 5.2 — Morph + crossfader  *[shipped]*  *(was MI)*
