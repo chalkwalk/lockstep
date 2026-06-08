@@ -42,9 +42,11 @@ namespace lockstep
         // When set, mouse-drag writes the morph overlay at fader split (matches encoder).
         void setMorphHeld(bool b) { morphHeld_ = b; }
 
-        // 0 = song-all (root), 1 = song-track delta, 2 = scene-all delta.
-        // Set while TRACK meta is active: held Song → 1, held Scene → 2, none → 0.
-        void setSwingQualifier(int q) { swingQualifier_ = q; }
+        // 0 = none, 1 = song-all (root), 2 = scene-all delta, 3 = song-track delta.
+        // Set when a scope key (Song/Scene/Track) is held; shows that scope's swing
+        // in the band without requiring any meta section to be open.
+        void setSwingScope(int scope);
+
 
         // Called when the user clicks "Manage pool..." from the sample picker menu.
         std::function<void()> onOpenPoolManager;
@@ -60,11 +62,15 @@ namespace lockstep
         void refreshSliders();
         void refreshCondSliders();
         void refreshTrigSliders();
-        void refreshTrackSliders();
+        void refreshDivSliders();
+        void refreshPhraseLenSliders();
+        void refreshSwingSliders();
         void refreshGlobalSliders();
         void writeCondField(int field, float value);
         void writeTrigField(int field, float value);
-        void writeTrackField(int field, float value);
+        void writeDivField(int field, float value);
+        void writePhraseLenField(int field, float value);
+        void writeSwingField(int field, float value);
         void writeGlobalField(int field, float value);
         void showMappingMenu(int slotIndex);
         void showSamplePicker(int absoluteSlot);
@@ -77,10 +83,10 @@ namespace lockstep
         LockstepProcessor& processor_;
         KeyboardArea& area_;
         int slotOffset_      = 0;
-        int metaSection_     = -1;  // -1 = normal machine params; 0/1/2/5 = COND/TRIG/TRACK/GLOBAL
+        int metaSection_     = -1;  // -1 = normal; 0=COND, 1=TRIG, 3=DIV, 4=PHRASELEN, 5=GLOBAL
         int  morphQualifier_ = 0;    // 0=blend, 1=A-pole preview, 2=B-pole preview
         bool morphHeld_      = false; // true while Morph modifier held/latched
-        int  swingQualifier_ = 0;    // 0=song-all, 1=song-track, 2=scene-all
+        int  swingScope_     = 0;    // 0=none, 1=song-all, 2=scene-all delta, 3=song-track delta
 
         // Index of the slot column currently in "listening for CC" state, or -1.
         int learningSlotIndex_ = -1;

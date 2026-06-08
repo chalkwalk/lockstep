@@ -869,19 +869,16 @@ namespace lockstep
 
     void LockstepEditor::updateSwingQualifier()
     {
-        // Swing qualifier is only meaningful while TRACK meta (metaSection 2) is active.
-        // 0=song-all (root), 1=song-track delta (Song held), 2=scene-all delta (Scene held).
-        if (activeMetaSection_ != 2)
-        {
-            manipulationZone_.setSwingQualifier(0);
-            return;
-        }
+        // Surface the held scope's swing level directly, no meta prerequisite.
+        // swingScope: 0=none, 1=song-all (root), 2=scene-all delta, 3=song-track delta.
         if (uiState_.songHeld)
-            manipulationZone_.setSwingQualifier(1);
+            manipulationZone_.setSwingScope(1);
         else if (uiState_.sceneHeld)
-            manipulationZone_.setSwingQualifier(2);
+            manipulationZone_.setSwingScope(2);
+        else if (uiState_.trackHeld)
+            manipulationZone_.setSwingScope(3);
         else
-            manipulationZone_.setSwingQualifier(0);
+            manipulationZone_.setSwingScope(0);
     }
 
     void LockstepEditor::updateFillActivation()
@@ -1126,6 +1123,7 @@ namespace lockstep
                 processor_.setControlAllActive(true);  // MD.10: active until a track is selected
                 editMode_.onScopeEvent(ev);
                 handleModifierTap(CB::TrackScope, uiState_.latch.track);
+                updateSwingQualifier();
                 repaint();
                 return true;
 
@@ -1217,15 +1215,14 @@ namespace lockstep
                     // Scope-specific dispatch for cells whose content is implemented.
                     if (sectionScope == PS::Phrase && ev.index == 0)
                     {
-                        // Pattern+LEN: track length/divider lives in the TRACK meta section.
-                        keyboardArea_.selectMetaSection(2);
+                        // Phrase+LEN: phrase length (PHRASELEN meta, index 4).
+                        keyboardArea_.selectMetaSection(4);
                         return true;
                     }
                     if (sectionScope == PS::Track && ev.index == 0)
                     {
-                        // Track+TRIG: track length/divider (the TRACK meta) — relocated
-                        // here from Func+FILTER (DESIGN §6.2). Content index 2.
-                        keyboardArea_.selectMetaSection(2);
+                        // Track+DIV: kit divider (DIV meta, index 3).
+                        keyboardArea_.selectMetaSection(3);
                         return true;
                     }
                     if (sectionScope == PS::Song && ev.index == 5)
@@ -2594,6 +2591,7 @@ namespace lockstep
                     uiState_.trackHeld = false;
                     processor_.setControlAllActive(false);  // MD.10
                     editMode_.onScopeEvent({ T::ButtonUp, CB::TrackScope });
+                    updateSwingQualifier();
                     repaint();
                 }
                 break;

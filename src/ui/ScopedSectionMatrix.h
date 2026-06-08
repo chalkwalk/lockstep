@@ -41,7 +41,7 @@ namespace lockstep
         // The section bar dims false cells and highlights true cells as available.
 
         static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kTrack = {{
-            { "LEN",    true  },   // TRACK meta: length / divider (relocated here, DESIGN §6.2)
+            { "DIV",    true  },   // Track+TRIG: kit divider (DESIGN §6.2)
             { "SRC",    true  },   // input_source / Thru assignment (MR)
             { "FILTER", true  },   // post-machine FLTR (ME.6)
             { "AMP",    true  },   // post-machine AMP + sends (ME.7)
@@ -50,7 +50,7 @@ namespace lockstep
         }};
 
         static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kPhrase = {{
-            { "LEN",  true  },   // length / scale lock → routes to TRACK meta (Length/Divider)
+            { "LEN",  true  },   // Phrase+TRIG: phrase length (per active phrase)
             { nullptr,false },   // dim — no content planned
             { nullptr,false },   // dim — no content planned
             { nullptr,false },   // GAIN — pattern output gain not yet implemented

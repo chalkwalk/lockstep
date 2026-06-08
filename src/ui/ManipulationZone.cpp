@@ -46,12 +46,16 @@ namespace lockstep
                 if (updatingFromTimer_) return;
                 const float v = static_cast<float>(
                     sliders_[static_cast<std::size_t>(i)].getValue());
+                // Scope-held swing surface takes priority over normal machine params
+                // but is overridden by any explicit meta section.
+                if (metaSection_ < 0 && swingScope_ != 0) { writeSwingField(i, v); return; }
                 switch (metaSection_)
                 {
-                    case 0:  writeCondField(i, v);   break;
-                    case 1:  writeTrigField(i, v);   break;
-                    case 2:  writeTrackField(i, v);  break;
-                    case 5:  writeGlobalField(i, v); break;
+                    case 0:  writeCondField(i, v);     break;
+                    case 1:  writeTrigField(i, v);     break;
+                    case 3:  writeDivField(i, v);      break;
+                    case 4:  writePhraseLenField(i, v); break;
+                    case 5:  writeGlobalField(i, v);   break;
                     default:
                     {
                         // Route to fill P-Lock layer when fill is held + step is held.
@@ -269,12 +273,15 @@ namespace lockstep
 
     void ManipulationZone::refreshSliders()
     {
+        // Scope-held swing surface: shown when a scope key is held and no meta is open.
+        if (metaSection_ < 0 && swingScope_ != 0) { refreshSwingSliders(); return; }
         switch (metaSection_)
         {
-            case 0: refreshCondSliders();   return;
-            case 1: refreshTrigSliders();   return;
-            case 2: refreshTrackSliders();  return;
-            case 5: refreshGlobalSliders(); return;
+            case 0: refreshCondSliders();      return;
+            case 1: refreshTrigSliders();      return;
+            case 3: refreshDivSliders();       return;
+            case 4: refreshPhraseLenSliders(); return;
+            case 5: refreshGlobalSliders();    return;
             default: break;
         }
 
@@ -682,118 +689,170 @@ namespace lockstep
     }
 
     // -------------------------------------------------------------------------
-    // TRACK meta section (masterSection == 2)
+    // DIV meta section (metaSection == 3) — Track scope, TRIG key.
+    // Shows the kit divider for the active track (Kit-owned, shared across phrases).
 
-    void ManipulationZone::refreshTrackSliders()
+    void ManipulationZone::refreshDivSliders()
     {
         const int track = area_.getActiveTrack();
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return;
 
-        const float length  = processor_.apvts()
-            .getRawParameterValue(ParamIDs::trackLength(track))->load();
         const float divider = processor_.apvts()
             .getRawParameterValue(ParamIDs::trackDivider(track))->load();
-        // Swing display (DESIGN §19.2): swingQualifier_ steers which level is shown.
-        // 0=song-all, 1=song-track, 2=scene-all; Effct always shows the full sum.
-        const float swingShown = [&]() -> float {
-            switch (swingQualifier_)
-            {
-                case 1:  return processor_.swingSongTrackShown(track);
-                case 2:  return processor_.swingSceneAllShown();
-                default: return processor_.swingSongAll();
-            }
-        }();
-        const float effSw = processor_.swingEffective(track);
-
-        struct TrackFieldDef { const char* label; float lo; float hi; bool stepped; bool active; };
-        static constexpr std::array<TrackFieldDef, kNumSlots> kDefs = {{
-            { "Length",  1.0f,  64.0f, true,  true  },
-            { "Divider", 1.0f,  16.0f, true,  true  },
-            { "Swing",  -0.5f,   0.5f, false, true  },
-            { "Effct",  -0.5f,   0.5f, false, true  },  // effective swing (read-only display)
-            { "",        0.0f,   1.0f, false, false },
-            { "",        0.0f,   1.0f, false, false },
-            { "",        0.0f,   1.0f, false, false },
-            { "",        0.0f,   1.0f, false, false },
-        }};
-        const std::array<float, kNumSlots> vals = { length, divider, swingShown, effSw,
-                                                    0.0f,   0.0f,    0.0f,       0.0f };
-
-        // Swing slot label changes with qualifier to signal which level is targeted.
-        const char* swingLabel = (swingQualifier_ == 1) ? "SwTrk"
-                               : (swingQualifier_ == 2) ? "SwScn"
-                                                        : "Swing";
 
         updatingFromTimer_ = true;
         for (int i = 0; i < kNumSlots; ++i)
         {
             const auto si = static_cast<std::size_t>(i);
-            sliders_[si].setRange(static_cast<double>(kDefs[si].lo),
-                                  static_cast<double>(kDefs[si].hi),
-                                  kDefs[si].stepped ? 1.0 : 0.0);
-            sliders_[si].setValue(static_cast<double>(vals[si]), juce::dontSendNotification);
-            sliders_[si].setEnabled(kDefs[si].active && i != 3);  // "Effct" is display-only
-            sliders_[si].setAlpha(kDefs[si].active ? 1.0f : 0.0f);
-
-            juce::String valueText;
-            if (kDefs[si].active)
-            {
-                if (i == 2 || i == 3)
-                {
-                    const int pct = static_cast<int>(std::round(vals[si] * 100.0f));
-                    valueText = (pct >= 0 ? "+" : "") + juce::String(pct) + "%";
-                    // Append (D) when showing a stored delta level (not the root).
-                    if (i == 2 && swingQualifier_ != 0)
-                        valueText += " (D)";
-                }
-                else
-                {
-                    valueText = juce::String(static_cast<int>(vals[si]));
-                }
-            }
-
-            valueLabels_[si].setText(valueText, juce::dontSendNotification);
-            labels_[si].setText(i == 2 ? swingLabel : kDefs[si].label,
-                                juce::dontSendNotification);
+            const bool active = (i == 0);
+            sliders_[si].setRange(active ? 1.0 : 0.0, active ? 16.0 : 1.0, active ? 1.0 : 0.0);
+            sliders_[si].setValue(active ? static_cast<double>(divider) : 0.0,
+                                  juce::dontSendNotification);
+            sliders_[si].setEnabled(active);
+            sliders_[si].setAlpha(active ? 1.0f : 0.0f);
+            labels_[si].setText(active ? "Divider" : juce::String{}, juce::dontSendNotification);
+            valueLabels_[si].setText(active ? juce::String(static_cast<int>(divider)) : juce::String{},
+                                     juce::dontSendNotification);
             clearBtns_[si].setEnabled(false);
             clearBtns_[si].setAlpha(0.0f);
         }
         updatingFromTimer_ = false;
     }
 
-    void ManipulationZone::writeTrackField(int field, float value)
+    void ManipulationZone::writeDivField(int field, float value)
+    {
+        if (field != 0) return;
+        const int track = area_.getActiveTrack();
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+
+        const auto& ctx = processor_.editContext();
+        if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == track)
+            processor_.editContext().markParamWritten();
+
+        auto* p = processor_.apvts().getParameter(ParamIDs::trackDivider(track));
+        if (p) p->setValueNotifyingHost(std::clamp((value - 1.0f) / 15.0f, 0.0f, 1.0f));
+    }
+
+    // -------------------------------------------------------------------------
+    // PHRASELEN meta section (metaSection == 4) — Phrase scope, TRIG key.
+    // Shows the active phrase's length (Phrase-owned, per active phrase).
+
+    void ManipulationZone::refreshPhraseLenSliders()
     {
         const int track = area_.getActiveTrack();
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return;
 
-        // Suppress trig toggle if a step is held while editing track params.
+        const float length = processor_.apvts()
+            .getRawParameterValue(ParamIDs::trackLength(track))->load();
+
+        updatingFromTimer_ = true;
+        for (int i = 0; i < kNumSlots; ++i)
+        {
+            const auto si = static_cast<std::size_t>(i);
+            const bool active = (i == 0);
+            sliders_[si].setRange(active ? 1.0 : 0.0, active ? 64.0 : 1.0, active ? 1.0 : 0.0);
+            sliders_[si].setValue(active ? static_cast<double>(length) : 0.0,
+                                  juce::dontSendNotification);
+            sliders_[si].setEnabled(active);
+            sliders_[si].setAlpha(active ? 1.0f : 0.0f);
+            labels_[si].setText(active ? "Length" : juce::String{}, juce::dontSendNotification);
+            valueLabels_[si].setText(active ? juce::String(static_cast<int>(length)) : juce::String{},
+                                     juce::dontSendNotification);
+            clearBtns_[si].setEnabled(false);
+            clearBtns_[si].setAlpha(0.0f);
+        }
+        updatingFromTimer_ = false;
+    }
+
+    void ManipulationZone::writePhraseLenField(int field, float value)
+    {
+        if (field != 0) return;
+        const int track = area_.getActiveTrack();
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+
         const auto& ctx = processor_.editContext();
         if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == track)
             processor_.editContext().markParamWritten();
 
-        const auto writeApvts = [this](const juce::String& id, float v, float lo, float hi)
-        {
-            auto* p = processor_.apvts().getParameter(id);
-            if (p) p->setValueNotifyingHost(std::clamp((v - lo) / (hi - lo), 0.0f, 1.0f));
+        auto* p = processor_.apvts().getParameter(ParamIDs::trackLength(track));
+        if (p) p->setValueNotifyingHost(std::clamp((value - 1.0f) / 63.0f, 0.0f, 1.0f));
+    }
+
+    // -------------------------------------------------------------------------
+    // Scope-held swing surface — shown when a scope key is held and no meta is open.
+    // swingScope_: 1=song-all, 2=scene-all delta, 3=song-track delta.
+
+    void ManipulationZone::setSwingScope(int scope)
+    {
+        if (swingScope_ == scope) return;
+        swingScope_ = scope;
+        refreshSliders();
+    }
+
+    void ManipulationZone::refreshSwingSliders()
+    {
+        const int track = area_.getActiveTrack();
+
+        // Determine which level is being edited and what values to show.
+        const float swingShown = [&]() -> float {
+            switch (swingScope_)
+            {
+                case 2:  return processor_.swingSceneAllShown();
+                case 3:  return (track >= 0) ? processor_.swingSongTrackShown(track) : 0.0f;
+                default: return processor_.swingSongAll();  // scope 1 = song-all
+            }
+        }();
+        const float effSw = (track >= 0) ? processor_.swingEffective(track) : 0.0f;
+
+        const char* swingLabel = (swingScope_ == 2) ? "SwScn"
+                               : (swingScope_ == 3) ? "SwTrk"
+                                                    : "Swing";
+        const bool isRoot = (swingScope_ == 1);
+
+        auto fmtSwing = [](float v, bool delta) -> juce::String {
+            const int pct = static_cast<int>(std::round(v * 100.0f));
+            juce::String s = (pct >= 0 ? "+" : "") + juce::String(pct) + "%";
+            if (delta) s += " (D)";
+            return s;
         };
 
-        switch (field)
+        updatingFromTimer_ = true;
+        for (int i = 0; i < kNumSlots; ++i)
         {
-            case 0: writeApvts(ParamIDs::trackLength(track),  value,  1.0f, 64.0f); break;
-            case 1: writeApvts(ParamIDs::trackDivider(track), value,  1.0f, 16.0f); break;
-            case 2:
-                // Route to the level selected by swingQualifier_.
-                switch (swingQualifier_)
-                {
-                    case 1:  processor_.setSwingSongTrack(track, value); break;
-                    case 2:  processor_.setSwingSceneAll(value);         break;
-                    default: processor_.setSwingSongAll(value);          break;
-                }
-                break;
-            // case 3 is effective-swing readout — display-only, no write.
-            default: break;
+            const auto si = static_cast<std::size_t>(i);
+            const bool isSwing = (i == 0);
+            const bool isEffct = (i == 1);
+            const bool active  = isSwing || isEffct;
+            sliders_[si].setRange(-0.5, 0.5, 0.0);
+            sliders_[si].setValue(isSwing ? static_cast<double>(swingShown)
+                                          : (isEffct ? static_cast<double>(effSw) : 0.0),
+                                  juce::dontSendNotification);
+            sliders_[si].setEnabled(isSwing);          // Effct is display-only
+            sliders_[si].setAlpha(active ? 1.0f : 0.0f);
+
+            juce::String label, value;
+            if (isSwing)  { label = swingLabel; value = fmtSwing(swingShown, !isRoot); }
+            if (isEffct)  { label = "Effct";    value = fmtSwing(effSw, false); }
+
+            labels_[si].setText(label, juce::dontSendNotification);
+            valueLabels_[si].setText(value, juce::dontSendNotification);
+            clearBtns_[si].setEnabled(false);
+            clearBtns_[si].setAlpha(0.0f);
+        }
+        updatingFromTimer_ = false;
+    }
+
+    void ManipulationZone::writeSwingField(int field, float value)
+    {
+        if (field != 0) return;  // only slot 0 (Swing) is writable; slot 1 is Effct readout
+        const int track = area_.getActiveTrack();
+        switch (swingScope_)
+        {
+            case 2:  processor_.setSwingSceneAll(value); break;
+            case 3:  if (track >= 0) processor_.setSwingSongTrack(track, value); break;
+            default: processor_.setSwingSongAll(value); break;  // scope 1 = song-all
         }
     }
 
