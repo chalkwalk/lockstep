@@ -26,7 +26,9 @@ namespace lockstep
         // v10: Swing moved from APVTS into Song/SongTrack/Scene musical state;
         //      Song::swing, Song::SongTrack::swing, Scene::swing added.
         //      v9 APVTS swing values migrated into Song[0] on first load.
-        inline constexpr int kCurrentVersion = 10;
+        // v11: Scene::globalPhrase removed; diagonal pinned (scene N plays row N).
+        //      Legacy "gp" values are materialised onto the diagonal at load time.
+        inline constexpr int kCurrentVersion = 11;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);

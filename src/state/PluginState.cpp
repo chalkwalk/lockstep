@@ -334,8 +334,6 @@ namespace lockstep::PluginState
                 sceneNode.setProperty("i", si, nullptr);
                 sceneNode.setProperty("ct_n", sec.coreTime.numerator,   nullptr);
                 sceneNode.setProperty("ct_d", sec.coreTime.denominator, nullptr);
-                if (sec.globalPhrase != 0)
-                    sceneNode.setProperty("gp", sec.globalPhrase, nullptr);
                 if (floatNe(sec.swing, 0.0f))
                     sceneNode.setProperty("swing", static_cast<double>(sec.swing), nullptr);
                 // activeMask (default all true; only write if any false).
@@ -393,6 +391,12 @@ namespace lockstep::PluginState
             auto& song = proc.songAt(pi);
             song.swing = getFloat(songNode, "swing", 0.0f);
 
+            // Collect legacy globalPhrase values (v10 and earlier stored a movable home
+            // row; absent "gp" defaults to si = no migration needed for new saves).
+            std::array<int, kScenesPerSong> legacyGp{};
+            for (int s = 0; s < kScenesPerSong; ++s)
+                legacyGp[static_cast<std::size_t>(s)] = s;
+
             for (auto child : songNode)
             {
                 if (child.getType() == juce::Identifier("SongTrack"))
@@ -423,7 +427,7 @@ namespace lockstep::PluginState
                     auto& sec = song.scenes[static_cast<std::size_t>(si)];
                     sec.coreTime.numerator   = static_cast<int>(child.getProperty("ct_n", 4));
                     sec.coreTime.denominator = static_cast<int>(child.getProperty("ct_d", 4));
-                    sec.globalPhrase         = static_cast<int>(child.getProperty("gp", 0));
+                    legacyGp[static_cast<std::size_t>(si)] = static_cast<int>(child.getProperty("gp", si));
                     sec.swing                = getFloat(child, "swing", 0.0f);
                     sec.initialised = true;
 
@@ -449,6 +453,21 @@ namespace lockstep::PluginState
                     };
                     readSceneMap("MorphA", sec.morphA);
                     readSceneMap("MorphB", sec.morphB);
+                }
+            }
+
+            // Materialise legacy re-homed scenes onto the diagonal.
+            // For any scene si where the saved gp != si, copy phrases[gp] → phrases[si]
+            // so the scene sounds identical on its new canonical row.
+            for (int si = 0; si < kScenesPerSong; ++si)
+            {
+                const int gp = legacyGp[static_cast<std::size_t>(si)];
+                if (gp == si || gp < 0 || gp >= kPhrasesPerTrack) continue;
+                for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+                {
+                    auto& trk = song.tracks[static_cast<std::size_t>(t)];
+                    if (trk.phrases[static_cast<std::size_t>(gp)].initialised)
+                        trk.phrases[static_cast<std::size_t>(si)] = trk.phrases[static_cast<std::size_t>(gp)];
                 }
             }
         }
