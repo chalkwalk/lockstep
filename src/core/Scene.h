@@ -32,6 +32,10 @@ namespace lockstep
         std::map<std::pair<int,int>, float> morphA{};
         std::map<std::pair<int,int>, float> morphB{};
 
+        // Scene-wide swing delta (DESIGN §19.2). Added to Song::swing (plus per-track
+        // Song::SongTrack::swing) to form the full effective swing for this section.
+        float swing = 0.0f;
+
         // True once explicitly initialised.
         bool initialised = false;
 
@@ -50,6 +54,7 @@ namespace lockstep
         if (s.globalPhrase != 0)                         return true;
         for (const bool m  : s.activeMask) if (!m)       return true;
         if (!(s.coreTime == TimeSig{}))                  return true;
+        if (s.swing != 0.0f)                             return true;
         return !s.morphA.empty() || !s.morphB.empty();
     }
 }

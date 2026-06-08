@@ -681,11 +681,17 @@ namespace lockstep
             .getRawParameterValue(ParamIDs::trackLength(track))->load();
         const float divider = processor_.apvts()
             .getRawParameterValue(ParamIDs::trackDivider(track))->load();
-        const float trackSw = processor_.apvts()
-            .getRawParameterValue(ParamIDs::trackSwing(track))->load();
-        const float globalSw = processor_.apvts()
-            .getRawParameterValue(ParamIDs::globalSwing)->load();
-        const float effSw = effectiveSwing(globalSw, trackSw);
+        // Swing display (DESIGN §19.2): swingQualifier_ steers which level is shown.
+        // 0=song-all, 1=song-track, 2=scene-all; Effct always shows the full sum.
+        const float swingShown = [&]() -> float {
+            switch (swingQualifier_)
+            {
+                case 1:  return processor_.swingSongTrackShown(track);
+                case 2:  return processor_.swingSceneAllShown();
+                default: return processor_.swingSongAll();
+            }
+        }();
+        const float effSw = processor_.swingEffective(track);
 
         struct TrackFieldDef { const char* label; float lo; float hi; bool stepped; bool active; };
         static constexpr std::array<TrackFieldDef, kNumSlots> kDefs = {{
@@ -698,8 +704,8 @@ namespace lockstep
             { "",        0.0f,   1.0f, false, false },
             { "",        0.0f,   1.0f, false, false },
         }};
-        const std::array<float, kNumSlots> vals = { length, divider, trackSw, effSw,
-                                                    0.0f,   0.0f,    0.0f,    0.0f };
+        const std::array<float, kNumSlots> vals = { length, divider, swingShown, effSw,
+                                                    0.0f,   0.0f,    0.0f,       0.0f };
 
         updatingFromTimer_ = true;
         for (int i = 0; i < kNumSlots; ++i)
@@ -755,7 +761,15 @@ namespace lockstep
         {
             case 0: writeApvts(ParamIDs::trackLength(track),  value,  1.0f, 64.0f); break;
             case 1: writeApvts(ParamIDs::trackDivider(track), value,  1.0f, 16.0f); break;
-            case 2: writeApvts(ParamIDs::trackSwing(track),   value, -0.5f,  0.5f); break;
+            case 2:
+                // Route to the level selected by swingQualifier_.
+                switch (swingQualifier_)
+                {
+                    case 1:  processor_.setSwingSongTrack(track, value); break;
+                    case 2:  processor_.setSwingSceneAll(value);         break;
+                    default: processor_.setSwingSongAll(value);          break;
+                }
+                break;
             // case 3 is effective-swing readout — display-only, no write.
             default: break;
         }
@@ -772,21 +786,19 @@ namespace lockstep
             .getRawParameterValue(ParamIDs::syncMode)->load();
         const float chan = processor_.apvts()
             .getRawParameterValue(ParamIDs::channelMode)->load();
-        const float gSwing = processor_.apvts()
-            .getRawParameterValue(ParamIDs::globalSwing)->load();
 
         struct GlobalFieldDef { const char* label; float lo; float hi; bool stepped; bool enabled; };
         static constexpr std::array<GlobalFieldDef, kNumSlots> kDefs = {{
             { "Gain",  -60.0f,  6.0f, false, true  },
             { "Sync",    0.0f,  1.0f, true,  true  },
             { "Chan",    0.0f,  1.0f, true,  true  },
-            { "Swing",  -0.5f,  0.5f, false, true  },
+            { "",        0.0f,  1.0f, false, false },  // Swing moved to Song/Scene state
             { "",        0.0f,  1.0f, false, false },
             { "",        0.0f,  1.0f, false, false },
             { "",        0.0f,  1.0f, false, false },
             { "",        0.0f,  1.0f, false, false },
         }};
-        const std::array<float, kNumSlots> vals = { gain, sync, chan, gSwing,
+        const std::array<float, kNumSlots> vals = { gain, sync, chan, 0.0f,
                                                     0.0f, 0.0f, 0.0f, 0.0f  };
 
         updatingFromTimer_ = true;
@@ -872,7 +884,7 @@ namespace lockstep
             case 0: writeApvts(ParamIDs::outputGain,  value, -60.0f,  6.0f); break;
             case 1: writeApvts(ParamIDs::syncMode,    value,   0.0f,  1.0f); break;
             case 2: writeApvts(ParamIDs::channelMode, value,   0.0f,  1.0f); break;
-            case 3: writeApvts(ParamIDs::globalSwing, value,  -0.5f,  0.5f); break;
+            // Slot 3 (Swing) removed from GLOBAL meta; song-all swing edited via TRACK meta.
             default: break;
         }
     }

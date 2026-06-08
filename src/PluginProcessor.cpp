@@ -110,7 +110,6 @@ namespace lockstep
 
         syncModeParam_    = apvts_.getRawParameterValue(ParamIDs::syncMode);
         channelModeParam_ = apvts_.getRawParameterValue(ParamIDs::channelMode);
-        globalSwingParam_ = apvts_.getRawParameterValue(ParamIDs::globalSwing);
 
         for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
         {
@@ -119,7 +118,6 @@ namespace lockstep
             trackDividerParams_[ti] = apvts_.getRawParameterValue(ParamIDs::trackDivider(t));
             trackMuteParams_[ti]    = apvts_.getRawParameterValue(ParamIDs::trackMute(t));
             trackSoloParams_[ti]    = apvts_.getRawParameterValue(ParamIDs::trackSolo(t));
-            trackSwingParams_[ti]   = apvts_.getRawParameterValue(ParamIDs::trackSwing(t));
         }
 
         // T0 starts as a sampler; T1–T15 are stub (empty) until materialised.
@@ -602,9 +600,10 @@ namespace lockstep
                         // note-on position against the swung step location so that a
                         // consistently swung performance records near-zero residuals.
                         const bool isOdd = (nearestNum % 2) == 1;
-                        const float trackSw  = trackSwingParams_[ti]->load();
-                        const float globalSw = globalSwingParam_->load();
-                        const float effSwg   = effectiveSwing(globalSw, trackSw);
+                        const float rSongAll  = song().swing;
+                        const float rSongTrk  = song().tracks[ti].swing;
+                        const float rSceneAll = section().swing;
+                        const float effSwg    = effectiveSwing(rSongAll, rSongTrk, rSceneAll);
                         const float swingDelta = isOdd ? effSwg : 0.0f;
                         const float residual = static_cast<float>(
                             noteOnPpq / divPpq
@@ -1227,9 +1226,12 @@ namespace lockstep
             const bool curFillActive = fillActiveForTrack(static_cast<int>(i));
 
             // Read effective swing for this track (DESIGN §19.2).
-            const float trackSw  = trackSwingParams_[i]->load();
-            const float globalSw = globalSwingParam_->load();
-            const float effSwing = effectiveSwing(globalSw, trackSw);
+            // Song-all + song-track delta + scene-all delta; RT-safe reads mirroring
+            // the existing morph/activeMask pattern (no locks needed).
+            const float songAll  = song().swing;
+            const float songTrk  = song().tracks[i].swing;
+            const float sceneAll = section().swing;
+            const float effSwing = effectiveSwing(songAll, songTrk, sceneAll);
             const double halfDiv = 0.5 * divPpq;
 
             // Emit a sequencer trig: note-on(s) + gate scheduling.
@@ -1817,6 +1819,66 @@ namespace lockstep
             default: break;
         }
     }
+
+    // ── Swing API (DESIGN §19.2) ────────────────────────────────────────────────
+    // "Edit the effective, store the delta" — mirrors the morph qualifier idiom.
+    // All methods are message-thread only; audio thread reads Song/Scene directly.
+
+    void LockstepProcessor::setSwingSongAll(float effective)
+    {
+        song().swing = std::clamp(effective, -0.5f, 0.5f);
+    }
+
+    void LockstepProcessor::setSwingSongTrack(int t, float effective)
+    {
+        if (t < 0 || t >= static_cast<int>(kNumTracks)) return;
+        const float clamped = std::clamp(effective, -0.5f, 0.5f);
+        song().tracks[static_cast<std::size_t>(t)].swing = clamped - song().swing;
+    }
+
+    void LockstepProcessor::setSwingSceneAll(float effective)
+    {
+        const float clamped = std::clamp(effective, -0.5f, 0.5f);
+        section().swing = clamped - song().swing;
+    }
+
+    float LockstepProcessor::swingSongAll() const
+    {
+        return song().swing;
+    }
+
+    float LockstepProcessor::swingSongTrackDelta(int t) const
+    {
+        if (t < 0 || t >= static_cast<int>(kNumTracks)) return 0.0f;
+        return song().tracks[static_cast<std::size_t>(t)].swing;
+    }
+
+    float LockstepProcessor::swingSceneAllDelta() const
+    {
+        return section().swing;
+    }
+
+    float LockstepProcessor::swingSongTrackShown(int t) const
+    {
+        if (t < 0 || t >= static_cast<int>(kNumTracks)) return swingSongAll();
+        return song().swing + song().tracks[static_cast<std::size_t>(t)].swing;
+    }
+
+    float LockstepProcessor::swingSceneAllShown() const
+    {
+        return song().swing + section().swing;
+    }
+
+    float LockstepProcessor::swingEffective(int t) const
+    {
+        if (t < 0 || t >= static_cast<int>(kNumTracks)) return 0.0f;
+        const float songAll  = song().swing;
+        const float songTrk  = song().tracks[static_cast<std::size_t>(t)].swing;
+        const float sceneAll = section().swing;
+        return effectiveSwing(songAll, songTrk, sceneAll);
+    }
+
+    // ── End Swing API ────────────────────────────────────────────────────────────
 
     void LockstepProcessor::writeMorph(int track, int slot, float deltaAbs, float fader)
     {

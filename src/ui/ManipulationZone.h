@@ -38,6 +38,10 @@ namespace lockstep
         // Set when the Morph+^/v qualifier is active so knobs show the raw endpoint.
         void setMorphQualifier(int q) { morphQualifier_ = q; }
 
+        // 0 = song-all (root), 1 = song-track delta, 2 = scene-all delta.
+        // Set while TRACK meta is active: held Song → 1, held Scene → 2, none → 0.
+        void setSwingQualifier(int q) { swingQualifier_ = q; }
+
         // Called when the user clicks "Manage pool..." from the sample picker menu.
         std::function<void()> onOpenPoolManager;
 
@@ -66,6 +70,7 @@ namespace lockstep
         int slotOffset_      = 0;
         int metaSection_     = -1;  // -1 = normal machine params; 0/1/2/5 = COND/TRIG/TRACK/GLOBAL
         int morphQualifier_  = 0;   // 0=blend, 1=A-pole preview, 2=B-pole preview
+        int swingQualifier_  = 0;   // 0=song-all, 1=song-track, 2=scene-all
 
         // Index of the slot column currently in "listening for CC" state, or -1.
         int learningSlotIndex_ = -1;

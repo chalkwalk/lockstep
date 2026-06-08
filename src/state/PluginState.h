@@ -23,7 +23,10 @@ namespace lockstep
         // v7: legacy Bank/Pattern/Part structs deleted; serializer emits new-hierarchy only
         // v8: Scene::phraseIdx[] removed; floor routing is globalPhrase only
         // v9: Step::microOffset added; per-track + global swing APVTS params
-        inline constexpr int kCurrentVersion = 9;
+        // v10: Swing moved from APVTS into Song/SongTrack/Scene musical state;
+        //      Song::swing, Song::SongTrack::swing, Scene::swing added.
+        //      v9 APVTS swing values migrated into Song[0] on first load.
+        inline constexpr int kCurrentVersion = 10;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);

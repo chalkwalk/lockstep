@@ -289,6 +289,8 @@ namespace lockstep::PluginState
 
             juce::ValueTree songNode("Song");
             songNode.setProperty("i", pi, nullptr);
+            if (floatNe(song.swing, 0.0f))
+                songNode.setProperty("swing", static_cast<double>(song.swing), nullptr);
 
             for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
             {
@@ -296,6 +298,8 @@ namespace lockstep::PluginState
                 bool laneHasContent = false;
                 juce::ValueTree songTrackNode("SongTrack");
                 songTrackNode.setProperty("t", t, nullptr);
+                if (floatNe(lane.swing, 0.0f))
+                    songTrackNode.setProperty("swing", static_cast<double>(lane.swing), nullptr);
 
                 // Write kit only if non-default.
                 if (lane.kit.machineId != StubMachine::kMachineId || !lane.kit.baseParams.empty())
@@ -332,6 +336,8 @@ namespace lockstep::PluginState
                 sceneNode.setProperty("ct_d", sec.coreTime.denominator, nullptr);
                 if (sec.globalPhrase != 0)
                     sceneNode.setProperty("gp", sec.globalPhrase, nullptr);
+                if (floatNe(sec.swing, 0.0f))
+                    sceneNode.setProperty("swing", static_cast<double>(sec.swing), nullptr);
                 // activeMask (default all true; only write if any false).
                 bool anyMasked = false;
                 for (const bool m : sec.activeMask) if (!m) { anyMasked = true; break; }
@@ -385,6 +391,7 @@ namespace lockstep::PluginState
             const int pi = static_cast<int>(songNode.getProperty("i", -1));
             if (pi < 0 || pi >= kNumSongs) continue;
             auto& song = proc.songAt(pi);
+            song.swing = getFloat(songNode, "swing", 0.0f);
 
             for (auto child : songNode)
             {
@@ -393,6 +400,7 @@ namespace lockstep::PluginState
                     const int t = static_cast<int>(child.getProperty("t", -1));
                     if (t < 0 || t >= static_cast<int>(kNumTracks)) continue;
                     auto& lane = song.tracks[static_cast<std::size_t>(t)];
+                    lane.swing = getFloat(child, "swing", 0.0f);
 
                     const auto kitNode = child.getChildWithName("Kit");
                     if (kitNode.isValid())
@@ -416,6 +424,7 @@ namespace lockstep::PluginState
                     sec.coreTime.numerator   = static_cast<int>(child.getProperty("ct_n", 4));
                     sec.coreTime.denominator = static_cast<int>(child.getProperty("ct_d", 4));
                     sec.globalPhrase         = static_cast<int>(child.getProperty("gp", 0));
+                    sec.swing                = getFloat(child, "swing", 0.0f);
                     sec.initialised = true;
 
                     if (child.hasProperty("mutesMask"))
@@ -828,6 +837,122 @@ namespace lockstep::PluginState
         return cur;
     }
 
+    // v9 → v10
+    // Swing moved from APVTS into Song/SongTrack/Scene musical state.
+    // Migration: read legacy APVTS "swing" (song-all) and "track_<t>_swing"
+    // (song-track delta) and inject them into Song[0]'s NewHierarchy nodes.
+    // Track swing stored in APVTS was a per-track override — migrate as-is since
+    // the old model was: effective = globalSwing + trackSwing (same 2-addend sum).
+    juce::ValueTree upgrade_v9_to_v10(const juce::ValueTree& v9)
+    {
+        juce::ValueTree v10 = v9.createCopy();
+        v10.setProperty("version", 10, nullptr);
+
+        // Extract legacy APVTS swing values.
+        float legacyGlobal = 0.0f;
+        std::array<float, kNumTracks> legacyTrack{};
+        legacyTrack.fill(0.0f);
+
+        const auto apvtsNode = v10.getChildWithName("Lockstep");
+        if (apvtsNode.isValid())
+        {
+            for (auto paramNode : apvtsNode)
+            {
+                if (paramNode.getType() != juce::Identifier("PARAM")) continue;
+                const auto id  = paramNode.getProperty("id").toString();
+                const float val = static_cast<float>(
+                    static_cast<double>(paramNode.getProperty("value", 0.0)));
+                if (id == juce::String("swing"))
+                {
+                    legacyGlobal = std::clamp(val, -0.5f, 0.5f);
+                }
+                else
+                {
+                    for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+                    {
+                        const juce::String tid = "track_" + juce::String(t) + "_swing";
+                        if (id == tid)
+                        {
+                            legacyTrack[static_cast<std::size_t>(t)] = std::clamp(val, -0.5f, 0.5f);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Skip migration if both levels are zero (default state — no-op).
+        const bool hasLegacySwing = floatNe(legacyGlobal, 0.0f);
+        bool hasLegacyTrackSwing = false;
+        for (float v : legacyTrack) if (floatNe(v, 0.0f)) { hasLegacyTrackSwing = true; break; }
+
+        if (hasLegacySwing || hasLegacyTrackSwing)
+        {
+            auto nhNode = v10.getChildWithName("NewHierarchy");
+            if (!nhNode.isValid())
+            {
+                // No NewHierarchy yet (bare v9 state) — inject a Song[0] node.
+                nhNode = juce::ValueTree("NewHierarchy");
+                nhNode.setProperty("activePiece", 0, nullptr);
+                nhNode.setProperty("activeSect",  0, nullptr);
+                v10.appendChild(nhNode, nullptr);
+            }
+
+            // Find or create Song[0].
+            juce::ValueTree song0;
+            for (auto child : nhNode)
+            {
+                if (child.getType() == juce::Identifier("Song")
+                    && static_cast<int>(child.getProperty("i", -1)) == 0)
+                {
+                    song0 = child;
+                    break;
+                }
+            }
+            if (!song0.isValid())
+            {
+                song0 = juce::ValueTree("Song");
+                song0.setProperty("i", 0, nullptr);
+                nhNode.appendChild(song0, nullptr);
+            }
+
+            if (hasLegacySwing)
+                song0.setProperty("swing", static_cast<double>(legacyGlobal), nullptr);
+
+            if (hasLegacyTrackSwing)
+            {
+                for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+                {
+                    const float tv = legacyTrack[static_cast<std::size_t>(t)];
+                    if (!floatNe(tv, 0.0f)) continue;
+                    // Find or create SongTrack[t].
+                    juce::ValueTree trackNode;
+                    for (auto child : song0)
+                    {
+                        if (child.getType() == juce::Identifier("SongTrack")
+                            && static_cast<int>(child.getProperty("t", -1)) == t)
+                        {
+                            trackNode = child;
+                            break;
+                        }
+                    }
+                    if (!trackNode.isValid())
+                    {
+                        trackNode = juce::ValueTree("SongTrack");
+                        trackNode.setProperty("t", t, nullptr);
+                        song0.appendChild(trackNode, nullptr);
+                    }
+                    trackNode.setProperty("swing", static_cast<double>(tv), nullptr);
+                }
+            }
+
+            DBG("PluginState: v9→v10: migrated swing (global="
+                + juce::String(legacyGlobal) + ") into Song[0]");
+        }
+
+        return v10;
+    }
+
     juce::ValueTree applyUpgrades(juce::ValueTree tree)
     {
         // Determine the version. v0 has root type "Lockstep" and no version attribute.
@@ -845,8 +970,9 @@ namespace lockstep::PluginState
         // Pre-v1 trees (bare "Lockstep" APVTS root) are first normalised into a
         // LockstepState wrapper; everything below the current version then
         // collapses to the current format via the clean break.
-        if (version < 1) tree = upgrade_v0_to_v1(tree);
-        if (version < kCurrentVersion) tree = cleanBreakToCurrent(tree);
+        if (version < 1)  tree = upgrade_v0_to_v1(tree);
+        if (version < 10) tree = cleanBreakToCurrent(tree);
+        if (version < 10) tree = upgrade_v9_to_v10(tree);
 
         return tree;
     }
@@ -1014,6 +1140,56 @@ namespace
                              "current version unchanged");
                 expect(result.getChildWithName("NewHierarchy").isValid(),
                        "NewHierarchy node preserved at current version");
+            }
+
+            beginTest("v9 -> v10: APVTS swing migrated into Song[0] NewHierarchy");
+            {
+                // Build a v9 state with non-zero global swing and per-track swing.
+                juce::ValueTree v9("LockstepState");
+                v9.setProperty("version", 9, nullptr);
+
+                juce::ValueTree apvts("Lockstep");
+                {
+                    juce::ValueTree p1("PARAM");
+                    p1.setProperty("id",    "swing", nullptr);
+                    p1.setProperty("value", 0.25,    nullptr);
+                    apvts.appendChild(p1, nullptr);
+
+                    juce::ValueTree p2("PARAM");
+                    p2.setProperty("id",    "track_0_swing", nullptr);
+                    p2.setProperty("value", -0.1,            nullptr);
+                    apvts.appendChild(p2, nullptr);
+                }
+                v9.appendChild(apvts, nullptr);
+
+                const auto result = lockstep::PluginState::applyUpgrades(v9);
+
+                expectEquals(static_cast<int>(result.getProperty("version", -1)), 10,
+                             "v9->v10: version bumped to 10");
+
+                const auto nh = result.getChildWithName("NewHierarchy");
+                expect(nh.isValid(), "v9->v10: NewHierarchy present after migration");
+
+                juce::ValueTree song0;
+                for (auto c : nh)
+                    if (c.getType() == juce::Identifier("Song")
+                        && static_cast<int>(c.getProperty("i", -1)) == 0)
+                        { song0 = c; break; }
+                expect(song0.isValid(), "v9->v10: Song[0] node created");
+
+                expectWithinAbsoluteError(
+                    static_cast<float>(static_cast<double>(song0.getProperty("swing", 0.0))),
+                    0.25f, 0.001f, "v9->v10: song-all swing migrated");
+
+                juce::ValueTree trk0;
+                for (auto c : song0)
+                    if (c.getType() == juce::Identifier("SongTrack")
+                        && static_cast<int>(c.getProperty("t", -1)) == 0)
+                        { trk0 = c; break; }
+                expect(trk0.isValid(), "v9->v10: SongTrack[0] created for non-zero track swing");
+                expectWithinAbsoluteError(
+                    static_cast<float>(static_cast<double>(trk0.getProperty("swing", 0.0))),
+                    -0.1f, 0.001f, "v9->v10: track-0 swing migrated");
             }
 
             beginTest("future version: valid tree returned without crash");

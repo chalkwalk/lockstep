@@ -19,8 +19,7 @@ namespace lockstep::ParamIDs
     inline std::string trackMute(int t)    { return "track_" + std::to_string(t) + "_mute"; }
     inline std::string trackSolo(int t)   { return "track_" + std::to_string(t) + "_solo"; }
 
-    // Swing parameters (DESIGN §19.2). Both APVTS (instance-global).
-    // Signed: 0 = straight, +0.5 = half-step late, -0.5 = half-step early.
-    inline constexpr auto globalSwing = "swing";
-    inline std::string trackSwing(int t) { return "track_" + std::to_string(t) + "_swing"; }
+    // Swing (DESIGN §19.2) is now stored in Song/Scene musical state, not APVTS.
+    // See Song::swing, Song::SongTrack::swing, Scene::swing.
+    // Removed: globalSwing ("swing"), trackSwing("track_<t>_swing") — v9 and earlier.
 }

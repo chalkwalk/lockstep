@@ -288,6 +288,27 @@ namespace lockstep
         // Returns morph endpoint data for a ManipulationZone widget slot.
         MorphWidgetInfo morphWidgetInfo(int track, int slot) const;
 
+        // Swing edit API (DESIGN §19.2). "Edit the effective, store the delta" model,
+        // mirroring the morph qualifier idiom. All methods are message-thread only.
+        //
+        // Setters accept the *effective* value the user dialled; storage is transformed:
+        //   setSwingSongAll:    stores value directly into Song::swing (it is the root).
+        //   setSwingSongTrack:  stores (value − songAll) into SongTrack::swing.
+        //   setSwingSceneAll:   stores (value − songAll) into Scene::swing.
+        //
+        // Getters expose the three stored levels and the two "shown" seeds for the UI
+        // (what to seed the control at when a scope qualifier activates).
+        void setSwingSongAll  (float effective);
+        void setSwingSongTrack(int t, float effective);
+        void setSwingSceneAll (float effective);
+
+        float swingSongAll()          const;         // stored song-all
+        float swingSongTrackDelta(int t) const;      // stored song-track delta
+        float swingSceneAllDelta()    const;         // stored scene-all delta
+        float swingSongTrackShown(int t) const;      // songAll + songTrk[t] (seed for Song qualifier)
+        float swingSceneAllShown()    const;         // songAll + sceneAll   (seed for Scene qualifier)
+        float swingEffective(int t)   const;         // full clamped sum for focused track in active scene
+
         // Bake: write the fader-blended value to kit base, then erase morph data.
         // Default delete gesture. Use removeMorph() for revert-without-bake.
         void bakeMorph(int track, int slot);
@@ -652,9 +673,6 @@ namespace lockstep
         std::array<std::atomic<float>*, kNumTracks> trackDividerParams_{};
         std::array<std::atomic<float>*, kNumTracks> trackMuteParams_{};
         std::array<std::atomic<float>*, kNumTracks> trackSoloParams_{};
-        std::array<std::atomic<float>*, kNumTracks> trackSwingParams_{};
-        std::atomic<float>* globalSwingParam_ = nullptr;
-
         // 5.2: Morph crossfader fader state (audio-thread only; not serialized).
         // morphFaderTarget_ is written by any thread via setMorphFader().
         // The audio thread reads it each block and drives morphFaderSmoothed_.

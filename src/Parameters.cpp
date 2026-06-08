@@ -27,12 +27,7 @@ namespace lockstep
             juce::StringArray{ "Omni", "Per-Track" },
             0));
 
-        // Global swing: signed off-beat displacement (DESIGN §19.2).
-        layout.add(std::make_unique<juce::AudioParameterFloat>(
-            juce::ParameterID{ ParamIDs::globalSwing, 1 },
-            "Swing",
-            juce::NormalisableRange<float>(-0.5f, 0.5f, 0.001f),
-            0.0f));
+        // Swing (DESIGN §19.2) lives in Song/Scene musical state, not APVTS.
 
         for (int t = 0; t < kNumTracks; ++t)
         {
@@ -56,12 +51,6 @@ namespace lockstep
                 juce::ParameterID{ ParamIDs::trackSolo(t), 1 },
                 "Track " + juce::String(t + 1) + " Solo",
                 false));
-
-            layout.add(std::make_unique<juce::AudioParameterFloat>(
-                juce::ParameterID{ ParamIDs::trackSwing(t), 1 },
-                "Track " + juce::String(t + 1) + " Swing",
-                juce::NormalisableRange<float>(-0.5f, 0.5f, 0.001f),
-                0.0f));
         }
 
         return layout;

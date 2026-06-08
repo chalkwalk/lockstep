@@ -4,11 +4,12 @@
 namespace lockstep
 {
     // Signed off-beat displacement, ±50% of step length (DESIGN §19.2).
-    // Global + per-track levels are composed additively and clamped.
-    // Reserved summation seam: add Scene/Song/Phrase as extra addends here.
-    [[nodiscard]] inline float effectiveSwing(float globalSwing, float trackSwing)
+    // Three additive levels: song-all (the piece's groove), song-track delta
+    // (per-musician feel), and scene-all delta (section-wide push/pull).
+    // Scene-per-track is a reserved but unbuilt addend; add it here when ready.
+    [[nodiscard]] inline float effectiveSwing(float songAll, float songTrk, float sceneAll)
     {
-        return std::clamp(globalSwing + trackSwing, -0.5f, 0.5f);
+        return std::clamp(songAll + songTrk + sceneAll, -0.5f, 0.5f);
     }
 
     // Combined cap: total sub-step shift on any one step (DESIGN §19.2).
