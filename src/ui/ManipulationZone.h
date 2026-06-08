@@ -65,6 +65,11 @@ namespace lockstep
         void showMappingMenu(int slotIndex);
         void showSamplePicker(int absoluteSlot);
 
+        // Staggered-grid geometry helpers — single source of truth used by
+        // resized(), paintOverChildren() (CC badges, learn overlay, morph chips).
+        [[nodiscard]] juce::Rectangle<int> slotCellBounds(int i) const;
+        [[nodiscard]] juce::Rectangle<int> slotKnobBounds(int i) const;
+
         LockstepProcessor& processor_;
         KeyboardArea& area_;
         int slotOffset_      = 0;

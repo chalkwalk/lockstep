@@ -10,6 +10,12 @@
 
 namespace lockstep
 {
+    // Fraction of the inner band height used for each row.  Two rows at this
+    // fraction overlap vertically; the stagger keeps their knobs clear.
+    static constexpr float kRowHeightFrac = 0.62f;
+    static constexpr int   kCellNameH     = 16;   // name label strip height
+    static constexpr int   kCellValueH    = 15;   // value label strip height
+
     ManipulationZone::ManipulationZone(LockstepProcessor& processor, KeyboardArea& area)
         : processor_(processor), area_(area)
     {
@@ -17,14 +23,14 @@ namespace lockstep
         {
             const auto si = static_cast<std::size_t>(i);
 
-            // MHZ.2.3: slim header — param name above the rotary.
-            labels_[si].setJustificationType(juce::Justification::centredLeft);
-            labels_[si].setFont(juce::Font(juce::FontOptions(11.0f)));
+            labels_[si].setJustificationType(juce::Justification::centred);
+            labels_[si].setFont(juce::Font(juce::FontOptions(14.0f)));
+            labels_[si].setInterceptsMouseClicks(false, false);
             addAndMakeVisible(labels_[si]);
 
-            // MHZ.2.3: single value line below the rotary (textual or numeric).
             valueLabels_[si].setJustificationType(juce::Justification::centred);
-            valueLabels_[si].setFont(juce::Font(juce::FontOptions(10.0f)));
+            valueLabels_[si].setFont(juce::Font(juce::FontOptions(13.0f)));
+            valueLabels_[si].setInterceptsMouseClicks(false, false);
             addAndMakeVisible(valueLabels_[si]);
 
             sliders_[si].setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
@@ -893,6 +899,30 @@ namespace lockstep
         }
     }
 
+    juce::Rectangle<int> ManipulationZone::slotCellBounds(int i) const
+    {
+        static constexpr int kCols = kMZSlots / 2;
+        const auto bounds  = getLocalBounds().reduced(4);
+        const int  baseW   = bounds.getWidth() / kCols;
+        const int  narrowW = baseW * 7 / 8;
+        const int  rowH    = static_cast<int>(bounds.getHeight() * kRowHeightFrac);
+        const int  upperX  = bounds.getX() + (bounds.getWidth() - kCols * narrowW);
+        const bool isUpper = (i % 2 != 0);
+        const int  ci      = i / 2;
+        const int  x       = isUpper ? upperX + ci * narrowW : bounds.getX() + ci * narrowW;
+        const int  y       = isUpper ? bounds.getY() : bounds.getBottom() - rowH;
+        return juce::Rectangle<int>(x, y, narrowW, rowH).reduced(2, 2);
+    }
+
+    juce::Rectangle<int> ManipulationZone::slotKnobBounds(int i) const
+    {
+        const auto cell     = slotCellBounds(i);
+        const int  knobSize = cell.getHeight() - kCellNameH - kCellValueH;
+        const int  knobX    = cell.getX() + (cell.getWidth() - knobSize) / 2;
+        const int  knobY    = cell.getY() + kCellNameH;
+        return juce::Rectangle<int>(knobX, knobY, knobSize, knobSize);
+    }
+
     void ManipulationZone::paint(juce::Graphics& g)
     {
         g.setColour(juce::Colour::fromRGB(28, 32, 38));
@@ -1062,40 +1092,24 @@ namespace lockstep
 
     void ManipulationZone::resized()
     {
-        // Interleaved 4×2 layout: bottom row = even slots (0,2,4,6),
-        // top row = odd slots (1,3,5,7).  Visual L→R order is slot 0..7,
-        // so encoder N maps trivially to slot N (no interleave table).
-        // Each cell is 7/8 of the base column width; odd (upper) cells are
-        // shifted right to stagger, matching the original visual language.
-        // Rows are packed tighter (45% of height each) for a denser band.
-        static constexpr int kCols = kMZSlots / 2;  // 4
-        auto bounds = getLocalBounds().reduced(4);
-        const int baseW   = bounds.getWidth() / kCols;
-        const int narrowW = baseW * 7 / 8;
-        const int rowH    = bounds.getHeight() * 9 / 20;  // 45% each → 10% gap
-        const int upperX  = bounds.getX() + (bounds.getWidth() - kCols * narrowW);
-        const int lowerY  = bounds.getBottom() - rowH;
-
+        // Geometry is fully delegated to slotCellBounds / slotKnobBounds so
+        // paint, paintOverChildren, and layout are always in lockstep.
         for (int i = 0; i < kMZSlots; ++i)
         {
-            const auto si      = static_cast<std::size_t>(i);
-            const bool isUpper = (i % 2 != 0);   // odd slots → upper row
-            const int  col     = i / 2;
+            const auto si   = static_cast<std::size_t>(i);
+            const auto cell = slotCellBounds(i);
+            const auto knob = slotKnobBounds(i);
 
-            const int x = isUpper
-                ? upperX + col * narrowW           // upper: right-justified
-                : bounds.getX() + col * narrowW;   // lower: left-justified
-            const int y = isUpper ? bounds.getY() : lowerY;
+            // Name centred at top, value centred at bottom, slider = knob square.
+            labels_[si].setBounds(cell.withHeight(kCellNameH));
+            valueLabels_[si].setBounds(cell.withTop(cell.getBottom() - kCellValueH));
+            sliders_[si].setBounds(knob);
+            // Clear button hugs the knob's top-right corner so it reads as part of
+            // its own cell even when neighbouring cell labels overlap in the gap band.
+            clearBtns_[si].setBounds(knob.getRight() - 14, knob.getY() - 1, 14, 14);
 
-            auto cell = juce::Rectangle<int>(x, y, narrowW, rowH).reduced(2, 2);
-
-            auto header = cell.removeFromTop(14);
-            clearBtns_[si].setBounds(header.removeFromRight(16));
-            labels_[si].setBounds(header);
-            valueLabels_[si].setBounds(cell.removeFromBottom(10));
-            sliders_[si].setBounds(cell);
             if (i == 0)
-                samplePickerBtn_.setBounds(cell.reduced(2, 2));
+                samplePickerBtn_.setBounds(knob.reduced(2, 2));
         }
     }
 }
