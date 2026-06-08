@@ -961,39 +961,29 @@ namespace lockstep
         if (metaSection_ >= 0)
             return;  // meta sections: no CC badges or learn overlays
 
-        const int track   = area_.getActiveTrack();
-        static constexpr int kCols = kMZSlots / 2;
-        const int baseW   = getWidth() / kCols;
-        const int narrowW = baseW * 7 / 8;
-        const int rowH    = getHeight() * 9 / 20;
-        const int upperX  = getWidth() - kCols * narrowW;
-        const int lowerY  = getHeight() - rowH;
-        const bool pulse  = (juce::Time::getMillisecondCounter() / 300) % 2 == 0;
+        const int track  = area_.getActiveTrack();
+        const bool pulse = (juce::Time::getMillisecondCounter() / 300) % 2 == 0;
 
         juce::ignoreUnused(track);
 
         for (int i = 0; i < kMZSlots; ++i)
         {
-            const int  slot    = slotOffset_ + i;
-            const bool isUpper = (i % 2 != 0);
-            const int  ci      = i / 2;
-            const int  x       = isUpper ? upperX + ci * narrowW : ci * narrowW;
-            const int  y       = isUpper ? 0 : lowerY;
-            const juce::Rectangle<int> col (x, y, narrowW, rowH);
+            const int  slot = slotOffset_ + i;
+            const auto knob = slotKnobBounds(i);
 
-            // Listening overlay: pulsing highlight on the slot being learned.
+            // Listening overlay: pulsing highlight on the knob being learned.
             if (i == learningSlotIndex_)
             {
                 g.setColour(juce::Colour::fromRGB(80, 180, 255).withAlpha(pulse ? 0.35f : 0.15f));
-                g.fillRect(col);
+                g.fillRect(knob);
                 g.setColour(juce::Colours::white);
                 g.setFont(juce::Font(juce::FontOptions(9.0f)));
-                const auto textArea = col.reduced(2).withTrimmedTop(col.getHeight() - 12);
-                g.drawText("wiggle CC...", textArea, juce::Justification::centred);
+                g.drawText("wiggle CC...", knob.reduced(2).withTrimmedTop(knob.getHeight() - 12),
+                           juce::Justification::centred);
                 continue; // skip badge while listening
             }
 
-            // CC mapping badge.
+            // CC mapping badge — anchored to knob top-right corner.
             const auto info = processor_.queryWidgetMapping(slot, i);
             if (!info.exists)
                 continue;
@@ -1024,8 +1014,7 @@ namespace lockstep
                     break;
             }
 
-            const juce::Rectangle<int> badgeArea = col.withWidth(22).withTrimmedLeft(col.getWidth() - 22)
-                                                       .withHeight(14).reduced(2, 2);
+            const juce::Rectangle<int> badgeArea(knob.getRight() - 20, knob.getY() + 2, 18, 12);
             g.setColour(badgeColour.withAlpha(0.85f));
             g.fillRoundedRectangle(badgeArea.toFloat(), 3.0f);
             g.setColour(juce::Colours::black);
@@ -1033,43 +1022,25 @@ namespace lockstep
             g.drawText(badge, badgeArea, juce::Justification::centred);
         }
 
-        // Morph A/B chips: drawn for any slot that has morph data on the active scene.
-        // Skip out-of-section cells (same guard as refreshSliders) to avoid badges
-        // bleeding onto empty slots or slots from a different section.
+        // Morph A/B chips — anchored to the knob's right edge (A top, B bottom).
         static const juce::Colour kMorphMagenta { 0xffb060d0 };
         const int nmp = processor_.numParams(track);
         const int activeSec = (slotOffset_ < nmp)
             ? processor_.paramSpec(track, slotOffset_).sectionIndex : -1;
         for (int i = 0; i < kMZSlots; ++i)
         {
-            const int  slot    = slotOffset_ + i;
+            const int slot = slotOffset_ + i;
             if (slot >= nmp) continue;
             if (processor_.paramSpec(track, slot).sectionIndex != activeSec) continue;
-            const auto mInfo   = processor_.morphWidgetInfo(track, slot);
+            const auto mInfo = processor_.morphWidgetInfo(track, slot);
             if (!mInfo.exists) continue;
 
-            const bool isUpper = (i % 2 != 0);
-            const int  ci      = i / 2;
-            static constexpr int kCols2 = kMZSlots / 2;
-            const int baseW2   = getWidth() / kCols2;
-            const int narrowW2 = baseW2 * 7 / 8;
-            const int rowH2    = getHeight() * 9 / 20;
-            const int upperX2  = getWidth() - kCols2 * narrowW2;
-            const int lowerY2  = getHeight() - rowH2;
-            const int  x       = isUpper ? upperX2 + ci * narrowW2 : ci * narrowW2;
-            const int  y       = isUpper ? 0 : lowerY2;
-            const juce::Rectangle<int> col2 (x, y, narrowW2, rowH2);
-
-            // A/B chips: 25% toward the cell centre from each corner.
-            // xShift = leftward from right edge; yShift = inward vertically.
+            const auto knob  = slotKnobBounds(i);
             const int chipW  = 10, chipH = 8;
-            const int xShift = col2.getWidth()  / 8;
-            const int yShift = col2.getHeight() / 8;
             if (mInfo.inA)
             {
-                const juce::Rectangle<int> aChip (col2.getRight() - chipW - 1 - xShift,
-                                                   col2.getY() + 2 + yShift,
-                                                   chipW, chipH);
+                const juce::Rectangle<int> aChip(knob.getRight() - chipW + 1,
+                                                  knob.getY() + 2, chipW, chipH);
                 g.setColour(kMorphMagenta.withAlpha(0.85f));
                 g.fillRoundedRectangle(aChip.toFloat(), 2.0f);
                 g.setColour(juce::Colours::white);
@@ -1078,9 +1049,8 @@ namespace lockstep
             }
             if (mInfo.inB)
             {
-                const juce::Rectangle<int> bChip (col2.getRight() - chipW - 1 - xShift,
-                                                   col2.getBottom() - chipH - 2 - yShift,
-                                                   chipW, chipH);
+                const juce::Rectangle<int> bChip(knob.getRight() - chipW + 1,
+                                                  knob.getBottom() - chipH - 2, chipW, chipH);
                 g.setColour(kMorphMagenta.darker(0.3f).withAlpha(0.85f));
                 g.fillRoundedRectangle(bChip.toFloat(), 2.0f);
                 g.setColour(juce::Colours::white);
