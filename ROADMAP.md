@@ -896,16 +896,19 @@ DESIGN §30. (Trigless could pull earlier — no machine dependency.)
 - [ ] One-shot trig (RAM armed/spent, auto-rearm); arm-all / disarm-all per track.
 - [ ] Step-state preview integration for lock-only / spent / armed states.
 
-### 5.7 — Alternate trig modes: Retrig/ratchet + Sound Pool  *[planned]*  *(was MG remainder + MM generic-role)*
+### 5.7 — Alternate trig modes: Retrig/ratchet + Sound Pool  *[shipped]*  *(was MG remainder + MM generic-role)*
 The trig-grid modal surface beyond CHROMATIC/LEVELS (which shipped in 3.9).
-*(Code today: `SoundPool` data model + `SoundBankOverlay` UI and live-retrig
-machinery in the processor exist; the `TrigGridMode` enum is present but unwired —
-the modal-grid surface and the ratchet redesign are deferred here.)*
-- [ ] Retrig / ratchet trig-grid mode (record-arm captures the rate as a P-Lock);
-      slice sub-mode for sampler/slicer tracks.
-- [ ] Sound Pool mode: grid pages through the pool and live-swaps the focused
-      track's sound; record-arm captures the pool index as a `sound_id` P-Lock.
-- [ ] Mode-chord UX consistent with the surface model; clean exit on release.
+- [x] Retrig / ratchet trig-grid mode (`Fill+TRIG` momentary hold): grid shows 8
+      ratchet rates (/4…/32T); ISliceable tracks show slice indices instead.
+      Step press live-stutters using the step's own note (fixes hardcoded note-60).
+      Record-arm or held-step authoring writes `hasRetrig`/`retrigRate` P-Lock.
+- [x] Sound Pool mode (`Fill+SRC` momentary hold): grid pages pool entries; step
+      press calls `liveSwapTrackSound` for live audition; record-arm bakes a
+      `sound_id` P-Lock (`hasSoundId`/`soundId`). Pre-existing serializer bug fixed.
+- [x] Mode-chord UX consistent with the surface model; clean exit on Fill release.
+- [x] Serializer bumped to v12 (retrig + soundId fields; `upgrade_v11_to_v12`).
+- [x] CellState tokens: `SoundPoolOccupied/Empty/Current`, `RetrigRate/Selected`,
+      `SlicePoint/Selected/Empty`; mapped on Push 1 and X-Touch Mini.
 - [ ] Generic role-tagged LEVELS sub-mode (extend 3.9's velocity-first LEVELS to
       a closed eligible role set: cutoff, attack, pan, … — the surviving MM.1).
 
