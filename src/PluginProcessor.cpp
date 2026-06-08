@@ -1887,10 +1887,20 @@ namespace lockstep
         if (mi->isMidiOut()) return -1;
         if (mi->hasInternalAmp())
         {
+            // Some machines (e.g. FM) tag multiple slots Role::Level across
+            // different sections (e.g. Op1 Mix in section 1, output Level in
+            // section 3/AMP). We want the AMP-section (sectionIndex == 3) one.
+            // If none found in AMP, fall back to the first Role::Level found.
+            static constexpr int kAmpSectionIdx = 3;
+            int first = -1;
             for (int s = 0; s < mi->numParams(); ++s)
-                if (mi->paramSpec(s).role == ParamSpec::Role::Level)
-                    return s;
-            return -1;
+            {
+                const auto& spec = mi->paramSpec(s);
+                if (spec.role != ParamSpec::Role::Level) continue;
+                if (spec.sectionIndex == kAmpSectionIdx) return s;
+                if (first < 0) first = s;
+            }
+            return first;
         }
         return mi->numParams() + (mi->hasInternalFilter() ? 0 : kFltrSlots);
     }

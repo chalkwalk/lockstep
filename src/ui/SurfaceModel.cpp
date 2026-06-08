@@ -900,14 +900,14 @@ namespace lockstep
 
                     if (proc.hasFluidMute(i))
                     {
-                        // Blend value [0..1]: how much level is audible right now.
-                        // At f=muted side → near 0 (dim); at f=unity side → full (bright).
-                        const float blend = proc.fluidMuteBlend(i);
+                        // Fixed bright magenta: "this track has a fluid mute".
+                        // The fader is its own animation; brightness tied to
+                        // blend was 25% alpha when fader was at the silent pole,
+                        // making it look like nothing happened.
                         c.base       = CellState::MorphPoleActive;
                         c.baseColour = c.pressed
                             ? juce::Colours::white.withAlpha(0.80f).getARGB()
-                            : juce::Colour(kScopeMorph)
-                                  .withAlpha(0.25f + blend * 0.65f).getARGB();
+                            : juce::Colour(kScopeMorph).withAlpha(0.80f).getARGB();
                     }
                     else
                     {
