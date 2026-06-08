@@ -4,6 +4,7 @@
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "MetaBand.h"
+#include "MetaRotary.h"
 
 namespace lockstep
 {
@@ -75,7 +76,8 @@ namespace lockstep
         // Index of the slot column currently in "listening for CC" state, or -1.
         int learningSlotIndex_ = -1;
 
-        std::array<juce::Slider,     kNumSlots> sliders_;
+        MetaRotaryLookAndFeel laf_;
+        std::array<MetaRotary,       kNumSlots> sliders_;
         std::array<juce::Label,      kNumSlots> labels_;
         std::array<juce::Label,      kNumSlots> valueLabels_;
         std::array<juce::TextButton, kNumSlots> clearBtns_;

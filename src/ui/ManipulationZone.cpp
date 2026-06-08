@@ -31,8 +31,7 @@ namespace lockstep
             valueLabels_[si].setInterceptsMouseClicks(false, false);
             addAndMakeVisible(valueLabels_[si]);
 
-            sliders_[si].setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
-            sliders_[si].setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+            sliders_[si].setLookAndFeel(&laf_);
             sliders_[si].setWantsKeyboardFocus(false);
             sliders_[si].onDragStart = [this, i]
             {
@@ -131,7 +130,10 @@ namespace lockstep
     ManipulationZone::~ManipulationZone()
     {
         for (auto& s : sliders_)
+        {
+            s.setLookAndFeel(nullptr);
             s.removeMouseListener(static_cast<juce::MouseListener*>(this));
+        }
     }
 
     void ManipulationZone::setSlotOffset(int offset)
@@ -272,10 +274,13 @@ namespace lockstep
                 sliders_[si].setValue(static_cast<double>(v.value), juce::dontSendNotification);
                 sliders_[si].setEnabled(v.writable);
                 sliders_[si].setAlpha(v.active ? 1.0f : 0.0f);
+                sliders_[si].ringMode = v.ringMode;
+                sliders_[si].marks    = v.marks;
                 labels_[si].setText(v.label, juce::dontSendNotification);
                 valueLabels_[si].setText(v.valueText, juce::dontSendNotification);
                 clearBtns_[si].setEnabled(v.hasOverride);
                 clearBtns_[si].setAlpha(v.hasOverride ? 1.0f : 0.3f);
+                sliders_[si].repaint();
             }
             updatingFromTimer_ = false;
             return;
@@ -318,6 +323,12 @@ namespace lockstep
             }
 
             const auto meta = processor_.paramSpec(track, slot);
+
+            // Set ring mode from param spec (fixes bipolar machine params on screen).
+            sliders_[si].ringMode = meta.isStepped ? RingMode::Dot
+                                  : (meta.minValue < 0.0f) ? RingMode::BipolarFromCentre
+                                  : RingMode::UnipolarFill;
+            sliders_[si].marks = {};
 
             // Sample slot: replace rotary with a name button + picker popup.
             const bool isSampleSlot = (meta.id == "sample_id"

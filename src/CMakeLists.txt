@@ -93,6 +93,7 @@ target_sources(Lockstep
         ui/KeyButton.cpp
         ui/KeyboardArea.cpp
         ui/MetaBand.cpp
+        ui/MetaRotary.cpp
         ui/SurfaceModel.cpp
         ui/InPluginTransport.cpp
         ui/ManipulationZone.cpp
