@@ -280,6 +280,7 @@ namespace lockstep
         int  fluidMuteLevelSlot(int track) const;
         // True if the active scene has morph data on the Level slot for this track.
         bool hasFluidMute(int track) const;
+        int  fluidMutePole(int track) const;  // 0=A is silence, 1=B is silence, -1=unknown
         // Current equal-power blend of the Level slot morph poles at the live fader.
         // Returns the kit-base level unchanged if no fluid mute is authored.
         float fluidMuteBlend(int track) const;

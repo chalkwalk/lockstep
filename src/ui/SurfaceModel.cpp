@@ -900,16 +900,23 @@ namespace lockstep
 
                     if (proc.hasFluidMute(i))
                     {
-                        // Interpolate between pole-A colour (violet) and pole-B
-                        // colour (rose) based on fader so the cell signals which
-                        // layer is currently active — full A at f=0, full B at f=1.
-                        const juce::Colour colA(kScopeMorphA);
-                        const juce::Colour colB(kScopeMorphB);
-                        const juce::Colour blended = colA.interpolatedWith(colB, crossfaderValue);
+                        // Colour = pole A (violet) or pole B (rose) based on which
+                        // pole carries silence. Brightness tracks fader distance from
+                        // the silence pole: full when muted, dim when playing.
+                        // crossfaderValue: 1.0 = A-side, 0.0 = B-side (slider convention).
+                        const int pole = proc.fluidMutePole(i);
+                        const juce::Colour poleCol = (pole != 1)
+                            ? juce::Colour(kScopeMorphA)   // A=silence → violet
+                            : juce::Colour(kScopeMorphB);  // B=silence → rose
+                        // brightness=1 when fader is at the silence pole.
+                        const float brightness = (pole != 1)
+                            ? crossfaderValue              // A-pole: full at crossfader=1 (A)
+                            : (1.0f - crossfaderValue);    // B-pole: full at crossfader=0 (B)
+                        const float alpha = 0.25f + brightness * 0.60f;
                         c.base       = CellState::MorphPoleActive;
                         c.baseColour = c.pressed
                             ? juce::Colours::white.withAlpha(0.80f).getARGB()
-                            : blended.withAlpha(0.85f).getARGB();
+                            : poleCol.withAlpha(alpha).getARGB();
                     }
                     else
                     {

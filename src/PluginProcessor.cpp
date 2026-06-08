@@ -1913,6 +1913,23 @@ namespace lockstep
         return section().morphA.count(key) > 0 || section().morphB.count(key) > 0;
     }
 
+    int LockstepProcessor::fluidMutePole(int track) const
+    {
+        const int slot = fluidMuteLevelSlot(track);
+        if (slot < 0) return -1;
+        const auto  key = std::make_pair(track, slot);
+        const auto& sc  = section();
+        const auto  itA = sc.morphA.find(key);
+        const auto  itB = sc.morphB.find(key);
+        const bool hasA = (itA != sc.morphA.end());
+        const bool hasB = (itB != sc.morphB.end());
+        if (!hasA && !hasB) return -1;
+        if (hasA && !hasB) return 0;   // only A authored — A is the silence pole
+        if (hasB && !hasA) return 1;   // only B authored — B is the silence pole
+        // Both authored: smaller value = silence (0.0 for silence, base≥0 for unity).
+        return (itA->second <= itB->second) ? 0 : 1;
+    }
+
     float LockstepProcessor::fluidMuteBlend(int track) const
     {
         const int slot = fluidMuteLevelSlot(track);
