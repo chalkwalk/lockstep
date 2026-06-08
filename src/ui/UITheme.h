@@ -97,6 +97,13 @@ namespace lockstep::theme
     // Machine picker (lime ~95°) — Func+Track / Part+SRC
     inline constexpr uint32_t kScopeMachine = 0xFF50C030u;
 
+    // Func / secondary layer (orange ~30°) — the glow on Func-held section keys
+    // that carry a wired secondary (COND / NOTE). Distinct from Song's gold
+    // (~48°) so the universal-qualifier layer reads as its own thing (DESIGN
+    // §6.1 rule 3). Cells with no secondary dim to Disabled instead.
+    inline constexpr uint32_t kScopeFunc    = 0xFFD07820u;
+    inline constexpr uint32_t kScopeFuncDim = 0xFF42260Au;
+
     // -------------------------------------------------------------------------
     // Edit sub-mode identities (grid re-skins; mutually exclusive with scope-hold)
     // -------------------------------------------------------------------------

@@ -32,8 +32,11 @@ namespace lockstep
             case PS::Song:  return col(kScopeSong);
             case PS::Mute:    return col(kScopeMute);
             case PS::Fill:    return col(kScopeFill);
+            // Func is the universal qualifier; its section-row secondaries glow
+            // in the Func hue (DESIGN §6.1 rule 3).
+            case PS::Func:    return col(kScopeFunc);
             // Non-section scopes and None use the default step colour.
-            case PS::None: case PS::Func: case PS::Trig:
+            case PS::None: case PS::Trig:
             case PS::Cue: case PS::Section:
                 break;
         }

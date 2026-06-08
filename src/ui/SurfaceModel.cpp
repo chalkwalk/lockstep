@@ -454,6 +454,16 @@ namespace lockstep
             const bool isTrackActive  = !isScopedMode && (ui.masterSection == -1
                 && ui.trackSection[static_cast<std::size_t>(activeTrack)] == s);
 
+            // Func layer (bare Func, no scope): the section row must announce its
+            // secondary layer in colour, not just text (DESIGN §6.1 rule 3, §6.2).
+            // Cells with a wired secondary (COND/NOTE) glow in the Func hue and are
+            // always available regardless of machine slots; cells with none dim to
+            // Disabled. This mirrors the scope-glow grammar below.
+            const bool funcLayerActive  = (ui.funcHeld && !isScopedMode);
+            const bool hasFuncSecondary = !isReservedMeta(s);
+            if (funcLayerActive)
+                c.disabled = !hasFuncSecondary;
+
             if (c.pressed)
                 c.base = CellState::Pressed;
             else if (c.disabled)
@@ -464,7 +474,9 @@ namespace lockstep
                 c.base = CellState::Resting;
 
             // baseColour distinguishes special visual modes for groupForCell()
-            if (isMasterActive)
+            if (funcLayerActive && hasFuncSecondary)
+                c.baseColour = kScopeFunc;      // Func-secondary glow (COND / NOTE)
+            else if (isMasterActive)
                 c.baseColour = 0xFF404010u;     // golden — master section active
             else if (isSrcNoteEdit)
                 c.baseColour = kScopeNoteEdit;
@@ -477,6 +489,8 @@ namespace lockstep
             // Func+Part, not section[1], so SRC reads as part-base SRC under Part.)
             if (isScopedMode && !c.disabled)
                 c.scopeTint = scopeColour(sectionScope).getARGB();
+            else if (funcLayerActive && hasFuncSecondary)
+                c.scopeTint = scopeColour(EditMode::PrimaryScope::Func).getARGB();
 
             // Invariant: non-disabled section keys always resolve to a non-empty primary.
             jassert(c.disabled || !c.primary.isEmpty());
