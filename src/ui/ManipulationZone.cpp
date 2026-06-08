@@ -1027,7 +1027,7 @@ namespace lockstep
                     break;
             }
 
-            const juce::Rectangle<int> badgeArea(knob.getRight() - 20, knob.getY() + 2, 18, 12);
+            const juce::Rectangle<int> badgeArea(knob.getRight() + 2, knob.getCentreY() - 6, 18, 12);
             g.setColour(badgeColour.withAlpha(0.85f));
             g.fillRoundedRectangle(badgeArea.toFloat(), 3.0f);
             g.setColour(juce::Colours::black);
@@ -1050,10 +1050,10 @@ namespace lockstep
 
             const auto knob  = slotKnobBounds(i);
             const int chipW  = 10, chipH = 8;
+            const int chipX  = knob.getRight() + 2;  // just right of knob, inside cell
             if (mInfo.inA)
             {
-                const juce::Rectangle<int> aChip(knob.getRight() - chipW + 1,
-                                                  knob.getY() + 2, chipW, chipH);
+                const juce::Rectangle<int> aChip(chipX, knob.getY() + 2, chipW, chipH);
                 g.setColour(kMorphMagenta.withAlpha(0.85f));
                 g.fillRoundedRectangle(aChip.toFloat(), 2.0f);
                 g.setColour(juce::Colours::white);
@@ -1062,8 +1062,7 @@ namespace lockstep
             }
             if (mInfo.inB)
             {
-                const juce::Rectangle<int> bChip(knob.getRight() - chipW + 1,
-                                                  knob.getBottom() - chipH - 2, chipW, chipH);
+                const juce::Rectangle<int> bChip(chipX, knob.getBottom() - chipH - 2, chipW, chipH);
                 g.setColour(kMorphMagenta.darker(0.3f).withAlpha(0.85f));
                 g.fillRoundedRectangle(bChip.toFloat(), 2.0f);
                 g.setColour(juce::Colours::white);
@@ -1083,16 +1082,22 @@ namespace lockstep
             const auto cell = slotCellBounds(i);
             const auto knob = slotKnobBounds(i);
 
-            // Name centred at top, value centred at bottom, slider = knob square.
-            labels_[si].setBounds(cell.withHeight(kCellNameH));
+            // Name strip: full width minus room for the clear button on the right.
+            labels_[si].setBounds(cell.withHeight(kCellNameH).withTrimmedRight(16));
             valueLabels_[si].setBounds(cell.withTop(cell.getBottom() - kCellValueH));
             sliders_[si].setBounds(knob);
-            // Clear button hugs the knob's top-right corner so it reads as part of
-            // its own cell even when neighbouring cell labels overlap in the gap band.
-            clearBtns_[si].setBounds(knob.getRight() - 14, knob.getY() - 1, 14, 14);
+            // Clear button lives in the name strip at the cell's right edge so it
+            // never overlaps the rotary and is unambiguously tied to this cell.
+            clearBtns_[si].setBounds(cell.getRight() - 14, cell.getY(), 14, kCellNameH);
 
             if (i == 0)
-                samplePickerBtn_.setBounds(knob.reduced(2, 2));
+            {
+                // Sample picker spans the full cell body (between name and value strips)
+                // so it renders as a proper-width button rather than a tiny square.
+                samplePickerBtn_.setBounds(juce::Rectangle<int>(
+                    cell.getX(), cell.getY() + kCellNameH,
+                    cell.getWidth(), cell.getHeight() - kCellNameH - kCellValueH));
+            }
         }
     }
 }
