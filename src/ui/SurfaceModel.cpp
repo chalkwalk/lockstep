@@ -1,4 +1,5 @@
 #include "SurfaceModel.h"
+#include "MetaBand.h"
 #include "UITheme.h"
 #include "KeyLabel.h"
 #include "ParamFormat.h"
@@ -1372,89 +1373,116 @@ namespace lockstep
         // =====================================================================
         // Manipulation-zone encoder slots (§35.8.5)
         // Fills model.slots[0..7] for the 8 encoders at slotOffset..slotOffset+7.
-        // Uses Override-ELSE-Base resolution mirroring ManipulationZone::refreshSliders.
+        // Meta bands (resolveMetaBand) take priority over the machine-param path so
+        // the controller sees exactly what the on-screen ManipulationZone shows.
         // =====================================================================
         model.crossfader = crossfaderValue;
         {
-            const bool stepHeld = ec.isActiveForEditing()
-                               && ec.heldTrackIndex() == activeTrack;
-            const int  heldStep = ec.heldStepIndex();
-            const bool fillHeld = proc.fillActive();
-            const bool fillEdit = stepHeld && fillHeld && heldStep >= 0;
+            const MetaBand band = resolveMetaBand(ui);
 
-            const int numParams = (activeTrack >= 0) ? proc.numParams(activeTrack) : 0;
-
-            for (int i = 0; i < 8; ++i)
+            if (band != MetaBand::None)
             {
-                const int absSlot = slotOffset + i;
-                auto& slot = model.slots[static_cast<std::size_t>(i)];
+                // Meta surface: fill slots from MetaFieldView.
+                const int swScope = swingScopeFor(ui);
+                const auto views  = buildMetaBand(band, swScope, proc, activeTrack, ec);
 
-                if (activeTrack < 0 || absSlot >= numParams)
+                for (int i = 0; i < 8; ++i)
                 {
-                    slot.inRange = false;
-                    continue;
+                    const auto vi = static_cast<std::size_t>(i);
+                    auto& slot    = model.slots[vi];
+                    const auto& v = views[vi];
+                    slot.inRange     = v.active;
+                    slot.label       = v.label;
+                    slot.sectionLabel = {};   // meta bands have no owning section
+                    slot.valueText   = v.valueText;
+                    slot.hasOverride = v.hasOverride;
+                    slot.ringMode    = v.ringMode;
+                    const float range = v.maxValue - v.minValue;
+                    slot.position = (range > 0.0f && v.active)
+                        ? juce::jlimit(0.0f, 1.0f, (v.value - v.minValue) / range)
+                        : 0.0f;
                 }
+            }
+            else
+            {
+                // Machine-param path: Override-ELSE-Base resolution.
+                const bool stepHeld = ec.isActiveForEditing()
+                                   && ec.heldTrackIndex() == activeTrack;
+                const int  heldStep = ec.heldStepIndex();
+                const bool fillHeld = proc.fillActive();
+                const bool fillEdit = stepHeld && fillHeld && heldStep >= 0;
 
-                const auto spec = proc.paramSpec(activeTrack, absSlot);
-                slot.inRange = true;
-                slot.label   = spec.label.isEmpty() ? juce::String(absSlot) : spec.label;
+                const int numParams = (activeTrack >= 0) ? proc.numParams(activeTrack) : 0;
 
-                // Owning section name (machine label, falling back to canonical) —
-                // used as a header line on the Push display.
+                for (int i = 0; i < 8; ++i)
                 {
-                    const int secIdx = juce::jlimit(0, IMachine::kMaxSections - 1,
-                                                    spec.sectionIndex);
-                    const auto& secInfo = proc.section(activeTrack, secIdx);
-                    slot.sectionLabel = secInfo.label.isNotEmpty()
-                        ? secInfo.label
-                        : juce::String(IMachine::kCanonicalSectionNames[
-                              static_cast<std::size_t>(secIdx)]);
-                }
+                    const int absSlot = slotOffset + i;
+                    auto& slot = model.slots[static_cast<std::size_t>(i)];
 
-                // Override-ELSE-Base resolution
-                float value = proc.baseParamValue(activeTrack, absSlot);
-                bool  hasLock = false;
-
-                if (stepHeld && heldStep >= 0)
-                {
-                    const auto& s = proc.sequence().tracks[static_cast<std::size_t>(activeTrack)]
-                                        .steps[static_cast<std::size_t>(heldStep)];
-                    if (fillEdit)
+                    if (activeTrack < 0 || absSlot >= numParams)
                     {
-                        if (s.fillOverrides.has(absSlot))
+                        slot.inRange = false;
+                        continue;
+                    }
+
+                    const auto spec = proc.paramSpec(activeTrack, absSlot);
+                    slot.inRange = true;
+                    slot.label   = spec.label.isEmpty() ? juce::String(absSlot) : spec.label;
+
+                    // Owning section name (machine label, falling back to canonical).
+                    {
+                        const int secIdx = juce::jlimit(0, IMachine::kMaxSections - 1,
+                                                        spec.sectionIndex);
+                        const auto& secInfo = proc.section(activeTrack, secIdx);
+                        slot.sectionLabel = secInfo.label.isNotEmpty()
+                            ? secInfo.label
+                            : juce::String(IMachine::kCanonicalSectionNames[
+                                  static_cast<std::size_t>(secIdx)]);
+                    }
+
+                    float value   = proc.baseParamValue(activeTrack, absSlot);
+                    bool  hasLock = false;
+
+                    if (stepHeld && heldStep >= 0)
+                    {
+                        const auto& s = proc.sequence().tracks[static_cast<std::size_t>(activeTrack)]
+                                            .steps[static_cast<std::size_t>(heldStep)];
+                        if (fillEdit)
                         {
-                            value   = s.fillOverrides.get(absSlot, value);
-                            hasLock = true;
+                            if (s.fillOverrides.has(absSlot))
+                            {
+                                value   = s.fillOverrides.get(absSlot, value);
+                                hasLock = true;
+                            }
+                            else
+                            {
+                                value = s.overrides.get(absSlot, value);
+                            }
                         }
                         else
                         {
-                            value = s.overrides.get(absSlot, value);
+                            value   = s.overrides.get(absSlot, value);
+                            hasLock = s.overrides.has(absSlot);
                         }
                     }
+
+                    slot.hasOverride = hasLock;
+                    slot.valueText   = formatParamValue(value, spec);
+                    if (hasLock)
+                        slot.valueText += " *";
+
+                    const float range = spec.maxValue - spec.minValue;
+                    slot.position = (range > 0.0f)
+                        ? juce::jlimit(0.0f, 1.0f, (value - spec.minValue) / range)
+                        : 0.0f;
+
+                    if (!spec.valueLabels.empty() || spec.isStepped)
+                        slot.ringMode = RingMode::Dot;
+                    else if (spec.minValue < 0.0f)
+                        slot.ringMode = RingMode::BipolarFromCentre;
                     else
-                    {
-                        value   = s.overrides.get(absSlot, value);
-                        hasLock = s.overrides.has(absSlot);
-                    }
+                        slot.ringMode = RingMode::UnipolarFill;
                 }
-
-                slot.hasOverride = hasLock;
-                slot.valueText   = formatParamValue(value, spec);
-                if (hasLock)
-                    slot.valueText += " *";
-
-                // Normalised position for ring LEDs
-                const float range = spec.maxValue - spec.minValue;
-                slot.position = (range > 0.0f)
-                    ? juce::jlimit(0.0f, 1.0f, (value - spec.minValue) / range)
-                    : 0.0f;
-
-                if (!spec.valueLabels.empty() || spec.isStepped)
-                    slot.ringMode = RingMode::Dot;
-                else if (spec.minValue < 0.0f)
-                    slot.ringMode = RingMode::BipolarFromCentre;
-                else
-                    slot.ringMode = RingMode::UnipolarFill;
             }
         }
 

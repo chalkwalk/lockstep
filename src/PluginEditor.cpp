@@ -3544,7 +3544,28 @@ namespace lockstep
 
         sink.applyParamDelta = [this](int mzSlot, int rawDelta)
         {
-            const int track   = keyboardArea_.getActiveTrack();
+            const int track = keyboardArea_.getActiveTrack();
+
+            // Meta band takes priority: encoder edits the shown band, not machine params.
+            const MetaBand band = resolveMetaBand(uiState_);
+            if (band != MetaBand::None)
+            {
+                const int  swScope = swingScopeFor(uiState_);
+                const auto views   = buildMetaBand(band, swScope, processor_, track,
+                                                   processor_.editContext());
+                if (mzSlot < 0 || mzSlot >= 8) return;
+                const auto& v = views[static_cast<std::size_t>(mzSlot)];
+                if (!v.writable) return;
+                const float range = v.maxValue - v.minValue;
+                if (range <= 0.0f) return;
+                const float norm    = juce::jlimit(0.0f, 1.0f, (v.value - v.minValue) / range);
+                const float newNorm = juce::jlimit(0.0f, 1.0f,
+                                                   norm + static_cast<float>(rawDelta) / 128.0f);
+                writeMetaField(band, swScope, mzSlot, v.minValue + newNorm * range,
+                               processor_, track, processor_.editContext());
+                return;
+            }
+
             const int absSlot = manipulationZone_.slotOffset() + mzSlot;
             if (absSlot >= processor_.numParams(track)) return;
 
