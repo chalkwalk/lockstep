@@ -358,6 +358,10 @@ namespace lockstep
         const bool nowPlaying = processor_.clock().inPluginPlaying();
         if (nowPlaying != lastPlayingState_) { lastPlayingState_ = nowPlaying; dirty = true; }
 
+        // Morph fader: detect on-screen crossfader moves so controller surfaces update.
+        const float curMorphFader = processor_.morphFader();
+        if (curMorphFader != lastMorphFader_) { lastMorphFader_ = curMorphFader; dirty = true; }
+
         // Push the morph view state to KeyboardArea so its paint() gets current slot states.
         keyboardArea_.setMorphViewState(buildMorphViewState(),
                                         manipulationZone_.slotOffset(),
@@ -366,9 +370,11 @@ namespace lockstep
         if (dirty) repaint();
 
         // Controller: drain MIDI FIFO → surface.onInput(), then render feedback LEDs.
-        // Build the model once and share it with all connected surfaces.
-        if ((xTouchSurface_ && controllerPorts_.isOpen())
-            || (push1Surface_ && push1Ports_.isOpen()))
+        // Only rebuild the surface model when something actually changed (dirty) or
+        // when transport is running (playhead position changes every tick).
+        if (dirty
+            && ((xTouchSurface_ && controllerPorts_.isOpen())
+                || (push1Surface_ && push1Ports_.isOpen())))
         {
             auto sink = buildControllerSink();
             const auto model = buildSurfaceModel(uiState_,

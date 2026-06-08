@@ -1044,15 +1044,19 @@ the default data-driven impl.
       `tests/SurfaceModelTest.cpp`) + the **6.6.5a UX-consistency pass** (unified
       hint-band rule, note-edit → `Func+Src`, CPC under-scope relabel,
       `TrigGridMode` removed, `Func+arrow` rotate/×2/÷2) + meta-band controller
-      exposure via `MetaBand`/`MetaRotary` (7.15–7.17). **(b) [pending]**
-      dedicated throttled `ControllerFeedbackEmitter` (30 Hz, diff/throttle) —
-      feedback is currently inline per drain, not diffed.
+      exposure via `MetaBand`/`MetaRotary` (7.15–7.17). **(b) [pragmatic closeout]**
+      idle surface model rebuild gating added (`dirty || playing` guard in
+      `timerCallback`); per-surface shadow diffing in each concrete surface already
+      satisfies the diff intent — the separate `ControllerFeedbackEmitter` is deferred
+      to the JSON/registry end-state.
 - [~] **6.6.6** Feedback colour / state mirroring — **shipped for Push 1**
       (static semantic→palette-index table, `Push1Surface.cpp`) and X-Touch.
       **Still planned:** the generic token-aware + dumb-device fallback that the
       JSON/registry path needs.
-- [ ] **6.6.7** Finalise scene-fader binding (5.2 Morph is shipped — wire the
-      crossfader to a controller fader).
+- [x] **6.6.7** Crossfader binding — two-way: controller fader → `setCrossfader` →
+      `morphFader` (both Push 1 touch strip and X-Touch fader); Push touch strip
+      LED echoes on-screen fader position (shadow-diffed, echo suppressed on input
+      so the hardware is not fought by immediate feedback).
 - [ ] **6.6.8** Adaptive `layoutMode` (opt-in, deferred-most).
 - [x] **(unplanned, shipped)** **Push 1 surface** — full render/display/buttons,
       static semantic→palette matcher, meta-band exposure. Not in the original

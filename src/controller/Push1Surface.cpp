@@ -259,6 +259,11 @@ namespace lockstep
         {
             // 14-bit 0-16383 → 0..1
             const float norm = static_cast<float>(msg.getPitchWheelValue()) / 16383.0f;
+            // Pre-set the strip shadow so render() (called immediately after in
+            // the same drain) does not echo this value back to the hardware —
+            // i.e. soft-takeover: only echo when the model differs from what
+            // the user last told us they sent.
+            stripShadow_ = juce::roundToInt(juce::jlimit(0.0f, 1.0f, norm) * 16383.0f);
             if (sink.setCrossfader)
                 sink.setCrossfader(norm);
         }

@@ -200,6 +200,10 @@ namespace lockstep
         float masterMeter_ = 0.0f;
         void paintMeters(juce::Graphics& g);
 
+        // Last-seen morphFader value: used to detect on-screen fader moves and
+        // mark the surface model dirty so controller surfaces update.
+        float lastMorphFader_ = -1.0f;
+
         // Transient status line — shows CPC operation result for ~1.5s.
         juce::String statusMessage_;
         juce::uint32 statusSetMs_ = 0;
