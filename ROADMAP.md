@@ -12,8 +12,8 @@ expressible within those principles and within the existing scope+verb grammar
 
 **Active focus:** Phase 7 closeout — phrase-length authoring (DESIGN §34.4) +
 the pending `7.5`/`7.8`/`3.10` verification items.
-**Last completed:** `7.15` — Song selector display + meta-band split (DIV/PHRASELEN) +
-scope-surfaced swing + auto-dismiss meta on track change.
+**Last completed:** `7.16` — MetaBand unification: controller exposure, picker fix,
+dead band fix (DIV/PHRASELEN), transient swing dismissal.
 **Next up:** `6.7` — the Machine Module ABI (gates the rest of the Phase 4
 catalogue).
 
@@ -667,6 +667,30 @@ Follow-up plan (placeable payloads + Scene clipboard + omni copy) shipped:
 - [x] **Unqualified paste** `Func+I`: stamps the single captured layer via type tag;
       rejects with "Paste: pick a scope" when type is `All` (omni grab).
 - [x] **Panic → Song + Clear (O)**. `Func+I` freed for unqualified paste.
+
+### 7.16 — MetaBand unification: controller exposure + transient dismissal  *[shipped]*
+
+Fixes four defects in the 7.15 meta-band implementation:
+
+- [x] **#1 Controller exposure:** `buildSurfaceModel` and `applyParamDelta` now
+      branch on `resolveMetaBand(ui)` — meta bands (COND/TRIG/DIV/PHRASELEN/GLOBAL/
+      Swing) render ring positions, labels, and values on Push1/X-Touch and encoders
+      write through `writeMetaField`.  Screen and controller share the same builder
+      (`MetaBand.{h,cpp}`) and cannot diverge.
+- [x] **#2 Picker leak fixed:** `samplePickerBtn_` is now hidden at a single central
+      site in `ManipulationZone::refreshSliders` whenever band != None, so the sample
+      selector no longer floats over the swing view.
+- [x] **#3 Transient swing default:** `swingDismissed` (new field in UiState) is set
+      true by any non-swing-scope interaction while the swing band is shown; reset
+      false on scope down/up so each re-hold opens the swing view cleanly.  DIV /
+      PHRASELEN / GLOBAL bands remain sticky (masterSection-selected).
+- [x] **#4 Dead bands fixed:** `metaContentExists` now accepts `{0,1,3,4,5}` instead
+      of the stale `{0,1,2,5}` — Track+TRIG (DIV) and Phrase+TRIG (PHRASELEN) now
+      reach ManipulationZone correctly.
+
+Architecture: new `src/ui/MetaBand.{h,cpp}` — pure `resolveMetaBand`, `swingScopeFor`,
+`buildMetaBand`, `writeMetaField`.  Four consumers: screen render, screen write,
+controller render, controller write.
 
 ### 7.15 — Song selector display; meta-band split; scope-surfaced swing  *[shipped]*
 

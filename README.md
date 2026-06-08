@@ -582,7 +582,13 @@ directly in the manipulation band — no separate meta needed:
 
 Slot 0 = editable swing; slot 1 = `Effct` (full clamped sum
 `songAll + songTrk[t] + sceneAll` for the focused track — read-only).
-The display is non-sticky and disappears when the scope key is released.
+The swing band is a **transient default**: pressing any section, verb, nav
+key, or step while a scope is held collapses back to the normal machine-param
+view so you can reach the sections you need. Release and re-hold the scope
+key to re-open the swing display. (DIV / PHRASELEN / GLOBAL bands are sticky —
+they stay open until you select a different section or change track.)
+The swing band is also accessible on hardware controllers (Push1, X-Touch):
+encoder 0 edits the swing level; encoder 1 shows the read-only effective value.
 Swing lives in musical state, not APVTS — it is not host-automatable.
 
 <a name="59-copy-paste-clear"></a>

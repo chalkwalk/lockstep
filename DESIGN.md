@@ -2397,7 +2397,11 @@ manipulation zone band shows that scope's swing level:
 | *(nothing)* | *(normal machine params)* | — |
 
 Slot 0 = editable swing; slot 1 = `Effct` (clamped sum, read-only).
-The display is non-sticky: it disappears when the scope key is released.
+The swing band is a **transient default**: it disappears the moment any
+non-swing-scope interaction occurs (section press, verb, nav, step, other modifier).
+Releasing and re-holding the scope key restores it. DIV / PHRASELEN / GLOBAL bands
+(opened via Track+TRIG, Phrase+TRIG, Song+FX) are sticky — they persist until
+another section is selected or the track changes.
 
 **Isolated seeding**: Song-track seeds from song-all only (scene is
 ignored); Scene-all seeds from song-all only (track is ignored). They
@@ -4087,13 +4091,13 @@ struct SurfaceSlot {
 };
 ```
 
-Built from the focused track's `ParamSpec` (existing) plus the current
-value. The slot descriptor adds only the *feedback + name* half: encoder
-**writes** continue to ride the existing `CCScope::Contextual` path, with
-`AbsoluteCCRouter` / `RelativeCCRouter` already handling absolute vs
-relative (§35.3, §5.3). A value change from *any* source — pagination,
-host CC, mouse — moves `norm`, so the next emitter diff re-rings the
-encoder automatically.
+Built from the focused track's `ParamSpec` (normal machine-param path) *or*
+from `buildMetaBand` (when a meta band is active). The single `resolveMetaBand`
+cascade (`MetaBand.h`) determines which — both `buildSurfaceModel` (controller)
+and `ManipulationZone::refreshSliders` (screen) call the same function with the
+same `UiState`, so they cannot diverge. Controller encoder writes route through
+`writeMetaField` (in `applyParamDelta`) when a meta band is active, mirroring
+the screen's `onValueChange` path.
 
 #### 35.8.6 Versioning and compatibility
 
