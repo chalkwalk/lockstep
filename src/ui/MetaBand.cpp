@@ -25,6 +25,8 @@ namespace lockstep
         }
         if (swingScopeFor(ui) != 0 && !ui.swingDismissed)
             return MetaBand::Swing;
+        if (ui.funcHeld)
+            return MetaBand::Chance;
         return MetaBand::None;
     }
 
@@ -330,12 +332,37 @@ namespace lockstep
         return result;
     }
 
+    // 5.9 Chance macro — 8 tracks (0-7), one encoder each, 0-200%.
+    static std::array<MetaFieldView, 8> buildChanceBand(LockstepProcessor& proc)
+    {
+        std::array<MetaFieldView, 8> result{};
+        for (int i = 0; i < 8; ++i)
+        {
+            const float chance = proc.trackChance(i);
+            auto& v      = result[static_cast<std::size_t>(i)];
+            v.active     = true;
+            v.label      = "Tr " + juce::String(i + 1);
+            v.minValue   = 0.0f;
+            v.maxValue   = 200.0f;
+            v.value      = chance * 100.0f;
+            v.stepped    = false;
+            v.writable   = true;
+            v.hasOverride = (chance != 1.0f);
+            v.valueText  = juce::String(juce::roundToInt(chance * 100.0f)) + "%";
+            v.ringMode   = RingMode::Dot;
+        }
+        return result;
+    }
+
     std::array<MetaFieldView, 8> buildMetaBand(MetaBand           band,
                                                int                swingScope,
                                                LockstepProcessor& proc,
                                                int                track,
                                                const EditContext& ctx)
     {
+        if (band == MetaBand::Chance)
+            return buildChanceBand(proc);
+
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return {};
 
@@ -483,6 +510,13 @@ namespace lockstep
                     case 3:  if (track >= 0) proc.setSwingSongTrack(track, value); break;
                     default: proc.setSwingSongAll(value); break;  // scope 1 = song-all
                 }
+                break;
+            }
+
+            case MetaBand::Chance:
+            {
+                if (field >= 0 && field < 8)
+                    proc.setTrackChance(field, juce::jlimit(0.0f, 2.0f, value / 100.0f));
                 break;
             }
 

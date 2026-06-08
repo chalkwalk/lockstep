@@ -104,6 +104,7 @@ namespace lockstep
         nextTriggerPpq_.fill(0.0);
         firedStepIdx_.fill(-1);
         lastRecordedStepNum_.fill(std::numeric_limits<int64_t>::min());
+        for (auto& ch : trackChanceScale_) ch.store(1.0f, std::memory_order_relaxed);
 
         for (auto& s : mzSlots_)
             s.store(-1, std::memory_order_relaxed);
@@ -1424,9 +1425,10 @@ namespace lockstep
                         const TrigCondition& cond = step.condition.isTrivial()
                                                         ? track.baseCond
                                                         : step.condition;
+                        const float chance = trackChanceScale_[i].load(std::memory_order_relaxed);
                         const bool fired = TrigEvaluator::shouldFire(
                             step, cond, i, stepNum, trackLen,
-                            lastStepFired_[i], curFillActive);
+                            lastStepFired_[i], curFillActive, chance);
 
                         if (fired)
                         {
@@ -1496,8 +1498,9 @@ namespace lockstep
                         const TrigCondition& cond = step.condition.isTrivial()
                                                         ? track.baseCond
                                                         : step.condition;
+                        const float chance2 = trackChanceScale_[i].load(std::memory_order_relaxed);
                         if (TrigEvaluator::shouldFire(step, cond, i, stepNum, trackLen,
-                                                      lastStepFired_[i], curFillActive))
+                                                      lastStepFired_[i], curFillActive, chance2))
                         {
                             const bool isOdd = (stepNum % 2) == 1;
                             const float swingDelta = isOdd ? effSwing : 0.0f;
@@ -2895,6 +2898,19 @@ namespace lockstep
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return nullptr;
         return machines_[static_cast<std::size_t>(track)].get();
+    }
+
+    void LockstepProcessor::setTrackChance(int track, float scale) noexcept
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        trackChanceScale_[static_cast<std::size_t>(track)].store(
+            juce::jlimit(0.0f, 2.0f, scale), std::memory_order_relaxed);
+    }
+
+    float LockstepProcessor::trackChance(int track) const noexcept
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return 1.0f;
+        return trackChanceScale_[static_cast<std::size_t>(track)].load(std::memory_order_relaxed);
     }
 
     std::unique_ptr<IMachine> LockstepProcessor::createMachineForId(const std::string& id)

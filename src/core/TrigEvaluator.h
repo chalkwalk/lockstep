@@ -30,7 +30,8 @@ namespace lockstep::TrigEvaluator
                             std::int64_t absoluteStep,
                             int trackLen,
                             bool prevFired,
-                            bool fillActive = false)
+                            bool fillActive = false,
+                            float chanceScale = 1.0f)
     {
         // Fill trig state determines whether this step fires at all during fill.
         if (fillActive)
@@ -63,10 +64,12 @@ namespace lockstep::TrigEvaluator
         if (cond.prevDependency == 1 && !prevFired) { return false; }
         if (cond.prevDependency == 2 &&  prevFired) { return false; }
 
-        // Probability check.
-        if (cond.probabilityPercent >= 100) { return true; }
-        if (cond.probabilityPercent == 0)   { return false; }
-        return deterministicPercent(trackIdx, absoluteStep)
-               < static_cast<int>(cond.probabilityPercent);
+        // Probability check (scaled by the per-track Chance macro).
+        const int scaledProb = std::clamp(
+            static_cast<int>(static_cast<float>(cond.probabilityPercent) * chanceScale),
+            0, 100);
+        if (scaledProb >= 100) { return true; }
+        if (scaledProb == 0)   { return false; }
+        return deterministicPercent(trackIdx, absoluteStep) < scaledProb;
     }
 }

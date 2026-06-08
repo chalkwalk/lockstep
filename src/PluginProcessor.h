@@ -372,6 +372,11 @@ namespace lockstep
         // Pass active=false to cancel (track/rate/note are ignored on cancel).
         void setRetrigActive(int track, bool active, double ratePpq = 0.25, int note = 60);
 
+        // 5.9 Chance macro — per-track probability scale (0.0=mute … 1.0=normal … 2.0=full).
+        // Written on the message thread; read atomically on the audio thread.
+        void  setTrackChance(int track, float scale) noexcept;
+        float trackChance   (int track) const noexcept;
+
         // MG.3: slice queries + set (message thread; don't call while audio thread is running).
         bool hasTrackSlices(int track)       const;
         int  trackSliceCount(int track)      const;
@@ -591,6 +596,7 @@ namespace lockstep
         // retrigReqTrack_: -2 = cancel, -1 = idle, >=0 = activate on that track.
         std::atomic<int>    retrigReqTrack_  { -1 };
         std::atomic<double> retrigReqRatePpq_ { 0.25 };  // written UI thread, read audio
+        std::array<std::atomic<float>, kNumTracks> trackChanceScale_;  // default 1.0f
         std::atomic<int>    retrigReqNote_    { 60 };     // MIDI note for the rattle
         // Audio-thread-only retrig state (no atomics needed).
         int    retrigActiveTrack_      = -1;
