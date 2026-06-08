@@ -154,6 +154,17 @@ namespace lockstep
         BipolarFromCentre // fill from centre — bipolar (min < 0)
     };
 
+    // ReferenceMark — a scope-coloured reference tick on a rotary ring.
+    // Normalised position 0..1 along the ring arc (0 = min, 1 = max).
+    // Reusable for any layered/delta parameter (swing, morph, etc.).
+    struct ReferenceMark
+    {
+        bool     present  = false;
+        float    position = 0.0f;   // normalised 0..1 along the ring
+        uint32_t colour   = 0;      // ARGB scope colour
+        float    alpha    = 1.0f;   // opacity multiplier
+    };
+
     struct SurfaceSlot
     {
         juce::String label;       // parameter label (empty when slot is out of range)
@@ -163,6 +174,7 @@ namespace lockstep
         RingMode     ringMode  = RingMode::UnipolarFill;
         bool         hasOverride = false; // true when a P-Lock is active for this slot
         bool         inRange     = false; // false when slot index exceeds machine's schema
+        std::array<ReferenceMark, 2> marks{};  // scope-coloured reference ticks (0=inner)
     };
 
     // =========================================================================

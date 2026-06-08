@@ -1,4 +1,5 @@
 #include "MetaBand.h"
+#include "UITheme.h"
 #include "../PluginProcessor.h"
 #include "../ParameterIDs.h"
 #include "../core/TrigCondition.h"
@@ -279,48 +280,52 @@ namespace lockstep
     static std::array<MetaFieldView, 8> buildSwingBand(int swingScope, LockstepProcessor& proc,
                                                        int track)
     {
-        const float swingShown = [&]() -> float {
+        // Cumulative value at the held scope (the value this rotary edits).
+        // scope 1 = songAll, scope 2 = songAll+sceneAll, scope 3 = effective (all three).
+        const float value = [&]() -> float {
             switch (swingScope)
             {
                 case 2:  return proc.swingSceneAllShown();
                 case 3:  return (track >= 0) ? proc.swingSongTrackShown(track) : 0.0f;
-                default: return proc.swingSongAll();  // scope 1 = song-all
+                default: return proc.swingSongAll();
             }
         }();
-        const float effSw = (track >= 0) ? proc.swingEffective(track) : 0.0f;
 
-        const char* swingLabel = (swingScope == 2) ? "SwScn"
-                               : (swingScope == 3) ? "SwTrk"
-                                                   : "Swing";
-        const bool isRoot = (swingScope == 1);
+        // Normalise ±0.5 → 0..1 for reference-mark positions.
+        auto norm = [](float v) { return v + 0.5f; };
 
-        auto fmtSwing = [](float v, bool delta) -> juce::String {
+        auto fmtSwing = [](float v) -> juce::String {
             const int pct = static_cast<int>(std::round(v * 100.0f));
-            juce::String s = (pct >= 0 ? "+" : "") + juce::String(pct) + "%";
-            if (delta) s += " (D)";
-            return s;
+            return (pct >= 0 ? "+" : "") + juce::String(pct) + "%";
         };
 
         std::array<MetaFieldView, 8> result{};
-        auto& sw = result[0];
-        sw.active    = true;
-        sw.label     = swingLabel;
-        sw.minValue  = -0.5f;
-        sw.maxValue  =  0.5f;
-        sw.value     = swingShown;
-        sw.writable  = true;
-        sw.valueText = fmtSwing(swingShown, !isRoot);
+        auto& sw    = result[0];
+        sw.active   = true;
+        sw.label    = "Swing";
+        sw.minValue = -0.5f;
+        sw.maxValue =  0.5f;
+        sw.value    = value;
+        sw.writable = true;
+        sw.valueText = fmtSwing(value);
         sw.ringMode  = RingMode::BipolarFromCentre;
 
-        auto& ef = result[1];
-        ef.active    = true;
-        ef.label     = "Effct";
-        ef.minValue  = -0.5f;
-        ef.maxValue  =  0.5f;
-        ef.value     = effSw;
-        ef.writable  = false;
-        ef.valueText = fmtSwing(effSw, false);
-        ef.ringMode  = RingMode::BipolarFromCentre;
+        // Scope-coloured reference ticks marking the inherited floor.
+        // Tick model (user spec): draw song tick first so scene covers it when sceneAll==0.
+        if (swingScope == 2)
+        {
+            // Scene scope: one tick at the song floor, song colour.
+            const float songAll = proc.swingSongAll();
+            sw.marks[0] = ReferenceMark{ true, norm(songAll), theme::kScopeSong, 1.0f };
+        }
+        else if (swingScope == 3)
+        {
+            // Track scope: song floor (faint), then scene floor on top.
+            const float songAll  = proc.swingSongAll();
+            const float sceneAll = proc.swingSceneAllShown();
+            sw.marks[0] = ReferenceMark{ true, norm(songAll),  theme::kScopeSong,  0.4f };
+            sw.marks[1] = ReferenceMark{ true, norm(sceneAll), theme::kScopeScene, 1.0f };
+        }
 
         return result;
     }

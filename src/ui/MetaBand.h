@@ -31,6 +31,7 @@ namespace lockstep
         bool         writable    = false;
         bool         hasOverride = false;
         RingMode     ringMode    = RingMode::UnipolarFill;
+        std::array<ReferenceMark, 2> marks{};  // scope-coloured reference ticks
     };
 
     // -------------------------------------------------------------------------

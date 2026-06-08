@@ -1834,7 +1834,7 @@ namespace lockstep
     {
         if (t < 0 || t >= static_cast<int>(kNumTracks)) return;
         const float clamped = std::clamp(effective, -0.5f, 0.5f);
-        song().tracks[static_cast<std::size_t>(t)].swing = clamped - song().swing;
+        song().tracks[static_cast<std::size_t>(t)].swing = clamped - song().swing - section().swing;
     }
 
     void LockstepProcessor::setSwingSceneAll(float effective)
@@ -1862,7 +1862,7 @@ namespace lockstep
     float LockstepProcessor::swingSongTrackShown(int t) const
     {
         if (t < 0 || t >= static_cast<int>(kNumTracks)) return swingSongAll();
-        return song().swing + song().tracks[static_cast<std::size_t>(t)].swing;
+        return song().swing + section().swing + song().tracks[static_cast<std::size_t>(t)].swing;
     }
 
     float LockstepProcessor::swingSceneAllShown() const

@@ -309,7 +309,7 @@ namespace lockstep
         float swingSongAll()          const;         // stored song-all
         float swingSongTrackDelta(int t) const;      // stored song-track delta
         float swingSceneAllDelta()    const;         // stored scene-all delta
-        float swingSongTrackShown(int t) const;      // songAll + songTrk[t] (seed for Song qualifier)
+        float swingSongTrackShown(int t) const;      // songAll + sceneAll + songTrk[t] (cumulative track floor)
         float swingSceneAllShown()    const;         // songAll + sceneAll   (seed for Scene qualifier)
         float swingEffective(int t)   const;         // full clamped sum for focused track in active scene
 

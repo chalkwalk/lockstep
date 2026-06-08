@@ -1397,6 +1397,7 @@ namespace lockstep
                     slot.valueText   = v.valueText;
                     slot.hasOverride = v.hasOverride;
                     slot.ringMode    = v.ringMode;
+                    slot.marks       = v.marks;
                     const float range = v.maxValue - v.minValue;
                     slot.position = (range > 0.0f && v.active)
                         ? juce::jlimit(0.0f, 1.0f, (v.value - v.minValue) / range)
