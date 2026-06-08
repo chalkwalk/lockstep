@@ -831,11 +831,6 @@ namespace lockstep
                 valueText = (static_cast<int>(vals[si]) == 0) ? "Locked" : "Auto";
             else if (i == 2)
                 valueText = (static_cast<int>(vals[si]) == 0) ? "Omni" : "Per-Trk";
-            else if (i == 3)
-            {
-                const int pct = static_cast<int>(std::round(vals[si] * 100.0f));
-                valueText = (pct >= 0 ? "+" : "") + juce::String(pct) + "%";
-            }
             else
                 valueText = juce::String(u8"—");  // em-dash
 
