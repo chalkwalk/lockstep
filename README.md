@@ -757,11 +757,15 @@ Stage E / 7.5 and has shipped — see *Phrase-length authoring* below.)
 **3.10 — Latch (hands-free virtual-hold) + Track+Nav mode cycle.**
 
 - **Double-tap = virtual-hold (latch).** Double-tapping any latchable modifier
-  (`Track`, `Part`, `Pattern`, `Scene`, `Master`, `Mute`, `Fill`) latches it
-  hands-free — exactly as if the key stayed physically held. Double-tap the
-  same modifier again to release. Column exclusivity is enforced: at most one
-  latch in each column ({`Pattern`, `Scene`, `Mute`} and {`Track`, `Part`,
-  `Master`, `Fill`}); latching a second key in the same column releases the first.
+  (`Morph`, `Track`, `Part`, `Pattern`, `Scene`, `Master`, `Mute`, `Fill`)
+  latches it hands-free — exactly as if the key stayed physically held.
+  Double-tap the same modifier again to release. Column exclusivity is enforced:
+  at most one latch in each column ({`Pattern`, `Scene`, `Mute`} and {`Track`,
+  `Part`, `Master`, `Fill`}); latching a second key in the same column releases
+  the first. `Morph` is column-independent and can be latched alongside any
+  column latch. **Latch is the recommended workflow for `Morph+Mute` track
+  editing** — keyboards without N-key rollover may not register step keys when
+  both `Morph` and `Mute` are physically held simultaneously.
 - **Latched step operands.** Double-tapping a step virtual-holds it into the
   edit context, so encoder edits land on it hands-free. A single tap on any
   step still toggles its trig as normal. Net trig change on latch-in is zero
