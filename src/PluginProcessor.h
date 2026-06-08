@@ -115,8 +115,11 @@ namespace lockstep
         void loadActivePosition(int songIdx, int sceneIdx);
         Phrase&       activePhrase(int t);
         const Phrase& activePhrase(int t) const;
-        // swapPhraseForTrack: sticky local deviation (Track + Phrase + step / Phrase + step).
+        // swapPhraseForTrack: deviate one track (Phrase+step / Track+Phrase+step).
         void swapPhraseForTrack(int t, int phraseIdx);
+        // deviateAllToPhrase: deviate every track (Scene+Phrase+step); landing on
+        // sceneIdx un-deviates all.
+        void deviateAllToPhrase(int phraseIdx);
         void resyncTrackToScene(int t);    // Track + Part
         void resyncAllToScene();           // Part + Yes
         void refreshWorkingFromModel();    // re-project model → working (no write-back)

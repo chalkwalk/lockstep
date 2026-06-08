@@ -3040,6 +3040,11 @@ namespace lockstep
         arrangement_.swapPhraseForTrack(t, phraseIdx);
     }
 
+    void LockstepProcessor::deviateAllToPhrase(int phraseIdx)
+    {
+        arrangement_.deviateAllToPhrase(phraseIdx);
+    }
+
     void LockstepProcessor::resyncTrackToScene(int t)
     {
         arrangement_.resyncTrackToScene(t);

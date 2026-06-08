@@ -154,6 +154,28 @@ namespace lockstep
             syncWorkingTrackFromActive(t);
         }
 
+        // Scene+Phrase+step: deviate every track to phraseIdx.
+        // Landing on the diagonal (phraseIdx == sceneIdx) un-deviates all tracks.
+        void deviateAllToPhrase(int phraseIdx)
+        {
+            writeBackWorkingToActive();
+            const int N = std::clamp(phraseIdx, 0, kPhrasesPerTrack - 1);
+            for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+            {
+                if (N == sceneIdx)
+                {
+                    deviated[idx(t)]          = false;
+                    deviationPhraseIdx[idx(t)] = 0;
+                }
+                else
+                {
+                    deviated[idx(t)]          = true;
+                    deviationPhraseIdx[idx(t)] = N;
+                }
+            }
+            syncWorkingFromActive();
+        }
+
         void resyncTrackToScene(int t)
         {
             if (t < 0 || t >= static_cast<int>(kNumTracks)) return;

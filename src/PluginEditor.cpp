@@ -1396,9 +1396,20 @@ namespace lockstep
                     return true;
                 }
 
-                // Phrase + step (Phase 7 / DESIGN §4.7/§16). Track+Phrase and bare
-                // Phrase both deviate the focused track. Scene+Phrase+step (Stage 4)
-                // will deviate the whole band; bare Phrase is an explicit synonym.
+                // Scene + Phrase + step: deviate ALL tracks to phraseIdx.
+                // Landing on the diagonal (== current scene index) un-deviates all.
+                if (uiState_.sceneHeld && uiState_.phraseScopeHeld)
+                {
+                    if (ev.index >= 0 && ev.index < kPhrasesPerTrack)
+                        processor_.deviateAllToPhrase(ev.index);
+                    uiState_.phraseScopeUsed = true;
+                    repaint();
+                    keyboardArea_.repaint();
+                    return true;
+                }
+
+                // Phrase + step (DESIGN §4.7/§16). Track+Phrase and bare Phrase both
+                // deviate the focused track only.
                 if (uiState_.phraseScopeHeld)
                 {
                     if (ev.index >= 0 && ev.index < kPhrasesPerTrack)
