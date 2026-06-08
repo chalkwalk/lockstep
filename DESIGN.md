@@ -991,7 +991,7 @@ reactivation).
   | Scope     | 5 TRIG | 6 SRC | 7 FILTER | 8 AMP | 9 MOD | 0 FX |
   |-----------|--------|-------|--------|-------|-------|------|
   | *(none)*  | machine trig | machine SRC | machine FILTER (opt) | machine AMP (opt) | machine MOD | machine FX (drive/bit) |
-  | `Func`    | conditions / fill | machine SRC alt | machine FILTER alt | machine AMP alt | machine MOD alt | machine FX alt |
+  | `Func`    | COND (conditions) | NOTE (step entry) | (dim — reserved) | (dim — reserved) | (dim — reserved) | (dim — reserved) |
   | `Track`   | per-track condition defaults | input_source / Thru | post-machine FILTER | post-machine AMP + sends | per-track LFO (if any) | IEffect insert 1+2 |
   | `Phrase`  | length / scale lock | (dim) | (dim) | (dim) | (dim) | (dim) |
   | `Scene`   | launch / commit · coreTime | global + deviations | (dim) | active-mask | Morph snapshot | (dim) |
@@ -1036,15 +1036,42 @@ Three rules govern the matrix:
    to the secondary variant. This is the operational form of
    `PRINCIPLES.md` §10 ("chrome must announce state").
 
-### 6.2 Track-meta content lives on `Func+TRIG` (3.2)
+   This reactivity is **colour, not just text.** Holding `Func` (like
+   holding any scope) must repaint the whole section row: every cell
+   that has a wired secondary glows in the `Func`/secondary hue, and
+   every cell that has none dims to the disabled state. Text alone
+   (swapping the primary label) is not sufficient — a row where only
+   the labels change, with no colour transition, hides which
+   secondaries are actually reachable and is the failure §10 forbids.
+
+### 6.2 Track-meta content: `COND`/`NOTE` on `Func`, the rest relocated (3.2 / 5.3)
 
 Pre-3.2, the section bar had a separate "track meta" layer reached
-by Shift (`COND` / `TRIG` / `TRACK` / `GLOBAL`). 3.2 folds that
-layer into the matrix: track-meta `COND` content (probability, m:n,
-prev-dep) lives under `Func+TRIG`; trig defaults (default note,
-default velocity, gate length) live under `TRIG` itself. Track
-length / divider migrate into `Track+TRIG`. Global output gain,
-sync mode, and clock settings migrate to `Song`-scope cells.
+by Shift (`COND` / `TRIG` / `TRACK` / `GLOBAL`). The matrix folds that
+layer in and distributes it to the scope each meta belongs to — so a
+meta is reached through the modifier that *owns* its domain, not a
+catch-all Shift/`Func` overlay:
+
+- **`COND`** (probability, m:n, prev-dep) — `Func+TRIG`. A trig-
+  condition layer over the trig defaults, so it sits on `Func` as the
+  secondary of `TRIG`. Trig defaults themselves (default note,
+  velocity, gate length) live on `TRIG` with no modifier.
+- **`NOTE`** (explicit note / velocity / gate step entry) — `Func+SRC`.
+  The numeric-entry counterpart to the live pitch-record gesture
+  (§5.4), so it sits on `Func` as the secondary of `SRC`.
+- **`TRACK`** (track length / divider) — `Track+TRIG`. Length and
+  divider are per-*track* properties, so they belong under the `Track`
+  scope, not `Func`. (`Func+FILTER` no longer carries them.)
+- **`GLOBAL`** (output gain, sync mode, clock) — `Song+FX`. Project-
+  wide settings belong under the `Song` scope; `FX` is the master/bus
+  key (§6.1 rule 1: `Func+Song+FX` = master FX). (`Func+FX` no longer
+  carries them.)
+
+The result: the only `Func`-section secondaries currently wired are
+`COND` (`Func+TRIG`) and `NOTE` (`Func+SRC`). The remaining `Func`
+section cells (`FILTER`/`AMP`/`MOD`/`FX`) dim until a machine declares
+a `ParamSpec.variant = Secondary` page for them (§6.1 rule 1) — the
+slot is reserved, not occupied.
 
 Each section button cell still shows its primary label at the top
 and its `Func`-secondary label at the bottom; the active layer
