@@ -102,7 +102,6 @@ namespace lockstep
         // Step cell helpers (from StepGrid)
         int  trackLength()  const;
         void clampPage();
-        void rebuildLengthAttachment();
         int  stepCellAt(juce::Point<int> pos) const;
 
         // Section helpers (from SectionBar)
@@ -131,6 +130,7 @@ namespace lockstep
                               const SurfaceModel& model);
         void paintStepRows   (juce::Graphics& g, juce::Rectangle<int> area,
                               const SurfaceModel& model);
+        void paintTimeline   (juce::Graphics& g, juce::Rectangle<int> navArea);
         // Decorative edge/anchor keys rendered just outside each main row (ORL and STG
         // only; rowIndex 0-3 for number/Q/A/Z rows; JUCE clips the outer halves).
         void paintEdgeRow   (juce::Graphics& g, int rowIndex, juce::Rectangle<int> rowArea) const;
@@ -165,12 +165,7 @@ namespace lockstep
         double          lastPpq_        = -1.0;
         int             lastTrackLen_   = -1;
 
-        juce::TextButton prevBtn_{ juce::String(u8"←") };
-        juce::TextButton nextBtn_{ juce::String(u8"→") };
-        juce::Slider     lengthSlider_;
-        std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> lengthAttachment_;
-
-        static constexpr int kNavRowH    = 26;
+        static constexpr int kNavRowH    = 34;
         static constexpr int kVertMargin = 4;  // top/bottom margin of the key area
 
         // Section row constants (from SectionBar).

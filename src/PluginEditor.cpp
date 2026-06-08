@@ -256,7 +256,7 @@ namespace lockstep
         keyboardArea_.setPressTracker(&pressTracker_);
 
 
-        setSize(990, 596);  // MHX: taller for 4x2 MZ encoder band
+        setSize(990, 604);  // MHX: taller for 4x2 MZ encoder band; +8 for timeline nav row
         setWantsKeyboardFocus(true);
 
         // Controller surfaces (DESIGN §35).

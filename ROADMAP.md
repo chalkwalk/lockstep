@@ -10,11 +10,17 @@ satisfy, see `PRINCIPLES.md`. **Before adding a milestone here, confirm it is
 expressible within those principles and within the existing scope+verb grammar
 (DESIGN §13).**
 
-**Active focus:** Phase 7 closeout — phrase-length authoring (DESIGN §34.4) +
-the pending `7.5`/`7.8`/`3.10` verification items.
+**Active focus:** Phase 7 is functionally complete (shipped through `7.17`).
+The only open Phase 7 / Phase 3 items are **manual** verification sweeps —
+`3.10` standalone (a–f) and `7.8` play-test + VST3/CLAP v11 round-trip — where
+the code shipped but the scripted runs are pending.
 **Last completed:** `7.17` — Swing anchored rotary + reusable reference-mark element.
-**Next up:** `6.7` — the Machine Module ABI (gates the rest of the Phase 4
-catalogue).
+**Next up:** *under review.* ROADMAP previously named `6.7` (Machine Module ABI,
+which gates the Phase 4 catalogue), but the higher-ROI **performance-grammar**
+candidates — `5.9` deterministic generators (Euclidean print-on-release / Chance)
+and a staged `6.5` FX system (fills the empty canonical FX section + the Animate
+punch-in) — deliver immediate performability and need no new infrastructure.
+See the 2026-06-08 doc-review discussion.
 
 Phases 1–3 took Lockstep from an empty plugin to a frozen, playable performance
 surface; Phase 4 fills the machine catalogue; Phases 5–6 are the depth and
@@ -1007,29 +1013,51 @@ DESIGN §32. Depends on 2.4 + the §14 path (independent of 6.1–6.4).
 
 ### 6.6 — External controller surfaces  *[in progress]*  *(was MW)*
 DESIGN §35. Generic third-party MIDI controllers as augmentation surfaces (worked
-example: Behringer X-Touch Mini — see `XTOUCHMINI_MCU.md`). The load-bearing piece
-is the surface model (§35.8): one pure `buildSurfaceModel()` both screen and
-controllers render from. Contributors add controllers via `IControllerSurface` +
-`ControllerRegistry`; the JSON profile is the default data-driven impl.
-- [ ] **6.6.1** `IControllerSurface` seam + `ControllerRegistry` + profile loader
-      + JSON schema + validation; graceful unknown-device / malformed / unknown-
-      token handling.
-- [ ] **6.6.2** `ControllerPortManager` (dedicated `MidiInput`/`Output`, disjoint
-      from the host bus; hotplug; three-thread marshalling).
-- [ ] **6.6.3** `ControllerInputRouter` (encoders→CC, buttons→`ControllerEvent`,
-      fader→interim slider).
-- [ ] **6.6.4** Ship the X-Touch Mini built-in profile; manual pass.
-- [~] **6.6.5** Surface model + feedback. **(a)** Extract pure
-      `buildSurfaceModel()` → `SurfaceModel` and re-point the screen at it —
-      **done**: slices 0–6 (`SurfaceModel.{h,cpp}`, `CellState`, decoration
-      channels, `tests/SurfaceModelTest.cpp`) + the **6.6.5a UX-consistency pass**
-      (unified hint-band rule, note-edit → `Func+Src`, CPC under-scope relabel,
-      `TrigGridMode` removed, `Func+arrow` rotate/×2/÷2). **(b)** [pending]
-      `ControllerFeedbackEmitter` (30 Hz, diff/throttle, dedicated-port output).
-- [ ] **6.6.6** Feedback colour / state mirroring (token-aware + dumb-device
-      fallback).
-- [ ] **6.6.7** Finalise scene-fader binding once 5.2 lands.
+examples: Behringer X-Touch Mini — see `XTOUCHMINI_MCU.md` — and Ableton Push 1).
+The load-bearing piece is the surface model (§35.8): one pure `buildSurfaceModel()`
+both screen and controllers render from. **End-state:** contributors add
+controllers via `IControllerSurface` + `ControllerRegistry`; the JSON profile is
+the default data-driven impl.
+
+> **Architecture status (drift note).** The surface model and two concrete
+> controllers shipped **ahead of** the registry/JSON layer. Today
+> `Push1Surface` and `XTouchMiniSurface` are **hardcoded `IControllerSurface`
+> subclasses instantiated directly in `PluginEditor`** and driven by
+> `ControllerPortManager`; feedback is rendered inline from
+> `ControllerPortManager::drain` (no separate throttled emitter yet). This is
+> **interim** — the `ControllerRegistry`, the data-driven JSON profile loader
+> + schema validation, and the `ControllerFeedbackEmitter` remain the intended
+> end-state (they are what make third-party controllers a contributor surface
+> rather than a core code change). Items below mark what shipped vs. what the
+> end-state still needs.
+- [~] **6.6.1** `IControllerSurface` seam shipped (concrete subclasses).
+      **Still planned:** `ControllerRegistry` + profile loader + JSON schema +
+      validation; graceful unknown-device / malformed / unknown-token handling.
+- [x] **6.6.2** `ControllerPortManager` (dedicated MIDI port, disjoint from the
+      host bus; drains buffered input to the surface then renders).
+- [x] **6.6.3** Input routing (encoders→CC, buttons→`ControllerEvent`, fader→
+      interim slider) — handled inside the concrete surfaces.
+- [x] **6.6.4** X-Touch Mini built-in surface shipped (hardcoded C++).
+- [~] **6.6.5** Surface model + feedback. **(a) done** — pure
+      `buildSurfaceModel()` → `SurfaceModel` with the screen re-pointed at it
+      (slices 0–6: `SurfaceModel.{h,cpp}`, `CellState`, decoration channels,
+      `tests/SurfaceModelTest.cpp`) + the **6.6.5a UX-consistency pass** (unified
+      hint-band rule, note-edit → `Func+Src`, CPC under-scope relabel,
+      `TrigGridMode` removed, `Func+arrow` rotate/×2/÷2) + meta-band controller
+      exposure via `MetaBand`/`MetaRotary` (7.15–7.17). **(b) [pending]**
+      dedicated throttled `ControllerFeedbackEmitter` (30 Hz, diff/throttle) —
+      feedback is currently inline per drain, not diffed.
+- [~] **6.6.6** Feedback colour / state mirroring — **shipped for Push 1**
+      (static semantic→palette-index table, `Push1Surface.cpp`) and X-Touch.
+      **Still planned:** the generic token-aware + dumb-device fallback that the
+      JSON/registry path needs.
+- [ ] **6.6.7** Finalise scene-fader binding (5.2 Morph is shipped — wire the
+      crossfader to a controller fader).
 - [ ] **6.6.8** Adaptive `layoutMode` (opt-in, deferred-most).
+- [x] **(unplanned, shipped)** **Push 1 surface** — full render/display/buttons,
+      static semantic→palette matcher, meta-band exposure. Not in the original
+      6.6 plan; added as a second worked example. (See memory
+      `project_push1_refinement`.)
 
 ### 6.7 — Machine Module ABI  *[planned]*  *(was M10; supersedes the old MH.5)*
 DESIGN §36. One authoring model, two link paths: first-party statically linked,

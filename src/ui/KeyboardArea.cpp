@@ -8,6 +8,7 @@
 #include "../ParameterIDs.h"
 #include "../core/TrigCondition.h"
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <vector>
 
@@ -31,20 +32,6 @@ namespace lockstep
         : processor_(processor), uiState_(uiState)
     {
         processor_.setFocusTrack(activeTrack_);
-
-        prevBtn_.onClick = [this] { prevPage(); repaint(); };
-        prevBtn_.setWantsKeyboardFocus(false);
-        nextBtn_.onClick = [this] { nextPage(); repaint(); };
-        nextBtn_.setWantsKeyboardFocus(false);
-        addAndMakeVisible(prevBtn_);
-        addAndMakeVisible(nextBtn_);
-
-        lengthSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
-        lengthSlider_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 34, 18);
-        lengthSlider_.setWantsKeyboardFocus(false);
-        addAndMakeVisible(lengthSlider_);
-
-        rebuildLengthAttachment();
         startTimerHz(30);
     }
 
@@ -121,7 +108,6 @@ namespace lockstep
         activeTrack_ = clamped;
         processor_.setFocusTrack(clamped);
         stepPage_ = 0;
-        rebuildLengthAttachment();
         repaint();
         if (onActiveTrackChanged)
             onActiveTrackChanged(activeTrack_);
@@ -188,16 +174,6 @@ namespace lockstep
         stepPage_ = r.page;
         scrollPastEndUnlocked_ = r.unlocked;
         repaint();
-    }
-
-    void KeyboardArea::rebuildLengthAttachment()
-    {
-        lengthAttachment_.reset();
-        lengthAttachment_ = std::make_unique<
-            juce::AudioProcessorValueTreeState::SliderAttachment>(
-                processor_.apvts(),
-                ParamIDs::trackLength(activeTrack_),
-                lengthSlider_);
     }
 
     int KeyboardArea::stepCellAt(juce::Point<int> pos) const
@@ -694,18 +670,7 @@ namespace lockstep
     // -------------------------------------------------------------------------
     // resized
 
-    void KeyboardArea::resized()
-    {
-        const auto areas = computeRowAreas();
-        auto navRow = areas.step;
-        navRow.removeFromBottom(kNavRowH);  // consume step cells area
-        // navRow is now just the nav strip at bottom of step area
-        auto nav = areas.step.withTop(navRow.getBottom()).reduced(0, 2);
-        prevBtn_.setBounds(nav.removeFromLeft(28).reduced(1));
-        nextBtn_.setBounds(nav.removeFromLeft(28).reduced(1));
-        nav.removeFromLeft(64);
-        lengthSlider_.setBounds(nav.reduced(2, 0));
-    }
+    void KeyboardArea::resized() {}
 
     // -------------------------------------------------------------------------
     // paint
@@ -1725,17 +1690,135 @@ namespace lockstep
             }
         }
 
-        // Nav row: page info text. When scrolled onto the empty page past the
-        // track length (DESIGN §34.4), reveal it in the count (e.g. "3 / 3").
-        const int pages = juce::jmax(numPages(), stepPage_ + 1);
-        g.setColour(juce::Colour::fromRGB(100, 120, 140));
-        g.setFont(juce::Font(juce::FontOptions(10.0f)));
-        const auto infoRect = navArea.withTrimmedLeft(96).withTrimmedRight(120);
-        g.drawText(
-            "Page " + juce::String(stepPage_ + 1) + " / " + juce::String(pages)
-                + "     Length:",
-            infoRect, juce::Justification::centredLeft);
+        paintTimeline(g, navArea);
+    }
 
+    // -------------------------------------------------------------------------
+    // paintTimeline — read-only 64-step overview strip in the nav row.
+    // Fixed scale: 64 cells always fill the full width.
+    // Active steps (0..trackLen-1) are drawn normally; the tail is dimmed.
+    // Trig-active cells are filled with the track scope colour.
+    // The current page window is highlighted with a bright border band.
+    // The playhead cell is marked with the amber playhead colour.
+    // Beat/bar dividers come from the time signature + track divider.
+
+    void KeyboardArea::paintTimeline(juce::Graphics& g, juce::Rectangle<int> navArea)
+    {
+        static constexpr int kTimelineSteps = 64;
+
+        // Fetch track state
+        const int trackLen = juce::jlimit(1, kTimelineSteps, trackLength());
+
+        auto* divP = processor_.apvts().getRawParameterValue(
+            ParamIDs::trackDivider(activeTrack_));
+        const int div = divP ? juce::jmax(1, static_cast<int>(divP->load())) : 1;
+        const double divPpq = 0.25 * static_cast<double>(div);
+
+        // Playhead position (-1 when stopped / divPpq==0)
+        int playheadAbs = -1;
+        if (divPpq > 0.0)
+        {
+            const auto stepNum = static_cast<std::int64_t>(
+                processor_.clock().cumulativePpq() / divPpq);
+            playheadAbs = static_cast<int>(stepNum % trackLen);
+        }
+
+        // Beat / bar dividers from time signature
+        const auto& ts      = processor_.section().coreTime;
+        const double beatPpq = divPpq > 0.0 ? (4.0 / static_cast<double>(div)) : 4.0;
+        const int stepsPerBeat = juce::jmax(1, static_cast<int>(std::round(beatPpq / divPpq)));
+        const int stepsPerBar  = juce::jmax(stepsPerBeat,
+            static_cast<int>(std::round(ts.barPpq() / divPpq)));
+
+        const auto& trk = processor_.sequence().tracks[static_cast<std::size_t>(activeTrack_)];
+
+        // Layout: vertical centering within navArea, leaving a small margin
+        const int margin = 3;
+        const int cellH  = navArea.getHeight() - 2 * margin;
+        const float cellW = static_cast<float>(navArea.getWidth()) / static_cast<float>(kTimelineSteps);
+
+        const int pageFirst = stepPage_ * kPageSteps;
+        const int pageLast  = pageFirst + kPageSteps - 1;
+
+        // Page window background band drawn first (underneath cells)
+        {
+            const float bandX = navArea.getX() + static_cast<float>(pageFirst) * cellW;
+            const float bandW = static_cast<float>(kPageSteps) * cellW;
+            g.setColour(juce::Colour(0xFF1E2A38u));
+            g.fillRect(juce::Rectangle<float>(bandX,
+                                              static_cast<float>(navArea.getY()),
+                                              bandW,
+                                              static_cast<float>(navArea.getHeight())));
+        }
+
+        // Draw each cell
+        for (int i = 0; i < kTimelineSteps; ++i)
+        {
+            const float cx = navArea.getX() + static_cast<float>(i) * cellW;
+            const auto cellF = juce::Rectangle<float>(cx + 1.0f,
+                                                       static_cast<float>(navArea.getY() + margin),
+                                                       cellW - 2.0f,
+                                                       static_cast<float>(cellH));
+
+            const bool inRange  = i < trackLen;
+            const bool hasTrig  = inRange && trk.steps[static_cast<std::size_t>(i)].trig;
+            const bool isHead   = (i == playheadAbs);
+            const bool onPage   = (i >= pageFirst && i <= pageLast);
+
+            // Cell background
+            if (hasTrig)
+                g.setColour(juce::Colour(inRange ? kScopeTrack : kScopeTrackDim));
+            else if (inRange)
+                g.setColour(juce::Colour(onPage ? 0xFF2A3848u : 0xFF1C2530u));
+            else
+                g.setColour(juce::Colour(kStepOutRange));
+
+            g.fillRect(cellF);
+
+            // Playhead marker — amber border drawn over the cell
+            if (isHead)
+            {
+                g.setColour(juce::Colour(kStepPlayhead));
+                g.drawRect(cellF, 1.5f);
+            }
+        }
+
+        // Beat / bar divider lines (drawn on top of cells)
+        for (int i = 1; i < kTimelineSteps; ++i)
+        {
+            if (i % stepsPerBar == 0)
+            {
+                // Bar line: bright, full height
+                const float lx = navArea.getX() + static_cast<float>(i) * cellW;
+                g.setColour(juce::Colour(0xFF485868u));
+                g.fillRect(juce::Rectangle<float>(lx - 0.5f,
+                                                  static_cast<float>(navArea.getY()),
+                                                  1.5f,
+                                                  static_cast<float>(navArea.getHeight())));
+            }
+            else if (i % stepsPerBeat == 0)
+            {
+                // Beat line: dimmer, partial height
+                const float lx = navArea.getX() + static_cast<float>(i) * cellW;
+                g.setColour(juce::Colour(0xFF2E3A48u));
+                g.fillRect(juce::Rectangle<float>(lx - 0.5f,
+                                                  static_cast<float>(navArea.getY() + margin),
+                                                  1.0f,
+                                                  static_cast<float>(cellH)));
+            }
+        }
+
+        // Page window border (drawn on top of everything)
+        {
+            const float bandX = navArea.getX() + static_cast<float>(pageFirst) * cellW;
+            const float bandW = static_cast<float>(kPageSteps) * cellW;
+            g.setColour(juce::Colour(0xFF506880u));
+            g.drawRect(juce::Rectangle<float>(bandX,
+                                              static_cast<float>(navArea.getY()),
+                                              bandW,
+                                              static_cast<float>(navArea.getHeight())),
+                       1.0f);
+        }
     }
 
     // -------------------------------------------------------------------------
