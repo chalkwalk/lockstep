@@ -166,6 +166,12 @@ namespace lockstep
                    kNumTracks> soloAttachments_;
         KeyboardArea keyboardArea_;
         ManipulationZone manipulationZone_;  // after keyboardArea_ — ctor takes KeyboardArea&
+        int activeMetaSection_ = -1;  // mirrors ManipulationZone::metaSection_; -1 = normal params
+
+        // Update ManipulationZone::swingQualifier_ from held-scope state.
+        // Called on meta-section change and Song/Scene scope press/release.
+        // 0=song-all, 1=song-track, 2=scene-all; only active when TRACK meta (2) is shown.
+        void updateSwingQualifier();
 
         // Transparent layer that draws the empty-track grey-out hints. Declared
         // before poolOverlay_ / soundBankOverlay_ so addAndMakeVisible inserts it

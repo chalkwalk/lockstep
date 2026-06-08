@@ -73,7 +73,9 @@ namespace lockstep
         };
         keyboardArea_.onMetaSectionChanged = [this](int metaSection)
         {
+            activeMetaSection_ = metaSection;
             manipulationZone_.setMetaSection(metaSection);
+            updateSwingQualifier();
         };
 
         // Track page toggle: flips between tracks 1-8 and 9-16.
@@ -858,6 +860,23 @@ namespace lockstep
         repaint();
     }
 
+    void LockstepEditor::updateSwingQualifier()
+    {
+        // Swing qualifier is only meaningful while TRACK meta (metaSection 2) is active.
+        // 0=song-all (root), 1=song-track delta (Song held), 2=scene-all delta (Scene held).
+        if (activeMetaSection_ != 2)
+        {
+            manipulationZone_.setSwingQualifier(0);
+            return;
+        }
+        if (uiState_.songHeld)
+            manipulationZone_.setSwingQualifier(1);
+        else if (uiState_.sceneHeld)
+            manipulationZone_.setSwingQualifier(2);
+        else
+            manipulationZone_.setSwingQualifier(0);
+    }
+
     void LockstepEditor::updateFillActivation()
     {
         const bool fillHeld = uiState_.fillHeld;
@@ -1149,6 +1168,7 @@ namespace lockstep
                 uiState_.songHeld = true;
                 editMode_.onScopeEvent(ev);
                 handleModifierTap(CB::SongScope, uiState_.latch.song);
+                updateSwingQualifier();
                 repaint();
                 return true;
 
@@ -1165,6 +1185,7 @@ namespace lockstep
                 uiState_.sceneHeld = true;
                 editMode_.onScopeEvent(ev);
                 handleModifierTap(CB::SceneScope, uiState_.latch.scene);
+                updateSwingQualifier();
                 keyboardArea_.repaint();
                 repaint();
                 return true;
@@ -2544,6 +2565,7 @@ namespace lockstep
                 {
                     uiState_.sceneHeld = false;
                     editMode_.onScopeEvent({ T::ButtonUp, CB::SceneScope });
+                    updateSwingQualifier();
                     repaint();
                 }
                 break;
@@ -2597,6 +2619,7 @@ namespace lockstep
                 {
                     uiState_.songHeld = false;
                     editMode_.onScopeEvent({ T::ButtonUp, CB::SongScope });
+                    updateSwingQualifier();
                     repaint();
                 }
                 break;
@@ -2659,7 +2682,9 @@ namespace lockstep
                     // Restore MZ to machine params — dismiss the TRIG meta section
                     // that Func+Trig brought up, so the user returns to where they were.
                     uiState_.masterSection = -1;
+                    activeMetaSection_ = -1;
                     manipulationZone_.setMetaSection(-1);
+                    updateSwingQualifier();
 
                     keyboardArea_.repaint();
                     repaint();

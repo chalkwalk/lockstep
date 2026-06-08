@@ -707,6 +707,11 @@ namespace lockstep
         const std::array<float, kNumSlots> vals = { length, divider, swingShown, effSw,
                                                     0.0f,   0.0f,    0.0f,       0.0f };
 
+        // Swing slot label changes with qualifier to signal which level is targeted.
+        const char* swingLabel = (swingQualifier_ == 1) ? "SwTrk"
+                               : (swingQualifier_ == 2) ? "SwScn"
+                                                        : "Swing";
+
         updatingFromTimer_ = true;
         for (int i = 0; i < kNumSlots; ++i)
         {
@@ -725,6 +730,9 @@ namespace lockstep
                 {
                     const int pct = static_cast<int>(std::round(vals[si] * 100.0f));
                     valueText = (pct >= 0 ? "+" : "") + juce::String(pct) + "%";
+                    // Append (D) when showing a stored delta level (not the root).
+                    if (i == 2 && swingQualifier_ != 0)
+                        valueText += " (D)";
                 }
                 else
                 {
@@ -733,7 +741,8 @@ namespace lockstep
             }
 
             valueLabels_[si].setText(valueText, juce::dontSendNotification);
-            labels_[si].setText(kDefs[si].label, juce::dontSendNotification);
+            labels_[si].setText(i == 2 ? swingLabel : kDefs[si].label,
+                                juce::dontSendNotification);
             clearBtns_[si].setEnabled(false);
             clearBtns_[si].setAlpha(0.0f);
         }
