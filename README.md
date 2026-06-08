@@ -1072,6 +1072,8 @@ Track (2)
 ├─ + Func + O        → delete the track (then P confirms, Func+P cancels) — §5.9
 ├─ + P (YES)         → Quantize: zero microOffset on every step of the track — §5.1
 ├─ + Scene           → re-sync the focused track to the active scene — §5.14
+├─ + TRIG (open TRACK meta) + Song held → Swing encoder targets song-track delta (SwTrk) — §5.8
+├─ + TRIG (open TRACK meta) + Scene held → Swing encoder targets scene-all delta (SwScn) — §5.8
 └─ Func + Track      → machine / Kit picker (Track→KIT; press a step to assign) — §5.5
 ```
 
@@ -1109,6 +1111,7 @@ Scene (W)
 ├─ Func + Scene + U         → copy the active scene to the clipboard (CPY:SCN) — §5.14
 ├─ Func + Scene + I         → paste the clipboard scene (baked; conflict-gated) — §5.14
 ├─ Mute + Func + Scene + I  → paste floor only (strip the content overlay) — §5.14
+├─ held (TRACK meta open)   → qualifies Swing encoder to scene-all delta (SwScn label + (D)) — §5.8
 └─ Scene + Mute + step      → per-scene mute (this track's active-mask) — §5.11
 ```
 
@@ -1121,6 +1124,7 @@ Links: [§5.14](#514-scenes-phrases-and-songs-the-launch-model) ·
 Song (S)
 ├─ + step            → switch Songs (quantized; a full reset, live deviations clear) — §5.14
 ├─ + O (CLEAR)       → Panic — kill all voices immediately — §5.14
+├─ held (TRACK meta open) → qualifies Swing encoder to song-track delta (SwTrk label + (D)) — §5.8
 └─ Func + Song       → Global / master-bus focus — §5.2
 ```
 
