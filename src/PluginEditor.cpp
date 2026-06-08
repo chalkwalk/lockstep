@@ -1086,6 +1086,20 @@ namespace lockstep
     bool LockstepEditor::dispatchDown(ControllerEvent ev, int rawCode)
     {
         using CB = ControllerButton;
+
+        // Transient swing dismissal (C3): any non-swing-scope interaction while the
+        // swing band is showing collapses back to machine params so the user can reach
+        // sections/verbs/nav/steps without the scope re-routing the whole zone.
+        // The scope keys themselves are excluded — they reset dismissed on re-hold.
+        if (resolveMetaBand(uiState_) == MetaBand::Swing
+            && ev.button != CB::TrackScope
+            && ev.button != CB::SceneScope
+            && ev.button != CB::SongScope)
+        {
+            uiState_.swingDismissed = true;
+            refreshMetaBand();
+        }
+
         switch (ev.button)
         {
             case CB::Func:
@@ -1116,6 +1130,7 @@ namespace lockstep
                 processor_.setControlAllActive(true);  // MD.10: active until a track is selected
                 editMode_.onScopeEvent(ev);
                 handleModifierTap(CB::TrackScope, uiState_.latch.track);
+                uiState_.swingDismissed = false;
                 updateSwingQualifier();
                 repaint();
                 return true;
@@ -1167,6 +1182,7 @@ namespace lockstep
                 uiState_.songHeld = true;
                 editMode_.onScopeEvent(ev);
                 handleModifierTap(CB::SongScope, uiState_.latch.song);
+                uiState_.swingDismissed = false;
                 updateSwingQualifier();
                 repaint();
                 return true;
@@ -1184,6 +1200,7 @@ namespace lockstep
                 uiState_.sceneHeld = true;
                 editMode_.onScopeEvent(ev);
                 handleModifierTap(CB::SceneScope, uiState_.latch.scene);
+                uiState_.swingDismissed = false;
                 updateSwingQualifier();
                 keyboardArea_.repaint();
                 repaint();
@@ -2582,6 +2599,7 @@ namespace lockstep
                 if (!uiState_.latch.track)
                 {
                     uiState_.trackHeld = false;
+                    uiState_.swingDismissed = false;  // re-arm for next hold
                     processor_.setControlAllActive(false);  // MD.10
                     editMode_.onScopeEvent({ T::ButtonUp, CB::TrackScope });
                     updateSwingQualifier();
@@ -2605,6 +2623,7 @@ namespace lockstep
                 if (!uiState_.latch.scene)
                 {
                     uiState_.sceneHeld = false;
+                    uiState_.swingDismissed = false;  // re-arm for next hold
                     editMode_.onScopeEvent({ T::ButtonUp, CB::SceneScope });
                     updateSwingQualifier();
                     repaint();
@@ -2660,6 +2679,7 @@ namespace lockstep
                 if (!uiState_.latch.song)
                 {
                     uiState_.songHeld = false;
+                    uiState_.swingDismissed = false;  // re-arm for next hold
                     editMode_.onScopeEvent({ T::ButtonUp, CB::SongScope });
                     updateSwingQualifier();
                     repaint();
