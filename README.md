@@ -551,21 +551,29 @@ Press a section key repeatedly to page through its parameters (the MZ
 shows eight at a time, in two rows of four — `kMZSlots`). Holding
 `Func` flips to each machine's **secondary** page (deep-dive
 parameters like FM mod matrices); holding any other scope opens that
-scope's row in the **scope-section matrix**:
+scope's row in the **scope-section matrix**. Like a scope-hold, holding
+`Func` repaints the whole section row in colour: the cells that carry a
+wired secondary glow (orange), and the cells that don't dim out — so the
+row always shows which secondaries are actually reachable.
 
 | Held scope | What `Track+5` (TRIG) means | …`Track+7` (FILTER) | …`Master+0` (FX) |
 |---|---|---|---|
-| `Track` | Per-track condition defaults (length / divider via `Track+TRIG`) | Post-machine FILTER | (no track scope on FX) |
+| `Track` | Length / divider (the TRACK meta — labelled `LEN`) | Post-machine FILTER | (no track scope on FX) |
 | `Pattern` | Length / scale lock | (dim) | Pattern-FX snapshot |
 | `Part` | Trig templates | Part-base FILTER | Part-base FX |
 | `Scene` | (rename `CXFD` — crossfader curve) | Scene-assign FILTER | Scene-assign FX |
 | `Master` | (dim) | Master FILTER (if any) | **Master FX 1+2** |
 | `Func` (over any of the above) | The secondary variant of the cell (e.g. `Func+Scene+FILTER` = the other scene's filter assignments). |
 
-Track-meta content folds into `Func+TRIG` (COND: probability, m:n,
-prev-dep) and `TRIG` itself (default note / velocity / gate). Track
-length and clock divider live under `Track+TRIG`. Output gain, sync
-mode, and clock settings live under master-scope cells.
+Track-meta content is distributed to the scope that owns each domain.
+Only two metas sit on `Func`: **COND** (probability, m:n, prev-dep) on
+`Func+TRIG`, and **NOTE** (explicit note / velocity / gate step entry)
+on `Func+SRC`. The other `Func` section cells (`FILTER`/`AMP`/`MOD`/`FX`)
+dim — no wired secondary yet. The relocated metas: track **length /
+divider** live under `Track+TRIG` (labelled `LEN`); output **gain, sync
+mode, and clock** live under `Song+FX` (labelled `GLBL`, the master-bus
+key). Trig defaults (default note / velocity / gate) remain on bare
+`TRIG`.
 
 <a name="59-copy-paste-clear"></a>
 ### 5.9 Copy / paste / clear

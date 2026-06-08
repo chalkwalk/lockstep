@@ -844,7 +844,7 @@ scope+verb. Stochastic / generative authoring is explicitly *not* here (NON-GOAL
 > The **Animate** momentary insert-toggle — the punch-in answer — lands with the
 > FX system; see 6.5.
 
-### 5.10 — Func-layer legibility + meta-section relocation  *[active]*
+### 5.10 — Func-layer legibility + meta-section relocation  *[shipped]*
 DESIGN §6.1 rule 3 + §6.2. The `Func`-held section row only swapped *text*, never
 colour, so reachable secondaries were invisible (the §10 "chrome must announce
 state" failure). And two metas (`TRACK`, `GLOBAL`) sat on `Func` although DESIGN
@@ -852,12 +852,14 @@ state" failure). And two metas (`TRACK`, `GLOBAL`) sat on `Func` although DESIGN
 obey the same glow/dim grammar the scopes already use, and finishes the §6.2
 relocation. (`Phrase+LEN` length/divider access is left untouched — paused 3.11
 context.)
-- [ ] Docs: DESIGN §6.1/§6.2 pin `Func` metas to `COND`/`NOTE`, relocate
+- [x] Docs: DESIGN §6.1/§6.2 pin `Func` metas to `COND`/`NOTE`, relocate
       `TRACK`→`Track+TRIG`, `GLOBAL`→`Song+FX`, and require the colour grammar.
-- [ ] `Func`-held section keys glow in the secondary hue when a secondary is
-      wired, dim to `Disabled` when not (mirrors scope-glow).
-- [ ] Relocate `TRACK` (length/divider) to `Track+TRIG`; drop from `Func+FILTER`.
-- [ ] Relocate `GLOBAL` (gain/sync/clock) to `Song+FX`; drop from `Func+FX`.
+- [x] `Func`-held section keys glow in the secondary hue (`kScopeFunc`) when a
+      secondary is wired, dim to `Disabled` when not (mirrors scope-glow).
+- [x] Relocate `TRACK` (length/divider) to `Track+TRIG`; drop from `Func+FILTER`.
+      Split the meta predicate: `kMetaLabels` (Func-row label) vs
+      `metaContentExists()` (MZ content reached by scope gestures).
+- [x] Relocate `GLOBAL` (gain/sync/clock) to `Song+FX`; drop from `Func+FX`.
 
 ---
 
