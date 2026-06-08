@@ -126,6 +126,13 @@ namespace lockstep
 
         keyboardArea_.onActiveTrackChanged = [this](int newTrack)
         {
+            // Dismiss any sticky meta band so it never silently edits a stale track.
+            if (activeMetaSection_ != -1)
+            {
+                activeMetaSection_ = -1;
+                manipulationZone_.setMetaSection(-1);
+            }
+
             // Auto-flip page when the active track changes bank.
             const int newPage = (newTrack >= 8) ? 1 : 0;
             if (newPage != trackPage_)
