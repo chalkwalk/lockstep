@@ -12,9 +12,8 @@ expressible within those principles and within the existing scope+verb grammar
 
 **Active focus:** Phase 7 closeout — phrase-length authoring (DESIGN §34.4) +
 the pending `7.5`/`7.8`/`3.10` verification items.
-**Last completed:** `7.13` — Scene commit-and-bake + placeable payloads + Scene
-clipboard + omni copy (state v8). Vocabulary rename (`Set/Song/Scene/Phrase` +
-Morph) landed in `7.9a–e`.
+**Last completed:** `7.15` — Song selector display + meta-band split (DIV/PHRASELEN) +
+scope-surfaced swing + auto-dismiss meta on track change.
 **Next up:** `6.7` — the Machine Module ABI (gates the rest of the Phase 4
 catalogue).
 
@@ -668,6 +667,23 @@ Follow-up plan (placeable payloads + Scene clipboard + omni copy) shipped:
 - [x] **Unqualified paste** `Func+I`: stamps the single captured layer via type tag;
       rejects with "Paste: pick a scope" when type is `All` (omni grab).
 - [x] **Panic → Song + Clear (O)**. `Func+I` freed for unqualified paste.
+
+### 7.15 — Song selector display; meta-band split; scope-surfaced swing  *[shipped]*
+
+- [x] **A1 Song selector:** holding Song shows a 16-slot grid (slot 0 occupied,
+      rest empty) instead of tinting the trig grid. `songSlotOccupied()` added to
+      `Arrangement` and `LockstepProcessor`.
+- [x] **A2 Auto-dismiss meta on track change:** any open meta section is cleared
+      when the active track changes, preventing stale-track edits.
+- [x] **A3 Band split:** retired the combined TRACK meta (length/divider/swing/effct).
+      - `Track+TRIG` → metaSection 3 (DIV): kit divider only, label `DIV`.
+      - `Phrase+TRIG` → metaSection 4 (PHRASELEN): active phrase length only.
+      - Each owns the hierarchy level it controls (Kit / Phrase).
+- [x] **A4 Swing by held scope:** holding Song/Scene/Track now surfaces that scope's
+      swing directly in the band — no meta prerequisite. Slot 0 = editable level,
+      slot 1 = `Effct` (clamped sum, read-only). Non-sticky; clears on release.
+- [x] **A5 Docs:** DESIGN §19.2 / §6.1 / §5 table updated; README §5.8 and shortcut
+      appendix rewritten.
 
 ### 7.14 — Pin Scene→Phrase diagonal; remap gestures; morph drag fix  *[shipped]*
 

@@ -558,35 +558,32 @@ row always shows which secondaries are actually reachable.
 
 | Held scope | What `Track+5` (TRIG) means | …`Track+7` (FILTER) | …`Master+0` (FX) |
 |---|---|---|---|
-| `Track` | Length / divider (the TRACK meta — labelled `LEN`) | Post-machine FILTER | (no track scope on FX) |
-| `Pattern` | Length / scale lock | (dim) | Pattern-FX snapshot |
+| `Track` | Kit **divider** (labelled `DIV`) | Post-machine FILTER | (no track scope on FX) |
+| `Phrase` | Phrase **length** (labelled `LEN`, per active phrase) | (dim) | (dim) |
 | `Part` | Trig templates | Part-base FILTER | Part-base FX |
 | `Scene` | (rename `CXFD` — crossfader curve) | Scene-assign FILTER | Scene-assign FX |
 | `Master` | (dim) | Master FILTER (if any) | **Master FX 1+2** |
 | `Func` (over any of the above) | The secondary variant of the cell (e.g. `Func+Scene+FILTER` = the other scene's filter assignments). |
 
-Track-meta content is distributed to the scope that owns each domain.
+Each scope's `TRIG` cell opens the parameter owned by that hierarchy level.
 Only two metas sit on `Func`: **COND** (probability, m:n, prev-dep) on
-`Func+TRIG`, and **NOTE** (explicit note / velocity / gate step entry)
-on `Func+SRC`. The other `Func` section cells (`FILTER`/`AMP`/`MOD`/`FX`)
-dim — no wired secondary yet. The relocated metas: track **length /
-divider** live under `Track+TRIG` (labelled `LEN`); output **gain, sync
-mode, and clock** live under `Song+FX` (labelled `GLBL`, the master-bus
-key). Trig defaults (default note / velocity / gate) remain on bare
-`TRIG`.
+`Func+TRIG`, and **NOTE** (explicit note / velocity / gate step entry) on
+`Func+SRC`. Output **gain, sync mode, and clock** live under `Song+FX`
+(labelled `GLBL`). Trig defaults remain on bare `TRIG`.
 
-The `Track+TRIG` (TRACK meta) band shows **Length / Divider / Swing /
-Effct**. The `Swing` encoder is retargeted by held scope:
+**Swing by held scope.** Holding a scope key shows that scope's swing level
+directly in the manipulation band — no separate meta needed:
 
-| Held scope (while TRACK meta open) | Swing encoder targets | Label |
+| Held scope | Band shows | Label |
 |---|---|---|
-| *(none)* | **Song-all** groove — the conductor's base (absolute edit) | `Swing` |
-| `Song` (S) | **Song-track delta** — this track's deviation within the song | `SwTrk` + `(D)` |
-| `Scene` (W) | **Scene-all delta** — this section's offset relative to the song | `SwScn` + `(D)` |
+| **Song** (S) | Song-all groove — the conductor's base (absolute) | `Swing` |
+| **Scene** (W) | Scene-all delta — this section's push/pull | `SwScn` + `(D)` |
+| **Track** (T) | Song-track delta — this track's deviation within the song | `SwTrk` + `(D)` |
 
-`Effct` always shows the full clamped sum (`songAll + songTrk[t] + sceneAll`)
-for the focused track in the active scene. Swing lives in musical state,
-not APVTS — it is not host-automatable.
+Slot 0 = editable swing; slot 1 = `Effct` (full clamped sum
+`songAll + songTrk[t] + sceneAll` for the focused track — read-only).
+The display is non-sticky and disappears when the scope key is released.
+Swing lives in musical state, not APVTS — it is not host-automatable.
 
 <a name="59-copy-paste-clear"></a>
 ### 5.9 Copy / paste / clear
@@ -1074,8 +1071,8 @@ Track (2)
 ├─ + Func + O        → delete the track (then P confirms, Func+P cancels) — §5.9
 ├─ + P (YES)         → Quantize: zero microOffset on every step of the track — §5.1
 ├─ + Scene           → re-sync the focused track to the active scene — §5.14
-├─ + TRIG (open TRACK meta) + Song held → Swing encoder targets song-track delta (SwTrk) — §5.8
-├─ + TRIG (open TRACK meta) + Scene held → Swing encoder targets scene-all delta (SwScn) — §5.8
+├─ + TRIG → kit divider (DIV meta) — §5.8
+├─ + (held) → shows song-track delta swing in band (SwTrk + (D)) — §5.8
 └─ Func + Track      → machine / Kit picker (Track→KIT; press a step to assign) — §5.5
 ```
 
@@ -1114,7 +1111,7 @@ Scene (W)
 ├─ Func + Scene + U         → copy the active scene to the clipboard (CPY:SCN) — §5.14
 ├─ Func + Scene + I         → paste the clipboard scene (baked; conflict-gated) — §5.14
 ├─ Mute + Func + Scene + I  → paste floor only (strip the content overlay) — §5.14
-├─ held (TRACK meta open)   → qualifies Swing encoder to scene-all delta (SwScn label + (D)) — §5.8
+├─ + (held) → shows scene-all delta swing in band (SwScn + (D)) — §5.8
 └─ Scene + Mute + step      → per-scene mute (this track's active-mask) — §5.11
 ```
 
@@ -1127,7 +1124,7 @@ Links: [§5.14](#514-scenes-phrases-and-songs-the-launch-model) ·
 Song (S)
 ├─ + step            → switch Songs (quantized; a full reset, live deviations clear) — §5.14
 ├─ + O (CLEAR)       → Panic — kill all voices immediately — §5.14
-├─ held (TRACK meta open) → qualifies Swing encoder to song-track delta (SwTrk label + (D)) — §5.8
+├─ + (held) → shows song-all swing in band (Swing, absolute root) — §5.8
 └─ Func + Song       → Global / master-bus focus — §5.2
 ```
 

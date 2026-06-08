@@ -726,7 +726,8 @@ whether a step is currently held:
 | Machine section | Track Base (`baseParams`) | Step PLock (`paramOverrides`) |
 | Track meta — COND | Track Base Condition (`baseCond`) | Step Condition (`step.condition`) |
 | Track meta — TRIG | Track defaults (`defaultNote`, `defaultVelocity`, `gateLength`) | Step trig overrides (`noteOverride`, `velocityOverride`, `gateOverride`) |
-| Track meta — TRACK | Track structural fields (length, divider) | (no step-level override) |
+| Track meta — DIV (Track+TRIG) | Kit divider (shared across track's phrases) | (no step-level override) |
+| Track meta — PHRASELEN (Phrase+TRIG) | Active phrase length | (no step-level override) |
 | Track meta — GLOBAL | Global APVTS params | (no step-level override) |
 
 This rule is **input-source-agnostic**: encoder, QWERTY, MIDI CC, and
@@ -983,8 +984,8 @@ reactivation).
   |-----------|--------|-------|--------|-------|-------|------|
   | *(none)*  | machine trig | machine SRC | machine FILTER (opt) | machine AMP (opt) | machine MOD | machine FX (drive/bit) |
   | `Func`    | COND (conditions) | NOTE (step entry) | (dim — reserved) | (dim — reserved) | (dim — reserved) | (dim — reserved) |
-  | `Track`   | per-track condition defaults | input_source / Thru | post-machine FILTER | post-machine AMP + sends | per-track LFO (if any) | IEffect insert 1+2 |
-  | `Phrase`  | length / scale lock | (dim) | (dim) | (dim) | (dim) | (dim) |
+  | `Track`   | kit divider (DIV) | input_source / Thru | post-machine FILTER | post-machine AMP + sends | per-track LFO (if any) | IEffect insert 1+2 |
+  | `Phrase`  | phrase length (LEN) | (dim) | (dim) | (dim) | (dim) | (dim) |
   | `Scene`   | launch / commit · coreTime | global + deviations | (dim) | active-mask | Morph snapshot | (dim) |
   | `Morph`   | (renamed `CXFD`) | morph-assign SRC | morph-assign FILTER | morph-assign AMP | morph-assign MOD | morph-assign FX |
   | `Song`    | (dim) | (dim) | master FILTER (if any) | master gain + sends | (dim) | master FX 1+2 |
@@ -995,11 +996,12 @@ provisional):
 
 - A **Phrase** is pure per-track *content* — steps, P-Locks, length, a
   per-phrase scale lock (§34.2 — a *playable layout*, not auto-correct) — and
-  carries **no sound**. So only the timing-
-  domain `TRIG` cell is live (length / scale lock); every sound cell
-  (`SRC`–`FX`) dims, because the kit-base params a Pattern used to share
-  with its Part now live in the **no-scope / Track-base** row (machine
-  params write to the track's **Kit** base, §4.7.2).
+  carries **no sound**. So only the timing-domain `TRIG` cell is live
+  (`LEN` — phrase length, per active phrase); every sound cell (`SRC`–`FX`)
+  dims, because the kit-base params a Pattern used to share with its Part now
+  live in the **no-scope / Track-base** row (machine params write to the
+  track's **Kit** base, §4.7.2). Divider is **Kit**-owned (shared across all
+  of a track's phrases) and lives under `Track+TRIG` (`DIV`).
 - A **Scene** owns *assignment*, not sound: its global pattern (the only
   stored routing field — per-track deviations are a live overlay, baked into
   content on commit, §4.7), the `activeMask[]`, `coreTime`, and the Morph
@@ -2383,14 +2385,19 @@ host-automatable or MIDI-learnable; it is a feel property of the
 composition, not the instance.
 
 **Editing model — "edit the effective, store the delta"** (mirrors the
-morph crossfader idiom, §17.3). One retargeted Swing control in the
-TRACK meta section:
+morph crossfader idiom, §17.3). Swing is surfaced **by held scope** —
+no separate meta band is needed. While a scope key is held the
+manipulation zone band shows that scope's swing level:
 
-| Held scope while TRACK meta is shown | Control seeds at | Write stores |
+| Held scope | Band shows | Write stores |
 |---|---|---|
-| *(nothing)* | `Song::swing` | `Song::swing` (absolute — it is the root) |
-| **Song** (S key) | `Song::swing + SongTrack[t]::swing` | `SongTrack[t]::swing = shown − Song::swing`, label shows `SwTrk` + `(D)` |
-| **Scene** (W key) | `Song::swing + Scene::swing` | `Scene::swing = shown − Song::swing`, label shows `SwScn` + `(D)` |
+| **Song** (S key) | `Song::swing` | `Song::swing` (absolute — the root) |
+| **Scene** (W key) | `Scene::swing` | `Scene::swing` delta, label `SwScn (D)` |
+| **Track** (T key) | `SongTrack[t]::swing` | `SongTrack[t]::swing` delta, label `SwTrk (D)` |
+| *(nothing)* | *(normal machine params)* | — |
+
+Slot 0 = editable swing; slot 1 = `Effct` (clamped sum, read-only).
+The display is non-sticky: it disappears when the scope key is released.
 
 **Isolated seeding**: Song-track seeds from song-all only (scene is
 ignored); Scene-all seeds from song-all only (track is ignored). They
@@ -2407,11 +2414,10 @@ totalShift = clamp(effectiveSwing(t) × {1 if odd step, 0 if even}
 This preserves §19.1's "every step fires within its own cell"
 guarantee and bounds the look-ahead scan to ≤ half a step.
 
-**Effective-swing readout.** The TRACK meta section always shows
-the current full `effectiveSwing(t)` in the `Effct` slot so the
-additive composition is never opaque. The Swing slot shows the
-level-specific value being edited (with a `(D)` suffix when editing
-a stored delta rather than the root).
+**Effective-swing readout.** The band always shows the full
+`effectiveSwing(t)` in the `Effct` slot so the additive composition
+is never opaque. The Swing slot shows the level being edited (with a
+`(D)` suffix for stored deltas rather than the root).
 
 The Song-all level anchors the project groove (the conductor). The
 Song-track level lets individual musicians deviate within the song
@@ -2439,8 +2445,8 @@ Quantize never touches trigs themselves, P-Locks, or trig
 overrides — only the timing offset. To remove a trig entirely, use
 `Stop`.
 
-Swing is not affected by Quantize. To reset swing, set it via the
-TRACK meta section like any other parameter.
+Swing is not affected by Quantize. To reset swing, hold the relevant
+scope key (Song / Scene / Track) and zero the swing encoder.
 
 ### 19.4 Musical gate values (3.8)
 
@@ -3616,9 +3622,9 @@ empty page, or because the performer navigated back). Out-of-range pages
 render very dim; the nav row shows the full page count plus the live
 `Length: N` while unlocked.
 
-The `LEN` encoder in the TRACK meta-section provides the same write path
+The `LEN` encoder in the `Phrase+TRIG` meta band provides the same write path
 without leaving the MZ; it and the chord gestures write the same
-underlying per-track length parameter — no divergence.
+underlying per-phrase length parameter — no divergence.
 
 **The re-skin rule.** While `Phrase + Func` or `Morph + Func` is held,
 the step grid re-skins (momentary; "the hold is the mode"):
