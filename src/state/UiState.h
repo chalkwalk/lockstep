@@ -120,6 +120,10 @@ namespace lockstep
         bool funcFxHeld       = false;
         int  funcFxInsertSlot = 0;
 
+        // 6.5: Func+Song+FX master picker — same catalogue overlay targeting master bus.
+        bool masterFxHeld       = false;
+        int  masterFxInsertSlot = 0;
+
         // MHZ.7.4: last note played per-track, used as LEVELS record-arm pitch.
         // Updated whenever a note is triggered (keyboard overlay or CHROMATIC mode).
         std::array<int, kNumTracks> lastPlayedNote{};  // default 60 (C4)

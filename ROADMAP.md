@@ -1018,9 +1018,9 @@ DESIGN §32. Depends on 2.4 + the §14 path (independent of 6.1–6.4).
 - [x] **Animate** momentary insert toggle (DESIGN §32.5): FX-held + step bypasses
       insert for the hold duration; release restores. No dedicated performance-FX mode.
 - [x] Serializer v13: insert chains round-trip (effectId/baseParams/bypass per slot).
-- [ ] Two master FX slots (`Insert | Send`), Master-focus edited, Project-scope.
+- [x] Performance-grammar parity for inserts (P-Lock via namespaced IDs, Control-All, section-copy).
+- [x] **Two master FX slots** (post-sum, Song scope): `Func+Song+FX` picker; MZ shows params via `MetaBand::MasterFx`; serializer v14.
 - [ ] Send routing (per-track Send A/B in the AMP mix).
-- [ ] Performance-grammar parity (P-Lock / scene / Control-All / section copy).
 - [ ] MIDI-out tracks carry no inserts/sends.
 
 ### 6.6 — External controller surfaces  *[in progress]*  *(was MW)*

@@ -30,5 +30,7 @@ namespace lockstep
         std::array<Scene, kScenesPerSong> scenes{};
         // Song-wide base swing (DESIGN §19.2). The "conductor" gesture — applies to all tracks.
         float swing = 0.0f;
+        // 6.5 master FX: 2 post-sum insert slots, processed after all track outputs are summed.
+        std::array<TrackKit::InsertSlot, 2> masterInserts{};
     };
 }

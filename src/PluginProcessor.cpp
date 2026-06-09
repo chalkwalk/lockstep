@@ -253,6 +253,8 @@ namespace lockstep
         for (auto& ins : trackInserts_)
             for (auto& eff : ins)
                 if (eff) { eff->prepare(sampleRate, samplesPerBlock); eff->reset(); }
+        for (auto& eff : masterInserts_)
+            if (eff) { eff->prepare(sampleRate, samplesPerBlock); eff->reset(); }
         for (auto& pnf : pendingNoteOffs_)
         {
             pnf.samplesRemaining = -1;
@@ -1174,6 +1176,23 @@ namespace lockstep
             for (std::size_t ti = 0; ti < kNumTracks; ++ti)
                 for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
                     buffer.addFrom(ch, 0, trackBuffers_[ti], ch, 0, numBlockSamples);
+
+            // 6.5: master FX chain (post-sum, pre-gain).
+            for (int ins = 0; ins < 2; ++ins)
+            {
+                auto* meff = masterInserts_[static_cast<std::size_t>(ins)].get();
+                if (!meff) continue;
+                const auto& mSlot = song().masterInserts[static_cast<std::size_t>(ins)];
+                if (mSlot.bypass) continue;
+                const int mnp = meff->numParams();
+                ParamFrame mfxFrame(static_cast<std::size_t>(mnp));
+                for (int p = 0; p < mnp; ++p)
+                    mfxFrame[static_cast<std::size_t>(p)] =
+                        (static_cast<std::size_t>(p) < mSlot.baseParams.size())
+                        ? mSlot.baseParams[static_cast<std::size_t>(p)]
+                        : meff->paramSpec(p).defaultValue;
+                meff->process(buffer, numBlockSamples, mfxFrame);
+            }
 
             // Keep audio path (gain smoothing, DC blocker) running so it doesn't freeze.
             const float targetGainDb = apvts_.getRawParameterValue(ParamIDs::outputGain)->load();
@@ -3161,6 +3180,94 @@ namespace lockstep
         return kit(track).inserts[static_cast<std::size_t>(slot)].bypass;
     }
 
+    // -------------------------------------------------------------------------
+    // 6.5 master FX bus
+    // -------------------------------------------------------------------------
+    void LockstepProcessor::setMasterInsert(int slot, const std::string& effectId)
+    {
+        if (slot < 0 || slot > 1) return;
+        const auto si = static_cast<std::size_t>(slot);
+        auto& insSlot = song().masterInserts[si];
+        insSlot.effectId = effectId;
+
+        auto newEff = makeEffectForId(effectId);
+        if (newEff)
+        {
+            const int np = newEff->numParams();
+            if (static_cast<int>(insSlot.baseParams.size()) != np)
+            {
+                insSlot.baseParams.resize(static_cast<std::size_t>(np));
+                for (int p = 0; p < np; ++p)
+                    insSlot.baseParams[static_cast<std::size_t>(p)] = newEff->paramSpec(p).defaultValue;
+            }
+            newEff->prepare(getSampleRate(), getBlockSize());
+        }
+        suspendProcessing(true);
+        masterInserts_[si] = std::move(newEff);
+        suspendProcessing(false);
+    }
+
+    void LockstepProcessor::clearMasterInsert(int slot)
+    {
+        if (slot < 0 || slot > 1) return;
+        const auto si = static_cast<std::size_t>(slot);
+        song().masterInserts[si] = {};
+        suspendProcessing(true);
+        masterInserts_[si].reset();
+        suspendProcessing(false);
+    }
+
+    void LockstepProcessor::setMasterInsertBypass(int slot, bool bypass)
+    {
+        if (slot < 0 || slot > 1) return;
+        song().masterInserts[static_cast<std::size_t>(slot)].bypass = bypass;
+    }
+
+    std::string LockstepProcessor::masterInsertId(int slot) const
+    {
+        if (slot < 0 || slot > 1) return {};
+        return song().masterInserts[static_cast<std::size_t>(slot)].effectId;
+    }
+
+    bool LockstepProcessor::masterInsertBypass(int slot) const
+    {
+        if (slot < 0 || slot > 1) return false;
+        return song().masterInserts[static_cast<std::size_t>(slot)].bypass;
+    }
+
+    int LockstepProcessor::masterInsertNumParams(int slot) const
+    {
+        if (slot < 0 || slot > 1) return 0;
+        auto* eff = masterInserts_[static_cast<std::size_t>(slot)].get();
+        return eff ? eff->numParams() : 0;
+    }
+
+    float LockstepProcessor::masterInsertParam(int slot, int param) const
+    {
+        if (slot < 0 || slot > 1) return 0.0f;
+        const auto si = static_cast<std::size_t>(slot);
+        const auto& insSlot = song().masterInserts[si];
+        if (param < 0 || static_cast<std::size_t>(param) >= insSlot.baseParams.size()) return 0.0f;
+        return insSlot.baseParams[static_cast<std::size_t>(param)];
+    }
+
+    ParamSpec LockstepProcessor::masterInsertParamSpec(int slot, int param) const
+    {
+        if (slot < 0 || slot > 1) return {};
+        auto* eff = masterInserts_[static_cast<std::size_t>(slot)].get();
+        if (!eff || param < 0 || param >= eff->numParams()) return {};
+        return eff->paramSpec(param);
+    }
+
+    void LockstepProcessor::setMasterInsertParam(int slot, int param, float value)
+    {
+        if (slot < 0 || slot > 1) return;
+        const auto si = static_cast<std::size_t>(slot);
+        auto& insSlot = song().masterInserts[si];
+        if (param >= 0 && static_cast<std::size_t>(param) < insSlot.baseParams.size())
+            insSlot.baseParams[static_cast<std::size_t>(param)] = value;
+    }
+
     int LockstepProcessor::numAvailableEffects() const { return lockstep::numAvailableEffects(); }
 
     EffectInfo LockstepProcessor::availableEffectInfo(int idx) const
@@ -3575,6 +3682,17 @@ namespace lockstep
                     // bypass is in kit slot; restore the live state explicitly
                     setTrackInsertBypass(static_cast<int>(t), s, ins.bypass);
                 }
+            }
+        }
+
+        // v14: reinstall master insert effects from the active Song's masterInserts.
+        for (int s = 0; s < 2; ++s)
+        {
+            const auto& mIns = song().masterInserts[static_cast<std::size_t>(s)];
+            if (!mIns.effectId.empty())
+            {
+                setMasterInsert(s, mIns.effectId);
+                setMasterInsertBypass(s, mIns.bypass);
             }
         }
 

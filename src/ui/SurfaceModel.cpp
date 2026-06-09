@@ -1548,7 +1548,7 @@ namespace lockstep
             {
                 // Meta surface: fill slots from MetaFieldView.
                 const int swScope = swingScopeFor(ui);
-                const auto views  = buildMetaBand(band, swScope, proc, activeTrack, ec);
+                const auto views  = buildMetaBand(band, swScope, proc, activeTrack, ec, ui);
 
                 for (int i = 0; i < 8; ++i)
                 {

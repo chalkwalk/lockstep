@@ -5,6 +5,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "MetaBand.h"
 #include "MetaRotary.h"
+#include "../state/UiState.h"
 
 namespace lockstep
 {
@@ -35,6 +36,9 @@ namespace lockstep
         // Switch the zone to a MetaBand (resolveMetaBand result) with the given swing scope.
         // MetaBand::None = normal machine params; anything else renders the meta surface.
         void setBand(MetaBand band, int swingScope);
+
+        // Provide the current UiState for meta-band operations that need it (e.g. MasterFx slot).
+        void setUiState(const UiState* ui) { uiState_ = ui; }
 
         // 0 = none (show fader-blended value), 1 = preview A pole, 2 = preview B pole.
         // Set when the Morph+^/v qualifier is active so knobs show the raw endpoint.
@@ -70,6 +74,7 @@ namespace lockstep
         int      slotOffset_     = 0;
         MetaBand band_           = MetaBand::None;
         int      swingScope_     = 0;   // 0=none, 1=song-all, 2=scene-all delta, 3=song-track delta
+        const UiState* uiState_  = nullptr;
         int      morphQualifier_ = 0;   // 0=blend, 1=A-pole preview, 2=B-pole preview
         bool     morphHeld_      = false;
 

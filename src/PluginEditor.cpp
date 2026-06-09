@@ -226,6 +226,7 @@ namespace lockstep
         soundBankOverlay_.getActiveTrack = [this]() { return keyboardArea_.getActiveTrack(); };
         addChildComponent(soundBankOverlay_);
 
+        manipulationZone_.setUiState(&uiState_);
         manipulationZone_.onOpenPoolManager = [this]
         {
             poolOverlay_.setVisible(true);
@@ -1283,6 +1284,18 @@ namespace lockstep
             }
 
             case ControllerButton::MetaSection:
+                // 6.5: Func+Song+FX → master FX picker (same catalogue overlay targeting master bus).
+                if (uiState_.funcHeld && uiState_.songHeld && ev.index == processor_.kFxSecIdx)
+                {
+                    if (uiState_.masterFxHeld)
+                        uiState_.masterFxInsertSlot = 1 - uiState_.masterFxInsertSlot;
+                    else
+                        uiState_.masterFxInsertSlot = 0;
+                    uiState_.masterFxHeld = true;
+                    refreshMetaBand();
+                    repaint();
+                    return true;
+                }
                 // 6.5: Func+FX → enter effect picker (step grid re-skins to catalogue).
                 // Re-pressing FX while picker is active cycles the targeted insert slot.
                 // (Func+section routes to MetaSection via QwertyOverlay kFunc table.)
@@ -1437,6 +1450,21 @@ namespace lockstep
                         }
                         ctx.markParamWritten();
                     }
+                    return true;
+                }
+
+                // ----------------------------------------------------------------
+                // 6.5: Master FX picker (Func+Song+FX held)
+                // ----------------------------------------------------------------
+                if (uiState_.masterFxHeld)
+                {
+                    if (ev.index < 0 || ev.index >= 16) return true;
+                    if (ev.index >= processor_.numAvailableEffects()) return true;
+                    const auto info = processor_.availableEffectInfo(ev.index);
+                    processor_.setMasterInsert(uiState_.masterFxInsertSlot, info.id);
+                    uiState_.masterFxHeld = false;
+                    refreshMetaBand();
+                    repaint();
                     return true;
                 }
 
@@ -2792,8 +2820,9 @@ namespace lockstep
                 uiState_.pLockClearStep  = -1;
                 // MHZ.3.5: Func release exits machine picker mode.
                 uiState_.funcTrackHeld = false;
-                // 6.5: Func release exits FX insert picker mode.
-                uiState_.funcFxHeld = false;
+                // 6.5: Func release exits FX insert picker + master FX picker mode.
+                uiState_.funcFxHeld   = false;
+                uiState_.masterFxHeld = false;
                 refreshMetaBand();  // 1c: Func released → restore normal MZ band
                 editMode_.onScopeEvent({ T::ButtonUp, CB::Func });
                 updateFillActivation();
@@ -2897,12 +2926,14 @@ namespace lockstep
 
             case CB::SongScope:
                 physHeld_.song = false;
+                uiState_.masterFxHeld = false;  // exit master FX picker on Song release
                 if (!uiState_.latch.song)
                 {
                     uiState_.songHeld = false;
                     uiState_.swingDismissed = false;  // re-arm for next hold
                     editMode_.onScopeEvent({ T::ButtonUp, CB::SongScope });
                     updateSwingQualifier();
+                    refreshMetaBand();
                     repaint();
                 }
                 break;
@@ -3803,7 +3834,7 @@ namespace lockstep
             {
                 const int  swScope = swingScopeFor(uiState_);
                 const auto views   = buildMetaBand(band, swScope, processor_, track,
-                                                   processor_.editContext());
+                                                   processor_.editContext(), uiState_);
                 if (mzSlot < 0 || mzSlot >= 8) return;
                 const auto& v = views[static_cast<std::size_t>(mzSlot)];
                 if (!v.writable) return;
@@ -3813,7 +3844,7 @@ namespace lockstep
                 const float newNorm = juce::jlimit(0.0f, 1.0f,
                                                    norm + static_cast<float>(rawDelta) / 128.0f);
                 writeMetaField(band, swScope, mzSlot, v.minValue + newNorm * range,
-                               processor_, track, processor_.editContext());
+                               processor_, track, processor_.editContext(), uiState_);
                 return;
             }
 

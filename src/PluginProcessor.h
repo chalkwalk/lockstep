@@ -470,6 +470,18 @@ namespace lockstep
         void setTrackInsertBypass(int track, int slot, bool bypass);
         [[nodiscard]] std::string trackInsertId    (int track, int slot) const;
         [[nodiscard]] bool        trackInsertBypass(int track, int slot) const;
+
+        // 6.5 master FX bus — 2 post-sum insert slots at Song scope.
+        void setMasterInsert   (int slot, const std::string& effectId);
+        void clearMasterInsert (int slot);
+        void setMasterInsertBypass(int slot, bool bypass);
+        [[nodiscard]] std::string masterInsertId    (int slot) const;
+        [[nodiscard]] bool        masterInsertBypass(int slot) const;
+        [[nodiscard]] int         masterInsertNumParams(int slot) const;
+        [[nodiscard]] float       masterInsertParam(int slot, int param) const;
+        [[nodiscard]] ParamSpec   masterInsertParamSpec(int slot, int param) const;
+        void setMasterInsertParam(int slot, int param, float value);
+
         [[nodiscard]] int         numAvailableEffects() const;
         [[nodiscard]] EffectInfo  availableEffectInfo(int idx) const;
 
@@ -634,6 +646,8 @@ namespace lockstep
         // 6.5: per-track insert effect instances (live; message-thread allocated, audio-thread read).
         using InsertPair = std::array<std::unique_ptr<IEffect>, 2>;
         std::array<InsertPair, kNumTracks> trackInserts_;
+        // 6.5 master FX: live effect instances for the 2 post-sum master insert slots.
+        InsertPair masterInserts_;
         // Per-track scratch buffers: each machine writes here, then they are
         // summed to the main output bus. Sized in prepareToPlay; cleared each block.
         std::array<juce::AudioBuffer<float>, kNumTracks> trackBuffers_;

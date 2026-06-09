@@ -5,6 +5,7 @@
 
 #include "TestHarness.h"
 #include "../src/core/Scene.h"
+#include "../src/core/Song.h"
 
 namespace lockstep
 {
@@ -41,8 +42,20 @@ namespace lockstep
               "initialised flag alone does not imply content (regression guard)");
     }
 
+    // Song.masterInserts defaults to empty (no-effect) so existing save/load paths
+    // are unaffected unless an effect is explicitly loaded.
+    static void testSongMasterInsertsDefault()
+    {
+        Song song{};
+        CHECK(song.masterInserts[0].effectId.empty(), "master insert 0 defaults to empty");
+        CHECK(song.masterInserts[1].effectId.empty(), "master insert 1 defaults to empty");
+        CHECK(!song.masterInserts[0].bypass, "master insert 0 not bypassed by default");
+        CHECK(song.masterInserts[0].baseParams.empty(), "master insert 0 has no params by default");
+    }
+
     void runSerializerTests()
     {
         testSceneHasContent();
+        testSongMasterInsertsDefault();
     }
 }

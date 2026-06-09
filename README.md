@@ -579,6 +579,12 @@ slot (0 → 1 → 0). Press `FX` (alone) to navigate the insert's params in the 
 hold `FX + step` momentarily to **animate bypass** (bypass on press, restore on
 release). MIDI-out tracks show no inserts.
 
+**Master FX bus.** Two post-sum insert slots at Song scope. `Func+Song+FX`
+opens the master picker (same catalogue overlay; re-press to cycle slot 0/1).
+Once loaded, the MZ shows the master insert's parameters via the `MasterFx` band
+(active while `masterFxHeld`). Master inserts process after all track outputs
+are summed, before the output gain. State round-trips in serializer v14.
+
 **Chance macro.** While `Func` is held, the Manipulation Zone switches to the
 **Chance** band: the eight encoders map to Chance Scale for each of the eight
 tracks. Turn an encoder to scale the probability of every trig on that track —
@@ -948,6 +954,7 @@ shipped behaviour and the design intent. To avoid confusion:
   **Sound Pool overlay** (`Fill+SRC` live-swap + `sound_id` P-Lock bake), plus
   the **Slice-point picker** on slicer tracks (`Fill+TRIG`).
 - **Per-track FX inserts** (2 slots, `Func+FX` picker, `FX+step` animate-bypass).
+- **Master FX bus** (2 post-sum slots, `Func+Song+FX` picker, MZ params via MasterFx band, serializer v14).
 - **Chance macro** (`Func` held → MZ shows Chance Scale per track).
 
 **Planned** — the rest of the
@@ -1048,7 +1055,8 @@ Func (1)
 ├─ Func + P           → cancel a pending prompt — §5.3
 ├─ Func + 3           → toggle the metronome — §5.4
 ├─ Func + 5…0         → secondary section page (machine deep params; COND/NOTE meta) — §5.8
-│   └─ Func + FX (0)  → effect picker: step grid re-skins to effect catalogue; press step to load — §5.8
+│   ├─ Func + FX (0)          → effect picker: step grid re-skins to effect catalogue; press step to load — §5.8
+│   └─ Func + Song + FX (0)  → master FX picker (same catalogue; loads into Song-scope master insert) — §5.8
 ├─ Func + ← / →       → rotate the focused track's steps −1 / +1 — §5.17
 ├─ Func + ↑ / ↓       → double / halve the focused track length — §5.17
 ├─ Func + step        → P-Lock clear mode (cells show set P-Locks; stage removals, release to commit) — §5.17

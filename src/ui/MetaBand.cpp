@@ -25,6 +25,8 @@ namespace lockstep
         }
         if (swingScopeFor(ui) != 0 && !ui.swingDismissed)
             return MetaBand::Swing;
+        if (ui.masterFxHeld)
+            return MetaBand::MasterFx;
         if (ui.funcHeld)
             return MetaBand::Chance;
         return MetaBand::None;
@@ -333,6 +335,33 @@ namespace lockstep
     }
 
     // 5.9 Chance macro — 8 tracks (0-7), one encoder each, 0-200%.
+    static std::array<MetaFieldView, 8> buildMasterFxBand(LockstepProcessor& proc,
+                                                           const UiState& ui)
+    {
+        std::array<MetaFieldView, 8> result{};
+        const int slot = ui.masterFxHeld ? ui.masterFxInsertSlot : 0;
+        const int np   = proc.masterInsertNumParams(slot);
+        if (np == 0) return result;
+
+        for (int i = 0; i < std::min(np, 8); ++i)
+        {
+            const auto  spec = proc.masterInsertParamSpec(slot, i);
+            const float val  = proc.masterInsertParam(slot, i);
+            auto& v      = result[static_cast<std::size_t>(i)];
+            v.active     = true;
+            v.label      = juce::String(spec.label);
+            v.minValue   = spec.minValue;
+            v.maxValue   = spec.maxValue;
+            v.value      = val;
+            v.stepped    = spec.isStepped;
+            v.writable   = true;
+            v.hasOverride = false;
+            v.valueText  = juce::String(val, 2);
+            v.ringMode   = RingMode::UnipolarFill;
+        }
+        return result;
+    }
+
     static std::array<MetaFieldView, 8> buildChanceBand(LockstepProcessor& proc)
     {
         std::array<MetaFieldView, 8> result{};
@@ -358,10 +387,13 @@ namespace lockstep
                                                int                swingScope,
                                                LockstepProcessor& proc,
                                                int                track,
-                                               const EditContext& ctx)
+                                               const EditContext& ctx,
+                                               const UiState&     ui)
     {
         if (band == MetaBand::Chance)
             return buildChanceBand(proc);
+        if (band == MetaBand::MasterFx)
+            return buildMasterFxBand(proc, ui);
 
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return {};
@@ -388,8 +420,17 @@ namespace lockstep
                         float              value,
                         LockstepProcessor& proc,
                         int                track,
-                        EditContext&       ctx)
+                        EditContext&       ctx,
+                        const UiState&     ui)
     {
+        // 6.5: master FX params — write-back bypasses track guard.
+        if (band == MetaBand::MasterFx)
+        {
+            const int slot = ui.masterFxInsertSlot;
+            proc.setMasterInsertParam(slot, field, value);
+            return;
+        }
+
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return;
 

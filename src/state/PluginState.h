@@ -30,7 +30,8 @@ namespace lockstep
         //      Legacy "gp" values are materialised onto the diagonal at load time.
         // v12: per-step retrig rate (hasRetrig/retrigRate) + sound_id P-Lock.
         // v13: per-track insert chains (effectId/baseParams/bypass) in Kit node.
-        inline constexpr int kCurrentVersion = 13;
+        // v14: per-song master FX inserts (MasterIns nodes in Song).
+        inline constexpr int kCurrentVersion = 14;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);

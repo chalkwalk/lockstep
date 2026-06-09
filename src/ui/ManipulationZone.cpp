@@ -45,8 +45,10 @@ namespace lockstep
                     sliders_[static_cast<std::size_t>(i)].getValue());
                 if (band_ != MetaBand::None)
                 {
+                    static const UiState kEmptyUiState{};
                     writeMetaField(band_, swingScope_, i, v, processor_,
-                                   area_.getActiveTrack(), processor_.editContext());
+                                   area_.getActiveTrack(), processor_.editContext(),
+                                   uiState_ ? *uiState_ : kEmptyUiState);
                     return;
                 }
                 // Machine-param path.
@@ -260,8 +262,10 @@ namespace lockstep
         {
             samplePickerBtn_.setVisible(false);
             const int track = area_.getActiveTrack();
+            static const UiState kEmptyUiState{};
             const auto views = buildMetaBand(band_, swingScope_, processor_, track,
-                                             processor_.editContext());
+                                             processor_.editContext(),
+                                             uiState_ ? *uiState_ : kEmptyUiState);
             updatingFromTimer_ = true;
             for (int i = 0; i < kNumSlots; ++i)
             {

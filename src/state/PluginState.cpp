@@ -442,6 +442,35 @@ namespace lockstep::PluginState
                 pieceHasContent = true;
             }
 
+            // v14: master FX inserts for this song.
+            for (int s = 0; s < 2; ++s)
+            {
+                const auto& mIns = song.masterInserts[static_cast<std::size_t>(s)];
+                if (mIns.effectId.empty()) continue;
+                auto tempEff = makeEffectForId(mIns.effectId);
+                if (!tempEff) continue;
+                juce::ValueTree mInsNode("MasterIns");
+                mInsNode.setProperty("slot", s, nullptr);
+                mInsNode.setProperty("eid", juce::String(mIns.effectId), nullptr);
+                if (mIns.bypass)
+                    mInsNode.setProperty("bypass", 1, nullptr);
+                const int np = tempEff->numParams();
+                for (int p = 0; p < np; ++p)
+                {
+                    const auto spec = tempEff->paramSpec(p);
+                    const float def = spec.defaultValue;
+                    const float val = (p < static_cast<int>(mIns.baseParams.size()))
+                        ? mIns.baseParams[static_cast<std::size_t>(p)] : def;
+                    if (!floatNe(val, def)) continue;
+                    juce::ValueTree pNode("P");
+                    pNode.setProperty("id", juce::String(spec.id), nullptr);
+                    pNode.setProperty("v",  static_cast<double>(val), nullptr);
+                    mInsNode.appendChild(pNode, nullptr);
+                }
+                songNode.appendChild(mInsNode, nullptr);
+                pieceHasContent = true;
+            }
+
             if (pieceHasContent || pi == proc.activePieceIdx())
                 nhNode.appendChild(songNode, nullptr);
         }
@@ -492,6 +521,38 @@ namespace lockstep::PluginState
                         auto& phrase = song.tracks[static_cast<std::size_t>(t)].phrases[static_cast<std::size_t>(ph)];
                         readPhraseFromNode(phraseNode, phrase);
                         phrase.initialised = true;
+                    }
+                }
+                else if (child.getType() == juce::Identifier("MasterIns"))
+                {
+                    // v14: master FX insert slot.
+                    const int s = static_cast<int>(child.getProperty("slot", -1));
+                    if (s < 0 || s > 1) continue;
+                    const std::string effId = child.getProperty("eid", "").toString().toStdString();
+                    if (effId.empty()) continue;
+                    auto& mIns = song.masterInserts[static_cast<std::size_t>(s)];
+                    mIns.effectId = effId;
+                    mIns.bypass   = (static_cast<int>(child.getProperty("bypass", 0)) != 0);
+                    auto tempEff = makeEffectForId(effId);
+                    if (tempEff)
+                    {
+                        const int np = tempEff->numParams();
+                        mIns.baseParams.assign(static_cast<std::size_t>(np), 0.0f);
+                        for (int p = 0; p < np; ++p)
+                            mIns.baseParams[static_cast<std::size_t>(p)] = tempEff->paramSpec(p).defaultValue;
+                        for (auto pNode : child)
+                        {
+                            if (pNode.getType() != juce::Identifier("P")) continue;
+                            const juce::String id = pNode.getProperty("id", "").toString();
+                            for (int p = 0; p < np; ++p)
+                            {
+                                if (juce::String(tempEff->paramSpec(p).id) == id)
+                                {
+                                    mIns.baseParams[static_cast<std::size_t>(p)] = getFloat(pNode, "v", 0.0f);
+                                    break;
+                                }
+                            }
+                        }
                     }
                 }
                 else if (child.getType() == juce::Identifier("Scene"))
@@ -1077,6 +1138,15 @@ namespace lockstep::PluginState
         return v13;
     }
 
+    // v13 → v14: adds per-song master FX inserts (MasterIns nodes).
+    // Missing MasterIns nodes on load default to empty (no effect) — trivial upgrade.
+    juce::ValueTree upgrade_v13_to_v14(const juce::ValueTree& v13)
+    {
+        juce::ValueTree v14 = v13.createCopy();
+        v14.setProperty("version", 14, nullptr);
+        return v14;
+    }
+
     juce::ValueTree applyUpgrades(juce::ValueTree tree)
     {
         // Determine the version. v0 has root type "Lockstep" and no version attribute.
@@ -1100,6 +1170,7 @@ namespace lockstep::PluginState
         if (version < 11) tree = upgrade_v10_to_v11(tree);
         if (version < 12) tree = upgrade_v11_to_v12(tree);
         if (version < 13) tree = upgrade_v12_to_v13(tree);
+        if (version < 14) tree = upgrade_v13_to_v14(tree);
 
         return tree;
     }

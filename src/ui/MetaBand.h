@@ -13,7 +13,7 @@ namespace lockstep
     // -------------------------------------------------------------------------
     // MetaBand — which manipulation-zone surface is currently shown.
     // None = normal machine params; the rest are the meta/swing surfaces.
-    enum class MetaBand { None, Cond, Trig, Divider, PhraseLen, Global, Swing, Chance };
+    enum class MetaBand { None, Cond, Trig, Divider, PhraseLen, Global, Swing, Chance, MasterFx };
 
     // -------------------------------------------------------------------------
     // MetaFieldView — render-agnostic description of one encoder slot.
@@ -50,7 +50,8 @@ namespace lockstep
                                                int                 swingScope,
                                                LockstepProcessor&  proc,
                                                int                 track,
-                                               const EditContext&  ctx);
+                                               const EditContext&  ctx,
+                                               const UiState&      ui);
 
     // writeMetaField — write-back: apply a slider/encoder delta to the model.
     // Lifted verbatim from ManipulationZone::write*Field.
@@ -60,5 +61,6 @@ namespace lockstep
                         float              value,
                         LockstepProcessor& proc,
                         int                track,
-                        EditContext&       ctx);
+                        EditContext&       ctx,
+                        const UiState&     ui);
 }
