@@ -1139,32 +1139,32 @@ namespace lockstep
                                                    numBlockSamples);
                         if (!ampWasIdle && trackAmps_[i].isIdle())
                             mi->reset();
+                    }
 
-                        // 6.5: post-AMP insert chain.
-                        for (int ins = 0; ins < 2; ++ins)
+                    // 6.5: post-machine insert chain — runs for all machines.
+                    for (int ins = 0; ins < 2; ++ins)
+                    {
+                        auto* eff = trackInserts_[i][static_cast<std::size_t>(ins)].get();
+                        if (!eff) continue;
+                        const auto& kitIns = kit(static_cast<int>(i)).inserts[static_cast<std::size_t>(ins)];
+                        if (kitIns.bypass) continue;
+                        const int insOff = insertParamOffset(static_cast<int>(i), ins);
+                        const int insnp  = eff->numParams();
+                        ParamFrame fxFrame(static_cast<std::size_t>(insnp));
+                        for (int p = 0; p < insnp; ++p)
                         {
-                            auto* eff = trackInserts_[i][static_cast<std::size_t>(ins)].get();
-                            if (!eff) continue;
-                            const auto& kitIns = kit(static_cast<int>(i)).inserts[static_cast<std::size_t>(ins)];
-                            if (kitIns.bypass) continue;
-                            const int insOff = insertParamOffset(static_cast<int>(i), ins);
-                            const int insnp  = eff->numParams();
-                            ParamFrame fxFrame(static_cast<std::size_t>(insnp));
-                            for (int p = 0; p < insnp; ++p)
+                            const float base = static_cast<std::size_t>(p) < kitIns.baseParams.size()
+                                ? kitIns.baseParams[static_cast<std::size_t>(p)]
+                                : eff->paramSpec(p).defaultValue;
+                            float resolved = base;
+                            if (firedStepIdx_[i] >= 0)
                             {
-                                const float base = static_cast<std::size_t>(p) < kitIns.baseParams.size()
-                                    ? kitIns.baseParams[static_cast<std::size_t>(p)]
-                                    : eff->paramSpec(p).defaultValue;
-                                float resolved = base;
-                                if (firedStepIdx_[i] >= 0)
-                                {
-                                    const auto& st = sequence().tracks[i].steps[static_cast<std::size_t>(firedStepIdx_[i])];
-                                    resolved = st.overrides.get(insOff + p, base);
-                                }
-                                fxFrame[static_cast<std::size_t>(p)] = resolved;
+                                const auto& st = sequence().tracks[i].steps[static_cast<std::size_t>(firedStepIdx_[i])];
+                                resolved = st.overrides.get(insOff + p, base);
                             }
-                            eff->process(trackBuffers_[i], numBlockSamples, fxFrame);
+                            fxFrame[static_cast<std::size_t>(p)] = resolved;
                         }
+                        eff->process(trackBuffers_[i], numBlockSamples, fxFrame);
                     }
 
                     trackPeak_[i].store(trackBuffers_[i].getMagnitude(0, numBlockSamples),
@@ -1698,32 +1698,32 @@ namespace lockstep
                                                numBlockSamples);
                     if (!ampWasIdle && trackAmps_[i].isIdle())
                         mi->reset();
+                }
 
-                    // 6.5: post-AMP insert chain.
-                    for (int ins = 0; ins < 2; ++ins)
+                // 6.5: post-machine insert chain — runs for all machines.
+                for (int ins = 0; ins < 2; ++ins)
+                {
+                    auto* eff = trackInserts_[i][static_cast<std::size_t>(ins)].get();
+                    if (!eff) continue;
+                    const auto& kitIns = kit(static_cast<int>(i)).inserts[static_cast<std::size_t>(ins)];
+                    if (kitIns.bypass) continue;
+                    const int insOff = insertParamOffset(static_cast<int>(i), ins);
+                    const int insnp  = eff->numParams();
+                    ParamFrame fxFrame2(static_cast<std::size_t>(insnp));
+                    for (int p = 0; p < insnp; ++p)
                     {
-                        auto* eff = trackInserts_[i][static_cast<std::size_t>(ins)].get();
-                        if (!eff) continue;
-                        const auto& kitIns = kit(static_cast<int>(i)).inserts[static_cast<std::size_t>(ins)];
-                        if (kitIns.bypass) continue;
-                        const int insOff = insertParamOffset(static_cast<int>(i), ins);
-                        const int insnp  = eff->numParams();
-                        ParamFrame fxFrame2(static_cast<std::size_t>(insnp));
-                        for (int p = 0; p < insnp; ++p)
+                        const float base = static_cast<std::size_t>(p) < kitIns.baseParams.size()
+                            ? kitIns.baseParams[static_cast<std::size_t>(p)]
+                            : eff->paramSpec(p).defaultValue;
+                        float resolved = base;
+                        if (firedStepIdx_[i] >= 0)
                         {
-                            const float base = static_cast<std::size_t>(p) < kitIns.baseParams.size()
-                                ? kitIns.baseParams[static_cast<std::size_t>(p)]
-                                : eff->paramSpec(p).defaultValue;
-                            float resolved = base;
-                            if (firedStepIdx_[i] >= 0)
-                            {
-                                const auto& st = sequence().tracks[i].steps[static_cast<std::size_t>(firedStepIdx_[i])];
-                                resolved = st.overrides.get(insOff + p, base);
-                            }
-                            fxFrame2[static_cast<std::size_t>(p)] = resolved;
+                            const auto& st = sequence().tracks[i].steps[static_cast<std::size_t>(firedStepIdx_[i])];
+                            resolved = st.overrides.get(insOff + p, base);
                         }
-                        eff->process(trackBuffers_[i], numBlockSamples, fxFrame2);
+                        fxFrame2[static_cast<std::size_t>(p)] = resolved;
                     }
+                    eff->process(trackBuffers_[i], numBlockSamples, fxFrame2);
                 }
 
                 trackPeak_[i].store(trackBuffers_[i].getMagnitude(0, numBlockSamples),
