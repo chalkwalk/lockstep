@@ -1036,6 +1036,69 @@ namespace lockstep
             return;
         }
 
+        // 6.5: Master FX picker overlay.
+        if (uiState_.masterFxPickerOpen)
+        {
+            const juce::Colour fxTint = col(compatColour(CellState::EffectAvailable));
+            const int numEffects = processor_.numAvailableEffects();
+            const std::string loadedId = processor_.masterInsertId(uiState_.masterFxInsertSlot);
+
+            for (int row = 0; row < kRows; ++row)
+            {
+                for (int col2 = 0; col2 < kCols; ++col2)
+                {
+                    const int idx = row * kCols + col2;
+                    const SurfaceCell& sc = model.step[static_cast<std::size_t>(idx)];
+                    const bool avail     = sc.base != CellState::MachineUnavailable;
+                    const bool isCurrent = (idx < numEffects)
+                        && (processor_.availableEffectInfo(idx).id == loadedId);
+
+                    const int x = colX(row, col2 + 2);
+                    const int y = rowY(row);
+                    const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+
+                    g.setColour(juce::Colour(sc.baseColour));
+                    g.fillRoundedRectangle(cell.toFloat(), 4.0f);
+
+                    if (avail && isCurrent)
+                    {
+                        g.setColour(juce::Colours::white.withAlpha(0.60f));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
+                    }
+                    else if (avail)
+                    {
+                        g.setColour(fxTint.withAlpha(0.35f));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
+                    }
+
+                    if (sc.pressed && avail)
+                    {
+                        g.setColour(juce::Colours::white.withAlpha(0.65f));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
+                    }
+
+                    if (avail && idx < numEffects)
+                    {
+                        const juce::String name { processor_.availableEffectInfo(idx).name.c_str() };
+                        g.setColour(juce::Colours::white.withAlpha(isCurrent ? 0.90f : 0.65f));
+                        g.setFont(juce::Font(juce::FontOptions(8.5f)));
+                        g.drawText(name, cell.reduced(2), juce::Justification::centred, true);
+                    }
+
+                    if (showKeyLetters)
+                        paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(idx)],
+                                         avail ? 1.0f : 0.45f);
+                }
+            }
+
+            const juce::String slotLabel = "MASTER INSERT " + juce::String(uiState_.masterFxInsertSlot + 1)
+                                         + "  (re-press Func+Song+FX to toggle slot)";
+            g.setColour(juce::Colour::fromRGB(80, 95, 115));
+            g.setFont(juce::Font(juce::FontOptions(10.0f)));
+            g.drawText(slotLabel, navArea, juce::Justification::centred);
+            return;
+        }
+
         // NoteEdit mode: 1-octave chromatic keyboard overlay.
         // Cells 0-11 = C through B; cells 12-15 = unused.
         // Fill + press feedback from model; outlines, note names, cross-octave badges inline.

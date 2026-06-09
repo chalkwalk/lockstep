@@ -1349,13 +1349,16 @@ namespace lockstep
 
             case ControllerButton::MetaSection:
                 // 6.5: Func+Song+FX → master FX picker (same catalogue overlay targeting master bus).
+                // masterFxHeld keeps MZ in MasterFx band; masterFxPickerOpen controls the grid overlay.
+                // Re-pressing cycles the targeted insert slot (0↔1).
                 if (uiState_.funcHeld && uiState_.songHeld && ev.index == processor_.kFxSecIdx)
                 {
                     if (uiState_.masterFxHeld)
                         uiState_.masterFxInsertSlot = 1 - uiState_.masterFxInsertSlot;
                     else
                         uiState_.masterFxInsertSlot = 0;
-                    uiState_.masterFxHeld = true;
+                    uiState_.masterFxHeld       = true;
+                    uiState_.masterFxPickerOpen = true;
                     refreshMetaBand();
                     repaint();
                     return true;
@@ -1518,15 +1521,15 @@ namespace lockstep
                 }
 
                 // ----------------------------------------------------------------
-                // 6.5: Master FX picker (Func+Song+FX held)
+                // 6.5: Master FX picker (Func+Song+FX held, picker overlay open)
                 // ----------------------------------------------------------------
-                if (uiState_.masterFxHeld)
+                if (uiState_.masterFxPickerOpen)
                 {
                     if (ev.index < 0 || ev.index >= 16) return true;
                     if (ev.index >= processor_.numAvailableEffects()) return true;
                     const auto info = processor_.availableEffectInfo(ev.index);
                     processor_.setMasterInsert(uiState_.masterFxInsertSlot, info.id);
-                    uiState_.masterFxHeld = false;
+                    uiState_.masterFxPickerOpen = false;  // close picker; masterFxHeld stays
                     refreshMetaBand();
                     repaint();
                     return true;
@@ -2894,9 +2897,10 @@ namespace lockstep
                 uiState_.pLockClearStep  = -1;
                 // MHZ.3.5: Func release exits machine picker mode.
                 uiState_.funcTrackHeld = false;
-                // 6.5: Func release exits FX insert picker + master FX picker mode.
-                uiState_.funcFxHeld   = false;
-                uiState_.masterFxHeld = false;
+                // 6.5: Func release closes pickers; masterFxHeld stays if Song still held.
+                uiState_.funcFxHeld         = false;
+                uiState_.masterFxPickerOpen = false;
+                if (!uiState_.songHeld) uiState_.masterFxHeld = false;
                 refreshMetaBand();  // 1c: Func released → restore normal MZ band
                 editMode_.onScopeEvent({ T::ButtonUp, CB::Func });
                 updateFillActivation();
@@ -3014,7 +3018,8 @@ namespace lockstep
 
             case CB::SongScope:
                 physHeld_.song = false;
-                uiState_.masterFxHeld = false;  // exit master FX picker on Song release
+                uiState_.masterFxHeld       = false;  // exit master FX band on Song release
+                uiState_.masterFxPickerOpen = false;
                 if (!uiState_.latch.song)
                 {
                     uiState_.songHeld = false;

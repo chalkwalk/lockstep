@@ -15,6 +15,9 @@ namespace lockstep
 {
     MetaBand resolveMetaBand(const UiState& ui)
     {
+        // masterFxHeld outranks section-indexed sub-modes (including Global at index 5).
+        if (ui.masterFxHeld)
+            return MetaBand::MasterFx;
         switch (ui.masterSection)
         {
             case 0:  return MetaBand::Cond;
@@ -24,10 +27,7 @@ namespace lockstep
             case 5:  return MetaBand::Global;
             default: break;
         }
-        // masterFxHeld and euclidHeld are explicit sub-modes that outrank the passive
-        // swing scope (Song held → swing fires automatically unless dismissed).
-        if (ui.masterFxHeld)
-            return MetaBand::MasterFx;
+        // euclidHeld is an explicit sub-mode that outranks the passive swing scope.
         if (ui.euclidHeld)
             return MetaBand::Euclidean;
         if (swingScopeFor(ui) != 0 && !ui.swingDismissed)
@@ -384,7 +384,7 @@ namespace lockstep
                                                            const UiState& ui)
     {
         std::array<MetaFieldView, 8> result{};
-        const int slot = ui.masterFxHeld ? ui.masterFxInsertSlot : 0;
+        const int slot = ui.masterFxInsertSlot;
         const int np   = proc.masterInsertNumParams(slot);
         if (np == 0) return result;
 

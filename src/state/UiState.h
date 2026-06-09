@@ -120,8 +120,11 @@ namespace lockstep
         bool funcFxHeld       = false;
         int  funcFxInsertSlot = 0;
 
-        // 6.5: Func+Song+FX master picker — same catalogue overlay targeting master bus.
+        // 6.5: Func+Song+FX master FX.
+        // masterFxHeld     — MZ shows MasterFx band; active while Song held after first pick.
+        // masterFxPickerOpen — step grid shows effect catalogue overlay.
         bool masterFxHeld       = false;
+        bool masterFxPickerOpen = false;
         int  masterFxInsertSlot = 0;
 
         // 5.5 Euclidean generator: Phrase+Fill chord enters generator mode on focused track.
