@@ -2715,6 +2715,25 @@ namespace lockstep
             return kit(static_cast<int>(ti)).fltrState.getSlot(slot - fltrOff);
         if (!m->hasInternalAmp() && slot >= ampOff && slot < ampOff + kAmpSlots)
             return kit(static_cast<int>(ti)).ampState.getSlot(slot - ampOff);
+        // 6.5: insert params.
+        {
+            int insOff = ampOff + (m->hasInternalAmp() ? 0 : kAmpSlots);
+            for (int s = 0; s < 2; ++s)
+            {
+                auto* eff = trackInserts_[ti][static_cast<std::size_t>(s)].get();
+                if (!eff) continue;
+                const int insnp = eff->numParams();
+                if (slot >= insOff && slot < insOff + insnp)
+                {
+                    const auto& ki = kit(static_cast<int>(ti)).inserts[static_cast<std::size_t>(s)];
+                    const int   p  = slot - insOff;
+                    if (static_cast<std::size_t>(p) < ki.baseParams.size())
+                        return ki.baseParams[static_cast<std::size_t>(p)];
+                    return eff->paramSpec(p).defaultValue;
+                }
+                insOff += insnp;
+            }
+        }
         return 0.0f;
     }
 
