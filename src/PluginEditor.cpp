@@ -75,8 +75,13 @@ namespace lockstep
         {
             manipulationZone_.setSlotOffset(firstSlot);
         };
-        keyboardArea_.onMetaSectionChanged = [this](int /*metaSection*/)
+        keyboardArea_.onMetaSectionChanged = [this](int metaSection)
         {
+            // Navigating to any meta section other than FX/Global (5 or -1) clears
+            // the sticky master FX band so the newly-selected section wins.
+            // Navigating to a different meta section closes the FX picker.
+            if (metaSection != 5 && metaSection != -1)
+                uiState_.masterFxPickerOpen = false;
             refreshMetaBand();
         };
 
@@ -1326,8 +1331,12 @@ namespace lockstep
                     }
                     if (sectionScope == PS::Song && ev.index == 5)
                     {
-                        // Song+FX: output gain / sync / clock (the GLOBAL meta) —
-                        // relocated here from Func+FX (DESIGN §6.2). Content index 5.
+                        // Song+FX: master insert params (or global transport if none loaded).
+                        // Re-press while already at section 5 cycles the master insert slot.
+                        if (uiState_.masterSection == 5)
+                            uiState_.masterFxInsertSlot = 1 - uiState_.masterFxInsertSlot;
+                        else
+                            uiState_.masterFxInsertSlot = 0;
                         keyboardArea_.selectMetaSection(5);
                         return true;
                     }
@@ -1348,17 +1357,18 @@ namespace lockstep
             }
 
             case ControllerButton::MetaSection:
-                // 6.5: Func+Song+FX → master FX picker (same catalogue overlay targeting master bus).
-                // masterFxHeld keeps MZ in MasterFx band; masterFxPickerOpen controls the grid overlay.
-                // Re-pressing cycles the targeted insert slot (0↔1).
+                // 6.5: Func+Song+FX → open master FX picker on the step grid.
+                // Also navigates to Song+FX meta section so MZ shows master insert params.
+                // Re-pressing while picker is open cycles the targeted slot (0↔1).
                 if (uiState_.funcHeld && uiState_.songHeld && ev.index == processor_.kFxSecIdx)
                 {
-                    if (uiState_.masterFxHeld)
+                    if (uiState_.masterFxPickerOpen)
                         uiState_.masterFxInsertSlot = 1 - uiState_.masterFxInsertSlot;
                     else
                         uiState_.masterFxInsertSlot = 0;
-                    uiState_.masterFxHeld       = true;
                     uiState_.masterFxPickerOpen = true;
+                    // Navigate to Song+FX meta section so MZ shows master FX params.
+                    keyboardArea_.selectMetaSection(processor_.kFxSecIdx);
                     refreshMetaBand();
                     repaint();
                     return true;
@@ -2897,10 +2907,9 @@ namespace lockstep
                 uiState_.pLockClearStep  = -1;
                 // MHZ.3.5: Func release exits machine picker mode.
                 uiState_.funcTrackHeld = false;
-                // 6.5: Func release closes pickers; masterFxHeld stays if Song still held.
+                // 6.5: Func release closes both pickers; meta section view stays.
                 uiState_.funcFxHeld         = false;
                 uiState_.masterFxPickerOpen = false;
-                if (!uiState_.songHeld) uiState_.masterFxHeld = false;
                 refreshMetaBand();  // 1c: Func released → restore normal MZ band
                 editMode_.onScopeEvent({ T::ButtonUp, CB::Func });
                 updateFillActivation();
@@ -3018,8 +3027,7 @@ namespace lockstep
 
             case CB::SongScope:
                 physHeld_.song = false;
-                uiState_.masterFxHeld       = false;  // exit master FX band on Song release
-                uiState_.masterFxPickerOpen = false;
+                uiState_.masterFxPickerOpen = false;  // close picker on Song release; band stays
                 if (!uiState_.latch.song)
                 {
                     uiState_.songHeld = false;

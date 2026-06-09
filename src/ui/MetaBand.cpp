@@ -15,19 +15,16 @@ namespace lockstep
 {
     MetaBand resolveMetaBand(const UiState& ui)
     {
-        // masterFxHeld outranks section-indexed sub-modes (including Global at index 5).
-        if (ui.masterFxHeld)
-            return MetaBand::MasterFx;
         switch (ui.masterSection)
         {
             case 0:  return MetaBand::Cond;
             case 1:  return MetaBand::Trig;
             case 3:  return MetaBand::Divider;
             case 4:  return MetaBand::PhraseLen;
-            case 5:  return MetaBand::Global;
+            case 5:  return MetaBand::Global;  // Song+FX: global params + master inserts
             default: break;
         }
-        // euclidHeld is an explicit sub-mode that outranks the passive swing scope.
+        // euclidHeld and masterFxHeld are explicit sub-modes that outrank passive swing.
         if (ui.euclidHeld)
             return MetaBand::Euclidean;
         if (swingScopeFor(ui) != 0 && !ui.swingDismissed)
@@ -241,8 +238,45 @@ namespace lockstep
         return result;
     }
 
-    static std::array<MetaFieldView, 8> buildGlobalBand(LockstepProcessor& proc)
+    // buildGlobalBand: Song+FX navigation.
+    // When master insert slot has an effect loaded, show its params (mirrors track FX section).
+    // When neither slot has an effect, show the global transport params (Gain/Sync/Chan).
+    static std::array<MetaFieldView, 8> buildMasterFxBand(LockstepProcessor& proc,
+                                                           const UiState& ui)
     {
+        std::array<MetaFieldView, 8> result{};
+        const int slot = ui.masterFxInsertSlot;
+        const int np   = proc.masterInsertNumParams(slot);
+        if (np == 0) return result;
+
+        for (int i = 0; i < std::min(np, 8); ++i)
+        {
+            const auto  spec = proc.masterInsertParamSpec(slot, i);
+            const float val  = proc.masterInsertParam(slot, i);
+            auto& v      = result[static_cast<std::size_t>(i)];
+            v.active     = true;
+            v.label      = juce::String(spec.label);
+            v.minValue   = spec.minValue;
+            v.maxValue   = spec.maxValue;
+            v.value      = val;
+            v.stepped    = spec.isStepped;
+            v.writable   = true;
+            v.hasOverride = false;
+            v.valueText  = juce::String(val, 2);
+            v.ringMode   = RingMode::UnipolarFill;
+        }
+        return result;
+    }
+
+    static std::array<MetaFieldView, 8> buildGlobalBand(LockstepProcessor& proc,
+                                                        const UiState& ui)
+    {
+        const int slot = ui.masterFxInsertSlot;
+        const int np   = proc.masterInsertNumParams(slot);
+        if (np > 0)
+            return buildMasterFxBand(proc, ui);
+
+        // No master effect on current slot — show global transport params.
         const float gain = proc.apvts().getRawParameterValue(ParamIDs::outputGain)->load();
         const float sync = proc.apvts().getRawParameterValue(ParamIDs::syncMode)->load();
         const float chan = proc.apvts().getRawParameterValue(ParamIDs::channelMode)->load();
@@ -380,33 +414,6 @@ namespace lockstep
         return result;
     }
 
-    static std::array<MetaFieldView, 8> buildMasterFxBand(LockstepProcessor& proc,
-                                                           const UiState& ui)
-    {
-        std::array<MetaFieldView, 8> result{};
-        const int slot = ui.masterFxInsertSlot;
-        const int np   = proc.masterInsertNumParams(slot);
-        if (np == 0) return result;
-
-        for (int i = 0; i < std::min(np, 8); ++i)
-        {
-            const auto  spec = proc.masterInsertParamSpec(slot, i);
-            const float val  = proc.masterInsertParam(slot, i);
-            auto& v      = result[static_cast<std::size_t>(i)];
-            v.active     = true;
-            v.label      = juce::String(spec.label);
-            v.minValue   = spec.minValue;
-            v.maxValue   = spec.maxValue;
-            v.value      = val;
-            v.stepped    = spec.isStepped;
-            v.writable   = true;
-            v.hasOverride = false;
-            v.valueText  = juce::String(val, 2);
-            v.ringMode   = RingMode::UnipolarFill;
-        }
-        return result;
-    }
-
     static std::array<MetaFieldView, 8> buildChanceBand(LockstepProcessor& proc)
     {
         std::array<MetaFieldView, 8> result{};
@@ -451,7 +458,7 @@ namespace lockstep
             case MetaBand::Trig:      return buildTrigBand(proc, track, ctx);
             case MetaBand::Divider:   return buildDivBand(proc, track);
             case MetaBand::PhraseLen: return buildPhraseLenBand(proc, track);
-            case MetaBand::Global:    return buildGlobalBand(proc);
+            case MetaBand::Global:    return buildGlobalBand(proc, ui);
             case MetaBand::Swing:     return buildSwingBand(swingScope, proc, track);
             default:                  return {};
         }
@@ -598,6 +605,14 @@ namespace lockstep
 
             case MetaBand::Global:
             {
+                const int slot = ui.masterFxInsertSlot;
+                if (proc.masterInsertNumParams(slot) > 0)
+                {
+                    // Master effect loaded on current slot — write to it directly.
+                    proc.setMasterInsertParam(slot, field, value);
+                    break;
+                }
+                // No master effect: write global transport params.
                 const auto writeApvts = [&](const juce::String& id, float v, float lo, float hi)
                 {
                     auto* p = proc.apvts().getParameter(id);

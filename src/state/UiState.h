@@ -120,10 +120,10 @@ namespace lockstep
         bool funcFxHeld       = false;
         int  funcFxInsertSlot = 0;
 
-        // 6.5: Func+Song+FX master FX.
-        // masterFxHeld     — MZ shows MasterFx band; active while Song held after first pick.
-        // masterFxPickerOpen — step grid shows effect catalogue overlay.
-        bool masterFxHeld       = false;
+        // 6.5: Master FX (global inserts).
+        // masterFxPickerOpen — step grid shows effect catalogue overlay (Func+Song+FX chord).
+        // masterFxInsertSlot — which of the 2 master slots the picker / MZ targets.
+        // Params are visible whenever masterSection==5 (Song+FX navigates there).
         bool masterFxPickerOpen = false;
         int  masterFxInsertSlot = 0;
 
