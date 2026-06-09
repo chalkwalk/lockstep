@@ -10,6 +10,7 @@
 #include "../machine/MidiDevicePresets.h"
 #include "../machine/MidiOutMachine.h"
 #include "../machine/SamplerMachine.h"
+#include "../machine/EffectFactory.h"
 #include <cstdint>
 #include <cstdio>
 
@@ -247,6 +248,34 @@ namespace lockstep::PluginState
             if (bpNode.getNumChildren() > 0)
                 node.appendChild(bpNode, nullptr);
         }
+
+        // v13: insert chain slots.
+        for (int s = 0; s < 2; ++s)
+        {
+            const auto& insSlot = kit.inserts[static_cast<std::size_t>(s)];
+            if (insSlot.effectId.empty()) continue;
+            auto tempEff = makeEffectForId(insSlot.effectId);
+            if (!tempEff) continue;
+            juce::ValueTree insNode("Ins");
+            insNode.setProperty("slot", s, nullptr);
+            insNode.setProperty("eid", juce::String(insSlot.effectId), nullptr);
+            if (insSlot.bypass)
+                insNode.setProperty("bypass", 1, nullptr);
+            const int np = tempEff->numParams();
+            for (int p = 0; p < np; ++p)
+            {
+                const auto spec = tempEff->paramSpec(p);
+                const float def = spec.defaultValue;
+                const float val = (p < static_cast<int>(insSlot.baseParams.size()))
+                    ? insSlot.baseParams[static_cast<std::size_t>(p)] : def;
+                if (!floatNe(val, def)) continue;
+                juce::ValueTree pNode("P");
+                pNode.setProperty("id", juce::String(spec.id), nullptr);
+                pNode.setProperty("v",  static_cast<double>(val), nullptr);
+                insNode.appendChild(pNode, nullptr);
+            }
+            node.appendChild(insNode, nullptr);
+        }
         return node;
     }
 
@@ -281,6 +310,40 @@ namespace lockstep::PluginState
                     const int ampBase = machinNp
                         + (tempMachine->hasInternalFilter() ? 0 : TrackFltrState::kNumSlots);
                     kit.ampState.setSlot(slot - ampBase, val);
+                }
+            }
+        }
+
+        // v13: insert chain slots.
+        for (auto child : node)
+        {
+            if (child.getType() != juce::Identifier("Ins")) continue;
+            const int s = static_cast<int>(child.getProperty("slot", -1));
+            if (s < 0 || s > 1) continue;
+            const std::string effId = child.getProperty("eid", "").toString().toStdString();
+            if (effId.empty()) continue;
+            auto& insSlot = kit.inserts[static_cast<std::size_t>(s)];
+            insSlot.effectId = effId;
+            insSlot.bypass   = (static_cast<int>(child.getProperty("bypass", 0)) != 0);
+            auto tempEff = makeEffectForId(effId);
+            if (tempEff)
+            {
+                const int np = tempEff->numParams();
+                insSlot.baseParams.assign(static_cast<std::size_t>(np), 0.0f);
+                for (int p = 0; p < np; ++p)
+                    insSlot.baseParams[static_cast<std::size_t>(p)] = tempEff->paramSpec(p).defaultValue;
+                for (auto pNode : child)
+                {
+                    if (pNode.getType() != juce::Identifier("P")) continue;
+                    const juce::String id = pNode.getProperty("id", "").toString();
+                    for (int p = 0; p < np; ++p)
+                    {
+                        if (juce::String(tempEff->paramSpec(p).id) == id)
+                        {
+                            insSlot.baseParams[static_cast<std::size_t>(p)] = getFloat(pNode, "v", 0.0f);
+                            break;
+                        }
+                    }
                 }
             }
         }
@@ -1004,6 +1067,16 @@ namespace lockstep::PluginState
         return v12;
     }
 
+    // v12 → v13
+    // Adds per-track insert chains (effectId/baseParams/bypass) inside Kit nodes.
+    // Missing "Ins" children on load default to empty (no effect), which is correct.
+    juce::ValueTree upgrade_v12_to_v13(const juce::ValueTree& v12)
+    {
+        juce::ValueTree v13 = v12.createCopy();
+        v13.setProperty("version", 13, nullptr);
+        return v13;
+    }
+
     juce::ValueTree applyUpgrades(juce::ValueTree tree)
     {
         // Determine the version. v0 has root type "Lockstep" and no version attribute.
@@ -1026,6 +1099,7 @@ namespace lockstep::PluginState
         if (version == 9) tree = upgrade_v9_to_v10(tree);
         if (version < 11) tree = upgrade_v10_to_v11(tree);
         if (version < 12) tree = upgrade_v11_to_v12(tree);
+        if (version < 13) tree = upgrade_v12_to_v13(tree);
 
         return tree;
     }

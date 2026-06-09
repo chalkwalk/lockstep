@@ -1000,16 +1000,16 @@ DESIGN §31. Adds the monitor bus + the `Cue` scope (finally bound to a key).
 - [ ] `Cue + track` additive send (post-FLTR/AMP/Level); `Cue + Scene` preview;
       `Cue + MIDI-out track` event copy. No cue output = no-op.
 
-### 6.5 — Insert + master effects (FX system)  *[planned]*  *(was MV)*
+### 6.5 — Insert + master effects (FX system)  *[shipped]*  *(was MV)*
 DESIGN §32. Depends on 2.4 + the §14 path (independent of 6.1–6.4).
-- [ ] `IEffect` interface (reuses `ParamSpec`/`role`/P-Lock; stub fallback) +
-      starter catalogue.
-- [ ] Per-track 2-insert chain (post-AMP, Part-scope).
-- [ ] FX canonical-section rendering + effect-load gesture.
+- [x] `IEffect` interface (reuses `ParamSpec`/`role`/P-Lock; stub fallback) +
+      starter catalogue (Delay, Reverb, Distortion, Chorus).
+- [x] Per-track 2-insert chain (post-AMP, Part-scope).
+- [x] FX canonical-section rendering + Func+FX effect-load picker gesture.
+- [x] **Animate** momentary insert toggle (DESIGN §32.5): FX-held + step bypasses
+      insert for the hold duration; release restores. No dedicated performance-FX mode.
+- [x] Serializer v13: insert chains round-trip (effectId/baseParams/bypass per slot).
 - [ ] Two master FX slots (`Insert | Send`), Master-focus edited, Project-scope.
-- [ ] **Animate** momentary insert toggle (DESIGN §32.5): a held gesture enables
-      (or bypasses) an insert slot for its duration — the thin punch-in answer, no
-      performance-FX mode. Master inserts carry the same toggle.
 - [ ] Send routing (per-track Send A/B in the AMP mix).
 - [ ] Performance-grammar parity (P-Lock / scene / Control-All / section copy).
 - [ ] MIDI-out tracks carry no inserts/sends.

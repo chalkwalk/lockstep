@@ -28,7 +28,9 @@ namespace lockstep
         //      v9 APVTS swing values migrated into Song[0] on first load.
         // v11: Scene::globalPhrase removed; diagonal pinned (scene N plays row N).
         //      Legacy "gp" values are materialised onto the diagonal at load time.
-        inline constexpr int kCurrentVersion = 12;
+        // v12: per-step retrig rate (hasRetrig/retrigRate) + sound_id P-Lock.
+        // v13: per-track insert chains (effectId/baseParams/bypass) in Kit node.
+        inline constexpr int kCurrentVersion = 13;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);

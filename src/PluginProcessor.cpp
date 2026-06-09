@@ -250,6 +250,9 @@ namespace lockstep
             fltr.prepare(sampleRate);
         for (auto& amp : trackAmps_)
             amp.prepare(sampleRate);
+        for (auto& ins : trackInserts_)
+            for (auto& eff : ins)
+                if (eff) { eff->prepare(sampleRate, samplesPerBlock); eff->reset(); }
         for (auto& pnf : pendingNoteOffs_)
         {
             pnf.samplesRemaining = -1;
@@ -478,7 +481,24 @@ namespace lockstep
             else if (!m->hasInternalAmp() && s >= ampOff && s < ampOff + kAmpSlots)
                 base = kit(static_cast<int>(ti)).ampState.getSlot(s - ampOff);
             else
+            {
+                // 6.5: insert base params.
+                int insOff = ampOff + (m->hasInternalAmp() ? 0 : kAmpSlots);
                 base = 0.0f;
+                for (int ins = 0; ins < 2; ++ins)
+                {
+                    auto* eff = trackInserts_[ti][static_cast<std::size_t>(ins)].get();
+                    if (!eff) continue;
+                    const int np2 = eff->numParams();
+                    if (s >= insOff && s < insOff + np2)
+                    {
+                        const auto& bp = kit(static_cast<int>(ti)).inserts[static_cast<std::size_t>(ins)].baseParams;
+                        base = (static_cast<std::size_t>(s - insOff) < bp.size()) ? bp[static_cast<std::size_t>(s - insOff)] : 0.0f;
+                        break;
+                    }
+                    insOff += np2;
+                }
+            }
             // When a step is held on this track, apply its P-Lock overlay.
             if (editContext_.isActiveForEditing()
                 && editContext_.heldTrackIndex() == t)
@@ -1117,6 +1137,32 @@ namespace lockstep
                                                    numBlockSamples);
                         if (!ampWasIdle && trackAmps_[i].isIdle())
                             mi->reset();
+
+                        // 6.5: post-AMP insert chain.
+                        for (int ins = 0; ins < 2; ++ins)
+                        {
+                            auto* eff = trackInserts_[i][static_cast<std::size_t>(ins)].get();
+                            if (!eff) continue;
+                            const auto& kitIns = kit(static_cast<int>(i)).inserts[static_cast<std::size_t>(ins)];
+                            if (kitIns.bypass) continue;
+                            const int insOff = insertParamOffset(static_cast<int>(i), ins);
+                            const int insnp  = eff->numParams();
+                            ParamFrame fxFrame(static_cast<std::size_t>(insnp));
+                            for (int p = 0; p < insnp; ++p)
+                            {
+                                const float base = static_cast<std::size_t>(p) < kitIns.baseParams.size()
+                                    ? kitIns.baseParams[static_cast<std::size_t>(p)]
+                                    : eff->paramSpec(p).defaultValue;
+                                float resolved = base;
+                                if (firedStepIdx_[i] >= 0)
+                                {
+                                    const auto& st = sequence().tracks[i].steps[static_cast<std::size_t>(firedStepIdx_[i])];
+                                    resolved = st.overrides.get(insOff + p, base);
+                                }
+                                fxFrame[static_cast<std::size_t>(p)] = resolved;
+                            }
+                            eff->process(trackBuffers_[i], numBlockSamples, fxFrame);
+                        }
                     }
 
                     trackPeak_[i].store(trackBuffers_[i].getMagnitude(0, numBlockSamples),
@@ -1633,6 +1679,32 @@ namespace lockstep
                                                numBlockSamples);
                     if (!ampWasIdle && trackAmps_[i].isIdle())
                         mi->reset();
+
+                    // 6.5: post-AMP insert chain.
+                    for (int ins = 0; ins < 2; ++ins)
+                    {
+                        auto* eff = trackInserts_[i][static_cast<std::size_t>(ins)].get();
+                        if (!eff) continue;
+                        const auto& kitIns = kit(static_cast<int>(i)).inserts[static_cast<std::size_t>(ins)];
+                        if (kitIns.bypass) continue;
+                        const int insOff = insertParamOffset(static_cast<int>(i), ins);
+                        const int insnp  = eff->numParams();
+                        ParamFrame fxFrame2(static_cast<std::size_t>(insnp));
+                        for (int p = 0; p < insnp; ++p)
+                        {
+                            const float base = static_cast<std::size_t>(p) < kitIns.baseParams.size()
+                                ? kitIns.baseParams[static_cast<std::size_t>(p)]
+                                : eff->paramSpec(p).defaultValue;
+                            float resolved = base;
+                            if (firedStepIdx_[i] >= 0)
+                            {
+                                const auto& st = sequence().tracks[i].steps[static_cast<std::size_t>(firedStepIdx_[i])];
+                                resolved = st.overrides.get(insOff + p, base);
+                            }
+                            fxFrame2[static_cast<std::size_t>(p)] = resolved;
+                        }
+                        eff->process(trackBuffers_[i], numBlockSamples, fxFrame2);
+                    }
                 }
 
                 trackPeak_[i].store(trackBuffers_[i].getMagnitude(0, numBlockSamples),
@@ -1813,6 +1885,25 @@ namespace lockstep
             else if (!wm->hasInternalAmp())
             {
                 kit(static_cast<int>(ti)).ampState.setSlot(slot - ampOff, value);
+            }
+            else
+            {
+                // 6.5: insert param base write.
+                int insOff = ampOff + (wm->hasInternalAmp() ? 0 : kAmpSlots);
+                for (int s = 0; s < 2; ++s)
+                {
+                    auto* eff = trackInserts_[ti][static_cast<std::size_t>(s)].get();
+                    if (!eff) continue;
+                    const int insnp = eff->numParams();
+                    if (slot >= insOff && slot < insOff + insnp)
+                    {
+                        auto& kitIns = kit(static_cast<int>(ti)).inserts[static_cast<std::size_t>(s)];
+                        if (static_cast<std::size_t>(slot - insOff) < kitIns.baseParams.size())
+                            kitIns.baseParams[static_cast<std::size_t>(slot - insOff)] = value;
+                        break;
+                    }
+                    insOff += insnp;
+                }
             }
         }
     }
@@ -2316,10 +2407,14 @@ namespace lockstep
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return 0;
-        auto* m = machines_[static_cast<std::size_t>(track)].get();
-        return m->numParams()
-             + (m->hasInternalFilter() ? 0 : kFltrSlots)
-             + (m->hasInternalAmp()    ? 0 : kAmpSlots);
+        const auto ti = static_cast<std::size_t>(track);
+        auto* m = machines_[ti].get();
+        int n = m->numParams()
+              + (m->hasInternalFilter() ? 0 : kFltrSlots)
+              + (m->hasInternalAmp()    ? 0 : kAmpSlots);
+        for (auto& eff : trackInserts_[ti])
+            if (eff) n += eff->numParams();
+        return n;
     }
 
     // Stable string IDs for the 6 FLTR virtual slots.
@@ -2396,6 +2491,22 @@ namespace lockstep
             return p;
         }
 
+        // 6.5: insert param ranges.
+        {
+            const int ti2 = static_cast<int>(ti);
+            int insOff = ampOff + (m->hasInternalAmp() ? 0 : kAmpSlots);
+            for (int s = 0; s < 2; ++s)
+            {
+                auto* eff = trackInserts_[ti][static_cast<std::size_t>(s)].get();
+                if (!eff) continue;
+                const int insnp = eff->numParams();
+                if (index >= insOff && index < insOff + insnp)
+                    return eff->paramSpec(index - insOff);
+                insOff += insnp;
+            }
+            (void)ti2;
+        }
+
         return {};
     }
 
@@ -2411,10 +2522,23 @@ namespace lockstep
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return {};
-        auto* m = machines_[static_cast<std::size_t>(track)].get();
+        const auto ti = static_cast<std::size_t>(track);
+        auto* m = machines_[ti].get();
 
         const int mnp    = m->numParams();
         const int ampOff = mnp + (m->hasInternalFilter() ? 0 : kFltrSlots);
+
+        // 6.5: FX section (canonical section 5) shows insert params.
+        if (sectionIndex == kFxSecIdx)
+        {
+            const int ins1Off = insertParamOffset(track, 0);
+            auto* e1 = trackInserts_[ti][0].get();
+            auto* e2 = trackInserts_[ti][1].get();
+            const int np1 = e1 ? e1->numParams() : 0;
+            const int np2 = e2 ? e2->numParams() : 0;
+            if (np1 + np2 == 0) return {};
+            return { "FX", ins1Off, (np1 + np2 + kParamsPerPage - 1) / kParamsPerPage, -1 };
+        }
 
         // Post-machine FLTR block owns canonical section 2 (when machine has no internal filter).
         if (sectionIndex == kFltrSecIdx && !m->hasInternalFilter())
@@ -2900,6 +3024,94 @@ namespace lockstep
         return machines_[static_cast<std::size_t>(track)].get();
     }
 
+    // =========================================================================
+    // 6.5 — FX insert management
+    // =========================================================================
+
+    int LockstepProcessor::insertParamOffset(int track, int insSlot) const noexcept
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return 0;
+        const auto ti = static_cast<std::size_t>(track);
+        auto* m = machines_[ti].get();
+        const int mnp    = m->numParams();
+        const int ampOff = mnp + (m->hasInternalFilter() ? 0 : kFltrSlots);
+        int off = ampOff + (m->hasInternalAmp() ? 0 : kAmpSlots);
+        for (int s = 0; s < insSlot && s < 2; ++s)
+        {
+            auto* eff = trackInserts_[ti][static_cast<std::size_t>(s)].get();
+            if (eff) off += eff->numParams();
+        }
+        return off;
+    }
+
+    void LockstepProcessor::setTrackInsert(int track, int slot, const std::string& effectId)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        if (slot < 0 || slot > 1) return;
+        const auto ti  = static_cast<std::size_t>(track);
+        const auto si  = static_cast<std::size_t>(slot);
+
+        auto& kitSlot = kit(track).inserts[si];
+        kitSlot.effectId = effectId;
+
+        auto newEff = makeEffectForId(effectId);
+        if (newEff)
+        {
+            // Resize baseParams and fill defaults if slot is first-time.
+            const int np = newEff->numParams();
+            if (static_cast<int>(kitSlot.baseParams.size()) != np)
+            {
+                kitSlot.baseParams.resize(static_cast<std::size_t>(np));
+                for (int p = 0; p < np; ++p)
+                    kitSlot.baseParams[static_cast<std::size_t>(p)] = newEff->paramSpec(p).defaultValue;
+            }
+            newEff->prepare(getSampleRate(), getBlockSize());
+        }
+        suspendProcessing(true);
+        trackInserts_[ti][si] = std::move(newEff);
+        suspendProcessing(false);
+    }
+
+    void LockstepProcessor::clearTrackInsert(int track, int slot)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        if (slot < 0 || slot > 1) return;
+        const auto ti = static_cast<std::size_t>(track);
+        const auto si = static_cast<std::size_t>(slot);
+        kit(track).inserts[si] = {};
+        suspendProcessing(true);
+        trackInserts_[ti][si].reset();
+        suspendProcessing(false);
+    }
+
+    void LockstepProcessor::setTrackInsertBypass(int track, int slot, bool bypass)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        if (slot < 0 || slot > 1) return;
+        kit(track).inserts[static_cast<std::size_t>(slot)].bypass = bypass;
+    }
+
+    std::string LockstepProcessor::trackInsertId(int track, int slot) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return {};
+        if (slot < 0 || slot > 1) return {};
+        return kit(track).inserts[static_cast<std::size_t>(slot)].effectId;
+    }
+
+    bool LockstepProcessor::trackInsertBypass(int track, int slot) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
+        if (slot < 0 || slot > 1) return false;
+        return kit(track).inserts[static_cast<std::size_t>(slot)].bypass;
+    }
+
+    int LockstepProcessor::numAvailableEffects() const { return lockstep::numAvailableEffects(); }
+
+    EffectInfo LockstepProcessor::availableEffectInfo(int idx) const
+    {
+        return lockstep::availableEffectInfo(idx);
+    }
+
     void LockstepProcessor::setTrackChance(int track, float scale) noexcept
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
@@ -3290,6 +3502,24 @@ namespace lockstep
                 pushMidiOutConfig(static_cast<MidiOutMachine*>(machines_[t].get()), k);
             if (getSampleRate() > 0.0)
                 machines_[t]->prepare(getSampleRate(), getBlockSize());
+        }
+
+        // v13: reinstall insert effects from the loaded Kit state. setTrackInsert
+        // preserves baseParams when the size already matches the effect's schema,
+        // so the loaded values survive. Bypass is applied afterwards.
+        for (std::size_t t = 0; t < kNumTracks; ++t)
+        {
+            const auto& k = kit(static_cast<int>(t));
+            for (int s = 0; s < 2; ++s)
+            {
+                const auto& ins = k.inserts[static_cast<std::size_t>(s)];
+                if (!ins.effectId.empty())
+                {
+                    setTrackInsert(static_cast<int>(t), s, ins.effectId);
+                    // bypass is in kit slot; restore the live state explicitly
+                    setTrackInsertBypass(static_cast<int>(t), s, ins.bypass);
+                }
+            }
         }
 
         // Seed a default gate for VA Machine tracks that have none, so that a
