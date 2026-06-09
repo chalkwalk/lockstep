@@ -1117,6 +1117,7 @@ namespace lockstep
                 uiState_.funcTrackHeld = uiState_.trackHeld;
                 editMode_.onScopeEvent(ev);
                 updateFillActivation();
+                refreshMetaBand();  // 1c: Func held → show Chance band in MZ
                 keyboardArea_.repaint();
                 repaint();
                 // MHZ.9.4: Func never latches; double-tap = universal escape (only if latches engaged).
@@ -1269,19 +1270,6 @@ namespace lockstep
                     // section (e.g. Track+FLTR → section 2 = post-machine FLTR block).
                 }
 
-                // 6.5: Func+FX → enter effect picker (step grid re-skins to catalogue).
-                // Re-pressing FX while picker is active cycles the targeted insert slot.
-                if (uiState_.funcHeld && ev.index == processor_.kFxSecIdx)
-                {
-                    if (uiState_.funcFxHeld)
-                        uiState_.funcFxInsertSlot = 1 - uiState_.funcFxInsertSlot;  // cycle 0↔1
-                    else
-                        uiState_.funcFxInsertSlot = 0;
-                    uiState_.funcFxHeld = true;
-                    repaint();
-                    return true;
-                }
-
                 // KeyboardArea gates on machine slot availability.
                 keyboardArea_.selectSection(ev.index);
                 // Track section key hold for Section-scope verb dispatch (MD.3).
@@ -1295,6 +1283,19 @@ namespace lockstep
             }
 
             case ControllerButton::MetaSection:
+                // 6.5: Func+FX → enter effect picker (step grid re-skins to catalogue).
+                // Re-pressing FX while picker is active cycles the targeted insert slot.
+                // (Func+section routes to MetaSection via QwertyOverlay kFunc table.)
+                if (uiState_.funcHeld && ev.index == processor_.kFxSecIdx)
+                {
+                    if (uiState_.funcFxHeld)
+                        uiState_.funcFxInsertSlot = 1 - uiState_.funcFxInsertSlot;  // cycle 0↔1
+                    else
+                        uiState_.funcFxInsertSlot = 0;
+                    uiState_.funcFxHeld = true;
+                    repaint();
+                    return true;
+                }
                 // Func-row secondaries are COND (TRIG) and NOTE (SRC) only; other
                 // sections have no Func secondary (FILTER/FX metas relocated to
                 // Track+TRIG / Song+FX). Those cells dim under Func — ignore the
@@ -2793,6 +2794,7 @@ namespace lockstep
                 uiState_.funcTrackHeld = false;
                 // 6.5: Func release exits FX insert picker mode.
                 uiState_.funcFxHeld = false;
+                refreshMetaBand();  // 1c: Func released → restore normal MZ band
                 editMode_.onScopeEvent({ T::ButtonUp, CB::Func });
                 updateFillActivation();
                 keyboardArea_.repaint();

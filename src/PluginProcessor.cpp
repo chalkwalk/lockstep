@@ -941,7 +941,7 @@ namespace lockstep
                 // Stop any previous retrig note.
                 if (retrigNoteOffRemaining_ >= 0)
                     trackMidi[static_cast<std::size_t>(retrigActiveTrack_)].addEvent(
-                        juce::MidiMessage::noteOff(1, 60), 0);
+                        juce::MidiMessage::noteOff(1, retrigNote_), 0);
 
                 retrigActiveTrack_      = req;
                 retrigRatePpq_          = retrigReqRatePpq_.load(std::memory_order_relaxed);
@@ -953,7 +953,7 @@ namespace lockstep
             {
                 if (retrigNoteOffRemaining_ >= 0)
                     trackMidi[static_cast<std::size_t>(retrigActiveTrack_)].addEvent(
-                        juce::MidiMessage::noteOff(1, 60), 0);
+                        juce::MidiMessage::noteOff(1, retrigNote_), 0);
                 retrigActiveTrack_      = -1;
                 retrigNoteOffRemaining_ = -1;
             }
@@ -991,10 +991,10 @@ namespace lockstep
                                                   static_cast<juce::uint8>(retrigNote_),
                                                   static_cast<juce::uint8>(100)),
                         samplePos);
-                    // note-off ~75% through the interval
-                    const int noteOffAt = samplePos + juce::jlimit(
-                        1, numBlockSamples - 1,
-                        static_cast<int>(samplesPerRetrig * 0.75));
+                    // note-off ~75% through the interval; allow multi-block deferral
+                    // via retrigNoteOffRemaining_ — do not clamp to block boundary.
+                    const int noteOffDelta = std::max(1, static_cast<int>(samplesPerRetrig * 0.75));
+                    const int noteOffAt = samplePos + noteOffDelta;
                     if (noteOffAt < numBlockSamples)
                         trackMidi[ti].addEvent(
                             juce::MidiMessage::noteOff(1, retrigNote_), noteOffAt);

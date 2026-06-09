@@ -475,26 +475,35 @@ namespace lockstep
 
             // Func layer (bare Func, no scope): the section row must announce its
             // secondary layer in colour, not just text (DESIGN §6.1 rule 3, §6.2).
-            // Cells with a wired secondary (COND/NOTE) glow in the Func hue and are
-            // always available regardless of machine slots; cells with none dim to
-            // Disabled. This mirrors the scope-glow grammar below.
+            // Cells with a wired secondary (COND/NOTE/FX-picker) glow in the Func hue
+            // and are always available; cells with none dim to Disabled.
             const bool funcLayerActive  = (ui.funcHeld && !isScopedMode);
-            const bool hasFuncSecondary = !isReservedMeta(s);
+            // FX is normally reserved (no meta label) but Func+FX opens the insert
+            // picker — treat it as having a func secondary so it illuminates, not dims.
+            const bool isFxPickerArmed  = (funcLayerActive && s == proc.kFxSecIdx);
+            const bool hasFuncSecondary = !isReservedMeta(s) || isFxPickerArmed;
             if (funcLayerActive)
                 c.disabled = !hasFuncSecondary;
+
+            // Fill layer: TRIG (0) and SRC (1) glow when Fill is held to announce
+            // the Retrig and SoundPool overlays respectively.
+            const bool fillLayerActive = (ui.fillHeld && !isScopedMode && !ui.funcHeld);
+            const bool isFillArmed     = fillLayerActive && (s == 0 || s == 1);
 
             if (c.pressed)
                 c.base = CellState::Pressed;
             else if (c.disabled)
                 c.base = CellState::Disabled;
-            else if (isTrackActive || isMasterActive)
+            else if (isTrackActive || isMasterActive || isFxPickerArmed || isFillArmed)
                 c.base = CellState::ModeActive;
             else
                 c.base = CellState::Resting;
 
             // baseColour distinguishes special visual modes for groupForCell()
             if (funcLayerActive && hasFuncSecondary)
-                c.baseColour = kScopeFunc;      // Func-secondary glow (COND / NOTE)
+                c.baseColour = kScopeFunc;      // Func-secondary glow (COND / NOTE / FX)
+            else if (isFillArmed)
+                c.baseColour = kScopeFill;      // Fill-secondary glow (TRIG / SRC)
             else if (isMasterActive)
                 c.baseColour = 0xFF404010u;     // golden — master section active
             else if (isSrcNoteEdit)
@@ -510,6 +519,8 @@ namespace lockstep
                 c.scopeTint = scopeColour(sectionScope).getARGB();
             else if (funcLayerActive && hasFuncSecondary)
                 c.scopeTint = scopeColour(EditMode::PrimaryScope::Func).getARGB();
+            else if (isFillArmed)
+                c.scopeTint = scopeColour(EditMode::PrimaryScope::Fill).getARGB();
 
             // Invariant: non-disabled section keys always resolve to a non-empty primary.
             jassert(c.disabled || !c.primary.isEmpty());
