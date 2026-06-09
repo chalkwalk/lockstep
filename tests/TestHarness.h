@@ -35,4 +35,5 @@ namespace lockstep
     void runCheckpointTests();
     void runSerializerTests();
     void runAmpDspTests();
+    void runEuclideanTests();
 }

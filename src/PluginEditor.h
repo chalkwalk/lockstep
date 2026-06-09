@@ -180,6 +180,10 @@ namespace lockstep
         // Thin alias for call sites that were wired before refreshMetaBand existed.
         void updateSwingQualifier();
 
+        // 5.5: write the current Euclidean pattern to the focused track's active phrase.
+        // Takes a checkpoint first if the phrase has any existing trigs.
+        void applyEuclidToTrack(int track);
+
         // Transparent layer that draws the empty-track grey-out hints. Declared
         // before poolOverlay_ / soundBankOverlay_ so addAndMakeVisible inserts it
         // below them in JUCE's z-order, letting the popups always paint on top.

@@ -901,6 +901,19 @@ The step grid can be re-skinned into non-step roles. Three paths exist:
   live-swaps the focused track to that sound for audition. If a step is held
   the swap is **baked** as a `sound_id` P-Lock. Release Fill to restore the
   track's original sound. The SRC key glows in Fill colour while Fill is held.
+- **Euclidean generator (shipped, 5.9).** `Phrase + Fill` held together
+  enters Euclidean generator mode on the **focused track**. The Manipulation
+  Zone switches to three encoders:
+  - **PULSE** — number of onsets (0 … phrase length).
+  - **OFSET** — rotation in steps (signed, shifts the pattern forward/back).
+  - **ACCNT** — number of accented onsets (Euclidean-distributed over pulses;
+    accented trigs get velocity 100, unaccented get velocity 64).
+
+  Adjust the encoders while both keys are held to preview the count in the
+  MZ labels. **Releasing either key commits the pattern**: trigs in
+  `[0, phrase length)` are replaced with the computed Euclidean rhythm. If
+  the phrase already has trigs a checkpoint is pushed first (undo-able via
+  `Func + P`). Output is ordinary hand-editable trig data.
 
 ---
 

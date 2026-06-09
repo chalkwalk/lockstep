@@ -2,6 +2,7 @@
 #include "UITheme.h"
 #include "../PluginProcessor.h"
 #include "../ParameterIDs.h"
+#include "../core/Euclidean.h"
 #include "../core/TrigCondition.h"
 #include "../core/Track.h"
 #include "../core/MusicalGate.h"
@@ -25,6 +26,8 @@ namespace lockstep
         }
         if (swingScopeFor(ui) != 0 && !ui.swingDismissed)
             return MetaBand::Swing;
+        if (ui.euclidHeld)
+            return MetaBand::Euclidean;
         if (ui.masterFxHeld)
             return MetaBand::MasterFx;
         if (ui.funcHeld)
@@ -335,6 +338,46 @@ namespace lockstep
     }
 
     // 5.9 Chance macro — 8 tracks (0-7), one encoder each, 0-200%.
+    static std::array<MetaFieldView, 8> buildEuclidBand(LockstepProcessor& proc,
+                                                          int track,
+                                                          const UiState& ui)
+    {
+        std::array<MetaFieldView, 8> result{};
+
+        const int safeTrack = (track >= 0 && track < static_cast<int>(kNumTracks)) ? track : 0;
+        const int phraseLen = proc.activePhrase(safeTrack).length;
+
+        auto makeField = [](const char* lbl, float lo, float hi, float val,
+                            const char* txt, bool stepped) -> MetaFieldView {
+            MetaFieldView v;
+            v.active   = true;
+            v.label    = lbl;
+            v.minValue = lo;
+            v.maxValue = hi;
+            v.value    = val;
+            v.stepped  = stepped;
+            v.writable = true;
+            v.valueText = txt;
+            v.ringMode  = RingMode::Dot;
+            return v;
+        };
+
+        result[0] = makeField("PULSE",
+                              0.0f, static_cast<float>(phraseLen > 0 ? phraseLen : 16),
+                              static_cast<float>(ui.euclidPulses),
+                              juce::String(ui.euclidPulses).toRawUTF8(), true);
+        result[1] = makeField("OFSET",
+                              static_cast<float>(-(phraseLen > 0 ? phraseLen - 1 : 15)),
+                              static_cast<float>(phraseLen > 0 ? phraseLen - 1 : 15),
+                              static_cast<float>(ui.euclidOffset),
+                              juce::String(ui.euclidOffset).toRawUTF8(), true);
+        result[2] = makeField("ACCNT",
+                              0.0f, static_cast<float>(ui.euclidPulses),
+                              static_cast<float>(ui.euclidAccents),
+                              juce::String(ui.euclidAccents).toRawUTF8(), true);
+        return result;
+    }
+
     static std::array<MetaFieldView, 8> buildMasterFxBand(LockstepProcessor& proc,
                                                            const UiState& ui)
     {
@@ -394,6 +437,8 @@ namespace lockstep
             return buildChanceBand(proc);
         if (band == MetaBand::MasterFx)
             return buildMasterFxBand(proc, ui);
+        if (band == MetaBand::Euclidean)
+            return buildEuclidBand(proc, track, ui);
 
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return {};
@@ -421,13 +466,37 @@ namespace lockstep
                         LockstepProcessor& proc,
                         int                track,
                         EditContext&       ctx,
-                        const UiState&     ui)
+                        UiState&           ui)
     {
         // 6.5: master FX params — write-back bypasses track guard.
         if (band == MetaBand::MasterFx)
         {
             const int slot = ui.masterFxInsertSlot;
             proc.setMasterInsertParam(slot, field, value);
+            return;
+        }
+
+        // 5.5: Euclidean params — update UiState staging area.
+        if (band == MetaBand::Euclidean)
+        {
+            const int safeTrack = (track >= 0 && track < static_cast<int>(kNumTracks)) ? track : 0;
+            const int phraseLen = proc.activePhrase(safeTrack).length;
+            const int maxLen    = phraseLen > 0 ? phraseLen : 16;
+            switch (field)
+            {
+                case 0:  // Pulses
+                    ui.euclidPulses  = std::clamp(static_cast<int>(std::round(value)), 0, maxLen);
+                    ui.euclidAccents = std::min(ui.euclidAccents, ui.euclidPulses);
+                    break;
+                case 1:  // Offset
+                    ui.euclidOffset = std::clamp(static_cast<int>(std::round(value)),
+                                                 -(maxLen - 1), maxLen - 1);
+                    break;
+                case 2:  // Accents
+                    ui.euclidAccents = std::clamp(static_cast<int>(std::round(value)), 0, ui.euclidPulses);
+                    break;
+                default: break;
+            }
             return;
         }
 

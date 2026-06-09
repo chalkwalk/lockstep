@@ -928,10 +928,12 @@ DESIGN §24, §25, §26.
 From the competitive sweep (see `NON-GOALS.md`): the admitted, principle-clean
 additions. Each is authored against the frozen surface and must stay within
 scope+verb. Stochastic / generative authoring is explicitly *not* here (NON-GOALS).
-- [ ] **Euclidean print-on-release** (DESIGN §13.5): held-modifier scope re-skin;
-      encoders set pulses / rotation / (accent) against `Phrase.length`; live
-      audible + visible; release **replaces** the trigs in the length; a checkpoint
-      pushes first. Output is ordinary, hand-editable trig data.
+- [x] **Euclidean print-on-release** (DESIGN §13.5): `Phrase+Fill` chord enters
+      generator mode on the focused track; MZ shows `PULSE / OFSET / ACCNT` via
+      `MetaBand::Euclidean`; release replaces trigs in `[0, phrase.length)`;
+      checkpoint pushed first if phrase has existing trigs. Output is ordinary
+      hand-editable trig data. Accent layer Euclidean-distributes N accented
+      onsets over the K pulses (higher velocity). See `core/Euclidean.h`.
 - [x] **Chance macro**: a global scalar over the *existing* conditional-trig
       probabilities (`Func`-held → MZ switches to Chance band; encoders = Chance
       Scale per track) to thin / build a pattern live — no new randomness,

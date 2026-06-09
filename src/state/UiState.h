@@ -124,6 +124,13 @@ namespace lockstep
         bool masterFxHeld       = false;
         int  masterFxInsertSlot = 0;
 
+        // 5.5 Euclidean generator: Phrase+Fill chord enters generator mode on focused track.
+        // Parameters: Pulses/Offset/Accent shown in MZ via MetaBand::Euclidean.
+        bool euclidHeld    = false;
+        int  euclidPulses  = 4;    // number of onsets
+        int  euclidOffset  = 0;    // rotation (signed)
+        int  euclidAccents = 0;    // accented onsets (velocity 100 vs 64)
+
         // MHZ.7.4: last note played per-track, used as LEVELS record-arm pitch.
         // Updated whenever a note is triggered (keyboard overlay or CHROMATIC mode).
         std::array<int, kNumTracks> lastPlayedNote{};  // default 60 (C4)

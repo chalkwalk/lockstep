@@ -1,5 +1,6 @@
 #include "PluginEditor.h"
 #include "ParameterIDs.h"
+#include "core/Euclidean.h"
 #include "core/TrackInputMode.h"
 #include "io/TrigGridMode.h"
 #include "machine/IMachine.h"
@@ -883,6 +884,41 @@ namespace lockstep
         refreshMetaBand();
     }
 
+    void LockstepEditor::applyEuclidToTrack(int track)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        auto& ph = processor_.activePhrase(track);
+        const int len = ph.length;
+        if (len <= 0) return;
+
+        // Checkpoint only if the phrase already has trigs (preserves undo).
+        bool hasTrigs = false;
+        for (int si = 0; si < len; ++si)
+            if (ph.steps[static_cast<std::size_t>(si)].trig) { hasTrigs = true; break; }
+        if (hasTrigs)
+            processor_.snapshot(CheckpointScope::Track, track);
+
+        const auto vels = euclideanAccents(len,
+                                           uiState_.euclidPulses,
+                                           uiState_.euclidOffset,
+                                           uiState_.euclidAccents);
+        for (int si = 0; si < len; ++si)
+        {
+            auto& s = ph.steps[static_cast<std::size_t>(si)];
+            const int v = vels[static_cast<std::size_t>(si)];
+            s.trig = (v > 0);
+            if (v > 0)
+            {
+                s.trigOverride.hasVelocity = true;
+                s.trigOverride.velocity    = v;
+            }
+            else
+            {
+                s.trigOverride.hasVelocity = false;
+            }
+        }
+    }
+
     void LockstepEditor::updateFillActivation()
     {
         const bool fillHeld = uiState_.fillHeld;
@@ -1150,6 +1186,20 @@ namespace lockstep
                 uiState_.phraseScopeHeld = true;
                 uiState_.phraseScopeUsed = false;
                 editMode_.onScopeEvent(ev);
+                // 5.5: Fill+Phrase chord → enter Euclidean generator mode.
+                if (uiState_.fillHeld && !uiState_.euclidHeld)
+                {
+                    const int at = keyboardArea_.getActiveTrack();
+                    const auto& ph = processor_.activePhrase(at < 0 ? 0 : at);
+                    int onsets = 0;
+                    for (int si = 0; si < ph.length; ++si)
+                        if (ph.steps[static_cast<std::size_t>(si)].trig) ++onsets;
+                    uiState_.euclidPulses  = onsets > 0 ? onsets : 4;
+                    uiState_.euclidOffset  = 0;
+                    uiState_.euclidAccents = 0;
+                    uiState_.euclidHeld    = true;
+                    refreshMetaBand();
+                }
                 handleModifierTap(CB::PhraseScope, uiState_.latch.phrase);
                 repaint();
                 return true;
@@ -1166,6 +1216,20 @@ namespace lockstep
                 physHeld_.fill = true;
                 uiState_.fillHeld = true;
                 editMode_.onScopeEvent(ev);
+                // 5.5: Phrase+Fill chord → enter Euclidean generator mode.
+                if (uiState_.phraseScopeHeld && !uiState_.euclidHeld)
+                {
+                    const int at = keyboardArea_.getActiveTrack();
+                    const auto& ph = processor_.activePhrase(at < 0 ? 0 : at);
+                    int onsets = 0;
+                    for (int si = 0; si < ph.length; ++si)
+                        if (ph.steps[static_cast<std::size_t>(si)].trig) ++onsets;
+                    uiState_.euclidPulses  = onsets > 0 ? onsets : 4;
+                    uiState_.euclidOffset  = 0;
+                    uiState_.euclidAccents = 0;
+                    uiState_.euclidHeld    = true;
+                    refreshMetaBand();
+                }
                 updateFillActivation();
                 handleModifierTap(CB::FillScope, uiState_.latch.fill);
                 repaint();
@@ -2848,6 +2912,13 @@ namespace lockstep
                 physHeld_.phrase = false;
                 if (!uiState_.latch.phrase)
                 {
+                    // 5.5: if we were in Euclidean mode, commit the pattern now.
+                    if (uiState_.euclidHeld)
+                    {
+                        applyEuclidToTrack(keyboardArea_.getActiveTrack());
+                        uiState_.euclidHeld = false;
+                        refreshMetaBand();
+                    }
                     uiState_.phraseScopeHeld = false;
                     uiState_.phraseScopeUsed = false;
                     editMode_.onScopeEvent({ T::ButtonUp, CB::PhraseScope });
@@ -2881,6 +2952,13 @@ namespace lockstep
                 physHeld_.fill = false;
                 if (!uiState_.latch.fill)
                 {
+                    // 5.5: if we were in Euclidean mode, commit the pattern now.
+                    if (uiState_.euclidHeld)
+                    {
+                        applyEuclidToTrack(keyboardArea_.getActiveTrack());
+                        uiState_.euclidHeld = false;
+                        refreshMetaBand();
+                    }
                     uiState_.fillHeld = false;
                     editMode_.onScopeEvent({ T::ButtonUp, CB::FillScope });
                     updateFillActivation();

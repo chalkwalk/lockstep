@@ -13,7 +13,7 @@ namespace lockstep
     // -------------------------------------------------------------------------
     // MetaBand — which manipulation-zone surface is currently shown.
     // None = normal machine params; the rest are the meta/swing surfaces.
-    enum class MetaBand { None, Cond, Trig, Divider, PhraseLen, Global, Swing, Chance, MasterFx };
+    enum class MetaBand { None, Cond, Trig, Divider, PhraseLen, Global, Swing, Chance, MasterFx, Euclidean };
 
     // -------------------------------------------------------------------------
     // MetaFieldView — render-agnostic description of one encoder slot.
@@ -62,5 +62,5 @@ namespace lockstep
                         LockstepProcessor& proc,
                         int                track,
                         EditContext&       ctx,
-                        const UiState&     ui);
+                        UiState&           ui);
 }

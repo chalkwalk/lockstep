@@ -45,7 +45,7 @@ namespace lockstep
                     sliders_[static_cast<std::size_t>(i)].getValue());
                 if (band_ != MetaBand::None)
                 {
-                    static const UiState kEmptyUiState{};
+                    static UiState kEmptyUiState{};
                     writeMetaField(band_, swingScope_, i, v, processor_,
                                    area_.getActiveTrack(), processor_.editContext(),
                                    uiState_ ? *uiState_ : kEmptyUiState);
