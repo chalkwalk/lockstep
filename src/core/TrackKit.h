@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <string>
 #include <vector>
 #include "../machine/IMachine.h"
@@ -39,5 +40,14 @@ namespace lockstep
         // Clock divider: 1 = base 1/16 grid.  Moved here from Track (Phase 7);
         // it is a property of the musician for the song, not of the phrase.
         int divider = 1;
+
+        // 6.5: per-track insert slots (post-AMP).  effectId empty = no effect.
+        struct InsertSlot
+        {
+            std::string effectId;   // stable id (e.g. "lockstep.delay.v1"); empty = none
+            ParamFrame  baseParams;
+            bool        bypass = false;
+        };
+        std::array<InsertSlot, 2> inserts;
     };
 }

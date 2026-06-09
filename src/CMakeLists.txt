@@ -19,6 +19,7 @@ add_library(lockstep_core STATIC
     machine/VAMachine.cpp
     machine/MidiDevicePresets.cpp
     machine/MidiOutMachine.cpp
+    machine/EffectFactory.cpp
     machine/SamplerMachine.cpp
     machine/SlicerMachine.cpp
     machine/SamplePool.cpp

@@ -1844,7 +1844,31 @@ namespace lockstep
                     }
                     else if (!dm->hasInternalAmp())
                     {
-                        kit(static_cast<int>(ti)).ampState.setSlot(dstSlot - dstAmpOff, value);
+                        const int dstIns0Off = dstAmpOff + kAmpSlots;
+                        if (dstSlot < dstIns0Off)
+                        {
+                            kit(static_cast<int>(ti)).ampState.setSlot(dstSlot - dstAmpOff, value);
+                        }
+                        else
+                        {
+                            // 6.5: Control-All broadcast into insert param slots.
+                            int dstInsOff = dstIns0Off;
+                            for (int ins = 0; ins < 2; ++ins)
+                            {
+                                auto* de = trackInserts_[ti][static_cast<std::size_t>(ins)].get();
+                                if (!de) continue;
+                                const int dnp = de->numParams();
+                                if (dstSlot >= dstInsOff && dstSlot < dstInsOff + dnp)
+                                {
+                                    auto& ki = kit(static_cast<int>(ti)).inserts[static_cast<std::size_t>(ins)];
+                                    const int p = dstSlot - dstInsOff;
+                                    if (static_cast<std::size_t>(p) < ki.baseParams.size())
+                                        ki.baseParams[static_cast<std::size_t>(p)] = value;
+                                    break;
+                                }
+                                dstInsOff += dnp;
+                            }
+                        }
                     }
                 }
             }
@@ -2599,6 +2623,24 @@ namespace lockstep
             const int as = index - ampOff;
             if (as >= 0 && as < kAmpSlots) return kAmpIds[as];
         }
+        // 6.5: insert params — ID namespaced by slot so Control-All matches same
+        // param in the same insert slot across tracks (same effect loaded).
+        {
+            int insOff = ampOff + (m->hasInternalAmp() ? 0 : kAmpSlots);
+            for (int s = 0; s < 2; ++s)
+            {
+                auto* eff = trackInserts_[ti][static_cast<std::size_t>(s)].get();
+                if (!eff) continue;
+                const int insnp = eff->numParams();
+                if (index >= insOff && index < insOff + insnp)
+                {
+                    const juce::String rawId { eff->paramSpec(index - insOff).id };
+                    if (rawId.isEmpty()) return {};
+                    return (s == 0 ? "lockstep.fx0." : "lockstep.fx1.") + rawId;
+                }
+                insOff += insnp;
+            }
+        }
         return {};
     }
 
@@ -2620,6 +2662,20 @@ namespace lockstep
             const int ampOff = m->numParams() + (m->hasInternalFilter() ? 0 : kFltrSlots);
             for (int as = 0; as < kAmpSlots; ++as)
                 if (id == kAmpIds[as]) return ampOff + as;
+            return -1;
+        }
+        // 6.5: insert param IDs namespaced as "lockstep.fx0.<paramId>" / "lockstep.fx1.<paramId>".
+        if (id.startsWith("lockstep.fx0.") || id.startsWith("lockstep.fx1."))
+        {
+            const int targetSlot = id.startsWith("lockstep.fx0.") ? 0 : 1;
+            auto* eff = trackInserts_[ti][static_cast<std::size_t>(targetSlot)].get();
+            if (!eff) return -1;
+            const int prefixLen  = id.startsWith("lockstep.fx0.") ? 13 : 13;
+            const juce::String rawId = id.substring(prefixLen);
+            const int insnp = eff->numParams();
+            for (int p = 0; p < insnp; ++p)
+                if (juce::String(eff->paramSpec(p).id) == rawId)
+                    return insertParamOffset(track, targetSlot) + p;
             return -1;
         }
         return m->slotForId(id);
