@@ -932,18 +932,26 @@ scope+verb. Stochastic / generative authoring is explicitly *not* here (NON-GOAL
       encoders set pulses / rotation / (accent) against `Phrase.length`; live
       audible + visible; release **replaces** the trigs in the length; a checkpoint
       pushes first. Output is ordinary, hand-editable trig data.
-- [ ] **Chance macro**: a global scalar over the *existing* conditional-trig
-      probabilities (`Func` + encoder candidate) to thin / build a pattern live —
-      no new randomness, deterministic given the pattern seed.
+- [x] **Chance macro**: a global scalar over the *existing* conditional-trig
+      probabilities (`Func`-held → MZ switches to Chance band; encoders = Chance
+      Scale per track) to thin / build a pattern live — no new randomness,
+      deterministic given the pattern seed.
 - [ ] **Scale-aware CHROMATIC layout** (DESIGN §34.2): the per-phrase scale lock
       remaps the CHROMATIC keyboard to scale degrees — a *playable layout*, never
       note auto-correct (out-of-scale entry stays verbatim and reachable).
 - [ ] **Arpeggiator** — *design-stub only* (DESIGN §13.5 DRAFT). PRINCIPLES-cleared
       as a performable engine; **gated**: must close the grammar-fit open questions
       in DESIGN before it earns a checklist here.
+- [ ] **Retrig model redesign** (future): the current rate-picker overlay selects a
+      global ratchet rate per trigger event. A richer model — hold-steps-to-isolate
+      (step-isolate/solo gesture), step-held ratchet-on-hold, polymeter-safe per-step
+      ratchet — was intentionally deferred. Design must fit the scope+verb grammar
+      before this earns a checklist. (Deferred 2026-06-08.)
+- [ ] **Step-isolate/solo** live gesture (future): hold one or more steps to
+      temporarily isolate their tracks/voices during playback — a punch-in
+      performance verb. Grammar and exact scope deferred. (Deferred 2026-06-08.)
 
-> The **Animate** momentary insert-toggle — the punch-in answer — lands with the
-> FX system; see 6.5.
+> The **Animate** momentary insert-toggle (FX-held + step) shipped in 6.5.
 
 ### 5.10 — Func-layer legibility + meta-section relocation  *[shipped]*
 DESIGN §6.1 rule 3 + §6.2. The `Func`-held section row only swapped *text*, never
@@ -1005,7 +1013,8 @@ DESIGN §32. Depends on 2.4 + the §14 path (independent of 6.1–6.4).
 - [x] `IEffect` interface (reuses `ParamSpec`/`role`/P-Lock; stub fallback) +
       starter catalogue (Delay, Reverb, Distortion, Chorus).
 - [x] Per-track 2-insert chain (post-AMP, Part-scope).
-- [x] FX canonical-section rendering + Func+FX effect-load picker gesture.
+- [x] FX canonical-section rendering + `Func+FX` effect-load picker gesture
+      (picker routes via CB::MetaSection; section key illuminates under Func).
 - [x] **Animate** momentary insert toggle (DESIGN §32.5): FX-held + step bypasses
       insert for the hold duration; release restores. No dedicated performance-FX mode.
 - [x] Serializer v13: insert chains round-trip (effectId/baseParams/bypass per slot).

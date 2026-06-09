@@ -545,7 +545,7 @@ a mapped MIDI CC, or a QWERTY action.
 | `7` | **FILTER** — filter (post-machine SVF block; machines may opt out) |
 | `8` | **AMP** — amplitude envelope (post-machine AHDSR + level/pan) |
 | `9` | **MOD** — modulation (LFO, matrices, per-op envelopes, voice/portamento) |
-| `0` | **FX** — per-track effects *(planned, 6.5)* |
+| `0` | **FX** — per-track effects (2 insert slots per track) |
 
 Press a section key repeatedly to page through its parameters (the MZ
 shows eight at a time, in two rows of four — `kMZSlots`). Holding
@@ -570,6 +570,20 @@ Only two metas sit on `Func`: **COND** (probability, m:n, prev-dep) on
 `Func+TRIG`, and **NOTE** (explicit note / velocity / gate step entry) on
 `Func+SRC`. Output **gain, sync mode, and clock** live under `Song+FX`
 (labelled `GLBL`). Trig defaults remain on bare `TRIG`.
+
+**FX inserts and the effect picker.** Each track has two insert slots (slot
+0 / slot 1). `Func+FX` opens the effect picker — the step grid re-skins to the
+available effects catalogue; press a step to load that effect into the focused
+slot. Re-press `Func+FX` while the picker is open to cycle the targeted insert
+slot (0 → 1 → 0). Press `FX` (alone) to navigate the insert's params in the MZ;
+hold `FX + step` momentarily to **animate bypass** (bypass on press, restore on
+release). MIDI-out tracks show no inserts.
+
+**Chance macro.** While `Func` is held, the Manipulation Zone switches to the
+**Chance** band: the eight encoders map to Chance Scale for each of the eight
+tracks. Turn an encoder to scale the probability of every trig on that track —
+0 % = all trigs suppressed, 100 % = full probability (default). Chance Scale
+is a master fader over the per-trig probability settings, not a replace.
 
 **Swing by held scope.** Holding a scope key shows a single `Swing` rotary
 whose value is the **cumulative groove at that scope level** — what you hear:
@@ -859,19 +873,28 @@ Stage E / 7.5 and has shipped — see *Phrase-length authoring* below.)
 
 ### 5.18 Modal trig-grid surfaces
 
-The step grid can be re-skinned into non-step roles. Two paths exist:
+The step grid can be re-skinned into non-step roles. Three paths exist:
 
 - **Per-track input modes (shipped, 3.9).** `Track + NavUp/Down` cycles
   the focused track between `PLAY ↔ CHROMATIC ↔ LEVELS`. In **CHROMATIC**
   the 16 step cells become a one-octave keyboard (NavUp/Down shift the
   octave) — this is the shipped form of the old "keyboard mode." In
   **LEVELS** the cells become quantised velocity buckets.
-- **Retrig / ratchet and Sound Pool modes (planned, 5.7).** The
-  remaining modal surfaces — retrig/slice and the sound-pool live-swap —
-  are deferred. The `SoundPool` data model and the sound-bank overlay
-  already exist in the build; the trig-grid mode that drives them, and
-  the ratchet redesign, land in 5.7. (The earlier `TrigGridMode`
-  selector was removed; modes now ride the per-track input enum above.)
+- **Retrig / ratchet overlay (shipped, 5.7).** `Fill + TRIG` re-skins the
+  step grid to an 8-rate ratchet picker (`/4`, `/4T`, `/8`, `/8T`, `/16`,
+  `/16T`, `/32`, `/32T`). While the overlay is open (Fill held), pressing a
+  rate cell starts a live stutter on the focused track at that rate. If a
+  step is held while you press a rate, the rate is **baked** as a per-step
+  P-Lock (`hasRetrig`/`retrigRate`) that fires automatically during playback.
+  On slicer tracks `Fill+TRIG` shows the slice-point picker instead: each
+  cell addresses a slice; pressing one auditions that slice and bakes
+  the `note = sliceIdx` override onto any held steps. The TRIG key glows in
+  Fill colour while Fill is held to announce the overlay.
+- **Sound Pool overlay (shipped, 5.7).** `Fill + SRC` re-skins the step
+  grid to the project's Sound Pool (up to 16 saved sounds). Pressing a cell
+  live-swaps the focused track to that sound for audition. If a step is held
+  the swap is **baked** as a `sound_id` P-Lock. Release Fill to restore the
+  track's original sound. The SRC key glows in Fill colour while Fill is held.
 
 ---
 
@@ -921,14 +944,19 @@ shipped behaviour and the design intent. To avoid confusion:
   `Quantize` verb (`scope + No` zeros microOffset); amber/cyan step-grid nudge ticks;
   TRACK band effective-swing readout.
 
+- **Retrig / ratchet overlay** (`Fill+TRIG` rate picker + per-step bake) and
+  **Sound Pool overlay** (`Fill+SRC` live-swap + `sound_id` P-Lock bake), plus
+  the **Slice-point picker** on slicer tracks (`Fill+TRIG`).
+- **Per-track FX inserts** (2 slots, `Func+FX` picker, `FX+step` animate-bypass).
+- **Chance macro** (`Func` held → MZ shows Chance Scale per track).
+
 **Planned** — the rest of the
 machine catalogue (`4.5` Static, `4.6` Percussion, `4.7` Digital); **Phase 5**
 performance depth (scenes + crossfader `5.2`; pattern/part management
 UI `5.3`; sampling + resampling `5.4`; audition + cross-track record `5.5`;
-special trig types `5.6`; the retrig/ratchet + Sound Pool trig-grid modes
-`5.7`; UI polish + state-colour palette `5.8`); and **Phase 6** routing,
-FX & platform (audio-input boundary + Thru `6.1`; recorder buffers `6.2`;
-looper `6.3`; cue bus `6.4`; insert/master effects `6.5`; external
+special trig types `5.6`; UI polish + state-colour palette `5.8`); and **Phase 6**
+routing, FX & platform (audio-input boundary + Thru `6.1`; recorder buffers `6.2`;
+looper `6.3`; cue bus `6.4`; master FX bus `6.5b`; external
 controller surfaces `6.6`, in progress; the Machine Module ABI `6.7`;
 beta polish `6.8`).
 
@@ -1019,10 +1047,12 @@ Func (1)
 ├─ Func + O           → delete the active entity (+ confirm) — §5.4
 ├─ Func + P           → cancel a pending prompt — §5.3
 ├─ Func + 3           → toggle the metronome — §5.4
-├─ Func + 5…0         → secondary section page (machine deep params; COND/NOTE/TRACK/GLOBAL meta) — §5.8
+├─ Func + 5…0         → secondary section page (machine deep params; COND/NOTE meta) — §5.8
+│   └─ Func + FX (0)  → effect picker: step grid re-skins to effect catalogue; press step to load — §5.8
 ├─ Func + ← / →       → rotate the focused track's steps −1 / +1 — §5.17
 ├─ Func + ↑ / ↓       → double / halve the focused track length — §5.17
-└─ Func + step        → P-Lock clear mode (cells show set P-Locks; stage removals, release to commit) — §5.17
+├─ Func + step        → P-Lock clear mode (cells show set P-Locks; stage removals, release to commit) — §5.17
+└─ (hold)             → MZ switches to Chance band: encoders = Chance Scale per track — §5.8
 ```
 
 Links: [§5.15](#515-checkpoints-live-undo) ·
@@ -1056,8 +1086,10 @@ section (5–0)
 ├─ + U               → copy that section's params (all steps) — §5.9
 ├─ + I               → paste that section onto the current track — §5.9
 ├─ + O               → reset that section to default — §5.9
+├─ + step            → animate bypass (FX section only: bypasses insert slot 0–7/8–15; restores on release) — §5.8
 ├─ Track + section   → track-foundation row (post-machine FILTER/AMP, inserts) — §5.8
 ├─ Func + section    → the machine's secondary page / meta layer — §5.8
+├─ Func + FX (0)     → effect picker (step grid re-skins to catalogue; press step to load) — §5.8
 └─ Func + SRC + step → note-edit mode (1-octave chromatic overlay on the step grid) — §5.17
 ```
 
@@ -1168,8 +1200,13 @@ Links: [§5.11](#511-mutes)
 
 ```
 Fill (X)
-├─ (hold)            → while held, fill-conditioned steps fire — §5.12
-└─ + step            → mark that step fill-only — §5.12
+├─ (hold)            → while held, fill-conditioned steps fire; TRIG and SRC keys glow — §5.12
+├─ + step            → mark that step fill-only — §5.12
+├─ + TRIG (5)        → Retrig overlay: step grid → ratchet-rate picker (/4…/32T) — §5.18
+│   └─ press rate    → start live stutter at that rate; hold a step first to bake per-step P-Lock
+├─ + TRIG (5) on slicer track → Slice-point picker: step cells = slice indices — §5.18
+└─ + SRC (6)         → Sound Pool overlay: step grid → saved-sound selector — §5.18
+    └─ press sound   → live-swap track to that sound; hold a step first to bake sound_id P-Lock
 ```
 
 Links: [§5.12](#512-fills)
