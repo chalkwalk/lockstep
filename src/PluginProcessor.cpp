@@ -1156,11 +1156,12 @@ namespace lockstep
                             const float base = static_cast<std::size_t>(p) < kitIns.baseParams.size()
                                 ? kitIns.baseParams[static_cast<std::size_t>(p)]
                                 : eff->paramSpec(p).defaultValue;
-                            float resolved = base;
+                            float resolved = morphBlend(section(), static_cast<int>(i),
+                                                        insOff + p, base, faderNow);
                             if (firedStepIdx_[i] >= 0)
                             {
                                 const auto& st = sequence().tracks[i].steps[static_cast<std::size_t>(firedStepIdx_[i])];
-                                resolved = st.overrides.get(insOff + p, base);
+                                resolved = st.overrides.get(insOff + p, resolved);
                             }
                             fxFrame[static_cast<std::size_t>(p)] = resolved;
                         }
@@ -1715,11 +1716,12 @@ namespace lockstep
                         const float base = static_cast<std::size_t>(p) < kitIns.baseParams.size()
                             ? kitIns.baseParams[static_cast<std::size_t>(p)]
                             : eff->paramSpec(p).defaultValue;
-                        float resolved = base;
+                        float resolved = morphBlend(section(), static_cast<int>(i),
+                                                    insOff + p, base, faderNow);
                         if (firedStepIdx_[i] >= 0)
                         {
                             const auto& st = sequence().tracks[i].steps[static_cast<std::size_t>(firedStepIdx_[i])];
-                            resolved = st.overrides.get(insOff + p, base);
+                            resolved = st.overrides.get(insOff + p, resolved);
                         }
                         fxFrame2[static_cast<std::size_t>(p)] = resolved;
                     }
