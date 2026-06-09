@@ -24,12 +24,14 @@ namespace lockstep
             case 5:  return MetaBand::Global;
             default: break;
         }
-        if (swingScopeFor(ui) != 0 && !ui.swingDismissed)
-            return MetaBand::Swing;
-        if (ui.euclidHeld)
-            return MetaBand::Euclidean;
+        // masterFxHeld and euclidHeld are explicit sub-modes that outrank the passive
+        // swing scope (Song held → swing fires automatically unless dismissed).
         if (ui.masterFxHeld)
             return MetaBand::MasterFx;
+        if (ui.euclidHeld)
+            return MetaBand::Euclidean;
+        if (swingScopeFor(ui) != 0 && !ui.swingDismissed)
+            return MetaBand::Swing;
         if (ui.funcHeld)
             return MetaBand::Chance;
         return MetaBand::None;

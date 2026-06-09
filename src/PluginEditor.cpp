@@ -1542,8 +1542,18 @@ namespace lockstep
                     if (at < 0 || at >= static_cast<int>(kNumTracks)) return true;
                     if (ev.index >= processor_.numAvailableEffects()) return true;
                     const auto info = processor_.availableEffectInfo(ev.index);
-                    processor_.setTrackInsert(at, uiState_.funcFxInsertSlot, info.id);
-                    // Exit picker on selection (Func still held is fine — grid restores on Func-up).
+                    const std::string curId = processor_.trackInsertId(at, uiState_.funcFxInsertSlot);
+                    if (info.id == curId)
+                    {
+                        // Re-pressing the loaded effect toggles bypass.
+                        const bool byp = processor_.trackInsertBypass(at, uiState_.funcFxInsertSlot);
+                        processor_.setTrackInsertBypass(at, uiState_.funcFxInsertSlot, !byp);
+                    }
+                    else
+                    {
+                        processor_.setTrackInsert(at, uiState_.funcFxInsertSlot, info.id);
+                        processor_.setTrackInsertBypass(at, uiState_.funcFxInsertSlot, false);
+                    }
                     uiState_.funcFxHeld = false;
                     repaint();
                     return true;
@@ -3020,8 +3030,12 @@ namespace lockstep
             case CB::MetaSection:
                 heldSectionRawCode_ = -1;
                 heldSectionIndex_   = -1;
-                uiState_.funcSrcHeld  = false;  // Src released: no longer in Func+Src compound
-                uiState_.funcFxHeld   = false;  // FX released: exit picker mode
+                uiState_.funcSrcHeld  = false;
+                // 6.5: keep FX picker alive while Func is still held so the user
+                // can re-press FX to cycle the insert slot without losing the overlay.
+                // funcFxHeld is cleared on Func release (line ~2888).
+                if (!uiState_.funcHeld)
+                    uiState_.funcFxHeld = false;
                 editMode_.setSectionHeld(false);
                 break;
 
