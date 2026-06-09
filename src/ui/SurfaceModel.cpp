@@ -75,6 +75,8 @@ namespace lockstep
             case CellState::SlicePoint:         return kScopeFill;
             case CellState::SliceSelected:      return 0xFFFFFFFFu;
             case CellState::SliceEmpty:         return kStepOutRange;
+            case CellState::EffectAvailable:    return 0xFF30A030u;  // lime-green — available effect slot
+            case CellState::EffectLoaded:       return 0xFFFFFFFFu;  // white — loaded/selected effect
             default: return fallback;
         }
     }
@@ -830,6 +832,39 @@ namespace lockstep
                         c.baseColour = isCur
                             ? juce::Colours::white.withAlpha(0.18f).getARGB()
                             : machineTint.withAlpha(0.12f).getARGB();
+                    }
+                }
+            }
+            else if (ui.funcFxHeld)
+            {
+                // FX insert picker (6.5): cells encode available effects for the active insert slot.
+                const juce::Colour fxTint { compatColour(CellState::EffectAvailable) };
+                const int numEffects = proc.numAvailableEffects();
+                const std::string loadedId = proc.trackInsertId(activeTrack,
+                                                                  ui.funcFxInsertSlot);
+
+                for (int i = 0; i < 16; ++i)
+                {
+                    SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                    c.button  = ControllerButton::Step;
+                    c.index   = i;
+                    c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                    c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+
+                    if (i >= numEffects)
+                    {
+                        c.base      = CellState::MachineUnavailable;
+                        c.baseColour = kStepOutRange;
+                    }
+                    else
+                    {
+                        const auto  info  = proc.availableEffectInfo(i);
+                        const bool  isCur = (info.id == loadedId);
+                        c.base      = isCur ? CellState::EffectLoaded : CellState::EffectAvailable;
+                        c.primary   = juce::String(info.name.c_str());
+                        c.baseColour = isCur
+                            ? juce::Colours::white.withAlpha(0.20f).getARGB()
+                            : fxTint.withAlpha(0.12f).getARGB();
                     }
                 }
             }

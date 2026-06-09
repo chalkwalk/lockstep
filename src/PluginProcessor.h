@@ -23,6 +23,8 @@
 #include "io/EditContext.h"
 #include "io/MidiClockReceiver.h"
 #include "io/MidiInput.h"
+#include "machine/IEffect.h"
+#include "machine/EffectFactory.h"
 #include "machine/IMachine.h"
 #include "machine/SamplePool.h"
 #include "machine/TrackAmpDsp.h"
@@ -55,6 +57,8 @@ namespace lockstep
     class LockstepProcessor : public juce::AudioProcessor
     {
     public:
+        static constexpr int kFxSecIdx = 5;  // canonical FX section index (public for editor)
+
         LockstepProcessor();
         ~LockstepProcessor() override;
 
@@ -460,6 +464,15 @@ namespace lockstep
         [[nodiscard]] int         numAvailableMachines()        const;
         [[nodiscard]] MachineInfo availableMachineInfo(int idx) const;
 
+        // 6.5: FX insert management (message thread).
+        void setTrackInsert(int track, int slot, const std::string& effectId);
+        void clearTrackInsert(int track, int slot);
+        void setTrackInsertBypass(int track, int slot, bool bypass);
+        [[nodiscard]] std::string trackInsertId    (int track, int slot) const;
+        [[nodiscard]] bool        trackInsertBypass(int track, int slot) const;
+        [[nodiscard]] int         numAvailableEffects() const;
+        [[nodiscard]] EffectInfo  availableEffectInfo(int idx) const;
+
         // Schema query helpers — forward to the machine on the given track.
         int         numParams(int track)              const;
         ParamSpec   paramSpec(int track, int index)   const;
@@ -611,10 +624,16 @@ namespace lockstep
         // ME.4: virtual slot count for the post-machine FLTR block (added to machine.numParams()).
         static constexpr int kFltrSlots  = TrackFltrState::kNumSlots;  // 6
         static constexpr int kFltrSecIdx = 2;  // canonical FLTR section index
+
+        // Absolute slot index where insert `insSlot` (0 or 1) params begin.
+        [[nodiscard]] int insertParamOffset(int track, int insSlot) const noexcept;
         static constexpr int kAmpSlots   = TrackAmpState::kNumSlots;  // 8
         static constexpr int kAmpSecIdx  = 3;  // canonical AMP section index
 
         std::array<std::unique_ptr<IMachine>, kNumTracks> machines_;
+        // 6.5: per-track insert effect instances (live; message-thread allocated, audio-thread read).
+        using InsertPair = std::array<std::unique_ptr<IEffect>, 2>;
+        std::array<InsertPair, kNumTracks> trackInserts_;
         // Per-track scratch buffers: each machine writes here, then they are
         // summed to the main output bus. Sized in prepareToPlay; cleared each block.
         std::array<juce::AudioBuffer<float>, kNumTracks> trackBuffers_;

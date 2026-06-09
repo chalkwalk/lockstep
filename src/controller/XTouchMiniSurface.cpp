@@ -94,7 +94,11 @@ namespace lockstep
             case CellState::SlicePoint:
             case CellState::MorphPoleActive:
             case CellState::MorphPoleDormant:
+            case CellState::EffectAvailable:
                 return 127;
+
+            case CellState::EffectLoaded:
+                return 1;   // flash: loaded effect (selected)
         }
         return 0;  // unreachable; satisfies non-void return
     }

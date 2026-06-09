@@ -1269,12 +1269,26 @@ namespace lockstep
                     // section (e.g. Track+FLTR → section 2 = post-machine FLTR block).
                 }
 
+                // 6.5: Func+FX → enter effect picker (step grid re-skins to catalogue).
+                // Re-pressing FX while picker is active cycles the targeted insert slot.
+                if (uiState_.funcHeld && ev.index == processor_.kFxSecIdx)
+                {
+                    if (uiState_.funcFxHeld)
+                        uiState_.funcFxInsertSlot = 1 - uiState_.funcFxInsertSlot;  // cycle 0↔1
+                    else
+                        uiState_.funcFxInsertSlot = 0;
+                    uiState_.funcFxHeld = true;
+                    repaint();
+                    return true;
+                }
+
                 // KeyboardArea gates on machine slot availability.
                 keyboardArea_.selectSection(ev.index);
                 // Track section key hold for Section-scope verb dispatch (MD.3).
                 if (heldSectionRawCode_ < 0)
                 {
                     heldSectionRawCode_ = rawCode;
+                    heldSectionIndex_   = ev.index;
                     editMode_.setSectionHeld(true);
                 }
                 return true;
@@ -1421,6 +1435,42 @@ namespace lockstep
                             s.trigOverride.soundId    = ev.index;
                         }
                         ctx.markParamWritten();
+                    }
+                    return true;
+                }
+
+                // ----------------------------------------------------------------
+                // 6.5: FX insert picker (Func+FX held)
+                // ----------------------------------------------------------------
+                if (uiState_.funcFxHeld)
+                {
+                    if (ev.index < 0 || ev.index >= 16) return true;
+                    const int at = keyboardArea_.getActiveTrack();
+                    if (at < 0 || at >= static_cast<int>(kNumTracks)) return true;
+                    if (ev.index >= processor_.numAvailableEffects()) return true;
+                    const auto info = processor_.availableEffectInfo(ev.index);
+                    processor_.setTrackInsert(at, uiState_.funcFxInsertSlot, info.id);
+                    // Exit picker on selection (Func still held is fine — grid restores on Func-up).
+                    uiState_.funcFxHeld = false;
+                    repaint();
+                    return true;
+                }
+
+                // ----------------------------------------------------------------
+                // 6.5: Animate bypass — FX section key held + step
+                // ----------------------------------------------------------------
+                if (heldSectionIndex_ == processor_.kFxSecIdx && !uiState_.funcHeld)
+                {
+                    if (ev.index < 0 || ev.index >= 16) return true;
+                    const int at = keyboardArea_.getActiveTrack();
+                    if (at < 0 || at >= static_cast<int>(kNumTracks)) return true;
+                    // Step index selects insert slot: 0-7 → slot 0, 8-15 → slot 1.
+                    const int slot = (ev.index >= 8) ? 1 : 0;
+                    if (!processor_.trackInsertId(at, slot).empty())
+                    {
+                        processor_.setTrackInsertBypass(at, slot, true);
+                        animateBypassTrack_ = at;
+                        animateBypassSlot_  = slot;
                     }
                     return true;
                 }
@@ -2741,6 +2791,8 @@ namespace lockstep
                 uiState_.pLockClearStep  = -1;
                 // MHZ.3.5: Func release exits machine picker mode.
                 uiState_.funcTrackHeld = false;
+                // 6.5: Func release exits FX insert picker mode.
+                uiState_.funcFxHeld = false;
                 editMode_.onScopeEvent({ T::ButtonUp, CB::Func });
                 updateFillActivation();
                 keyboardArea_.repaint();
@@ -2856,7 +2908,9 @@ namespace lockstep
             case CB::Section:
             case CB::MetaSection:
                 heldSectionRawCode_ = -1;
-                uiState_.funcSrcHeld = false;  // Src released: no longer in Func+Src compound
+                heldSectionIndex_   = -1;
+                uiState_.funcSrcHeld  = false;  // Src released: no longer in Func+Src compound
+                uiState_.funcFxHeld   = false;  // FX released: exit picker mode
                 editMode_.setSectionHeld(false);
                 break;
 
@@ -2879,6 +2933,14 @@ namespace lockstep
                                                chromaticHeldNote_[pad]);
                         chromaticHeldNote_[pad] = -1;
                     }
+                }
+
+                // 6.5 Animate bypass restore: step-up ends the momentary bypass.
+                if (animateBypassTrack_ >= 0)
+                {
+                    processor_.setTrackInsertBypass(animateBypassTrack_, animateBypassSlot_, false);
+                    animateBypassTrack_ = -1;
+                    animateBypassSlot_  = -1;
                 }
 
                 // Func+Src+step: step release while funcSrcHeld → enter NoteEdit mode.

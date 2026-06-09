@@ -115,6 +115,11 @@ namespace lockstep
         // Fill+TRIG sets Retrig; Fill+SRC sets SoundPool. Cleared on modifier release.
         TrigGridMode trigGridMode = TrigGridMode::Default;
 
+        // 6.5: Func+FX picker — re-skins the step grid to the effect catalogue.
+        // funcFxInsertSlot: which insert slot (0 or 1) the picker targets.
+        bool funcFxHeld       = false;
+        int  funcFxInsertSlot = 0;
+
         // MHZ.7.4: last note played per-track, used as LEVELS record-arm pitch.
         // Updated whenever a note is triggered (keyboard overlay or CHROMATIC mode).
         std::array<int, kNumTracks> lastPlayedNote{};  // default 60 (C4)

@@ -97,6 +97,10 @@ namespace lockstep
         SlicePoint        = 130,  // an addressable slice point
         SliceSelected     = 131,  // slice point currently set on the held step
         SliceEmpty        = 132,  // no slice at this index
+
+        // FX insert picker (6.5): Func+FX re-skins the step grid to the effect catalogue.
+        EffectAvailable   = 140,  // an available effect type (not loaded)
+        EffectLoaded      = 141,  // this effect is currently loaded in the focused insert slot
     };
 
     // Pure mapping for the §34.4 length-edit re-skin: classify an absolute step

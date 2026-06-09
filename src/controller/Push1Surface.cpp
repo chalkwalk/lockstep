@@ -451,6 +451,8 @@ namespace lockstep
             case S::SlicePoint:         return pidx::kCyan;
             case S::SliceSelected:      return pidx::kWhite;
             case S::SliceEmpty:         return pidx::kOff;
+            case S::EffectAvailable:    return pidx::kLime;
+            case S::EffectLoaded:       return pidx::kWhite;
             default:                    return pidx::kGreyDim;
         }
     }
