@@ -19,9 +19,10 @@ namespace lockstep
         {
             case 0:  return MetaBand::Cond;
             case 1:  return MetaBand::Trig;
+            case 2:  return MetaBand::Transport;  // Func+7: output gain / sync / channel mode
             case 3:  return MetaBand::Divider;
             case 4:  return MetaBand::PhraseLen;
-            case 5:  return MetaBand::Global;  // Song+FX: global params + master inserts
+            case 5:  return MetaBand::Global;     // Song+FX: master insert params
             default: break;
         }
         // euclidHeld and masterFxHeld are explicit sub-modes that outrank passive swing.
@@ -268,15 +269,16 @@ namespace lockstep
         return result;
     }
 
+    // Song+FX (masterSection==5): master insert params only.
     static std::array<MetaFieldView, 8> buildGlobalBand(LockstepProcessor& proc,
                                                         const UiState& ui)
     {
-        const int slot = ui.masterFxInsertSlot;
-        const int np   = proc.masterInsertNumParams(slot);
-        if (np > 0)
-            return buildMasterFxBand(proc, ui);
+        return buildMasterFxBand(proc, ui);
+    }
 
-        // No master effect on current slot — show global transport params.
+    // Func+7 (masterSection==2): output gain / sync / channel mode.
+    static std::array<MetaFieldView, 8> buildTransportBand(LockstepProcessor& proc)
+    {
         const float gain = proc.apvts().getRawParameterValue(ParamIDs::outputGain)->load();
         const float sync = proc.apvts().getRawParameterValue(ParamIDs::syncMode)->load();
         const float chan = proc.apvts().getRawParameterValue(ParamIDs::channelMode)->load();
@@ -444,8 +446,6 @@ namespace lockstep
     {
         if (band == MetaBand::Chance)
             return buildChanceBand(proc);
-        if (band == MetaBand::MasterFx)
-            return buildMasterFxBand(proc, ui);
         if (band == MetaBand::Euclidean)
             return buildEuclidBand(proc, track, ui);
 
@@ -457,10 +457,11 @@ namespace lockstep
             case MetaBand::Cond:      return buildCondBand(proc, track, ctx);
             case MetaBand::Trig:      return buildTrigBand(proc, track, ctx);
             case MetaBand::Divider:   return buildDivBand(proc, track);
-            case MetaBand::PhraseLen: return buildPhraseLenBand(proc, track);
-            case MetaBand::Global:    return buildGlobalBand(proc, ui);
-            case MetaBand::Swing:     return buildSwingBand(swingScope, proc, track);
-            default:                  return {};
+            case MetaBand::PhraseLen:  return buildPhraseLenBand(proc, track);
+            case MetaBand::Global:     return buildGlobalBand(proc, ui);
+            case MetaBand::Transport:  return buildTransportBand(proc);
+            case MetaBand::Swing:      return buildSwingBand(swingScope, proc, track);
+            default:                   return {};
         }
     }
 
@@ -477,14 +478,6 @@ namespace lockstep
                         EditContext&       ctx,
                         UiState&           ui)
     {
-        // 6.5: master FX params — write-back bypasses track guard.
-        if (band == MetaBand::MasterFx)
-        {
-            const int slot = ui.masterFxInsertSlot;
-            proc.setMasterInsertParam(slot, field, value);
-            return;
-        }
-
         // 5.5: Euclidean params — update UiState staging area.
         if (band == MetaBand::Euclidean)
         {
@@ -605,14 +598,14 @@ namespace lockstep
 
             case MetaBand::Global:
             {
-                const int slot = ui.masterFxInsertSlot;
-                if (proc.masterInsertNumParams(slot) > 0)
-                {
-                    // Master effect loaded on current slot — write to it directly.
-                    proc.setMasterInsertParam(slot, field, value);
-                    break;
-                }
-                // No master effect: write global transport params.
+                // Song+FX: master insert params for current slot.
+                proc.setMasterInsertParam(ui.masterFxInsertSlot, field, value);
+                break;
+            }
+
+            case MetaBand::Transport:
+            {
+                // Func+7: output gain / sync / channel mode.
                 const auto writeApvts = [&](const juce::String& id, float v, float lo, float hi)
                 {
                     auto* p = proc.apvts().getParameter(id);

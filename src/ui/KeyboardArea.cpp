@@ -306,10 +306,10 @@ namespace lockstep
     bool KeyboardArea::metaContentExists(int contentIndex)
     {
         // Meta CONTENT groups wired in ManipulationZone (MetaBand enum):
-        //   0=COND  1=TRIG  3=DIV  4=PHRASELEN  5=GLOBAL.
-        // Reached by gestures (Func+TRIG/SRC, Track+TRIG, Phrase+LEN, Song+FX).
+        //   0=COND  1=TRIG  2=TRANSPORT  3=DIV  4=PHRASELEN  5=GLOBAL(master FX).
+        // Reached by: Func+TRIG/SRC, Track+TRIG, Phrase+LEN, Func+7, Song+FX.
         // Distinct from the Func-row label set in kMetaLabels.
-        return contentIndex == 0 || contentIndex == 1
+        return contentIndex == 0 || contentIndex == 1 || contentIndex == 2
             || contentIndex == 3 || contentIndex == 4 || contentIndex == 5;
     }
 
