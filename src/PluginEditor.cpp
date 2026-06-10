@@ -56,6 +56,8 @@ namespace lockstep
                     ed.handleTapTempo();
                     break;
             }
+            // Immediate label/colour sync — no need to wait for the 15 Hz timer tick.
+            ed.transport_.refresh(buildTransportModel(clk));
         }
         void machineAssign(int track, const char* id) override
         {

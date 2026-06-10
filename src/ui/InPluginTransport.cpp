@@ -16,12 +16,20 @@ namespace lockstep
 
         recBtn_.setClickingTogglesState(false);
         recBtn_.setWantsKeyboardFocus(false);
-        recBtn_.onClick = [this] { clock_.setRecordArmed(!clock_.isRecordArmed()); };
+        recBtn_.onClick = [this]
+        {
+            clock_.setRecordArmed(!clock_.isRecordArmed());
+            refresh(buildTransportModel(clock_));
+        };
         addAndMakeVisible(recBtn_);
 
         metroBtn_.setClickingTogglesState(false);
         metroBtn_.setWantsKeyboardFocus(false);
-        metroBtn_.onClick = [this] { clock_.setMetronomeEnabled(!clock_.isMetronomeEnabled()); };
+        metroBtn_.onClick = [this]
+        {
+            clock_.setMetronomeEnabled(!clock_.isMetronomeEnabled());
+            refresh(buildTransportModel(clock_));
+        };
         addAndMakeVisible(metroBtn_);
 
         startTimerHz(15);
@@ -34,11 +42,48 @@ namespace lockstep
         resetBtn_.setAlpha(ghosted ? 0.35f : 1.0f);
     }
 
+    void InPluginTransport::refresh(const TransportModel& m)
+    {
+        if (m.playing != shadow_.playing)
+            playBtn_.setButtonText(m.playing ? "Pause" : "Play");
+
+        if (m.recArmed != shadow_.recArmed || m.overdubArmed != shadow_.overdubArmed)
+        {
+            juce::Colour bg;
+            if (m.overdubArmed)        bg = juce::Colour::fromRGB(210, 130, 30);
+            else if (m.recArmed)       bg = juce::Colour::fromRGB(200, 50, 50);
+            else                       bg = juce::LookAndFeel::getDefaultLookAndFeel()
+                                                .findColour(juce::TextButton::buttonColourId);
+
+            recBtn_.setColour(juce::TextButton::buttonColourId, bg);
+            recBtn_.setColour(juce::TextButton::textColourOffId,
+                              (m.recArmed || m.overdubArmed)
+                                  ? juce::Colours::white
+                                  : juce::LookAndFeel::getDefaultLookAndFeel()
+                                        .findColour(juce::TextButton::textColourOffId));
+            recBtn_.setButtonText(m.overdubArmed ? "Overdub" : "Rec");
+        }
+
+        if (m.metronomeOn != shadow_.metronomeOn)
+        {
+            metroBtn_.setColour(juce::TextButton::buttonColourId,
+                                m.metronomeOn
+                                    ? juce::Colour::fromRGB(60, 140, 200)
+                                    : juce::LookAndFeel::getDefaultLookAndFeel()
+                                          .findColour(juce::TextButton::buttonColourId));
+            metroBtn_.setColour(juce::TextButton::textColourOffId,
+                                m.metronomeOn
+                                    ? juce::Colours::white
+                                    : juce::LookAndFeel::getDefaultLookAndFeel()
+                                          .findColour(juce::TextButton::textColourOffId));
+        }
+
+        shadow_ = m;
+    }
+
     void InPluginTransport::timerCallback()
     {
-        syncPlayLabel();
-        syncRecColour();
-        syncMetroColour();
+        refresh(buildTransportModel(clock_));
     }
 
     void InPluginTransport::onPlayClick()
@@ -56,7 +101,7 @@ namespace lockstep
             return;
         }
         clock_.setInPluginPlaying(!clock_.inPluginPlaying());
-        syncPlayLabel();
+        refresh(buildTransportModel(clock_));
     }
 
     void InPluginTransport::onResetClick()
@@ -75,41 +120,7 @@ namespace lockstep
         }
         clock_.setInPluginPlaying(false);
         clock_.resetPhase();
-    }
-
-    void InPluginTransport::syncPlayLabel()
-    {
-        playBtn_.setButtonText(clock_.inPluginPlaying() ? "Pause" : "Play");
-    }
-
-    void InPluginTransport::syncRecColour()
-    {
-        const bool armed   = clock_.isRecordArmed();
-        const bool overdub = clock_.isOverdubArmed();
-        juce::Colour bg;
-        if (overdub)       bg = juce::Colour::fromRGB(210, 130, 30);  // amber = overdub
-        else if (armed)    bg = juce::Colour::fromRGB(200, 50, 50);   // red = plain record
-        else               bg = juce::LookAndFeel::getDefaultLookAndFeel()
-                                    .findColour(juce::TextButton::buttonColourId);
-        recBtn_.setColour(juce::TextButton::buttonColourId, bg);
-        recBtn_.setColour(juce::TextButton::textColourOffId,
-                          (armed || overdub) ? juce::Colours::white
-                                             : juce::LookAndFeel::getDefaultLookAndFeel()
-                                                   .findColour(juce::TextButton::textColourOffId));
-        recBtn_.setButtonText(overdub ? "Overdub" : "Rec");
-    }
-
-    void InPluginTransport::syncMetroColour()
-    {
-        const bool on = clock_.isMetronomeEnabled();
-        metroBtn_.setColour(juce::TextButton::buttonColourId,
-                            on ? juce::Colour::fromRGB(60, 140, 200)
-                               : juce::LookAndFeel::getDefaultLookAndFeel()
-                                     .findColour(juce::TextButton::buttonColourId));
-        metroBtn_.setColour(juce::TextButton::textColourOffId,
-                            on ? juce::Colours::white
-                               : juce::LookAndFeel::getDefaultLookAndFeel()
-                                     .findColour(juce::TextButton::textColourOffId));
+        refresh(buildTransportModel(clock_));
     }
 
     void InPluginTransport::paint(juce::Graphics& g)
