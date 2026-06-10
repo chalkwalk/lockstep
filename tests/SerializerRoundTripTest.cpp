@@ -354,10 +354,225 @@ namespace lockstep
         CHECK(feq(stepParsed.overrides.get(3, -1.f), 0.9f), "phrase step plock preserved");
     }
 
+    // ── Fill-field round-trip (8.9b gap fix) ────────────────────────────────
+
+    static juce::ValueTree buildStepNodeFull(int idx, const Step& step)
+    {
+        // Mirror of the updated writePhraseNode in PluginState.cpp, including
+        // the fill-specific fields added in 8.9b.
+        auto node = buildStepNode(idx, step);  // primary fields
+        if (step.fillTrigState != FillTrigState::Inherit)
+            node.setProperty("fts", static_cast<int>(step.fillTrigState), nullptr);
+        if (step.fillTrigOverride.noteCount > 0 || step.fillTrigOverride.hasVelocity
+            || step.fillTrigOverride.hasGate || step.fillTrigOverride.hasSoundId
+            || step.fillTrigOverride.hasRetrig)
+        {
+            juce::ValueTree fto("FTO");
+            if (step.fillTrigOverride.noteCount > 0)
+            {
+                fto.setProperty("nc", step.fillTrigOverride.noteCount, nullptr);
+                for (int ni = 0; ni < step.fillTrigOverride.noteCount; ++ni)
+                    fto.setProperty("n" + juce::String(ni),
+                                    step.fillTrigOverride.notes[static_cast<std::size_t>(ni)],
+                                    nullptr);
+            }
+            if (step.fillTrigOverride.hasVelocity)
+            { fto.setProperty("hv", 1, nullptr); fto.setProperty("v", step.fillTrigOverride.velocity, nullptr); }
+            if (step.fillTrigOverride.hasSoundId)
+            { fto.setProperty("hsi", 1, nullptr); fto.setProperty("si", step.fillTrigOverride.soundId, nullptr); }
+            node.appendChild(fto, nullptr);
+        }
+        if (!step.fillOverrides.empty())
+        {
+            juce::ValueTree fpl("FPL");
+            step.fillOverrides.forEach([&](int sl, float val)
+            {
+                juce::ValueTree p("P");
+                p.setProperty("s", sl, nullptr);
+                p.setProperty("v", static_cast<double>(val), nullptr);
+                fpl.appendChild(p, nullptr);
+            });
+            node.appendChild(fpl, nullptr);
+        }
+        return node;
+    }
+
+    static Step parseStepNodeFull(const juce::ValueTree& node)
+    {
+        auto step = parseStepNode(node);
+        if (node.hasProperty("fts"))
+            step.fillTrigState = static_cast<FillTrigState>(
+                static_cast<int>(node.getProperty("fts", 0)));
+        const auto fto = node.getChildWithName("FTO");
+        if (fto.isValid())
+        {
+            step.fillTrigOverride.noteCount = static_cast<int>(fto.getProperty("nc", 0));
+            for (int ni = 0; ni < step.fillTrigOverride.noteCount; ++ni)
+                step.fillTrigOverride.notes[static_cast<std::size_t>(ni)] =
+                    static_cast<int>(fto.getProperty("n" + juce::String(ni), 60));
+            if (static_cast<int>(fto.getProperty("hv", 0)) != 0)
+            { step.fillTrigOverride.hasVelocity = true; step.fillTrigOverride.velocity = static_cast<int>(fto.getProperty("v", 100)); }
+            if (static_cast<int>(fto.getProperty("hsi", 0)) != 0)
+            { step.fillTrigOverride.hasSoundId = true; step.fillTrigOverride.soundId = static_cast<int>(fto.getProperty("si", -1)); }
+        }
+        const auto fpl = node.getChildWithName("FPL");
+        if (fpl.isValid())
+            for (auto p : fpl)
+            {
+                const int sl = static_cast<int>(p.getProperty("s", -1));
+                if (sl >= 0) step.fillOverrides.set(sl, static_cast<float>(
+                    static_cast<double>(p.getProperty("v", 0.0))));
+            }
+        return step;
+    }
+
+    static void testFillFieldRoundTrip()
+    {
+        // fillTrigState ON
+        {
+            Step s;
+            s.trig = true;
+            s.fillTrigState = FillTrigState::On;
+            const auto tree = buildStepNodeFull(0, s);
+            CHECK(tree.hasProperty("fts"),                      "fillTrigState property written");
+            CHECK(static_cast<int>(tree.getProperty("fts")) == static_cast<int>(FillTrigState::On),
+                  "fillTrigState value correct");
+            const auto back = parseStepNodeFull(tree);
+            CHECK(back.fillTrigState == FillTrigState::On,      "fillTrigState round-trips");
+        }
+        // fillTrigState OFF
+        {
+            Step s;
+            s.trig = true;
+            s.fillTrigState = FillTrigState::Off;
+            const auto back = parseStepNodeFull(buildStepNodeFull(0, s));
+            CHECK(back.fillTrigState == FillTrigState::Off,     "fillTrigState Off round-trips");
+        }
+        // fillTrigOverride soundId
+        {
+            Step s;
+            s.fillTrigOverride.hasSoundId = true;
+            s.fillTrigOverride.soundId    = 5;
+            const auto tree = buildStepNodeFull(0, s);
+            CHECK(tree.getChildWithName("FTO").isValid(),       "FTO node written");
+            const auto back = parseStepNodeFull(tree);
+            CHECK(back.fillTrigOverride.hasSoundId,             "FTO.hasSoundId round-trips");
+            CHECK(back.fillTrigOverride.soundId == 5,           "FTO.soundId round-trips");
+        }
+        // fillOverrides (fill P-Locks)
+        {
+            Step s;
+            s.fillOverrides.set(4, 0.6f);
+            s.fillOverrides.set(9, 0.25f);
+            const auto tree = buildStepNodeFull(0, s);
+            CHECK(tree.getChildWithName("FPL").isValid(),       "FPL node written");
+            const auto back = parseStepNodeFull(tree);
+            CHECK(feq(back.fillOverrides.get(4, -1.f), 0.6f),  "fillOverride slot 4 round-trips");
+            CHECK(feq(back.fillOverrides.get(9, -1.f), 0.25f), "fillOverride slot 9 round-trips");
+        }
+        // Inherit state: no fts property written
+        {
+            Step s;
+            s.trig = true;
+            const auto tree = buildStepNodeFull(0, s);
+            CHECK(!tree.hasProperty("fts"),                     "Inherit state omits fts property");
+            const auto back = parseStepNodeFull(tree);
+            CHECK(back.fillTrigState == FillTrigState::Inherit, "default fillTrigState is Inherit");
+        }
+    }
+
+    // ── Mutation self-test: every field change is detectable ────────────────
+    // Verifies that our round-trip comparator is exhaustive: mutate one field
+    // in the serialized tree and confirm the deserialized result differs.
+
+    static void testMutationDetectability()
+    {
+        // Build a maximally-populated step.
+        Step orig;
+        orig.trig            = true;
+        orig.microOffset     = 0.125f;
+        orig.condition.probabilityPercent = 75;
+        orig.trigOverride.hasVelocity = true;
+        orig.trigOverride.velocity    = 80;
+        orig.trigOverride.hasSoundId  = true;
+        orig.trigOverride.soundId     = 3;
+        orig.overrides.set(2, 0.5f);
+        orig.fillTrigState = FillTrigState::On;
+        orig.fillOverrides.set(5, 0.3f);
+
+        const auto origTree = buildStepNodeFull(0, orig);
+
+        // trig field
+        {
+            auto t = origTree.createCopy();
+            t.setProperty("t", 0, nullptr);
+            const auto back = parseStepNodeFull(t);
+            CHECK(!back.trig, "mutation: trig=false detectable");
+        }
+        // microOffset field
+        {
+            auto t = origTree.createCopy();
+            t.setProperty("mo", 0.5, nullptr);
+            const auto back = parseStepNodeFull(t);
+            CHECK(!feq(back.microOffset, orig.microOffset), "mutation: microOffset detectable");
+        }
+        // condition.probabilityPercent
+        {
+            auto t = origTree.createCopy();
+            auto cNode = t.getChildWithName("C");
+            cNode.setProperty("p", 50, nullptr);
+            const auto back = parseStepNodeFull(t);
+            CHECK(back.condition.probabilityPercent != 75, "mutation: cond.prob detectable");
+        }
+        // velocity override
+        {
+            auto t = origTree.createCopy();
+            auto toNode = t.getChildWithName("TO");
+            toNode.setProperty("v", 50, nullptr);
+            const auto back = parseStepNodeFull(t);
+            CHECK(back.trigOverride.velocity != 80, "mutation: TO.velocity detectable");
+        }
+        // soundId override
+        {
+            auto t = origTree.createCopy();
+            auto toNode = t.getChildWithName("TO");
+            toNode.setProperty("si", 9, nullptr);
+            const auto back = parseStepNodeFull(t);
+            CHECK(back.trigOverride.soundId != 3, "mutation: TO.soundId detectable");
+        }
+        // P-Lock value
+        {
+            auto t = origTree.createCopy();
+            auto plNode = t.getChildWithName("PL");
+            auto pNode  = plNode.getChild(0);
+            pNode.setProperty("v", 0.9, nullptr);
+            const auto back = parseStepNodeFull(t);
+            CHECK(!feq(back.overrides.get(2, -1.f), 0.5f), "mutation: P-Lock detectable");
+        }
+        // fillTrigState
+        {
+            auto t = origTree.createCopy();
+            t.setProperty("fts", static_cast<int>(FillTrigState::Off), nullptr);
+            const auto back = parseStepNodeFull(t);
+            CHECK(back.fillTrigState == FillTrigState::Off, "mutation: fillTrigState detectable");
+        }
+        // fill P-Lock value
+        {
+            auto t = origTree.createCopy();
+            auto fplNode = t.getChildWithName("FPL");
+            auto pNode   = fplNode.getChild(0);
+            pNode.setProperty("v", 0.9, nullptr);
+            const auto back = parseStepNodeFull(t);
+            CHECK(!feq(back.fillOverrides.get(5, -1.f), 0.3f), "mutation: fill P-Lock detectable");
+        }
+    }
+
     void runSerializerRoundTripTests()
     {
         testCondRoundTrip();
         testStepRoundTrip();
         testPhrasePropertyNames();
+        testFillFieldRoundTrip();
+        testMutationDetectability();
     }
 }

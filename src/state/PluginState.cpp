@@ -138,6 +138,42 @@ namespace lockstep::PluginState
                 });
                 stepNode.appendChild(plNode, nullptr);
             }
+            if (step.fillTrigState != FillTrigState::Inherit)
+                stepNode.setProperty(keys::kFillTS, static_cast<int>(step.fillTrigState), nullptr);
+            if (step.fillTrigOverride.noteCount > 0 || step.fillTrigOverride.hasVelocity
+                || step.fillTrigOverride.hasGate || step.fillTrigOverride.hasSoundId
+                || step.fillTrigOverride.hasRetrig)
+            {
+                juce::ValueTree ftoNode(keys::kFillTO);
+                if (step.fillTrigOverride.noteCount > 0)
+                {
+                    ftoNode.setProperty(keys::kNc, step.fillTrigOverride.noteCount, nullptr);
+                    for (int ni = 0; ni < step.fillTrigOverride.noteCount; ++ni)
+                        ftoNode.setProperty("n" + juce::String(ni),
+                                            step.fillTrigOverride.notes[static_cast<std::size_t>(ni)], nullptr);
+                }
+                if (step.fillTrigOverride.hasVelocity)
+                { ftoNode.setProperty(keys::kHv, 1, nullptr); ftoNode.setProperty("v", step.fillTrigOverride.velocity, nullptr); }
+                if (step.fillTrigOverride.hasGate)
+                { ftoNode.setProperty(keys::kHg, 1, nullptr); ftoNode.setProperty(keys::kGv, static_cast<int>(static_cast<uint8_t>(step.fillTrigOverride.gateValue)), nullptr); }
+                if (step.fillTrigOverride.hasSoundId)
+                { ftoNode.setProperty(keys::kHsi, 1, nullptr); ftoNode.setProperty(keys::kSi, step.fillTrigOverride.soundId, nullptr); }
+                if (step.fillTrigOverride.hasRetrig)
+                { ftoNode.setProperty(keys::kHrt, 1, nullptr); ftoNode.setProperty(keys::kRt, step.fillTrigOverride.retrigRate, nullptr); }
+                stepNode.appendChild(ftoNode, nullptr);
+            }
+            if (!step.fillOverrides.empty())
+            {
+                juce::ValueTree fplNode(keys::kFillPLocks);
+                step.fillOverrides.forEach([&](int slot, float value)
+                {
+                    juce::ValueTree pNode("P");
+                    pNode.setProperty("s", slot, nullptr);
+                    pNode.setProperty("v", static_cast<double>(value), nullptr);
+                    fplNode.appendChild(pNode, nullptr);
+                });
+                stepNode.appendChild(fplNode, nullptr);
+            }
             stepsNode.appendChild(stepNode, nullptr);
         }
         if (hasSteps) node.appendChild(stepsNode, nullptr);
@@ -195,6 +231,32 @@ namespace lockstep::PluginState
                 {
                     const int sl = static_cast<int>(pNode.getProperty("s", -1));
                     if (sl >= 0) step.overrides.set(sl, getFloat(pNode, "v", 0.0f));
+                }
+            if (stepNode.hasProperty(keys::kFillTS))
+                step.fillTrigState = static_cast<FillTrigState>(
+                    static_cast<int>(stepNode.getProperty(keys::kFillTS, 0)));
+            const auto ftoNode = stepNode.getChildWithName(keys::kFillTO);
+            if (ftoNode.isValid())
+            {
+                step.fillTrigOverride.noteCount = static_cast<int>(ftoNode.getProperty(keys::kNc, 0));
+                for (int ni = 0; ni < step.fillTrigOverride.noteCount; ++ni)
+                    step.fillTrigOverride.notes[static_cast<std::size_t>(ni)] =
+                        static_cast<int>(ftoNode.getProperty("n" + juce::String(ni), 60));
+                if (static_cast<int>(ftoNode.getProperty(keys::kHv, 0)) != 0)
+                { step.fillTrigOverride.hasVelocity = true; step.fillTrigOverride.velocity = static_cast<int>(ftoNode.getProperty("v", 100)); }
+                if (static_cast<int>(ftoNode.getProperty(keys::kHg, 0)) != 0)
+                { step.fillTrigOverride.hasGate = true; step.fillTrigOverride.gateValue = static_cast<MusicalGate>(static_cast<uint8_t>(static_cast<int>(ftoNode.getProperty(keys::kGv, 0)))); }
+                if (static_cast<int>(ftoNode.getProperty(keys::kHsi, 0)) != 0)
+                { step.fillTrigOverride.hasSoundId = true; step.fillTrigOverride.soundId = static_cast<int>(ftoNode.getProperty(keys::kSi, -1)); }
+                if (static_cast<int>(ftoNode.getProperty(keys::kHrt, 0)) != 0)
+                { step.fillTrigOverride.hasRetrig = true; step.fillTrigOverride.retrigRate = static_cast<double>(ftoNode.getProperty(keys::kRt, 0.25)); }
+            }
+            const auto fplNode = stepNode.getChildWithName(keys::kFillPLocks);
+            if (fplNode.isValid())
+                for (auto pNode : fplNode)
+                {
+                    const int sl = static_cast<int>(pNode.getProperty("s", -1));
+                    if (sl >= 0) step.fillOverrides.set(sl, getFloat(pNode, "v", 0.0f));
                 }
         }
     }

@@ -83,8 +83,12 @@ namespace lockstep::keys
   inline constexpr const char* kRt  = "rt";    // retrig rate
 
   // ── P-Lock container (PL) + param entry (P) ─────────────────────────────────
-  inline constexpr const char* kPLocks = "PL";
-  inline constexpr const char* kParam  = "P";
+  inline constexpr const char* kPLocks     = "PL";
+  inline constexpr const char* kParam      = "P";
+  // Fill-specific overrides (parallel to TO/PL above):
+  inline constexpr const char* kFillTS     = "fts";   // FillTrigState enum value
+  inline constexpr const char* kFillTO     = "FTO";   // fill trig override node
+  inline constexpr const char* kFillPLocks = "FPL";   // fill P-Lock container
 
   // ── Kit node ────────────────────────────────────────────────────────────────
   inline constexpr const char* kKit      = "Kit";

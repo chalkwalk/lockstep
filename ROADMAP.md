@@ -1173,7 +1173,7 @@ DESIGN §37/§35.8.7/§37.4/§37.5 added; ROADMAP Phase 8 entry; CLAUDE.md statu
 ### 8.9 — Serializer hardening
 - [x] **8.9a** `src/state/StateKeys.h` — all property names as `constexpr`
       constants; mechanical sweep of read/write sites.
-- [ ] **8.9b** Round-trip mutation self-test; fix silent-loss bugs; v12 only if
+- [x] **8.9b** Round-trip mutation self-test; fix silent-loss bugs; v12 only if
       format must change.
 
 ### 8.10 — Final docs pass
