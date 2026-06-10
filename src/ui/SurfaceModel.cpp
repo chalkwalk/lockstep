@@ -1651,6 +1651,49 @@ namespace lockstep
             }
         }
 
+        // ── gridBanner ───────────────────────────────────────────────────────
+        // Set the contextual banner when a picker or selector overlay is active.
+        if (ui.funcTrackHeld)
+            model.gridBanner = "SELECT MACHINE";
+        else if (ui.trackHeld)
+            model.gridBanner = "SELECT TRACK";
+        else if (ui.phraseScopeHeld)
+            model.gridBanner = "SELECT PHRASE";
+        else if (ui.sceneHeld)
+            model.gridBanner = "SELECT SCENE";
+
+        // ── pageDots ─────────────────────────────────────────────────────────
+        // Per-section: how many pages does the active track's section have?
+        {
+            const int ti       = activeTrack;
+            const int numSecs  = proc.numSections(ti);
+            for (int s = 0; s < IMachine::kMaxSections; ++s)
+            {
+                int totalPages = 0;
+                if (s < numSecs)
+                {
+                    const auto info = proc.section(ti, s);
+                    if (info.firstSlot >= 0)
+                        totalPages = std::max(1, info.pageCount);
+                }
+                // Extension sections with same parentCanonical add more pages.
+                for (int ex = IMachine::kMaxSections; ex < numSecs; ++ex)
+                {
+                    const auto info = proc.section(ti, ex);
+                    if (info.parentCanonical == s && info.firstSlot >= 0)
+                        totalPages += std::max(1, info.pageCount);
+                }
+
+                auto& dots  = model.pageDots[static_cast<std::size_t>(s)];
+                dots.count  = static_cast<uint8_t>(totalPages);
+                dots.active = (totalPages > 0)
+                    ? static_cast<uint8_t>(ui.trackPage
+                          [static_cast<std::size_t>(ti)]
+                          [static_cast<std::size_t>(s)] % totalPages)
+                    : 0u;
+            }
+        }
+
         return model;
     }
 

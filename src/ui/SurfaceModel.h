@@ -5,6 +5,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "../io/ControllerEvent.h"
 #include "../core/Sequence.h"   // kNumTracks
+#include "../machine/IMachine.h"  // kMaxSections
 #include "GridDisplayMode.h"
 
 namespace lockstep
@@ -243,6 +244,14 @@ namespace lockstep
         // Scene A/B crossfader value normalised 0..1 (0 = full A, 1 = full B).
         // Passed explicitly to buildSurfaceModel since it lives in the editor.
         float crossfader = 0.0f;
+
+        // Contextual banner shown above the step grid when a picker/selector is active.
+        // nullptr = no banner. Static string lifetimes (literals or kCanonicalSectionNames).
+        const char* gridBanner = nullptr;
+
+        // Per-section page dots for the section bar (screen + controller visible).
+        struct PageDots { uint8_t count = 0; uint8_t active = 0; };
+        std::array<PageDots, IMachine::kMaxSections> pageDots{};
 
         // Lookup by (ControllerButton, index). Returns nullptr if not found.
         [[nodiscard]] const SurfaceCell* byButton(ControllerButton btn, int idx = -1) const noexcept;

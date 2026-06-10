@@ -1157,7 +1157,7 @@ DESIGN §37/§35.8.7/§37.4/§37.5 added; ROADMAP Phase 8 entry; CLAUDE.md statu
 ### 8.7 — Status & contextual text SSOT + transport fix
 - [x] **8.7a** `src/command/StatusText.h` + sweep of 40 `setStatus()` call sites;
       `tests/StatusTextTest.cpp`.
-- [ ] **8.7b** `gridBanner` + `pageDots` into `SurfaceModel`; `ScopedSectionMatrix`
+- [x] **8.7b** `gridBanner` + `pageDots` into `SurfaceModel`; `ScopedSectionMatrix`
       canonical-name dedup; extend `tests/SurfaceModelTest.cpp`.
 - [ ] **8.7c** `TransportModel` struct + `InPluginTransport::refresh()`; eliminates
       label desync.

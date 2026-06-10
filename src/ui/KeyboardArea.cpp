@@ -738,19 +738,16 @@ namespace lockstep
             const auto cell = sectionCellBounds(cellIdx, area);
             paintCell(g, cell, model.section[static_cast<std::size_t>(s)], showKeyHint);
 
-            // Page dots — screen-only decoration, not in model (residual §35.8.1)
-            const auto groups = sectionsForKey(uiState_.activeTrack, s);
-            int totalPageCount = 0;
-            for (const auto& grp2 : groups) totalPageCount += grp2.pageCount;
+            // Page dots — from model.pageDots (§35.8.1 residual now closed).
             const bool isMasterActive = !isScopedMode && (uiState_.masterSection == s);
             const bool isTrackActive  = !isScopedMode && (uiState_.masterSection == -1
                 && uiState_.trackSection[static_cast<std::size_t>(uiState_.activeTrack)] == s);
+            const auto& dots = model.pageDots[static_cast<std::size_t>(s)];
 
-            if (totalPageCount > 1 && !isMasterActive)
+            if (dots.count > 1 && !isMasterActive)
             {
-                const auto ti        = static_cast<std::size_t>(uiState_.activeTrack);
-                const auto si        = static_cast<std::size_t>(s);
-                const int activePage = uiState_.trackPage[ti][si];
+                const int totalPageCount = dots.count;
+                const int activePage     = dots.active;
 
                 const juce::Colour dotCol = isTrackActive
                     ? kColourTrackActive : kColourTrackActive.withAlpha(0.4f);
@@ -982,9 +979,12 @@ namespace lockstep
                                          avail ? 1.0f : 0.45f);
                 }
             }
-            g.setColour(juce::Colour::fromRGB(80, 95, 115));
-            g.setFont(juce::Font(juce::FontOptions(10.0f)));
-            g.drawText("SELECT MACHINE", navArea, juce::Justification::centred);
+            if (model.gridBanner)
+            {
+                g.setColour(juce::Colour::fromRGB(80, 95, 115));
+                g.setFont(juce::Font(juce::FontOptions(10.0f)));
+                g.drawText(model.gridBanner, navArea, juce::Justification::centred);
+            }
             return;
         }
 
@@ -1607,11 +1607,12 @@ namespace lockstep
                                          !avail ? 0.45f : isNext ? 0.4f : 1.0f);
                 }
             }
-            g.setColour(juce::Colour::fromRGB(80, 95, 115));
-            g.setFont(juce::Font(juce::FontOptions(10.0f)));
-            g.drawText(uiState_.trackHeld          ? "SELECT TRACK"
-                       : uiState_.phraseScopeHeld ? "SELECT PHRASE" : "SELECT SCENE",
-                       navArea, juce::Justification::centred);
+            if (model.gridBanner)
+            {
+                g.setColour(juce::Colour::fromRGB(80, 95, 115));
+                g.setFont(juce::Font(juce::FontOptions(10.0f)));
+                g.drawText(model.gridBanner, navArea, juce::Justification::centred);
+            }
             return;
         }
 

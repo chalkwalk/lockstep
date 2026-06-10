@@ -8,6 +8,8 @@
 #include "../src/ui/SurfaceModel.h"
 #include "../src/ui/PageNav.h"
 #include "../src/ui/CellAppearance.h"
+#include "../src/ui/ScopedSectionMatrix.h"
+#include "../src/machine/IMachine.h"
 
 namespace lockstep
 {
@@ -289,6 +291,48 @@ namespace lockstep
         CHECK(fb.pushPad    == 2,           "unknown token fallback pushPad");
     }
 
+    // -------------------------------------------------------------------------
+    // Test: ScopedSectionMatrix canonical-name dedup
+    // Cells that map to a canonical section name should equal the IMachine
+    // constant, not a separate literal that could silently diverge.
+    // -------------------------------------------------------------------------
+    static void testScopedSectionMatrixCanonical()
+    {
+        using PS = EditMode::PrimaryScope;
+        const auto& can = IMachine::kCanonicalSectionNames;
+
+        // Track scope: indices 1-5 should match canonical names exactly.
+        CHECK(scopedCell(PS::Track, 1).label == can[1], "Track+SRC matches canonical");
+        CHECK(scopedCell(PS::Track, 2).label == can[2], "Track+FILTER matches canonical");
+        CHECK(scopedCell(PS::Track, 3).label == can[3], "Track+AMP matches canonical");
+        CHECK(scopedCell(PS::Track, 4).label == can[4], "Track+MOD matches canonical");
+        CHECK(scopedCell(PS::Track, 5).label == can[5], "Track+FX matches canonical");
+
+        // Track+TRIG is a genuine override ("DIV"), not canonical.
+        CHECK(juce::String(scopedCell(PS::Track, 0).label) == "DIV",
+              "Track+TRIG override is DIV");
+
+        // Scene scope: indices 0,2-5 should match canonical.
+        CHECK(scopedCell(PS::Scene, 0).label == can[0], "Scene+TRIG matches canonical");
+        CHECK(scopedCell(PS::Scene, 2).label == can[2], "Scene+FILTER matches canonical");
+        CHECK(scopedCell(PS::Scene, 3).label == can[3], "Scene+AMP matches canonical");
+        CHECK(scopedCell(PS::Scene, 4).label == can[4], "Scene+MOD matches canonical");
+        CHECK(scopedCell(PS::Scene, 5).label == can[5], "Scene+FX matches canonical");
+
+        // Morph scope: SRC and AMP/MOD/FX match canonical; FLTR is a genuine abbreviation.
+        CHECK(scopedCell(PS::Morph, 1).label == can[1], "Morph+SRC matches canonical");
+        CHECK(scopedCell(PS::Morph, 3).label == can[3], "Morph+AMP matches canonical");
+        CHECK(scopedCell(PS::Morph, 4).label == can[4], "Morph+MOD matches canonical");
+        CHECK(scopedCell(PS::Morph, 5).label == can[5], "Morph+FX matches canonical");
+        CHECK(juce::String(scopedCell(PS::Morph, 2).label) == "FLTR",
+              "Morph+FILTER override is FLTR (abbreviated)");
+
+        // Song scope: only GLBL is non-null, at index 5.
+        CHECK(juce::String(scopedCell(PS::Song, 5).label) == "GLBL",
+              "Song+FX override is GLBL");
+        CHECK(scopedCell(PS::Song, 0).label == nullptr, "Song+TRIG is nullptr");
+    }
+
     void runSurfaceModelTests()
     {
         testPanicKeyLabel();
@@ -297,6 +341,7 @@ namespace lockstep
         testLengthEditCellState();
         testScrollPastEndClamp();
         testCellAppearance();
+        testScopedSectionMatrixCanonical();
     }
 
 } // namespace lockstep

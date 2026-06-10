@@ -40,49 +40,50 @@ namespace lockstep
         // hasContent=false marks cells intentionally empty (no planned content).
         // The section bar dims false cells and highlights true cells as available.
 
+        using N = IMachine;  // alias for terse kCanonicalSectionNames access
         static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kTrack = {{
-            { "DIV",    true  },   // Track+TRIG: kit divider (DESIGN §6.2)
-            { "SRC",    true  },   // input_source / Thru assignment (MR)
-            { "FILTER", true  },   // post-machine FLTR (ME.6)
-            { "AMP",    true  },   // post-machine AMP + sends (ME.7)
-            { "MOD",    true  },   // per-track LFO (ME)
-            { "FX",     true  },   // IEffect inserts 1+2 (MV)
+            { "DIV",                    true  },   // Track+TRIG: kit divider (DESIGN §6.2)
+            { N::kCanonicalSectionNames[1], true  },   // SRC
+            { N::kCanonicalSectionNames[2], true  },   // FILTER
+            { N::kCanonicalSectionNames[3], true  },   // AMP
+            { N::kCanonicalSectionNames[4], true  },   // MOD
+            { N::kCanonicalSectionNames[5], true  },   // FX
         }};
 
         static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kPhrase = {{
-            { "LEN",  true  },   // Phrase+TRIG: phrase length (per active phrase)
-            { nullptr,false },   // dim — no content planned
-            { nullptr,false },   // dim — no content planned
-            { nullptr,false },   // GAIN — pattern output gain not yet implemented
-            { nullptr,false },   // TMPO — per-pattern tempo not yet implemented
-            { nullptr,false },   // dim — no content planned
+            { "LEN",   true  },   // Phrase+TRIG: phrase length (per active phrase)
+            { nullptr, false },   // dim — no content planned
+            { nullptr, false },   // dim — no content planned
+            { nullptr, false },   // GAIN — pattern output gain not yet implemented
+            { nullptr, false },   // TMPO — per-pattern tempo not yet implemented
+            { nullptr, false },   // dim — no content planned
         }};
 
         static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kScene = {{
-            { "TRIG",   true  },   // trig templates (MC)
-            { nullptr,  true  },   // part-base SRC — machine picker now lives on Func+Part (MHZ.3.5)
-            { "FILTER", true  },   // part-base FLTR (MC)
-            { "AMP",    true  },   // part-base AMP (MC)
-            { "MOD",    true  },   // part-base MOD (MC)
-            { "FX",     true  },   // part-base FX (MC)
+            { N::kCanonicalSectionNames[0], true  },   // TRIG templates (MC)
+            { nullptr,                      true  },   // SRC — picker lives on Func+Part (MHZ.3.5)
+            { N::kCanonicalSectionNames[2], true  },   // FILTER
+            { N::kCanonicalSectionNames[3], true  },   // AMP
+            { N::kCanonicalSectionNames[4], true  },   // MOD
+            { N::kCanonicalSectionNames[5], true  },   // FX
         }};
 
         static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kMorph = {{
-            { nullptr,false },   // TRIG — Morph never affects trigs (DESIGN §17.2)
-            { "SRC",  true  },   // morph-assign SRC (5.2)
-            { "FLTR", true  },   // morph-assign FLTR (5.2)
-            { "AMP",  true  },   // morph-assign AMP (5.2)
-            { "MOD",  true  },   // morph-assign MOD (5.2)
-            { "FX",   true  },   // morph-assign FX (5.2)
+            { nullptr,                      false },   // TRIG — Morph never affects trigs (DESIGN §17.2)
+            { N::kCanonicalSectionNames[1], true  },   // SRC
+            { "FLTR",                       true  },   // morph-assign FLTR (abbreviated, 5.2)
+            { N::kCanonicalSectionNames[3], true  },   // AMP
+            { N::kCanonicalSectionNames[4], true  },   // MOD
+            { N::kCanonicalSectionNames[5], true  },   // FX
         }};
 
         static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kSong = {{
-            { nullptr,false },   // dim — no content planned
-            { nullptr,false },   // dim — no content planned
-            { nullptr,false },   // FLTR — master FLTR (MV, not yet implemented)
-            { nullptr,false },   // AMP — master gain + sends (MV, not yet implemented)
-            { nullptr,false },   // dim — no content planned
-            { "GLBL", true  },   // GLOBAL meta: output gain / sync / clock (relocated, DESIGN §6.2)
+            { nullptr, false },   // dim — no content planned
+            { nullptr, false },   // dim — no content planned
+            { nullptr, false },   // FLTR — master FLTR (MV, not yet implemented)
+            { nullptr, false },   // AMP — master gain + sends (MV, not yet implemented)
+            { nullptr, false },   // dim — no content planned
+            { "GLBL",  true  },   // GLOBAL meta: output gain / sync / clock (DESIGN §6.2)
         }};
 
         if (section < 0 || section >= IMachine::kMaxSections)
