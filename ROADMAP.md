@@ -1145,7 +1145,7 @@ DESIGN §37/§35.8.7/§37.4/§37.5 added; ROADMAP Phase 8 entry; CLAUDE.md statu
       ~1500–2000 lines.
 
 ### 8.5 — Gesture-level test harness
-- [ ] **8.5** `tests/GestureHarness.h` + `tests/GestureTest.cpp` (12 named
+- [x] **8.5** `tests/GestureHarness.h` + `tests/GestureTest.cpp` (12 named
       scenarios; real core model, no processor; grows with 8.4b–h).
 
 ### 8.6 — CellState appearance table

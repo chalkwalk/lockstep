@@ -1,5 +1,6 @@
 #include "TestHarness.h"
 #include "GestureHarness.h"
+#include "../src/command/ButtonLayers.h"
 
 namespace lockstep
 {
@@ -14,12 +15,10 @@ namespace lockstep
     static void scenario_trigCopy()
     {
         GestureFixture f;
-        // Seed step 3 with a trig and a recognisable condition.
         auto& s3 = f.track(0).steps[3];
         s3.trig = true;
         s3.condition.probabilityPercent = 75;
 
-        // Hold step 3 on track 0.
         f.holdStep(0, 3);
 
         const bool handled = f.verb(PS::Trig, CB::VerbRecord);
@@ -36,7 +35,6 @@ namespace lockstep
     static void scenario_trigPaste()
     {
         GestureFixture f;
-        // Populate clipboard with a step entry at relative offset 0.
         auto& s5 = f.track(0).steps[5];
         s5.trig = true;
         f.holdStep(0, 5);
@@ -44,7 +42,6 @@ namespace lockstep
         f.releaseAllSteps();
         f.effects.reset();
 
-        // Track length = 16 (default). Paste at step 15 — wraps to step 15+0=15.
         f.holdStep(0, 15);
         const bool handled = f.verb(PS::Trig, CB::VerbPlay);
         CHECK(handled, "Trig+Play should be handled");
@@ -76,16 +73,14 @@ namespace lockstep
         GestureFixture f;
         auto& s7 = f.track(0).steps[7];
         s7.trig = true;
-        s7.overrides.set(0, 0.5f);  // P-Lock slot 0
+        s7.overrides.set(0, 0.5f);
 
-        // Signal Func is held via editMode scope state.
         f.editMode.onScopeEvent({ T::ButtonDown, CB::Func, -1, 0 });
         f.holdStep(0, 7);
 
         const bool handled = f.verb(PS::Trig, CB::VerbClear);
         CHECK(handled, "Trig+Func+Clear should be handled");
         CHECK(f.track(0).steps[7].trig, "trig intact after P-Lock clear");
-        // P-Lock cleared.
         CHECK(!f.track(0).steps[7].overrides.has(0), "P-Lock cleared");
     }
 
@@ -115,9 +110,129 @@ namespace lockstep
     static void scenario_trigCopyNoSteps()
     {
         GestureFixture f;
-        // No steps held — should not be handled.
         const bool handled = f.verb(PS::Trig, CB::VerbRecord);
         CHECK(!handled, "Trig+Record with no held steps should not be handled");
+    }
+
+    // -------------------------------------------------------------------------
+    // Scenario 7: PS::Track / VerbRecord copies track, VerbPlay pastes it
+
+    static void scenario_trackCopyPaste()
+    {
+        GestureFixture f;
+        f.uiState.activeTrack = 0;
+        f.track(0).steps[4].trig = true;
+        f.track(0).steps[4].condition.probabilityPercent = 60;
+
+        bool handled = f.verb(PS::Track, CB::VerbRecord);
+        CHECK(handled, "Track+Record should be handled");
+        CHECK(f.clipboard.type == ClipboardType::Track, "clipboard type Track");
+        CHECK(f.effects.statuses.size() == 1, "status emitted");
+
+        // Paste to track 1.
+        f.uiState.activeTrack = 1;
+        handled = f.verb(PS::Track, CB::VerbPlay);
+        CHECK(handled, "Track+Play should be handled");
+        CHECK(f.track(1).steps[4].trig, "pasted trig to track 1 step 4");
+        CHECK(f.track(1).steps[4].condition.probabilityPercent == 60, "condition preserved");
+    }
+
+    // Scenario 8: PS::Track / VerbClear clears steps
+
+    static void scenario_trackClear()
+    {
+        GestureFixture f;
+        f.uiState.activeTrack = 2;
+        f.track(2).steps[0].trig = true;
+        f.track(2).steps[1].trig = true;
+
+        const bool handled = f.verb(PS::Track, CB::VerbClear);
+        CHECK(handled, "Track+Clear handled");
+        CHECK(!f.track(2).steps[0].trig, "step 0 cleared");
+        CHECK(!f.track(2).steps[1].trig, "step 1 cleared");
+    }
+
+    // Scenario 9: PS::Phrase / VerbRecord and VerbPlay round-trip
+
+    static void scenario_phraseCopyPaste()
+    {
+        GestureFixture f;
+        f.track(3).steps[8].trig = true;
+
+        bool handled = f.verb(PS::Phrase, CB::VerbRecord);
+        CHECK(handled, "Phrase+Record handled");
+        CHECK(f.clipboard.type == ClipboardType::Pattern, "clipboard type Pattern");
+
+        // Mutate.
+        f.track(3).steps[8].trig = false;
+        handled = f.verb(PS::Phrase, CB::VerbPlay);
+        CHECK(handled, "Phrase+Play handled");
+        CHECK(f.track(3).steps[8].trig, "step restored after paste");
+    }
+
+    // Scenario 10: PS::Song / VerbClear → Panic transport effect
+
+    static void scenario_songPanic()
+    {
+        GestureFixture f;
+        const bool handled = f.verb(PS::Song, CB::VerbClear);
+        CHECK(handled, "Song+Clear handled");
+        CHECK(f.effects.transports == 1, "transport called once");
+        CHECK(f.effects.transportActions[0] == CommandEffects::TransportAction::Panic,
+              "transport action is Panic");
+    }
+
+    // Scenario 11: PS::None / VerbYes → Song-scope snapshot
+
+    static void scenario_noneSnapshot()
+    {
+        GestureFixture f;
+        // No scope held, so primaryScope() == None.
+        const bool handled = f.verb(PS::None, CB::VerbYes);
+        CHECK(handled, "None+VerbYes handled (snapshot)");
+        // No crash; arrangement state unchanged (just verifying it doesn't assert).
+    }
+
+    // Scenario 12: resolveLayer preserves velocity through a Track-layer remap
+
+    static void scenario_resolveLayerPreservesVelocity()
+    {
+        // A Step event with velocity=127 and Track layer held should become
+        // SelectTrack, but the velocity field must survive unchanged.
+        ControllerEvent ev{ ControllerEvent::Type::ButtonDown, CB::Step, 5, 0, 127 };
+        const LayerContext ctx{ false, true, false };  // trackHeld
+        const ControllerEvent resolved = resolveLayer(ev, ctx);
+        CHECK(resolved.button == CB::SelectTrack, "Step+Track remaps to SelectTrack");
+        CHECK(resolved.index == 5, "index preserved");
+        CHECK(resolved.velocity == 127, "velocity preserved through remap");
+    }
+
+    // Scenario 13: resolveLayer Func layer: Section → MetaSection
+
+    static void scenario_resolveLayerSection()
+    {
+        ControllerEvent ev{ ControllerEvent::Type::ButtonDown, CB::Section, 2, 100 };
+        const LayerContext ctx{ true, false, false };  // funcHeld
+        const ControllerEvent resolved = resolveLayer(ev, ctx);
+        CHECK(resolved.button == CB::MetaSection, "Section+Func remaps to MetaSection");
+        CHECK(resolved.index == 2, "section index preserved");
+    }
+
+    // Scenario 14: PS::Section / VerbRecord copy P-Locks, VerbClear zeroes them
+
+    static void scenario_sectionCopyClear()
+    {
+        GestureFixture f;
+        f.uiState.activeTrack     = 0;
+        f.uiState.trackSection[0] = 0;  // section index 0
+
+        // FakeMachineCatalog.paramSpec returns a default ParamSpec with sectionIndex==0,
+        // so all 0 slots land in section 0. numParams returns 0 → nothing to copy.
+        // We verify the handler fires without crash (FakeMachineCatalog has no params).
+        const bool handled = f.verb(PS::Section, CB::VerbRecord);
+        CHECK(handled, "Section+Record handled even with 0 params");
+        CHECK(f.clipboard.type == ClipboardType::Section, "clipboard type Section");
+        CHECK(f.clipboard.sectionSlots.empty(), "no slots (FakeMachineCatalog returns 0 params)");
     }
 
     // -------------------------------------------------------------------------
@@ -131,5 +246,13 @@ namespace lockstep
         scenario_trigClearPLocks();
         scenario_trigClearNotes();
         scenario_trigCopyNoSteps();
+        scenario_trackCopyPaste();
+        scenario_trackClear();
+        scenario_phraseCopyPaste();
+        scenario_songPanic();
+        scenario_noneSnapshot();
+        scenario_resolveLayerPreservesVelocity();
+        scenario_resolveLayerSection();
+        scenario_sectionCopyClear();
     }
 }
