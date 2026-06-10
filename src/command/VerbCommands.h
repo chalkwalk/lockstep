@@ -23,4 +23,16 @@ namespace lockstep::verbs
   [[nodiscard]] bool phrase(ControllerButton verb,
                             CommandContext& ctx,
                             CommandEffects& fx);
+
+  [[nodiscard]] bool scene(ControllerButton verb,
+                           CommandContext& ctx,
+                           CommandEffects& fx);
+
+  [[nodiscard]] bool song(ControllerButton verb,
+                          CommandContext& ctx,
+                          CommandEffects& fx);
+
+  [[nodiscard]] bool noScope(ControllerButton verb,
+                             CommandContext& ctx,
+                             CommandEffects& fx);
 }

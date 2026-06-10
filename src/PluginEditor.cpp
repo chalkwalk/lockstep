@@ -86,6 +86,42 @@ namespace lockstep
         {
             ed.releaseTransientLatch(cb);
         }
+
+        void sceneFloorPaste() override
+        {
+            auto& cl  = ed.clipboard_;
+            auto& dst = ed.processor_.section();
+            dst.activeMask  = cl.scene.floor.activeMask;
+            dst.coreTime    = cl.scene.floor.coreTime;
+            dst.morphA      = cl.scene.floor.morphA;
+            dst.morphB      = cl.scene.floor.morphB;
+            dst.initialised = true;
+            ed.setStatus("Pasted Scene floor");
+        }
+
+        void sceneFullPaste(int destSlot) override
+        {
+            auto& cl = ed.clipboard_;
+            if (ed.phraseConflictAndConfirm(destSlot, PendingConfirm::PasteScene))
+                return;  // waiting for Yes/No
+            ed.processor_.snapshot(CheckpointScope::Song, 0);
+            auto& dst = ed.processor_.section();
+            dst.activeMask  = cl.scene.floor.activeMask;
+            dst.coreTime    = cl.scene.floor.coreTime;
+            dst.morphA      = cl.scene.floor.morphA;
+            dst.morphB      = cl.scene.floor.morphB;
+            dst.initialised = true;
+            for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+            {
+                auto& ph = ed.processor_.song()
+                               .tracks[static_cast<std::size_t>(t)]
+                               .phrases[static_cast<std::size_t>(destSlot)];
+                ph = cl.scene.phrases[static_cast<std::size_t>(t)];
+                ph.initialised = true;
+            }
+            ed.processor_.refreshWorkingFromModel();
+            ed.setStatus("Pasted Scene");
+        }
     };
 
     // Narrow IMachineCatalog adapter — forwards to LockstepProcessor.
@@ -3714,67 +3750,7 @@ namespace lockstep
             // -----------------------------------------------------------------------
             // PS::Track, PS::Phrase — migrated to CommandCore / VerbCommands.cpp (8.4c)
 
-            // -----------------------------------------------------------------------
-            // Scene copy / paste — DESIGN §23.3
-            // Gate on Func because bare Scene+Record = bake (handled in dispatchDown).
-            // VerbDelete goes through the pending-confirm path in dispatchDown.
-            // -----------------------------------------------------------------------
-            case PS::Scene:
-            {
-                const bool funcHeld = editMode_.scopeState().func;
-                const bool muteHeld = editMode_.scopeState().mute;
-                if (!funcHeld) break;
-
-                if (verb == CB::VerbRecord)
-                {
-                    captureScene();
-                    setStatus("Copied Scene");
-                }
-                else if (verb == CB::VerbPlay)
-                {
-                    if (clipboard_.type != ClipboardType::Scene
-                        && clipboard_.type != ClipboardType::All) break;
-
-                    const int destG = processor_.activeSectionIdx();
-                    if (muteHeld)
-                    {
-                        // Mute+Func+Scene+Play: floor-only paste (no phrase content).
-                        auto& dst = processor_.section();
-                        dst.activeMask = clipboard_.scene.floor.activeMask;
-                        dst.coreTime   = clipboard_.scene.floor.coreTime;
-                        dst.morphA     = clipboard_.scene.floor.morphA;
-                        dst.morphB     = clipboard_.scene.floor.morphB;
-                        dst.initialised = true;
-                        setStatus("Pasted Scene floor");
-                    }
-                    else
-                    {
-                        // Func+Scene+Play: baked paste — phrase content + floor.
-                        if (phraseConflictAndConfirm(destG, PendingConfirm::PasteScene))
-                            break;  // waiting for Yes/No
-                        // Snapshot first (snapshot calls writeBackWorkingToActive
-                        // so the working buffer is safe; then we overwrite the model).
-                        processor_.snapshot(CheckpointScope::Song, 0);
-                        auto& dst = processor_.section();
-                        dst.activeMask  = clipboard_.scene.floor.activeMask;
-                        dst.coreTime    = clipboard_.scene.floor.coreTime;
-                        dst.morphA      = clipboard_.scene.floor.morphA;
-                        dst.morphB      = clipboard_.scene.floor.morphB;
-                        dst.initialised = true;
-                        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
-                        {
-                            auto& ph =
-                                processor_.song().tracks[static_cast<std::size_t>(t)]
-                                    .phrases[static_cast<std::size_t>(destG)];
-                            ph = clipboard_.scene.phrases[static_cast<std::size_t>(t)];
-                            ph.initialised = true;
-                        }
-                        processor_.refreshWorkingFromModel();
-                        setStatus("Pasted Scene");
-                    }
-                }
-                break;
-            }
+            // PS::Scene, PS::Song, PS::None — migrated to CommandCore / VerbCommands.cpp (8.4d)
 
             case PS::Func:
             case PS::Mute:
@@ -3800,26 +3776,6 @@ namespace lockstep
                 }
                 break;
             }
-
-            // Song+Clear: Panic (kill all voices). Previously Func+I.
-            case PS::Song:
-                if (verb == CB::VerbClear)
-                {
-                    processor_.requestPanic();
-                    setStatus("Panic");
-                }
-                break;
-
-            case PS::None:
-                // VerbYes (Y = Snapshot) with no scope: Song-scope snapshot.
-                // VerbClear no-scope P-Lock clear is handled in dispatchDown.
-                // VerbNo (P = Yes/confirm) routing is handled in dispatchDown.
-                if (verb == CB::VerbYes)
-                {
-                    int ckTrk = 0;
-                    processor_.snapshot(ckScope(ckTrk), ckTrk);
-                }
-                break;
 
             default:
                 break;

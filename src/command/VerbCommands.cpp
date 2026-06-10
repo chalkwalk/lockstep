@@ -203,4 +203,60 @@ namespace lockstep::verbs
         }
         return false;
     }
+
+    bool scene(ControllerButton verb, CommandContext& ctx, CommandEffects& fx)
+    {
+        using CB = ControllerButton;
+
+        // Scene verbs require Func held (bare Scene+Record = bake, handled in dispatchDown).
+        if (!ctx.editMode.scopeState().func) return false;
+
+        if (verb == CB::VerbRecord)
+        {
+            ctx.clipboard.scene.floor = ctx.arrangement.scene();
+            for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+                ctx.clipboard.scene.phrases[static_cast<std::size_t>(t)] =
+                    ctx.arrangement.activePhrase(t);
+            ctx.clipboard.type = ClipboardType::Scene;
+            fx.status("Copied Scene");
+            return true;
+        }
+        if (verb == CB::VerbPlay)
+        {
+            if (ctx.clipboard.type != ClipboardType::Scene
+                && ctx.clipboard.type != ClipboardType::All)
+                return false;
+
+            if (ctx.editMode.scopeState().mute)
+                fx.sceneFloorPaste();
+            else
+                fx.sceneFullPaste(ctx.arrangement.sceneIdx);
+            return true;
+        }
+        return false;
+    }
+
+    bool song(ControllerButton verb, CommandContext& ctx, CommandEffects& fx)
+    {
+        (void)ctx;
+        using CB = ControllerButton;
+        if (verb == CB::VerbClear)
+        {
+            fx.transport(CommandEffects::TransportAction::Panic);
+            fx.status("Panic");
+            return true;
+        }
+        return false;
+    }
+
+    bool noScope(ControllerButton verb, CommandContext& ctx, CommandEffects&)
+    {
+        using CB = ControllerButton;
+        if (verb == CB::VerbYes)
+        {
+            ctx.arrangement.snapshot(CheckpointScope::Song, ctx.uiState.activeTrack);
+            return true;
+        }
+        return false;
+    }
 }

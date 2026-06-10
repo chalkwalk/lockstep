@@ -35,5 +35,9 @@ namespace lockstep
     // Auto-release a transient modifier latch after its terminal action.
     // No-op when the modifier is not latched (physically held is unaffected).
     virtual void releaseLatch (ControllerButton cb)           = 0;
+
+    // Scene paste operations (stay editor-side due to async confirm dialog).
+    virtual void sceneFloorPaste ()                           = 0;  // floor-only (mute+func+paste)
+    virtual void sceneFullPaste  (int destSlot)              = 0;  // full baked paste + conflict check
   };
 }

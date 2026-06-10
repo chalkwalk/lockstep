@@ -1135,7 +1135,7 @@ DESIGN §37/§35.8.7/§37.4/§37.5 added; ROADMAP Phase 8 entry; CLAUDE.md statu
       `CommandCore.{h,cpp}`, `EditorEffects`; `activeTrack` into `UiState`.
 - [x] **8.4b** `VerbCommands`: `PS::Trig` scope (step copy/paste/clear).
 - [x] **8.4c** `VerbCommands`: `PS::Track`, `PS::Phrase`.
-- [ ] **8.4d** `VerbCommands`: `PS::Scene`, `PS::Song`, snapshot/restore.
+- [x] **8.4d** `VerbCommands`: `PS::Scene`, `PS::Song`, snapshot/restore.
 - [ ] **8.4e** `VerbCommands`: `PS::Mute`, `PS::Morph`, `PS::Fill`, `PS::Func`;
       delete residual `dispatchVerb` body.
 - [ ] **8.4f** `handleDown/Up`: scope modifiers + latch.
