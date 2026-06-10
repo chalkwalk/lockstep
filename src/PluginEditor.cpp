@@ -523,11 +523,17 @@ namespace lockstep
         if (dirty) repaint();
 
         // Controller: drain MIDI FIFO → surface.onInput(), then render feedback LEDs.
-        // Only rebuild the surface model when something actually changed (dirty) or
-        // when transport is running (playhead position changes every tick).
-        if (dirty
-            && ((xTouchSurface_ && controllerPorts_.isOpen())
-                || (push1Surface_ && push1Ports_.isOpen())))
+        // drain() is called unconditionally every tick (never gated on dirty) because:
+        //   1. Input (encoder turns, button presses) must be processed even when the
+        //      software is idle — gating on dirty breaks encoders when nothing else
+        //      is changing.
+        //   2. render() diffs against a shadow cache and emits MIDI only for changed
+        //      cells, so calling it every 30 Hz is safe and was the design intent.
+        //   3. Mode transitions (holding Track, switching sections, etc.) call repaint()
+        //      directly without touching the dirty flag here, so dirty is not a reliable
+        //      signal for "controller state may have changed".
+        if ((xTouchSurface_ && controllerPorts_.isOpen())
+            || (push1Surface_ && push1Ports_.isOpen()))
         {
             auto sink = buildControllerSink();
             const auto model = buildSurfaceModel(uiState_,
