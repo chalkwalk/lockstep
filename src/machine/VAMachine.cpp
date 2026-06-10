@@ -1,4 +1,5 @@
 #include "VAMachine.h"
+#include "MachineParamTable.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -51,72 +52,79 @@ namespace lockstep
     // =========================================================================
     // Schema
 
+    // Unit / Role as uint8 (avoids -Wsign-conversion casts in every row).
+    // These must stay in sync with the ParamSpec enums in IMachine.h.
+    namespace va_u { // unit
+        static constexpr uint8_t None = 0, Ms = 1, Semi = 2, Pct = 3;
+    }
+    namespace va_r { // role
+        static constexpr uint8_t None = 0, Pitch = 1, Level = 3, Pan = 4,
+                                  Cut = 5, Res = 6, Drive = 7,
+                                  Atk = 8, Dcy = 10, Sus = 11, Rel = 12,
+                                  LfoDep = 13, LfoRat = 14, LfoShp = 15;
+    }
+
+    namespace { // NULL-terminated value-label arrays (static lifetime)
+        static constexpr const char* kVAOscWaveLabels[]    = { "SAW","TRI","SQR","SIN",         nullptr };
+        static constexpr const char* kVAOsc2WaveLabels[]   = { "SAW","TRI","SQR","SIN","OFF",   nullptr };
+        static constexpr const char* kVAVoiceModeLabels[]  = { "MONO","PARA",                   nullptr };
+        static constexpr const char* kVAFilterTypeLabels[] = { "LP24","LP12","HP","BP",          nullptr };
+        static constexpr const char* kVALfoShapeLabels[]   = { "SIN","TRI","SAW","SQR","S&H","RND", nullptr };
+        static constexpr const char* kVALfoTargetLabels[]  = { "CUT","PITCH","PW","AMP",         nullptr };
+        static constexpr const char* kVALfoSyncLabels[]    = { "FREE","SYNC",                    nullptr };
+        static constexpr const char* kVARetrigLabels[]     = { "LEGATO","RETRIG",                nullptr };
+    }
+
+    // { id, label, min, max, def, skew, stepped, unit, role, variant, section, zcSnap, labels }
+    static constexpr ParamRow kVAParams[] = {
+        // --- SRC (section 1, 12 slots) ---
+        { "va_osc1_coarse", "Osc1 Coarse", -24.f,   24.f,   0.f, 1.f, 1,va_u::Semi, va_r::Pitch, 0, 1, 0, nullptr           }, //  0
+        { "va_osc1_fine",   "Osc1 Fine",   -50.f,   50.f,   0.f, 1.f, 0,va_u::None, va_r::None,  0, 1, 0, nullptr           }, //  1
+        { "va_osc1_wave",   "Osc1 Wave",     0.f,    3.f,   0.f, 1.f, 1,va_u::None, va_r::None,  0, 1, 0, kVAOscWaveLabels  }, //  2
+        { "va_osc1_pw",     "Osc1 PW",       0.f,    1.f,  0.5f, 1.f, 0,va_u::None, va_r::None,  0, 1, 0, nullptr           }, //  3
+        { "va_osc2_coarse", "Osc2 Coarse", -24.f,   24.f,   0.f, 1.f, 1,va_u::Semi, va_r::Pitch, 0, 1, 0, nullptr           }, //  4
+        { "va_osc2_fine",   "Osc2 Fine",   -50.f,   50.f,   0.f, 1.f, 0,va_u::None, va_r::None,  0, 1, 0, nullptr           }, //  5
+        { "va_osc2_wave",   "Osc2 Wave",     0.f,    4.f,   0.f, 1.f, 1,va_u::None, va_r::None,  0, 1, 0, kVAOsc2WaveLabels }, //  6
+        { "va_osc2_pw",     "Osc2 PW",       0.f,    1.f,  0.5f, 1.f, 0,va_u::None, va_r::None,  0, 1, 0, nullptr           }, //  7
+        { "va_sub",         "Sub",            0.f,    1.f,   0.f, 1.f, 0,va_u::None, va_r::None,  0, 1, 0, nullptr           }, //  8
+        { "va_noise",       "Noise",          0.f,    1.f,   0.f, 1.f, 0,va_u::None, va_r::None,  0, 1, 0, nullptr           }, //  9
+        { "va_porta",       "Portamento",     0.f,  500.f,   0.f, 1.f, 0,va_u::Ms,   va_r::None,  0, 1, 0, nullptr           }, // 10
+        { "va_voice_mode",  "Voice Mode",     0.f,    1.f,   0.f, 1.f, 1,va_u::None, va_r::None,  0, 1, 0, kVAVoiceModeLabels}, // 11
+        // --- FLTR (section 2, 9 slots) ---
+        { "va_cutoff",      "Cutoff",         0.f,    1.f,   1.f, 1.f, 0,va_u::None, va_r::Cut,   0, 2, 0, nullptr           }, // 12
+        { "va_res",         "Resonance",      0.f,    1.f,   0.f, 1.f, 0,va_u::None, va_r::Res,   0, 2, 0, nullptr           }, // 13
+        { "va_filter_type", "Filter",         0.f,    3.f,   0.f, 1.f, 1,va_u::None, va_r::None,  0, 2, 0, kVAFilterTypeLabels},// 14
+        { "va_drive",       "Drive",          0.f,    1.f,   0.f, 1.f, 0,va_u::None, va_r::Drive, 0, 2, 0, nullptr           }, // 15
+        { "va_fenv_depth",  "Env Depth",     -1.f,    1.f,   0.f, 1.f, 0,va_u::None, va_r::None,  0, 2, 0, nullptr           }, // 16
+        { "va_fenv_a",      "F Atk",          0.f, 5000.f,   1.f,0.3f, 0,va_u::Ms,   va_r::None,  0, 2, 0, nullptr           }, // 17
+        { "va_fenv_d",      "F Dec",          1.f,10000.f, 100.f,0.3f, 0,va_u::Ms,   va_r::None,  0, 2, 0, nullptr           }, // 18
+        { "va_fenv_s",      "F Sus",          0.f,    1.f,   0.f, 1.f, 0,va_u::None, va_r::None,  0, 2, 0, nullptr           }, // 19
+        { "va_fenv_r",      "F Rel",          1.f,10000.f, 100.f,0.3f, 0,va_u::Ms,   va_r::None,  0, 2, 0, nullptr           }, // 20
+        // --- AMP (section 3, 8 slots) ---
+        { "va_amp_a",       "Attack",         0.f, 5000.f,   1.f,0.3f, 0,va_u::Ms,   va_r::Atk,   0, 3, 0, nullptr           }, // 21
+        { "va_amp_d",       "Decay",          1.f,10000.f, 100.f,0.3f, 0,va_u::Ms,   va_r::Dcy,   0, 3, 0, nullptr           }, // 22
+        { "va_amp_s",       "Sustain",        0.f,    1.f,  0.8f, 1.f, 0,va_u::None, va_r::Sus,   0, 3, 0, nullptr           }, // 23
+        { "va_amp_r",       "Release",        1.f,10000.f, 500.f,0.3f, 0,va_u::Ms,   va_r::Rel,   0, 3, 0, nullptr           }, // 24
+        { "va_level",       "Level",          0.f,    1.f,  0.5f, 1.f, 0,va_u::None, va_r::Level, 0, 3, 0, nullptr           }, // 25
+        { "va_pan",         "Pan",           -1.f,    1.f,   0.f, 1.f, 0,va_u::None, va_r::Pan,   0, 3, 0, nullptr           }, // 26
+        { "va_retrig",      "Retrig",         0.f,    1.f,   0.f, 1.f, 1,va_u::None, va_r::None,  0, 3, 0, kVARetrigLabels   }, // 27
+        { "va_vel_sens",    "Vel Sens",       0.f,    1.f,   0.f, 1.f, 0,va_u::Pct,  va_r::None,  0, 3, 0, nullptr           }, // 28
+        // --- LFO (section 4, 5 slots) ---
+        { "va_lfo_rate",    "LFO Rate",     0.01f,   40.f,   3.f, 1.f, 0,va_u::None, va_r::LfoRat,0, 4, 0, nullptr           }, // 29
+        { "va_lfo_depth",   "LFO Depth",     0.f,    1.f,   0.f, 1.f, 0,va_u::None, va_r::LfoDep,0, 4, 0, nullptr           }, // 30
+        { "va_lfo_shape",   "LFO Shape",     0.f,    5.f,   0.f, 1.f, 1,va_u::None, va_r::LfoShp,0, 4, 0, kVALfoShapeLabels }, // 31
+        { "va_lfo_target",  "LFO Target",    0.f,    3.f,   0.f, 1.f, 1,va_u::None, va_r::None,  0, 4, 0, kVALfoTargetLabels}, // 32
+        { "va_lfo_sync",    "LFO Sync",      0.f,    1.f,   0.f, 1.f, 1,va_u::None, va_r::None,  0, 4, 0, kVALfoSyncLabels  }, // 33
+        // --- SRC continued (section 1) ---
+        { "va_osc_mix",     "Osc Mix",        0.f,    1.f,  0.5f, 1.f, 0,va_u::None, va_r::None,  0, 1, 0, nullptr           }, // 34
+    };
+    static_assert(std::size(kVAParams) == VAMachine::kNumSlots,
+                  "kVAParams row count must equal kNumSlots");
+
     ParamSpec VAMachine::paramSpec(int index) const
     {
-        using U = ParamSpec::Unit;
-        using R = ParamSpec::Role;
-
-        static constexpr const char* kVoiceModeLabels[]  = { "MONO", "PARA" };
-        static constexpr const char* kFilterTypeLabels[]  = { "LP24", "LP12", "HP", "BP" };
-        static constexpr const char* kOscWaveLabels[]     = { "SAW", "TRI", "SQR", "SIN" };
-        static constexpr const char* kOsc2WaveLabels[]    = { "SAW", "TRI", "SQR", "SIN", "OFF" };
-        static constexpr const char* kLfoShapeLabels[]    = { "SIN", "TRI", "SAW", "SQR", "S&H", "RND" };
-        static constexpr const char* kLfoTargetLabels[]   = { "CUT", "PITCH", "PW", "AMP" };
-        static constexpr const char* kLfoSyncLabels[]     = { "FREE", "SYNC" };
-
-        switch (index)
-        {
-        // --- SRC (section 1) ---
-        case kSlotOsc1Coarse: return { "va_osc1_coarse", "Osc1 Coarse", -24.0f, 24.0f,  0.0f, true,  U::Semitones, 1, R::Pitch };
-        case kSlotOsc1Fine:   return { "va_osc1_fine",   "Osc1 Fine",   -50.0f, 50.0f,  0.0f, false, U::None,      1, R::None  };
-        case kSlotOsc1Wave:   { ParamSpec p { "va_osc1_wave",   "Osc1 Wave",     0.0f,  3.0f,  0.0f, true,  U::None,      1, R::None  }; p.valueLabels = std::span<const char* const>(kOscWaveLabels); return p; }
-        case kSlotOsc1PW:     return { "va_osc1_pw",     "Osc1 PW",       0.0f,  1.0f,  0.5f, false, U::None,      1, R::None  };
-        case kSlotOsc2Coarse: return { "va_osc2_coarse", "Osc2 Coarse", -24.0f, 24.0f,  0.0f, true,  U::Semitones, 1, R::Pitch };
-        case kSlotOsc2Fine:   return { "va_osc2_fine",   "Osc2 Fine",   -50.0f, 50.0f,  0.0f, false, U::None,      1, R::None  };
-        case kSlotOsc2Wave:   { ParamSpec p { "va_osc2_wave",   "Osc2 Wave",     0.0f,  4.0f,  0.0f, true,  U::None,      1, R::None  }; p.valueLabels = std::span<const char* const>(kOsc2WaveLabels); return p; }
-        case kSlotOsc2PW:     return { "va_osc2_pw",     "Osc2 PW",       0.0f,  1.0f,  0.5f, false, U::None,      1, R::None  };
-        case kSlotSub:        return { "va_sub",          "Sub",           0.0f,  1.0f,  0.0f, false, U::None,      1, R::None  };
-        case kSlotNoise:      return { "va_noise",        "Noise",         0.0f,  1.0f,  0.0f, false, U::None,      1, R::None  };
-        case kSlotPorta:      return { "va_porta",        "Portamento",    0.0f,500.0f,  0.0f, false, U::Ms,        1, R::None  };
-        case kSlotVoiceMode:  { ParamSpec p { "va_voice_mode",   "Voice Mode",    0.0f,  1.0f,  0.0f, true,  U::None,      1, R::None  }; p.valueLabels = std::span<const char* const>(kVoiceModeLabels);  return p; }
-
-        // --- FLTR (section 2) ---
-        case kSlotCutoff:     return { "va_cutoff",      "Cutoff",        0.0f,  1.0f,  1.0f, false, U::None,      2, R::Cutoff    };
-        case kSlotRes:        return { "va_res",          "Resonance",     0.0f,  1.0f,  0.0f, false, U::None,      2, R::Resonance };
-        case kSlotFilterType: { ParamSpec p { "va_filter_type",  "Filter",        0.0f,  3.0f,  0.0f, true,  U::None,      2, R::None  }; p.valueLabels = std::span<const char* const>(kFilterTypeLabels); return p; }
-        case kSlotDrive:      return { "va_drive",        "Drive",         0.0f,  1.0f,  0.0f, false, U::None,      2, R::Drive     };
-        case kSlotFEnvDepth:  return { "va_fenv_depth",   "Env Depth",    -1.0f,  1.0f,  0.0f, false, U::None,      2, R::None      };
-        case kSlotFEnvA:      { ParamSpec p { "va_fenv_a", "F Atk",  0.0f, 5000.0f,   1.0f, false, U::Ms, 2, R::None }; p.skew = 0.3f; return p; }
-        case kSlotFEnvD:      { ParamSpec p { "va_fenv_d", "F Dec",  1.0f,10000.0f, 100.0f, false, U::Ms, 2, R::None }; p.skew = 0.3f; return p; }
-        case kSlotFEnvS:      return { "va_fenv_s",       "F Sus",         0.0f,  1.0f,  0.0f, false, U::None,      2, R::None      };
-        case kSlotFEnvR:      { ParamSpec p { "va_fenv_r", "F Rel",  1.0f,10000.0f, 100.0f, false, U::Ms, 2, R::None }; p.skew = 0.3f; return p; }
-
-        // --- AMP (section 3) ---
-        case kSlotAmpA:       { ParamSpec p { "va_amp_a", "Attack",  0.0f, 5000.0f,   1.0f, false, U::Ms, 3, R::Attack  }; p.skew = 0.3f; return p; }
-        case kSlotAmpD:       { ParamSpec p { "va_amp_d", "Decay",   1.0f,10000.0f, 100.0f, false, U::Ms, 3, R::Decay   }; p.skew = 0.3f; return p; }
-        case kSlotAmpS:       return { "va_amp_s",        "Sustain",       0.0f,  1.0f,  0.8f,  false, U::None,     3, R::Sustain };
-        case kSlotAmpR:       { ParamSpec p { "va_amp_r", "Release", 1.0f,10000.0f, 500.0f, false, U::Ms, 3, R::Release }; p.skew = 0.3f; return p; }
-        case kSlotLevel:      return { "va_level",        "Level",         0.0f,  1.0f,  0.5f,  false, U::None,     3, R::Level   };
-        case kSlotPan:        return { "va_pan",          "Pan",          -1.0f,  1.0f,  0.0f,  false, U::None,     3, R::Pan     };
-        case kSlotRetrig:
-        {
-          static constexpr const char* kRetrigLabels[] = { "LEGATO", "RETRIG" };
-          ParamSpec p { "va_retrig", "Retrig", 0.0f, 1.0f, 0.0f, true, U::None, 3, R::None };
-          p.valueLabels = std::span<const char* const>(kRetrigLabels);
-          return p;
-        }
-        case kSlotVelSens:
-          return { "va_vel_sens", "Vel Sens", 0.0f, 1.0f, 0.0f, false, U::Percent, 3, R::None };
-
-        // --- LFO (section 4) ---
-        case kSlotLfoRate:    return { "va_lfo_rate",     "LFO Rate",    0.01f, 40.0f,  3.0f, false, U::None,      4, R::LfoRate  };
-        case kSlotLfoDepth:   return { "va_lfo_depth",    "LFO Depth",   0.0f,   1.0f,  0.0f, false, U::None,      4, R::LfoDepth };
-        case kSlotLfoShape:   { ParamSpec p { "va_lfo_shape",    "LFO Shape",   0.0f,   5.0f,  0.0f, true,  U::None,      4, R::LfoShape }; p.valueLabels = std::span<const char* const>(kLfoShapeLabels);  return p; }
-        case kSlotLfoTarget:  { ParamSpec p { "va_lfo_target",   "LFO Target",  0.0f,   3.0f,  0.0f, true,  U::None,      4, R::None     }; p.valueLabels = std::span<const char* const>(kLfoTargetLabels); return p; }
-        case kSlotLfoSync:    { ParamSpec p { "va_lfo_sync",     "LFO Sync",    0.0f,   1.0f,  0.0f, true,  U::None,      4, R::None     }; p.valueLabels = std::span<const char* const>(kLfoSyncLabels);   return p; }
-        case kSlotOscMix:     return { "va_osc_mix", "Osc Mix", 0.0f, 1.0f, 0.5f, false, U::None, 1, R::None };
-        default: return {};
-        }
+        if (index < 0 || index >= kNumSlots) return {};
+        return toParamSpec(kVAParams[static_cast<std::size_t>(index)]);
     }
 
     SectionInfo VAMachine::section(int index) const

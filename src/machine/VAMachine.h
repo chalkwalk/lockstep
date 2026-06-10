@@ -25,6 +25,8 @@ namespace lockstep
     [[nodiscard]] const char* badge()     const noexcept override { return "VA"; }
     static constexpr const char* kMachineId = "lockstep.va.v1";
 
+    static constexpr int kNumSlots = 35;
+
     int       numParams()          const override { return kNumSlots; }
     ParamSpec paramSpec(int index) const override;
     int       numSections()        const override { return kNumSections; }
@@ -84,7 +86,6 @@ namespace lockstep
     // Section 1 — SRC (continued; osc level balance)
     static constexpr int kSlotOscMix     = 34;  // 0=all osc1, 1=all osc2, 0.5=equal power
 
-    static constexpr int kNumSlots    = 35;
     static constexpr int kNumSections = 5;
     static constexpr int kMaxSubVoices = 4;
 
