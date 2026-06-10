@@ -38,6 +38,10 @@ namespace lockstep
     // UI-local selection state. Not persisted. Not accessed from the audio thread.
     struct UiState
     {
+        // Focused track (0 .. kNumTracks-1). Authoritative source of truth;
+        // KeyboardArea delegates getActiveTrack()/setActiveTrack() to this field.
+        int activeTrack = 0;
+
         // Per-track active section (0 .. kMaxSections-1).
         std::array<int, kNumTracks> trackSection{};
 

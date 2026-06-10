@@ -10,6 +10,7 @@ endif()
 add_library(lockstep_core STATIC
     Parameters.cpp
     command/ButtonLayers.cpp
+    command/CommandCore.cpp
     core/Clock.cpp
     core/Metronome.cpp
     core/StateResolver.cpp

@@ -28,7 +28,7 @@ namespace lockstep
 
         // Track / page (was in StepGrid)
         void setActiveTrack(int t);
-        int  getActiveTrack() const { return activeTrack_; }
+        int  getActiveTrack() const { return uiState_.activeTrack; }
         int  currentPage()    const { return stepPage_; }
         void nextPage();
         void prevPage();
@@ -156,7 +156,6 @@ namespace lockstep
         int                slotOffset_      = 0;
         float              crossfaderValue_ = 0.5f;
 
-        int             activeTrack_    = 0;
         int             stepPage_       = 0;
         bool            scrollPastEndUnlocked_ = false;
         GridDisplayMode displayMode_    = GridDisplayMode::Ortholinear;

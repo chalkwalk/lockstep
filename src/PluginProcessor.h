@@ -107,6 +107,8 @@ namespace lockstep
         // ── Working buffer = arrangement_.working (the resolver reads this) ───
         Sequence&       sequence()       { return arrangement_.working; }
         const Sequence& sequence() const { return arrangement_.working; }
+        Arrangement&        arrangement()        { return arrangement_; }
+        const Arrangement&  arrangement()  const { return arrangement_; }
         Project&        project()        { return project_; }
         const Project&  project()        const { return project_; }
 
@@ -441,6 +443,8 @@ namespace lockstep
 
         // Returns the stable machineId string for the given track.
         [[nodiscard]] juce::String getMachineId(int track) const;
+        // Returns the raw const char* machineId for the given track (static lifetime).
+        [[nodiscard]] const char*  getMachineIdRaw(int track) const;
 
         // Returns the short display badge for the given track's live machine.
         // Empty string means no badge (stub / null machine).

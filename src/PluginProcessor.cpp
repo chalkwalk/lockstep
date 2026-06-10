@@ -3107,6 +3107,13 @@ namespace lockstep
         return m ? juce::String(m->machineId()) : juce::String{};
     }
 
+    const char* LockstepProcessor::getMachineIdRaw(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return "";
+        const auto* m = machines_[static_cast<std::size_t>(track)].get();
+        return m ? m->machineId() : "";
+    }
+
     const char* LockstepProcessor::trackBadge(int track) const noexcept
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return "";

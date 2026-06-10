@@ -9,6 +9,9 @@
 
 #include "PluginProcessor.h"
 #include "command/ButtonLayers.h"
+#include "command/CommandContext.h"
+#include "command/CommandCore.h"
+#include "command/CommandEffects.h"
 #include "controller/IControllerSurface.h"
 #include "controller/XTouchMiniSurface.h"
 #include "controller/Push1Surface.h"
@@ -237,6 +240,17 @@ namespace lockstep
 
         // Build the effective modifier state (physical OR latched) for resolveLayer().
         [[nodiscard]] LayerContext layerContext() const noexcept;
+
+        // Command core seam (Phase 8.4).
+        CommandContext commandContext();
+        // EditorEffects adapts CommandEffects for the live editor; defined early
+        // in PluginEditor.cpp so it can access private members via nested-class
+        // friendship. Stored as the base-class pointer to avoid unique_ptr<T>
+        // requiring a complete type at the declaration site.
+        struct EditorEffects;
+        std::unique_ptr<CommandEffects> editorEffects_;
+        CommandCore commandCore_;
+
         void handleTapTempo();
 
         PressTracker pressTracker_;

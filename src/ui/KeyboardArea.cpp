@@ -32,7 +32,7 @@ namespace lockstep
     KeyboardArea::KeyboardArea(LockstepProcessor& processor, UiState& uiState)
         : processor_(processor), uiState_(uiState)
     {
-        processor_.setFocusTrack(activeTrack_);
+        processor_.setFocusTrack(uiState_.activeTrack);
         startTimerHz(30);
     }
 
@@ -104,14 +104,14 @@ namespace lockstep
     void KeyboardArea::setActiveTrack(int t)
     {
         const int clamped = juce::jlimit(0, static_cast<int>(kNumTracks) - 1, t);
-        if (clamped == activeTrack_)
+        if (clamped == uiState_.activeTrack)
             return;
-        activeTrack_ = clamped;
+        uiState_.activeTrack = clamped;
         processor_.setFocusTrack(clamped);
         stepPage_ = 0;
         repaint();
         if (onActiveTrackChanged)
-            onActiveTrackChanged(activeTrack_);
+            onActiveTrackChanged(uiState_.activeTrack);
     }
 
     void KeyboardArea::nextPage() { ++stepPage_; clampPage(); }
@@ -152,7 +152,7 @@ namespace lockstep
     int KeyboardArea::trackLength() const
     {
         auto* p = processor_.apvts().getRawParameterValue(
-            ParamIDs::trackLength(activeTrack_));
+            ParamIDs::trackLength(uiState_.activeTrack));
         return p ? static_cast<int>(p->load()) : kPageSteps;
     }
 
@@ -376,19 +376,19 @@ namespace lockstep
 
     bool KeyboardArea::selectSection(int sectionIndex)
     {
-        if (activeTrack_ < 0 || activeTrack_ >= static_cast<int>(kNumTracks))
+        if (uiState_.activeTrack < 0 || uiState_.activeTrack >= static_cast<int>(kNumTracks))
             return false;
         if (sectionIndex < 0 || sectionIndex >= IMachine::kMaxSections)
             return false;
 
-        const auto groups = sectionsForKey(activeTrack_, sectionIndex);
+        const auto groups = sectionsForKey(uiState_.activeTrack, sectionIndex);
         if (groups.empty())  // no machine slots in this canonical section or its extensions
             return false;
 
         int totalPages = 0;
         for (const auto& g : groups) totalPages += g.pageCount;
 
-        const auto ti = static_cast<std::size_t>(activeTrack_);
+        const auto ti = static_cast<std::size_t>(uiState_.activeTrack);
         const auto si = static_cast<std::size_t>(sectionIndex);
 
         const bool wasInMasterMode = (uiState_.masterSection != -1);
@@ -405,7 +405,7 @@ namespace lockstep
         }
 
         repaint();
-        notifySectionChanged(sectionIndex, activeTrack_);
+        notifySectionChanged(sectionIndex, uiState_.activeTrack);
         return true;
     }
 
@@ -425,20 +425,20 @@ namespace lockstep
     void KeyboardArea::syncToActiveTrack()
     {
         repaint();
-        if (activeTrack_ < 0 || activeTrack_ >= static_cast<int>(kNumTracks))
+        if (uiState_.activeTrack < 0 || uiState_.activeTrack >= static_cast<int>(kNumTracks))
             return;
         if (uiState_.masterSection >= 0)
             return;
 
-        const auto ti = static_cast<std::size_t>(activeTrack_);
+        const auto ti = static_cast<std::size_t>(uiState_.activeTrack);
         int sec = uiState_.trackSection[ti];
 
         // If the current section is empty for this machine, snap to the first available one.
-        if (processor_.section(activeTrack_, sec).firstSlot < 0)
+        if (processor_.section(uiState_.activeTrack, sec).firstSlot < 0)
         {
             for (int s = 0; s < IMachine::kMaxSections; ++s)
             {
-                if (processor_.section(activeTrack_, s).firstSlot >= 0)
+                if (processor_.section(uiState_.activeTrack, s).firstSlot >= 0)
                 {
                     uiState_.trackSection[ti] = s;
                     sec = s;
@@ -447,7 +447,7 @@ namespace lockstep
             }
         }
 
-        notifySectionChanged(sec, activeTrack_);
+        notifySectionChanged(sec, uiState_.activeTrack);
     }
 
     // -------------------------------------------------------------------------
@@ -696,7 +696,7 @@ namespace lockstep
         const auto areas = computeRowAreas();
         const SurfaceModel model = buildSurfaceModel(
             uiState_, processor_.editContext(), pressTracker_,
-            processor_, activeTrack_, stepPage_, displayMode_,
+            processor_, uiState_.activeTrack, stepPage_, displayMode_,
             slotOffset_, crossfaderValue_, morphView_);
         paintSectionRow (g, areas.section,  model);
         paintFunctionRow(g, areas.function, model);
@@ -739,16 +739,16 @@ namespace lockstep
             paintCell(g, cell, model.section[static_cast<std::size_t>(s)], showKeyHint);
 
             // Page dots — screen-only decoration, not in model (residual §35.8.1)
-            const auto groups = sectionsForKey(activeTrack_, s);
+            const auto groups = sectionsForKey(uiState_.activeTrack, s);
             int totalPageCount = 0;
             for (const auto& grp2 : groups) totalPageCount += grp2.pageCount;
             const bool isMasterActive = !isScopedMode && (uiState_.masterSection == s);
             const bool isTrackActive  = !isScopedMode && (uiState_.masterSection == -1
-                && uiState_.trackSection[static_cast<std::size_t>(activeTrack_)] == s);
+                && uiState_.trackSection[static_cast<std::size_t>(uiState_.activeTrack)] == s);
 
             if (totalPageCount > 1 && !isMasterActive)
             {
-                const auto ti        = static_cast<std::size_t>(activeTrack_);
+                const auto ti        = static_cast<std::size_t>(uiState_.activeTrack);
                 const auto si        = static_cast<std::size_t>(s);
                 const int activePage = uiState_.trackPage[ti][si];
 
@@ -847,7 +847,7 @@ namespace lockstep
 
         const int trackLen  = trackLength();
         const int baseStep  = stepPage_ * kPageSteps;
-        const auto& track   = processor_.sequence().tracks[static_cast<std::size_t>(activeTrack_)];
+        const auto& track   = processor_.sequence().tracks[static_cast<std::size_t>(uiState_.activeTrack)];
         const bool fillActive = processor_.fillActive();
 
         // MHX step keys: D-; (steps 0-7, A row), C-/ (steps 8-15, Z row).
@@ -993,7 +993,7 @@ namespace lockstep
         {
             const juce::Colour fxTint = col(compatColour(CellState::EffectAvailable));
             const int numEffects = processor_.numAvailableEffects();
-            const juce::String loadedId = processor_.trackInsertId(activeTrack_,
+            const juce::String loadedId = processor_.trackInsertId(uiState_.activeTrack,
                                                                     uiState_.funcFxInsertSlot);
 
             for (int row = 0; row < kRows; ++row)
@@ -1126,7 +1126,7 @@ namespace lockstep
             const juce::Colour stageTint = juce::Colour::fromRGB(220, 100, 60);
 
             const int octave   = uiState_.noteEditOctave;
-            const int trackIdx = activeTrack_;
+            const int trackIdx = uiState_.activeTrack;
 
             for (int row = 0; row < kRows; ++row)
             {
@@ -1271,15 +1271,15 @@ namespace lockstep
         // Fill and press from model; label text (slot name) is a screen residual that
         // still needs lockedSlots for the label text and nav message count.
         if (uiState_.pLockClearMode
-            && uiState_.pLockClearTrack == activeTrack_
+            && uiState_.pLockClearTrack == uiState_.activeTrack
             && uiState_.pLockClearStep >= 0)
         {
             const juce::Colour clearTint = col(kScopePLock);
             const int targetStep = uiState_.pLockClearStep;
             const auto& stepData = processor_.sequence()
-                .tracks[static_cast<std::size_t>(activeTrack_)]
+                .tracks[static_cast<std::size_t>(uiState_.activeTrack)]
                 .steps[static_cast<std::size_t>(targetStep)];
-            const int numSlots = processor_.numParams(activeTrack_);
+            const int numSlots = processor_.numParams(uiState_.activeTrack);
 
             // lockedSlots needed for label text and nav count (screen residual).
             std::vector<int> lockedSlots;
@@ -1333,7 +1333,7 @@ namespace lockstep
                         juce::String label;
                         if      (slotIdx == -2) label = "Vel";
                         else if (slotIdx == -3) label = "Gate";
-                        else                    label = processor_.paramSpec(activeTrack_, slotIdx).label;
+                        else                    label = processor_.paramSpec(uiState_.activeTrack, slotIdx).label;
                         g.setColour(juce::Colours::white.withAlpha(isStaged ? 0.35f : 0.90f));
                         g.setFont(juce::Font(juce::FontOptions(8.0f)));
                         g.drawText(label, cell.reduced(2), juce::Justification::centred, true);
@@ -1357,8 +1357,8 @@ namespace lockstep
         // MHZ.7.3: CHROMATIC mode — step cells become a piano keyboard.
         // Fill and press from model; note names, key hints, nav text inline.
         {
-            const auto mode = (activeTrack_ >= 0 && activeTrack_ < static_cast<int>(kNumTracks))
-                              ? uiState_.trackInputMode[static_cast<std::size_t>(activeTrack_)]
+            const auto mode = (uiState_.activeTrack >= 0 && uiState_.activeTrack < static_cast<int>(kNumTracks))
+                              ? uiState_.trackInputMode[static_cast<std::size_t>(uiState_.activeTrack)]
                               : TrackInputMode::Play;
             if (mode == TrackInputMode::Chromatic)
             {
@@ -1412,8 +1412,8 @@ namespace lockstep
         // MHZ.7.4: LEVELS mode — step cells are 16 velocity buckets (1/16..16/16 of 127).
         // Fill and press from model; velocity text, outline, key hint inline.
         {
-            const auto mode = (activeTrack_ >= 0 && activeTrack_ < static_cast<int>(kNumTracks))
-                              ? uiState_.trackInputMode[static_cast<std::size_t>(activeTrack_)]
+            const auto mode = (uiState_.activeTrack >= 0 && uiState_.activeTrack < static_cast<int>(kNumTracks))
+                              ? uiState_.trackInputMode[static_cast<std::size_t>(uiState_.activeTrack)]
                               : TrackInputMode::Play;
             if (mode == TrackInputMode::Levels)
             {
@@ -1851,7 +1851,7 @@ namespace lockstep
         const int trackLen = juce::jlimit(1, kTimelineSteps, trackLength());
 
         auto* divP = processor_.apvts().getRawParameterValue(
-            ParamIDs::trackDivider(activeTrack_));
+            ParamIDs::trackDivider(uiState_.activeTrack));
         const int div = divP ? juce::jmax(1, static_cast<int>(divP->load())) : 1;
         const double divPpq = 0.25 * static_cast<double>(div);
 
@@ -1871,7 +1871,7 @@ namespace lockstep
         const int stepsPerBar  = juce::jmax(stepsPerBeat,
             static_cast<int>(std::round(ts.barPpq() / divPpq)));
 
-        const auto& trk = processor_.sequence().tracks[static_cast<std::size_t>(activeTrack_)];
+        const auto& trk = processor_.sequence().tracks[static_cast<std::size_t>(uiState_.activeTrack)];
 
         // Layout: vertical centering within navArea, leaving a small margin
         const int margin = 3;

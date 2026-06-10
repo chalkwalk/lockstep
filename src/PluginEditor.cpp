@@ -13,6 +13,97 @@
 
 namespace lockstep
 {
+    // -------------------------------------------------------------------------
+    // Command core seam (Phase 8.4)
+    // Defined here (before constructor) so the nested struct is complete when
+    // make_unique<EditorEffects> is called in the member-initialiser list.
+
+    struct LockstepEditor::EditorEffects final : CommandEffects
+    {
+        LockstepEditor& ed;
+        explicit EditorEffects(LockstepEditor& e) : ed(e) {}
+
+        void status(const juce::String& msg) override       { ed.setStatus(msg); }
+        void requestRepaint() override                      { ed.repaint(); }
+        void transport(TransportAction a) override
+        {
+            using A = TransportAction;
+            auto& clk = ed.processor_.clock();
+            switch (a)
+            {
+                case A::Play:
+                    clk.setInPluginPlaying(!clk.inPluginPlaying());
+                    break;
+                case A::Pause:
+                    clk.setInPluginPlaying(false);
+                    break;
+                case A::StopReset:
+                    clk.setInPluginPlaying(false);
+                    clk.resetPhase();
+                    ed.processor_.requestFreshStart();
+                    break;
+                case A::Panic:
+                    ed.processor_.requestPanic();
+                    break;
+                case A::RecArm:
+                    clk.setRecordArmed(!clk.isRecordArmed());
+                    break;
+                case A::Metronome:
+                    clk.setMetronomeEnabled(!clk.isMetronomeEnabled());
+                    break;
+                case A::TapTempo:
+                    ed.handleTapTempo();
+                    break;
+            }
+        }
+        void machineAssign(int track, const char* id) override
+        {
+            ed.processor_.setTrackMachine(track, id);
+            ed.repaint();
+        }
+        void openOverlay(OverlayId id, int param) override
+        {
+            switch (id)
+            {
+                case OverlayId::SamplePool:
+                    ed.poolOverlay_.setVisible(true);
+                    break;
+                case OverlayId::SoundBank:
+                    ed.soundBankOverlay_.setVisible(true);
+                    break;
+                case OverlayId::MachinePicker:
+                    ed.uiState_.funcTrackHeld = (param != 0);
+                    ed.repaint();
+                    break;
+            }
+        }
+        void crossfader(float value) override
+        {
+            ed.crossfader_.setValue(static_cast<double>(value),
+                                    juce::sendNotificationAsync);
+        }
+    };
+
+    // Narrow IMachineCatalog adapter — forwards to LockstepProcessor.
+    // Defined here so test targets can supply their own fixture.
+    struct ProcessorCatalog final : IMachineCatalog
+    {
+        LockstepProcessor& p;
+        explicit ProcessorCatalog(LockstepProcessor& proc) : p(proc) {}
+
+        [[nodiscard]] int         numParams (int track)           const override
+            { return p.numParams(track); }
+        [[nodiscard]] ParamSpec   paramSpec (int track, int slot) const override
+            { return p.paramSpec(track, slot); }
+        [[nodiscard]] SectionInfo section   (int track, int idx)  const override
+            { return p.section(track, idx); }
+        [[nodiscard]] const char* machineId (int track)           const override
+            { return p.getMachineIdRaw(track); }
+    };
+
+    // -------------------------------------------------------------------------
+    // Constructor / destructor
+
     LockstepEditor::LockstepEditor(LockstepProcessor& proc)
         : juce::AudioProcessorEditor(&proc),
           processor_(proc),
@@ -20,7 +111,8 @@ namespace lockstep
           keyboardArea_(proc, uiState_),
           manipulationZone_(proc, keyboardArea_),
           poolOverlay_(proc),
-          soundBankOverlay_(proc)
+          soundBankOverlay_(proc),
+          editorEffects_(std::make_unique<EditorEffects>(*this))
     {
         // Load persisted display mode.
         {
@@ -1136,6 +1228,14 @@ namespace lockstep
     bool LockstepEditor::dispatchDown(ControllerEvent ev, int rawCode)
     {
         using CB = ControllerButton;
+
+        // Phase 8.4 command core: try the migrated handlers first; fall through
+        // to legacy dispatch for everything that hasn't migrated yet.
+        {
+            auto ctx = commandContext();
+            if (commandCore_.handleDown(ev, ctx, *editorEffects_))
+                return true;
+        }
 
         // Transient swing dismissal (C3): any non-swing-scope interaction while the
         // swing band is showing collapses back to machine params so the user can reach
@@ -2854,6 +2954,13 @@ namespace lockstep
         using CB = ControllerButton;
         using T  = ControllerEvent::Type;
 
+        // Phase 8.4 command core: try migrated handlers first.
+        {
+            auto ctx = commandContext();
+            if (commandCore_.handleUp(ev, ctx, *editorEffects_))
+                return;
+        }
+
         switch (ev.button)
         {
             case CB::Func:
@@ -3522,6 +3629,13 @@ namespace lockstep
         using PS = EditMode::PrimaryScope;
         using CB = ControllerButton;
 
+        // Phase 8.4 command core: try migrated verb handlers first.
+        {
+            auto ctx = commandContext();
+            if (commandCore_.handleVerb(scope, verb, ctx, *editorEffects_))
+                return;
+        }
+
         switch (scope)
         {
             // -----------------------------------------------------------------------
@@ -3902,6 +4016,22 @@ namespace lockstep
             uiState_.funcHeld,
             uiState_.trackHeld  || uiState_.latch.track,
             uiState_.muteHeld   || uiState_.latch.mute
+        };
+    }
+
+    CommandContext LockstepEditor::commandContext()
+    {
+        // ProcessorCatalog is lightweight — safe to construct per-call.
+        static ProcessorCatalog catalog { processor_ };
+        return {
+            processor_.arrangement(),
+            processor_.sequence(),
+            processor_.editContext(),
+            editMode_,
+            uiState_,
+            clipboard_,
+            processor_.project().soundPool,
+            catalog
         };
     }
 
