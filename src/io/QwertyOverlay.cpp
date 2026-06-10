@@ -1,4 +1,5 @@
 #include "QwertyOverlay.h"
+#include "../command/ButtonLayers.h"
 
 #include <algorithm>
 #include <array>
@@ -18,9 +19,11 @@ namespace lockstep
 
         constexpr int code(char c) { return static_cast<int>(c); }
 
-        // Primary layer — no special modifier held.
+        // Primary layer — base mapping before any layer remap.
         // Modifier-cluster keys (1/Q/A/Z, 2/W/S/X) are handled by resolve()
         // directly; only non-modifier keys appear here.
+        // Layer remaps (Track/Mute/Func) are applied via resolveLayer()
+        // from ButtonLayers.h — kFunc/kTrack/kMute tables are no longer needed.
         constexpr std::array<Entry, 32> kPrimary = { {
             // Row 1 utilities: TAP(3), NavUp(4)
             { code('3'), B::TapTempo,   -1 },
@@ -40,6 +43,7 @@ namespace lockstep
             { code('T'), B::NavRight,   -1 },
 
             // Right-utility verbs (MHY.4): Snapshot / Rec / Play / Clear / Yes
+            // (Func layer remaps Y→Restore, O→VerbDelete via kLayerRemaps)
             { code('Y'), B::VerbYes,    -1 },
             { code('U'), B::VerbRecord, -1 },
             { code('I'), B::VerbPlay,   -1 },
@@ -47,6 +51,7 @@ namespace lockstep
             { code('P'), B::VerbNo,     -1 },
 
             // Step grid row 1 (D-; = steps 0-7)
+            // (Track layer → SelectTrack; Mute layer → ToggleMute via kLayerRemaps)
             { code('D'), B::Step,        0 },
             { code('F'), B::Step,        1 },
             { code('G'), B::Step,        2 },
@@ -65,69 +70,6 @@ namespace lockstep
             { 44,        B::Step,       13 },  // , = 44
             { 46,        B::Step,       14 },  // . = 46
             { 47,        B::Step,       15 },  // / = 47
-        } };
-
-        // Func layer — applied when Func (key 1) is held.
-        // Keys not listed here fall through to the primary table.
-        // Nav arrows (E/R/T) fall through to primary (NavLeft/Down/Right) so the
-        // builder-level Func-promotion (rotate/double/halve) handles them.
-        constexpr std::array<Entry, 12> kFunc = { {
-            // Meta sections (keys 5-0)
-            { code('5'), B::MetaSection,       0 },
-            { code('6'), B::MetaSection,       1 },
-            { code('7'), B::MetaSection,       2 },
-            { code('8'), B::MetaSection,       3 },
-            { code('9'), B::MetaSection,       4 },
-            { code('0'), B::MetaSection,       5 },
-
-            // Nav arrows E/R/T/4 all fall through to primary nav so the builder-level
-            // Func-promotion handles them (rotate-left / ÷2 / rotate-right / ×2).
-            { code('Y'), B::Restore,          -1 },  // Func+Y(Snap) = pop checkpoint (Restore)
-            { code('3'), B::MetronomeToggle,  -1 },  // Func+3(TAP)  = metronome toggle
-            { code('O'), B::VerbDelete,       -1 },  // Func+O(Clear)= delete entity (+ confirm)
-            { code('P'), B::VerbNo,           -1 },  // Func+P(Yes)  = No / cancel confirm
-            { code('U'), B::VerbRecord,       -1 },  // Func+U(Rec)  = omni copy (all layers)
-        } };
-
-        // Track layer — applied when Track (key Q) is held.
-        // Step rows D-; (0-7) and C-/ (8-15) select tracks.
-        constexpr std::array<Entry, 16> kTrack = { {
-            { code('D'), B::SelectTrack,  0 },
-            { code('F'), B::SelectTrack,  1 },
-            { code('G'), B::SelectTrack,  2 },
-            { code('H'), B::SelectTrack,  3 },
-            { code('J'), B::SelectTrack,  4 },
-            { code('K'), B::SelectTrack,  5 },
-            { code('L'), B::SelectTrack,  6 },
-            { 59,        B::SelectTrack,  7 },  // ;
-            { code('C'), B::SelectTrack,  8 },
-            { code('V'), B::SelectTrack,  9 },
-            { code('B'), B::SelectTrack, 10 },
-            { code('N'), B::SelectTrack, 11 },
-            { code('M'), B::SelectTrack, 12 },
-            { 44,        B::SelectTrack, 13 },  // ,
-            { 46,        B::SelectTrack, 14 },  // .
-            { 47,        B::SelectTrack, 15 },  // /
-        } };
-
-        // Mute layer — applied when Mute (key Z) is held.
-        constexpr std::array<Entry, 16> kMute = { {
-            { code('D'), B::ToggleMute,  0 },
-            { code('F'), B::ToggleMute,  1 },
-            { code('G'), B::ToggleMute,  2 },
-            { code('H'), B::ToggleMute,  3 },
-            { code('J'), B::ToggleMute,  4 },
-            { code('K'), B::ToggleMute,  5 },
-            { code('L'), B::ToggleMute,  6 },
-            { 59,        B::ToggleMute,  7 },  // ;
-            { code('C'), B::ToggleMute,  8 },
-            { code('V'), B::ToggleMute,  9 },
-            { code('B'), B::ToggleMute, 10 },
-            { code('N'), B::ToggleMute, 11 },
-            { code('M'), B::ToggleMute, 12 },
-            { 44,        B::ToggleMute, 13 },  // ,
-            { 46,        B::ToggleMute, 14 },  // .
-            { 47,        B::ToggleMute, 15 },  // /
         } };
 
         template <std::size_t N>
@@ -170,30 +112,24 @@ namespace lockstep
     {
         using T = ControllerEvent::Type;
 
-        // MHY cluster identities. Col 1 = Func / Phrase / Morph / Mute.
-        if (keyCode == code('1')) { return { T::ButtonDown, B::Func,         -1, 0 }; }
+        // MHY cluster identities always return their scope button unchanged.
+        // Col 1 = Func / Phrase / Morph / Mute.
+        if (keyCode == code('1')) { return { T::ButtonDown, B::Func,        -1, 0 }; }
         if (keyCode == code('Q')) { return { T::ButtonDown, B::PhraseScope, -1, 0 }; }
-        if (keyCode == code('A')) { return { T::ButtonDown, B::MorphScope,   -1, 0 }; }
-        if (keyCode == code('Z')) { return { T::ButtonDown, B::MuteScope,    -1, 0 }; }
+        if (keyCode == code('A')) { return { T::ButtonDown, B::MorphScope,  -1, 0 }; }
+        if (keyCode == code('Z')) { return { T::ButtonDown, B::MuteScope,   -1, 0 }; }
 
-        // MHY cluster identities. Col 2 = Track / Scene / Song / Fill.
-        if (keyCode == code('2')) { return { T::ButtonDown, B::TrackScope,  -1, 0 }; }
-        if (keyCode == code('W')) { return { T::ButtonDown, B::SceneScope,   -1, 0 }; }
-        if (keyCode == code('S')) { return { T::ButtonDown, B::SongScope, -1, 0 }; }
-        if (keyCode == code('X')) { return { T::ButtonDown, B::FillScope,   -1, 0 }; }
+        // Col 2 = Track / Scene / Song / Fill.
+        if (keyCode == code('2')) { return { T::ButtonDown, B::TrackScope, -1, 0 }; }
+        if (keyCode == code('W')) { return { T::ButtonDown, B::SceneScope, -1, 0 }; }
+        if (keyCode == code('S')) { return { T::ButtonDown, B::SongScope,  -1, 0 }; }
+        if (keyCode == code('X')) { return { T::ButtonDown, B::FillScope,  -1, 0 }; }
 
+        // Primary lookup, then a single resolveLayer() call handles all three
+        // modifier layers (Track > Mute > Func priority is encoded in kLayerRemaps).
         ControllerEvent ev;
+        if (!lookup(kPrimary, keyCode, ev)) { return {}; }  // unmapped key
 
-        // Track and Mute layers take priority for step-row keys.
-        if (trackHeld && lookup(kTrack, keyCode, ev)) { return ev; }
-        if (muteHeld  && lookup(kMute,  keyCode, ev)) { return ev; }
-
-        // Func layer for everything else.
-        if (funcHeld  && lookup(kFunc,  keyCode, ev)) { return ev; }
-
-        // Primary layer as final fallback.
-        if (lookup(kPrimary, keyCode, ev)) { return ev; }
-
-        return {};  // unmapped key
+        return resolveLayer(ev, { funcHeld, trackHeld, muteHeld });
     }
 }
