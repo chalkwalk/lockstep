@@ -25,27 +25,10 @@ namespace lockstep
     [[nodiscard]] const char* badge()     const noexcept override { return "FM"; }
     static constexpr const char* kMachineId = "lockstep.fm.v1";
 
-    int       numParams()          const override { return kNumSlots; }
-    ParamSpec paramSpec(int index) const override;
-    int       numSections()        const override { return kNumSections; }
-    SectionInfo section(int index) const override;
+    static constexpr int kNumSlots = 54;
 
-    bool isVoiceActive()    const override;
-    bool hasInternalAmp()   const override { return true; }
-
-    // Mono (V1) or Poly (V4); driven by kSlotVoiceMode.
-    Polyphony currentVoices(const ParamFrame& baseParams) const override;
-
-    // DX7-inspired ratio table: 18 stepped values [0.5 … 16]
-    static constexpr int kNumRatios = 18;
-    static constexpr std::array<float, kNumRatios> kRatioTable = {
-      0.5f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f,
-      7.0f, 8.0f, 9.0f, 10.0f, 11.0f, 12.0f, 13.0f, 14.0f, 15.0f, 16.0f
-    };
-
-  private:
     // -----------------------------------------------------------------------
-    // Slot index constants
+    // Slot index constants (public — needed by kOpSlots file-scope table)
 
     // Section 1 — SRC (12 slots, 3 pages)
     static constexpr int kSlotRatio1  = 0;
@@ -96,8 +79,27 @@ namespace lockstep
     // Section 7 — VOICE (1 slot, extension of SRC).
     static constexpr int kSlotVoiceMode = 53;
 
-    static constexpr int kNumSlots    = 54;
     static constexpr int kNumSections = 8;  // indices 0..7; 6=MOD, 7=VOICE (both SRC extensions)
+
+    int       numParams()          const override { return kNumSlots; }
+    ParamSpec paramSpec(int index) const override;
+    int       numSections()        const override { return kNumSections; }
+    SectionInfo section(int index) const override;
+
+    bool isVoiceActive()    const override;
+    bool hasInternalAmp()   const override { return true; }
+
+    // Mono (V1) or Poly (V4); driven by kSlotVoiceMode.
+    Polyphony currentVoices(const ParamFrame& baseParams) const override;
+
+    // DX7-inspired ratio table: 18 stepped values [0.5 … 16]
+    static constexpr int kNumRatios = 18;
+    static constexpr std::array<float, kNumRatios> kRatioTable = {
+      0.5f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f,
+      7.0f, 8.0f, 9.0f, 10.0f, 11.0f, 12.0f, 13.0f, 14.0f, 15.0f, 16.0f
+    };
+
+  private:
 
     static constexpr int kNumOps = 4;
     static constexpr int kMaxVoices = 4;

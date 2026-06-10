@@ -1,4 +1,5 @@
 #include "FMMachine.h"
+#include "MachineParamTable.h"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -86,6 +87,19 @@ namespace lockstep
   }
 
   // ---------------------------------------------------------------------------
+  // Per-operator slot index bundle — single source for all operator-indexed lookups.
+  struct FmOpSlotMap { int ratio, fine, mix, atk, dec, sus, rel; };
+  static constexpr std::array<FmOpSlotMap, 4> kOpSlots = {{
+    { FMMachine::kSlotRatio1, FMMachine::kSlotFine1, FMMachine::kSlotMix1,
+      FMMachine::kSlotOp1Attack, FMMachine::kSlotOp1Decay, FMMachine::kSlotOp1Sustain, FMMachine::kSlotOp1Release },
+    { FMMachine::kSlotRatio2, FMMachine::kSlotFine2, FMMachine::kSlotMix2,
+      FMMachine::kSlotOp2Attack, FMMachine::kSlotOp2Decay, FMMachine::kSlotOp2Sustain, FMMachine::kSlotOp2Release },
+    { FMMachine::kSlotRatio3, FMMachine::kSlotFine3, FMMachine::kSlotMix3,
+      FMMachine::kSlotOp3Attack, FMMachine::kSlotOp3Decay, FMMachine::kSlotOp3Sustain, FMMachine::kSlotOp3Release },
+    { FMMachine::kSlotRatio4, FMMachine::kSlotFine4, FMMachine::kSlotMix4,
+      FMMachine::kSlotOp4Attack, FMMachine::kSlotOp4Decay, FMMachine::kSlotOp4Sustain, FMMachine::kSlotOp4Release },
+  }};
+  // ---------------------------------------------------------------------------
 
   void FMMachine::startVoice(int voiceIdx, int midiNote, const ParamFrame& params, float velocity)
   {
@@ -110,21 +124,14 @@ namespace lockstep
         voice.modMatrix[static_cast<std::size_t>(src)][static_cast<std::size_t>(dst)] =
           p(kSlotModBase + dst * kNumOps + src);
 
-    constexpr int ratioSlots[kNumOps] = { kSlotRatio1, kSlotRatio2, kSlotRatio3, kSlotRatio4 };
-    constexpr int fineSlots [kNumOps] = { kSlotFine1,  kSlotFine2,  kSlotFine3,  kSlotFine4  };
-    constexpr int mixSlots  [kNumOps] = { kSlotMix1,   kSlotMix2,   kSlotMix3,   kSlotMix4   };
-    constexpr int atkSlots  [kNumOps] = { kSlotOp1Attack,  kSlotOp2Attack,  kSlotOp3Attack,  kSlotOp4Attack  };
-    constexpr int decSlots  [kNumOps] = { kSlotOp1Decay,   kSlotOp2Decay,   kSlotOp3Decay,   kSlotOp4Decay   };
-    constexpr int susSlots  [kNumOps] = { kSlotOp1Sustain, kSlotOp2Sustain, kSlotOp3Sustain, kSlotOp4Sustain };
-    constexpr int relSlots  [kNumOps] = { kSlotOp1Release, kSlotOp2Release, kSlotOp3Release, kSlotOp4Release };
-
     for (int i = 0; i < kNumOps; ++i)
     {
       auto& op = voice.ops[static_cast<std::size_t>(i)];
 
-      const int   ratioIdx   = std::clamp(static_cast<int>(std::round(p(ratioSlots[i]))), 0, kNumRatios - 1);
+      const auto&  ops      = kOpSlots[static_cast<std::size_t>(i)];
+      const int   ratioIdx   = std::clamp(static_cast<int>(std::round(p(ops.ratio))), 0, kNumRatios - 1);
       const float ratio      = kRatioTable[static_cast<std::size_t>(ratioIdx)];
-      const double fineCents = static_cast<double>(p(fineSlots[i]));
+      const double fineCents = static_cast<double>(p(ops.fine));
       const double freq      = midiFreq * static_cast<double>(ratio)
                                * std::pow(2.0, fineCents / 1200.0);
 
@@ -132,12 +139,12 @@ namespace lockstep
       op.phaseInc   = freq / sampleRate_;
       op.output     = 0.0f;
       op.prevOutput = 0.0f;
-      op.mixerLevel = p(mixSlots[i]);
+      op.mixerLevel = p(ops.mix);
 
-      op.sustainLevel   = std::clamp(p(susSlots[i]) * macroSustain, 0.0f, 1.0f);
-      op.attackSamples  = msToSamples(p(atkSlots[i]) * macroAttack,  sampleRate_);
-      op.decaySamples   = msToSamples(p(decSlots[i]) * macroRelease, sampleRate_);
-      op.releaseSamples = msToSamples(p(relSlots[i]) * macroRelease, sampleRate_);
+      op.sustainLevel   = std::clamp(p(ops.sus) * macroSustain, 0.0f, 1.0f);
+      op.attackSamples  = msToSamples(p(ops.atk) * macroAttack,  sampleRate_);
+      op.decaySamples   = msToSamples(p(ops.dec) * macroRelease, sampleRate_);
+      op.releaseSamples = msToSamples(p(ops.rel) * macroRelease, sampleRate_);
       op.envLevel       = 0.0f;
       op.releaseStartLevel = 0.0f;
 
@@ -176,9 +183,6 @@ namespace lockstep
     const auto p = [&](int s) { return params[static_cast<std::size_t>(s)]; };
     const double midiFreq = 440.0 * std::pow(2.0, (midiNote - 69) / 12.0);
 
-    constexpr int ratioSlots[kNumOps] = { kSlotRatio1, kSlotRatio2, kSlotRatio3, kSlotRatio4 };
-    constexpr int fineSlots [kNumOps] = { kSlotFine1,  kSlotFine2,  kSlotFine3,  kSlotFine4  };
-
     voice.midiNote = midiNote;
     voice.age      = ++voiceCounter_;
     voice.velocity = std::clamp(velocity, 0.0f, 1.0f);
@@ -186,9 +190,10 @@ namespace lockstep
     for (int i = 0; i < kNumOps; ++i)
     {
       auto& op = voice.ops[static_cast<std::size_t>(i)];
-      const int ratioIdx = std::clamp(static_cast<int>(std::round(p(ratioSlots[i]))), 0, kNumRatios - 1);
+      const auto& opSlot = kOpSlots[static_cast<std::size_t>(i)];
+      const int ratioIdx = std::clamp(static_cast<int>(std::round(p(opSlot.ratio))), 0, kNumRatios - 1);
       const float ratio  = kRatioTable[static_cast<std::size_t>(ratioIdx)];
-      const double fineCents = static_cast<double>(p(fineSlots[i]));
+      const double fineCents = static_cast<double>(p(opSlot.fine));
       op.phaseInc = midiFreq * static_cast<double>(ratio)
                     * std::pow(2.0, fineCents / 1200.0) / sampleRate_;
     }
@@ -486,97 +491,86 @@ namespace lockstep
   // ---------------------------------------------------------------------------
   // Schema
 
+  namespace fm_u { static constexpr uint8_t None=0, Ms=1, Pct=3; }
+  namespace fm_r { static constexpr uint8_t None=0, Pitch=1, Level=3, Attack=8, Sustain=11, Release=12; }
+
+  namespace {
+    static constexpr const char* kFMRetrigLabels[]    = { "LEGATO", "RETRIG", nullptr };
+    static constexpr const char* kFMVoiceModeLabels[] = { "MONO",   "POLY",   nullptr };
+  }
+
+  // { id, label, min, max, def, skew, stepped, unit, role, variant, section, zcSnap, labels }
+  static constexpr ParamRow kFMParams[] = {
+    // --- SRC page 1: coarse ratios (section 1) ---
+    { "fm_ratio_1", "Op1 Ratio", 0.f, 17.f, 1.f,1.f, 1,fm_u::None,fm_r::Pitch,0,1,0, nullptr }, //  0
+    { "fm_ratio_2", "Op2 Ratio", 0.f, 17.f, 1.f,1.f, 1,fm_u::None,fm_r::None, 0,1,0, nullptr }, //  1
+    { "fm_ratio_3", "Op3 Ratio", 0.f, 17.f, 1.f,1.f, 1,fm_u::None,fm_r::None, 0,1,0, nullptr }, //  2
+    { "fm_ratio_4", "Op4 Ratio", 0.f, 17.f, 1.f,1.f, 1,fm_u::None,fm_r::None, 0,1,0, nullptr }, //  3
+    // --- SRC page 2: fine tune (cents) ---
+    { "fm_fine_1", "Op1 Fine", -100.f,100.f, 0.f,1.f, 0,fm_u::None,fm_r::None,0,1,0, nullptr }, //  4
+    { "fm_fine_2", "Op2 Fine", -100.f,100.f, 0.f,1.f, 0,fm_u::None,fm_r::None,0,1,0, nullptr }, //  5
+    { "fm_fine_3", "Op3 Fine", -100.f,100.f, 0.f,1.f, 0,fm_u::None,fm_r::None,0,1,0, nullptr }, //  6
+    { "fm_fine_4", "Op4 Fine", -100.f,100.f, 0.f,1.f, 0,fm_u::None,fm_r::None,0,1,0, nullptr }, //  7
+    // --- SRC page 3: mixer levels ---
+    { "fm_mix_1", "Op1 Mix", 0.f,1.f,1.f,1.f, 0,fm_u::Pct, fm_r::Level,0,1,0, nullptr }, //  8
+    { "fm_mix_2", "Op2 Mix", 0.f,1.f,0.f,1.f, 0,fm_u::Pct, fm_r::None, 0,1,0, nullptr }, //  9
+    { "fm_mix_3", "Op3 Mix", 0.f,1.f,0.f,1.f, 0,fm_u::Pct, fm_r::None, 0,1,0, nullptr }, // 10
+    { "fm_mix_4", "Op4 Mix", 0.f,1.f,0.f,1.f, 0,fm_u::Pct, fm_r::None, 0,1,0, nullptr }, // 11
+    // --- AMP page 1: macros + output level (section 3) ---
+    { "fm_macro_atk", "Macro Atk", 0.f,3.f,1.f,1.f, 0,fm_u::None,fm_r::Attack,  0,3,0, nullptr }, // 12
+    { "fm_macro_rel", "Macro Rel", 0.f,3.f,1.f,1.f, 0,fm_u::None,fm_r::Release, 0,3,0, nullptr }, // 13
+    { "fm_macro_sus", "Macro Sus", 0.f,2.f,1.f,1.f, 0,fm_u::None,fm_r::Sustain, 0,3,0, nullptr }, // 14
+    { "fm_level",     "Level",     0.f,1.f,0.5f,1.f,0,fm_u::Pct, fm_r::Level,   0,3,0, nullptr }, // 15
+    // --- AMP pages 2-5: per-operator ADSR (skew 0.3 = exponential) ---
+    { "fm_atk_1","Op1 Atk", 0.f,5000.f,  10.f,0.3f,0,fm_u::Ms,fm_r::None,0,3,0,nullptr }, // 16
+    { "fm_dec_1","Op1 Dec", 1.f,10000.f,500.f,0.3f,0,fm_u::Ms,fm_r::None,0,3,0,nullptr }, // 17
+    { "fm_sus_1","Op1 Sus", 0.f,1.f,    0.f,  1.f, 0,fm_u::Pct,fm_r::None,0,3,0,nullptr }, // 18
+    { "fm_rel_1","Op1 Rel", 1.f,10000.f,500.f,0.3f,0,fm_u::Ms,fm_r::None,0,3,0,nullptr }, // 19
+    { "fm_atk_2","Op2 Atk", 0.f,5000.f,  10.f,0.3f,0,fm_u::Ms,fm_r::None,0,3,0,nullptr }, // 20
+    { "fm_dec_2","Op2 Dec", 1.f,10000.f,200.f,0.3f,0,fm_u::Ms,fm_r::None,0,3,0,nullptr }, // 21
+    { "fm_sus_2","Op2 Sus", 0.f,1.f,    0.f,  1.f, 0,fm_u::Pct,fm_r::None,0,3,0,nullptr }, // 22
+    { "fm_rel_2","Op2 Rel", 1.f,10000.f,500.f,0.3f,0,fm_u::Ms,fm_r::None,0,3,0,nullptr }, // 23
+    { "fm_atk_3","Op3 Atk", 0.f,5000.f,  10.f,0.3f,0,fm_u::Ms,fm_r::None,0,3,0,nullptr }, // 24
+    { "fm_dec_3","Op3 Dec", 1.f,10000.f,200.f,0.3f,0,fm_u::Ms,fm_r::None,0,3,0,nullptr }, // 25
+    { "fm_sus_3","Op3 Sus", 0.f,1.f,    0.f,  1.f, 0,fm_u::Pct,fm_r::None,0,3,0,nullptr }, // 26
+    { "fm_rel_3","Op3 Rel", 1.f,10000.f,500.f,0.3f,0,fm_u::Ms,fm_r::None,0,3,0,nullptr }, // 27
+    { "fm_atk_4","Op4 Atk", 0.f,5000.f,  10.f,0.3f,0,fm_u::Ms,fm_r::None,0,3,0,nullptr }, // 28
+    { "fm_dec_4","Op4 Dec", 1.f,10000.f,200.f,0.3f,0,fm_u::Ms,fm_r::None,0,3,0,nullptr }, // 29
+    { "fm_sus_4","Op4 Sus", 0.f,1.f,    0.f,  1.f, 0,fm_u::Pct,fm_r::None,0,3,0,nullptr }, // 30
+    { "fm_rel_4","Op4 Rel", 1.f,10000.f,500.f,0.3f,0,fm_u::Ms,fm_r::None,0,3,0,nullptr }, // 31
+    // --- AMP: per-operator velocity sensitivity ---
+    { "fm_vs_1","Op1 VelSns",0.f,1.f,0.f,1.f,0,fm_u::Pct,fm_r::None,0,3,0,nullptr }, // 32
+    { "fm_vs_2","Op2 VelSns",0.f,1.f,0.f,1.f,0,fm_u::Pct,fm_r::None,0,3,0,nullptr }, // 33
+    { "fm_vs_3","Op3 VelSns",0.f,1.f,0.f,1.f,0,fm_u::Pct,fm_r::None,0,3,0,nullptr }, // 34
+    { "fm_vs_4","Op4 VelSns",0.f,1.f,0.f,1.f,0,fm_u::Pct,fm_r::None,0,3,0,nullptr }, // 35
+    { "fm_retrig","Retrig",0.f,1.f,0.f,1.f,1,fm_u::None,fm_r::None,0,3,0,kFMRetrigLabels }, // 36
+    // --- MOD matrix (section 6): slot = 37 + dst*4 + src ---
+    { "fm_mod_s1_d1","1->1",-1.f,1.f,0.f,1.f,0,fm_u::None,fm_r::None,0,6,0,nullptr }, // 37
+    { "fm_mod_s2_d1","2->1",-1.f,1.f,0.f,1.f,0,fm_u::None,fm_r::None,0,6,0,nullptr }, // 38
+    { "fm_mod_s3_d1","3->1",-1.f,1.f,0.f,1.f,0,fm_u::None,fm_r::None,0,6,0,nullptr }, // 39
+    { "fm_mod_s4_d1","4->1",-1.f,1.f,0.f,1.f,0,fm_u::None,fm_r::None,0,6,0,nullptr }, // 40
+    { "fm_mod_s1_d2","1->2",-1.f,1.f,0.f,1.f,0,fm_u::None,fm_r::None,0,6,0,nullptr }, // 41
+    { "fm_mod_s2_d2","2->2",-1.f,1.f,0.f,1.f,0,fm_u::None,fm_r::None,0,6,0,nullptr }, // 42
+    { "fm_mod_s3_d2","3->2",-1.f,1.f,0.f,1.f,0,fm_u::None,fm_r::None,0,6,0,nullptr }, // 43
+    { "fm_mod_s4_d2","4->2",-1.f,1.f,0.f,1.f,0,fm_u::None,fm_r::None,0,6,0,nullptr }, // 44
+    { "fm_mod_s1_d3","1->3",-1.f,1.f,0.f,1.f,0,fm_u::None,fm_r::None,0,6,0,nullptr }, // 45
+    { "fm_mod_s2_d3","2->3",-1.f,1.f,0.f,1.f,0,fm_u::None,fm_r::None,0,6,0,nullptr }, // 46
+    { "fm_mod_s3_d3","3->3",-1.f,1.f,0.f,1.f,0,fm_u::None,fm_r::None,0,6,0,nullptr }, // 47
+    { "fm_mod_s4_d3","4->3",-1.f,1.f,0.f,1.f,0,fm_u::None,fm_r::None,0,6,0,nullptr }, // 48
+    { "fm_mod_s1_d4","1->4",-1.f,1.f,0.f,1.f,0,fm_u::None,fm_r::None,0,6,0,nullptr }, // 49
+    { "fm_mod_s2_d4","2->4",-1.f,1.f,0.f,1.f,0,fm_u::None,fm_r::None,0,6,0,nullptr }, // 50
+    { "fm_mod_s3_d4","3->4",-1.f,1.f,0.f,1.f,0,fm_u::None,fm_r::None,0,6,0,nullptr }, // 51
+    { "fm_mod_s4_d4","4->4",-1.f,1.f,0.f,1.f,0,fm_u::None,fm_r::None,0,6,0,nullptr }, // 52
+    // --- VOICE (section 7) ---
+    { "fm_voice_mode","Voice",0.f,1.f,0.f,1.f,1,fm_u::None,fm_r::None,0,7,0,kFMVoiceModeLabels }, // 53
+  };
+  static_assert(std::size(kFMParams) == FMMachine::kNumSlots,
+                "kFMParams row count must equal kNumSlots");
+
   ParamSpec FMMachine::paramSpec(int index) const
   {
-    using U = ParamSpec::Unit;
-    using R = ParamSpec::Role;
-
-    static constexpr const char* kVoiceModeLabels[] = { "MONO", "POLY" };
-
-    switch (index)
-    {
-    // SRC — page 1: coarse ratios
-    case kSlotRatio1: return { "fm_ratio_1", "Op1 Ratio", 0.0f, 17.0f, 1.0f, true,  U::None,    1, R::Pitch };
-    case kSlotRatio2: return { "fm_ratio_2", "Op2 Ratio", 0.0f, 17.0f, 1.0f, true,  U::None,    1, R::None  };
-    case kSlotRatio3: return { "fm_ratio_3", "Op3 Ratio", 0.0f, 17.0f, 1.0f, true,  U::None,    1, R::None  };
-    case kSlotRatio4: return { "fm_ratio_4", "Op4 Ratio", 0.0f, 17.0f, 1.0f, true,  U::None,    1, R::None  };
-    // SRC — page 2: fine tune (cents)
-    case kSlotFine1:  return { "fm_fine_1", "Op1 Fine", -100.0f, 100.0f, 0.0f, false, U::None,  1, R::None };
-    case kSlotFine2:  return { "fm_fine_2", "Op2 Fine", -100.0f, 100.0f, 0.0f, false, U::None,  1, R::None };
-    case kSlotFine3:  return { "fm_fine_3", "Op3 Fine", -100.0f, 100.0f, 0.0f, false, U::None,  1, R::None };
-    case kSlotFine4:  return { "fm_fine_4", "Op4 Fine", -100.0f, 100.0f, 0.0f, false, U::None,  1, R::None };
-    // SRC — page 3: mixer levels (output to audio sum)
-    case kSlotMix1:   return { "fm_mix_1", "Op1 Mix", 0.0f, 1.0f, 1.0f, false, U::Percent, 1, R::Level };
-    case kSlotMix2:   return { "fm_mix_2", "Op2 Mix", 0.0f, 1.0f, 0.0f, false, U::Percent, 1, R::None  };
-    case kSlotMix3:   return { "fm_mix_3", "Op3 Mix", 0.0f, 1.0f, 0.0f, false, U::Percent, 1, R::None  };
-    case kSlotMix4:   return { "fm_mix_4", "Op4 Mix", 0.0f, 1.0f, 0.0f, false, U::Percent, 1, R::None  };
-    // AMP — page 1: macros + output level
-    case kSlotMacroAttack:  return { "fm_macro_atk", "Macro Atk", 0.0f, 3.0f, 1.0f, false, U::None,    3, R::Attack  };
-    case kSlotMacroRelease: return { "fm_macro_rel", "Macro Rel", 0.0f, 3.0f, 1.0f, false, U::None,    3, R::Release };
-    case kSlotMacroSustain: return { "fm_macro_sus", "Macro Sus", 0.0f, 2.0f, 1.0f, false, U::None,    3, R::Sustain };
-    case kSlotOutputLevel:  return { "fm_level",     "Level",     0.0f, 1.0f, 0.5f, false, U::Percent, 3, R::Level   };
-    // AMP — pages 2-5: per-operator ADSR (attack 0–5s, decay/release 1–10s, exponential curve)
-    case kSlotOp1Attack:  { ParamSpec p { "fm_atk_1", "Op1 Atk",  0.0f, 5000.0f,  10.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }
-    case kSlotOp1Decay:   { ParamSpec p { "fm_dec_1", "Op1 Dec",  1.0f,10000.0f, 500.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }
-    case kSlotOp1Sustain: return { "fm_sus_1", "Op1 Sus", 0.0f, 1.0f, 0.0f, false, U::Percent, 3, R::None };
-    case kSlotOp1Release: { ParamSpec p { "fm_rel_1", "Op1 Rel",  1.0f,10000.0f, 500.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }
-    case kSlotOp2Attack:  { ParamSpec p { "fm_atk_2", "Op2 Atk",  0.0f, 5000.0f,  10.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }
-    case kSlotOp2Decay:   { ParamSpec p { "fm_dec_2", "Op2 Dec",  1.0f,10000.0f, 200.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }
-    case kSlotOp2Sustain: return { "fm_sus_2", "Op2 Sus", 0.0f, 1.0f, 0.0f, false, U::Percent, 3, R::None };
-    case kSlotOp2Release: { ParamSpec p { "fm_rel_2", "Op2 Rel",  1.0f,10000.0f, 500.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }
-    case kSlotOp3Attack:  { ParamSpec p { "fm_atk_3", "Op3 Atk",  0.0f, 5000.0f,  10.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }
-    case kSlotOp3Decay:   { ParamSpec p { "fm_dec_3", "Op3 Dec",  1.0f,10000.0f, 200.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }
-    case kSlotOp3Sustain: return { "fm_sus_3", "Op3 Sus", 0.0f, 1.0f, 0.0f, false, U::Percent, 3, R::None };
-    case kSlotOp3Release: { ParamSpec p { "fm_rel_3", "Op3 Rel",  1.0f,10000.0f, 500.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }
-    case kSlotOp4Attack:  { ParamSpec p { "fm_atk_4", "Op4 Atk",  0.0f, 5000.0f,  10.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }
-    case kSlotOp4Decay:   { ParamSpec p { "fm_dec_4", "Op4 Dec",  1.0f,10000.0f, 200.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }
-    case kSlotOp4Sustain: return { "fm_sus_4", "Op4 Sus", 0.0f, 1.0f, 0.0f, false, U::Percent, 3, R::None };
-    case kSlotOp4Release: { ParamSpec p { "fm_rel_4", "Op4 Rel",  1.0f,10000.0f, 500.0f, false, U::Ms, 3, R::None }; p.skew = 0.3f; return p; }
-    case kSlotOp1VelSens: return { "fm_vs_1", "Op1 VelSns", 0.0f, 1.0f, 0.0f, false, U::Percent, 3, R::None };
-    case kSlotOp2VelSens: return { "fm_vs_2", "Op2 VelSns", 0.0f, 1.0f, 0.0f, false, U::Percent, 3, R::None };
-    case kSlotOp3VelSens: return { "fm_vs_3", "Op3 VelSns", 0.0f, 1.0f, 0.0f, false, U::Percent, 3, R::None };
-    case kSlotOp4VelSens: return { "fm_vs_4", "Op4 VelSns", 0.0f, 1.0f, 0.0f, false, U::Percent, 3, R::None };
-    case kSlotRetrig:
-    {
-      static constexpr const char* kRetrigLabels[] = { "LEGATO", "RETRIG" };
-      ParamSpec p { "fm_retrig", "Retrig", 0.0f, 1.0f, 0.0f, true, U::None, 3, R::None };
-      p.valueLabels = std::span<const char* const>(kRetrigLabels);
-      return p;
-    }
-    case kSlotVoiceMode:  { ParamSpec p { "fm_voice_mode", "Voice", 0.0f, 1.0f, 0.0f, true, U::None, 7, R::None }; p.valueLabels = std::span<const char* const>(kVoiceModeLabels); return p; }
-    default: break;
-    }
-
-    // MOD section (extension of SRC, section index 6)
-    // Slot layout by destination: kSlotModBase + dst*4 + src
-    if (index >= kSlotModBase && index < kSlotModBase + kNumOps * kNumOps)
-    {
-      const int offset = index - kSlotModBase;
-      const int dst    = offset / kNumOps;
-      const int src    = offset % kNumOps;
-
-      // Stable string ids: fm_mod_s{src+1}_d{dst+1}
-      static constexpr const char* kIds[kNumOps][kNumOps] = {
-        { "fm_mod_s1_d1", "fm_mod_s1_d2", "fm_mod_s1_d3", "fm_mod_s1_d4" },
-        { "fm_mod_s2_d1", "fm_mod_s2_d2", "fm_mod_s2_d3", "fm_mod_s2_d4" },
-        { "fm_mod_s3_d1", "fm_mod_s3_d2", "fm_mod_s3_d3", "fm_mod_s3_d4" },
-        { "fm_mod_s4_d1", "fm_mod_s4_d2", "fm_mod_s4_d3", "fm_mod_s4_d4" },
-      };
-      // Labels: "{src+1}->{dst+1}"
-      static constexpr const char* kLabels[kNumOps][kNumOps] = {
-        { "1->1", "1->2", "1->3", "1->4" },
-        { "2->1", "2->2", "2->3", "2->4" },
-        { "3->1", "3->2", "3->3", "3->4" },
-        { "4->1", "4->2", "4->3", "4->4" },
-      };
-      return {
-        kIds   [static_cast<std::size_t>(src)][static_cast<std::size_t>(dst)],
-        kLabels[static_cast<std::size_t>(src)][static_cast<std::size_t>(dst)],
-        -1.0f, 1.0f, 0.0f, false, U::None, 6, R::None
-      };
-    }
-
-    return {};
+    if (index < 0 || index >= kNumSlots) return {};
+    return toParamSpec(kFMParams[static_cast<std::size_t>(index)]);
   }
 
   SectionInfo FMMachine::section(int index) const
