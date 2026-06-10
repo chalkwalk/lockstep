@@ -79,6 +79,30 @@ else()
 endif()
 
 # ---------------------------------------------------------------------------
+# Engine lib: LockstepProcessor (no UI, no plugin-client wrappers).
+# Linked by the plugin target and by the headless test binary.
+# ---------------------------------------------------------------------------
+add_library(lockstep_engine STATIC
+    PluginProcessor.cpp)
+
+set_target_properties(lockstep_engine PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+target_link_libraries(lockstep_engine
+    PUBLIC lockstep_core
+           juce::juce_audio_utils)
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_options(lockstep_engine PRIVATE
+        -Wall -Wextra -Wpedantic
+        -Wsign-conversion -Wfloat-conversion -Wshadow
+        -Werror
+        ${LOCKSTEP_SANITIZE_FLAGS})
+    target_link_options(lockstep_engine PUBLIC ${LOCKSTEP_SANITIZE_FLAGS})
+else()
+    target_link_libraries(lockstep_engine PUBLIC juce::juce_recommended_warning_flags)
+endif()
+
+# ---------------------------------------------------------------------------
 # Plugin target.
 # ---------------------------------------------------------------------------
 juce_add_plugin(Lockstep
@@ -98,7 +122,6 @@ juce_generate_juce_header(Lockstep)
 
 target_sources(Lockstep
     PRIVATE
-        PluginProcessor.cpp
         PluginEditorFactory.cpp
         PluginEditor.cpp
         ui/KeyButton.cpp
@@ -114,8 +137,7 @@ target_sources(Lockstep
 
 target_link_libraries(Lockstep
     PRIVATE
-        lockstep_core
-        juce::juce_audio_utils
+        lockstep_engine
         juce::juce_audio_plugin_client
     PUBLIC
         juce::juce_recommended_config_flags

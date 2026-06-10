@@ -4,6 +4,7 @@
 
 add_executable(lockstep_tests
     TestMain.cpp
+    TestEditorStub.cpp
     SurfaceModelTest.cpp
     StateResolverTest.cpp
     HierarchyNavTest.cpp
@@ -23,7 +24,7 @@ add_executable(lockstep_tests
     MachineDspTest.cpp)
 
 target_link_libraries(lockstep_tests PRIVATE
-    lockstep_core
+    lockstep_engine
     juce::juce_gui_basics
     juce::juce_core
     juce::juce_data_structures)
