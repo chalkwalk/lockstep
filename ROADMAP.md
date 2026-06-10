@@ -10,17 +10,15 @@ satisfy, see `PRINCIPLES.md`. **Before adding a milestone here, confirm it is
 expressible within those principles and within the existing scope+verb grammar
 (DESIGN §13).**
 
-**Active focus:** Phase 7 is functionally complete (shipped through `7.17`).
-The only open Phase 7 / Phase 3 items are **manual** verification sweeps —
-`3.10` standalone (a–f) and `7.8` play-test + VST3/CLAP v11 round-trip — where
+**Active focus:** **Phase 8 — Hardening & Maintainability** (in progress).
+Phase 7 is functionally complete (shipped through `7.17`); the only open
+Phase 7 / Phase 3 items are **manual** verification sweeps — `3.10`
+standalone (a–f) and `7.8` play-test + VST3/CLAP v11 round-trip — where
 the code shipped but the scripted runs are pending.
 **Last completed:** `7.17` — Swing anchored rotary + reusable reference-mark element.
-**Next up:** *under review.* ROADMAP previously named `6.7` (Machine Module ABI,
-which gates the Phase 4 catalogue), but the higher-ROI **performance-grammar**
-candidates — `5.9` deterministic generators (Euclidean print-on-release / Chance)
-and a staged `6.5` FX system (fills the empty canonical FX section + the Animate
-punch-in) — deliver immediate performability and need no new infrastructure.
-See the 2026-06-08 doc-review discussion.
+**Next up (after Phase 8):** `6.7` Machine Module ABI or performance-grammar
+milestones (`5.9` deterministic generators, staged `6.5` FX system) —
+see 2026-06-08 doc-review discussion.
 
 Phases 1–3 took Lockstep from an empty plugin to a frozen, playable performance
 surface; Phase 4 fills the machine catalogue; Phases 5–6 are the depth and
@@ -1099,6 +1097,98 @@ Not a CLAP/VST3 sub-host; in-process, no IPC/sandbox.
 - [ ] Factory patch library.
 - [ ] Final product name (replace "Lockstep"), bundle ids, icons, About box.
 - [ ] First public beta build.
+
+---
+
+## Phase 8 — Hardening & Maintainability  *[active]*
+
+DESIGN §37 (Command Core), §35.8.7 (Cell appearance table), §37.4 (text SSOT),
+§37.5 (ParamRow). Root causes addressed: dispatch duplication across three input
+paths; off-model UI text; appearance data trapped in three switch statements;
+serializer silent-loss risk; test gaps in EditMode, dispatch, and serializer
+round-trips. See the plan file at `~/.claude/plans/so-over-time-i-distributed-conway.md`
+for full stage detail.
+
+One commit per work item; build + tests green after every commit.
+
+### 8.1 — Docs-first milestone definition  *[active]*
+DESIGN §37/§35.8.7/§37.4/§37.5 added; ROADMAP Phase 8 entry; CLAUDE.md status updated.
+- [x] **8.1** Docs: DESIGN §35.8.7 + §37 (Command Core, §37.4 Status SSOT,
+      §37.5 ParamRow); ROADMAP Phase 8 entry; CLAUDE.md status.
+
+### 8.2 — Characterization tests before moving code
+- [ ] **8.2a** `tests/EditModeTest.cpp` — pin priority order, compound scope,
+      verb dispatch under chords.
+- [ ] **8.2b** `tests/LayerResolveTest.cpp` — golden table for all
+      scancode × layer combos through `QwertyOverlay::resolve()` (oracle for 8.3).
+- [ ] **8.2c** `tests/SerializerRoundTripTest.cpp` — sentinel round-trip for every
+      serialized field; separate from upgrade-chain `SerializerTest.cpp`.
+
+### 8.3 — Single `resolveLayer` (replaces three diverged implementations)
+- [ ] **8.3a** `src/command/ButtonLayers.{h,cpp}` + `kLayerRemaps[]` table;
+      refactor `QwertyOverlay::resolve()` — golden test must pass unchanged.
+- [ ] **8.3b** Wire into mouse (`KeyboardArea`) + controller sink (`PluginEditor`);
+      delete in-dispatch remaps; add `layerContext()` helper.
+
+### 8.4 — Command core extraction (~6–8 commits, incremental)
+- [ ] **8.4a** Seam scaffolding: `CommandContext.h`, `CommandEffects.h`,
+      `CommandCore.{h,cpp}`, `EditorEffects`; `activeTrack` into `UiState`.
+- [ ] **8.4b** `VerbCommands`: `PS::Trig` scope (step copy/paste/clear).
+- [ ] **8.4c** `VerbCommands`: `PS::Track`, `PS::Phrase`.
+- [ ] **8.4d** `VerbCommands`: `PS::Scene`, `PS::Song`, snapshot/restore.
+- [ ] **8.4e** `VerbCommands`: `PS::Mute`, `PS::Morph`, `PS::Fill`, `PS::Func`;
+      delete residual `dispatchVerb` body.
+- [ ] **8.4f** `handleDown/Up`: scope modifiers + latch.
+- [ ] **8.4g** `handleDown/Up`: step semantics (trig toggle, held step, P-Lock
+      clear, note-edit).
+- [ ] **8.4h** `handleDown/Up`: Section/MetaSection, transport; editor loses
+      ~1500–2000 lines.
+
+### 8.5 — Gesture-level test harness
+- [ ] **8.5** `tests/GestureHarness.h` + `tests/GestureTest.cpp` (12 named
+      scenarios; real core model, no processor; grows with 8.4b–h).
+
+### 8.6 — CellState appearance table
+- [ ] **8.6a** `src/ui/CellStates.def` + `src/ui/CellAppearance.h` (X-macro table,
+      literal values; `pidx` consts moved to `Push1Palette.h`).
+- [ ] **8.6b** Consume in `XTouchMiniSurface`, `Push1Surface`, `KeyButton`;
+      manual colour smoke (standalone + Push).
+
+### 8.7 — Status & contextual text SSOT + transport fix
+- [ ] **8.7a** `src/command/StatusText.h` + sweep of 40 `setStatus()` call sites;
+      `tests/StatusTextTest.cpp`.
+- [ ] **8.7b** `gridBanner` + `pageDots` into `SurfaceModel`; `ScopedSectionMatrix`
+      canonical-name dedup; extend `tests/SurfaceModelTest.cpp`.
+- [ ] **8.7c** `TransportModel` struct + `InPluginTransport::refresh()`; eliminates
+      label desync.
+
+### 8.8 — ParamSpec constexpr tables (LsmParamSpec-shaped)
+- [ ] **8.8a** `tests/ParamSpecTest.cpp` — golden ids + invariants per machine.
+- [ ] **8.8b** `src/machine/MachineParamTable.h` (`ParamRow` + `toParamSpec`).
+- [ ] **8.8c** Convert `VAMachine`.
+- [ ] **8.8d** Convert `DrumSynthMachine` + `SamplerMachine`.
+- [ ] **8.8e** Convert `SlicerMachine` + `MidiOutMachine`.
+- [ ] **8.8f** Convert `FMMachine` + deduplicate parallel operator arrays.
+
+### 8.9 — Serializer hardening
+- [ ] **8.9a** `src/state/StateKeys.h` — all property names as `constexpr`
+      constants; mechanical sweep of read/write sites.
+- [ ] **8.9b** Round-trip mutation self-test; fix silent-loss bugs; v12 only if
+      format must change.
+
+### 8.10 — Final docs pass
+- [ ] **8.10** DESIGN reconcile + residuals noted; README shortcut sweep; ROADMAP
+      ticks; CLAUDE.md layout map + gotchas.
+
+### Accepted residuals (non-goals)
+- SamplePoolOverlay / SoundBankOverlay internals; InPluginTransport beyond the
+  label fix.
+- No runtime JSON for internal tables (6.6 JSON profiles and 6.7 ABI untouched;
+  `ParamRow` only pre-shapes 6.7).
+- No ControllerRegistry/MachineRegistry; no per-node serializer descriptor tables;
+  no scope×verb function-pointer table.
+- TrigGridMode modal surface (5.7) remains unwired.
+- Per-node serializer field-descriptor tables deferred to possible 6.7-era follow-up.
 
 ---
 

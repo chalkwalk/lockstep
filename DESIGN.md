@@ -4124,6 +4124,34 @@ can't display → ignore it. `statesOfInterest()` (and the JSON
 token that is unknown or deprecated, while still rendering it. The model
 grows; old controllers keep working.
 
+#### 35.8.7 Cell appearance table (8.6)
+
+Every `CellState` token maps to a row in a single compile-time appearance
+table. This closes the three-way divergence where `KeyButton.cpp`,
+`Push1Surface.cpp`, and `XTouchMiniSurface.cpp` each maintained a
+separate switch over `CellState`. The table lives in two files:
+
+- **`src/ui/CellStates.def`** — one X-macro row per token:
+  `LS_CELLSTATE(token, value, screenFill, screenAccent, pushPad, xtouchVel)`
+  Values are *literal integers* — the add-only rule is preserved because
+  `value` must equal the enum integer pinned by every existing controller
+  profile. The `pushPad` column holds the hand-tuned Push-1 firmware palette
+  indices from `Push1Palette.h` (never recomputed from colour math).
+- **`src/ui/CellAppearance.h`** — generates `enum class CellState :
+  uint16_t` from the `.def` and builds a `constexpr` row array with
+  `appearanceOf(CellState)` for O(n) lookup. `static_assert`s pin a
+  handful of token values against accidental renumber.
+
+Rendering rule: *table for state colour, `baseColour` for
+model-computed overrides (e.g. scope tint), button-scheme as fallback.*
+Decoration overrides (border flash, pip) remain coded above the table
+lookup — the table gives the base, code adds layer-specific chrome.
+
+The page-dot residual noted in §35.8.1 is closed by 8.7b: `gridBanner`
+and `pageDots` fields are added to `SurfaceModel` and populated by
+`buildSurfaceModel()`, making banners and page indicators
+controller-visible for free (see §37.4).
+
 ## 36. The Machine Module ABI (6.7)
 
 §2 introduced the machine boundary as "one authoring model, two link
@@ -4393,3 +4421,154 @@ subdirectories of the main repo, each a buildable unit linking that
 SDK; the template lives in one separate forkable repository that
 vendors the same SDK. No per-machine repositories, no separate SDK
 repository.
+
+## 37. Command Core (8.3–8.5)
+
+The goal of Phase 8's structural work is that **`PluginEditor` performs
+no grammar decisions.** It resolves inputs via `resolveLayer`, forwards
+to the command core, and executes the returned effects. All three input
+paths — QWERTY, mouse, controller — converge at a single seam.
+
+### 37.1 Button-layer resolution (`src/command/ButtonLayers.h`)
+
+Raw physical events arrive with a `ControllerButton` encoding the button
+identity. A held modifier (Track/Mute/Func) can redirect that button to a
+different logical button — Step → SelectTrack under Track, Section →
+MetaSection under Func, etc. Previously this was implemented three times
+and had diverged.
+
+```cpp
+struct LayerContext {
+  bool funcHeld  = false;
+  bool trackHeld = false;
+  bool muteHeld  = false;
+};
+
+[[nodiscard]] ControllerEvent resolveLayer(ControllerEvent raw,
+                                           const LayerContext& ctx) noexcept;
+```
+
+`resolveLayer` consults `kLayerRemaps[]` — a `constexpr` table of
+`{raw, layer, effective}` triples — and returns a copy of the event with
+only the `button` field changed. The `index` and `velocity` fields survive
+unchanged so Push pad velocity and step indices are preserved through the
+remap. Priority order (Track > Mute > Func) is encoded as table position
+and pinned by the golden test in `tests/LayerResolveTest.cpp`.
+
+`LayerContext LockstepEditor::layerContext() const` reads the effective
+(physical OR latched) modifier flags from `UiState`. Every input path
+calls `resolveLayer` *before* forwarding to the command core; no
+unresolved raw event reaches `handleDown/handleUp`.
+
+### 37.2 Command context and effects seam
+
+```cpp
+// src/command/CommandContext.h
+struct CommandContext {
+  Arrangement&        arrangement;
+  Sequence&           sequence;
+  EditContext&         editContext;
+  EditMode&           editMode;
+  UiState&            uiState;
+  Clipboard&          clipboard;
+  SoundPool&          soundPool;
+  CheckpointStore&    checkpoints;
+  const IMachineCatalog& catalog;   // narrow pure-virtual; grows only as needed
+};
+
+// src/command/CommandEffects.h
+struct CommandEffects {
+  virtual void status(juce::String) = 0;
+  virtual void requestRepaint()     = 0;
+  virtual void transport(TransportAction) = 0;
+  virtual void machineAssign(int track, const char* machineId) = 0;
+  virtual void openOverlay(OverlayId, int track) = 0;
+  virtual void crossfader(float) = 0;
+};
+```
+
+`IMachineCatalog` is a narrow pure-virtual seam: `numParams(track)`,
+`paramSpec(track, slot)`, `section(track, idx)`, `machineId(track)`.
+It is implemented by the processor in editor wiring and by a lightweight
+fixture in tests — isolating the command core from JUCE and the plugin
+processor without requiring a full mock.
+
+`EditorEffects final : CommandEffects` is a private inner struct in
+`LockstepEditor`; it holds a reference to the editor and dispatches each
+effect to the appropriate JUCE component call. The test target supplies
+`RecordingEffects` which records calls for assertion.
+
+### 37.3 Command core (`src/command/CommandCore.{h,cpp}`)
+
+```cpp
+bool handleDown(const ControllerEvent&, CommandContext&, CommandEffects&);
+bool handleUp  (const ControllerEvent&, CommandContext&, CommandEffects&);
+bool handleVerb(EditMode::PrimaryScope, ControllerButton,
+                CommandContext&, CommandEffects&);
+```
+
+All return `bool handled`. The editor calls core *first*, then falls
+through to legacy switch cases during migration. Each stage of 8.4
+moves one scope/category *and deletes* the corresponding legacy case in
+the same commit. The core is JUCE-Component/Timer-free (`juce::String`
+is permitted); `PluginProcessor.cpp` is never pulled into the test target.
+
+Verb handlers live in `src/command/VerbCommands.{h,cpp}` as free
+functions, one per scope. No scope×verb function-pointer table — the
+bodies are heterogeneous and a table would be cosmetic not structural.
+
+`activeTrack` moves from `KeyboardArea` into `UiState` as an `int`
+member so it is shared state visible to both the command core and the
+surface model.
+
+### 37.4 Status and contextual text SSOT
+
+All user-visible status strings are built in `src/command/StatusText.h`
+as typed builders in `namespace lockstep::status` (e.g.
+`copiedSteps(int)`, `sceneCommitted(int)`). **No string literal may be
+passed to `status()` outside this file.** This enforces that every
+user-visible message is findable, testable, and correctable in one place.
+
+Contextual banners (`"SELECT MACHINE"`, `"SELECT TRACK/PHRASE/SCENE"`)
+and per-track page-dot state are part of the surface model, not painted
+ad-hoc from `UiState`. `SurfaceModel` gains:
+
+```cpp
+const char* gridBanner = nullptr;          // null = no banner
+struct PageDots { uint8_t count; uint8_t active; };
+std::array<PageDots, kNumTracks> pageDots{};
+```
+
+Both are populated by `buildSurfaceModel()`, making them
+controller-visible for free and eliminating the `KeyboardArea.cpp`
+direct `uiState_.trackPage` paint path.
+
+`ScopedSectionMatrix.h` section name cells that duplicate canonical
+names reference `IMachine::kCanonicalSectionNames[i]` directly; only
+genuine overrides (`"DIV"`, `"LEN"`, `"GLBL"`, `nullptr`) stay literal.
+
+### 37.5 ParamRow — LsmParamSpec precursor (`src/machine/MachineParamTable.h`)
+
+`struct ParamRow` is field-order-identical to `LsmParamSpec` (§36.2):
+
+```cpp
+struct ParamRow {
+  const char* id;             // static lifetime — serialization key
+  const char* label;
+  float minValue, maxValue, defaultValue, skew;   // skew 1.0 = linear
+  std::uint8_t isStepped, unit, role, variant;    // enums as uint8 (ABI shape)
+  std::int32_t sectionIndex;
+  std::uint8_t zeroCrossingSnap;
+  const char* const* valueLabels;   // NULL-terminated array, static; nullptr = none
+};
+[[nodiscard]] ParamSpec toParamSpec(const ParamRow& row);
+```
+
+Each machine defines `static constexpr ParamRow kParams[]` and replaces
+its `paramSpec(i)` switch with a bounds-check + `toParamSpec(kParams[i])`.
+This is the in-tree shape that 6.7 will expose as the C ABI; converting
+now means the 6.7 migration is mechanical. `ParamRow` is **JUCE-free** —
+no JUCE includes in `MachineParamTable.h`. The conversion `toParamSpec`
+is the single place `juce::String` is created from the `const char*`
+fields. The golden id test in `tests/ParamSpecTest.cpp` ensures no
+accidental id change silently breaks existing project files.
