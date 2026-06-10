@@ -1055,16 +1055,18 @@ catch-all Shift/`Func` overlay:
 - **`TRACK`** (track length / divider) — `Track+TRIG`. Length and
   divider are per-*track* properties, so they belong under the `Track`
   scope, not `Func`. (`Func+FILTER` no longer carries them.)
-- **`GLOBAL`** (output gain, sync mode, clock) — `Song+FX`. Project-
-  wide settings belong under the `Song` scope; `FX` is the master/bus
-  key (§6.1 rule 1: `Func+Song+FX` = master FX). (`Func+FX` no longer
-  carries them.)
+- **`GLOBAL`** (output gain, sync mode, channel mode) — **`Func+7`**
+  (`MetaBand::Transport`). *(Amended at 6.5: this meta originally sat on
+  `Song+FX`, but once the master FX bus shipped, `Song+FX` shows the
+  master insert parameters only — the transport globals moved to the
+  previously-unused `Func+7` meta slot so the two never share a cell.)*
 
-The result: the only `Func`-section secondaries currently wired are
-`COND` (`Func+TRIG`) and `NOTE` (`Func+SRC`). The remaining `Func`
-section cells (`FILTER`/`AMP`/`MOD`/`FX`) dim until a machine declares
-a `ParamSpec.variant = Secondary` page for them (§6.1 rule 1) — the
-slot is reserved, not occupied.
+The result: the `Func`-section secondaries currently wired are
+`COND` (`Func+TRIG`), `NOTE` (`Func+SRC`), and the transport globals
+(`Func+7`). The remaining `Func` section cells (`AMP`/`MOD`) dim until
+a machine declares a `ParamSpec.variant = Secondary` page for them
+(§6.1 rule 1) — the slot is reserved, not occupied. (`Func+FX` is the
+effect picker, §32.2.)
 
 Each section button cell still shows its primary label at the top
 and its `Func`-secondary label at the bottom; the active layer
@@ -1721,10 +1723,18 @@ everything else," which the multi-select gesture already encodes.
 
 The trig grid (the 2×8 step row) is the densest physical surface on
 the controller; reusing it for non-step roles is a major workflow
-multiplier. Modes are entered by a dedicated mode chord (precise
-chord deferred to the UI rethink milestone) and exit on release of
-that chord — the trig grid becomes a *modal* surface, not a
+multiplier. Modes are entered by a dedicated mode chord and exit on
+release of that chord — the trig grid becomes a *modal* surface, not a
 permanently-reassigned one.
+
+> **Status (5.7 / 5.9 shipped).** The chords are now bound: keyboard
+> mode shipped as the per-track **CHROMATIC** input mode (3.9,
+> `Track+Nav`); **Retrig/Slice** is `Fill+TRIG` (the shipped rate set is
+> eight musical rates `/4 … /32T`, not the 1/16–1/96 list drafted
+> below; ISliceable tracks show the slice picker instead); **Sound
+> Pool** is `Fill+SRC`; the **Euclidean generator** is `Phrase+Fill`.
+> README §5.18 documents the shipped behaviour; this section keeps the
+> design rationale.
 
 - **Keyboard mode.** The 16 trig keys map to 16 chromatic semitones,
   with a configurable root note. Pressing a key emits a note-on for
@@ -4572,3 +4582,34 @@ no JUCE includes in `MachineParamTable.h`. The conversion `toParamSpec`
 is the single place `juce::String` is created from the `const char*`
 fields. The golden id test in `tests/ParamSpecTest.cpp` ensures no
 accidental id change silently breaks existing project files.
+
+### 37.6 The A-series: key-cell label/action SSOT (8.11)
+
+Phase 8 closed the dispatch and appearance divergences; the A-series
+closes the last one — *what a key cell says* and *what pressing it
+does* were still resolved in separate, per-renderer code. Three new
+SSOTs, in dependency order:
+
+- **`src/command/ScopePriority.h` — `kScopePriority`.** The one
+  encoding of "which scope wins", highest first.
+  `EditMode::recomputePrimary`, every label/colour resolver, and
+  binding-row tiebreaks all derive from this array; no other file may
+  hard-code a scope ordering.
+- **`src/command/SurfaceLayer.{h,cpp}` — `resolveActiveLayer()`.** A
+  single priority-ordered enum of every step-grid overlay (pickers,
+  note-edit, P-Lock clear, chromatic/levels, mute views, …). The one
+  place all layer conditions are encoded; the step-grid renderer and
+  dispatch both consult it. Caller-supplied facts it cannot derive from
+  `UiState` arrive in a small `LayerFacts` struct.
+- **`src/command/KeyBindings.{h,cpp}` — the binding table.** One row
+  per reachable action: `(button, index, layer, requiredMods)` →
+  `(ActionId, label, CellState)`. Resolution is **most-specific wins**
+  (highest `popcount(requiredMods)` among matching rows; ties broken by
+  `kScopePriority`), replacing per-key forbidden-modifier checks.
+  Today the table drives key-cell *rendering*; **A4** wires `ActionId`
+  to the dispatch handlers so render and dispatch cannot disagree.
+
+Golden tests pin each: `tests/SurfaceLayerTest.cpp`,
+`tests/KeyBindingTest.cpp`. Status: A0–A3 shipped; A4 (dispatch wiring)
+and Task B (confirm-prompt + master-FX-picker layers through
+`SurfaceLayer`) pending. ROADMAP 8.11 tracks the series.

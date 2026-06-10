@@ -73,7 +73,7 @@ What makes it distinctive:
 <a name="2-the-paradigm"></a>
 ## 2. The paradigm: how to reason about the system
 
-If you understand four ideas, you can predict how almost everything in
+If you understand five ideas, you can predict how almost everything in
 Lockstep behaves.
 
 ### 2.1 Scope + verb
@@ -81,14 +81,15 @@ Lockstep behaves.
 Every editing and performance action is built from two halves:
 
 - A **scope** key declares *what you're about to operate on*. Scopes are
-  held modifiers: the eight-key left cluster (`Func`, `Track`, `Pattern`,
-  `Part`, `Scene`, `Master`, `Mute`, `Fill` — 3.2), plus a **held step**
-  (`Trig`) and a **section** key. Two modifiers — one from each column —
-  can be held together to combine scopes (the *compound chord*).
+  held modifiers: the eight-key left cluster (`Func`, `Track`, `Phrase`,
+  `Scene`, `Morph`, `Song`, `Mute`, `Fill` — 7.9 naming), plus a **held
+  step** (`Trig`) and a **section** key. Two modifiers — one from each
+  column — can be held together to combine scopes (the *compound chord*).
   (`Cue` is reserved for the cue bus, 6.4, but not yet bound to a key.)
 - A **verb** key declares *what to do*. The verb set is small and
-  fixed: `Record` (= copy), `Play` (= paste), `Stop` (= clear), `Yes`,
-  `No`, plus turning an encoder for live value tweaks.
+  fixed (`Y U I O P`): `Snapshot` (push checkpoint), `Record` (= copy),
+  `Play` (= paste), `Clear`, `Yes` — the `Func` layer gives `Restore /
+  Panic / Delete / No` — plus turning an encoder for live value tweaks.
 
 You **hold the scope, then press the verb.** For example:
 
@@ -165,6 +166,54 @@ Tracks are **polymetric**: each has its own length (1–64 steps) and
 clock divider, so a 7-step track and a 16-step track phase against each
 other naturally with no master-bar concept.
 
+### 2.5 The sound path: what the names mean and where they sit
+
+The container hierarchy above says where *musical content* lives. This
+section is the other axis — what a **track** *is*, and the order sound
+flows through it. Every name here recurs throughout the manual:
+
+```
+Phrase ──trigs──▶ Machine ──▶ Foundation (FILTER → AMP) ──▶ Inserts ×2 ──▶ track level
+                                                                              │
+                              all tracks sum ──▶ Master FX ×2 ──▶ output gain ┘
+```
+
+- **Machine** — the sound engine a track hosts (sampler, FM, VA, drum
+  synth, MIDI-out…). Each machine declares its own parameters; the
+  section keys (`5–0`) page through them. The machine is part of the
+  **Kit**, so swapping Kits swaps machines.
+- **Foundation** — the post-machine FILTER and AMP blocks that the
+  *sequencer* owns, identical on every track regardless of machine.
+  This is what "track-foundation row" (`Track + section`) refers to: a
+  guaranteed filter and amplitude envelope that exist even when the
+  machine has none of its own. A machine's *own* filter, if it has one,
+  still lives behind the canonical FILTER key — the foundation filter
+  is in addition, downstream.
+- **Inserts** — two per-track `IEffect` slots after the foundation
+  (delay, reverb, distortion, chorus…). Loaded via the `Func+FX`
+  picker, edited on the FX section, momentarily bypassed with the
+  Animate gesture (`FX` + step). MIDI-out tracks have none (no audio).
+- **Master FX** — two more insert slots that process the *sum* of all
+  tracks, before the output gain. They belong to the Song scope:
+  loaded via `Func+Song+FX`, edited under `Song+FX`.
+
+And the *state* that feeds this path is layered, finest layer winning
+(this is "more specific scope wins" applied to values):
+
+- **Base** — the Kit's stored value for a parameter. What you edit with
+  no step held.
+- **Morph** — a per-Scene A/B pair of sparse parameter maps blended by
+  the crossfader, sitting *over* the base. Continuous, performed.
+- **P-Lock / trig override** — a per-step override, sitting over both.
+  Discrete, authored. A step that has one ignores Morph and base for
+  that parameter.
+
+So: a **Phrase** decides *when* notes happen, the **Kit** (machine +
+foundation + inserts) decides *what they sound like*, **Morph** bends
+the sound continuously across a Scene, and **P-Locks** pin exact values
+to exact steps. The **Scene** chooses which Phrase each track plays and
+who is audible; the **Song** holds it all; the **Set** is the plugin.
+
 ---
 
 <a name="3-glossary"></a>
@@ -184,7 +233,7 @@ other naturally with no master-bar concept.
 | **Song** | A self-contained song (Kits + Phrase pools + Scenes). The bank-sized unit. |
 | **Scope** | A held modifier declaring what the next verb operates on. Eight in the left cluster (`Func`, `Track`, `Phrase`, `Scene`, `Morph`, `Song`, `Mute`, `Fill`), plus a held step and a section key. `Cue` is reserved for the cue bus (6.4) but not yet bound to a key. |
 | **Compound chord** | Two modifiers (one per column) held together to combine scopes. Cross-column only; never fires on its own — it just narrows the scope until a verb is pressed. `Func` composes with anything. |
-| **Verb** | The action applied to the scope (`Record`=copy, `Play`=paste, `Stop`=clear, `Yes`, `No`). |
+| **Verb** | The action applied to the scope. Verb row `Y U I O P` = `Snapshot / Record (=copy) / Play (=paste) / Clear / Yes`; under `Func` the same keys give `Restore / Panic / Delete / No` (7.12). |
 | **Section** | A grouping of parameters on the section bar (keys `5–0`). Canonical six: TRIG / SRC / FILTER / AMP / MOD / FX. Held scope modifiers reinterpret each key (e.g. `Track+FILTER` = post-machine filter, `Song+FX` = master FX). The Manipulation Zone shows eight parameters (4×2) of the active cell at a time. |
 | **Morph / Crossfader** *(5.2)* | A per-Scene pair of sparse parameter maps (A and B) blended by one continuous fader. Hold/latch `Morph` + encoder sculpts both poles at the normalised fader-split (scene-layer selector, symmetric with holding a step for P-Lock). `Morph + ^/v` forces pure A/B writes (QWERTY path). Absent pole mirrors the set pole — fader is inert until A ≠ B. Stepped params snap at f=0.5. Right-click the on-screen fader for MIDI-learn. |
 | **Manipulation Zone (MZ)** | The eight-parameter (4×2) editing band. What you are tweaking right now. |
@@ -192,6 +241,13 @@ other naturally with no master-bar concept.
 | **Focus / focused track** | The currently selected track (or Global). Determines what contextual encoders and selected-track MIDI map to. |
 | **Edit context** | The held-step state that routes edits to a step override vs. the track base. |
 | **Choke** | A 1–2 ms micro-fade applied before retriggering a monophonic voice, to avoid clicks. |
+| **Foundation** | The post-machine FILTER + AMP blocks the *sequencer* owns on every track, identical regardless of machine. Reached via `Track + section` (the track-foundation row). See §2.5. |
+| **Insert (FX)** | One of a track's two post-foundation `IEffect` slots. Loaded via the `Func+FX` picker, edited on the FX section, momentarily bypassed via Animate (`FX` + step). MIDI-out tracks have none. |
+| **Master FX** | Two Song-scope insert slots over the summed output (pre output-gain). Loaded via `Func+Song+FX`; parameters under `Song+FX`. |
+| **Animate** | The momentary insert punch-in: hold `FX` + step to bypass (or enable) an insert for exactly the hold duration. Performance-only — never written to the pattern. |
+| **Chance (Scale)** | Per-track live probability fader: hold `Func` and the MZ encoders become one Chance Scale per track, scaling that track's existing trig-condition probabilities (0 % = suppress all, 100 % = as authored). No new randomness. |
+| **Retrig / ratchet** | Per-step re-triggering at a musical rate (`/4 … /32T`). `Fill+TRIG` opens the rate picker: press a rate for a live stutter on the focused track, or hold a step first to bake the rate as a per-step P-Lock. Slicer tracks show a slice picker instead. |
+| **Euclidean generator** | `Phrase+Fill` held: encoders shape `PULSE / OFSET / ACCNT` against the phrase length, audible live; releasing **prints** the rhythm as ordinary trigs (checkpoint pushed first). |
 | **Control-All** | Holding `Track` with no track selected broadcasts the next parameter edit to every track that has a matching control. |
 | **Mute** | Suppresses a track's trigs non-destructively. `Mute+step` = global mute (survives scene/song changes); `Scene+Mute+step` = per-scene mute (the scene's active-mask). |
 | **Fill** | A momentary modifier: while held, fill-conditioned steps fire. Used for live variation. |
@@ -199,8 +255,8 @@ other naturally with no master-bar concept.
 | **Checkpoint** | A RAM-only snapshot for live undo. `Func+Yes` pushes before a risky idea; `Func+No` tap=pop/hold=floor. **Scope-respecting:** the snapshot captures whichever scope is held (none=Song, Track, Scene, Phrase). Up to 8 deep per scope; floor = saved state. |
 | **Launch model** | Performance is launch-based, not arrangement-based: queue a **Scene** (`Scene+step`) to fire at the next core-time boundary, or switch **Songs** (`Song+step`). There is no written timeline or pattern chain. |
 | **Sample pool** | The project-wide library of samples, stored as `{path, hash}` references rather than embedded audio. |
-| **Sound Pool** *(partial — data model + overlay shipped; trig-grid recall mode planned, 5.7)* | A project-scope library of saved per-track sounds, recallable or P-lockable per step. |
-| **Scope colour grammar** *(3.3)* | A canonical palette per scope (`step` = light grey, plus distinct hues for `track / pattern / part / machine / scene / master`) used by key tints, the step-grid scope re-skin, and any badge that needs to say "which scope is held". In-scope keys (the section keys and verbs the scope rebinds) light fill+border in the scope colour; ambient keys stay neutral; reserved keys dim. |
+| **Sound Pool** | A project-scope library of saved per-track sounds (machine + base params + sample refs). `Fill+SRC` re-skins the step grid to the pool for live-swap audition; with a step held the swap bakes as a `sound_id` P-Lock (5.7). |
+| **Scope colour grammar** *(3.3)* | A canonical palette per scope (`step` = light grey, plus distinct hues for `track / phrase / scene / machine / morph / song`) used by key tints, the step-grid scope re-skin, and any badge that needs to say "which scope is held". In-scope keys (the section keys and verbs the scope rebinds) light fill+border in the scope colour; ambient keys stay neutral; reserved keys dim. |
 | **Scope re-skin** | When a scope modifier maps to a 1-of-16 selector (Track / Phrase / Scene; `Func+Track` = machine/Kit picker), the 16 step keys become a non-paginated index for that scope. Unavailable indices dim. Cells tint in the scope's colour. |
 | **Top-bar dashboard** *(3.4)* | The top of the editor splits into a persistent performance dashboard (BPM, Song/Scene/Phrase, transport position, pending Scene, checkpoint depth) on the left, and a live held-context preview on the right. |
 | **Value-label table** *(3.4)* | A `ParamSpec` field carrying textual names for stepped/enum positions (`LP24 / LP12 / HP / BP`, `MONO / PARA`, …). The MZ renders the textual name in place of a number when present. |
@@ -308,8 +364,8 @@ Press `U` again to disarm.
   non-destructively. Toggle again to bring it back.
 - **Fill:** hold **Fill** (`X`). Any steps you've marked as fill-only
   fire only while you hold it — instant live variation.
-- **Copy a pattern and mutate it:** hold **Pattern** (`Q`) and press
-  **Record** (`U`) to copy; move to another pattern slot and press
+- **Copy a phrase and mutate it:** hold **Phrase** (`Q`) and press
+  **Record** (`U`) to copy; move to another phrase slot and press
   **Play** (`I`) to paste. Now change it without touching the original.
 - **Checkpoint before a risky idea:** press `Func + Yes` (`1 + Y`) to
   push a snapshot. Experiment freely. Press `Func + No` (`1 + P`) to
@@ -556,20 +612,22 @@ scope's row in the **scope-section matrix**. Like a scope-hold, holding
 wired secondary glow (orange), and the cells that don't dim out — so the
 row always shows which secondaries are actually reachable.
 
-| Held scope | What `Track+5` (TRIG) means | …`Track+7` (FILTER) | …`Master+0` (FX) |
+| Held scope | What `+5` (TRIG) means | …`+7` (FILTER) | …`+0` (FX) |
 |---|---|---|---|
-| `Track` | Kit **divider** (labelled `DIV`) | Post-machine FILTER | (no track scope on FX) |
+| `Track` | Kit **divider** (labelled `DIV`) | Post-machine (foundation) FILTER | Track inserts |
 | `Phrase` | Phrase **length** (labelled `LEN`, per active phrase) | (dim) | (dim) |
-| `Part` | Trig templates | Part-base FILTER | Part-base FX |
-| `Scene` | (rename `CXFD` — crossfader curve) | Scene-assign FILTER | Scene-assign FX |
-| `Master` | (dim) | Master FILTER (if any) | **Master FX 1+2** |
+| `Scene` | Trig templates | Scene-assign FILTER | Scene-assign FX |
+| `Morph` | (dim — Morph never affects trigs) | Morph-assign FLTR | Morph-assign FX |
+| `Song` | (dim) | (dim — master FILTER reserved) | **Master FX 1+2** (labelled `GLBL`) |
 | `Func` (over any of the above) | The secondary variant of the cell (e.g. `Func+Scene+FILTER` = the other scene's filter assignments). |
 
 Each scope's `TRIG` cell opens the parameter owned by that hierarchy level.
-Only two metas sit on `Func`: **COND** (probability, m:n, prev-dep) on
-`Func+TRIG`, and **NOTE** (explicit note / velocity / gate step entry) on
-`Func+SRC`. Output **gain, sync mode, and clock** live under `Song+FX`
-(labelled `GLBL`). Trig defaults remain on bare `TRIG`.
+Three metas sit on `Func`: **COND** (probability, m:n, prev-dep) on
+`Func+TRIG`, **NOTE** (explicit note / velocity / gate step entry) on
+`Func+SRC`, and the **transport globals** (output gain, sync mode, channel
+mode) on `Func+7`. Trig defaults remain on bare `TRIG`. (Pre-6.5 the
+transport globals sat under `Song+FX`; that cell now carries the master
+insert parameters.)
 
 **FX inserts and the effect picker.** Each track has two insert slots (slot
 0 / slot 1). `Func+FX` opens the effect picker — the step grid re-skins to the
@@ -581,9 +639,9 @@ release). MIDI-out tracks show no inserts.
 
 **Master FX bus.** Two post-sum insert slots at Song scope. `Func+Song+FX`
 opens the master picker (same catalogue overlay; re-press to cycle slot 0/1).
-Once loaded, the MZ shows the master insert's parameters via the `MasterFx` band
-(active while `masterFxHeld`). Master inserts process after all track outputs
-are summed, before the output gain. State round-trips in serializer v14.
+Once loaded, hold `Song+FX` to show the master insert's parameters in the MZ.
+Master inserts process after all track outputs are summed, before the output
+gain. State round-trips in serializer v14.
 
 **Chance macro.** While `Func` is held, the Manipulation Zone switches to the
 **Chance** band: the eight encoders map to Chance Scale for each of the eight
@@ -759,22 +817,22 @@ Stage E / 7.5 and has shipped — see *Phrase-length authoring* below.)
   meanings (verb keys' COPY/PASTE/CLEAR under any scope) keep an
   always-on hint.
 - **Scope colour grammar**: a canonical palette per scope (light grey
-  for step, distinct hues for `track / pattern / part / machine /
-  scene / master`) so the surface visibly says *which scope is held*.
+  for step, distinct hues for `track / phrase / scene / machine /
+  morph / song`) so the surface visibly says *which scope is held*.
 
 **3.4 — Contextual modes, top bar, MZ streamline.**
 
 - **Step-grid scope re-skin.** Hold `Track` and the 16 step keys
-  become a 1-of-16 track picker; `Pattern` → pattern picker; `Part`
-  → part picker; `Func + Part` → machine picker showing machine names.
-  **Pagination is suppressed in this mode** — only "which key was
-  pressed" matters. Unavailable indices dim; cells tint with the
+  become a 1-of-16 track picker; `Phrase` → phrase picker; `Scene`
+  → scene picker; `Func + Track` → machine/Kit picker showing machine
+  names. **Pagination is suppressed in this mode** — only "which key
+  was pressed" matters. Unavailable indices dim; cells tint with the
   scope colour.
 - **Top-bar dashboard + held-context preview.** The pre-Phase 3 "mode
   chips" row is replaced by a persistent performance dashboard (BPM,
-  Bank / Pattern / Part identity, transport position, chain queue,
+  Song / Scene / Phrase identity, transport position, pending scene,
   checkpoint depth) on the left, and a live held-context preview on
-  the right (e.g. `TRACK 3 + …`, `FUNC + PART → machine picker`).
+  the right (e.g. `TRACK 3 + …`, `FUNC + TRACK → machine picker`).
 - **MZ streamline.** Each slot collapses to a larger rotary plus a
   single value display; stepped/enum params show textual values
   (`LP24 / LP12 / HP / BP`, `MONO / PARA`) instead of numbers when
@@ -806,15 +864,15 @@ Stage E / 7.5 and has shipped — see *Phrase-length authoring* below.)
 **3.10 — Latch (hands-free virtual-hold) + Track+Nav mode cycle.**
 
 - **Double-tap = virtual-hold (latch).** Double-tapping any latchable modifier
-  (`Morph`, `Track`, `Part`, `Pattern`, `Scene`, `Master`, `Mute`, `Fill`)
-  latches it hands-free — exactly as if the key stayed physically held.
+  (`Track`, `Phrase`, `Scene`, `Morph`, `Song`, `Mute`, `Fill` — `Func` never
+  latches) latches it hands-free — exactly as if the key stayed physically held.
   Double-tap the same modifier again to release. Column exclusivity is enforced:
-  at most one latch in each column ({`Pattern`, `Scene`, `Mute`} and {`Track`,
-  `Part`, `Master`, `Fill`}); latching a second key in the same column releases
-  the first. `Morph` is column-independent and can be latched alongside any
-  column latch. **Latch is the recommended workflow for `Morph+Mute` track
-  editing** — keyboards without N-key rollover may not register step keys when
-  both `Morph` and `Mute` are physically held simultaneously.
+  at most one latch in each column ({`Phrase`, `Morph`, `Mute`} and {`Track`,
+  `Scene`, `Song`, `Fill`}); latching a second key in the same column releases
+  the first. **Latch is the recommended workflow for `Morph+Mute` track
+  editing** — latch one of the pair and physically hold the other; keyboards
+  without N-key rollover may not register step keys when both are physically
+  held simultaneously.
 - **Latched step operands.** Double-tapping a step virtual-holds it into the
   edit context, so encoder edits land on it hands-free. A single tap on any
   step still toggles its trig as normal. Net trig change on latch-in is zero
@@ -967,7 +1025,7 @@ shipped behaviour and the design intent. To avoid confusion:
   **Sound Pool overlay** (`Fill+SRC` live-swap + `sound_id` P-Lock bake), plus
   the **Slice-point picker** on slicer tracks (`Fill+TRIG`).
 - **Per-track FX inserts** (2 slots, `Func+FX` picker, `FX+step` animate-bypass).
-- **Master FX bus** (2 post-sum slots, `Func+Song+FX` picker, MZ params via MasterFx band, serializer v14).
+- **Master FX bus** (2 post-sum slots, `Func+Song+FX` picker, MZ params under `Song+FX`, serializer v14).
 - **Chance macro** (`Func` held → MZ shows Chance Scale per track).
 
 **Planned** — the rest of the
@@ -1067,7 +1125,7 @@ Func (1)
 ├─ Func + O           → delete the active entity (+ confirm) — §5.4
 ├─ Func + P           → cancel a pending prompt — §5.3
 ├─ Func + 3           → toggle the metronome — §5.4
-├─ Func + 5…0         → secondary section page (machine deep params; COND/NOTE meta) — §5.8
+├─ Func + 5…0         → secondary section page (machine deep params; COND/NOTE meta; Func+7 = transport globals) — §5.8
 │   ├─ Func + FX (0)          → effect picker: step grid re-skins to effect catalogue; press step to load — §5.8
 │   └─ Func + Song + FX (0)  → master FX picker (same catalogue; loads into Song-scope master insert) — §5.8
 ├─ Func + ← / →       → rotate the focused track's steps −1 / +1 — §5.17
@@ -1152,7 +1210,9 @@ Phrase (Q)
 ├─ Scene + Phrase + step → deviate all tracks; diagonal row = clear all deviations — §5.14
 ├─ + U / I / O       → copy / paste / clear the whole phrase (all tracks) — §5.9
 ├─ + P (YES)         → Quantize: zero microOffset across every step on every track — §5.1
-└─ + O (queued scene pending) → cancel the queued scene — §5.14
+├─ + O (queued scene pending) → cancel the queued scene — §5.14
+└─ + Fill (X, held together) → Euclidean generator on the focused track:
+                       encoders = PULSE / OFSET / ACCNT; release prints the rhythm — §5.18
 ```
 
 Links: [§5.14](#514-scenes-phrases-and-songs-the-launch-model) ·
@@ -1187,6 +1247,8 @@ Song (S)
 ├─ + step            → switch Songs (quantized; a full reset, live deviations clear) — §5.14
 ├─ + O (CLEAR)       → Panic — kill all voices immediately — §5.14
 ├─ + (held) → shows song-all swing in band (Swing, absolute root) — §5.8
+├─ + FX (0)          → master insert params in the MZ (GLBL cell) — §5.8
+├─ Func + Song + FX (0) → master FX picker (catalogue overlay; re-press cycles slot 0/1) — §5.8
 └─ Func + Song       → Global / master-bus focus — §5.2
 ```
 

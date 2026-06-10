@@ -1,6 +1,6 @@
 # Lockstep — Roadmap
 
-The long-running plan. Work is grouped into six **phases**; each milestone has a
+The long-running plan. Work is grouped into eight **phases**; each milestone has a
 stable `phase.item` id (e.g. `3.4`) and a status flag. Sub-tasks are checkboxes
 so the state of the project is visible on every return to the repo. Tick items as
 they land; flip an item's status when its checklist completes.
@@ -10,19 +10,23 @@ satisfy, see `PRINCIPLES.md`. **Before adding a milestone here, confirm it is
 expressible within those principles and within the existing scope+verb grammar
 (DESIGN §13).**
 
-**Active focus:** **Phase 8 — Hardening & Maintainability** (in progress).
-Phase 7 is functionally complete (shipped through `7.17`); the only open
-Phase 7 / Phase 3 items are **manual** verification sweeps — `3.10`
-standalone (a–f) and `7.8` play-test + VST3/CLAP v11 round-trip — where
-the code shipped but the scripted runs are pending.
-**Last completed:** `7.17` — Swing anchored rotary + reusable reference-mark element.
-**Next up (after Phase 8):** `6.7` Machine Module ABI or performance-grammar
-milestones (`5.9` deterministic generators, staged `6.5` FX system) —
-see 2026-06-08 doc-review discussion.
+**Active focus:** **Phase 8 closeout — the A-series** (`8.11`): unify key-cell
+label/action resolution behind the `KeyBindings` table (A0–A3 shipped; A4
+dispatch wiring + the Task-B confirm/picker wiring pending). Phase 8 proper
+(`8.1`–`8.10`) shipped, as did the performance-grammar milestones that preceded
+it — `5.7` (retrig/sound-pool overlays), `5.9` (Euclidean + Chance), and `6.5`
+(FX system; serializer now **v14**). The only open Phase 7 / Phase 3 items are
+**manual** verification sweeps — `3.10` standalone (a–f) and `7.8` play-test +
+VST3/CLAP v14 round-trip — where the code shipped but the scripted runs are
+pending.
+**Last completed:** `8.11` A3 — KeyBindings table (label/action SSOT for key cells).
+**Next up (after the A-series):** *under review* — `6.7` Machine Module ABI
+(gates the Phase 4 catalogue) or remaining Phase 5/6 performance depth.
 
 Phases 1–3 took Lockstep from an empty plugin to a frozen, playable performance
 surface; Phase 4 fills the machine catalogue; Phases 5–6 are the depth and
-platform passes. The framing comes from DESIGN §1 and `PRINCIPLES.md`: Lockstep
+platform passes; Phase 7 built the Set/Song/Scene/Phrase musical hierarchy;
+Phase 8 is the hardening/maintainability pass. The framing comes from DESIGN §1 and `PRINCIPLES.md`: Lockstep
 is for both bringing existing material on stage **and** improvising new material
 from a blank pool. Every milestone targets both workflows and must satisfy the
 principles.
@@ -525,7 +529,8 @@ migrates in Stage D+). Old Bank/Pattern/Part/Sequence kept as compat stubs.
 - [ ] **Manual** phrase-length authoring: `Phrase+Func+step` (focused) /
       `Morph+Func+step` (broadcast) write + re-skin; double-tap-NavRight
       scroll-past-end reveals one empty page and the nav row shows `Length: N`.
-- [ ] **Manual** VST3/CLAP save → reload round-trips the v8 format (Reaper/Bitwig).
+- [ ] **Manual** VST3/CLAP save → reload round-trips the current serializer
+      format (v8 when written; **v14** as of 6.5) in Reaper/Bitwig.
 
 ### 7.9 — Stage I: Vocabulary rename  *[a–d + doc redesigns shipped; e pending]*
 Align names with DESIGN's refined vocabulary (`Set/Song/Scene/Phrase` + Morph;
@@ -946,7 +951,10 @@ scope+verb. Stochastic / generative authoring is explicitly *not* here (NON-GOAL
       global ratchet rate per trigger event. A richer model — hold-steps-to-isolate
       (step-isolate/solo gesture), step-held ratchet-on-hold, polymeter-safe per-step
       ratchet — was intentionally deferred. Design must fit the scope+verb grammar
-      before this earns a checklist. (Deferred 2026-06-08.)
+      before this earns a checklist. (Deferred 2026-06-08.) **Flagged tension:**
+      the shipped live stutter sits knowingly close to NON-GOALS fence #11
+      ("Sonicware stutter") — see the close-calls note in `NON-GOALS.md`; the
+      redesign must resolve that tension, not extend it.
 - [ ] **Step-isolate/solo** live gesture (future): hold one or more steps to
       temporarily isolate their tracks/voices during playback — a punch-in
       performance verb. Grammar and exact scope deferred. (Deferred 2026-06-08.)
@@ -1019,7 +1027,10 @@ DESIGN §32. Depends on 2.4 + the §14 path (independent of 6.1–6.4).
       insert for the hold duration; release restores. No dedicated performance-FX mode.
 - [x] Serializer v13: insert chains round-trip (effectId/baseParams/bypass per slot).
 - [x] Performance-grammar parity for inserts (P-Lock via namespaced IDs, Control-All, section-copy).
-- [x] **Two master FX slots** (post-sum, Song scope): `Func+Song+FX` picker; MZ shows params via `MetaBand::MasterFx`; serializer v14.
+- [x] **Two master FX slots** (post-sum, Song scope): `Func+Song+FX` picker; MZ shows params under `Song+FX` (`MetaBand::Global`); serializer v14.
+- [x] **FX-section clean separation:** `Song+FX` shows master insert params only;
+      transport globals (Gain / Sync / Chan) relocated to `Func+7`
+      (`MetaBand::Transport`).
 - [ ] Send routing (per-track Send A/B in the AMP mix).
 - [ ] MIDI-out tracks carry no inserts/sends.
 
@@ -1100,7 +1111,7 @@ Not a CLAP/VST3 sub-host; in-process, no IPC/sandbox.
 
 ---
 
-## Phase 8 — Hardening & Maintainability  *[active]*
+## Phase 8 — Hardening & Maintainability  *[shipped — 8.11 A-series closeout in progress]*
 
 DESIGN §37 (Command Core), §35.8.7 (Cell appearance table), §37.4 (text SSOT),
 §37.5 (ParamRow). Root causes addressed: dispatch duplication across three input
@@ -1111,7 +1122,7 @@ for full stage detail.
 
 One commit per work item; build + tests green after every commit.
 
-### 8.1 — Docs-first milestone definition  *[active]*
+### 8.1 — Docs-first milestone definition  *[shipped]*
 DESIGN §37/§35.8.7/§37.4/§37.5 added; ROADMAP Phase 8 entry; CLAUDE.md status updated.
 - [x] **8.1** Docs: DESIGN §35.8.7 + §37 (Command Core, §37.4 Status SSOT,
       §37.5 ParamRow); ROADMAP Phase 8 entry; CLAUDE.md status.
@@ -1180,6 +1191,26 @@ DESIGN §37/§35.8.7/§37.4/§37.5 added; ROADMAP Phase 8 entry; CLAUDE.md statu
 - [x] **8.10** DESIGN reconcile + residuals noted; README shortcut sweep; ROADMAP
       ticks; CLAUDE.md layout map + gotchas; ControllerEvent.h nav-comment fix.
 
+### 8.11 — A-series: key-cell label/action SSOT  *[in progress]*
+Post-8.10 follow-up in the same hardening spirit: one table answers both "what
+does this key cell say/show" and "what does pressing it do", replacing scattered
+per-renderer label logic and per-key modifier checks. See DESIGN §37.6.
+- [x] **A0** Delete stale `SurfaceModel.cpp~` editor backup.
+- [x] **A1** `src/command/ScopePriority.{h,cpp}` — `kScopePriority`, the single
+      encoding of scope precedence; `EditMode::recomputePrimary`, label/colour
+      resolvers, and binding-row tiebreaks all derive from it.
+- [x] **A2** `src/command/SurfaceLayer.{h,cpp}` — `resolveActiveLayer()`, the
+      modal-layer SSOT for the step-grid renderer (one priority-ordered enum of
+      every grid overlay); `tests/SurfaceLayerTest.cpp`.
+- [x] **A3** `src/command/KeyBindings.{h,cpp}` — unified binding table
+      (`ActionId` + label + `CellState` per row; most-specific-wins resolution,
+      ties broken by `kScopePriority`); drives key-cell rendering;
+      `tests/KeyBindingTest.cpp`.
+- [ ] **A4** Wire `ActionId` rows to the actual dispatch handlers (table becomes
+      the dispatch SSOT, not just the render SSOT).
+- [ ] **Task B** Confirm-prompt + master-FX-picker overlay wiring through
+      `SurfaceLayer` (`PendingConfirm` / `MasterFxPicker` layers).
+
 ### Accepted residuals (non-goals)
 - SamplePoolOverlay / SoundBankOverlay internals; InPluginTransport beyond the
   label fix.
@@ -1187,8 +1218,9 @@ DESIGN §37/§35.8.7/§37.4/§37.5 added; ROADMAP Phase 8 entry; CLAUDE.md statu
   `ParamRow` only pre-shapes 6.7).
 - No ControllerRegistry/MachineRegistry; no per-node serializer descriptor tables;
   no scope×verb function-pointer table.
-- TrigGridMode modal surface (5.7) remains unwired.
 - Per-node serializer field-descriptor tables deferred to possible 6.7-era follow-up.
+- *(Stale at write time, since closed: the "TrigGridMode remains unwired" residual —
+  5.7 wired it as the `Fill+TRIG` / `Fill+SRC` overlays.)*
 
 ---
 

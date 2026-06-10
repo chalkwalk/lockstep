@@ -257,7 +257,9 @@ pendulum playback direction, a `Chance` macro that scales the *existing*
 trig-condition probabilities — these are admissible precisely because they
 are deterministic: same state, same result, and the output is ordinary,
 hand-editable trig data (the Euclidean rhythm *prints* to plain trigs when
-the modifier is released). The line is drawn at *stochastic authoring* —
+the modifier is released). Both shipped in this form (5.9): Euclidean as
+the `Phrase+Fill` held chord, Chance as the `Func`-held per-track encoder
+band. The line is drawn at *stochastic authoring* —
 engines that pick the notes or the pattern for you by rolling dice at edit
 time (Oxi's stochastic modes, Polyend's smart genre fills, Torso's generative
 voicing). Those we refuse; a clocked, repeatable generator we welcome, in the
@@ -427,8 +429,8 @@ the performable alternative we offer instead. The summary:
 9. **No companion app as the primary surface.** One surface model; the DAW is
    the screen. → DESIGN §35.8.
 10. **No heavyweight performance-FX *mode*.** Momentary effect punch-in is a
-    thin toggle over the existing inserts, not a mode of its own. → *Reward
-    mastery*; *Performance is the goal*.
+    thin toggle over the existing inserts, not a mode of its own (shipped as
+    Animate: hold `FX` + step). → *Reward mastery*; *Performance is the goal*.
 11. **No crutch tooling.** Note auto-correct, custom-LFO designers, free
     automation lanes — capability that lowers the floor or never gets played.
     → *Reward mastery*.
