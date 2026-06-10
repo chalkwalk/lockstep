@@ -82,6 +82,10 @@ namespace lockstep
             ed.crossfader_.setValue(static_cast<double>(value),
                                     juce::sendNotificationAsync);
         }
+        void releaseLatch(ControllerButton cb) override
+        {
+            ed.releaseTransientLatch(cb);
+        }
     };
 
     // Narrow IMachineCatalog adapter — forwards to LockstepProcessor.
@@ -3708,84 +3712,7 @@ namespace lockstep
             // -----------------------------------------------------------------------
             // MD.4  Track copy / paste / clear / delete
             // -----------------------------------------------------------------------
-            case PS::Track:
-            {
-                const int activeTrack = keyboardArea_.getActiveTrack();
-                auto& trk = processor_.sequence()
-                                .tracks[static_cast<std::size_t>(activeTrack)];
-                const juce::String trkName = "Track " + juce::String(activeTrack + 1);
-
-                if (verb == CB::VerbRecord)
-                {
-                    clipboard_.clipTrack = trk;
-                    clipboard_.type      = ClipboardType::Track;
-                    setStatus("Copied " + trkName);
-                }
-                else if (verb == CB::VerbPlay)
-                {
-                    if (clipboard_.type != ClipboardType::Track
-                        && clipboard_.type != ClipboardType::All) break;
-                    trk = clipboard_.clipTrack;
-                    setStatus("Pasted → " + trkName);
-                }
-                else if (verb == CB::VerbClear)
-                {
-                    // Clear steps; preserve length, divider, and base params.
-                    for (auto& s : trk.steps)
-                    {
-                        s.trig       = false;
-                        s.condition  = TrigCondition{};
-                        s.overrides  = PLock{};
-                        s.trigOverride = TrigOverride{};
-                    }
-                    setStatus("Cleared " + trkName);
-                }
-                releaseTransientLatch(CB::TrackScope);
-                break;
-            }
-
-            // -----------------------------------------------------------------------
-            // MD.5  Pattern copy / paste / clear / delete
-            // -----------------------------------------------------------------------
-            case PS::Phrase:
-            {
-                if (verb == CB::VerbRecord)
-                {
-                    clipboard_.clipSequence = processor_.sequence();
-                    clipboard_.type = ClipboardType::Pattern;
-                    setStatus("Copied Phrase");
-                }
-                else if (verb == CB::VerbPlay)
-                {
-                    if (clipboard_.type != ClipboardType::Pattern
-                        && clipboard_.type != ClipboardType::All) break;
-                    processor_.sequence() = clipboard_.clipSequence;
-                    setStatus("Pasted Phrase");
-                }
-                else if (verb == CB::VerbClear || verb == CB::VerbDelete)
-                {
-                    if (verb == CB::VerbDelete)
-                    {
-                        int ckTrk = 0;
-                        processor_.snapshot(ckScope(ckTrk), ckTrk);
-                    }
-                    for (auto& trk : processor_.sequence().tracks)
-                    {
-                        for (auto& s : trk.steps)
-                        {
-                            s.trig              = false;
-                            s.condition         = TrigCondition{};
-                            s.overrides         = PLock{};
-                            s.trigOverride      = TrigOverride{};
-                            s.fillTrigState     = FillTrigState::Inherit;
-                            s.fillOverrides     = PLock{};
-                            s.fillTrigOverride  = TrigOverride{};
-                        }
-                    }
-                    setStatus("Cleared Phrase");
-                }
-                break;
-            }
+            // PS::Track, PS::Phrase — migrated to CommandCore / VerbCommands.cpp (8.4c)
 
             // -----------------------------------------------------------------------
             // Scene copy / paste — DESIGN §23.3

@@ -15,4 +15,12 @@ namespace lockstep::verbs
   [[nodiscard]] bool trig(ControllerButton verb,
                           CommandContext& ctx,
                           CommandEffects& fx);
+
+  [[nodiscard]] bool track(ControllerButton verb,
+                           CommandContext& ctx,
+                           CommandEffects& fx);
+
+  [[nodiscard]] bool phrase(ControllerButton verb,
+                            CommandContext& ctx,
+                            CommandEffects& fx);
 }

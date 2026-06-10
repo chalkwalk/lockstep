@@ -34,6 +34,7 @@ namespace lockstep::test
         void machineAssign(int t, const char* id) override   { machineAssigns.push_back(std::to_string(t) + ":" + id); }
         void openOverlay(OverlayId id, int p) override       { overlays.push_back({id, p}); }
         void crossfader(float v) override                    { crossfaders.push_back(v); }
+        void releaseLatch(ControllerButton) override         {}
 
         void reset() { statuses.clear(); repaints = 0; transports = 0;
                        transportActions.clear(); machineAssigns.clear();

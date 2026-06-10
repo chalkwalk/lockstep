@@ -2,6 +2,7 @@
 
 #include <juce_core/juce_core.h>
 #include <cstdint>
+#include "../io/ControllerEvent.h"
 
 namespace lockstep
 {
@@ -31,5 +32,8 @@ namespace lockstep
     virtual void machineAssign(int track, const char* id)      = 0;
     virtual void openOverlay  (OverlayId id, int param = 0)   = 0;
     virtual void crossfader   (float value)                   = 0;
+    // Auto-release a transient modifier latch after its terminal action.
+    // No-op when the modifier is not latched (physically held is unaffected).
+    virtual void releaseLatch (ControllerButton cb)           = 0;
   };
 }

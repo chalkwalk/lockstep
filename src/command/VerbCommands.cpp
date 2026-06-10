@@ -1,7 +1,7 @@
 #include "VerbCommands.h"
-#include "../core/PLock.h"
 #include "../core/TrigCondition.h"
 #include "../io/Clipboard.h"
+#include <juce_core/juce_core.h>
 #include <algorithm>
 
 namespace lockstep::verbs
@@ -116,6 +116,91 @@ namespace lockstep::verbs
             return true;
         }
 
+        return false;
+    }
+
+    bool track(ControllerButton verb, CommandContext& ctx, CommandEffects& fx)
+    {
+        using CB = ControllerButton;
+        const int at = ctx.uiState.activeTrack;
+        auto& trk = ctx.sequence.tracks[static_cast<std::size_t>(at)];
+        const juce::String trkName = "Track " + juce::String(at + 1);
+
+        if (verb == CB::VerbRecord)
+        {
+            ctx.clipboard.clipTrack = trk;
+            ctx.clipboard.type      = ClipboardType::Track;
+            fx.status("Copied " + trkName);
+            fx.releaseLatch(CB::TrackScope);
+            return true;
+        }
+        if (verb == CB::VerbPlay)
+        {
+            if (ctx.clipboard.type != ClipboardType::Track
+                && ctx.clipboard.type != ClipboardType::All)
+                return false;
+            trk = ctx.clipboard.clipTrack;
+            fx.status("Pasted -> " + trkName);
+            fx.releaseLatch(CB::TrackScope);
+            return true;
+        }
+        if (verb == CB::VerbClear)
+        {
+            for (auto& s : trk.steps)
+            {
+                s.trig         = false;
+                s.condition    = TrigCondition{};
+                s.overrides    = PLock{};
+                s.trigOverride = TrigOverride{};
+            }
+            fx.status("Cleared " + trkName);
+            fx.releaseLatch(CB::TrackScope);
+            return true;
+        }
+        return false;
+    }
+
+    bool phrase(ControllerButton verb, CommandContext& ctx, CommandEffects& fx)
+    {
+        using CB = ControllerButton;
+
+        if (verb == CB::VerbRecord)
+        {
+            ctx.clipboard.clipSequence = ctx.sequence;
+            ctx.clipboard.type         = ClipboardType::Pattern;
+            fx.status("Copied Phrase");
+            return true;
+        }
+        if (verb == CB::VerbPlay)
+        {
+            if (ctx.clipboard.type != ClipboardType::Pattern
+                && ctx.clipboard.type != ClipboardType::All)
+                return false;
+            ctx.sequence = ctx.clipboard.clipSequence;
+            fx.status("Pasted Phrase");
+            return true;
+        }
+        if (verb == CB::VerbClear || verb == CB::VerbDelete)
+        {
+            if (verb == CB::VerbDelete)
+                ctx.arrangement.snapshot(CheckpointScope::Song, 0);
+
+            for (auto& trk : ctx.sequence.tracks)
+            {
+                for (auto& s : trk.steps)
+                {
+                    s.trig             = false;
+                    s.condition        = TrigCondition{};
+                    s.overrides        = PLock{};
+                    s.trigOverride     = TrigOverride{};
+                    s.fillTrigState    = FillTrigState::Inherit;
+                    s.fillOverrides    = PLock{};
+                    s.fillTrigOverride = TrigOverride{};
+                }
+            }
+            fx.status("Cleared Phrase");
+            return true;
+        }
         return false;
     }
 }

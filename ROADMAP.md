@@ -1133,8 +1133,8 @@ DESIGN §37/§35.8.7/§37.4/§37.5 added; ROADMAP Phase 8 entry; CLAUDE.md statu
 ### 8.4 — Command core extraction (~6–8 commits, incremental)
 - [x] **8.4a** Seam scaffolding: `CommandContext.h`, `CommandEffects.h`,
       `CommandCore.{h,cpp}`, `EditorEffects`; `activeTrack` into `UiState`.
-- [ ] **8.4b** `VerbCommands`: `PS::Trig` scope (step copy/paste/clear).
-- [ ] **8.4c** `VerbCommands`: `PS::Track`, `PS::Phrase`.
+- [x] **8.4b** `VerbCommands`: `PS::Trig` scope (step copy/paste/clear).
+- [x] **8.4c** `VerbCommands`: `PS::Track`, `PS::Phrase`.
 - [ ] **8.4d** `VerbCommands`: `PS::Scene`, `PS::Song`, snapshot/restore.
 - [ ] **8.4e** `VerbCommands`: `PS::Mute`, `PS::Morph`, `PS::Fill`, `PS::Func`;
       delete residual `dispatchVerb` body.
