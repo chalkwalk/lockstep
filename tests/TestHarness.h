@@ -40,6 +40,7 @@ namespace lockstep
     void runEditModeTests();
     void runLayerResolveTests();
     void runSurfaceLayerTests();
+    void runKeyBindingTests();
     void runSerializerRoundTripTests();
     // Phase 8 gesture tests (grows with 8.4b–h)
     void runGestureTests();

@@ -3,6 +3,7 @@
 #include "UITheme.h"
 #include "KeyLabel.h"
 #include "../command/SurfaceLayer.h"
+#include "../command/KeyBindings.h"
 #include "ParamFormat.h"
 #include "ScopedSectionMatrix.h"
 #include "../state/UiState.h"
@@ -229,6 +230,9 @@ namespace lockstep
                                || (col1any && col2any);
         // (kAmberStrip lives in UITheme.h)
 
+        // Held-modifier bitmask — used by resolveBinding() for the label/action table.
+        const uint16_t heldMods = heldModsFromUiState(ui);
+
         // =====================================================================
         // Modifier helper: fill a step-row or number-row modifier cell.
         // scopeCol = the canonical scope colour (ModeActive bg + latch pip).
@@ -287,9 +291,9 @@ namespace lockstep
                          ui.trackHeld, ui.latch.track,
                          kScopeTrack, kScopeTrackDim,
                          hasCompound && ui.trackHeld);
-            // Func-layer = KIT (machine/Kit picker, §4.7.2); promoted when Func held.
-            if (ui.funcHeld) c.primary = "KIT";
-            else             c.funcHint = "KIT";
+            // Table-driven label: "TRACK" bare, "KIT" when Func held.
+            { const auto& r = resolveBinding(ControllerButton::TrackScope, -1, heldMods, SurfaceLayer::Base);
+              c.primary = juce::String(r.primary); c.funcHint = juce::String(r.hint); }
         }
 
         // =====================================================================
@@ -311,23 +315,23 @@ namespace lockstep
                          ui.songHeld, ui.latch.song,
                          kScopeSong, kScopeSongDim,
                          hasCompound && ui.songHeld);
-            // Func-layer = GLOBAL (Func+Song → Global/project params).
-            if (ui.funcHeld) c.primary = "GLOBAL";
-            else             c.funcHint = "GLOBAL";
+            // Table-driven label: "SONG" bare, "GLOBAL" when Func held.
+            { const auto& r = resolveBinding(ControllerButton::SongScope, -1, heldMods, SurfaceLayer::Base);
+              c.primary = juce::String(r.primary); c.funcHint = juce::String(r.hint); }
         }
         {
             SurfaceCell& c = model.modifiers[6];
             c.keyHint = "Z";
-            // Bare Mute = global mute; Scene+Mute = scene mute. While Scene is held
-            // the key reads S-MUTE in the scene-mute colour, signalling the
-            // scene-mute grid view (DESIGN §13/§16).
-            const bool sceneMuteMode = ui.sceneHeld;
-            fillModifier(c, ControllerButton::MuteScope, 'Z',
-                         sceneMuteMode ? "S-MUTE" : "MUTE",
-                         ui.muteHeld, ui.latch.mute,
-                         sceneMuteMode ? kScopePMute : kScopeMute, kScopeMuteDim,
-                         hasCompound && ui.muteHeld);
-            if (ui.latch.mute) c.pip.colour = kScopeMute;
+            // Table-driven label: "MUTE" bare; Scene+Mute gives "S-MUTE" (scene-mute
+            // grid view, DESIGN §13/§16). ActionId distinguishes the two modes.
+            { const auto& mutRow = resolveBinding(ControllerButton::MuteScope, -1, heldMods, SurfaceLayer::Base);
+              const juce::String muteLabel { mutRow.primary };
+              const bool sceneMuteMode = (mutRow.action == ActionId::HoldSceneMuteView);
+              fillModifier(c, ControllerButton::MuteScope, 'Z', muteLabel.toRawUTF8(),
+                           ui.muteHeld, ui.latch.mute,
+                           sceneMuteMode ? kScopePMute : kScopeMute, kScopeMuteDim,
+                           hasCompound && ui.muteHeld);
+              if (ui.latch.mute) c.pip.colour = kScopeMute; }
         }
         {
             SurfaceCell& c = model.modifiers[7];
@@ -348,9 +352,9 @@ namespace lockstep
             c.pressed  = physPressed('3', ControllerButton::TapTempo);
             c.base     = c.pressed ? CellState::Pressed : CellState::Resting;
             c.baseColour = kTapActive;
-            // Func-hint promotion: when Func held, MET becomes the live function.
-            if (ui.funcHeld) { c.primary = "MET";  c.funcHint = {};    }
-            else             { c.primary = "TAP";  c.funcHint = "MET"; }
+            // Table-driven label: "TAP" bare (hint "MET"); "MET" when Func held.
+            { const auto& r = resolveBinding(ControllerButton::TapTempo, -1, heldMods, SurfaceLayer::Base);
+              c.primary = juce::String(r.primary); c.funcHint = juce::String(r.hint); }
             jassert(!c.primary.isEmpty());
         }
 
@@ -381,12 +385,11 @@ namespace lockstep
                 c.scopeTint  = 0u;
                 c.baseColour = kNavActive;
             }
-            // Func+↑ doubles track length ONLY without Track held; with Track held
-            // the nav keys cycle the track input mode, so don't advertise ×2 there.
-            if (ui.funcHeld && !ui.trackHeld) { c.primary = juce::String(u8"×2"); c.funcHint = {}; }
-            else if (ui.trackHeld)            { c.primary = juce::String(u8"↑");  c.funcHint = {}; }
-            else if (ui.morphHeld)            { c.primary = "A";                  c.funcHint = {}; }
-            else                              { c.primary = juce::String(u8"↑");  c.funcHint = juce::String(u8"×2"); }
+            // Table-driven label: ↑ bare (hint ×2); ×2 when Func held (not Track);
+            // A-pole when Morph held; ↑ no-hint when Track held (cycles input mode).
+            // Morph+Func gives ×2 (explicit combined row in table preserves dispatch order).
+            { const auto& r = resolveBinding(ControllerButton::NavUp, -1, heldMods, SurfaceLayer::Base);
+              c.primary = juce::String(r.primary); c.funcHint = juce::String(r.hint); }
             jassert(!c.primary.isEmpty());
         }
 
@@ -526,28 +529,28 @@ namespace lockstep
         // functionRow[0..9] — Q-row: Q/W/E/R/T/Y/U/I/O/P
         // =====================================================================
 
-        // FRowDef uses char8_t* so arrow glyphs (←/↓/→) are valid UTF-8.
+        // FRowDef: per-key static metadata for the function row.
+        // Labels are now table-driven via resolveBinding(); only keyCode, keyHint,
+        // button, and role remain here for event routing and cell-state logic.
         struct FRowDef
         {
             int              keyCode;
             const char8_t*   keyHint;
-            const char8_t*   natural;
-            const char8_t*   funcLayer;   // empty = no Func-layer variant
             ControllerButton button;
             KeyRole          role;
         };
 
         static const std::array<FRowDef, 10> kFRowDefs = {{
-            { 'Q', u8"Q", u8"PHRASE", u8"",      ControllerButton::PhraseScope, KeyRole::Modifier  },
-            { 'W', u8"W", u8"SCENE", u8"",       ControllerButton::SceneScope,    KeyRole::Modifier  },
-            { 'E', u8"E", u8"←",     u8"←ROT",    ControllerButton::NavLeft,      KeyRole::Nav       },
-            { 'R', u8"R", u8"↓",     u8"÷2",     ControllerButton::NavDown,      KeyRole::Nav       },
-            { 'T', u8"T", u8"→",     u8"ROT→",    ControllerButton::NavRight,     KeyRole::Nav       },
-            { 'Y', u8"Y", u8"SNAP",  u8"RESTORE", ControllerButton::VerbYes,      KeyRole::VerbYes   },
-            { 'U', u8"U", u8"REC",   u8"",        ControllerButton::VerbRecord,   KeyRole::VerbCopy  },
-            { 'I', u8"I", u8"PLAY",  u8"",        ControllerButton::VerbPlay,     KeyRole::VerbPaste },
-            { 'O', u8"O", u8"CLEAR", u8"DEL",     ControllerButton::VerbClear,    KeyRole::VerbClear },
-            { 'P', u8"P", u8"YES",   u8"NO",      ControllerButton::VerbNo,       KeyRole::VerbNo    },
+            { 'Q', u8"Q", ControllerButton::PhraseScope, KeyRole::Modifier  },
+            { 'W', u8"W", ControllerButton::SceneScope,  KeyRole::Modifier  },
+            { 'E', u8"E", ControllerButton::NavLeft,     KeyRole::Nav       },
+            { 'R', u8"R", ControllerButton::NavDown,     KeyRole::Nav       },
+            { 'T', u8"T", ControllerButton::NavRight,    KeyRole::Nav       },
+            { 'Y', u8"Y", ControllerButton::VerbYes,     KeyRole::VerbYes   },
+            { 'U', u8"U", ControllerButton::VerbRecord,  KeyRole::VerbCopy  },
+            { 'I', u8"I", ControllerButton::VerbPlay,    KeyRole::VerbPaste },
+            { 'O', u8"O", ControllerButton::VerbClear,   KeyRole::VerbClear },
+            { 'P', u8"P", ControllerButton::VerbNo,      KeyRole::VerbNo    },
         }};
 
         const bool sectionScopeHeld = ui.trackHeld || ui.phraseScopeHeld
@@ -570,48 +573,18 @@ namespace lockstep
             const bool isPrtHeld  = (def.keyCode == 'W') && ui.sceneHeld;
             const bool isModeActive = isArmed || isPlaying || isPatHeld || isPrtHeld;
 
-            juce::String displayPrimary { def.natural };
-            juce::String displayHint    { def.funcLayer };
+            // Table-driven labels: covers Func-promotion, CPC relabels (COPY/PASTE/CLEAR
+            // under scope), nav-hint suppression under Track, and Morph B-pole on NavDown.
+            // Runtime states PAUSE and OD override afterwards since the table is static.
+            const auto& binding = resolveBinding(def.button, -1, heldMods, SurfaceLayer::Base);
+            juce::String displayPrimary { binding.primary };
+            juce::String displayHint    { binding.hint    };
 
-            // Live relabels (PAUSE / OD) — override after resolver.
-            // (The machine/Kit picker label KIT lives on the Track modifier cell, key 2.)
+            // Runtime-only overrides (not encodable in a static table):
             if (def.keyCode == 'I' && isPlaying && !sectionScopeHeld && !ui.stepHeld)
                 displayPrimary = "PAUSE";
             if (isOverdub)
                 displayPrimary = "OD";
-
-            // Morph-held: nav ^ = A pole, nav v = B pole.
-            if (ui.morphHeld && def.keyCode == 'R') { displayPrimary = "B"; displayHint = {}; }
-
-            // CPC relabel: when a section-suite scope is held, the verb primaries
-            // show COPY/PASTE/CLEAR so the scope+verb grammar is immediately readable.
-            if (sectionScopeHeld)
-            {
-                // Under Morph scope only CLEAR changes meaning; don't relabel REC/PLAY.
-                if (def.role == KeyRole::VerbCopy  && !ui.morphHeld) displayPrimary = "COPY";
-                if (def.role == KeyRole::VerbPaste && !ui.morphHeld) displayPrimary = "PASTE";
-                if (def.role == KeyRole::VerbClear) displayPrimary = "CLEAR";
-            }
-
-            // RESTORE/NO func-layer hints are always shown (Func+Y=Restore and Func+P=No
-            // are valid even under a scope, so no suppression needed).
-            const bool suppressFuncLayer = false;
-
-            // Nav keys (E/R/T) cycle track input-mode / navigate when Track is
-            // held — NOT the Func length/rotate ops — so don't advertise (or
-            // promote) their Func layer there. Mirrors the NavUp cell.
-            const bool navUnderTrack = (def.role == KeyRole::Nav) && ui.trackHeld;
-            if (navUnderTrack)
-                displayHint = {};
-
-            // Func-hint promotion: when Func held and key has a Func-layer variant,
-            // funcLayer IS the live function — show it as primary, clear hint.
-            const bool hasFuncLayer = (def.funcLayer[0] != static_cast<char8_t>(0));
-            if (ui.funcHeld && hasFuncLayer && !isModeActive && !suppressFuncLayer && !navUnderTrack)
-            {
-                displayPrimary = juce::String(def.funcLayer);
-                displayHint    = {};
-            }
 
             c.primary  = displayPrimary;
             c.funcHint = displayHint;

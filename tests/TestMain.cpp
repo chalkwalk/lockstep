@@ -21,6 +21,7 @@ int main()
     lockstep::runEditModeTests();
     lockstep::runLayerResolveTests();
     lockstep::runSurfaceLayerTests();
+    lockstep::runKeyBindingTests();
     lockstep::runSerializerRoundTripTests();
     // Phase 8 gesture tests
     lockstep::runGestureTests();

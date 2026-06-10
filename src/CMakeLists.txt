@@ -13,6 +13,7 @@ add_library(lockstep_core STATIC
     command/CommandCore.cpp
     command/ScopePriority.cpp
     command/SurfaceLayer.cpp
+    command/KeyBindings.cpp
     command/VerbCommands.cpp
     core/Clock.cpp
     core/Metronome.cpp
