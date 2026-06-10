@@ -3894,7 +3894,16 @@ namespace lockstep
     }
 
     // -------------------------------------------------------------------------
-    // Controller surface — sink construction
+    // Layer context + controller surface sink construction
+
+    LayerContext LockstepEditor::layerContext() const noexcept
+    {
+        return {
+            uiState_.funcHeld,
+            uiState_.trackHeld  || uiState_.latch.track,
+            uiState_.muteHeld   || uiState_.latch.mute
+        };
+    }
 
     ControllerEventSink LockstepEditor::buildControllerSink()
     {
@@ -3902,16 +3911,11 @@ namespace lockstep
 
         sink.emitEvent = [this](ControllerEvent ev)
         {
-            // Mirror QwertyOverlay::resolve() modifier priority for Step events:
-            // trackHeld → SelectTrack, muteHeld → ToggleMute (same index).
-            // This makes the controller equivalent to keyboard for these modes.
-            if (ev.button == ControllerButton::Step)
-            {
-                if (uiState_.trackHeld)
-                    ev.button = ControllerButton::SelectTrack;
-                else if (uiState_.muteHeld)
-                    ev.button = ControllerButton::ToggleMute;
-            }
+            // Apply all layer remaps (kLayerRemaps: Track > Mute > Func priority).
+            // Previously only Step→SelectTrack/ToggleMute were handled here; now
+            // resolveLayer() also closes the Section→MetaSection gap for controllers.
+            if (ev.type != ControllerEvent::Type::EncoderDelta)
+                ev = resolveLayer(ev, layerContext());
 
             if (ev.type == ControllerEvent::Type::ButtonDown)
             {

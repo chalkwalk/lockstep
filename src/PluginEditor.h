@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "PluginProcessor.h"
+#include "command/ButtonLayers.h"
 #include "controller/IControllerSurface.h"
 #include "controller/XTouchMiniSurface.h"
 #include "controller/Push1Surface.h"
@@ -233,6 +234,9 @@ namespace lockstep
         // rawCode = physical key code (keyboard), 0 (mouse), or kControllerSource.
         bool dispatchDown(ControllerEvent ev, int rawCode = 0);
         void dispatchUp  (ControllerEvent ev, int rawCode = 0);
+
+        // Build the effective modifier state (physical OR latched) for resolveLayer().
+        [[nodiscard]] LayerContext layerContext() const noexcept;
         void handleTapTempo();
 
         PressTracker pressTracker_;

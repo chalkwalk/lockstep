@@ -4,6 +4,7 @@
 #include "PageNav.h"
 #include "ScopedSectionMatrix.h"
 #include "UITheme.h"
+#include "../command/ButtonLayers.h"
 #include "../PluginProcessor.h"
 #include "../ParameterIDs.h"
 #include "../core/TrigCondition.h"
@@ -601,12 +602,19 @@ namespace lockstep
             }
             else
             {
-                // Section cells 4-9: emit Section or MetaSection depending on funcHeld,
-                // mirroring what QwertyOverlay resolves for the equivalent key.
+                // Section cells 4-9: emit Section (always), then apply layer remaps.
+                // resolveLayer handles Section → MetaSection when Func is held,
+                // matching QwertyOverlay and the controller path.
                 const int section = cellToSection(i);
                 if (section < 0) return;
-                ev.button = uiState_.funcHeld ? CB::MetaSection : CB::Section;
+                ev.button = CB::Section;
                 ev.index  = section;
+                const LayerContext lctx {
+                    uiState_.funcHeld,
+                    uiState_.trackHeld || uiState_.latch.track,
+                    uiState_.muteHeld  || uiState_.latch.mute
+                };
+                ev = resolveLayer(ev, lctx);
             }
 
             mouseHeldButton_ = ev;
@@ -636,7 +644,8 @@ namespace lockstep
             }
         }
 
-        // Step cells: emit Step event with absIdx so dispatchDown gets the full context.
+        // Step cells: emit Step event, then apply layer remaps so Track+click selects
+        // the track and Mute+click toggles mute, mirroring QWERTY and controller paths.
         const int absIdx = stepCellAt(pos);
         if (absIdx >= 0)
         {
@@ -644,9 +653,15 @@ namespace lockstep
             // but we store absIdx in mouseHeldStep_ for the matching mouseUp).
             const int pageRelIdx = absIdx % kPageSteps;
             mouseHeldStep_ = absIdx;
-            const ControllerEvent ev {
+            const LayerContext lctx {
+                uiState_.funcHeld,
+                uiState_.trackHeld || uiState_.latch.track,
+                uiState_.muteHeld  || uiState_.latch.mute
+            };
+            ControllerEvent ev {
                 ControllerEvent::Type::ButtonDown, ControllerButton::Step, pageRelIdx, 0
             };
+            ev = resolveLayer(ev, lctx);
             mouseHeldButton_ = ev;
             if (onButtonDown) onButtonDown(ev);
         }
