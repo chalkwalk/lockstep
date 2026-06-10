@@ -99,6 +99,7 @@ juce_generate_juce_header(Lockstep)
 target_sources(Lockstep
     PRIVATE
         PluginProcessor.cpp
+        PluginEditorFactory.cpp
         PluginEditor.cpp
         ui/KeyButton.cpp
         ui/KeyboardArea.cpp

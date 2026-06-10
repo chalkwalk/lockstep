@@ -1,5 +1,4 @@
 #include "PluginProcessor.h"
-#include "PluginEditor.h"
 #include "Parameters.h"
 #include "ParameterIDs.h"
 #include "core/StateResolver.h"
@@ -3046,11 +3045,6 @@ namespace lockstep
         return samplePool_.relink(index, newPath);
     }
 
-    juce::AudioProcessorEditor* LockstepProcessor::createEditor()
-    {
-        return new LockstepEditor(*this);
-    }
-
     // Install machines whose IDs match the active Kit's machineId per track.
     // Called from setStateInformation (sequencer is stopped during state load).
     // Unsupported IDs receive a silent StubMachine that preserves data.
@@ -3741,7 +3735,3 @@ namespace lockstep
     }
 }
 
-juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
-{
-    return new lockstep::LockstepProcessor();
-}
