@@ -36,4 +36,8 @@ namespace lockstep
     void runSerializerTests();
     void runAmpDspTests();
     void runEuclideanTests();
+    // Phase 8 characterisation tests
+    void runEditModeTests();
+    void runLayerResolveTests();
+    void runSerializerRoundTripTests();
 }

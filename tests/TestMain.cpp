@@ -17,6 +17,10 @@ int main()
     lockstep::runSerializerTests();
     lockstep::runAmpDspTests();
     lockstep::runEuclideanTests();
+    // Phase 8 characterisation tests
+    lockstep::runEditModeTests();
+    lockstep::runLayerResolveTests();
+    lockstep::runSerializerRoundTripTests();
 
     // Also drive the JUCE UnitTests registered in lockstep_core (the serializer
     // upgrade chain, "PluginState" category) so they run headlessly in CI rather

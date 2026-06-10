@@ -11,7 +11,10 @@ add_executable(lockstep_tests
     CheckpointTest.cpp
     SerializerTest.cpp
     AmpDspTest.cpp
-    EuclideanTest.cpp)
+    EuclideanTest.cpp
+    EditModeTest.cpp
+    LayerResolveTest.cpp
+    SerializerRoundTripTest.cpp)
 
 target_link_libraries(lockstep_tests PRIVATE
     lockstep_core
