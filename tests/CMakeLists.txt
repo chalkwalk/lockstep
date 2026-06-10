@@ -19,7 +19,8 @@ add_executable(lockstep_tests
     SerializerRoundTripTest.cpp
     GestureTest.cpp
     StatusTextTest.cpp
-    ParamSpecTest.cpp)
+    ParamSpecTest.cpp
+    MachineDspTest.cpp)
 
 target_link_libraries(lockstep_tests PRIVATE
     lockstep_core

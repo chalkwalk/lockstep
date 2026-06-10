@@ -48,4 +48,6 @@ namespace lockstep
     void runStatusTextTests();
     // Phase 8 ParamSpec golden ids + invariants
     void runParamSpecTests();
+    // 8.13 Machine DSP smoke + envelope characterization
+    void runMachineDspTests();
 }

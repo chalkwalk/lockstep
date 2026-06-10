@@ -1,0 +1,463 @@
+// MachineDspTest -- smoke tests for every IMachine and IEffect concrete type.
+//
+// For synthesis machines (VA, FM, DrumSynth): construct, prepare, fire a
+// note-on, render N blocks, assert non-silence + no NaN/Inf; then note-off
+// with a short release time set, render release tail, assert silence.
+// This is the regression detector for the VA/FM envelope issues flagged as a
+// potential consequence of the 4.4 SamplePlayingMachineBase refactor.
+//
+// For sample-playing machines (Sampler, Slicer): no sample is loaded so audio
+// is silent -- we just assert no crash and no NaN.
+//
+// For IEffect: drive with a non-zero input, assert no NaN/Inf.
+//
+// Envelope goldens tagged [SUSPECTED-BUGGY] may be updated in 8.20 if the
+// regression is confirmed there.
+
+#include "TestHarness.h"
+#include "../src/machine/VAMachine.h"
+#include "../src/machine/FMMachine.h"
+#include "../src/machine/DrumSynthMachine.h"
+#include "../src/machine/SamplerMachine.h"
+#include "../src/machine/SlicerMachine.h"
+#include "../src/machine/SamplePool.h"
+#include "../src/machine/IEffect.h"
+#include "../src/machine/EffectFactory.h"
+#include <cmath>
+
+namespace lockstep
+{
+    // -----------------------------------------------------------------------
+    // Helpers
+
+    static bool hasNaNOrInf(const juce::AudioBuffer<float>& buf)
+    {
+        for (int ch = 0; ch < buf.getNumChannels(); ++ch)
+        {
+            for (int i = 0; i < buf.getNumSamples(); ++i)
+            {
+                if (!std::isfinite(buf.getSample(ch, i)))
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    static float blockRms(const juce::AudioBuffer<float>& buf)
+    {
+        double sum = 0.0;
+        int    n   = 0;
+        for (int ch = 0; ch < buf.getNumChannels(); ++ch)
+        {
+            for (int i = 0; i < buf.getNumSamples(); ++i)
+            {
+                const float v = buf.getSample(ch, i);
+                sum += static_cast<double>(v) * static_cast<double>(v);
+                ++n;
+            }
+        }
+        return (n > 0) ? static_cast<float>(std::sqrt(sum / static_cast<double>(n))) : 0.0f;
+    }
+
+    // Build a default ParamFrame (all defaults) for a machine.
+    static ParamFrame defaultFrame(IMachine& m)
+    {
+        ParamFrame f(static_cast<size_t>(m.numParams()));
+        for (int i = 0; i < m.numParams(); ++i)
+            f[static_cast<size_t>(i)] = m.paramSpec(i).defaultValue;
+        return f;
+    }
+
+    // Set a slot by id if found, otherwise return false.
+    static bool setSlot(IMachine& m, ParamFrame& frame, const char* id, float val)
+    {
+        const int slot = m.slotForId(id);
+        if (slot < 0) return false;
+        frame[static_cast<size_t>(slot)] = val;
+        return true;
+    }
+
+    static void renderBlock(IMachine& m, juce::MidiBuffer& midi,
+                            const ParamFrame& frame,
+                            juce::AudioBuffer<float>& buf)
+    {
+        buf.clear();
+        m.process(midi, frame, buf);
+        midi.clear();
+    }
+
+    // -----------------------------------------------------------------------
+    // Synthesis machine smoke test.
+    // releaseSlotId: param id whose minimum value gives a short release (e.g.
+    // "va_amp_r"). If not found the release-tail silence check is skipped.
+    // For AHD drums pass the decay id; the check verifies the decay clears.
+    static void smokeTestSynth(IMachine& m, int noteNum,
+                               int activeBlocks, int releaseBlocks,
+                               float silenceThreshold,
+                               const char* releaseSlotId,
+                               const char* name)
+    {
+        constexpr int    kBlockSize = 256;
+        constexpr double kSR       = 48000.0;
+
+        m.prepare(kSR, kBlockSize);
+        m.reset();
+
+        juce::AudioBuffer<float> buf(2, kBlockSize);
+        juce::MidiBuffer         midi;
+        ParamFrame               frame = defaultFrame(m);
+
+        // Force short release so we don't need thousands of blocks.
+        const int  releaseSlot = m.slotForId(releaseSlotId);
+        const bool hasRelease  = (releaseSlot >= 0);
+        if (hasRelease)
+            frame[static_cast<size_t>(releaseSlot)] = m.paramSpec(releaseSlot).minValue;
+
+        // Note-on -- first block.
+        midi.addEvent(juce::MidiMessage::noteOn(1, noteNum, static_cast<juce::uint8>(100)), 0);
+        renderBlock(m, midi, frame, buf);
+        CHECK(!hasNaNOrInf(buf),
+              juce::String(name) + ": NaN/Inf in first block after note-on");
+
+        // Active phase.
+        float maxRms = blockRms(buf);
+        for (int b = 1; b < activeBlocks; ++b)
+        {
+            renderBlock(m, midi, frame, buf);
+            CHECK(!hasNaNOrInf(buf),
+                  juce::String(name) + ": NaN/Inf in active block " + juce::String(b));
+            maxRms = std::max(maxRms, blockRms(buf));
+        }
+        CHECK(maxRms > 1e-4f,
+              juce::String(name) + ": no audio after note-on (RMS="
+              + juce::String(maxRms) + ")");
+
+        // Note-off.
+        midi.addEvent(juce::MidiMessage::noteOff(1, noteNum), 0);
+        renderBlock(m, midi, frame, buf);
+        CHECK(!hasNaNOrInf(buf),
+              juce::String(name) + ": NaN/Inf in first block after note-off");
+
+        // Release tail.
+        for (int b = 1; b < releaseBlocks; ++b)
+        {
+            renderBlock(m, midi, frame, buf);
+            CHECK(!hasNaNOrInf(buf),
+                  juce::String(name) + ": NaN/Inf in release block " + juce::String(b));
+        }
+
+        if (hasRelease)
+        {
+            const float finalRms = blockRms(buf);
+            CHECK(finalRms < silenceThreshold,
+                  juce::String(name) + ": envelope did not reach silence after release tail (RMS="
+                  + juce::String(finalRms) + ", threshold="
+                  + juce::String(silenceThreshold) + ")");
+        }
+    }
+
+    // Smoke test for sample-playing machines: no crash, no NaN (silent without a loaded sample).
+    static void smokeTestSampleMachine(IMachine& m, const char* name)
+    {
+        constexpr int    kBlockSize = 256;
+        constexpr double kSR       = 48000.0;
+
+        m.prepare(kSR, kBlockSize);
+        m.reset();
+
+        juce::AudioBuffer<float> buf(2, kBlockSize);
+        juce::MidiBuffer         midi;
+        ParamFrame               frame = defaultFrame(m);
+
+        midi.addEvent(juce::MidiMessage::noteOn(1, 60, static_cast<juce::uint8>(100)), 0);
+        renderBlock(m, midi, frame, buf);
+        CHECK(!hasNaNOrInf(buf),
+              juce::String(name) + ": NaN/Inf after note-on (no sample loaded)");
+
+        midi.addEvent(juce::MidiMessage::noteOff(1, 60), 0);
+        for (int b = 0; b < 10; ++b)
+            renderBlock(m, midi, frame, buf);
+        CHECK(!hasNaNOrInf(buf),
+              juce::String(name) + ": NaN/Inf after note-off tail (no sample loaded)");
+    }
+
+    // -----------------------------------------------------------------------
+    // Block-size invariance: RMS with 64 vs 512 sample blocks must agree
+    // within 20 dB (~10x ratio) over the same number of rendered samples.
+    static void blockSizeInvariance(IMachine& m, int noteNum,
+                                    int activeBlocks64, const char* name)
+    {
+        auto renderRms = [&](int blockSize) -> float
+        {
+            m.prepare(48000.0, blockSize);
+            m.reset();
+            juce::AudioBuffer<float> buf(2, blockSize);
+            juce::MidiBuffer         midi;
+            ParamFrame               frame = defaultFrame(m);
+
+            midi.addEvent(juce::MidiMessage::noteOn(1, noteNum,
+                static_cast<juce::uint8>(100)), 0);
+            double sumSq = 0.0;
+            int    total = 0;
+            for (int b = 0; b < activeBlocks64; ++b)
+            {
+                buf.clear();
+                m.process(midi, frame, buf);
+                midi.clear();
+                for (int ch = 0; ch < buf.getNumChannels(); ++ch)
+                {
+                    for (int i = 0; i < blockSize; ++i)
+                    {
+                        const float v = buf.getSample(ch, i);
+                        sumSq += static_cast<double>(v) * static_cast<double>(v);
+                    }
+                }
+                total += blockSize * buf.getNumChannels();
+            }
+            return (total > 0)
+                ? static_cast<float>(std::sqrt(sumSq / static_cast<double>(total)))
+                : 0.0f;
+        };
+
+        const float rms64  = renderRms(64);
+        const float rms512 = renderRms(512);
+
+        CHECK(rms64 > 1e-5f,
+              juce::String(name) + ": block-size 64 is silent");
+        CHECK(rms512 > 1e-5f,
+              juce::String(name) + ": block-size 512 is silent");
+
+        const float ratio = (rms512 > 0.0f) ? (rms64 / rms512) : 0.0f;
+        CHECK(ratio > 0.1f && ratio < 10.0f,
+              juce::String(name) + ": block-size RMS ratio " + juce::String(ratio)
+              + " out of tolerance (>10x difference between 64 and 512 samples)");
+    }
+
+    // -----------------------------------------------------------------------
+    // IEffect smoke test: fill buffer with a sine, process, assert no NaN.
+    static void smokeTestEffect(IEffect& fx, const char* name)
+    {
+        constexpr int    kBlockSize = 256;
+        constexpr double kSR       = 48000.0;
+
+        fx.prepare(kSR, kBlockSize);
+        fx.reset();
+
+        juce::AudioBuffer<float> buf(2, kBlockSize);
+        ParamFrame frame(static_cast<size_t>(fx.numParams()));
+        for (int i = 0; i < fx.numParams(); ++i)
+            frame[static_cast<size_t>(i)] = fx.paramSpec(i).defaultValue;
+
+        for (int ch = 0; ch < 2; ++ch)
+        {
+            for (int i = 0; i < kBlockSize; ++i)
+                buf.setSample(ch, i, std::sin(static_cast<float>(i) * 0.1f) * 0.5f);
+        }
+
+        fx.process(buf, kBlockSize, frame);
+        CHECK(!hasNaNOrInf(buf),
+              juce::String(name) + ": NaN/Inf after processing a sine signal");
+    }
+
+    // -----------------------------------------------------------------------
+    // VAMachine envelope golden.
+    // Sets A=10ms, D=50ms, S=0.5, R=20ms at 48 kHz and verifies:
+    //   - after attack (>=10ms): peak is non-trivial
+    //   - after release tail (>=60ms): near silence
+    //
+    // Tagged [SUSPECTED-BUGGY] on the silence check -- verify in 8.20.
+    static void vaEnvelopeGolden()
+    {
+        VAMachine va;
+        va.prepare(48000.0, 64);
+
+        ParamFrame frame = defaultFrame(va);
+
+        const int slotA  = va.slotForId("va_amp_a");
+        const int slotD  = va.slotForId("va_amp_d");
+        const int slotS  = va.slotForId("va_amp_s");
+        const int slotR  = va.slotForId("va_amp_r");
+        const int slotLv = va.slotForId("va_level");
+
+        if (slotA < 0 || slotD < 0 || slotS < 0 || slotR < 0 || slotLv < 0)
+        {
+            juce::Logger::writeToLog("vaEnvelopeGolden: amp slot ids not found - skipping");
+            return;
+        }
+
+        // A=10ms, D=50ms, S=0.5, R=20ms (short release so test finishes quickly)
+        auto norm = [](float val, const ParamSpec& ps) -> float {
+            const float range = ps.maxValue - ps.minValue;
+            return (range > 0.0f) ? (val - ps.minValue) / range : 0.0f;
+        };
+
+        frame[static_cast<size_t>(slotA)]  = norm(10.0f, va.paramSpec(slotA));
+        frame[static_cast<size_t>(slotD)]  = norm(50.0f, va.paramSpec(slotD));
+        frame[static_cast<size_t>(slotS)]  = 0.5f;
+        frame[static_cast<size_t>(slotR)]  = norm(20.0f, va.paramSpec(slotR));
+        frame[static_cast<size_t>(slotLv)] = 1.0f;
+
+        juce::AudioBuffer<float> buf(2, 64);
+        juce::MidiBuffer         midi;
+
+        // Note-on; render ~15ms (11 blocks) to clear the attack.
+        midi.addEvent(juce::MidiMessage::noteOn(1, 60, static_cast<juce::uint8>(100)), 0);
+        for (int b = 0; b < 11; ++b) { buf.clear(); va.process(midi, frame, buf); midi.clear(); }
+        CHECK(!hasNaNOrInf(buf), "VA golden: NaN after attack");
+
+        float peakAfterAttack = 0.0f;
+        for (int ch = 0; ch < buf.getNumChannels(); ++ch)
+        {
+            for (int i = 0; i < buf.getNumSamples(); ++i)
+                peakAfterAttack = std::max(peakAfterAttack, std::abs(buf.getSample(ch, i)));
+        }
+        CHECK(peakAfterAttack > 0.3f,
+              "VA golden: level too low after attack -- envelope may not be firing");
+
+        // Render ~60ms more (45 blocks) to clear decay and settle at sustain.
+        for (int b = 0; b < 45; ++b) { buf.clear(); va.process(midi, frame, buf); midi.clear(); }
+        CHECK(!hasNaNOrInf(buf), "VA golden: NaN after decay");
+
+        // Note-off; render 50ms (38 blocks) release tail -- 20ms release should clear.
+        midi.addEvent(juce::MidiMessage::noteOff(1, 60), 0);
+        for (int b = 0; b < 38; ++b) { buf.clear(); va.process(midi, frame, buf); midi.clear(); }
+        CHECK(!hasNaNOrInf(buf), "VA golden: NaN after release tail");
+
+        const float finalRms = blockRms(buf);
+        // [SUSPECTED-BUGGY] -- if this fails after 8.20 envelope audit, update the threshold
+        CHECK(finalRms < 1e-2f,
+              "VA golden: did not reach near-silence after 50ms release tail (RMS="
+              + juce::String(finalRms) + ")");
+    }
+
+    // -----------------------------------------------------------------------
+    // FM envelope golden.
+    // fm_macro_atk / fm_macro_rel range 0..3 (normalized: 0=fastest, 3=slowest).
+    // Set both to 0 for near-instant attack and release.
+    static void fmEnvelopeGolden()
+    {
+        FMMachine fm;
+        fm.prepare(48000.0, 64);
+
+        ParamFrame frame = defaultFrame(fm);
+
+        const int slotA = fm.slotForId("fm_macro_atk");
+        const int slotR = fm.slotForId("fm_macro_rel");
+
+        if (slotA < 0 || slotR < 0)
+        {
+            juce::Logger::writeToLog("fmEnvelopeGolden: macro slot ids not found - skipping");
+            return;
+        }
+
+        // 0 = minimum (fastest attack/release).
+        frame[static_cast<size_t>(slotA)] = fm.paramSpec(slotA).minValue;
+        frame[static_cast<size_t>(slotR)] = fm.paramSpec(slotR).minValue;
+
+        // Set op1 release to minimum so the voice silences quickly after note-off.
+        setSlot(fm, frame, "fm_rel_1", fm.paramSpec(fm.slotForId("fm_rel_1")).minValue);
+        setSlot(fm, frame, "fm_rel_2", fm.paramSpec(fm.slotForId("fm_rel_2")).minValue);
+        setSlot(fm, frame, "fm_rel_3", fm.paramSpec(fm.slotForId("fm_rel_3")).minValue);
+        setSlot(fm, frame, "fm_rel_4", fm.paramSpec(fm.slotForId("fm_rel_4")).minValue);
+
+        juce::AudioBuffer<float> buf(2, 64);
+        juce::MidiBuffer         midi;
+
+        midi.addEvent(juce::MidiMessage::noteOn(1, 60, static_cast<juce::uint8>(100)), 0);
+        // Render ~15ms.
+        for (int b = 0; b < 11; ++b) { buf.clear(); fm.process(midi, frame, buf); midi.clear(); }
+        CHECK(!hasNaNOrInf(buf), "FM golden: NaN after attack");
+
+        float peakAfterAttack = 0.0f;
+        for (int ch = 0; ch < buf.getNumChannels(); ++ch)
+        {
+            for (int i = 0; i < buf.getNumSamples(); ++i)
+                peakAfterAttack = std::max(peakAfterAttack, std::abs(buf.getSample(ch, i)));
+        }
+        CHECK(peakAfterAttack > 0.1f,
+              "FM golden: level too low after attack -- envelope may not be firing");
+
+        // Note-off; render 50ms (38 blocks) release tail.
+        midi.addEvent(juce::MidiMessage::noteOff(1, 60), 0);
+        for (int b = 0; b < 38; ++b) { buf.clear(); fm.process(midi, frame, buf); midi.clear(); }
+        CHECK(!hasNaNOrInf(buf), "FM golden: NaN after release tail");
+
+        const float finalRms = blockRms(buf);
+        // [SUSPECTED-BUGGY] -- if this fails after 8.20 envelope audit, update the threshold
+        CHECK(finalRms < 1e-2f,
+              "FM golden: did not reach near-silence after 50ms release tail (RMS="
+              + juce::String(finalRms) + ")");
+    }
+
+    // -----------------------------------------------------------------------
+
+    void runMachineDspTests()
+    {
+        // --- VAMachine ---
+        {
+            VAMachine va;
+            smokeTestSynth(va, 60, /*activeBlocks=*/20, /*releaseBlocks=*/20,
+                           /*silenceThreshold=*/1e-3f, "va_amp_r", "VAMachine");
+        }
+        {
+            VAMachine va;
+            blockSizeInvariance(va, 60, /*activeBlocks=*/10, "VAMachine");
+        }
+        vaEnvelopeGolden();
+
+        // --- FMMachine ---
+        {
+            FMMachine fm;
+            smokeTestSynth(fm, 60, 20, 20, 1e-3f, "fm_rel_1", "FMMachine");
+        }
+        {
+            FMMachine fm;
+            blockSizeInvariance(fm, 60, 10, "FMMachine");
+        }
+        fmEnvelopeGolden();
+
+        // --- DrumSynthMachine ---
+        // Drums are AHD; after note-off they just complete the decay naturally.
+        // Use the decay id so smokeTestSynth sets a short decay.
+        {
+            DrumSynthMachine ds;
+            smokeTestSynth(ds, 60, 20, 20, 1e-3f, "drum_decay", "DrumSynthMachine");
+        }
+        {
+            DrumSynthMachine ds;
+            blockSizeInvariance(ds, 60, 10, "DrumSynthMachine");
+        }
+
+        // --- Sample-playing machines (no sample loaded -- smoke only) ---
+        {
+            SamplePool pool;
+            SamplerMachine sampler(pool);
+            smokeTestSampleMachine(sampler, "SamplerMachine");
+        }
+        {
+            SamplePool pool;
+            SlicerMachine slicer(pool);
+            smokeTestSampleMachine(slicer, "SlicerMachine");
+        }
+
+        // --- IEffect catalogue ---
+        {
+            const char* effectIds[] = {
+                "lockstep.delay.v1",
+                "lockstep.reverb.v1",
+                "lockstep.distortion.v1",
+                "lockstep.chorus.v1",
+            };
+            for (const char* id : effectIds)
+            {
+                auto fx = makeEffectForId(id);
+                if (fx == nullptr)
+                {
+                    CHECK(false, "makeEffectForId returned nullptr for " + juce::String(id));
+                    continue;
+                }
+                smokeTestEffect(*fx, id);
+            }
+        }
+    }
+}

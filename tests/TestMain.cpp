@@ -27,6 +27,8 @@ int main()
     lockstep::runGestureTests();
     lockstep::runStatusTextTests();
     lockstep::runParamSpecTests();
+    // 8.13 Machine DSP smoke + envelope characterization
+    lockstep::runMachineDspTests();
 
     // Also drive the JUCE UnitTests registered in lockstep_core (the serializer
     // upgrade chain, "PluginState" category) so they run headlessly in CI rather

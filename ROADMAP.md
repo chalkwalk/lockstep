@@ -1238,6 +1238,14 @@ that builds clean and passes tests.
 - [x] **8.12** Add `LOCKSTEP_SANITIZE` option; document ASan/TSan build lines in
       CLAUDE.md; verify `lockstep_tests` passes clean under ASan/UBSan.
 
+### 8.13 -- Machine DSP smoke + envelope characterization
+`tests/MachineDspTest.cpp`: per-machine construct/prepare/note-on/render/note-off
+cycle; asserts non-silence after trigger, no NaN/Inf throughout, envelope decays
+to silence after short release. Block-size invariance (64 vs 512 samples).
+IEffect catalogue smoke. Envelope goldens for VA and FM with explicit ADSR values.
+- [x] **8.13** `MachineDspTest.cpp`: smoke + envelope goldens for VA/FM/DrumSynth/
+      Sampler/Slicer + 4 IEffects; ASan/UBSan clean.
+
 ---
 
 ## Appendix — Legacy code → new id
