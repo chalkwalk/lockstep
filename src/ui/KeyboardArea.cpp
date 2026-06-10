@@ -721,16 +721,9 @@ namespace lockstep
         paintCell(g, sectionCellBounds(3, area), model.navUp,        showKeyHint);
 
         // Section keys 5-0 (cells 4-9): render from model + page dots (screen-only)
-        const bool isScopedMode = uiState_.trackHeld || uiState_.phraseScopeHeld
-                                || uiState_.sceneHeld  || uiState_.morphHeld
-                                || uiState_.songHeld;
         using PS = EditMode::PrimaryScope;
-        PS sectionScope = PS::None;
-        if      (uiState_.trackHeld)        sectionScope = PS::Track;
-        else if (uiState_.phraseScopeHeld) sectionScope = PS::Phrase;
-        else if (uiState_.sceneHeld)         sectionScope = PS::Scene;
-        else if (uiState_.morphHeld)        sectionScope = PS::Morph;
-        else if (uiState_.songHeld)       sectionScope = PS::Song;
+        const PS sectionScope = firstHeldSectionSuiteScope(uiState_);
+        const bool isScopedMode = (sectionScope != PS::None);
 
         for (int s = 0; s < IMachine::kMaxSections; ++s)
         {

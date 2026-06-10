@@ -1,4 +1,5 @@
 #include "EditMode.h"
+#include "../command/ScopePriority.h"
 
 namespace lockstep
 {
@@ -128,20 +129,35 @@ namespace lockstep
 
     void EditMode::recomputePrimary()
     {
-        // Priority (MHY): Trig > Section > Track > Pattern > Part > Mute >
-        // Scene > Master > Fill > Func > None.
-        // (Cue is reserved but currently unreachable from QWERTY.)
-        if (scope_.trig)    { primary_ = PrimaryScope::Trig;    return; }
-        if (sectionHeld_)   { primary_ = PrimaryScope::Section; return; }
-        if (scope_.track)   { primary_ = PrimaryScope::Track;   return; }
-        if (scope_.phrase) { primary_ = PrimaryScope::Phrase; return; }
-        if (scope_.scene)    { primary_ = PrimaryScope::Scene;    return; }
-        if (scope_.mute)    { primary_ = PrimaryScope::Mute;    return; }
-        if (scope_.cue)     { primary_ = PrimaryScope::Cue;     return; }
-        if (scope_.morph)   { primary_ = PrimaryScope::Morph;   return; }
-        if (scope_.song)  { primary_ = PrimaryScope::Song;  return; }
-        if (scope_.fill)    { primary_ = PrimaryScope::Fill;    return; }
-        if (scope_.func)    { primary_ = PrimaryScope::Func;    return; }
+        // Walk kScopePriority (ScopePriority.h) — the one SSOT for priority order.
+        for (auto s : kScopePriority)
+        {
+            if (isScopeHeld(s)) { primary_ = s; return; }
+        }
+        // Cue is reserved (no QWERTY binding); checked after the walk so it does
+        // not displace ranked scopes but remains reachable for future input sources.
+        if (scope_.cue) { primary_ = PrimaryScope::Cue; return; }
         primary_ = PrimaryScope::None;
+    }
+
+    bool EditMode::isScopeHeld(PrimaryScope s) const noexcept
+    {
+        using PS = PrimaryScope;
+        switch (s)
+        {
+            case PS::Trig:    return scope_.trig;
+            case PS::Section: return sectionHeld_;
+            case PS::Track:   return scope_.track;
+            case PS::Phrase:  return scope_.phrase;
+            case PS::Scene:   return scope_.scene;
+            case PS::Mute:    return scope_.mute;
+            case PS::Morph:   return scope_.morph;
+            case PS::Song:    return scope_.song;
+            case PS::Fill:    return scope_.fill;
+            case PS::Func:    return scope_.func;
+            case PS::Cue:     return scope_.cue;
+            case PS::None:    return false;
+        }
+        return false;
     }
 }

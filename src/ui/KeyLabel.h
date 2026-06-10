@@ -6,6 +6,7 @@
 #include "../io/EditMode.h"
 #include "../io/EditContext.h"
 #include "../state/UiState.h"
+#include "../command/ScopePriority.h"
 
 namespace lockstep
 {
@@ -44,19 +45,16 @@ namespace lockstep
     }
 
     // Returns the scope colour that corresponds to the held modifier state in
-    // UiState — whichever section-suite scope is currently held, or the step
-    // colour if none.
+    // UiState — whichever section-suite scope is currently held (priority from
+    // firstHeldSectionSuiteScope), then Mute/Fill, or the step colour if none.
     inline juce::Colour scopeColourFromState(const UiState& ui) noexcept
     {
         using namespace theme;
         using PS = EditMode::PrimaryScope;
-        if (ui.trackHeld)        return scopeColour(PS::Track);
-        if (ui.phraseScopeHeld) return scopeColour(PS::Phrase);
-        if (ui.sceneHeld)         return scopeColour(PS::Scene);
-        if (ui.morphHeld)        return scopeColour(PS::Morph);
-        if (ui.songHeld)       return scopeColour(PS::Song);
-        if (ui.muteHeld)         return col(ui.funcHeld ? kScopePMute : kScopeMute);
-        if (ui.fillHeld)         return scopeColour(PS::Fill);
+        const PS s = firstHeldSectionSuiteScope(ui);
+        if (s != PS::None) { return scopeColour(s); }
+        if (ui.muteHeld)   { return col(ui.funcHeld ? kScopePMute : kScopeMute); }
+        if (ui.fillHeld)   { return scopeColour(PS::Fill); }
         return scopeColour(PS::None);
     }
 
@@ -112,13 +110,7 @@ namespace lockstep
         using PS = EditMode::PrimaryScope;
 
         // Determine the held section-suite scope modifier (if any).
-        PS sectionScope = PS::None;
-        if      (ui.trackHeld)        sectionScope = PS::Track;
-        else if (ui.phraseScopeHeld) sectionScope = PS::Phrase;
-        else if (ui.sceneHeld)         sectionScope = PS::Scene;
-        else if (ui.morphHeld)        sectionScope = PS::Morph;
-        else if (ui.songHeld)       sectionScope = PS::Song;
-
+        const PS sectionScope = firstHeldSectionSuiteScope(ui);
         const bool isScopedMode = (sectionScope != PS::None);
 
         // --- Section keys (TRIG / SRC / FILTER / AMP / MOD / FX) ----------

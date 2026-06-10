@@ -5,6 +5,8 @@
 #include "TestHarness.h"
 #include "../src/io/EditMode.h"
 #include "../src/io/ControllerEvent.h"
+#include "../src/command/ScopePriority.h"
+#include "../src/state/UiState.h"
 
 namespace lockstep
 {
@@ -253,6 +255,116 @@ namespace lockstep
         CHECK(em.onScopeEvent(down(CB::TrackScope)),  "TrackScope IS consumed");
     }
 
+    // ── A1 sweep: recomputePrimary matches kScopePriority for all combos ──────
+    // Builds a reference result by walking kScopePriority the same way as the
+    // refactored recomputePrimary, then compares against EditMode's output.
+    // Exercises all 2^8 modifier combinations (256) plus trig and section flags.
+
+    static PS referenceScope(bool trig, bool sectionHeld,
+                             bool func, bool track, bool phrase,
+                             bool scene, bool mute, bool morph,
+                             bool song, bool fill)
+    {
+        // Mirrors the kScopePriority walk in EditMode::recomputePrimary.
+        for (auto s : kScopePriority)
+        {
+            if (s == PS::Trig    && trig)        { return s; }
+            if (s == PS::Section && sectionHeld) { return s; }
+            if (s == PS::Track   && track)       { return s; }
+            if (s == PS::Phrase  && phrase)      { return s; }
+            if (s == PS::Scene   && scene)       { return s; }
+            if (s == PS::Mute    && mute)        { return s; }
+            if (s == PS::Morph   && morph)       { return s; }
+            if (s == PS::Song    && song)        { return s; }
+            if (s == PS::Fill    && fill)        { return s; }
+            if (s == PS::Func    && func)        { return s; }
+        }
+        return PS::None;
+    }
+
+    static void testScopePrioritySweep()
+    {
+        // For every combination of the 8 modifier buttons (256 combos) × trig × section,
+        // verify recomputePrimary matches the reference walk of kScopePriority.
+        for (int mask = 0; mask < 256; ++mask)
+        {
+            const bool func   = (mask & 1)   != 0;
+            const bool track  = (mask & 2)   != 0;
+            const bool phrase = (mask & 4)   != 0;
+            const bool scene  = (mask & 8)   != 0;
+            const bool mute   = (mask & 16)  != 0;
+            const bool morph  = (mask & 32)  != 0;
+            const bool song   = (mask & 64)  != 0;
+            const bool fill   = (mask & 128) != 0;
+
+            for (int flags = 0; flags < 4; ++flags)
+            {
+                const bool trig    = (flags & 1) != 0;
+                const bool section = (flags & 2) != 0;
+
+                EditMode em;
+                if (func)   { em.onScopeEvent(down(CB::Func));        }
+                if (track)  { em.onScopeEvent(down(CB::TrackScope));  }
+                if (phrase) { em.onScopeEvent(down(CB::PhraseScope)); }
+                if (scene)  { em.onScopeEvent(down(CB::SceneScope));  }
+                if (mute)   { em.onScopeEvent(down(CB::MuteScope));   }
+                if (morph)  { em.onScopeEvent(down(CB::MorphScope));  }
+                if (song)   { em.onScopeEvent(down(CB::SongScope));   }
+                if (fill)   { em.onScopeEvent(down(CB::FillScope));   }
+                em.setTrigHeld(trig);
+                em.setSectionHeld(section);
+
+                const PS expected = referenceScope(trig, section, func, track,
+                                                   phrase, scene, mute, morph, song, fill);
+                const PS actual   = em.primaryScope();
+                CHECK(actual == expected,
+                      juce::String("scope sweep mismatch mask=") + juce::String(mask)
+                      + " flags=" + juce::String(flags)
+                      + " expected=" + juce::String(static_cast<int>(expected))
+                      + " actual="   + juce::String(static_cast<int>(actual)));
+            }
+        }
+    }
+
+    // ── A1 sweep: firstHeldSectionSuiteScope matches priority order ────────
+    static void testFirstHeldSectionSuiteSweep()
+    {
+        // For every combination of the 5 section-suite modifier flags, verify
+        // firstHeldSectionSuiteScope returns the highest-priority one.
+        for (int mask = 0; mask < 32; ++mask)
+        {
+            const bool track  = (mask & 1)  != 0;
+            const bool phrase = (mask & 2)  != 0;
+            const bool scene  = (mask & 4)  != 0;
+            const bool morph  = (mask & 8)  != 0;
+            const bool song   = (mask & 16) != 0;
+
+            UiState ui;
+            ui.trackHeld        = track;
+            ui.phraseScopeHeld  = phrase;
+            ui.sceneHeld         = scene;
+            ui.morphHeld        = morph;
+            ui.songHeld        = song;
+
+            // Reference: walk kScopePriority and return first suite scope held.
+            PS expected = PS::None;
+            for (auto s : kScopePriority)
+            {
+                if (s == PS::Track  && track)  { expected = s; break; }
+                if (s == PS::Phrase && phrase) { expected = s; break; }
+                if (s == PS::Scene  && scene)  { expected = s; break; }
+                if (s == PS::Morph  && morph)  { expected = s; break; }
+                if (s == PS::Song   && song)   { expected = s; break; }
+            }
+
+            const PS actual = firstHeldSectionSuiteScope(ui);
+            CHECK(actual == expected,
+                  juce::String("firstHeldSectionSuite mismatch mask=") + juce::String(mask)
+                  + " expected=" + juce::String(static_cast<int>(expected))
+                  + " actual="   + juce::String(static_cast<int>(actual)));
+        }
+    }
+
     void runEditModeTests()
     {
         testPriorityOrder();
@@ -261,5 +373,7 @@ namespace lockstep
         testSameColumnConflict();
         testOnVerbDispatched();
         testNonModifierReturnsNotConsumed();
+        testScopePrioritySweep();
+        testFirstHeldSectionSuiteSweep();
     }
 }

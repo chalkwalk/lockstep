@@ -11,6 +11,7 @@ add_library(lockstep_core STATIC
     Parameters.cpp
     command/ButtonLayers.cpp
     command/CommandCore.cpp
+    command/ScopePriority.cpp
     command/VerbCommands.cpp
     core/Clock.cpp
     core/Metronome.cpp

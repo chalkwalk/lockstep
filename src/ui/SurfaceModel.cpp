@@ -394,12 +394,7 @@ namespace lockstep
         // =====================================================================
 
         using PS = EditMode::PrimaryScope;
-        PS sectionScope = PS::None;
-        if      (ui.trackHeld)        sectionScope = PS::Track;
-        else if (ui.phraseScopeHeld) sectionScope = PS::Phrase;
-        else if (ui.sceneHeld)         sectionScope = PS::Scene;
-        else if (ui.morphHeld)        sectionScope = PS::Morph;
-        else if (ui.songHeld)       sectionScope = PS::Song;
+        const PS sectionScope = firstHeldSectionSuiteScope(ui);
         const bool isScopedMode = (sectionScope != PS::None);
 
         static constexpr int kSectionKeyCodes[IMachine::kMaxSections] = {

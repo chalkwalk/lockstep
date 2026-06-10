@@ -99,5 +99,7 @@ namespace lockstep
         bool         sectionHeld_ = false;
 
         void recomputePrimary();
+        // Maps a PrimaryScope value to the corresponding held flag.
+        [[nodiscard]] bool isScopeHeld(PrimaryScope s) const noexcept;
     };
 }
