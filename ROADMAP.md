@@ -1117,21 +1117,21 @@ DESIGN §37/§35.8.7/§37.4/§37.5 added; ROADMAP Phase 8 entry; CLAUDE.md statu
       §37.5 ParamRow); ROADMAP Phase 8 entry; CLAUDE.md status.
 
 ### 8.2 — Characterization tests before moving code
-- [ ] **8.2a** `tests/EditModeTest.cpp` — pin priority order, compound scope,
+- [x] **8.2a** `tests/EditModeTest.cpp` — pin priority order, compound scope,
       verb dispatch under chords.
-- [ ] **8.2b** `tests/LayerResolveTest.cpp` — golden table for all
+- [x] **8.2b** `tests/LayerResolveTest.cpp` — golden table for all
       scancode × layer combos through `QwertyOverlay::resolve()` (oracle for 8.3).
-- [ ] **8.2c** `tests/SerializerRoundTripTest.cpp` — sentinel round-trip for every
+- [x] **8.2c** `tests/SerializerRoundTripTest.cpp` — sentinel round-trip for every
       serialized field; separate from upgrade-chain `SerializerTest.cpp`.
 
 ### 8.3 — Single `resolveLayer` (replaces three diverged implementations)
-- [ ] **8.3a** `src/command/ButtonLayers.{h,cpp}` + `kLayerRemaps[]` table;
+- [x] **8.3a** `src/command/ButtonLayers.{h,cpp}` + `kLayerRemaps[]` table;
       refactor `QwertyOverlay::resolve()` — golden test must pass unchanged.
-- [ ] **8.3b** Wire into mouse (`KeyboardArea`) + controller sink (`PluginEditor`);
+- [x] **8.3b** Wire into mouse (`KeyboardArea`) + controller sink (`PluginEditor`);
       delete in-dispatch remaps; add `layerContext()` helper.
 
 ### 8.4 — Command core extraction (~6–8 commits, incremental)
-- [ ] **8.4a** Seam scaffolding: `CommandContext.h`, `CommandEffects.h`,
+- [x] **8.4a** Seam scaffolding: `CommandContext.h`, `CommandEffects.h`,
       `CommandCore.{h,cpp}`, `EditorEffects`; `activeTrack` into `UiState`.
 - [ ] **8.4b** `VerbCommands`: `PS::Trig` scope (step copy/paste/clear).
 - [ ] **8.4c** `VerbCommands`: `PS::Track`, `PS::Phrase`.

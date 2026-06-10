@@ -14,12 +14,14 @@ add_executable(lockstep_tests
     EuclideanTest.cpp
     EditModeTest.cpp
     LayerResolveTest.cpp
-    SerializerRoundTripTest.cpp)
+    SerializerRoundTripTest.cpp
+    GestureTest.cpp)
 
 target_link_libraries(lockstep_tests PRIVATE
     lockstep_core
     juce::juce_gui_basics
-    juce::juce_core)
+    juce::juce_core
+    juce::juce_data_structures)
 
 # Inherit the project's strict warning flags.
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")

@@ -21,6 +21,8 @@ int main()
     lockstep::runEditModeTests();
     lockstep::runLayerResolveTests();
     lockstep::runSerializerRoundTripTests();
+    // Phase 8 gesture tests
+    lockstep::runGestureTests();
 
     // Also drive the JUCE UnitTests registered in lockstep_core (the serializer
     // upgrade chain, "PluginState" category) so they run headlessly in CI rather
