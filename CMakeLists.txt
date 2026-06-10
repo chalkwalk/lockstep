@@ -13,6 +13,25 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
 
+# ---------------------------------------------------------------------------
+# Sanitizer support — set LOCKSTEP_SANITIZE=asan or tsan at configure time.
+# Applied to lockstep_core and lockstep_tests only (not the plugin wrappers,
+# which drag in JUCE GUI code that isn't sanitizer-clean under all hosts).
+# Usage:
+#   cmake -B build-asan -DCMAKE_BUILD_TYPE=Debug -DLOCKSTEP_SANITIZE=asan
+#   cmake --build build-asan -j && build-asan/tests/lockstep_tests
+# ---------------------------------------------------------------------------
+set(LOCKSTEP_SANITIZE "OFF" CACHE STRING "Sanitizer: OFF | asan | tsan")
+set_property(CACHE LOCKSTEP_SANITIZE PROPERTY STRINGS OFF asan tsan)
+
+if(LOCKSTEP_SANITIZE STREQUAL "asan")
+    set(LOCKSTEP_SANITIZE_FLAGS -fsanitize=address,undefined -fno-omit-frame-pointer)
+elseif(LOCKSTEP_SANITIZE STREQUAL "tsan")
+    set(LOCKSTEP_SANITIZE_FLAGS -fsanitize=thread -fno-omit-frame-pointer)
+else()
+    set(LOCKSTEP_SANITIZE_FLAGS "")
+endif()
+
 # JUCE
 add_subdirectory(JUCE)
 

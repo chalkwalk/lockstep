@@ -32,7 +32,9 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_options(lockstep_tests PRIVATE
         -Wall -Wextra -Wpedantic
         -Wsign-conversion -Wfloat-conversion -Wshadow
-        -Werror)
+        -Werror
+        ${LOCKSTEP_SANITIZE_FLAGS})
+    target_link_options(lockstep_tests PRIVATE ${LOCKSTEP_SANITIZE_FLAGS})
 else()
     target_link_libraries(lockstep_tests PUBLIC juce::juce_recommended_warning_flags)
 endif()

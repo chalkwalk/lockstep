@@ -1224,6 +1224,22 @@ per-renderer label logic and per-key modifier checks. See DESIGN §37.6.
 
 ---
 
+## Phase 8 — Quality: threading, dispatch, dedup (8.12–8.23)  *[in progress]*
+
+Code-quality audit findings across four workstreams (safety net, threading
+architecture, dispatch SSOT, dedup/cleanup). See DESIGN §38 for the threading
+contract. Staged to deliver shippable increments; each stage is one focused commit
+that builds clean and passes tests.
+
+### 8.12 — Sanitizer support
+`LOCKSTEP_SANITIZE` CMake cache option (`OFF|asan|tsan`) applies
+`-fsanitize=address,undefined` / `-fsanitize=thread` to `lockstep_core` +
+`lockstep_tests` while keeping `-Werror`. Build/run line documented in CLAUDE.md.
+- [x] **8.12** Add `LOCKSTEP_SANITIZE` option; document ASan/TSan build lines in
+      CLAUDE.md; verify `lockstep_tests` passes clean under ASan/UBSan.
+
+---
+
 ## Appendix — Legacy code → new id
 
 For tracing historical commit messages and notes against the renumbered scheme.
