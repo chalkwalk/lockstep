@@ -1159,11 +1159,11 @@ DESIGN §37/§35.8.7/§37.4/§37.5 added; ROADMAP Phase 8 entry; CLAUDE.md statu
       `tests/StatusTextTest.cpp`.
 - [x] **8.7b** `gridBanner` + `pageDots` into `SurfaceModel`; `ScopedSectionMatrix`
       canonical-name dedup; extend `tests/SurfaceModelTest.cpp`.
-- [ ] **8.7c** `TransportModel` struct + `InPluginTransport::refresh()`; eliminates
+- [x] **8.7c** `TransportModel` struct + `InPluginTransport::refresh()`; eliminates
       label desync.
 
 ### 8.8 — ParamSpec constexpr tables (LsmParamSpec-shaped)
-- [ ] **8.8a** `tests/ParamSpecTest.cpp` — golden ids + invariants per machine.
+- [x] **8.8a** `tests/ParamSpecTest.cpp` — golden ids + invariants per machine.
 - [ ] **8.8b** `src/machine/MachineParamTable.h` (`ParamRow` + `toParamSpec`).
 - [ ] **8.8c** Convert `VAMachine`.
 - [ ] **8.8d** Convert `DrumSynthMachine` + `SamplerMachine`.

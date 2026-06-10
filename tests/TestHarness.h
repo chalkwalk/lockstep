@@ -44,4 +44,6 @@ namespace lockstep
     void runGestureTests();
     // Phase 8 status text SSOT
     void runStatusTextTests();
+    // Phase 8 ParamSpec golden ids + invariants
+    void runParamSpecTests();
 }
