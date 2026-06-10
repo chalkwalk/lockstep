@@ -1,0 +1,147 @@
+#pragma once
+// All property names and node-type identifiers used by PluginState.cpp.
+// Write and read sites must reference these constants — never pass raw string
+// literals to setProperty / getProperty / getChildWithName.
+//
+// Dynamic names ("n" + String(ni), "track_N_swing") stay as-is in PluginState.cpp
+// because they are constructed at runtime; the pattern is documented below.
+
+namespace lockstep::keys
+{
+  // ── Root node ───────────────────────────────────────────────────────────────
+  inline constexpr const char* kLockstepState = "LockstepState";
+  inline constexpr const char* kVersion       = "version";
+
+  // ── APVTS subtree ───────────────────────────────────────────────────────────
+  inline constexpr const char* kLockstep = "Lockstep";
+
+  // ── NewHierarchy container ──────────────────────────────────────────────────
+  inline constexpr const char* kNewHierarchy = "NewHierarchy";
+  inline constexpr const char* kActivePiece  = "activePiece";
+  inline constexpr const char* kActiveSect   = "activeSect";
+  inline constexpr const char* kLaunchQuant  = "launchQuant";
+
+  // ── Song node ───────────────────────────────────────────────────────────────
+  inline constexpr const char* kSong  = "Song";
+  inline constexpr const char* kIdx   = "i";      // generic index field
+  inline constexpr const char* kSwing = "swing";
+
+  // ── SongTrack node ──────────────────────────────────────────────────────────
+  inline constexpr const char* kSongTrack   = "SongTrack";
+  inline constexpr const char* kTrackIdx    = "t";   // track index (Kit, SongTrack, TO, E)
+
+  // ── Scene node ──────────────────────────────────────────────────────────────
+  inline constexpr const char* kScene     = "Scene";
+  inline constexpr const char* kCtN       = "ct_n";
+  inline constexpr const char* kCtD       = "ct_d";
+  inline constexpr const char* kMutesMask = "mutesMask";
+
+  // ── Morph snapshot maps ─────────────────────────────────────────────────────
+  inline constexpr const char* kMorphA       = "MorphA";
+  inline constexpr const char* kMorphB       = "MorphB";
+  inline constexpr const char* kMorphEntry   = "E";
+  inline constexpr const char* kMorphSlotIdx = "s";   // slot index within E, PL/P
+
+  // ── Phrase node ─────────────────────────────────────────────────────────────
+  inline constexpr const char* kPhrase = "Phrase";
+  inline constexpr const char* kLen    = "len";
+  inline constexpr const char* kNSel   = "nsel";
+
+  // ── TrigDefaults node ───────────────────────────────────────────────────────
+  inline constexpr const char* kTrigDefaults = "TrigDefaults";
+  inline constexpr const char* kNote         = "note";
+  inline constexpr const char* kVel          = "vel";
+  inline constexpr const char* kGateV        = "gateV";
+
+  // ── BaseCond node ───────────────────────────────────────────────────────────
+  inline constexpr const char* kBaseCond = "BaseCond";
+
+  // ── Steps container + step node (S) ─────────────────────────────────────────
+  inline constexpr const char* kSteps = "Steps";
+  inline constexpr const char* kStep  = "S";
+  inline constexpr const char* kTrig  = "t";   // same short key as kTrackIdx — use by context
+  inline constexpr const char* kMo    = "mo";
+
+  // ── Condition node (C) ──────────────────────────────────────────────────────
+  inline constexpr const char* kCond = "C";
+  inline constexpr const char* kP    = "p";    // probability percent
+  inline constexpr const char* kN    = "n";    // iter numerator  (also used as step "n<i>" prefix)
+  inline constexpr const char* kD    = "d";    // iter denominator
+  inline constexpr const char* kPd   = "pd";   // prev dependency
+
+  // ── Trig override node (TO) ─────────────────────────────────────────────────
+  inline constexpr const char* kTO  = "TO";
+  inline constexpr const char* kNc  = "nc";    // note count
+  // dynamic: "n" + juce::String(ni)  — use keys::kN + String(ni)
+  inline constexpr const char* kHv  = "hv";    // has velocity flag
+  inline constexpr const char* kV   = "v";     // generic value field
+  inline constexpr const char* kHg  = "hg";    // has gate flag
+  inline constexpr const char* kGv  = "gv";    // gate value
+  inline constexpr const char* kHsi = "hsi";   // has sound id flag
+  inline constexpr const char* kSi  = "si";    // sound id
+  inline constexpr const char* kHrt = "hrt";   // has retrig flag
+  inline constexpr const char* kRt  = "rt";    // retrig rate
+
+  // ── P-Lock container (PL) + param entry (P) ─────────────────────────────────
+  inline constexpr const char* kPLocks = "PL";
+  inline constexpr const char* kParam  = "P";
+
+  // ── Kit node ────────────────────────────────────────────────────────────────
+  inline constexpr const char* kKit      = "Kit";
+  inline constexpr const char* kMId      = "mId";
+  inline constexpr const char* kDId      = "dId";
+  inline constexpr const char* kMPreset  = "mPreset";
+  inline constexpr const char* kDiv      = "div";
+
+  // ── Base params container (BP) ───────────────────────────────────────────────
+  inline constexpr const char* kBaseParams = "BP";
+  inline constexpr const char* kParamId    = "id";
+
+  // ── Insert / MasterIns nodes ─────────────────────────────────────────────────
+  inline constexpr const char* kIns       = "Ins";
+  inline constexpr const char* kMasterIns = "MasterIns";
+  inline constexpr const char* kSlot      = "slot";
+  inline constexpr const char* kEid       = "eid";
+  inline constexpr const char* kBypass    = "bypass";
+
+  // ── SamplePool + Entry ───────────────────────────────────────────────────────
+  inline constexpr const char* kSamplePool = "SamplePool";
+  inline constexpr const char* kEntry      = "Entry";
+  inline constexpr const char* kPath       = "path";
+  inline constexpr const char* kHash       = "hash";
+
+  // ── CCMappings + mapping node (M) ────────────────────────────────────────────
+  inline constexpr const char* kCCMappings = "CCMappings";
+  inline constexpr const char* kMapping    = "M";
+  inline constexpr const char* kCc         = "cc";
+  inline constexpr const char* kScope      = "scope";
+  inline constexpr const char* kCcTrack    = "track";
+  inline constexpr const char* kMz         = "mz";
+  inline constexpr const char* kApvts      = "apvts";
+  inline constexpr const char* kRel        = "rel";
+  inline constexpr const char* kScale      = "scale";
+  inline constexpr const char* kEnc        = "enc";
+  inline constexpr const char* kSlotId     = "slotId";
+
+  // ── Misc node ────────────────────────────────────────────────────────────────
+  inline constexpr const char* kMisc       = "Misc";
+  inline constexpr const char* kFocusTrack = "focusTrack";
+  inline constexpr const char* kLocalBpm   = "localBpm";
+
+  // ── Legacy (upgrade paths only) ──────────────────────────────────────────────
+  inline constexpr const char* kProject    = "Project";   // v2 legacy container
+  inline constexpr const char* kBank       = "Bank";      // v2 legacy container
+  inline constexpr const char* kPattern    = "Pattern";   // v2 legacy pattern node
+  inline constexpr const char* kPart       = "Part";      // v2 legacy part node
+  inline constexpr const char* kTrackNode  = "Track";     // v2 legacy track node
+  inline constexpr const char* kPartTrack  = "PartTrack"; // v2 legacy part-track node
+  inline constexpr const char* kBaseParamsLegacy = "BaseParams"; // v2 legacy name for BP
+  inline constexpr const char* kPartRef    = "partRef";   // v2 legacy
+  inline constexpr const char* kMachineId  = "machineId"; // v2 legacy machineId field
+  inline constexpr const char* kInit       = "init";      // v3/v4 initialised flag
+  inline constexpr const char* kGateMs     = "gateMs";    // v2 legacy gate in ms
+  inline constexpr const char* kGLegacy    = "g";         // v2 legacy TO gate float ms
+  inline constexpr const char* kGp         = "gp";        // v10 legacy global-phrase ref
+  inline constexpr const char* kValue      = "value";     // v1 legacy APVTS param value
+  // dynamic: "track_" + String(t) + "_swing"  — legacy APVTS swing key, only in upgrade path
+}
