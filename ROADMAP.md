@@ -1167,7 +1167,7 @@ DESIGN §37/§35.8.7/§37.4/§37.5 added; ROADMAP Phase 8 entry; CLAUDE.md statu
 - [x] **8.8b** `src/machine/MachineParamTable.h` (`ParamRow` + `toParamSpec`).
 - [x] **8.8c** Convert `VAMachine`.
 - [x] **8.8d** Convert `DrumSynthMachine` + `SamplerMachine`.
-- [ ] **8.8e** Convert `SlicerMachine` + `MidiOutMachine`.
+- [x] **8.8e** Convert `SlicerMachine` + `MidiOutMachine`.
 - [ ] **8.8f** Convert `FMMachine` + deduplicate parallel operator arrays.
 
 ### 8.9 — Serializer hardening

@@ -1,4 +1,5 @@
 #include "SlicerMachine.h"
+#include "MachineParamTable.h"
 #include <algorithm>
 #include <cmath>
 
@@ -280,78 +281,41 @@ namespace lockstep
 
     // -------------------------------------------------------------------------
 
+    namespace sl_u { static constexpr uint8_t None=0, Ms=1, Semi=2; }
+    namespace sl_r { static constexpr uint8_t None=0, Pitch=1; }
+
+    namespace {
+        static constexpr const char* kSLModeLabels[]    = { "SLICE","SCRUB",         nullptr };
+        static constexpr const char* kSLSrcLabels[]     = { "EQUAL","TRANS",          nullptr };
+        static constexpr const char* kSLLoopLabels[]    = { "OFF","SUS","S+R","ALL",  nullptr };
+        static constexpr const char* kSLVoiceLabels[]   = { "MONO","POLY",            nullptr };
+    }
+
+    // { id, label, min, max, def, skew, stepped, unit, role, variant, section, zcSnap, labels }
+    static constexpr ParamRow kSLParams[] = {
+        // --- SRC (section 1) ---
+        { "slicer_sample_id",   "Sample",   0.f, 63.f,  0.f, 1.f, 1,sl_u::None,sl_r::None, 0,1,0, nullptr       }, //  0
+        { "slicer_mode",        "Mode",     0.f,  1.f,  0.f, 1.f, 1,sl_u::None,sl_r::None, 0,1,0, kSLModeLabels }, //  1
+        { "slicer_slice_src",   "Slices",   0.f,  1.f,  0.f, 1.f, 1,sl_u::None,sl_r::None, 0,1,0, kSLSrcLabels  }, //  2
+        { "slicer_slice_count", "Count",    1.f, 16.f,  8.f, 1.f, 1,sl_u::None,sl_r::None, 0,1,0, nullptr       }, //  3
+        { "slicer_rate",        "Rate",    -2.f,  2.f,  1.f, 1.f, 0,sl_u::None,sl_r::None, 0,1,0, nullptr       }, //  4
+        { "slicer_start",       "Start",    0.f,  1.f,  0.f, 1.f, 0,sl_u::None,sl_r::None, 0,1,1, nullptr       }, //  5  zcSnap
+        { "slicer_length",      "Length",   0.f,  1.f,  1.f, 1.f, 0,sl_u::None,sl_r::None, 0,1,1, nullptr       }, //  6  zcSnap
+        { "slicer_loop_mode",   "Loop",     0.f,  3.f,  0.f, 1.f, 1,sl_u::None,sl_r::None, 0,1,0, kSLLoopLabels }, //  7
+        { "slicer_loop_start",  "LpStart",  0.f,  1.f,  0.f, 1.f, 0,sl_u::None,sl_r::None, 0,1,1, nullptr       }, //  8  zcSnap
+        { "slicer_loop_len",    "LpLen",    0.f,  1.f,  1.f, 1.f, 0,sl_u::None,sl_r::None, 0,1,1, nullptr       }, //  9  zcSnap
+        { "slicer_pitch",       "Pitch",  -24.f, 24.f,  0.f, 1.f, 0,sl_u::Semi,sl_r::Pitch,0,1,0, nullptr       }, // 10
+        // --- VOICE (section 6) ---
+        { "slicer_voice_mode",  "Voice",    0.f,  1.f,  0.f, 1.f, 1,sl_u::None,sl_r::None, 0,6,0, kSLVoiceLabels}, // 11
+        { "slicer_fade",        "Fade",     0.f, 20.f,  1.f, 1.f, 0,sl_u::Ms,  sl_r::None, 0,6,0, nullptr       }, // 12
+    };
+    static_assert(std::size(kSLParams) == SlicerMachine::kNumSlots,
+                  "kSLParams row count must equal kNumSlots");
+
     ParamSpec SlicerMachine::paramSpec(int index) const
     {
-        using U = ParamSpec::Unit;
-        using R = ParamSpec::Role;
-        ParamSpec ps;
-        switch (index)
-        {
-        case kSlotSampleId:
-        {
-            ps = { "slicer_sample_id", "Sample", 0.0f, 63.0f, 0.0f, true, U::None, 1, R::None };
-            break;
-        }
-        case kSlotMode:
-        {
-            static constexpr const char* kModeLabels[] = { "SLICE", "SCRUB" };
-            ps = { "slicer_mode", "Mode", 0.0f, 1.0f, 0.0f, true, U::None, 1, R::None };
-            ps.valueLabels = kModeLabels;
-            break;
-        }
-        case kSlotSliceSrc:
-        {
-            static constexpr const char* kSrcLabels[] = { "EQUAL", "TRANS" };
-            ps = { "slicer_slice_src", "Slices", 0.0f, 1.0f, 0.0f, true, U::None, 1, R::None };
-            ps.valueLabels = kSrcLabels;
-            break;
-        }
-        case kSlotSliceCount:
-            ps = { "slicer_slice_count", "Count", 1.0f, 16.0f, 8.0f, true, U::None, 1, R::None };
-            break;
-        case kSlotRate:
-            ps = { "slicer_rate", "Rate", -2.0f, 2.0f, 1.0f, false, U::None, 1, R::None };
-            break;
-        case kSlotStart:
-            ps = { "slicer_start", "Start", 0.0f, 1.0f, 0.0f, false, U::None, 1, R::None };
-            ps.zeroCrossingSnap = true;
-            break;
-        case kSlotLength:
-            ps = { "slicer_length", "Length", 0.0f, 1.0f, 1.0f, false, U::None, 1, R::None };
-            ps.zeroCrossingSnap = true;
-            break;
-        case kSlotLoopMode:
-        {
-            static constexpr const char* kLoopLabels[] = { "OFF", "SUS", "S+R", "ALL" };
-            ps = { "slicer_loop_mode", "Loop", 0.0f, 3.0f, 0.0f, true, U::None, 1, R::None };
-            ps.valueLabels = kLoopLabels;
-            break;
-        }
-        case kSlotLoopStart:
-            ps = { "slicer_loop_start", "LpStart", 0.0f, 1.0f, 0.0f, false, U::None, 1, R::None };
-            ps.zeroCrossingSnap = true;
-            break;
-        case kSlotLoopLen:
-            ps = { "slicer_loop_len", "LpLen", 0.0f, 1.0f, 1.0f, false, U::None, 1, R::None };
-            ps.zeroCrossingSnap = true;
-            break;
-        case kSlotPitch:
-            ps = { "slicer_pitch", "Pitch", -24.0f, 24.0f, 0.0f, false, U::Semitones, 1, R::Pitch };
-            break;
-        case kSlotVoiceMode:
-        {
-            static constexpr const char* kVoiceLabels[] = { "MONO", "POLY" };
-            ps = { "slicer_voice_mode", "Voice", 0.0f, 1.0f, 0.0f, true, U::None, 6, R::None };
-            ps.valueLabels = kVoiceLabels;
-            break;
-        }
-        case kSlotFade:
-            ps = { "slicer_fade", "Fade", 0.0f, 20.0f, 1.0f, false, U::Ms, 6, R::None };
-            break;
-        default:
-            break;
-        }
-        return ps;
+        if (index < 0 || index >= kNumSlots) return {};
+        return toParamSpec(kSLParams[static_cast<std::size_t>(index)]);
     }
 
     SectionInfo SlicerMachine::section(int index) const

@@ -18,6 +18,8 @@ namespace lockstep
         [[nodiscard]] const char* badge()     const noexcept override { return "SL"; }
         static constexpr const char* kMachineId = "lockstep.slicer.v1";
 
+        static constexpr int kNumSlots = 13;
+
         int         numParams()          const override { return kNumSlots; }
         ParamSpec   paramSpec(int index) const override;
         int         numSections()        const override { return kNumSections; }
@@ -45,7 +47,6 @@ namespace lockstep
         static constexpr int kSlotVoiceMode  = 11; // 0=MONO, 1=POLY
         static constexpr int kSlotFade       = 12; // 0..20 ms anti-click fade
 
-        static constexpr int kNumSlots    = 13;
         static constexpr int kNumSections = 7;  // sections 1 + 6
 
         [[nodiscard]] SamplePlayer::Spec buildSpec(int midiNote,
