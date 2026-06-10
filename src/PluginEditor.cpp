@@ -2865,10 +2865,7 @@ namespace lockstep
                 restoreKeyDownMs_ = juce::Time::getMillisecondCounterHiRes();
                 return true;
 
-            // Legacy transport buttons — kept for any code paths that still emit them.
-            case ControllerButton::PlayStop:
-                processor_.clock().setInPluginPlaying(!processor_.clock().inPluginPlaying());
-                return true;
+            // ControllerButton::PlayStop — migrated to CommandCore::handleDown (8.4h)
             case ControllerButton::StopReset:
                 if (uiState_.noteEditMode)  // Func+E = NavLeft: octave down
                 {
@@ -2957,9 +2954,7 @@ namespace lockstep
                 // Part fork removed in Phase 7; gesture is a no-op until repurposed.
                 return true;
 
-            case ControllerButton::MetronomeToggle:
-                processor_.clock().setMetronomeEnabled(!processor_.clock().isMetronomeEnabled());
-                return true;
+            // ControllerButton::MetronomeToggle — migrated to CommandCore::handleDown (8.4h)
 
             case ControllerButton::TapTempo:
                 handleTapTempo();
@@ -3691,72 +3686,8 @@ namespace lockstep
             // MD.2  Step copy / paste / clear
             // PS::Trig — migrated to CommandCore / VerbCommands.cpp (8.4b)
 
-            // -----------------------------------------------------------------------
-            // MD.3  Section copy / paste / clear
-            // -----------------------------------------------------------------------
-            case PS::Section:
-            {
-                const int activeTrack = keyboardArea_.getActiveTrack();
-                const int secIdx      = uiState_.trackSection[static_cast<std::size_t>(activeTrack)];
-                auto& trk = processor_.sequence()
-                                .tracks[static_cast<std::size_t>(activeTrack)];
-                const int trkLen    = trk.length;
-                const int numSlots  = processor_.numParams(activeTrack);
+            // PS::Section — migrated to CommandCore / VerbCommands.cpp (8.4h)
 
-                if (verb == CB::VerbRecord)
-                {
-                    clipboard_.sectionSlots.clear();
-                    clipboard_.sectionTrackLength = trkLen;
-                    for (int sl = 0; sl < numSlots; ++sl)
-                    {
-                        if (processor_.paramSpec(activeTrack, sl).sectionIndex != secIdx)
-                            continue;
-                        SectionClipSlot entry;
-                        entry.slot = sl;
-                        entry.perStep.reserve(static_cast<std::size_t>(trkLen));
-                        for (int st = 0; st < trkLen; ++st)
-                        {
-                            const auto& plock = trk.steps[static_cast<std::size_t>(st)].overrides;
-                            const bool  has   = plock.has(sl);
-                            entry.perStep.push_back({ has, has ? plock.get(sl, 0.0f) : 0.0f });
-                        }
-                        clipboard_.sectionSlots.push_back(std::move(entry));
-                    }
-                    clipboard_.type = ClipboardType::Section;
-                }
-                else if (verb == CB::VerbPlay)
-                {
-                    if (clipboard_.type != ClipboardType::Section
-                        && clipboard_.type != ClipboardType::All) break;
-                    for (const auto& entry : clipboard_.sectionSlots)
-                    {
-                        const int steps = std::min(static_cast<int>(entry.perStep.size()), trkLen);
-                        for (int st = 0; st < steps; ++st)
-                        {
-                            auto& plock = trk.steps[static_cast<std::size_t>(st)].overrides;
-                            if (entry.perStep[static_cast<std::size_t>(st)].first)
-                                plock.set(entry.slot, entry.perStep[static_cast<std::size_t>(st)].second);
-                            else
-                                plock.clear(entry.slot);
-                        }
-                    }
-                }
-                else if (verb == CB::VerbClear)
-                {
-                    for (int sl = 0; sl < numSlots; ++sl)
-                    {
-                        if (processor_.paramSpec(activeTrack, sl).sectionIndex != secIdx)
-                            continue;
-                        for (int st = 0; st < trkLen; ++st)
-                            trk.steps[static_cast<std::size_t>(st)].overrides.clear(sl);
-                    }
-                }
-                break;
-            }
-
-            // -----------------------------------------------------------------------
-            // MD.4  Track copy / paste / clear / delete
-            // -----------------------------------------------------------------------
             // PS::Track, PS::Phrase — migrated to CommandCore / VerbCommands.cpp (8.4c)
 
             // PS::Scene, PS::Song, PS::None, PS::Morph, PS::Func/Mute/Fill/Cue —

@@ -37,6 +37,10 @@ namespace lockstep::verbs
                              CommandEffects& fx);
 
   [[nodiscard]] bool morph(ControllerButton verb,
-                           CommandContext& ctx,
-                           CommandEffects& fx);
+                          CommandContext& ctx,
+                          CommandEffects& fx);
+
+  [[nodiscard]] bool section(ControllerButton verb,
+                             CommandContext& ctx,
+                             CommandEffects& fx);
 }

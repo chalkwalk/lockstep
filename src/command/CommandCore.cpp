@@ -3,11 +3,23 @@
 
 namespace lockstep
 {
-    bool CommandCore::handleDown(const ControllerEvent&,
+    bool CommandCore::handleDown(const ControllerEvent& ev,
                                  CommandContext&,
-                                 CommandEffects&)
+                                 CommandEffects& fx)
     {
-        return false;
+        using CB = ControllerButton;
+        using TA = CommandEffects::TransportAction;
+        switch (ev.button)
+        {
+            case CB::PlayStop:
+                fx.transport(TA::Play);
+                return true;
+            case CB::MetronomeToggle:
+                fx.transport(TA::Metronome);
+                return true;
+            default:
+                return false;
+        }
     }
 
     bool CommandCore::handleUp(const ControllerEvent&,
@@ -31,8 +43,9 @@ namespace lockstep
             case PS::Scene:   return verbs::scene   (verb, ctx, fx);
             case PS::Song:    return verbs::song    (verb, ctx, fx);
             case PS::None:    return verbs::noScope (verb, ctx, fx);
-            case PS::Morph:   return verbs::morph   (verb, ctx, fx);
-            default:          return false;
+            case PS::Morph:    return verbs::morph    (verb, ctx, fx);
+            case PS::Section:  return verbs::section  (verb, ctx, fx);
+            default:           return false;
         }
     }
 }

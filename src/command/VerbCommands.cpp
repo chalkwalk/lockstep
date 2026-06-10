@@ -260,6 +260,68 @@ namespace lockstep::verbs
         return false;
     }
 
+    bool section(ControllerButton verb, CommandContext& ctx, CommandEffects& fx)
+    {
+        using CB = ControllerButton;
+        const int at     = ctx.uiState.activeTrack;
+        const int secIdx = ctx.uiState.trackSection[static_cast<std::size_t>(at)];
+        auto& trk        = ctx.sequence.tracks[static_cast<std::size_t>(at)];
+        const int trkLen = trk.length;
+        const int nSlots = ctx.catalog.numParams(at);
+
+        if (verb == CB::VerbRecord)
+        {
+            ctx.clipboard.sectionSlots.clear();
+            ctx.clipboard.sectionTrackLength = trkLen;
+            for (int sl = 0; sl < nSlots; ++sl)
+            {
+                if (ctx.catalog.paramSpec(at, sl).sectionIndex != secIdx) continue;
+                SectionClipSlot entry;
+                entry.slot = sl;
+                entry.perStep.reserve(static_cast<std::size_t>(trkLen));
+                for (int st = 0; st < trkLen; ++st)
+                {
+                    const auto& plock = trk.steps[static_cast<std::size_t>(st)].overrides;
+                    const bool  has   = plock.has(sl);
+                    entry.perStep.push_back({ has, has ? plock.get(sl, 0.0f) : 0.0f });
+                }
+                ctx.clipboard.sectionSlots.push_back(std::move(entry));
+            }
+            ctx.clipboard.type = ClipboardType::Section;
+            return true;
+        }
+        if (verb == CB::VerbPlay)
+        {
+            if (ctx.clipboard.type != ClipboardType::Section
+                && ctx.clipboard.type != ClipboardType::All)
+                return false;
+            for (const auto& entry : ctx.clipboard.sectionSlots)
+            {
+                const int steps = std::min(static_cast<int>(entry.perStep.size()), trkLen);
+                for (int st = 0; st < steps; ++st)
+                {
+                    auto& plock = trk.steps[static_cast<std::size_t>(st)].overrides;
+                    if (entry.perStep[static_cast<std::size_t>(st)].first)
+                        plock.set(entry.slot, entry.perStep[static_cast<std::size_t>(st)].second);
+                    else
+                        plock.clear(entry.slot);
+                }
+            }
+            return true;
+        }
+        if (verb == CB::VerbClear)
+        {
+            for (int sl = 0; sl < nSlots; ++sl)
+            {
+                if (ctx.catalog.paramSpec(at, sl).sectionIndex != secIdx) continue;
+                for (int st = 0; st < trkLen; ++st)
+                    trk.steps[static_cast<std::size_t>(st)].overrides.clear(sl);
+            }
+            return true;
+        }
+        return false;
+    }
+
     bool morph(ControllerButton verb, CommandContext& ctx, CommandEffects& fx)
     {
         using CB = ControllerButton;

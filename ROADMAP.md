@@ -1138,10 +1138,10 @@ DESIGN §37/§35.8.7/§37.4/§37.5 added; ROADMAP Phase 8 entry; CLAUDE.md statu
 - [x] **8.4d** `VerbCommands`: `PS::Scene`, `PS::Song`, snapshot/restore.
 - [x] **8.4e** `VerbCommands`: `PS::Mute`, `PS::Morph`, `PS::Fill`, `PS::Func`;
       delete residual `dispatchVerb` body.
-- [ ] **8.4f** `handleDown/Up`: scope modifiers + latch.
-- [ ] **8.4g** `handleDown/Up`: step semantics (trig toggle, held step, P-Lock
+- [-] **8.4f** `handleDown/Up`: scope modifiers + latch.
+- [-] **8.4g** `handleDown/Up`: step semantics (trig toggle, held step, P-Lock
       clear, note-edit).
-- [ ] **8.4h** `handleDown/Up`: Section/MetaSection, transport; editor loses
+- [x] **8.4h** `handleDown/Up`: Section/MetaSection, transport; editor loses
       ~1500–2000 lines.
 
 ### 8.5 — Gesture-level test harness
