@@ -1,5 +1,6 @@
 #include "PluginEditor.h"
 #include "ParameterIDs.h"
+#include "command/StatusText.h"
 #include "core/Euclidean.h"
 #include "core/TrackInputMode.h"
 #include "io/TrigGridMode.h"
@@ -105,7 +106,7 @@ namespace lockstep
             dst.morphA      = cl.scene.floor.morphA;
             dst.morphB      = cl.scene.floor.morphB;
             dst.initialised = true;
-            ed.setStatus("Pasted Scene floor");
+            ed.setStatus(status::pastedSceneFloor());
         }
 
         void sceneFullPaste(int destSlot) override
@@ -129,7 +130,7 @@ namespace lockstep
                 ph.initialised = true;
             }
             ed.processor_.refreshWorkingFromModel();
-            ed.setStatus("Pasted Scene");
+            ed.setStatus(status::pastedScene());
         }
     };
 
@@ -1867,12 +1868,12 @@ namespace lockstep
                     {
                         for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
                             processor_.setTrackLength(t, newLen);
-                        setStatus("Length " + juce::String(newLen) + " (all tracks)");
+                        setStatus(status::lengthAllTracks(newLen));
                     }
                     else
                     {
                         processor_.setTrackLength(keyboardArea_.getActiveTrack(), newLen);
-                        setStatus("Length " + juce::String(newLen));
+                        setStatus(status::length(newLen));
                     }
                     keyboardArea_.repaint();
                     repaint();
@@ -1957,7 +1958,7 @@ namespace lockstep
                                 processor_.queueScene(ev.index, false);
                             else
                                 processor_.setActiveScene(ev.index);
-                            setStatus("Scene " + juce::String(ev.index + 1) + " created");
+                            setStatus(status::sceneCreated(ev.index + 1));
                         }
                         else if (!occupied && funcHeld)
                         {
@@ -1971,7 +1972,7 @@ namespace lockstep
                                 processor_.queueScene(ev.index, false);
                             else
                                 processor_.setActiveScene(ev.index);
-                            setStatus("Scene " + juce::String(ev.index + 1) + " (baseline)");
+                            setStatus(status::sceneBaseline(ev.index + 1));
                         }
                         else if (!occupied && muteHeld)
                         {
@@ -1982,7 +1983,7 @@ namespace lockstep
                                 processor_.queueScene(ev.index, false);
                             else
                                 processor_.setActiveScene(ev.index);
-                            setStatus("Scene " + juce::String(ev.index + 1) + " (blank)");
+                            setStatus(status::sceneBlank(ev.index + 1));
                         }
                     }
                     repaint();
@@ -2435,11 +2436,11 @@ namespace lockstep
                     using CT = ClipboardType;
                     if (clipboard_.type == CT::None)
                     {
-                        setStatus("Nothing copied");
+                        setStatus(status::nothingCopied());
                     }
                     else if (clipboard_.type == CT::All)
                     {
-                        setStatus("Paste: pick a scope");
+                        setStatus(status::pastePickScope());
                     }
                     else
                     {
@@ -2545,7 +2546,7 @@ namespace lockstep
                         return true;  // No operand — inert.
                 }
                 pendingConfirm_ = PendingConfirm::Delete;
-                setStatus("Delete " + entityName + "?  P=Yes  Func+P=No");
+                setStatus(status::confirmDelete(entityName));
                 keyboardArea_.repaint();
                 return true;
             }
@@ -2565,7 +2566,7 @@ namespace lockstep
                     const int nd = processor_.countDeviatedTracks();
                     if (nd == 0)
                     {
-                        setStatus("No deviations to bake");
+                        setStatus(status::noDeviationsToBake());
                         return true;
                     }
                     pendingConfirm_ = PendingConfirm::BakeScene;
@@ -2597,7 +2598,7 @@ namespace lockstep
                     }
                     clipboard_.clipSequence = processor_.sequence();
                     clipboard_.type = ClipboardType::All;
-                    setStatus("Captured all");
+                    setStatus(status::capturedAll());
                     return true;
                 }
                 // Double-tap = overdub record; single tap = plain (overwrite) record.
@@ -2663,7 +2664,7 @@ namespace lockstep
                         {
                             processor_.snapshot(CheckpointScope::Song, 0);
                             processor_.bakeSceneState();
-                            setStatus("Baked");
+                            setStatus(status::baked());
                             pendingConfirm_ = PendingConfirm::None;
                             repaint();
                             keyboardArea_.repaint();
@@ -2678,7 +2679,7 @@ namespace lockstep
                                 processor_.queueScene(tgt, false);
                             else
                                 processor_.setActiveScene(tgt);
-                            setStatus("Scene " + juce::String(tgt + 1) + " created");
+                            setStatus(status::sceneCreated(tgt + 1));
                             pendingConfirm_ = PendingConfirm::None;
                             repaint();
                             keyboardArea_.repaint();
@@ -2693,7 +2694,7 @@ namespace lockstep
                                 processor_.queueScene(tgt, false);
                             else
                                 processor_.setActiveScene(tgt);
-                            setStatus("Scene " + juce::String(tgt + 1) + " (baseline)");
+                            setStatus(status::sceneBaseline(tgt + 1));
                             pendingConfirm_ = PendingConfirm::None;
                             repaint();
                             keyboardArea_.repaint();
@@ -2718,7 +2719,7 @@ namespace lockstep
                                 ph.initialised = true;
                             }
                             processor_.refreshWorkingFromModel();
-                            setStatus("Pasted Scene");
+                            setStatus(status::pastedScene());
                             pendingConfirm_ = PendingConfirm::None;
                             repaint();
                             keyboardArea_.repaint();
@@ -2735,7 +2736,7 @@ namespace lockstep
                                 {
                                     processor_.snapshot(CheckpointScope::Track, t);
                                     processor_.deleteTrack(t);
-                                    setStatus("Deleted Track " + juce::String(t + 1));
+                                    setStatus(status::deletedTrack(t));
                                 }
                                 break;
                             }
@@ -2756,7 +2757,7 @@ namespace lockstep
                                         s.fillTrigOverride  = TrigOverride{};
                                     }
                                 }
-                                setStatus("Deleted Phrase");
+                                setStatus(status::deletedPhrase());
                                 break;
                             }
                             case PS::Scene:
@@ -2765,7 +2766,7 @@ namespace lockstep
                                 processor_.snapshot(ckScope(ckTrk), ckTrk);
                                 processor_.deletePart();
                                 releaseTransientLatch(CB::SceneScope);
-                                setStatus("Deleted Part");
+                                setStatus(status::deletedPart());
                                 break;
                             }
                             default:
@@ -2774,7 +2775,7 @@ namespace lockstep
                     }
                     else
                     {
-                        setStatus("Cancelled");
+                        setStatus(status::cancelled());
                     }
                     pendingConfirm_ = PendingConfirm::None;
                     repaint();
@@ -2801,7 +2802,7 @@ namespace lockstep
                             for (int si : heldSteps)
                                 if (si >= 0 && si < kMaxStepsPerTrack)
                                     trk.steps[static_cast<std::size_t>(si)].microOffset = 0.0f;
-                            setStatus("Quantized");
+                            setStatus(status::quantized());
                             keyboardArea_.repaint();
                             return true;
                         }
@@ -2814,7 +2815,7 @@ namespace lockstep
                             processor_.snapshot(CheckpointScope::Track, t);
                             for (auto& s : processor_.sequence().tracks[static_cast<std::size_t>(t)].steps)
                                 s.microOffset = 0.0f;
-                            setStatus("Quantized");
+                            setStatus(status::quantized());
                             keyboardArea_.repaint();
                             return true;
                         }
@@ -2826,7 +2827,7 @@ namespace lockstep
                         for (auto& trk : processor_.sequence().tracks)
                             for (auto& s : trk.steps)
                                 s.microOffset = 0.0f;
-                        setStatus("Quantized");
+                        setStatus(status::quantized());
                         keyboardArea_.repaint();
                         return true;
                     }
@@ -2918,12 +2919,12 @@ namespace lockstep
                             processor_.removeMorphPole(trackIdx, slot, 0);
                             processor_.removeMorphPole(trackIdx, slot, 1);
                         }
-                        setStatus("Morph mute cleared");
+                        setStatus(status::morphMuteCleared());
                     }
                     else
                     {
                         processor_.fluidMuteTrack(trackIdx, processor_.morphFader());
-                        setStatus("Morph mute set");
+                        setStatus(status::morphMuteSet());
                     }
                     repaint();
                     return true;

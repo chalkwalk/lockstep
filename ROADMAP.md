@@ -1155,7 +1155,7 @@ DESIGN §37/§35.8.7/§37.4/§37.5 added; ROADMAP Phase 8 entry; CLAUDE.md statu
       manual colour smoke (standalone + Push).
 
 ### 8.7 — Status & contextual text SSOT + transport fix
-- [ ] **8.7a** `src/command/StatusText.h` + sweep of 40 `setStatus()` call sites;
+- [x] **8.7a** `src/command/StatusText.h` + sweep of 40 `setStatus()` call sites;
       `tests/StatusTextTest.cpp`.
 - [ ] **8.7b** `gridBanner` + `pageDots` into `SurfaceModel`; `ScopedSectionMatrix`
       canonical-name dedup; extend `tests/SurfaceModelTest.cpp`.

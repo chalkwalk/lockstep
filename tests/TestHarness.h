@@ -42,4 +42,6 @@ namespace lockstep
     void runSerializerRoundTripTests();
     // Phase 8 gesture tests (grows with 8.4b–h)
     void runGestureTests();
+    // Phase 8 status text SSOT
+    void runStatusTextTests();
 }

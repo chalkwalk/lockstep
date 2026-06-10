@@ -1,7 +1,7 @@
 #include "VerbCommands.h"
+#include "StatusText.h"
 #include "../core/TrigCondition.h"
 #include "../io/Clipboard.h"
-#include <juce_core/juce_core.h>
 #include <algorithm>
 
 namespace lockstep::verbs
@@ -124,13 +124,12 @@ namespace lockstep::verbs
         using CB = ControllerButton;
         const int at = ctx.uiState.activeTrack;
         auto& trk = ctx.sequence.tracks[static_cast<std::size_t>(at)];
-        const juce::String trkName = "Track " + juce::String(at + 1);
 
         if (verb == CB::VerbRecord)
         {
             ctx.clipboard.clipTrack = trk;
             ctx.clipboard.type      = ClipboardType::Track;
-            fx.status("Copied " + trkName);
+            fx.status(status::copiedTrack(at));
             fx.releaseLatch(CB::TrackScope);
             return true;
         }
@@ -140,7 +139,7 @@ namespace lockstep::verbs
                 && ctx.clipboard.type != ClipboardType::All)
                 return false;
             trk = ctx.clipboard.clipTrack;
-            fx.status("Pasted -> " + trkName);
+            fx.status(status::pastedTrack(at));
             fx.releaseLatch(CB::TrackScope);
             return true;
         }
@@ -153,7 +152,7 @@ namespace lockstep::verbs
                 s.overrides    = PLock{};
                 s.trigOverride = TrigOverride{};
             }
-            fx.status("Cleared " + trkName);
+            fx.status(status::clearedTrack(at));
             fx.releaseLatch(CB::TrackScope);
             return true;
         }
@@ -168,7 +167,7 @@ namespace lockstep::verbs
         {
             ctx.clipboard.clipSequence = ctx.sequence;
             ctx.clipboard.type         = ClipboardType::Pattern;
-            fx.status("Copied Phrase");
+            fx.status(status::copiedPhrase());
             return true;
         }
         if (verb == CB::VerbPlay)
@@ -177,7 +176,7 @@ namespace lockstep::verbs
                 && ctx.clipboard.type != ClipboardType::All)
                 return false;
             ctx.sequence = ctx.clipboard.clipSequence;
-            fx.status("Pasted Phrase");
+            fx.status(status::pastedPhrase());
             return true;
         }
         if (verb == CB::VerbClear || verb == CB::VerbDelete)
@@ -198,7 +197,7 @@ namespace lockstep::verbs
                     s.fillTrigOverride = TrigOverride{};
                 }
             }
-            fx.status("Cleared Phrase");
+            fx.status(status::clearedPhrase());
             return true;
         }
         return false;
@@ -218,7 +217,7 @@ namespace lockstep::verbs
                 ctx.clipboard.scene.phrases[static_cast<std::size_t>(t)] =
                     ctx.arrangement.activePhrase(t);
             ctx.clipboard.type = ClipboardType::Scene;
-            fx.status("Copied Scene");
+            fx.status(status::copiedScene());
             return true;
         }
         if (verb == CB::VerbPlay)
@@ -243,7 +242,7 @@ namespace lockstep::verbs
         if (verb == CB::VerbClear)
         {
             fx.transport(CommandEffects::TransportAction::Panic);
-            fx.status("Panic");
+            fx.status(status::panic());
             return true;
         }
         return false;
@@ -331,12 +330,12 @@ namespace lockstep::verbs
         if (ctx.editMode.scopeState().func)
         {
             fx.morphErase(track);
-            fx.status("Morph erased");
+            fx.status(status::morphErased());
         }
         else
         {
             fx.morphBake(track);
-            fx.status("Morph baked");
+            fx.status(status::morphBaked());
         }
         return true;
     }
