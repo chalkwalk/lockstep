@@ -1,4 +1,5 @@
 #include "SamplerMachine.h"
+#include "MachineParamTable.h"
 #include <algorithm>
 #include <cmath>
 
@@ -247,60 +248,41 @@ namespace lockstep
 
     // -------------------------------------------------------------------------
 
+    namespace sa_u { static constexpr uint8_t None=0, Ms=1, Semi=2, Pct=3; }
+    namespace sa_r { static constexpr uint8_t None=0, Pitch=1, Level=3,
+                                               Atk=8, Hold=9, Dcy=10, Sus=11, Rel=12; }
+
+    namespace {
+        static constexpr const char* kSALoopLabels[]   = { "OFF","SUS","S+R","ALL", nullptr };
+        static constexpr const char* kSARetrigLabels[] = { "LEGATO","RETRIG",        nullptr };
+    }
+
+    // { id, label, min, max, def, skew, stepped, unit, role, variant, section, zcSnap, labels }
+    static constexpr ParamRow kSAParams[] = {
+        // --- SRC (section 1) ---
+        { "sample_id",       "Sample",   0.f,  63.f,  0.f, 1.f, 1,sa_u::None,sa_r::None, 0,1,0, nullptr        }, //  0
+        { "pitch",           "Pitch",  -24.f,  24.f,  0.f, 1.f, 0,sa_u::Semi,sa_r::Pitch,0,1,0, nullptr        }, //  1
+        { "samp_start",      "Start",    0.f,   1.f,  0.f, 1.f, 0,sa_u::None,sa_r::None, 0,1,1, nullptr        }, //  2  zcSnap=1
+        { "samp_length",     "Length",   0.f,   1.f,  1.f, 1.f, 0,sa_u::None,sa_r::None, 0,1,1, nullptr        }, //  3  zcSnap=1
+        { "samp_loop_mode",  "Loop",     0.f,   3.f,  0.f, 1.f, 1,sa_u::None,sa_r::None, 0,1,0, kSALoopLabels  }, //  4
+        { "samp_loop_start", "LpStart",  0.f,   1.f,  0.f, 1.f, 0,sa_u::None,sa_r::None, 0,1,1, nullptr        }, //  5  zcSnap=1
+        { "samp_loop_len",   "LpLen",    0.f,   1.f,  1.f, 1.f, 0,sa_u::None,sa_r::None, 0,1,1, nullptr        }, //  6  zcSnap=1
+        // --- AMP (section 3) ---
+        { "level",           "Level",    0.f,   1.f, 0.5f, 1.f, 0,sa_u::Pct, sa_r::Level,0,3,0, nullptr        }, //  7
+        { "attack",          "Attack",   0.f,5000.f,  2.f,0.3f, 0,sa_u::Ms,  sa_r::Atk,  0,3,0, nullptr        }, //  8
+        { "hold",            "Hold",     0.f,2000.f,  0.f,0.5f, 0,sa_u::Ms,  sa_r::Hold, 0,3,0, nullptr        }, //  9
+        { "decay",           "Decay",    1.f,10000.f,500.f,0.3f, 0,sa_u::Ms, sa_r::Dcy,  0,3,0, nullptr        }, // 10
+        { "sustain",         "Sustain",  0.f,   1.f, 0.5f, 1.f, 0,sa_u::Pct, sa_r::Sus,  0,3,0, nullptr        }, // 11
+        { "release",         "Release",  1.f,10000.f,200.f,0.3f, 0,sa_u::Ms, sa_r::Rel,  0,3,0, nullptr        }, // 12
+        { "samp_retrig",     "Retrig",   0.f,   1.f,  0.f, 1.f, 1,sa_u::None,sa_r::None, 0,3,0, kSARetrigLabels}, // 13
+    };
+    static_assert(std::size(kSAParams) == SamplerMachine::kNumSlots,
+                  "kSAParams row count must equal kNumSlots");
+
     ParamSpec SamplerMachine::paramSpec(int index) const
     {
-        using U = ParamSpec::Unit;
-        using R = ParamSpec::Role;
-        ParamSpec ps;
-        switch (index)
-        {
-        // Canonical section 1 "SRC"
-        case kSlotSampleId:
-            ps = { "sample_id", "Sample",  0.0f,   63.0f,  0.0f, true,  U::None,      1, R::None  };
-            break;
-        case kSlotPitch:
-            ps = { "pitch",     "Pitch",  -24.0f,  24.0f,  0.0f, false, U::Semitones, 1, R::Pitch };
-            break;
-        case kSlotStart:
-            ps = { "samp_start",  "Start",  0.0f, 1.0f, 0.0f, false, U::None, 1, R::None };
-            ps.zeroCrossingSnap = true;
-            break;
-        case kSlotLength:
-            ps = { "samp_length", "Length", 0.0f, 1.0f, 1.0f, false, U::None, 1, R::None };
-            ps.zeroCrossingSnap = true;
-            break;
-        case kSlotLoopMode:
-        {
-            static constexpr const char* kLoopLabels[] = { "OFF", "SUS", "S+R", "ALL" };
-            ps = { "samp_loop_mode", "Loop",    0.0f, 3.0f, 0.0f, true, U::None, 1, R::None };
-            ps.valueLabels = kLoopLabels;
-            break;
-        }
-        case kSlotLoopStart:
-            ps = { "samp_loop_start", "LpStart", 0.0f, 1.0f, 0.0f, false, U::None, 1, R::None };
-            ps.zeroCrossingSnap = true;
-            break;
-        case kSlotLoopLen:
-            ps = { "samp_loop_len", "LpLen",   0.0f, 1.0f, 1.0f, false, U::None, 1, R::None };
-            ps.zeroCrossingSnap = true;
-            break;
-        // Canonical section 3 "AMP"
-        case kSlotLevel:    ps = { "level",   "Level",   0.0f,    1.0f,   0.5f, false, U::Percent,   3, R::Level   }; break;
-        case kSlotAttack:   ps = { "attack",  "Attack",  0.0f,  5000.0f,   2.0f, false, U::Ms,      3, R::Attack  }; ps.skew = 0.3f; break;
-        case kSlotHold:     ps = { "hold",    "Hold",    0.0f,  2000.0f,   0.0f, false, U::Ms,      3, R::Hold    }; ps.skew = 0.5f; break;
-        case kSlotDecay:    ps = { "decay",   "Decay",   1.0f, 10000.0f, 500.0f, false, U::Ms,      3, R::Decay   }; ps.skew = 0.3f; break;
-        case kSlotSustain:  ps = { "sustain", "Sustain", 0.0f,    1.0f,   0.5f, false, U::Percent, 3, R::Sustain }; break;
-        case kSlotRelease:  ps = { "release", "Release", 1.0f, 10000.0f, 200.0f, false, U::Ms,      3, R::Release }; ps.skew = 0.3f; break;
-        case kSlotRetrig:
-        {
-            static constexpr const char* kRetrigLabels[] = { "LEGATO", "RETRIG" };
-            ps = { "samp_retrig", "Retrig", 0.0f, 1.0f, 0.0f, true, U::None, 3, R::None };
-            ps.valueLabels = std::span<const char* const>(kRetrigLabels);
-            break;
-        }
-        default:            break;
-        }
-        return ps;
+        if (index < 0 || index >= kNumSlots) return {};
+        return toParamSpec(kSAParams[static_cast<std::size_t>(index)]);
     }
 
     SectionInfo SamplerMachine::section(int index) const

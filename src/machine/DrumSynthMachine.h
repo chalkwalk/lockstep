@@ -22,6 +22,8 @@ namespace lockstep
     [[nodiscard]] const char* badge()     const noexcept override { return "DS"; }
     static constexpr const char* kMachineId = "lockstep.drum.v1";
 
+    static constexpr int kNumSlots = 15;
+
     int         numParams()          const override { return kNumSlots; }
     ParamSpec   paramSpec(int index) const override;
     int         numSections()        const override { return kNumSections; }
@@ -126,7 +128,6 @@ namespace lockstep
     static constexpr int kSlotRetrig     = 13;  // 0=LEGATO 1=RETRIG 2=FREE
     static constexpr int kSlotVelSens    = 14;  // 0=off, 1=full velocity sensitivity
 
-    static constexpr int kNumSlots    = 15;
     static constexpr int kNumSections = 4;  // 0=TRIG, 1=SRC, 2=FILTER, 3=AMP
 
     // -----------------------------------------------------------------------

@@ -1,4 +1,5 @@
 #include "DrumSynthMachine.h"
+#include "MachineParamTable.h"
 #include <algorithm>
 #include <cmath>
 #include <numbers>
@@ -25,63 +26,43 @@ namespace lockstep
   // ---------------------------------------------------------------------------
   // Schema
 
+  namespace ds_u { static constexpr uint8_t None=0, Ms=1, Semi=2, Pct=3; }
+  namespace ds_r { static constexpr uint8_t None=0, Pitch=1, Level=3,
+                                             Atk=8, Hold=9, Dcy=10; }
+
+  namespace {
+    static constexpr const char* kDSTypeLabels[]   = {
+        "KICK","SNARE","HAT","TOM","CLAP","COWBELL","CYMBAL","RIMSHOT", nullptr };
+    static constexpr const char* kDSRetrigLabels[] = { "LEGATO","RETRIG", nullptr };
+  }
+
+  // { id, label, min, max, def, skew, stepped, unit, role, variant, section, zcSnap, labels }
+  static constexpr ParamRow kDSParams[] = {
+    // --- SRC (section 1) ---
+    { "drum_type",        "Type",     0.f,   7.f,   0.f, 1.f, 1,ds_u::None,ds_r::None, 0,1,0, kDSTypeLabels   }, //  0
+    { "drum_tune",        "Tune",   -24.f,  24.f,   0.f, 1.f, 0,ds_u::Semi,ds_r::Pitch,0,1,0, nullptr         }, //  1
+    { "drum_sweep",       "Sweep",    0.f,  48.f,  24.f, 1.f, 0,ds_u::Semi,ds_r::None, 0,1,0, nullptr         }, //  2
+    { "drum_sweep_decay", "Swp Dec",  1.f, 500.f,  60.f, 1.f, 0,ds_u::Ms,  ds_r::None, 0,1,0, nullptr         }, //  3
+    { "drum_punch",       "Punch",    0.f,   1.f,  0.5f, 1.f, 0,ds_u::None,ds_r::None, 0,1,0, nullptr         }, //  4
+    { "drum_tone",        "Tone",     0.f,   1.f,  0.3f, 1.f, 0,ds_u::None,ds_r::None, 0,1,0, nullptr         }, //  5
+    { "drum_body",        "Body",     0.f,   1.f,  0.5f, 1.f, 0,ds_u::None,ds_r::None, 0,1,0, nullptr         }, //  6
+    { "drum_snap",        "Snap",     0.f,   1.f,  0.5f, 1.f, 0,ds_u::None,ds_r::None, 0,1,0, nullptr         }, //  7
+    // --- AMP (section 3) ---
+    { "drum_attack",      "Attack",   0.f,  50.f,   2.f, 1.f, 0,ds_u::Ms,  ds_r::Atk,  0,3,0, nullptr         }, //  8
+    { "drum_hold",        "Hold",     0.f, 200.f,   0.f, 1.f, 0,ds_u::Ms,  ds_r::Hold, 0,3,0, nullptr         }, //  9
+    { "drum_decay",       "Decay",    1.f,5000.f, 500.f,0.3f, 0,ds_u::Ms,  ds_r::Dcy,  0,3,0, nullptr         }, // 10
+    { "drum_noise_decay", "Nz Dec",   1.f,2000.f, 200.f, 1.f, 0,ds_u::Ms,  ds_r::None, 0,3,0, nullptr         }, // 11
+    { "drum_level",       "Level",    0.f,   1.f,  0.5f, 1.f, 0,ds_u::Pct, ds_r::Level,0,3,0, nullptr         }, // 12
+    { "drum_retrig",      "Retrig",   0.f,   1.f,   0.f, 1.f, 1,ds_u::None,ds_r::None, 0,3,0, kDSRetrigLabels }, // 13
+    { "drum_vel_sens",    "Vel Sens", 0.f,   1.f,   0.f, 1.f, 0,ds_u::Pct, ds_r::None, 0,3,0, nullptr         }, // 14
+  };
+  static_assert(std::size(kDSParams) == DrumSynthMachine::kNumSlots,
+                "kDSParams row count must equal kNumSlots");
+
   ParamSpec DrumSynthMachine::paramSpec(int index) const
   {
-    using U = ParamSpec::Unit;
-    using R = ParamSpec::Role;
-    using V = ParamSpec::Variant;
-
-    static constexpr const char* kTypeLabels[] = {
-      "KICK", "SNARE", "HAT", "TOM", "CLAP", "COWBELL", "CYMBAL", "RIMSHOT"
-    };
-
-    switch (index)
-    {
-      // --- SRC section (index 1) ---
-      case kSlotType:
-      {
-        ParamSpec p { "drum_type", "Type", 0.f, 7.f, 0.f, true, U::None, 1, R::None, V::Primary };
-        p.valueLabels = std::span<const char* const>{ kTypeLabels, 8 };
-        return p;
-      }
-      case kSlotTune:
-        return { "drum_tune",        "Tune",    -24.f,   24.f,   0.f, false, U::Semitones, 1, R::Pitch };
-      case kSlotSweep:
-        return { "drum_sweep",       "Sweep",     0.f,   48.f,  24.f, false, U::Semitones, 1, R::None  };
-      case kSlotSweepDecay:
-        return { "drum_sweep_decay", "Swp Dec",   1.f,  500.f,  60.f, false, U::Ms,        1, R::None  };
-      case kSlotPunch:
-        return { "drum_punch",       "Punch",     0.f,    1.f,  0.5f, false, U::None,      1, R::None  };
-      case kSlotTone:
-        return { "drum_tone",        "Tone",      0.f,    1.f,  0.3f, false, U::None,      1, R::None };
-      case kSlotBody:
-        return { "drum_body",        "Body",      0.f,    1.f,  0.5f, false, U::None,      1, R::None  };
-      case kSlotSnap:
-        return { "drum_snap",        "Snap",      0.f,    1.f,  0.5f, false, U::None,      1, R::None  };
-
-      // --- AMP section (index 3) ---
-      case kSlotAttack:
-        return { "drum_attack",      "Attack",    0.f,   50.f,   2.f, false, U::Ms,        3, R::Attack };
-      case kSlotHold:
-        return { "drum_hold",        "Hold",      0.f,  200.f,   0.f, false, U::Ms,        3, R::Hold   };
-      case kSlotDecay:
-        { ParamSpec p { "drum_decay", "Decay", 1.f, 5000.f, 500.f, false, U::Ms, 3, R::Decay }; p.skew = 0.3f; return p; }
-      case kSlotNoiseDecay:
-        return { "drum_noise_decay", "Nz Dec",    1.f, 2000.f, 200.f, false, U::Ms,        3, R::None   };
-      case kSlotLevel:
-        return { "drum_level",       "Level",     0.f,    1.f,  0.5f, false, U::Percent,   3, R::Level   };
-      case kSlotVelSens:
-        return { "drum_vel_sens",    "Vel Sens",  0.f,    1.f,  0.0f, false, U::Percent,   3, R::None    };
-      case kSlotRetrig:
-      {
-        static constexpr const char* kRetrigLabels[] = { "LEGATO", "RETRIG" };
-        ParamSpec p { "drum_retrig", "Retrig", 0.f, 1.f, 0.f, true, U::None, 3, R::None };
-        p.valueLabels = std::span<const char* const>{ kRetrigLabels, 2 };
-        return p;
-      }
-
-      default: return {};
-    }
+    if (index < 0 || index >= kNumSlots) return {};
+    return toParamSpec(kDSParams[static_cast<std::size_t>(index)]);
   }
 
   SectionInfo DrumSynthMachine::section(int index) const

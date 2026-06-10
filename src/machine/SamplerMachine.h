@@ -18,6 +18,8 @@ namespace lockstep
         [[nodiscard]] const char* badge()     const noexcept override { return "SP"; }
         static constexpr const char* kMachineId = "lockstep.sampler.v1";
 
+        static constexpr int kNumSlots = 14;
+
         int         numParams()          const override { return kNumSlots; }
         ParamSpec   paramSpec(int index) const override;
         int         numSections()        const override { return kNumSections; }
@@ -47,7 +49,6 @@ namespace lockstep
         static constexpr int kSlotRelease   = 12;
         static constexpr int kSlotRetrig   = 13;  // 0=LEGATO 1=RETRIG 2=FREE
 
-        static constexpr int kNumSlots    = 14;
         static constexpr int kNumSections = 4;
 
         [[nodiscard]] SamplePlayer::Spec buildSpec(int midiNote,
