@@ -37,6 +37,8 @@ namespace lockstep::test
         void releaseLatch(ControllerButton) override         {}
         void sceneFloorPaste() override                      {}
         void sceneFullPaste(int) override                    {}
+        void morphBake(int) override                         {}
+        void morphErase(int) override                        {}
 
         void reset() { statuses.clear(); repaints = 0; transports = 0;
                        transportActions.clear(); machineAssigns.clear();

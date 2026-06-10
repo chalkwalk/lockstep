@@ -259,4 +259,23 @@ namespace lockstep::verbs
         }
         return false;
     }
+
+    bool morph(ControllerButton verb, CommandContext& ctx, CommandEffects& fx)
+    {
+        using CB = ControllerButton;
+        if (verb != CB::VerbClear) return false;
+        const int track = ctx.uiState.activeTrack;
+        if (track < 0) return false;
+        if (ctx.editMode.scopeState().func)
+        {
+            fx.morphErase(track);
+            fx.status("Morph erased");
+        }
+        else
+        {
+            fx.morphBake(track);
+            fx.status("Morph baked");
+        }
+        return true;
+    }
 }

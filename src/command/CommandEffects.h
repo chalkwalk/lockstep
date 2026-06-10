@@ -39,5 +39,9 @@ namespace lockstep
     // Scene paste operations (stay editor-side due to async confirm dialog).
     virtual void sceneFloorPaste ()                           = 0;  // floor-only (mute+func+paste)
     virtual void sceneFullPaste  (int destSlot)              = 0;  // full baked paste + conflict check
+
+    // Morph operations.
+    virtual void morphBake  (int track)                      = 0;  // commit A-side to base
+    virtual void morphErase (int track)                      = 0;  // remove all morph overrides
   };
 }

@@ -35,4 +35,8 @@ namespace lockstep::verbs
   [[nodiscard]] bool noScope(ControllerButton verb,
                              CommandContext& ctx,
                              CommandEffects& fx);
+
+  [[nodiscard]] bool morph(ControllerButton verb,
+                           CommandContext& ctx,
+                           CommandEffects& fx);
 }

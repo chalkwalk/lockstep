@@ -87,6 +87,15 @@ namespace lockstep
             ed.releaseTransientLatch(cb);
         }
 
+        void morphBake(int track) override
+        {
+            ed.processor_.bakeAllMorph(track);
+        }
+        void morphErase(int track) override
+        {
+            ed.processor_.removeAllMorph(track);
+        }
+
         void sceneFloorPaste() override
         {
             auto& cl  = ed.clipboard_;
@@ -3750,32 +3759,8 @@ namespace lockstep
             // -----------------------------------------------------------------------
             // PS::Track, PS::Phrase — migrated to CommandCore / VerbCommands.cpp (8.4c)
 
-            // PS::Scene, PS::Song, PS::None — migrated to CommandCore / VerbCommands.cpp (8.4d)
-
-            case PS::Func:
-            case PS::Mute:
-            case PS::Fill:
-            case PS::Cue:
-                break;
-
-            case PS::Morph:
-            {
-                if (verb != CB::VerbClear) break;
-                const int track = keyboardArea_.getActiveTrack();
-                if (track < 0) break;
-                const bool funcHeld = editMode_.scopeState().func;
-                if (funcHeld)
-                {
-                    processor_.removeAllMorph(track);
-                    setStatus("Morph erased");
-                }
-                else
-                {
-                    processor_.bakeAllMorph(track);
-                    setStatus("Morph baked");
-                }
-                break;
-            }
+            // PS::Scene, PS::Song, PS::None, PS::Morph, PS::Func/Mute/Fill/Cue —
+            // migrated to CommandCore / VerbCommands.cpp (8.4d–e)
 
             default:
                 break;

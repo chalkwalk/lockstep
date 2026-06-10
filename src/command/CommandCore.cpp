@@ -31,6 +31,7 @@ namespace lockstep
             case PS::Scene:   return verbs::scene   (verb, ctx, fx);
             case PS::Song:    return verbs::song    (verb, ctx, fx);
             case PS::None:    return verbs::noScope (verb, ctx, fx);
+            case PS::Morph:   return verbs::morph   (verb, ctx, fx);
             default:          return false;
         }
     }
