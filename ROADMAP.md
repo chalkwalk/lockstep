@@ -1177,8 +1177,8 @@ DESIGN §37/§35.8.7/§37.4/§37.5 added; ROADMAP Phase 8 entry; CLAUDE.md statu
       format must change.
 
 ### 8.10 — Final docs pass
-- [ ] **8.10** DESIGN reconcile + residuals noted; README shortcut sweep; ROADMAP
-      ticks; CLAUDE.md layout map + gotchas.
+- [x] **8.10** DESIGN reconcile + residuals noted; README shortcut sweep; ROADMAP
+      ticks; CLAUDE.md layout map + gotchas; ControllerEvent.h nav-comment fix.
 
 ### Accepted residuals (non-goals)
 - SamplePoolOverlay / SoundBankOverlay internals; InPluginTransport beyond the

@@ -53,7 +53,7 @@ namespace lockstep
         VerbDelete,       // Func+O: delete the active entity (requires confirm via VerbYes/VerbNo)
         VerbPanic,        // Func+I: kill all voices + hard stop
 
-        // Navigation (E=Left, R=Up, T=Down, Y=Right).
+        // Navigation (4=Up, E=Left, R=Down, T=Right).
         NavUp, NavLeft, NavDown, NavRight,
 
         // Section / meta-section buttons; index carries the section index (0-5).
