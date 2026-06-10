@@ -39,6 +39,7 @@ namespace lockstep
     // Phase 8 characterisation tests
     void runEditModeTests();
     void runLayerResolveTests();
+    void runSurfaceLayerTests();
     void runSerializerRoundTripTests();
     // Phase 8 gesture tests (grows with 8.4b–h)
     void runGestureTests();

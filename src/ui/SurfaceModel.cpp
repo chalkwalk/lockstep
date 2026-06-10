@@ -2,6 +2,7 @@
 #include "MetaBand.h"
 #include "UITheme.h"
 #include "KeyLabel.h"
+#include "../command/SurfaceLayer.h"
 #include "ParamFormat.h"
 #include "ScopedSectionMatrix.h"
 #include "../state/UiState.h"
@@ -681,11 +682,20 @@ namespace lockstep
         model.modifiers[3].button = ControllerButton::SceneScope;
 
         // =====================================================================
+        // Step-grid layer resolution — resolveActiveLayer is the one SSOT so
+        // rendering and dispatch cannot diverge. Computed here so gridBanner can
+        // also read it without re-deriving.
+        // =====================================================================
+        const bool validStepTrackMode = activeTrack >= 0
+                                     && activeTrack < static_cast<int>(kNumTracks);
+        const TrackInputMode activeTrackMode = validStepTrackMode
+            ? ui.trackInputMode[static_cast<std::size_t>(activeTrack)]
+            : TrackInputMode::Play;
+        const LayerFacts layerFacts { activeTrackMode, activeTrack };
+        const SurfaceLayer activeLayer = resolveActiveLayer(ui, ec, layerFacts);
+
+        // =====================================================================
         // step[0..15] — step grid cells (Slices 2–5)
-        //
-        // Priority order mirrors paintStepRows early-returns:
-        //   funcTrackHeld → noteEdit → pLockClear → Chromatic → Levels
-        //   → muteHeld → scope re-skin → normal step grid.
         // =====================================================================
         {
             static constexpr int kStepKeyCodes[16] = {
@@ -697,17 +707,8 @@ namespace lockstep
                 "C","V","B","N","M",",",".","/"
             };
 
-            // Active track input mode — needed by Chromatic/Levels branches.
-            const bool validTrackMode = activeTrack >= 0
-                                     && activeTrack < static_cast<int>(kNumTracks);
-            const TrackInputMode activeTrackMode = validTrackMode
-                ? ui.trackInputMode[static_cast<std::size_t>(activeTrack)]
-                : TrackInputMode::Play;
-
-            // ----------------------------------------------------------------
-            // 5.7: momentary overlay branches — checked before all other modes
-            // ----------------------------------------------------------------
-            if (ui.trigGridMode == TrigGridMode::SoundPool)
+            // ── Layer-keyed branches (bodies verbatim from the original cascade) ──
+            if (activeLayer == SurfaceLayer::SoundPool)
             {
                 // Sound Pool overlay: grid cells show saved sounds for the active track.
                 static constexpr std::array<double, 8> kRetrigRates = {{
@@ -742,7 +743,7 @@ namespace lockstep
                     }
                 }
             }
-            else if (ui.trigGridMode == TrigGridMode::Retrig)
+            else if (activeLayer == SurfaceLayer::RetrigPicker)
             {
                 // Retrig overlay: check if the machine is ISliceable (slice picker)
                 // or show ratchet rates.
@@ -809,7 +810,7 @@ namespace lockstep
                     }
                 }
             }
-            else if (ui.funcTrackHeld)
+            else if (activeLayer == SurfaceLayer::MachinePicker)
             {
                 // Machine picker (MHZ.3.5): cells encode available machine slots.
                 const juce::Colour machineTint { kScopeMachine };
@@ -841,7 +842,7 @@ namespace lockstep
                     }
                 }
             }
-            else if (ui.funcFxHeld)
+            else if (activeLayer == SurfaceLayer::TrackFxPicker)
             {
                 // FX insert picker (6.5): cells encode available effects for the active insert slot.
                 const juce::Colour fxTint { compatColour(CellState::EffectAvailable) };
@@ -874,7 +875,7 @@ namespace lockstep
                     }
                 }
             }
-            else if (ui.noteEditMode && !ui.noteEditSteps.empty())
+            else if (activeLayer == SurfaceLayer::NoteEdit)
             {
                 // NoteEdit overlay: cells encode semitone note state for one octave.
                 // Cells 0–11 = semitones C–B; 12–15 = dead.
@@ -954,9 +955,7 @@ namespace lockstep
                     }
                 }
             }
-            else if (ui.pLockClearMode
-                  && ui.pLockClearTrack == activeTrack
-                  && ui.pLockClearStep >= 0)
+            else if (activeLayer == SurfaceLayer::PLockClear)
             {
                 // P-Lock clear overlay: cells map to packed P-locked slot list.
                 const juce::Colour clearTint { kScopePLock };
@@ -1000,7 +999,7 @@ namespace lockstep
                     }
                 }
             }
-            else if (activeTrackMode == TrackInputMode::Chromatic)
+            else if (activeLayer == SurfaceLayer::ChromaticInput)
             {
                 // Chromatic piano overlay: 8 white keys (bottom row) + 5 black + 3 dead (top).
                 const juce::Colour whiteKey = juce::Colour(kScopeTrack).withAlpha(0.38f);
@@ -1030,7 +1029,7 @@ namespace lockstep
                     }
                 }
             }
-            else if (activeTrackMode == TrackInputMode::Levels)
+            else if (activeLayer == SurfaceLayer::LevelsInput)
             {
                 // Levels overlay: 16 velocity buckets (1/16..16/16 of 127).
                 static const juce::Colour lowCol  { 0xFF204060u };
@@ -1053,7 +1052,7 @@ namespace lockstep
                         : cellCol.withAlpha(0.55f + t * 0.30f).getARGB();
                 }
             }
-            else if (ui.morphHeld && ui.muteHeld)
+            else if (activeLayer == SurfaceLayer::MorphMuteView)
             {
                 // Morph+Mute view: one cell per track showing whether a fluid-mute
                 // morph is authored on the track's Level slot, and how blended it is
@@ -1102,7 +1101,7 @@ namespace lockstep
                     }
                 }
             }
-            else if (ui.muteHeld)
+            else if (activeLayer == SurfaceLayer::MuteView)
             {
                 // Mute re-skin (Slice 3): cells encode per-track mute state so
                 // paintStepRows can consume a single model path and add press feedback.
@@ -1142,8 +1141,7 @@ namespace lockstep
             // ── Phase 7 / DESIGN §34.4: Phrase-length authoring re-skin ─────────
             // Pattern+Func (focused track, purple) or Scene+Func (all tracks, orange).
             // Momentary: active exactly as long as the modifiers are held.
-            else if ((ui.phraseScopeHeld || ui.morphHeld) && ui.funcHeld
-                     && !ui.funcTrackHeld)
+            else if (activeLayer == SurfaceLayer::LengthEdit)
             {
                 const bool broadcastMode = ui.morphHeld && ui.funcHeld;
                 const juce::Colour tint  = broadcastMode
@@ -1183,7 +1181,7 @@ namespace lockstep
             // Morph held (no Func) → step grid shows A/B pole states per MZ slot.
             // Row 0 (D-;, steps 0-7) = A poles; Row 1 (C-/, steps 8-15) = B poles.
             // Three visual states: active (lit magenta), dormant (dim), dark (none).
-            else if (ui.morphHeld && !ui.funcHeld)
+            else if (activeLayer == SurfaceLayer::MorphStepView)
             {
                 const int nmp = (activeTrack >= 0) ? proc.numParams(activeTrack) : 0;
                 const int anchorSec = (slotOffset < nmp && activeTrack >= 0)
@@ -1243,7 +1241,7 @@ namespace lockstep
             }
             // ── End morph step view ──────────────────────────────────────────────
 
-            else if (ui.trackHeld || ui.phraseScopeHeld || ui.sceneHeld || ui.songHeld)
+            else if (activeLayer == SurfaceLayer::ScopeSelector)
             {
                 // Scope re-skin (Slice 4): cells encode track/pattern/part selector state.
                 // fill colour + pressed → builder; border/text/badge → inline screen residuals.
@@ -1647,15 +1645,20 @@ namespace lockstep
         }
 
         // ── gridBanner ───────────────────────────────────────────────────────
-        // Set the contextual banner when a picker or selector overlay is active.
-        if (ui.funcTrackHeld)
-            model.gridBanner = "SELECT MACHINE";
-        else if (ui.trackHeld)
-            model.gridBanner = "SELECT TRACK";
-        else if (ui.phraseScopeHeld)
-            model.gridBanner = "SELECT PHRASE";
-        else if (ui.sceneHeld)
-            model.gridBanner = "SELECT SCENE";
+        // Derived from activeLayer so it cannot diverge from the step-grid mode.
+        switch (activeLayer)
+        {
+            case SurfaceLayer::MachinePicker:  model.gridBanner = "SELECT MACHINE"; break;
+            case SurfaceLayer::ScopeSelector:
+            {
+                const PS bannerScope = firstHeldSectionSuiteScope(ui);
+                if      (bannerScope == PS::Track)  { model.gridBanner = "SELECT TRACK";  }
+                else if (bannerScope == PS::Phrase) { model.gridBanner = "SELECT PHRASE"; }
+                else if (bannerScope == PS::Scene)  { model.gridBanner = "SELECT SCENE";  }
+                break;
+            }
+            default: break;
+        }
 
         // ── pageDots ─────────────────────────────────────────────────────────
         // Per-section: how many pages does the active track's section have?

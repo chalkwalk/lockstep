@@ -14,6 +14,7 @@ add_executable(lockstep_tests
     EuclideanTest.cpp
     EditModeTest.cpp
     LayerResolveTest.cpp
+    SurfaceLayerTest.cpp
     SerializerRoundTripTest.cpp
     GestureTest.cpp
     StatusTextTest.cpp
