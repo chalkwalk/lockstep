@@ -1,0 +1,93 @@
+// CellStates.def — X-macro table of every CellState token.
+//
+// Usage: define LS_CELLSTATE(token, value, screenFill, screenAccent, pushPad, xtouchVel)
+//        then #include this file, then #undef LS_CELLSTATE.
+//
+// Columns:
+//   token       — CellState enum name (no namespace)
+//   value       — numeric value (add-only; never renumber)
+//   screenFill  — ARGB uint32; base fill colour used by screen renderers
+//   screenAccent— ARGB uint32; accent / overlay colour (0 = none defined)
+//   pushPad     — uint8; Push 1 firmware palette index (pidx::k* literals)
+//   xtouchVel   — uint8; X-Touch Mini LED velocity: 0=off 1=flash 127=solid
+//
+// Derived from:
+//   - SurfaceModel.cpp  compatColour()      → screenFill
+//   - Push1Surface.cpp  stepGridIndex()     → pushPad
+//   - XTouchMiniSurface.cpp cellStateToVelocity() → xtouchVel
+
+// ---- key family -------------------------------------------------------
+LS_CELLSTATE(Resting,            0,  0xFF2D3741u, 0x00000000u,  71,   0)
+LS_CELLSTATE(Pressed,            1,  0xFFFFFFFFu, 0x00000000u, 119, 127)
+LS_CELLSTATE(ModeActive,         2,  0xFF8898A8u, 0x00000000u,   2, 127)
+LS_CELLSTATE(FuncHeld,           3,  0xFFC07800u, 0x00000000u,   9,   0)
+LS_CELLSTATE(Disabled,           4,  0xFF1A1A1Au, 0x00000000u,   0,   0)
+
+// ---- step-grid family -------------------------------------------------
+LS_CELLSTATE(StepEmpty,         10,  0xFF2D3741u, 0x00000000u,  71,   0)
+LS_CELLSTATE(StepTrigCertain,   11,  0xFF50B478u, 0xFF8060E0u,  21, 127)
+LS_CELLSTATE(StepTrigProbable,  12,  0xFF50B478u, 0xFF8060E0u,  23, 127)
+LS_CELLSTATE(StepTrigSuppressed,13,  0xFF3E6B50u, 0x00000000u,  31,   0)
+LS_CELLSTATE(StepFillAdd,       14,  0xFFF08030u, 0x00000000u,  61, 127)
+LS_CELLSTATE(StepFillSuppress,  15,  0xFF3060A0u, 0x00000000u,  46,   0)
+LS_CELLSTATE(StepOutOfRange,    16,  0xFF12151Au, 0x00000000u,   0,   0)
+LS_CELLSTATE(StepPlayhead,      17,  0xFFFFCC44u, 0x00000000u,   9,   0)
+LS_CELLSTATE(StepHeld,          18,  0xFFFFFFFFu, 0x00000000u, 119,   1)
+
+// ---- selector / re-skin family ----------------------------------------
+LS_CELLSTATE(SelectorCurrent,   30,  0xFFFFFFFFu, 0x00000000u, 119,   1)
+LS_CELLSTATE(SelectorOccupied,  31,  0xFF8898A8u, 0x00000000u,   2, 127)
+LS_CELLSTATE(SelectorEmpty,     32,  0xFF404040u, 0x00000000u,  71,   0)
+LS_CELLSTATE(SelectorOutRange,  33,  0xFF12151Au, 0x00000000u,   0,   0)
+LS_CELLSTATE(SelectorNext,      34,  0xFF7050C8u, 0x00000000u,  50, 127)
+LS_CELLSTATE(SelectorChain,     35,  0xFF3A2A78u, 0x00000000u,  51, 127)
+LS_CELLSTATE(MuteMuted,         40,  0xFFC03030u, 0x00000000u,   5,   0)
+LS_CELLSTATE(MuteAudible,       41,  0xFF2D3741u, 0x00000000u,  71, 127)
+LS_CELLSTATE(MachineCurrent,    50,  0xFFFFFFFFu, 0x00000000u, 119,   1)
+LS_CELLSTATE(MachineAvailable,  51,  0xFF50C030u, 0x00000000u,  18, 127)
+LS_CELLSTATE(MachineUnavailable,52,  0xFF12151Au, 0x00000000u,   0,   0)
+
+// ---- note-edit overlay family -----------------------------------------
+LS_CELLSTATE(NoteEditActive,    60,  0xFF2888D8u, 0x00000000u,  41,   1)
+LS_CELLSTATE(NoteEditStaged,    61,  0xFFDC643Cu, 0x00000000u,   5,   1)
+LS_CELLSTATE(NoteEditOther,     62,  0xFF16486Eu, 0x00000000u,  43,   0)
+LS_CELLSTATE(NoteEditResting,   63,  0xFF12151Au, 0x00000000u,   0,   0)
+
+// ---- chromatic keyboard family ----------------------------------------
+LS_CELLSTATE(ChromaticWhite,    70,  0xFF30A0C0u, 0x00000000u,  37, 127)
+LS_CELLSTATE(ChromaticBlack,    71,  0xFF30A0C0u, 0x00000000u,  39, 127)
+
+// ---- levels velocity picker -------------------------------------------
+LS_CELLSTATE(LevelsCell,        80,  0xFF204060u, 0x00000000u,  46, 127)
+
+// ---- phrase-length authoring ------------------------------------------
+LS_CELLSTATE(LengthInRun,       90,  0xFF7050C8u, 0x00000000u,  50, 127)
+LS_CELLSTATE(LengthBoundary,    91,  0xFFCCAAFFu, 0x00000000u,  80,   1)
+LS_CELLSTATE(LengthOutRun,      92,  0xFF12151Au, 0x00000000u,   0,   0)
+
+// ---- selector badges (Phase 7) ----------------------------------------
+LS_CELLSTATE(SelectorDeviated,  95,  0xFF7050C8u, 0x00000000u,  57, 127)
+LS_CELLSTATE(SelectorHome,      96,  0xFFFFC020u, 0x00000000u,   9, 127)
+
+// ---- morph step view (5.2) --------------------------------------------
+LS_CELLSTATE(MorphPoleActive,  100,  0xFF60C080u, 0x00000000u,  21, 127)
+LS_CELLSTATE(MorphPoleDormant, 101,  0xFF305040u, 0x00000000u,  31, 127)
+LS_CELLSTATE(MorphPoleDark,    102,  0xFF12151Au, 0x00000000u,   0,   0)
+
+// ---- Sound Pool overlay (5.7) -----------------------------------------
+LS_CELLSTATE(SoundPoolOccupied,110,  0xFF82C018u, 0x00000000u,  61, 127)
+LS_CELLSTATE(SoundPoolEmpty,   111,  0xFF12151Au, 0x00000000u,   0,   0)
+LS_CELLSTATE(SoundPoolCurrent, 112,  0xFFFFFFFFu, 0x00000000u, 119,   1)
+
+// ---- retrig/ratchet overlay (5.7) -------------------------------------
+LS_CELLSTATE(RetrigRate,       120,  0xFF82C018u, 0x00000000u,  61, 127)
+LS_CELLSTATE(RetrigSelected,   121,  0xFFFFFFFFu, 0x00000000u, 119,   1)
+
+// ---- slice point picker (5.7) -----------------------------------------
+LS_CELLSTATE(SlicePoint,       130,  0xFF30A0C0u, 0x00000000u,  37, 127)
+LS_CELLSTATE(SliceSelected,    131,  0xFFFFFFFFu, 0x00000000u, 119,   1)
+LS_CELLSTATE(SliceEmpty,       132,  0xFF12151Au, 0x00000000u,   0,   0)
+
+// ---- FX insert picker (6.5) -------------------------------------------
+LS_CELLSTATE(EffectAvailable,  140,  0xFF30A030u, 0x00000000u,  18, 127)
+LS_CELLSTATE(EffectLoaded,     141,  0xFFFFFFFFu, 0x00000000u, 119,   1)

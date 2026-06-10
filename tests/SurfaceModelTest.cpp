@@ -7,6 +7,7 @@
 #include "../src/ui/KeyLabel.h"
 #include "../src/ui/SurfaceModel.h"
 #include "../src/ui/PageNav.h"
+#include "../src/ui/CellAppearance.h"
 
 namespace lockstep
 {
@@ -252,6 +253,42 @@ namespace lockstep
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Test: appearanceOf() returns correct values from the CellStates.def table
+    // and returns the fallback for an unknown token.
+    // -------------------------------------------------------------------------
+    static void testCellAppearance()
+    {
+        // StepTrigCertain — pidx 21 (green trig), solid on X-Touch
+        CHECK(appearanceOf(CellState::StepTrigCertain).pushPad  == 21,
+              "StepTrigCertain pushPad");
+        CHECK(appearanceOf(CellState::StepTrigCertain).xtouchVel == 127,
+              "StepTrigCertain xtouchVel");
+
+        // StepEmpty — off on X-Touch (step with no trig)
+        CHECK(appearanceOf(CellState::StepEmpty).xtouchVel == 0,
+              "StepEmpty xtouchVel");
+
+        // MuteMuted — red (pidx 5), off on X-Touch
+        CHECK(appearanceOf(CellState::MuteMuted).pushPad   ==  5,
+              "MuteMuted pushPad");
+        CHECK(appearanceOf(CellState::MuteMuted).xtouchVel ==  0,
+              "MuteMuted xtouchVel");
+
+        // SelectorCurrent — flash (1) on X-Touch
+        CHECK(appearanceOf(CellState::SelectorCurrent).xtouchVel == 1,
+              "SelectorCurrent xtouchVel");
+
+        // StepPlayhead — yellow screen fill
+        CHECK(appearanceOf(CellState::StepPlayhead).screenFill == 0xFFFFCC44u,
+              "StepPlayhead screenFill");
+
+        // Unknown token → fallback (dark grey)
+        const CellAppearance fb = appearanceOf(static_cast<CellState>(0xFFFF));
+        CHECK(fb.screenFill == 0xFF303030u, "unknown token fallback screenFill");
+        CHECK(fb.pushPad    == 2,           "unknown token fallback pushPad");
+    }
+
     void runSurfaceModelTests()
     {
         testPanicKeyLabel();
@@ -259,6 +296,7 @@ namespace lockstep
         testSectionKeyLabel();
         testLengthEditCellState();
         testScrollPastEndClamp();
+        testCellAppearance();
     }
 
 } // namespace lockstep
