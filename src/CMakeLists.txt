@@ -26,6 +26,7 @@ add_library(lockstep_core STATIC
     machine/SamplerMachine.cpp
     machine/SlicerMachine.cpp
     machine/SamplePool.cpp
+    machine/MachineParamTable.cpp
     machine/VoiceChoke.cpp
     controller/XTouchMiniSurface.cpp
     controller/Push1Surface.cpp

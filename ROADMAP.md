@@ -1164,7 +1164,7 @@ DESIGN §37/§35.8.7/§37.4/§37.5 added; ROADMAP Phase 8 entry; CLAUDE.md statu
 
 ### 8.8 — ParamSpec constexpr tables (LsmParamSpec-shaped)
 - [x] **8.8a** `tests/ParamSpecTest.cpp` — golden ids + invariants per machine.
-- [ ] **8.8b** `src/machine/MachineParamTable.h` (`ParamRow` + `toParamSpec`).
+- [x] **8.8b** `src/machine/MachineParamTable.h` (`ParamRow` + `toParamSpec`).
 - [ ] **8.8c** Convert `VAMachine`.
 - [ ] **8.8d** Convert `DrumSynthMachine` + `SamplerMachine`.
 - [ ] **8.8e** Convert `SlicerMachine` + `MidiOutMachine`.
