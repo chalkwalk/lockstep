@@ -1,5 +1,6 @@
 #include "KeyButton.h"
 #include "UITheme.h"
+#include "CellAppearance.h"
 
 namespace lockstep
 {
@@ -112,6 +113,19 @@ namespace lockstep
                 if (c.baseColour == 0xFF404010u)            // master-active golden
                     return { kSecInactive, 0xFF404010u, 0xFFFFB432u };
                 return { kSecInactive, kSecActive, kSecAccent };
+
+            case ControllerButton::Step:
+            {
+                // Step-grid cells: table drives base fill/accent; baseColour
+                // wins when the model has computed a specific override (e.g. scope
+                // tint blended by SurfaceModel — already handled above). Use the
+                // table fill dimmed for the inactive face, full for active.
+                const auto ap = appearanceOf(c.base);
+                const uint32_t fill   = (ap.screenFill   != 0u) ? ap.screenFill   : c.baseColour;
+                const uint32_t accent = (ap.screenAccent != 0u) ? ap.screenAccent : fill;
+                return { juce::Colour(fill).withMultipliedBrightness(0.55f).getARGB(),
+                         fill, accent };
+            }
 
             default:
                 // Fallback: derive inactive from baseColour (for unknown future button types).

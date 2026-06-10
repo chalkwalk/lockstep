@@ -1,5 +1,6 @@
 #include "Push1Surface.h"
 #include "../ui/UITheme.h"      // theme::kScope* / kVerb* sentinels for state→index mapping
+#include "../ui/CellAppearance.h"
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <algorithm>
 
@@ -408,53 +409,9 @@ namespace lockstep
         if (c.scopeTint != 0)
             return scopeTintIndex(c.scopeTint);
 
-        switch (c.base)
-        {
-            case S::StepEmpty:          return pidx::kGreyDim;
-            case S::StepTrigCertain:    return pidx::kGreen;
-            case S::StepTrigProbable:   return pidx::kGreenDim;
-            case S::StepTrigSuppressed: return pidx::kTealDk;
-            case S::StepFillAdd:        return pidx::kOrange;
-            case S::StepFillSuppress:   return pidx::kBlue;
-            case S::StepOutOfRange:     return pidx::kOff;
-            case S::SelectorCurrent:    return pidx::kWhite;
-            case S::SelectorOccupied:   return pidx::kGreyMid;
-            case S::SelectorEmpty:      return pidx::kGreyDim;
-            case S::SelectorOutRange:   return pidx::kOff;
-            case S::SelectorNext:       return pidx::kIndigo;
-            case S::SelectorChain:      return pidx::kIndigoDk;
-            case S::SelectorDeviated:   return pidx::kRose;
-            case S::SelectorHome:       return pidx::kAmber;
-            case S::MuteMuted:          return pidx::kRed;      // bold vs...
-            case S::MuteAudible:        return pidx::kGreyDim;  // ...clearly dim
-            case S::MachineCurrent:     return pidx::kWhite;
-            case S::MachineAvailable:   return pidx::kLime;
-            case S::MachineUnavailable: return pidx::kOff;
-            case S::NoteEditActive:     return pidx::kAzure;
-            case S::NoteEditStaged:     return pidx::kRed;
-            case S::NoteEditOther:      return pidx::kAzureDk;
-            case S::NoteEditResting:    return pidx::kOff;
-            case S::ChromaticWhite:     return pidx::kCyan;
-            case S::ChromaticBlack:     return pidx::kCyanDk;
-            case S::LevelsCell:         return pidx::kBlue;
-            case S::LengthInRun:        return pidx::kIndigo;
-            case S::LengthBoundary:     return pidx::kViolet;
-            case S::LengthOutRun:       return pidx::kOff;
-            case S::MorphPoleActive:    return pidx::kGreen;
-            case S::MorphPoleDormant:   return pidx::kTealDk;
-            case S::MorphPoleDark:      return pidx::kOff;
-            case S::SoundPoolOccupied:  return pidx::kOrange;
-            case S::SoundPoolEmpty:     return pidx::kOff;
-            case S::SoundPoolCurrent:   return pidx::kWhite;
-            case S::RetrigRate:         return pidx::kOrange;
-            case S::RetrigSelected:     return pidx::kWhite;
-            case S::SlicePoint:         return pidx::kCyan;
-            case S::SliceSelected:      return pidx::kWhite;
-            case S::SliceEmpty:         return pidx::kOff;
-            case S::EffectAvailable:    return pidx::kLime;
-            case S::EffectLoaded:       return pidx::kWhite;
-            default:                    return pidx::kGreyDim;
-        }
+        // CellStates.def encodes the pushPad column for every token —
+        // one source of truth shared with X-Touch and screen.
+        return appearanceOf(c.base, { 0u, 0u, pidx::kGreyDim, 0u }).pushPad;
     }
 
     // Key cells (modifiers / verbs / sections / nav / tap). Active = pressed or

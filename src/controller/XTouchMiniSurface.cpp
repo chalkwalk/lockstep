@@ -1,4 +1,5 @@
 #include "XTouchMiniSurface.h"
+#include "../ui/CellAppearance.h"
 #include <juce_audio_devices/juce_audio_devices.h>
 
 namespace lockstep
@@ -27,80 +28,9 @@ namespace lockstep
         if (border.present && border.token == CellState::StepPlayhead)
             return 1;   // flash
 
-        // CellState is add-only: list all known tokens so the compiler warns
-        // when a new token is added without updating the controller mapping.
-        //
-        // Three LED states:  0 = off,  1 = flash (cursor/selected),  127 = solid (occupied/active).
-        switch (state)
-        {
-            // Flash: "this is the cursor / currently selected item" — distinguishes
-            // selection from mere occupancy in list/picker/selector modes.
-            case CellState::StepHeld:           // step being held for P-Lock edit
-            case CellState::SelectorCurrent:    // selected phrase / pattern
-            case CellState::MachineCurrent:     // active machine in picker
-            case CellState::NoteEditActive:     // this note is present and active
-            case CellState::NoteEditStaged:     // staged for removal
-            case CellState::LengthBoundary:     // exact phrase-length boundary
-                return 1;
-
-            // Solid on: "this position is occupied / this mode is on".
-            case CellState::StepTrigCertain:
-            case CellState::StepTrigProbable:
-            case CellState::StepFillAdd:
-            case CellState::SelectorOccupied:
-            case CellState::SelectorNext:
-            case CellState::SelectorChain:
-            case CellState::SelectorDeviated:
-            case CellState::SelectorHome:
-            case CellState::MachineAvailable:
-            case CellState::ModeActive:
-            case CellState::Pressed:
-            case CellState::LengthInRun:
-            case CellState::ChromaticWhite:
-            case CellState::ChromaticBlack:
-            case CellState::LevelsCell:
-            case CellState::MuteAudible:
-                return 127;
-
-            // Off: empty, suppressed, out-of-range, muted, or background.
-            case CellState::Resting:
-            case CellState::FuncHeld:
-            case CellState::Disabled:
-            case CellState::StepEmpty:
-            case CellState::StepTrigSuppressed:
-            case CellState::StepFillSuppress:
-            case CellState::StepOutOfRange:
-            case CellState::StepPlayhead:    // covered by border check above
-            case CellState::SelectorEmpty:
-            case CellState::SelectorOutRange:
-            case CellState::MuteMuted:
-            case CellState::MachineUnavailable:
-            case CellState::NoteEditOther:
-            case CellState::NoteEditResting:
-            case CellState::LengthOutRun:
-            case CellState::MorphPoleDark:
-            case CellState::SoundPoolEmpty:
-            case CellState::SliceEmpty:
-                return 0;
-
-            // 5.7 overlay tokens.
-            case CellState::SoundPoolCurrent:
-            case CellState::RetrigSelected:
-            case CellState::SliceSelected:
-                return 1;   // flash: selected item
-
-            case CellState::SoundPoolOccupied:
-            case CellState::RetrigRate:
-            case CellState::SlicePoint:
-            case CellState::MorphPoleActive:
-            case CellState::MorphPoleDormant:
-            case CellState::EffectAvailable:
-                return 127;
-
-            case CellState::EffectLoaded:
-                return 1;   // flash: loaded effect (selected)
-        }
-        return 0;  // unreachable; satisfies non-void return
+        // CellStates.def encodes the xtouchVel column (0=off, 1=flash, 127=solid)
+        // for every token — one source of truth shared with Push1 and screen.
+        return appearanceOf(state).xtouchVel;
     }
 
     void XTouchMiniSurface::onInput(const juce::MidiMessage& msg, ControllerEventSink& sink)

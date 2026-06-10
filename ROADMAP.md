@@ -1151,7 +1151,7 @@ DESIGN §37/§35.8.7/§37.4/§37.5 added; ROADMAP Phase 8 entry; CLAUDE.md statu
 ### 8.6 — CellState appearance table
 - [x] **8.6a** `src/ui/CellStates.def` + `src/ui/CellAppearance.h` (X-macro table,
       literal values; `pidx` consts moved to `Push1Palette.h`).
-- [ ] **8.6b** Consume in `XTouchMiniSurface`, `Push1Surface`, `KeyButton`;
+- [x] **8.6b** Consume in `XTouchMiniSurface`, `Push1Surface`, `KeyButton`;
       manual colour smoke (standalone + Push).
 
 ### 8.7 — Status & contextual text SSOT + transport fix
