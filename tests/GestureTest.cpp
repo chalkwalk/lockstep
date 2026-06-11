@@ -275,6 +275,54 @@ namespace lockstep
         CHECK(f.effects.fluidMuteTracks[0] == 7, "track index forwarded");
     }
 
+    // ── A4.2 scope-up latch-release dedup ────────────────────────────────────
+
+    static void scenario_scopeUpUnlatched()
+    {
+        // When not latched, handleUp clears xxxHeld and fires editMode scope event.
+        GestureFixture f;
+        f.uiState.trackHeld = true;
+        f.uiState.latch.track = false;
+
+        ControllerEvent ev { ControllerEvent::Type::ButtonUp, CB::TrackScope };
+        auto c = f.ctx();
+        const bool handled = f.core.handleUp(ev, c, f.effects);
+
+        CHECK(!handled, "handleUp returns false (caller does unique effects)");
+        CHECK(!f.uiState.trackHeld, "trackHeld cleared when not latched");
+        CHECK(f.effects.repaints == 1, "repaint requested");
+    }
+
+    static void scenario_scopeUpLatched()
+    {
+        // When latched, handleUp leaves xxxHeld unchanged.
+        GestureFixture f;
+        f.uiState.trackHeld = true;
+        f.uiState.latch.track = true;
+
+        ControllerEvent ev { ControllerEvent::Type::ButtonUp, CB::TrackScope };
+        auto c = f.ctx();
+        const bool handled = f.core.handleUp(ev, c, f.effects);
+
+        CHECK(!handled, "handleUp returns false");
+        CHECK(f.uiState.trackHeld, "trackHeld stays true when latched");
+        CHECK(f.effects.repaints == 0, "no repaint when latched");
+    }
+
+    static void scenario_muteUpUnlatched()
+    {
+        GestureFixture f;
+        f.uiState.muteHeld = true;
+        f.uiState.latch.mute = false;
+
+        ControllerEvent ev { ControllerEvent::Type::ButtonUp, CB::MuteScope };
+        auto c = f.ctx();
+        [[maybe_unused]] const bool h = f.core.handleUp(ev, c, f.effects);
+
+        CHECK(!f.uiState.muteHeld, "muteHeld cleared");
+        CHECK(f.effects.repaints == 1, "repaint requested");
+    }
+
     // ── KeyBindings mute resolution golden tests ─────────────────────────────
 
     static void scenario_muteBindingResolution()
@@ -322,6 +370,9 @@ namespace lockstep
         scenario_resolveLayerPreservesVelocity();
         scenario_resolveLayerSection();
         scenario_sectionCopyClear();
+        scenario_scopeUpUnlatched();
+        scenario_scopeUpLatched();
+        scenario_muteUpUnlatched();
         scenario_muteGlobalToggle();
         scenario_muteFunc();
         scenario_muteScene();

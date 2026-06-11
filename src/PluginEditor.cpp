@@ -3070,125 +3070,99 @@ namespace lockstep
                 repaint();
                 break;
 
+            // Scope modifier releases: CommandCore::handleUp clears xxxHeld and fires
+            // editMode_.onScopeEvent + repaint if not latched (8.11 A4.2). Per-scope
+            // unique side effects run here when xxxHeld was cleared (i.e. !xxxHeld).
             case CB::TrackScope:
                 physHeld_.track = false;
-                uiState_.funcTrackHeld = false;  // exit machine/Kit picker on Track release
-                if (!uiState_.latch.track)
+                uiState_.funcTrackHeld = false;
+                if (!uiState_.trackHeld)  // cleared by handleUp → not latched
                 {
-                    uiState_.trackHeld = false;
-                    uiState_.swingDismissed = false;  // re-arm for next hold
+                    uiState_.swingDismissed = false;
                     processor_.setControlAllActive(false);  // MD.10
-                    editMode_.onScopeEvent({ T::ButtonUp, CB::TrackScope });
                     updateSwingQualifier();
-                    repaint();
                 }
                 break;
 
             case CB::PhraseScope:
                 physHeld_.phrase = false;
-                if (!uiState_.latch.phrase)
+                if (!uiState_.phraseScopeHeld)
                 {
-                    // 5.5: if we were in Euclidean mode, commit the pattern now.
-                    if (uiState_.euclidHeld)
+                    if (uiState_.euclidHeld)  // 5.5: commit Euclidean pattern on release
                     {
                         applyEuclidToTrack(keyboardArea_.getActiveTrack());
                         uiState_.euclidHeld = false;
                         refreshMetaBand();
                     }
-                    uiState_.phraseScopeHeld = false;
                     uiState_.phraseScopeUsed = false;
-                    editMode_.onScopeEvent({ T::ButtonUp, CB::PhraseScope });
-                    repaint();
                 }
                 break;
 
             case CB::SceneScope:
                 physHeld_.scene = false;
-                if (!uiState_.latch.scene)
+                if (!uiState_.sceneHeld)
                 {
-                    uiState_.sceneHeld = false;
-                    uiState_.swingDismissed = false;  // re-arm for next hold
-                    editMode_.onScopeEvent({ T::ButtonUp, CB::SceneScope });
+                    uiState_.swingDismissed = false;
                     updateSwingQualifier();
-                    repaint();
                 }
                 break;
 
             case CB::MuteScope:
                 physHeld_.mute = false;
-                if (!uiState_.latch.mute)
-                {
-                    uiState_.muteHeld = false;
-                    editMode_.onScopeEvent({ T::ButtonUp, CB::MuteScope });
-                    repaint();
-                }
+                // No unique side effects beyond what handleUp already does.
                 break;
 
             case CB::FillScope:
                 physHeld_.fill = false;
-                if (!uiState_.latch.fill)
+                if (!uiState_.fillHeld)
                 {
-                    // 5.5: if we were in Euclidean mode, commit the pattern now.
-                    if (uiState_.euclidHeld)
+                    if (uiState_.euclidHeld)  // 5.5: commit Euclidean pattern on release
                     {
                         applyEuclidToTrack(keyboardArea_.getActiveTrack());
                         uiState_.euclidHeld = false;
                         refreshMetaBand();
                     }
-                    uiState_.fillHeld = false;
-                    editMode_.onScopeEvent({ T::ButtonUp, CB::FillScope });
                     updateFillActivation();
                     // 5.7: release any momentary trig-grid overlay (Retrig / SoundPool).
                     if (uiState_.trigGridMode == TrigGridMode::SoundPool)
                     {
-                        // Restore the track's saved sound (exit audition mode).
                         const int at = keyboardArea_.getActiveTrack();
                         if (at >= 0 && at < static_cast<int>(kNumTracks))
                             processor_.clearLiveSwap(at);
                     }
                     else if (uiState_.trigGridMode == TrigGridMode::Retrig)
                     {
-                        processor_.setRetrigActive(0, false);  // stop any live retrig stutter
+                        processor_.setRetrigActive(0, false);
                     }
                     uiState_.trigGridMode = TrigGridMode::Default;
-                    repaint();
                 }
                 break;
 
             case CB::CueScope:
                 physHeld_.cue = false;
-                // Cue is not latchable (reserved for MU); always release.
-                uiState_.cueHeld = false;
-                editMode_.onScopeEvent({ T::ButtonUp, CB::CueScope });
-                repaint();
+                // Cue is not latchable; handleUp always clears it + fires scope event.
                 break;
 
             case CB::MorphScope:
                 physHeld_.morph = false;
                 uiState_.morphNavQualifier = 0;
                 manipulationZone_.setMorphQualifier(0);
-                if (!uiState_.latch.morph)
+                if (!uiState_.morphHeld)
                 {
-                    uiState_.morphHeld = false;
                     morphDormantA_.clear();
                     morphDormantB_.clear();
-                    editMode_.onScopeEvent({ T::ButtonUp, CB::MorphScope });
-                    repaint();
                 }
                 manipulationZone_.setMorphHeld(uiState_.morphHeld);
                 break;
 
             case CB::SongScope:
                 physHeld_.song = false;
-                uiState_.masterFxPickerOpen = false;  // close picker on Song release; band stays
-                if (!uiState_.latch.song)
+                uiState_.masterFxPickerOpen = false;
+                if (!uiState_.songHeld)
                 {
-                    uiState_.songHeld = false;
-                    uiState_.swingDismissed = false;  // re-arm for next hold
-                    editMode_.onScopeEvent({ T::ButtonUp, CB::SongScope });
+                    uiState_.swingDismissed = false;
                     updateSwingQualifier();
                     refreshMetaBand();
-                    repaint();
                 }
                 break;
 

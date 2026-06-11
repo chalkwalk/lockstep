@@ -1214,6 +1214,11 @@ per-renderer label logic and per-key modifier checks. See DESIGN §37.6.
         `FluidMuteToggle`) migrated from legacy `dispatchDown` to `KeyBindings`
         table + `handleAction`; four new `CommandEffects` virtuals; layer-aware
         binding rows (`MuteView` / `MorphMuteView`); `GestureTest` coverage.
+  - [x] **A4.2** Scope-modifier up dedup: `CommandCore::handleUp` handles the
+        common "if not latched, clear held + editMode + repaint" for all 7
+        latchable scopes + unlatchable `CueScope`; `dispatchUp` cases simplified
+        to physical-hold clear + per-scope unique effects only; latch sentinel
+        pattern replaces per-scope `!latch.xxx` guards; `GestureTest` coverage.
 - [ ] **Task B** Confirm-prompt + master-FX-picker overlay wiring through
       `SurfaceLayer` (`PendingConfirm` / `MasterFxPicker` layers).
 
