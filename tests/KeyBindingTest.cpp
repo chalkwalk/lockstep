@@ -162,6 +162,37 @@ namespace lockstep
         CHECK(resolve(CB::Section, kModNone, 5) == AId::SelectSection,      "FX bare = section select");
     }
 
+    // ── Label-length invariants ───────────────────────────────────────────────
+    // Count UTF-8 code points (not bytes). Continuation bytes (10xxxxxx) are skipped.
+    // ≤6 code points preferred for 15 pt primaries; 8 is the hard limit.
+    static std::size_t utf8Length(const char8_t* s) noexcept
+    {
+        if (s == nullptr) return 0;
+        std::size_t n = 0;
+        for (; *s != u8'\0'; ++s)
+            if ((*s & 0xC0u) != 0x80u)
+                ++n;
+        return n;
+    }
+
+    static void testLabelLengths()
+    {
+        for (const auto& row : kKeyBindings)
+        {
+            // Section rows delegate labels to ScopedSectionMatrix — empty is correct.
+            if (row.button == CB::Section) continue;
+
+            CHECK(row.primary != nullptr, "primary non-null (testLabelLengths)");
+            CHECK(row.hint    != nullptr, "hint non-null (testLabelLengths)");
+
+            const std::size_t pLen = utf8Length(row.primary);
+            const std::size_t hLen = utf8Length(row.hint);
+
+            CHECK(pLen <= 8, "primary label ≤8 code points");
+            CHECK(hLen <= 8, "hint label ≤8 code points");
+        }
+    }
+
     // ── Table invariants ─────────────────────────────────────────────────────
     static void testTableInvariants()
     {
@@ -212,5 +243,6 @@ namespace lockstep
         testSectionKeys();
         testTableInvariants();
         testMostSpecificWins();
+        testLabelLengths();
     }
 }
