@@ -7,8 +7,9 @@ namespace lockstep
 {
     class LockstepProcessor;
 
-    // MG.4: floating panel listing Sound Pool entries.
-    // Lets the user save the focused track's sound, recall entries, and delete them.
+    // Floating panel listing Project::soundPool entries.
+    // Single-click row = recall; double-click label = inline rename; per-row Del button.
+    // Bottom hint strip documents the Fill+SRC keyboard performance-recall gesture.
     class SoundBankOverlay : public juce::Component
     {
     public:
@@ -20,28 +21,43 @@ namespace lockstep
         // Callbacks set by the editor.
         std::function<void()> onClose;
         std::function<int()> getActiveTrack;
+        std::function<void(const juce::String&)> onStatus;
 
     private:
         void refresh();
+        void doRecall(int entryIndex);
+        void doDelete(int entryIndex);
+        void doRename(int entryIndex, const juce::String& newName);
         void onSaveClicked();
-        void onRecallClicked(int entryIndex);
-        void onDeleteClicked(int entryIndex);
 
         LockstepProcessor& processor_;
 
         juce::TextButton closeBtn_{ "X" };
         juce::TextButton saveBtn_{ "Save Track Sound" };
         juce::ListBox listBox_;
+        juce::Label hintLabel_;
 
-        // Thin ListBoxModel so we don't need a separate class file.
+        // Row component: name Label + Recall + Del buttons.
+        struct Row : public juce::Component
+        {
+            explicit Row(SoundBankOverlay& owner);
+            void resized() override;
+            void mouseDown(const juce::MouseEvent& e) override;
+
+            void update(int rowIndex, const juce::String& name);
+
+            SoundBankOverlay& owner;
+            int rowIndex = -1;
+            juce::Label nameLabel_;
+            juce::TextButton recallBtn_{ "Recall" };
+            juce::TextButton delBtn_{ "Del" };
+        };
+
         struct Model : public juce::ListBoxModel
         {
             SoundBankOverlay* owner = nullptr;
             int getNumRows() override;
-            void paintListBoxItem(int row, juce::Graphics& g,
-                                  int w, int h, bool selected) override;
-            void listBoxItemDoubleClicked(int row, const juce::MouseEvent&) override;
-
+            void paintListBoxItem(int, juce::Graphics&, int, int, bool) override {}
             juce::Component* refreshComponentForRow(int row, bool,
                                                     juce::Component* existing) override;
         } model_;

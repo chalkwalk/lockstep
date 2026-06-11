@@ -520,6 +520,7 @@ namespace lockstep
 
         soundBankOverlay_.onClose = [this] { soundBankOverlay_.setVisible(false); };
         soundBankOverlay_.getActiveTrack = [this]() { return keyboardArea_.getActiveTrack(); };
+        soundBankOverlay_.onStatus = [this](const juce::String& msg) { setStatus(msg); };
         addChildComponent(soundBankOverlay_);
 
         manipulationZone_.setUiState(&uiState_);
