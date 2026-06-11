@@ -53,8 +53,8 @@ namespace lockstep
         //   Morph+Mute held → MorphMuteView; any other Mute hold → MuteView.
         { CB::ToggleMute,   -1, kModMorph | kModMute,        SL::MorphMuteView, AId::FluidMuteToggle,   u8"F-MUTE", u8"",     CS::MuteMuted  },
         { CB::ToggleMute,   -1, kModFunc  | kModMute,        SL::MuteView,      AId::SoloToggle,        u8"SOLO",   u8"",   CS::MuteAudible},
-        { CB::ToggleMute,   -1, kModScene | kModMute,        SL::MuteView,      AId::SceneMuteToggle,   u8"S-MUTE", u8"",   CS::MuteMuted  },
-        { CB::ToggleMute,   -1, kModMute,                    SL::MuteView,      AId::GlobalMuteToggle,  u8"MUTE",   u8"",   CS::MuteMuted  },
+        { CB::ToggleMute,   -1, kModScene | kModMute,        SL::MuteView,      AId::SceneMuteToggle,   u8"S-MUTE", u8"",     CS::MuteMuted  },
+        { CB::ToggleMute,   -1, kModMute,                    SL::MuteView,      AId::GlobalMuteToggle,  u8"MUTE",   u8"SOLO", CS::MuteMuted  },
 
         // ── Fill scope (key X) ───────────────────────────────────────────────
         { CB::FillScope,   -1, kModNone,               SL::Base, AId::HoldFillScope,    u8"FILL",    u8"",       CS::Resting  },
@@ -71,7 +71,7 @@ namespace lockstep
         { CB::NavUp,       -1, kModFunc | kModMorph,   SL::Base, AId::LengthDouble,     u8"×2", u8"",   CS::Resting },
         { CB::NavUp,       -1, kModFunc,               SL::Base, AId::LengthDouble,     u8"×2", u8"",   CS::Resting },
         { CB::NavUp,       -1, kModTrack,              SL::Base, AId::CycleInputModeUp, u8"↑",  u8"",   CS::Resting },
-        { CB::NavUp,       -1, kModMorph,              SL::Base, AId::MorphPickPoleA,   u8"A",  u8"",   CS::Resting },
+        { CB::NavUp,       -1, kModMorph,              SL::Base, AId::MorphPickPoleA,   u8"A",  u8"×2", CS::Resting },
         { CB::NavUp,       -1, kModNone,               SL::Base, AId::NavTrackUp,       u8"↑",  u8"×2", CS::Resting },
 
         // ── NavLeft / ← (key E) ───────────────────────────────────────────────
@@ -86,7 +86,7 @@ namespace lockstep
         { CB::NavDown,     -1, kModFunc | kModMorph,   SL::Base, AId::LengthHalve,         u8"÷2", u8"",   CS::Resting },
         { CB::NavDown,     -1, kModFunc,               SL::Base, AId::LengthHalve,         u8"÷2", u8"",   CS::Resting },
         { CB::NavDown,     -1, kModTrack,              SL::Base, AId::CycleInputModeDown,  u8"↓",  u8"",   CS::Resting },
-        { CB::NavDown,     -1, kModMorph,              SL::Base, AId::MorphPickPoleB,      u8"B",  u8"",   CS::Resting },
+        { CB::NavDown,     -1, kModMorph,              SL::Base, AId::MorphPickPoleB,      u8"B",  u8"÷2", CS::Resting },
         { CB::NavDown,     -1, kModNone,               SL::Base, AId::NavOctaveDown,       u8"↓",  u8"÷2", CS::Resting },
 
         // ── NavRight / → (key T) ─────────────────────────────────────────────

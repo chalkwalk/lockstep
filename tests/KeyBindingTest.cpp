@@ -169,6 +169,35 @@ namespace lockstep
         CHECK(resolve(CB::Section, kModNone, 5) == AId::SelectSection,      "FX bare = section select");
     }
 
+    // ── Universal hint rule ───────────────────────────────────────────────────
+    // hint == Func-variant primary when the action differs; otherwise hint is empty.
+    // Section rows are skipped (labels live in ScopedSectionMatrix).
+    // Rows with Func already in requiredMods are skipped (adding Func is a no-op).
+    static void testHintRule()
+    {
+        for (const auto& row : kKeyBindings)
+        {
+            if (row.button == CB::Section)    continue;
+            if (row.requiredMods & kModFunc)  continue;  // Func-held rows: no hint expected
+
+            const auto& fv = resolveBinding(row.button, row.index,
+                                            row.requiredMods | kModFunc,
+                                            row.layer);
+            const bool hasFuncVariant = (fv.action != AId::None && fv.action != row.action);
+            if (hasFuncVariant)
+            {
+                const juce::String expected(fv.primary);
+                CHECK(juce::String(row.hint) == expected,
+                      "hint must equal Func-variant primary");
+            }
+            else
+            {
+                CHECK(juce::String(row.hint).isEmpty(),
+                      "no Func-variant → hint must be empty");
+            }
+        }
+    }
+
     // ── Label-length invariants ───────────────────────────────────────────────
     // Count UTF-8 code points (not bytes). Continuation bytes (10xxxxxx) are skipped.
     // ≤6 code points preferred for 15 pt primaries; 8 is the hard limit.
@@ -250,6 +279,7 @@ namespace lockstep
         testSectionKeys();
         testTableInvariants();
         testMostSpecificWins();
+        testHintRule();
         testLabelLengths();
     }
 }
