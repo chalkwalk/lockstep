@@ -1326,6 +1326,26 @@ A `kCurrentVersion` constant on `PluginState` provides a forward
 upgrade path. v0 ships a minimal serializer (APVTS only); the full
 payload lands when P-Locks become first-class (1.8).
 
+**Current version: v16** (added in Phase 9.1). v16 adds `Project::soundPool`
+(SoundPool/SE nodes); missing node on load = empty pool (trivial v15→v16
+upgrade). The serializer also exposes `buildStateTree` / `applyStateTree`
+tree-level helpers so both the DAW binary path and standalone `.lockstep` file
+path share one serializer.
+
+**Standalone project files** (Phase 9.1): `.lockstep` files are plain UTF-8 XML
+written by `PluginState::writeToFile` and read by `readFromFile`. The full upgrade
+chain applies on load; `readFromFile` returns `false` (fail-safe) before touching
+processor state on parse failure. `writeToFile` is a pure serializer operation;
+callers must flush edits (`writeBackWorkingToActive`) before calling.
+`LockstepProcessor` exposes `newProject`, `saveProjectFile`, `loadProjectFile`,
+`stateHash`, `savedStateHash`, and `currentProjectFile` for standalone chrome use.
+Loading a project file is a `[SUSPEND]`-class mutation wrapped by `withQuiescedEngine`.
+
+**Sound-pool delete** is also a `[SUSPEND]`-class mutation: `removeSoundEntry` calls
+`withQuiescedEngine { remapSoundIdsAfterRemoval(...); project_.soundPool.remove(i); }`,
+traversing all songs × tracks × phrases × steps plus the working sequence to remap
+both `trigOverride.soundId` and `fillTrigOverride.soundId`.
+
 ## 8. Voice Lifecycle and Choke
 
 Each machine owns its own voice lifecycle. The sequencer's

@@ -976,11 +976,26 @@ The step grid can be re-skinned into non-step roles. Three paths exist:
   cell addresses a slice; pressing one auditions that slice and bakes
   the `note = sliceIdx` override onto any held steps. The TRIG key glows in
   Fill colour while Fill is held to announce the overlay.
-- **Sound Pool overlay (shipped, 5.7).** `Fill + SRC` re-skins the step
+- **Sound Pool overlay (shipped, 5.7 / 5.7c).** `Fill + SRC` re-skins the step
   grid to the project's Sound Pool (up to 16 saved sounds). Pressing a cell
   live-swaps the focused track to that sound for audition. If a step is held
   the swap is **baked** as a `sound_id` P-Lock. Release Fill to restore the
   track's original sound. The SRC key glows in Fill colour while Fill is held.
+
+  The **Sound Bank overlay** (the "Sound Bank" button in the header) exposes the
+  full pool as a list for management outside performance mode:
+  - **Single-click a row** (anywhere other than the label) — recalls the sound
+    onto the focused track (machine must match; a mismatch shows a status message
+    instead of silently failing).
+  - **Recall button** — same as single-click.
+  - **Double-click the name label** — edits the name inline; press Enter to confirm.
+  - **Del button** — removes the entry, remaps any `sound_id` P-Locks that
+    pointed at it (decrements indices for all higher entries).
+  - **Save current track** button — saves the focused track's current machine + params
+    under an auto-generated name (`<Engine> T<n>`, e.g. `Va T1`), uniquified if
+    a clash exists.
+  - The Sound Pool is now **fully serialized** (v16). Saved sounds survive save/reload
+    and DAW session round-trips. (Prior to v16, the pool was ephemeral.)
 - **Euclidean generator (shipped, 5.9).** `Phrase + Fill` held together
   enters Euclidean generator mode on the **focused track**. The Manipulation
   Zone switches to three encoders:
@@ -994,6 +1009,32 @@ The step grid can be re-skinned into non-step roles. Three paths exist:
   `[0, phrase length)` are replaced with the computed Euclidean rhythm. If
   the phrase already has trigs a checkpoint is pushed first (undo-able via
   `Func + P`). Output is ordinary hand-editable trig data.
+
+### 5.19 Standalone project files *(shipped — Phase 9)*
+
+In standalone mode, a **File bar** appears below the tempo bar with four
+buttons: **New**, **Open**, **Save**, and **Save As…**
+
+- **File format:** `.lockstep` files are plain UTF-8 XML — human-readable and
+  git-diffable. They use the same versioned serializer as DAW session state
+  (currently v16), so the full upgrade chain applies on load.
+- **New** — resets the project to the pristine default (one sampler track, no
+  samples, no P-Locks). If the current project has unsaved changes a
+  three-way **Save / Discard / Cancel** dialog appears first.
+- **Open** — shows an OS file picker filtered to `*.lockstep`. Same dirty guard
+  as New.
+- **Save** — writes to the current file directly; falls through to Save As if
+  no file is open yet.
+- **Save As…** — shows a save-mode OS file picker; adds `.lockstep` extension
+  automatically if omitted.
+- **Project name** — displayed to the right of the buttons; shows the file stem
+  (without extension) or `(unsaved)` when no file is open.
+- **Last-project persistence** — the last opened or saved file is stored in the
+  application preferences. On the next launch the file is automatically loaded,
+  giving a "reopen-last" workflow with no extra steps.
+- **Quit guard** — the standalone wrapper saves its own session on quit, so no
+  data is lost across a clean restart. A dedicated quit-confirmation dialog
+  (requiring a custom standalone app) is deferred to a future phase.
 
 ---
 
@@ -1046,6 +1087,12 @@ shipped behaviour and the design intent. To avoid confusion:
 - **Retrig / ratchet overlay** (`Fill+TRIG` rate picker + per-step bake) and
   **Sound Pool overlay** (`Fill+SRC` live-swap + `sound_id` P-Lock bake), plus
   the **Slice-point picker** on slicer tracks (`Fill+TRIG`).
+- **Sound Bank** (5.7c): the Sound Bank overlay provides full management of the
+  project sound pool — save, recall (with machine-mismatch guard), delete (with
+  `sound_id` P-Lock remap), inline rename, and auto-naming. Pool is serialized
+  at v16 and survives save/reload.
+- **Standalone project files** (9.1): `.lockstep` XML files, shared serializer +
+  upgrade chain, New/Open/Save/Save As with dirty guard, last-project auto-open.
 - **Per-track FX inserts** (2 slots, `Func+FX` picker, `FX+step` animate-bypass).
 - **Master FX bus** (2 post-sum slots, `Func+Song+FX` picker, MZ params under `Song+FX`, serializer v14).
 - **Chance macro** (`Func` held → MZ shows Chance Scale per track).

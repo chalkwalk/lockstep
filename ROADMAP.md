@@ -916,6 +916,21 @@ The trig-grid modal surface beyond CHROMATIC/LEVELS (which shipped in 3.9).
 - [ ] Generic role-tagged LEVELS sub-mode (extend 3.9's velocity-first LEVELS to
       a closed eligible role set: cutoff, attack, pan, … — the surviving MM.1).
 
+### 5.7c — Sound Bank overlay completion  *[shipped]*
+Extends the `Fill+SRC` pool established by 5.7 with full management UI.
+- [x] Sound Bank overlay reworked to real Row components (single-click recall,
+      per-row Recall/Del buttons, double-click inline rename).
+- [x] Machine-mismatch guard on recall: emits status rather than silently failing.
+- [x] Delete: `remapSoundIdsAfterRemoval` traverses all songs × tracks × phrases × steps
+      + working sequence; fixes `trigOverride.soundId` and `fillTrigOverride.soundId`
+      under `withQuiescedEngine`.
+- [x] Rename: direct name write on message thread (no quiesce).
+- [x] Auto-naming: `saveTrackToSoundPool("")` generates `"<Engine> T<n>"`, uniquified.
+- [x] **Critical bug fixed:** `Project::soundPool` was never serialized; serializer
+      bumped to v16 (missing SoundPool node on load = empty pool, trivial upgrade).
+- [x] Status feedback for all operations (saved, recalled, deleted, renamed, mismatch).
+- [x] `tools/check.sh` format gate (clang-format `--dry-run -Werror` over src/tests).
+
 ### 5.8 — UI polish: layout, palette, toggles, coarse-adjust  *[planned]*  *(was MP)*
 DESIGN §24, §25, §26.
 - [ ] Vertical / square-cell layout matching hardware key caps; constants in one
@@ -1418,6 +1433,34 @@ setMasterInsert, setTrackMachine, copyKit, state-load) now use
   User to verify: standalone visual smoke (Phrase+Func+Clear → picker → tap → named
   confirm; release chord → prompt stays; P=YES green / Func+P=NO red; any other key
   cancels). Hardware: Push 1 / X-Touch render ConfirmYes/ConfirmNo + picker states sanely.
+
+- [x] **8.25** Format/lint gate — `tools/check.sh`; `.clang-format` adapted to house style
+      (Allman braces, 4-space, `ColumnLimit:0`); mechanical whole-repo reformat; `.clang-tidy`
+      `HeaderFilterRegex` fixed; `CMAKE_EXPORT_COMPILE_COMMANDS` pinned.
+
+---
+
+## Phase 9 — Standalone & Files  *[active]*
+
+### 9.1 — Project file flow  *[shipped]*
+`.lockstep` plain-XML project files sharing the v16 serializer + upgrade chain.
+- [x] `buildStateTree` / `applyStateTree` core helpers split from `writeTo`/`readFrom`.
+- [x] `writeToFile` / `readFromFile` on `PluginState` (fail-safe: returns false before
+      touching processor state on parse failure).
+- [x] `newProject`, `saveProjectFile`, `loadProjectFile`, `stateHash`, `savedStateHash_`,
+      `currentProjectFile_` on `LockstepProcessor`. `finishStateLoad()` extracted from
+      `setStateInformation` so both paths share the reinstall pass.
+- [x] `StandaloneFileBar`: New / Open / Save / Save As… + project-name label.
+      Three-way dirty guard (Save / Discard / Cancel) before New/Open.
+      Last-project persistence via `appProps_`; auto-opens on launch.
+- [x] Serializer v16: `Project::soundPool` (SoundPool/SE nodes); missing node on load =
+      empty pool (trivial upgrade from v15).
+
+### 9.2 — Custom standalone app + quit guard  *[planned]*
+- [ ] `JUCE_USE_CUSTOM_PLUGIN_STANDALONE_APP` + custom `JUCEApplication` subclass.
+- [ ] Quit-confirmation dialog (intercept the window-close event before the wrapper
+      saves its session; show Save/Discard/Cancel if dirty).
+- [ ] Optional: single-instance enforcement, native menu bar (macOS).
 
 ---
 
