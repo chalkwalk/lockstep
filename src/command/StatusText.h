@@ -103,6 +103,12 @@ namespace lockstep::status
         return "Delete " + entityName + "?  P=Yes  Func+P=No";
     }
 
+    // Named confirm with 1-based slot index: "Delete PHRASE 3?  P=Yes  Func+P=No"
+    inline juce::String confirmDeleteNamed(const juce::String& entity, int oneBasedIdx)
+    {
+        return "Delete " + entity + " " + juce::String(oneBasedIdx) + "?  P=Yes  Func+P=No";
+    }
+
     inline juce::String confirmBake(int numTracks, int rowIdx)
     {
         return "Bake " + juce::String(numTracks) + " track(s) onto row "

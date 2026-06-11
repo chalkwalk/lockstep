@@ -354,6 +354,82 @@ namespace lockstep
     // -------------------------------------------------------------------------
     // Test runner
 
+    // ── Confirm lifecycle scenarios ──────────────────────────────────────────
+
+    // Helper: arm a DeletePhrase confirm directly (as the editor arm code would).
+    static void armConfirm(GestureFixture& f, ConfirmKind kind = ConfirmKind::DeletePhrase, int target = -1)
+    {
+        f.uiState.confirm = { kind, target };
+    }
+
+    // Arm → release arming chord → confirm still pending (sticky).
+    static void scenario_confirmStickyOnRelease()
+    {
+        GestureFixture f;
+        armConfirm(f, ConfirmKind::DeletePhrase);
+
+        // Release an arming key (simulate Phrase scope up) — not routed through handleDown
+        // so it never fires the cancel path; confirm must survive.
+        auto ctx = f.ctx();
+        (void)f.core.handleUp({ ControllerEvent::Type::ButtonUp, CB::PhraseScope, -1 }, ctx, f.effects);
+        CHECK(f.uiState.confirm.pending(), "confirm survives scope-key release");
+        CHECK(f.effects.confirmsExecuted.empty(), "no execution on release");
+    }
+
+    // Pending → foreign press (e.g. a step) → cancelled, event swallowed.
+    static void scenario_confirmCancelledByForeignKey()
+    {
+        GestureFixture f;
+        armConfirm(f, ConfirmKind::DeletePhrase);
+
+        const bool handled = f.down({ ControllerEvent::Type::ButtonDown, CB::Step, 3 });
+        CHECK(handled,                           "foreign press swallowed while confirm pending");
+        CHECK(!f.uiState.confirm.pending(),      "confirm cleared after foreign press");
+        CHECK(f.effects.confirmsExecuted.empty(),"no execution on cancel");
+        CHECK(!f.effects.statuses.empty(),       "cancelled status emitted");
+        CHECK(f.effects.statuses.back() == "Cancelled", "status text = Cancelled");
+    }
+
+    // Pending → Func press → NOT cancelled (Func never cancels).
+    static void scenario_confirmFuncNeverCancels()
+    {
+        GestureFixture f;
+        armConfirm(f, ConfirmKind::DeletePhrase);
+
+        const bool handled = f.down({ ControllerEvent::Type::ButtonDown, CB::Func, -1 });
+        CHECK(!handled,                     "Func not swallowed — still pending");
+        CHECK(f.uiState.confirm.pending(), "confirm survives Func press");
+    }
+
+    // Pending → Func held → VerbNo (P) → cancel (No).
+    static void scenario_confirmFuncPCancels()
+    {
+        GestureFixture f;
+        armConfirm(f, ConfirmKind::DeletePhrase);
+        f.uiState.funcHeld = true;  // simulate Func held
+
+        const bool handled = f.down({ ControllerEvent::Type::ButtonDown, CB::VerbNo, -1 });
+        CHECK(handled,                           "Func+P swallowed");
+        CHECK(!f.uiState.confirm.pending(),      "confirm cleared");
+        CHECK(f.effects.confirmsExecuted.empty(),"executeConfirm NOT called on No");
+        CHECK(!f.effects.statuses.empty(),       "cancelled status emitted");
+    }
+
+    // Pending → P (no Func) → executed with correct kind+target.
+    static void scenario_confirmYesExecutes()
+    {
+        GestureFixture f;
+        armConfirm(f, ConfirmKind::DeleteTrack, 5);
+        f.uiState.funcHeld = false;
+
+        const bool handled = f.down({ ControllerEvent::Type::ButtonDown, CB::VerbNo, -1 });
+        CHECK(handled,                            "P swallowed");
+        CHECK(!f.uiState.confirm.pending(),       "confirm cleared");
+        CHECK(f.effects.confirmsExecuted.size() == 1, "executeConfirm called once");
+        CHECK(f.effects.confirmsExecuted[0].kind   == ConfirmKind::DeleteTrack, "correct kind");
+        CHECK(f.effects.confirmsExecuted[0].target == 5,                        "correct target");
+    }
+
     void runGestureTests()
     {
         scenario_trigCopy();
@@ -378,5 +454,10 @@ namespace lockstep
         scenario_muteScene();
         scenario_muteMorph();
         scenario_muteBindingResolution();
+        scenario_confirmStickyOnRelease();
+        scenario_confirmCancelledByForeignKey();
+        scenario_confirmFuncNeverCancels();
+        scenario_confirmFuncPCancels();
+        scenario_confirmYesExecutes();
     }
 }

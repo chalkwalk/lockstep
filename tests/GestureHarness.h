@@ -40,11 +40,15 @@ namespace lockstep::test
         void morphBake(int) override                         {}
         void morphErase(int) override                        {}
 
+        struct ConfirmRecord { ConfirmKind kind; int target; };
+        std::vector<ConfirmRecord> confirmsExecuted;
+
         std::vector<int> globalMuteTracks;
         std::vector<int> soloTracks;
         std::vector<int> sceneMuteTracks;
         std::vector<int> fluidMuteTracks;
 
+        void executeConfirm(ConfirmKind k, int t) override { confirmsExecuted.push_back({k, t}); }
         void globalMuteToggle(int t) override  { globalMuteTracks.push_back(t); }
         void soloToggle(int t) override         { soloTracks.push_back(t); }
         void sceneMuteToggle(int t) override    { sceneMuteTracks.push_back(t); }
@@ -53,6 +57,7 @@ namespace lockstep::test
         void reset() { statuses.clear(); repaints = 0; transports = 0;
                        transportActions.clear(); machineAssigns.clear();
                        overlays.clear(); crossfaders.clear();
+                       confirmsExecuted.clear();
                        globalMuteTracks.clear(); soloTracks.clear();
                        sceneMuteTracks.clear(); fluidMuteTracks.clear(); }
     };

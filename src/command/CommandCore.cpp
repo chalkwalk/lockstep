@@ -1,14 +1,44 @@
 #include "CommandCore.h"
 #include "VerbCommands.h"
+#include "StatusText.h"
 
 namespace lockstep
 {
     bool CommandCore::handleDown(const ControllerEvent& ev,
-                                 CommandContext&,
+                                 CommandContext& ctx,
                                  CommandEffects& fx)
     {
         using CB = ControllerButton;
         using TA = CommandEffects::TransportAction;
+
+        // ── Pending-confirm intercept ─────────────────────────────────────────
+        // Sticky: releasing the arming chord never cancels. Any NEW press other
+        // than Func cancels (= "No", status "Cancelled", event swallowed).
+        // Yes = P with Func up; No = P with Func held. Func itself is exempt.
+        if (ctx.uiState.confirm.pending())
+        {
+            if (ev.button == CB::Func)
+                return false;  // Func never cancels — user may need it to reach No
+
+            if (ev.button == CB::VerbNo)
+            {
+                const bool funcDown = ctx.uiState.funcHeld;
+                if (!funcDown)
+                    fx.executeConfirm(ctx.uiState.confirm.kind, ctx.uiState.confirm.target);
+                else
+                    fx.status(status::cancelled());
+                ctx.uiState.confirm.reset();
+                fx.requestRepaint();
+                return true;
+            }
+
+            // Any other new press = No (cancel; event swallowed).
+            ctx.uiState.confirm.reset();
+            fx.status(status::cancelled());
+            fx.requestRepaint();
+            return true;
+        }
+
         switch (ev.button)
         {
             case CB::PlayStop:

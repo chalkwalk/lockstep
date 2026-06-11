@@ -169,6 +169,97 @@ namespace lockstep
             ed.processor_.refreshWorkingFromModel();
             ed.setStatus(status::pastedScene());
         }
+
+        // Executes a confirmed (Yes) action. Called by CommandCore on P-press in
+        // PendingConfirm layer; confirm state already reset by the time this returns.
+        void executeConfirm(ConfirmKind kind, int target) override
+        {
+            if (kind == ConfirmKind::BakeScene)
+            {
+                ed.processor_.snapshot(CheckpointScope::Song, 0);
+                ed.processor_.bakeSceneState();
+                ed.setStatus(status::baked());
+            }
+            else if (kind == ConfirmKind::CreateScene)
+            {
+                ed.processor_.snapshot(CheckpointScope::Song, 0);
+                ed.processor_.createBakedCopyScene(target);
+                if (ed.processor_.clock().inPluginPlaying())
+                    ed.processor_.queueScene(target, false);
+                else
+                    ed.processor_.setActiveScene(target);
+                ed.setStatus(status::sceneCreated(target + 1));
+            }
+            else if (kind == ConfirmKind::CreateBaselineScene)
+            {
+                ed.processor_.snapshot(CheckpointScope::Song, 0);
+                ed.processor_.createBaselineCopyScene(target);
+                if (ed.processor_.clock().inPluginPlaying())
+                    ed.processor_.queueScene(target, false);
+                else
+                    ed.processor_.setActiveScene(target);
+                ed.setStatus(status::sceneBaseline(target + 1));
+            }
+            else if (kind == ConfirmKind::PasteScene)
+            {
+                ed.processor_.snapshot(CheckpointScope::Song, 0);
+                auto& dst = ed.processor_.section();
+                auto& cl  = ed.clipboard_;
+                dst.activeMask  = cl.scene.floor.activeMask;
+                dst.coreTime    = cl.scene.floor.coreTime;
+                dst.morphA      = cl.scene.floor.morphA;
+                dst.morphB      = cl.scene.floor.morphB;
+                dst.initialised = true;
+                for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+                {
+                    auto& ph = ed.processor_.song()
+                                   .tracks[static_cast<std::size_t>(t)]
+                                   .phrases[static_cast<std::size_t>(target)];
+                    ph = cl.scene.phrases[static_cast<std::size_t>(t)];
+                    ph.initialised = true;
+                }
+                ed.processor_.refreshWorkingFromModel();
+                ed.setStatus(status::pastedScene());
+            }
+            else if (kind == ConfirmKind::DeleteTrack)
+            {
+                if (target >= 0 && target < static_cast<int>(kNumTracks))
+                {
+                    ed.processor_.snapshot(CheckpointScope::Track, target);
+                    ed.processor_.deleteTrack(target);
+                    ed.setStatus(status::deletedTrack(target));
+                }
+            }
+            else if (kind == ConfirmKind::DeletePhrase)
+            {
+                int ckTrk = 0;
+                ed.processor_.snapshot(ed.ckScope(ckTrk), ckTrk);
+                for (auto& trk : ed.processor_.sequence().tracks)
+                {
+                    for (auto& s : trk.steps)
+                    {
+                        s.trig              = false;
+                        s.condition         = TrigCondition{};
+                        s.overrides         = PLock{};
+                        s.trigOverride      = TrigOverride{};
+                        s.fillTrigState     = FillTrigState::Off;
+                        s.fillOverrides     = PLock{};
+                        s.fillTrigOverride  = TrigOverride{};
+                    }
+                }
+                ed.setStatus(status::deletedPhrase());
+            }
+            else if (kind == ConfirmKind::DeleteScene)
+            {
+                int ckTrk = 0;
+                ed.processor_.snapshot(ed.ckScope(ckTrk), ckTrk);
+                ed.processor_.deletePart();
+                ed.releaseTransientLatch(ControllerButton::SceneScope);
+                ed.setStatus(status::deletedPart());
+            }
+            ed.repaint();
+            ed.keyboardArea_.repaint();
+        }
     };
 
     // Narrow IMachineCatalog adapter — forwards to LockstepProcessor.
@@ -2709,106 +2800,8 @@ namespace lockstep
 
                 // Both primary P (Yes/confirm) and Func+P (No/cancel) arrive here as VerbNo.
                 // Distinguish by whether Func is held.
-
-                // Pending-confirm: P = execute (Yes), Func+P = cancel (No).
-                if (uiState_.confirm.pending())
-                {
-                    if (!funcHeld)
-                    {
-                        const ConfirmKind kind   = uiState_.confirm.kind;
-                        const int         target = uiState_.confirm.target;
-                        if (kind == ConfirmKind::BakeScene)
-                        {
-                            processor_.snapshot(CheckpointScope::Song, 0);
-                            processor_.bakeSceneState();
-                            setStatus(status::baked());
-                        }
-                        else if (kind == ConfirmKind::CreateScene)
-                        {
-                            processor_.snapshot(CheckpointScope::Song, 0);
-                            processor_.createBakedCopyScene(target);
-                            if (processor_.clock().inPluginPlaying())
-                                processor_.queueScene(target, false);
-                            else
-                                processor_.setActiveScene(target);
-                            setStatus(status::sceneCreated(target + 1));
-                        }
-                        else if (kind == ConfirmKind::CreateBaselineScene)
-                        {
-                            processor_.snapshot(CheckpointScope::Song, 0);
-                            processor_.createBaselineCopyScene(target);
-                            if (processor_.clock().inPluginPlaying())
-                                processor_.queueScene(target, false);
-                            else
-                                processor_.setActiveScene(target);
-                            setStatus(status::sceneBaseline(target + 1));
-                        }
-                        else if (kind == ConfirmKind::PasteScene)
-                        {
-                            processor_.snapshot(CheckpointScope::Song, 0);
-                            auto& dst = processor_.section();
-                            dst.activeMask  = clipboard_.scene.floor.activeMask;
-                            dst.coreTime    = clipboard_.scene.floor.coreTime;
-                            dst.morphA      = clipboard_.scene.floor.morphA;
-                            dst.morphB      = clipboard_.scene.floor.morphB;
-                            dst.initialised = true;
-                            for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
-                            {
-                                auto& ph =
-                                    processor_.song().tracks[static_cast<std::size_t>(t)]
-                                        .phrases[static_cast<std::size_t>(target)];
-                                ph = clipboard_.scene.phrases[static_cast<std::size_t>(t)];
-                                ph.initialised = true;
-                            }
-                            processor_.refreshWorkingFromModel();
-                            setStatus(status::pastedScene());
-                        }
-                        else if (kind == ConfirmKind::DeleteTrack)
-                        {
-                            if (target >= 0 && target < static_cast<int>(kNumTracks))
-                            {
-                                processor_.snapshot(CheckpointScope::Track, target);
-                                processor_.deleteTrack(target);
-                                setStatus(status::deletedTrack(target));
-                            }
-                        }
-                        else if (kind == ConfirmKind::DeletePhrase)
-                        {
-                            int ckTrk = 0;
-                            processor_.snapshot(ckScope(ckTrk), ckTrk);
-                            for (auto& trk : processor_.sequence().tracks)
-                            {
-                                for (auto& s : trk.steps)
-                                {
-                                    s.trig              = false;
-                                    s.condition         = TrigCondition{};
-                                    s.overrides         = PLock{};
-                                    s.trigOverride      = TrigOverride{};
-                                    s.fillTrigState     = FillTrigState::Off;
-                                    s.fillOverrides     = PLock{};
-                                    s.fillTrigOverride  = TrigOverride{};
-                                }
-                            }
-                            setStatus(status::deletedPhrase());
-                        }
-                        else if (kind == ConfirmKind::DeleteScene)
-                        {
-                            int ckTrk = 0;
-                            processor_.snapshot(ckScope(ckTrk), ckTrk);
-                            processor_.deletePart();
-                            releaseTransientLatch(CB::SceneScope);
-                            setStatus(status::deletedPart());
-                        }
-                    }
-                    else
-                    {
-                        setStatus(status::cancelled());
-                    }
-                    uiState_.confirm.reset();
-                    repaint();
-                    keyboardArea_.repaint();
-                    return true;
-                }
+                // Note: when confirm is pending, CommandCore::handleDown intercepts VerbNo
+                // before this point and calls executeConfirm / status::cancelled() directly.
 
                 // No pending confirm. Bare Yes (no Func) = Quantize or snapshot/confirm verb.
                 if (!funcHeld)

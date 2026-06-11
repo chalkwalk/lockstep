@@ -3,6 +3,7 @@
 #include <juce_core/juce_core.h>
 #include <cstdint>
 #include "../io/ControllerEvent.h"
+#include "../state/UiState.h"  // ConfirmKind
 
 namespace lockstep
 {
@@ -39,6 +40,10 @@ namespace lockstep
     // Scene paste operations (stay editor-side due to async confirm dialog).
     virtual void sceneFloorPaste ()                           = 0;  // floor-only (mute+func+paste)
     virtual void sceneFullPaste  (int destSlot)              = 0;  // full baked paste + conflict check
+
+    // Execute a pending confirmation (kind + target captured at arm time).
+    // Called by CommandCore after the user presses P (Yes) in PendingConfirm layer.
+    virtual void executeConfirm(ConfirmKind kind, int target)= 0;
 
     // Morph operations.
     virtual void morphBake  (int track)                      = 0;  // commit A-side to base
