@@ -1257,6 +1257,14 @@ setMasterInsert, setTrackMachine, copyKit, state-load) now use
 - [x] **8.14** C3: `EngineHarness` + `EngineTest`: NaN-free default, clock advance,
       state round-trip, trig emission, mute suppress, block-size invariance.
       Fixed `preparedSampleRate_` bug (was: machines prepared at sampleRate=0).
+- [x] **8.15**: Threading contract: DESIGN §38; `PluginProcessor.h` member annotations;
+      `currentSampleIndex_` → `mutable std::atomic<int>`.
+- [x] **8.16** C1: `PLock` `unordered_map` → sorted flat vector + `reserve()`.
+- [x] **8.16** C2: `EngineCommand.h` (JUCE-free POD, 12 bytes); SPSC `AbstractFifo`(1024)
+      in processor; `pushEngineCmd` / `drainEngineCmds`; migrate all message-thread writes
+      (`writeParam`, `clearParam`, `writeFillParam`, `clearFillParam`,
+      `setMasterInsertParam`) to enqueue. Audio thread drains at block top. THREADING-DEBT
+      tag left for `slicePositions_` race (8.18) and stopped-audio fallback (8.16).
 
 ---
 

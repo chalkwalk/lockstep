@@ -27,6 +27,7 @@
 #include "machine/EffectFactory.h"
 #include "machine/IMachine.h"
 #include "machine/SamplePool.h"
+#include "core/EngineCommand.h"
 #include "machine/TrackAmpDsp.h"
 #include "machine/TrackFltrDsp.h"
 #include "machine/VoiceChoke.h"
@@ -592,6 +593,15 @@ namespace lockstep
         // Panic request: UI thread sets true; audio thread consumes (exchange false)
         // to send All-Notes-Off on MIDI-out tracks and flush pending audio note-offs.
         std::atomic<bool> panicPending_ { false };  // [ATOMIC]
+
+        // [QUEUE] EngineCmd FIFO — message thread enqueues, audio thread drains at
+        // block top. Sized for 1024 entries; Control-All fan-out to 16 tracks uses
+        // at most 16 × numParams ≈ 16×32 = 512 entries per UI event — well within limit.
+        static constexpr int kEngineCmdQueueSize = 1024;
+        juce::AbstractFifo engineCmdFifo_ { kEngineCmdQueueSize };
+        std::array<EngineCmd, kEngineCmdQueueSize> engineCmdQueue_{};
+        void pushEngineCmd(const EngineCmd& c) noexcept;
+        void drainEngineCmds() noexcept;  // called at top of processBlock
 
         // MG.1 / poly: keyboard note command queue (UI thread writes, audio thread
         // drains). [QUEUE] SPSC lock-free; commands carry a note-on (durationMs > 0 =

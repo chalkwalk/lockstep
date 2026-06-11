@@ -921,6 +921,9 @@ namespace lockstep
             for (int i = 0; i < n2; ++i) handle(kbdQueue_[static_cast<std::size_t>(s2 + i)]);
             kbdFifo_.finishedRead(n1 + n2);
 
+            // Drain engine parameter commands (writeParam, P-Lock writes).
+            drainEngineCmds();
+
             // Advance fixed-duration voices; emit their note-off when expired.
             for (auto& v : liveVoices_)
             {
@@ -1789,6 +1792,101 @@ namespace lockstep
         totalSamplesProcessed_ += numBlockSamples;
     }
 
+    // Enqueue an EngineCmd to set one param destination.
+    // All resolution (clamping, zero-crossing snap, control-all fan-out) is done by
+    // the caller (writeParam); this helper just packs and enqueues.
+    static void enqueueBaseParam(LockstepProcessor& p, int track, int slot, float value)
+    {
+        EngineCmd c;
+        c.op    = EngineCmd::Op::SetBaseParam;
+        c.track = static_cast<uint8_t>(track);
+        c.slot  = static_cast<int16_t>(slot);
+        c.value = value;
+        p.pushEngineCmd(c);
+    }
+    static void enqueueFltrSlot(LockstepProcessor& p, int track, int fltrSlot, float value)
+    {
+        EngineCmd c;
+        c.op    = EngineCmd::Op::SetFltrSlot;
+        c.track = static_cast<uint8_t>(track);
+        c.slot  = static_cast<int16_t>(fltrSlot);
+        c.value = value;
+        p.pushEngineCmd(c);
+    }
+    static void enqueueAmpSlot(LockstepProcessor& p, int track, int ampSlot, float value)
+    {
+        EngineCmd c;
+        c.op    = EngineCmd::Op::SetAmpSlot;
+        c.track = static_cast<uint8_t>(track);
+        c.slot  = static_cast<int16_t>(ampSlot);
+        c.value = value;
+        p.pushEngineCmd(c);
+    }
+    static void enqueueInsertParam(LockstepProcessor& p, int track, int ins, int param, float value)
+    {
+        EngineCmd c;
+        c.op    = EngineCmd::Op::SetInsertParam;
+        c.track = static_cast<uint8_t>(track);
+        c.aux   = static_cast<uint8_t>(ins);
+        c.slot  = static_cast<int16_t>(param);
+        c.value = value;
+        p.pushEngineCmd(c);
+    }
+    static void enqueueStepOverride(LockstepProcessor& p, int track, int step, int slot, float value)
+    {
+        EngineCmd c;
+        c.op    = EngineCmd::Op::SetStepOverride;
+        c.track = static_cast<uint8_t>(track);
+        c.aux   = static_cast<uint8_t>(step);
+        c.slot  = static_cast<int16_t>(slot);
+        c.value = value;
+        p.pushEngineCmd(c);
+    }
+
+    // Write a resolved destination for one (track, dstSlot) within writeParam.
+    // All bounds are already verified by the caller.
+    static void writeParamQueued(LockstepProcessor& proc, int t, int dstSlot, float value)
+    {
+        const auto ti = static_cast<std::size_t>(t);
+        auto* dm = proc.machines_[ti].get();
+        if (!dm) return;
+        const int dstMnp    = dm->numParams();
+        const int dstAmpOff = dstMnp + (dm->hasInternalFilter() ? 0 : proc.kFltrSlots);
+
+        if (dstSlot < dstMnp)
+        {
+            enqueueBaseParam(proc, t, dstSlot, value);
+        }
+        else if (!dm->hasInternalFilter() && dstSlot < dstAmpOff)
+        {
+            enqueueFltrSlot(proc, t, dstSlot - dstMnp, value);
+        }
+        else if (!dm->hasInternalAmp())
+        {
+            const int dstIns0Off = dstAmpOff + proc.kAmpSlots;
+            if (dstSlot < dstIns0Off)
+            {
+                enqueueAmpSlot(proc, t, dstSlot - dstAmpOff, value);
+            }
+            else
+            {
+                int dstInsOff = dstIns0Off;
+                for (int ins = 0; ins < 2; ++ins)
+                {
+                    auto* de = proc.trackInserts_[ti][static_cast<std::size_t>(ins)].get();
+                    if (!de) continue;
+                    const int dnp = de->numParams();
+                    if (dstSlot >= dstInsOff && dstSlot < dstInsOff + dnp)
+                    {
+                        enqueueInsertParam(proc, t, ins, dstSlot - dstInsOff, value);
+                        break;
+                    }
+                    dstInsOff += dnp;
+                }
+            }
+        }
+    }
+
     void LockstepProcessor::writeParam(int track, int slot, float value)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks))
@@ -1846,54 +1944,15 @@ namespace lockstep
                     const int step = editContext_.heldStepIndex();
                     if (step >= 0 && step < kMaxStepsPerTrack)
                     {
-                        sequence().tracks[ti].steps[static_cast<std::size_t>(step)]
-                            .overrides.set(dstSlot, value);
+                        enqueueStepOverride(*this, t, step, dstSlot, value);
                         editContext_.markParamWritten();
                     }
                 }
                 else
                 {
-                    auto*     dm     = machines_[ti].get();
-                    const int dstMnp = dm->numParams();
-                    const int dstAmpOff = dstMnp + (dm->hasInternalFilter() ? 0 : kFltrSlots);
-                    if (dstSlot < dstMnp)
-                    {
-                        sequence().tracks[ti].baseParams[static_cast<std::size_t>(dstSlot)] = value;
-                        kit(static_cast<int>(ti)).baseParams[static_cast<std::size_t>(dstSlot)] = value;
-                    }
-                    else if (!dm->hasInternalFilter() && dstSlot < dstAmpOff)
-                    {
-                        kit(static_cast<int>(ti)).fltrState.setSlot(dstSlot - dstMnp, value);
-                    }
-                    else if (!dm->hasInternalAmp())
-                    {
-                        const int dstIns0Off = dstAmpOff + kAmpSlots;
-                        if (dstSlot < dstIns0Off)
-                        {
-                            kit(static_cast<int>(ti)).ampState.setSlot(dstSlot - dstAmpOff, value);
-                        }
-                        else
-                        {
-                            // 6.5: Control-All broadcast into insert param slots.
-                            int dstInsOff = dstIns0Off;
-                            for (int ins = 0; ins < 2; ++ins)
-                            {
-                                auto* de = trackInserts_[ti][static_cast<std::size_t>(ins)].get();
-                                if (!de) continue;
-                                const int dnp = de->numParams();
-                                if (dstSlot >= dstInsOff && dstSlot < dstInsOff + dnp)
-                                {
-                                    auto& ki = kit(static_cast<int>(ti)).inserts[static_cast<std::size_t>(ins)];
-                                    const int p = dstSlot - dstInsOff;
-                                    if (static_cast<std::size_t>(p) < ki.baseParams.size())
-                                        ki.baseParams[static_cast<std::size_t>(p)] = value;
-                                    break;
-                                }
-                                dstInsOff += dnp;
-                            }
-                        }
-                    }
+                    writeParamQueued(*this, t, dstSlot, value);
                 }
+                (void)ti;
             }
             return;
         }
@@ -1906,8 +1965,7 @@ namespace lockstep
             const int step = editContext_.heldStepIndex();
             if (step >= 0 && step < kMaxStepsPerTrack)
             {
-                sequence().tracks[ti].steps[static_cast<std::size_t>(step)]
-                    .overrides.set(slot, value);
+                enqueueStepOverride(*this, track, step, slot, value);
                 editContext_.markParamWritten();
             }
         }
@@ -1915,42 +1973,19 @@ namespace lockstep
         {
             auto*     wm     = machines_[ti].get();
             const int mnp    = wm->numParams();
-            const int ampOff = mnp + (wm->hasInternalFilter() ? 0 : kFltrSlots);
+            writeParamQueued(*this, track, slot, value);
+
+            // Recompute slices when a slice-governing base param changes.
+            // We pass a temp frame with the new value so the computation sees
+            // the latest data even before the queue drains.
+            // THREADING-DEBT(8.18): slicePositions_ write races the audio thread;
+            // this pre-dates 8.16 and will be fixed in the mutation sweep.
             if (slot < mnp)
             {
-                sequence().tracks[ti].baseParams[static_cast<std::size_t>(slot)] = value;
-                kit(static_cast<int>(ti)).baseParams[static_cast<std::size_t>(slot)] = value;
-
-                // Recompute slices when a slice-governing base param changes.
-                recomputeSlicesIfNeeded(static_cast<int>(ti), slot,
-                                        sequence().tracks[ti].baseParams);
-            }
-            else if (!wm->hasInternalFilter() && slot < ampOff)
-            {
-                kit(static_cast<int>(ti)).fltrState.setSlot(slot - mnp, value);
-            }
-            else if (!wm->hasInternalAmp())
-            {
-                kit(static_cast<int>(ti)).ampState.setSlot(slot - ampOff, value);
-            }
-            else
-            {
-                // 6.5: insert param base write.
-                int insOff = ampOff + (wm->hasInternalAmp() ? 0 : kAmpSlots);
-                for (int s = 0; s < 2; ++s)
-                {
-                    auto* eff = trackInserts_[ti][static_cast<std::size_t>(s)].get();
-                    if (!eff) continue;
-                    const int insnp = eff->numParams();
-                    if (slot >= insOff && slot < insOff + insnp)
-                    {
-                        auto& kitIns = kit(static_cast<int>(ti)).inserts[static_cast<std::size_t>(s)];
-                        if (static_cast<std::size_t>(slot - insOff) < kitIns.baseParams.size())
-                            kitIns.baseParams[static_cast<std::size_t>(slot - insOff)] = value;
-                        break;
-                    }
-                    insOff += insnp;
-                }
+                auto updatedParams = sequence().tracks[ti].baseParams;
+                if (static_cast<std::size_t>(slot) < updatedParams.size())
+                    updatedParams[static_cast<std::size_t>(slot)] = value;
+                recomputeSlicesIfNeeded(static_cast<int>(ti), slot, updatedParams);
             }
         }
     }
@@ -1960,8 +1995,12 @@ namespace lockstep
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
         if (step  < 0 || step  >= kMaxStepsPerTrack)             return;
         if (slot  < 0 || slot  >= numParams(track))              return;
-        sequence().tracks[static_cast<std::size_t>(track)]
-            .steps[static_cast<std::size_t>(step)].overrides.clear(slot);
+        EngineCmd c;
+        c.op    = EngineCmd::Op::ClearStepOverride;
+        c.track = static_cast<uint8_t>(track);
+        c.aux   = static_cast<uint8_t>(step);
+        c.slot  = static_cast<int16_t>(slot);
+        pushEngineCmd(c);
     }
 
     void LockstepProcessor::clearTrigOverrideField(int track, int step, int field)
@@ -2289,8 +2328,12 @@ namespace lockstep
             || editContext_.heldTrackIndex() != track) return;
         const int step = editContext_.heldStepIndex();
         if (step < 0 || step >= kMaxStepsPerTrack) return;
-        sequence().tracks[static_cast<std::size_t>(track)]
-            .steps[static_cast<std::size_t>(step)].fillOverrides.set(slot, value);
+        pushEngineCmd({ EngineCmd::Op::SetFillOverride,
+                        static_cast<uint8_t>(track),
+                        static_cast<uint8_t>(step),
+                        0,
+                        static_cast<int16_t>(slot),
+                        value });
         editContext_.markParamWritten();
     }
 
@@ -2299,8 +2342,12 @@ namespace lockstep
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
         if (step  < 0 || step  >= kMaxStepsPerTrack)             return;
         if (slot  < 0 || slot  >= numParams(track))              return;
-        sequence().tracks[static_cast<std::size_t>(track)]
-            .steps[static_cast<std::size_t>(step)].fillOverrides.clear(slot);
+        pushEngineCmd({ EngineCmd::Op::ClearFillOverride,
+                        static_cast<uint8_t>(track),
+                        static_cast<uint8_t>(step),
+                        0,
+                        static_cast<int16_t>(slot),
+                        0.0f });
     }
 
     // -------------------------------------------------------------------------
@@ -2745,6 +2792,100 @@ namespace lockstep
     {
         previewReqTrack_.store(track, std::memory_order_relaxed);
         previewPoolIndex_.store(poolIndex, std::memory_order_release);
+    }
+
+    void LockstepProcessor::pushEngineCmd(const EngineCmd& c) noexcept
+    {
+        int s1, n1, s2, n2;
+        engineCmdFifo_.prepareToWrite(1, s1, n1, s2, n2);
+        if (n1 > 0)
+        {
+            engineCmdQueue_[static_cast<std::size_t>(s1)] = c;
+            engineCmdFifo_.finishedWrite(1);
+        }
+        // Queue full → drop + debug assert. A full queue means the audio thread is
+        // not running; the stopped-audio fallback (THREADING-DEBT 8.16) will drain it.
+        jassert(n1 > 0);
+    }
+
+    void LockstepProcessor::drainEngineCmds() noexcept
+    {
+        int s1, n1, s2, n2;
+        engineCmdFifo_.prepareToRead(engineCmdFifo_.getNumReady(), s1, n1, s2, n2);
+
+        auto apply = [this](const EngineCmd& c)
+        {
+            const auto t = static_cast<std::size_t>(c.track);
+            switch (c.op)
+            {
+                case EngineCmd::Op::SetBaseParam:
+                    if (t < kNumTracks && c.slot >= 0
+                        && static_cast<std::size_t>(c.slot) < sequence().tracks[t].baseParams.size())
+                    {
+                        sequence().tracks[t].baseParams[static_cast<std::size_t>(c.slot)] = c.value;
+                        kit(static_cast<int>(t)).baseParams[static_cast<std::size_t>(c.slot)] = c.value;
+                    }
+                    break;
+
+                case EngineCmd::Op::SetFltrSlot:
+                    if (t < kNumTracks)
+                        kit(static_cast<int>(t)).fltrState.setSlot(c.slot, c.value);
+                    break;
+
+                case EngineCmd::Op::SetAmpSlot:
+                    if (t < kNumTracks)
+                        kit(static_cast<int>(t)).ampState.setSlot(c.slot, c.value);
+                    break;
+
+                case EngineCmd::Op::SetInsertParam:
+                {
+                    if (t >= kNumTracks) break;
+                    const auto ins = static_cast<std::size_t>(c.aux);
+                    if (ins >= 2) break;
+                    auto& bp = kit(static_cast<int>(t)).inserts[ins].baseParams;
+                    if (c.slot >= 0 && static_cast<std::size_t>(c.slot) < bp.size())
+                        bp[static_cast<std::size_t>(c.slot)] = c.value;
+                    break;
+                }
+
+                case EngineCmd::Op::SetMasterInsertParam:
+                {
+                    if (c.aux >= 2) break;
+                    auto& bp = song().masterInserts[static_cast<std::size_t>(c.aux)].baseParams;
+                    if (c.slot >= 0 && static_cast<std::size_t>(c.slot) < bp.size())
+                        bp[static_cast<std::size_t>(c.slot)] = c.value;
+                    break;
+                }
+
+                case EngineCmd::Op::SetStepOverride:
+                    if (t < kNumTracks && c.aux < kMaxStepsPerTrack && c.slot >= 0)
+                        sequence().tracks[t].steps[static_cast<std::size_t>(c.aux)]
+                            .overrides.set(c.slot, c.value);
+                    break;
+
+                case EngineCmd::Op::ClearStepOverride:
+                    if (t < kNumTracks && c.aux < kMaxStepsPerTrack && c.slot >= 0)
+                        sequence().tracks[t].steps[static_cast<std::size_t>(c.aux)]
+                            .overrides.clear(c.slot);
+                    break;
+
+                case EngineCmd::Op::SetFillOverride:
+                    if (t < kNumTracks && c.aux < kMaxStepsPerTrack && c.slot >= 0)
+                        sequence().tracks[t].steps[static_cast<std::size_t>(c.aux)]
+                            .fillOverrides.set(c.slot, c.value);
+                    break;
+
+                case EngineCmd::Op::ClearFillOverride:
+                    if (t < kNumTracks && c.aux < kMaxStepsPerTrack && c.slot >= 0)
+                        sequence().tracks[t].steps[static_cast<std::size_t>(c.aux)]
+                            .fillOverrides.clear(c.slot);
+                    break;
+            }
+        };
+
+        for (int i = 0; i < n1; ++i) apply(engineCmdQueue_[static_cast<std::size_t>(s1 + i)]);
+        for (int i = 0; i < n2; ++i) apply(engineCmdQueue_[static_cast<std::size_t>(s2 + i)]);
+        engineCmdFifo_.finishedRead(n1 + n2);
     }
 
     void LockstepProcessor::pushKbdCmd(const KbdNoteCmd& c) noexcept
@@ -3288,9 +3429,14 @@ namespace lockstep
     {
         if (slot < 0 || slot > 1) return;
         const auto si = static_cast<std::size_t>(slot);
-        auto& insSlot = song().masterInserts[si];
-        if (param >= 0 && static_cast<std::size_t>(param) < insSlot.baseParams.size())
-            insSlot.baseParams[static_cast<std::size_t>(param)] = value;
+        const auto& insSlot = song().masterInserts[si];
+        if (param < 0 || static_cast<std::size_t>(param) >= insSlot.baseParams.size()) return;
+        pushEngineCmd({ EngineCmd::Op::SetMasterInsertParam,
+                        0,
+                        static_cast<uint8_t>(slot),
+                        0,
+                        static_cast<int16_t>(param),
+                        value });
     }
 
     int LockstepProcessor::numAvailableEffects() const { return lockstep::numAvailableEffects(); }
