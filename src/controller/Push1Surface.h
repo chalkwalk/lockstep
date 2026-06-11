@@ -42,7 +42,8 @@ namespace lockstep
         void render(const SurfaceModel& model, juce::MidiOutput& out) override;
 
     private:
-        // Two's-complement relative encoder decode (same as X-Touch).
+        // Two's-complement relative encoder decode (NOT the same as X-Touch;
+        // see ctrl::decodeTwosComplementDelta in SurfaceShared.h).
         static int decodeDelta(int ccValue) noexcept;
 
         // SysEx helpers

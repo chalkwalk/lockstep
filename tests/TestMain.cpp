@@ -31,6 +31,8 @@ int main()
     lockstep::runMachineDspTests();
     // 8.14 Headless processBlock harness
     lockstep::runEngineTests();
+    // 8.21 Controller-surface shared helpers
+    lockstep::runControllerTests();
 
     // Also drive the JUCE UnitTests registered in lockstep_core (the serializer
     // upgrade chain, "PluginState" category) so they run headlessly in CI rather

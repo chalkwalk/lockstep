@@ -2,6 +2,7 @@
 
 #include <array>
 #include "IControllerSurface.h"
+#include "../io/DoubleTapDetector.h"
 
 namespace lockstep
 {
@@ -35,8 +36,8 @@ namespace lockstep
         static uint8_t cellStateToVelocity(CellState state, const CellDecoration& border) noexcept;
 
         // Per-encoder double-click tracking (Note 32-39 = encoders 0-7).
-        std::array<juce::int64, 8> lastPushMs_{};
-        static constexpr juce::int64 kDoubleClickMs = 400;
+        // Uses DoubleTapDetector (threshold kThresholdMs = 350 ms).
+        std::array<DoubleTapDetector, 8> encoderDoubleTap_{};
 
         // Shadow caches for render() diff — indexed by kStepNotes/kLayerNotes positions.
         // Avoids hammering the device with unchanged LED state every 30 Hz frame.

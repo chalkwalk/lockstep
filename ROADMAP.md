@@ -1335,6 +1335,18 @@ setMasterInsert, setTrackMachine, copyKit, state-load) now use
       circular dep (KeyboardArea.h → SurfaceModel.h) prevents direct
       sharing; both remain as 4-line identical functions.
 
+- [x] **8.21** Controller-surface dedup:
+      `src/controller/SurfaceShared.h` added: `decodeSignedMagnitudeDelta`
+      (X-Touch signed-magnitude) and `decodeTwosComplementDelta` (Push 1
+      two's-complement) as `constexpr` free functions. Both surface
+      `decodeDelta()` implementations delegate to the shared functions.
+      Fixed wrong Push1Surface.h comment ("same as X-Touch" — they are NOT
+      the same encoding). XTouch double-click migrated from raw `lastPushMs_`
+      array to `std::array<DoubleTapDetector, 8>` (reuses existing
+      `io/DoubleTapDetector.h`; threshold 350 ms vs old 400 ms — inaudible
+      difference). `ControllerTest.cpp` added: golden table for both decode
+      functions + difference assertion. Hardware verification pending (user).
+
 - [x] **8.20** Envelope unification — DrumSynth amp AHD → `dsp::Envelope`:
       Removed `AmpPhase` enum + 7 manual `DrumVoice` fields + `advanceAmp()`;
       replaced with `dsp::Envelope ampEnv` using `setADSR(attackMs, decayMs,

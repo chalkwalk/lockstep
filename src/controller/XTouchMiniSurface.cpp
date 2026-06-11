@@ -1,4 +1,5 @@
 #include "XTouchMiniSurface.h"
+#include "SurfaceShared.h"
 #include "../ui/CellAppearance.h"
 #include <juce_audio_devices/juce_audio_devices.h>
 
@@ -13,11 +14,7 @@ namespace lockstep
     // Signed-magnitude relative: CW = 1..63 (delta = +value), CCW = 65..127 (delta = -(value-64)).
     int XTouchMiniSurface::decodeDelta(int ccValue) noexcept
     {
-        if (ccValue >= 1 && ccValue <= 63)
-            return ccValue;
-        if (ccValue >= 65 && ccValue <= 127)
-            return -(ccValue - 64);
-        return 0;
+        return ctrl::decodeSignedMagnitudeDelta(ccValue);
     }
 
     // Map CellState + playhead decoration to one of three legal LED velocities.
@@ -65,11 +62,10 @@ namespace lockstep
             {
                 if (isDown)
                 {
-                    const int    enc  = note - kEncoderPushBase;
-                    const auto   now  = juce::Time::currentTimeMillis();
-                    const bool   dbl  = (now - lastPushMs_[static_cast<std::size_t>(enc)]) < kDoubleClickMs;
-                    lastPushMs_[static_cast<std::size_t>(enc)] = now;
-
+                    const int  enc = note - kEncoderPushBase;
+                    const auto ei  = static_cast<std::size_t>(enc);
+                    const bool dbl = encoderDoubleTap_[ei].recordAndCheck(
+                        enc, static_cast<double>(juce::Time::currentTimeMillis()));
                     if (dbl && sink.resetSlot)
                         sink.resetSlot(enc);
                     // Single push: unbound for now.

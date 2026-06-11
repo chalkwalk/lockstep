@@ -52,4 +52,6 @@ namespace lockstep
     void runMachineDspTests();
     // 8.14 Headless processBlock harness
     void runEngineTests();
+    // 8.21 Controller-surface shared helpers
+    void runControllerTests();
 }

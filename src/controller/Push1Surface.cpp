@@ -1,4 +1,5 @@
 #include "Push1Surface.h"
+#include "SurfaceShared.h"
 #include "../ui/UITheme.h"      // theme::kScope* / kVerb* sentinels for state→index mapping
 #include "../ui/CellAppearance.h"
 #include <juce_audio_devices/juce_audio_devices.h>
@@ -123,14 +124,12 @@ namespace lockstep
     }
 
     // =========================================================================
-    // decodeDelta — two's-complement relative encoder
+    // decodeDelta — two's-complement relative encoder (Push 1 specific)
     // =========================================================================
 
     int Push1Surface::decodeDelta(int ccValue) noexcept
     {
-        if (ccValue >= 1 && ccValue <= 63)  return  ccValue;
-        if (ccValue >= 64)                  return -(128 - ccValue);
-        return 0;
+        return ctrl::decodeTwosComplementDelta(ccValue);
     }
 
     // =========================================================================
