@@ -536,26 +536,37 @@ namespace lockstep
         // the ISliceable's slice array from the current base params.
         void recomputeSlicesIfNeeded(int track, int slot, const ParamFrame& baseParams);
 
+        // ── Threading ownership (see DESIGN §38) ────────────────────────────────
+        // [AUDIO]   — audio thread owns exclusively; message thread must not write.
+        // [ATOMIC]  — atomic (or APVTS-managed atomic*); any thread may read/write.
+        // [QUEUE]   — message thread enqueues; audio thread drains at block start.
+        //             (post-8.16: param writes, P-Locks, trig overrides, mutes)
+        // [SUSPEND] — accessed only while processing is suspended via
+        //             suspendProcessing()/resumeProcessing() (or withQuiescedEngine).
+        //
+        // Members without a tag are message-thread-only (UI state, construction).
+        // ─────────────────────────────────────────────────────────────────────────
+
         juce::AudioProcessorValueTreeState apvts_;
-        SamplePool samplePool_;
-        Project project_;          // soundPool + launchQuantizeBars
-        Arrangement arrangement_;  // new hierarchy: Songs + playhead + working buffer
+        SamplePool samplePool_;          // [SUSPEND] structural; audio reads only
+        Project project_;                // [SUSPEND] soundPool + launchQuantizeBars
+        Arrangement arrangement_;        // [SUSPEND] for full load; audio owns working seq
         // Per-track launch mode: false = fire at global bar boundary,
         // true = fire at end of current phrase cycle.
-        std::array<bool, kNumTracks> phraseEndMode_{};
-        Clock clock_;
-        EditContext editContext_;
-        CCMappingTable ccMappingTable_;
-        int  focusTrack_       = -1;   // -1 = Global; 0-7 = Track
-        bool controlAllActive_ = false;
+        std::array<bool, kNumTracks> phraseEndMode_{};  // [QUEUE] target state
+        Clock clock_;                    // [AUDIO] (internal BPM/PPQ state)
+        EditContext editContext_;        // message thread only
+        CCMappingTable ccMappingTable_;  // [SUSPEND] (learn writes via atomic gate)
+        int  focusTrack_       = -1;   // message thread only
+        bool controlAllActive_ = false; // message thread only
 
-        std::atomic<bool> fillActive_      { false };
-        std::atomic<bool> fillAllTracks_   { true };
-        std::atomic<int>  fillLockedTrack_ { -1 };
+        std::atomic<bool> fillActive_      { false };  // [ATOMIC]
+        std::atomic<bool> fillAllTracks_   { true };   // [ATOMIC]
+        std::atomic<int>  fillLockedTrack_ { -1 };     // [ATOMIC]
 
         // Current slot index for each MZ display position.
         // Written by the UI thread, read by the audio thread (atomic).
-        std::array<std::atomic<int>, 4> mzSlots_;
+        std::array<std::atomic<int>, 4> mzSlots_;  // [ATOMIC]
 
         // Pending MIDI Learn request. UI thread writes fields then raises
         // learnActive_ (release); audio thread reads after acquire.
@@ -566,26 +577,24 @@ namespace lockstep
             int slot           = -1;
             int mzPosition     = -1;
         };
-        std::atomic<bool>  learnActive_ { false };
-        PendingLearnRequest learnRequest_;
+        std::atomic<bool>  learnActive_ { false };  // [ATOMIC]
+        PendingLearnRequest learnRequest_;           // protected by learnActive_ gate
 
         // Preview request: message thread writes both fields (track first, then
         // poolIndex with release ordering); audio thread consumes with acq_rel exchange.
         // Queued Section launch: fires at next core-time bar boundary (Phase 7).
         // -1 = none pending.
-        std::atomic<int> queuedSceneIdx_ { -1 };
-        // Pairs with queuedSceneIdx_: true = double-tap launch to the saved floor.
-        std::atomic<bool> queuedSceneToFloor_ { false };
+        std::atomic<int> queuedSceneIdx_     { -1 };    // [ATOMIC]
+        std::atomic<bool> queuedSceneToFloor_{ false };  // [ATOMIC] pairs with queuedSceneIdx_
         // Legacy: queued pattern switch. -1/-1 means no switch pending.
-        std::atomic<int>  previewPoolIndex_ { -1 };
-        std::atomic<int>  previewReqTrack_  { 0 };
+        std::atomic<int>  previewPoolIndex_ { -1 };  // [ATOMIC]
+        std::atomic<int>  previewReqTrack_  { 0 };   // [ATOMIC]
         // Panic request: UI thread sets true; audio thread consumes (exchange false)
         // to send All-Notes-Off on MIDI-out tracks and flush pending audio note-offs.
-        std::atomic<bool> panicPending_ { false };
+        std::atomic<bool> panicPending_ { false };  // [ATOMIC]
 
         // MG.1 / poly: keyboard note command queue (UI thread writes, audio thread
-        // drains). Replaces the old single-slot mailbox, which collapsed a chord to
-        // its last note. SPSC lock-free; commands carry a note-on (durationMs > 0 =
+        // drains). [QUEUE] SPSC lock-free; commands carry a note-on (durationMs > 0 =
         // fixed audition, 0 = sustain until matching note-off) or a note-off.
         struct KbdNoteCmd
         {
@@ -601,11 +610,11 @@ namespace lockstep
         std::array<KbdNoteCmd, kKbdQueueSize> kbdQueue_{};
         void pushKbdCmd(const KbdNoteCmd& c) noexcept;
 
-        // Preview playback state — audio thread only (no atomics needed).
+        // Preview playback state — [AUDIO] audio thread only (no atomics needed).
         bool previewActive_           = false;
         int  previewTrack_            = 0;
         int  previewSampleIndex_      = -1;
-        int  previewNoteOffRemaining_ = -1;  // samples until note-off; -1 = inactive
+        int  previewNoteOffRemaining_ = -1;
         int  previewNote_             = 60;
 
         // MG.1 / poly: live keyboard voices — audio thread only. Each holds one
@@ -624,15 +633,15 @@ namespace lockstep
 
         // MG.2 / 5.7: retrig state.
         // retrigReqTrack_: -2 = cancel, -1 = idle, >=0 = activate on that track.
-        std::atomic<int>    retrigReqTrack_  { -1 };
-        std::atomic<double> retrigReqRatePpq_ { 0.25 };  // written UI thread, read audio
-        std::array<std::atomic<float>, kNumTracks> trackChanceScale_;  // default 1.0f
-        std::atomic<int>    retrigReqNote_    { 60 };     // MIDI note for the rattle
-        // Audio-thread-only retrig state (no atomics needed).
+        std::atomic<int>    retrigReqTrack_   { -1 };    // [ATOMIC]
+        std::atomic<double> retrigReqRatePpq_ { 0.25 };  // [ATOMIC]
+        std::array<std::atomic<float>, kNumTracks> trackChanceScale_;  // [ATOMIC]
+        std::atomic<int>    retrigReqNote_    { 60 };    // [ATOMIC]
+        // [AUDIO] retrig state consumed and advanced by the audio thread only.
         int    retrigActiveTrack_      = -1;
         double retrigRatePpq_          = 0.25;
-        int    retrigNote_             = 60;    // resolved note (not hardcoded anymore)
-        double retrigNextFireSamples_  = 0.0;  // samples until next retrig fire
+        int    retrigNote_             = 60;
+        double retrigNextFireSamples_  = 0.0;
         int    retrigNoteOffRemaining_ = -1;
 
         Metronome metronome_;
@@ -647,24 +656,22 @@ namespace lockstep
         static constexpr int kAmpSlots   = TrackAmpState::kNumSlots;  // 8
         static constexpr int kAmpSecIdx  = 3;  // canonical AMP section index
 
+        // [SUSPEND] structural: swapped only while processing is suspended.
         std::array<std::unique_ptr<IMachine>, kNumTracks> machines_;
-        // 6.5: per-track insert effect instances (live; message-thread allocated, audio-thread read).
         using InsertPair = std::array<std::unique_ptr<IEffect>, 2>;
         std::array<InsertPair, kNumTracks> trackInserts_;
-        // 6.5 master FX: live effect instances for the 2 post-sum master insert slots.
         InsertPair masterInserts_;
-        // Per-track scratch buffers: each machine writes here, then they are
-        // summed to the main output bus. Sized in prepareToPlay; cleared each block.
+
+        // [AUDIO] per-block scratch and DSP state — audio thread only.
         std::array<juce::AudioBuffer<float>, kNumTracks> trackBuffers_;
-        // Per-track choke faders for monophonic re-trigger (MA.4).
         std::array<VoiceChoke, kNumTracks> trackChokes_;
-        // ME.4: post-machine FLTR DSP state (audio-thread only).
         std::array<TrackFltrDsp, kNumTracks> trackFltrs_;
         std::array<TrackAmpDsp, kNumTracks> trackAmps_;
         // Last step index that actually fired per track; -1 until first fire.
         // Used for FLTR P-Lock resolution in the sequencer path.
         std::array<int, kNumTracks> firedStepIdx_{};
 
+        // [AUDIO] sequencer note-off tracking and pending-trig state.
         // Pending sequencer-scheduled note-offs that spill past the current block boundary.
         struct PendingNoteOff
         {
@@ -686,12 +693,12 @@ namespace lockstep
         };
         std::array<PendingTrig, kNumTracks> pendingTrigs_{};
 
-        // Per-track absolute step number of the last step scheduled (emitted or deferred).
-        // -1 = none. Used to prevent double-emitting when the extended look-ahead or
-        // deferred-trig drain visits a step that was already handled.
+        // [AUDIO] Per-track absolute step number of the last step scheduled (emitted or deferred).
+        // -1 = none. Prevents double-emitting when the extended look-ahead or
+        // deferred-trig drain revisits a step already handled.
         std::array<int64_t, kNumTracks> lastScheduledStepNum_{};
 
-        // Chord capture: snapshot-currently-held semantics.
+        // [AUDIO] chord capture — written entirely from the audio thread.
         // Each note-on snapshots the physically-held MIDI set into all held steps.
         // Gate timing is finalised when all MIDI notes are released.
         struct ChordCapture
@@ -706,19 +713,18 @@ namespace lockstep
         };
         ChordCapture chordCapture_{};
 
+        // [AUDIO] realtime-record step tracking.
         // Per-track last absolute quantized step number written by realtime record.
-        // Used for chord aggregation (same absolute step = aggregate) and overwrite
-        // (new absolute step = clear before first note). INT64_MIN = no step recorded.
+        // INT64_MIN = no step recorded.
         std::array<int64_t, kNumTracks> lastRecordedStepNum_{};
 
         // MHZ.6.1: per-track, per-note gate tracker for realtime record.
-        // stepIdx == -1 means this note slot is inactive.
         struct RealtimeNoteEntry { int stepIdx = -1; int64_t noteOnSample = 0; };
         std::array<std::array<RealtimeNoteEntry, 128>, kNumTracks> realtimeNotes_{};
-        int64_t totalSamplesProcessed_ = 0;
-        std::array<double, kNumTracks> nextTriggerPpq_{};
-        std::array<bool, kNumTracks>   lastStepFired_{};
-        double anchorPpq_ = 0.0;
+        int64_t totalSamplesProcessed_ = 0;  // [AUDIO]
+        std::array<double, kNumTracks> nextTriggerPpq_{};  // [AUDIO]
+        std::array<bool, kNumTracks>   lastStepFired_{};   // [AUDIO]
+        double anchorPpq_ = 0.0;  // [AUDIO]
         // When true, the next transport rising edge re-anchors the pattern to the
         // current position (step 0 here). Set on stop/reset; cleared on resume so
         // pause→resume continues in phase instead of restarting the pattern.
@@ -727,21 +733,17 @@ namespace lockstep
         bool   wasSequencerRunning_ = false;  // MF.6: falling-edge transport stop detection
         std::array<bool, kNumTracks> wasSilent_{};  // MF.7: per-track mute rising-edge detection
 
+        // [ATOMIC]* APVTS-managed parameter atomics — any thread may read.
         std::atomic<float>* syncModeParam_    = nullptr;
         std::atomic<float>* channelModeParam_ = nullptr;
-
         std::array<std::atomic<float>*, kNumTracks> trackLengthParams_{};
         std::array<std::atomic<float>*, kNumTracks> trackDividerParams_{};
         std::array<std::atomic<float>*, kNumTracks> trackMuteParams_{};
         std::array<std::atomic<float>*, kNumTracks> trackSoloParams_{};
-        // 5.2: Morph crossfader fader state (audio-thread only; not serialized).
-        // morphFaderTarget_ is written by any thread via setMorphFader().
-        // The audio thread reads it each block and drives morphFaderSmoothed_.
-        std::atomic<float> morphFaderTarget_ { 0.0f };
-        juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> morphFaderSmoothed_;
-        // Per-track fader side from the previous block (false=A, true=B).
-        // Used to detect crossings and emit All-Notes-Off on MIDI-out tracks.
-        std::array<bool, kNumTracks> morphLastSide_ {};
+        // 5.2: Morph crossfader.
+        std::atomic<float> morphFaderTarget_ { 0.0f };           // [ATOMIC]
+        juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> morphFaderSmoothed_;  // [AUDIO]
+        std::array<bool, kNumTracks> morphLastSide_ {};           // [AUDIO]
 
         // Cached from prepareToPlay — getSampleRate()/getBlockSize() are 0 until
         // the host calls setRateAndBufferSizeDetails, so install/swap helpers must
@@ -753,7 +755,7 @@ namespace lockstep
         std::array<float, 2> dcX1_{};
         std::array<float, 2> dcY1_{};
 
-        // Diagnostic metering — see public accessors above.
+        // [ATOMIC] diagnostic metering — audio thread writes, UI timer reads.
         std::array<std::atomic<float>, kNumTracks> trackPeak_{};
         std::array<std::atomic<float>, kNumTracks> trigPulse_{};
         std::array<std::atomic<float>, kNumTracks> midiPulse_{};

@@ -4613,3 +4613,98 @@ Golden tests pin each: `tests/SurfaceLayerTest.cpp`,
 `tests/KeyBindingTest.cpp`. Status: A0–A3 shipped; A4 (dispatch wiring)
 and Task B (confirm-prompt + master-FX-picker layers through
 `SurfaceLayer`) pending. ROADMAP 8.11 tracks the series.
+
+---
+
+## §38 Threading Contract
+
+`LockstepProcessor` runs on two threads simultaneously once the host has
+called `prepareToPlay` and started delivering `processBlock` calls:
+
+- **Audio thread** — calls `processBlock`; must never allocate, block, or
+  reach the message/UI thread's data structures without a lock-free gate.
+- **Message/UI thread** — the JUCE message loop; responds to UI events,
+  APVTS change callbacks, timer ticks, and calls all public non-audio
+  methods (writeParam, setGlobalMute, queueScene, …).
+
+### §38.1 Three ownership classes
+
+Every member of `LockstepProcessor` belongs to exactly one class.
+The class is marked `[AUDIO]`, `[ATOMIC]`, `[QUEUE]`, or `[SUSPEND]`
+in `PluginProcessor.h` comments; unmarked members are message-thread-only.
+
+#### Class 1 — Audio-owned `[AUDIO]`
+
+The audio thread reads and writes these members freely. The message
+thread must not touch them while processing is active. This includes:
+
+- Sequencer running state (`nextTriggerPpq_`, `lastStepFired_`,
+  `anchorPpq_`, `pendingNoteOffs_`, `pendingTrigs_`, `lastScheduledStepNum_`)
+- Live voice tracking (`liveVoices_`, retrig audio state, chord capture,
+  realtime-record tables, preview playback state)
+- Per-block DSP buffers and state (`trackBuffers_`, `trackChokes_`,
+  `trackFltrs_`, `trackAmps_`, morphFader smoothed value, DC state)
+
+The working sequence/kit data inside `arrangement_` is logically
+audio-owned once processing starts; the message thread may read aligned
+32-bit scalars relaxed but must never mutate containers (`baseParams`
+vectors, `steps` arrays, P-Lock maps) mid-block.
+
+#### Class 2 — Atomic `[ATOMIC]`
+
+Shared between threads via `std::atomic` (or APVTS-managed atomics,
+denoted `[ATOMIC]*`). Any thread may read or write at any time using
+the default (sequentially consistent) or relaxed ordering as documented
+per member. This includes all APVTS parameter pointers, metering
+outputs, fill state, mz slots, retrig request fields, morph fader
+target, scene queue, panic request, and the keyboard FIFO indices.
+
+#### Class 3 — Queue-mediated `[QUEUE]`
+
+Post-8.16: the message thread enqueues `EngineCmd` records via a
+`juce::AbstractFifo`-backed SPSC FIFO (`engineCmdFifo_`); the audio
+thread drains the queue at the top of each `processBlock` call, before
+the sequencer advances. Mutations covered: base param writes (currently
+`writeParam`), P-Lock writes, trig-override edits, mute/solo changes,
+track-length changes, and control-all fan-outs. Until 8.16 these land
+directly on the message thread — a known data race on `baseParams`
+containers, documented in ROADMAP 8.16.
+
+Stopped-audio fallback: an atomic `lastBlockTimeMs_` heartbeat lets the
+message thread detect that no block has fired for >100 ms and drain the
+queue itself (bounded, safe because the audio thread is not running).
+
+#### Class 4 — Suspension-mediated `[SUSPEND]`
+
+Structural changes that cannot be expressed as bounded atomic stores:
+machine/effect swap (`reinstallMachinesFromActiveKit`, `setTrackInsert`,
+`setTrackMachine`, `copyKit`), full state load, checkpoint restore,
+sample-pool rebuild, and MIDI-learn table writes. These are gated behind
+`suspendProcessing()` / `resumeProcessing()` today; post-8.18 they will
+be routed through a single `withQuiescedEngine(fn)` helper that also
+drains the EngineCmd queue before `fn` runs.
+
+Serializer snapshot rule: `getStateInformation` / checkpoint snapshot
+must run inside `withQuiescedEngine` — suspend, drain queue, read, resume
+— so the snapshot sees a consistent state that includes any queued but not
+yet applied edits.
+
+### §38.2 preparedSampleRate_ / preparedBlockSize_
+
+`juce::AudioProcessor::getSampleRate()` and `getBlockSize()` return 0
+until a plugin host calls `setRateAndBufferSizeDetails()`, which only
+happens in the hosted plugin context, not in headless tests. All
+install/swap helpers (`reinstallMachinesFromActiveKit`, `setTrackInsert`,
+`setMasterInsert`, `setTrackMachine`, `copyKit`, and the state-load path)
+use the cached `preparedSampleRate_` / `preparedBlockSize_` members
+(set at the top of `prepareToPlay`) instead of `getSampleRate()` /
+`getBlockSize()`. Defaults: 44100 Hz / 512 samples — valid until the
+first `prepareToPlay` call.
+
+### §38.3 currentSampleIndex_ in SamplePlayingMachineBase
+
+`currentSampleIndex_` is written from `process()` (const audio-thread
+path, via `SamplerMachine` and `SlicerMachine`) and read from the
+message-thread `detectTransientSlices()`. It is `mutable std::atomic<int>`
+with relaxed semantics — we only need the most-recently-set index, not
+strict ordering.

@@ -6,6 +6,7 @@
 #include "SamplePool.h"
 #include "VoiceChoke.h"
 #include <array>
+#include <atomic>
 #include <cstdint>
 
 namespace lockstep
@@ -81,9 +82,10 @@ namespace lockstep
         double      sampleRate_ = 0.0;
         std::array<VoiceSlot, kMaxVoices> voices_{};
         std::uint64_t voiceCounter_ = 0;
-        // Last sample index used (updated by subclasses from const build-spec paths).
-        // Lets detectTransientSlices() find the sample without requiring baseParams.
-        mutable int currentSampleIndex_ = 0;
+        // Last sample index used — written by audio-thread process() (via subclasses,
+        // from a const method), read by message-thread detectTransientSlices(). mutable
+        // because process() is const; atomic because the two threads run concurrently.
+        mutable std::atomic<int> currentSampleIndex_ { 0 };
 
         // MG.3 / ISliceable: normalized slice start positions [0.0, 1.0].
         std::array<float, kMaxSlices> slicePositions_{};
