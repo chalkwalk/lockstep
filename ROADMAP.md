@@ -1335,6 +1335,17 @@ setMasterInsert, setTrackMachine, copyKit, state-load) now use
       circular dep (KeyboardArea.h → SurfaceModel.h) prevents direct
       sharing; both remain as 4-line identical functions.
 
+- [x] **8.22** UiState gesture-group reset methods:
+      Added four bundled reset helpers to `UiState`: `resetNoteEdit()`,
+      `resetPLockClear()`, `resetFxPickers()`, `resetEuclid()`. Each bundles
+      all fields for its gesture so no field can be silently omitted. Replaced
+      12 scattered field assignments in the Func-release block of
+      `PluginEditor.cpp` with the four reset calls + one conditional. Scattered
+      partial resets (e.g. single-flag picker-close on selection, Song-scope
+      FX close) remain intentionally targeted. Note: full struct grouping
+      (per-gesture nested structs) deferred — would require ~160 access-site
+      renames; method-based approach delivers same safety with zero churn.
+
 - [x] **8.21** Controller-surface dedup:
       `src/controller/SurfaceShared.h` added: `decodeSignedMagnitudeDelta`
       (X-Touch signed-magnitude) and `decodeTwosComplementDelta` (Push 1

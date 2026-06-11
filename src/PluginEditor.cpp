@@ -3047,11 +3047,12 @@ namespace lockstep
                         for (int n = 0; n < newCount; ++n)
                             s.trigOverride.notes[static_cast<std::size_t>(n)] = kept[static_cast<std::size_t>(n)];
                     }
-                    uiState_.noteEditMode = false;
-                    uiState_.noteEditSteps.clear();
-                    uiState_.noteEditStaged.clear();
+                    uiState_.resetNoteEdit();  // clears mode + funcSrcHeld + steps + staged
                 }
-                uiState_.funcSrcHeld = false;
+                else
+                {
+                    uiState_.funcSrcHeld = false;
+                }
                 // MHZ.3.4: Func release commits staged P-Lock clears, then exits mode.
                 if (uiState_.pLockClearMode)
                 {
@@ -3065,16 +3066,10 @@ namespace lockstep
                             processor_.clearParam(uiState_.pLockClearTrack,
                                                   uiState_.pLockClearStep, slot);
                     }
-                    uiState_.pLockClearStaged.clear();
                 }
-                uiState_.pLockClearMode  = false;
-                uiState_.pLockClearTrack = -1;
-                uiState_.pLockClearStep  = -1;
-                // MHZ.3.5: Func release exits machine picker mode.
-                uiState_.funcTrackHeld = false;
-                // 6.5: Func release closes both pickers; meta section view stays.
-                uiState_.funcFxHeld         = false;
-                uiState_.masterFxPickerOpen = false;
+                uiState_.resetPLockClear();  // clears mode + track + step + staged
+                // MHZ.3.5 + 6.5: Func release exits machine picker and FX pickers.
+                uiState_.resetFxPickers();   // clears funcTrackHeld + funcFxHeld + masterFxPickerOpen
                 refreshMetaBand();  // 1c: Func released → restore normal MZ band
                 editMode_.onScopeEvent({ T::ButtonUp, CB::Func });
                 updateFillActivation();
@@ -3103,7 +3098,7 @@ namespace lockstep
                     if (uiState_.euclidHeld)  // 5.5: commit Euclidean pattern on release
                     {
                         applyEuclidToTrack(keyboardArea_.getActiveTrack());
-                        uiState_.euclidHeld = false;
+                        uiState_.resetEuclid();
                         refreshMetaBand();
                     }
                     uiState_.phraseScopeUsed = false;
@@ -3131,7 +3126,7 @@ namespace lockstep
                     if (uiState_.euclidHeld)  // 5.5: commit Euclidean pattern on release
                     {
                         applyEuclidToTrack(keyboardArea_.getActiveTrack());
-                        uiState_.euclidHeld = false;
+                        uiState_.resetEuclid();
                         refreshMetaBand();
                     }
                     updateFillActivation();

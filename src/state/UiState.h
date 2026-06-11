@@ -142,6 +142,52 @@ namespace lockstep
         // Updated whenever a note is triggered (keyboard overlay or CHROMATIC mode).
         std::array<int, kNumTracks> lastPlayedNote{};  // default 60 (C4)
 
+        // ── Bundled gesture-group resets ─────────────────────────────────────────
+        // Call these instead of scattering individual field assignments — each
+        // bundles all fields that belong to one gesture so no field is forgotten.
+
+        // Clears the Func+Src/Note-edit gesture (funcSrcHeld, mode flag, steps,
+        // staged pitches). Call on Func release or any escape that exits note-edit.
+        void resetNoteEdit() noexcept
+        {
+            funcSrcHeld = false;
+            noteEditMode = false;
+            noteEditOctave = 3;
+            noteEditSteps.clear();
+            noteEditStaged.clear();
+        }
+
+        // Clears the P-Lock clear mode (mode flag, target track/step, staged slots).
+        // Call AFTER committing or discarding the staged removals.
+        void resetPLockClear() noexcept
+        {
+            pLockClearMode   = false;
+            pLockClearTrack  = -1;
+            pLockClearStep   = -1;
+            pLockClearStaged.clear();
+        }
+
+        // Clears the Func-layer overlay pickers (machine picker, FX picker, master
+        // FX picker). Call on Func release or picker close.
+        void resetFxPickers() noexcept
+        {
+            funcTrackHeld       = false;
+            funcFxHeld          = false;
+            funcFxInsertSlot    = 0;
+            masterFxPickerOpen  = false;
+            masterFxInsertSlot  = 0;
+        }
+
+        // Clears the Euclidean generator state (held flag and working params).
+        // Call on Fill/Phrase release when euclid was active.
+        void resetEuclid() noexcept
+        {
+            euclidHeld    = false;
+            euclidPulses  = 4;
+            euclidOffset  = 0;
+            euclidAccents = 0;
+        }
+
         // Returns the first slot index for the currently active page on the given track.
         // Returns 0 if track is out of range or info.firstSlot is -1 (empty section).
         [[nodiscard]] int activeFirstSlot(int track, const SectionInfo& info) const
