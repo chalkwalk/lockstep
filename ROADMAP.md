@@ -1265,6 +1265,8 @@ setMasterInsert, setTrackMachine, copyKit, state-load) now use
       (`writeParam`, `clearParam`, `writeFillParam`, `clearFillParam`,
       `setMasterInsertParam`) to enqueue. Audio thread drains at block top. THREADING-DEBT
       tag left for `slicePositions_` race (8.18) and stopped-audio fallback (8.16).
+- [x] **8.16** C3: `EngineTest` queue coverage: enqueue→block→applied; queue-full drop
+      (no crash/hang, result remains a finite in-range float).
 
 ---
 

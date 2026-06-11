@@ -9,6 +9,7 @@
 //  - Mute suppresses audio
 //  - Block-size invariance: the first trig produces audio within the same
 //    PPQ window regardless of whether block size is 64 or 512 samples
+//  - EngineCmd queue: enqueue→block→applied; queue-full drops without blocking
 
 #include "TestHarness.h"
 #include "EngineHarness.h"
@@ -272,6 +273,58 @@ namespace lockstep
     }
 
     // -----------------------------------------------------------------------
+    // EngineCmd queue: enqueue a base-param write, render one block, verify
+    // the value has been applied (i.e. the audio thread drained the queue).
+    static void testEngineCmdAppliedAfterBlock()
+    {
+        EngineHarness h;
+        installMachine(h.processor(), 0, DrumSynthMachine::kMachineId);
+
+        // Record the default level value, then write a distinctly different value.
+        // kSlotLevel = 12 (AMP section, DrumSynthMachine private constant).
+        constexpr int slot = 12;
+        const float before = h.processor().baseParamValue(0, slot);
+        const float target = (before > 0.5f) ? 0.1f : 0.9f;
+
+        // writeParam enqueues; the value is NOT visible yet.
+        h.processor().writeParam(0, slot, target);
+
+        // After one block, drainEngineCmds() applies it.
+        h.renderBlocks(1);
+        const float after = h.processor().baseParamValue(0, slot);
+        CHECK(std::abs(after - target) < 1e-5f,
+              "EngineCmd: base-param write not applied after one block (expected "
+              + juce::String(target, 5) + ", got " + juce::String(after, 5) + ")");
+    }
+
+    // -----------------------------------------------------------------------
+    // Queue-full behavior: flooding the queue (>1024 entries) must not block
+    // or crash — excess commands are dropped with a debug-assert, not UB.
+    // After draining, the applied values must be sane (last or earlier write).
+    static void testEngineCmdQueueFullDrop()
+    {
+        EngineHarness h;
+        installMachine(h.processor(), 0, DrumSynthMachine::kMachineId);
+
+        constexpr int slot = 12;  // kSlotLevel, private in DrumSynthMachine
+        // Enqueue well over kEngineCmdQueueSize entries (1024 + 200 = 1224).
+        // The last write before the queue fills is what we care about — the test
+        // simply verifies no crash/hang and the result is a finite float.
+        constexpr int kFlood = LockstepProcessor::kEngineCmdQueueSize + 200;
+        for (int i = 0; i < kFlood; ++i)
+        {
+            const float v = static_cast<float>(i % 100) / 99.0f;
+            h.processor().writeParam(0, slot, v);
+        }
+        // Drain.
+        h.renderBlocks(1);
+        const float after = h.processor().baseParamValue(0, slot);
+        CHECK(std::isfinite(after) && after >= 0.0f && after <= 1.0f,
+              "EngineCmd queue-full: applied value out of range after flood ("
+              + juce::String(after, 5) + ")");
+    }
+
+    // -----------------------------------------------------------------------
 
     void runEngineTests()
     {
@@ -282,5 +335,7 @@ namespace lockstep
         testTrigProducesAudio();
         testMuteSuppressesAudio();
         testBlockSizeInvariance();
+        testEngineCmdAppliedAfterBlock();
+        testEngineCmdQueueFullDrop();
     }
 }
