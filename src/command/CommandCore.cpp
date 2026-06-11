@@ -17,6 +17,12 @@ namespace lockstep
             case CB::MetronomeToggle:
                 fx.transport(TA::Metronome);
                 return true;
+            case CB::VerbPanic:
+                fx.transport(TA::Panic);
+                return true;
+            case CB::TapTempo:
+                fx.transport(TA::TapTempo);
+                return true;
             default:
                 return false;
         }

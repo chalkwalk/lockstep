@@ -1232,6 +1232,11 @@ per-renderer label logic and per-key modifier checks. See DESIGN §37.6.
         ctx, *editorEffects_)` calls at each verb case; `dispatchVerb`
         function and `onVerbDispatched` callback removed; all verb scopes
         already in `VerbCommands` — no fallback switch needed.
+  - [x] **A4.6** `VerbPanic` + `TapTempo` migrated to `CommandCore::handleDown`
+        as `TransportAction::Panic` / `TransportAction::TapTempo`; legacy
+        cases removed from `dispatchDown`. Remaining `dispatchDown` cases
+        (nav/scope-down/section/step) remain for 8.19 mop-up — dispatchDown
+        is a staged shim, not yet a full thin shim.
   - [x] **A4.5** Section-key scope detection: the hand-rolled five-clause
         `if/else if` chain (Track/Phrase/Scene/Morph/Song UiState flags)
         replaced with `firstHeldSectionSuiteScope(uiState_)` — the

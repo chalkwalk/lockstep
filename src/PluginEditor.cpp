@@ -2594,9 +2594,7 @@ namespace lockstep
                 return true;
             }
 
-            case ControllerButton::VerbPanic:
-                processor_.requestPanic();
-                return true;
+            // ControllerButton::VerbPanic — migrated to CommandCore::handleDown (8.11 A4.6)
 
             case ControllerButton::VerbRecord:
             {
@@ -2973,10 +2971,7 @@ namespace lockstep
             }
 
             // ControllerButton::MetronomeToggle — migrated to CommandCore::handleDown (8.4h)
-
-            case ControllerButton::TapTempo:
-                handleTapTempo();
-                return true;
+            // ControllerButton::TapTempo — migrated to CommandCore::handleDown (8.11 A4.6)
 
             case ControllerButton::None:
                 return false;
