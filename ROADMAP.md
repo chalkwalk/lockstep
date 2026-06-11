@@ -1276,6 +1276,14 @@ setMasterInsert, setTrackMachine, copyKit, state-load) now use
       tagged on `sceneIdx`/`deviated` writes.
 - [x] **8.17** C2: `EngineTest::testSceneSwitchAtBoundary`: verify `activeSectionIdx`
       transitions to 1 within one bar boundary + working-sequence step data updates.
+- [x] **8.18**: `withQuiescedEngine(fn)` template helper added (suspend → drain EngineCmd
+      queue → fn() → resume). All structural suspend sites migrated: `setTrackInsert`,
+      `clearTrackInsert`, `setMasterInsert`, `clearMasterInsert`, `setTrackMachine`,
+      `copyKitTrack`, and the machine-install loop in `reinstallMachinesFromActiveKit`
+      (now a single quiesce window covering machine swap + baseParams copy + PLock reserve).
+      `getStateInformation` wrapped for consistent snapshot. DESIGN §38 finalized;
+      CLAUDE.md mutation-contract gotcha added. Residual THREADING-DEBT: `slicePositions_`
+      and `applySceneLaunch` index writes — tagged for future sweep.
 
 ---
 

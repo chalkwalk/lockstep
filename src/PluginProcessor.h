@@ -529,6 +529,20 @@ namespace lockstep
         // change kit(t).machineId and call this to apply it without a full reload).
         void reinstallMachinesFromActiveKit();
 
+        // Quiesce the audio engine: suspend processing, drain the EngineCmd queue
+        // on the message thread so pending param writes land before structural edits,
+        // call fn(), then resume. Use this wrapper for all [SUSPEND]-class mutations
+        // (machine swap, insert swap, sample pool update, full state load).
+        // Must be called from the message thread.
+        template<typename Fn>
+        void withQuiescedEngine(Fn&& fn)
+        {
+            suspendProcessing(true);
+            drainEngineCmds();
+            fn();
+            suspendProcessing(false);
+        }
+
         // Copies active section's phrase data + kit baseParams into sequence tracks.
         void syncSequenceFromCurrentScene();
 

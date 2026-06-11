@@ -3338,9 +3338,7 @@ namespace lockstep
             }
             newEff->prepare(preparedSampleRate_, preparedBlockSize_);
         }
-        suspendProcessing(true);
-        trackInserts_[ti][si] = std::move(newEff);
-        suspendProcessing(false);
+        withQuiescedEngine([&] { trackInserts_[ti][si] = std::move(newEff); });
     }
 
     void LockstepProcessor::clearTrackInsert(int track, int slot)
@@ -3350,9 +3348,7 @@ namespace lockstep
         const auto ti = static_cast<std::size_t>(track);
         const auto si = static_cast<std::size_t>(slot);
         kit(track).inserts[si] = {};
-        suspendProcessing(true);
-        trackInserts_[ti][si].reset();
-        suspendProcessing(false);
+        withQuiescedEngine([&] { trackInserts_[ti][si].reset(); });
     }
 
     void LockstepProcessor::setTrackInsertBypass(int track, int slot, bool bypass)
@@ -3398,9 +3394,7 @@ namespace lockstep
             }
             newEff->prepare(preparedSampleRate_, preparedBlockSize_);
         }
-        suspendProcessing(true);
-        masterInserts_[si] = std::move(newEff);
-        suspendProcessing(false);
+        withQuiescedEngine([&] { masterInserts_[si] = std::move(newEff); });
     }
 
     void LockstepProcessor::clearMasterInsert(int slot)
@@ -3408,9 +3402,7 @@ namespace lockstep
         if (slot < 0 || slot > 1) return;
         const auto si = static_cast<std::size_t>(slot);
         song().masterInserts[si] = {};
-        suspendProcessing(true);
-        masterInserts_[si].reset();
-        suspendProcessing(false);
+        withQuiescedEngine([&] { masterInserts_[si].reset(); });
     }
 
     void LockstepProcessor::setMasterInsertBypass(int slot, bool bypass)
@@ -3601,14 +3593,8 @@ namespace lockstep
 
     void LockstepProcessor::reinstallMachinesFromActiveKit()
     {
-        bool needsSuspend = false;
-        for (std::size_t t = 0; t < kNumTracks; ++t)
-        {
-            const auto* m = machines_[t].get();
-            if (m && m->machineId() != kit(static_cast<int>(t)).machineId)
-                needsSuspend = true;
-        }
-        if (needsSuspend) suspendProcessing(true);
+        // Build new machines outside the quiesce window to keep suspension brief.
+        std::array<std::unique_ptr<IMachine>, kNumTracks> pending{};
         for (std::size_t t = 0; t < kNumTracks; ++t)
         {
             const auto& desired = kit(static_cast<int>(t)).machineId;
@@ -3617,23 +3603,32 @@ namespace lockstep
             {
                 auto nm = makeMachineForId(desired, samplePool_);
                 nm->prepare(preparedSampleRate_, preparedBlockSize_);
-                machines_[t] = std::move(nm);
+                pending[t] = std::move(nm);
             }
         }
-        if (needsSuspend) suspendProcessing(false);
+        // Apply all [AUDIO] writes inside a single quiesce window so the audio
+        // thread sees a consistent snapshot: machine swap + baseParams copy + PLock reserve.
+        withQuiescedEngine([&]
+        {
+            for (std::size_t t = 0; t < kNumTracks; ++t)
+            {
+                if (pending[t]) machines_[t] = std::move(pending[t]);
+                sequence().tracks[t].baseParams = kit(static_cast<int>(t)).baseParams;
+                const int np = numParams(static_cast<int>(t));
+                for (auto& step : sequence().tracks[t].steps)
+                {
+                    step.overrides.reserve(np);
+                    step.fillOverrides.reserve(np);
+                }
+            }
+        });
+        // Slice recompute runs outside the quiesce (involves heap ops; not audio-path safe).
+        // THREADING-DEBT(8.18): slicePositions_ writes still race audio-thread reads.
         for (std::size_t t = 0; t < kNumTracks; ++t)
         {
-            sequence().tracks[t].baseParams = kit(static_cast<int>(t)).baseParams;
             recomputeSlicesIfNeeded(static_cast<int>(t),
                                     slotForId(static_cast<int>(t), "slicer_sample_id"),
                                     sequence().tracks[t].baseParams);
-            // Pre-reserve PLock capacity so audio-thread set() never allocates.
-            const int np = numParams(static_cast<int>(t));
-            for (auto& step : sequence().tracks[t].steps)
-            {
-                step.overrides.reserve(np);
-                step.fillOverrides.reserve(np);
-            }
         }
     }
 
@@ -3765,18 +3760,18 @@ namespace lockstep
         auto nm = makeMachineForId(machineId, samplePool_);
         nm->prepare(preparedSampleRate_, preparedBlockSize_);
 
-        suspendProcessing(true);
-        machines_[ti] = std::move(nm);
-        suspendProcessing(false);
-
         auto& k = kit(track);
         k.machineId = machineId;
-        const int np = machines_[ti]->numParams();
+        const int np = nm->numParams();
         k.baseParams.assign(static_cast<std::size_t>(np), 0.0f);
         for (int s = 0; s < np; ++s)
-            k.baseParams[static_cast<std::size_t>(s)] = machines_[ti]->paramSpec(s).defaultValue;
+            k.baseParams[static_cast<std::size_t>(s)] = nm->paramSpec(s).defaultValue;
 
-        sequence().tracks[ti].baseParams = k.baseParams;
+        withQuiescedEngine([&]
+        {
+            machines_[ti] = std::move(nm);
+            sequence().tracks[ti].baseParams = k.baseParams;
+        });
 
         // Seed slices for slicer machine on first install so trigs fire immediately.
         recomputeSlicesIfNeeded(track,
@@ -3800,14 +3795,15 @@ namespace lockstep
         const auto di = static_cast<std::size_t>(dstTrack);
 
         kit(dstTrack) = kit(srcTrack);
-        sequence().tracks[di].baseParams = kit(dstTrack).baseParams;
 
         // Install the copied machine.
         auto nm = makeMachineForId(kit(dstTrack).machineId, samplePool_);
         nm->prepare(preparedSampleRate_, preparedBlockSize_);
-        suspendProcessing(true);
-        machines_[di] = std::move(nm);
-        suspendProcessing(false);
+        withQuiescedEngine([&]
+        {
+            machines_[di] = std::move(nm);
+            sequence().tracks[di].baseParams = kit(dstTrack).baseParams;
+        });
     }
 
     bool LockstepProcessor::isTrackEmpty(int track) const
@@ -3822,12 +3818,13 @@ namespace lockstep
 
     void LockstepProcessor::getStateInformation(juce::MemoryBlock& dest)
     {
-        // Flush the working buffer into the active Phrase/Kit before serializing.
-        // Live edits land in arrangement_.working and are otherwise only written
-        // back on a scene/song/phrase switch, so a save without an intervening
-        // switch would persist stale Phrases. (Stage 3 removes the working buffer.)
-        arrangement_.writeBackWorkingToActive();
-        PluginState::writeTo(dest, *this);
+        // Flush live edits and snapshot under quiesce so EngineCmd queue is drained
+        // before writeBackWorkingToActive reads arrangement_.working.
+        withQuiescedEngine([&]
+        {
+            arrangement_.writeBackWorkingToActive();
+            PluginState::writeTo(dest, *this);
+        });
     }
 
     void LockstepProcessor::setStateInformation(const void* data, int sizeInBytes)

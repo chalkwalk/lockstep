@@ -4679,13 +4679,13 @@ queue itself (bounded, safe because the audio thread is not running).
 Structural changes that cannot be expressed as bounded atomic stores:
 machine/effect swap (`reinstallMachinesFromActiveKit`, `setTrackInsert`,
 `setTrackMachine`, `copyKit`), full state load, checkpoint restore,
-sample-pool rebuild, and MIDI-learn table writes. These are gated behind
-`suspendProcessing()` / `resumeProcessing()` today; post-8.18 they will
-be routed through a single `withQuiescedEngine(fn)` helper that also
-drains the EngineCmd queue before `fn` runs.
+sample-pool rebuild, and MIDI-learn table writes. These are routed
+through `withQuiescedEngine(fn)` (shipped 8.18) which suspends processing,
+drains the EngineCmd queue on the message thread so pending param writes
+land before structural edits, calls `fn()`, then resumes.
 
 Serializer snapshot rule: `getStateInformation` / checkpoint snapshot
-must run inside `withQuiescedEngine` — suspend, drain queue, read, resume
+run inside `withQuiescedEngine` — suspend, drain queue, read, resume
 — so the snapshot sees a consistent state that includes any queued but not
 yet applied edits.
 
@@ -4708,3 +4708,26 @@ path, via `SamplerMachine` and `SlicerMachine`) and read from the
 message-thread `detectTransientSlices()`. It is `mutable std::atomic<int>`
 with relaxed semantics — we only need the most-recently-set index, not
 strict ordering.
+
+### §38.4 Pre-staged scene switch (8.17)
+
+`queueScene` (message thread) calls `Arrangement::prepareSceneLaunch`,
+which flushes live edits (`writeBackWorkingToActive`), stashes the
+departing scene's overlay, and projects the new scene into a pre-allocated
+`StagedSceneSwap` struct. `stagedSwapReady_` is raised after.
+
+At the bar boundary, the audio thread sets `pendingSceneApply_`. At the
+top of the next block (after queue drain), the audio thread calls
+`Arrangement::applySceneLaunch`, which swaps the staged `Sequence` into
+`arrangement_.working` using `std::swap` (O(N) bounded, no allocation)
+and updates `sceneIdx` and deviation state.
+
+THREADING-DEBT: `arrangement_.sceneIdx` and `arrangement_.deviated` are
+written by the audio thread and read by the message thread without a lock.
+Both fields are ≤ int-sized (aligned); the read is benign in practice but
+not formally safe — will be addressed in a future mutation sweep.
+
+Machine reinstall after the switch: `callAsync` fires `reinstallMachines
+FromActiveKit()` under `withQuiescedEngine`. Kit data is already correct
+after the writeback in `prepareSceneLaunch`, so the reinstall is safe to
+run any time after staging completes.
