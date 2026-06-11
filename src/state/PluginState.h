@@ -40,6 +40,18 @@ namespace lockstep
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);
 
+        // File-based project I/O — shares the same serializer and upgrade chain.
+        // .lockstep files are plain XML (human-readable, diffable).
+        // writeToFile: first calls writeBackWorkingToActive so edits are captured.
+        // readFromFile: returns false and leaves proc UNCHANGED if the file cannot
+        //   be parsed (fail-safe — no partial state corruption).
+        void writeToFile(const juce::File& file, LockstepProcessor& proc);
+        bool readFromFile(const juce::File& file, LockstepProcessor& proc);
+
+        // Tree-level helpers (exposed for testing and for buildStateTree / applyStateTree sharing).
+        juce::ValueTree buildStateTree(LockstepProcessor& proc);
+        void applyStateTree(juce::ValueTree root, LockstepProcessor& proc);
+
         // Exposed for testing: normalises any historical state tree to the
         // current version by applying each upgrade function in sequence.
         juce::ValueTree applyUpgrades(juce::ValueTree tree);

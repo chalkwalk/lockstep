@@ -1424,7 +1424,7 @@ namespace lockstep::PluginState
     // -------------------------------------------------------------------------
     // Public API
 
-    void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc)
+    juce::ValueTree buildStateTree(LockstepProcessor& proc)
     {
         juce::ValueTree root(keys::kLockstepState);
         root.setProperty(keys::kVersion, kCurrentVersion, nullptr);
@@ -1444,18 +1444,11 @@ namespace lockstep::PluginState
         // CC mappings, focus track, standalone BPM
         writeMiscState(root, proc);
 
-        if (auto xml = root.createXml())
-            juce::AudioProcessor::copyXmlToBinary(*xml, dest);
+        return root;
     }
 
-    void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc)
+    void applyStateTree(juce::ValueTree root, LockstepProcessor& proc)
     {
-        auto xml = juce::AudioProcessor::getXmlFromBinary(data, sizeInBytes);
-        if (!xml) return;
-
-        auto root = juce::ValueTree::fromXml(*xml);
-        if (!root.isValid()) return;
-
         root = applyUpgrades(root);
 
         // Restore APVTS parameters. The child type matches the valueTreeType
@@ -1473,6 +1466,42 @@ namespace lockstep::PluginState
         readNewHierarchyNode(root, proc);
         // CC mappings, focus track, standalone BPM.
         readMiscState(root, proc);
+    }
+
+    void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc)
+    {
+        const auto root = buildStateTree(proc);
+        if (auto xml = root.createXml())
+            juce::AudioProcessor::copyXmlToBinary(*xml, dest);
+    }
+
+    void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc)
+    {
+        auto xml = juce::AudioProcessor::getXmlFromBinary(data, sizeInBytes);
+        if (!xml) return;
+        auto root = juce::ValueTree::fromXml(*xml);
+        if (!root.isValid()) return;
+        applyStateTree(root, proc);
+    }
+
+    void writeToFile(const juce::File& file, LockstepProcessor& proc)
+    {
+        // Caller is responsible for flushing working → active (e.g. via saveProjectFile).
+        const auto root = buildStateTree(proc);
+        if (auto xml = root.createXml())
+            xml->writeTo(file);
+    }
+
+    bool readFromFile(const juce::File& file, LockstepProcessor& proc)
+    {
+        // Parse the entire XML before touching proc so a bad file never leaves
+        // the processor in a partially-applied state.
+        const auto xml = juce::XmlDocument::parse(file);
+        if (!xml) return false;
+        auto root = juce::ValueTree::fromXml(*xml);
+        if (!root.isValid()) return false;
+        applyStateTree(root, proc);
+        return true;
     }
 
 } // namespace lockstep::PluginState

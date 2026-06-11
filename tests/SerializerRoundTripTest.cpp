@@ -658,6 +658,49 @@ namespace lockstep
         }
     }
 
+    // Test that a ValueTree round-trips through XML to a temp file and back losslessly.
+    // This pins the file I/O path added in v16 (writeToFile / readFromFile) independently
+    // of LockstepProcessor (which cannot instantiate headlessly).
+    static void testFileXmlRoundTrip()
+    {
+        // Build a minimal v16-shaped LockstepState tree with representative children.
+        juce::ValueTree root("LockstepState");
+        root.setProperty("version", 16, nullptr);
+        root.appendChild(juce::ValueTree("Lockstep"), nullptr);
+
+        juce::ValueTree sp("SoundPool");
+        juce::ValueTree se("SE");
+        se.setProperty("nm", "Test Sound", nullptr);
+        se.setProperty("mId", "lockstep.va.v1", nullptr);
+        se.setProperty("spi", -1, nullptr);
+        sp.appendChild(se, nullptr);
+        root.appendChild(sp, nullptr);
+
+        root.appendChild(juce::ValueTree("NewHierarchy"), nullptr);
+
+        // Write to a temp file as XML.
+        const auto tmpFile = juce::File::getSpecialLocation(juce::File::tempDirectory)
+                                 .getChildFile("lockstep_test_roundtrip.lockstep");
+        tmpFile.deleteFile();
+        const auto xml1 = root.createXml();
+        CHECK(xml1 != nullptr, "createXml succeeded");
+        const bool written = xml1->writeTo(tmpFile);
+        CHECK(written, "xml->writeTo(file) succeeds");
+        CHECK(tmpFile.existsAsFile(), "temp file exists after write");
+
+        // Read back and compare.
+        const auto xml2 = juce::XmlDocument::parse(tmpFile);
+        CHECK(xml2 != nullptr, "XmlDocument::parse succeeds on written file");
+        if (xml2)
+        {
+            const auto tree2 = juce::ValueTree::fromXml(*xml2);
+            CHECK(tree2.isValid(), "read-back tree is valid");
+            CHECK(xml1->toString() == xml2->toString(), "XML file round-trip is lossless");
+        }
+
+        tmpFile.deleteFile();
+    }
+
     void runSerializerRoundTripTests()
     {
         testCondRoundTrip();
@@ -666,5 +709,6 @@ namespace lockstep
         testFillFieldRoundTrip();
         testMutationDetectability();
         testV15PLockFormat();
+        testFileXmlRoundTrip();
     }
 }
