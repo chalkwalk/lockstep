@@ -334,7 +334,8 @@ namespace lockstep
                            ui.muteHeld, ui.latch.mute,
                            sceneMuteMode ? kScopePMute : kScopeMute, kScopeMuteDim,
                            hasCompound && ui.muteHeld);
-              if (ui.latch.mute) c.pip.colour = kScopeMute; }
+              if (ui.latch.mute) c.pip.colour = kScopeMute;
+              if (ui.sceneHeld && !ui.muteHeld) { c.scopeTint = kScopeScene; c.baseColour = kScopeScene; } }
         }
         {
             SurfaceCell& c = model.modifiers[7];
@@ -371,6 +372,7 @@ namespace lockstep
             c.pressed  = physPressed('4', ControllerButton::NavUp);
             c.base     = c.pressed ? CellState::Pressed : CellState::Resting;
             // Morph: A-pole qualifier active → accent; Morph held → morph tint.
+            // Track: cycle-input-mode action is scope-specific → Track tint.
             // scopeTint drives on-screen colour (groupForCell reads it); baseColour
             // drives controller LEDs — set both so neither renderer diverges.
             if (ui.morphHeld && ui.morphNavQualifier == 1)
@@ -382,6 +384,11 @@ namespace lockstep
             {
                 c.scopeTint  = juce::Colour(kScopeMorph).getARGB();
                 c.baseColour = juce::Colour(kScopeMorph).getARGB();
+            }
+            else if (ui.trackHeld)
+            {
+                c.scopeTint  = kScopeTrack;
+                c.baseColour = kScopeTrack;
             }
             else
             {
@@ -637,6 +644,11 @@ namespace lockstep
             {
                 c.scopeTint  = juce::Colour(kScopeMorph).getARGB();
                 c.baseColour = juce::Colour(kScopeMorph).getARGB();
+            }
+            else if (def.keyCode == 'R' && ui.trackHeld)
+            {
+                c.scopeTint  = kScopeTrack;
+                c.baseColour = kScopeTrack;
             }
             else
                 c.baseColour = compatColour(c.base, 0xFF404040u);

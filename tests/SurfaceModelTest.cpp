@@ -362,6 +362,43 @@ namespace lockstep
         CHECK(scopedCell(PS::Song, 0).label == nullptr, "Song+TRIG is nullptr");
     }
 
+    // -------------------------------------------------------------------------
+    // Test: binding-table entries that drive scope-glow tints on nav + Mute.
+    // The tint logic in SurfaceModel.cpp derives colour from these rows;
+    // if the rows change their requiredMods the tint would silently break.
+    // -------------------------------------------------------------------------
+    static void testScopeTintBindings()
+    {
+        using CB = ControllerButton;
+        using SL = SurfaceLayer;
+        using AId = ActionId;
+
+        // NavUp under Track → CycleInputModeUp; requiredMods includes kModTrack.
+        {
+            const auto& b = resolveBinding(CB::NavUp, -1, kModTrack, SL::Base);
+            CHECK(b.action == AId::CycleInputModeUp, "NavUp+Track resolves to CycleInputModeUp");
+            CHECK((b.requiredMods & kModTrack) != 0,  "NavUp+Track row includes Track bit");
+        }
+        // NavDown under Track → CycleInputModeDown; requiredMods includes kModTrack.
+        {
+            const auto& b = resolveBinding(CB::NavDown, -1, kModTrack, SL::Base);
+            CHECK(b.action == AId::CycleInputModeDown, "NavDown+Track resolves to CycleInputModeDown");
+            CHECK((b.requiredMods & kModTrack) != 0,   "NavDown+Track row includes Track bit");
+        }
+        // MuteScope under Scene → HoldSceneMuteView; requiredMods includes kModScene.
+        {
+            const auto& b = resolveBinding(CB::MuteScope, -1, kModScene, SL::Base);
+            CHECK(b.action == AId::HoldSceneMuteView, "MuteScope+Scene resolves to HoldSceneMuteView");
+            CHECK((b.requiredMods & kModScene) != 0,   "MuteScope+Scene row includes Scene bit");
+        }
+        // VerbClear under Phrase → VerbDelete or VerbScopeClear with Phrase bit.
+        {
+            const auto& b = resolveBinding(CB::VerbClear, -1, kModPhrase | kModFunc, SL::Base);
+            CHECK(b.action == AId::VerbDelete, "VerbClear+Phrase+Func → VerbDelete");
+            CHECK((b.requiredMods & kModPhrase) != 0, "VerbClear+Phrase+Func row includes Phrase bit");
+        }
+    }
+
     void runSurfaceModelTests()
     {
         testPanicKeyLabel();
@@ -372,6 +409,7 @@ namespace lockstep
         testCellAppearance();
         testScopedSectionMatrixCanonical();
         testPendingConfirmBindings();
+        testScopeTintBindings();
     }
 
 } // namespace lockstep
