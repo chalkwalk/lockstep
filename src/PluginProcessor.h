@@ -409,7 +409,8 @@ namespace lockstep
         bool recallSoundFromPool(int track, int entryIndex);
         int soundPoolSize() const { return project_.soundPool.size(); }
         const SoundEntry* soundPoolEntry(int i) const { return project_.soundPool.get(i); }
-        void removeSoundEntry(int i) { project_.soundPool.remove(i); }
+        void removeSoundEntry(int i);   // quiesces engine, remaps soundId refs, removes entry
+        void renameSoundEntry(int i, const std::string& name);
         void pushSoundEntry(SoundEntry e) { project_.soundPool.push(std::move(e)); }
 
         // Sample pool helpers — message-thread only.

@@ -120,4 +120,35 @@ namespace lockstep::status
         return "Bake " + juce::String(numTracks) + " track(s) onto row " + juce::String(rowIdx) + "?  P=Yes  Func+P=No";
     }
 
+    // ---- sound bank ---------------------------------------------------------
+
+    inline juce::String soundSaved(const juce::String& name)
+    {
+        return "Saved: " + name;
+    }
+
+    inline juce::String soundRecalled(const juce::String& name)
+    {
+        return "Recalled: " + name;
+    }
+
+    inline juce::String soundDeleted(const juce::String& name)
+    {
+        return "Deleted: " + name;
+    }
+
+    inline juce::String soundRenamed(const juce::String& name)
+    {
+        return "Renamed: " + name;
+    }
+
+    inline juce::String soundMachineMismatch(const juce::String& entryMachineId,
+                                             const juce::String& trackMachineId)
+    {
+        return "Machine mismatch: bank=" + entryMachineId + " track=" + trackMachineId;
+    }
+
+    // Shown at the bottom of the Sound Bank overlay as a hint strip.
+    inline juce::String soundBankHint() { return "Fill+SRC: performance recall"; }
+
 } // namespace lockstep::status

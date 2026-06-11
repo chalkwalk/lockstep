@@ -1,6 +1,7 @@
 #include "PluginProcessor.h"
 #include "Parameters.h"
 #include "ParameterIDs.h"
+#include "core/SoundPoolOps.h"
 #include "core/StateResolver.h"
 #include "core/Swing.h"
 #include "core/TrigEvaluator.h"
@@ -3082,6 +3083,19 @@ namespace lockstep
         }
     }
 
+    // Derive a short display name from a dot-separated machineId string.
+    // "lockstep.sampler.v1" → "Sampler", "lockstep.fm.v1" → "FM", etc.
+    static juce::String machineShortName(const std::string& machineId)
+    {
+        const auto s = juce::String(machineId);
+        const int first = s.indexOfChar('.');
+        const int second = (first >= 0) ? s.indexOfChar(first + 1, '.') : -1;
+        if (first < 0) return s;
+        const auto mid = (second > first) ? s.substring(first + 1, second) : s.substring(first + 1);
+        if (mid.isEmpty()) return s;
+        return mid.substring(0, 1).toUpperCase() + mid.substring(1).toLowerCase();
+    }
+
     int LockstepProcessor::saveTrackToSoundPool(int track, const std::string& name)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1;
@@ -3089,7 +3103,6 @@ namespace lockstep
         const auto& k = kit(track);
 
         SoundEntry entry;
-        entry.name = name.empty() ? "Sound" : name;
         entry.machineId = k.machineId;
         entry.baseParams = k.baseParams;
         entry.destinationId = k.destinationId;
@@ -3098,7 +3111,54 @@ namespace lockstep
         if (!machines_[ti]->isMidiOut() && !k.baseParams.empty())
             entry.samplePoolIndex = static_cast<int>(k.baseParams[0]);
 
+        if (!name.empty())
+        {
+            entry.name = name;
+        }
+        else
+        {
+            // Auto-name: "<MachineShort> T<n>", uniquified with a numeric suffix if needed.
+            const juce::String base = machineShortName(k.machineId) + " T" + juce::String(track + 1);
+            juce::String candidate = base;
+            int suffix = 2;
+            const int n = project_.soundPool.size();
+            bool conflict = true;
+            while (conflict)
+            {
+                conflict = false;
+                for (int i = 0; i < n; ++i)
+                {
+                    const auto* e = project_.soundPool.get(i);
+                    if (e && juce::String(e->name) == candidate)
+                    {
+                        conflict = true;
+                        break;
+                    }
+                }
+                if (conflict)
+                    candidate = base + " " + juce::String(suffix++);
+            }
+            entry.name = candidate.toStdString();
+        }
+
         return project_.soundPool.push(std::move(entry));
+    }
+
+    void LockstepProcessor::removeSoundEntry(int i)
+    {
+        if (i < 0 || i >= project_.soundPool.size()) return;
+        withQuiescedEngine([&] {
+            remapSoundIdsAfterRemoval(arrangement_, i);
+            project_.soundPool.remove(i);
+        });
+    }
+
+    void LockstepProcessor::renameSoundEntry(int i, const std::string& newName)
+    {
+        const auto* e = project_.soundPool.get(i);
+        if (!e) return;
+        // name is only read on the message thread (UI), so a direct write is safe.
+        project_.soundPool.entries[static_cast<std::size_t>(i)].name = newName;
     }
 
     void LockstepProcessor::liveSwapTrackSound(int track, int poolIndex)

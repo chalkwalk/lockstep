@@ -57,6 +57,19 @@ namespace lockstep
         // Confirm-delete includes entity name.
         CHECK(status::confirmDelete("Phrase") == "Delete Phrase?  P=Yes  Func+P=No",
               "confirmDelete content");
+
+        // Sound bank builders — non-empty and content checks.
+        CHECK(status::soundSaved("VA T1").isNotEmpty(), "soundSaved non-empty");
+        CHECK(status::soundSaved("VA T1") == "Saved: VA T1", "soundSaved content");
+        CHECK(status::soundRecalled("Drum T3").isNotEmpty(), "soundRecalled non-empty");
+        CHECK(status::soundRecalled("Drum T3") == "Recalled: Drum T3", "soundRecalled content");
+        CHECK(status::soundDeleted("FM T2").isNotEmpty(), "soundDeleted non-empty");
+        CHECK(status::soundDeleted("FM T2") == "Deleted: FM T2", "soundDeleted content");
+        CHECK(status::soundRenamed("My Sound").isNotEmpty(), "soundRenamed non-empty");
+        CHECK(status::soundRenamed("My Sound") == "Renamed: My Sound", "soundRenamed content");
+        CHECK(status::soundMachineMismatch("lockstep.va.v1", "lockstep.sampler.v1").isNotEmpty(),
+              "soundMachineMismatch non-empty");
+        CHECK(status::soundBankHint().isNotEmpty(), "soundBankHint non-empty");
     }
 
     void runStatusTextTests()
