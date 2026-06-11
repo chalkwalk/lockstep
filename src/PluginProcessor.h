@@ -410,6 +410,7 @@ namespace lockstep
         int soundPoolSize() const { return project_.soundPool.size(); }
         const SoundEntry* soundPoolEntry(int i) const { return project_.soundPool.get(i); }
         void removeSoundEntry(int i) { project_.soundPool.remove(i); }
+        void pushSoundEntry(SoundEntry e) { project_.soundPool.push(std::move(e)); }
 
         // Sample pool helpers — message-thread only.
         // sampleShortName returns the filename stem for a given pool index, or "(none)".

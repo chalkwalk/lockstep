@@ -33,7 +33,9 @@ namespace lockstep
         // v14: per-song master FX inserts (MasterIns nodes in Song).
         // v15: P-Lock entries use string param id ("id") instead of int slot ("s").
         //      Loader accepts both; "s" int entries still load (legacy compat).
-        inline constexpr int kCurrentVersion = 15;
+        // v16: Project::soundPool (SoundPool / SE nodes) now serialized.
+        //      Missing SoundPool node on load = empty pool (trivial upgrade from v15).
+        inline constexpr int kCurrentVersion = 16;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);

@@ -111,6 +111,13 @@ namespace lockstep::keys
     inline constexpr const char* kEid = "eid";
     inline constexpr const char* kBypass = "bypass";
 
+  // ── ProjectSoundPool + SoundEntry ────────────────────────────────────────────
+    inline constexpr const char* kSoundPool = "SoundPool";   // project sound-bank node
+    inline constexpr const char* kSoundEntry = "SE";          // child node per entry
+    inline constexpr const char* kSeName = "nm";              // entry display name
+    inline constexpr const char* kSeSampleIdx = "spi";        // samplePoolIndex (-1 = none)
+  // kMId / kDId / kBaseParams / kParam / kParamId / kV reused from Kit section above.
+
   // ── SamplePool + Entry ───────────────────────────────────────────────────────
     inline constexpr const char* kSamplePool = "SamplePool";
     inline constexpr const char* kEntry = "Entry";

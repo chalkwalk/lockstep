@@ -814,6 +814,96 @@ namespace lockstep::PluginState
     }
 
     // -------------------------------------------------------------------------
+    // Project sound pool (SoundEntry library)
+
+    static void writeProjectSoundPool(juce::ValueTree& root, LockstepProcessor& proc)
+    {
+        const int n = proc.soundPoolSize();
+        if (n == 0) return;
+
+        juce::ValueTree bankNode(keys::kSoundPool);
+        for (int i = 0; i < n; ++i)
+        {
+            const auto* e = proc.soundPoolEntry(i);
+            if (!e) continue;
+
+            juce::ValueTree entry(keys::kSoundEntry);
+            entry.setProperty(keys::kIdx, i, nullptr);
+            entry.setProperty(keys::kSeName, juce::String(e->name), nullptr);
+            entry.setProperty(keys::kMId, juce::String(e->machineId), nullptr);
+            entry.setProperty(keys::kSeSampleIdx, e->samplePoolIndex, nullptr);
+            if (!e->destinationId.empty())
+                entry.setProperty(keys::kDId, juce::String(e->destinationId), nullptr);
+
+            // Base params keyed by string ID so they survive machine param reordering.
+            if (!e->baseParams.empty())
+            {
+                auto tempMachine = proc.createMachineForId(e->machineId);
+                const int np = tempMachine->numParams();
+                juce::ValueTree bpNode(keys::kBaseParams);
+                for (int s = 0; s < np; ++s)
+                {
+                    if (static_cast<std::size_t>(s) >= e->baseParams.size()) break;
+                    const auto spec = tempMachine->paramSpec(s);
+                    const juce::String id = spec.id;
+                    if (id.isEmpty()) continue;
+                    const float val = e->baseParams[static_cast<std::size_t>(s)];
+                    if (!floatNe(val, spec.defaultValue)) continue;
+                    juce::ValueTree pNode(keys::kParam);
+                    pNode.setProperty(keys::kParamId, id, nullptr);
+                    pNode.setProperty(keys::kV, static_cast<double>(val), nullptr);
+                    bpNode.appendChild(pNode, nullptr);
+                }
+                if (bpNode.getNumChildren() > 0)
+                    entry.appendChild(bpNode, nullptr);
+            }
+
+            bankNode.appendChild(entry, nullptr);
+        }
+        root.appendChild(bankNode, nullptr);
+    }
+
+    static void readProjectSoundPool(const juce::ValueTree& root, LockstepProcessor& proc)
+    {
+        const auto bankNode = root.getChildWithName(keys::kSoundPool);
+        if (!bankNode.isValid()) return;
+
+        for (auto entryNode : bankNode)
+        {
+            if (entryNode.getType() != juce::Identifier(keys::kSoundEntry)) continue;
+
+            SoundEntry e;
+            e.name = entryNode.getProperty(keys::kSeName, "Sound").toString().toStdString();
+            e.machineId = entryNode.getProperty(keys::kMId, juce::String(SamplerMachine::kMachineId))
+                              .toString()
+                              .toStdString();
+            e.samplePoolIndex = static_cast<int>(entryNode.getProperty(keys::kSeSampleIdx, -1));
+            e.destinationId = entryNode.getProperty(keys::kDId, "").toString().toStdString();
+
+            auto tempMachine = proc.createMachineForId(e.machineId);
+            const int np = tempMachine->numParams();
+            e.baseParams.assign(static_cast<std::size_t>(np), 0.0f);
+            for (int s = 0; s < np; ++s)
+                e.baseParams[static_cast<std::size_t>(s)] = tempMachine->paramSpec(s).defaultValue;
+
+            const auto bpNode = entryNode.getChildWithName(keys::kBaseParams);
+            if (bpNode.isValid())
+            {
+                for (auto pNode : bpNode)
+                {
+                    const juce::String id = pNode.getProperty(keys::kParamId, "").toString();
+                    const float val = getFloat(pNode, keys::kV, 0.0f);
+                    const int slot = proc.slotForIdWithMachine(*tempMachine, id);
+                    if (slot >= 0 && slot < np)
+                        e.baseParams[static_cast<std::size_t>(slot)] = val;
+                }
+            }
+
+            proc.pushSoundEntry(std::move(e));
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // CC mappings + focus track + local BPM
 
     static const char* scopeToStr(CCScope s)
@@ -1295,6 +1385,14 @@ namespace lockstep::PluginState
         return v15;
     }
 
+    // v15 → v16: Project::soundPool serialized. Missing SoundPool node = empty pool (trivial).
+    juce::ValueTree upgrade_v15_to_v16(const juce::ValueTree& v15)
+    {
+        juce::ValueTree v16 = v15.createCopy();
+        v16.setProperty(keys::kVersion, 16, nullptr);
+        return v16;
+    }
+
     juce::ValueTree applyUpgrades(juce::ValueTree tree)
     {
         // Determine the version. v0 has root type "Lockstep" and no version attribute.
@@ -1318,6 +1416,7 @@ namespace lockstep::PluginState
         if (version < 13) tree = upgrade_v12_to_v13(tree);
         if (version < 14) tree = upgrade_v13_to_v14(tree);
         if (version < 15) tree = upgrade_v14_to_v15(tree);
+        if (version < 16) tree = upgrade_v15_to_v16(tree);
 
         return tree;
     }
@@ -1335,6 +1434,9 @@ namespace lockstep::PluginState
 
         // Sample pool ({path, hash} refs — no PCM bytes)
         writeSamplePool(root, proc);
+
+        // Project sound bank (SoundEntry library)
+        writeProjectSoundPool(root, proc);
 
         // Phase 7 new hierarchy: Song/SongTrack/Kit/Phrase/Section
         writeNewHierarchyNode(root, proc);
@@ -1364,6 +1466,9 @@ namespace lockstep::PluginState
 
         // Sample pool must be restored before hierarchy so pool indices resolve.
         readSamplePool(root, proc);
+        // Project sound bank (SoundEntry library). Restored after sample pool so
+        // samplePoolIndex refs into the restored pool are valid.
+        readProjectSoundPool(root, proc);
         // Phase 7 new hierarchy.
         readNewHierarchyNode(root, proc);
         // CC mappings, focus track, standalone BPM.
@@ -1540,6 +1645,26 @@ namespace
                 expectWithinAbsoluteError(
                     static_cast<float>(static_cast<double>(trk0.getProperty(keys::kSwing, 0.0))),
                     -0.1f, 0.001f, "v9->v10: track-0 swing migrated");
+            }
+
+            beginTest("v15 -> v16: missing SoundPool node loads as empty pool");
+            {
+                // A v15 tree has no SoundPool child; upgrade stamps to v16 but doesn't add the node.
+                // readProjectSoundPool on that tree yields an empty pool (tested here at tree level).
+                juce::ValueTree v15(keys::kLockstepState);
+                v15.setProperty(keys::kVersion, 15, nullptr);
+                v15.appendChild(juce::ValueTree(keys::kLockstep), nullptr);
+                v15.appendChild(juce::ValueTree(keys::kNewHierarchy), nullptr);
+
+                const auto result = lockstep::PluginState::applyUpgrades(v15);
+
+                expectEquals(static_cast<int>(result.getProperty(keys::kVersion, -1)),
+                             lockstep::PluginState::kCurrentVersion,
+                             "v15->v16: version stamped to current");
+                expect(!result.getChildWithName(keys::kSoundPool).isValid(),
+                       "v15->v16: no SoundPool node invented (upgrade is trivial)");
+                expect(result.getChildWithName(keys::kNewHierarchy).isValid(),
+                       "v15->v16: NewHierarchy preserved");
             }
 
             beginTest("future version: valid tree returned without crash");
