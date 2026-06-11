@@ -21,6 +21,7 @@ namespace lockstep
   void DrumSynthMachine::reset()
   {
     voice_ = DrumVoice{};
+    voice_.ampEnv.prepare(sampleRate_);
   }
 
   // ---------------------------------------------------------------------------
@@ -91,53 +92,6 @@ namespace lockstep
     float paramAt(const ParamFrame& p, int slot)
     {
       return p[static_cast<std::size_t>(slot)];
-    }
-
-    // Advance AHD amp envelope one sample; returns current level.
-    float advanceAmp(DrumSynthMachine::DrumVoice& v)
-    {
-      using P = DrumSynthMachine::AmpPhase;
-      switch (v.ampPhase)
-      {
-        case P::Attack:
-          if (v.ampAttackSamples > 0.f)
-            v.ampLevel += 1.f / v.ampAttackSamples;
-          else
-            v.ampLevel = 1.f;
-          v.ampTimer += 1.f;
-          if (v.ampLevel >= 1.f || v.ampTimer >= v.ampAttackSamples)
-          {
-            v.ampLevel = 1.f;
-            v.ampTimer = 0.f;
-            v.ampPhase = (v.ampHoldSamples > 0.f) ? P::Hold : P::Decay;
-          }
-          return v.ampLevel;
-
-        case P::Hold:
-          v.ampTimer += 1.f;
-          if (v.ampTimer >= v.ampHoldSamples)
-          {
-            v.ampTimer = 0.f;
-            v.ampPhase = P::Decay;
-          }
-          return 1.f;
-
-        case P::Decay:
-          // Exponential decay: rings out naturally (vs a linear fade). The Decay
-          // param is the −60 dB time; terminate a touch later at −80 dB (1e-4).
-          v.ampLevel *= v.ampDecayCoef;
-          if (v.ampLevel <= 1e-4f)
-          {
-            v.ampLevel = 0.f;
-            v.ampPhase = P::Idle;
-            v.active   = false;
-          }
-          return v.ampLevel;
-
-        case P::Idle:
-          return 0.f;
-      }
-      return 0.f;
     }
 
     // Advance noise decay envelope; returns current level.
@@ -215,24 +169,15 @@ namespace lockstep
     const float decayMs    = paramAt(params, kSlotDecay);
     const float noiseDecMs = paramAt(params, kSlotNoiseDecay);
 
-    // Amp envelope
-    v.ampAttackSamples = msToSamples(attackMs, sampleRate_);
-    v.ampHoldSamples   = msToSamples(holdMs,   sampleRate_);
-    v.ampDecaySamples  = std::max(1.f, msToSamples(decayMs, sampleRate_));
-    // Exponential decay coefficient: reach −60 dB (×0.001) over the decay time.
-    v.ampDecayCoef     = std::exp(-6.907755f / v.ampDecaySamples);
-    v.ampTimer         = 0.f;
-    if (attackMs > 0.f)
-    {
-      v.ampLevel = 0.f;
-      v.ampPhase = AmpPhase::Attack;
-    }
-    else
-    {
-      // No attack ramp: start at full level so the decay (or hold) has signal.
-      v.ampLevel = 1.f;
-      v.ampPhase = (holdMs > 0.f) ? AmpPhase::Hold : AmpPhase::Decay;
-    }
+    // Resolve type first — needed by amp setADSR for Hat release time.
+    v.currentType = static_cast<DrumType>(
+        std::clamp(static_cast<int>(std::lround(paramAt(params, kSlotType))), 0, 7));
+
+    // Amp envelope (AHD). Hat adds 1 ms Release so note-off triggers a fast fade.
+    static constexpr float kHatCloseMs = 1.f;
+    const float releaseMs = (v.currentType == DrumType::Hat) ? kHatCloseMs : 0.f;
+    v.ampEnv.setADSR(attackMs, decayMs, 0.f, releaseMs, holdMs, /*forceZeroSustain=*/true);
+    v.ampEnv.gateOn();
 
     // Noise envelope
     v.noiseDecaySamples = msToSamples(noiseDecMs, sampleRate_);
@@ -248,9 +193,6 @@ namespace lockstep
     // Handled per-type below.
 
     v.phase = 0.0;
-
-    v.currentType = static_cast<DrumType>(
-        std::clamp(static_cast<int>(std::lround(paramAt(params, kSlotType))), 0, 7));
 
     switch (v.currentType)
     {
@@ -368,14 +310,11 @@ namespace lockstep
   void DrumSynthMachine::noteOff()
   {
     voice_.gateOpen = false;
-    // Hat: close the gate → very fast decay (1 ms)
+    // Hat: note-off triggers the 1 ms Release set in setADSR at noteOn.
     if (voice_.currentType == DrumType::Hat && voice_.active
-        && voice_.ampPhase != AmpPhase::Idle)
+        && voice_.ampEnv.isActive())
     {
-      static constexpr float kHatCloseMs = 1.f;
-      voice_.ampDecaySamples = std::max(1.f, msToSamples(kHatCloseMs, sampleRate_));
-      voice_.ampDecayCoef    = std::exp(-6.907755f / voice_.ampDecaySamples);
-      voice_.ampPhase        = AmpPhase::Decay;
+      voice_.ampEnv.gateOff();
     }
   }
 
@@ -471,7 +410,8 @@ namespace lockstep
                                : (paramAt(params, kSlotTone) * 0.25f);
           const float shaped = std::tanh(osc * (1.f + drive * 8.f));
           const float click  = xorNoise(v.noiseSeed) * advanceClick(v);
-          const float amp    = advanceAmp(v);
+          const float amp    = v.ampEnv.tick();
+          if (!v.ampEnv.isActive()) v.active = false;
           out = (shaped + click) * amp * velGain * level;
           break;
         }
@@ -490,7 +430,8 @@ namespace lockstep
           // Snap transient
           const float snapSig = xorNoise(v.noiseSeed) * advanceClick(v);
 
-          const float amp = advanceAmp(v);
+          const float amp = v.ampEnv.tick();
+          if (!v.ampEnv.isActive()) v.active = false;
           out = (bodyOsc * body + noise * (1.f - body) + snapSig)
                 * amp * velGain * level;
           break;
@@ -500,7 +441,8 @@ namespace lockstep
         case DrumType::Hat:
         {
           const float filtered = svfHigh(v, xorNoise(v.noiseSeed));
-          const float amp      = advanceAmp(v);
+          const float amp      = v.ampEnv.tick();
+          if (!v.ampEnv.isActive()) v.active = false;
           out = filtered * amp * velGain * level;
           break;
         }
@@ -516,7 +458,8 @@ namespace lockstep
           const float sq2   = (v.sqPhases[1] < 0.5) ? 1.0f : -1.0f;
           const float ring  = svfBand(v, (sq1 + sq2) * 0.5f);
           const float click = xorNoise(v.noiseSeed) * advanceClick(v);
-          const float amp   = advanceAmp(v);
+          const float amp   = v.ampEnv.tick();
+          if (!v.ampEnv.isActive()) v.active = false;
           out = (ring + click) * amp * velGain * level;
           break;
         }
@@ -532,7 +475,8 @@ namespace lockstep
           // Bandpassed noise crack
           const float crack = svfBand(v, xorNoise(v.noiseSeed));
           const float click = xorNoise(v.noiseSeed) * advanceClick(v);
-          const float amp   = advanceAmp(v);
+          const float amp   = v.ampEnv.tick();
+          if (!v.ampEnv.isActive()) v.active = false;
           out = (tok * (1.f - bodyBlend) + crack * bodyBlend + click)
                 * amp * velGain * level;
           break;
@@ -557,7 +501,8 @@ namespace lockstep
           const float metal    = sum * (1.f / 6.f);
           const float sizzle   = xorNoise(v.noiseSeed) * advanceNoise(v) * snap;
           const float filtered = svfHigh(v, metal + sizzle);
-          const float amp      = advanceAmp(v);
+          const float amp      = v.ampEnv.tick();
+          if (!v.ampEnv.isActive()) v.active = false;
           out = filtered * amp * velGain * level;
           break;
         }
@@ -587,13 +532,15 @@ namespace lockstep
           noiseIn += xorNoise(v.noiseSeed) * advanceNoise(v) * snap;
           ++v.voiceSampleCount;
           const float filtered = svfBand(v, noiseIn);
-          const float amp      = advanceAmp(v);
+          const float amp      = v.ampEnv.tick();
+          if (!v.ampEnv.isActive()) v.active = false;
           out = filtered * amp * velGain * level;
           break;
         }
 
         default:
-          advanceAmp(v);
+          (void)v.ampEnv.tick();
+          if (!v.ampEnv.isActive()) v.active = false;
           break;
       }
 

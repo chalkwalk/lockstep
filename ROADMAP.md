@@ -1335,6 +1335,16 @@ setMasterInsert, setTrackMachine, copyKit, state-load) now use
       circular dep (KeyboardArea.h → SurfaceModel.h) prevents direct
       sharing; both remain as 4-line identical functions.
 
+- [x] **8.20** Envelope unification — DrumSynth amp AHD → `dsp::Envelope`:
+      Removed `AmpPhase` enum + 7 manual `DrumVoice` fields + `advanceAmp()`;
+      replaced with `dsp::Envelope ampEnv` using `setADSR(attackMs, decayMs,
+      0.f, releaseMs, holdMs, forceZeroSustain=true)`. Hat uses 1 ms Release
+      so note-off triggers `gateOff()` for the open-hat choke; other types
+      use 0 ms Release (instantly idle after AHD). Behavior change: 0-attack
+      drums get a 1-sample ramp instead of an immediate jump (≤0.02 ms,
+      inaudible). FM per-operator envelopes deferred (linear ramps; would
+      require extending Envelope.h).
+
 ---
 
 ## Appendix — Legacy code → new id

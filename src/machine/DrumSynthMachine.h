@@ -1,6 +1,7 @@
 #pragma once
 
 #include "IMachine.h"
+#include "../dsp/Envelope.h"
 #include <cmath>
 #include <cstdint>
 
@@ -43,7 +44,6 @@ namespace lockstep
 
     enum class DrumType : int { Kick = 0, Snare = 1, Hat = 2, Tom = 3,
                                 Clap = 4, Cowbell = 5, Cymbal = 6, Rimshot = 7 };
-    enum class AmpPhase  { Idle, Attack, Hold, Decay };
     enum class NoisePhase { Idle, Decay };
 
     struct DrumVoice
@@ -55,14 +55,8 @@ namespace lockstep
       float  sweepTimer   { 0.f };
       float  sweepSamples { 1.f };
 
-      // Amp envelope (AHD — drums don't sustain)
-      AmpPhase ampPhase        { AmpPhase::Idle };
-      float    ampLevel        { 0.f };
-      float    ampTimer        { 0.f };
-      float    ampAttackSamples  { 0.f };
-      float    ampHoldSamples    { 0.f };
-      float    ampDecaySamples   { 1.f };
-      float    ampDecayCoef      { 0.f };  // per-sample multiply for exponential decay
+      // Amp envelope (AHD — drums don't sustain; Hat uses 1 ms Release on note-off)
+      dsp::Envelope ampEnv;
 
       // Noise envelope (snare: independent from amp envelope)
       NoisePhase noisePhase        { NoisePhase::Idle };
