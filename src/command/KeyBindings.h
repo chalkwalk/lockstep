@@ -80,6 +80,11 @@ namespace lockstep
         VerbCopy,            // VerbRecord while any section-suite scope held (not Morph)
         VerbPaste,           // VerbPlay while any section-suite scope held (not Morph)
         VerbScopedClear,     // VerbClear while any section-suite scope held (incl. Morph)
+        // Mute/solo cluster (index = track)
+        GlobalMuteToggle,    // Mute+step: immediate global mute
+        SoloToggle,          // Func+Mute+step: solo
+        SceneMuteToggle,     // Scene+Mute+step: toggle per-scene active-mask
+        FluidMuteToggle,     // Morph+Mute+step: toggle fluid-mute morph
         // Misc
         QuantizeHeld,
     };

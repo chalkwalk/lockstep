@@ -1219,6 +1219,13 @@ per-renderer label logic and per-key modifier checks. See DESIGN §37.6.
         latchable scopes + unlatchable `CueScope`; `dispatchUp` cases simplified
         to physical-hold clear + per-scope unique effects only; latch sentinel
         pattern replaces per-scope `!latch.xxx` guards; `GestureTest` coverage.
+  - [x] **A4.3** Step-grid overlay layers routed via `resolveActiveLayer()`:
+        `RetrigPicker`, `SoundPool`, `MasterFxPicker`, `TrackFxPicker`,
+        `MachinePicker` branches now dispatched from a single layer-resolved
+        block at the top of the step handler, removing the scattered
+        `if (uiState_.xxx)` precondition checks; behavior fix: `MachinePicker`
+        (Func+Track) now takes correct priority over `ChromaticInput` /
+        `LevelsInput` per the `resolveActiveLayer()` ordering.
 - [ ] **Task B** Confirm-prompt + master-FX-picker overlay wiring through
       `SurfaceLayer` (`PendingConfirm` / `MasterFxPicker` layers).
 

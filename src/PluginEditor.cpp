@@ -1607,161 +1607,184 @@ namespace lockstep
                     1.0 / 12.0,   // /32T
                 }};
 
-                if (uiState_.trigGridMode == TrigGridMode::Retrig)
+                // 8.11 A4.3: route overlay step-grid layers through resolveActiveLayer().
+                // Behavior fix: MachinePicker (funcTrackHeld) now has correct priority
+                // over ChromaticInput/LevelsInput — previously checked after them.
                 {
-                    if (ev.index < 0 || ev.index >= 16) return true;
-                    const int at = keyboardArea_.getActiveTrack();
-                    if (at < 0 || at >= static_cast<int>(kNumTracks)) return true;
+                    const int layerAt = keyboardArea_.getActiveTrack();
+                    const auto layerMode = (layerAt >= 0)
+                        ? uiState_.trackInputMode[static_cast<std::size_t>(layerAt)]
+                        : TrackInputMode::Play;
+                    const LayerFacts stepFacts { layerMode, layerAt };
+                    const SurfaceLayer layer = resolveActiveLayer(
+                        uiState_, processor_.editContext(), stepFacts);
 
-                    // Slice sub-mode: if the machine is ISliceable, cells address slices.
-                    const auto* machine = processor_.machineForTrack(at);
-                    const auto* sliceable = machine ? dynamic_cast<const ISliceable*>(machine) : nullptr;
-                    if (sliceable && sliceable->hasSlices())
+                    // --------------------------------------------------------
+                    // 5.7: Retrig overlay (Fill+TRIG held)
+                    // --------------------------------------------------------
+                    if (layer == SurfaceLayer::RetrigPicker)
                     {
-                        // Cell → slice index. Write to held steps; outside range = no-op.
-                        const int sliceIdx = ev.index;
-                        if (sliceIdx >= sliceable->numSlices()) return true;
-                        auto& ctx = processor_.editContext();
-                        if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == at)
+                        if (ev.index < 0 || ev.index >= 16) return true;
+                        const int at = keyboardArea_.getActiveTrack();
+                        if (at < 0 || at >= static_cast<int>(kNumTracks)) return true;
+
+                        const auto* machine = processor_.machineForTrack(at);
+                        const auto* sliceable = machine ? dynamic_cast<const ISliceable*>(machine) : nullptr;
+                        if (sliceable && sliceable->hasSlices())
                         {
-                            auto& trk = processor_.sequence()
-                                            .tracks[static_cast<std::size_t>(at)];
-                            for (int heldIdx : ctx.heldSteps())
+                            const int sliceIdx = ev.index;
+                            if (sliceIdx >= sliceable->numSlices()) return true;
+                            auto& ctx = processor_.editContext();
+                            if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == at)
                             {
-                                if (heldIdx < 0 || heldIdx >= kMaxStepsPerTrack) continue;
-                                auto& s = trk.steps[static_cast<std::size_t>(heldIdx)];
-                                if (s.trigOverride.noteCount == 0)
-                                    s.trigOverride.noteCount = 1;
-                                s.trigOverride.notes[0] = sliceIdx;
-                                s.trig = true;
+                                auto& trk = processor_.sequence()
+                                                .tracks[static_cast<std::size_t>(at)];
+                                for (int heldIdx : ctx.heldSteps())
+                                {
+                                    if (heldIdx < 0 || heldIdx >= kMaxStepsPerTrack) continue;
+                                    auto& s = trk.steps[static_cast<std::size_t>(heldIdx)];
+                                    if (s.trigOverride.noteCount == 0)
+                                        s.trigOverride.noteCount = 1;
+                                    s.trigOverride.notes[0] = sliceIdx;
+                                    s.trig = true;
+                                }
+                                ctx.markParamWritten();
                             }
-                            ctx.markParamWritten();
+                            processor_.setRetrigActive(at, true, kRetrigRates[4],
+                                                       juce::jlimit(0, 127, sliceIdx));
+                            return true;
                         }
-                        // Live audition: play the slice.
-                        processor_.setRetrigActive(at, true, kRetrigRates[4],
-                                                   juce::jlimit(0, 127, sliceIdx));
+
+                        if (ev.index >= static_cast<int>(kRetrigRates.size())) return true;
+                        const double rate = kRetrigRates[static_cast<std::size_t>(ev.index)];
+
+                        int retrigNote = uiState_.lastPlayedNote[static_cast<std::size_t>(at)];
+                        if (retrigNote <= 0)
+                        {
+                            const auto& trk = processor_.sequence()
+                                                  .tracks[static_cast<std::size_t>(at)];
+                            const auto& ctx = processor_.editContext();
+                            if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == at
+                                && !ctx.heldSteps().empty())
+                            {
+                                const int si = ctx.heldSteps().front();
+                                if (si >= 0 && si < kMaxStepsPerTrack)
+                                {
+                                    const auto& ov = trk.steps[static_cast<std::size_t>(si)]
+                                                         .trigOverride;
+                                    retrigNote = (ov.noteCount > 0) ? ov.notes[0] : 60;
+                                }
+                            }
+                            if (retrigNote <= 0) retrigNote = 60;
+                        }
+                        processor_.setRetrigActive(at, true, rate, retrigNote);
+                        {
+                            auto& ctx = processor_.editContext();
+                            if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == at)
+                            {
+                                auto& trk = processor_.sequence()
+                                                .tracks[static_cast<std::size_t>(at)];
+                                for (int heldIdx : ctx.heldSteps())
+                                {
+                                    if (heldIdx < 0 || heldIdx >= kMaxStepsPerTrack) continue;
+                                    auto& s = trk.steps[static_cast<std::size_t>(heldIdx)];
+                                    s.trigOverride.hasRetrig  = true;
+                                    s.trigOverride.retrigRate = rate;
+                                }
+                                ctx.markParamWritten();
+                            }
+                        }
                         return true;
                     }
 
-                    // Rate sub-mode: cells 0-7 select retrig rates; 8-15 ignored.
-                    if (ev.index >= static_cast<int>(kRetrigRates.size())) return true;
-                    const double rate = kRetrigRates[static_cast<std::size_t>(ev.index)];
-
-                    // Resolve the track's primary note for the stutter.
-                    int retrigNote = uiState_.lastPlayedNote[static_cast<std::size_t>(at)];
-                    if (retrigNote <= 0)
+                    // --------------------------------------------------------
+                    // 5.7: SoundPool overlay (Fill+SRC held)
+                    // --------------------------------------------------------
+                    if (layer == SurfaceLayer::SoundPool)
                     {
-                        // Fall back to the active step's note.
-                        const auto& trk = processor_.sequence()
-                                              .tracks[static_cast<std::size_t>(at)];
-                        const auto& ctx = processor_.editContext();
-                        if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == at
-                            && !ctx.heldSteps().empty())
+                        if (ev.index < 0 || ev.index >= 16) return true;
+                        const int at = keyboardArea_.getActiveTrack();
+                        if (at < 0 || at >= static_cast<int>(kNumTracks)) return true;
+                        const int poolSize = processor_.soundPoolSize();
+                        if (ev.index >= poolSize) return true;
+                        processor_.liveSwapTrackSound(at, ev.index);
                         {
-                            const int si = ctx.heldSteps().front();
-                            if (si >= 0 && si < kMaxStepsPerTrack)
+                            auto& ctx = processor_.editContext();
+                            if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == at)
                             {
-                                const auto& ov = trk.steps[static_cast<std::size_t>(si)]
-                                                     .trigOverride;
-                                retrigNote = (ov.noteCount > 0) ? ov.notes[0] : 60;
+                                auto& trk = processor_.sequence()
+                                                .tracks[static_cast<std::size_t>(at)];
+                                for (int heldIdx : ctx.heldSteps())
+                                {
+                                    if (heldIdx < 0 || heldIdx >= kMaxStepsPerTrack) continue;
+                                    auto& s = trk.steps[static_cast<std::size_t>(heldIdx)];
+                                    s.trigOverride.hasSoundId = true;
+                                    s.trigOverride.soundId    = ev.index;
+                                }
+                                ctx.markParamWritten();
                             }
                         }
-                        if (retrigNote <= 0) retrigNote = 60;
+                        return true;
                     }
 
-                    // Live stutter.
-                    processor_.setRetrigActive(at, true, rate, retrigNote);
-
-                    // If a step is held, bake the rate as a per-step P-Lock.
-                    auto& ctx = processor_.editContext();
-                    if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == at)
+                    // --------------------------------------------------------
+                    // 6.5: Master FX picker (Func+Song+FX held)
+                    // --------------------------------------------------------
+                    if (layer == SurfaceLayer::MasterFxPicker)
                     {
-                        auto& trk = processor_.sequence()
-                                        .tracks[static_cast<std::size_t>(at)];
-                        for (int heldIdx : ctx.heldSteps())
+                        if (ev.index < 0 || ev.index >= 16) return true;
+                        if (ev.index >= processor_.numAvailableEffects()) return true;
+                        const auto info = processor_.availableEffectInfo(ev.index);
+                        processor_.setMasterInsert(uiState_.masterFxInsertSlot, info.id);
+                        uiState_.masterFxPickerOpen = false;
+                        refreshMetaBand();
+                        repaint();
+                        return true;
+                    }
+
+                    // --------------------------------------------------------
+                    // 6.5: FX insert picker (Func+FX held)
+                    // --------------------------------------------------------
+                    if (layer == SurfaceLayer::TrackFxPicker)
+                    {
+                        if (ev.index < 0 || ev.index >= 16) return true;
+                        const int at = keyboardArea_.getActiveTrack();
+                        if (at < 0 || at >= static_cast<int>(kNumTracks)) return true;
+                        if (ev.index >= processor_.numAvailableEffects()) return true;
+                        const auto info = processor_.availableEffectInfo(ev.index);
+                        const std::string curId = processor_.trackInsertId(at, uiState_.funcFxInsertSlot);
+                        if (info.id == curId)
                         {
-                            if (heldIdx < 0 || heldIdx >= kMaxStepsPerTrack) continue;
-                            auto& s = trk.steps[static_cast<std::size_t>(heldIdx)];
-                            s.trigOverride.hasRetrig  = true;
-                            s.trigOverride.retrigRate = rate;
+                            const bool byp = processor_.trackInsertBypass(at, uiState_.funcFxInsertSlot);
+                            processor_.setTrackInsertBypass(at, uiState_.funcFxInsertSlot, !byp);
                         }
-                        ctx.markParamWritten();
-                    }
-                    return true;
-                }
-
-                // ----------------------------------------------------------------
-                // 5.7: SoundPool overlay (Fill+SRC held)
-                // ----------------------------------------------------------------
-                if (uiState_.trigGridMode == TrigGridMode::SoundPool)
-                {
-                    if (ev.index < 0 || ev.index >= 16) return true;
-                    const int at = keyboardArea_.getActiveTrack();
-                    if (at < 0 || at >= static_cast<int>(kNumTracks)) return true;
-                    const int poolSize = processor_.soundPoolSize();
-                    if (ev.index >= poolSize) return true;
-
-                    // Live audition.
-                    processor_.liveSwapTrackSound(at, ev.index);
-
-                    // If record-armed and a step is held, bake as a sound_id P-Lock.
-                    auto& ctx = processor_.editContext();
-                    if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == at)
-                    {
-                        auto& trk = processor_.sequence()
-                                        .tracks[static_cast<std::size_t>(at)];
-                        for (int heldIdx : ctx.heldSteps())
+                        else
                         {
-                            if (heldIdx < 0 || heldIdx >= kMaxStepsPerTrack) continue;
-                            auto& s = trk.steps[static_cast<std::size_t>(heldIdx)];
-                            s.trigOverride.hasSoundId = true;
-                            s.trigOverride.soundId    = ev.index;
+                            processor_.setTrackInsert(at, uiState_.funcFxInsertSlot, info.id);
+                            processor_.setTrackInsertBypass(at, uiState_.funcFxInsertSlot, false);
                         }
-                        ctx.markParamWritten();
+                        uiState_.funcFxHeld = false;
+                        repaint();
+                        return true;
                     }
-                    return true;
-                }
 
-                // ----------------------------------------------------------------
-                // 6.5: Master FX picker (Func+Song+FX held, picker overlay open)
-                // ----------------------------------------------------------------
-                if (uiState_.masterFxPickerOpen)
-                {
-                    if (ev.index < 0 || ev.index >= 16) return true;
-                    if (ev.index >= processor_.numAvailableEffects()) return true;
-                    const auto info = processor_.availableEffectInfo(ev.index);
-                    processor_.setMasterInsert(uiState_.masterFxInsertSlot, info.id);
-                    uiState_.masterFxPickerOpen = false;  // close picker; masterFxHeld stays
-                    refreshMetaBand();
-                    repaint();
-                    return true;
-                }
-
-                // ----------------------------------------------------------------
-                // 6.5: FX insert picker (Func+FX held)
-                // ----------------------------------------------------------------
-                if (uiState_.funcFxHeld)
-                {
-                    if (ev.index < 0 || ev.index >= 16) return true;
-                    const int at = keyboardArea_.getActiveTrack();
-                    if (at < 0 || at >= static_cast<int>(kNumTracks)) return true;
-                    if (ev.index >= processor_.numAvailableEffects()) return true;
-                    const auto info = processor_.availableEffectInfo(ev.index);
-                    const std::string curId = processor_.trackInsertId(at, uiState_.funcFxInsertSlot);
-                    if (info.id == curId)
+                    // --------------------------------------------------------
+                    // Machine picker (Func+Track held; §4.7.2)
+                    // --------------------------------------------------------
+                    if (layer == SurfaceLayer::MachinePicker)
                     {
-                        // Re-pressing the loaded effect toggles bypass.
-                        const bool byp = processor_.trackInsertBypass(at, uiState_.funcFxInsertSlot);
-                        processor_.setTrackInsertBypass(at, uiState_.funcFxInsertSlot, !byp);
+                        const int numMachines = processor_.numAvailableMachines();
+                        if (ev.index >= 0 && ev.index < numMachines)
+                        {
+                            const std::string machineId {
+                                processor_.availableMachineInfo(ev.index).id };
+                            processor_.setTrackMachine(keyboardArea_.getActiveTrack(), machineId);
+                            keyboardArea_.syncToActiveTrack();
+                            releaseTransientLatch(CB::TrackScope);
+                        }
+                        keyboardArea_.repaint();
+                        return true;
                     }
-                    else
-                    {
-                        processor_.setTrackInsert(at, uiState_.funcFxInsertSlot, info.id);
-                        processor_.setTrackInsertBypass(at, uiState_.funcFxInsertSlot, false);
-                    }
-                    uiState_.funcFxHeld = false;
-                    repaint();
-                    return true;
                 }
 
                 // ----------------------------------------------------------------
@@ -2029,22 +2052,6 @@ namespace lockstep
                         }
                     }
                     repaint();
-                    keyboardArea_.repaint();
-                    return true;
-                }
-
-                // Func+Track (machine/Kit picker) + step: assign machine by index (§4.7.2).
-                if (uiState_.funcTrackHeld)
-                {
-                    const int numMachines = processor_.numAvailableMachines();
-                    if (ev.index >= 0 && ev.index < numMachines)
-                    {
-                        const std::string machineId {
-                            processor_.availableMachineInfo(ev.index).id };
-                        processor_.setTrackMachine(keyboardArea_.getActiveTrack(), machineId);
-                        keyboardArea_.syncToActiveTrack();
-                        releaseTransientLatch(CB::TrackScope);
-                    }
                     keyboardArea_.repaint();
                     return true;
                 }
