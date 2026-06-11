@@ -1,5 +1,6 @@
 #include "PluginEditor.h"
 #include "ParameterIDs.h"
+#include "command/ScopePriority.h"
 #include "command/StatusText.h"
 #include "core/Euclidean.h"
 #include "core/TrackInputMode.h"
@@ -1473,13 +1474,9 @@ namespace lockstep
             case ControllerButton::Section:
             {
                 // Determine whether a section-suite scope modifier is held.
+                // Use the canonical kScopePriority ordering (ScopePriority.h SSOT).
                 using PS = EditMode::PrimaryScope;
-                PS sectionScope = PS::None;
-                if      (uiState_.trackHeld)        sectionScope = PS::Track;
-                else if (uiState_.phraseScopeHeld) sectionScope = PS::Phrase;
-                else if (uiState_.sceneHeld)         sectionScope = PS::Scene;
-                else if (uiState_.morphHeld)        sectionScope = PS::Morph;
-                else if (uiState_.songHeld)       sectionScope = PS::Song;
+                const PS sectionScope = firstHeldSectionSuiteScope(uiState_);
 
                 // 5.7: Fill+TRIG → Retrig overlay; Fill+SRC → SoundPool overlay.
                 // These are momentary: the overlay clears when Fill releases.
