@@ -1246,6 +1246,18 @@ IEffect catalogue smoke. Envelope goldens for VA and FM with explicit ADSR value
 - [x] **8.13** `MachineDspTest.cpp`: smoke + envelope goldens for VA/FM/DrumSynth/
       Sampler/Slicer + 4 IEffects; ASan/UBSan clean.
 
+### 8.14 — Engine testability: headless processBlock harness
+`lockstep_engine` static lib; `EngineHarness.h` + `EngineTest.cpp` drive
+`processBlock` without a plugin host. Also fixed latent `preparedSampleRate_`
+bug: `getSampleRate()` returns 0 until a host calls `setRateAndBufferSizeDetails`;
+all install/swap helpers (reinstallMachinesFromActiveKit, setTrackInsert,
+setMasterInsert, setTrackMachine, copyKit, state-load) now use
+`preparedSampleRate_`/`preparedBlockSize_` (set in `prepareToPlay`) instead.
+- [x] **8.14** C1/C2: `lockstep_engine` lib; `TestEditorStub.cpp` stub createEditor.
+- [x] **8.14** C3: `EngineHarness` + `EngineTest`: NaN-free default, clock advance,
+      state round-trip, trig emission, mute suppress, block-size invariance.
+      Fixed `preparedSampleRate_` bug (was: machines prepared at sampleRate=0).
+
 ---
 
 ## Appendix — Legacy code → new id
