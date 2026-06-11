@@ -285,10 +285,6 @@ namespace lockstep
 
         void updateTransportGhosting();
 
-        // Verb dispatch: called from the EditMode onVerbDispatched callback with the
-        // resolved primary scope and the pressed verb key.
-        void dispatchVerb(EditMode::PrimaryScope scope, ControllerButton verb);
-
         // MHZ.9.4: release all modifier latches and latched steps in one gesture.
         // Only called when latch.any() || ctx.hasAnyLatchedStep().
         void escapeAllLatches();

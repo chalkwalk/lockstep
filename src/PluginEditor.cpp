@@ -417,13 +417,6 @@ namespace lockstep
             poolOverlay_.toFront(false);
         };
 
-        // Wire verb dispatch to this editor's handler.
-        editMode_.onVerbDispatched = [this](EditMode::PrimaryScope scope,
-                                             ControllerButton verb)
-        {
-            dispatchVerb(scope, verb);
-        };
-
         // Wire mouse button events from KeyboardArea through the unified dispatch.
         keyboardArea_.onButtonDown = [this](ControllerEvent ev)
         {
@@ -2475,7 +2468,9 @@ namespace lockstep
                 if (editMode_.primaryScope() != PS::None
                     && editMode_.primaryScope() != PS::Func)
                 {
-                    editMode_.onVerb(ev.button);
+                    auto ctx = commandContext();
+                    (void)commandCore_.handleVerb(editMode_.primaryScope(), ev.button, ctx, *editorEffects_);
+                    repaint();
                     return true;
                 }
                 // Func+I (no non-trivial scope) = unqualified paste.
@@ -2506,7 +2501,11 @@ namespace lockstep
                             case CT::All:     break;  // handled above
                         }
                         if (synScope != PS::None)
-                            dispatchVerb(synScope, ev.button);
+                        {
+                            auto ctx = commandContext();
+                            (void)commandCore_.handleVerb(synScope, ev.button, ctx, *editorEffects_);
+                            repaint();
+                        }
                     }
                     return true;
                 }
@@ -2554,7 +2553,9 @@ namespace lockstep
                 if (editMode_.primaryScope() != PS::None
                     && editMode_.primaryScope() != PS::Func)
                 {
-                    editMode_.onVerb(ev.button);
+                    auto ctx = commandContext();
+                    (void)commandCore_.handleVerb(editMode_.primaryScope(), ev.button, ctx, *editorEffects_);
+                    repaint();
                     return true;
                 }
                 // No scope: clear the active P-Lock slot if one is active.
@@ -2605,7 +2606,7 @@ namespace lockstep
                 using PS = EditMode::PrimaryScope;
                 // Scene + Record: bake live deviations into home-row phrase content.
                 // Destructive — requires Yes/No confirmation.
-                // Func+Scene+Record is "copy scene" — falls through to dispatchVerb.
+                // Func+Scene+Record is "copy scene" — falls through to handleVerb.
                 if (uiState_.sceneHeld && !editMode_.scopeState().func)
                 {
                     const int nd = processor_.countDeviatedTracks();
@@ -2627,7 +2628,9 @@ namespace lockstep
                 if (editMode_.primaryScope() != PS::None
                     && editMode_.primaryScope() != PS::Func)
                 {
-                    editMode_.onVerb(ev.button);
+                    auto ctx = commandContext();
+                    (void)commandCore_.handleVerb(editMode_.primaryScope(), ev.button, ctx, *editorEffects_);
+                    repaint();
                     return true;
                 }
                 // Func+U with no non-trivial scope = omni copy (capture all layers).
@@ -2676,11 +2679,13 @@ namespace lockstep
                     keyboardArea_.repaint();
                     return true;
                 }
-                // Non-trivial scope → scope-specific snapshot via dispatchVerb.
+                // Non-trivial scope → scope-specific snapshot.
                 if (editMode_.primaryScope() != PS::None
                     && editMode_.primaryScope() != PS::Func)
                 {
-                    editMode_.onVerb(ev.button);
+                    auto ctx = commandContext();
+                    (void)commandCore_.handleVerb(editMode_.primaryScope(), ev.button, ctx, *editorEffects_);
+                    repaint();
                     return true;
                 }
                 // No scope → Song-scope snapshot.
@@ -2879,7 +2884,11 @@ namespace lockstep
 
                     // Bare No (no scope held): snapshot/confirm verb.
                     keyboardArea_.repaint();
-                    editMode_.onVerb(ev.button);
+                    {
+                        auto ctx = commandContext();
+                        (void)commandCore_.handleVerb(editMode_.primaryScope(), ev.button, ctx, *editorEffects_);
+                    }
+                    repaint();
                     return true;
                 }
 
@@ -2891,7 +2900,10 @@ namespace lockstep
                     restoreKeyDownMs_ = juce::Time::getMillisecondCounterHiRes();
                     return true;
                 }
-                editMode_.onVerb(ev.button);
+                {
+                    auto ctx = commandContext();
+                    (void)commandCore_.handleVerb(editMode_.primaryScope(), ev.button, ctx, *editorEffects_);
+                }
                 return true;
             }
 
@@ -3648,41 +3660,6 @@ namespace lockstep
         g.drawText(statusMessage_, area.reduced(4, 0), juce::Justification::centredLeft, true);
     }
 
-    // -------------------------------------------------------------------------
-    // Verb dispatch (MB.3)
-
-    void LockstepEditor::dispatchVerb(EditMode::PrimaryScope scope, ControllerButton verb)
-    {
-        using PS = EditMode::PrimaryScope;
-        using CB = ControllerButton;
-
-        // Phase 8.4 command core: try migrated verb handlers first.
-        {
-            auto ctx = commandContext();
-            if (commandCore_.handleVerb(scope, verb, ctx, *editorEffects_))
-                return;
-        }
-
-        switch (scope)
-        {
-            // -----------------------------------------------------------------------
-            // MD.2  Step copy / paste / clear
-            // PS::Trig — migrated to CommandCore / VerbCommands.cpp (8.4b)
-
-            // PS::Section — migrated to CommandCore / VerbCommands.cpp (8.4h)
-
-            // PS::Track, PS::Phrase — migrated to CommandCore / VerbCommands.cpp (8.4c)
-
-            // PS::Scene, PS::Song, PS::None, PS::Morph, PS::Func/Mute/Fill/Cue —
-            // migrated to CommandCore / VerbCommands.cpp (8.4d–e)
-
-            default:
-                break;
-        }
-
-        // Chrome must repaint after any verb that may change clipboard or checkpoint state.
-        repaint();
-    }
 
     // -------------------------------------------------------------------------
     // Checkpoint scope helper

@@ -1226,6 +1226,12 @@ per-renderer label logic and per-key modifier checks. See DESIGN §37.6.
         `if (uiState_.xxx)` precondition checks; behavior fix: `MachinePicker`
         (Func+Track) now takes correct priority over `ChromaticInput` /
         `LevelsInput` per the `resolveActiveLayer()` ordering.
+  - [x] **A4.4** Verb-row dispatch dedup: `editMode_.onVerb` →
+        `onVerbDispatched` → `dispatchVerb` → `handleVerb` callback chain
+        replaced with direct `commandCore_.handleVerb(primaryScope, verb,
+        ctx, *editorEffects_)` calls at each verb case; `dispatchVerb`
+        function and `onVerbDispatched` callback removed; all verb scopes
+        already in `VerbCommands` — no fallback switch needed.
 - [ ] **Task B** Confirm-prompt + master-FX-picker overlay wiring through
       `SurfaceLayer` (`PendingConfirm` / `MasterFxPicker` layers).
 
