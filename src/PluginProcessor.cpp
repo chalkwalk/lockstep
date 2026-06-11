@@ -2434,6 +2434,31 @@ namespace lockstep
         }
     }
 
+    void LockstepProcessor::deletePhraseSlot(int track, int phraseIdx)
+    {
+        if (track     < 0 || track     >= static_cast<int>(kNumTracks))    return;
+        if (phraseIdx < 0 || phraseIdx >= static_cast<int>(kPhrasesPerTrack)) return;
+        withQuiescedEngine([&]
+        {
+            song().tracks[static_cast<std::size_t>(track)]
+                  .phrases[static_cast<std::size_t>(phraseIdx)] = Phrase{};
+            refreshWorkingFromModel();
+        });
+    }
+
+    void LockstepProcessor::deleteSceneSlot(int sceneIdx)
+    {
+        if (sceneIdx < 0 || sceneIdx >= static_cast<int>(kScenesPerSong)) return;
+        withQuiescedEngine([&]
+        {
+            const int active = activeSectionIdx();
+            song().scenes[static_cast<std::size_t>(sceneIdx)] = Scene{};
+            // If the deleted scene was active, fall back to scene 0.
+            if (sceneIdx == active)
+                setActiveScene(0);
+        });
+    }
+
     bool LockstepProcessor::getPatternMute(int track) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;

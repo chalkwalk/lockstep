@@ -109,6 +109,12 @@ namespace lockstep::status
         return "Delete " + entity + " " + juce::String(oneBasedIdx) + "?  P=Yes  Func+P=No";
     }
 
+    // Delete picker entry prompt: "Delete which PHRASE?"
+    inline juce::String deleteWhich(const juce::String& entity)
+    {
+        return "Delete which " + entity + "?";
+    }
+
     inline juce::String confirmBake(int numTracks, int rowIdx)
     {
         return "Bake " + juce::String(numTracks) + " track(s) onto row "

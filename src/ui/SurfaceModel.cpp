@@ -658,6 +658,16 @@ namespace lockstep
                     c.scopeTint = scopeColour(sectionScope).getARGB();
             }
 
+            // DeletePicker / PendingConfirm: dim all function-row keys except Func.
+            // (Steps stay live for DeletePicker; PendingConfirm dims them separately.)
+            if (activeLayer == SurfaceLayer::DeletePicker
+                && def.button != ControllerButton::Func)
+            {
+                c.disabled  = true;
+                c.base      = CellState::Disabled;
+                c.scopeTint = 0;
+            }
+
             // PendingConfirm: P shows live YES/NO depending on whether Func is held;
             // every other key dims. Func itself is exempt (user needs it to reach NO).
             if (activeLayer == SurfaceLayer::PendingConfirm)
@@ -715,6 +725,78 @@ namespace lockstep
                     s.keyHint     = kStepKeyHints[static_cast<std::size_t>(i)];
                     s.base        = CellState::Disabled;
                     s.disabled    = true;
+                }
+            }
+            else if (activeLayer == SurfaceLayer::DeletePicker)
+            {
+                // Delete-picker selector: show slots for the picker scope; tap selects target.
+                const DeleteScope dpScope = ui.deletePicker.scope;
+                int maxAvail  = 0;
+                int activeIdx = 0;
+                if (dpScope == DeleteScope::Track)
+                {
+                    maxAvail  = static_cast<int>(kNumTracks);
+                    activeIdx = activeTrack;
+                }
+                else if (dpScope == DeleteScope::Phrase)
+                {
+                    maxAvail  = kPhrasesPerTrack;
+                    const int at = activeTrack >= 0 ? activeTrack : 0;
+                    activeIdx = proc.activeSectionIdx();
+                    (void)at;
+                }
+                else // Scene
+                {
+                    maxAvail  = kScenesPerSong;
+                    activeIdx = proc.activeSectionIdx();
+                }
+
+                const juce::Colour scopeTint { 0xFFC03030u };  // red danger tint for delete
+                for (int i = 0; i < 16; ++i)
+                {
+                    SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                    c.button  = (dpScope == DeleteScope::Track)
+                                ? ControllerButton::SelectTrack : ControllerButton::Step;
+                    c.index   = i;
+                    c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                    c.pressed = physPressed(kStepKeyCodes[i],
+                                           c.button == ControllerButton::Step
+                                               ? ControllerButton::Step
+                                               : ControllerButton::SelectTrack,
+                                           i);
+
+                    const bool avail   = i < maxAvail;
+                    const bool isCurrent = avail && (i == activeIdx);
+
+                    bool isEmpty = false;
+                    if (avail)
+                    {
+                        if (dpScope == DeleteScope::Track)
+                            isEmpty = proc.isTrackEmpty(i);
+                        else if (dpScope == DeleteScope::Scene)
+                            isEmpty = (i != activeIdx) && !proc.sceneSlotOccupied(i);
+                    }
+
+                    if (!avail)
+                    {
+                        c.base       = CellState::SelectorOutRange;
+                        c.baseColour = scopeTint.withAlpha(0.04f).getARGB();
+                    }
+                    else if (isEmpty)
+                    {
+                        c.base       = CellState::SelectorEmpty;
+                        c.baseColour = scopeTint.withAlpha(0.09f).getARGB();
+                    }
+                    else if (isCurrent)
+                    {
+                        c.base       = CellState::SelectorCurrent;
+                        c.baseColour = juce::Colours::white.interpolatedWith(scopeTint, 0.30f).getARGB();
+                    }
+                    else
+                    {
+                        c.base       = CellState::SelectorOccupied;
+                        c.baseColour = scopeTint.withAlpha(0.18f).getARGB();
+                    }
                 }
             }
             else if (activeLayer == SurfaceLayer::SoundPool)
@@ -1658,6 +1740,14 @@ namespace lockstep
         switch (activeLayer)
         {
             case SurfaceLayer::PendingConfirm: model.gridBanner = "CONFIRM?";       break;
+            case SurfaceLayer::DeletePicker:
+            {
+                const DeleteScope dpScope = ui.deletePicker.scope;
+                if      (dpScope == DeleteScope::Track)  model.gridBanner = "DELETE WHICH TRACK?";
+                else if (dpScope == DeleteScope::Phrase) model.gridBanner = "DELETE WHICH PHRASE?";
+                else if (dpScope == DeleteScope::Scene)  model.gridBanner = "DELETE WHICH SCENE?";
+                break;
+            }
             case SurfaceLayer::MachinePicker:  model.gridBanner = "SELECT MACHINE"; break;
             case SurfaceLayer::ScopeSelector:
             {

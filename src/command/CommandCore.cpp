@@ -39,6 +39,57 @@ namespace lockstep
             return true;
         }
 
+        // ── Delete picker intercept ───────────────────────────────────────────
+        // Sticky: releasing the arming chord doesn't exit. Func exempt.
+        // Step or SelectTrack: validate, transition to named confirm.
+        // Any other key: cancel.
+        if (ctx.uiState.deletePicker.active())
+        {
+            if (ev.button == CB::Func)
+                return false;
+
+            const DeleteScope scope = ctx.uiState.deletePicker.scope;
+            if (ev.button == CB::Step || ev.button == CB::SelectTrack)
+            {
+                const int idx = ev.index;
+                if (idx >= 0)
+                {
+                    ConfirmKind kind = ConfirmKind::None;
+                    juce::String entityName;
+                    if (scope == DeleteScope::Track && ev.button == CB::SelectTrack)
+                    {
+                        kind = ConfirmKind::DeleteTrack;
+                        entityName = "TRACK";
+                    }
+                    else if (scope == DeleteScope::Phrase && ev.button == CB::Step)
+                    {
+                        kind = ConfirmKind::DeletePhrase;
+                        entityName = "PHRASE";
+                    }
+                    else if (scope == DeleteScope::Scene && ev.button == CB::Step)
+                    {
+                        kind = ConfirmKind::DeleteScene;
+                        entityName = "SCENE";
+                    }
+
+                    if (kind != ConfirmKind::None)
+                    {
+                        ctx.uiState.deletePicker.reset();
+                        ctx.uiState.confirm = { kind, idx };
+                        fx.status(status::confirmDeleteNamed(entityName, idx + 1));
+                        fx.requestRepaint();
+                        return true;
+                    }
+                }
+            }
+
+            // Foreign key or out-of-range: cancel picker.
+            ctx.uiState.deletePicker.reset();
+            fx.status(status::cancelled());
+            fx.requestRepaint();
+            return true;
+        }
+
         switch (ev.button)
         {
             case CB::PlayStop:
@@ -53,6 +104,31 @@ namespace lockstep
             case CB::TapTempo:
                 fx.transport(TA::TapTempo);
                 return true;
+
+            case CB::VerbDelete:
+            {
+                using PS = EditMode::PrimaryScope;
+                const PS scope = ctx.editMode.primaryScope();
+                if (scope == PS::Morph)
+                {
+                    fx.morphErase(ctx.uiState.activeTrack);
+                    fx.status(status::morphErased());
+                    fx.requestRepaint();
+                    return true;
+                }
+                juce::String entityName;
+                DeleteScope delScope = DeleteScope::None;
+                if      (scope == PS::Track)  { delScope = DeleteScope::Track;  entityName = "TRACK";  }
+                else if (scope == PS::Phrase) { delScope = DeleteScope::Phrase; entityName = "PHRASE"; }
+                else if (scope == PS::Scene)  { delScope = DeleteScope::Scene;  entityName = "SCENE";  }
+                else return false;  // no picker for this scope (e.g. Song)
+
+                ctx.uiState.deletePicker.scope = delScope;
+                fx.status(status::deleteWhich(entityName));
+                fx.requestRepaint();
+                return true;
+            }
+
             default:
                 return false;
         }

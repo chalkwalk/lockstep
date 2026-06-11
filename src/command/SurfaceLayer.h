@@ -13,6 +13,7 @@ namespace lockstep
   enum class SurfaceLayer : uint8_t
   {
     PendingConfirm,   // absolute confirm prompt (Task B) — highest priority
+    DeletePicker,     // deletion target selection (scope+Func+Clear armed)
     SoundPool,        // ui.trigGridMode == SoundPool
     RetrigPicker,     // ui.trigGridMode == Retrig
     MasterFxPicker,   // ui.masterFxPickerOpen (Task B wiring)

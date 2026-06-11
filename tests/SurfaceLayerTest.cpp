@@ -291,6 +291,36 @@ namespace lockstep
               "PendingConfirm beats all other conditions");
     }
 
+    static void testDeletePickerLayer()
+    {
+        // DeletePicker is driven by ui.deletePicker.active().
+        {
+            UiState ui;
+            ui.deletePicker.scope = DeleteScope::Phrase;
+            CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::DeletePicker,
+                  "deletePicker.active() → DeletePicker");
+        }
+        // DeletePicker beats SoundPool, MachinePicker, LengthEdit, etc.
+        {
+            UiState ui;
+            ui.deletePicker.scope = DeleteScope::Scene;
+            ui.trigGridMode  = TrigGridMode::SoundPool;
+            ui.funcTrackHeld = true;
+            ui.phraseScopeHeld = true;
+            ui.funcHeld = true;
+            CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::DeletePicker,
+                  "DeletePicker beats SoundPool, MachinePicker, LengthEdit");
+        }
+        // PendingConfirm beats DeletePicker.
+        {
+            UiState ui;
+            ui.deletePicker.scope = DeleteScope::Track;
+            ui.confirm.kind = ConfirmKind::DeleteTrack;
+            CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::PendingConfirm,
+                  "PendingConfirm beats DeletePicker");
+        }
+    }
+
     void runSurfaceLayerTests()
     {
         testBaseLayer();
@@ -305,5 +335,6 @@ namespace lockstep
         testMorphStepViewBeatsScopeSelector();
         testFuncTrackHeldBlocksLengthEdit();
         testPendingConfirmLayer();
+        testDeletePickerLayer();
     }
 }

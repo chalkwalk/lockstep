@@ -32,6 +32,17 @@ namespace lockstep
         void reset() noexcept { kind = ConfirmKind::None; target = -1; }
     };
 
+    // ── Delete picker scope ───────────────────────────────────────────────────
+    // Which entity class the deletion picker is currently browsing.
+    enum class DeleteScope : uint8_t { None, Track, Phrase, Scene };
+
+    struct DeletePickerState
+    {
+        DeleteScope scope = DeleteScope::None;
+        [[nodiscard]] bool active() const noexcept { return scope != DeleteScope::None; }
+        void reset() noexcept { scope = DeleteScope::None; }
+    };
+
     // Virtual-hold (latch) state — one bool per latchable modifier.
     // Func never latches. Each bool, when true, means that modifier is held
     // hands-free; its corresponding xxxHeld flag in UiState stays true even
@@ -166,6 +177,9 @@ namespace lockstep
 
         // Pending-confirm state. Captured at arm time; cleared on Yes/No/cancel.
         ConfirmState confirm;
+
+        // Delete picker: scope+Func+Clear enters this modality; step tap → named confirm.
+        DeletePickerState deletePicker;
 
         // ── Bundled gesture-group resets ─────────────────────────────────────────
         // Call these instead of scattering individual field assignments — each

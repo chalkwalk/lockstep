@@ -354,6 +354,58 @@ namespace lockstep
     // -------------------------------------------------------------------------
     // Test runner
 
+    // ── Delete picker scenarios ───────────────────────────────────────────────
+
+    // Arm picker → release chord → picker still active (sticky).
+    static void scenario_pickerStickyOnRelease()
+    {
+        GestureFixture f;
+        f.uiState.deletePicker.scope = DeleteScope::Phrase;
+
+        auto ctx = f.ctx();
+        (void)f.core.handleUp({ ControllerEvent::Type::ButtonUp, CB::PhraseScope, -1 }, ctx, f.effects);
+        CHECK(f.uiState.deletePicker.active(), "picker survives scope-key release");
+    }
+
+    // Arm picker → step tap → transitions to named confirm.
+    static void scenario_pickerStepToConfirm()
+    {
+        GestureFixture f;
+        f.uiState.deletePicker.scope = DeleteScope::Phrase;
+
+        const bool handled = f.down({ ControllerEvent::Type::ButtonDown, CB::Step, 5 });
+        CHECK(handled,                             "step swallowed by picker");
+        CHECK(!f.uiState.deletePicker.active(),    "picker cleared after step tap");
+        CHECK(f.uiState.confirm.pending(),         "confirm armed");
+        CHECK(f.uiState.confirm.kind == ConfirmKind::DeletePhrase, "correct kind");
+        CHECK(f.uiState.confirm.target == 5,       "correct target slot");
+        CHECK(!f.effects.statuses.empty(),         "named confirm status emitted");
+    }
+
+    // Arm picker → foreign key → cancelled.
+    static void scenario_pickerCancelledByForeignKey()
+    {
+        GestureFixture f;
+        f.uiState.deletePicker.scope = DeleteScope::Scene;
+
+        const bool handled = f.down({ ControllerEvent::Type::ButtonDown, CB::VerbClear, -1 });
+        CHECK(handled,                           "foreign key swallowed");
+        CHECK(!f.uiState.deletePicker.active(), "picker cleared");
+        CHECK(!f.uiState.confirm.pending(),     "no confirm armed on cancel");
+        CHECK(!f.effects.statuses.empty(),      "cancelled status emitted");
+    }
+
+    // Arm picker → Func down → NOT cancelled.
+    static void scenario_pickerFuncExempt()
+    {
+        GestureFixture f;
+        f.uiState.deletePicker.scope = DeleteScope::Track;
+
+        const bool handled = f.down({ ControllerEvent::Type::ButtonDown, CB::Func, -1 });
+        CHECK(!handled,                         "Func not swallowed");
+        CHECK(f.uiState.deletePicker.active(), "picker survives Func");
+    }
+
     // ── Confirm lifecycle scenarios ──────────────────────────────────────────
 
     // Helper: arm a DeletePhrase confirm directly (as the editor arm code would).
@@ -454,6 +506,10 @@ namespace lockstep
         scenario_muteScene();
         scenario_muteMorph();
         scenario_muteBindingResolution();
+        scenario_pickerStickyOnRelease();
+        scenario_pickerStepToConfirm();
+        scenario_pickerCancelledByForeignKey();
+        scenario_pickerFuncExempt();
         scenario_confirmStickyOnRelease();
         scenario_confirmCancelledByForeignKey();
         scenario_confirmFuncNeverCancels();

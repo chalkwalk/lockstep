@@ -13,7 +13,8 @@ namespace lockstep
     // Order mirrors the buildSurfaceModel step-grid cascade, which is the
     // user-visible truth. Any intentional divergence must be documented.
 
-    if (ui.confirm.pending()) { return SurfaceLayer::PendingConfirm; }
+    if (ui.confirm.pending())      { return SurfaceLayer::PendingConfirm; }
+    if (ui.deletePicker.active()) { return SurfaceLayer::DeletePicker;   }
 
     if (ui.trigGridMode == TrigGridMode::SoundPool) { return SurfaceLayer::SoundPool;   }
     if (ui.trigGridMode == TrigGridMode::Retrig)    { return SurfaceLayer::RetrigPicker; }

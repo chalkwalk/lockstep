@@ -232,30 +232,55 @@ namespace lockstep
             }
             else if (kind == ConfirmKind::DeletePhrase)
             {
-                int ckTrk = 0;
-                ed.processor_.snapshot(ed.ckScope(ckTrk), ckTrk);
-                for (auto& trk : ed.processor_.sequence().tracks)
+                if (target >= 0 && target < static_cast<int>(kPhrasesPerTrack))
                 {
-                    for (auto& s : trk.steps)
-                    {
-                        s.trig              = false;
-                        s.condition         = TrigCondition{};
-                        s.overrides         = PLock{};
-                        s.trigOverride      = TrigOverride{};
-                        s.fillTrigState     = FillTrigState::Off;
-                        s.fillOverrides     = PLock{};
-                        s.fillTrigOverride  = TrigOverride{};
-                    }
+                    // Slot-specific deletion (Stage 7): reset one phrase on focused track.
+                    const int trk = ed.keyboardArea_.getActiveTrack();
+                    ed.processor_.snapshot(CheckpointScope::Track, trk >= 0 ? trk : 0);
+                    ed.processor_.deletePhraseSlot(trk >= 0 ? trk : 0, target);
+                    ed.setStatus(status::deletedPhrase());
                 }
-                ed.setStatus(status::deletedPhrase());
+                else
+                {
+                    // Legacy fallback: old-style global phrase wipe (no slot selected).
+                    int ckTrk = 0;
+                    ed.processor_.snapshot(ed.ckScope(ckTrk), ckTrk);
+                    for (auto& trk : ed.processor_.sequence().tracks)
+                    {
+                        for (auto& s : trk.steps)
+                        {
+                            s.trig              = false;
+                            s.condition         = TrigCondition{};
+                            s.overrides         = PLock{};
+                            s.trigOverride      = TrigOverride{};
+                            s.fillTrigState     = FillTrigState::Off;
+                            s.fillOverrides     = PLock{};
+                            s.fillTrigOverride  = TrigOverride{};
+                        }
+                    }
+                    ed.setStatus(status::deletedPhrase());
+                }
             }
             else if (kind == ConfirmKind::DeleteScene)
             {
-                int ckTrk = 0;
-                ed.processor_.snapshot(ed.ckScope(ckTrk), ckTrk);
-                ed.processor_.deletePart();
-                ed.releaseTransientLatch(ControllerButton::SceneScope);
-                ed.setStatus(status::deletedPart());
+                if (target >= 0 && target < static_cast<int>(kScenesPerSong))
+                {
+                    // Slot-specific scene deletion (Stage 7).
+                    int ckTrk = 0;
+                    ed.processor_.snapshot(ed.ckScope(ckTrk), ckTrk);
+                    ed.processor_.deleteSceneSlot(target);
+                    ed.releaseTransientLatch(ControllerButton::SceneScope);
+                    ed.setStatus(status::deletedPart());
+                }
+                else
+                {
+                    // Legacy fallback (should not happen with picker flow).
+                    int ckTrk = 0;
+                    ed.processor_.snapshot(ed.ckScope(ckTrk), ckTrk);
+                    ed.processor_.deletePart();
+                    ed.releaseTransientLatch(ControllerButton::SceneScope);
+                    ed.setStatus(status::deletedPart());
+                }
             }
             ed.repaint();
             ed.keyboardArea_.repaint();
@@ -2658,47 +2683,7 @@ namespace lockstep
                 return true;
             }
 
-            case ControllerButton::VerbDelete:
-            {
-                using PS = EditMode::PrimaryScope;
-                // Morph+Func+Clear = morph erase (Func remap sends VerbDelete for VerbClear).
-                if (editMode_.primaryScope() == PS::Morph)
-                {
-                    editorEffects_->morphErase(keyboardArea_.getActiveTrack());
-                    setStatus(status::morphErased());
-                    keyboardArea_.repaint();
-                    return true;
-                }
-                // Capture kind+target at arm time so Yes-resolution is scope-independent.
-                juce::String entityName;
-                switch (editMode_.primaryScope())
-                {
-                    case PS::Track:
-                    {
-                        const int t = keyboardArea_.getActiveTrack();
-                        uiState_.confirm = { ConfirmKind::DeleteTrack, t };
-                        entityName = "Track " + juce::String(t + 1);
-                        break;
-                    }
-                    case PS::Phrase:
-                        uiState_.confirm = { ConfirmKind::DeletePhrase, -1 };
-                        entityName = "Phrase";
-                        break;
-                    case PS::Scene:
-                    {
-                        const int si = processor_.activeSectionIdx();
-                        uiState_.confirm = { ConfirmKind::DeleteScene, si };
-                        entityName = "Part";
-                        break;
-                    }
-                    default:
-                        return true;  // No operand — inert.
-                }
-                setStatus(status::confirmDelete(entityName));
-                keyboardArea_.repaint();
-                return true;
-            }
-
+            // ControllerButton::VerbDelete — migrated to CommandCore::handleDown (8.24 Stage 7)
             // ControllerButton::VerbPanic — migrated to CommandCore::handleDown (8.11 A4.6)
 
             case ControllerButton::VerbRecord:

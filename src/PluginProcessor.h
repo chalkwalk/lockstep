@@ -243,6 +243,10 @@ namespace lockstep
         void deleteTrack(int track);   // → StubMachine + song-wide morph wipe
         void deletePart();             // → every track → StubMachine + morph wipe
 
+        // Slot-specific deletions (8.24 Stage 7): reset without touching other slots.
+        void deletePhraseSlot(int track, int phraseIdx);  // reset one phrase to uninitialised
+        void deleteSceneSlot(int sceneIdx);               // clear one scene; fallback if active
+
 
         // MD.7: Pattern mutes — per-track, live in the active Pattern.
         bool getPatternMute(int track) const;
