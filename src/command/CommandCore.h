@@ -2,6 +2,7 @@
 
 #include "CommandContext.h"
 #include "CommandEffects.h"
+#include "KeyBindings.h"
 #include "../io/ControllerEvent.h"
 #include "../io/EditMode.h"
 
@@ -29,5 +30,12 @@ namespace lockstep
                                   ControllerButton verb,
                                   CommandContext& ctx,
                                   CommandEffects& fx);
+
+    // Dispatch a resolved ActionId (called by handleDown after resolveBinding).
+    // Returns true if handled, false if the ActionId is not (yet) wired.
+    [[nodiscard]] bool handleAction(ActionId action,
+                                    const ControllerEvent& ev,
+                                    CommandContext& ctx,
+                                    CommandEffects& fx);
   };
 }

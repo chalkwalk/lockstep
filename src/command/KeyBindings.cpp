@@ -46,8 +46,15 @@ namespace lockstep
 
         // ── Mute scope (key Z) ───────────────────────────────────────────────
         // Scene+Mute = scene-mute grid view (S-MUTE). Bare Mute = track/fill mute.
-        { CB::MuteScope,   -1, kModScene,              SL::Base, AId::HoldSceneMuteView, u8"S-MUTE", u8"",       CS::Resting  },
-        { CB::MuteScope,   -1, kModNone,               SL::Base, AId::HoldMuteScope,    u8"MUTE",    u8"",       CS::Resting  },
+        { CB::MuteScope,    -1, kModScene,                   SL::Base, AId::HoldSceneMuteView, u8"S-MUTE", u8"",     CS::Resting  },
+        { CB::MuteScope,    -1, kModNone,                    SL::Base, AId::HoldMuteScope,     u8"MUTE",   u8"",     CS::Resting  },
+        // ── Mute+step actions (ToggleMute synthetic button, index=trackIdx) ──────
+        // Layer reflects the active step-grid layer when each compound fires:
+        //   Morph+Mute held → MorphMuteView; any other Mute hold → MuteView.
+        { CB::ToggleMute,   -1, kModMorph | kModMute,        SL::MorphMuteView, AId::FluidMuteToggle,   u8"F-MUTE", u8"",     CS::MuteMuted  },
+        { CB::ToggleMute,   -1, kModFunc  | kModMute,        SL::MuteView,      AId::SoloToggle,        u8"SOLO",   u8"",   CS::MuteAudible},
+        { CB::ToggleMute,   -1, kModScene | kModMute,        SL::MuteView,      AId::SceneMuteToggle,   u8"S-MUTE", u8"",   CS::MuteMuted  },
+        { CB::ToggleMute,   -1, kModMute,                    SL::MuteView,      AId::GlobalMuteToggle,  u8"MUTE",   u8"",   CS::MuteMuted  },
 
         // ── Fill scope (key X) ───────────────────────────────────────────────
         { CB::FillScope,   -1, kModNone,               SL::Base, AId::HoldFillScope,    u8"FILL",    u8"",       CS::Resting  },

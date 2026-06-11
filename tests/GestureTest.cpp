@@ -235,6 +235,74 @@ namespace lockstep
         CHECK(f.clipboard.sectionSlots.empty(), "no slots (FakeMachineCatalog returns 0 params)");
     }
 
+    // ── A4.1 mute/solo cluster (handleAction dispatch) ────────────────────────
+
+    static void scenario_muteGlobalToggle()
+    {
+        GestureFixture f;
+        const bool handled = f.action(ActionId::GlobalMuteToggle, CB::ToggleMute, 3);
+        CHECK(handled, "GlobalMuteToggle handled");
+        CHECK(f.effects.globalMuteTracks.size() == 1, "globalMuteToggle called once");
+        CHECK(f.effects.globalMuteTracks[0] == 3, "track index forwarded");
+        CHECK(f.effects.soloTracks.empty(), "soloToggle not called");
+    }
+
+    static void scenario_muteFunc()
+    {
+        GestureFixture f;
+        const bool handled = f.action(ActionId::SoloToggle, CB::ToggleMute, 5);
+        CHECK(handled, "SoloToggle handled");
+        CHECK(f.effects.soloTracks.size() == 1, "soloToggle called once");
+        CHECK(f.effects.soloTracks[0] == 5, "track index forwarded");
+        CHECK(f.effects.globalMuteTracks.empty(), "globalMuteToggle not called");
+    }
+
+    static void scenario_muteScene()
+    {
+        GestureFixture f;
+        const bool handled = f.action(ActionId::SceneMuteToggle, CB::ToggleMute, 2);
+        CHECK(handled, "SceneMuteToggle handled");
+        CHECK(f.effects.sceneMuteTracks.size() == 1, "sceneMuteToggle called once");
+        CHECK(f.effects.sceneMuteTracks[0] == 2, "track index forwarded");
+    }
+
+    static void scenario_muteMorph()
+    {
+        GestureFixture f;
+        const bool handled = f.action(ActionId::FluidMuteToggle, CB::ToggleMute, 7);
+        CHECK(handled, "FluidMuteToggle handled");
+        CHECK(f.effects.fluidMuteTracks.size() == 1, "fluidMuteToggle called once");
+        CHECK(f.effects.fluidMuteTracks[0] == 7, "track index forwarded");
+    }
+
+    // ── KeyBindings mute resolution golden tests ─────────────────────────────
+
+    static void scenario_muteBindingResolution()
+    {
+        using AId = ActionId;
+        using SL  = SurfaceLayer;
+
+        // Bare Mute+step → GlobalMuteToggle in MuteView
+        CHECK(resolveBinding(CB::ToggleMute, 0, kModMute, SL::MuteView).action
+              == AId::GlobalMuteToggle, "bare Mute → GlobalMuteToggle");
+
+        // Func+Mute+step → SoloToggle in MuteView
+        CHECK(resolveBinding(CB::ToggleMute, 0, kModFunc | kModMute, SL::MuteView).action
+              == AId::SoloToggle, "Func+Mute → SoloToggle");
+
+        // Scene+Mute+step → SceneMuteToggle in MuteView
+        CHECK(resolveBinding(CB::ToggleMute, 0, kModScene | kModMute, SL::MuteView).action
+              == AId::SceneMuteToggle, "Scene+Mute → SceneMuteToggle");
+
+        // Morph+Mute+step → FluidMuteToggle in MorphMuteView
+        CHECK(resolveBinding(CB::ToggleMute, 0, kModMorph | kModMute, SL::MorphMuteView).action
+              == AId::FluidMuteToggle, "Morph+Mute → FluidMuteToggle");
+
+        // Func+Mute wins over bare Mute (popcount 2 > 1) in MuteView
+        CHECK(resolveBinding(CB::ToggleMute, 0, kModFunc | kModMute, SL::MuteView).action
+              != AId::GlobalMuteToggle, "Func+Mute does NOT resolve to GlobalMuteToggle");
+    }
+
     // -------------------------------------------------------------------------
     // Test runner
 
@@ -254,5 +322,10 @@ namespace lockstep
         scenario_resolveLayerPreservesVelocity();
         scenario_resolveLayerSection();
         scenario_sectionCopyClear();
+        scenario_muteGlobalToggle();
+        scenario_muteFunc();
+        scenario_muteScene();
+        scenario_muteMorph();
+        scenario_muteBindingResolution();
     }
 }

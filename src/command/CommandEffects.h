@@ -43,5 +43,11 @@ namespace lockstep
     // Morph operations.
     virtual void morphBake  (int track)                      = 0;  // commit A-side to base
     virtual void morphErase (int track)                      = 0;  // remove all morph overrides
+
+    // Mute / solo operations.
+    virtual void globalMuteToggle  (int track)               = 0;  // APVTS-level immediate mute
+    virtual void soloToggle        (int track)               = 0;  // additive solo
+    virtual void sceneMuteToggle   (int track)               = 0;  // current-scene active-mask
+    virtual void fluidMuteToggle   (int track)               = 0;  // fluid-mute morph on Level slot
   };
 }

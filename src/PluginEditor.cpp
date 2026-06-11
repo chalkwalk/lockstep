@@ -98,6 +98,40 @@ namespace lockstep
         {
             ed.processor_.removeAllMorph(track);
         }
+        void globalMuteToggle(int track) override
+        {
+            ed.processor_.toggleGlobalMute(track);
+            ed.repaint();
+        }
+        void soloToggle(int track) override
+        {
+            ed.processor_.toggleSolo(track);
+            ed.repaint();
+        }
+        void sceneMuteToggle(int track) override
+        {
+            ed.processor_.togglePatternMute(track);
+            ed.repaint();
+        }
+        void fluidMuteToggle(int track) override
+        {
+            if (ed.processor_.hasFluidMute(track))
+            {
+                const int slot = ed.processor_.fluidMuteLevelSlot(track);
+                if (slot >= 0)
+                {
+                    ed.processor_.removeMorphPole(track, slot, 0);
+                    ed.processor_.removeMorphPole(track, slot, 1);
+                }
+                ed.setStatus(status::morphMuteCleared());
+            }
+            else
+            {
+                ed.processor_.fluidMuteTrack(track, ed.processor_.morphFader());
+                ed.setStatus(status::morphMuteSet());
+            }
+            ed.repaint();
+        }
 
         void sceneFloorPaste() override
         {
@@ -2900,58 +2934,25 @@ namespace lockstep
                 return true;
             }
 
-            // MD.6/MD.7: Mute toggle (PRINCIPLES §15 rungs; DESIGN §13.0).
-            // Func+Mute+step → additive solo toggle (rung 4 — solo is the
-            //   secondary/advanced layer of mute).
-            // Scene+Mute+step → per-scene mute (active-mask, rung 5).
-            // Mute+step → immediate global mute toggle (rung 3, hold-tap-many).
+            // 8.11 A4.1: mute/solo cluster migrated to KeyBindings dispatch.
             case ControllerButton::ToggleMute:
             {
                 const int trackIdx = ev.index;
                 if (trackIdx < 0 || trackIdx >= static_cast<int>(kNumTracks))
                     return true;
-                // Morph+Mute: toggle fluid-mute morph on the track's Level slot.
-                // Author (near pole = silence, far = kit base) if not yet set;
-                // remove both Level poles if already authored (tap to clear).
-                if (uiState_.morphHeld)
+                const int at = keyboardArea_.getActiveTrack();
+                const auto inputMode = (at >= 0)
+                    ? uiState_.trackInputMode[static_cast<std::size_t>(at)]
+                    : TrackInputMode::Play;
+                const LayerFacts facts { inputMode, at };
+                const auto layer    = resolveActiveLayer(uiState_, processor_.editContext(), facts);
+                const auto heldMods = heldModsFromUiState(uiState_);
+                const auto& binding = resolveBinding(ev.button, trackIdx, heldMods, layer);
+                if (binding.action != ActionId::None)
                 {
-                    if (processor_.hasFluidMute(trackIdx))
-                    {
-                        const int slot = processor_.fluidMuteLevelSlot(trackIdx);
-                        if (slot >= 0)
-                        {
-                            processor_.removeMorphPole(trackIdx, slot, 0);
-                            processor_.removeMorphPole(trackIdx, slot, 1);
-                        }
-                        setStatus(status::morphMuteCleared());
-                    }
-                    else
-                    {
-                        processor_.fluidMuteTrack(trackIdx, processor_.morphFader());
-                        setStatus(status::morphMuteSet());
-                    }
-                    repaint();
-                    return true;
+                    auto ctx = commandContext();
+                    return commandCore_.handleAction(binding.action, ev, ctx, *editorEffects_);
                 }
-                if (uiState_.funcHeld)
-                {
-                    // Func+Mute+step = solo (additive toggle).
-                    processor_.toggleSolo(trackIdx);
-                }
-                else if (uiState_.sceneHeld)
-                {
-                    // Scene+Mute+step = scene mute: toggle this track's active-mask
-                    // for the current scene (immediate). Moved off Func+Mute so the
-                    // scope+verb grammar's cross-column compound owns it (DESIGN §13).
-                    processor_.togglePatternMute(trackIdx);
-                }
-                else
-                {
-                    // Immediate global mute (MD.6). Func+Mute = solo and
-                    // Scene+Mute = scene mute are the compounds above.
-                    processor_.toggleGlobalMute(trackIdx);
-                }
-                repaint();
                 return true;
             }
 

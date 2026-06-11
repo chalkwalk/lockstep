@@ -1208,6 +1208,12 @@ per-renderer label logic and per-key modifier checks. See DESIGN §37.6.
       `tests/KeyBindingTest.cpp`.
 - [ ] **A4** Wire `ActionId` rows to the actual dispatch handlers (table becomes
       the dispatch SSOT, not just the render SSOT).
+  - [x] **A4.0** Delete dead `VerbStop` + `ForkPart` no-op cases.
+  - [x] **A4.1** `CommandCore::handleAction(ActionId, ev, ctx, fx)` pilot —
+        mute/solo cluster (`GlobalMuteToggle` / `SoloToggle` / `SceneMuteToggle` /
+        `FluidMuteToggle`) migrated from legacy `dispatchDown` to `KeyBindings`
+        table + `handleAction`; four new `CommandEffects` virtuals; layer-aware
+        binding rows (`MuteView` / `MorphMuteView`); `GestureTest` coverage.
 - [ ] **Task B** Confirm-prompt + master-FX-picker overlay wiring through
       `SurfaceLayer` (`PendingConfirm` / `MasterFxPicker` layers).
 

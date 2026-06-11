@@ -29,6 +29,22 @@ namespace lockstep
         return false;
     }
 
+    bool CommandCore::handleAction(ActionId action,
+                                   const ControllerEvent& ev,
+                                   CommandContext&,
+                                   CommandEffects& fx)
+    {
+        using AId = ActionId;
+        switch (action)
+        {
+            case AId::GlobalMuteToggle:  fx.globalMuteToggle(ev.index); return true;
+            case AId::SoloToggle:        fx.soloToggle(ev.index);       return true;
+            case AId::SceneMuteToggle:   fx.sceneMuteToggle(ev.index);  return true;
+            case AId::FluidMuteToggle:   fx.fluidMuteToggle(ev.index);  return true;
+            default:                     return false;
+        }
+    }
+
     bool CommandCore::handleVerb(EditMode::PrimaryScope scope,
                                  ControllerButton verb,
                                  CommandContext& ctx,

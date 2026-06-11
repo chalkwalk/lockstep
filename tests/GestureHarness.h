@@ -40,9 +40,21 @@ namespace lockstep::test
         void morphBake(int) override                         {}
         void morphErase(int) override                        {}
 
+        std::vector<int> globalMuteTracks;
+        std::vector<int> soloTracks;
+        std::vector<int> sceneMuteTracks;
+        std::vector<int> fluidMuteTracks;
+
+        void globalMuteToggle(int t) override  { globalMuteTracks.push_back(t); }
+        void soloToggle(int t) override         { soloTracks.push_back(t); }
+        void sceneMuteToggle(int t) override    { sceneMuteTracks.push_back(t); }
+        void fluidMuteToggle(int t) override    { fluidMuteTracks.push_back(t); }
+
         void reset() { statuses.clear(); repaints = 0; transports = 0;
                        transportActions.clear(); machineAssigns.clear();
-                       overlays.clear(); crossfaders.clear(); }
+                       overlays.clear(); crossfaders.clear();
+                       globalMuteTracks.clear(); soloTracks.clear();
+                       sceneMuteTracks.clear(); fluidMuteTracks.clear(); }
     };
 
     // Minimal IMachineCatalog implementation for gesture tests.
@@ -101,6 +113,13 @@ namespace lockstep::test
         {
             auto c = ctx();
             return core.handleVerb(scope, v, c, effects);
+        }
+
+        bool action(ActionId id, ControllerButton btn, int idx = -1)
+        {
+            ControllerEvent ev { ControllerEvent::Type::ButtonDown, btn, idx };
+            auto c = ctx();
+            return core.handleAction(id, ev, c, effects);
         }
 
         // Convenience: hold a step on a track via EditContext directly.
