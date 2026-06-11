@@ -271,8 +271,11 @@ namespace lockstep
             c.button  = ControllerButton::Func;
             c.keyHint = "1";
             c.pressed  = physPressed('1', ControllerButton::Func);
-            c.primary  = "FUNC";
             c.funcHint = {};
+            // Table-driven label: "FUNC" bare (no hint); Func+Func does not produce
+            // a secondary, so funcHint stays empty from the binding row.
+            { const auto& r = resolveBinding(ControllerButton::Func, -1, heldMods, SurfaceLayer::Base);
+              c.primary = juce::String(r.primary); c.funcHint = juce::String(r.hint); }
             c.strip.present = hasCompound && ui.funcHeld;
             c.strip.colour  = kAmberStrip;
             c.base = c.pressed ? CellState::Pressed
@@ -553,8 +556,7 @@ namespace lockstep
             { 'P', u8"P", ControllerButton::VerbNo,      KeyRole::VerbNo    },
         }};
 
-        const bool sectionScopeHeld = ui.trackHeld || ui.phraseScopeHeld
-                                   || ui.sceneHeld || ui.morphHeld || ui.songHeld;
+        const bool sectionScopeHeld = (firstHeldSectionSuiteScope(ui) != PS::None);
 
         for (int i = 0; i < 10; ++i)
         {

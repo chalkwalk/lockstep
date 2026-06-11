@@ -1322,6 +1322,18 @@ setMasterInsert, setTrackMachine, copyKit, state-load) now use
       `getStateInformation` wrapped for consistent snapshot. DESIGN §38 finalized;
       CLAUDE.md mutation-contract gotcha added. Residual THREADING-DEBT: `slicePositions_`
       and `applySceneLaunch` index writes — tagged for future sweep.
+- [x] **8.19** Post-A4 precedence/duplication mop-up:
+      (a) `SurfaceModel.cpp` Func modifier label: replaced hardcoded
+          `c.primary = "FUNC"` with a `resolveBinding` lookup (consistent
+          with Track/Song/Mute/TapTempo cells that already use the table).
+      (b) `SurfaceModel.cpp` function-row `sectionScopeHeld`: replaced
+          5-clause `||` chain with `firstHeldSectionSuiteScope(ui) != None`
+          (canonical SSOT ordering via kScopePriority). Line 401 already
+          used this function; line 556 now matches.
+      (c) `PluginEditor.cpp` Section-case scope detection: done in A4.5.
+      `isReservedMeta` dedup (KeyboardArea ↔ SurfaceModel) deferred —
+      circular dep (KeyboardArea.h → SurfaceModel.h) prevents direct
+      sharing; both remain as 4-line identical functions.
 
 ---
 
