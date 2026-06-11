@@ -273,6 +273,59 @@ namespace lockstep
     }
 
     // -----------------------------------------------------------------------
+    // Scene switch timing: queue scene 1 and verify that the audio thread applies
+    // the working-sequence swap at the bar boundary (sceneIdx changes, working
+    // sequence has the new scene's step data, no NaN).
+    //
+    // Note: reinstallMachinesFromActiveKit uses callAsync which does not fire in
+    // headless mode, so we verify the swap itself (sequence/scene state) rather
+    // than audio output from the newly installed machine.
+    static void testSceneSwitchAtBoundary()
+    {
+        EngineHarness h;
+
+        // Arm scene 1 with a trig on track 0 step 0 so we can verify the
+        // working sequence changes after the switch.
+        {
+            auto& s1phrase = h.processor().songAt(0).tracks[0].phrases[1];
+            s1phrase.steps[0].trig = true;
+        }
+
+        // Verify we start on scene 0.
+        CHECK(h.processor().activeSectionIdx() == 0,
+              "scene switch: precondition: should start on scene 0");
+
+        // Confirm working step 0 of track 0 is NOT triggered on scene 0.
+        const bool trigScene0 = h.processor().sequence().tracks[0].steps[0].trig;
+
+        // Queue scene 1.
+        h.processor().queueScene(1, false);
+
+        // Render enough blocks to cross one bar boundary.
+        // At 120 BPM, 4/4: 1 bar = 2 PPQ.  At 48 kHz / 256 samples, 1 bar ≈ 94 blocks.
+        bool switched = false;
+        for (int b = 0; b < 110; ++b)
+        {
+            h.renderBlocks(1);
+            CHECK(!h.lastBufferHasNaN(), "scene switch: NaN in audio buffer during switch");
+            if (h.processor().activeSectionIdx() == 1) { switched = true; break; }
+        }
+
+        CHECK(switched,
+              "scene switch: sceneIdx did not update to 1 within one bar boundary");
+
+        // After the switch the working step 0 of track 0 should be the new scene's value.
+        if (switched)
+        {
+            const bool trigScene1 = h.processor().sequence().tracks[0].steps[0].trig;
+            CHECK(trigScene1 && !trigScene0,
+                  "scene switch: working sequence step 0 trig not updated after switch "
+                  "(before=" + juce::String((int)trigScene0)
+                  + " after=" + juce::String((int)trigScene1) + ")");
+        }
+    }
+
+    // -----------------------------------------------------------------------
     // EngineCmd queue: enqueue a base-param write, render one block, verify
     // the value has been applied (i.e. the audio thread drained the queue).
     static void testEngineCmdAppliedAfterBlock()
@@ -335,6 +388,7 @@ namespace lockstep
         testTrigProducesAudio();
         testMuteSuppressesAudio();
         testBlockSizeInvariance();
+        testSceneSwitchAtBoundary();
         testEngineCmdAppliedAfterBlock();
         testEngineCmdQueueFullDrop();
     }

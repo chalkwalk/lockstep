@@ -1267,6 +1267,15 @@ setMasterInsert, setTrackMachine, copyKit, state-load) now use
       tag left for `slicePositions_` race (8.18) and stopped-audio fallback (8.16).
 - [x] **8.16** C3: `EngineTest` queue coverage: enqueue→block→applied; queue-full drop
       (no crash/hang, result remains a finite in-range float).
+- [x] **8.17** C1: Scene switch at block boundary — pre-staged double-buffer (DESIGN §38.4).
+      `queueScene` calls `Arrangement::prepareSceneLaunch` (writeBack + overlay stash +
+      project new working Sequence) into `stagedSwap_` on the message thread. At the bar
+      boundary the audio thread sets `pendingSceneApply_`; top-of-next-block swaps via
+      `applySceneLaunch` (O(N) bounded, no allocation). Message thread still reinstalls
+      machines via `callAsync` (kit data is ready from the writeback). THREADING-DEBT(8.18)
+      tagged on `sceneIdx`/`deviated` writes.
+- [x] **8.17** C2: `EngineTest::testSceneSwitchAtBoundary`: verify `activeSectionIdx`
+      transitions to 1 within one bar boundary + working-sequence step data updates.
 
 ---
 

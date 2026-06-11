@@ -117,6 +117,64 @@ namespace lockstep
             syncWorkingFromActive();
         }
 
+        // ── Pre-staged boundary switch (DESIGN §38 / 8.17) ──────────────────────
+        // Split setActiveScene into a message-thread prepare + audio-thread apply
+        // so the working Sequence is swapped exactly at the bar boundary with no
+        // heap activity on the audio thread.
+        //
+        // Step 1 (message thread, called from queueScene): flush live edits, stash
+        // the departing scene's overlay, and project the target scene's data into
+        // the output buffers. The caller stores these in a pre-allocated
+        // StagedSceneSwap struct and signals stagedSwapReady_.
+        void prepareSceneLaunch(int targetSceneIdx, bool toFloor,
+                                Sequence& outWorking,
+                                std::array<bool, kNumTracks>& outDeviated,
+                                std::array<int,  kNumTracks>& outDeviationPhraseIdx)
+        {
+            writeBackWorkingToActive();
+            if (targetSceneIdx != sceneIdx) stashCurrentOverlay();
+            if (toFloor)
+                overlays[idx(songIdx)][idx(targetSceneIdx)] = SceneOverlay{};
+            // Build deviation state for the target scene.
+            if (toFloor)
+            {
+                outDeviated.fill(false);
+                outDeviationPhraseIdx.fill(0);
+            }
+            else
+            {
+                const auto& ov = overlays[idx(songIdx)][idx(targetSceneIdx)];
+                if (ov.active) { outDeviated = ov.deviated; outDeviationPhraseIdx = ov.deviationPhraseIdx; }
+                else           { outDeviated.fill(false);   outDeviationPhraseIdx.fill(0); }
+            }
+            // Project working sequence for the target scene.
+            for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+            {
+                const int pi = resolveActivePhraseIdx(targetSceneIdx,
+                                                      outDeviated[idx(t)],
+                                                      outDeviationPhraseIdx[idx(t)], t);
+                outWorking.tracks[idx(t)] = projectPhraseToTrack(
+                    songs[idx(songIdx)].tracks[idx(t)].phrases[idx(pi)],
+                    songs[idx(songIdx)].tracks[idx(t)].kit);
+            }
+        }
+
+        // Step 2 (audio thread, at block boundary): swap the pre-built Sequence
+        // into `working` and update playhead state. O(kNumTracks * kMaxStepsPerTrack)
+        // bounded non-allocating swaps; safe on the audio thread provided the
+        // message thread is done with the staged buffer (guarded by stagedSwapReady_).
+        // THREADING-DEBT(8.18): sceneIdx/deviated writes race with message-thread reads.
+        void applySceneLaunch(int targetSceneIdx,
+                              Sequence& stagedWorking,
+                              const std::array<bool, kNumTracks>& newDeviated,
+                              const std::array<int,  kNumTracks>& newDeviationPhraseIdx)
+        {
+            std::swap(working, stagedWorking);
+            sceneIdx           = targetSceneIdx;
+            deviated           = newDeviated;
+            deviationPhraseIdx = newDeviationPhraseIdx;
+        }
+
         void setActiveSong(int s)
         {
             if (s < 0 || s >= kNumSongs || s == songIdx) return;

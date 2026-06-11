@@ -193,6 +193,16 @@ namespace lockstep
     void LockstepProcessor::queueScene(int sectionIdx, bool toFloor)
     {
         if (sectionIdx < 0 || sectionIdx >= kScenesPerSong) return;
+        // Pre-stage the scene switch on the message thread so the audio thread can
+        // apply it at the bar boundary without allocation (DESIGN §38.4 / 8.17).
+        stagedSwapReady_.store(false, std::memory_order_release);
+        arrangement_.prepareSceneLaunch(sectionIdx, toFloor,
+                                        stagedSwap_.working,
+                                        stagedSwap_.deviated,
+                                        stagedSwap_.deviationPhraseIdx);
+        stagedSwap_.sceneIdx = sectionIdx;
+        stagedSwap_.toFloor  = toFloor;
+        stagedSwapReady_.store(true, std::memory_order_release);
         queuedSceneToFloor_.store(toFloor, std::memory_order_release);
         queuedSceneIdx_.store(sectionIdx, std::memory_order_release);
     }
@@ -924,6 +934,21 @@ namespace lockstep
             // Drain engine parameter commands (writeParam, P-Lock writes).
             drainEngineCmds();
 
+            // Apply a pending pre-staged scene switch at the top of the block
+            // (DESIGN §38.4 / 8.17). The message thread pre-built the new working
+            // Sequence in queueScene; we swap here so the sequencer reads the new
+            // scene starting from this block.
+            if (pendingSceneApply_.load(std::memory_order_acquire)
+                && stagedSwapReady_.load(std::memory_order_acquire))
+            {
+                pendingSceneApply_.store(false, std::memory_order_relaxed);
+                arrangement_.applySceneLaunch(stagedSwap_.sceneIdx,
+                                              stagedSwap_.working,
+                                              stagedSwap_.deviated,
+                                              stagedSwap_.deviationPhraseIdx);
+                sceneSwitchApplied_.store(true, std::memory_order_release);
+            }
+
             // Advance fixed-duration voices; emit their note-off when expired.
             for (auto& v : liveVoices_)
             {
@@ -1249,13 +1274,18 @@ namespace lockstep
                     if (boundary < blockEnd)
                     {
                         queuedSceneIdx_.store(-1, std::memory_order_release);
-                        const bool toFloor =
-                            queuedSceneToFloor_.load(std::memory_order_acquire);
+                        // Signal top-of-next-block to apply the pre-staged swap.
+                        // The message thread prepared the new Sequence in queueScene;
+                        // the audio thread swaps it in at the next block boundary
+                        // without allocation (DESIGN §38.4 / 8.17).
+                        pendingSceneApply_.store(true, std::memory_order_release);
+                        // Reinstall machines on the message thread. queueScene already
+                        // flushed kit data via writeBackWorkingToActive, so this is safe
+                        // to run before the audio-thread swap commits.
                         juce::MessageManager::callAsync(
-                            [this, qSecIdx, toFloor]
+                            [this]
                             {
-                                if (toFloor) setActiveSceneToFloor(qSecIdx);
-                                else         setActiveScene(qSecIdx);
+                                reinstallMachinesFromActiveKit();
                             });
                     }
                 }

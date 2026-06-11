@@ -587,6 +587,24 @@ namespace lockstep
         // -1 = none pending.
         std::atomic<int> queuedSceneIdx_     { -1 };    // [ATOMIC]
         std::atomic<bool> queuedSceneToFloor_{ false };  // [ATOMIC] pairs with queuedSceneIdx_
+
+        // [QUEUE] Pre-staged scene switch (8.17 / DESIGN §38.4). Message thread calls
+        // prepareSceneLaunch into stagedSwap_ then sets stagedSwapReady_. At the bar
+        // boundary the audio thread sets pendingSceneApply_. Top-of-next-block applies
+        // the swap via applySceneLaunch (bounded O(N), no allocation on audio thread).
+        // After the swap sceneSwitchApplied_ fires; message thread reinstalls machines.
+        struct StagedSceneSwap
+        {
+            Sequence working{};
+            int      sceneIdx = -1;
+            bool     toFloor  = false;
+            std::array<bool, kNumTracks> deviated{};
+            std::array<int,  kNumTracks> deviationPhraseIdx{};
+        };
+        StagedSceneSwap          stagedSwap_{};                        // [QUEUE]
+        std::atomic<bool>        stagedSwapReady_    { false };        // [ATOMIC]
+        std::atomic<bool>        pendingSceneApply_  { false };        // [ATOMIC]
+        std::atomic<bool>        sceneSwitchApplied_ { false };        // [ATOMIC]
         // Legacy: queued pattern switch. -1/-1 means no switch pending.
         std::atomic<int>  previewPoolIndex_ { -1 };  // [ATOMIC]
         std::atomic<int>  previewReqTrack_  { 0 };   // [ATOMIC]
