@@ -529,6 +529,19 @@ namespace lockstep
         }
 
         // =====================================================================
+        // Active-layer resolution — hoisted here so both function-row and step-grid
+        // renderers can read it without re-deriving. resolveActiveLayer is the one
+        // SSOT so rendering and dispatch cannot diverge.
+        // =====================================================================
+        const bool validStepTrackMode = activeTrack >= 0
+                                     && activeTrack < static_cast<int>(kNumTracks);
+        const TrackInputMode activeTrackMode = validStepTrackMode
+            ? ui.trackInputMode[static_cast<std::size_t>(activeTrack)]
+            : TrackInputMode::Play;
+        const LayerFacts layerFacts { activeTrackMode, activeTrack };
+        const SurfaceLayer activeLayer = resolveActiveLayer(ui, ec, layerFacts);
+
+        // =====================================================================
         // functionRow[0..9] — Q-row: Q/W/E/R/T/Y/U/I/O/P
         // =====================================================================
 
@@ -645,6 +658,29 @@ namespace lockstep
                     c.scopeTint = scopeColour(sectionScope).getARGB();
             }
 
+            // PendingConfirm: P shows live YES/NO depending on whether Func is held;
+            // every other key dims. Func itself is exempt (user needs it to reach NO).
+            if (activeLayer == SurfaceLayer::PendingConfirm)
+            {
+                if (def.role == KeyRole::VerbNo)
+                {
+                    const auto& b = resolveBinding(def.button, -1, heldMods,
+                                                   SurfaceLayer::PendingConfirm);
+                    c.primary  = juce::String(b.primary);
+                    c.funcHint = juce::String(b.hint);
+                    if (!c.pressed)
+                        c.base = b.state;
+                    c.disabled  = false;
+                    c.scopeTint = 0;
+                }
+                else if (def.button != ControllerButton::Func)
+                {
+                    c.disabled  = true;
+                    c.base      = CellState::Disabled;
+                    c.scopeTint = 0;
+                }
+            }
+
             // Invariant: every function row cell has a non-empty primary label.
             jassert(!c.primary.isEmpty());
         }
@@ -655,19 +691,6 @@ namespace lockstep
         model.modifiers[2].button = ControllerButton::PhraseScope;
         model.modifiers[3]        = model.functionRow[1];
         model.modifiers[3].button = ControllerButton::SceneScope;
-
-        // =====================================================================
-        // Step-grid layer resolution — resolveActiveLayer is the one SSOT so
-        // rendering and dispatch cannot diverge. Computed here so gridBanner can
-        // also read it without re-deriving.
-        // =====================================================================
-        const bool validStepTrackMode = activeTrack >= 0
-                                     && activeTrack < static_cast<int>(kNumTracks);
-        const TrackInputMode activeTrackMode = validStepTrackMode
-            ? ui.trackInputMode[static_cast<std::size_t>(activeTrack)]
-            : TrackInputMode::Play;
-        const LayerFacts layerFacts { activeTrackMode, activeTrack };
-        const SurfaceLayer activeLayer = resolveActiveLayer(ui, ec, layerFacts);
 
         // =====================================================================
         // step[0..15] — step grid cells (Slices 2–5)
@@ -683,7 +706,18 @@ namespace lockstep
             };
 
             // ── Layer-keyed branches (bodies verbatim from the original cascade) ──
-            if (activeLayer == SurfaceLayer::SoundPool)
+            if (activeLayer == SurfaceLayer::PendingConfirm)
+            {
+                // Dim all step cells — confirm resolves via P/Func+P only.
+                for (int i = 0; i < 16; ++i)
+                {
+                    auto& s       = model.step[static_cast<std::size_t>(i)];
+                    s.keyHint     = kStepKeyHints[static_cast<std::size_t>(i)];
+                    s.base        = CellState::Disabled;
+                    s.disabled    = true;
+                }
+            }
+            else if (activeLayer == SurfaceLayer::SoundPool)
             {
                 // Sound Pool overlay: grid cells show saved sounds for the active track.
                 static constexpr std::array<double, 8> kRetrigRates = {{
@@ -1623,6 +1657,7 @@ namespace lockstep
         // Derived from activeLayer so it cannot diverge from the step-grid mode.
         switch (activeLayer)
         {
+            case SurfaceLayer::PendingConfirm: model.gridBanner = "CONFIRM?";       break;
             case SurfaceLayer::MachinePicker:  model.gridBanner = "SELECT MACHINE"; break;
             case SurfaceLayer::ScopeSelector:
             {

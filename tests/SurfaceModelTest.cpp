@@ -10,6 +10,7 @@
 #include "../src/ui/CellAppearance.h"
 #include "../src/ui/ScopedSectionMatrix.h"
 #include "../src/machine/IMachine.h"
+#include "../src/command/KeyBindings.h"
 
 namespace lockstep
 {
@@ -289,6 +290,34 @@ namespace lockstep
         const CellAppearance fb = appearanceOf(static_cast<CellState>(0xFFFF));
         CHECK(fb.screenFill == 0xFF303030u, "unknown token fallback screenFill");
         CHECK(fb.pushPad    == 2,           "unknown token fallback pushPad");
+
+        // ConfirmYes — green (pidx 21, solid), ConfirmNo — red (pidx 5, solid)
+        CHECK(appearanceOf(CellState::ConfirmYes).pushPad   == 21,  "ConfirmYes pushPad green");
+        CHECK(appearanceOf(CellState::ConfirmYes).xtouchVel == 127, "ConfirmYes xtouchVel solid");
+        CHECK(appearanceOf(CellState::ConfirmNo).pushPad    ==  5,  "ConfirmNo pushPad red");
+        CHECK(appearanceOf(CellState::ConfirmNo).xtouchVel  == 127, "ConfirmNo xtouchVel solid");
+    }
+
+    // -------------------------------------------------------------------------
+    // Test: PendingConfirm-layer binding rows — P shows YES/NO per Func state.
+    // -------------------------------------------------------------------------
+    static void testPendingConfirmBindings()
+    {
+        using CB = ControllerButton;
+        using SL = SurfaceLayer;
+        using CS = CellState;
+
+        // Without Func: P resolves to VerbConfirm, "YES", ConfirmYes state
+        const auto& yes = resolveBinding(CB::VerbNo, -1, kModNone, SL::PendingConfirm);
+        CHECK(yes.action == ActionId::VerbConfirm,    "PendingConfirm bare P → VerbConfirm");
+        CHECK(juce::String(yes.primary) == "YES",     "PendingConfirm bare P primary = YES");
+        CHECK(yes.state == CS::ConfirmYes,            "PendingConfirm bare P state = ConfirmYes");
+
+        // With Func: P resolves to VerbCancel, "NO", ConfirmNo state
+        const auto& no = resolveBinding(CB::VerbNo, -1, kModFunc, SL::PendingConfirm);
+        CHECK(no.action == ActionId::VerbCancel,      "PendingConfirm Func+P → VerbCancel");
+        CHECK(juce::String(no.primary) == "NO",       "PendingConfirm Func+P primary = NO");
+        CHECK(no.state == CS::ConfirmNo,              "PendingConfirm Func+P state = ConfirmNo");
     }
 
     // -------------------------------------------------------------------------
@@ -342,6 +371,7 @@ namespace lockstep
         testScrollPastEndClamp();
         testCellAppearance();
         testScopedSectionMatrixCanonical();
+        testPendingConfirmBindings();
     }
 
 } // namespace lockstep

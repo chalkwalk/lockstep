@@ -91,3 +91,7 @@ LS_CELLSTATE(SliceEmpty,       132,  0xFF12151Au, 0x00000000u,   0,   0)
 // ---- FX insert picker (6.5) -------------------------------------------
 LS_CELLSTATE(EffectAvailable,  140,  0xFF30A030u, 0x00000000u,  18, 127)
 LS_CELLSTATE(EffectLoaded,     141,  0xFFFFFFFFu, 0x00000000u, 119,   1)
+
+// ---- confirm overlay (8.24) -------------------------------------------
+LS_CELLSTATE(ConfirmYes,       150,  0xFF30C860u, 0x00000000u,  21, 127)
+LS_CELLSTATE(ConfirmNo,        151,  0xFFC03030u, 0x00000000u,   5, 127)

@@ -138,6 +138,10 @@ namespace lockstep
         { CB::VerbNo,      -1, kModFunc,               SL::Base, AId::VerbCancel,     u8"NO",  u8"",   CS::Resting },
         { CB::VerbNo,      -1, kModNone,               SL::Base, AId::VerbConfirm,    u8"YES", u8"NO", CS::Resting },
 
+        // ── PendingConfirm layer — P key shows live YES (green) / NO (red) ──────
+        { CB::VerbNo,  -1, kModFunc, SL::PendingConfirm, AId::VerbCancel,  u8"NO",  u8"",   CS::ConfirmNo  },
+        { CB::VerbNo,  -1, kModNone, SL::PendingConfirm, AId::VerbConfirm, u8"YES", u8"NO", CS::ConfirmYes },
+
         // ── Section keys (5-0): ActionId only; labels from ScopedSectionMatrix ──
         { CB::Section,      0, kModFunc,               SL::Base, AId::SelectMetaSection, u8"", u8"", CS::Resting },
         { CB::Section,      1, kModFunc,               SL::Base, AId::SelectMetaSection, u8"", u8"", CS::Resting },
