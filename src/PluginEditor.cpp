@@ -2491,10 +2491,6 @@ namespace lockstep
                 return true;
             }
 
-            case ControllerButton::VerbStop:
-                // Legacy — superseded by VerbClear on the O key; nothing emits this anymore.
-                return true;
-
             case ControllerButton::VerbClear:
             {
                 using PS = EditMode::PrimaryScope;
@@ -2958,10 +2954,6 @@ namespace lockstep
                 repaint();
                 return true;
             }
-
-            case ControllerButton::ForkPart:
-                // Part fork removed in Phase 7; gesture is a no-op until repurposed.
-                return true;
 
             // ControllerButton::MetronomeToggle — migrated to CommandCore::handleDown (8.4h)
 
