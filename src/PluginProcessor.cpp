@@ -14,6 +14,7 @@
 #include "machine/SamplePlayingMachineBase.h"
 #include "machine/VAMachine.h"
 #include "machine/StubMachine.h"
+#include "state/Hash.h"
 #include "state/PluginState.h"
 #include <algorithm>
 #include <cmath>
@@ -169,6 +170,10 @@ namespace lockstep
         // constructor synced from an empty kit (it ran before this seed), so the
         // working buffer must be refreshed now that Song[0]'s kit is populated.
         arrangement_.syncWorkingFromActive();
+
+        // Capture the pristine default state so newProject() can reset to it later.
+        PluginState::writeTo(defaultStateBlob_, *this);
+        savedStateHash_ = stateHash();
     }
 
     LockstepProcessor::~LockstepProcessor() = default;
@@ -3988,7 +3993,11 @@ namespace lockstep
     void LockstepProcessor::setStateInformation(const void* data, int sizeInBytes)
     {
         PluginState::readFrom(data, sizeInBytes, *this);
+        finishStateLoad();
+    }
 
+    void LockstepProcessor::finishStateLoad()
+    {
         // Project the freshly-loaded Songs into the working buffer. The serializer's
         // setActiveSong/Scene calls early-return when the saved active indices equal
         // the defaults (the common 0/0 case), so an explicit sync is required —
@@ -4081,5 +4090,66 @@ namespace lockstep
                 step.fillOverrides.reserve(np);
             }
         }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────────
+    // Project file I/O
+    // ──────────────────────────────────────────────────────────────────────────────
+
+    std::uint32_t LockstepProcessor::stateHash()
+    {
+        juce::String xmlStr;
+        withQuiescedEngine([&] {
+            arrangement_.writeBackWorkingToActive();
+            const auto xml = PluginState::buildStateTree(*this).createXml();
+            if (xml) xmlStr = xml->toString();
+        });
+        if (xmlStr.isEmpty()) return 0;
+        return Hash::xx32(xmlStr.toRawUTF8(), static_cast<std::size_t>(xmlStr.getNumBytesAsUTF8()));
+    }
+
+    void LockstepProcessor::newProject()
+    {
+        withQuiescedEngine([&] {
+            arrangement_ = Arrangement{};
+            PluginState::readFrom(defaultStateBlob_.getData(),
+                                  static_cast<int>(defaultStateBlob_.getSize()),
+                                  *this);
+        });
+        finishStateLoad();
+        currentProjectFile_ = juce::File{};
+        savedStateHash_ = stateHash();
+    }
+
+    bool LockstepProcessor::saveProjectFile(const juce::File& file)
+    {
+        bool ok = false;
+        withQuiescedEngine([&] {
+            arrangement_.writeBackWorkingToActive();
+            PluginState::writeToFile(file, *this);
+            ok = file.existsAsFile();
+        });
+        if (ok)
+        {
+            currentProjectFile_ = file;
+            savedStateHash_ = stateHash();
+        }
+        return ok;
+    }
+
+    bool LockstepProcessor::loadProjectFile(const juce::File& file)
+    {
+        bool ok = false;
+        withQuiescedEngine([&] {
+            arrangement_ = Arrangement{};
+            ok = PluginState::readFromFile(file, *this);
+        });
+        if (ok)
+        {
+            finishStateLoad();
+            currentProjectFile_ = file;
+            savedStateHash_ = stateHash();
+        }
+        return ok;
     }
 }

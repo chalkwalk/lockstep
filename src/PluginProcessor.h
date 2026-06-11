@@ -401,6 +401,23 @@ namespace lockstep
         void liveSwapTrackSound(int track, int poolIndex);
         void clearLiveSwap(int track);
 
+        // Project file I/O (message thread, standalone chrome + future DAW import/export).
+        // newProject: resets to the pristine default state; no confirm dialog (caller's job).
+        void newProject();
+        // saveProjectFile: flushes working state then serializes to a .lockstep XML file.
+        //   Returns false if the file cannot be written.
+        bool saveProjectFile(const juce::File& file);
+        // loadProjectFile: parses file, applies the upgrade chain, replaces processor state.
+        //   Returns false and leaves processor UNCHANGED on parse failure.
+        bool loadProjectFile(const juce::File& file);
+        // stateHash: content-hash of the current state tree (quiesces engine internally).
+        //   Used for dirty-checking only — not stable across builds.
+        [[nodiscard]] std::uint32_t stateHash();
+        // currentProjectFile: last file successfully opened or saved, or invalid if none.
+        [[nodiscard]] juce::File currentProjectFile() const { return currentProjectFile_; }
+        // savedStateHash: hash at the last new/load/save (for dirty comparison).
+        [[nodiscard]] std::uint32_t savedStateHash() const { return savedStateHash_; }
+
         // MG.4: Sound Pool CRUD (message thread only).
         // saveTrackToSoundPool: snapshots the active Part's track state + sample index.
         // Returns the new pool index, or -1 on failure.
@@ -816,6 +833,12 @@ namespace lockstep
         std::array<std::atomic<float>, kNumTracks> trigPulse_{};
         std::array<std::atomic<float>, kNumTracks> midiPulse_{};
         std::atomic<float> masterPeak_{ 0.0f };
+
+        // Project-file state — message thread only.
+        juce::MemoryBlock defaultStateBlob_;          // pristine state captured at construction
+        juce::File currentProjectFile_;               // last opened/saved .lockstep file (invalid = none)
+        std::uint32_t savedStateHash_ = 0;            // hash at last new/load/save
+        void finishStateLoad();                       // post-readFrom reinstall pass; called by setStateInformation + loadProjectFile
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LockstepProcessor)
     };
