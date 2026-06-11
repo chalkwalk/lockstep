@@ -344,6 +344,25 @@ namespace lockstep
         {
             tempoBar_ = std::make_unique<StandaloneTempoBar>(proc.clock());
             addAndMakeVisible(tempoBar_.get());
+
+            fileBar_ = std::make_unique<StandaloneFileBar>(proc, appProps_);
+            fileBar_->onStatus = [this](const juce::String& msg) { setStatus(msg); };
+            addAndMakeVisible(fileBar_.get());
+
+            // Auto-open the last project on launch.  We prefer the wrapper-session state
+            // (already loaded via setStateInformation before the editor exists) and only
+            // rebind currentProjectFile_ if the file still matches (hashes equal).
+            // If the file has changed we still open it so the UI title is correct.
+            if (auto* prefs = appProps_.getUserSettings())
+            {
+                const auto lastPath = prefs->getValue(juce::String("lastProjectFile"));
+                if (lastPath.isNotEmpty())
+                {
+                    const juce::File lastFile(lastPath);
+                    if (lastFile.existsAsFile())
+                        proc.loadProjectFile(lastFile);
+                }
+            }
         }
 
         // Sync mode ComboBox + APVTS attachment
@@ -3446,6 +3465,8 @@ namespace lockstep
         // the (QWERTY-emulating) buttons taller/squarer while the MZ stays put.
         if (tempoBar_)
             tempoBar_->setBounds(bounds.removeFromTop(28).reduced(8, 2));
+        if (fileBar_)
+            fileBar_->setBounds(bounds.removeFromTop(24).reduced(8, 1));
         bounds.removeFromTop(2);
 
         // MHX.5: encoder band (MZ 4x2) + vertical crossfader to its right.

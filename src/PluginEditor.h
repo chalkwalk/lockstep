@@ -29,6 +29,7 @@
 #include "ui/ManipulationZone.h"
 #include "ui/SamplePoolOverlay.h"
 #include "ui/SoundBankOverlay.h"
+#include "ui/StandaloneFileBar.h"
 #include "ui/StandaloneTempoBar.h"
 
 namespace lockstep
@@ -154,6 +155,7 @@ namespace lockstep
 
         InPluginTransport transport_;
         std::unique_ptr<StandaloneTempoBar> tempoBar_;
+        std::unique_ptr<StandaloneFileBar> fileBar_;
         int trackPage_ = 0;  // 0 = tracks 1-8 visible, 1 = tracks 9-16 visible
         juce::TextButton trackPageBtn_{ "1-8" };
         std::array<juce::TextButton, kNumTracks> trackBtns_;
