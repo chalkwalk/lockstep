@@ -124,25 +124,32 @@ namespace lockstep
         CHECK(resolve(CB::VerbYes, kModNone) == AId::VerbSnapshot, "Y bare = SNAP");
         CHECK(resolve(CB::VerbYes, kModFunc) == AId::VerbRestore,  "Func+Y = RESTORE");
 
-        // U: REC / COPY under scope (not Morph)
-        CHECK(resolve(CB::VerbRecord, kModNone)   == AId::VerbRecord, "U bare = REC");
-        CHECK(resolve(CB::VerbRecord, kModTrack)  == AId::VerbCopy,   "Track+U = COPY");
-        CHECK(resolve(CB::VerbRecord, kModPhrase) == AId::VerbCopy,   "Phrase+U = COPY");
-        CHECK(resolve(CB::VerbRecord, kModScene)  == AId::VerbCopy,   "Scene+U = COPY");
-        CHECK(resolve(CB::VerbRecord, kModSong)   == AId::VerbCopy,   "Song+U = COPY");
+        // U: REC / COPY under scope (not Morph). Scene bare = BAKE; Func+Scene = COPY.
+        CHECK(resolve(CB::VerbRecord, kModNone)                    == AId::VerbRecord,   "U bare = REC");
+        CHECK(resolve(CB::VerbRecord, kModTrack)                   == AId::VerbCopy,     "Track+U = COPY");
+        CHECK(resolve(CB::VerbRecord, kModPhrase)                  == AId::VerbCopy,     "Phrase+U = COPY");
+        CHECK(resolve(CB::VerbRecord, kModScene)                   == AId::VerbBakeScene,"Scene+U = BAKE");
+        CHECK(resolve(CB::VerbRecord, kModScene | kModFunc)        == AId::VerbCopy,     "Func+Scene+U = COPY");
+        CHECK(resolve(CB::VerbRecord, kModSong)                    == AId::VerbCopy,     "Song+U = COPY");
         // Morph does NOT relabel REC to COPY
         CHECK(resolve(CB::VerbRecord, kModMorph)  == AId::VerbRecord, "Morph+U stays REC");
 
-        // I: PLAY / PASTE under scope (not Morph)
-        CHECK(resolve(CB::VerbPlay, kModNone)   == AId::VerbPlay,  "I bare = PLAY");
-        CHECK(resolve(CB::VerbPlay, kModTrack)  == AId::VerbPaste, "Track+I = PASTE");
-        CHECK(resolve(CB::VerbPlay, kModMorph)  == AId::VerbPlay,  "Morph+I stays PLAY");
+        // I: PLAY / PASTE under scope (not Morph). Scene bare = inert (no row); Func+Scene = PASTE.
+        CHECK(resolve(CB::VerbPlay, kModNone)                  == AId::VerbPlay,  "I bare = PLAY");
+        CHECK(resolve(CB::VerbPlay, kModTrack)                 == AId::VerbPaste, "Track+I = PASTE");
+        CHECK(resolve(CB::VerbPlay, kModMorph)                 == AId::VerbPlay,  "Morph+I stays PLAY");
+        CHECK(resolve(CB::VerbPlay, kModScene)                 == AId::VerbPlay,  "Scene+I = PLAY (no PASTE row; bare is inert in dispatch)");
+        CHECK(resolve(CB::VerbPlay, kModScene | kModFunc)      == AId::VerbPaste, "Func+Scene+I = PASTE");
 
-        // O: CLEAR / DEL (Func); CLEAR under ALL scopes incl. Morph
-        CHECK(resolve(CB::VerbClear, kModNone)  == AId::VerbClear,      "O bare = CLEAR");
-        CHECK(resolve(CB::VerbClear, kModFunc)  == AId::VerbDelete,     "Func+O = DEL");
-        CHECK(resolve(CB::VerbClear, kModTrack) == AId::VerbScopedClear, "Track+O = CLEAR");
-        CHECK(resolve(CB::VerbClear, kModMorph) == AId::VerbScopedClear, "Morph+O = CLEAR");
+        // O: CLEAR / DEL. Scope+Func = DEL (Track/Phrase/Scene). Morph = BAKE; Morph+Func = ERASE.
+        CHECK(resolve(CB::VerbClear, kModNone)                   == AId::VerbClear,      "O bare = CLEAR");
+        CHECK(resolve(CB::VerbClear, kModFunc)                   == AId::VerbDelete,     "Func+O = DEL");
+        CHECK(resolve(CB::VerbClear, kModTrack)                  == AId::VerbScopedClear, "Track+O = CLEAR");
+        CHECK(resolve(CB::VerbClear, kModTrack  | kModFunc)      == AId::VerbDelete,     "Func+Track+O = DEL");
+        CHECK(resolve(CB::VerbClear, kModPhrase | kModFunc)      == AId::VerbDelete,     "Func+Phrase+O = DEL");
+        CHECK(resolve(CB::VerbClear, kModScene  | kModFunc)      == AId::VerbDelete,     "Func+Scene+O = DEL");
+        CHECK(resolve(CB::VerbClear, kModMorph)                  == AId::VerbMorphBake,  "Morph+O = BAKE");
+        CHECK(resolve(CB::VerbClear, kModMorph  | kModFunc)      == AId::VerbMorphErase, "Func+Morph+O = ERASE");
 
         // P: YES / NO
         CHECK(resolve(CB::VerbNo, kModNone) == AId::VerbConfirm, "P bare = YES");

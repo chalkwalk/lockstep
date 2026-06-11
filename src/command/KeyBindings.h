@@ -80,6 +80,9 @@ namespace lockstep
         VerbCopy,            // VerbRecord while any section-suite scope held (not Morph)
         VerbPaste,           // VerbPlay while any section-suite scope held (not Morph)
         VerbScopedClear,     // VerbClear while any section-suite scope held (incl. Morph)
+        VerbBakeScene,       // Scene+VerbRecord (bare): bake live deviations → confirm
+        VerbMorphBake,       // Morph+VerbClear: bake morph state
+        VerbMorphErase,      // Func+Morph+VerbClear: erase morph state
         // Mute/solo cluster (index = track)
         GlobalMuteToggle,    // Mute+step: immediate global mute
         SoloToggle,          // Func+Mute+step: solo

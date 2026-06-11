@@ -2573,6 +2573,14 @@ namespace lockstep
             case ControllerButton::VerbDelete:
             {
                 using PS = EditMode::PrimaryScope;
+                // Morph+Func+Clear = morph erase (Func remap sends VerbDelete for VerbClear).
+                if (editMode_.primaryScope() == PS::Morph)
+                {
+                    editorEffects_->morphErase(keyboardArea_.getActiveTrack());
+                    setStatus(status::morphErased());
+                    keyboardArea_.repaint();
+                    return true;
+                }
                 // Build a description of the entity to delete based on current scope.
                 juce::String entityName;
                 switch (editMode_.primaryScope())
@@ -2612,11 +2620,7 @@ namespace lockstep
                         return true;
                     }
                     pendingConfirm_ = PendingConfirm::BakeScene;
-                    {
-                        juce::String msg = "Bake " + juce::String(nd) + " track(s) onto row "
-                            + juce::String(processor_.activeSectionIdx()) + "?  P=Yes  Func+P=No";
-                        setStatus(msg);
-                    }
+                    setStatus(status::confirmBake(nd, processor_.activeSectionIdx()));
                     repaint();
                     return true;
                 }

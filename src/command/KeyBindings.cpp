@@ -100,30 +100,39 @@ namespace lockstep
         { CB::VerbYes,     -1, kModNone,               SL::Base, AId::VerbSnapshot,   u8"SNAP",    u8"RESTORE", CS::Resting },
 
         // ── VerbRecord / REC (key U) ──────────────────────────────────────────
-        // Scope+VerbRecord = COPY for all section-suite scopes except Morph.
-        { CB::VerbRecord,  -1, kModTrack,              SL::Base, AId::VerbCopy,       u8"COPY",  u8"",   CS::Resting },
-        { CB::VerbRecord,  -1, kModPhrase,             SL::Base, AId::VerbCopy,       u8"COPY",  u8"",   CS::Resting },
-        { CB::VerbRecord,  -1, kModScene,              SL::Base, AId::VerbCopy,       u8"COPY",  u8"",   CS::Resting },
-        { CB::VerbRecord,  -1, kModSong,               SL::Base, AId::VerbCopy,       u8"COPY",  u8"",   CS::Resting },
-        { CB::VerbRecord,  -1, kModNone,               SL::Base, AId::VerbRecord,     u8"REC",   u8"",   CS::Resting },
+        // Scope+VerbRecord = COPY for Track/Phrase/Song. Scene bare = BAKE (arms confirm);
+        // Func+Scene+Record = COPY (scene copy, handled in verbs::scene).
+        { CB::VerbRecord,  -1, kModScene | kModFunc,   SL::Base, AId::VerbCopy,       u8"COPY",  u8"",     CS::FuncHeld },
+        { CB::VerbRecord,  -1, kModTrack,              SL::Base, AId::VerbCopy,       u8"COPY",  u8"",     CS::Resting  },
+        { CB::VerbRecord,  -1, kModPhrase,             SL::Base, AId::VerbCopy,       u8"COPY",  u8"",     CS::Resting  },
+        { CB::VerbRecord,  -1, kModScene,              SL::Base, AId::VerbBakeScene,  u8"BAKE",  u8"COPY", CS::Resting  },
+        { CB::VerbRecord,  -1, kModSong,               SL::Base, AId::VerbCopy,       u8"COPY",  u8"",     CS::Resting  },
+        { CB::VerbRecord,  -1, kModNone,               SL::Base, AId::VerbRecord,     u8"REC",   u8"",     CS::Resting  },
 
         // ── VerbPlay / PLAY (key I) ───────────────────────────────────────────
-        // Scope+VerbPlay = PASTE for all section-suite scopes except Morph.
-        { CB::VerbPlay,    -1, kModTrack,              SL::Base, AId::VerbPaste,      u8"PASTE", u8"",   CS::Resting },
-        { CB::VerbPlay,    -1, kModPhrase,             SL::Base, AId::VerbPaste,      u8"PASTE", u8"",   CS::Resting },
-        { CB::VerbPlay,    -1, kModScene,              SL::Base, AId::VerbPaste,      u8"PASTE", u8"",   CS::Resting },
-        { CB::VerbPlay,    -1, kModSong,               SL::Base, AId::VerbPaste,      u8"PASTE", u8"",   CS::Resting },
-        { CB::VerbPlay,    -1, kModNone,               SL::Base, AId::VerbPlay,       u8"PLAY",  u8"",   CS::Resting },
+        // Scope+VerbPlay = PASTE for Track/Phrase/Song. Scene bare is inert (verbs::scene
+        // requires Func); Func+Scene+Play = PASTE.
+        { CB::VerbPlay,    -1, kModScene | kModFunc,   SL::Base, AId::VerbPaste,      u8"PASTE", u8"",   CS::FuncHeld },
+        { CB::VerbPlay,    -1, kModTrack,              SL::Base, AId::VerbPaste,      u8"PASTE", u8"",   CS::Resting  },
+        { CB::VerbPlay,    -1, kModPhrase,             SL::Base, AId::VerbPaste,      u8"PASTE", u8"",   CS::Resting  },
+        { CB::VerbPlay,    -1, kModSong,               SL::Base, AId::VerbPaste,      u8"PASTE", u8"",   CS::Resting  },
+        { CB::VerbPlay,    -1, kModNone,               SL::Base, AId::VerbPlay,       u8"PLAY",  u8"",   CS::Resting  },
 
         // ── VerbClear / CLEAR (key O) ─────────────────────────────────────────
-        // Func+Clear = Delete. Scope+Clear = CLEAR for ALL scopes incl. Morph.
-        { CB::VerbClear,   -1, kModFunc,               SL::Base, AId::VerbDelete,     u8"DEL",   u8"",    CS::Resting },
-        { CB::VerbClear,   -1, kModTrack,              SL::Base, AId::VerbScopedClear, u8"CLEAR", u8"",   CS::Resting },
-        { CB::VerbClear,   -1, kModPhrase,             SL::Base, AId::VerbScopedClear, u8"CLEAR", u8"",   CS::Resting },
-        { CB::VerbClear,   -1, kModScene,              SL::Base, AId::VerbScopedClear, u8"CLEAR", u8"",   CS::Resting },
-        { CB::VerbClear,   -1, kModMorph,              SL::Base, AId::VerbScopedClear, u8"CLEAR", u8"",   CS::Resting },
-        { CB::VerbClear,   -1, kModSong,               SL::Base, AId::VerbScopedClear, u8"CLEAR", u8"",   CS::Resting },
-        { CB::VerbClear,   -1, kModNone,               SL::Base, AId::VerbClear,      u8"CLEAR", u8"DEL", CS::Resting },
+        // Func+Scope+Clear = DEL for Track/Phrase/Scene (not Song/Morph).
+        // Morph+Func+Clear = ERASE (morph erase, not generic delete).
+        // Song+Func+Clear is inert — no Song-delete exists; Song row wins the tiebreak.
+        { CB::VerbClear,   -1, kModPhrase | kModFunc,  SL::Base, AId::VerbDelete,      u8"DEL",   u8"",      CS::FuncHeld },
+        { CB::VerbClear,   -1, kModTrack  | kModFunc,  SL::Base, AId::VerbDelete,      u8"DEL",   u8"",      CS::FuncHeld },
+        { CB::VerbClear,   -1, kModScene  | kModFunc,  SL::Base, AId::VerbDelete,      u8"DEL",   u8"",      CS::FuncHeld },
+        { CB::VerbClear,   -1, kModMorph  | kModFunc,  SL::Base, AId::VerbMorphErase,  u8"ERASE", u8"",      CS::FuncHeld },
+        { CB::VerbClear,   -1, kModFunc,               SL::Base, AId::VerbDelete,      u8"DEL",   u8"",      CS::Resting  },
+        { CB::VerbClear,   -1, kModTrack,              SL::Base, AId::VerbScopedClear, u8"CLEAR", u8"DEL",   CS::Resting  },
+        { CB::VerbClear,   -1, kModPhrase,             SL::Base, AId::VerbScopedClear, u8"CLEAR", u8"DEL",   CS::Resting  },
+        { CB::VerbClear,   -1, kModScene,              SL::Base, AId::VerbScopedClear, u8"CLEAR", u8"DEL",   CS::Resting  },
+        { CB::VerbClear,   -1, kModMorph,              SL::Base, AId::VerbMorphBake,   u8"BAKE",  u8"ERASE", CS::Resting  },
+        { CB::VerbClear,   -1, kModSong,               SL::Base, AId::VerbScopedClear, u8"PANIC", u8"",      CS::Resting  },
+        { CB::VerbClear,   -1, kModNone,               SL::Base, AId::VerbClear,       u8"CLEAR", u8"DEL",   CS::Resting  },
 
         // ── VerbNo / YES (key P) ─────────────────────────────────────────────
         { CB::VerbNo,      -1, kModFunc,               SL::Base, AId::VerbCancel,     u8"NO",  u8"",   CS::Resting },

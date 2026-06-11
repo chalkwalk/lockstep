@@ -103,4 +103,10 @@ namespace lockstep::status
         return "Delete " + entityName + "?  P=Yes  Func+P=No";
     }
 
+    inline juce::String confirmBake(int numTracks, int rowIdx)
+    {
+        return "Bake " + juce::String(numTracks) + " track(s) onto row "
+             + juce::String(rowIdx) + "?  P=Yes  Func+P=No";
+    }
+
 } // namespace lockstep::status
