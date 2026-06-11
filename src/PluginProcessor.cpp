@@ -3451,6 +3451,13 @@ namespace lockstep
             recomputeSlicesIfNeeded(static_cast<int>(t),
                                     slotForId(static_cast<int>(t), "slicer_sample_id"),
                                     sequence().tracks[t].baseParams);
+            // Pre-reserve PLock capacity so audio-thread set() never allocates.
+            const int np = numParams(static_cast<int>(t));
+            for (auto& step : sequence().tracks[t].steps)
+            {
+                step.overrides.reserve(np);
+                step.fillOverrides.reserve(np);
+            }
         }
     }
 
@@ -3733,6 +3740,18 @@ namespace lockstep
                 auto& trigDef = sequence().tracks[t].trigDefaults;
                 if (trigDef.gateValue == MusicalGate::None)
                     trigDef.gateValue = MusicalGate::G1_8;
+            }
+        }
+
+        // Pre-reserve PLock capacity for every track so audio-thread set() never
+        // allocates after state load.
+        for (std::size_t t = 0; t < kNumTracks; ++t)
+        {
+            const int np = numParams(static_cast<int>(t));
+            for (auto& step : sequence().tracks[t].steps)
+            {
+                step.overrides.reserve(np);
+                step.fillOverrides.reserve(np);
             }
         }
     }
