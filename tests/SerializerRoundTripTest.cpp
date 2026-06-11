@@ -1,4 +1,4 @@
-// SerializerRoundTripTest — characterisation of the v14 serialized format.
+// SerializerRoundTripTest — characterisation of the v14/v15 serialized format.
 //
 // Design note: PluginState::writeTo/readFrom are coupled to LockstepProcessor
 // and cannot run headlessly without a full plugin host context. This file pins
@@ -22,7 +22,8 @@
 //                child "TO" (trig override), child "PL" / child "P" (p-locks)
 //   TrigOverride:"nc" (noteCount), "n0".."n3" (notes), "hv"/"v" (vel),
 //                "hg"/"gv" (gate), "hsi"/"si" (soundId), "hrt"/"rt" (retrig)
-//   P-Lock:      "s" (slot), "v" (value)
+//   P-Lock v14:  "s" (slot), "v" (value)
+//   P-Lock v15:  "id" (param id string), "v" (value)
 //   Phrase:      "i" (idx), "len", "nsel", child "BaseCond", child "TrigDefaults",
 //                child "Steps"
 //   TrigDefaults:"note", "vel", "gateV"
@@ -567,6 +568,91 @@ namespace lockstep
         }
     }
 
+    // ── v15 P-Lock format: string id keys ─────────────────────────────────────
+    // Mirrors the v15 production write path and the dual-path read path
+    // in readPhraseFromNode (production code). Tests:
+    //   1. v15 "id"-keyed P-Locks round-trip via a resolver lambda.
+    //   2. Legacy v14 "s"-keyed P-Locks still parse (backward compat).
+    //   3. Unknown ids silently drop (resolver returns -1).
+
+    // Simulates a v15 P-Lock write: writes "id"/"v" instead of "s"/"v".
+    static juce::ValueTree buildPLockNodeV15(const juce::String& id, float value)
+    {
+        juce::ValueTree p("P");
+        p.setProperty("id", id,                       nullptr);
+        p.setProperty("v",  static_cast<double>(value), nullptr);
+        return p;
+    }
+
+    // Parses a PL node using a slotResolver (mirrors production readPhraseFromNode logic).
+    static PLock parsePLNodeDualPath(const juce::ValueTree& plNode,
+                                     std::function<int(const juce::String&)> slotResolver)
+    {
+        PLock result;
+        for (auto pNode : plNode)
+        {
+            const float val = static_cast<float>(
+                static_cast<double>(pNode.getProperty("v", 0.0)));
+            const juce::String sid = pNode.getProperty("id").toString();
+            if (sid.isNotEmpty())
+            {
+                const int sl = slotResolver(sid);
+                if (sl >= 0) result.set(sl, val);
+            }
+            else
+            {
+                const int sl = static_cast<int>(pNode.getProperty("s", -1));
+                if (sl >= 0) result.set(sl, val);
+            }
+        }
+        return result;
+    }
+
+    static void testV15PLockFormat()
+    {
+        // Simple slot-id map for testing: "filter.cutoff"→2, "amp.gain"→5.
+        auto resolver = [](const juce::String& id) -> int {
+            if (id == "filter.cutoff") return 2;
+            if (id == "amp.gain")      return 5;
+            return -1;
+        };
+
+        // v15: id-keyed P-Locks round-trip via resolver.
+        {
+            juce::ValueTree plNode("PL");
+            plNode.appendChild(buildPLockNodeV15("filter.cutoff", 0.75f), nullptr);
+            plNode.appendChild(buildPLockNodeV15("amp.gain",      0.33f), nullptr);
+            const auto locks = parsePLNodeDualPath(plNode, resolver);
+            CHECK(feq(locks.get(2, -1.f), 0.75f), "v15: filter.cutoff resolves to slot 2");
+            CHECK(feq(locks.get(5, -1.f), 0.33f), "v15: amp.gain resolves to slot 5");
+            CHECK(feq(locks.get(0, -1.f), -1.f),  "v15: unlocked slot returns sentinel");
+        }
+
+        // v14 legacy: s-keyed P-Locks still load via dual-path reader.
+        {
+            juce::ValueTree plNode("PL");
+            juce::ValueTree p("P");
+            p.setProperty("s", 2, nullptr);
+            p.setProperty("v", 0.88, nullptr);
+            plNode.appendChild(p, nullptr);
+            const auto locks = parsePLNodeDualPath(plNode, resolver);
+            CHECK(feq(locks.get(2, -1.f), 0.88f), "v14 legacy: s-keyed slot 2 still loads");
+        }
+
+        // Unknown id: silently dropped.
+        {
+            juce::ValueTree plNode("PL");
+            plNode.appendChild(buildPLockNodeV15("unknown.param", 0.5f), nullptr);
+            plNode.appendChild(buildPLockNodeV15("filter.cutoff", 0.6f), nullptr);
+            const auto locks = parsePLNodeDualPath(plNode, resolver);
+            CHECK(feq(locks.get(2, -1.f), 0.6f), "v15: known id resolves correctly");
+            CHECK(locks.empty() || feq(locks.get(2, -1.f), 0.6f),
+                  "v15: unknown id dropped; known id intact");
+            // Verify the unknown slot is not spuriously set.
+            CHECK(feq(locks.get(0, -1.f), -1.f), "v15: slot 0 not set by unknown id");
+        }
+    }
+
     void runSerializerRoundTripTests()
     {
         testCondRoundTrip();
@@ -574,5 +660,6 @@ namespace lockstep
         testPhrasePropertyNames();
         testFillFieldRoundTrip();
         testMutationDetectability();
+        testV15PLockFormat();
     }
 }

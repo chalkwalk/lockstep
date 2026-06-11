@@ -31,7 +31,9 @@ namespace lockstep
         // v12: per-step retrig rate (hasRetrig/retrigRate) + sound_id P-Lock.
         // v13: per-track insert chains (effectId/baseParams/bypass) in Kit node.
         // v14: per-song master FX inserts (MasterIns nodes in Song).
-        inline constexpr int kCurrentVersion = 14;
+        // v15: P-Lock entries use string param id ("id") instead of int slot ("s").
+        //      Loader accepts both; "s" int entries still load (legacy compat).
+        inline constexpr int kCurrentVersion = 15;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);

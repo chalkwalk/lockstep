@@ -1368,6 +1368,23 @@ setMasterInsert, setTrackMachine, copyKit, state-load) now use
       inaudible). FM per-operator envelopes deferred (linear ramps; would
       require extending Envelope.h).
 
+- [x] **8.23** Serializer v15 — P-Lock string ids:
+      `kCurrentVersion` bumped to 15. P-Lock entries now written as
+      `("id", paramId, "v", value)` instead of `("s", slotIdx, "v", value)`,
+      matching the documented contract in `PLock.h` and the CC-mapping pattern.
+      `writePhraseNode` takes `LockstepProcessor& proc, int trackIdx` and calls
+      `proc.idForSlot(trackIdx, slot)` to resolve ids (slots with no id are
+      skipped). `readPhraseFromNode` takes a `slotResolver` lambda — call site
+      passes `[&](id){ return proc.slotForId(t, id); }`. Dual-path loader:
+      checks `"id"` first, falls back to legacy `"s"` int (v14 saves still
+      load). Fill P-Locks (`FPL`) updated identically. `upgrade_v14_to_v15`
+      is a version-stamp no-op (dual-path reading handles compat without a
+      tree transform). `StateKeys.h` gains `kPLockSlot = "s"` and
+      `kPLockVal = "v"`. `SerializerRoundTripTest` extended with
+      `testV15PLockFormat`: v15 id-keyed round-trip, v14 legacy s-keyed
+      backward compat, and unknown-id drop.
+      Open: `7.8` host round-trip in Reaper/Bitwig (user to verify).
+
 ---
 
 ## Appendix — Legacy code → new id

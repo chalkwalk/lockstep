@@ -61,7 +61,8 @@ namespace lockstep::PluginState
 
     // ── Phase 7 / Stage F: new musical hierarchy serialization ───────────────
 
-    static juce::ValueTree writePhraseNode(int phraseIdx, const Phrase& phrase)
+    static juce::ValueTree writePhraseNode(int phraseIdx, const Phrase& phrase,
+                                           LockstepProcessor& proc, int trackIdx)
     {
         juce::ValueTree node(keys::kPhrase);
         node.setProperty("i",   phraseIdx,     nullptr);
@@ -131,9 +132,11 @@ namespace lockstep::PluginState
                 juce::ValueTree plNode("PL");
                 step.overrides.forEach([&](int slot, float value)
                 {
+                    const juce::String sid = proc.idForSlot(trackIdx, slot);
+                    if (sid.isEmpty()) return;
                     juce::ValueTree pNode("P");
-                    pNode.setProperty("s", slot, nullptr);
-                    pNode.setProperty("v", static_cast<double>(value), nullptr);
+                    pNode.setProperty(keys::kParamId, sid,                      nullptr);
+                    pNode.setProperty(keys::kPLockVal, static_cast<double>(value), nullptr);
                     plNode.appendChild(pNode, nullptr);
                 });
                 stepNode.appendChild(plNode, nullptr);
@@ -167,9 +170,11 @@ namespace lockstep::PluginState
                 juce::ValueTree fplNode(keys::kFillPLocks);
                 step.fillOverrides.forEach([&](int slot, float value)
                 {
+                    const juce::String sid = proc.idForSlot(trackIdx, slot);
+                    if (sid.isEmpty()) return;
                     juce::ValueTree pNode("P");
-                    pNode.setProperty("s", slot, nullptr);
-                    pNode.setProperty("v", static_cast<double>(value), nullptr);
+                    pNode.setProperty(keys::kParamId, sid,                      nullptr);
+                    pNode.setProperty(keys::kPLockVal, static_cast<double>(value), nullptr);
                     fplNode.appendChild(pNode, nullptr);
                 });
                 stepNode.appendChild(fplNode, nullptr);
@@ -180,7 +185,10 @@ namespace lockstep::PluginState
         return node;
     }
 
-    static void readPhraseFromNode(const juce::ValueTree& node, Phrase& phrase)
+    // slotResolver(id) → runtime slot index for a string param id; returns -1 if unknown.
+    // Pass a no-op lambda (returning -1) when no machine context is available.
+    static void readPhraseFromNode(const juce::ValueTree& node, Phrase& phrase,
+                                    std::function<int(const juce::String&)> slotResolver)
     {
         phrase.length = std::clamp(static_cast<int>(node.getProperty(keys::kLen, 16)), 1, kMaxStepsPerTrack);
         if (node.hasProperty(keys::kNSel))
@@ -225,12 +233,23 @@ namespace lockstep::PluginState
                 if (static_cast<int>(toNode.getProperty(keys::kHrt, 0)) != 0)
                 { step.trigOverride.hasRetrig = true; step.trigOverride.retrigRate = static_cast<double>(toNode.getProperty(keys::kRt, 0.25)); }
             }
-            const auto plNode = stepNode.getChildWithName("PL");
+            const auto plNode = stepNode.getChildWithName(keys::kPLocks);
             if (plNode.isValid())
                 for (auto pNode : plNode)
                 {
-                    const int sl = static_cast<int>(pNode.getProperty("s", -1));
-                    if (sl >= 0) step.overrides.set(sl, getFloat(pNode, "v", 0.0f));
+                    const float val = getFloat(pNode, keys::kPLockVal, 0.0f);
+                    // v15+: string id; v14-: integer slot (legacy compat).
+                    const juce::String sid = pNode.getProperty(keys::kParamId).toString();
+                    if (sid.isNotEmpty())
+                    {
+                        const int sl = slotResolver(sid);
+                        if (sl >= 0) step.overrides.set(sl, val);
+                    }
+                    else
+                    {
+                        const int sl = static_cast<int>(pNode.getProperty(keys::kPLockSlot, -1));
+                        if (sl >= 0) step.overrides.set(sl, val);
+                    }
                 }
             if (stepNode.hasProperty(keys::kFillTS))
                 step.fillTrigState = static_cast<FillTrigState>(
@@ -255,8 +274,18 @@ namespace lockstep::PluginState
             if (fplNode.isValid())
                 for (auto pNode : fplNode)
                 {
-                    const int sl = static_cast<int>(pNode.getProperty("s", -1));
-                    if (sl >= 0) step.fillOverrides.set(sl, getFloat(pNode, "v", 0.0f));
+                    const float val = getFloat(pNode, keys::kPLockVal, 0.0f);
+                    const juce::String sid = pNode.getProperty(keys::kParamId).toString();
+                    if (sid.isNotEmpty())
+                    {
+                        const int sl = slotResolver(sid);
+                        if (sl >= 0) step.fillOverrides.set(sl, val);
+                    }
+                    else
+                    {
+                        const int sl = static_cast<int>(pNode.getProperty(keys::kPLockSlot, -1));
+                        if (sl >= 0) step.fillOverrides.set(sl, val);
+                    }
                 }
         }
     }
@@ -452,7 +481,7 @@ namespace lockstep::PluginState
                     bool hasData = phrase.length != 16 || phrase.initialised;
                     if (!hasData) for (const auto& s : phrase.steps) if (s.trig) { hasData = true; break; }
                     if (!hasData) continue;
-                    songTrackNode.appendChild(writePhraseNode(ph, phrase), nullptr);
+                    songTrackNode.appendChild(writePhraseNode(ph, phrase, proc, t), nullptr);
                     laneHasContent = true;
                 }
                 if (laneHasContent)
@@ -582,7 +611,8 @@ namespace lockstep::PluginState
                         const int ph = static_cast<int>(phraseNode.getProperty("i", -1));
                         if (ph < 0 || ph >= kPhrasesPerTrack) continue;
                         auto& phrase = song.tracks[static_cast<std::size_t>(t)].phrases[static_cast<std::size_t>(ph)];
-                        readPhraseFromNode(phraseNode, phrase);
+                        readPhraseFromNode(phraseNode, phrase,
+                            [&](const juce::String& id) { return proc.slotForId(t, id); });
                         phrase.initialised = true;
                     }
                 }
@@ -1210,6 +1240,16 @@ namespace lockstep::PluginState
         return v14;
     }
 
+    // v14 → v15: P-Lock entries now written with string id ("id") instead of int
+    // slot ("s"). The loader accepts both formats, so no tree transform is needed;
+    // the upgrade is a pure version-stamp to correctly identify new files.
+    juce::ValueTree upgrade_v14_to_v15(const juce::ValueTree& v14)
+    {
+        juce::ValueTree v15 = v14.createCopy();
+        v15.setProperty(keys::kVersion, 15, nullptr);
+        return v15;
+    }
+
     juce::ValueTree applyUpgrades(juce::ValueTree tree)
     {
         // Determine the version. v0 has root type "Lockstep" and no version attribute.
@@ -1234,6 +1274,7 @@ namespace lockstep::PluginState
         if (version < 12) tree = upgrade_v11_to_v12(tree);
         if (version < 13) tree = upgrade_v12_to_v13(tree);
         if (version < 14) tree = upgrade_v13_to_v14(tree);
+        if (version < 15) tree = upgrade_v14_to_v15(tree);
 
         return tree;
     }

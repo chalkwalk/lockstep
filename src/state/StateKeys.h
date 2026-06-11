@@ -84,7 +84,10 @@ namespace lockstep::keys
 
   // ── P-Lock container (PL) + param entry (P) ─────────────────────────────────
   inline constexpr const char* kPLocks     = "PL";
-  inline constexpr const char* kParam      = "P";
+  inline constexpr const char* kParam      = "P";    // child node type within PL/FPL
+  inline constexpr const char* kPLockSlot  = "s";    // legacy v14: integer slot index
+  inline constexpr const char* kPLockVal   = "v";    // float value (both v14 and v15)
+  // kParamId = "id" (see Base Params section) is reused as the v15 P-Lock string id key.
   // Fill-specific overrides (parallel to TO/PL above):
   inline constexpr const char* kFillTS     = "fts";   // FillTrigState enum value
   inline constexpr const char* kFillTO     = "FTO";   // fill trig override node
