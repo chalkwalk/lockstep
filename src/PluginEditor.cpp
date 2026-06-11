@@ -1605,7 +1605,8 @@ namespace lockstep
                     const auto layerMode = (layerAt >= 0)
                         ? uiState_.trackInputMode[static_cast<std::size_t>(layerAt)]
                         : TrackInputMode::Play;
-                    const LayerFacts stepFacts { layerMode, layerAt };
+                    const LayerFacts stepFacts { layerMode, layerAt,
+                        pendingConfirm_ != PendingConfirm::None };
                     const SurfaceLayer layer = resolveActiveLayer(
                         uiState_, processor_.editContext(), stepFacts);
 

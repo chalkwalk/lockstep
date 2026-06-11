@@ -1241,8 +1241,13 @@ per-renderer label logic and per-key modifier checks. See DESIGN §37.6.
         `if/else if` chain (Track/Phrase/Scene/Morph/Song UiState flags)
         replaced with `firstHeldSectionSuiteScope(uiState_)` — the
         `kScopePriority`-ordered SSOT from `ScopePriority.h`.
-- [ ] **Task B** Confirm-prompt + master-FX-picker overlay wiring through
-      `SurfaceLayer` (`PendingConfirm` / `MasterFxPicker` layers).
+- [x] **Task B** Confirm-prompt + master-FX-picker overlay wiring:
+      `LayerFacts.pendingConfirm` threaded from `pendingConfirm_` into
+      the step handler; `resolveActiveLayer` now returns `MasterFxPicker`
+      when `ui.masterFxPickerOpen`; `TrackFxPicker` / `MachinePicker`
+      ordering corrected to match enum priority (MasterFxPicker > TrackFxPicker
+      > MachinePicker); `SurfaceLayerTest` golden table extended with
+      `MasterFxPicker` single + priority tests. **(8.11 complete.)**
 
 ### Accepted residuals (non-goals)
 - SamplePoolOverlay / SoundBankOverlay internals; InPluginTransport beyond the

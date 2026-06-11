@@ -18,11 +18,9 @@ namespace lockstep
     if (ui.trigGridMode == TrigGridMode::SoundPool) { return SurfaceLayer::SoundPool;   }
     if (ui.trigGridMode == TrigGridMode::Retrig)    { return SurfaceLayer::RetrigPicker; }
 
-    // MasterFxPicker: step grid overlay not yet built (Task B); passes through.
-    // if (ui.masterFxPickerOpen) return SurfaceLayer::MasterFxPicker;
-
-    if (ui.funcTrackHeld) { return SurfaceLayer::MachinePicker; }
-    if (ui.funcFxHeld)    { return SurfaceLayer::TrackFxPicker; }
+    if (ui.masterFxPickerOpen) { return SurfaceLayer::MasterFxPicker; }
+    if (ui.funcFxHeld)         { return SurfaceLayer::TrackFxPicker;  }
+    if (ui.funcTrackHeld)      { return SurfaceLayer::MachinePicker;  }
 
     if (ui.noteEditMode && !ui.noteEditSteps.empty()) { return SurfaceLayer::NoteEdit; }
 

@@ -46,14 +46,19 @@ namespace lockstep
                   "Retrig trigGridMode → RetrigPicker");
         }
         {
-            UiState ui; ui.funcTrackHeld = true;
-            CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::MachinePicker,
-                  "funcTrackHeld → MachinePicker");
+            UiState ui; ui.masterFxPickerOpen = true;
+            CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::MasterFxPicker,
+                  "masterFxPickerOpen → MasterFxPicker");
         }
         {
             UiState ui; ui.funcFxHeld = true;
             CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::TrackFxPicker,
                   "funcFxHeld → TrackFxPicker");
+        }
+        {
+            UiState ui; ui.funcTrackHeld = true;
+            CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::MachinePicker,
+                  "funcTrackHeld → MachinePicker");
         }
         {
             UiState ui;
@@ -172,6 +177,24 @@ namespace lockstep
         }
     }
 
+    static void testMasterFxPickerBeatsOthers()
+    {
+        {
+            UiState ui;
+            ui.masterFxPickerOpen = true;
+            ui.funcFxHeld         = true;  // would be TrackFxPicker
+            CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::MasterFxPicker,
+                  "MasterFxPicker beats TrackFxPicker");
+        }
+        {
+            UiState ui;
+            ui.masterFxPickerOpen = true;
+            ui.funcTrackHeld      = true;  // would be MachinePicker
+            CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::MasterFxPicker,
+                  "MasterFxPicker beats MachinePicker");
+        }
+    }
+
     static void testMachinePickerBeatsNoteEdit()
     {
         UiState ui;
@@ -273,6 +296,7 @@ namespace lockstep
         testBaseLayer();
         testSingleConditions();
         testSoundPoolBeatsOthers();
+        testMasterFxPickerBeatsOthers();
         testMachinePickerBeatsNoteEdit();
         testNoteEditBeatsPLockClear();
         testNoteEditBeatsChromaticAndLevels();
