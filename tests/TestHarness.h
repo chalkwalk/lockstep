@@ -50,4 +50,6 @@ namespace lockstep
     void runParamSpecTests();
     // 8.13 Machine DSP smoke + envelope characterization
     void runMachineDspTests();
+    // 8.14 Headless processBlock harness
+    void runEngineTests();
 }

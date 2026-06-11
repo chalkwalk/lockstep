@@ -21,7 +21,8 @@ add_executable(lockstep_tests
     GestureTest.cpp
     StatusTextTest.cpp
     ParamSpecTest.cpp
-    MachineDspTest.cpp)
+    MachineDspTest.cpp
+    EngineTest.cpp)
 
 target_link_libraries(lockstep_tests PRIVATE
     lockstep_engine

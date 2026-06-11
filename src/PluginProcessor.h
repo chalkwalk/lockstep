@@ -524,9 +524,10 @@ namespace lockstep
 
         using juce::AudioProcessor::processBlock;
 
-    private:
-        // Reinstalls machines_ from the current Song's kit machineIds (Phase 7).
+        // Reinstall machines from the current Song's kit (public so tests can
+        // change kit(t).machineId and call this to apply it without a full reload).
         void reinstallMachinesFromActiveKit();
+
         // Copies active section's phrase data + kit baseParams into sequence tracks.
         void syncSequenceFromCurrentScene();
 
@@ -741,6 +742,12 @@ namespace lockstep
         // Per-track fader side from the previous block (false=A, true=B).
         // Used to detect crossings and emit All-Notes-Off on MIDI-out tracks.
         std::array<bool, kNumTracks> morphLastSide_ {};
+
+        // Cached from prepareToPlay — getSampleRate()/getBlockSize() are 0 until
+        // the host calls setRateAndBufferSizeDetails, so install/swap helpers must
+        // use these values instead.
+        double preparedSampleRate_ = 44100.0;
+        int    preparedBlockSize_  = 512;
 
         juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> gainSmoothed_;
         std::array<float, 2> dcX1_{};

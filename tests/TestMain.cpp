@@ -29,6 +29,8 @@ int main()
     lockstep::runParamSpecTests();
     // 8.13 Machine DSP smoke + envelope characterization
     lockstep::runMachineDspTests();
+    // 8.14 Headless processBlock harness
+    lockstep::runEngineTests();
 
     // Also drive the JUCE UnitTests registered in lockstep_core (the serializer
     // upgrade chain, "PluginState" category) so they run headlessly in CI rather

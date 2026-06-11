@@ -228,6 +228,9 @@ namespace lockstep
 
     void LockstepProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     {
+        preparedSampleRate_ = sampleRate;
+        preparedBlockSize_  = samplesPerBlock;
+
         clock_.prepare(sampleRate);
         metronome_.prepare(sampleRate);
         midiClockReceiver_.reset();
@@ -3162,7 +3165,7 @@ namespace lockstep
                 for (int p = 0; p < np; ++p)
                     kitSlot.baseParams[static_cast<std::size_t>(p)] = newEff->paramSpec(p).defaultValue;
             }
-            newEff->prepare(getSampleRate(), getBlockSize());
+            newEff->prepare(preparedSampleRate_, preparedBlockSize_);
         }
         suspendProcessing(true);
         trackInserts_[ti][si] = std::move(newEff);
@@ -3222,7 +3225,7 @@ namespace lockstep
                 for (int p = 0; p < np; ++p)
                     insSlot.baseParams[static_cast<std::size_t>(p)] = newEff->paramSpec(p).defaultValue;
             }
-            newEff->prepare(getSampleRate(), getBlockSize());
+            newEff->prepare(preparedSampleRate_, preparedBlockSize_);
         }
         suspendProcessing(true);
         masterInserts_[si] = std::move(newEff);
@@ -3437,7 +3440,7 @@ namespace lockstep
             if (!m || m->machineId() != desired)
             {
                 auto nm = makeMachineForId(desired, samplePool_);
-                nm->prepare(getSampleRate(), getBlockSize());
+                nm->prepare(preparedSampleRate_, preparedBlockSize_);
                 machines_[t] = std::move(nm);
             }
         }
@@ -3577,7 +3580,7 @@ namespace lockstep
         const auto ti = static_cast<std::size_t>(track);
 
         auto nm = makeMachineForId(machineId, samplePool_);
-        nm->prepare(getSampleRate(), getBlockSize());
+        nm->prepare(preparedSampleRate_, preparedBlockSize_);
 
         suspendProcessing(true);
         machines_[ti] = std::move(nm);
@@ -3618,7 +3621,7 @@ namespace lockstep
 
         // Install the copied machine.
         auto nm = makeMachineForId(kit(dstTrack).machineId, samplePool_);
-        nm->prepare(getSampleRate(), getBlockSize());
+        nm->prepare(preparedSampleRate_, preparedBlockSize_);
         suspendProcessing(true);
         machines_[di] = std::move(nm);
         suspendProcessing(false);
@@ -3685,8 +3688,8 @@ namespace lockstep
             machines_[t] = makeMachineForId(k.machineId, samplePool_);
             if (machines_[t]->isMidiOut())
                 pushMidiOutConfig(static_cast<MidiOutMachine*>(machines_[t].get()), k);
-            if (getSampleRate() > 0.0)
-                machines_[t]->prepare(getSampleRate(), getBlockSize());
+            if (preparedSampleRate_ > 0.0)
+                machines_[t]->prepare(preparedSampleRate_, preparedBlockSize_);
         }
 
         // v13: reinstall insert effects from the loaded Kit state. setTrackInsert
