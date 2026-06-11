@@ -10,8 +10,7 @@ namespace lockstep::TrigEvaluator
     // Maps (trackIdx, absoluteStep) to a deterministic value in [0, 99].
     inline int deterministicPercent(std::size_t trackIdx, std::int64_t absoluteStep)
     {
-        auto h = (static_cast<std::uint32_t>(trackIdx) * 2654435761u)
-               ^ static_cast<std::uint32_t>(static_cast<std::uint64_t>(absoluteStep) * 2246822519ull);
+        auto h = (static_cast<std::uint32_t>(trackIdx) * 2654435761u) ^ static_cast<std::uint32_t>(static_cast<std::uint64_t>(absoluteStep) * 2246822519ull);
         h ^= h >> 16;
         h *= 0x45d9f3bu;
         h ^= h >> 16;
@@ -25,13 +24,13 @@ namespace lockstep::TrigEvaluator
     // prevFired    — whether the immediately preceding step slot fired.
     // fillActive   — whether the Fill scope is currently held.
     inline bool shouldFire(const Step& step,
-                            const TrigCondition& cond,
-                            std::size_t trackIdx,
-                            std::int64_t absoluteStep,
-                            int trackLen,
-                            bool prevFired,
-                            bool fillActive = false,
-                            float chanceScale = 1.0f)
+                           const TrigCondition& cond,
+                           std::size_t trackIdx,
+                           std::int64_t absoluteStep,
+                           int trackLen,
+                           bool prevFired,
+                           bool fillActive = false,
+                           float chanceScale = 1.0f)
     {
         // Fill trig state determines whether this step fires at all during fill.
         if (fillActive)
@@ -53,23 +52,23 @@ namespace lockstep::TrigEvaluator
         // Iteration rule.
         if (cond.iterDenominator > 1)
         {
-            const auto len   = static_cast<std::int64_t>(std::max(trackLen, 1));
+            const auto len = static_cast<std::int64_t>(std::max(trackLen, 1));
             const auto denom = static_cast<std::int64_t>(cond.iterDenominator);
-            const auto iter  = absoluteStep / len;
+            const auto iter = absoluteStep / len;
             if (iter % denom != static_cast<std::int64_t>(cond.iterNumerator) - 1)
                 return false;
         }
 
         // Previous-dependency gate.
         if (cond.prevDependency == 1 && !prevFired) { return false; }
-        if (cond.prevDependency == 2 &&  prevFired) { return false; }
+        if (cond.prevDependency == 2 && prevFired) { return false; }
 
         // Probability check (scaled by the per-track Chance macro).
         const int scaledProb = std::clamp(
             static_cast<int>(static_cast<float>(cond.probabilityPercent) * chanceScale),
             0, 100);
         if (scaledProb >= 100) { return true; }
-        if (scaledProb == 0)   { return false; }
+        if (scaledProb == 0) { return false; }
         return deterministicPercent(trackIdx, absoluteStep) < scaledProb;
     }
 }

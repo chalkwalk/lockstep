@@ -12,7 +12,7 @@ namespace lockstep
 
         void setCoeffs(float g, float k) noexcept
         {
-            k_  = k;
+            k_ = k;
             a1_ = 1.0f / (1.0f + g * (g + k));
             a2_ = g * a1_;
             a3_ = g * a2_;
@@ -28,10 +28,10 @@ namespace lockstep
             ic2eq = 2.0f * v2 - ic2eq;
             switch (mode)
             {
-            case 0:  return v2;                  // LP
-            case 1:  return v - k_ * v1 - v2;   // HP
-            case 2:  return v1;                  // BP
-            default: return v - k_ * v1;         // Notch
+                case 0:  return v2;                  // LP
+                case 1:  return v - k_ * v1 - v2;   // HP
+                case 2:  return v1;                  // BP
+                default: return v - k_ * v1;         // Notch
             }
         }
 

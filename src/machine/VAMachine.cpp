@@ -6,13 +6,13 @@
 
 namespace lockstep
 {
-    static constexpr double kTwoPi    = 6.283185307179586476925;
-    static constexpr float  kPiF      = 3.14159265358979323846f;
+    static constexpr double kTwoPi = 6.283185307179586476925;
+    static constexpr float kPiF = 3.14159265358979323846f;
 
     // =========================================================================
     // Construction
 
-    VAMachine::VAMachine()  = default;
+    VAMachine::VAMachine() = default;
     VAMachine::~VAMachine() = default;
 
     void VAMachine::prepare(double sampleRate, int /*maxBlockSize*/)
@@ -29,24 +29,24 @@ namespace lockstep
     void VAMachine::reset()
     {
         for (auto& sv : subVoices_) sv = SubVoice{};
-        voiceCounter_     = 0;
+        voiceCounter_ = 0;
         paraChordNoteIdx_ = 0;
         ampEnv_.reset();
         filterEnv_.reset();
         svf1_.reset();
         svf2_.reset();
-        lfoPhase_      = 0.0;
-        lfoOut_        = 0.0f;
-        noiseState_    = 0.0f;
+        lfoPhase_ = 0.0;
+        lfoOut_ = 0.0f;
+        noiseState_ = 0.0f;
         monoGhostGain_ = 0.0f;
         monoGhostFade_ = 0;
         monoGate_.reset();
-        prevParaMode_  = false;
-        lfoRandCurr_   = 0.0f;
-        lfoRandNext_   = 0.0f;
-        lfoRandPhase_  = 0.0;
-        dcX1_          = 0.0f;
-        dcY1_          = 0.0f;
+        prevParaMode_ = false;
+        lfoRandCurr_ = 0.0f;
+        lfoRandNext_ = 0.0f;
+        lfoRandPhase_ = 0.0;
+        dcX1_ = 0.0f;
+        dcY1_ = 0.0f;
     }
 
     // =========================================================================
@@ -54,69 +54,72 @@ namespace lockstep
 
     // Unit / Role as uint8 (avoids -Wsign-conversion casts in every row).
     // These must stay in sync with the ParamSpec enums in IMachine.h.
-    namespace va_u { // unit
+    namespace va_u
+    { // unit
         static constexpr uint8_t None = 0, Ms = 1, Semi = 2, Pct = 3;
     }
-    namespace va_r { // role
+    namespace va_r
+    { // role
         static constexpr uint8_t None = 0, Pitch = 1, Level = 3, Pan = 4,
-                                  Cut = 5, Res = 6, Drive = 7,
-                                  Atk = 8, Dcy = 10, Sus = 11, Rel = 12,
-                                  LfoDep = 13, LfoRat = 14, LfoShp = 15;
+                                 Cut = 5, Res = 6, Drive = 7,
+                                 Atk = 8, Dcy = 10, Sus = 11, Rel = 12,
+                                 LfoDep = 13, LfoRat = 14, LfoShp = 15;
     }
 
-    namespace { // NULL-terminated value-label arrays (static lifetime)
-        static constexpr const char* kVAOscWaveLabels[]    = { "SAW","TRI","SQR","SIN",         nullptr };
-        static constexpr const char* kVAOsc2WaveLabels[]   = { "SAW","TRI","SQR","SIN","OFF",   nullptr };
-        static constexpr const char* kVAVoiceModeLabels[]  = { "MONO","PARA",                   nullptr };
-        static constexpr const char* kVAFilterTypeLabels[] = { "LP24","LP12","HP","BP",          nullptr };
-        static constexpr const char* kVALfoShapeLabels[]   = { "SIN","TRI","SAW","SQR","S&H","RND", nullptr };
-        static constexpr const char* kVALfoTargetLabels[]  = { "CUT","PITCH","PW","AMP",         nullptr };
-        static constexpr const char* kVALfoSyncLabels[]    = { "FREE","SYNC",                    nullptr };
-        static constexpr const char* kVARetrigLabels[]     = { "LEGATO","RETRIG",                nullptr };
+    namespace
+    { // NULL-terminated value-label arrays (static lifetime)
+        static constexpr const char* kVAOscWaveLabels[] = { "SAW", "TRI", "SQR", "SIN", nullptr };
+        static constexpr const char* kVAOsc2WaveLabels[] = { "SAW", "TRI", "SQR", "SIN", "OFF", nullptr };
+        static constexpr const char* kVAVoiceModeLabels[] = { "MONO", "PARA", nullptr };
+        static constexpr const char* kVAFilterTypeLabels[] = { "LP24", "LP12", "HP", "BP", nullptr };
+        static constexpr const char* kVALfoShapeLabels[] = { "SIN", "TRI", "SAW", "SQR", "S&H", "RND", nullptr };
+        static constexpr const char* kVALfoTargetLabels[] = { "CUT", "PITCH", "PW", "AMP", nullptr };
+        static constexpr const char* kVALfoSyncLabels[] = { "FREE", "SYNC", nullptr };
+        static constexpr const char* kVARetrigLabels[] = { "LEGATO", "RETRIG", nullptr };
     }
 
     // { id, label, min, max, def, skew, stepped, unit, role, variant, section, zcSnap, labels }
     static constexpr ParamRow kVAParams[] = {
         // --- SRC (section 1, 12 slots) ---
-        { "va_osc1_coarse", "Osc1 Coarse", -24.f,   24.f,   0.f, 1.f, 1,va_u::Semi, va_r::Pitch, 0, 1, 0, nullptr           }, //  0
-        { "va_osc1_fine",   "Osc1 Fine",   -50.f,   50.f,   0.f, 1.f, 0,va_u::None, va_r::None,  0, 1, 0, nullptr           }, //  1
-        { "va_osc1_wave",   "Osc1 Wave",     0.f,    3.f,   0.f, 1.f, 1,va_u::None, va_r::None,  0, 1, 0, kVAOscWaveLabels  }, //  2
-        { "va_osc1_pw",     "Osc1 PW",       0.f,    1.f,  0.5f, 1.f, 0,va_u::None, va_r::None,  0, 1, 0, nullptr           }, //  3
-        { "va_osc2_coarse", "Osc2 Coarse", -24.f,   24.f,   0.f, 1.f, 1,va_u::Semi, va_r::Pitch, 0, 1, 0, nullptr           }, //  4
-        { "va_osc2_fine",   "Osc2 Fine",   -50.f,   50.f,   0.f, 1.f, 0,va_u::None, va_r::None,  0, 1, 0, nullptr           }, //  5
-        { "va_osc2_wave",   "Osc2 Wave",     0.f,    4.f,   0.f, 1.f, 1,va_u::None, va_r::None,  0, 1, 0, kVAOsc2WaveLabels }, //  6
-        { "va_osc2_pw",     "Osc2 PW",       0.f,    1.f,  0.5f, 1.f, 0,va_u::None, va_r::None,  0, 1, 0, nullptr           }, //  7
-        { "va_sub",         "Sub",            0.f,    1.f,   0.f, 1.f, 0,va_u::None, va_r::None,  0, 1, 0, nullptr           }, //  8
-        { "va_noise",       "Noise",          0.f,    1.f,   0.f, 1.f, 0,va_u::None, va_r::None,  0, 1, 0, nullptr           }, //  9
-        { "va_porta",       "Portamento",     0.f,  500.f,   0.f, 1.f, 0,va_u::Ms,   va_r::None,  0, 1, 0, nullptr           }, // 10
-        { "va_voice_mode",  "Voice Mode",     0.f,    1.f,   0.f, 1.f, 1,va_u::None, va_r::None,  0, 1, 0, kVAVoiceModeLabels}, // 11
+        { "va_osc1_coarse", "Osc1 Coarse", -24.f, 24.f, 0.f, 1.f, 1, va_u::Semi, va_r::Pitch, 0, 1, 0, nullptr }, //  0
+        { "va_osc1_fine", "Osc1 Fine", -50.f, 50.f, 0.f, 1.f, 0, va_u::None, va_r::None, 0, 1, 0, nullptr }, //  1
+        { "va_osc1_wave", "Osc1 Wave", 0.f, 3.f, 0.f, 1.f, 1, va_u::None, va_r::None, 0, 1, 0, kVAOscWaveLabels }, //  2
+        { "va_osc1_pw", "Osc1 PW", 0.f, 1.f, 0.5f, 1.f, 0, va_u::None, va_r::None, 0, 1, 0, nullptr }, //  3
+        { "va_osc2_coarse", "Osc2 Coarse", -24.f, 24.f, 0.f, 1.f, 1, va_u::Semi, va_r::Pitch, 0, 1, 0, nullptr }, //  4
+        { "va_osc2_fine", "Osc2 Fine", -50.f, 50.f, 0.f, 1.f, 0, va_u::None, va_r::None, 0, 1, 0, nullptr }, //  5
+        { "va_osc2_wave", "Osc2 Wave", 0.f, 4.f, 0.f, 1.f, 1, va_u::None, va_r::None, 0, 1, 0, kVAOsc2WaveLabels }, //  6
+        { "va_osc2_pw", "Osc2 PW", 0.f, 1.f, 0.5f, 1.f, 0, va_u::None, va_r::None, 0, 1, 0, nullptr }, //  7
+        { "va_sub", "Sub", 0.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::None, 0, 1, 0, nullptr }, //  8
+        { "va_noise", "Noise", 0.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::None, 0, 1, 0, nullptr }, //  9
+        { "va_porta", "Portamento", 0.f, 500.f, 0.f, 1.f, 0, va_u::Ms, va_r::None, 0, 1, 0, nullptr }, // 10
+        { "va_voice_mode", "Voice Mode", 0.f, 1.f, 0.f, 1.f, 1, va_u::None, va_r::None, 0, 1, 0, kVAVoiceModeLabels }, // 11
         // --- FLTR (section 2, 9 slots) ---
-        { "va_cutoff",      "Cutoff",         0.f,    1.f,   1.f, 1.f, 0,va_u::None, va_r::Cut,   0, 2, 0, nullptr           }, // 12
-        { "va_res",         "Resonance",      0.f,    1.f,   0.f, 1.f, 0,va_u::None, va_r::Res,   0, 2, 0, nullptr           }, // 13
-        { "va_filter_type", "Filter",         0.f,    3.f,   0.f, 1.f, 1,va_u::None, va_r::None,  0, 2, 0, kVAFilterTypeLabels},// 14
-        { "va_drive",       "Drive",          0.f,    1.f,   0.f, 1.f, 0,va_u::None, va_r::Drive, 0, 2, 0, nullptr           }, // 15
-        { "va_fenv_depth",  "Env Depth",     -1.f,    1.f,   0.f, 1.f, 0,va_u::None, va_r::None,  0, 2, 0, nullptr           }, // 16
-        { "va_fenv_a",      "F Atk",          0.f, 5000.f,   1.f,0.3f, 0,va_u::Ms,   va_r::None,  0, 2, 0, nullptr           }, // 17
-        { "va_fenv_d",      "F Dec",          1.f,10000.f, 100.f,0.3f, 0,va_u::Ms,   va_r::None,  0, 2, 0, nullptr           }, // 18
-        { "va_fenv_s",      "F Sus",          0.f,    1.f,   0.f, 1.f, 0,va_u::None, va_r::None,  0, 2, 0, nullptr           }, // 19
-        { "va_fenv_r",      "F Rel",          1.f,10000.f, 100.f,0.3f, 0,va_u::Ms,   va_r::None,  0, 2, 0, nullptr           }, // 20
+        { "va_cutoff", "Cutoff", 0.f, 1.f, 1.f, 1.f, 0, va_u::None, va_r::Cut, 0, 2, 0, nullptr }, // 12
+        { "va_res", "Resonance", 0.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::Res, 0, 2, 0, nullptr }, // 13
+        { "va_filter_type", "Filter", 0.f, 3.f, 0.f, 1.f, 1, va_u::None, va_r::None, 0, 2, 0, kVAFilterTypeLabels },// 14
+        { "va_drive", "Drive", 0.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::Drive, 0, 2, 0, nullptr }, // 15
+        { "va_fenv_depth", "Env Depth", -1.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::None, 0, 2, 0, nullptr }, // 16
+        { "va_fenv_a", "F Atk", 0.f, 5000.f, 1.f, 0.3f, 0, va_u::Ms, va_r::None, 0, 2, 0, nullptr }, // 17
+        { "va_fenv_d", "F Dec", 1.f, 10000.f, 100.f, 0.3f, 0, va_u::Ms, va_r::None, 0, 2, 0, nullptr }, // 18
+        { "va_fenv_s", "F Sus", 0.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::None, 0, 2, 0, nullptr }, // 19
+        { "va_fenv_r", "F Rel", 1.f, 10000.f, 100.f, 0.3f, 0, va_u::Ms, va_r::None, 0, 2, 0, nullptr }, // 20
         // --- AMP (section 3, 8 slots) ---
-        { "va_amp_a",       "Attack",         0.f, 5000.f,   1.f,0.3f, 0,va_u::Ms,   va_r::Atk,   0, 3, 0, nullptr           }, // 21
-        { "va_amp_d",       "Decay",          1.f,10000.f, 100.f,0.3f, 0,va_u::Ms,   va_r::Dcy,   0, 3, 0, nullptr           }, // 22
-        { "va_amp_s",       "Sustain",        0.f,    1.f,  0.8f, 1.f, 0,va_u::None, va_r::Sus,   0, 3, 0, nullptr           }, // 23
-        { "va_amp_r",       "Release",        1.f,10000.f, 500.f,0.3f, 0,va_u::Ms,   va_r::Rel,   0, 3, 0, nullptr           }, // 24
-        { "va_level",       "Level",          0.f,    1.f,  0.5f, 1.f, 0,va_u::None, va_r::Level, 0, 3, 0, nullptr           }, // 25
-        { "va_pan",         "Pan",           -1.f,    1.f,   0.f, 1.f, 0,va_u::None, va_r::Pan,   0, 3, 0, nullptr           }, // 26
-        { "va_retrig",      "Retrig",         0.f,    1.f,   0.f, 1.f, 1,va_u::None, va_r::None,  0, 3, 0, kVARetrigLabels   }, // 27
-        { "va_vel_sens",    "Vel Sens",       0.f,    1.f,   0.f, 1.f, 0,va_u::Pct,  va_r::None,  0, 3, 0, nullptr           }, // 28
+        { "va_amp_a", "Attack", 0.f, 5000.f, 1.f, 0.3f, 0, va_u::Ms, va_r::Atk, 0, 3, 0, nullptr }, // 21
+        { "va_amp_d", "Decay", 1.f, 10000.f, 100.f, 0.3f, 0, va_u::Ms, va_r::Dcy, 0, 3, 0, nullptr }, // 22
+        { "va_amp_s", "Sustain", 0.f, 1.f, 0.8f, 1.f, 0, va_u::None, va_r::Sus, 0, 3, 0, nullptr }, // 23
+        { "va_amp_r", "Release", 1.f, 10000.f, 500.f, 0.3f, 0, va_u::Ms, va_r::Rel, 0, 3, 0, nullptr }, // 24
+        { "va_level", "Level", 0.f, 1.f, 0.5f, 1.f, 0, va_u::None, va_r::Level, 0, 3, 0, nullptr }, // 25
+        { "va_pan", "Pan", -1.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::Pan, 0, 3, 0, nullptr }, // 26
+        { "va_retrig", "Retrig", 0.f, 1.f, 0.f, 1.f, 1, va_u::None, va_r::None, 0, 3, 0, kVARetrigLabels }, // 27
+        { "va_vel_sens", "Vel Sens", 0.f, 1.f, 0.f, 1.f, 0, va_u::Pct, va_r::None, 0, 3, 0, nullptr }, // 28
         // --- LFO (section 4, 5 slots) ---
-        { "va_lfo_rate",    "LFO Rate",     0.01f,   40.f,   3.f, 1.f, 0,va_u::None, va_r::LfoRat,0, 4, 0, nullptr           }, // 29
-        { "va_lfo_depth",   "LFO Depth",     0.f,    1.f,   0.f, 1.f, 0,va_u::None, va_r::LfoDep,0, 4, 0, nullptr           }, // 30
-        { "va_lfo_shape",   "LFO Shape",     0.f,    5.f,   0.f, 1.f, 1,va_u::None, va_r::LfoShp,0, 4, 0, kVALfoShapeLabels }, // 31
-        { "va_lfo_target",  "LFO Target",    0.f,    3.f,   0.f, 1.f, 1,va_u::None, va_r::None,  0, 4, 0, kVALfoTargetLabels}, // 32
-        { "va_lfo_sync",    "LFO Sync",      0.f,    1.f,   0.f, 1.f, 1,va_u::None, va_r::None,  0, 4, 0, kVALfoSyncLabels  }, // 33
+        { "va_lfo_rate", "LFO Rate", 0.01f, 40.f, 3.f, 1.f, 0, va_u::None, va_r::LfoRat, 0, 4, 0, nullptr }, // 29
+        { "va_lfo_depth", "LFO Depth", 0.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::LfoDep, 0, 4, 0, nullptr }, // 30
+        { "va_lfo_shape", "LFO Shape", 0.f, 5.f, 0.f, 1.f, 1, va_u::None, va_r::LfoShp, 0, 4, 0, kVALfoShapeLabels }, // 31
+        { "va_lfo_target", "LFO Target", 0.f, 3.f, 0.f, 1.f, 1, va_u::None, va_r::None, 0, 4, 0, kVALfoTargetLabels }, // 32
+        { "va_lfo_sync", "LFO Sync", 0.f, 1.f, 0.f, 1.f, 1, va_u::None, va_r::None, 0, 4, 0, kVALfoSyncLabels }, // 33
         // --- SRC continued (section 1) ---
-        { "va_osc_mix",     "Osc Mix",        0.f,    1.f,  0.5f, 1.f, 0,va_u::None, va_r::None,  0, 1, 0, nullptr           }, // 34
+        { "va_osc_mix", "Osc Mix", 0.f, 1.f, 0.5f, 1.f, 0, va_u::None, va_r::None, 0, 1, 0, nullptr }, // 34
     };
     static_assert(std::size(kVAParams) == VAMachine::kNumSlots,
                   "kVAParams row count must equal kNumSlots");
@@ -131,11 +134,11 @@ namespace lockstep
     {
         switch (index)
         {
-        case 1: return { "SRC"  };
-        case 2: return { "FLTR" };
-        case 3: return { "AMP"  };
-        case 4: return { "LFO"  };
-        default: return {};
+            case 1:  return { "SRC" };
+            case 2:  return { "FLTR" };
+            case 3:  return { "AMP" };
+            case 4:  return { "LFO" };
+            default: return {};
         }
     }
 
@@ -144,8 +147,7 @@ namespace lockstep
 
     IMachine::Polyphony VAMachine::currentVoices(const ParamFrame& baseParams) const
     {
-        if (static_cast<int>(baseParams.size()) > kSlotVoiceMode
-            && baseParams[static_cast<std::size_t>(kSlotVoiceMode)] >= 0.5f)
+        if (static_cast<int>(baseParams.size()) > kSlotVoiceMode && baseParams[static_cast<std::size_t>(kSlotVoiceMode)] >= 0.5f)
             return Polyphony::V4;
         return Polyphony::V1;
     }
@@ -195,38 +197,38 @@ namespace lockstep
 
         const double osc1Inc = sv.currentFreq / sampleRate_;
         const double osc2Inc = sv.currentFreq * osc2FreqRatio / sampleRate_;
-        const double subInc  = sv.currentFreq * 0.5 / sampleRate_;
+        const double subInc = sv.currentFreq * 0.5 / sampleRate_;
 
         float out = 0.0f;
 
         // Osc 1.  Phases always advance to stay coherent across mode switches.
         // Labels: 0=SAW 1=TRI 2=SQR 3=SIN.
         {
-            const double ph  = sv.osc1Phase;
+            const double ph = sv.osc1Phase;
             const double inc = osc1Inc;
             if (renderOsc1)
             {
                 float s = 0.0f;
                 switch (osc1Wave)
                 {
-                case 0: // SAW
-                    s = static_cast<float>(2.0 * ph - 1.0) + polyBlep(ph, inc);
-                    break;
-                case 1: // TRI
-                    s = static_cast<float>(4.0 * std::abs(ph - 0.5) - 1.0);
-                    break;
-                case 2: // SQR (pulse with PW control)
-                {
-                    const auto pw = static_cast<double>(std::clamp(osc1PW, 0.05f, 0.95f));
-                    s = ph < pw ? 1.0f : -1.0f;
-                    s -= polyBlep(ph, inc);
-                    s += polyBlep(std::fmod(ph - pw + 1.0, 1.0), inc);
-                    break;
-                }
-                case 3: // SIN
-                    s = static_cast<float>(std::sin(kTwoPi * ph));
-                    break;
-                default: break;
+                    case 0: // SAW
+                        s = static_cast<float>(2.0 * ph - 1.0) + polyBlep(ph, inc);
+                        break;
+                    case 1: // TRI
+                        s = static_cast<float>(4.0 * std::abs(ph - 0.5) - 1.0);
+                        break;
+                    case 2: // SQR (pulse with PW control)
+                    {
+                        const auto pw = static_cast<double>(std::clamp(osc1PW, 0.05f, 0.95f));
+                        s = ph < pw ? 1.0f : -1.0f;
+                        s -= polyBlep(ph, inc);
+                        s += polyBlep(std::fmod(ph - pw + 1.0, 1.0), inc);
+                        break;
+                    }
+                    case 3: // SIN
+                        s = static_cast<float>(std::sin(kTwoPi * ph));
+                        break;
+                    default: break;
                 }
                 out += s * osc1Gain;
             }
@@ -237,35 +239,35 @@ namespace lockstep
         // Osc 2.  Labels: 0=SAW 1=TRI 2=SQR 3=SIN 4=OFF.
         // OFF (4) silences osc2 in mono; in para mode it falls back to SAW so the
         // osc2-type sub-voice still produces output.
-        const bool osc2Off    = (osc2Wave == 4);
+        const bool osc2Off = (osc2Wave == 4);
         const bool osc2Active = paraMode ? renderOsc2 : (renderOsc2 && !osc2Off);
         if (osc2Active)
         {
-            const double ph  = sv.osc2Phase;
+            const double ph = sv.osc2Phase;
             const double inc = osc2Inc;
             // Para + OFF → use SAW so the osc2 sub-voice still sounds.
             const int wave = (paraMode && osc2Off) ? 0 : osc2Wave;
             float s = 0.0f;
             switch (wave)
             {
-            case 0: // SAW
-                s = static_cast<float>(2.0 * ph - 1.0) + polyBlep(ph, inc);
-                break;
-            case 1: // TRI
-                s = static_cast<float>(4.0 * std::abs(ph - 0.5) - 1.0);
-                break;
-            case 2: // SQR (pulse with PW control)
-            {
-                const auto pw = static_cast<double>(std::clamp(osc2PW, 0.05f, 0.95f));
-                s = ph < pw ? 1.0f : -1.0f;
-                s -= polyBlep(ph, inc);
-                s += polyBlep(std::fmod(ph - pw + 1.0, 1.0), inc);
-                break;
-            }
-            case 3: // SIN
-                s = static_cast<float>(std::sin(kTwoPi * ph));
-                break;
-            default: break;
+                case 0: // SAW
+                    s = static_cast<float>(2.0 * ph - 1.0) + polyBlep(ph, inc);
+                    break;
+                case 1: // TRI
+                    s = static_cast<float>(4.0 * std::abs(ph - 0.5) - 1.0);
+                    break;
+                case 2: // SQR (pulse with PW control)
+                {
+                    const auto pw = static_cast<double>(std::clamp(osc2PW, 0.05f, 0.95f));
+                    s = ph < pw ? 1.0f : -1.0f;
+                    s -= polyBlep(ph, inc);
+                    s += polyBlep(std::fmod(ph - pw + 1.0, 1.0), inc);
+                    break;
+                }
+                case 3: // SIN
+                    s = static_cast<float>(std::sin(kTwoPi * ph));
+                    break;
+                default: break;
             }
             out += s * osc2Gain;
             sv.osc2Phase += inc;
@@ -293,8 +295,7 @@ namespace lockstep
 
     float VAMachine::filterSample(float in, float f, float q, int filterType) noexcept
     {
-        auto runSVF = [](SVFState& s, float x, float fc, float res) -> std::tuple<float,float,float>
-        {
+        auto runSVF = [](SVFState& s, float x, float fc, float res) -> std::tuple<float, float, float> {
             s.hp = x - res * s.bp - s.lp;
             s.bp += fc * s.hp;
             s.lp += fc * s.bp;
@@ -305,19 +306,19 @@ namespace lockstep
 
         switch (filterType)
         {
-        case 0: // LP4: cascade
-        {
-            auto [lp2, hp2, bp2] = runSVF(svf2_, lp1, f, q);
-            return lp2;
-        }
-        case 1: // LP2
-            return lp1;
-        case 2: // HP
-            return hp1;
-        case 3: // BP
-            return bp1;
-        default:
-            return lp1;
+            case 0: // LP4: cascade
+            {
+                auto [lp2, hp2, bp2] = runSVF(svf2_, lp1, f, q);
+                return lp2;
+            }
+            case 1: // LP2
+                return lp1;
+            case 2: // HP
+                return hp1;
+            case 3: // BP
+                return bp1;
+            default:
+                return lp1;
         }
     }
 
@@ -348,22 +349,22 @@ namespace lockstep
 
         auto& sv = subVoices_[0];
         const double targetHz = midiNoteToHz(midiNote);
-        const float portaMs   = p(kSlotPorta);
+        const float portaMs = p(kSlotPorta);
 
         // Reset phases only when coming from a fully idle voice; if the voice is
         // still in Release, preserve phases so the re-attack is click-free.
         if (!sv.active)
         {
-            sv.osc1Phase   = 0.0;
-            sv.osc2Phase   = 0.0;
-            sv.subPhase    = 0.0;
+            sv.osc1Phase = 0.0;
+            sv.osc2Phase = 0.0;
+            sv.subPhase = 0.0;
         }
         if (!sv.active || portaMs <= 0.0f)
             sv.currentFreq = targetHz;
 
         sv.targetFreq = targetHz;
-        sv.active     = true;
-        sv.midiNote   = midiNote;
+        sv.active = true;
+        sv.midiNote = midiNote;
 
         svf1_.reset();
         svf2_.reset();
@@ -382,7 +383,7 @@ namespace lockstep
         if (p(kSlotPorta) <= 0.0f)
             sv.currentFreq = targetHz;
         sv.targetFreq = targetHz;
-        sv.midiNote   = midiNote;
+        sv.midiNote = midiNote;
         // Envelope continues; oscillator phases and SVF state unchanged.
     }
 
@@ -414,8 +415,7 @@ namespace lockstep
         int oldest = 0;
         for (int i = 1; i < kMaxSubVoices; ++i)
         {
-            if (subVoices_[static_cast<std::size_t>(i)].age
-                < subVoices_[static_cast<std::size_t>(oldest)].age)
+            if (subVoices_[static_cast<std::size_t>(i)].age < subVoices_[static_cast<std::size_t>(oldest)].age)
                 oldest = i;
         }
         return oldest;
@@ -429,18 +429,18 @@ namespace lockstep
         auto& sv = subVoices_[static_cast<std::size_t>(idx)];
 
         const double targetHz = midiNoteToHz(midiNote);
-        const float portaMs   = p(kSlotPorta);
+        const float portaMs = p(kSlotPorta);
 
         if (portaMs <= 0.0f || !sv.active)
             sv.currentFreq = targetHz;
-        sv.targetFreq  = targetHz;
-        sv.active      = true;
-        sv.oscType     = paraChordNoteIdx_ % 2;
-        sv.midiNote    = midiNote;
-        sv.age         = ++voiceCounter_;
-        sv.osc1Phase   = 0.0;
-        sv.osc2Phase   = 0.0;
-        sv.subPhase    = 0.0;
+        sv.targetFreq = targetHz;
+        sv.active = true;
+        sv.oscType = paraChordNoteIdx_ % 2;
+        sv.midiNote = midiNote;
+        sv.age = ++voiceCounter_;
+        sv.osc1Phase = 0.0;
+        sv.osc2Phase = 0.0;
+        sv.subPhase = 0.0;
         sv.keepForRelease = false;
 
         ++paraChordNoteIdx_;
@@ -467,7 +467,11 @@ namespace lockstep
             svf1_.reset();
             svf2_.reset();
             // Clear any lingering keepForRelease flags from previous chord.
-            for (auto& s : subVoices_) { s.keepForRelease = false; s.ar.reset(); }
+            for (auto& s : subVoices_)
+            {
+                s.keepForRelease = false;
+                s.ar.reset();
+            }
             // Re-gate the released sv so its AR still starts correctly.
             sv.ar.setADSR(kParaArAttackMs, 0.0f, 1.0f, kParaArReleaseMs);
             sv.ar.gateOn();
@@ -488,7 +492,7 @@ namespace lockstep
         }
 
         const bool anyActive = std::any_of(subVoices_.begin(), subVoices_.end(),
-                                            [](const SubVoice& s) { return s.active; });
+                                           [](const SubVoice& s) { return s.active; });
         if (!anyActive)
         {
             // Last key released: master envs enter Release.
@@ -516,14 +520,14 @@ namespace lockstep
     // process()
 
     void VAMachine::process(const juce::MidiBuffer& events,
-                             const ParamFrame& params,
-                             juce::AudioBuffer<float>& buffer)
+                            const ParamFrame& params,
+                            juce::AudioBuffer<float>& buffer)
     {
         const auto p = [&](int s) { return params[static_cast<std::size_t>(s)]; };
 
-        const bool paraMode  = (p(kSlotVoiceMode) >= 0.5f);
+        const bool paraMode = (p(kSlotVoiceMode) >= 0.5f);
         const int numSamples = buffer.getNumSamples();
-        const int numOut     = buffer.getNumChannels();
+        const int numOut = buffer.getNumChannels();
 
         // ---- Mode-switch cleanup ------------------------------------------
         // When Mono↔Para flips, stale voice state from the previous mode causes
@@ -535,20 +539,26 @@ namespace lockstep
             monoGate_.reset();
             for (auto& sv : subVoices_)
             {
-                sv.active         = false;
+                sv.active = false;
                 sv.keepForRelease = false;
                 sv.ar.reset();
             }
             paraChordNoteIdx_ = 0;
-            monoGhostGain_    = 0.0f;
-            monoGhostFade_    = 0;
+            monoGhostGain_ = 0.0f;
+            monoGhostFade_ = 0;
             ampEnv_.reset();
             filterEnv_.reset();
             prevParaMode_ = paraMode;
         }
 
         // ---- Scan events -----------------------------------------------
-        struct NoteEvent { int samplePos; int note; float vel; bool on; };
+        struct NoteEvent
+        {
+            int samplePos;
+            int note;
+            float vel;
+            bool on;
+        };
         juce::Array<NoteEvent> noteEvents;
         noteEvents.ensureStorageAllocated(8);
         for (const auto& meta : events)
@@ -564,12 +574,11 @@ namespace lockstep
         if (!isVoiceActive() && noteEvents.isEmpty()) return;
 
         // ---- LFO (per-block update) ------------------------------------
-        const float lfoRate  = p(kSlotLfoRate);
+        const float lfoRate = p(kSlotLfoRate);
         const float lfoDepth = p(kSlotLfoDepth);
-        const int   lfoShape = static_cast<int>(p(kSlotLfoShape));
+        const int lfoShape = static_cast<int>(p(kSlotLfoShape));
         {
-            const double lfoInc = static_cast<double>(lfoRate) / sampleRate_
-                                  * static_cast<double>(numSamples);
+            const double lfoInc = static_cast<double>(lfoRate) / sampleRate_ * static_cast<double>(numSamples);
             const double prevPhase = lfoPhase_;
             lfoPhase_ += lfoInc;
             while (lfoPhase_ >= 1.0) lfoPhase_ -= 1.0;
@@ -577,69 +586,65 @@ namespace lockstep
             float raw = 0.0f;
             switch (lfoShape)
             {
-            case 0: raw = static_cast<float>(std::sin(kTwoPi * lfoPhase_)); break;
-            case 1: raw = static_cast<float>(4.0 * std::abs(lfoPhase_ - 0.5) - 1.0); break;
-            case 2: raw = static_cast<float>(2.0 * lfoPhase_ - 1.0); break;
-            case 3: raw = static_cast<float>(1.0 - 2.0 * lfoPhase_); break;
-            case 4: raw = (lfoPhase_ < 0.5) ? 1.0f : -1.0f; break;
-            case 5:
-            {
-                if (lfoPhase_ < prevPhase)
-                {
-                    lfoRandCurr_ = lfoRandNext_;
-                    lfoRandNext_ = (static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX)) * 2.0f - 1.0f;
+                case 0: raw = static_cast<float>(std::sin(kTwoPi * lfoPhase_)); break;
+                case 1: raw = static_cast<float>(4.0 * std::abs(lfoPhase_ - 0.5) - 1.0); break;
+                case 2: raw = static_cast<float>(2.0 * lfoPhase_ - 1.0); break;
+                case 3: raw = static_cast<float>(1.0 - 2.0 * lfoPhase_); break;
+                case 4: raw = (lfoPhase_ < 0.5) ? 1.0f : -1.0f; break;
+                case 5: {
+                    if (lfoPhase_ < prevPhase)
+                    {
+                        lfoRandCurr_ = lfoRandNext_;
+                        lfoRandNext_ = (static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX)) * 2.0f - 1.0f;
+                    }
+                    raw = lfoRandCurr_;
+                    break;
                 }
-                raw = lfoRandCurr_;
-                break;
-            }
-            default: break;
+                default: break;
             }
             lfoOut_ = raw * lfoDepth;
         }
 
-        const int   lfoTarget    = static_cast<int>(p(kSlotLfoTarget));
+        const int lfoTarget = static_cast<int>(p(kSlotLfoTarget));
         const float lfoCutoffMod = (lfoTarget == 0) ? lfoOut_ * 0.5f : 0.0f;
-        const float lfoPitchMod  = (lfoTarget == 1) ? lfoOut_         : 0.0f;
-        const float lfoPWMod     = (lfoTarget == 2) ? lfoOut_ * 0.2f  : 0.0f;
-        const float lfoAmpMod    = (lfoTarget == 3) ? lfoOut_ * 0.5f  : 0.0f;
+        const float lfoPitchMod = (lfoTarget == 1) ? lfoOut_ : 0.0f;
+        const float lfoPWMod = (lfoTarget == 2) ? lfoOut_ * 0.2f : 0.0f;
+        const float lfoAmpMod = (lfoTarget == 3) ? lfoOut_ * 0.5f : 0.0f;
 
         // ---- Params -------------------------------------------------------
-        const float cutoffParam  = std::clamp(p(kSlotCutoff) + lfoCutoffMod, 0.0f, 1.0f);
-        const int   filterType   = static_cast<int>(p(kSlotFilterType));
-        const float driveGain    = 1.0f + 4.0f * p(kSlotDrive);
-        const float fEnvDepth    = p(kSlotFEnvDepth);
-        const float subLevel     = p(kSlotSub);
-        const float noiseLevel   = p(kSlotNoise);
-        const float portaMs      = p(kSlotPorta);
-        const int   osc1Wave     = static_cast<int>(p(kSlotOsc1Wave));
-        const float osc1PW       = std::clamp(p(kSlotOsc1PW) + lfoPWMod, 0.05f, 0.95f);
-        const int   osc2Wave     = static_cast<int>(p(kSlotOsc2Wave));
-        const float osc2PW       = std::clamp(p(kSlotOsc2PW) + lfoPWMod, 0.05f, 0.95f);
-        const float velSens      = p(kSlotVelSens);
-        const float velGain      = 1.0f - velSens + velSens * voiceVelocity_;
-        const float outputLevel  = p(kSlotLevel) * (1.0f + lfoAmpMod) * velGain;
-        const float pan          = std::clamp(p(kSlotPan), -1.0f, 1.0f);
+        const float cutoffParam = std::clamp(p(kSlotCutoff) + lfoCutoffMod, 0.0f, 1.0f);
+        const int filterType = static_cast<int>(p(kSlotFilterType));
+        const float driveGain = 1.0f + 4.0f * p(kSlotDrive);
+        const float fEnvDepth = p(kSlotFEnvDepth);
+        const float subLevel = p(kSlotSub);
+        const float noiseLevel = p(kSlotNoise);
+        const float portaMs = p(kSlotPorta);
+        const int osc1Wave = static_cast<int>(p(kSlotOsc1Wave));
+        const float osc1PW = std::clamp(p(kSlotOsc1PW) + lfoPWMod, 0.05f, 0.95f);
+        const int osc2Wave = static_cast<int>(p(kSlotOsc2Wave));
+        const float osc2PW = std::clamp(p(kSlotOsc2PW) + lfoPWMod, 0.05f, 0.95f);
+        const float velSens = p(kSlotVelSens);
+        const float velGain = 1.0f - velSens + velSens * voiceVelocity_;
+        const float outputLevel = p(kSlotLevel) * (1.0f + lfoAmpMod) * velGain;
+        const float pan = std::clamp(p(kSlotPan), -1.0f, 1.0f);
 
-        const float osc2CoarseST  = p(kSlotOsc2Coarse);
-        const float osc2FineCent  = p(kSlotOsc2Fine);
-        const double osc2FreqRatio = std::pow(2.0, static_cast<double>(osc2CoarseST) / 12.0
-                                               + static_cast<double>(osc2FineCent) / 1200.0);
+        const float osc2CoarseST = p(kSlotOsc2Coarse);
+        const float osc2FineCent = p(kSlotOsc2Fine);
+        const double osc2FreqRatio = std::pow(2.0, static_cast<double>(osc2CoarseST) / 12.0 + static_cast<double>(osc2FineCent) / 1200.0);
 
         // Osc mix: constant-power crossfade between osc1 (0) and osc2 (1).
         // Default 0.5 gives equal loudness; 0.0 = osc1 only, 1.0 = osc2 only.
         const float oscMixAngle = std::clamp(p(kSlotOscMix), 0.0f, 1.0f) * kPiF * 0.5f;
-        const float osc1Gain    = std::cos(oscMixAngle);
-        const float osc2Gain    = std::sin(oscMixAngle);
+        const float osc1Gain = std::cos(oscMixAngle);
+        const float osc2Gain = std::sin(oscMixAngle);
 
-        const float osc1CoarseST  = p(kSlotOsc1Coarse);
-        const float osc1FineCent  = p(kSlotOsc1Fine);
-        const double osc1FreqMul  = std::pow(2.0, static_cast<double>(osc1CoarseST) / 12.0
-                                              + static_cast<double>(osc1FineCent) / 1200.0
-                                              + static_cast<double>(lfoPitchMod)   / 12.0);
+        const float osc1CoarseST = p(kSlotOsc1Coarse);
+        const float osc1FineCent = p(kSlotOsc1Fine);
+        const double osc1FreqMul = std::pow(2.0, static_cast<double>(osc1CoarseST) / 12.0 + static_cast<double>(osc1FineCent) / 1200.0 + static_cast<double>(lfoPitchMod) / 12.0);
 
         const double portaCoeff = (portaMs > 0.0f)
-            ? std::exp(-1.0 / (static_cast<double>(portaMs) * 0.001 * sampleRate_))
-            : 0.0;
+                                      ? std::exp(-1.0 / (static_cast<double>(portaMs) * 0.001 * sampleRate_))
+                                      : 0.0;
 
         const float svfQ = std::max(0.01f, (1.0f - p(kSlotRes)) * 1.4f);
 
@@ -656,8 +661,7 @@ namespace lockstep
         for (int i = 0; i < numSamples; ++i)
         {
             // ---- Dispatch note events ----
-            while (eventIdx < noteEvents.size()
-                   && noteEvents[eventIdx].samplePos <= i)
+            while (eventIdx < noteEvents.size() && noteEvents[eventIdx].samplePos <= i)
             {
                 const auto& ev = noteEvents[eventIdx];
                 if (ev.on)
@@ -767,7 +771,7 @@ namespace lockstep
 
             // ---- Effective cutoff ----
             const float effectiveCutoff = std::clamp(cutoffParam + fEnvLevel * fEnvDepth,
-                                                      0.0f, 1.0f);
+                                                     0.0f, 1.0f);
             const float cutoffHz = 20.0f * std::pow(900.0f, effectiveCutoff);
             const float svfF = std::clamp(
                 2.0f * std::sin(kPiF * cutoffHz / static_cast<float>(sampleRate_)),
@@ -781,8 +785,7 @@ namespace lockstep
 
                 // Portamento.
                 if (portaCoeff > 0.0)
-                    sv.currentFreq = portaCoeff * sv.currentFreq
-                                     + (1.0 - portaCoeff) * sv.targetFreq;
+                    sv.currentFreq = portaCoeff * sv.currentFreq + (1.0 - portaCoeff) * sv.targetFreq;
                 else
                     sv.currentFreq = sv.targetFreq;
 
@@ -790,10 +793,10 @@ namespace lockstep
                 sv.currentFreq *= osc1FreqMul;
 
                 const float svSample = oscillatorSample(sv, osc1Wave, osc1PW,
-                                                         osc2Wave, osc2PW,
-                                                         subLevel, osc2FreqRatio,
-                                                         paraMode,
-                                                         osc1Gain, osc2Gain);
+                                                        osc2Wave, osc2PW,
+                                                        subLevel, osc2FreqRatio,
+                                                        paraMode,
+                                                        osc1Gain, osc2Gain);
                 sv.currentFreq = savedFreq;
 
                 // In mono mode the master ampEnv controls volume (combinedGain
@@ -826,7 +829,7 @@ namespace lockstep
             // Apply envelope + level BEFORE drive so the level knob sets headroom,
             // not just the volume of already-saturated signal.
             const float combinedGain = aEnvLevel + (paraMode ? 0.0f : monoGhostGain_);
-            const float preDrive     = oscSum * combinedGain * outputLevel;
+            const float preDrive = oscSum * combinedGain * outputLevel;
 
             // ---- Drive (unity-gain bypass when drive=0) ----
             // tanh(driveGain*x)/tanh(driveGain) normalises DC gain to 1.0 so

@@ -23,10 +23,10 @@ namespace lockstep
 {
     struct CellAppearance
     {
-        uint32_t screenFill   = 0;
+        uint32_t screenFill = 0;
         uint32_t screenAccent = 0;
-        uint8_t  pushPad      = 0;
-        uint8_t  xtouchVel    = 0;
+        uint8_t pushPad = 0;
+        uint8_t xtouchVel = 0;
     };
 
     namespace detail
@@ -39,13 +39,13 @@ namespace lockstep
         // (the array is small — < 60 entries).
         struct CellEntry
         {
-            uint16_t      value;
+            uint16_t value;
             CellAppearance ap;
         };
 
         inline constexpr CellEntry kTable[] = {
 #define LS_CELLSTATE(token, value, fill, accent, push, xvel) \
-            { static_cast<uint16_t>(value), { fill, accent, push, xvel } },
+    { static_cast<uint16_t>(value), { fill, accent, push, xvel } },
 #include "CellStates.def"
 #undef LS_CELLSTATE
         };
@@ -68,12 +68,12 @@ namespace lockstep
     // Static assertions pinning a handful of values against accidental renumber
     // (add-only rule: check that specific tokens still resolve to expected values)
 
-    static_assert(appearanceOf(CellState::StepTrigCertain).pushPad  == 21,
+    static_assert(appearanceOf(CellState::StepTrigCertain).pushPad == 21,
                   "StepTrigCertain pidx drifted — check CellStates.def");
-    static_assert(appearanceOf(CellState::StepEmpty).xtouchVel      ==  0,
+    static_assert(appearanceOf(CellState::StepEmpty).xtouchVel == 0,
                   "StepEmpty xtouchVel drifted");
-    static_assert(appearanceOf(CellState::SelectorCurrent).xtouchVel ==  1,
+    static_assert(appearanceOf(CellState::SelectorCurrent).xtouchVel == 1,
                   "SelectorCurrent xtouchVel drifted");
-    static_assert(appearanceOf(CellState::MuteMuted).pushPad        ==  5,
+    static_assert(appearanceOf(CellState::MuteMuted).pushPad == 5,
                   "MuteMuted pidx drifted — check CellStates.def");
 }

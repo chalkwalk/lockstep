@@ -14,19 +14,19 @@ namespace lockstep
     {
         static constexpr int kMaxChans = 2;
 
-        SvfFilter stage1_[kMaxChans] {};
-        SvfFilter stage2_[kMaxChans] {};
-        float envLevel_        = 0.0f;
-        float envTarget_       = 0.0f;
-        float envAttackCoeff_  = 0.0f;  // one-pole coefficient, ~1 ms
+        SvfFilter stage1_[kMaxChans]{};
+        SvfFilter stage2_[kMaxChans]{};
+        float envLevel_ = 0.0f;
+        float envTarget_ = 0.0f;
+        float envAttackCoeff_ = 0.0f;  // one-pole coefficient, ~1 ms
         float envReleaseCoeff_ = 0.0f;  // one-pole coefficient, ~200 ms
-        float sampleRate_      = 44100.0f;
+        float sampleRate_ = 44100.0f;
 
         void prepare(double sampleRate) noexcept
         {
-            sampleRate_      = static_cast<float>(sampleRate);
-            const float sr   = sampleRate_;
-            envAttackCoeff_  = std::exp(-1.0f / (0.001f * sr));
+            sampleRate_ = static_cast<float>(sampleRate);
+            const float sr = sampleRate_;
+            envAttackCoeff_ = std::exp(-1.0f / (0.001f * sr));
             envReleaseCoeff_ = std::exp(-1.0f / (0.200f * sr));
             reset();
         }
@@ -49,7 +49,7 @@ namespace lockstep
             for (const auto meta : midi)
             {
                 const auto msg = meta.getMessage();
-                if (msg.isNoteOn())  envTarget_ = 1.0f;
+                if (msg.isNoteOn()) envTarget_ = 1.0f;
                 if (msg.isNoteOff()) envTarget_ = 0.0f;
             }
             // envAttackCoeff_/envReleaseCoeff_ are per-sample one-pole coefficients.
@@ -64,11 +64,11 @@ namespace lockstep
             envLevel_ = eCoeff * envLevel_ + (1.0f - eCoeff) * envTarget_;
 
             // Resolve effective cutoff with envelope modulation, clamp to 0..1
-            const float envMod    = fltr.envToCutoff * envLevel_;
+            const float envMod = fltr.envToCutoff * envLevel_;
             const float effCutoff = juce::jlimit(0.0f, 1.0f, fltr.cutoff + envMod);
 
             // Log-scale frequency mapping: 20Hz at 0, 20kHz at 1
-            const float freq    = 20.0f * std::pow(1000.0f, effCutoff);
+            const float freq = 20.0f * std::pow(1000.0f, effCutoff);
             const float freqLim = juce::jlimit(20.0f, sampleRate_ * 0.49f, freq);
             // g = tan(pi * f / fs) — the normalised frequency for the SVF
             const float g = std::tan(3.141592653589793f * freqLim / sampleRate_);
@@ -76,8 +76,8 @@ namespace lockstep
             // Resonance 0..1 -> k from 2.0 (Butterworth Q=0.5) to 0.1 (very resonant)
             const float k = 2.0f - (1.9f * juce::jlimit(0.0f, 1.0f, fltr.resonance));
 
-            const int  mode  = static_cast<int>(std::round(fltr.mode)) & 3;
-            const bool is24  = (fltr.slope >= 0.5f);
+            const int mode = static_cast<int>(std::round(fltr.mode)) & 3;
+            const bool is24 = (fltr.slope >= 0.5f);
             const float drive = juce::jlimit(0.0f, 1.0f, fltr.drive);
             const float driveGain = 1.0f + drive * 7.0f;
 

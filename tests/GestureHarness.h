@@ -21,26 +21,34 @@ namespace lockstep::test
     struct RecordingEffects final : CommandEffects
     {
         std::vector<juce::String> statuses;
-        int repaints   = 0;
+        int repaints = 0;
         int transports = 0;   // count of transport calls
         std::vector<CommandEffects::TransportAction> transportActions;
         std::vector<std::string> machineAssigns;  // "track:id"
         std::vector<std::pair<CommandEffects::OverlayId, int>> overlays;
         std::vector<float> crossfaders;
 
-        void status(const juce::String& msg) override        { statuses.push_back(msg); }
-        void requestRepaint() override                       { ++repaints; }
-        void transport(TransportAction a) override           { ++transports; transportActions.push_back(a); }
-        void machineAssign(int t, const char* id) override   { machineAssigns.push_back(std::to_string(t) + ":" + id); }
-        void openOverlay(OverlayId id, int p) override       { overlays.push_back({id, p}); }
-        void crossfader(float v) override                    { crossfaders.push_back(v); }
-        void releaseLatch(ControllerButton) override         {}
-        void sceneFloorPaste() override                      {}
-        void sceneFullPaste(int) override                    {}
-        void morphBake(int) override                         {}
-        void morphErase(int) override                        {}
+        void status(const juce::String& msg) override { statuses.push_back(msg); }
+        void requestRepaint() override { ++repaints; }
+        void transport(TransportAction a) override
+        {
+            ++transports;
+            transportActions.push_back(a);
+        }
+        void machineAssign(int t, const char* id) override { machineAssigns.push_back(std::to_string(t) + ":" + id); }
+        void openOverlay(OverlayId id, int p) override { overlays.push_back({ id, p }); }
+        void crossfader(float v) override { crossfaders.push_back(v); }
+        void releaseLatch(ControllerButton) override {}
+        void sceneFloorPaste() override {}
+        void sceneFullPaste(int) override {}
+        void morphBake(int) override {}
+        void morphErase(int) override {}
 
-        struct ConfirmRecord { ConfirmKind kind; int target; };
+        struct ConfirmRecord
+        {
+            ConfirmKind kind;
+            int target;
+        };
         std::vector<ConfirmRecord> confirmsExecuted;
 
         std::vector<int> globalMuteTracks;
@@ -48,27 +56,36 @@ namespace lockstep::test
         std::vector<int> sceneMuteTracks;
         std::vector<int> fluidMuteTracks;
 
-        void executeConfirm(ConfirmKind k, int t) override { confirmsExecuted.push_back({k, t}); }
-        void globalMuteToggle(int t) override  { globalMuteTracks.push_back(t); }
-        void soloToggle(int t) override         { soloTracks.push_back(t); }
-        void sceneMuteToggle(int t) override    { sceneMuteTracks.push_back(t); }
-        void fluidMuteToggle(int t) override    { fluidMuteTracks.push_back(t); }
+        void executeConfirm(ConfirmKind k, int t) override { confirmsExecuted.push_back({ k, t }); }
+        void globalMuteToggle(int t) override { globalMuteTracks.push_back(t); }
+        void soloToggle(int t) override { soloTracks.push_back(t); }
+        void sceneMuteToggle(int t) override { sceneMuteTracks.push_back(t); }
+        void fluidMuteToggle(int t) override { fluidMuteTracks.push_back(t); }
 
-        void reset() { statuses.clear(); repaints = 0; transports = 0;
-                       transportActions.clear(); machineAssigns.clear();
-                       overlays.clear(); crossfaders.clear();
-                       confirmsExecuted.clear();
-                       globalMuteTracks.clear(); soloTracks.clear();
-                       sceneMuteTracks.clear(); fluidMuteTracks.clear(); }
+        void reset()
+        {
+            statuses.clear();
+            repaints = 0;
+            transports = 0;
+            transportActions.clear();
+            machineAssigns.clear();
+            overlays.clear();
+            crossfaders.clear();
+            confirmsExecuted.clear();
+            globalMuteTracks.clear();
+            soloTracks.clear();
+            sceneMuteTracks.clear();
+            fluidMuteTracks.clear();
+        }
     };
 
     // Minimal IMachineCatalog implementation for gesture tests.
     struct FakeMachineCatalog final : IMachineCatalog
     {
-        [[nodiscard]] int         numParams (int)        const override { return 0; }
-        [[nodiscard]] ParamSpec   paramSpec (int, int)   const override { return {}; }
-        [[nodiscard]] SectionInfo section   (int, int)   const override { return {}; }
-        [[nodiscard]] const char* machineId (int)        const override { return "lockstep.sampler.v1"; }
+        [[nodiscard]] int numParams(int) const override { return 0; }
+        [[nodiscard]] ParamSpec paramSpec(int, int) const override { return {}; }
+        [[nodiscard]] SectionInfo section(int, int) const override { return {}; }
+        [[nodiscard]] const char* machineId(int) const override { return "lockstep.sampler.v1"; }
     };
 
     // GestureFixture: wires real core model objects + FakeMachineCatalog into
@@ -77,14 +94,14 @@ namespace lockstep::test
     struct GestureFixture
     {
         std::unique_ptr<Arrangement> arrangement;
-        EditContext  editContext;
-        EditMode     editMode;
-        UiState      uiState;
-        Clipboard    clipboard;
-        SoundPool    soundPool;
+        EditContext editContext;
+        EditMode editMode;
+        UiState uiState;
+        Clipboard clipboard;
+        SoundPool soundPool;
         FakeMachineCatalog catalog;
-        RecordingEffects   effects;
-        CommandCore        core;
+        RecordingEffects effects;
+        CommandCore core;
 
         GestureFixture() : arrangement(std::make_unique<Arrangement>()) {}
 
@@ -122,7 +139,7 @@ namespace lockstep::test
 
         bool action(ActionId id, ControllerButton btn, int idx = -1)
         {
-            ControllerEvent ev { ControllerEvent::Type::ButtonDown, btn, idx };
+            ControllerEvent ev{ ControllerEvent::Type::ButtonDown, btn, idx };
             auto c = ctx();
             return core.handleAction(id, ev, c, effects);
         }

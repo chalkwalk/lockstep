@@ -32,17 +32,17 @@ namespace lockstep
     // ------------------------------------------------------------------
     struct ParamRow
     {
-        const char* id             = nullptr;  // stable serialization key
-        const char* label          = nullptr;  // Manipulation Zone label
-        float minValue             = 0.0f;
-        float maxValue             = 1.0f;
-        float defaultValue         = 0.0f;
-        float skew                 = 1.0f;     // JUCE skew (1.0 = linear)
-        std::uint8_t isStepped     = 0;        // bool: 1 = stepped/enum
-        std::uint8_t unit          = 0;        // ParamSpec::Unit cast to uint8
-        std::uint8_t role          = 0;        // ParamSpec::Role cast to uint8
-        std::uint8_t variant       = 0;        // ParamSpec::Variant cast to uint8
-        std::int32_t sectionIndex  = 0;
+        const char* id = nullptr;  // stable serialization key
+        const char* label = nullptr;  // Manipulation Zone label
+        float minValue = 0.0f;
+        float maxValue = 1.0f;
+        float defaultValue = 0.0f;
+        float skew = 1.0f;     // JUCE skew (1.0 = linear)
+        std::uint8_t isStepped = 0;        // bool: 1 = stepped/enum
+        std::uint8_t unit = 0;        // ParamSpec::Unit cast to uint8
+        std::uint8_t role = 0;        // ParamSpec::Role cast to uint8
+        std::uint8_t variant = 0;        // ParamSpec::Variant cast to uint8
+        std::int32_t sectionIndex = 0;
         std::uint8_t zeroCrossingSnap = 0;     // bool
         // NULL-terminated static array of label strings, or nullptr if none.
         const char* const* valueLabels = nullptr;

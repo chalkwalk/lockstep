@@ -11,7 +11,8 @@ namespace lockstep
         auto r38 = bjorklund(8, 3);
         CHECK(r38.size() == 8u, "E(3,8) has 8 steps");
         int cnt = 0;
-        for (bool b : r38) if (b) ++cnt;
+        for (bool b : r38)
+            if (b) ++cnt;
         CHECK(cnt == 3, "E(3,8) has 3 onsets");
         // Verify the canonical pattern: onsets at 0, 3, 6.
         CHECK(r38[0] && !r38[1] && !r38[2] && r38[3] && !r38[4] && !r38[5] && r38[6] && !r38[7],
@@ -21,7 +22,8 @@ namespace lockstep
         auto r58 = bjorklund(8, 5);
         CHECK(r58.size() == 8u, "E(5,8) has 8 steps");
         cnt = 0;
-        for (bool b : r58) if (b) ++cnt;
+        for (bool b : r58)
+            if (b) ++cnt;
         CHECK(cnt == 5, "E(5,8) has 5 onsets");
 
         // E(4,16) — all 4 onsets evenly spaced.
@@ -69,14 +71,16 @@ namespace lockstep
         // All accents = no accents → all onsets at velocity 64.
         auto v = euclideanAccents(8, 3, 0, 0);
         int onsets = 0;
-        for (int x : v) if (x > 0) ++onsets;
+        for (int x : v)
+            if (x > 0) ++onsets;
         CHECK(onsets == 3, "accent pass: 3 onsets in E(3,8)");
         for (int x : v) CHECK(x == 0 || x == 64, "no accents → velocities are 0 or 64");
 
         // 1 accent over 3 pulses → one velocity-100 onset.
         auto va = euclideanAccents(8, 3, 0, 1);
         int acc = 0;
-        for (int x : va) if (x == 100) ++acc;
+        for (int x : va)
+            if (x == 100) ++acc;
         CHECK(acc == 1, "1 accent in 3 pulses → 1 velocity-100 step");
     }
 

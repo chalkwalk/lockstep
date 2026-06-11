@@ -8,7 +8,7 @@
 
 namespace lockstep
 {
-    class  IControllerSurface;
+    class IControllerSurface;
     struct ControllerEventSink;
     struct SurfaceModel;
 
@@ -21,7 +21,7 @@ namespace lockstep
     // A 1 Hz timer handles hotplug: reopens the device if it disappears and
     // reappears.
     class ControllerPortManager : private juce::MidiInputCallback,
-                                   private juce::Timer
+                                  private juce::Timer
     {
     public:
         // nameSubstring: primary case-insensitive name match (e.g. "X-TOUCH MINI").
@@ -61,13 +61,13 @@ namespace lockstep
         juce::String nameSubstring_;
         juce::String fallbackSubstring_;
 
-        std::unique_ptr<juce::MidiInput>  midiIn_;
+        std::unique_ptr<juce::MidiInput> midiIn_;
         std::unique_ptr<juce::MidiOutput> midiOut_;
         std::string lastInputId_;
-        bool        justOpened_ = false; // consumed by drain() to call onConnect once
+        bool justOpened_ = false; // consumed by drain() to call onConnect once
 
         static constexpr int kFifoSize = 256;
-        juce::AbstractFifo                       fifo_{ kFifoSize };
+        juce::AbstractFifo fifo_{ kFifoSize };
         std::array<juce::MidiMessage, kFifoSize> msgBuf_;
     };
 }

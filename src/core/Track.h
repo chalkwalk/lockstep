@@ -14,8 +14,8 @@ namespace lockstep
     // Resolved against per-step TrigOverride via Override-ELSE-Base.
     struct TrigDefaults
     {
-        int         note      = 60;                  // MIDI note number (0-127)
-        int         velocity  = 100;                 // MIDI velocity (1-127)
+        int note = 60;                  // MIDI note number (0-127)
+        int velocity = 100;                 // MIDI velocity (1-127)
         MusicalGate gateValue = MusicalGate::None;   // musical gate; None = play to AHDSR end
     };
 
@@ -23,7 +23,11 @@ namespace lockstep
     // can voice, the sequencer picks K notes from the N held notes using a
     // "spread with bias" algorithm: top/bottom first, then middle positions
     // chosen to spread the remaining voices, with the bias resolving ties.
-    enum class NoteSelection : std::uint8_t { TopBias = 0, BottomBias = 1 };
+    enum class NoteSelection : std::uint8_t
+    {
+        TopBias = 0,
+        BottomBias = 1
+    };
 
     // A track owns its step length, clock divider, base parameter values
     // (one per IMachine slot), and the steps themselves.

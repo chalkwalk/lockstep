@@ -27,10 +27,7 @@ namespace lockstep
         // baseCond is used instead.
         [[nodiscard]] bool isTrivial() const
         {
-            return probabilityPercent >= 100
-                && iterNumerator == 1
-                && iterDenominator == 1
-                && prevDependency == 0;
+            return probabilityPercent >= 100 && iterNumerator == 1 && iterDenominator == 1 && prevDependency == 0;
         }
     };
 
@@ -40,5 +37,10 @@ namespace lockstep
     // Inherit — step plays the base trig unchanged (default).
     // On      — step always fires during fill, even if base trig is off.
     // Off     — step never fires during fill, even if base trig is on.
-    enum class FillTrigState : std::uint8_t { Inherit = 0, On = 1, Off = 2 };
+    enum class FillTrigState : std::uint8_t
+    {
+        Inherit = 0,
+        On = 1,
+        Off = 2
+    };
 }

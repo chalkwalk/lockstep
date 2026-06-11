@@ -35,8 +35,8 @@ namespace lockstep::theme
     // Func key — amber ~36°
     // -------------------------------------------------------------------------
     inline constexpr uint32_t kFuncInactive = 0xFF2A1A04u;   // dark amber
-    inline constexpr uint32_t kFuncActive   = 0xFFC07800u;   // saturated amber
-    inline constexpr uint32_t kFuncAccent   = 0xFFE8A820u;   // bright amber
+    inline constexpr uint32_t kFuncActive = 0xFFC07800u;   // saturated amber
+    inline constexpr uint32_t kFuncAccent = 0xFFE8A820u;   // bright amber
 
     // -------------------------------------------------------------------------
     // Structural scope modifiers — cool arc (green → cyan → indigo → gold)
@@ -45,52 +45,52 @@ namespace lockstep::theme
     // -------------------------------------------------------------------------
 
     // Track  (cyan  ~192°)
-    inline constexpr uint32_t kScopeTrack    = 0xFF30A0C0u;  // active / scope glow
+    inline constexpr uint32_t kScopeTrack = 0xFF30A0C0u;  // active / scope glow
     inline constexpr uint32_t kScopeTrackDim = 0xFF133A46u;  // resting (B~35%)
     inline constexpr uint32_t kScopeTrackAcc = 0xFF58CCE8u;  // accent border
 
     // Scene  (green ~150°)
-    inline constexpr uint32_t kScopeScene    = 0xFF20A060u;
+    inline constexpr uint32_t kScopeScene = 0xFF20A060u;
     inline constexpr uint32_t kScopeSceneDim = 0xFF0D3C24u;
     inline constexpr uint32_t kScopeSceneAcc = 0xFF3EC880u;
 
     // Phrase (indigo ~225°)
-    inline constexpr uint32_t kScopePhrase   = 0xFF7050C8u;  // slightly shifted from old 8040C0
-    inline constexpr uint32_t kScopePhraseDim= 0xFF221448u;  // resting
-    inline constexpr uint32_t kScopePhraseAcc= 0xFF9880E8u;
+    inline constexpr uint32_t kScopePhrase = 0xFF7050C8u;  // slightly shifted from old 8040C0
+    inline constexpr uint32_t kScopePhraseDim = 0xFF221448u;  // resting
+    inline constexpr uint32_t kScopePhraseAcc = 0xFF9880E8u;
 
     // Song   (gold  ~50°)  — brighter, yellower gold to clear amber Func + chartreuse Fill
-    inline constexpr uint32_t kScopeSong     = 0xFFD8B020u;
-    inline constexpr uint32_t kScopeSongDim  = 0xFF403000u;  // resting
-    inline constexpr uint32_t kScopeSongAcc  = 0xFFF0D050u;
+    inline constexpr uint32_t kScopeSong = 0xFFD8B020u;
+    inline constexpr uint32_t kScopeSongDim = 0xFF403000u;  // resting
+    inline constexpr uint32_t kScopeSongAcc = 0xFFF0D050u;
 
     // -------------------------------------------------------------------------
     // Morph — magenta ~315° (expressive A/B crossfader; apart from cool arc)
     // -------------------------------------------------------------------------
-    inline constexpr uint32_t kScopeMorph    = 0xFFBE3898u;
+    inline constexpr uint32_t kScopeMorph = 0xFFBE3898u;
     inline constexpr uint32_t kScopeMorphDim = 0xFF3C1230u;
     inline constexpr uint32_t kScopeMorphAcc = 0xFFE060C0u;
     // Pole A (violet ~270°) and pole B (rose ~345°) flank the core morph hue.
     // Used in the Morph+Mute view to signal which side the fader favours.
-    inline constexpr uint32_t kScopeMorphA    = 0xFF6040D0u;   // violet-blue
-    inline constexpr uint32_t kScopeMorphB    = 0xFFD04060u;   // rose-red
+    inline constexpr uint32_t kScopeMorphA = 0xFF6040D0u;   // violet-blue
+    inline constexpr uint32_t kScopeMorphB = 0xFFD04060u;   // rose-red
 
     // -------------------------------------------------------------------------
     // Performance modifiers — high-alert character (Mute removes, Fill adds)
     // -------------------------------------------------------------------------
 
     // Mute   (red ~2°)
-    inline constexpr uint32_t kScopeMute    = 0xFFC03030u;
+    inline constexpr uint32_t kScopeMute = 0xFFC03030u;
     inline constexpr uint32_t kScopeMuteDim = 0xFF3E0E0Eu;
     inline constexpr uint32_t kScopeMuteAcc = 0xFFE85050u;
 
     // PMute  (rose ~345°) — scene mute; distinct from Func amber
-    inline constexpr uint32_t kScopePMute   = 0xFFBE2858u;
-    inline constexpr uint32_t kScopePMuteDim= 0xFF3A0C1Cu;
-    inline constexpr uint32_t kScopePMuteAcc= 0xFFE85080u;
+    inline constexpr uint32_t kScopePMute = 0xFFBE2858u;
+    inline constexpr uint32_t kScopePMuteDim = 0xFF3A0C1Cu;
+    inline constexpr uint32_t kScopePMuteAcc = 0xFFE85080u;
 
     // Fill   (chartreuse ~78°)
-    inline constexpr uint32_t kScopeFill    = 0xFF82C018u;
+    inline constexpr uint32_t kScopeFill = 0xFF82C018u;
     inline constexpr uint32_t kScopeFillDim = 0xFF283C08u;
     inline constexpr uint32_t kScopeFillAcc = 0xFFAAE030u;
 
@@ -101,37 +101,37 @@ namespace lockstep::theme
     // that carry a wired secondary (COND / NOTE). Distinct from Song's gold
     // (~48°) so the universal-qualifier layer reads as its own thing (DESIGN
     // §6.1 rule 3). Cells with no secondary dim to Disabled instead.
-    inline constexpr uint32_t kScopeFunc    = 0xFFD07820u;
+    inline constexpr uint32_t kScopeFunc = 0xFFD07820u;
     inline constexpr uint32_t kScopeFuncDim = 0xFF42260Au;
 
     // -------------------------------------------------------------------------
     // Edit sub-mode identities (grid re-skins; mutually exclusive with scope-hold)
     // -------------------------------------------------------------------------
     inline constexpr uint32_t kScopeNoteEdit = 0xFF2888D8u;  // azure  ~205°
-    inline constexpr uint32_t kScopePLock    = 0xFF6040C0u;  // violet ~288°
+    inline constexpr uint32_t kScopePLock = 0xFF6040C0u;  // violet ~288°
 
     // -------------------------------------------------------------------------
     // Verb keys — neutral slate (H~215, S~0.18) at rest;
     // conventional colour on-active (Record→red, Play→green, Clear→warm-red)
     // -------------------------------------------------------------------------
-    inline constexpr uint32_t kVerbInactive   = 0xFF141C22u;  // near-black slate
-    inline constexpr uint32_t kVerbActive     = 0xFF2A3C50u;  // mid slate (unpressed / idle)
-    inline constexpr uint32_t kVerbAccent     = 0xFF4880A8u;  // slate-blue accent
+    inline constexpr uint32_t kVerbInactive = 0xFF141C22u;  // near-black slate
+    inline constexpr uint32_t kVerbActive = 0xFF2A3C50u;  // mid slate (unpressed / idle)
+    inline constexpr uint32_t kVerbAccent = 0xFF4880A8u;  // slate-blue accent
 
     // VerbRecord armed: warm red
-    inline constexpr uint32_t kVerbRecActive  = 0xFFA03030u;
-    inline constexpr uint32_t kVerbRecAccent  = 0xFFD04444u;
+    inline constexpr uint32_t kVerbRecActive = 0xFFA03030u;
+    inline constexpr uint32_t kVerbRecAccent = 0xFFD04444u;
     // VerbRecord overdub armed: amber
-    inline constexpr uint32_t kVerbODActive   = 0xFFD2821Eu;
-    inline constexpr uint32_t kVerbODAccent   = 0xFFE0A040u;
+    inline constexpr uint32_t kVerbODActive = 0xFFD2821Eu;
+    inline constexpr uint32_t kVerbODAccent = 0xFFE0A040u;
 
     // VerbPlay playing: green
     inline constexpr uint32_t kVerbPlayActive = 0xFF208040u;
     inline constexpr uint32_t kVerbPlayAccent = 0xFF30C060u;
 
     // VerbClear / Delete / Panic: warm-orange (destructive; pushed off Record red)
-    inline constexpr uint32_t kVerbClearActive= 0xFF8A5A1Cu;
-    inline constexpr uint32_t kVerbClearAccent= 0xFFBB6030u;
+    inline constexpr uint32_t kVerbClearActive = 0xFF8A5A1Cu;
+    inline constexpr uint32_t kVerbClearAccent = 0xFFBB6030u;
 
     // Snapshot (VerbYes): violet-blue (distinct from slate verbs)
     inline constexpr uint32_t kVerbSnapActive = 0xFF3A44A0u;
@@ -140,50 +140,50 @@ namespace lockstep::theme
     // -------------------------------------------------------------------------
     // Section keys — steel-teal (H~185, S~0.45)
     // -------------------------------------------------------------------------
-    inline constexpr uint32_t kSecInactive  = 0xFF0E2020u;
-    inline constexpr uint32_t kSecActive    = 0xFF206060u;
-    inline constexpr uint32_t kSecAccent    = 0xFF3EC8C8u;
+    inline constexpr uint32_t kSecInactive = 0xFF0E2020u;
+    inline constexpr uint32_t kSecActive = 0xFF206060u;
+    inline constexpr uint32_t kSecAccent = 0xFF3EC8C8u;
 
     // -------------------------------------------------------------------------
     // Navigation keys — quiet slate
     // -------------------------------------------------------------------------
-    inline constexpr uint32_t kNavInactive  = 0xFF0E1E30u;
-    inline constexpr uint32_t kNavActive    = 0xFF3060A0u;
-    inline constexpr uint32_t kNavAccent    = 0xFF3060A0u;
+    inline constexpr uint32_t kNavInactive = 0xFF0E1E30u;
+    inline constexpr uint32_t kNavActive = 0xFF3060A0u;
+    inline constexpr uint32_t kNavAccent = 0xFF3060A0u;
 
     // -------------------------------------------------------------------------
     // Tap Tempo key — neutral grey
     // -------------------------------------------------------------------------
-    inline constexpr uint32_t kTapInactive  = 0xFF1A1A20u;
-    inline constexpr uint32_t kTapActive    = 0xFF505060u;
-    inline constexpr uint32_t kTapAccent    = 0xFF8090A0u;
+    inline constexpr uint32_t kTapInactive = 0xFF1A1A20u;
+    inline constexpr uint32_t kTapActive = 0xFF505060u;
+    inline constexpr uint32_t kTapAccent = 0xFF8090A0u;
 
     // -------------------------------------------------------------------------
     // Step-grid colours (aligned to family vocabulary where meaningful)
     // -------------------------------------------------------------------------
-    inline constexpr uint32_t kStepActive      = 0xFF50B478u;  // green — certain fire
-    inline constexpr uint32_t kStepFillAdd     = 0xFFF08030u;  // warm orange — additive fill trig
-    inline constexpr uint32_t kStepFillSuppress= 0xFF3060A0u;  // cool blue — suppressed in fill
-    inline constexpr uint32_t kStepFillPLock   = 0xFF40A0D0u;  // cyan — fill-layer P-Lock dot
-    inline constexpr uint32_t kStepInactive    = 0xFF2D3741u;  // dark — in-range, no trig
-    inline constexpr uint32_t kStepOutRange    = 0xFF12151Au;  // near-black — out of range (darkened: separate from empty-in-range)
-    inline constexpr uint32_t kStepPlayhead    = 0xFFFFCC44u;  // amber border
-    inline constexpr uint32_t kStepHeld        = 0xFFFFFFFFu;  // white — held-step border
-    inline constexpr uint32_t kStepPLock       = 0xFF8060E0u;  // violet — P-Lock dot
+    inline constexpr uint32_t kStepActive = 0xFF50B478u;  // green — certain fire
+    inline constexpr uint32_t kStepFillAdd = 0xFFF08030u;  // warm orange — additive fill trig
+    inline constexpr uint32_t kStepFillSuppress = 0xFF3060A0u;  // cool blue — suppressed in fill
+    inline constexpr uint32_t kStepFillPLock = 0xFF40A0D0u;  // cyan — fill-layer P-Lock dot
+    inline constexpr uint32_t kStepInactive = 0xFF2D3741u;  // dark — in-range, no trig
+    inline constexpr uint32_t kStepOutRange = 0xFF12151Au;  // near-black — out of range (darkened: separate from empty-in-range)
+    inline constexpr uint32_t kStepPlayhead = 0xFFFFCC44u;  // amber border
+    inline constexpr uint32_t kStepHeld = 0xFFFFFFFFu;  // white — held-step border
+    inline constexpr uint32_t kStepPLock = 0xFF8060E0u;  // violet — P-Lock dot
 
     // Legacy alias kept for stray references (points at new Fill name)
-    inline constexpr uint32_t kStepFillOnly    = 0xFF7B4EC0u;
+    inline constexpr uint32_t kStepFillOnly = 0xFF7B4EC0u;
 
     // -------------------------------------------------------------------------
     // Named decoration constants — prevent literal scatter in paint paths
     // -------------------------------------------------------------------------
-    inline constexpr uint32_t kAmberStrip      = 0xFFD0A020u;  // compound-chord top strip
-    inline constexpr uint32_t kHomeAmber       = 0xFFFFC020u;  // home-position border glow
+    inline constexpr uint32_t kAmberStrip = 0xFFD0A020u;  // compound-chord top strip
+    inline constexpr uint32_t kHomeAmber = 0xFFFFC020u;  // home-position border glow
 
     // -------------------------------------------------------------------------
     // Default / no-scope held: light grey (used by step-grid scope glow fallback)
     // -------------------------------------------------------------------------
-    inline constexpr uint32_t kScopeStep       = 0xFF8898A8u;
+    inline constexpr uint32_t kScopeStep = 0xFF8898A8u;
 
     // -------------------------------------------------------------------------
     // Helper: build a juce::Colour from a packed ARGB uint32

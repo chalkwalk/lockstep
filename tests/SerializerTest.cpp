@@ -32,7 +32,7 @@ namespace lockstep
 
         // A morph snapshot entry is non-default content.
         Scene morph;
-        morph.morphA[{0, 1}] = 0.5f;
+        morph.morphA[{ 0, 1 }] = 0.5f;
         CHECK(sceneHasContent(morph), "scene with a morph snapshot has content");
 
         // The initialised flag must NOT, by itself, mark content (it was the bug).

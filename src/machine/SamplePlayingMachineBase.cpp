@@ -22,10 +22,10 @@ namespace lockstep
     {
         for (auto& v : voices_)
         {
-            v.player     = SamplePlayer{};
+            v.player = SamplePlayer{};
             v.hasPending = false;
-            v.midiNote   = -1;
-            v.age        = 0;
+            v.midiNote = -1;
+            v.age = 0;
             v.choke.prepare(sampleRate_, 1.5f);
         }
         voiceCounter_ = 0;
@@ -66,8 +66,7 @@ namespace lockstep
         // All busy: steal the oldest active voice.
         int oldest = 0;
         for (int i = 1; i < kMaxVoices; ++i)
-            if (voices_[static_cast<std::size_t>(i)].age
-                < voices_[static_cast<std::size_t>(oldest)].age)
+            if (voices_[static_cast<std::size_t>(i)].age < voices_[static_cast<std::size_t>(oldest)].age)
                 oldest = i;
         return oldest;
     }
@@ -92,9 +91,9 @@ namespace lockstep
     }
 
     float SamplePlayingMachineBase::snapWrittenValue(int slot,
-                                                      float v,
-                                                      const SamplePool& pool,
-                                                      const ParamFrame& baseParams) const
+                                                     float v,
+                                                     const SamplePool& pool,
+                                                     const ParamFrame& baseParams) const
     {
         juce::ignoreUnused(slot);
 
@@ -114,7 +113,7 @@ namespace lockstep
         const int lo = std::max(0, static_cast<int>(targetPos - searchRadius));
         const int hi = std::min(numSamples - 2, static_cast<int>(targetPos + searchRadius));
 
-        int bestIdx  = static_cast<int>(targetPos);
+        int bestIdx = static_cast<int>(targetPos);
         double bestDist = searchRadius + 1.0;
 
         const float* ch0 = s->pcm.getReadPointer(0);
@@ -127,7 +126,7 @@ namespace lockstep
                 if (dist < bestDist)
                 {
                     bestDist = dist;
-                    bestIdx  = i;
+                    bestIdx = i;
                 }
             }
         }
@@ -156,8 +155,7 @@ namespace lockstep
         for (int i = 0; i < numSlices_; ++i)
         {
             slicePositions_[static_cast<std::size_t>(i)] =
-                static_cast<float>(positions[static_cast<std::size_t>(i)])
-                / static_cast<float>(nSamp);
+                static_cast<float>(positions[static_cast<std::size_t>(i)]) / static_cast<float>(nSamp);
         }
     }
 }

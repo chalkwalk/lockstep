@@ -48,8 +48,7 @@ namespace lockstep
                 return;
             }
 
-            if (cc.table == nullptr || !cc.getCurrentTrackValue
-                || !cc.getMetadata || !cc.writeTrackParam)
+            if (cc.table == nullptr || !cc.getCurrentTrackValue || !cc.getMetadata || !cc.writeTrackParam)
                 continue;
 
             cc.table->dispatch(

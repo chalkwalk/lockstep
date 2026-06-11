@@ -32,7 +32,7 @@ namespace lockstep::Hash
     // NOLINTNEXTLINE(bugprone-easily-swappable-parameters) — canonical xxHash32 signature
     std::uint32_t xx32(const void* data, std::size_t size, std::uint32_t seed)
     {
-        const auto* p   = static_cast<const std::uint8_t*>(data);
+        const auto* p = static_cast<const std::uint8_t*>(data);
         const auto* end = p + size;
         std::uint32_t h32;
 
@@ -46,10 +46,14 @@ namespace lockstep::Hash
             const auto* limit = end - 16;
             while (p <= limit)
             {
-                v1 = round(v1, readU32(p));      p += 4;
-                v2 = round(v2, readU32(p));      p += 4;
-                v3 = round(v3, readU32(p));      p += 4;
-                v4 = round(v4, readU32(p));      p += 4;
+                v1 = round(v1, readU32(p));
+                p += 4;
+                v2 = round(v2, readU32(p));
+                p += 4;
+                v3 = round(v3, readU32(p));
+                p += 4;
+                v4 = round(v4, readU32(p));
+                p += 4;
             }
 
             h32 = rotl32(v1, 1) + rotl32(v2, 7) + rotl32(v3, 12) + rotl32(v4, 18);

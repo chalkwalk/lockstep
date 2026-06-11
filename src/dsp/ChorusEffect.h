@@ -33,27 +33,27 @@ namespace lockstep
             const int ch = buffer.getNumChannels();
             if (ch == 0 || numSamples <= 0) return;
 
-            const float rate  = params.size() > 0
-                ? juce::jlimit(0.1f, 5.0f, params[0] * 5.0f) : 0.5f;
+            const float rate = params.size() > 0
+                                   ? juce::jlimit(0.1f, 5.0f, params[0] * 5.0f)
+                                   : 0.5f;
             const float depth = params.size() > 1 ? params[1] * 0.025f : 0.01f;
-            const float mix   = params.size() > 2 ? params[2] : 0.5f;
-            const float phInc = static_cast<float>(rate * juce::MathConstants<double>::twoPi
-                                                    / sampleRate_);
+            const float mix = params.size() > 2 ? params[2] : 0.5f;
+            const float phInc = static_cast<float>(rate * juce::MathConstants<double>::twoPi / sampleRate_);
 
             for (int c = 0; c < std::min(ch, 2); ++c)
             {
                 auto* data = buffer.getWritePointer(c);
-                auto& b    = buf_[static_cast<std::size_t>(c)];
-                auto& wr   = head_[static_cast<std::size_t>(c)];
-                auto& ph   = phase_[static_cast<std::size_t>(c)];
-                const int  bufLen = static_cast<int>(b.size());
+                auto& b = buf_[static_cast<std::size_t>(c)];
+                auto& wr = head_[static_cast<std::size_t>(c)];
+                auto& ph = phase_[static_cast<std::size_t>(c)];
+                const int bufLen = static_cast<int>(b.size());
 
                 for (int i = 0; i < numSamples; ++i)
                 {
-                    const float lfo     = std::sin(ph) * 0.5f + 0.5f;
+                    const float lfo = std::sin(ph) * 0.5f + 0.5f;
                     const float delaySec = depth * lfo;
-                    const int   dSamples = static_cast<int>(delaySec * sampleRate_) + 1;
-                    const int   rd = (wr - dSamples + bufLen) % bufLen;
+                    const int dSamples = static_cast<int>(delaySec * sampleRate_) + 1;
+                    const int rd = (wr - dSamples + bufLen) % bufLen;
                     const float wet = b[static_cast<std::size_t>(rd)];
                     b[static_cast<std::size_t>(wr)] = data[i];
                     wr = (wr + 1) % bufLen;
@@ -74,12 +74,33 @@ namespace lockstep
             static constexpr int kFxSec = 5;
             switch (i)
             {
-                case 0: { ParamSpec p; p.id="lockstep.chorus.rate";  p.label="Rate";
-                          p.maxValue=1.0f; p.defaultValue=0.1f; p.sectionIndex=kFxSec; return p; }
-                case 1: { ParamSpec p; p.id="lockstep.chorus.depth"; p.label="Depth";
-                          p.maxValue=1.0f; p.defaultValue=0.3f; p.sectionIndex=kFxSec; return p; }
-                case 2: { ParamSpec p; p.id="lockstep.chorus.mix";   p.label="Mix";
-                          p.maxValue=1.0f; p.defaultValue=0.5f; p.sectionIndex=kFxSec; return p; }
+                case 0: {
+                    ParamSpec p;
+                    p.id = "lockstep.chorus.rate";
+                    p.label = "Rate";
+                    p.maxValue = 1.0f;
+                    p.defaultValue = 0.1f;
+                    p.sectionIndex = kFxSec;
+                    return p;
+                }
+                case 1: {
+                    ParamSpec p;
+                    p.id = "lockstep.chorus.depth";
+                    p.label = "Depth";
+                    p.maxValue = 1.0f;
+                    p.defaultValue = 0.3f;
+                    p.sectionIndex = kFxSec;
+                    return p;
+                }
+                case 2: {
+                    ParamSpec p;
+                    p.id = "lockstep.chorus.mix";
+                    p.label = "Mix";
+                    p.maxValue = 1.0f;
+                    p.defaultValue = 0.5f;
+                    p.sectionIndex = kFxSec;
+                    return p;
+                }
                 default: return {};
             }
         }
@@ -91,7 +112,7 @@ namespace lockstep
         static inline const std::string kId = "lockstep.chorus.v1";
         double sampleRate_ = 44100.0;
         std::array<std::vector<float>, 2> buf_;
-        std::array<int,   2> head_{};
+        std::array<int, 2> head_{};
         std::array<float, 2> phase_{};
     };
 }

@@ -18,7 +18,7 @@ namespace lockstep
             : unknownId_(std::move(unknownId)) {}
 
         [[nodiscard]] const char* machineId() const noexcept override { return kMachineId; }
-        [[nodiscard]] const char* badge()     const noexcept override { return ""; }
+        [[nodiscard]] const char* badge() const noexcept override { return ""; }
         [[nodiscard]] const std::string& unknownMachineId() const { return unknownId_; }
 
         void prepare(double, int) override {}
@@ -26,8 +26,8 @@ namespace lockstep
         void process(const juce::MidiBuffer&, const ParamFrame&,
                      juce::AudioBuffer<float>&) override {}
 
-        [[nodiscard]] int       numParams()          const override { return 0; }
-        [[nodiscard]] ParamSpec paramSpec(int)       const override { return {}; }
+        [[nodiscard]] int numParams() const override { return 0; }
+        [[nodiscard]] ParamSpec paramSpec(int) const override { return {}; }
 
     private:
         std::string unknownId_;

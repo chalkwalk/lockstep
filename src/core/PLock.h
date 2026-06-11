@@ -58,7 +58,7 @@ namespace lockstep
         void reserve(int n) { overrides_.reserve(static_cast<std::size_t>(n)); }
 
         // Iterate all overrides. Callback: void(int slot, float value).
-        template<typename Fn>
+        template <typename Fn>
         void forEach(Fn&& fn) const
         {
             for (const auto& [slot, value] : overrides_)

@@ -24,7 +24,7 @@ namespace lockstep
         sample->ref.path = path.toStdString();
 
         const auto numChannels = static_cast<int>(reader->numChannels);
-        const auto numSamples  = static_cast<int>(reader->lengthInSamples);
+        const auto numSamples = static_cast<int>(reader->lengthInSamples);
 
         sample->pcm.setSize(numChannels, numSamples);
         reader->read(&sample->pcm, 0, numSamples, 0, true, true);
@@ -44,7 +44,7 @@ namespace lockstep
     int SamplePool::addMissing(const SampleRef& ref)
     {
         auto sample = std::make_unique<Sample>();
-        sample->ref     = ref;
+        sample->ref = ref;
         sample->missing = true;
         // pcm left empty; SamplerMachine produces silence for zero-length buffers.
         const int index = static_cast<int>(samples_.size());
@@ -64,10 +64,10 @@ namespace lockstep
 
         auto& s = samples_[static_cast<std::size_t>(index)];
         s->sampleRate = reader->sampleRate;
-        s->ref.path   = newPath.toStdString();
+        s->ref.path = newPath.toStdString();
 
         const int numChannels = static_cast<int>(reader->numChannels);
-        const int numSamples  = static_cast<int>(reader->lengthInSamples);
+        const int numSamples = static_cast<int>(reader->lengthInSamples);
         s->pcm.setSize(numChannels, numSamples);
         reader->read(&s->pcm, 0, numSamples, 0, true, true);
 

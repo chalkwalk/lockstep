@@ -99,15 +99,15 @@ namespace lockstep
     // -------------------------------------------------------------------------
     enum ModBit : uint16_t
     {
-        kModNone   = 0,
-        kModFunc   = 1 << 0,   // Func — always the weakest tiebreaker
-        kModTrack  = 1 << 1,
+        kModNone = 0,
+        kModFunc = 1 << 0,   // Func — always the weakest tiebreaker
+        kModTrack = 1 << 1,
         kModPhrase = 1 << 2,
-        kModScene  = 1 << 3,
-        kModMorph  = 1 << 4,
-        kModSong   = 1 << 5,
-        kModMute   = 1 << 6,
-        kModFill   = 1 << 7,
+        kModScene = 1 << 3,
+        kModMorph = 1 << 4,
+        kModSong = 1 << 5,
+        kModMute = 1 << 6,
+        kModFill = 1 << 7,
     };
 
     // -------------------------------------------------------------------------
@@ -116,13 +116,13 @@ namespace lockstep
     struct KeyBinding
     {
         ControllerButton button;
-        int              index        = -1;      // step/section index; -1 = any
-        uint16_t         requiredMods = kModNone;
-        SurfaceLayer     layer        = SurfaceLayer::Base;
-        ActionId         action       = ActionId::None;
-        const char8_t*   primary      = u8"";    // main label (UTF-8, ≤8 visible chars)
-        const char8_t*   hint         = u8"";    // Func-hint / bottom strip ("" = none)
-        CellState        state        = CellState::Resting;
+        int index = -1;      // step/section index; -1 = any
+        uint16_t requiredMods = kModNone;
+        SurfaceLayer layer = SurfaceLayer::Base;
+        ActionId action = ActionId::None;
+        const char8_t* primary = u8"";    // main label (UTF-8, ≤8 visible chars)
+        const char8_t* hint = u8"";    // Func-hint / bottom strip ("" = none)
+        CellState state = CellState::Resting;
     };
 
     // The canonical table. Most-specific rows (higher requiredMods popcount)

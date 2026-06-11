@@ -25,8 +25,8 @@ namespace lockstep
         // Scene A/B parameter snapshots (Phase 7.7 / DESIGN §17).
         // Full crossfader implementation: ROADMAP 5.2.
         // Key = (trackIdx << 16) | slotIdx for a flat map lookup.
-        std::map<std::pair<int,int>, float> morphA{};
-        std::map<std::pair<int,int>, float> morphB{};
+        std::map<std::pair<int, int>, float> morphA{};
+        std::map<std::pair<int, int>, float> morphB{};
 
         // Scene-wide swing delta (DESIGN §19.2). Added to Song::swing (plus per-track
         // Song::SongTrack::swing) to form the full effective swing for this section.
@@ -47,9 +47,10 @@ namespace lockstep
     // scene's per-scene assignment (phraseIdx) was silently dropped on save.
     [[nodiscard]] inline bool sceneHasContent(const Scene& s)
     {
-        for (const bool m  : s.activeMask) if (!m)       return true;
-        if (!(s.coreTime == TimeSig{}))                  return true;
-        if (s.swing != 0.0f)                             return true;
+        for (const bool m : s.activeMask)
+            if (!m) return true;
+        if (!(s.coreTime == TimeSig{})) return true;
+        if (s.swing != 0.0f) return true;
         return !s.morphA.empty() || !s.morphB.empty();
     }
 }

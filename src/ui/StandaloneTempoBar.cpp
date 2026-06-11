@@ -11,8 +11,7 @@ namespace lockstep
         bpmSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
         bpmSlider_.setTextBoxStyle(juce::Slider::TextBoxLeft, false, 52, 18);
         bpmSlider_.setWantsKeyboardFocus(false);
-        bpmSlider_.onValueChange = [this]
-        {
+        bpmSlider_.onValueChange = [this] {
             clock_.setLocalBpm(bpmSlider_.getValue());
         };
         addAndMakeVisible(bpmSlider_);
@@ -45,7 +44,7 @@ namespace lockstep
     {
         const double ppq = clock_.cumulativePpq();
         // Assumes 4/4 time (the only time signature seq_play targets for now).
-        const int bar  = static_cast<int>(ppq / 4.0) + 1;
+        const int bar = static_cast<int>(ppq / 4.0) + 1;
         const int beat = static_cast<int>(std::fmod(ppq, 4.0)) + 1;
         const int tick = static_cast<int>(std::fmod(ppq, 1.0) * 96.0);  // 96 ticks/beat
         return juce::String(bar) + "." + juce::String(beat) + "." + juce::String::formatted("%02d", tick);

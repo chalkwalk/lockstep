@@ -25,16 +25,20 @@ namespace lockstep
                      double samplesPerPpq, juce::AudioBuffer<float>& buffer,
                      int numerator = 4, int denominator = 4);
 
-        void reset() { amplitude_ = 0.0f; phase_ = 0.0; }
+        void reset()
+        {
+            amplitude_ = 0.0f;
+            phase_ = 0.0;
+        }
 
     private:
-        double sampleRate_       = 44100.0;
-        double phase_            = 0.0;
-        float  amplitude_        = 0.0f;
-        float  decayRate_        = 1.0f;
-        float  decayRateStrong_  = 1.0f;
-        float  decayRateWeak_    = 1.0f;
-        double freqIncrement_    = 0.0;
+        double sampleRate_ = 44100.0;
+        double phase_ = 0.0;
+        float amplitude_ = 0.0f;
+        float decayRate_ = 1.0f;
+        float decayRateStrong_ = 1.0f;
+        float decayRateWeak_ = 1.0f;
+        double freqIncrement_ = 0.0;
 
         void trigger(bool strong);
     };

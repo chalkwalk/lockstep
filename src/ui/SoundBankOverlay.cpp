@@ -111,7 +111,7 @@ namespace lockstep
     }
 
     juce::Component* SoundBankOverlay::Model::refreshComponentForRow(int, bool,
-                                                                      juce::Component* existing)
+                                                                     juce::Component* existing)
     {
         return existing;
     }

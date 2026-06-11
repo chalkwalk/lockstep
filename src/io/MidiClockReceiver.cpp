@@ -6,13 +6,13 @@ namespace lockstep
 {
     void MidiClockReceiver::reset()
     {
-        ppqAccum_             = 0.0;
-        smoothedBpm_          = 0.0;
-        haveBpm_              = false;
-        running_              = false;
-        hadAnyPulse_          = false;
+        ppqAccum_ = 0.0;
+        smoothedBpm_ = 0.0;
+        haveBpm_ = false;
+        running_ = false;
+        hadAnyPulse_ = false;
         samplesSinceLastPulse_ = 0;
-        samplesSinceAnyPulse_  = 0;
+        samplesSinceAnyPulse_ = 0;
         // hasClock_ is intentionally NOT reset — once seen, always known
     }
 
@@ -22,7 +22,7 @@ namespace lockstep
     {
         BlockResult result;
         result.hasClock = hasClock_;
-        result.running  = running_;
+        result.running = running_;
 
         int lastPulseOffsetThisBlock = -1;
 
@@ -32,26 +32,26 @@ namespace lockstep
 
             if (msg.isMidiStart())
             {
-                running_              = true;
-                hasClock_             = true;
-                ppqAccum_             = 0.0;
-                hadAnyPulse_          = false;
+                running_ = true;
+                hasClock_ = true;
+                ppqAccum_ = 0.0;
+                hadAnyPulse_ = false;
                 samplesSinceLastPulse_ = 0;
-                samplesSinceAnyPulse_  = 0;
-                result.didStart        = true;
-                result.hasClock        = true;
-                result.running         = true;
+                samplesSinceAnyPulse_ = 0;
+                result.didStart = true;
+                result.hasClock = true;
+                result.running = true;
             }
             else if (msg.isMidiContinue())
             {
-                running_        = true;
-                hasClock_       = true;
+                running_ = true;
+                hasClock_ = true;
                 result.hasClock = true;
-                result.running  = true;
+                result.running = true;
             }
             else if (msg.isMidiStop())
             {
-                running_       = false;
+                running_ = false;
                 result.didStop = true;
                 result.running = false;
             }
@@ -74,12 +74,11 @@ namespace lockstep
                         if (!haveBpm_)
                         {
                             smoothedBpm_ = clamped;
-                            haveBpm_     = true;
+                            haveBpm_ = true;
                         }
                         else
                         {
-                            smoothedBpm_ = (1.0 - kEmaAlpha) * smoothedBpm_
-                                         + kEmaAlpha * clamped;
+                            smoothedBpm_ = (1.0 - kEmaAlpha) * smoothedBpm_ + kEmaAlpha * clamped;
                         }
                     }
                 }
@@ -99,8 +98,8 @@ namespace lockstep
             samplesSinceLastPulse_ += blockSize;
 
         samplesSinceAnyPulse_ = (lastPulseOffsetThisBlock >= 0)
-            ? (blockSize - lastPulseOffsetThisBlock)
-            : (samplesSinceAnyPulse_ + blockSize);
+                                    ? (blockSize - lastPulseOffsetThisBlock)
+                                    : (samplesSinceAnyPulse_ + blockSize);
 
         // Dropout: running but no pulse for > threshold.
         if (running_ && haveBpm_ && sampleRate > 0.0)
@@ -118,7 +117,7 @@ namespace lockstep
             ppqAccum_ += advance;
         }
         result.ppqEnd = ppqAccum_;
-        result.bpm    = haveBpm_ ? smoothedBpm_ : 0.0;
+        result.bpm = haveBpm_ ? smoothedBpm_ : 0.0;
 
         return result;
     }

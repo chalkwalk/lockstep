@@ -26,10 +26,10 @@ namespace lockstep
     // Draws only the QWERTY key hint in the standard style (12 pt, top-left corner).
     // `inner` is the usable interior rectangle (typically `cell.reduced(1,1)`).
     // alpha = 1.0 for normal, 0.45 for disabled.
-    void paintCellKeyHint(juce::Graphics&      g,
+    void paintCellKeyHint(juce::Graphics& g,
                           juce::Rectangle<int> inner,
-                          const juce::String&  hint,
-                          float                alpha = 1.0f);
+                          const juce::String& hint,
+                          float alpha = 1.0f);
 
     // Stateless paint helper: draws one key into `cell`.
     // All geometry is determined by `cell`; caller positions cells in their own paint().
@@ -38,24 +38,24 @@ namespace lockstep
     //   active compound-chord scope (cross-column modifier pair). Orthogonal to `state`.
     // latchColour: when non-zero (non-transparent), draws a small latch pip (MHZ.9.6)
     //   at the bottom-left in the given scope colour to indicate a virtual-hold.
-    void paintKeyButton(juce::Graphics&      g,
+    void paintKeyButton(juce::Graphics& g,
                         juce::Rectangle<int> cell,
-                        const juce::String&  keyHint,
-                        const juce::String&  primary,
-                        const juce::String&  secondary,
-                        const KeyGroup&      group,
-                        KeyButtonState       state,
-                        bool                 showKeyHint,
-                        bool                 compoundOverlay = false,
-                        juce::Colour         latchColour     = juce::Colours::transparentBlack);
+                        const juce::String& keyHint,
+                        const juce::String& primary,
+                        const juce::String& secondary,
+                        const KeyGroup& group,
+                        KeyButtonState state,
+                        bool showKeyHint,
+                        bool compoundOverlay = false,
+                        juce::Colour latchColour = juce::Colours::transparentBlack);
 
     // Thin adapter: renders one SurfaceCell using paintKeyButton.
     // groupForCell() resolves KeyGroup from button identity + cell state.
     // All state needed for rendering is carried by the cell.
-    void paintCell(juce::Graphics&        g,
-                   juce::Rectangle<int>   cell,
-                   const SurfaceCell&     c,
-                   bool                   showKeyHint);
+    void paintCell(juce::Graphics& g,
+                   juce::Rectangle<int> cell,
+                   const SurfaceCell& c,
+                   bool showKeyHint);
 
     // Resolved background fill (ARGB) that paintCell/paintKeyButton would draw for
     // this key cell — the single screen colour authority (groupForCell + state).

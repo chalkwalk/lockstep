@@ -13,13 +13,12 @@ namespace lockstep
         auto* mr = dynamic_cast<MetaRotary*>(&slider);
 
         auto bounds = juce::Rectangle<int>(x, y, width, height).toFloat().reduced(4.0f);
-        const float radius  = (juce::jmin(bounds.getWidth(), bounds.getHeight()) / 2.0f) - 2.0f;
+        const float radius = (juce::jmin(bounds.getWidth(), bounds.getHeight()) / 2.0f) - 2.0f;
         const float centreX = bounds.getCentreX();
         const float centreY = bounds.getCentreY();
-        const float trackW  = juce::jmax(2.0f, radius * 0.12f);
+        const float trackW = juce::jmax(2.0f, radius * 0.12f);
 
-        const float valueAngle = rotaryStartAngle
-                               + sliderPos * (rotaryEndAngle - rotaryStartAngle);
+        const float valueAngle = rotaryStartAngle + sliderPos * (rotaryEndAngle - rotaryStartAngle);
         const float centreAngle = (rotaryStartAngle + rotaryEndAngle) * 0.5f;
 
         const RingMode mode = mr ? mr->ringMode : RingMode::UnipolarFill;
@@ -43,7 +42,7 @@ namespace lockstep
         else if (mode == RingMode::BipolarFromCentre)
         {
             const float fromAngle = centreAngle;
-            const float toAngle   = valueAngle;
+            const float toAngle = valueAngle;
             if (std::abs(toAngle - fromAngle) > 0.005f)
             {
                 juce::Path fill;
@@ -71,16 +70,15 @@ namespace lockstep
         // --- Reference ticks (marks[0] drawn first, then marks[1] on top) ---
         if (mr)
         {
-            const float tickInner  = radius - trackW * 0.5f;
-            const float tickOuter  = radius + trackW * 1.5f;
-            const float halfPi     = juce::MathConstants<float>::halfPi;
+            const float tickInner = radius - trackW * 0.5f;
+            const float tickOuter = radius + trackW * 1.5f;
+            const float halfPi = juce::MathConstants<float>::halfPi;
 
             for (const auto& mark : mr->marks)
             {
                 if (!mark.present) continue;
 
-                const float markAngle = rotaryStartAngle
-                                      + mark.position * (rotaryEndAngle - rotaryStartAngle);
+                const float markAngle = rotaryStartAngle + mark.position * (rotaryEndAngle - rotaryStartAngle);
                 const float cosA = std::cos(markAngle - halfPi);
                 const float sinA = std::sin(markAngle - halfPi);
 

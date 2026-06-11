@@ -41,12 +41,12 @@ namespace lockstep
 
         // Switch to scene 1: track 0 now plays phrase 1 (length 8, no edit).
         arr->setActiveScene(1);
-        CHECK(arr->workingTrack(0).length == 8,   "scene1: track0 projects phrase 1 (len 8)");
+        CHECK(arr->workingTrack(0).length == 8, "scene1: track0 projects phrase 1 (len 8)");
         CHECK(!arr->workingTrack(0).steps[4].trig, "scene1: phrase 1 has no phrase-0 edit");
 
         // Switch back to scene 0: the edit on phrase 0 must have survived.
         arr->setActiveScene(0);
-        CHECK(arr->workingTrack(0).length == 16,  "back to scene0: phrase 0 length restored");
+        CHECK(arr->workingTrack(0).length == 16, "back to scene0: phrase 0 length restored");
         CHECK(arr->workingTrack(0).steps[4].trig,
               "back to scene0: live edit survived the round trip (write-back works)");
     }
@@ -70,15 +70,15 @@ namespace lockstep
 
         // Track 0 deviates to phrase 2; edit it.
         arr->swapPhraseForTrack(0, 2);
-        CHECK(arr->deviated[0],                      "swap: track 0 marked deviated");
-        CHECK(arr->activePhraseIdx(0) == 2,          "swap: active phrase is the deviation");
+        CHECK(arr->deviated[0], "swap: track 0 marked deviated");
+        CHECK(arr->activePhraseIdx(0) == 2, "swap: active phrase is the deviation");
         arr->workingTrack(0).steps[7].trig = true;
 
         // Re-sync clears the deviation back to the scene's assignment (phrase 0).
         arr->resyncTrackToScene(0);
-        CHECK(!arr->deviated[0],                     "resync: deviation cleared");
-        CHECK(arr->activePhraseIdx(0) == 0,          "resync: back to scene assignment");
-        CHECK(!arr->workingTrack(0).steps[7].trig,   "resync: phrase 0 has no phrase-2 edit");
+        CHECK(!arr->deviated[0], "resync: deviation cleared");
+        CHECK(arr->activePhraseIdx(0) == 0, "resync: back to scene assignment");
+        CHECK(!arr->workingTrack(0).steps[7].trig, "resync: phrase 0 has no phrase-2 edit");
 
         // Deviate to phrase 2 again: the earlier edit must still be there.
         arr->swapPhraseForTrack(0, 2);
@@ -95,9 +95,9 @@ namespace lockstep
         CHECK(arr->deviated[0], "pre: track 0 deviated in song 0");
 
         arr->setActiveSong(1);
-        CHECK(arr->songIdx == 1,    "song switch: songIdx updated");
-        CHECK(arr->sceneIdx == 0,   "song switch: scene reset to 0");
-        CHECK(!arr->deviated[0],    "song switch: deviation cleared (full reset)");
+        CHECK(arr->songIdx == 1, "song switch: songIdx updated");
+        CHECK(arr->sceneIdx == 0, "song switch: scene reset to 0");
+        CHECK(!arr->deviated[0], "song switch: deviation cleared (full reset)");
         CHECK(feq(arr->workingTrack(0).baseParams[0], 0.9f),
               "song switch: working reflects song 1's kit");
     }
@@ -165,7 +165,7 @@ namespace lockstep
         CHECK(!arr->deviated[0], "scene 1 carries no remembered overlay");
 
         arr->setActiveScene(0);                   // single-tap back to scene 0
-        CHECK(arr->deviated[0],             "scene 0 overlay remembered on return");
+        CHECK(arr->deviated[0], "scene 0 overlay remembered on return");
         CHECK(arr->activePhraseIdx(0) == 3, "remembered deviation phrase restored");
     }
 
@@ -178,7 +178,7 @@ namespace lockstep
         CHECK(arr->deviated[0], "pre: track 0 deviated");
 
         arr->setActiveSceneToFloor(0);            // double-tap current = revert to stock
-        CHECK(!arr->deviated[0],            "double-tap floor clears live deviation");
+        CHECK(!arr->deviated[0], "double-tap floor clears live deviation");
         CHECK(arr->activePhraseIdx(0) == 0, "track 0 back on its floor phrase");
 
         arr->setActiveScene(1);
@@ -197,7 +197,7 @@ namespace lockstep
         arr->bakeSceneState();
 
         // Deviation cleared.
-        CHECK(!arr->deviated[0],                      "bake: deviation cleared");
+        CHECK(!arr->deviated[0], "bake: deviation cleared");
         // Content baked: diagonal row 0 now has the deviation's trig.
         CHECK(arr->songs[0].tracks[0].phrases[0].steps[1].trig,
               "bake: deviation content copied into diagonal row 0");
@@ -205,8 +205,8 @@ namespace lockstep
         // After scene round-trip the overlay is gone and routing stays on diagonal.
         arr->setActiveScene(1);
         arr->setActiveScene(0);
-        CHECK(!arr->deviated[0],                      "bake: no stale overlay on return");
-        CHECK(arr->activePhraseIdx(0) == 0,           "bake: track 0 on diagonal row 0");
+        CHECK(!arr->deviated[0], "bake: no stale overlay on return");
+        CHECK(arr->activePhraseIdx(0) == 0, "bake: track 0 on diagonal row 0");
     }
 
     static void testBakeSceneStateNoop()
@@ -250,7 +250,7 @@ namespace lockstep
         arr->songs[0].scenes[3].initialised = true;
 
         CHECK(!arr->sceneSlotOccupied(2), "occupied: uninitialised slot not occupied");
-        CHECK( arr->sceneSlotOccupied(3), "occupied: initialised slot is occupied");
+        CHECK(arr->sceneSlotOccupied(3), "occupied: initialised slot is occupied");
         // Out-of-range returns false without crashing.
         CHECK(!arr->sceneSlotOccupied(-1), "occupied: negative index is not occupied");
         CHECK(!arr->sceneSlotOccupied(kScenesPerSong), "occupied: out-of-range is not occupied");
@@ -296,7 +296,7 @@ namespace lockstep
         // Create baked copy at slot 3 (empty).
         arr->createBakedCopyScene(3);
 
-        CHECK(arr->songs[0].scenes[3].initialised,      "baked create: target marked initialised");
+        CHECK(arr->songs[0].scenes[3].initialised, "baked create: target marked initialised");
 
         // Track 0's phrase at slot 3 should carry the baked step.
         CHECK(arr->songs[0].tracks[0].phrases[3].steps[2].trig,

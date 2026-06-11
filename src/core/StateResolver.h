@@ -11,12 +11,12 @@ namespace lockstep
     // noteCount >= 1 always (defaults to 1 with the track's base note).
     struct TrigFields
     {
-        int  noteCount = 1;
-        std::array<int, kMaxNotesPerStep>     notes{ 60, 0, 0, 0 };
-        int         velocity          = 100;
-        bool        hasNoteVelocities = false;
+        int noteCount = 1;
+        std::array<int, kMaxNotesPerStep> notes{ 60, 0, 0, 0 };
+        int velocity = 100;
+        bool hasNoteVelocities = false;
         std::array<uint8_t, kMaxNotesPerStep> velocities{};
-        MusicalGate gateValue         = MusicalGate::None;
+        MusicalGate gateValue = MusicalGate::None;
     };
 
     // Morph context passed to the resolver — carries scene, track index, fader
@@ -24,10 +24,10 @@ namespace lockstep
     // Null = no morph (resolves as before). DESIGN §17.2.
     struct MorphContext
     {
-        const Scene*    scene      = nullptr;
-        int             trackIndex = 0;
-        float           fader      = 0.0f;   // 0 = A, 1 = B
-        const IMachine* machine    = nullptr; // if non-null: use spec.isStepped for snap
+        const Scene* scene = nullptr;
+        int trackIndex = 0;
+        float fader = 0.0f;   // 0 = A, 1 = B
+        const IMachine* machine = nullptr; // if non-null: use spec.isStepped for snap
     };
 
     // Returns the morph-blended value for (trackIdx, slot) using mirror resolution:
@@ -48,8 +48,10 @@ namespace lockstep
         if (!hasA && !hasB) { return kitBase; }
         float aVal = kitBase;
         float bVal = kitBase;
-        if (hasA) { aVal = itA->second; } else if (hasB) { aVal = itB->second; }
-        if (hasB) { bVal = itB->second; } else if (hasA) { bVal = itA->second; }
+        if (hasA) { aVal = itA->second; }
+        else if (hasB) { aVal = itB->second; }
+        if (hasB) { bVal = itB->second; }
+        else if (hasA) { bVal = itA->second; }
         if (stepped) { return (fader < 0.5f) ? aVal : bVal; }
         if (equalPower)
         {

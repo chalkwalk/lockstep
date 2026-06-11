@@ -18,7 +18,7 @@ namespace lockstep
         // per-button scheme below; disabled cells never carry a tint.
         if (c.scopeTint != 0u && !c.disabled)
         {
-            const juce::Colour tint { c.scopeTint };
+            const juce::Colour tint{ c.scopeTint };
             return { tint.withMultipliedBrightness(0.55f).getARGB(),  // resting in-scope fill
                      tint.getARGB(),                                  // pressed/active fill
                      tint.brighter(0.35f).getARGB() };                // border accent
@@ -52,8 +52,8 @@ namespace lockstep
             case ControllerButton::MuteScope:
                 // ModeActive: baseColour carries kScopePMute (Func+Mute) or kScopeMute.
                 return isMode
-                    ? KeyGroup{ kScopeMuteDim, c.baseColour, c.baseColour }
-                    : KeyGroup{ kScopeMuteDim, kScopeMute,   kScopeMuteAcc };
+                           ? KeyGroup{ kScopeMuteDim, c.baseColour, c.baseColour }
+                           : KeyGroup{ kScopeMuteDim, kScopeMute, kScopeMuteAcc };
 
             case ControllerButton::FillScope:
                 return { kScopeFillDim, kScopeFill, kScopeFillAcc };
@@ -80,14 +80,14 @@ namespace lockstep
                     return { 0xFF2E1E08u, kVerbODActive, kVerbODAccent };
                 // Armed (ModeActive) → red; otherwise neutral slate.
                 return isMode
-                    ? KeyGroup{ kVerbInactive, kVerbRecActive, kVerbRecAccent }
-                    : KeyGroup{ kVerbInactive, kVerbActive,    kVerbAccent    };
+                           ? KeyGroup{ kVerbInactive, kVerbRecActive, kVerbRecAccent }
+                           : KeyGroup{ kVerbInactive, kVerbActive, kVerbAccent };
 
             case ControllerButton::VerbPlay:
                 // Playing (ModeActive) → green; otherwise neutral slate.
                 return isMode
-                    ? KeyGroup{ kVerbInactive, kVerbPlayActive, kVerbPlayAccent }
-                    : KeyGroup{ kVerbInactive, kVerbActive,     kVerbAccent     };
+                           ? KeyGroup{ kVerbInactive, kVerbPlayActive, kVerbPlayAccent }
+                           : KeyGroup{ kVerbInactive, kVerbActive, kVerbAccent };
 
             case ControllerButton::VerbStop:
                 // Legacy — no key emits this anymore. Show as neutral.
@@ -96,8 +96,8 @@ namespace lockstep
             case ControllerButton::VerbClear:
                 // O = Clear. ModeActive would indicate a pending-confirm prompt.
                 return isMode
-                    ? KeyGroup{ kVerbInactive, kVerbClearActive, kVerbClearAccent }
-                    : KeyGroup{ kVerbInactive, kVerbActive,      kVerbAccent      };
+                           ? KeyGroup{ kVerbInactive, kVerbClearActive, kVerbClearAccent }
+                           : KeyGroup{ kVerbInactive, kVerbActive, kVerbAccent };
 
             case ControllerButton::VerbDelete:
             case ControllerButton::VerbPanic:
@@ -107,21 +107,20 @@ namespace lockstep
             case ControllerButton::Section:
                 // baseColour distinguishes special visual modes
                 if (c.baseColour == kScopeMachine)
-                    return { kSecInactive, kScopeMachine,  kScopeMachine  };
+                    return { kSecInactive, kScopeMachine, kScopeMachine };
                 if (c.baseColour == kScopeNoteEdit)
                     return { kSecInactive, kScopeNoteEdit, kScopeNoteEdit };
                 if (c.baseColour == 0xFF404010u)            // master-active golden
                     return { kSecInactive, 0xFF404010u, 0xFFFFB432u };
                 return { kSecInactive, kSecActive, kSecAccent };
 
-            case ControllerButton::Step:
-            {
+            case ControllerButton::Step: {
                 // Step-grid cells: table drives base fill/accent; baseColour
                 // wins when the model has computed a specific override (e.g. scope
                 // tint blended by SurfaceModel — already handled above). Use the
                 // table fill dimmed for the inactive face, full for active.
                 const auto ap = appearanceOf(c.base);
-                const uint32_t fill   = (ap.screenFill   != 0u) ? ap.screenFill   : c.baseColour;
+                const uint32_t fill = (ap.screenFill != 0u) ? ap.screenFill : c.baseColour;
                 const uint32_t accent = (ap.screenAccent != 0u) ? ap.screenAccent : fill;
                 return { juce::Colour(fill).withMultipliedBrightness(0.55f).getARGB(),
                          fill, accent };
@@ -141,17 +140,15 @@ namespace lockstep
     // fill colour cannot diverge between renderers.
     static KeyButtonState stateOf(const SurfaceCell& c) noexcept
     {
-        if (c.pressed)                          return KeyButtonState::Pressed;
-        if (c.disabled)                         return KeyButtonState::Disabled;
-        if (c.base == CellState::ModeActive
-         || c.base == CellState::MorphPoleActive) return KeyButtonState::ModeActive;
+        if (c.pressed) return KeyButtonState::Pressed;
+        if (c.disabled) return KeyButtonState::Disabled;
+        if (c.base == CellState::ModeActive || c.base == CellState::MorphPoleActive) return KeyButtonState::ModeActive;
         return KeyButtonState::Normal;
     }
 
     static juce::Colour resolveFill(const KeyGroup& g, KeyButtonState st) noexcept
     {
-        const bool active = (st == KeyButtonState::Pressed
-                          || st == KeyButtonState::ModeActive);
+        const bool active = (st == KeyButtonState::Pressed || st == KeyButtonState::ModeActive);
         juce::Colour bg = active ? juce::Colour(g.active) : juce::Colour(g.inactive);
         if (st == KeyButtonState::Disabled)
             bg = bg.withAlpha(0.2f);
@@ -167,24 +164,24 @@ namespace lockstep
         g.drawText(hint, inner.withHeight(14).reduced(2, 0), juce::Justification::topLeft);
     }
 
-    void paintKeyButton(juce::Graphics&       g,
-                        juce::Rectangle<int>  cell,
-                        const juce::String&   keyHint,
-                        const juce::String&   primary,
-                        const juce::String&   secondary,
-                        const KeyGroup&       group,
-                        KeyButtonState        state,
-                        bool                  showKeyHint,
-                        bool                  compoundOverlay,
-                        juce::Colour          latchColour)
+    void paintKeyButton(juce::Graphics& g,
+                        juce::Rectangle<int> cell,
+                        const juce::String& keyHint,
+                        const juce::String& primary,
+                        const juce::String& secondary,
+                        const KeyGroup& group,
+                        KeyButtonState state,
+                        bool showKeyHint,
+                        bool compoundOverlay,
+                        juce::Colour latchColour)
     {
         // MHZ.1.1: reduced inner margin (was 2,2) to use more of the cell area.
         const auto inner = cell.reduced(1, 1);
 
-        const bool isPressed    = (state == KeyButtonState::Pressed);
+        const bool isPressed = (state == KeyButtonState::Pressed);
         const bool isModeActive = (state == KeyButtonState::ModeActive);
-        const bool isFuncHeld   = (state == KeyButtonState::FuncHeld);
-        const bool isDisabled   = (state == KeyButtonState::Disabled);
+        const bool isFuncHeld = (state == KeyButtonState::FuncHeld);
+        const bool isDisabled = (state == KeyButtonState::Disabled);
 
         // Background — shared resolver (same one external surfaces use).
         g.setColour(resolveFill(group, state));
@@ -205,9 +202,9 @@ namespace lockstep
         // no band for it — otherwise a reserved section's primary (e.g. FX, whose
         // funcHint "GLOBAL" never renders while disabled) floats upward off-centre.
         const bool hasSec = secondary.isNotEmpty() && !isDisabled;
-        const int secH   = hasSec ? 14 : 0;
+        const int secH = hasSec ? 14 : 0;
         const auto primArea = inner.withTrimmedBottom(secH);
-        const auto secArea  = inner.withTrimmedTop(inner.getHeight() - secH).reduced(2, 0);
+        const auto secArea = inner.withTrimmedTop(inner.getHeight() - secH).reduced(2, 0);
 
         // Primary label — ghost-dim when Disabled; dims to 0.35 when FuncHeld.
         // MHZ.1.1: primary font grown from 10pt to 15pt.
@@ -215,16 +212,17 @@ namespace lockstep
         //          auto-fit (juce truncation disabled, JUCE clips).
         if (primary.isNotEmpty())
         {
-            const float alpha = isDisabled               ? 0.28f
-                              : (isFuncHeld && !isPressed) ? 0.35f
-                              : 1.0f;
+            const float alpha = isDisabled                   ? 0.28f
+                                : (isFuncHeld && !isPressed) ? 0.35f
+                                                             : 1.0f;
             const juce::Colour primCol = isPressed
-                ? juce::Colours::white
-                : juce::Colour(0xFFB8D0E0u).withAlpha(alpha);
+                                             ? juce::Colours::white
+                                             : juce::Colour(0xFFB8D0E0u).withAlpha(alpha);
 
             // Choose font size: 15pt for ≤ 6 chars, auto-shrink for longer labels.
-            const float fontSize = (primary.length() <= 6) ? 15.0f
-                                 : (primary.length() <= 8) ? 11.0f : 9.0f;
+            const float fontSize = (primary.length() <= 6)   ? 15.0f
+                                   : (primary.length() <= 8) ? 11.0f
+                                                             : 9.0f;
             g.setFont(juce::Font(juce::FontOptions(fontSize)));
             g.setColour(primCol);
             g.drawText(primary, primArea, juce::Justification::centred, false);
@@ -266,11 +264,12 @@ namespace lockstep
     void paintCell(juce::Graphics& g, juce::Rectangle<int> cell,
                    const SurfaceCell& c, bool showKeyHint)
     {
-        const KeyButtonState st      = stateOf(c);
-        const KeyGroup   grp         = groupForCell(c);
-        const bool       compound    = c.strip.present;
-        const juce::Colour latchCol  = c.pip.present
-            ? juce::Colour(c.pip.colour) : juce::Colours::transparentBlack;
+        const KeyButtonState st = stateOf(c);
+        const KeyGroup grp = groupForCell(c);
+        const bool compound = c.strip.present;
+        const juce::Colour latchCol = c.pip.present
+                                          ? juce::Colour(c.pip.colour)
+                                          : juce::Colours::transparentBlack;
 
         paintKeyButton(g, cell, c.keyHint, c.primary, c.funcHint,
                        grp, st, showKeyHint, compound, latchCol);

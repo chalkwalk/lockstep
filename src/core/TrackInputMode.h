@@ -12,9 +12,9 @@ namespace lockstep
     // RAM-only; not serialised until play-testing proves it performance-sticky.
     enum class TrackInputMode : std::uint8_t
     {
-        Play      = 0,  // Default: step grid is the trig/P-Lock editor.
+        Play = 0,  // Default: step grid is the trig/P-Lock editor.
         Chromatic = 1,  // Step cells are a chromatic piano keyboard for live play.
-        Levels    = 2,  // Step cells are 16 velocity buckets (1/16..16/16 of 127).
+        Levels = 2,  // Step cells are 16 velocity buckets (1/16..16/16 of 127).
     };
 
     // Piano layout for CHROMATIC mode.
@@ -27,28 +27,42 @@ namespace lockstep
     //               [ 0] [ 1] [ 2] [ 3] [ 4] [ 5] [ 6] [ 7]
     //   bottom row:  C    D    E    F    G    A    B    C+1
     //               [ 8] [ 9] [10] [11] [12] [13] [14] [15]
-    static constexpr std::array<int, 16> kPianoNoteOffset = {{
+    static constexpr std::array<int, 16> kPianoNoteOffset = { {
         -1,  // step  0 (D) = dead
-         1,  // step  1 (F) = C#
-         3,  // step  2 (G) = D#
+        1,  // step  1 (F) = C#
+        3,  // step  2 (G) = D#
         -1,  // step  3 (H) = dead
-         6,  // step  4 (J) = F#
-         8,  // step  5 (K) = G#
+        6,  // step  4 (J) = F#
+        8,  // step  5 (K) = G#
         10,  // step  6 (L) = A#
         -1,  // step  7 (;) = dead
-         0,  // step  8 (C) = C
-         2,  // step  9 (V) = D
-         4,  // step 10 (B) = E
-         5,  // step 11 (N) = F
-         7,  // step 12 (M) = G
-         9,  // step 13 (,) = A
+        0,  // step  8 (C) = C
+        2,  // step  9 (V) = D
+        4,  // step 10 (B) = E
+        5,  // step 11 (N) = F
+        7,  // step 12 (M) = G
+        9,  // step 13 (,) = A
         11,  // step 14 (.) = B
         12,  // step 15 (/) = C (next octave)
-    }};
+    } };
 
     // Display names for each piano cell (parallel to kPianoNoteOffset); nullptr = dead key.
-    static constexpr std::array<const char*, 16> kPianoNoteNames = {{
-        nullptr, "C#", "D#", nullptr, "F#", "G#", "A#", nullptr,
-        "C",     "D",  "E",  "F",    "G",  "A",  "B",  "C",
-    }};
+    static constexpr std::array<const char*, 16> kPianoNoteNames = { {
+        nullptr,
+        "C#",
+        "D#",
+        nullptr,
+        "F#",
+        "G#",
+        "A#",
+        nullptr,
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "A",
+        "B",
+        "C",
+    } };
 }

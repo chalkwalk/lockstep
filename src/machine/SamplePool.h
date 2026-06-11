@@ -20,7 +20,7 @@ namespace lockstep
         SampleRef ref;
         juce::AudioBuffer<float> pcm;
         double sampleRate = 0.0;
-        bool   missing    = false;  // true when the file could not be found on load
+        bool missing = false;  // true when the file could not be found on load
 
         // Cached per-block analysis for transient detection (message thread only).
         // Populated by SamplePool::load(); empty for missing entries.
@@ -52,7 +52,7 @@ namespace lockstep
         // Message-thread only.
         bool relink(int index, const juce::String& newPath);
 
-        int  size()              const { return static_cast<int>(samples_.size()); }
+        int size() const { return static_cast<int>(samples_.size()); }
         bool isMissing(int index) const;
         const Sample* get(int index) const;
 

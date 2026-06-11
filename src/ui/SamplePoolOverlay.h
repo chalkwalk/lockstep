@@ -28,7 +28,7 @@ namespace lockstep
         void timerCallback() override;
 
         // ListBoxModel
-        int  getNumRows() override;
+        int getNumRows() override;
         void paintListBoxItem(int rowNumber, juce::Graphics& g,
                               int width, int height, bool rowIsSelected) override;
         void listBoxItemClicked(int rowNumber, const juce::MouseEvent& e) override;
@@ -37,12 +37,12 @@ namespace lockstep
     private:
         LockstepProcessor& processor_;
         juce::ListBox list_{ "pool", this };
-        juce::TextButton loadBtn_  { "Load..."  };
+        juce::TextButton loadBtn_{ "Load..." };
         juce::TextButton relinkBtn_{ "Relink..." };
-        juce::TextButton removeBtn_{ "Remove"   };
-        juce::TextButton upBtn_    { juce::String(u8"↑") };
-        juce::TextButton downBtn_  { juce::String(u8"↓") };
-        juce::TextButton closeBtn_ { "X"         };
+        juce::TextButton removeBtn_{ "Remove" };
+        juce::TextButton upBtn_{ juce::String(u8"↑") };
+        juce::TextButton downBtn_{ juce::String(u8"↓") };
+        juce::TextButton closeBtn_{ "X" };
         std::unique_ptr<juce::FileChooser> fileChooser_;
 
         void updateButtonStates();

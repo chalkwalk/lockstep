@@ -15,15 +15,15 @@ namespace lockstep
     //   either the performer navigated back, or a longer length grew the span.
     struct PageClampResult
     {
-        int  page;
+        int page;
         bool unlocked;
     };
 
     inline PageClampResult clampStepPage(int desiredPage, int numPages, bool unlocked)
     {
         const int lastInRange = std::max(0, numPages - 1);
-        const int hardMax     = unlocked ? numPages : lastInRange;
-        const int page        = std::clamp(desiredPage, 0, hardMax);
+        const int hardMax = unlocked ? numPages : lastInRange;
+        const int page = std::clamp(desiredPage, 0, hardMax);
         const bool stillUnlocked = unlocked && (page > lastInRange);
         return { page, stillUnlocked };
     }

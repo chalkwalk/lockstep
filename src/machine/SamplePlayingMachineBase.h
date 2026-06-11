@@ -46,7 +46,7 @@ namespace lockstep
         // ISliceable
         [[nodiscard]] int numSlices() const override { return numSlices_; }
         void setEqualSlices(int count) override;
-        void clearSlices()             override;
+        void clearSlices() override;
         // Populates slicePositions_ from transient-detected onsets in the
         // currently-loaded sample (uses Sample::analysis cached at load time).
         // count is the number of slices to place; capped by kMinSliceMs.
@@ -59,12 +59,12 @@ namespace lockstep
         struct VoiceSlot
         {
             SamplePlayer player{};
-            VoiceChoke   choke{};
-            bool         hasPending   = false;
-            int          pendingNote  = 60;
-            ParamFrame   pendingParams{};
-            std::uint64_t age        = 0;
-            int          midiNote    = -1;  // note currently sounding (-1 = idle)
+            VoiceChoke choke{};
+            bool hasPending = false;
+            int pendingNote = 60;
+            ParamFrame pendingParams{};
+            std::uint64_t age = 0;
+            int midiNote = -1;  // note currently sounding (-1 = idle)
         };
 
         // Idle slot first; if all busy, steals the oldest active slot.
@@ -79,13 +79,13 @@ namespace lockstep
         }
 
         SamplePool& pool_;
-        double      sampleRate_ = 0.0;
+        double sampleRate_ = 0.0;
         std::array<VoiceSlot, kMaxVoices> voices_{};
         std::uint64_t voiceCounter_ = 0;
         // Last sample index used — written by audio-thread process() (via subclasses,
         // from a const method), read by message-thread detectTransientSlices(). mutable
         // because process() is const; atomic because the two threads run concurrently.
-        mutable std::atomic<int> currentSampleIndex_ { 0 };
+        mutable std::atomic<int> currentSampleIndex_{ 0 };
 
         // MG.3 / ISliceable: normalized slice start positions [0.0, 1.0].
         std::array<float, kMaxSlices> slicePositions_{};

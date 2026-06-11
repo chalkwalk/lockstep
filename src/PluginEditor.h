@@ -72,27 +72,27 @@ namespace lockstep
     private:
         LockstepProcessor& processor_;
         QwertyOverlay qwerty_;
-        EditMode      editMode_;
+        EditMode editMode_;
         UiState uiState_;
         // (rawKeyCode, absStepIndex) pairs, ordered by press time.
-        std::vector<std::pair<int,int>> heldStepKeys_;
+        std::vector<std::pair<int, int>> heldStepKeys_;
         // CHROMATIC play-in: the live note a held step-pad is sounding, per pad
         // index (-1 = none), plus the track it was played on. Lets a pad-release
         // send the exact note-off (gate) even if the octave/track changed while
         // held, and lets chords ring independently (poly).
-        std::array<int, 16> chromaticHeldNote_  { -1,-1,-1,-1,-1,-1,-1,-1,
-                                                  -1,-1,-1,-1,-1,-1,-1,-1 };
-        std::array<int, 16> chromaticHeldTrack_ {};
+        std::array<int, 16> chromaticHeldNote_{ -1, -1, -1, -1, -1, -1, -1, -1,
+                                                -1, -1, -1, -1, -1, -1, -1, -1 };
+        std::array<int, 16> chromaticHeldTrack_{};
         // Key codes currently held down — used to suppress OS key-repeat in keyPressed().
         std::set<int> heldKeys_;
 
         // Double-press detection for Play: two presses within threshold = stop+reset.
-        double lastPlayPressTime_            = 0.0;
-        bool   playKeyHeld_                  = false;
+        double lastPlayPressTime_ = 0.0;
+        bool playKeyHeld_ = false;
         static constexpr double kDoublePressMsThreshold = 350.0;
 
         // Restore hold detection: tap (< kHoldRestoreMs) = pop one; hold = jump to floor.
-        bool   restoreActive_    = false;
+        bool restoreActive_ = false;
         double restoreKeyDownMs_ = 0.0;
         static constexpr double kHoldRestoreMs = 350.0;
 
@@ -101,8 +101,8 @@ namespace lockstep
 
         // MHZ.9.5: track the last step trig-toggle so latch double-tap can revert it.
         // Set on key-up trig toggle; cleared on next dispatchDown step press.
-        int  lastTrigToggleStep_    = -1;
-        int  lastTrigToggleTrack_   = -1;
+        int lastTrigToggleStep_ = -1;
+        int lastTrigToggleTrack_ = -1;
         bool lastTrigToggleApplied_ = false;  // true iff the key-up actually toggled (paramWrote was false)
 
         // Pending-confirm state lives in uiState_.confirm (ConfirmKind + target).
@@ -115,22 +115,22 @@ namespace lockstep
         // xxxHeld in UiState = physHeld_.xxx OR uiState_.latch.xxx (effective).
         struct ModPhysHeld
         {
-            bool phrase  = false;
-            bool morph   = false;
-            bool mute    = false;
-            bool track   = false;
-            bool scene   = false;
-            bool song    = false;
-            bool fill    = false;
-            bool cue     = false;
+            bool phrase = false;
+            bool morph = false;
+            bool mute = false;
+            bool track = false;
+            bool scene = false;
+            bool song = false;
+            bool fill = false;
+            bool cue = false;
         } physHeld_;
 
         // Tap tempo: rolling window of up to 5 tap timestamps (ms, high-res).
         // Requires ≥2 taps; ignores taps older than 3 s relative to the latest tap.
-        static constexpr int    kTapMaxCount    = 5;
-        static constexpr double kTapWindowMs    = 3000.0;
-        static constexpr double kTapMinBpm      = 20.0;
-        static constexpr double kTapMaxBpm      = 300.0;
+        static constexpr int kTapMaxCount = 5;
+        static constexpr double kTapWindowMs = 3000.0;
+        static constexpr double kTapMinBpm = 20.0;
+        static constexpr double kTapMaxBpm = 300.0;
         std::array<double, kTapMaxCount> tapTimes_{};
         int tapCount_ = 0;
 
@@ -145,24 +145,26 @@ namespace lockstep
         // MD.7/MD.8: deferred pattern mute track indices — collected while Func
         // is held inside mute mode; applied atomically on Func release.
         std::vector<int> deferredPatternMutes_;
-        int              heldSectionRawCode_  = -1;
-        int              heldSectionIndex_    = -1;  // section index (0-5) while key held; -1 = none
+        int heldSectionRawCode_ = -1;
+        int heldSectionIndex_ = -1;  // section index (0-5) while key held; -1 = none
         // 6.5 Animate bypass: track/slot bypassed by FX-held + step; restored on step-up.
-        int              animateBypassTrack_  = -1;
-        int              animateBypassSlot_   = -1;
+        int animateBypassTrack_ = -1;
+        int animateBypassSlot_ = -1;
         juce::Component* keyListenerTarget_ = nullptr;
 
         InPluginTransport transport_;
         std::unique_ptr<StandaloneTempoBar> tempoBar_;
         int trackPage_ = 0;  // 0 = tracks 1-8 visible, 1 = tracks 9-16 visible
         juce::TextButton trackPageBtn_{ "1-8" };
-        std::array<juce::TextButton,   kNumTracks> trackBtns_;
+        std::array<juce::TextButton, kNumTracks> trackBtns_;
         std::array<juce::ToggleButton, kNumTracks> muteBtns_;
         std::array<juce::ToggleButton, kNumTracks> soloBtns_;
         std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>,
-                   kNumTracks> muteAttachments_;
+                   kNumTracks>
+            muteAttachments_;
         std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>,
-                   kNumTracks> soloAttachments_;
+                   kNumTracks>
+            soloAttachments_;
         KeyboardArea keyboardArea_;
         ManipulationZone manipulationZone_;  // after keyboardArea_ — ctor takes KeyboardArea&
 
@@ -185,7 +187,10 @@ namespace lockstep
         {
             std::function<void(juce::Graphics&)> onPaint;
             GreyoutLayer() { setInterceptsMouseClicks(false, false); }
-            void paint(juce::Graphics& g) override { if (onPaint) onPaint(g); }
+            void paint(juce::Graphics& g) override
+            {
+                if (onPaint) onPaint(g);
+            }
         };
         GreyoutLayer greyoutLayer_;
 
@@ -226,7 +231,7 @@ namespace lockstep
         // Unified input dispatch — both keyPressed and mouse callbacks route here.
         // rawCode = physical key code (keyboard), 0 (mouse), or kControllerSource.
         bool dispatchDown(ControllerEvent ev, int rawCode = 0);
-        void dispatchUp  (ControllerEvent ev, int rawCode = 0);
+        void dispatchUp(ControllerEvent ev, int rawCode = 0);
 
         // Build the effective modifier state (physical OR latched) for resolveLayer().
         [[nodiscard]] LayerContext layerContext() const noexcept;
@@ -262,15 +267,15 @@ namespace lockstep
         // Keyed by (track, slot). Cleared whenever morphHeld goes false.
         // A dormant pole is functionally absent (blend mirrors the other side) but
         // can be re-activated by tapping its step cell again.
-        std::map<std::pair<int,int>, float> morphDormantA_, morphDormantB_;
+        std::map<std::pair<int, int>, float> morphDormantA_, morphDormantB_;
         MorphViewState buildMorphViewState() const;
 
         // Controller surface integration (Phase 6.6 / DESIGN §35).
-        ControllerPortManager              controllerPorts_    { "X-TOUCH MINI" };
+        ControllerPortManager controllerPorts_{ "X-TOUCH MINI" };
         std::unique_ptr<XTouchMiniSurface> xTouchSurface_;
-        ControllerPortManager              push1Ports_         { "Ableton Push User Port",
-                                                                  "Ableton Push MIDI 2" };
-        std::unique_ptr<Push1Surface>      push1Surface_;
+        ControllerPortManager push1Ports_{ "Ableton Push User Port",
+                                           "Ableton Push MIDI 2" };
+        std::unique_ptr<Push1Surface> push1Surface_;
         ControllerEventSink buildControllerSink();
 
         void updateTransportGhosting();

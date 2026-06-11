@@ -63,9 +63,7 @@ namespace lockstep
         h.processor().getStateInformation(state2);
 
         CHECK(state1.getSize() == state2.getSize(),
-              "state round-trip: size changed after load (was "
-              + juce::String(static_cast<int>(state1.getSize())) + ", got "
-              + juce::String(static_cast<int>(state2.getSize())) + ")");
+              "state round-trip: size changed after load (was " + juce::String(static_cast<int>(state1.getSize())) + ", got " + juce::String(static_cast<int>(state2.getSize())) + ")");
 
         CHECK(state1 == state2,
               "state round-trip: bytes differ after save->load->save");
@@ -114,7 +112,11 @@ namespace lockstep
         bool hasNan = false;
         for (int ch = 0; ch < buf.getNumChannels(); ++ch)
             for (int i = 0; i < buf.getNumSamples(); ++i)
-                if (!std::isfinite(buf.getSample(ch, i))) { hasNan = true; break; }
+                if (!std::isfinite(buf.getSample(ch, i)))
+                {
+                    hasNan = true;
+                    break;
+                }
         double sumSq = 0.0;
         for (int ch = 0; ch < buf.getNumChannels(); ++ch)
             for (int i = 0; i < buf.getNumSamples(); ++i)
@@ -123,11 +125,9 @@ namespace lockstep
                 sumSq += static_cast<double>(v) * v;
             }
         const float rms = static_cast<float>(std::sqrt(sumSq / (256.0 * 2)));
-        juce::Logger::writeToLog("  drum direct: NaN=" + juce::String((int)hasNan)
-            + " RMS=" + juce::String(rms, 6));
+        juce::Logger::writeToLog("  drum direct: NaN=" + juce::String((int)hasNan) + " RMS=" + juce::String(rms, 6));
         CHECK(!hasNan, "drum direct: NaN from standalone DrumSynth");
-        CHECK(rms > 1e-4f, "drum direct: no audio from standalone DrumSynth (RMS="
-              + juce::String(rms) + ")");
+        CHECK(rms > 1e-4f, "drum direct: no audio from standalone DrumSynth (RMS=" + juce::String(rms) + ")");
     }
 
     // -----------------------------------------------------------------------
@@ -147,8 +147,7 @@ namespace lockstep
         step0.trigOverride.hasGate = true;
         step0.trigOverride.gateValue = MusicalGate::G1_8;
 
-        juce::Logger::writeToLog("  numIn=" + juce::String(h.processor().getTotalNumInputChannels())
-            + " numOut=" + juce::String(h.processor().getTotalNumOutputChannels()));
+        juce::Logger::writeToLog("  numIn=" + juce::String(h.processor().getTotalNumInputChannels()) + " numOut=" + juce::String(h.processor().getTotalNumOutputChannels()));
 
         // Render enough blocks to cover one full 16th note (28 blocks gives margin).
         float maxRms = 0.0f;
@@ -161,19 +160,14 @@ namespace lockstep
             juce::String samples;
             for (int ch = 0; ch < h.buffer().getNumChannels(); ++ch)
                 samples += " ch" + juce::String(ch) + "[0]=" + juce::String(h.buffer().getSample(ch, 0), 4);
-            juce::Logger::writeToLog("  block " + juce::String(b)
-                + " ppq=" + juce::String(h.playHead().ppqPosition(), 4)
-                + " rms=" + juce::String(rms, 6)
-                + (hasNan ? " NaN!" : "")
-                + samples);
+            juce::Logger::writeToLog("  block " + juce::String(b) + " ppq=" + juce::String(h.playHead().ppqPosition(), 4) + " rms=" + juce::String(rms, 6) + (hasNan ? " NaN!" : "") + samples);
             maxRms = std::max(maxRms, rms);
         }
 
         CHECK(!h.lastBufferHasNaN(),
               "trig emission: NaN/Inf in audio buffer after drum trig");
         CHECK(maxRms > 1e-4f,
-              "trig emission: DrumSynth step-0 produced no audio (RMS="
-              + juce::String(maxRms) + ")");
+              "trig emission: DrumSynth step-0 produced no audio (RMS=" + juce::String(maxRms) + ")");
     }
 
     // -----------------------------------------------------------------------
@@ -186,7 +180,7 @@ namespace lockstep
 
         auto& trk0 = h.processor().sequence().tracks[0];
         trk0.steps[0].trig = true;
-        trk0.steps[0].trigOverride.hasGate  = true;
+        trk0.steps[0].trigOverride.hasGate = true;
         trk0.steps[0].trigOverride.gateValue = MusicalGate::G1_8;
 
         // Verify we get audio before muting.
@@ -215,8 +209,7 @@ namespace lockstep
 
         CHECK(!h.lastBufferHasNaN(), "mute: NaN/Inf in muted audio");
         CHECK(maxRmsMuted < 1e-3f,
-              "mute: audio not suppressed after global mute (RMS="
-              + juce::String(maxRmsMuted) + ")");
+              "mute: audio not suppressed after global mute (RMS=" + juce::String(maxRmsMuted) + ")");
     }
 
     // -----------------------------------------------------------------------
@@ -226,8 +219,7 @@ namespace lockstep
     {
         // For each block size, count blocks until audio is non-zero, then
         // convert to samples. Both should land within the same PPQ window.
-        auto samplesUntilAudio = [](int blockSize) -> int
-        {
+        auto samplesUntilAudio = [](int blockSize) -> int {
             EngineHarness h;
             // Override the harness block size by using a fresh processor + manual setup.
             // (EngineHarness always uses kBlockSize=256; do the timing math instead.)
@@ -250,13 +242,12 @@ namespace lockstep
 
         constexpr double kOneStep = 0.25;  // one 16th note in PPQ
 
-        auto firstTrigAudio = [&](int /*blockSize*/) -> bool
-        {
+        auto firstTrigAudio = [&](int /*blockSize*/) -> bool {
             EngineHarness h;
             installMachine(h.processor(), 0, DrumSynthMachine::kMachineId);
             auto& step0 = h.processor().sequence().tracks[0].steps[0];
             step0.trig = true;
-            step0.trigOverride.hasGate  = true;
+            step0.trigOverride.hasGate = true;
             step0.trigOverride.gateValue = MusicalGate::G1_8;
 
             for (int b = 0; b < 40; ++b)
@@ -308,7 +299,11 @@ namespace lockstep
         {
             h.renderBlocks(1);
             CHECK(!h.lastBufferHasNaN(), "scene switch: NaN in audio buffer during switch");
-            if (h.processor().activeSectionIdx() == 1) { switched = true; break; }
+            if (h.processor().activeSectionIdx() == 1)
+            {
+                switched = true;
+                break;
+            }
         }
 
         CHECK(switched,
@@ -320,8 +315,8 @@ namespace lockstep
             const bool trigScene1 = h.processor().sequence().tracks[0].steps[0].trig;
             CHECK(trigScene1 && !trigScene0,
                   "scene switch: working sequence step 0 trig not updated after switch "
-                  "(before=" + juce::String((int)trigScene0)
-                  + " after=" + juce::String((int)trigScene1) + ")");
+                  "(before=" +
+                      juce::String((int)trigScene0) + " after=" + juce::String((int)trigScene1) + ")");
         }
     }
 
@@ -346,8 +341,7 @@ namespace lockstep
         h.renderBlocks(1);
         const float after = h.processor().baseParamValue(0, slot);
         CHECK(std::abs(after - target) < 1e-5f,
-              "EngineCmd: base-param write not applied after one block (expected "
-              + juce::String(target, 5) + ", got " + juce::String(after, 5) + ")");
+              "EngineCmd: base-param write not applied after one block (expected " + juce::String(target, 5) + ", got " + juce::String(after, 5) + ")");
     }
 
     // -----------------------------------------------------------------------
@@ -373,8 +367,7 @@ namespace lockstep
         h.renderBlocks(1);
         const float after = h.processor().baseParamValue(0, slot);
         CHECK(std::isfinite(after) && after >= 0.0f && after <= 1.0f,
-              "EngineCmd queue-full: applied value out of range after flood ("
-              + juce::String(after, 5) + ")");
+              "EngineCmd queue-full: applied value out of range after flood (" + juce::String(after, 5) + ")");
     }
 
     // -----------------------------------------------------------------------

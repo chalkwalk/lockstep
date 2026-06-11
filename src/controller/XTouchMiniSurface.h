@@ -42,7 +42,7 @@ namespace lockstep
         // Shadow caches for render() diff — indexed by kStepNotes/kLayerNotes positions.
         // Avoids hammering the device with unchanged LED state every 30 Hz frame.
         std::array<uint8_t, 18> ledShadow_{};    // 16 grid + A + B; 255 = uninitialised
-        std::array<uint8_t, 8>  ringShadow_{};   // 8 encoder rings; 255 = uninitialised
+        std::array<uint8_t, 8> ringShadow_{};   // 8 encoder rings; 255 = uninitialised
 
         // Step index 0-15 → MIDI note number (confirmed via controller_probe, 2026-06-02).
         static constexpr std::array<int, 16> kStepNotes = {
@@ -53,8 +53,8 @@ namespace lockstep
         static constexpr int kLayerANote = 84;
         static constexpr int kLayerBNote = 85;
 
-        static constexpr int kEncoderCCBase   = 16;  // CC 16-23 = turns for encoders 0-7
+        static constexpr int kEncoderCCBase = 16;  // CC 16-23 = turns for encoders 0-7
         static constexpr int kEncoderPushBase = 32;  // Note 32-39 = pushes for encoders 0-7
-        static constexpr int kRingCCBase      = 48;  // CC 48-55 = ring LEDs for encoders 0-7
+        static constexpr int kRingCCBase = 48;  // CC 48-55 = ring LEDs for encoders 0-7
     };
 }

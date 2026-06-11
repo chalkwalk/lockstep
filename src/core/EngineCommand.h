@@ -38,12 +38,12 @@ namespace lockstep
             ClearFillOverride,  // sequence.tracks[track].steps[aux].fillOverrides.clear(slot)
         };
 
-        Op      op    = Op::SetBaseParam;
+        Op op = Op::SetBaseParam;
         uint8_t track = 0;   // track index (0..kNumTracks-1)
-        uint8_t aux   = 0;   // step index (SetStep*/ClearStep*) or insert slot (SetInsert*)
-        uint8_t pad   = 0;
-        int16_t slot  = 0;   // param slot
-        float   value = 0.0f;
+        uint8_t aux = 0;   // step index (SetStep*/ClearStep*) or insert slot (SetInsert*)
+        uint8_t pad = 0;
+        int16_t slot = 0;   // param slot
+        float value = 0.0f;
     };
     static_assert(sizeof(EngineCmd) == 12, "EngineCmd size changed — update comment");
 }

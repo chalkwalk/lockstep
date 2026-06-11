@@ -39,11 +39,11 @@ namespace lockstep
         void dispatch(int ccNumber,
                       int rawValue,
                       int focusTrack,
-                      const std::array<int, 4>&                        mzSlots,
-                      const std::function<float(int, int)>&            getCurrentTrackValue,
-                      const std::function<ParamSpec(int, int)>&        getMetadata,
-                      const std::function<void(int, int, float)>&      writeTrackParam,
-                      const std::function<void(float)>&                setCrossfaderValue = nullptr);
+                      const std::array<int, 4>& mzSlots,
+                      const std::function<float(int, int)>& getCurrentTrackValue,
+                      const std::function<ParamSpec(int, int)>& getMetadata,
+                      const std::function<void(int, int, float)>& writeTrackParam,
+                      const std::function<void(float)>& setCrossfaderValue = nullptr);
 
         const std::vector<CCMapping>& mappings() const { return mappings_; }
 

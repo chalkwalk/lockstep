@@ -13,18 +13,23 @@ namespace lockstep
     // Reads the effective (physical OR latched) flags from UiState.
     struct LayerContext
     {
-        bool funcHeld  = false;
+        bool funcHeld = false;
         bool trackHeld = false;
-        bool muteHeld  = false;
+        bool muteHeld = false;
     };
 
     // One entry in kLayerRemaps: when `layer` flag is set and the incoming
     // event carries `raw`, rewrite the button to `effective`.
     struct LayerRemap
     {
-        enum class Layer : std::uint8_t { Track, Mute, Func };
+        enum class Layer : std::uint8_t
+        {
+            Track,
+            Mute,
+            Func
+        };
         ControllerButton raw;
-        Layer            layer;
+        Layer layer;
         ControllerButton effective;
     };
 
@@ -38,14 +43,14 @@ namespace lockstep
     // returns the event unchanged and the no-op is free.
     inline constexpr LayerRemap kLayerRemaps[] = {
         // Track layer (priority 1): step keys → select-track
-        { ControllerButton::Step,      LayerRemap::Layer::Track, ControllerButton::SelectTrack     },
+        { ControllerButton::Step, LayerRemap::Layer::Track, ControllerButton::SelectTrack },
         // Mute layer (priority 2): step keys → toggle-mute
-        { ControllerButton::Step,      LayerRemap::Layer::Mute,  ControllerButton::ToggleMute      },
+        { ControllerButton::Step, LayerRemap::Layer::Mute, ControllerButton::ToggleMute },
         // Func layer (priority 3):
-        { ControllerButton::Section,   LayerRemap::Layer::Func,  ControllerButton::MetaSection     },
-        { ControllerButton::TapTempo,  LayerRemap::Layer::Func,  ControllerButton::MetronomeToggle },
-        { ControllerButton::VerbYes,   LayerRemap::Layer::Func,  ControllerButton::Restore         },
-        { ControllerButton::VerbClear, LayerRemap::Layer::Func,  ControllerButton::VerbDelete      },
+        { ControllerButton::Section, LayerRemap::Layer::Func, ControllerButton::MetaSection },
+        { ControllerButton::TapTempo, LayerRemap::Layer::Func, ControllerButton::MetronomeToggle },
+        { ControllerButton::VerbYes, LayerRemap::Layer::Func, ControllerButton::Restore },
+        { ControllerButton::VerbClear, LayerRemap::Layer::Func, ControllerButton::VerbDelete },
     };
 
     // Resolve any layer remap for the incoming event.

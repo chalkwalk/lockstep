@@ -9,19 +9,19 @@ namespace lockstep
     // Built by buildTransportModel() and passed to InPluginTransport::refresh().
     struct TransportModel
     {
-        bool playing      = false;
-        bool recArmed     = false;
+        bool playing = false;
+        bool recArmed = false;
         bool overdubArmed = false;
-        bool metronomeOn  = false;
+        bool metronomeOn = false;
     };
 
     [[nodiscard]] inline TransportModel buildTransportModel(const Clock& clock) noexcept
     {
         return {
-            .playing      = clock.inPluginPlaying(),
-            .recArmed     = clock.isRecordArmed(),
+            .playing = clock.inPluginPlaying(),
+            .recArmed = clock.isRecordArmed(),
             .overdubArmed = clock.isOverdubArmed(),
-            .metronomeOn  = clock.isMetronomeEnabled()
+            .metronomeOn = clock.isMetronomeEnabled()
         };
     }
 
@@ -54,10 +54,10 @@ namespace lockstep
         // Shadow to avoid redundant JUCE property-change notifications.
         TransportModel shadow_;
 
-        juce::TextButton playBtn_   { "Play" };
-        juce::TextButton resetBtn_  { "Stop" };
-        juce::TextButton recBtn_    { "Rec" };
-        juce::TextButton metroBtn_  { "Click" };
+        juce::TextButton playBtn_{ "Play" };
+        juce::TextButton resetBtn_{ "Stop" };
+        juce::TextButton recBtn_{ "Rec" };
+        juce::TextButton metroBtn_{ "Click" };
 
         void timerCallback() override;
         void onPlayClick();

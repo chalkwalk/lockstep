@@ -14,7 +14,7 @@ namespace lockstep
     // Helper: build a minimal LayerFacts with Play mode and track 0.
     static LayerFacts facts(TrackInputMode mode = TrackInputMode::Play, int track = 0)
     {
-        return LayerFacts { mode, track };
+        return LayerFacts{ mode, track };
     }
 
     // Helper: empty EditContext (satisfies reference parameter without JUCE deps).
@@ -36,27 +36,32 @@ namespace lockstep
     static void testSingleConditions()
     {
         {
-            UiState ui; ui.trigGridMode = TrigGridMode::SoundPool;
+            UiState ui;
+            ui.trigGridMode = TrigGridMode::SoundPool;
             CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::SoundPool,
                   "SoundPool trigGridMode → SoundPool");
         }
         {
-            UiState ui; ui.trigGridMode = TrigGridMode::Retrig;
+            UiState ui;
+            ui.trigGridMode = TrigGridMode::Retrig;
             CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::RetrigPicker,
                   "Retrig trigGridMode → RetrigPicker");
         }
         {
-            UiState ui; ui.masterFxPickerOpen = true;
+            UiState ui;
+            ui.masterFxPickerOpen = true;
             CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::MasterFxPicker,
                   "masterFxPickerOpen → MasterFxPicker");
         }
         {
-            UiState ui; ui.funcFxHeld = true;
+            UiState ui;
+            ui.funcFxHeld = true;
             CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::TrackFxPicker,
                   "funcFxHeld → TrackFxPicker");
         }
         {
-            UiState ui; ui.funcTrackHeld = true;
+            UiState ui;
+            ui.funcTrackHeld = true;
             CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::MachinePicker,
                   "funcTrackHeld → MachinePicker");
         }
@@ -69,79 +74,92 @@ namespace lockstep
         }
         {
             // noteEditMode set but steps empty → not NoteEdit
-            UiState ui; ui.noteEditMode = true;
+            UiState ui;
+            ui.noteEditMode = true;
             CHECK(resolveActiveLayer(ui, ec(), facts()) != SL::NoteEdit,
                   "noteEditMode without steps → not NoteEdit");
         }
         {
             UiState ui;
-            ui.pLockClearMode  = true;
+            ui.pLockClearMode = true;
             ui.pLockClearTrack = 0;
-            ui.pLockClearStep  = 2;
+            ui.pLockClearStep = 2;
             CHECK(resolveActiveLayer(ui, ec(), facts(TrackInputMode::Play, 0)) == SL::PLockClear,
                   "pLockClearMode → PLockClear when track matches");
         }
         {
             // pLockClearTrack != activeTrack → not PLockClear
             UiState ui;
-            ui.pLockClearMode  = true;
+            ui.pLockClearMode = true;
             ui.pLockClearTrack = 3;
-            ui.pLockClearStep  = 2;
+            ui.pLockClearStep = 2;
             CHECK(resolveActiveLayer(ui, ec(), facts(TrackInputMode::Play, 0)) != SL::PLockClear,
                   "pLockClearMode but track mismatch → not PLockClear");
         }
         {
             CHECK(resolveActiveLayer(UiState{}, ec(),
-                  facts(TrackInputMode::Chromatic)) == SL::ChromaticInput,
+                                     facts(TrackInputMode::Chromatic)) == SL::ChromaticInput,
                   "Chromatic inputMode → ChromaticInput");
         }
         {
             CHECK(resolveActiveLayer(UiState{}, ec(),
-                  facts(TrackInputMode::Levels)) == SL::LevelsInput,
+                                     facts(TrackInputMode::Levels)) == SL::LevelsInput,
                   "Levels inputMode → LevelsInput");
         }
         {
-            UiState ui; ui.morphHeld = true; ui.muteHeld = true;
+            UiState ui;
+            ui.morphHeld = true;
+            ui.muteHeld = true;
             CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::MorphMuteView,
                   "morphHeld+muteHeld → MorphMuteView");
         }
         {
-            UiState ui; ui.muteHeld = true;
+            UiState ui;
+            ui.muteHeld = true;
             CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::MuteView,
                   "muteHeld alone → MuteView");
         }
         {
-            UiState ui; ui.phraseScopeHeld = true; ui.funcHeld = true;
+            UiState ui;
+            ui.phraseScopeHeld = true;
+            ui.funcHeld = true;
             CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::LengthEdit,
                   "phraseScopeHeld+funcHeld → LengthEdit");
         }
         {
-            UiState ui; ui.morphHeld = true; ui.funcHeld = true;
+            UiState ui;
+            ui.morphHeld = true;
+            ui.funcHeld = true;
             CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::LengthEdit,
                   "morphHeld+funcHeld → LengthEdit");
         }
         {
-            UiState ui; ui.morphHeld = true;
+            UiState ui;
+            ui.morphHeld = true;
             CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::MorphStepView,
                   "morphHeld alone → MorphStepView");
         }
         {
-            UiState ui; ui.trackHeld = true;
+            UiState ui;
+            ui.trackHeld = true;
             CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::ScopeSelector,
                   "trackHeld → ScopeSelector");
         }
         {
-            UiState ui; ui.phraseScopeHeld = true;
+            UiState ui;
+            ui.phraseScopeHeld = true;
             CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::ScopeSelector,
                   "phraseScopeHeld → ScopeSelector");
         }
         {
-            UiState ui; ui.sceneHeld = true;
+            UiState ui;
+            ui.sceneHeld = true;
             CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::ScopeSelector,
                   "sceneHeld → ScopeSelector");
         }
         {
-            UiState ui; ui.songHeld = true;
+            UiState ui;
+            ui.songHeld = true;
             CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::ScopeSelector,
                   "songHeld → ScopeSelector");
         }
@@ -169,9 +187,9 @@ namespace lockstep
         }
         {
             UiState ui;
-            ui.trigGridMode   = TrigGridMode::SoundPool;
-            ui.morphHeld      = true;
-            ui.muteHeld       = true;
+            ui.trigGridMode = TrigGridMode::SoundPool;
+            ui.morphHeld = true;
+            ui.muteHeld = true;
             CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::SoundPool,
                   "SoundPool beats MorphMuteView");
         }
@@ -182,14 +200,14 @@ namespace lockstep
         {
             UiState ui;
             ui.masterFxPickerOpen = true;
-            ui.funcFxHeld         = true;  // would be TrackFxPicker
+            ui.funcFxHeld = true;  // would be TrackFxPicker
             CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::MasterFxPicker,
                   "MasterFxPicker beats TrackFxPicker");
         }
         {
             UiState ui;
             ui.masterFxPickerOpen = true;
-            ui.funcTrackHeld      = true;  // would be MachinePicker
+            ui.funcTrackHeld = true;  // would be MachinePicker
             CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::MasterFxPicker,
                   "MasterFxPicker beats MachinePicker");
         }
@@ -199,7 +217,7 @@ namespace lockstep
     {
         UiState ui;
         ui.funcTrackHeld = true;
-        ui.noteEditMode  = true;
+        ui.noteEditMode = true;
         ui.noteEditSteps.insert(0);
         CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::MachinePicker,
               "MachinePicker beats NoteEdit");
@@ -208,11 +226,11 @@ namespace lockstep
     static void testNoteEditBeatsPLockClear()
     {
         UiState ui;
-        ui.noteEditMode    = true;
+        ui.noteEditMode = true;
         ui.noteEditSteps.insert(0);
-        ui.pLockClearMode  = true;
+        ui.pLockClearMode = true;
         ui.pLockClearTrack = 0;
-        ui.pLockClearStep  = 1;
+        ui.pLockClearStep = 1;
         CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::NoteEdit,
               "NoteEdit beats PLockClear");
     }
@@ -239,7 +257,7 @@ namespace lockstep
     {
         UiState ui;
         ui.morphHeld = true;
-        ui.muteHeld  = true;
+        ui.muteHeld = true;
         CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::MorphMuteView,
               "morphHeld+muteHeld → MorphMuteView (not bare MuteView)");
     }
@@ -248,7 +266,7 @@ namespace lockstep
     {
         UiState ui;
         ui.morphHeld = true;
-        ui.funcHeld  = true;
+        ui.funcHeld = true;
         CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::LengthEdit,
               "morphHeld+funcHeld → LengthEdit (not MorphStepView)");
     }
@@ -268,8 +286,8 @@ namespace lockstep
         // funcTrackHeld → MachinePicker even if phrase+func would give LengthEdit
         UiState ui;
         ui.phraseScopeHeld = true;
-        ui.funcHeld        = true;
-        ui.funcTrackHeld   = true;
+        ui.funcHeld = true;
+        ui.funcTrackHeld = true;
         CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::MachinePicker,
               "funcTrackHeld wins over LengthEdit (MachinePicker has higher priority)");
     }
@@ -283,10 +301,10 @@ namespace lockstep
               "confirm.pending() → PendingConfirm (highest priority)");
 
         // PendingConfirm beats everything
-        ui.trigGridMode  = TrigGridMode::SoundPool;
+        ui.trigGridMode = TrigGridMode::SoundPool;
         ui.funcTrackHeld = true;
-        ui.morphHeld     = true;
-        ui.muteHeld      = true;
+        ui.morphHeld = true;
+        ui.muteHeld = true;
         CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::PendingConfirm,
               "PendingConfirm beats all other conditions");
     }
@@ -304,7 +322,7 @@ namespace lockstep
         {
             UiState ui;
             ui.deletePicker.scope = DeleteScope::Scene;
-            ui.trigGridMode  = TrigGridMode::SoundPool;
+            ui.trigGridMode = TrigGridMode::SoundPool;
             ui.funcTrackHeld = true;
             ui.phraseScopeHeld = true;
             ui.funcHeld = true;

@@ -11,7 +11,13 @@ namespace lockstep
 {
     // Scope for scope-respecting Checkpoints (DESIGN §13.6).
     // None-scope = Song; the enum here names the four explicit forms.
-    enum class CheckpointScope { Song, Track, Scene, Phrase };
+    enum class CheckpointScope
+    {
+        Song,
+        Track,
+        Scene,
+        Phrase
+    };
 
     // Owns the new musical hierarchy (Songs) plus the live playhead position and
     // the working Sequence the resolver reads. This is the single source of truth
@@ -39,12 +45,12 @@ namespace lockstep
         int launchQuantizeBars = 1;
 
         // ── Playhead position ────────────────────────────────────────────────
-        int songIdx  = 0;
+        int songIdx = 0;
         int sceneIdx = 0;
         // Sticky per-track phrase deviation (a musician doing their own thing).
         // This is the LIVE overlay for the scene currently under the playhead.
         std::array<bool, kNumTracks> deviated{};
-        std::array<int,  kNumTracks> deviationPhraseIdx{};
+        std::array<int, kNumTracks> deviationPhraseIdx{};
 
         // ── Per-scene remembered live overlay (DESIGN §4.7/§16, build 3) ──────
         // Each scene remembers its own uncommitted deviations while the set runs.
@@ -56,17 +62,17 @@ namespace lockstep
         {
             bool active = false;   // has a remembered overlay been stashed?
             std::array<bool, kNumTracks> deviated{};
-            std::array<int,  kNumTracks> deviationPhraseIdx{};
+            std::array<int, kNumTracks> deviationPhraseIdx{};
         };
         std::array<std::array<SceneOverlay, kScenesPerSong>, kNumSongs> overlays{};
 
         // ── Accessors ────────────────────────────────────────────────────────
-        [[nodiscard]] Song&        song()        { return songs[idx(songIdx)]; }
-        [[nodiscard]] const Song&  song()  const { return songs[idx(songIdx)]; }
-        [[nodiscard]] Scene&       scene()       { return song().scenes[idx(sceneIdx)]; }
+        [[nodiscard]] Song& song() { return songs[idx(songIdx)]; }
+        [[nodiscard]] const Song& song() const { return songs[idx(songIdx)]; }
+        [[nodiscard]] Scene& scene() { return song().scenes[idx(sceneIdx)]; }
         [[nodiscard]] const Scene& scene() const { return song().scenes[idx(sceneIdx)]; }
 
-        [[nodiscard]] TrackKit&       kit(int t)       { return song().tracks[idx(t)].kit; }
+        [[nodiscard]] TrackKit& kit(int t) { return song().tracks[idx(t)].kit; }
         [[nodiscard]] const TrackKit& kit(int t) const { return song().tracks[idx(t)].kit; }
 
         [[nodiscard]] int activePhraseIdx(int t) const
@@ -85,7 +91,7 @@ namespace lockstep
 
         // ── Working buffer (the resolver / audio path reads this) ─────────────
         Sequence working{};
-        [[nodiscard]] Track&       workingTrack(int t)       { return working.tracks[idx(t)]; }
+        [[nodiscard]] Track& workingTrack(int t) { return working.tracks[idx(t)]; }
         [[nodiscard]] const Track& workingTrack(int t) const { return working.tracks[idx(t)]; }
 
         // ── Switching (write-back THEN re-project, so edits survive) ──────────
@@ -129,7 +135,7 @@ namespace lockstep
         void prepareSceneLaunch(int targetSceneIdx, bool toFloor,
                                 Sequence& outWorking,
                                 std::array<bool, kNumTracks>& outDeviated,
-                                std::array<int,  kNumTracks>& outDeviationPhraseIdx)
+                                std::array<int, kNumTracks>& outDeviationPhraseIdx)
         {
             writeBackWorkingToActive();
             if (targetSceneIdx != sceneIdx) stashCurrentOverlay();
@@ -144,8 +150,16 @@ namespace lockstep
             else
             {
                 const auto& ov = overlays[idx(songIdx)][idx(targetSceneIdx)];
-                if (ov.active) { outDeviated = ov.deviated; outDeviationPhraseIdx = ov.deviationPhraseIdx; }
-                else           { outDeviated.fill(false);   outDeviationPhraseIdx.fill(0); }
+                if (ov.active)
+                {
+                    outDeviated = ov.deviated;
+                    outDeviationPhraseIdx = ov.deviationPhraseIdx;
+                }
+                else
+                {
+                    outDeviated.fill(false);
+                    outDeviationPhraseIdx.fill(0);
+                }
             }
             // Project working sequence for the target scene.
             for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
@@ -167,11 +181,11 @@ namespace lockstep
         void applySceneLaunch(int targetSceneIdx,
                               Sequence& stagedWorking,
                               const std::array<bool, kNumTracks>& newDeviated,
-                              const std::array<int,  kNumTracks>& newDeviationPhraseIdx)
+                              const std::array<int, kNumTracks>& newDeviationPhraseIdx)
         {
             std::swap(working, stagedWorking);
-            sceneIdx           = targetSceneIdx;
-            deviated           = newDeviated;
+            sceneIdx = targetSceneIdx;
+            deviated = newDeviated;
             deviationPhraseIdx = newDeviationPhraseIdx;
         }
 
@@ -180,7 +194,7 @@ namespace lockstep
             if (s < 0 || s >= kNumSongs || s == songIdx) return;
             writeBackWorkingToActive();
             stashCurrentOverlay();
-            songIdx  = s;
+            songIdx = s;
             sceneIdx = 0;
             restoreOverlayForCurrent();      // remembered overlay for the new song's scene 0
             syncWorkingFromActive();
@@ -194,7 +208,7 @@ namespace lockstep
         // serializer's load path instead of setActiveSong/setActiveScene.
         void loadPosition(int song, int scene)
         {
-            songIdx  = std::clamp(song,  0, kNumSongs - 1);
+            songIdx = std::clamp(song, 0, kNumSongs - 1);
             sceneIdx = std::clamp(scene, 0, kScenesPerSong - 1);
             deviated.fill(false);
             deviationPhraseIdx.fill(0);
@@ -207,7 +221,7 @@ namespace lockstep
         {
             if (t < 0 || t >= static_cast<int>(kNumTracks)) return;
             writeBackWorkingTrack(t);
-            deviated[idx(t)]          = true;
+            deviated[idx(t)] = true;
             deviationPhraseIdx[idx(t)] = std::clamp(phraseIdx, 0, kPhrasesPerTrack - 1);
             syncWorkingTrackFromActive(t);
         }
@@ -222,12 +236,12 @@ namespace lockstep
             {
                 if (N == sceneIdx)
                 {
-                    deviated[idx(t)]          = false;
+                    deviated[idx(t)] = false;
                     deviationPhraseIdx[idx(t)] = 0;
                 }
                 else
                 {
-                    deviated[idx(t)]          = true;
+                    deviated[idx(t)] = true;
                     deviationPhraseIdx[idx(t)] = N;
                 }
             }
@@ -275,7 +289,8 @@ namespace lockstep
         [[nodiscard]] int countDeviatedTracks() const
         {
             int n = 0;
-            for (const bool d : deviated) if (d) ++n;
+            for (const bool d : deviated)
+                if (d) ++n;
             return n;
         }
 
@@ -306,7 +321,10 @@ namespace lockstep
                 for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
                 {
                     if (song().tracks[idx(t)].phrases[idx(n)].initialised)
-                    { hasTrackContent = true; break; }
+                    {
+                        hasTrackContent = true;
+                        break;
+                    }
                 }
                 if (!hasTrackContent) return n;
             }
@@ -328,9 +346,9 @@ namespace lockstep
             dst = Scene{};
             // Copy effective floor from the active scene.
             dst.activeMask = scene().activeMask;
-            dst.coreTime   = scene().coreTime;
-            dst.morphA     = scene().morphA;
-            dst.morphB     = scene().morphB;
+            dst.coreTime = scene().coreTime;
+            dst.morphA = scene().morphA;
+            dst.morphB = scene().morphB;
             // Copy each track's effective phrase into the target slot.
             for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
             {
@@ -350,9 +368,9 @@ namespace lockstep
             auto& dst = song().scenes[idx(target)];
             dst = Scene{};
             dst.activeMask = scene().activeMask;
-            dst.coreTime   = scene().coreTime;
-            dst.morphA     = scene().morphA;
-            dst.morphB     = scene().morphB;
+            dst.coreTime = scene().coreTime;
+            dst.morphA = scene().morphA;
+            dst.morphB = scene().morphB;
             for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
             {
                 auto& ph = song().tracks[idx(t)].phrases[idx(target)];
@@ -383,8 +401,7 @@ namespace lockstep
                 const auto& active = activePhrase(t);
                 if (target.length != active.length) return false;
                 for (int s = 0; s < static_cast<int>(active.steps.size()); ++s)
-                    if (target.steps[static_cast<std::size_t>(s)].trig
-                        != active.steps[static_cast<std::size_t>(s)].trig)
+                    if (target.steps[static_cast<std::size_t>(s)].trig != active.steps[static_cast<std::size_t>(s)].trig)
                         return false;
             }
             return true;
@@ -394,8 +411,8 @@ namespace lockstep
         void stashCurrentOverlay()
         {
             auto& o = overlays[idx(songIdx)][idx(sceneIdx)];
-            o.active             = true;
-            o.deviated           = deviated;
+            o.active = true;
+            o.deviated = deviated;
             o.deviationPhraseIdx = deviationPhraseIdx;
         }
         void restoreOverlayForCurrent()
@@ -403,7 +420,7 @@ namespace lockstep
             const auto& o = overlays[idx(songIdx)][idx(sceneIdx)];
             if (o.active)
             {
-                deviated           = o.deviated;
+                deviated = o.deviated;
                 deviationPhraseIdx = o.deviationPhraseIdx;
             }
             else
@@ -451,7 +468,7 @@ namespace lockstep
 
         void seedFloor()
         {
-            floorSong_   = song();
+            floorSong_ = song();
             songStack_.clear();
             trackStack_.clear();
             sceneStack_.clear();
@@ -463,15 +480,13 @@ namespace lockstep
             writeBackWorkingToActive();
             switch (scope)
             {
-                case CheckpointScope::Song:
-                {
+                case CheckpointScope::Song: {
                     songStack_.push_back(song());
                     if (static_cast<int>(songStack_.size()) > kMaxCkDepth)
                         songStack_.erase(songStack_.begin());
                     break;
                 }
-                case CheckpointScope::Track:
-                {
+                case CheckpointScope::Track: {
                     if (track < 0 || track >= static_cast<int>(kNumTracks)) break;
                     auto& stk = trackStack_[track];
                     stk.push_back(song().tracks[idx(track)]);
@@ -479,19 +494,17 @@ namespace lockstep
                         stk.erase(stk.begin());
                     break;
                 }
-                case CheckpointScope::Scene:
-                {
+                case CheckpointScope::Scene: {
                     auto& stk = sceneStack_[sceneIdx];
                     stk.push_back(scene());
                     if (static_cast<int>(stk.size()) > kMaxCkDepth)
                         stk.erase(stk.begin());
                     break;
                 }
-                case CheckpointScope::Phrase:
-                {
+                case CheckpointScope::Phrase: {
                     if (track < 0 || track >= static_cast<int>(kNumTracks)) break;
                     const int pIdx = activePhraseIdx(track);
-                    auto& stk = phraseStack_[{track, pIdx}];
+                    auto& stk = phraseStack_[{ track, pIdx }];
                     stk.push_back(activePhrase(track));
                     if (static_cast<int>(stk.size()) > kMaxCkDepth)
                         stk.erase(stk.begin());
@@ -507,8 +520,7 @@ namespace lockstep
         {
             switch (scope)
             {
-                case CheckpointScope::Song:
-                {
+                case CheckpointScope::Song: {
                     if (!songStack_.empty())
                     {
                         song() = songStack_.back();
@@ -521,8 +533,7 @@ namespace lockstep
                     syncWorkingFromActive();
                     return true;
                 }
-                case CheckpointScope::Track:
-                {
+                case CheckpointScope::Track: {
                     if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
                     auto it = trackStack_.find(track);
                     if (it != trackStack_.end() && !it->second.empty())
@@ -537,8 +548,7 @@ namespace lockstep
                     syncWorkingTrackFromActive(track);
                     return true;
                 }
-                case CheckpointScope::Scene:
-                {
+                case CheckpointScope::Scene: {
                     auto it = sceneStack_.find(sceneIdx);
                     if (it != sceneStack_.end() && !it->second.empty())
                     {
@@ -553,11 +563,10 @@ namespace lockstep
                     syncWorkingFromActive();
                     return true;
                 }
-                case CheckpointScope::Phrase:
-                {
+                case CheckpointScope::Phrase: {
                     if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
                     const int pIdx = activePhraseIdx(track);
-                    auto it = phraseStack_.find({track, pIdx});
+                    auto it = phraseStack_.find({ track, pIdx });
                     if (it != phraseStack_.end() && !it->second.empty())
                     {
                         activePhrase(track) = it->second.back();
@@ -601,7 +610,7 @@ namespace lockstep
                     {
                         const int pIdx = activePhraseIdx(track);
                         activePhrase(track) = floorSong_.tracks[idx(track)].phrases[idx(pIdx)];
-                        phraseStack_.erase({track, pIdx});
+                        phraseStack_.erase({ track, pIdx });
                         syncWorkingTrackFromActive(track);
                     }
                     break;
@@ -614,22 +623,19 @@ namespace lockstep
             {
                 case CheckpointScope::Song:
                     return static_cast<int>(songStack_.size());
-                case CheckpointScope::Track:
-                {
+                case CheckpointScope::Track: {
                     if (track < 0 || track >= static_cast<int>(kNumTracks)) return 0;
                     auto it = trackStack_.find(track);
                     return (it != trackStack_.end()) ? static_cast<int>(it->second.size()) : 0;
                 }
-                case CheckpointScope::Scene:
-                {
+                case CheckpointScope::Scene: {
                     auto it = sceneStack_.find(sceneIdx);
                     return (it != sceneStack_.end()) ? static_cast<int>(it->second.size()) : 0;
                 }
-                case CheckpointScope::Phrase:
-                {
+                case CheckpointScope::Phrase: {
                     if (track < 0 || track >= static_cast<int>(kNumTracks)) return 0;
                     const int pIdx = activePhraseIdx(track);
-                    auto it = phraseStack_.find({track, pIdx});
+                    auto it = phraseStack_.find({ track, pIdx });
                     return (it != phraseStack_.end()) ? static_cast<int>(it->second.size()) : 0;
                 }
             }
@@ -644,9 +650,9 @@ namespace lockstep
 
         // Checkpoint floor + scratch stacks (current song only; cleared on song switch).
         Song floorSong_{};
-        std::vector<Song>                                     songStack_;
-        std::map<int, std::vector<Song::SongTrack>>           trackStack_;
-        std::map<int, std::vector<Scene>>                     sceneStack_;
-        std::map<std::pair<int,int>, std::vector<Phrase>>     phraseStack_;
+        std::vector<Song> songStack_;
+        std::map<int, std::vector<Song::SongTrack>> trackStack_;
+        std::map<int, std::vector<Scene>> sceneStack_;
+        std::map<std::pair<int, int>, std::vector<Phrase>> phraseStack_;
     };
 }

@@ -29,16 +29,14 @@ namespace lockstep::verbs
             }
             std::sort(ctx.clipboard.stepEntries.begin(),
                       ctx.clipboard.stepEntries.end(),
-                      [](const StepClipEntry& a, const StepClipEntry& b)
-                      { return a.relOffset < b.relOffset; });
+                      [](const StepClipEntry& a, const StepClipEntry& b) { return a.relOffset < b.relOffset; });
             ctx.clipboard.type = ClipboardType::Step;
             return true;
         }
 
         if (verb == CB::VerbPlay)
         {
-            if (ctx.clipboard.type != ClipboardType::Step
-                && ctx.clipboard.type != ClipboardType::All)
+            if (ctx.clipboard.type != ClipboardType::Step && ctx.clipboard.type != ClipboardType::All)
                 return false;
             const int anchor = ec.heldStepIndex();
             const int trkLen = trk.length;
@@ -53,8 +51,8 @@ namespace lockstep::verbs
 
         if (verb == CB::VerbClear)
         {
-            const bool funcHeld  = ctx.editMode.scopeState().func;
-            const int  activeSlot = ec.activeSlot();
+            const bool funcHeld = ctx.editMode.scopeState().func;
+            const int activeSlot = ec.activeSlot();
             if (funcHeld)
             {
                 // Trig + Func + Clear — clear all P-Locks on held step(s),
@@ -63,9 +61,9 @@ namespace lockstep::verbs
                 {
                     if (idx < 0 || idx >= kMaxStepsPerTrack) continue;
                     auto& s = trk.steps[static_cast<std::size_t>(idx)];
-                    s.overrides        = PLock{};
-                    s.trigOverride     = TrigOverride{};
-                    s.fillOverrides    = PLock{};
+                    s.overrides = PLock{};
+                    s.trigOverride = TrigOverride{};
+                    s.fillOverrides = PLock{};
                     s.fillTrigOverride = TrigOverride{};
                 }
             }
@@ -86,12 +84,12 @@ namespace lockstep::verbs
                 {
                     if (idx < 0 || idx >= kMaxStepsPerTrack) continue;
                     auto& s = trk.steps[static_cast<std::size_t>(idx)];
-                    s.overrides        = PLock{};
-                    s.trigOverride     = TrigOverride{};
-                    s.fillOverrides    = PLock{};
+                    s.overrides = PLock{};
+                    s.trigOverride = TrigOverride{};
+                    s.fillOverrides = PLock{};
                     s.fillTrigOverride = TrigOverride{};
-                    s.trig             = false;
-                    s.condition        = TrigCondition{};
+                    s.trig = false;
+                    s.condition = TrigCondition{};
                 }
             }
             ec.markParamWritten();
@@ -106,12 +104,12 @@ namespace lockstep::verbs
             {
                 if (idx < 0 || idx >= kMaxStepsPerTrack) continue;
                 auto& s = trk.steps[static_cast<std::size_t>(idx)];
-                s.trigOverride.noteCount   = 0;
-                s.trigOverride.notes       = {};
+                s.trigOverride.noteCount = 0;
+                s.trigOverride.notes = {};
                 s.trigOverride.hasVelocity = false;
-                s.trigOverride.velocity    = 100;
-                s.trigOverride.hasGate     = false;
-                s.trigOverride.gateValue   = MusicalGate::None;
+                s.trigOverride.velocity = 100;
+                s.trigOverride.hasGate = false;
+                s.trigOverride.gateValue = MusicalGate::None;
             }
             return true;
         }
@@ -128,15 +126,14 @@ namespace lockstep::verbs
         if (verb == CB::VerbRecord)
         {
             ctx.clipboard.clipTrack = trk;
-            ctx.clipboard.type      = ClipboardType::Track;
+            ctx.clipboard.type = ClipboardType::Track;
             fx.status(status::copiedTrack(at));
             fx.releaseLatch(CB::TrackScope);
             return true;
         }
         if (verb == CB::VerbPlay)
         {
-            if (ctx.clipboard.type != ClipboardType::Track
-                && ctx.clipboard.type != ClipboardType::All)
+            if (ctx.clipboard.type != ClipboardType::Track && ctx.clipboard.type != ClipboardType::All)
                 return false;
             trk = ctx.clipboard.clipTrack;
             fx.status(status::pastedTrack(at));
@@ -147,9 +144,9 @@ namespace lockstep::verbs
         {
             for (auto& s : trk.steps)
             {
-                s.trig         = false;
-                s.condition    = TrigCondition{};
-                s.overrides    = PLock{};
+                s.trig = false;
+                s.condition = TrigCondition{};
+                s.overrides = PLock{};
                 s.trigOverride = TrigOverride{};
             }
             fx.status(status::clearedTrack(at));
@@ -166,14 +163,13 @@ namespace lockstep::verbs
         if (verb == CB::VerbRecord)
         {
             ctx.clipboard.clipSequence = ctx.sequence;
-            ctx.clipboard.type         = ClipboardType::Pattern;
+            ctx.clipboard.type = ClipboardType::Pattern;
             fx.status(status::copiedPhrase());
             return true;
         }
         if (verb == CB::VerbPlay)
         {
-            if (ctx.clipboard.type != ClipboardType::Pattern
-                && ctx.clipboard.type != ClipboardType::All)
+            if (ctx.clipboard.type != ClipboardType::Pattern && ctx.clipboard.type != ClipboardType::All)
                 return false;
             ctx.sequence = ctx.clipboard.clipSequence;
             fx.status(status::pastedPhrase());
@@ -188,12 +184,12 @@ namespace lockstep::verbs
             {
                 for (auto& s : trk.steps)
                 {
-                    s.trig             = false;
-                    s.condition        = TrigCondition{};
-                    s.overrides        = PLock{};
-                    s.trigOverride     = TrigOverride{};
-                    s.fillTrigState    = FillTrigState::Inherit;
-                    s.fillOverrides    = PLock{};
+                    s.trig = false;
+                    s.condition = TrigCondition{};
+                    s.overrides = PLock{};
+                    s.trigOverride = TrigOverride{};
+                    s.fillTrigState = FillTrigState::Inherit;
+                    s.fillOverrides = PLock{};
                     s.fillTrigOverride = TrigOverride{};
                 }
             }
@@ -222,8 +218,7 @@ namespace lockstep::verbs
         }
         if (verb == CB::VerbPlay)
         {
-            if (ctx.clipboard.type != ClipboardType::Scene
-                && ctx.clipboard.type != ClipboardType::All)
+            if (ctx.clipboard.type != ClipboardType::Scene && ctx.clipboard.type != ClipboardType::All)
                 return false;
 
             if (ctx.editMode.scopeState().mute)
@@ -262,9 +257,9 @@ namespace lockstep::verbs
     bool section(ControllerButton verb, CommandContext& ctx, CommandEffects& fx)
     {
         using CB = ControllerButton;
-        const int at     = ctx.uiState.activeTrack;
+        const int at = ctx.uiState.activeTrack;
         const int secIdx = ctx.uiState.trackSection[static_cast<std::size_t>(at)];
-        auto& trk        = ctx.sequence.tracks[static_cast<std::size_t>(at)];
+        auto& trk = ctx.sequence.tracks[static_cast<std::size_t>(at)];
         const int trkLen = trk.length;
         const int nSlots = ctx.catalog.numParams(at);
 
@@ -281,7 +276,7 @@ namespace lockstep::verbs
                 for (int st = 0; st < trkLen; ++st)
                 {
                     const auto& plock = trk.steps[static_cast<std::size_t>(st)].overrides;
-                    const bool  has   = plock.has(sl);
+                    const bool has = plock.has(sl);
                     entry.perStep.push_back({ has, has ? plock.get(sl, 0.0f) : 0.0f });
                 }
                 ctx.clipboard.sectionSlots.push_back(std::move(entry));
@@ -291,8 +286,7 @@ namespace lockstep::verbs
         }
         if (verb == CB::VerbPlay)
         {
-            if (ctx.clipboard.type != ClipboardType::Section
-                && ctx.clipboard.type != ClipboardType::All)
+            if (ctx.clipboard.type != ClipboardType::Section && ctx.clipboard.type != ClipboardType::All)
                 return false;
             for (const auto& entry : ctx.clipboard.sectionSlots)
             {

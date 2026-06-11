@@ -17,7 +17,13 @@ namespace lockstep
     // index is the machine's dense runtime position (0..numParams()-1).
     struct ParamSpec
     {
-        enum class Unit { None, Ms, Semitones, Percent };
+        enum class Unit
+        {
+            None,
+            Ms,
+            Semitones,
+            Percent
+        };
 
         // Closed set of semantic roles. Used by Control-All as an id-fallback
         // (broadcast to every track whose schema has the same role when no
@@ -52,18 +58,22 @@ namespace lockstep
         // Secondary slots populate the Func+section pages — used for machine
         // deep-dives (FM modulation matrix, VA voice-mode block) that we want
         // available in two presses without crowding the primary section.
-        enum class Variant { Primary, Secondary };
+        enum class Variant
+        {
+            Primary,
+            Secondary
+        };
 
         juce::String id;            // stable serialisation key
         juce::String label;         // shown in the Manipulation Zone
-        float minValue     = 0.0f;
-        float maxValue     = 1.0f;
+        float minValue = 0.0f;
+        float maxValue = 1.0f;
         float defaultValue = 0.0f;
-        bool  isStepped    = false;
-        Unit  unit         = Unit::None;
-        int   sectionIndex = 0;     // which canonical section (0..kMaxSections-1)
-        Role  role         = Role::None;
-        Variant variant    = Variant::Primary;  // MHY: primary vs Func-secondary page (appended last to preserve aggregate-init)
+        bool isStepped = false;
+        Unit unit = Unit::None;
+        int sectionIndex = 0;     // which canonical section (0..kMaxSections-1)
+        Role role = Role::None;
+        Variant variant = Variant::Primary;  // MHY: primary vs Func-secondary page (appended last to preserve aggregate-init)
 
         // Optional textual labels for stepped/enum slots (MHZ.2.5).
         // Non-empty → MZ renders valueLabels[round(value)] instead of a numeric string.
@@ -89,8 +99,8 @@ namespace lockstep
     struct SectionInfo
     {
         juce::String label;
-        int firstSlot       = -1;  // dense index of the first slot; -1 = empty section
-        int pageCount       = 0;   // ceil(slotCount / kParamsPerPage); 0 = empty section
+        int firstSlot = -1;  // dense index of the first slot; -1 = empty section
+        int pageCount = 0;   // ceil(slotCount / kParamsPerPage); 0 = empty section
         // -1: this is a canonical section (sectionIndex 0..kMaxSections-1).
         // >=0: this is an extension of canonical section [parentCanonical], reached
         //      by extra presses of the same section key after cycling canonical pages.
@@ -114,7 +124,7 @@ namespace lockstep
                              juce::AudioBuffer<float>& buffer) = 0;
 
         // Schema — immutable after construction. Queried on the UI thread.
-        virtual int       numParams()          const = 0;
+        virtual int numParams() const = 0;
         virtual ParamSpec paramSpec(int index) const = 0;
 
         // Section taxonomy. Up to kMaxSections sections; fewer is fine.
@@ -131,7 +141,7 @@ namespace lockstep
         static constexpr std::array<const char*, kMaxSections> kCanonicalSectionNames = {
             "TRIG", "SRC", "FILTER", "AMP", "MOD", "FX"
         };
-        virtual int         numSections()        const { return 0; }
+        virtual int numSections() const { return 0; }
         virtual SectionInfo section(int /*index*/) const { return {}; }
 
         // Stable string ID used for serialization and factory dispatch.
@@ -146,7 +156,14 @@ namespace lockstep
 
         // Bounded polyphony enum (0..4). The step-side chord ceiling is
         // kMaxNotesPerStep (4), so the type itself forbids requesting more.
-        enum class Polyphony : int { V0 = 0, V1 = 1, V2 = 2, V3 = 3, V4 = 4 };
+        enum class Polyphony : int
+        {
+            V0 = 0,
+            V1 = 1,
+            V2 = 2,
+            V3 = 3,
+            V4 = 4
+        };
 
         // Current live voice count. Pulled by the sequencer per trig, so the
         // machine can switch modes at runtime by returning a different value
@@ -166,7 +183,7 @@ namespace lockstep
         // When true, the processor routes that section key to the machine's own
         // slots instead of the post-machine FLTR / AMP block.
         virtual bool hasInternalFilter() const { return false; }
-        virtual bool hasInternalAmp()    const { return false; }
+        virtual bool hasInternalAmp() const { return false; }
 
         // MIDI-out machines override both of these. isMidiOut() lets the processor
         // skip the audio path without a dynamic_cast. processMidi() is called instead
@@ -175,8 +192,8 @@ namespace lockstep
         // open juce::MidiOutput device (standalone, handled internally).
         virtual bool isMidiOut() const { return false; }
         virtual void processMidi(const juce::MidiBuffer& /*events*/,
-                                  const ParamFrame&       /*params*/,
-                                  juce::MidiBuffer&       /*midiOut*/) {}
+                                 const ParamFrame& /*params*/,
+                                 juce::MidiBuffer& /*midiOut*/) {}
 
         // Returns true if this machine is currently producing audio (voice active,
         // fading, or pending). Used by the sequencer to decide whether to apply

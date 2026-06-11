@@ -7,7 +7,7 @@ namespace lockstep
     using namespace test;
     using CB = ControllerButton;
     using PS = EditMode::PrimaryScope;
-    using T  = ControllerEvent::Type;
+    using T = ControllerEvent::Type;
 
     // -------------------------------------------------------------------------
     // Scenario 1: PS::Trig / VerbRecord copies held steps to clipboard
@@ -91,9 +91,9 @@ namespace lockstep
         GestureFixture f;
         auto& s1 = f.track(0).steps[1];
         s1.trig = true;
-        s1.trigOverride.noteCount  = 2;
+        s1.trigOverride.noteCount = 2;
         s1.trigOverride.hasVelocity = true;
-        s1.trigOverride.velocity   = 80;
+        s1.trigOverride.velocity = 80;
 
         f.editMode.onScopeEvent({ T::ButtonDown, CB::Func, -1, 0 });
         f.holdStep(0, 1);
@@ -223,7 +223,7 @@ namespace lockstep
     static void scenario_sectionCopyClear()
     {
         GestureFixture f;
-        f.uiState.activeTrack     = 0;
+        f.uiState.activeTrack = 0;
         f.uiState.trackSection[0] = 0;  // section index 0
 
         // FakeMachineCatalog.paramSpec returns a default ParamSpec with sectionIndex==0,
@@ -284,7 +284,7 @@ namespace lockstep
         f.uiState.trackHeld = true;
         f.uiState.latch.track = false;
 
-        ControllerEvent ev { ControllerEvent::Type::ButtonUp, CB::TrackScope };
+        ControllerEvent ev{ ControllerEvent::Type::ButtonUp, CB::TrackScope };
         auto c = f.ctx();
         const bool handled = f.core.handleUp(ev, c, f.effects);
 
@@ -300,7 +300,7 @@ namespace lockstep
         f.uiState.trackHeld = true;
         f.uiState.latch.track = true;
 
-        ControllerEvent ev { ControllerEvent::Type::ButtonUp, CB::TrackScope };
+        ControllerEvent ev{ ControllerEvent::Type::ButtonUp, CB::TrackScope };
         auto c = f.ctx();
         const bool handled = f.core.handleUp(ev, c, f.effects);
 
@@ -315,7 +315,7 @@ namespace lockstep
         f.uiState.muteHeld = true;
         f.uiState.latch.mute = false;
 
-        ControllerEvent ev { ControllerEvent::Type::ButtonUp, CB::MuteScope };
+        ControllerEvent ev{ ControllerEvent::Type::ButtonUp, CB::MuteScope };
         auto c = f.ctx();
         [[maybe_unused]] const bool h = f.core.handleUp(ev, c, f.effects);
 
@@ -328,27 +328,22 @@ namespace lockstep
     static void scenario_muteBindingResolution()
     {
         using AId = ActionId;
-        using SL  = SurfaceLayer;
+        using SL = SurfaceLayer;
 
         // Bare Mute+step → GlobalMuteToggle in MuteView
-        CHECK(resolveBinding(CB::ToggleMute, 0, kModMute, SL::MuteView).action
-              == AId::GlobalMuteToggle, "bare Mute → GlobalMuteToggle");
+        CHECK(resolveBinding(CB::ToggleMute, 0, kModMute, SL::MuteView).action == AId::GlobalMuteToggle, "bare Mute → GlobalMuteToggle");
 
         // Func+Mute+step → SoloToggle in MuteView
-        CHECK(resolveBinding(CB::ToggleMute, 0, kModFunc | kModMute, SL::MuteView).action
-              == AId::SoloToggle, "Func+Mute → SoloToggle");
+        CHECK(resolveBinding(CB::ToggleMute, 0, kModFunc | kModMute, SL::MuteView).action == AId::SoloToggle, "Func+Mute → SoloToggle");
 
         // Scene+Mute+step → SceneMuteToggle in MuteView
-        CHECK(resolveBinding(CB::ToggleMute, 0, kModScene | kModMute, SL::MuteView).action
-              == AId::SceneMuteToggle, "Scene+Mute → SceneMuteToggle");
+        CHECK(resolveBinding(CB::ToggleMute, 0, kModScene | kModMute, SL::MuteView).action == AId::SceneMuteToggle, "Scene+Mute → SceneMuteToggle");
 
         // Morph+Mute+step → FluidMuteToggle in MorphMuteView
-        CHECK(resolveBinding(CB::ToggleMute, 0, kModMorph | kModMute, SL::MorphMuteView).action
-              == AId::FluidMuteToggle, "Morph+Mute → FluidMuteToggle");
+        CHECK(resolveBinding(CB::ToggleMute, 0, kModMorph | kModMute, SL::MorphMuteView).action == AId::FluidMuteToggle, "Morph+Mute → FluidMuteToggle");
 
         // Func+Mute wins over bare Mute (popcount 2 > 1) in MuteView
-        CHECK(resolveBinding(CB::ToggleMute, 0, kModFunc | kModMute, SL::MuteView).action
-              != AId::GlobalMuteToggle, "Func+Mute does NOT resolve to GlobalMuteToggle");
+        CHECK(resolveBinding(CB::ToggleMute, 0, kModFunc | kModMute, SL::MuteView).action != AId::GlobalMuteToggle, "Func+Mute does NOT resolve to GlobalMuteToggle");
     }
 
     // -------------------------------------------------------------------------
@@ -374,12 +369,12 @@ namespace lockstep
         f.uiState.deletePicker.scope = DeleteScope::Phrase;
 
         const bool handled = f.down({ ControllerEvent::Type::ButtonDown, CB::Step, 5 });
-        CHECK(handled,                             "step swallowed by picker");
-        CHECK(!f.uiState.deletePicker.active(),    "picker cleared after step tap");
-        CHECK(f.uiState.confirm.pending(),         "confirm armed");
+        CHECK(handled, "step swallowed by picker");
+        CHECK(!f.uiState.deletePicker.active(), "picker cleared after step tap");
+        CHECK(f.uiState.confirm.pending(), "confirm armed");
         CHECK(f.uiState.confirm.kind == ConfirmKind::DeletePhrase, "correct kind");
-        CHECK(f.uiState.confirm.target == 5,       "correct target slot");
-        CHECK(!f.effects.statuses.empty(),         "named confirm status emitted");
+        CHECK(f.uiState.confirm.target == 5, "correct target slot");
+        CHECK(!f.effects.statuses.empty(), "named confirm status emitted");
     }
 
     // Arm picker → foreign key → cancelled.
@@ -389,10 +384,10 @@ namespace lockstep
         f.uiState.deletePicker.scope = DeleteScope::Scene;
 
         const bool handled = f.down({ ControllerEvent::Type::ButtonDown, CB::VerbClear, -1 });
-        CHECK(handled,                           "foreign key swallowed");
+        CHECK(handled, "foreign key swallowed");
         CHECK(!f.uiState.deletePicker.active(), "picker cleared");
-        CHECK(!f.uiState.confirm.pending(),     "no confirm armed on cancel");
-        CHECK(!f.effects.statuses.empty(),      "cancelled status emitted");
+        CHECK(!f.uiState.confirm.pending(), "no confirm armed on cancel");
+        CHECK(!f.effects.statuses.empty(), "cancelled status emitted");
     }
 
     // Arm picker → Func down → NOT cancelled.
@@ -402,7 +397,7 @@ namespace lockstep
         f.uiState.deletePicker.scope = DeleteScope::Track;
 
         const bool handled = f.down({ ControllerEvent::Type::ButtonDown, CB::Func, -1 });
-        CHECK(!handled,                         "Func not swallowed");
+        CHECK(!handled, "Func not swallowed");
         CHECK(f.uiState.deletePicker.active(), "picker survives Func");
     }
 
@@ -435,10 +430,10 @@ namespace lockstep
         armConfirm(f, ConfirmKind::DeletePhrase);
 
         const bool handled = f.down({ ControllerEvent::Type::ButtonDown, CB::Step, 3 });
-        CHECK(handled,                           "foreign press swallowed while confirm pending");
-        CHECK(!f.uiState.confirm.pending(),      "confirm cleared after foreign press");
-        CHECK(f.effects.confirmsExecuted.empty(),"no execution on cancel");
-        CHECK(!f.effects.statuses.empty(),       "cancelled status emitted");
+        CHECK(handled, "foreign press swallowed while confirm pending");
+        CHECK(!f.uiState.confirm.pending(), "confirm cleared after foreign press");
+        CHECK(f.effects.confirmsExecuted.empty(), "no execution on cancel");
+        CHECK(!f.effects.statuses.empty(), "cancelled status emitted");
         CHECK(f.effects.statuses.back() == "Cancelled", "status text = Cancelled");
     }
 
@@ -449,7 +444,7 @@ namespace lockstep
         armConfirm(f, ConfirmKind::DeletePhrase);
 
         const bool handled = f.down({ ControllerEvent::Type::ButtonDown, CB::Func, -1 });
-        CHECK(!handled,                     "Func not swallowed — still pending");
+        CHECK(!handled, "Func not swallowed — still pending");
         CHECK(f.uiState.confirm.pending(), "confirm survives Func press");
     }
 
@@ -461,10 +456,10 @@ namespace lockstep
         f.uiState.funcHeld = true;  // simulate Func held
 
         const bool handled = f.down({ ControllerEvent::Type::ButtonDown, CB::VerbNo, -1 });
-        CHECK(handled,                           "Func+P swallowed");
-        CHECK(!f.uiState.confirm.pending(),      "confirm cleared");
-        CHECK(f.effects.confirmsExecuted.empty(),"executeConfirm NOT called on No");
-        CHECK(!f.effects.statuses.empty(),       "cancelled status emitted");
+        CHECK(handled, "Func+P swallowed");
+        CHECK(!f.uiState.confirm.pending(), "confirm cleared");
+        CHECK(f.effects.confirmsExecuted.empty(), "executeConfirm NOT called on No");
+        CHECK(!f.effects.statuses.empty(), "cancelled status emitted");
     }
 
     // Pending → P (no Func) → executed with correct kind+target.
@@ -475,11 +470,11 @@ namespace lockstep
         f.uiState.funcHeld = false;
 
         const bool handled = f.down({ ControllerEvent::Type::ButtonDown, CB::VerbNo, -1 });
-        CHECK(handled,                            "P swallowed");
-        CHECK(!f.uiState.confirm.pending(),       "confirm cleared");
+        CHECK(handled, "P swallowed");
+        CHECK(!f.uiState.confirm.pending(), "confirm cleared");
         CHECK(f.effects.confirmsExecuted.size() == 1, "executeConfirm called once");
-        CHECK(f.effects.confirmsExecuted[0].kind   == ConfirmKind::DeleteTrack, "correct kind");
-        CHECK(f.effects.confirmsExecuted[0].target == 5,                        "correct target");
+        CHECK(f.effects.confirmsExecuted[0].kind == ConfirmKind::DeleteTrack, "correct kind");
+        CHECK(f.effects.confirmsExecuted[0].target == 5, "correct target");
     }
 
     void runGestureTests()

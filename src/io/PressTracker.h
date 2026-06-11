@@ -14,7 +14,7 @@ namespace lockstep
     class PressTracker
     {
     public:
-        static constexpr int kMouseSource      = 0;   // keyboard uses positive raw key codes
+        static constexpr int kMouseSource = 0;   // keyboard uses positive raw key codes
         static constexpr int kControllerSource = -1;  // hardware controller (distinct from mouse/keyboard)
 
         // Register a button-down.  source = rawKeyCode (keyboard) or kMouseSource (mouse).
@@ -24,7 +24,7 @@ namespace lockstep
         }
 
         void release(int source) { entries_.erase(source); }
-        void releaseAll()        { entries_.clear(); }
+        void releaseAll() { entries_.clear(); }
 
         // True if the given raw key code is currently held by the keyboard path.
         [[nodiscard]] bool isKeyHeld(int rawCode) const
@@ -58,7 +58,11 @@ namespace lockstep
         }
 
         // Returns the current mouse-held entry if one exists, or nullopt.
-        struct Entry { ControllerButton button; int index; };
+        struct Entry
+        {
+            ControllerButton button;
+            int index;
+        };
         [[nodiscard]] std::optional<Entry> mouseEntry() const
         {
             const auto it = entries_.find(kMouseSource);
@@ -68,7 +72,7 @@ namespace lockstep
 
         // Call fn(source, button, index) for every keyboard entry whose key is no
         // longer physically down.  Used by keyStateChanged to synthesize ButtonUp events.
-        template<typename F>
+        template <typename F>
         void forEachReleasedKeyboard(F&& fn) const
         {
             for (const auto& [src, entry] : entries_)

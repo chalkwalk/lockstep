@@ -6,14 +6,27 @@
 
 namespace lockstep
 {
-    class  LockstepProcessor;
-    class  EditContext;
+    class LockstepProcessor;
+    class EditContext;
     struct UiState;
 
     // -------------------------------------------------------------------------
     // MetaBand — which manipulation-zone surface is currently shown.
     // None = normal machine params; the rest are the meta/swing surfaces.
-    enum class MetaBand { None, Cond, Trig, Divider, PhraseLen, Global, Swing, Chance, MasterFx, Euclidean, Transport };
+    enum class MetaBand
+    {
+        None,
+        Cond,
+        Trig,
+        Divider,
+        PhraseLen,
+        Global,
+        Swing,
+        Chance,
+        MasterFx,
+        Euclidean,
+        Transport
+    };
 
     // -------------------------------------------------------------------------
     // MetaFieldView — render-agnostic description of one encoder slot.
@@ -21,16 +34,16 @@ namespace lockstep
     // buildSurfaceModel (controller), keeping both in lockstep.
     struct MetaFieldView
     {
-        bool         active      = false;             // slot is populated
+        bool active = false;             // slot is populated
         juce::String label;
         juce::String valueText;
-        float        minValue    = 0.0f;
-        float        maxValue    = 1.0f;
-        float        value       = 0.0f;
-        bool         stepped     = false;
-        bool         writable    = false;
-        bool         hasOverride = false;
-        RingMode     ringMode    = RingMode::UnipolarFill;
+        float minValue = 0.0f;
+        float maxValue = 1.0f;
+        float value = 0.0f;
+        bool stepped = false;
+        bool writable = false;
+        bool hasOverride = false;
+        RingMode ringMode = RingMode::UnipolarFill;
         std::array<ReferenceMark, 2> marks{};  // scope-coloured reference ticks
     };
 
@@ -46,21 +59,21 @@ namespace lockstep
     // -------------------------------------------------------------------------
     // buildMetaBand — pure builder: fills 8 MetaFieldViews from current state.
     // Lifted verbatim from ManipulationZone::refresh*Sliders.
-    std::array<MetaFieldView, 8> buildMetaBand(MetaBand            band,
-                                               int                 swingScope,
-                                               LockstepProcessor&  proc,
-                                               int                 track,
-                                               const EditContext&  ctx,
-                                               const UiState&      ui);
+    std::array<MetaFieldView, 8> buildMetaBand(MetaBand band,
+                                               int swingScope,
+                                               LockstepProcessor& proc,
+                                               int track,
+                                               const EditContext& ctx,
+                                               const UiState& ui);
 
     // writeMetaField — write-back: apply a slider/encoder delta to the model.
     // Lifted verbatim from ManipulationZone::write*Field.
-    void writeMetaField(MetaBand           band,
-                        int                swingScope,
-                        int                field,
-                        float              value,
+    void writeMetaField(MetaBand band,
+                        int swingScope,
+                        int field,
+                        float value,
                         LockstepProcessor& proc,
-                        int                track,
-                        EditContext&       ctx,
-                        UiState&           ui);
+                        int track,
+                        EditContext& ctx,
+                        UiState& ui);
 }

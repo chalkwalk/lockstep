@@ -5,23 +5,32 @@
 #include "../ui/SurfaceModel.h"
 #include "../io/ControllerEvent.h"
 
-namespace juce { class MidiOutput; class MidiMessage; }
+namespace juce
+{
+    class MidiOutput;
+    class MidiMessage;
+}
 
 namespace lockstep
 {
     // Global-level targets for the three extra encoders that fall outside the
     // per-track manipulation zone (Push 1: Tempo/Swing/Master volume).
-    enum class GlobalTarget : uint8_t { Tempo, Swing, Master };
+    enum class GlobalTarget : uint8_t
+    {
+        Tempo,
+        Swing,
+        Master
+    };
 
     // Thin callback bundle the editor supplies so IControllerSurface::onInput()
     // can push decoded events and param writes without coupling to the editor.
     struct ControllerEventSink
     {
-        std::function<void(ControllerEvent)>                      emitEvent;        // injects into editor dispatch
-        std::function<void(int mzSlot, int rawDelta)>             applyParamDelta;  // encoder delta → MZ slot write
-        std::function<void(int mzSlot)>                           resetSlot;        // double-click reset to default
-        std::function<void(float normValue)>                      setCrossfader;    // sets crossfader to 0..1
-        std::function<void(GlobalTarget target, int rawDelta)>    applyGlobalDelta; // Tempo/Swing/Master encoder
+        std::function<void(ControllerEvent)> emitEvent;        // injects into editor dispatch
+        std::function<void(int mzSlot, int rawDelta)> applyParamDelta;  // encoder delta → MZ slot write
+        std::function<void(int mzSlot)> resetSlot;        // double-click reset to default
+        std::function<void(float normValue)> setCrossfader;    // sets crossfader to 0..1
+        std::function<void(GlobalTarget target, int rawDelta)> applyGlobalDelta; // Tempo/Swing/Master encoder
     };
 
     // Authoring seam for hardware controller surfaces (§35.8.4 / DESIGN §35).

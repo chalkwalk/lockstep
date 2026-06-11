@@ -8,13 +8,13 @@ namespace lockstep
 {
     struct EffectInfo
     {
-        std::string  id;
-        std::string  name;
-        std::string  badge;
+        std::string id;
+        std::string name;
+        std::string badge;
     };
 
     // All effects available for factory creation and display in the picker.
     std::vector<EffectInfo> availableEffects();
-    int                     numAvailableEffects();
-    EffectInfo              availableEffectInfo(int index);
+    int numAvailableEffects();
+    EffectInfo availableEffectInfo(int index);
 }

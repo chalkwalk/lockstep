@@ -10,11 +10,11 @@ namespace lockstep
     // Stored at Project scope so any track in any pattern can recall it.
     struct SoundEntry
     {
-        std::string name      = "Sound";
+        std::string name = "Sound";
         std::string machineId = "lockstep.sampler.v1";
-        ParamFrame  baseParams{};
-        int         samplePoolIndex = -1;  // -1 = no sample (or MIDI-out destination)
-        std::string destinationId   = "";  // for MIDI-out entries
+        ParamFrame baseParams{};
+        int samplePoolIndex = -1;  // -1 = no sample (or MIDI-out destination)
+        std::string destinationId = "";  // for MIDI-out entries
     };
 
     // Project-scope library of SoundEntry bundles.
@@ -23,7 +23,7 @@ namespace lockstep
     {
         std::vector<SoundEntry> entries{};
 
-        [[nodiscard]] int  size()  const { return static_cast<int>(entries.size()); }
+        [[nodiscard]] int size() const { return static_cast<int>(entries.size()); }
         [[nodiscard]] bool empty() const { return entries.empty(); }
 
         const SoundEntry* get(int index) const

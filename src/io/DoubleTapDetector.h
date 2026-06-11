@@ -19,9 +19,8 @@ namespace lockstep
         // tap of a double-tap sequence (same token, within threshold).
         bool recordAndCheck(int token, double nowMs) noexcept
         {
-            const bool isDouble = (token == lastToken_)
-                               && (nowMs - lastTimeMs_) < kThresholdMs;
-            lastToken_  = isDouble ? -1 : token;  // reset after double so triple != two doubles
+            const bool isDouble = (token == lastToken_) && (nowMs - lastTimeMs_) < kThresholdMs;
+            lastToken_ = isDouble ? -1 : token;  // reset after double so triple != two doubles
             lastTimeMs_ = nowMs;
             return isDouble;
         }
@@ -30,7 +29,7 @@ namespace lockstep
         void invalidate() noexcept { lastToken_ = -1; }
 
     private:
-        int    lastToken_  = -1;
+        int lastToken_ = -1;
         double lastTimeMs_ = 0.0;
     };
 }

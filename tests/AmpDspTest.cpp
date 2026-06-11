@@ -50,8 +50,8 @@ namespace lockstep
     {
         TrackAmpState amp;
         amp.gateSrc = 0.0f;         // Envelope mode (gate-following)
-        amp.level   = 1.0f;
-        amp.attack  = 0.0f;         // instant on
+        amp.level = 1.0f;
+        amp.attack = 0.0f;         // instant on
         amp.release = 0.0f;         // instant off so the cut is unambiguous
         // Before the note-off the envelope is open; after it, the source is cut.
         CHECK(feq(ampGainAt(amp, 8, 4), 1.0f),

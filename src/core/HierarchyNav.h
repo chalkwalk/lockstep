@@ -37,13 +37,13 @@ namespace lockstep
                                                     const TrackKit& kit)
     {
         Track t;
-        t.length        = phrase.length;
-        t.divider       = kit.divider;
-        t.baseParams    = kit.baseParams;
-        t.baseCond      = phrase.baseCond;
-        t.trigDefaults  = phrase.trigDefaults;
+        t.length = phrase.length;
+        t.divider = kit.divider;
+        t.baseParams = kit.baseParams;
+        t.baseCond = phrase.baseCond;
+        t.trigDefaults = phrase.trigDefaults;
         t.noteSelection = phrase.noteSelection;
-        t.steps         = phrase.steps;
+        t.steps = phrase.steps;
         return t;
     }
 
@@ -52,18 +52,18 @@ namespace lockstep
     // before any scene/phrase switch is what makes live edits survive.
     inline void applyTrackEditsToPhrase(const Track& src, Phrase& dst) noexcept
     {
-        dst.length        = src.length;
-        dst.baseCond      = src.baseCond;
-        dst.trigDefaults  = src.trigDefaults;
+        dst.length = src.length;
+        dst.baseCond = src.baseCond;
+        dst.trigDefaults = src.trigDefaults;
         dst.noteSelection = src.noteSelection;
-        dst.steps         = src.steps;
-        dst.initialised   = true;
+        dst.steps = src.steps;
+        dst.initialised = true;
     }
 
     // Reverse projection for the Kit-owned fields of a working Track.
     inline void applyTrackBaseToKit(const Track& src, TrackKit& dst)
     {
         dst.baseParams = src.baseParams;
-        dst.divider    = src.divider;
+        dst.divider = src.divider;
     }
 }

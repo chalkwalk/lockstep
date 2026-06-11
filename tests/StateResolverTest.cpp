@@ -22,7 +22,7 @@ namespace lockstep
 
         // stepIndex < 0 → pure base, no overrides consulted.
         const auto f = StateResolver::resolve(t, -1, false);
-        CHECK(f.size() == 3,                "base-only: frame keeps base size");
+        CHECK(f.size() == 3, "base-only: frame keeps base size");
         CHECK(feq(f[0], 0.1f) && feq(f[1], 0.2f) && feq(f[2], 0.3f),
               "base-only: values equal baseParams");
     }
@@ -63,19 +63,19 @@ namespace lockstep
     static void testResolveTrigDefaultsAndOverride()
     {
         Track t;
-        t.trigDefaults.note     = 60;
+        t.trigDefaults.note = 60;
         t.trigDefaults.velocity = 100;
 
         // No override → defaults.
         const auto d = StateResolver::resolveTrig(t, 0, false);
         CHECK(d.noteCount == 1 && d.notes[0] == 60, "trig: default note from trigDefaults");
-        CHECK(d.velocity == 100,                     "trig: default velocity from trigDefaults");
+        CHECK(d.velocity == 100, "trig: default velocity from trigDefaults");
 
         // Note + velocity override.
         t.steps[0].trigOverride.noteCount = 2;
-        t.steps[0].trigOverride.notes     = { 64, 67, 0, 0 };
+        t.steps[0].trigOverride.notes = { 64, 67, 0, 0 };
         t.steps[0].trigOverride.hasVelocity = true;
-        t.steps[0].trigOverride.velocity    = 80;
+        t.steps[0].trigOverride.velocity = 80;
         const auto o = StateResolver::resolveTrig(t, 0, false);
         CHECK(o.noteCount == 2 && o.notes[0] == 64 && o.notes[1] == 67,
               "trig: chord override replaces default note");
@@ -86,10 +86,10 @@ namespace lockstep
     {
         Track t;
         t.trigDefaults.note = 60;
-        t.steps[0].trigOverride.noteCount     = 1;
-        t.steps[0].trigOverride.notes         = { 62, 0, 0, 0 };
+        t.steps[0].trigOverride.noteCount = 1;
+        t.steps[0].trigOverride.notes = { 62, 0, 0, 0 };
         t.steps[0].fillTrigOverride.noteCount = 1;
-        t.steps[0].fillTrigOverride.notes     = { 72, 0, 0, 0 };
+        t.steps[0].fillTrigOverride.notes = { 72, 0, 0, 0 };
 
         const auto noFill = StateResolver::resolveTrig(t, 0, false);
         CHECK(noFill.notes[0] == 62, "trig fill off: base trig override note");

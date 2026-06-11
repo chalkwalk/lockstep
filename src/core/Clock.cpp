@@ -8,11 +8,11 @@ namespace lockstep
 
     void Clock::prepare(double sampleRate)
     {
-        sampleRate_    = sampleRate;
-        localPpq_      = 0.0;
+        sampleRate_ = sampleRate;
+        localPpq_ = 0.0;
         ppqBlockStart_ = 0.0;
-        ppqBlockEnd_   = 0.0;
-        ppqJumped_     = false;
+        ppqBlockEnd_ = 0.0;
+        ppqJumped_ = false;
         ppqUi_.store(0, std::memory_order_relaxed);
     }
 
@@ -68,15 +68,14 @@ namespace lockstep
             else
             {
                 // No MIDI clock (or freewheel / Locked dropout): synthesise from localBpm_.
-                bpm_           = localBpm_;
+                bpm_ = localBpm_;
                 ppqBlockStart_ = localPpq_;
                 if (inPluginPlaying_.load(std::memory_order_relaxed) && sampleRate_ > 0.0)
                     localPpq_ += static_cast<double>(blockSize) * bpm_ / (sampleRate_ * 60.0);
             }
         }
 
-        ppqBlockEnd_ = ppqBlockStart_
-            + static_cast<double>(blockSize) * bpm_ / (sampleRate_ * 60.0);
+        ppqBlockEnd_ = ppqBlockStart_ + static_cast<double>(blockSize) * bpm_ / (sampleRate_ * 60.0);
 
         if (ppqBlockStart_ < prevBlockEnd - 1e-6)
             ppqJumped_ = true;
@@ -90,15 +89,15 @@ namespace lockstep
     void Clock::setLocalBpm(double bpm)
     {
         localBpm_ = std::max(1.0, bpm);
-        bpm_      = localBpm_;
+        bpm_ = localBpm_;
     }
 
     void Clock::resetPhase()
     {
-        localPpq_      = 0.0;
+        localPpq_ = 0.0;
         ppqBlockStart_ = 0.0;
-        ppqBlockEnd_   = 0.0;
-        ppqJumped_     = true;
+        ppqBlockEnd_ = 0.0;
+        ppqJumped_ = true;
         ppqUi_.store(0, std::memory_order_relaxed);
     }
 

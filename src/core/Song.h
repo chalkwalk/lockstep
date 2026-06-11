@@ -8,9 +8,9 @@
 
 namespace lockstep
 {
-    inline constexpr int kNumSongs       = 16;
+    inline constexpr int kNumSongs = 16;
     inline constexpr int kScenesPerSong = 16;
-    inline constexpr int kPhrasesPerTrack  = 16;
+    inline constexpr int kPhrasesPerTrack = 16;
 
     // A song.  Holds per-track Lanes (kit + phrase pool) and Sections.
     // Phase 7 / DESIGN §4.7.  Replaces Bank.
@@ -26,7 +26,7 @@ namespace lockstep
             float swing = 0.0f;
         };
 
-        std::array<SongTrack,    kNumTracks>        tracks{};
+        std::array<SongTrack, kNumTracks> tracks{};
         std::array<Scene, kScenesPerSong> scenes{};
         // Song-wide base swing (DESIGN §19.2). The "conductor" gesture — applies to all tracks.
         float swing = 0.0f;

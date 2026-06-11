@@ -19,7 +19,7 @@ namespace lockstep
 
     // Map CellState + playhead decoration to one of three legal LED velocities.
     uint8_t XTouchMiniSurface::cellStateToVelocity(CellState state,
-                                                     const CellDecoration& border) noexcept
+                                                   const CellDecoration& border) noexcept
     {
         // Playhead cursor: flash, regardless of trig state.
         if (border.present && border.token == CellState::StepPlayhead)
@@ -38,12 +38,12 @@ namespace lockstep
         // --- Encoder turns: CC 16-23 ---
         if (msg.isController())
         {
-            const int cc  = msg.getControllerNumber();
+            const int cc = msg.getControllerNumber();
             const int val = msg.getControllerValue();
 
             if (cc >= kEncoderCCBase && cc < kEncoderCCBase + 8)
             {
-                const int slot  = cc - kEncoderCCBase;
+                const int slot = cc - kEncoderCCBase;
                 const int delta = decodeDelta(val);
                 if (delta != 0 && sink.applyParamDelta)
                     sink.applyParamDelta(slot, delta);
@@ -54,7 +54,7 @@ namespace lockstep
         // --- Note events: pushes, grid buttons, layer A/B ---
         if (msg.isNoteOnOrOff())
         {
-            const int  note   = msg.getNoteNumber();
+            const int note = msg.getNoteNumber();
             const bool isDown = (msg.getVelocity() > 0);
 
             // Encoder pushes: Note 32-39.
@@ -62,8 +62,8 @@ namespace lockstep
             {
                 if (isDown)
                 {
-                    const int  enc = note - kEncoderPushBase;
-                    const auto ei  = static_cast<std::size_t>(enc);
+                    const int enc = note - kEncoderPushBase;
+                    const auto ei = static_cast<std::size_t>(enc);
                     const bool dbl = encoderDoubleTap_[ei].recordAndCheck(
                         enc, static_cast<double>(juce::Time::currentTimeMillis()));
                     if (dbl && sink.resetSlot)
@@ -104,7 +104,7 @@ namespace lockstep
         {
             constexpr float kFaderTop = 16256.0f;
             const float norm = juce::jlimit(0.0f, 1.0f,
-                                             static_cast<float>(msg.getPitchWheelValue()) / kFaderTop);
+                                            static_cast<float>(msg.getPitchWheelValue()) / kFaderTop);
             if (sink.setCrossfader)
                 sink.setCrossfader(norm);
         }
@@ -117,7 +117,7 @@ namespace lockstep
         {
             const auto& cell = model.step[static_cast<std::size_t>(step)];
             const uint8_t vel = cellStateToVelocity(cell.base, cell.border);
-            const auto    idx = static_cast<std::size_t>(step);
+            const auto idx = static_cast<std::size_t>(step);
 
             if (vel != ledShadow_[idx])
             {
@@ -129,9 +129,7 @@ namespace lockstep
 
         // --- Layer A / B LEDs (indices 16, 17 in shadow) ---
         auto sendButton = [&](int shadowIdx, int note, CellState state) {
-            const uint8_t vel = (state == CellState::ModeActive
-                                 || state == CellState::SelectorCurrent
-                                 || state == CellState::Pressed) ? 127u : 0u;
+            const uint8_t vel = (state == CellState::ModeActive || state == CellState::SelectorCurrent || state == CellState::Pressed) ? 127u : 0u;
             const auto si = static_cast<std::size_t>(shadowIdx);
             if (vel != ledShadow_[si])
             {
@@ -148,7 +146,7 @@ namespace lockstep
         // fills from the processor via OEB resolution. No direct proc_ access needed.
         for (int enc = 0; enc < 8; ++enc)
         {
-            const auto ri   = static_cast<std::size_t>(enc);
+            const auto ri = static_cast<std::size_t>(enc);
             const auto& slot = model.slots[ri];
 
             if (!slot.inRange)

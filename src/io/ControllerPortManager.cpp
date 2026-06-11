@@ -4,9 +4,8 @@
 namespace lockstep
 {
     ControllerPortManager::ControllerPortManager(juce::String nameSubstring,
-                                                   juce::String fallbackSubstring)
-        : nameSubstring_(std::move(nameSubstring))
-        , fallbackSubstring_(std::move(fallbackSubstring))
+                                                 juce::String fallbackSubstring)
+        : nameSubstring_(std::move(nameSubstring)), fallbackSubstring_(std::move(fallbackSubstring))
     {
         tryOpen();
         startTimerHz(1);
@@ -20,7 +19,7 @@ namespace lockstep
 
     // MIDI thread — push into FIFO only; no UI/param access.
     void ControllerPortManager::handleIncomingMidiMessage(juce::MidiInput*,
-                                                           const juce::MidiMessage& msg)
+                                                          const juce::MidiMessage& msg)
     {
         int s1, n1, s2, n2;
         fifo_.prepareToWrite(1, s1, n1, s2, n2);
@@ -32,8 +31,8 @@ namespace lockstep
     }
 
     void ControllerPortManager::drain(IControllerSurface& surface,
-                                       ControllerEventSink& sink,
-                                       const SurfaceModel& model)
+                                      ControllerEventSink& sink,
+                                      const SurfaceModel& model)
     {
         // Fire onConnect once per successful open (and on each hotplug reconnect).
         if (justOpened_ && midiOut_)
@@ -85,8 +84,7 @@ namespace lockstep
         // of "…User Port" for the Push 1's second port).
         auto tryMatch = [](const juce::String& name,
                            const juce::String& primary,
-                           const juce::String& fallback) -> bool
-        {
+                           const juce::String& fallback) -> bool {
             if (name.containsIgnoreCase(primary)) return true;
             return !fallback.isEmpty() && name.containsIgnoreCase(fallback);
         };

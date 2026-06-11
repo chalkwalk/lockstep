@@ -20,7 +20,7 @@ namespace lockstep
     static void paceMidi() noexcept
     {
         const auto wait = juce::Time::getHighResolutionTicksPerSecond() / 5000;  // ~200 us
-        const auto end  = juce::Time::getHighResolutionTicks() + wait;
+        const auto end = juce::Time::getHighResolutionTicks() + wait;
         while (juce::Time::getHighResolutionTicks() < end) { /* spin */ }
     }
 
@@ -43,15 +43,15 @@ namespace lockstep
     // =========================================================================
 
     void Push1Surface::sendSysEx(juce::MidiOutput& out,
-                                  std::initializer_list<uint8_t> payload)
+                                 std::initializer_list<uint8_t> payload)
     {
         juce::MemoryBlock block;
         for (auto b : kPush1Header) block.append(&b, 1);
-        for (auto b : payload)      block.append(&b, 1);
+        for (auto b : payload) block.append(&b, 1);
         const uint8_t eox = 0xF7;
         block.append(&eox, 1);
         sendPaced(out, juce::MidiMessage(block.getData(),
-                                              static_cast<int>(block.getSize())));
+                                         static_cast<int>(block.getSize())));
     }
 
     void Push1Surface::sendModeChange(juce::MidiOutput& out, uint8_t mode)
@@ -67,7 +67,7 @@ namespace lockstep
     }
 
     void Push1Surface::writeDisplayLine(juce::MidiOutput& out, int line,
-                                         const juce::String& text)
+                                        const juce::String& text)
     {
         // F0 47 7F 15 <0x18+line> 00 45 00 <68 ASCII bytes> F7
         jassert(line >= 0 && line <= 3);
@@ -83,14 +83,14 @@ namespace lockstep
         for (int i = 0; i < 68; ++i)
         {
             const uint8_t ch = (i < text.length())
-                ? static_cast<uint8_t>(text[i] & 0x7F)
-                : static_cast<uint8_t>(' ');
+                                   ? static_cast<uint8_t>(text[i] & 0x7F)
+                                   : static_cast<uint8_t>(' ');
             block.append(&ch, 1);
         }
         const uint8_t eox = 0xF7;
         block.append(&eox, 1);
         sendPaced(out, juce::MidiMessage(block.getData(),
-                                              static_cast<int>(block.getSize())));
+                                         static_cast<int>(block.getSize())));
     }
 
     void Push1Surface::clearDisplay(juce::MidiOutput& out)
@@ -156,12 +156,10 @@ namespace lockstep
                 if (isDown)
                 {
                     const juce::int64 now = juce::Time::currentTimeMillis();
-                    const bool isDoubleTap = (!ts.touching)
-                        && ((now - ts.touchMs) < kDoubleTapMs)
-                        && !ts.turned;
+                    const bool isDoubleTap = (!ts.touching) && ((now - ts.touchMs) < kDoubleTapMs) && !ts.turned;
                     ts.touching = true;
-                    ts.turned   = false;
-                    ts.touchMs  = now;
+                    ts.turned = false;
+                    ts.touchMs = now;
                     if (isDoubleTap && sink.resetSlot)
                         sink.resetSlot(note);
                 }
@@ -178,11 +176,10 @@ namespace lockstep
                 if (note == kModifierNotes[static_cast<std::size_t>(i)])
                 {
                     if (sink.emitEvent)
-                        sink.emitEvent({
-                            isDown ? ControllerEvent::Type::ButtonDown
-                                   : ControllerEvent::Type::ButtonUp,
-                            kModifierButtons[static_cast<std::size_t>(i)],
-                            -1, 0 });
+                        sink.emitEvent({ isDown ? ControllerEvent::Type::ButtonDown
+                                                : ControllerEvent::Type::ButtonUp,
+                                         kModifierButtons[static_cast<std::size_t>(i)],
+                                         -1, 0 });
                     return;
                 }
             }
@@ -196,29 +193,26 @@ namespace lockstep
                     // TAP (note 60) — momentary. Emit ButtonUp on release too, or
                     // the press is never cleared and the pad stays lit after a tap.
                     if (sink.emitEvent)
-                        sink.emitEvent({
-                            isDown ? ControllerEvent::Type::ButtonDown
-                                   : ControllerEvent::Type::ButtonUp,
-                            ControllerButton::TapTempo, -1, 0 });
+                        sink.emitEvent({ isDown ? ControllerEvent::Type::ButtonDown
+                                                : ControllerEvent::Type::ButtonUp,
+                                         ControllerButton::TapTempo, -1, 0 });
                     return;
                 }
                 if (col == 1)
                 {
                     // NavUp (note 61)
                     if (sink.emitEvent)
-                        sink.emitEvent({
-                            isDown ? ControllerEvent::Type::ButtonDown
-                                   : ControllerEvent::Type::ButtonUp,
-                            ControllerButton::NavUp, -1, 0 });
+                        sink.emitEvent({ isDown ? ControllerEvent::Type::ButtonDown
+                                                : ControllerEvent::Type::ButtonUp,
+                                         ControllerButton::NavUp, -1, 0 });
                     return;
                 }
                 // Sections 0-5 on notes 62-67
                 const int sectionIdx = col - 2;
                 if (sectionIdx >= 0 && sectionIdx <= 5 && sink.emitEvent)
-                    sink.emitEvent({
-                        isDown ? ControllerEvent::Type::ButtonDown
-                               : ControllerEvent::Type::ButtonUp,
-                        ControllerButton::Section, sectionIdx, 0 });
+                    sink.emitEvent({ isDown ? ControllerEvent::Type::ButtonDown
+                                            : ControllerEvent::Type::ButtonUp,
+                                     ControllerButton::Section, sectionIdx, 0 });
                 return;
             }
 
@@ -227,10 +221,9 @@ namespace lockstep
             {
                 const int col = note - 52;
                 if (sink.emitEvent)
-                    sink.emitEvent({
-                        isDown ? ControllerEvent::Type::ButtonDown
-                               : ControllerEvent::Type::ButtonUp,
-                        kVerbRowButtons[static_cast<std::size_t>(col)], -1, 0 });
+                    sink.emitEvent({ isDown ? ControllerEvent::Type::ButtonDown
+                                            : ControllerEvent::Type::ButtonUp,
+                                     kVerbRowButtons[static_cast<std::size_t>(col)], -1, 0 });
                 return;
             }
 
@@ -242,11 +235,10 @@ namespace lockstep
                 if (note == kStepNotes[static_cast<std::size_t>(s)])
                 {
                     if (sink.emitEvent)
-                        sink.emitEvent({
-                            isDown ? ControllerEvent::Type::ButtonDown
-                                   : ControllerEvent::Type::ButtonUp,
-                            ControllerButton::Step, s, 0,
-                            isDown ? msg.getVelocity() : 0 });
+                        sink.emitEvent({ isDown ? ControllerEvent::Type::ButtonDown
+                                                : ControllerEvent::Type::ButtonUp,
+                                         ControllerButton::Step, s, 0,
+                                         isDown ? msg.getVelocity() : 0 });
                     return;
                 }
             }
@@ -273,7 +265,7 @@ namespace lockstep
         // -----------------------------------------------------------------
         else if (msg.isController())
         {
-            const int cc  = msg.getControllerNumber();
+            const int cc = msg.getControllerNumber();
             const int val = msg.getControllerValue();
 
             // Param encoders CC 71-78 (turns)
@@ -320,10 +312,9 @@ namespace lockstep
                 if (cc == entry.cc)
                 {
                     if (sink.emitEvent)
-                        sink.emitEvent({
-                            (val == 127) ? ControllerEvent::Type::ButtonDown
-                                         : ControllerEvent::Type::ButtonUp,
-                            entry.button, -1, 0 });
+                        sink.emitEvent({ (val == 127) ? ControllerEvent::Type::ButtonDown
+                                                      : ControllerEvent::Type::ButtonUp,
+                                         entry.button, -1, 0 });
                     return;
                 }
             }
@@ -398,8 +389,7 @@ namespace lockstep
     {
         using S = CellState;
         if (c.pressed) return pidx::kWhite;
-        if (c.base == S::StepHeld
-            || (c.border.present && c.border.token == S::StepHeld))
+        if (c.base == S::StepHeld || (c.border.present && c.border.token == S::StepHeld))
             return pidx::kWhite;
         if (c.border.present && c.border.token == S::StepPlayhead)
             return pidx::kAmber;
@@ -472,9 +462,9 @@ namespace lockstep
                 return pidx::kGreyDim;
 
             case ControllerButton::Section:
-                if (c.baseColour == kScopeMachine)  return pidx::kLime;
+                if (c.baseColour == kScopeMachine) return pidx::kLime;
                 if (c.baseColour == kScopeNoteEdit) return pidx::kAzure;
-                if (c.baseColour == 0xFF404010u)    return pidx::kGoldDk;  // master-active
+                if (c.baseColour == 0xFF404010u) return pidx::kGoldDk;  // master-active
                 return active ? pidx::kTeal : pidx::kTealDk;
 
             default:
@@ -488,7 +478,7 @@ namespace lockstep
     uint8_t Push1Surface::rgbPaletteFor(const SurfaceCell& cell) noexcept
     {
         return cell.button == ControllerButton::Step ? stepGridIndex(cell)
-                                                      : keyIndex(cell);
+                                                     : keyIndex(cell);
     }
 
     // Maps a CellState to a bi-colour value 0-24 for upper/scene buttons.
@@ -497,15 +487,15 @@ namespace lockstep
     {
         switch (state)
         {
-            case CellState::ModeActive:         return 22;  // green hi
-            case CellState::Pressed:            return 22;  // green hi
-            case CellState::SelectorCurrent:    return 22;  // green hi
-            case CellState::SelectorOccupied:   return 19;  // green lo
-            case CellState::MuteAudible:        return 22;  // green hi
-            case CellState::MuteMuted:          return 4;   // red hi
-            case CellState::StepTrigCertain:    return 22;  // green hi
-            case CellState::StepFillAdd:        return 10;  // orange hi
-            default:                            return 0;   // off
+            case CellState::ModeActive:       return 22;  // green hi
+            case CellState::Pressed:          return 22;  // green hi
+            case CellState::SelectorCurrent:  return 22;  // green hi
+            case CellState::SelectorOccupied: return 19;  // green lo
+            case CellState::MuteAudible:      return 22;  // green hi
+            case CellState::MuteMuted:        return 4;   // red hi
+            case CellState::StepTrigCertain:  return 22;  // green hi
+            case CellState::StepFillAdd:      return 10;  // orange hi
+            default:                          return 0;   // off
         }
     }
 
@@ -514,10 +504,10 @@ namespace lockstep
     {
         switch (state)
         {
-            case CellState::ModeActive:  return 4;
-            case CellState::Pressed:     return 4;
-            case CellState::Disabled:    return 0;
-            default:                     return 1;   // Resting and anything else: dim
+            case CellState::ModeActive: return 4;
+            case CellState::Pressed:    return 4;
+            case CellState::Disabled:   return 0;
+            default:                    return 1;   // Resting and anything else: dim
         }
     }
 
@@ -540,14 +530,13 @@ namespace lockstep
     static juce::String buildBar(float position, RingMode mode, int width) noexcept
     {
         position = juce::jlimit(0.0f, 1.0f, position);
-        const juce::juce_wchar full  =
+        const juce::juce_wchar full =
             kUseBlockGlyphs ? static_cast<juce::juce_wchar>(0x06)
                             : static_cast<juce::juce_wchar>('#');
         const juce::juce_wchar blank = ' ';
 
         // Sub-char leading-edge glyph for the fractional fill (block mode only).
-        auto partial = [&](float frac) -> juce::juce_wchar
-        {
+        auto partial = [&](float frac) -> juce::juce_wchar {
             if (!kUseBlockGlyphs) return blank;
             const int q = juce::jlimit(0, 3, static_cast<int>(frac * 4.0f));  // 0..3
             if (q <= 0) return blank;
@@ -558,7 +547,7 @@ namespace lockstep
         if (mode == RingMode::Dot)
         {
             const int pos = juce::jlimit(0, width - 1,
-                static_cast<int>(position * static_cast<float>(width - 1) + 0.5f));
+                                         static_cast<int>(position * static_cast<float>(width - 1) + 0.5f));
             for (int i = 0; i < width; ++i)
                 bar += (i == pos) ? full : blank;
             return bar;
@@ -577,13 +566,13 @@ namespace lockstep
         }
         // UnipolarFill — fill from the left, with a sub-char leading edge.
         const float filled = position * static_cast<float>(width);
-        const int   fullCount = static_cast<int>(filled);
+        const int fullCount = static_cast<int>(filled);
         const float frac = filled - static_cast<float>(fullCount);
         for (int i = 0; i < width; ++i)
         {
-            if (i < fullCount)        bar += full;
-            else if (i == fullCount)  bar += partial(frac);
-            else                      bar += blank;
+            if (i < fullCount) bar += full;
+            else if (i == fullCount) bar += partial(frac);
+            else bar += blank;
         }
         return bar;
     }
@@ -612,7 +601,7 @@ namespace lockstep
         // Section row (row 4: notes 60-67)
         // note 60 = TAP, note 61 = NavUp, notes 62-67 = sections 0-5
         {
-            const auto& tap  = model.tap;
+            const auto& tap = model.tap;
             const uint8_t tapC = rgbPaletteFor(tap);
             const auto si60 = static_cast<std::size_t>(60 - 36);
             if (tapC != padShadow_[si60])
@@ -622,7 +611,7 @@ namespace lockstep
             }
         }
         {
-            const auto& nav  = model.navUp;
+            const auto& nav = model.navUp;
             const uint8_t navC = rgbPaletteFor(nav);
             const auto si61 = static_cast<std::size_t>(61 - 36);
             if (navC != padShadow_[si61])
@@ -692,7 +681,7 @@ namespace lockstep
 
         // --- Upper display buttons (CC 20-27) — bi-colour ---
         // Map to function row (Q-row items).
-        static constexpr std::array<int, 8> kUpperRowFn = { 0,1,2,3,4,5,6,7 };
+        static constexpr std::array<int, 8> kUpperRowFn = { 0, 1, 2, 3, 4, 5, 6, 7 };
         for (int i = 0; i < 8; ++i)
         {
             const auto& cell = model.functionRow[static_cast<std::size_t>(kUpperRowFn[static_cast<std::size_t>(i)])];
@@ -754,8 +743,7 @@ namespace lockstep
         //    ←── display 0 ──→  ←── display 1 ──→   ←── display 2 ──→   ←── display 3 ──→
         // Per encoder (8×4 chars): row0 = value bar, row1 = value text,
         // row2 = section name, row3 = param name.
-        auto buildLine = [&](auto&& cellFn) -> juce::String
-        {
+        auto buildLine = [&](auto&& cellFn) -> juce::String {
             juce::String line;
             line.preallocateBytes(72);
             for (int enc = 0; enc < 8; ++enc)

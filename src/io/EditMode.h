@@ -31,19 +31,19 @@ namespace lockstep
         struct ScopeState
         {
             // Column 1 (1/Q/A/Z):
-            bool func    = false;  // key 1
-            bool phrase  = false;  // key Q
-            bool morph   = false;  // key A (§17)
-            bool mute    = false;  // key Z
+            bool func = false;  // key 1
+            bool phrase = false;  // key Q
+            bool morph = false;  // key A (§17)
+            bool mute = false;  // key Z
             // Column 2 (2/W/S/X):
-            bool track   = false;  // key 2: Control-All if no trig held
-            bool scene   = false;  // key W (§4.7) — Scene launch / re-sync
-            bool song    = false;  // key S (§32.3; Func+Song = Global)
-            bool fill    = false;  // key X
+            bool track = false;  // key 2: Control-All if no trig held
+            bool scene = false;  // key W (§4.7) — Scene launch / re-sync
+            bool song = false;  // key S (§32.3; Func+Song = Global)
+            bool fill = false;  // key X
             // Reserved for MU (Cue bus) — no key bound:
-            bool cue     = false;
+            bool cue = false;
             // Set externally from EditContext / section holds:
-            bool trig    = false;  // at least one step is held
+            bool trig = false;  // at least one step is held
         };
 
         // The primary scope determines what the next verb operates on.
@@ -63,8 +63,8 @@ namespace lockstep
             Section,  // a section key is held (set externally when section held)
         };
 
-        [[nodiscard]] const ScopeState&  scopeState()   const { return scope_; }
-        [[nodiscard]] PrimaryScope       primaryScope() const { return primary_; }
+        [[nodiscard]] const ScopeState& scopeState() const { return scope_; }
+        [[nodiscard]] PrimaryScope primaryScope() const { return primary_; }
 
         // Returns true when a cross-column compound scope is active (one col-1 modifier
         // AND one col-2 modifier held simultaneously, excluding Func which is universal).
@@ -94,9 +94,9 @@ namespace lockstep
         std::function<void(PrimaryScope, ControllerButton)> onVerbDispatched;
 
     private:
-        ScopeState   scope_;
+        ScopeState scope_;
         PrimaryScope primary_ = PrimaryScope::None;
-        bool         sectionHeld_ = false;
+        bool sectionHeld_ = false;
 
         void recomputePrimary();
         // Maps a PrimaryScope value to the corresponding held flag.

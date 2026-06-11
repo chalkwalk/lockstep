@@ -39,9 +39,9 @@ namespace lockstep
         // resolves the tie (TopBias rounds upward, BottomBias rounds downward).
         // For K == 1 the bias picks top (TopBias) or bottom (BottomBias).
         static void pickSpreadNotes(const std::array<int, kMaxNotesPerStep>& sortedAsc,
-                                     int N, int K, NoteSelection bias,
-                                     std::array<int, kMaxNotesPerStep>& out,
-                                     int& outCount)
+                                    int N, int K, NoteSelection bias,
+                                    std::array<int, kMaxNotesPerStep>& out,
+                                    int& outCount)
         {
             outCount = 0;
             if (N <= 0 || K <= 0) return;
@@ -73,17 +73,22 @@ namespace lockstep
                     const int num = j * (N - 1);
                     const int den = K - 1;
                     const int floorIdx = num / den;
-                    const int rem      = num - floorIdx * den;
+                    const int rem = num - floorIdx * den;
                     int chosen = floorIdx;
                     if (rem != 0)
                     {
                         // bias the rounding: TopBias rounds up, BottomBias rounds down.
                         if (bias == NoteSelection::TopBias) chosen = floorIdx + 1;
-                        else                                 chosen = floorIdx;
+                        else chosen = floorIdx;
                     }
                     // Deduplicate against already-picked indices (rare, defensive).
                     bool dup = false;
-                    for (int k = 0; k < count; ++k) if (idx[static_cast<std::size_t>(k)] == chosen) { dup = true; break; }
+                    for (int k = 0; k < count; ++k)
+                        if (idx[static_cast<std::size_t>(k)] == chosen)
+                        {
+                            dup = true;
+                            break;
+                        }
                     if (!dup) idx[static_cast<std::size_t>(count++)] = chosen;
                 }
             }
@@ -108,16 +113,16 @@ namespace lockstep
         for (auto& s : mzSlots_)
             s.store(-1, std::memory_order_relaxed);
 
-        syncModeParam_    = apvts_.getRawParameterValue(ParamIDs::syncMode);
+        syncModeParam_ = apvts_.getRawParameterValue(ParamIDs::syncMode);
         channelModeParam_ = apvts_.getRawParameterValue(ParamIDs::channelMode);
 
         for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
         {
             const auto ti = static_cast<std::size_t>(t);
-            trackLengthParams_[ti]  = apvts_.getRawParameterValue(ParamIDs::trackLength(t));
+            trackLengthParams_[ti] = apvts_.getRawParameterValue(ParamIDs::trackLength(t));
             trackDividerParams_[ti] = apvts_.getRawParameterValue(ParamIDs::trackDivider(t));
-            trackMuteParams_[ti]    = apvts_.getRawParameterValue(ParamIDs::trackMute(t));
-            trackSoloParams_[ti]    = apvts_.getRawParameterValue(ParamIDs::trackSolo(t));
+            trackMuteParams_[ti] = apvts_.getRawParameterValue(ParamIDs::trackMute(t));
+            trackSoloParams_[ti] = apvts_.getRawParameterValue(ParamIDs::trackSolo(t));
         }
 
         // T0 starts as a sampler; T1–T15 are stub (empty) until materialised.
@@ -127,13 +132,13 @@ namespace lockstep
             machines_[t] = std::make_unique<StubMachine>("");
 
         // Verify the state upgrade chain every time the plugin loads in debug mode.
-       #if JUCE_DEBUG
+#if JUCE_DEBUG
         {
             juce::UnitTestRunner runner;
             runner.setAssertOnFailure(false);
             runner.runTestsInCategory("PluginState");
         }
-       #endif
+#endif
 
         // Seed Song[0]: Track[0] kit = sampler with default params, T1-T15 = stub.
         {
@@ -171,15 +176,15 @@ namespace lockstep
     {
         for (int i = 0; i < 4; ++i)
             mzSlots_[static_cast<std::size_t>(i)].store(slotOffset + i,
-                                                         std::memory_order_relaxed);
+                                                        std::memory_order_relaxed);
     }
 
     void LockstepProcessor::startLearn(CCScope scope, int trackIndex,
-                                        int slot, int mzPosition)
+                                       int slot, int mzPosition)
     {
-        learnRequest_.scope      = scope;
+        learnRequest_.scope = scope;
         learnRequest_.trackIndex = trackIndex;
-        learnRequest_.slot       = slot;
+        learnRequest_.slot = slot;
         learnRequest_.mzPosition = mzPosition;
         learnActive_.store(true, std::memory_order_release);
     }
@@ -201,7 +206,7 @@ namespace lockstep
                                         stagedSwap_.deviated,
                                         stagedSwap_.deviationPhraseIdx);
         stagedSwap_.sceneIdx = sectionIdx;
-        stagedSwap_.toFloor  = toFloor;
+        stagedSwap_.toFloor = toFloor;
         stagedSwapReady_.store(true, std::memory_order_release);
         queuedSceneToFloor_.store(toFloor, std::memory_order_release);
         queuedSceneIdx_.store(sectionIdx, std::memory_order_release);
@@ -229,8 +234,7 @@ namespace lockstep
         {
             if (m.scope == CCScope::Contextual && m.mzPosition == mzPosition)
                 return { true, CCScope::Contextual, -1, m.slot, m.mzPosition, m.ccNumber };
-            if ((m.scope == CCScope::Track || m.scope == CCScope::SelectedTrack)
-                && m.slot == slot)
+            if ((m.scope == CCScope::Track || m.scope == CCScope::SelectedTrack) && m.slot == slot)
                 return { true, m.scope, m.trackIndex, m.slot, -1, m.ccNumber };
         }
         return {};
@@ -239,7 +243,7 @@ namespace lockstep
     void LockstepProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     {
         preparedSampleRate_ = sampleRate;
-        preparedBlockSize_  = samplesPerBlock;
+        preparedBlockSize_ = samplesPerBlock;
 
         clock_.prepare(sampleRate);
         metronome_.prepare(sampleRate);
@@ -264,13 +268,21 @@ namespace lockstep
             amp.prepare(sampleRate);
         for (auto& ins : trackInserts_)
             for (auto& eff : ins)
-                if (eff) { eff->prepare(sampleRate, samplesPerBlock); eff->reset(); }
+                if (eff)
+                {
+                    eff->prepare(sampleRate, samplesPerBlock);
+                    eff->reset();
+                }
         for (auto& eff : masterInserts_)
-            if (eff) { eff->prepare(sampleRate, samplesPerBlock); eff->reset(); }
+            if (eff)
+            {
+                eff->prepare(sampleRate, samplesPerBlock);
+                eff->reset();
+            }
         for (auto& pnf : pendingNoteOffs_)
         {
             pnf.samplesRemaining = -1;
-            pnf.openEnded        = false;
+            pnf.openEnded = false;
         }
         firedStepIdx_.fill(-1);
         lastScheduledStepNum_.fill(-1);
@@ -299,8 +311,7 @@ namespace lockstep
     bool LockstepProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
     {
         const auto& mainOut = layouts.getMainOutputChannelSet();
-        return mainOut == juce::AudioChannelSet::stereo()
-            || mainOut == juce::AudioChannelSet::mono();
+        return mainOut == juce::AudioChannelSet::stereo() || mainOut == juce::AudioChannelSet::mono();
     }
 
     void LockstepProcessor::processBlock(juce::AudioBuffer<float>& buffer,
@@ -308,7 +319,7 @@ namespace lockstep
     {
         juce::ScopedNoDenormals noDenormals;
 
-        const auto totalIn  = getTotalNumInputChannels();
+        const auto totalIn = getTotalNumInputChannels();
         const auto totalOut = getTotalNumOutputChannels();
         for (int ch = totalIn; ch < totalOut; ++ch)
             buffer.clear(ch, 0, buffer.getNumSamples());
@@ -359,10 +370,10 @@ namespace lockstep
         Clock::MidiClockInput midiClockIn;
         if (isStandalone && mcBlock.hasClock && mcBlock.running && !mcBlock.dropout)
         {
-            midiClockIn.active   = true;
+            midiClockIn.active = true;
             midiClockIn.ppqStart = mcBlock.ppqStart;
-            midiClockIn.ppqEnd   = mcBlock.ppqEnd;
-            midiClockIn.bpm      = mcBlock.bpm;
+            midiClockIn.ppqEnd = mcBlock.ppqEnd;
+            midiClockIn.bpm = mcBlock.bpm;
         }
         clock_.update(isStandalone ? nullptr : getPlayHead(),
                       buffer.getNumSamples(), midiClockIn);
@@ -440,9 +451,9 @@ namespace lockstep
 
         // ---- PPQ window for step detection --------------------------------
         // In Auto mode, offset PPQ by the anchor so step 0 aligns with Play press.
-        const double ppqOffset     = (mode == SyncMode::Auto) ? anchorPpq_ : 0.0;
-        const double blockStart    = clock_.ppqAtBlockStart() - ppqOffset;
-        const double blockEnd      = clock_.ppqAtBlockEnd()   - ppqOffset;
+        const double ppqOffset = (mode == SyncMode::Auto) ? anchorPpq_ : 0.0;
+        const double blockStart = clock_.ppqAtBlockStart() - ppqOffset;
+        const double blockEnd = clock_.ppqAtBlockEnd() - ppqOffset;
         const double samplesPerPpq = clock_.samplesPerPpq();
 
         // If the DAW looped or the user hit Reset, snap all per-track cursors
@@ -460,7 +471,7 @@ namespace lockstep
             for (auto& pnf : pendingNoteOffs_)
             {
                 pnf.samplesRemaining = -1;
-                pnf.openEnded        = false;
+                pnf.openEnded = false;
             }
             for (auto& pt : pendingTrigs_) pt.pending = false;
             firedStepIdx_.fill(-1);
@@ -474,19 +485,19 @@ namespace lockstep
             mzSlotSnapshot[i] = mzSlots_[i].load(std::memory_order_relaxed);
 
         CCMidiContext ccCtx;
-        ccCtx.table       = &ccMappingTable_;
-        ccCtx.focusTrack  = focusTrack_;
-        ccCtx.mzSlots     = mzSlotSnapshot;
+        ccCtx.table = &ccMappingTable_;
+        ccCtx.focusTrack = focusTrack_;
+        ccCtx.mzSlots = mzSlotSnapshot;
         ccCtx.channelMode = channelModeParam_
-            ? static_cast<ChannelMode>(static_cast<int>(channelModeParam_->load()))
-            : ChannelMode::Omni;
+                                ? static_cast<ChannelMode>(static_cast<int>(channelModeParam_->load()))
+                                : ChannelMode::Omni;
         ccCtx.getCurrentTrackValue = [this](int t, int s) -> float {
             const auto ti = static_cast<std::size_t>(t);
             const auto& trk = sequence().tracks[ti];
             auto* m = machines_[ti].get();
-            const int mnp     = m->numParams();
+            const int mnp = m->numParams();
             const int fltrOff = mnp;
-            const int ampOff  = mnp + (m->hasInternalFilter() ? 0 : kFltrSlots);
+            const int ampOff = mnp + (m->hasInternalFilter() ? 0 : kFltrSlots);
             float base;
             if (static_cast<std::size_t>(s) < trk.baseParams.size())
                 base = trk.baseParams[static_cast<std::size_t>(s)];
@@ -514,8 +525,7 @@ namespace lockstep
                 }
             }
             // When a step is held on this track, apply its P-Lock overlay.
-            if (editContext_.isActiveForEditing()
-                && editContext_.heldTrackIndex() == t)
+            if (editContext_.isActiveForEditing() && editContext_.heldTrackIndex() == t)
             {
                 const int step = editContext_.heldStepIndex();
                 if (step >= 0 && step < kMaxStepsPerTrack)
@@ -535,13 +545,12 @@ namespace lockstep
         };
         if (learnActive_.load(std::memory_order_acquire))
         {
-            ccCtx.onLearnCapture = [this](int ccNum)
-            {
+            ccCtx.onLearnCapture = [this](int ccNum) {
                 CCMapping m;
-                m.ccNumber   = ccNum;
-                m.scope      = learnRequest_.scope;
+                m.ccNumber = ccNum;
+                m.scope = learnRequest_.scope;
                 m.trackIndex = learnRequest_.trackIndex;
-                m.slot       = learnRequest_.slot;
+                m.slot = learnRequest_.slot;
                 m.mzPosition = learnRequest_.mzPosition;
                 ccMappingTable_.addMapping(std::move(m));
                 learnActive_.store(false, std::memory_order_release);
@@ -564,7 +573,7 @@ namespace lockstep
                         juce::MidiMessage::noteOff(1, pnf.notes[static_cast<std::size_t>(n)]),
                         pnf.samplesRemaining);
                 pnf.samplesRemaining = -1;
-                pnf.openEnded        = false;
+                pnf.openEnded = false;
             }
             else
             {
@@ -576,14 +585,11 @@ namespace lockstep
         // then inject into the track's MIDI buffer.
         const bool recArmed = clock_.isRecordArmed();
         ccCtx.onNoteOn = [this, &trackMidi, blockStart, samplesPerPpq,
-                          sequencerRunning, recArmed]
-                         (int track, int sampleOffset, int midiNote, int velocity)
-        {
-            const auto ti   = static_cast<std::size_t>(track);
-            const int  note = std::clamp(midiNote, 0, 127);
+                          sequencerRunning, recArmed](int track, int sampleOffset, int midiNote, int velocity) {
+            const auto ti = static_cast<std::size_t>(track);
+            const int note = std::clamp(midiNote, 0, 127);
 
-            if (recArmed && editContext_.isActiveForEditing()
-                && editContext_.heldTrackIndex() == track)
+            if (recArmed && editContext_.isActiveForEditing() && editContext_.heldTrackIndex() == track)
             {
                 // M7.4: Key-as-PLock — each note key writes a distinct pool index
                 // to the sample_id slot of the held step (drum play-in mode).
@@ -599,8 +605,7 @@ namespace lockstep
                 if (step >= 0 && step < kMaxStepsPerTrack)
                     sequence().tracks[ti].steps[static_cast<std::size_t>(step)].trig = true;
             }
-            else if (recArmed && sequencerRunning
-                     && !editContext_.isActiveForEditing())
+            else if (recArmed && sequencerRunning && !editContext_.isActiveForEditing())
             {
                 // M7.2: Quantize note-on to nearest step boundary, write trig.
                 // Chord aggregation: multiple notes quantising to the same absolute step
@@ -609,16 +614,14 @@ namespace lockstep
                 // so each pass through the pattern replaces rather than piles up.
                 const int trackDiv = static_cast<int>(trackDividerParams_[ti]->load());
                 const double divPpq = 0.25 * static_cast<double>(trackDiv <= 0 ? 1 : trackDiv);
-                const int trackLen  = static_cast<int>(trackLengthParams_[ti]->load());
+                const int trackLen = static_cast<int>(trackLengthParams_[ti]->load());
                 if (divPpq > 0.0 && trackLen > 0 && samplesPerPpq > 0.0)
                 {
-                    const double noteOnPpq = blockStart
-                        + static_cast<double>(sampleOffset) / samplesPerPpq;
+                    const double noteOnPpq = blockStart + static_cast<double>(sampleOffset) / samplesPerPpq;
                     const auto nearestNum = static_cast<std::int64_t>(
                         std::round(noteOnPpq / divPpq));
                     const int stepIdx = static_cast<int>(
-                        ((nearestNum % static_cast<std::int64_t>(trackLen))
-                         + trackLen) % trackLen);
+                        ((nearestNum % static_cast<std::int64_t>(trackLen)) + trackLen) % trackLen);
                     auto& s = sequence().tracks[ti].steps[static_cast<std::size_t>(stepIdx)];
                     // New absolute step = start of a new visit.
                     // In overwrite mode (default), clear the step before its first note.
@@ -628,7 +631,7 @@ namespace lockstep
                         lastRecordedStepNum_[ti] = nearestNum;
                         if (!clock_.isOverdubArmed())
                         {
-                            s.trigOverride.noteCount         = 0;
+                            s.trigOverride.noteCount = 0;
                             s.trigOverride.hasNoteVelocities = false;
                             s.microOffset = 0.0f;  // clear before residual capture below
                         }
@@ -636,14 +639,14 @@ namespace lockstep
                         // note-on position against the swung step location so that a
                         // consistently swung performance records near-zero residuals.
                         const bool isOdd = (nearestNum % 2) == 1;
-                        const float rSongAll  = song().swing;
-                        const float rSongTrk  = song().tracks[ti].swing;
+                        const float rSongAll = song().swing;
+                        const float rSongTrk = song().tracks[ti].swing;
                         const float rSceneAll = section().swing;
-                        const float effSwg    = effectiveSwing(rSongAll, rSongTrk, rSceneAll);
+                        const float effSwg = effectiveSwing(rSongAll, rSongTrk, rSceneAll);
                         const float swingDelta = isOdd ? effSwg : 0.0f;
                         const float residual = static_cast<float>(
-                            noteOnPpq / divPpq
-                            - static_cast<double>(nearestNum)) - swingDelta;
+                                                   noteOnPpq / divPpq - static_cast<double>(nearestNum)) -
+                                               swingDelta;
                         s.microOffset = std::clamp(residual, -0.5f, 0.5f);
                     }
                     s.trig = true;
@@ -653,19 +656,21 @@ namespace lockstep
                         bool already = false;
                         for (int n = 0; n < s.trigOverride.noteCount; ++n)
                             if (s.trigOverride.notes[static_cast<std::size_t>(n)] == note)
-                                { already = true; break; }
+                            {
+                                already = true;
+                                break;
+                            }
                         if (!already)
                         {
                             const auto idx = static_cast<std::size_t>(s.trigOverride.noteCount);
-                            s.trigOverride.notes[idx]      = note;
+                            s.trigOverride.notes[idx] = note;
                             s.trigOverride.velocities[idx] = static_cast<uint8_t>(velocity);
                             s.trigOverride.hasNoteVelocities = true;
                             ++s.trigOverride.noteCount;
                         }
                     }
                     // MHZ.6.1: record note-on sample for gate capture on note-off.
-                    const int64_t noteOnSample = totalSamplesProcessed_
-                                                 + static_cast<int64_t>(sampleOffset);
+                    const int64_t noteOnSample = totalSamplesProcessed_ + static_cast<int64_t>(sampleOffset);
                     realtimeNotes_[ti][static_cast<std::size_t>(midiNote)] = { stepIdx, noteOnSample };
                 }
             }
@@ -673,9 +678,7 @@ namespace lockstep
             {
                 // M5.8: Without record arm — write note override to all held steps, or
                 // update the track default.
-                if (editContext_.isActiveForEditing()
-                    && editContext_.heldTrackIndex() == track
-                    && !editContext_.heldSteps().empty())
+                if (editContext_.isActiveForEditing() && editContext_.heldTrackIndex() == track && !editContext_.heldSteps().empty())
                 {
                     // Snapshot-currently-held semantics:
                     // 1. If no capture is active, this is a fresh chord: clear all held steps.
@@ -687,15 +690,13 @@ namespace lockstep
                         for (int si : editContext_.heldSteps())
                         {
                             if (si >= 0 && si < kMaxStepsPerTrack)
-                                sequence().tracks[ti]
-                                    .steps[static_cast<std::size_t>(si)]
-                                    .trigOverride.noteCount = 0;
+                                sequence().tracks[ti].steps[static_cast<std::size_t>(si)].trigOverride.noteCount = 0;
                         }
-                        chordCapture_.active          = true;
+                        chordCapture_.active = true;
                         chordCapture_.gateStartSample = totalSamplesProcessed_ + sampleOffset;
-                        chordCapture_.maxVelocity     = 0;
-                        chordCapture_.totalVelocity   = 0;
-                        chordCapture_.capturedCount   = 0;
+                        chordCapture_.maxVelocity = 0;
+                        chordCapture_.totalVelocity = 0;
+                        chordCapture_.capturedCount = 0;
                     }
 
                     if (!chordCapture_.heldNotes[static_cast<std::size_t>(note)])
@@ -742,16 +743,13 @@ namespace lockstep
 
         // Route external note-off directly into the track's buffer;
         // also finalise chord gate when the last captured note is released.
-        ccCtx.onNoteOff = [this, &trackMidi, samplesPerPpq, recArmed, sequencerRunning]
-                          (int track, int sampleOffset, int midiNote)
-        {
+        ccCtx.onNoteOff = [this, &trackMidi, samplesPerPpq, recArmed, sequencerRunning](int track, int sampleOffset, int midiNote) {
             trackMidi[static_cast<std::size_t>(track)].addEvent(
                 juce::MidiMessage::noteOff(1, midiNote),
                 sampleOffset);
 
             // MHZ.6.1: finalise gate for realtime record path.
-            if (recArmed && sequencerRunning && !editContext_.isActiveForEditing()
-                && midiNote >= 0 && midiNote < 128)
+            if (recArmed && sequencerRunning && !editContext_.isActiveForEditing() && midiNote >= 0 && midiNote < 128)
             {
                 const auto ti = static_cast<std::size_t>(track);
                 auto& entry = realtimeNotes_[ti][static_cast<std::size_t>(midiNote)];
@@ -760,18 +758,16 @@ namespace lockstep
                     const int64_t noteOffSample =
                         totalSamplesProcessed_ + static_cast<int64_t>(sampleOffset);
                     const float gateMs =
-                        static_cast<float>(noteOffSample - entry.noteOnSample)
-                        * 1000.0f / static_cast<float>(getSampleRate());
+                        static_cast<float>(noteOffSample - entry.noteOnSample) * 1000.0f / static_cast<float>(getSampleRate());
                     const double captureBpm = (samplesPerPpq > 0.0)
-                        ? (getSampleRate() * 60.0 / samplesPerPpq) : clock_.localBpm();
+                                                  ? (getSampleRate() * 60.0 / samplesPerPpq)
+                                                  : clock_.localBpm();
                     const MusicalGate g = nearestMusicalGate(std::max(1.0f, gateMs), captureBpm);
-                    auto& trig = sequence().tracks[ti]
-                                     .steps[static_cast<std::size_t>(entry.stepIdx)].trigOverride;
+                    auto& trig = sequence().tracks[ti].steps[static_cast<std::size_t>(entry.stepIdx)].trigOverride;
                     // Max-gate rule: keep the longest gate among all notes in this step.
-                    if (!trig.hasGate
-                        || static_cast<uint8_t>(g) > static_cast<uint8_t>(trig.gateValue))
+                    if (!trig.hasGate || static_cast<uint8_t>(g) > static_cast<uint8_t>(trig.gateValue))
                     {
-                        trig.hasGate   = true;
+                        trig.hasGate = true;
                         trig.gateValue = g;
                     }
                     entry.stepIdx = -1;
@@ -791,11 +787,10 @@ namespace lockstep
             const int64_t gateEndSample =
                 totalSamplesProcessed_ + static_cast<int64_t>(sampleOffset);
             const int64_t gateSamples = gateEndSample - chordCapture_.gateStartSample;
-            const float   gateMs = static_cast<float>(gateSamples)
-                                   * 1000.0f / static_cast<float>(getSampleRate());
-            const double  captureBpm = (samplesPerPpq > 0.0)
-                ? (getSampleRate() * 60.0 / samplesPerPpq)
-                : clock_.localBpm();
+            const float gateMs = static_cast<float>(gateSamples) * 1000.0f / static_cast<float>(getSampleRate());
+            const double captureBpm = (samplesPerPpq > 0.0)
+                                          ? (getSampleRate() * 60.0 / samplesPerPpq)
+                                          : clock_.localBpm();
 
             if (editContext_.heldTrackIndex() == track)
             {
@@ -803,19 +798,18 @@ namespace lockstep
                 const MusicalGate capturedGate =
                     nearestMusicalGate(std::max(1.0f, gateMs), captureBpm);
                 const int meanVel = (chordCapture_.capturedCount > 0)
-                    ? (chordCapture_.totalVelocity / chordCapture_.capturedCount)
-                    : chordCapture_.maxVelocity;
+                                        ? (chordCapture_.totalVelocity / chordCapture_.capturedCount)
+                                        : chordCapture_.maxVelocity;
                 for (int si : editContext_.heldSteps())
                 {
                     if (si < 0 || si >= kMaxStepsPerTrack) continue;
-                    auto& trig = sequence().tracks[ti]
-                                     .steps[static_cast<std::size_t>(si)].trigOverride;
-                    trig.hasGate  = true;
+                    auto& trig = sequence().tracks[ti].steps[static_cast<std::size_t>(si)].trigOverride;
+                    trig.hasGate = true;
                     trig.gateValue = capturedGate;
                     if (meanVel > 0)
                     {
                         trig.hasVelocity = true;
-                        trig.velocity    = meanVel;
+                        trig.velocity = meanVel;
                     }
                 }
             }
@@ -835,14 +829,15 @@ namespace lockstep
                 trackMidi[static_cast<std::size_t>(previewTrack_)].addEvent(
                     juce::MidiMessage::noteOff(1, previewNote_), 0);
 
-            previewActive_           = true;
-            previewTrack_            = previewReqTrack_.load(std::memory_order_acquire);
-            previewSampleIndex_      = newPreview;
+            previewActive_ = true;
+            previewTrack_ = previewReqTrack_.load(std::memory_order_acquire);
+            previewSampleIndex_ = newPreview;
             previewNoteOffRemaining_ = static_cast<int>(getSampleRate() * 0.4);
-            previewNote_             = 60;
+            previewNote_ = 60;
             trackMidi[static_cast<std::size_t>(previewTrack_)].addEvent(
                 juce::MidiMessage::noteOn(1, previewNote_,
-                                          static_cast<juce::uint8>(100)), 0);
+                                          static_cast<juce::uint8>(100)),
+                0);
         }
         // Advance preview note-off countdown; fire when the window arrives.
         if (previewNoteOffRemaining_ >= 0)
@@ -853,7 +848,7 @@ namespace lockstep
                     juce::MidiMessage::noteOff(1, previewNote_),
                     previewNoteOffRemaining_);
                 previewNoteOffRemaining_ = -1;
-                previewActive_           = false;
+                previewActive_ = false;
             }
             else
             {
@@ -868,8 +863,7 @@ namespace lockstep
         // held chord both sounds and is captured (record + step-held chord paths);
         // bypass notes inject raw (LEVELS audition — no chord capture).
         {
-            auto emitVoiceOff = [&](LiveVoice& v, int off)
-            {
+            auto emitVoiceOff = [&](LiveVoice& v, int off) {
                 if (v.bypass)
                     trackMidi[static_cast<std::size_t>(v.track)].addEvent(
                         juce::MidiMessage::noteOff(1, v.note), off);
@@ -877,8 +871,7 @@ namespace lockstep
                     ccCtx.onNoteOff(v.track, off, v.note);
             };
 
-            auto allocVoice = [&]() -> LiveVoice&
-            {
+            auto allocVoice = [&]() -> LiveVoice& {
                 for (auto& v : liveVoices_)
                     if (!v.active) return v;
                 // All voices busy → steal the first, releasing its note so the
@@ -890,8 +883,7 @@ namespace lockstep
 
             int s1, n1, s2, n2;
             kbdFifo_.prepareToRead(kbdFifo_.getNumReady(), s1, n1, s2, n2);
-            auto handle = [&](const KbdNoteCmd& c)
-            {
+            auto handle = [&](const KbdNoteCmd& c) {
                 const int track = juce::jlimit(0, static_cast<int>(kNumTracks) - 1,
                                                static_cast<int>(c.track));
                 // Release any voice already holding this (track, note) — both for a
@@ -909,21 +901,22 @@ namespace lockstep
                 if (c.bypassEditorial)
                     trackMidi[static_cast<std::size_t>(track)].addEvent(
                         juce::MidiMessage::noteOn(1, static_cast<juce::uint8>(c.note),
-                                                  static_cast<juce::uint8>(vel)), 0);
+                                                  static_cast<juce::uint8>(vel)),
+                        0);
                 else
                     ccCtx.onNoteOn(track, 0, c.note, vel);
 
                 LiveVoice& v = allocVoice();
-                v.track  = track;
-                v.note   = c.note;
+                v.track = track;
+                v.note = c.note;
                 v.bypass = c.bypassEditorial;
                 // Gate notes (durationMs == 0) ring until note-off, but get a
                 // generous safety cap so a lost note-off (focus change, dropped
                 // MIDI) can never hang a note forever.
                 constexpr double kMaxGateSeconds = 30.0;
                 const double secs = (c.durationMs > 0)
-                    ? static_cast<double>(c.durationMs) / 1000.0
-                    : kMaxGateSeconds;
+                                        ? static_cast<double>(c.durationMs) / 1000.0
+                                        : kMaxGateSeconds;
                 v.samplesRemaining = static_cast<int>(getSampleRate() * secs);
                 v.active = true;
             };
@@ -938,8 +931,7 @@ namespace lockstep
             // (DESIGN §38.4 / 8.17). The message thread pre-built the new working
             // Sequence in queueScene; we swap here so the sequencer reads the new
             // scene starting from this block.
-            if (pendingSceneApply_.load(std::memory_order_acquire)
-                && stagedSwapReady_.load(std::memory_order_acquire))
+            if (pendingSceneApply_.load(std::memory_order_acquire) && stagedSwapReady_.load(std::memory_order_acquire))
             {
                 pendingSceneApply_.store(false, std::memory_order_relaxed);
                 arrangement_.applySceneLaunch(stagedSwap_.sceneIdx,
@@ -975,10 +967,10 @@ namespace lockstep
                     trackMidi[static_cast<std::size_t>(retrigActiveTrack_)].addEvent(
                         juce::MidiMessage::noteOff(1, retrigNote_), 0);
 
-                retrigActiveTrack_      = req;
-                retrigRatePpq_          = retrigReqRatePpq_.load(std::memory_order_relaxed);
-                retrigNote_             = retrigReqNote_.load(std::memory_order_relaxed);
-                retrigNextFireSamples_  = 0.0;
+                retrigActiveTrack_ = req;
+                retrigRatePpq_ = retrigReqRatePpq_.load(std::memory_order_relaxed);
+                retrigNote_ = retrigReqNote_.load(std::memory_order_relaxed);
+                retrigNextFireSamples_ = 0.0;
                 retrigNoteOffRemaining_ = -1;
             }
             else if (req == -2)  // cancel signal
@@ -986,7 +978,7 @@ namespace lockstep
                 if (retrigNoteOffRemaining_ >= 0)
                     trackMidi[static_cast<std::size_t>(retrigActiveTrack_)].addEvent(
                         juce::MidiMessage::noteOff(1, retrigNote_), 0);
-                retrigActiveTrack_      = -1;
+                retrigActiveTrack_ = -1;
                 retrigNoteOffRemaining_ = -1;
             }
 
@@ -1016,7 +1008,7 @@ namespace lockstep
                 while (firePos < blockLen)
                 {
                     const int samplePos = juce::jlimit(0, numBlockSamples - 1,
-                                                        static_cast<int>(firePos));
+                                                       static_cast<int>(firePos));
                     const auto ti = static_cast<std::size_t>(retrigActiveTrack_);
                     trackMidi[ti].addEvent(
                         juce::MidiMessage::noteOn(1,
@@ -1043,15 +1035,19 @@ namespace lockstep
         // are silenced (even if their mute button is off).
         bool anySoloed = false;
         for (std::size_t i = 0; i < kNumTracks; ++i)
-            if (trackSoloParams_[i]->load() >= 0.5f) { anySoloed = true; break; }
+            if (trackSoloParams_[i]->load() >= 0.5f)
+            {
+                anySoloed = true;
+                break;
+            }
 
         // Advance morph fader smoother once per block (DESIGN §17.2).
         morphFaderSmoothed_.setTargetValue(
             morphFaderTarget_.load(std::memory_order_relaxed));
         if (numBlockSamples > 1)
             morphFaderSmoothed_.skip(numBlockSamples - 1);
-        const float faderNow    = morphFaderSmoothed_.getNextValue();
-        const bool  faderSideNow = (faderNow >= 0.5f);  // false=A, true=B
+        const float faderNow = morphFaderSmoothed_.getNextValue();
+        const bool faderSideNow = (faderNow >= 0.5f);  // false=A, true=B
 
         // Stepped-snap parity: when the fader crosses 0.5 on a MIDI-out track that has
         // morphed params, emit All-Notes-Off on the old channel before the snap takes
@@ -1086,18 +1082,16 @@ namespace lockstep
             // trackMidi already contains note events routed from external MIDI.
             for (std::size_t i = 0; i < kNumTracks; ++i)
             {
-                const bool muted  = (trackMuteParams_[i]->load() >= 0.5f)
-                                   || !section().activeMask[i];
+                const bool muted = (trackMuteParams_[i]->load() >= 0.5f) || !section().activeMask[i];
                 const bool soloed = trackSoloParams_[i]->load() >= 0.5f;
                 if (muted || (anySoloed && !soloed)) continue;
                 // Resolve against the held step so P-Locks written by the note-on
                 // are included in the frame, falling back to -1 (base only).
                 int resolveStep = -1;
-                if (editContext_.isActiveForEditing()
-                    && editContext_.heldTrackIndex() == static_cast<int>(i))
+                if (editContext_.isActiveForEditing() && editContext_.heldTrackIndex() == static_cast<int>(i))
                     resolveStep = editContext_.heldStepIndex();
                 const bool fillNow = fillActiveForTrack(static_cast<int>(i));
-                const MorphContext mc0 { &section(), static_cast<int>(i), faderNow, machines_[i].get() };
+                const MorphContext mc0{ &section(), static_cast<int>(i), faderNow, machines_[i].get() };
                 auto frame = StateResolver::resolve(sequence().tracks[i], resolveStep, fillNow, &mc0);
                 if (previewActive_ && static_cast<int>(i) == previewTrack_)
                 {
@@ -1118,9 +1112,9 @@ namespace lockstep
                 {
                     mi->process(trackMidi[i], frame, trackBuffers_[i]);
 
-                    const int mnp     = mi->numParams();
+                    const int mnp = mi->numParams();
                     const int fltrOff = mnp;
-                    const int ampOff  = mnp + (mi->hasInternalFilter() ? 0 : kFltrSlots);
+                    const int ampOff = mnp + (mi->hasInternalFilter() ? 0 : kFltrSlots);
 
                     if (!mi->hasInternalFilter())
                     {
@@ -1179,13 +1173,13 @@ namespace lockstep
                         const auto& kitIns = kit(static_cast<int>(i)).inserts[static_cast<std::size_t>(ins)];
                         if (kitIns.bypass) continue;
                         const int insOff = insertParamOffset(static_cast<int>(i), ins);
-                        const int insnp  = eff->numParams();
+                        const int insnp = eff->numParams();
                         ParamFrame fxFrame(static_cast<std::size_t>(insnp));
                         for (int p = 0; p < insnp; ++p)
                         {
                             const float base = static_cast<std::size_t>(p) < kitIns.baseParams.size()
-                                ? kitIns.baseParams[static_cast<std::size_t>(p)]
-                                : eff->paramSpec(p).defaultValue;
+                                                   ? kitIns.baseParams[static_cast<std::size_t>(p)]
+                                                   : eff->paramSpec(p).defaultValue;
                             float resolved = morphBlend(section(), static_cast<int>(i),
                                                         insOff + p, base, faderNow);
                             if (firedStepIdx_[i] >= 0)
@@ -1220,8 +1214,8 @@ namespace lockstep
                 for (int p = 0; p < mnp; ++p)
                     mfxFrame[static_cast<std::size_t>(p)] =
                         (static_cast<std::size_t>(p) < mSlot.baseParams.size())
-                        ? mSlot.baseParams[static_cast<std::size_t>(p)]
-                        : meff->paramSpec(p).defaultValue;
+                            ? mSlot.baseParams[static_cast<std::size_t>(p)]
+                            : meff->paramSpec(p).defaultValue;
                 meff->process(buffer, numBlockSamples, mfxFrame);
             }
 
@@ -1230,7 +1224,7 @@ namespace lockstep
             gainSmoothed_.setTargetValue(
                 juce::Decibels::decibelsToGain(targetGainDb, -60.0f));
 
-            const int numOut     = buffer.getNumChannels();
+            const int numOut = buffer.getNumChannels();
             const int numSamples = buffer.getNumSamples();
             const int numDcChans = std::min(numOut, static_cast<int>(dcX1_.size()));
 
@@ -1244,7 +1238,7 @@ namespace lockstep
                     {
                         const float x1 = dcX1_[static_cast<std::size_t>(ch)];
                         const float y1 = dcY1_[static_cast<std::size_t>(ch)];
-                        const float y  = s - x1 + 0.999f * y1;
+                        const float y = s - x1 + 0.999f * y1;
                         dcX1_[static_cast<std::size_t>(ch)] = s;
                         dcY1_[static_cast<std::size_t>(ch)] = y;
                         s = y;
@@ -1263,9 +1257,8 @@ namespace lockstep
             const int qSecIdx = queuedSceneIdx_.load(std::memory_order_acquire);
             if (qSecIdx >= 0 && samplesPerPpq > 0.0)
             {
-                const auto& ct     = section().coreTime;
-                const double barPpq = ct.barPpq()
-                                    * static_cast<double>(project_.launchQuantizeBars);
+                const auto& ct = section().coreTime;
+                const double barPpq = ct.barPpq() * static_cast<double>(project_.launchQuantizeBars);
                 if (barPpq > 0.0)
                 {
                     // Next bar boundary at or after blockStart.
@@ -1283,8 +1276,7 @@ namespace lockstep
                         // flushed kit data via writeBackWorkingToActive, so this is safe
                         // to run before the audio-thread swap commits.
                         juce::MessageManager::callAsync(
-                            [this]
-                            {
+                            [this] {
                                 reinstallMachinesFromActiveKit();
                             });
                     }
@@ -1300,11 +1292,11 @@ namespace lockstep
             const int trackLen = static_cast<int>(trackLengthParams_[i]->load());
             const int trackDiv = static_cast<int>(trackDividerParams_[i]->load());
             // MD.6/MD.7: combined mute = global (APVTS) || section active-mask.
-            const bool globalMuted  = trackMuteParams_[i]->load() >= 0.5f;
+            const bool globalMuted = trackMuteParams_[i]->load() >= 0.5f;
             const bool sectionMuted = !section().activeMask[i];
-            const bool muted   = globalMuted || sectionMuted;
-            const bool soloed  = trackSoloParams_[i]->load() >= 0.5f;
-            const bool silent  = muted || (anySoloed && !soloed);
+            const bool muted = globalMuted || sectionMuted;
+            const bool soloed = trackSoloParams_[i]->load() >= 0.5f;
+            const bool silent = muted || (anySoloed && !soloed);
 
             // MF.7: mute rising edge — send All-Notes-Off on MIDI-out tracks to
             // prevent stuck notes when a track is muted mid-note.
@@ -1334,16 +1326,15 @@ namespace lockstep
             // Read effective swing for this track (DESIGN §19.2).
             // Song-all + song-track delta + scene-all delta; RT-safe reads mirroring
             // the existing morph/activeMask pattern (no locks needed).
-            const float songAll  = song().swing;
-            const float songTrk  = song().tracks[i].swing;
+            const float songAll = song().swing;
+            const float songTrk = song().tracks[i].swing;
             const float sceneAll = section().swing;
             const float effSwing = effectiveSwing(songAll, songTrk, sceneAll);
             const double halfDiv = 0.5 * divPpq;
 
             // Emit a sequencer trig: note-on(s) + gate scheduling.
             // fireAt is a sample offset within this block, clamped to [0, numBlockSamples−1].
-            auto emitTrig = [&](int stepIdx, int fireAt)
-            {
+            auto emitTrig = [&](int stepIdx, int fireAt) {
                 trigPulse_[i].store(1.0f, std::memory_order_relaxed);
                 const auto trig = StateResolver::resolveTrig(track, stepIdx, curFillActive);
 
@@ -1360,7 +1351,7 @@ namespace lockstep
                                     1, pnf.notes[static_cast<std::size_t>(n)]),
                                 fireAt);
                         pnf.samplesRemaining = -1;
-                        pnf.openEnded        = false;
+                        pnf.openEnded = false;
                     }
                 }
 
@@ -1370,19 +1361,23 @@ namespace lockstep
                 // spread-with-bias picker so endpoints survive first.
                 auto* machineForVoices = machines_[static_cast<std::size_t>(i)].get();
                 const auto poly = machineForVoices
-                    ? machineForVoices->currentVoices(track.baseParams)
-                    : IMachine::Polyphony::V1;
+                                      ? machineForVoices->currentVoices(track.baseParams)
+                                      : IMachine::Polyphony::V1;
                 const int machineVoices = static_cast<int>(poly);
 
-                struct NoteVelPair { int note; uint8_t vel; };
+                struct NoteVelPair
+                {
+                    int note;
+                    uint8_t vel;
+                };
                 std::array<NoteVelPair, kMaxNotesPerStep> nvPairs{};
                 for (int n = 0; n < trig.noteCount; ++n)
                 {
                     const auto ni = static_cast<std::size_t>(n);
                     nvPairs[ni].note = trig.notes[ni];
-                    nvPairs[ni].vel  = trig.hasNoteVelocities
-                        ? trig.velocities[ni]
-                        : static_cast<uint8_t>(std::clamp(trig.velocity, 1, 127));
+                    nvPairs[ni].vel = trig.hasNoteVelocities
+                                          ? trig.velocities[ni]
+                                          : static_cast<uint8_t>(std::clamp(trig.velocity, 1, 127));
                 }
                 std::sort(nvPairs.begin(), nvPairs.begin() + trig.noteCount,
                           [](const NoteVelPair& a, const NoteVelPair& b) {
@@ -1394,7 +1389,7 @@ namespace lockstep
                 for (int n = 0; n < trig.noteCount; ++n)
                 {
                     sortedNotes[static_cast<std::size_t>(n)] = nvPairs[static_cast<std::size_t>(n)].note;
-                    sortedVels [static_cast<std::size_t>(n)] = nvPairs[static_cast<std::size_t>(n)].vel;
+                    sortedVels[static_cast<std::size_t>(n)] = nvPairs[static_cast<std::size_t>(n)].vel;
                 }
 
                 std::array<int, kMaxNotesPerStep> emitNotes{};
@@ -1416,8 +1411,7 @@ namespace lockstep
                 {
                     for (int k = 0; k < trig.noteCount; ++k)
                     {
-                        if (sortedNotes[static_cast<std::size_t>(k)]
-                                == emitNotes[static_cast<std::size_t>(j)])
+                        if (sortedNotes[static_cast<std::size_t>(k)] == emitNotes[static_cast<std::size_t>(j)])
                         {
                             emitVels[static_cast<std::size_t>(j)] =
                                 sortedVels[static_cast<std::size_t>(k)];
@@ -1430,11 +1424,11 @@ namespace lockstep
                     static_cast<juce::uint8>(std::clamp(trig.velocity, 1, 127));
                 for (int n = 0; n < notesToEmit; ++n)
                 {
-                    const auto ni  = static_cast<std::size_t>(n);
+                    const auto ni = static_cast<std::size_t>(n);
                     const auto vel = trig.hasNoteVelocities
-                        ? static_cast<juce::uint8>(
-                              std::clamp(static_cast<int>(emitVels[ni]), 1, 127))
-                        : uniformVel;
+                                         ? static_cast<juce::uint8>(
+                                               std::clamp(static_cast<int>(emitVels[ni]), 1, 127))
+                                         : uniformVel;
                     trackMidi[i].addEvent(
                         juce::MidiMessage::noteOn(1, emitNotes[ni], vel), fireAt);
                 }
@@ -1442,8 +1436,8 @@ namespace lockstep
                 if (trig.gateValue != MusicalGate::None)
                 {
                     const double liveBpm = (samplesPerPpq > 0.0)
-                        ? (getSampleRate() * 60.0 / samplesPerPpq)
-                        : clock_.localBpm();
+                                               ? (getSampleRate() * 60.0 / samplesPerPpq)
+                                               : clock_.localBpm();
                     const int gateSamples = musicalGateToSamples(
                         trig.gateValue, liveBpm, getSampleRate());
                     const int noteOffAt = fireAt + gateSamples;
@@ -1457,20 +1451,20 @@ namespace lockstep
                     }
                     else
                     {
-                        auto& pnf             = pendingNoteOffs_[i];
-                        pnf.samplesRemaining  = noteOffAt - numBlockSamples;
-                        pnf.noteCount         = notesToEmit;
-                        pnf.notes             = emitNotes;
-                        pnf.openEnded         = false;
+                        auto& pnf = pendingNoteOffs_[i];
+                        pnf.samplesRemaining = noteOffAt - numBlockSamples;
+                        pnf.noteCount = notesToEmit;
+                        pnf.notes = emitNotes;
+                        pnf.openEnded = false;
                     }
                 }
                 else
                 {
                     // gate=None: voices play to their envelope end.
-                    auto& pnf     = pendingNoteOffs_[i];
+                    auto& pnf = pendingNoteOffs_[i];
                     pnf.openEnded = true;
                     pnf.noteCount = notesToEmit;
-                    pnf.notes     = emitNotes;
+                    pnf.notes = emitNotes;
                 }
 
                 // 5.7: per-step retrig. If the step has a baked retrig rate, start
@@ -1493,18 +1487,18 @@ namespace lockstep
             // Drain pending trig deferred by a late shift from the previous block.
             if (pendingTrigs_[i].pending)
             {
-                const int    ptStep  = pendingTrigs_[i].stepIndex;
-                const auto   ptStNum = pendingTrigs_[i].stepNum;
-                const double ptFire  = pendingTrigs_[i].firePpq;
+                const int ptStep = pendingTrigs_[i].stepIndex;
+                const auto ptStNum = pendingTrigs_[i].stepNum;
+                const double ptFire = pendingTrigs_[i].firePpq;
                 pendingTrigs_[i].pending = false;
                 if (ptFire >= blockStart && ptFire < blockEnd)
                 {
                     const int fireAt = std::clamp(
                         static_cast<int>((ptFire - blockStart) * samplesPerPpq),
                         0, numBlockSamples - 1);
-                    firedStepIdx_[i]         = ptStep;
+                    firedStepIdx_[i] = ptStep;
                     lastScheduledStepNum_[i] = ptStNum;
-                    lastStepFired_[i]        = true;
+                    lastStepFired_[i] = true;
                     emitTrig(ptStep, fireAt);
                 }
             }
@@ -1516,7 +1510,7 @@ namespace lockstep
                 {
                     const auto stepNum = static_cast<std::int64_t>(
                         nextTriggerPpq_[i] / divPpq);
-                    const int stepIdx  = static_cast<int>(
+                    const int stepIdx = static_cast<int>(
                         stepNum % static_cast<std::int64_t>(trackLen));
 
                     // Dedup: skip if emitted during pendingTrigs drain above.
@@ -1536,18 +1530,17 @@ namespace lockstep
                             const bool isOdd = (stepNum % 2) == 1;
                             const float swingDelta = isOdd ? effSwing : 0.0f;
                             const float shift = totalStepShift(swingDelta, step.microOffset);
-                            const double firePpq = nextTriggerPpq_[i]
-                                + static_cast<double>(shift) * divPpq;
+                            const double firePpq = nextTriggerPpq_[i] + static_cast<double>(shift) * divPpq;
 
-                            firedStepIdx_[i]         = stepIdx;  // ME.4: for FLTR P-Locks
+                            firedStepIdx_[i] = stepIdx;  // ME.4: for FLTR P-Locks
                             lastScheduledStepNum_[i] = stepNum;
-                            lastStepFired_[i]        = true;
+                            lastStepFired_[i] = true;
 
                             if (firePpq < blockEnd)
                             {
                                 const int fireAt = std::max(
                                     0, static_cast<int>(
-                                        (firePpq - blockStart) * samplesPerPpq));
+                                           (firePpq - blockStart) * samplesPerPpq));
                                 emitTrig(stepIdx, fireAt);
                             }
                             else
@@ -1606,16 +1599,15 @@ namespace lockstep
                             const bool isOdd = (stepNum % 2) == 1;
                             const float swingDelta = isOdd ? effSwing : 0.0f;
                             const float shift = totalStepShift(swingDelta, step.microOffset);
-                            const double firePpq = nextGridPpq
-                                + static_cast<double>(shift) * divPpq;
+                            const double firePpq = nextGridPpq + static_cast<double>(shift) * divPpq;
                             if (firePpq >= blockStart && firePpq < blockEnd)
                             {
                                 const int fireAt = std::clamp(
                                     static_cast<int>((firePpq - blockStart) * samplesPerPpq),
                                     0, numBlockSamples - 1);
-                                firedStepIdx_[i]         = stepIdx;
+                                firedStepIdx_[i] = stepIdx;
                                 lastScheduledStepNum_[i] = stepNum;
-                                lastStepFired_[i]        = true;
+                                lastStepFired_[i] = true;
                                 emitTrig(stepIdx, fireAt);
                                 // nextTriggerPpq_[i] is not advanced; dedup prevents re-fire.
                             }
@@ -1630,8 +1622,7 @@ namespace lockstep
             // MG.5: if the fired step carries a sound_id override, use the pool
             // entry's baseParams as the base, then apply step P-Locks on top.
             // Falls back to the normal StateResolver path if the entry is missing.
-            auto frame = [&]() -> ParamFrame
-            {
+            auto frame = [&]() -> ParamFrame {
                 const int fi = firedStepIdx_[i];
                 if (fi >= 0 && fi < kMaxStepsPerTrack)
                 {
@@ -1663,7 +1654,7 @@ namespace lockstep
                         }
                     }
                 }
-                const MorphContext mcR { &section(), static_cast<int>(i), faderNow, machines_[i].get() };
+                const MorphContext mcR{ &section(), static_cast<int>(i), faderNow, machines_[i].get() };
                 return StateResolver::resolve(track, fi, curFillActive, &mcR);
             }();
             if (previewActive_ && static_cast<int>(i) == previewTrack_)
@@ -1684,10 +1675,10 @@ namespace lockstep
             {
                 mi->process(trackMidi[i], frame, trackBuffers_[i]);
 
-                const int mnp     = mi->numParams();
+                const int mnp = mi->numParams();
                 const int fltrOff = mnp;
-                const int ampOff  = mnp + (mi->hasInternalFilter() ? 0 : kFltrSlots);
-                const int fsi     = firedStepIdx_[i];
+                const int ampOff = mnp + (mi->hasInternalFilter() ? 0 : kFltrSlots);
+                const int fsi = firedStepIdx_[i];
 
                 if (!mi->hasInternalFilter())
                 {
@@ -1744,13 +1735,13 @@ namespace lockstep
                     const auto& kitIns = kit(static_cast<int>(i)).inserts[static_cast<std::size_t>(ins)];
                     if (kitIns.bypass) continue;
                     const int insOff = insertParamOffset(static_cast<int>(i), ins);
-                    const int insnp  = eff->numParams();
+                    const int insnp = eff->numParams();
                     ParamFrame fxFrame2(static_cast<std::size_t>(insnp));
                     for (int p = 0; p < insnp; ++p)
                     {
                         const float base = static_cast<std::size_t>(p) < kitIns.baseParams.size()
-                            ? kitIns.baseParams[static_cast<std::size_t>(p)]
-                            : eff->paramSpec(p).defaultValue;
+                                               ? kitIns.baseParams[static_cast<std::size_t>(p)]
+                                               : eff->paramSpec(p).defaultValue;
                         float resolved = morphBlend(section(), static_cast<int>(i),
                                                     insOff + p, base, faderNow);
                         if (firedStepIdx_[i] >= 0)
@@ -1792,7 +1783,7 @@ namespace lockstep
         gainSmoothed_.setTargetValue(
             juce::Decibels::decibelsToGain(targetGainDb, -60.0f));
 
-        const int numOut     = buffer.getNumChannels();
+        const int numOut = buffer.getNumChannels();
         const int numSamples = buffer.getNumSamples();
         const int numDcChans = std::min(numOut, static_cast<int>(dcX1_.size()));
 
@@ -1807,7 +1798,7 @@ namespace lockstep
                 {
                     const float x1 = dcX1_[static_cast<std::size_t>(ch)];
                     const float y1 = dcY1_[static_cast<std::size_t>(ch)];
-                    const float y  = s - x1 + 0.999f * y1;
+                    const float y = s - x1 + 0.999f * y1;
                     dcX1_[static_cast<std::size_t>(ch)] = s;
                     dcY1_[static_cast<std::size_t>(ch)] = y;
                     s = y;
@@ -1828,47 +1819,47 @@ namespace lockstep
     static void enqueueBaseParam(LockstepProcessor& p, int track, int slot, float value)
     {
         EngineCmd c;
-        c.op    = EngineCmd::Op::SetBaseParam;
+        c.op = EngineCmd::Op::SetBaseParam;
         c.track = static_cast<uint8_t>(track);
-        c.slot  = static_cast<int16_t>(slot);
+        c.slot = static_cast<int16_t>(slot);
         c.value = value;
         p.pushEngineCmd(c);
     }
     static void enqueueFltrSlot(LockstepProcessor& p, int track, int fltrSlot, float value)
     {
         EngineCmd c;
-        c.op    = EngineCmd::Op::SetFltrSlot;
+        c.op = EngineCmd::Op::SetFltrSlot;
         c.track = static_cast<uint8_t>(track);
-        c.slot  = static_cast<int16_t>(fltrSlot);
+        c.slot = static_cast<int16_t>(fltrSlot);
         c.value = value;
         p.pushEngineCmd(c);
     }
     static void enqueueAmpSlot(LockstepProcessor& p, int track, int ampSlot, float value)
     {
         EngineCmd c;
-        c.op    = EngineCmd::Op::SetAmpSlot;
+        c.op = EngineCmd::Op::SetAmpSlot;
         c.track = static_cast<uint8_t>(track);
-        c.slot  = static_cast<int16_t>(ampSlot);
+        c.slot = static_cast<int16_t>(ampSlot);
         c.value = value;
         p.pushEngineCmd(c);
     }
     static void enqueueInsertParam(LockstepProcessor& p, int track, int ins, int param, float value)
     {
         EngineCmd c;
-        c.op    = EngineCmd::Op::SetInsertParam;
+        c.op = EngineCmd::Op::SetInsertParam;
         c.track = static_cast<uint8_t>(track);
-        c.aux   = static_cast<uint8_t>(ins);
-        c.slot  = static_cast<int16_t>(param);
+        c.aux = static_cast<uint8_t>(ins);
+        c.slot = static_cast<int16_t>(param);
         c.value = value;
         p.pushEngineCmd(c);
     }
     static void enqueueStepOverride(LockstepProcessor& p, int track, int step, int slot, float value)
     {
         EngineCmd c;
-        c.op    = EngineCmd::Op::SetStepOverride;
+        c.op = EngineCmd::Op::SetStepOverride;
         c.track = static_cast<uint8_t>(track);
-        c.aux   = static_cast<uint8_t>(step);
-        c.slot  = static_cast<int16_t>(slot);
+        c.aux = static_cast<uint8_t>(step);
+        c.slot = static_cast<int16_t>(slot);
         c.value = value;
         p.pushEngineCmd(c);
     }
@@ -1880,7 +1871,7 @@ namespace lockstep
         const auto ti = static_cast<std::size_t>(t);
         auto* dm = proc.machines_[ti].get();
         if (!dm) return;
-        const int dstMnp    = dm->numParams();
+        const int dstMnp = dm->numParams();
         const int dstAmpOff = dstMnp + (dm->hasInternalFilter() ? 0 : proc.kFltrSlots);
 
         if (dstSlot < dstMnp)
@@ -1927,8 +1918,7 @@ namespace lockstep
 
         // Clamp sample index to the actual pool size so a full-throw CC can
         // never select a beyond-pool entry on tracks with a sample slot.
-        if (idForSlot(track, slot) == "sample_id"
-            || idForSlot(track, slot) == "slicer_sample_id")
+        if (idForSlot(track, slot) == "sample_id" || idForSlot(track, slot) == "slicer_sample_id")
         {
             const int poolSize = samplePool_.size();
             if (poolSize > 0)
@@ -1943,8 +1933,7 @@ namespace lockstep
         {
             const auto ti = static_cast<std::size_t>(track);
             const auto* m = machines_[ti].get();
-            if (m != nullptr && slot < m->numParams()
-                && m->paramSpec(slot).zeroCrossingSnap)
+            if (m != nullptr && slot < m->numParams() && m->paramSpec(slot).zeroCrossingSnap)
             {
                 const auto* spm = dynamic_cast<const SamplePlayingMachineBase*>(m);
                 if (spm != nullptr)
@@ -1957,9 +1946,7 @@ namespace lockstep
 
         // MD.10 Control-All: when active and no step is held on the source track,
         // broadcast to every track whose schema has the same slot id.
-        if (controlAllActive_
-            && !(editContext_.isActiveForEditing()
-                 && editContext_.heldTrackIndex() == track))
+        if (controlAllActive_ && !(editContext_.isActiveForEditing() && editContext_.heldTrackIndex() == track))
         {
             const juce::String srcId = idForSlot(track, slot);
             if (srcId.isEmpty()) return;
@@ -1968,8 +1955,7 @@ namespace lockstep
                 const int dstSlot = slotForId(t, srcId);
                 if (dstSlot < 0) continue;
                 const auto ti = static_cast<std::size_t>(t);
-                if (editContext_.isActiveForEditing()
-                    && editContext_.heldTrackIndex() == t)
+                if (editContext_.isActiveForEditing() && editContext_.heldTrackIndex() == t)
                 {
                     const int step = editContext_.heldStepIndex();
                     if (step >= 0 && step < kMaxStepsPerTrack)
@@ -1989,8 +1975,7 @@ namespace lockstep
 
         const auto ti = static_cast<std::size_t>(track);
 
-        if (editContext_.isActiveForEditing()
-            && editContext_.heldTrackIndex() == track)
+        if (editContext_.isActiveForEditing() && editContext_.heldTrackIndex() == track)
         {
             const int step = editContext_.heldStepIndex();
             if (step >= 0 && step < kMaxStepsPerTrack)
@@ -2001,8 +1986,8 @@ namespace lockstep
         }
         else
         {
-            auto*     wm     = machines_[ti].get();
-            const int mnp    = wm->numParams();
+            auto* wm = machines_[ti].get();
+            const int mnp = wm->numParams();
             writeParamQueued(*this, track, slot, value);
 
             // Recompute slices when a slice-governing base param changes.
@@ -2023,29 +2008,28 @@ namespace lockstep
     void LockstepProcessor::clearParam(int track, int step, int slot)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
-        if (step  < 0 || step  >= kMaxStepsPerTrack)             return;
-        if (slot  < 0 || slot  >= numParams(track))              return;
+        if (step < 0 || step >= kMaxStepsPerTrack) return;
+        if (slot < 0 || slot >= numParams(track)) return;
         EngineCmd c;
-        c.op    = EngineCmd::Op::ClearStepOverride;
+        c.op = EngineCmd::Op::ClearStepOverride;
         c.track = static_cast<uint8_t>(track);
-        c.aux   = static_cast<uint8_t>(step);
-        c.slot  = static_cast<int16_t>(slot);
+        c.aux = static_cast<uint8_t>(step);
+        c.slot = static_cast<int16_t>(slot);
         pushEngineCmd(c);
     }
 
     void LockstepProcessor::clearTrigOverrideField(int track, int step, int field)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
-        if (step  < 0 || step  >= kMaxStepsPerTrack)             return;
-        auto& s    = sequence().tracks[static_cast<std::size_t>(track)]
-                         .steps[static_cast<std::size_t>(step)];
+        if (step < 0 || step >= kMaxStepsPerTrack) return;
+        auto& s = sequence().tracks[static_cast<std::size_t>(track)].steps[static_cast<std::size_t>(step)];
         auto& trig = s.trigOverride;
         switch (field)
         {
-            case 0: trig.noteCount = 0;       break;
-            case 1: trig.hasVelocity = false; break;
-            case 2: trig.hasGate = false;     break;
-            case 4: s.microOffset = 0.0f;     break;  // MicroTime: reset to on-grid
+            case 0:  trig.noteCount = 0; break;
+            case 1:  trig.hasVelocity = false; break;
+            case 2:  trig.hasGate = false; break;
+            case 4:  s.microOffset = 0.0f; break;  // MicroTime: reset to on-grid
             default: break;
         }
     }
@@ -2102,8 +2086,8 @@ namespace lockstep
     float LockstepProcessor::swingEffective(int t) const
     {
         if (t < 0 || t >= static_cast<int>(kNumTracks)) return 0.0f;
-        const float songAll  = song().swing;
-        const float songTrk  = song().tracks[static_cast<std::size_t>(t)].swing;
+        const float songAll = song().swing;
+        const float songTrk = song().tracks[static_cast<std::size_t>(t)].swing;
         const float sceneAll = section().swing;
         return effectiveSwing(songAll, songTrk, sceneAll);
     }
@@ -2113,7 +2097,7 @@ namespace lockstep
     void LockstepProcessor::writeMorph(int track, int slot, float deltaAbs, float fader)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
-        if (slot  < 0 || slot  >= numParams(track))             return;
+        if (slot < 0 || slot >= numParams(track)) return;
 
         // ~1.5 % dead zone at each extreme: write only to the near pole so
         // that pushing the fader to an end never creates a surprise two-sided
@@ -2124,29 +2108,29 @@ namespace lockstep
         const float f = juce::jlimit(0.0f, 1.0f, fader);
         if (f <= kDeadZone || f >= 1.0f - kDeadZone)
         {
-            const int   pole    = (f >= 1.0f - kDeadZone) ? 1 : 0;
-            const auto& sc      = section();
-            const auto  key     = std::make_pair(track, slot);
-            const bool  hasA    = (sc.morphA.count(key) > 0);
-            const bool  hasB    = (sc.morphB.count(key) > 0);
+            const int pole = (f >= 1.0f - kDeadZone) ? 1 : 0;
+            const auto& sc = section();
+            const auto key = std::make_pair(track, slot);
+            const bool hasA = (sc.morphA.count(key) > 0);
+            const bool hasB = (sc.morphB.count(key) > 0);
             const float kitBase = baseParamValue(track, slot);
             const float curPole = (pole == 0)
-                ? (hasA ? sc.morphA.at(key) : (hasB  ? sc.morphB.at(key) : kitBase))
-                : (hasB ? sc.morphB.at(key) : (hasA  ? sc.morphA.at(key) : kitBase));
+                                      ? (hasA ? sc.morphA.at(key) : (hasB ? sc.morphB.at(key) : kitBase))
+                                      : (hasB ? sc.morphB.at(key) : (hasA ? sc.morphA.at(key) : kitBase));
             const auto spec = paramSpec(track, slot);
             writeMorphPole(track, slot,
-                juce::jlimit(spec.minValue, spec.maxValue, curPole + deltaAbs), pole);
+                           juce::jlimit(spec.minValue, spec.maxValue, curPole + deltaAbs), pole);
             return;
         }
 
         const float D = ((1.0f - f) * (1.0f - f)) + (f * f);
         if (D < 1e-6f) return;
 
-        const auto  spec    = paramSpec(track, slot);
-        Scene&      sc      = section();
-        const auto  key     = std::make_pair(track, slot);
-        const bool  hasA    = (sc.morphA.count(key) > 0);
-        const bool  hasB    = (sc.morphB.count(key) > 0);
+        const auto spec = paramSpec(track, slot);
+        Scene& sc = section();
+        const auto key = std::make_pair(track, slot);
+        const bool hasA = (sc.morphA.count(key) > 0);
+        const bool hasB = (sc.morphB.count(key) > 0);
         const float kitBase = baseParamValue(track, slot);
 
         const float aVal = hasA ? sc.morphA.at(key) : (hasB ? sc.morphB.at(key) : kitBase);
@@ -2161,11 +2145,11 @@ namespace lockstep
     void LockstepProcessor::writeMorphPole(int track, int slot, float value, int pole)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
-        if (slot  < 0 || slot  >= numParams(track))             return;
+        if (slot < 0 || slot >= numParams(track)) return;
 
-        const auto  spec = paramSpec(track, slot);
-        const float v    = juce::jlimit(spec.minValue, spec.maxValue, value);
-        const auto  key  = std::make_pair(track, slot);
+        const auto spec = paramSpec(track, slot);
+        const float v = juce::jlimit(spec.minValue, spec.maxValue, value);
+        const auto key = std::make_pair(track, slot);
         if (pole == 0)
             section().morphA[key] = v;
         else
@@ -2209,10 +2193,10 @@ namespace lockstep
     {
         const int slot = fluidMuteLevelSlot(track);
         if (slot < 0) return -1;
-        const auto  key = std::make_pair(track, slot);
-        const auto& sc  = section();
-        const auto  itA = sc.morphA.find(key);
-        const auto  itB = sc.morphB.find(key);
+        const auto key = std::make_pair(track, slot);
+        const auto& sc = section();
+        const auto itA = sc.morphA.find(key);
+        const auto itB = sc.morphB.find(key);
         const bool hasA = (itA != sc.morphA.end());
         const bool hasB = (itB != sc.morphB.end());
         if (!hasA && !hasB) return -1;
@@ -2233,11 +2217,11 @@ namespace lockstep
     {
         const int levelSlot = fluidMuteLevelSlot(track);
         if (levelSlot < 0) return;
-        const float f    = juce::jlimit(0.0f, 1.0f, fader);
+        const float f = juce::jlimit(0.0f, 1.0f, fader);
         const float base = baseParamValue(track, levelSlot);
         // Near pole = the pole the fader currently favours; silence it, leave far at kit base.
         const int nearPole = (f < 0.5f) ? 0 : 1;
-        const int farPole  = 1 - nearPole;
+        const int farPole = 1 - nearPole;
         writeMorphPole(track, levelSlot, 0.0f, nearPole);
         writeMorphPole(track, levelSlot, base, farPole);
     }
@@ -2255,16 +2239,16 @@ namespace lockstep
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
         const auto key = std::make_pair(track, slot);
         if (pole == 0) section().morphA.erase(key);
-        else           section().morphB.erase(key);
+        else section().morphB.erase(key);
     }
 
     void LockstepProcessor::bakeMorph(int track, int slot)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
-        const auto& sc  = section();
-        const auto  key = std::make_pair(track, slot);
-        const bool  hasA = (sc.morphA.count(key) > 0);
-        const bool  hasB = (sc.morphB.count(key) > 0);
+        const auto& sc = section();
+        const auto key = std::make_pair(track, slot);
+        const bool hasA = (sc.morphA.count(key) > 0);
+        const bool hasB = (sc.morphB.count(key) > 0);
         if (!hasA && !hasB) return;
         const float baked = morphEffectiveValue(track, slot);
         removeMorph(track, slot);
@@ -2312,8 +2296,7 @@ namespace lockstep
         // safely skips entries belonging to other tracks.
         for (auto& sc : song().scenes)
         {
-            const auto isThisTrack = [track](const auto& kv)
-            { return kv.first.first == track; };
+            const auto isThisTrack = [track](const auto& kv) { return kv.first.first == track; };
             std::erase_if(sc.morphA, isThisTrack);
             std::erase_if(sc.morphB, isThisTrack);
         }
@@ -2322,12 +2305,12 @@ namespace lockstep
     MorphWidgetInfo LockstepProcessor::morphWidgetInfo(int track, int slot) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return {};
-        const Scene& sc  = section();
-        const auto   key = std::make_pair(track, slot);
-        const auto   itA = sc.morphA.find(key);
-        const auto   itB = sc.morphB.find(key);
-        const bool   hasA = (itA != sc.morphA.end());
-        const bool   hasB = (itB != sc.morphB.end());
+        const Scene& sc = section();
+        const auto key = std::make_pair(track, slot);
+        const auto itA = sc.morphA.find(key);
+        const auto itB = sc.morphB.find(key);
+        const bool hasA = (itA != sc.morphA.end());
+        const bool hasB = (itB != sc.morphB.end());
         if (!hasA && !hasB) return {};
         return { true, hasA, hasB,
                  hasA ? itA->second : 0.0f,
@@ -2337,13 +2320,13 @@ namespace lockstep
     float LockstepProcessor::morphEffectiveValue(int track, int slot) const
     {
         const float base = baseParamValue(track, slot);
-        const auto& sc  = section();
-        const auto  key = std::make_pair(track, slot);
-        const bool  hasA = (sc.morphA.count(key) > 0);
-        const bool  hasB = (sc.morphB.count(key) > 0);
+        const auto& sc = section();
+        const auto key = std::make_pair(track, slot);
+        const bool hasA = (sc.morphA.count(key) > 0);
+        const bool hasB = (sc.morphB.count(key) > 0);
         if (!hasA && !hasB) return base;
 
-        const float f    = morphFader();
+        const float f = morphFader();
         const float aVal = hasA ? sc.morphA.at(key) : (hasB ? sc.morphB.at(key) : base);
         const float bVal = hasB ? sc.morphB.at(key) : (hasA ? sc.morphA.at(key) : base);
         if (paramSpec(track, slot).isStepped) return (f < 0.5f) ? aVal : bVal;
@@ -2353,9 +2336,8 @@ namespace lockstep
     void LockstepProcessor::writeFillParam(int track, int slot, float value)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
-        if (slot  < 0 || slot  >= numParams(track))             return;
-        if (!editContext_.isActiveForEditing()
-            || editContext_.heldTrackIndex() != track) return;
+        if (slot < 0 || slot >= numParams(track)) return;
+        if (!editContext_.isActiveForEditing() || editContext_.heldTrackIndex() != track) return;
         const int step = editContext_.heldStepIndex();
         if (step < 0 || step >= kMaxStepsPerTrack) return;
         pushEngineCmd({ EngineCmd::Op::SetFillOverride,
@@ -2370,8 +2352,8 @@ namespace lockstep
     void LockstepProcessor::clearFillParam(int track, int step, int slot)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
-        if (step  < 0 || step  >= kMaxStepsPerTrack)             return;
-        if (slot  < 0 || slot  >= numParams(track))              return;
+        if (step < 0 || step >= kMaxStepsPerTrack) return;
+        if (slot < 0 || slot >= numParams(track)) return;
         pushEngineCmd({ EngineCmd::Op::ClearFillOverride,
                         static_cast<uint8_t>(track),
                         static_cast<uint8_t>(step),
@@ -2436,12 +2418,10 @@ namespace lockstep
 
     void LockstepProcessor::deletePhraseSlot(int track, int phraseIdx)
     {
-        if (track     < 0 || track     >= static_cast<int>(kNumTracks))    return;
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
         if (phraseIdx < 0 || phraseIdx >= static_cast<int>(kPhrasesPerTrack)) return;
-        withQuiescedEngine([&]
-        {
-            song().tracks[static_cast<std::size_t>(track)]
-                  .phrases[static_cast<std::size_t>(phraseIdx)] = Phrase{};
+        withQuiescedEngine([&] {
+            song().tracks[static_cast<std::size_t>(track)].phrases[static_cast<std::size_t>(phraseIdx)] = Phrase{};
             refreshWorkingFromModel();
         });
     }
@@ -2449,8 +2429,7 @@ namespace lockstep
     void LockstepProcessor::deleteSceneSlot(int sceneIdx)
     {
         if (sceneIdx < 0 || sceneIdx >= static_cast<int>(kScenesPerSong)) return;
-        withQuiescedEngine([&]
-        {
+        withQuiescedEngine([&] {
             const int active = activeSectionIdx();
             song().scenes[static_cast<std::size_t>(sceneIdx)] = Scene{};
             // If the deleted scene was active, fall back to scene 0.
@@ -2480,12 +2459,11 @@ namespace lockstep
     void LockstepProcessor::clearStepLocks(int track, int step)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
-        if (step  < 0 || step  >= kMaxStepsPerTrack)            return;
-        auto& s = sequence().tracks[static_cast<std::size_t>(track)]
-                      .steps[static_cast<std::size_t>(step)];
-        s.overrides        = PLock{};
-        s.trigOverride     = TrigOverride{};
-        s.fillOverrides    = PLock{};
+        if (step < 0 || step >= kMaxStepsPerTrack) return;
+        auto& s = sequence().tracks[static_cast<std::size_t>(track)].steps[static_cast<std::size_t>(step)];
+        s.overrides = PLock{};
+        s.trigOverride = TrigOverride{};
+        s.fillOverrides = PLock{};
         s.fillTrigOverride = TrigOverride{};
     }
 
@@ -2558,9 +2536,7 @@ namespace lockstep
             return 0;
         const auto ti = static_cast<std::size_t>(track);
         auto* m = machines_[ti].get();
-        int n = m->numParams()
-              + (m->hasInternalFilter() ? 0 : kFltrSlots)
-              + (m->hasInternalAmp()    ? 0 : kAmpSlots);
+        int n = m->numParams() + (m->hasInternalFilter() ? 0 : kFltrSlots) + (m->hasInternalAmp() ? 0 : kAmpSlots);
         for (auto& eff : trackInserts_[ti])
             if (eff) n += eff->numParams();
         return n;
@@ -2569,45 +2545,67 @@ namespace lockstep
     // Stable string IDs for the 6 FLTR virtual slots.
     static const juce::String kFltrIds[TrackFltrState::kNumSlots] = {
         "lockstep.fltr.mode", "lockstep.fltr.slope", "lockstep.fltr.cutoff",
-        "lockstep.fltr.res",  "lockstep.fltr.drive", "lockstep.fltr.env"
+        "lockstep.fltr.res", "lockstep.fltr.drive", "lockstep.fltr.env"
     };
 
     // Stable string IDs for the 8 AMP virtual slots.
     static const juce::String kAmpIds[TrackAmpState::kNumSlots] = {
-        "lockstep.amp.level", "lockstep.amp.pan",     "lockstep.amp.gate",
-        "lockstep.amp.att",   "lockstep.amp.hld",     "lockstep.amp.dec",
-        "lockstep.amp.sus",   "lockstep.amp.rel"
+        "lockstep.amp.level", "lockstep.amp.pan", "lockstep.amp.gate",
+        "lockstep.amp.att", "lockstep.amp.hld", "lockstep.amp.dec",
+        "lockstep.amp.sus", "lockstep.amp.rel"
     };
 
     ParamSpec LockstepProcessor::paramSpec(int track, int index) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return {};
-        const auto ti   = static_cast<std::size_t>(track);
-        auto*      m    = machines_[ti].get();
-        const int  mnp  = m->numParams();
+        const auto ti = static_cast<std::size_t>(track);
+        auto* m = machines_[ti].get();
+        const int mnp = m->numParams();
         if (index < mnp)
             return m->paramSpec(index);
 
         const int fltrOff = mnp;
-        const int ampOff  = mnp + (m->hasInternalFilter() ? 0 : kFltrSlots);
+        const int ampOff = mnp + (m->hasInternalFilter() ? 0 : kFltrSlots);
 
         if (!m->hasInternalFilter() && index >= fltrOff && index < fltrOff + kFltrSlots)
         {
             const int fs = index - fltrOff;
             ParamSpec p;
             p.sectionIndex = kFltrSecIdx;
-            p.id           = kFltrIds[fs];
+            p.id = kFltrIds[fs];
             switch (fs)
             {
-            case 0: p.label="Mode";   p.isStepped=true; p.maxValue=3.0f; break;
-            case 1: p.label="Slope";  p.isStepped=true; p.maxValue=1.0f;
-                    p.defaultValue=1.0f; break;
-            case 2: p.label="Cutoff"; p.maxValue=1.0f; p.defaultValue=1.0f; break;
-            case 3: p.label="Reson";  p.maxValue=1.0f; break;
-            case 4: p.label="Drive";  p.maxValue=1.0f; break;
-            case 5: p.label="Env>Ct"; p.minValue=-1.0f; p.maxValue=1.0f; break;
-            default: break;
+                case 0:
+                    p.label = "Mode";
+                    p.isStepped = true;
+                    p.maxValue = 3.0f;
+                    break;
+                case 1:
+                    p.label = "Slope";
+                    p.isStepped = true;
+                    p.maxValue = 1.0f;
+                    p.defaultValue = 1.0f;
+                    break;
+                case 2:
+                    p.label = "Cutoff";
+                    p.maxValue = 1.0f;
+                    p.defaultValue = 1.0f;
+                    break;
+                case 3:
+                    p.label = "Reson";
+                    p.maxValue = 1.0f;
+                    break;
+                case 4:
+                    p.label = "Drive";
+                    p.maxValue = 1.0f;
+                    break;
+                case 5:
+                    p.label = "Env>Ct";
+                    p.minValue = -1.0f;
+                    p.maxValue = 1.0f;
+                    break;
+                default: break;
             }
             return p;
         }
@@ -2617,25 +2615,59 @@ namespace lockstep
             const int as = index - ampOff;
             ParamSpec p;
             p.sectionIndex = kAmpSecIdx;
-            p.id           = kAmpIds[as];
+            p.id = kAmpIds[as];
             switch (as)
             {
-            case 0: p.label="Level";   p.maxValue=2.0f; p.defaultValue=1.0f;
-                    p.role=ParamSpec::Role::Level; break;
-            case 1: p.label="Pan";     p.minValue=-1.0f; p.maxValue=1.0f;
-                    p.role=ParamSpec::Role::Pan; break;
-            case 2: p.label="Gate";    p.isStepped=true; p.maxValue=1.0f; break;
-            case 3: p.label="Attack";  p.maxValue=1000.0f; p.defaultValue=1.0f;
-                    p.unit=ParamSpec::Unit::Ms; p.role=ParamSpec::Role::Attack; break;
-            case 4: p.label="Hold";    p.maxValue=1000.0f;
-                    p.unit=ParamSpec::Unit::Ms; p.role=ParamSpec::Role::Hold; break;
-            case 5: p.label="Decay";   p.maxValue=2000.0f;
-                    p.unit=ParamSpec::Unit::Ms; p.role=ParamSpec::Role::Decay; break;
-            case 6: p.label="Sustain"; p.maxValue=1.0f; p.defaultValue=1.0f;
-                    p.role=ParamSpec::Role::Sustain; break;
-            case 7: p.label="Release"; p.maxValue=2000.0f; p.defaultValue=10.0f;
-                    p.unit=ParamSpec::Unit::Ms; p.role=ParamSpec::Role::Release; break;
-            default: break;
+                case 0:
+                    p.label = "Level";
+                    p.maxValue = 2.0f;
+                    p.defaultValue = 1.0f;
+                    p.role = ParamSpec::Role::Level;
+                    break;
+                case 1:
+                    p.label = "Pan";
+                    p.minValue = -1.0f;
+                    p.maxValue = 1.0f;
+                    p.role = ParamSpec::Role::Pan;
+                    break;
+                case 2:
+                    p.label = "Gate";
+                    p.isStepped = true;
+                    p.maxValue = 1.0f;
+                    break;
+                case 3:
+                    p.label = "Attack";
+                    p.maxValue = 1000.0f;
+                    p.defaultValue = 1.0f;
+                    p.unit = ParamSpec::Unit::Ms;
+                    p.role = ParamSpec::Role::Attack;
+                    break;
+                case 4:
+                    p.label = "Hold";
+                    p.maxValue = 1000.0f;
+                    p.unit = ParamSpec::Unit::Ms;
+                    p.role = ParamSpec::Role::Hold;
+                    break;
+                case 5:
+                    p.label = "Decay";
+                    p.maxValue = 2000.0f;
+                    p.unit = ParamSpec::Unit::Ms;
+                    p.role = ParamSpec::Role::Decay;
+                    break;
+                case 6:
+                    p.label = "Sustain";
+                    p.maxValue = 1.0f;
+                    p.defaultValue = 1.0f;
+                    p.role = ParamSpec::Role::Sustain;
+                    break;
+                case 7:
+                    p.label = "Release";
+                    p.maxValue = 2000.0f;
+                    p.defaultValue = 10.0f;
+                    p.unit = ParamSpec::Unit::Ms;
+                    p.role = ParamSpec::Role::Release;
+                    break;
+                default: break;
             }
             return p;
         }
@@ -2674,7 +2706,7 @@ namespace lockstep
         const auto ti = static_cast<std::size_t>(track);
         auto* m = machines_[ti].get();
 
-        const int mnp    = m->numParams();
+        const int mnp = m->numParams();
         const int ampOff = mnp + (m->hasInternalFilter() ? 0 : kFltrSlots);
 
         // 6.5: FX section (canonical section 5) shows insert params.
@@ -2731,13 +2763,13 @@ namespace lockstep
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return {};
-        const auto ti  = static_cast<std::size_t>(track);
-        auto*      m   = machines_[ti].get();
-        const int  mnp = m->numParams();
+        const auto ti = static_cast<std::size_t>(track);
+        auto* m = machines_[ti].get();
+        const int mnp = m->numParams();
         if (index < mnp)
             return m->idForSlot(index);
         const int fltrOff = mnp;
-        const int ampOff  = mnp + (m->hasInternalFilter() ? 0 : kFltrSlots);
+        const int ampOff = mnp + (m->hasInternalFilter() ? 0 : kFltrSlots);
         if (!m->hasInternalFilter())
         {
             const int fs = index - fltrOff;
@@ -2759,7 +2791,7 @@ namespace lockstep
                 const int insnp = eff->numParams();
                 if (index >= insOff && index < insOff + insnp)
                 {
-                    const juce::String rawId { eff->paramSpec(index - insOff).id };
+                    const juce::String rawId{ eff->paramSpec(index - insOff).id };
                     if (rawId.isEmpty()) return {};
                     return (s == 0 ? "lockstep.fx0." : "lockstep.fx1.") + rawId;
                 }
@@ -2774,7 +2806,7 @@ namespace lockstep
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return -1;
         const auto ti = static_cast<std::size_t>(track);
-        auto*      m  = machines_[ti].get();
+        auto* m = machines_[ti].get();
         if (id.startsWith("lockstep.fltr.") && !m->hasInternalFilter())
         {
             const int mnp = m->numParams();
@@ -2795,7 +2827,7 @@ namespace lockstep
             const int targetSlot = id.startsWith("lockstep.fx0.") ? 0 : 1;
             auto* eff = trackInserts_[ti][static_cast<std::size_t>(targetSlot)].get();
             if (!eff) return -1;
-            const int prefixLen  = id.startsWith("lockstep.fx0.") ? 13 : 13;
+            const int prefixLen = id.startsWith("lockstep.fx0.") ? 13 : 13;
             const juce::String rawId = id.substring(prefixLen);
             const int insnp = eff->numParams();
             for (int p = 0; p < insnp; ++p)
@@ -2809,14 +2841,14 @@ namespace lockstep
     float LockstepProcessor::baseParamValue(int track, int slot) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return 0.0f;
-        const auto ti  = static_cast<std::size_t>(track);
+        const auto ti = static_cast<std::size_t>(track);
         const auto& bp = sequence().tracks[ti].baseParams;
         if (static_cast<std::size_t>(slot) < bp.size())
             return bp[static_cast<std::size_t>(slot)];
-        auto*      m      = machines_[ti].get();
-        const int  mnp    = m->numParams();
-        const int  fltrOff = mnp;
-        const int  ampOff  = mnp + (m->hasInternalFilter() ? 0 : kFltrSlots);
+        auto* m = machines_[ti].get();
+        const int mnp = m->numParams();
+        const int fltrOff = mnp;
+        const int ampOff = mnp + (m->hasInternalFilter() ? 0 : kFltrSlots);
         if (!m->hasInternalFilter() && slot >= fltrOff && slot < fltrOff + kFltrSlots)
             return kit(static_cast<int>(ti)).fltrState.getSlot(slot - fltrOff);
         if (!m->hasInternalAmp() && slot >= ampOff && slot < ampOff + kAmpSlots)
@@ -2832,7 +2864,7 @@ namespace lockstep
                 if (slot >= insOff && slot < insOff + insnp)
                 {
                     const auto& ki = kit(static_cast<int>(ti)).inserts[static_cast<std::size_t>(s)];
-                    const int   p  = slot - insOff;
+                    const int p = slot - insOff;
                     if (static_cast<std::size_t>(p) < ki.baseParams.size())
                         return ki.baseParams[static_cast<std::size_t>(p)];
                     return eff->paramSpec(p).defaultValue;
@@ -2868,14 +2900,12 @@ namespace lockstep
         int s1, n1, s2, n2;
         engineCmdFifo_.prepareToRead(engineCmdFifo_.getNumReady(), s1, n1, s2, n2);
 
-        auto apply = [this](const EngineCmd& c)
-        {
+        auto apply = [this](const EngineCmd& c) {
             const auto t = static_cast<std::size_t>(c.track);
             switch (c.op)
             {
                 case EngineCmd::Op::SetBaseParam:
-                    if (t < kNumTracks && c.slot >= 0
-                        && static_cast<std::size_t>(c.slot) < sequence().tracks[t].baseParams.size())
+                    if (t < kNumTracks && c.slot >= 0 && static_cast<std::size_t>(c.slot) < sequence().tracks[t].baseParams.size())
                     {
                         sequence().tracks[t].baseParams[static_cast<std::size_t>(c.slot)] = c.value;
                         kit(static_cast<int>(t)).baseParams[static_cast<std::size_t>(c.slot)] = c.value;
@@ -2892,8 +2922,7 @@ namespace lockstep
                         kit(static_cast<int>(t)).ampState.setSlot(c.slot, c.value);
                     break;
 
-                case EngineCmd::Op::SetInsertParam:
-                {
+                case EngineCmd::Op::SetInsertParam: {
                     if (t >= kNumTracks) break;
                     const auto ins = static_cast<std::size_t>(c.aux);
                     if (ins >= 2) break;
@@ -2903,8 +2932,7 @@ namespace lockstep
                     break;
                 }
 
-                case EngineCmd::Op::SetMasterInsertParam:
-                {
+                case EngineCmd::Op::SetMasterInsertParam: {
                     if (c.aux >= 2) break;
                     auto& bp = song().masterInserts[static_cast<std::size_t>(c.aux)].baseParams;
                     if (c.slot >= 0 && static_cast<std::size_t>(c.slot) < bp.size())
@@ -2914,26 +2942,22 @@ namespace lockstep
 
                 case EngineCmd::Op::SetStepOverride:
                     if (t < kNumTracks && c.aux < kMaxStepsPerTrack && c.slot >= 0)
-                        sequence().tracks[t].steps[static_cast<std::size_t>(c.aux)]
-                            .overrides.set(c.slot, c.value);
+                        sequence().tracks[t].steps[static_cast<std::size_t>(c.aux)].overrides.set(c.slot, c.value);
                     break;
 
                 case EngineCmd::Op::ClearStepOverride:
                     if (t < kNumTracks && c.aux < kMaxStepsPerTrack && c.slot >= 0)
-                        sequence().tracks[t].steps[static_cast<std::size_t>(c.aux)]
-                            .overrides.clear(c.slot);
+                        sequence().tracks[t].steps[static_cast<std::size_t>(c.aux)].overrides.clear(c.slot);
                     break;
 
                 case EngineCmd::Op::SetFillOverride:
                     if (t < kNumTracks && c.aux < kMaxStepsPerTrack && c.slot >= 0)
-                        sequence().tracks[t].steps[static_cast<std::size_t>(c.aux)]
-                            .fillOverrides.set(c.slot, c.value);
+                        sequence().tracks[t].steps[static_cast<std::size_t>(c.aux)].fillOverrides.set(c.slot, c.value);
                     break;
 
                 case EngineCmd::Op::ClearFillOverride:
                     if (t < kNumTracks && c.aux < kMaxStepsPerTrack && c.slot >= 0)
-                        sequence().tracks[t].steps[static_cast<std::size_t>(c.aux)]
-                            .fillOverrides.clear(c.slot);
+                        sequence().tracks[t].steps[static_cast<std::size_t>(c.aux)].fillOverrides.clear(c.slot);
                     break;
             }
         };
@@ -2959,10 +2983,10 @@ namespace lockstep
     void LockstepProcessor::triggerNote(int track, int midiNote, int durationMs, int velocity, bool bypassEditorial)
     {
         KbdNoteCmd c;
-        c.track           = static_cast<int16_t>(juce::jlimit(0, static_cast<int>(kNumTracks) - 1, track));
-        c.note            = static_cast<uint8_t>(juce::jlimit(0, 127, midiNote));
-        c.velocity        = static_cast<uint8_t>(juce::jlimit(1, 127, velocity));
-        c.durationMs      = static_cast<uint16_t>(juce::jlimit(1, 0xFFFF, durationMs));
+        c.track = static_cast<int16_t>(juce::jlimit(0, static_cast<int>(kNumTracks) - 1, track));
+        c.note = static_cast<uint8_t>(juce::jlimit(0, 127, midiNote));
+        c.velocity = static_cast<uint8_t>(juce::jlimit(1, 127, velocity));
+        c.durationMs = static_cast<uint16_t>(juce::jlimit(1, 0xFFFF, durationMs));
         c.bypassEditorial = bypassEditorial;
         pushKbdCmd(c);
     }
@@ -2970,9 +2994,9 @@ namespace lockstep
     void LockstepProcessor::liveNoteOn(int track, int midiNote, int velocity)
     {
         KbdNoteCmd c;
-        c.track      = static_cast<int16_t>(juce::jlimit(0, static_cast<int>(kNumTracks) - 1, track));
-        c.note       = static_cast<uint8_t>(juce::jlimit(0, 127, midiNote));
-        c.velocity   = static_cast<uint8_t>(juce::jlimit(1, 127, velocity));
+        c.track = static_cast<int16_t>(juce::jlimit(0, static_cast<int>(kNumTracks) - 1, track));
+        c.note = static_cast<uint8_t>(juce::jlimit(0, 127, midiNote));
+        c.velocity = static_cast<uint8_t>(juce::jlimit(1, 127, velocity));
         c.durationMs = 0;   // 0 = gate: sustain until the matching liveNoteOff
         pushKbdCmd(c);
     }
@@ -2980,8 +3004,8 @@ namespace lockstep
     void LockstepProcessor::liveNoteOff(int track, int midiNote)
     {
         KbdNoteCmd c;
-        c.track   = static_cast<int16_t>(juce::jlimit(0, static_cast<int>(kNumTracks) - 1, track));
-        c.note    = static_cast<uint8_t>(juce::jlimit(0, 127, midiNote));
+        c.track = static_cast<int16_t>(juce::jlimit(0, static_cast<int>(kNumTracks) - 1, track));
+        c.note = static_cast<uint8_t>(juce::jlimit(0, 127, midiNote));
         c.noteOff = true;
         pushKbdCmd(c);
     }
@@ -3023,8 +3047,8 @@ namespace lockstep
     }
 
     void LockstepProcessor::recomputeSlicesIfNeeded(int track,
-                                                     int slot,
-                                                     const ParamFrame& baseParams)
+                                                    int slot,
+                                                    const ParamFrame& baseParams)
     {
         const auto ti = static_cast<std::size_t>(track);
         auto* m = machines_[ti].get();
@@ -3032,18 +3056,18 @@ namespace lockstep
         if (sl == nullptr) return;
 
         const juce::String id = idForSlot(track, slot);
-        const bool isSampleId  = (id == "slicer_sample_id");
-        const bool isSliceSrc  = (id == "slicer_slice_src");
+        const bool isSampleId = (id == "slicer_sample_id");
+        const bool isSliceSrc = (id == "slicer_slice_src");
         const bool isSliceCount = (id == "slicer_slice_count");
 
         if (!isSampleId && !isSliceSrc && !isSliceCount)
             return;
 
-        const int srcSlot   = slotForId(track, "slicer_slice_src");
+        const int srcSlot = slotForId(track, "slicer_slice_src");
         const int countSlot = slotForId(track, "slicer_slice_count");
         if (srcSlot < 0 || countSlot < 0) return;
 
-        const int src   = static_cast<int>(std::round(
+        const int src = static_cast<int>(std::round(
             baseParams[static_cast<std::size_t>(srcSlot)]));
         const int count = static_cast<int>(std::round(
             baseParams[static_cast<std::size_t>(countSlot)]));
@@ -3065,10 +3089,10 @@ namespace lockstep
         const auto& k = kit(track);
 
         SoundEntry entry;
-        entry.name           = name.empty() ? "Sound" : name;
-        entry.machineId      = k.machineId;
-        entry.baseParams     = k.baseParams;
-        entry.destinationId  = k.destinationId;
+        entry.name = name.empty() ? "Sound" : name;
+        entry.machineId = k.machineId;
+        entry.baseParams = k.baseParams;
+        entry.destinationId = k.destinationId;
 
         // Extract sample pool index from the first slot of baseParams (sampler tracks).
         if (!machines_[ti]->isMidiOut() && !k.baseParams.empty())
@@ -3108,7 +3132,7 @@ namespace lockstep
         // Only apply if machine types match to avoid mismatched param frames.
         if (k.machineId != e->machineId) return false;
 
-        k.baseParams    = e->baseParams;
+        k.baseParams = e->baseParams;
         k.destinationId = e->destinationId;
 
         // Sync the sequence track's base params so the audio thread picks it up.
@@ -3153,8 +3177,8 @@ namespace lockstep
 
             auto remapPoolIdx = [idx, newMax](float cur) -> float {
                 const int c = static_cast<int>(cur);
-                if (c == idx)     return static_cast<float>(std::max(0, std::min(c, newMax)));
-                if (c  > idx)     return static_cast<float>(c - 1);
+                if (c == idx) return static_cast<float>(std::max(0, std::min(c, newMax)));
+                if (c > idx) return static_cast<float>(c - 1);
                 return cur;
             };
 
@@ -3170,7 +3194,7 @@ namespace lockstep
                     {
                         if (!step.overrides.has(sampleSlot)) continue;
                         step.overrides.set(sampleSlot,
-                            remapPoolIdx(step.overrides.get(sampleSlot, 0.0f)));
+                                           remapPoolIdx(step.overrides.get(sampleSlot, 0.0f)));
                     }
                 }
             }
@@ -3183,7 +3207,7 @@ namespace lockstep
                 {
                     if (!step.overrides.has(sampleSlot)) continue;
                     step.overrides.set(sampleSlot,
-                        remapPoolIdx(step.overrides.get(sampleSlot, 0.0f)));
+                                       remapPoolIdx(step.overrides.get(sampleSlot, 0.0f)));
                 }
             }
         }
@@ -3219,7 +3243,7 @@ namespace lockstep
                     {
                         if (!step.overrides.has(sampleSlot)) continue;
                         step.overrides.set(sampleSlot,
-                            swapPoolIdx(step.overrides.get(sampleSlot, 0.0f)));
+                                           swapPoolIdx(step.overrides.get(sampleSlot, 0.0f)));
                     }
                 }
             }
@@ -3232,7 +3256,7 @@ namespace lockstep
                 {
                     if (!step.overrides.has(sampleSlot)) continue;
                     step.overrides.set(sampleSlot,
-                        swapPoolIdx(step.overrides.get(sampleSlot, 0.0f)));
+                                       swapPoolIdx(step.overrides.get(sampleSlot, 0.0f)));
                 }
             }
         }
@@ -3248,7 +3272,7 @@ namespace lockstep
     // Called from setStateInformation (sequencer is stopped during state load).
     // Unsupported IDs receive a silent StubMachine that preserves data.
     static std::unique_ptr<IMachine> makeMachineForId(const std::string& id,
-                                                       SamplePool& pool)
+                                                      SamplePool& pool)
     {
         if (id == SamplerMachine::kMachineId || id.empty())
             return std::make_unique<SamplerMachine>(pool);
@@ -3273,12 +3297,12 @@ namespace lockstep
     // MGX.6 — machine selection
 
     static constexpr LockstepProcessor::MachineInfo kAvailableMachines[] = {
-        { SamplerMachine::kMachineId,   "Sampler"    },
-        { SlicerMachine::kMachineId,    "Slicer"     },
-        { FMMachine::kMachineId,        "FM Synth"   },
-        { VAMachine::kMachineId,        "VA Synth"   },
+        { SamplerMachine::kMachineId, "Sampler" },
+        { SlicerMachine::kMachineId, "Slicer" },
+        { FMMachine::kMachineId, "FM Synth" },
+        { VAMachine::kMachineId, "VA Synth" },
         { DrumSynthMachine::kMachineId, "Drum Synth" },
-        { MidiOutMachine::kMachineId,   "MIDI Out"   },
+        { MidiOutMachine::kMachineId, "MIDI Out" },
     };
 
     int LockstepProcessor::numAvailableMachines() const
@@ -3329,7 +3353,7 @@ namespace lockstep
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return 0;
         const auto ti = static_cast<std::size_t>(track);
         auto* m = machines_[ti].get();
-        const int mnp    = m->numParams();
+        const int mnp = m->numParams();
         const int ampOff = mnp + (m->hasInternalFilter() ? 0 : kFltrSlots);
         int off = ampOff + (m->hasInternalAmp() ? 0 : kAmpSlots);
         for (int s = 0; s < insSlot && s < 2; ++s)
@@ -3344,8 +3368,8 @@ namespace lockstep
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
         if (slot < 0 || slot > 1) return;
-        const auto ti  = static_cast<std::size_t>(track);
-        const auto si  = static_cast<std::size_t>(slot);
+        const auto ti = static_cast<std::size_t>(track);
+        const auto si = static_cast<std::size_t>(slot);
 
         auto& kitSlot = kit(track).inserts[si];
         kitSlot.effectId = effectId;
@@ -3532,16 +3556,14 @@ namespace lockstep
 
     int LockstepProcessor::numSlotsWithMachine(const IMachine& m) const
     {
-        return m.numParams()
-             + (m.hasInternalFilter() ? 0 : kFltrSlots)
-             + (m.hasInternalAmp()    ? 0 : kAmpSlots);
+        return m.numParams() + (m.hasInternalFilter() ? 0 : kFltrSlots) + (m.hasInternalAmp() ? 0 : kAmpSlots);
     }
 
     ParamSpec LockstepProcessor::paramSpecWithMachine(const IMachine& m, int index) const
     {
-        const int mnp     = m.numParams();
+        const int mnp = m.numParams();
         const int fltrOff = mnp;
-        const int ampOff  = mnp + (m.hasInternalFilter() ? 0 : kFltrSlots);
+        const int ampOff = mnp + (m.hasInternalFilter() ? 0 : kFltrSlots);
 
         if (index < mnp)
             return m.paramSpec(index);
@@ -3551,17 +3573,39 @@ namespace lockstep
             const int fs = index - fltrOff;
             ParamSpec p;
             p.sectionIndex = kFltrSecIdx;
-            p.id           = kFltrIds[fs];
+            p.id = kFltrIds[fs];
             switch (fs)
             {
-            case 0: p.label="Mode";   p.isStepped=true; p.maxValue=3.0f; break;
-            case 1: p.label="Slope";  p.isStepped=true; p.maxValue=1.0f;
-                    p.defaultValue=1.0f; break;
-            case 2: p.label="Cutoff"; p.maxValue=1.0f; p.defaultValue=1.0f; break;
-            case 3: p.label="Reson";  p.maxValue=1.0f; break;
-            case 4: p.label="Drive";  p.maxValue=1.0f; break;
-            case 5: p.label="Env>Ct"; p.minValue=-1.0f; p.maxValue=1.0f; break;
-            default: break;
+                case 0:
+                    p.label = "Mode";
+                    p.isStepped = true;
+                    p.maxValue = 3.0f;
+                    break;
+                case 1:
+                    p.label = "Slope";
+                    p.isStepped = true;
+                    p.maxValue = 1.0f;
+                    p.defaultValue = 1.0f;
+                    break;
+                case 2:
+                    p.label = "Cutoff";
+                    p.maxValue = 1.0f;
+                    p.defaultValue = 1.0f;
+                    break;
+                case 3:
+                    p.label = "Reson";
+                    p.maxValue = 1.0f;
+                    break;
+                case 4:
+                    p.label = "Drive";
+                    p.maxValue = 1.0f;
+                    break;
+                case 5:
+                    p.label = "Env>Ct";
+                    p.minValue = -1.0f;
+                    p.maxValue = 1.0f;
+                    break;
+                default: break;
             }
             return p;
         }
@@ -3571,25 +3615,59 @@ namespace lockstep
             const int as = index - ampOff;
             ParamSpec p;
             p.sectionIndex = kAmpSecIdx;
-            p.id           = kAmpIds[as];
+            p.id = kAmpIds[as];
             switch (as)
             {
-            case 0: p.label="Level";   p.maxValue=2.0f; p.defaultValue=1.0f;
-                    p.role=ParamSpec::Role::Level; break;
-            case 1: p.label="Pan";     p.minValue=-1.0f; p.maxValue=1.0f;
-                    p.role=ParamSpec::Role::Pan; break;
-            case 2: p.label="Gate";    p.isStepped=true; p.maxValue=1.0f; break;
-            case 3: p.label="Attack";  p.maxValue=1000.0f; p.defaultValue=1.0f;
-                    p.unit=ParamSpec::Unit::Ms; p.role=ParamSpec::Role::Attack; break;
-            case 4: p.label="Hold";    p.maxValue=1000.0f;
-                    p.unit=ParamSpec::Unit::Ms; p.role=ParamSpec::Role::Hold; break;
-            case 5: p.label="Decay";   p.maxValue=2000.0f;
-                    p.unit=ParamSpec::Unit::Ms; p.role=ParamSpec::Role::Decay; break;
-            case 6: p.label="Sustain"; p.maxValue=1.0f; p.defaultValue=1.0f;
-                    p.role=ParamSpec::Role::Sustain; break;
-            case 7: p.label="Release"; p.maxValue=2000.0f; p.defaultValue=10.0f;
-                    p.unit=ParamSpec::Unit::Ms; p.role=ParamSpec::Role::Release; break;
-            default: break;
+                case 0:
+                    p.label = "Level";
+                    p.maxValue = 2.0f;
+                    p.defaultValue = 1.0f;
+                    p.role = ParamSpec::Role::Level;
+                    break;
+                case 1:
+                    p.label = "Pan";
+                    p.minValue = -1.0f;
+                    p.maxValue = 1.0f;
+                    p.role = ParamSpec::Role::Pan;
+                    break;
+                case 2:
+                    p.label = "Gate";
+                    p.isStepped = true;
+                    p.maxValue = 1.0f;
+                    break;
+                case 3:
+                    p.label = "Attack";
+                    p.maxValue = 1000.0f;
+                    p.defaultValue = 1.0f;
+                    p.unit = ParamSpec::Unit::Ms;
+                    p.role = ParamSpec::Role::Attack;
+                    break;
+                case 4:
+                    p.label = "Hold";
+                    p.maxValue = 1000.0f;
+                    p.unit = ParamSpec::Unit::Ms;
+                    p.role = ParamSpec::Role::Hold;
+                    break;
+                case 5:
+                    p.label = "Decay";
+                    p.maxValue = 2000.0f;
+                    p.unit = ParamSpec::Unit::Ms;
+                    p.role = ParamSpec::Role::Decay;
+                    break;
+                case 6:
+                    p.label = "Sustain";
+                    p.maxValue = 1.0f;
+                    p.defaultValue = 1.0f;
+                    p.role = ParamSpec::Role::Sustain;
+                    break;
+                case 7:
+                    p.label = "Release";
+                    p.maxValue = 2000.0f;
+                    p.defaultValue = 10.0f;
+                    p.unit = ParamSpec::Unit::Ms;
+                    p.role = ParamSpec::Role::Release;
+                    break;
+                default: break;
             }
             return p;
         }
@@ -3633,8 +3711,7 @@ namespace lockstep
         }
         // Apply all [AUDIO] writes inside a single quiesce window so the audio
         // thread sees a consistent snapshot: machine swap + baseParams copy + PLock reserve.
-        withQuiescedEngine([&]
-        {
+        withQuiescedEngine([&] {
             for (std::size_t t = 0; t < kNumTracks; ++t)
             {
                 if (pending[t]) machines_[t] = std::move(pending[t]);
@@ -3792,8 +3869,7 @@ namespace lockstep
         for (int s = 0; s < np; ++s)
             k.baseParams[static_cast<std::size_t>(s)] = nm->paramSpec(s).defaultValue;
 
-        withQuiescedEngine([&]
-        {
+        withQuiescedEngine([&] {
             machines_[ti] = std::move(nm);
             sequence().tracks[ti].baseParams = k.baseParams;
         });
@@ -3824,8 +3900,7 @@ namespace lockstep
         // Install the copied machine.
         auto nm = makeMachineForId(kit(dstTrack).machineId, samplePool_);
         nm->prepare(preparedSampleRate_, preparedBlockSize_);
-        withQuiescedEngine([&]
-        {
+        withQuiescedEngine([&] {
             machines_[di] = std::move(nm);
             sequence().tracks[di].baseParams = kit(dstTrack).baseParams;
         });
@@ -3835,8 +3910,7 @@ namespace lockstep
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
         const auto ti = static_cast<std::size_t>(track);
-        return machines_[ti]
-            && std::string(machines_[ti]->machineId()) == StubMachine::kMachineId;
+        return machines_[ti] && std::string(machines_[ti]->machineId()) == StubMachine::kMachineId;
     }
 
     // -------------------------------------------------------------------------
@@ -3845,8 +3919,7 @@ namespace lockstep
     {
         // Flush live edits and snapshot under quiesce so EngineCmd queue is drained
         // before writeBackWorkingToActive reads arrangement_.working.
-        withQuiescedEngine([&]
-        {
+        withQuiescedEngine([&] {
             arrangement_.writeBackWorkingToActive();
             PluginState::writeTo(dest, *this);
         });
@@ -3863,14 +3936,11 @@ namespace lockstep
         syncSequenceFromCurrentScene();
 
         // Push all MIDI-out config from a Kit track to an already-installed machine.
-        auto pushMidiOutConfig = [](MidiOutMachine* mom, const TrackKit& k)
-        {
+        auto pushMidiOutConfig = [](MidiOutMachine* mom, const TrackKit& k) {
             mom->setDestinationId(k.destinationId);
-            for (int ci = 0; ci < MidiOutMachine::kNumCCs
-                          && ci < static_cast<int>(k.midiCCNumbers.size()); ++ci)
+            for (int ci = 0; ci < MidiOutMachine::kNumCCs && ci < static_cast<int>(k.midiCCNumbers.size()); ++ci)
                 mom->setCCNumber(ci, k.midiCCNumbers[static_cast<std::size_t>(ci)]);
-            for (int ci = 0; ci < MidiOutMachine::kNumCCs
-                          && ci < static_cast<int>(k.midiCCLabels.size()); ++ci)
+            for (int ci = 0; ci < MidiOutMachine::kNumCCs && ci < static_cast<int>(k.midiCCLabels.size()); ++ci)
                 mom->setCCLabel(ci, juce::String(k.midiCCLabels[static_cast<std::size_t>(ci)]));
             // MF.8: restore hardware preset CC name table.
             if (!k.midiPresetName.empty())
@@ -3932,8 +4002,7 @@ namespace lockstep
         {
             // NOTE: machineId() returns const char*; compare via std::string to
             // avoid a pointer-equality check that is always false.
-            if (machines_[t]
-                && std::string(machines_[t]->machineId()) == VAMachine::kMachineId)
+            if (machines_[t] && std::string(machines_[t]->machineId()) == VAMachine::kMachineId)
             {
                 auto& trigDef = sequence().tracks[t].trigDefaults;
                 if (trigDef.gateValue == MusicalGate::None)
@@ -3954,4 +4023,3 @@ namespace lockstep
         }
     }
 }
-

@@ -28,8 +28,8 @@ namespace lockstep
 
         // Track / page (was in StepGrid)
         void setActiveTrack(int t);
-        int  getActiveTrack() const { return uiState_.activeTrack; }
-        int  currentPage()    const { return stepPage_; }
+        int getActiveTrack() const { return uiState_.activeTrack; }
+        int currentPage() const { return stepPage_; }
         void nextPage();
         void prevPage();
         // Scroll-past-end (DESIGN §34.4): a double-tap NavRight unlocks one empty
@@ -37,7 +37,7 @@ namespace lockstep
         // Auto-relocks once the visible page is back within the length.
         void unlockScrollPastEnd();
         bool isScrollPastEndUnlocked() const { return scrollPastEndUnlocked_; }
-        int  numPages() const;
+        int numPages() const;
 
         // Display mode
         void setDisplayMode(GridDisplayMode mode);
@@ -58,10 +58,10 @@ namespace lockstep
         int stepRowsLocalY() const;
 
         // Callbacks
-        std::function<void(int)>             onActiveTrackChanged;
+        std::function<void(int)> onActiveTrackChanged;
         std::function<void(GridDisplayMode)> onDisplayModeChanged;
-        std::function<void(int, int, int)>   onSectionChanged;    // (section, page, firstSlot)
-        std::function<void(int)>             onMetaSectionChanged;
+        std::function<void(int, int, int)> onSectionChanged;    // (section, page, firstSlot)
+        std::function<void(int)> onMetaSectionChanged;
 
         // Mouse button events for non-step, non-section buttons (nav, verb, modifiers).
         // PluginEditor wires these to route through the same handler as QWERTY events.
@@ -73,8 +73,8 @@ namespace lockstep
         void setPressTracker(const PressTracker* pt) { pressTracker_ = pt; }
         void setMorphViewState(const MorphViewState& mv, int slotOffset, float crossfaderValue)
         {
-            morphView_       = mv;
-            slotOffset_      = slotOffset;
+            morphView_ = mv;
+            slotOffset_ = slotOffset;
             crossfaderValue_ = crossfaderValue;
         }
 
@@ -85,13 +85,14 @@ namespace lockstep
         void mouseUp(const juce::MouseEvent& e) override;
 
         static constexpr int kPageSteps = 16;
-        static constexpr int kCols      = 8;
-        static constexpr int kRows      = 2;
+        static constexpr int kCols = 8;
+        static constexpr int kRows = 2;
 
     private:
         // Layout helpers — reproduce the same area math used in PluginEditor::resized()
         // but applied to this component's own bounds.
-        struct RowAreas {
+        struct RowAreas
+        {
             juce::Rectangle<int> section;
             juce::Rectangle<int> function;
             juce::Rectangle<int> step;   // includes nav row at bottom
@@ -100,19 +101,23 @@ namespace lockstep
         RowAreas computeRowAreas() const;
 
         // Step cell helpers (from StepGrid)
-        int  trackLength()  const;
+        int trackLength() const;
         void clampPage();
-        int  stepCellAt(juce::Point<int> pos) const;
+        int stepCellAt(juce::Point<int> pos) const;
 
         // Section helpers (from SectionBar)
         juce::Rectangle<int> sectionCellBounds(int cellIndex,
-                                                juce::Rectangle<int> area) const;
-        static int  cellToSection(int cellIndex);
+                                               juce::Rectangle<int> area) const;
+        static int cellToSection(int cellIndex);
         void notifySectionChanged(int sectionIndex, int track);
 
         // One entry per section in the cycling order for a canonical key:
         // canonical section first, then any extension sections in index order.
-        struct SecGroup { int sectionIdx = 0; int pageCount = 0; };
+        struct SecGroup
+        {
+            int sectionIdx = 0;
+            int pageCount = 0;
+        };
         // Returns the ordered SecGroup list (canonical + extensions) for the given
         // canonical key on the given track. Empty if the canonical section has no slots
         // AND there are no extension sections.
@@ -120,20 +125,20 @@ namespace lockstep
 
         // Hit-testing for non-step, non-section-5-0 buttons.
         // Returns a ButtonDown event for the hit button, or {ButtonDown, None} if no hit.
-        ControllerEvent hitTestFunctionRow (juce::Point<int> pos, juce::Rectangle<int> area) const;
+        ControllerEvent hitTestFunctionRow(juce::Point<int> pos, juce::Rectangle<int> area) const;
         ControllerEvent hitTestModifierCell(juce::Point<int> pos, juce::Rectangle<int> stepArea) const;
 
         // Paint helpers
-        void paintSectionRow (juce::Graphics& g, juce::Rectangle<int> area,
-                              const SurfaceModel& model);
+        void paintSectionRow(juce::Graphics& g, juce::Rectangle<int> area,
+                             const SurfaceModel& model);
         void paintFunctionRow(juce::Graphics& g, juce::Rectangle<int> area,
                               const SurfaceModel& model);
-        void paintStepRows   (juce::Graphics& g, juce::Rectangle<int> area,
-                              const SurfaceModel& model);
-        void paintTimeline   (juce::Graphics& g, juce::Rectangle<int> navArea);
+        void paintStepRows(juce::Graphics& g, juce::Rectangle<int> area,
+                           const SurfaceModel& model);
+        void paintTimeline(juce::Graphics& g, juce::Rectangle<int> navArea);
         // Decorative edge/anchor keys rendered just outside each main row (ORL and STG
         // only; rowIndex 0-3 for number/Q/A/Z rows; JUCE clips the outer halves).
-        void paintEdgeRow   (juce::Graphics& g, int rowIndex, juce::Rectangle<int> rowArea) const;
+        void paintEdgeRow(juce::Graphics& g, int rowIndex, juce::Rectangle<int> rowArea) const;
 
         // Helper: true if the given raw key code is currently held (keyboard) OR
         // if the mouse is holding the given logical (button, index) cell.
@@ -150,27 +155,27 @@ namespace lockstep
         }
 
         LockstepProcessor& processor_;
-        UiState&           uiState_;
-        const PressTracker* pressTracker_  = nullptr;
-        MorphViewState     morphView_;           // set by editor before repaint; drives morph step view
-        int                slotOffset_      = 0;
-        float              crossfaderValue_ = 0.5f;
+        UiState& uiState_;
+        const PressTracker* pressTracker_ = nullptr;
+        MorphViewState morphView_;           // set by editor before repaint; drives morph step view
+        int slotOffset_ = 0;
+        float crossfaderValue_ = 0.5f;
 
-        int             stepPage_       = 0;
-        bool            scrollPastEndUnlocked_ = false;
-        GridDisplayMode displayMode_    = GridDisplayMode::Ortholinear;
-        int             mouseHeldStep_  = -1;
+        int stepPage_ = 0;
+        bool scrollPastEndUnlocked_ = false;
+        GridDisplayMode displayMode_ = GridDisplayMode::Ortholinear;
+        int mouseHeldStep_ = -1;
         ControllerEvent mouseHeldButton_{};  // non-step button held via mouse
-        double          lastPpq_        = -1.0;
-        int             lastTrackLen_   = -1;
+        double lastPpq_ = -1.0;
+        int lastTrackLen_ = -1;
 
-        static constexpr int kNavRowH    = 34;
+        static constexpr int kNavRowH = 34;
         static constexpr int kVertMargin = 4;  // top/bottom margin of the key area
 
         // Section row constants (from SectionBar).
         // Number row: Func(1) Fill(2) TAP(3) NavUp(4) | TRIG..FX(5-0) = 10 cells.
         static constexpr int kFixedSectionCells = 4;   // Func + Fill + TAP + NavUp (left)
-        static constexpr int kTailSectionCells  = 0;   // no tail cells; sections run to key 0
+        static constexpr int kTailSectionCells = 0;   // no tail cells; sections run to key 0
         static constexpr int kTotalSectionCells =
             kFixedSectionCells + IMachine::kMaxSections + kTailSectionCells; // 10
 

@@ -26,19 +26,21 @@ namespace lockstep
         if (machinePicker) return col(kScopeMachine);
         switch (scope)
         {
-            case PS::Track:   return col(kScopeTrack);
+            case PS::Track:  return col(kScopeTrack);
             case PS::Phrase: return col(kScopePhrase);
-            case PS::Scene:    return col(kScopeScene);
-            case PS::Morph:   return col(kScopeMorph);
-            case PS::Song:  return col(kScopeSong);
-            case PS::Mute:    return col(kScopeMute);
-            case PS::Fill:    return col(kScopeFill);
+            case PS::Scene:  return col(kScopeScene);
+            case PS::Morph:  return col(kScopeMorph);
+            case PS::Song:   return col(kScopeSong);
+            case PS::Mute:   return col(kScopeMute);
+            case PS::Fill:   return col(kScopeFill);
             // Func is the universal qualifier; its section-row secondaries glow
             // in the Func hue (DESIGN §6.1 rule 3).
-            case PS::Func:    return col(kScopeFunc);
+            case PS::Func:   return col(kScopeFunc);
             // Non-section scopes and None use the default step colour.
-            case PS::None: case PS::Trig:
-            case PS::Cue: case PS::Section:
+            case PS::None:
+            case PS::Trig:
+            case PS::Cue:
+            case PS::Section:
                 break;
         }
         return col(kScopeStep);
@@ -53,8 +55,8 @@ namespace lockstep
         using PS = EditMode::PrimaryScope;
         const PS s = firstHeldSectionSuiteScope(ui);
         if (s != PS::None) { return scopeColour(s); }
-        if (ui.muteHeld)   { return col(ui.funcHeld ? kScopePMute : kScopeMute); }
-        if (ui.fillHeld)   { return scopeColour(PS::Fill); }
+        if (ui.muteHeld) { return col(ui.funcHeld ? kScopePMute : kScopeMute); }
+        if (ui.fillHeld) { return scopeColour(PS::Fill); }
         return scopeColour(PS::None);
     }
 
@@ -86,11 +88,11 @@ namespace lockstep
     // Compile-time description of one key cell.
     struct KeyDef
     {
-        KeyRole     role             = KeyRole::Utility;
-        const char* natural          = "";   // primary when no modifier changes it
-        const char* funcLayer        = "";   // Func-layer secondary; "" = none
-        int         sectionIdx       = -1;   // for SectionKey: 0-5
-        bool        machineHasSection = true; // for SectionKey: false = no machine slots
+        KeyRole role = KeyRole::Utility;
+        const char* natural = "";   // primary when no modifier changes it
+        const char* funcLayer = "";   // Func-layer secondary; "" = none
+        int sectionIdx = -1;   // for SectionKey: 0-5
+        bool machineHasSection = true; // for SectionKey: false = no machine slots
     };
 
     // Resolved paint strings for one key cell.
@@ -98,13 +100,13 @@ namespace lockstep
     {
         juce::String primary;           // main centred label
         juce::String hint;              // bottom-strip secondary (reduced alpha unless Func)
-        bool         disabled = false;  // true → render in Disabled state
+        bool disabled = false;  // true → render in Disabled state
     };
 
     // Returns the label pair for one key given the current UI and edit-context
     // state.  Pure function — all contextual resolution happens here.
-    inline KeyLabel resolveKeyLabel(const KeyDef&      def,
-                                    const UiState&     ui,
+    inline KeyLabel resolveKeyLabel(const KeyDef& def,
+                                    const UiState& ui,
                                     [[maybe_unused]] const EditContext& ec) noexcept
     {
         using PS = EditMode::PrimaryScope;

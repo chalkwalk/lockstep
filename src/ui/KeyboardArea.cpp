@@ -20,10 +20,10 @@ namespace lockstep
     // -------------------------------------------------------------------------
     // Static colour constants (from SectionBar)
 
-    const juce::Colour KeyboardArea::kColourTrackActive  = juce::Colour::fromRGB( 62, 200, 200);
-    const juce::Colour KeyboardArea::kColourMasterActive = juce::Colour::fromRGB(255, 180,  50);
-    const juce::Colour KeyboardArea::kColourInactive     = juce::Colour::fromRGB( 45,  55,  65);
-    const juce::Colour KeyboardArea::kColourShiftActive  = juce::Colour::fromRGB(160, 175, 195);
+    const juce::Colour KeyboardArea::kColourTrackActive = juce::Colour::fromRGB(62, 200, 200);
+    const juce::Colour KeyboardArea::kColourMasterActive = juce::Colour::fromRGB(255, 180, 50);
+    const juce::Colour KeyboardArea::kColourInactive = juce::Colour::fromRGB(45, 55, 65);
+    const juce::Colour KeyboardArea::kColourShiftActive = juce::Colour::fromRGB(160, 175, 195);
 
     // -------------------------------------------------------------------------
     // -------------------------------------------------------------------------
@@ -43,7 +43,7 @@ namespace lockstep
 
     KeyboardArea::RowAreas KeyboardArea::computeRowAreas() const
     {
-        const int totalH  = getHeight();
+        const int totalH = getHeight();
         const int usableH = totalH - kNavRowH - 2 * kVertMargin;
 
         int cellH, row0Y, row1Y, row2Y, intraStepGap, leftX, usableW;
@@ -54,11 +54,11 @@ namespace lockstep
             // 10 cell-widths + 10 gaps fit the full component width:
             //   cellW = (W - 10*g) / 10
             //   leftX = g + cellW/2  (main block inset; edge key centered at x=0)
-            const int g  = kOrlGap;
+            const int g = kOrlGap;
             const int cw = juce::jmax(1, (getWidth() - 10 * g) / 10);
-            leftX        = g + cw / 2;
-            usableW      = getWidth() - 2 * leftX;
-            cellH        = juce::jmax(1, (usableH - 3 * g) / 4);
+            leftX = g + cw / 2;
+            usableW = getWidth() - 2 * leftX;
+            cellH = juce::jmax(1, (usableH - 3 * g) / 4);
             intraStepGap = g;
             row0Y = kVertMargin;
             row1Y = row0Y + cellH + g;
@@ -66,9 +66,9 @@ namespace lockstep
         }
         else if (displayMode_ == GridDisplayMode::Clean)
         {
-            leftX        = kSideMargin;
-            usableW      = getWidth() - 2 * kSideMargin;
-            cellH        = juce::jmax(1, (usableH - kClnRowGap) / 4);
+            leftX = kSideMargin;
+            usableW = getWidth() - 2 * kSideMargin;
+            cellH = juce::jmax(1, (usableH - kClnRowGap) / 4);
             intraStepGap = 0;
             row0Y = kVertMargin;
             row1Y = row0Y + cellH;
@@ -76,9 +76,9 @@ namespace lockstep
         }
         else  // Staggered
         {
-            leftX        = kSideMargin;
-            usableW      = getWidth() - 2 * kSideMargin;
-            cellH        = juce::jmax(1, usableH / 4);
+            leftX = kSideMargin;
+            usableW = getWidth() - 2 * kSideMargin;
+            cellH = juce::jmax(1, usableH / 4);
             intraStepGap = 0;
             row0Y = kVertMargin;
             row1Y = row0Y + cellH;
@@ -86,9 +86,9 @@ namespace lockstep
         }
 
         RowAreas r;
-        r.section      = { leftX, row0Y, usableW, cellH };
-        r.function     = { leftX, row1Y, usableW, cellH };
-        r.step         = { leftX, row2Y, usableW, (totalH - kVertMargin) - row2Y };
+        r.section = { leftX, row0Y, usableW, cellH };
+        r.function = { leftX, row1Y, usableW, cellH };
+        r.step = { leftX, row2Y, usableW, (totalH - kVertMargin) - row2Y };
         r.intraStepGap = intraStepGap;
         return r;
     }
@@ -114,8 +114,16 @@ namespace lockstep
             onActiveTrackChanged(uiState_.activeTrack);
     }
 
-    void KeyboardArea::nextPage() { ++stepPage_; clampPage(); }
-    void KeyboardArea::prevPage() { --stepPage_; clampPage(); }
+    void KeyboardArea::nextPage()
+    {
+        ++stepPage_;
+        clampPage();
+    }
+    void KeyboardArea::prevPage()
+    {
+        --stepPage_;
+        clampPage();
+    }
 
     void KeyboardArea::setDisplayMode(GridDisplayMode mode)
     {
@@ -188,26 +196,26 @@ namespace lockstep
             return -1;
 
         static constexpr int kTotalGridCols = kCols + 2;  // 2 modifier cols + 8 step cols
-        const bool useClnGap      = (displayMode_ == GridDisplayMode::Clean);
-        const int  intraStepGap   = areas.intraStepGap;
+        const bool useClnGap = (displayMode_ == GridDisplayMode::Clean);
+        const int intraStepGap = areas.intraStepGap;
 
         int cellW, staggerA, staggerZ;
         if (displayMode_ == GridDisplayMode::Staggered)
         {
             const int hu = staggerHalfUnit(cellArea.getWidth());
-            cellW    = staggerCellW(hu);
+            cellW = staggerCellW(hu);
             staggerA = staggerOffsetA(hu);
             staggerZ = staggerOffsetZ(hu);
         }
         else if (useClnGap)
         {
-            cellW    = (cellArea.getWidth() - kClnColGap) / kTotalGridCols;
+            cellW = (cellArea.getWidth() - kClnColGap) / kTotalGridCols;
             staggerA = 0;
             staggerZ = 0;
         }
         else  // Ortholinear
         {
-            cellW    = (cellArea.getWidth() - (kTotalGridCols - 1) * kOrlGap) / kTotalGridCols;
+            cellW = (cellArea.getWidth() - (kTotalGridCols - 1) * kOrlGap) / kTotalGridCols;
             staggerA = 0;
             staggerZ = 0;
         }
@@ -232,17 +240,17 @@ namespace lockstep
         if (useClnGap)
         {
             // Cols 0/1 = modifiers, gap, cols 2+ = steps.
-            if (relX < 0)                                    return -1;
-            if (relX < 2 * cellW)                            col = relX / cellW;
-            else if (relX < 2 * cellW + kClnColGap)         return -1;
+            if (relX < 0) return -1;
+            if (relX < 2 * cellW) col = relX / cellW;
+            else if (relX < 2 * cellW + kClnColGap) return -1;
             else col = 2 + (relX - 2 * cellW - kClnColGap) / cellW;
         }
         else if (displayMode_ == GridDisplayMode::Ortholinear)
         {
             const int pitch = cellW + kOrlGap;
-            if (relX < 0 || pitch <= 0)                      return -1;
+            if (relX < 0 || pitch <= 0) return -1;
             col = relX / pitch;
-            if (relX % pitch >= cellW)                       return -1;  // click in gap
+            if (relX % pitch >= cellW) return -1;  // click in gap
         }
         else
         {
@@ -261,7 +269,7 @@ namespace lockstep
     // Section helpers
 
     juce::Rectangle<int> KeyboardArea::sectionCellBounds(int cellIndex,
-                                                          juce::Rectangle<int> area) const
+                                                         juce::Rectangle<int> area) const
     {
         const int w = area.getWidth();
         const int h = area.getHeight();
@@ -271,14 +279,13 @@ namespace lockstep
             // Gap between the 2 left modifier cells and the section + tail cells.
             const int cellW = (w - kClnColGap) / kTotalSectionCells;
             const int x = (cellIndex < kFixedSectionCells)
-                ? area.getX() + cellIndex * cellW
-                : area.getX() + kFixedSectionCells * cellW + kClnColGap
-                      + (cellIndex - kFixedSectionCells) * cellW;
+                              ? area.getX() + cellIndex * cellW
+                              : area.getX() + kFixedSectionCells * cellW + kClnColGap + (cellIndex - kFixedSectionCells) * cellW;
             return { x, area.getY(), cellW, h };
         }
         if (displayMode_ == GridDisplayMode::Ortholinear)
         {
-            const int g     = kOrlGap;
+            const int g = kOrlGap;
             const int cellW = (w - (kTotalSectionCells - 1) * g) / kTotalSectionCells;
             return { area.getX() + cellIndex * (cellW + g), area.getY(), cellW, h };
         }
@@ -291,8 +298,7 @@ namespace lockstep
     {
         // Section cells are kFixedSectionCells .. kFixedSectionCells+kMaxSections-1.
         // Cells 0-1 (modifiers) and tail cells (ARM/PLY) map to -1.
-        if (cellIndex < kFixedSectionCells
-                || cellIndex >= kFixedSectionCells + IMachine::kMaxSections)
+        if (cellIndex < kFixedSectionCells || cellIndex >= kFixedSectionCells + IMachine::kMaxSections)
             return -1;
         return cellIndex - kFixedSectionCells;
     }
@@ -310,8 +316,7 @@ namespace lockstep
         //   0=COND  1=TRIG  2=TRANSPORT  3=DIV  4=PHRASELEN  5=GLOBAL(master FX).
         // Reached by: Func+TRIG/SRC, Track+TRIG, Phrase+LEN, Func+7, Song+FX.
         // Distinct from the Func-row label set in kMetaLabels.
-        return contentIndex == 0 || contentIndex == 1 || contentIndex == 2
-            || contentIndex == 3 || contentIndex == 4 || contentIndex == 5;
+        return contentIndex == 0 || contentIndex == 1 || contentIndex == 2 || contentIndex == 3 || contentIndex == 4 || contentIndex == 5;
     }
 
     void KeyboardArea::notifySectionChanged(int sectionIndex, int track)
@@ -345,7 +350,7 @@ namespace lockstep
 
         // combinedPage out of range (stale state after machine change) — fall back.
         const auto& first = groups.front();
-        const auto info   = processor_.section(track, first.sectionIdx);
+        const auto info = processor_.section(track, first.sectionIdx);
         if (info.firstSlot >= 0)
             onSectionChanged(sectionIndex, 0, info.firstSlot);
     }
@@ -454,35 +459,42 @@ namespace lockstep
     // Mouse hit-testing
 
     ControllerEvent KeyboardArea::hitTestFunctionRow(juce::Point<int> pos,
-                                                      juce::Rectangle<int> area) const
+                                                     juce::Rectangle<int> area) const
     {
         if (!area.contains(pos))
             return {};
 
         // Q-row logical button mapping (matches kDefs order in paintFunctionRow).
         using CB = ControllerButton;
-        static constexpr std::array<CB, 10> kButtons = {{
-            CB::PhraseScope, CB::SceneScope,
-            CB::NavLeft, CB::NavDown, CB::NavRight,
-            CB::VerbYes, CB::VerbRecord, CB::VerbPlay, CB::VerbStop, CB::VerbNo,
-        }};
+        static constexpr std::array<CB, 10> kButtons = { {
+            CB::PhraseScope,
+            CB::SceneScope,
+            CB::NavLeft,
+            CB::NavDown,
+            CB::NavRight,
+            CB::VerbYes,
+            CB::VerbRecord,
+            CB::VerbPlay,
+            CB::VerbStop,
+            CB::VerbNo,
+        } };
 
         const int n = static_cast<int>(kButtons.size());
         int cellW, leftPad;
         if (displayMode_ == GridDisplayMode::Staggered)
         {
             const int hu = staggerHalfUnit(area.getWidth());
-            cellW   = staggerCellW(hu);
+            cellW = staggerCellW(hu);
             leftPad = staggerOffsetQ(hu);
         }
         else if (displayMode_ == GridDisplayMode::Clean)
         {
-            cellW   = (area.getWidth() - kClnColGap) / n;
+            cellW = (area.getWidth() - kClnColGap) / n;
             leftPad = 0;
         }
         else  // Ortholinear
         {
-            cellW   = (area.getWidth() - (n - 1) * kOrlGap) / n;
+            cellW = (area.getWidth() - (n - 1) * kOrlGap) / n;
             leftPad = 0;
         }
 
@@ -491,7 +503,7 @@ namespace lockstep
             int x;
             if (displayMode_ == GridDisplayMode::Clean)
                 x = (i >= 2) ? area.getX() + 2 * cellW + kClnColGap + (i - 2) * cellW
-                              : area.getX() + i * cellW;
+                             : area.getX() + i * cellW;
             else if (displayMode_ == GridDisplayMode::Ortholinear)
                 x = area.getX() + i * (cellW + kOrlGap);
             else
@@ -504,7 +516,7 @@ namespace lockstep
     }
 
     ControllerEvent KeyboardArea::hitTestModifierCell(juce::Point<int> pos,
-                                                       juce::Rectangle<int> stepArea) const
+                                                      juce::Rectangle<int> stepArea) const
     {
         auto area = stepArea;
         area.removeFromBottom(kNavRowH);
@@ -512,26 +524,26 @@ namespace lockstep
             return {};
 
         static constexpr int kTotalGridCols = kCols + 2;
-        const bool useClnGap    = (displayMode_ == GridDisplayMode::Clean);
-        const int  intraStepGap = (displayMode_ == GridDisplayMode::Ortholinear) ? kOrlGap : 0;
+        const bool useClnGap = (displayMode_ == GridDisplayMode::Clean);
+        const int intraStepGap = (displayMode_ == GridDisplayMode::Ortholinear) ? kOrlGap : 0;
 
         int cellW, staggerA, staggerZ;
         if (displayMode_ == GridDisplayMode::Staggered)
         {
             const int hu = staggerHalfUnit(area.getWidth());
-            cellW    = staggerCellW(hu);
+            cellW = staggerCellW(hu);
             staggerA = staggerOffsetA(hu);
             staggerZ = staggerOffsetZ(hu);
         }
         else if (useClnGap)
         {
-            cellW    = (area.getWidth() - kClnColGap) / kTotalGridCols;
+            cellW = (area.getWidth() - kClnColGap) / kTotalGridCols;
             staggerA = 0;
             staggerZ = 0;
         }
         else
         {
-            cellW    = (area.getWidth() - (kTotalGridCols - 1) * kOrlGap) / kTotalGridCols;
+            cellW = (area.getWidth() - (kTotalGridCols - 1) * kOrlGap) / kTotalGridCols;
             staggerA = 0;
             staggerZ = 0;
         }
@@ -549,15 +561,15 @@ namespace lockstep
             return {};
 
         const int rowStagger = (row == 0) ? staggerA : staggerZ;
-        const int cellY      = area.getY() + row * cellH + (row > 0 ? intraStepGap : 0);
+        const int cellY = area.getY() + row * cellH + (row > 0 ? intraStepGap : 0);
 
         // Modifier buttons: logical layout
         //   row 0, col 0 = A (Scene)   row 0, col 1 = S (Master)
         //   row 1, col 0 = Z (Mute)    row 1, col 1 = X (Fill)
         using CB = ControllerButton;
         static constexpr CB kModButtons[2][2] = {
-            { CB::MorphScope,  CB::SongScope },
-            { CB::MuteScope,   CB::FillScope   },
+            { CB::MorphScope, CB::SongScope },
+            { CB::MuteScope, CB::FillScope },
         };
 
         for (int mc = 0; mc < 2; ++mc)
@@ -582,7 +594,7 @@ namespace lockstep
 
     void KeyboardArea::mouseDown(const juce::MouseEvent& e)
     {
-        const auto pos   = e.getPosition();
+        const auto pos = e.getPosition();
         const auto areas = computeRowAreas();
 
         // Section row — all 10 cells produce ControllerEvents.
@@ -591,7 +603,7 @@ namespace lockstep
             if (!sectionCellBounds(i, areas.section).contains(pos)) continue;
 
             using CB = ControllerButton;
-            ControllerEvent ev { ControllerEvent::Type::ButtonDown, CB::None, -1, 0 };
+            ControllerEvent ev{ ControllerEvent::Type::ButtonDown, CB::None, -1, 0 };
 
             if (i < kFixedSectionCells)
             {
@@ -608,11 +620,11 @@ namespace lockstep
                 const int section = cellToSection(i);
                 if (section < 0) return;
                 ev.button = CB::Section;
-                ev.index  = section;
-                const LayerContext lctx {
+                ev.index = section;
+                const LayerContext lctx{
                     uiState_.funcHeld,
                     uiState_.trackHeld || uiState_.latch.track,
-                    uiState_.muteHeld  || uiState_.latch.mute
+                    uiState_.muteHeld || uiState_.latch.mute
                 };
                 ev = resolveLayer(ev, lctx);
             }
@@ -653,12 +665,12 @@ namespace lockstep
             // but we store absIdx in mouseHeldStep_ for the matching mouseUp).
             const int pageRelIdx = absIdx % kPageSteps;
             mouseHeldStep_ = absIdx;
-            const LayerContext lctx {
+            const LayerContext lctx{
                 uiState_.funcHeld,
                 uiState_.trackHeld || uiState_.latch.track,
-                uiState_.muteHeld  || uiState_.latch.mute
+                uiState_.muteHeld || uiState_.latch.mute
             };
-            ControllerEvent ev {
+            ControllerEvent ev{
                 ControllerEvent::Type::ButtonDown, ControllerButton::Step, pageRelIdx, 0
             };
             ev = resolveLayer(ev, lctx);
@@ -672,12 +684,12 @@ namespace lockstep
         if (mouseHeldButton_.button == ControllerButton::None)
             return;
 
-        const ControllerEvent up {
+        const ControllerEvent up{
             ControllerEvent::Type::ButtonUp, mouseHeldButton_.button,
             mouseHeldButton_.index, 0
         };
         mouseHeldButton_ = {};
-        mouseHeldStep_   = -1;
+        mouseHeldStep_ = -1;
         if (onButtonUp) onButtonUp(up);
         repaint();
     }
@@ -698,9 +710,9 @@ namespace lockstep
             uiState_, processor_.editContext(), pressTracker_,
             processor_, uiState_.activeTrack, stepPage_, displayMode_,
             slotOffset_, crossfaderValue_, morphView_);
-        paintSectionRow (g, areas.section,  model);
+        paintSectionRow(g, areas.section, model);
         paintFunctionRow(g, areas.function, model);
-        paintStepRows   (g, areas.step, model);
+        paintStepRows(g, areas.step, model);
     }
 
     // -------------------------------------------------------------------------
@@ -709,7 +721,7 @@ namespace lockstep
     //   cell 0   cell 1    cell 2  cell3  cell 4   ...                          cell 9
 
     void KeyboardArea::paintSectionRow(juce::Graphics& g, juce::Rectangle<int> area,
-                                        const SurfaceModel& model)
+                                       const SurfaceModel& model)
     {
         paintEdgeRow(g, 0, area);
         const bool showKeyHint = (displayMode_ != GridDisplayMode::Clean);
@@ -717,8 +729,8 @@ namespace lockstep
         // Fixed cells: Func, Track, TAP, NavUp — rendered from model
         paintCell(g, sectionCellBounds(0, area), model.modifiers[0], showKeyHint);
         paintCell(g, sectionCellBounds(1, area), model.modifiers[1], showKeyHint);
-        paintCell(g, sectionCellBounds(2, area), model.tap,          showKeyHint);
-        paintCell(g, sectionCellBounds(3, area), model.navUp,        showKeyHint);
+        paintCell(g, sectionCellBounds(2, area), model.tap, showKeyHint);
+        paintCell(g, sectionCellBounds(3, area), model.navUp, showKeyHint);
 
         // Section keys 5-0 (cells 4-9): render from model + page dots (screen-only)
         using PS = EditMode::PrimaryScope;
@@ -733,21 +745,21 @@ namespace lockstep
 
             // Page dots — from model.pageDots (§35.8.1 residual now closed).
             const bool isMasterActive = !isScopedMode && (uiState_.masterSection == s);
-            const bool isTrackActive  = !isScopedMode && (uiState_.masterSection == -1
-                && uiState_.trackSection[static_cast<std::size_t>(uiState_.activeTrack)] == s);
+            const bool isTrackActive = !isScopedMode && (uiState_.masterSection == -1 && uiState_.trackSection[static_cast<std::size_t>(uiState_.activeTrack)] == s);
             const auto& dots = model.pageDots[static_cast<std::size_t>(s)];
 
             if (dots.count > 1 && !isMasterActive)
             {
                 const int totalPageCount = dots.count;
-                const int activePage     = dots.active;
+                const int activePage = dots.active;
 
                 const juce::Colour dotCol = isTrackActive
-                    ? kColourTrackActive : kColourTrackActive.withAlpha(0.4f);
+                                                ? kColourTrackActive
+                                                : kColourTrackActive.withAlpha(0.4f);
 
-                const int dotSize    = 4;
+                const int dotSize = 4;
                 const int dotSpacing = 6;
-                const int totalDotW  = totalPageCount * dotSpacing - (dotSpacing - dotSize);
+                const int totalDotW = totalPageCount * dotSpacing - (dotSpacing - dotSize);
                 int dotX = cell.getCentreX() - totalDotW / 2;
                 const int dotY = cell.getBottom() - 6;
 
@@ -775,7 +787,7 @@ namespace lockstep
     //   MHZ.1: labels expanded to 6-char cap; resolveKeyLabel() drives U/I/O.
 
     void KeyboardArea::paintFunctionRow(juce::Graphics& g, juce::Rectangle<int> area,
-                                         const SurfaceModel& model)
+                                        const SurfaceModel& model)
     {
         paintEdgeRow(g, 1, area);
         const bool showKeyHint = (displayMode_ != GridDisplayMode::Clean);
@@ -786,17 +798,17 @@ namespace lockstep
         if (displayMode_ == GridDisplayMode::Staggered)
         {
             const int hu = staggerHalfUnit(area.getWidth());
-            cellW   = staggerCellW(hu);
+            cellW = staggerCellW(hu);
             leftPad = staggerOffsetQ(hu);
         }
         else if (displayMode_ == GridDisplayMode::Clean)
         {
-            cellW   = (area.getWidth() - kClnColGap) / kNumCells;
+            cellW = (area.getWidth() - kClnColGap) / kNumCells;
             leftPad = 0;
         }
         else  // Ortholinear
         {
-            cellW   = (area.getWidth() - (kNumCells - 1) * kOrlGap) / kNumCells;
+            cellW = (area.getWidth() - (kNumCells - 1) * kOrlGap) / kNumCells;
             leftPad = 0;
         }
 
@@ -825,62 +837,60 @@ namespace lockstep
     // Overlay re-skins (mute/scope/machine/etc.) early-return before consuming step cells.
 
     void KeyboardArea::paintStepRows(juce::Graphics& g, juce::Rectangle<int> area,
-                                      const SurfaceModel& model)
+                                     const SurfaceModel& model)
     {
-        static const juce::Colour kColOutRange { kStepOutRange };
-        static const juce::Colour kColPlayhead { kStepPlayhead };
-        static const juce::Colour kColHeld     { kStepHeld     };
-        static const juce::Colour kColPLock    { kStepPLock    };
+        static const juce::Colour kColOutRange{ kStepOutRange };
+        static const juce::Colour kColPlayhead{ kStepPlayhead };
+        static const juce::Colour kColHeld{ kStepHeld };
+        static const juce::Colour kColPLock{ kStepPLock };
 
-        const auto navArea  = area.removeFromBottom(kNavRowH);
+        const auto navArea = area.removeFromBottom(kNavRowH);
         const auto cellArea = area;
 
-        const int trackLen  = trackLength();
-        const int baseStep  = stepPage_ * kPageSteps;
-        const auto& track   = processor_.sequence().tracks[static_cast<std::size_t>(uiState_.activeTrack)];
+        const int trackLen = trackLength();
+        const int baseStep = stepPage_ * kPageSteps;
+        const auto& track = processor_.sequence().tracks[static_cast<std::size_t>(uiState_.activeTrack)];
         const bool fillActive = processor_.fillActive();
 
         // MHX step keys: D-; (steps 0-7, A row), C-/ (steps 8-15, Z row).
         static constexpr const char* kKeyLetters[kPageSteps] = {
-            "D","F","G","H","J","K","L",";",
-            "C","V","B","N","M",",",".","/"
+            "D", "F", "G", "H", "J", "K", "L", ";",
+            "C", "V", "B", "N", "M", ",", ".", "/"
         };
         // MHX: 2 modifier columns (A/S | Z/X) + 8 step columns = 10 total.
         static constexpr int kTotalGridCols = kCols + 2;
         const bool showKeyLetters = (displayMode_ != GridDisplayMode::Clean);
-        const bool useClnGap      = (displayMode_ == GridDisplayMode::Clean);
-        const int  intraStepGap   = (displayMode_ == GridDisplayMode::Ortholinear) ? kOrlGap : 0;
+        const bool useClnGap = (displayMode_ == GridDisplayMode::Clean);
+        const int intraStepGap = (displayMode_ == GridDisplayMode::Ortholinear) ? kOrlGap : 0;
 
         int cellW, staggerA, staggerZ;
         if (displayMode_ == GridDisplayMode::Staggered)
         {
             const int hu = staggerHalfUnit(cellArea.getWidth());
-            cellW    = staggerCellW(hu);
+            cellW = staggerCellW(hu);
             staggerA = staggerOffsetA(hu);
             staggerZ = staggerOffsetZ(hu);
         }
         else if (useClnGap)
         {
-            cellW    = (cellArea.getWidth() - kClnColGap) / kTotalGridCols;
+            cellW = (cellArea.getWidth() - kClnColGap) / kTotalGridCols;
             staggerA = 0;
             staggerZ = 0;
         }
         else  // Ortholinear
         {
-            cellW    = (cellArea.getWidth() - (kTotalGridCols - 1) * kOrlGap) / kTotalGridCols;
+            cellW = (cellArea.getWidth() - (kTotalGridCols - 1) * kOrlGap) / kTotalGridCols;
             staggerA = 0;
             staggerZ = 0;
         }
         const int cellH = (cellArea.getHeight() - intraStepGap) / kRows;
 
-        auto rowY = [&](int row) -> int
-        {
+        auto rowY = [&](int row) -> int {
             return cellArea.getY() + row * cellH + (row > 0 ? intraStepGap : 0);
         };
 
         // col 0/1 = modifiers, col 2+ = steps.
-        auto colX = [&](int row, int col) -> int
-        {
+        auto colX = [&](int row, int col) -> int {
             const int stagger = (row == 0) ? staggerA : staggerZ;
             if (useClnGap && col >= 2)
                 return cellArea.getX() + stagger + 2 * cellW + kClnColGap + (col - 2) * cellW;
@@ -895,7 +905,7 @@ namespace lockstep
         for (int row = 0; row < kRows; ++row)
         {
             const auto rowRect = juce::Rectangle<int>(cellArea.getX(), rowY(row),
-                                                       cellArea.getWidth(), cellH);
+                                                      cellArea.getWidth(), cellH);
             paintEdgeRow(g, 2 + row, rowRect);
         }
 
@@ -908,9 +918,9 @@ namespace lockstep
                 for (int mc = 0; mc < 2; ++mc)
                 {
                     const int modIdx = 4 + row * 2 + mc;
-                    const int x      = colX(row, mc);
-                    const int y      = rowY(row);
-                    const auto cell  = juce::Rectangle<int>(x, y, cellW, cellH);
+                    const int x = colX(row, mc);
+                    const int y = rowY(row);
+                    const auto cell = juce::Rectangle<int>(x, y, cellW, cellH);
                     paintCell(g, cell, model.modifiers[static_cast<std::size_t>(modIdx)],
                               showKeyLetters);
                 }
@@ -927,9 +937,9 @@ namespace lockstep
             {
                 for (int col = 0; col < kCols; ++col)
                 {
-                    const int idx  = row * kCols + col;
+                    const int idx = row * kCols + col;
                     const SurfaceCell& sc = model.step[static_cast<std::size_t>(idx)];
-                    const bool avail    = sc.base != CellState::MachineUnavailable;
+                    const bool avail = sc.base != CellState::MachineUnavailable;
                     const bool isCurrent = sc.base == CellState::MachineCurrent;
 
                     const int x = colX(row, col + 2);
@@ -960,8 +970,9 @@ namespace lockstep
                     // Screen residual: machine name
                     if (avail)
                     {
-                        const juce::String name {
-                            processor_.availableMachineInfo(idx).displayName };
+                        const juce::String name{
+                            processor_.availableMachineInfo(idx).displayName
+                        };
                         g.setColour(juce::Colours::white.withAlpha(isCurrent ? 0.90f : 0.65f));
                         g.setFont(juce::Font(juce::FontOptions(8.5f)));
                         g.drawText(name, cell.reduced(2), juce::Justification::centred, true);
@@ -987,7 +998,7 @@ namespace lockstep
             const juce::Colour fxTint = col(compatColour(CellState::EffectAvailable));
             const int numEffects = processor_.numAvailableEffects();
             const juce::String loadedId = processor_.trackInsertId(uiState_.activeTrack,
-                                                                    uiState_.funcFxInsertSlot);
+                                                                   uiState_.funcFxInsertSlot);
 
             for (int row = 0; row < kRows; ++row)
             {
@@ -995,7 +1006,7 @@ namespace lockstep
                 {
                     const int idx = row * kCols + col2;
                     const SurfaceCell& sc = model.step[static_cast<std::size_t>(idx)];
-                    const bool avail    = sc.base != CellState::MachineUnavailable;
+                    const bool avail = sc.base != CellState::MachineUnavailable;
                     const bool isCurrent = sc.base == CellState::EffectLoaded;
 
                     const int x = colX(row, col2 + 2);
@@ -1024,7 +1035,7 @@ namespace lockstep
 
                     if (avail && idx < numEffects)
                     {
-                        const juce::String name { processor_.availableEffectInfo(idx).name.c_str() };
+                        const juce::String name{ processor_.availableEffectInfo(idx).name.c_str() };
                         g.setColour(juce::Colours::white.withAlpha(isCurrent ? 0.90f : 0.65f));
                         g.setFont(juce::Font(juce::FontOptions(8.5f)));
                         g.drawText(name, cell.reduced(2), juce::Justification::centred, true);
@@ -1036,8 +1047,7 @@ namespace lockstep
                 }
             }
 
-            const juce::String slotLabel = "INSERT " + juce::String(uiState_.funcFxInsertSlot + 1)
-                                         + "  (re-press to toggle slot)";
+            const juce::String slotLabel = "INSERT " + juce::String(uiState_.funcFxInsertSlot + 1) + "  (re-press to toggle slot)";
             g.setColour(juce::Colour::fromRGB(80, 95, 115));
             g.setFont(juce::Font(juce::FontOptions(10.0f)));
             g.drawText(slotLabel, navArea, juce::Justification::centred);
@@ -1057,9 +1067,8 @@ namespace lockstep
                 {
                     const int idx = row * kCols + col2;
                     const SurfaceCell& sc = model.step[static_cast<std::size_t>(idx)];
-                    const bool avail     = sc.base != CellState::MachineUnavailable;
-                    const bool isCurrent = (idx < numEffects)
-                        && (processor_.availableEffectInfo(idx).id == loadedId);
+                    const bool avail = sc.base != CellState::MachineUnavailable;
+                    const bool isCurrent = (idx < numEffects) && (processor_.availableEffectInfo(idx).id == loadedId);
 
                     const int x = colX(row, col2 + 2);
                     const int y = rowY(row);
@@ -1087,7 +1096,7 @@ namespace lockstep
 
                     if (avail && idx < numEffects)
                     {
-                        const juce::String name { processor_.availableEffectInfo(idx).name.c_str() };
+                        const juce::String name{ processor_.availableEffectInfo(idx).name.c_str() };
                         g.setColour(juce::Colours::white.withAlpha(isCurrent ? 0.90f : 0.65f));
                         g.setFont(juce::Font(juce::FontOptions(8.5f)));
                         g.drawText(name, cell.reduced(2), juce::Justification::centred, true);
@@ -1099,8 +1108,7 @@ namespace lockstep
                 }
             }
 
-            const juce::String slotLabel = "MASTER INSERT " + juce::String(uiState_.masterFxInsertSlot + 1)
-                                         + "  (re-press Func+Song+FX to toggle slot)";
+            const juce::String slotLabel = "MASTER INSERT " + juce::String(uiState_.masterFxInsertSlot + 1) + "  (re-press Func+Song+FX to toggle slot)";
             g.setColour(juce::Colour::fromRGB(80, 95, 115));
             g.setFont(juce::Font(juce::FontOptions(10.0f)));
             g.drawText(slotLabel, navArea, juce::Justification::centred);
@@ -1112,13 +1120,12 @@ namespace lockstep
         // Fill + press feedback from model; outlines, note names, cross-octave badges inline.
         if (uiState_.noteEditMode && !uiState_.noteEditSteps.empty())
         {
-            static constexpr const char* kNoteNames[] =
-                { "C","C#","D","D#","E","F","F#","G","G#","A","A#","B" };
+            static constexpr const char* kNoteNames[] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
 
-            const juce::Colour noteTint  = col(kScopeNoteEdit);
+            const juce::Colour noteTint = col(kScopeNoteEdit);
             const juce::Colour stageTint = juce::Colour::fromRGB(220, 100, 60);
 
-            const int octave   = uiState_.noteEditOctave;
+            const int octave = uiState_.noteEditOctave;
             const int trackIdx = uiState_.activeTrack;
 
             for (int row = 0; row < kRows; ++row)
@@ -1139,8 +1146,8 @@ namespace lockstep
                         continue;
 
                     const int semitone = cellIdx;
-                    const bool isStaged  = sc.base == CellState::NoteEditStaged;
-                    const bool isActive  = sc.base == CellState::NoteEditActive || isStaged;
+                    const bool isStaged = sc.base == CellState::NoteEditStaged;
+                    const bool isActive = sc.base == CellState::NoteEditActive || isStaged;
                     const bool isCrossOct = sc.base == CellState::NoteEditOther;
 
                     // Outline (screen residual)
@@ -1169,8 +1176,8 @@ namespace lockstep
 
                     // Note name (screen residual)
                     g.setColour(isActive
-                                ? (isStaged ? stageTint : juce::Colours::white)
-                                : noteTint.withAlpha(0.60f));
+                                    ? (isStaged ? stageTint : juce::Colours::white)
+                                    : noteTint.withAlpha(0.60f));
                     g.setFont(juce::Font(juce::FontOptions(9.0f)).boldened());
                     g.drawText(juce::String(kNoteNames[semitone]), cell, juce::Justification::centred);
 
@@ -1183,8 +1190,8 @@ namespace lockstep
                         {
                             if (stepIdx < 0 || stepIdx >= kMaxStepsPerTrack) continue;
                             const auto& s = processor_.sequence()
-                                .tracks[static_cast<std::size_t>(trackIdx)]
-                                .steps[static_cast<std::size_t>(stepIdx)];
+                                                .tracks[static_cast<std::size_t>(trackIdx)]
+                                                .steps[static_cast<std::size_t>(stepIdx)];
                             for (int n = 0; n < s.trigOverride.noteCount; ++n)
                             {
                                 const int noteVal = s.trigOverride.notes[n];
@@ -1193,58 +1200,62 @@ namespace lockstep
                                 if (noteOctave == octave) continue;
                                 bool alreadyListed = false;
                                 for (int o : otherOctaves)
-                                    if (o == noteOctave) { alreadyListed = true; break; }
+                                    if (o == noteOctave)
+                                    {
+                                        alreadyListed = true;
+                                        break;
+                                    }
                                 if (!alreadyListed) otherOctaves.push_back(noteOctave);
                             }
                         }
-                    if (!otherOctaves.empty())
-                    {
-                        std::sort(otherOctaves.begin(), otherOctaves.end());
-                        juce::Font badgeFont(juce::FontOptions(11.0f));
-                        g.setFont(badgeFont);
-                        const int badgeH = 14, gap = 2;
-                        const int by = cell.getY() + 2;
+                        if (!otherOctaves.empty())
+                        {
+                            std::sort(otherOctaves.begin(), otherOctaves.end());
+                            juce::Font badgeFont(juce::FontOptions(11.0f));
+                            g.setFont(badgeFont);
+                            const int badgeH = 14, gap = 2;
+                            const int by = cell.getY() + 2;
 
                         // Build glyph strings from relative octave offsets.
-                        std::vector<juce::String> glyphs;
-                        glyphs.reserve(static_cast<std::size_t>(otherOctaves.size()));
-                        for (const int otherOct : otherOctaves)
-                        {
-                            const int diff = otherOct - octave;
-                            juce::String gl;
-                            if      (diff == -1) gl = "<";
-                            else if (diff == -2) gl = "<<";
-                            else if (diff <= -3) gl = "<<<";
-                            else if (diff ==  1) gl = ">";
-                            else if (diff ==  2) gl = ">>";
-                            else if (diff >=  3) gl = ">>>";
-                            else                 gl = juce::String(otherOct);
-                            glyphs.push_back(gl);
-                        }
+                            std::vector<juce::String> glyphs;
+                            glyphs.reserve(static_cast<std::size_t>(otherOctaves.size()));
+                            for (const int otherOct : otherOctaves)
+                            {
+                                const int diff = otherOct - octave;
+                                juce::String gl;
+                                if (diff == -1) gl = "<";
+                                else if (diff == -2) gl = "<<";
+                                else if (diff <= -3) gl = "<<<";
+                                else if (diff == 1) gl = ">";
+                                else if (diff == 2) gl = ">>";
+                                else if (diff >= 3) gl = ">>>";
+                                else gl = juce::String(otherOct);
+                                glyphs.push_back(gl);
+                            }
 
                         // Measure badge widths, right-align in the top-right corner.
-                        std::vector<int> widths;
-                        widths.reserve(glyphs.size());
-                        int totalW = -gap;
-                        for (const auto& gl : glyphs)
-                        {
-                            const int w = juce::roundToInt(badgeFont.getStringWidthFloat(gl)) + 6;
-                            widths.push_back(w);
-                            totalW += w + gap;
-                        }
+                            std::vector<int> widths;
+                            widths.reserve(glyphs.size());
+                            int totalW = -gap;
+                            for (const auto& gl : glyphs)
+                            {
+                                const int w = juce::roundToInt(badgeFont.getStringWidthFloat(gl)) + 6;
+                                widths.push_back(w);
+                                totalW += w + gap;
+                            }
 
-                        int bx = cell.getRight() - 2 - totalW;
-                        for (int gi = 0; gi < static_cast<int>(glyphs.size()); ++gi)
-                        {
-                            const auto sz = static_cast<std::size_t>(gi);
-                            const auto badge = juce::Rectangle<int>(bx, by, widths[sz], badgeH);
-                            g.setColour(noteTint.withAlpha(0.55f));
-                            g.fillRoundedRectangle(badge.toFloat(), 2.0f);
-                            g.setColour(juce::Colours::white.withAlpha(0.85f));
-                            g.drawText(glyphs[sz], badge, juce::Justification::centred);
-                            bx += widths[sz] + gap;
+                            int bx = cell.getRight() - 2 - totalW;
+                            for (int gi = 0; gi < static_cast<int>(glyphs.size()); ++gi)
+                            {
+                                const auto sz = static_cast<std::size_t>(gi);
+                                const auto badge = juce::Rectangle<int>(bx, by, widths[sz], badgeH);
+                                g.setColour(noteTint.withAlpha(0.55f));
+                                g.fillRoundedRectangle(badge.toFloat(), 2.0f);
+                                g.setColour(juce::Colours::white.withAlpha(0.85f));
+                                g.drawText(glyphs[sz], badge, juce::Justification::centred);
+                                bx += widths[sz] + gap;
+                            }
                         }
-                    }
                     } // if (isCrossOct)
 
                     if (showKeyLetters)
@@ -1252,8 +1263,7 @@ namespace lockstep
                 }
             }
 
-            const juce::String navMsg = "NOTE EDIT  oct " + juce::String(octave)
-                                        + "  (NavLeft/Right to shift octave, release FUNC to commit)";
+            const juce::String navMsg = "NOTE EDIT  oct " + juce::String(octave) + "  (NavLeft/Right to shift octave, release FUNC to commit)";
             g.setColour(juce::Colour::fromRGB(80, 95, 115));
             g.setFont(juce::Font(juce::FontOptions(10.0f)));
             g.drawText(navMsg, navArea, juce::Justification::centred);
@@ -1263,22 +1273,20 @@ namespace lockstep
         // MHZ.3.4: P-Lock clear mode — packed display of only the set P-locks.
         // Fill and press from model; label text (slot name) is a screen residual that
         // still needs lockedSlots for the label text and nav message count.
-        if (uiState_.pLockClearMode
-            && uiState_.pLockClearTrack == uiState_.activeTrack
-            && uiState_.pLockClearStep >= 0)
+        if (uiState_.pLockClearMode && uiState_.pLockClearTrack == uiState_.activeTrack && uiState_.pLockClearStep >= 0)
         {
             const juce::Colour clearTint = col(kScopePLock);
             const int targetStep = uiState_.pLockClearStep;
             const auto& stepData = processor_.sequence()
-                .tracks[static_cast<std::size_t>(uiState_.activeTrack)]
-                .steps[static_cast<std::size_t>(targetStep)];
+                                       .tracks[static_cast<std::size_t>(uiState_.activeTrack)]
+                                       .steps[static_cast<std::size_t>(targetStep)];
             const int numSlots = processor_.numParams(uiState_.activeTrack);
 
             // lockedSlots needed for label text and nav count (screen residual).
             std::vector<int> lockedSlots;
             const auto& tov = stepData.trigOverride;
-            if (tov.hasVelocity)    lockedSlots.push_back(-2);
-            if (tov.hasGate)        lockedSlots.push_back(-3);
+            if (tov.hasVelocity) lockedSlots.push_back(-2);
+            if (tov.hasGate) lockedSlots.push_back(-3);
             for (int s = 0; s < numSlots; ++s)
                 if (stepData.overrides.has(s))
                     lockedSlots.push_back(s);
@@ -1290,9 +1298,10 @@ namespace lockstep
                     const int cellIdx = row * kCols + col;
                     const SurfaceCell& sc = model.step[static_cast<std::size_t>(cellIdx)];
                     const bool hasPacked = sc.base != CellState::SelectorOutRange;
-                    const bool isStaged  = sc.base == CellState::SelectorEmpty;
+                    const bool isStaged = sc.base == CellState::SelectorEmpty;
                     const int slotIdx = hasPacked
-                        ? lockedSlots[static_cast<std::size_t>(cellIdx)] : -1;
+                                            ? lockedSlots[static_cast<std::size_t>(cellIdx)]
+                                            : -1;
 
                     const int x = colX(row, col + 2);
                     const int y = rowY(row);
@@ -1324,9 +1333,9 @@ namespace lockstep
 
                         // Screen residual: slot label
                         juce::String label;
-                        if      (slotIdx == -2) label = "Vel";
+                        if (slotIdx == -2) label = "Vel";
                         else if (slotIdx == -3) label = "Gate";
-                        else                    label = processor_.paramSpec(uiState_.activeTrack, slotIdx).label;
+                        else label = processor_.paramSpec(uiState_.activeTrack, slotIdx).label;
                         g.setColour(juce::Colours::white.withAlpha(isStaged ? 0.35f : 0.90f));
                         g.setFont(juce::Font(juce::FontOptions(8.0f)));
                         g.drawText(label, cell.reduced(2), juce::Justification::centred, true);
@@ -1338,9 +1347,8 @@ namespace lockstep
             }
             const int stagedCount = static_cast<int>(uiState_.pLockClearStaged.size());
             const juce::String navMsg = stagedCount > 0
-                ? "CLEAR P-LOCK  " + juce::String(stagedCount) + " staged  (release FUNC to commit)"
-                : "CLEAR P-LOCK  " + juce::String(static_cast<int>(lockedSlots.size()))
-                  + " lock(s)  (release FUNC to exit)";
+                                            ? "CLEAR P-LOCK  " + juce::String(stagedCount) + " staged  (release FUNC to commit)"
+                                            : "CLEAR P-LOCK  " + juce::String(static_cast<int>(lockedSlots.size())) + " lock(s)  (release FUNC to exit)";
             g.setColour(juce::Colour::fromRGB(80, 95, 115));
             g.setFont(juce::Font(juce::FontOptions(10.0f)));
             g.drawText(navMsg, navArea, juce::Justification::centred);
@@ -1351,8 +1359,8 @@ namespace lockstep
         // Fill and press from model; note names, key hints, nav text inline.
         {
             const auto mode = (uiState_.activeTrack >= 0 && uiState_.activeTrack < static_cast<int>(kNumTracks))
-                              ? uiState_.trackInputMode[static_cast<std::size_t>(uiState_.activeTrack)]
-                              : TrackInputMode::Play;
+                                  ? uiState_.trackInputMode[static_cast<std::size_t>(uiState_.activeTrack)]
+                                  : TrackInputMode::Play;
             if (mode == TrackInputMode::Chromatic)
             {
                 const juce::Colour border = col(kScopeTrack).withAlpha(0.70f);
@@ -1368,8 +1376,8 @@ namespace lockstep
                         const int y = rowY(row);
                         const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
-                        const int  semitone = kPianoNoteOffset[static_cast<std::size_t>(cellIdx)];
-                        const char* name    = kPianoNoteNames[static_cast<std::size_t>(cellIdx)];
+                        const int semitone = kPianoNoteOffset[static_cast<std::size_t>(cellIdx)];
+                        const char* name = kPianoNoteNames[static_cast<std::size_t>(cellIdx)];
 
                         // Fill from model (includes dead-cell and pressed states)
                         g.setColour(juce::Colour(sc.baseColour));
@@ -1393,8 +1401,7 @@ namespace lockstep
                 }
 
                 const int midiBase = (octave + 1) * 12;
-                const juce::String msg = "CHROMATIC  C" + juce::String(octave)
-                    + " (MIDI " + juce::String(midiBase) + ")  |  NavLeft/Right = octave";
+                const juce::String msg = "CHROMATIC  C" + juce::String(octave) + " (MIDI " + juce::String(midiBase) + ")  |  NavLeft/Right = octave";
                 g.setColour(juce::Colour::fromRGB(80, 95, 115));
                 g.setFont(juce::Font(juce::FontOptions(10.0f)));
                 g.drawText(msg, navArea, juce::Justification::centred);
@@ -1406,12 +1413,12 @@ namespace lockstep
         // Fill and press from model; velocity text, outline, key hint inline.
         {
             const auto mode = (uiState_.activeTrack >= 0 && uiState_.activeTrack < static_cast<int>(kNumTracks))
-                              ? uiState_.trackInputMode[static_cast<std::size_t>(uiState_.activeTrack)]
-                              : TrackInputMode::Play;
+                                  ? uiState_.trackInputMode[static_cast<std::size_t>(uiState_.activeTrack)]
+                                  : TrackInputMode::Play;
             if (mode == TrackInputMode::Levels)
             {
-                static const juce::Colour lowCol  { 0xFF204060u };
-                static const juce::Colour highCol { 0xFFE07030u };
+                static const juce::Colour lowCol{ 0xFF204060u };
+                static const juce::Colour highCol{ 0xFFE07030u };
 
                 for (int row = 0; row < kRows; ++row)
                 {
@@ -1468,8 +1475,8 @@ namespace lockstep
                 {
                     const int idx = row * kCols + col2;
                     const SurfaceCell& sc = model.step[static_cast<std::size_t>(idx)];
-                    const int x   = colX(row, col2 + 2);
-                    const int y   = rowY(row);
+                    const int x = colX(row, col2 + 2);
+                    const int y = rowY(row);
                     const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
                     // Fill from model (fixes: builder now computes correct colour)
@@ -1512,8 +1519,7 @@ namespace lockstep
 
         // MHZ.2.1: scope re-skin — Slice 4: consume model.step[] built by builder.
         // Fill and pressed derive from model; border, text, badge stay inline.
-        const bool scopeReskin = uiState_.trackHeld || uiState_.phraseScopeHeld
-                                                     || uiState_.sceneHeld;
+        const bool scopeReskin = uiState_.trackHeld || uiState_.phraseScopeHeld || uiState_.sceneHeld;
         if (scopeReskin)
         {
             const juce::Colour scopeTint = scopeColourFromState(uiState_);
@@ -1524,16 +1530,16 @@ namespace lockstep
                 {
                     const int idx = row * kCols + col;
                     const SurfaceCell& sc = model.step[static_cast<std::size_t>(idx)];
-                    const int x   = colX(row, col + 2);
-                    const int y   = rowY(row);
+                    const int x = colX(row, col + 2);
+                    const int y = rowY(row);
                     const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
-                    const bool avail    = sc.base != CellState::SelectorOutRange;
-                    const bool isEmpty  = sc.base == CellState::SelectorEmpty;
+                    const bool avail = sc.base != CellState::SelectorOutRange;
+                    const bool isEmpty = sc.base == CellState::SelectorEmpty;
                     const bool isCurrent = sc.base == CellState::SelectorCurrent;
-                    const bool isNext   = sc.base == CellState::SelectorNext;
-                    const bool isChain  = sc.base == CellState::SelectorChain;
-                    const int  cpos     = static_cast<int>(sc.level);
+                    const bool isNext = sc.base == CellState::SelectorNext;
+                    const bool isChain = sc.base == CellState::SelectorChain;
+                    const int cpos = static_cast<int>(sc.level);
 
                     // Fill from model
                     g.setColour(juce::Colour(sc.baseColour));
@@ -1569,14 +1575,14 @@ namespace lockstep
 
                     // Label
                     const juce::String label = isEmpty
-                        ? (uiState_.funcHeld ? "+" : "~")
-                        : juce::String(idx + 1);
+                                                   ? (uiState_.funcHeld ? "+" : "~")
+                                                   : juce::String(idx + 1);
                     const juce::Colour textCol = !avail
-                        ? juce::Colour::fromRGB(50, 55, 60)
-                        : isEmpty
-                            ? juce::Colour::fromRGB(80, 85, 90)
-                            : (isNext ? juce::Colours::black
-                                      : juce::Colours::white.withAlpha(isCurrent ? 0.90f : 0.65f));
+                                                     ? juce::Colour::fromRGB(50, 55, 60)
+                                                 : isEmpty
+                                                     ? juce::Colour::fromRGB(80, 85, 90)
+                                                     : (isNext ? juce::Colours::black
+                                                               : juce::Colours::white.withAlpha(isCurrent ? 0.90f : 0.65f));
                     g.setColour(textCol);
                     g.setFont(juce::Font(juce::FontOptions(9.0f)));
                     g.drawText(label, cell.reduced(2), juce::Justification::centred);
@@ -1584,9 +1590,7 @@ namespace lockstep
                     // Chain-position badge (cpos encoded in sc.level by builder)
                     if (cpos > 0 && !isEmpty)
                     {
-                        const auto badge = cell.withWidth(11).withHeight(11)
-                                               .withRightX(cell.getRight())
-                                               .withY(cell.getY());
+                        const auto badge = cell.withWidth(11).withHeight(11).withRightX(cell.getRight()).withY(cell.getY());
                         g.setColour(isNext ? juce::Colours::black.withAlpha(0.70f)
                                            : scopeTint.brighter(0.3f).withAlpha(0.85f));
                         g.fillRoundedRectangle(badge.toFloat(), 2.0f);
@@ -1597,7 +1601,8 @@ namespace lockstep
 
                     if (showKeyLetters)
                         paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(idx)],
-                                         !avail ? 0.45f : isNext ? 0.4f : 1.0f);
+                                         !avail ? 0.45f : isNext ? 0.4f
+                                                                 : 1.0f);
                 }
             }
             if (model.gridBanner)
@@ -1660,9 +1665,9 @@ namespace lockstep
         // Step cells — Slice 2: consume model.step[] for body fill, press feedback,
         // and major decorations. Screen-only residuals (note-count ticks, key hints,
         // step numbers, track labels, keyboard note names) stay inline per §35.8.1.
-        static const juce::Colour kColFillAdd      { kStepFillAdd      };
-        static const juce::Colour kColFillSuppress { kStepFillSuppress };
-        static const juce::Colour kColFillPLock    { kStepFillPLock    };
+        static const juce::Colour kColFillAdd{ kStepFillAdd };
+        static const juce::Colour kColFillSuppress{ kStepFillSuppress };
+        static const juce::Colour kColFillPLock{ kStepFillPLock };
 
         const auto& ctx = processor_.editContext();
 
@@ -1671,7 +1676,7 @@ namespace lockstep
             for (int col = 0; col < kCols; ++col)
             {
                 const int localIdx = row * kCols + col;
-                const int absIdx   = baseStep + localIdx;
+                const int absIdx = baseStep + localIdx;
                 const bool inRange = absIdx < trackLen;
                 const SurfaceCell& sc = model.step[static_cast<std::size_t>(localIdx)];
 
@@ -1761,7 +1766,8 @@ namespace lockstep
                     g.setColour(juce::Colour(sc.pip.colour));
                     g.fillEllipse(juce::Rectangle<int>(cell.getX() + 2,
                                                        cell.getBottom() - kPipSz - 2,
-                                                       kPipSz, kPipSz).toFloat());
+                                                       kPipSz, kPipSz)
+                                      .toFloat());
                 }
 
                 // --- Screen-only residuals (controllers ignore) ---
@@ -1774,12 +1780,12 @@ namespace lockstep
                     if (nc > 0)
                     {
                         const juce::Colour noteCol = stepRef.trig
-                            ? juce::Colours::white.withAlpha(0.75f)
-                            : juce::Colour::fromRGB(120, 180, 220).withAlpha(0.70f);
+                                                         ? juce::Colours::white.withAlpha(0.75f)
+                                                         : juce::Colour::fromRGB(120, 180, 220).withAlpha(0.70f);
                         g.setColour(noteCol);
-                        const int dotH   = 3;
-                        const int dotW   = 3;
-                        const int gap    = 1;
+                        const int dotH = 3;
+                        const int dotW = 3;
+                        const int gap = 1;
                         const int blockH = nc * dotH + (nc - 1) * gap;
                         int dotY = cell.getCentreY() - blockH / 2;
                         for (int n = 0; n < nc; ++n)
@@ -1801,14 +1807,14 @@ namespace lockstep
                         constexpr int kTickH = 3;
                         constexpr int kTickW = 5;
                         const int tickY = cell.getBottom() - kTickH - 1;
-                        const int cx    = cell.getCentreX();
+                        const int cx = cell.getCentreX();
                         // Positive (late) → right of centre; negative (early) → left.
                         const int tickX = (mo > 0.0f)
-                            ? (cx + 2)
-                            : (cx - kTickW - 2);
+                                              ? (cx + 2)
+                                              : (cx - kTickW - 2);
                         const juce::Colour tickCol = (mo > 0.0f)
-                            ? juce::Colour::fromRGB(255, 200,  80).withAlpha(0.85f)  // late: amber
-                            : juce::Colour::fromRGB( 80, 200, 255).withAlpha(0.85f); // early: cyan
+                                                         ? juce::Colour::fromRGB(255, 200, 80).withAlpha(0.85f)  // late: amber
+                                                         : juce::Colour::fromRGB(80, 200, 255).withAlpha(0.85f); // early: cyan
                         g.setColour(tickCol);
                         g.fillRect(tickX, tickY, kTickW, kTickH);
                     }
@@ -1819,7 +1825,7 @@ namespace lockstep
                                      inRange ? 1.0f : 0.45f);
 
                 g.setColour(inRange ? juce::Colour::fromRGB(110, 130, 150)
-                                   : juce::Colour::fromRGB(40, 46, 54));
+                                    : juce::Colour::fromRGB(40, 46, 54));
                 g.setFont(juce::Font(juce::FontOptions(9.0f)));
                 g.drawText(juce::String(absIdx + 1), cell, juce::Justification::centred);
             }
@@ -1859,21 +1865,21 @@ namespace lockstep
         }
 
         // Beat / bar dividers from time signature
-        const auto& ts      = processor_.section().coreTime;
+        const auto& ts = processor_.section().coreTime;
         const double beatPpq = divPpq > 0.0 ? (4.0 / static_cast<double>(div)) : 4.0;
         const int stepsPerBeat = juce::jmax(1, static_cast<int>(std::round(beatPpq / divPpq)));
-        const int stepsPerBar  = juce::jmax(stepsPerBeat,
-            static_cast<int>(std::round(ts.barPpq() / divPpq)));
+        const int stepsPerBar = juce::jmax(stepsPerBeat,
+                                           static_cast<int>(std::round(ts.barPpq() / divPpq)));
 
         const auto& trk = processor_.sequence().tracks[static_cast<std::size_t>(uiState_.activeTrack)];
 
         // Layout: vertical centering within navArea, leaving a small margin
         const int margin = 3;
-        const int cellH  = navArea.getHeight() - 2 * margin;
+        const int cellH = navArea.getHeight() - 2 * margin;
         const float cellW = static_cast<float>(navArea.getWidth()) / static_cast<float>(kTimelineSteps);
 
         const int pageFirst = stepPage_ * kPageSteps;
-        const int pageLast  = pageFirst + kPageSteps - 1;
+        const int pageLast = pageFirst + kPageSteps - 1;
 
         // Page window background band drawn first (underneath cells)
         {
@@ -1891,14 +1897,14 @@ namespace lockstep
         {
             const float cx = navArea.getX() + static_cast<float>(i) * cellW;
             const auto cellF = juce::Rectangle<float>(cx + 1.0f,
-                                                       static_cast<float>(navArea.getY() + margin),
-                                                       cellW - 2.0f,
-                                                       static_cast<float>(cellH));
+                                                      static_cast<float>(navArea.getY() + margin),
+                                                      cellW - 2.0f,
+                                                      static_cast<float>(cellH));
 
-            const bool inRange  = i < trackLen;
-            const bool hasTrig  = inRange && trk.steps[static_cast<std::size_t>(i)].trig;
-            const bool isHead   = (i == playheadAbs);
-            const bool onPage   = (i >= pageFirst && i <= pageLast);
+            const bool inRange = i < trackLen;
+            const bool hasTrig = inRange && trk.steps[static_cast<std::size_t>(i)].trig;
+            const bool isHead = (i == playheadAbs);
+            const bool onPage = (i >= pageFirst && i <= pageLast);
 
             // Cell background
             if (hasTrig)
@@ -1964,19 +1970,19 @@ namespace lockstep
     // CLN: no edge keys (returns immediately).
 
     void KeyboardArea::paintEdgeRow(juce::Graphics& g,
-                                     int rowIndex,
-                                     juce::Rectangle<int> rowArea) const
+                                    int rowIndex,
+                                    juce::Rectangle<int> rowArea) const
     {
         if (displayMode_ == GridDisplayMode::Clean)
             return;
 
         const bool showHint = true;
         // Dimmed group: very dark, clearly non-interactive
-        const KeyGroup dimGrp { 0xFF0E1218u, 0xFF1C2430u, 0xFF3040A0u };
+        const KeyGroup dimGrp{ 0xFF0E1218u, 0xFF1C2430u, 0xFF3040A0u };
 
         if (displayMode_ == GridDisplayMode::Ortholinear)
         {
-            const int gap   = kOrlGap;
+            const int gap = kOrlGap;
             // 10 cells, 9 internal gaps
             const int cellW = (rowArea.getWidth() - 9 * gap) / 10;
             const int cellH = rowArea.getHeight();
@@ -1990,23 +1996,23 @@ namespace lockstep
 
             // Per-row labels/keycodes. In MHX the 10th key of each row is in the main block
             // (0/P/;// respectively), so the right-edge is the key after that.
-            static const int        kLeftCode[4]   = { 96, 9,  0,  0  };  // ` Tab CAP SHF
-            static const char*const kLeftLabel[4]  = { "`", "TAB", "CAP", "SHF" };
-            static const int        kRightCode[4]  = { 45, 91, 39,  0  };  // - [ ' (none)
-            static const char*const kRightLabel[4] = { "-", "[", "'", "" };
+            static const int kLeftCode[4] = { 96, 9, 0, 0 };  // ` Tab CAP SHF
+            static const char* const kLeftLabel[4] = { "`", "TAB", "CAP", "SHF" };
+            static const int kRightCode[4] = { 45, 91, 39, 0 };  // - [ ' (none)
+            static const char* const kRightLabel[4] = { "-", "[", "'", "" };
 
             {
                 const int kc = kLeftCode[rowIndex];
                 const bool pressed = (kc > 0)
-                    ? juce::KeyPress::isKeyCurrentlyDown(kc)
-                    : (rowIndex == 3 && juce::ModifierKeys::currentModifiers.isShiftDown());
+                                         ? juce::KeyPress::isKeyCurrentlyDown(kc)
+                                         : (rowIndex == 3 && juce::ModifierKeys::currentModifiers.isShiftDown());
                 paintKeyButton(g, leftRect, kLeftLabel[rowIndex], "", "",
                                dimGrp,
                                pressed ? KeyButtonState::Pressed : KeyButtonState::Normal,
                                showHint);
             }
             {
-                const int kc      = kRightCode[rowIndex];
+                const int kc = kRightCode[rowIndex];
                 const bool pressed = (kc > 0) && juce::KeyPress::isKeyCurrentlyDown(kc);
                 paintKeyButton(g, rightRect, kRightLabel[rowIndex], "", "",
                                dimGrp,
@@ -2016,14 +2022,14 @@ namespace lockstep
         }
         else  // Staggered
         {
-            const int hu  = staggerHalfUnit(rowArea.getWidth());
-            const int cw  = staggerCellW(hu);   // 2*hu
-            const int rY  = rowArea.getY();
-            const int rH  = rowArea.getHeight();
+            const int hu = staggerHalfUnit(rowArea.getWidth());
+            const int cw = staggerCellW(hu);   // 2*hu
+            const int rY = rowArea.getY();
+            const int rH = rowArea.getHeight();
 
             // Row stagger offsets (half-units): number=0, Q=1, A=2, Z=3
             static constexpr int kStaggerHu[4] = { 0, 1, 2, 3 };
-            const int mainLeft  = rowArea.getX() + kStaggerHu[rowIndex] * hu;
+            const int mainLeft = rowArea.getX() + kStaggerHu[rowIndex] * hu;
             const int mainRight = mainLeft + 10 * cw;  // MHX: 10-wide
 
             // Left edge key: one key per row, ANSI width (backtick=2hu, Tab=3hu,
@@ -2031,13 +2037,13 @@ namespace lockstep
             {
                 static const int kLWHu[4] = { 2, 3, 4, 5 };
                 static const int kLCode[4] = { 96, 9, 0, 0 };  // ` Tab - -
-                static const char*const kLLabel[4] = { "`", "TAB", "CAP", "SHF" };
+                static const char* const kLLabel[4] = { "`", "TAB", "CAP", "SHF" };
                 const int keyW = kLWHu[rowIndex] * hu;
-                const int kx   = mainLeft - keyW;
+                const int kx = mainLeft - keyW;
                 const int kc = kLCode[rowIndex];
                 const bool pressed = (kc > 0)
-                    ? juce::KeyPress::isKeyCurrentlyDown(kc)
-                    : (rowIndex == 3 && juce::ModifierKeys::currentModifiers.isShiftDown());
+                                         ? juce::KeyPress::isKeyCurrentlyDown(kc)
+                                         : (rowIndex == 3 && juce::ModifierKeys::currentModifiers.isShiftDown());
                 paintKeyButton(g, juce::Rectangle<int>(kx, rY, keyW, rH),
                                kLLabel[rowIndex], "", "", dimGrp,
                                pressed ? KeyButtonState::Pressed : KeyButtonState::Normal,
@@ -2048,24 +2054,24 @@ namespace lockstep
             // In MHX all 10 keys per row are in the main block (0/P/;// included),
             // so right-edge keys are the physical keys after the 10th column.
             {
-                static const int    kRCode[4][3] = {
-                    { 45, 61,  0 },  // number: -  =  (0 is now in main block)
-                    { 91, 93,  0 },  // Q:      [  ]  (P is now in main block)
-                    { 39,  0,  0 },  // A:      '     (; is now in main block)
-                    {  0,  0,  0 },  // Z:      none  (/ is now in main block)
+                static const int kRCode[4][3] = {
+                    { 45, 61, 0 },  // number: -  =  (0 is now in main block)
+                    { 91, 93, 0 },  // Q:      [  ]  (P is now in main block)
+                    { 39, 0, 0 },  // A:      '     (; is now in main block)
+                    { 0, 0, 0 },  // Z:      none  (/ is now in main block)
                 };
-                static const char*const kRLabel[4][3] = {
+                static const char* const kRLabel[4][3] = {
                     { "-", "=", "" },
                     { "[", "]", "" },
-                    { "'", "",  "" },
-                    { "",  "",  "" },
+                    { "'", "", "" },
+                    { "", "", "" },
                 };
                 const int compW = getWidth();
                 int rx = mainRight;
                 for (int j = 0; j < 3; ++j)
                 {
                     if (kRLabel[rowIndex][j][0] == '\0') break;
-                    if (rx >= compW)                     break;
+                    if (rx >= compW) break;
                     const int kc = kRCode[rowIndex][j];
                     const bool pressed = (kc > 0) && juce::KeyPress::isKeyCurrentlyDown(kc);
                     paintKeyButton(g, juce::Rectangle<int>(rx, rY, cw, rH),

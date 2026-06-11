@@ -38,11 +38,11 @@ namespace lockstep
         const Track t = projectPhraseToTrack(st.phrases[0], st.kit);
 
         // Phrase owns content/timing.
-        CHECK(t.length == 12,            "project: length comes from Phrase");
-        CHECK(t.steps[2].trig,           "project: steps come from Phrase");
+        CHECK(t.length == 12, "project: length comes from Phrase");
+        CHECK(t.steps[2].trig, "project: steps come from Phrase");
         CHECK(t.trigDefaults.note == 67, "project: trigDefaults come from Phrase");
         // Kit owns sound + divider.
-        CHECK(t.divider == 4,            "project: divider comes from Kit");
+        CHECK(t.divider == 4, "project: divider comes from Kit");
         CHECK(t.baseParams.size() == 3 && feq(t.baseParams[0], 0.25f),
               "project: baseParams come from Kit");
     }
@@ -61,15 +61,15 @@ namespace lockstep
         Track work = projectPhraseToTrack(st.phrases[idx], st.kit);
 
         // Live edits on the working buffer (a trig, a length change, a base param).
-        work.steps[5].trig   = true;
-        work.length          = 11;
-        work.baseParams[1]   = 0.6f;
+        work.steps[5].trig = true;
+        work.length = 11;
+        work.baseParams[1] = 0.6f;
 
         // Without write-back, re-projecting from the (stale) Phrase/Kit loses the
         // edit — this is exactly the legacy lost-edits bug, asserted explicitly.
         const Track stale = projectPhraseToTrack(st.phrases[idx], st.kit);
-        CHECK(!stale.steps[5].trig,    "no write-back: trig edit is lost on re-project");
-        CHECK(stale.length == 16,      "no write-back: length edit is lost on re-project");
+        CHECK(!stale.steps[5].trig, "no write-back: trig edit is lost on re-project");
+        CHECK(stale.length == 16, "no write-back: length edit is lost on re-project");
         CHECK(feq(stale.baseParams[1], 0.0f), "no write-back: base edit is lost on re-project");
 
         // Write the working Track back into its Phrase (content) and Kit (sound).
@@ -78,8 +78,8 @@ namespace lockstep
 
         // Now a re-project preserves every edit.
         const Track kept = projectPhraseToTrack(st.phrases[idx], st.kit);
-        CHECK(kept.steps[5].trig,      "write-back: trig edit preserved");
-        CHECK(kept.length == 11,       "write-back: length edit preserved");
+        CHECK(kept.steps[5].trig, "write-back: trig edit preserved");
+        CHECK(kept.length == 11, "write-back: length edit preserved");
         CHECK(feq(kept.baseParams[1], 0.6f), "write-back: base edit preserved");
 
         // Switch to phrase 1 (different content) and back to 0: edit still there,

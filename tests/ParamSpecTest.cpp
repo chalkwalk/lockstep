@@ -39,50 +39,39 @@ namespace lockstep
                   juce::String(machineName) + " slot " + juce::String(i) + ": id must be non-empty");
 
             CHECK(seenIds.insert(id).second,
-                  juce::String(machineName) + " slot " + juce::String(i)
-                      + ": duplicate id \"" + ps.id + "\"");
+                  juce::String(machineName) + " slot " + juce::String(i) + ": duplicate id \"" + ps.id + "\"");
 
             CHECK(ps.defaultValue >= ps.minValue && ps.defaultValue <= ps.maxValue,
-                  juce::String(machineName) + " slot " + juce::String(i)
-                      + " (" + ps.id + "): default " + juce::String(ps.defaultValue)
-                      + " not in [" + juce::String(ps.minValue) + ", "
-                      + juce::String(ps.maxValue) + "]");
+                  juce::String(machineName) + " slot " + juce::String(i) + " (" + ps.id + "): default " + juce::String(ps.defaultValue) + " not in [" + juce::String(ps.minValue) + ", " + juce::String(ps.maxValue) + "]");
 
             if (ps.isStepped && !ps.valueLabels.empty())
             {
                 const int expectedLabels = static_cast<int>(ps.maxValue - ps.minValue) + 1;
                 CHECK(static_cast<int>(ps.valueLabels.size()) == expectedLabels,
-                      juce::String(machineName) + " slot " + juce::String(i)
-                          + " (" + ps.id + "): stepped with "
-                          + juce::String(static_cast<int>(ps.valueLabels.size()))
-                          + " labels but max-min+1=" + juce::String(expectedLabels));
+                      juce::String(machineName) + " slot " + juce::String(i) + " (" + ps.id + "): stepped with " + juce::String(static_cast<int>(ps.valueLabels.size())) + " labels but max-min+1=" + juce::String(expectedLabels));
             }
 
             CHECK(ps.sectionIndex >= 0,
-                  juce::String(machineName) + " slot " + juce::String(i)
-                      + " (" + ps.id + "): sectionIndex must be >= 0");
+                  juce::String(machineName) + " slot " + juce::String(i) + " (" + ps.id + "): sectionIndex must be >= 0");
 
             CHECK(ps.skew > 0.0f,
-                  juce::String(machineName) + " slot " + juce::String(i)
-                      + " (" + ps.id + "): skew must be > 0");
+                  juce::String(machineName) + " slot " + juce::String(i) + " (" + ps.id + "): skew must be > 0");
         }
     }
 
     // Check that the id at each slot matches the golden string exactly.
     static void checkGoldenIds(IMachine& m, const char* machineName,
-                                const std::vector<const char*>& golden)
+                               const std::vector<const char*>& golden)
     {
         CHECK(m.numParams() == static_cast<int>(golden.size()),
-              juce::String(machineName) + ": numParams() " + juce::String(m.numParams())
-                  + " != golden count " + juce::String(static_cast<int>(golden.size())));
+              juce::String(machineName) + ": numParams() " + juce::String(m.numParams()) + " != golden count " + juce::String(static_cast<int>(golden.size())));
 
         const int n = std::min(m.numParams(), static_cast<int>(golden.size()));
         for (int i = 0; i < n; ++i)
         {
             const auto ps = m.paramSpec(i);
             CHECK(ps.id == juce::String(golden[static_cast<std::size_t>(i)]),
-                  juce::String(machineName) + " slot " + juce::String(i)
-                      + ": id=\"" + ps.id + "\" expected=\"" + golden[static_cast<std::size_t>(i)] + "\"");
+                  juce::String(machineName) + " slot " + juce::String(i) + ": id=\"" + ps.id + "\" expected=\"" + golden[static_cast<std::size_t>(i)] + "\"");
         }
     }
 
@@ -223,7 +212,7 @@ namespace lockstep
     static void testSamplerMachineParams()
     {
         SamplePool pool;
-        SamplerMachine m { pool };
+        SamplerMachine m{ pool };
         const std::vector<const char*> golden = {
             "sample_id",       //  0
             "pitch",           //  1
@@ -247,7 +236,7 @@ namespace lockstep
     static void testSlicerMachineParams()
     {
         SamplePool pool;
-        SlicerMachine m { pool };
+        SlicerMachine m{ pool };
         const std::vector<const char*> golden = {
             "slicer_sample_id",   //  0
             "slicer_mode",        //  1
@@ -284,7 +273,7 @@ namespace lockstep
 
         // Check count and fixed-slot ids.
         CHECK(m.numParams() == 19, "MidiOutMachine: numParams() should be 19");
-        CHECK(m.paramSpec(0).id == "dest",    "MidiOutMachine slot 0: id == dest");
+        CHECK(m.paramSpec(0).id == "dest", "MidiOutMachine slot 0: id == dest");
         CHECK(m.paramSpec(1).id == "channel", "MidiOutMachine slot 1: id == channel");
         CHECK(m.paramSpec(2).id == "program", "MidiOutMachine slot 2: id == program");
         for (int i = 0; i < 16; ++i)

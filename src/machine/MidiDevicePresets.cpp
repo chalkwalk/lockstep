@@ -20,9 +20,9 @@ namespace lockstep::MidiDevicePresets
 
     static void addGMCommon(std::unordered_map<int, juce::String>& t)
     {
-        t[1]  = "Mod Whl";
-        t[2]  = "Breath";
-        t[7]  = "Volume";
+        t[1] = "Mod Whl";
+        t[2] = "Breath";
+        t[7] = "Volume";
         t[10] = "Pan";
         t[11] = "Expr";
         t[64] = "Sustain";
@@ -329,8 +329,8 @@ namespace lockstep::MidiDevicePresets
         t[79] = "Release";
 
         // AMP page
-        t[8]  = "Track Vol";
-        t[9]  = "Track Pan";
+        t[8] = "Track Vol";
+        t[9] = "Track Pan";
         t[80] = "Amp Atk";
         t[81] = "Amp Hold";
         t[82] = "Amp Dec";
@@ -394,25 +394,25 @@ namespace lockstep::MidiDevicePresets
     std::vector<PresetInfo> listPresets()
     {
         return {
-            { "elektron.digitakt",   "Elektron Digitakt"     },
-            { "elektron.digitone",   "Elektron Digitone"     },
-            { "elektron.syntakt",    "Elektron Syntakt"      },
-            { "elektron.a4",         "Elektron Analog Four"  },
-            { "elektron.rytm",       "Elektron Analog Rytm"  },
-            { "elektron.octatrack",  "Elektron Octatrack"    },
-            { "te.tonverk",          "TE Tonverk"            },
+            { "elektron.digitakt", "Elektron Digitakt" },
+            { "elektron.digitone", "Elektron Digitone" },
+            { "elektron.syntakt", "Elektron Syntakt" },
+            { "elektron.a4", "Elektron Analog Four" },
+            { "elektron.rytm", "Elektron Analog Rytm" },
+            { "elektron.octatrack", "Elektron Octatrack" },
+            { "te.tonverk", "TE Tonverk" },
         };
     }
 
     std::unordered_map<int, juce::String> getTable(const std::string& presetId)
     {
-        if (presetId == "elektron.digitakt")   return digitakt();
-        if (presetId == "elektron.digitone")   return digitone();
-        if (presetId == "elektron.syntakt")    return syntakt();
-        if (presetId == "elektron.a4")         return analogFour();
-        if (presetId == "elektron.rytm")       return analogRytm();
-        if (presetId == "elektron.octatrack")  return octatrack();
-        if (presetId == "te.tonverk")          return tonverk();
+        if (presetId == "elektron.digitakt") return digitakt();
+        if (presetId == "elektron.digitone") return digitone();
+        if (presetId == "elektron.syntakt") return syntakt();
+        if (presetId == "elektron.a4") return analogFour();
+        if (presetId == "elektron.rytm") return analogRytm();
+        if (presetId == "elektron.octatrack") return octatrack();
+        if (presetId == "te.tonverk") return tonverk();
         return {};
     }
 }

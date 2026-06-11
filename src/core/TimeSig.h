@@ -8,7 +8,7 @@ namespace lockstep
     // See DESIGN §4.8.
     struct TimeSig
     {
-        int numerator   = 4;
+        int numerator = 4;
         int denominator = 4;
 
         // Bar length in quarter-note PPQ: numerator * (4.0 / denominator).

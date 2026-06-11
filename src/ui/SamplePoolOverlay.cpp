@@ -8,25 +8,21 @@ namespace lockstep
         : processor_(processor)
     {
         list_.setColour(juce::ListBox::backgroundColourId, juce::Colour::fromRGB(22, 26, 32));
-        list_.setColour(juce::ListBox::outlineColourId,    juce::Colour::fromRGB(55, 65, 80));
+        list_.setColour(juce::ListBox::outlineColourId, juce::Colour::fromRGB(55, 65, 80));
         list_.setOutlineThickness(1);
         list_.setRowHeight(22);
         list_.setWantsKeyboardFocus(false);
         addAndMakeVisible(list_);
 
         loadBtn_.setWantsKeyboardFocus(false);
-        loadBtn_.onClick = [this]
-        {
+        loadBtn_.onClick = [this] {
             fileChooser_ = std::make_unique<juce::FileChooser>(
                 "Load Sample(s)",
                 juce::File::getSpecialLocation(juce::File::userMusicDirectory),
                 "*.wav;*.aiff;*.aif;*.flac;*.ogg");
             fileChooser_->launchAsync(
-                juce::FileBrowserComponent::openMode
-                    | juce::FileBrowserComponent::canSelectFiles
-                    | juce::FileBrowserComponent::canSelectMultipleItems,
-                [this](const juce::FileChooser& fc)
-                {
+                juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles | juce::FileBrowserComponent::canSelectMultipleItems,
+                [this](const juce::FileChooser& fc) {
                     for (const auto& f : fc.getResults())
                         processor_.samplePool().load(f.getFullPathName());
                     list_.updateContent();
@@ -37,25 +33,22 @@ namespace lockstep
 
         relinkBtn_.setWantsKeyboardFocus(false);
         relinkBtn_.setEnabled(false);
-        relinkBtn_.onClick = [this]
-        {
+        relinkBtn_.onClick = [this] {
             const int row = list_.getSelectedRow();
             if (row < 0 || !processor_.samplePool().isMissing(row))
                 return;
             const auto* s = processor_.samplePool().get(row);
             const juce::File startDir = s
-                ? juce::File(juce::String(s->ref.path)).getParentDirectory()
-                : juce::File::getSpecialLocation(juce::File::userMusicDirectory);
+                                            ? juce::File(juce::String(s->ref.path)).getParentDirectory()
+                                            : juce::File::getSpecialLocation(juce::File::userMusicDirectory);
 
             fileChooser_ = std::make_unique<juce::FileChooser>(
                 "Relink Sample",
                 startDir,
                 "*.wav;*.aiff;*.aif;*.flac;*.ogg");
             fileChooser_->launchAsync(
-                juce::FileBrowserComponent::openMode
-                    | juce::FileBrowserComponent::canSelectFiles,
-                [this, row](const juce::FileChooser& fc)
-                {
+                juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+                [this, row](const juce::FileChooser& fc) {
                     const auto results = fc.getResults();
                     if (results.isEmpty()) return;
                     processor_.relinkSample(row, results[0].getFullPathName());
@@ -66,8 +59,7 @@ namespace lockstep
         addAndMakeVisible(relinkBtn_);
 
         removeBtn_.setWantsKeyboardFocus(false);
-        removeBtn_.onClick = [this]
-        {
+        removeBtn_.onClick = [this] {
             const int row = list_.getSelectedRow();
             if (row < 0 || row >= processor_.samplePool().size())
                 return;
@@ -78,8 +70,7 @@ namespace lockstep
         addAndMakeVisible(removeBtn_);
 
         upBtn_.setWantsKeyboardFocus(false);
-        upBtn_.onClick = [this]
-        {
+        upBtn_.onClick = [this] {
             const int row = list_.getSelectedRow();
             if (row <= 0 || row >= processor_.samplePool().size())
                 return;
@@ -90,8 +81,7 @@ namespace lockstep
         addAndMakeVisible(upBtn_);
 
         downBtn_.setWantsKeyboardFocus(false);
-        downBtn_.onClick = [this]
-        {
+        downBtn_.onClick = [this] {
             const int row = list_.getSelectedRow();
             if (row < 0 || row >= processor_.samplePool().size() - 1)
                 return;
@@ -102,8 +92,7 @@ namespace lockstep
         addAndMakeVisible(downBtn_);
 
         closeBtn_.setWantsKeyboardFocus(false);
-        closeBtn_.onClick = [this]
-        {
+        closeBtn_.onClick = [this] {
             if (onClose) onClose();
         };
         addAndMakeVisible(closeBtn_);
@@ -125,7 +114,7 @@ namespace lockstep
     void SamplePoolOverlay::updateButtonStates()
     {
         const int row = list_.getSelectedRow();
-        const bool hasSel  = (row >= 0 && row < processor_.samplePool().size());
+        const bool hasSel = (row >= 0 && row < processor_.samplePool().size());
         const bool missing = hasSel && processor_.samplePool().isMissing(row);
         relinkBtn_.setEnabled(missing);
         removeBtn_.setEnabled(hasSel);
@@ -154,8 +143,8 @@ namespace lockstep
         const bool isMissing = sample->missing;
         const juce::File f(juce::String(sample->ref.path));
         const juce::String indexStr = juce::String(rowNumber) + ".  ";
-        const juce::String name     = f.getFileNameWithoutExtension();
-        const juce::String dirHint  = isMissing ? "MISSING" : f.getParentDirectory().getFileName();
+        const juce::String name = f.getFileNameWithoutExtension();
+        const juce::String dirHint = isMissing ? "MISSING" : f.getParentDirectory().getFileName();
 
         const int textY = (height - 13) / 2;
 

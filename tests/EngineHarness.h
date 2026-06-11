@@ -22,7 +22,7 @@ namespace lockstep
     public:
         explicit StubPlayHead(double bpm = 120.0,
                               double sampleRate = 48000.0,
-                              int    blockSize  = 256)
+                              int blockSize = 256)
             : bpm_(bpm), sampleRate_(sampleRate), blockSize_(blockSize)
         {}
 
@@ -41,15 +41,19 @@ namespace lockstep
         {
             if (playing_)
             {
-                ppq_          += ppqPerBlock();
+                ppq_ += ppqPerBlock();
                 sampleOffset_ += blockSize_;
             }
         }
 
         void setPlaying(bool p) { playing_ = p; }
-        bool isPlaying()  const { return playing_; }
+        bool isPlaying() const { return playing_; }
         double ppqPosition() const { return ppq_; }
-        void   resetPosition() { ppq_ = 0.0; sampleOffset_ = 0; }
+        void resetPosition()
+        {
+            ppq_ = 0.0;
+            sampleOffset_ = 0;
+        }
 
         double ppqPerBlock() const
         {
@@ -59,9 +63,9 @@ namespace lockstep
     private:
         double bpm_;
         double sampleRate_;
-        int    blockSize_;
-        bool   playing_      = true;
-        double ppq_          = 0.0;
+        int blockSize_;
+        bool playing_ = true;
+        double ppq_ = 0.0;
         int64_t sampleOffset_ = 0;
     };
 
@@ -70,8 +74,8 @@ namespace lockstep
     {
     public:
         static constexpr double kSampleRate = 48000.0;
-        static constexpr int    kBlockSize  = 256;
-        static constexpr double kBpm        = 120.0;
+        static constexpr int kBlockSize = 256;
+        static constexpr double kBpm = 120.0;
 
         EngineHarness()
             : playHead_(kBpm, kSampleRate, kBlockSize)
@@ -122,7 +126,7 @@ namespace lockstep
         float lastBufferRms() const
         {
             double sum = 0.0;
-            int    n   = 0;
+            int n = 0;
             for (int ch = 0; ch < buffer_.getNumChannels(); ++ch)
             {
                 for (int i = 0; i < buffer_.getNumSamples(); ++i)
@@ -135,15 +139,15 @@ namespace lockstep
             return (n > 0) ? static_cast<float>(std::sqrt(sum / static_cast<double>(n))) : 0.0f;
         }
 
-        const juce::AudioBuffer<float>& buffer()  const { return buffer_; }
-        const juce::MidiBuffer&         midiOut() const { return midi_; }
-        StubPlayHead&                   playHead()      { return playHead_; }
+        const juce::AudioBuffer<float>& buffer() const { return buffer_; }
+        const juce::MidiBuffer& midiOut() const { return midi_; }
+        StubPlayHead& playHead() { return playHead_; }
 
     private:
-        StubPlayHead                        playHead_;
-        std::unique_ptr<LockstepProcessor>  processor_;
-        juce::AudioBuffer<float>            buffer_;
-        juce::MidiBuffer                    midi_;
+        StubPlayHead playHead_;
+        std::unique_ptr<LockstepProcessor> processor_;
+        juce::AudioBuffer<float> buffer_;
+        juce::MidiBuffer midi_;
     };
 
 } // namespace lockstep

@@ -18,8 +18,8 @@ namespace lockstep
         void resized() override;
 
         // Callbacks set by the editor.
-        std::function<void()>  onClose;
-        std::function<int()>   getActiveTrack;
+        std::function<void()> onClose;
+        std::function<int()> getActiveTrack;
 
     private:
         void refresh();
@@ -29,9 +29,9 @@ namespace lockstep
 
         LockstepProcessor& processor_;
 
-        juce::TextButton   closeBtn_{ "X" };
-        juce::TextButton   saveBtn_{ "Save Track Sound" };
-        juce::ListBox      listBox_;
+        juce::TextButton closeBtn_{ "X" };
+        juce::TextButton saveBtn_{ "Save Track Sound" };
+        juce::ListBox listBox_;
 
         // Thin ListBoxModel so we don't need a separate class file.
         struct Model : public juce::ListBoxModel

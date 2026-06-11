@@ -33,13 +33,13 @@ namespace lockstep::PluginState
     }
 
     static juce::ValueTree condToTree(const juce::Identifier& type,
-                                       const TrigCondition& c)
+                                      const TrigCondition& c)
     {
         juce::ValueTree v(type);
-        v.setProperty("p",  static_cast<int>(c.probabilityPercent), nullptr);
-        v.setProperty("n",  static_cast<int>(c.iterNumerator),      nullptr);
-        v.setProperty("d",  static_cast<int>(c.iterDenominator),    nullptr);
-        v.setProperty(keys::kPd, static_cast<int>(c.prevDependency),     nullptr);
+        v.setProperty("p", static_cast<int>(c.probabilityPercent), nullptr);
+        v.setProperty("n", static_cast<int>(c.iterNumerator), nullptr);
+        v.setProperty("d", static_cast<int>(c.iterDenominator), nullptr);
+        v.setProperty(keys::kPd, static_cast<int>(c.prevDependency), nullptr);
         return v;
     }
 
@@ -47,13 +47,13 @@ namespace lockstep::PluginState
     {
         TrigCondition c;
         c.probabilityPercent = static_cast<std::uint8_t>(
-            static_cast<int>(v.getProperty("p",  100)));
-        c.iterNumerator  = static_cast<std::uint8_t>(
-            static_cast<int>(v.getProperty("n",   1)));
+            static_cast<int>(v.getProperty("p", 100)));
+        c.iterNumerator = static_cast<std::uint8_t>(
+            static_cast<int>(v.getProperty("n", 1)));
         c.iterDenominator = static_cast<std::uint8_t>(
-            static_cast<int>(v.getProperty("d",   1)));
-        c.prevDependency  = static_cast<std::uint8_t>(
-            static_cast<int>(v.getProperty(keys::kPd,  0)));
+            static_cast<int>(v.getProperty("d", 1)));
+        c.prevDependency = static_cast<std::uint8_t>(
+            static_cast<int>(v.getProperty(keys::kPd, 0)));
         // Legacy: "fr" was fillRule (0=Always, 1=OnlyFill, 2=NeverFill).
         // Now handled at step level as fillTrigState (see stepFromNode).
         return c;
@@ -65,7 +65,7 @@ namespace lockstep::PluginState
                                            LockstepProcessor& proc, int trackIdx)
     {
         juce::ValueTree node(keys::kPhrase);
-        node.setProperty("i",   phraseIdx,     nullptr);
+        node.setProperty("i", phraseIdx, nullptr);
         node.setProperty(keys::kLen, phrase.length, nullptr);
 
         if (phrase.noteSelection != NoteSelection::TopBias)
@@ -77,8 +77,8 @@ namespace lockstep::PluginState
         if (td.note != 60 || td.velocity != 100 || td.gateValue != MusicalGate::None)
         {
             juce::ValueTree tdNode(keys::kTrigDefaults);
-            tdNode.setProperty(keys::kNote,  td.note,     nullptr);
-            tdNode.setProperty(keys::kVel,   td.velocity,  nullptr);
+            tdNode.setProperty(keys::kNote, td.note, nullptr);
+            tdNode.setProperty(keys::kVel, td.velocity, nullptr);
             tdNode.setProperty(keys::kGateV, static_cast<int>(static_cast<uint8_t>(td.gateValue)), nullptr);
             node.appendChild(tdNode, nullptr);
         }
@@ -88,26 +88,16 @@ namespace lockstep::PluginState
         for (int s = 0; s < kMaxStepsPerTrack; ++s)
         {
             const auto& step = phrase.steps[static_cast<std::size_t>(s)];
-            if (!step.trig && step.overrides.empty()
-                && step.trigOverride.noteCount == 0 && !step.trigOverride.hasVelocity
-                && !step.trigOverride.hasGate && !step.trigOverride.hasSoundId
-                && !step.trigOverride.hasRetrig
-                && step.condition.isTrivial()
-                && !floatNe(step.microOffset, 0.0f)
-                && step.fillTrigState == FillTrigState::Inherit
-                && step.fillOverrides.empty()
-                && step.fillTrigOverride.noteCount == 0) continue;
+            if (!step.trig && step.overrides.empty() && step.trigOverride.noteCount == 0 && !step.trigOverride.hasVelocity && !step.trigOverride.hasGate && !step.trigOverride.hasSoundId && !step.trigOverride.hasRetrig && step.condition.isTrivial() && !floatNe(step.microOffset, 0.0f) && step.fillTrigState == FillTrigState::Inherit && step.fillOverrides.empty() && step.fillTrigOverride.noteCount == 0) continue;
             hasSteps = true;
             juce::ValueTree stepNode("S");
-            stepNode.setProperty("i", s,                 nullptr);
+            stepNode.setProperty("i", s, nullptr);
             stepNode.setProperty("t", step.trig ? 1 : 0, nullptr);
             if (floatNe(step.microOffset, 0.0f))
                 stepNode.setProperty(keys::kMo, static_cast<double>(step.microOffset), nullptr);
             if (!step.condition.isTrivial())
                 stepNode.appendChild(condToTree("C", step.condition), nullptr);
-            if (step.trigOverride.noteCount > 0 || step.trigOverride.hasVelocity
-                || step.trigOverride.hasGate || step.trigOverride.hasSoundId
-                || step.trigOverride.hasRetrig)
+            if (step.trigOverride.noteCount > 0 || step.trigOverride.hasVelocity || step.trigOverride.hasGate || step.trigOverride.hasSoundId || step.trigOverride.hasRetrig)
             {
                 juce::ValueTree toNode("TO");
                 if (step.trigOverride.noteCount > 0)
@@ -118,24 +108,35 @@ namespace lockstep::PluginState
                                            step.trigOverride.notes[static_cast<std::size_t>(ni)], nullptr);
                 }
                 if (step.trigOverride.hasVelocity)
-                { toNode.setProperty(keys::kHv, 1, nullptr); toNode.setProperty("v", step.trigOverride.velocity, nullptr); }
+                {
+                    toNode.setProperty(keys::kHv, 1, nullptr);
+                    toNode.setProperty("v", step.trigOverride.velocity, nullptr);
+                }
                 if (step.trigOverride.hasGate)
-                { toNode.setProperty(keys::kHg, 1, nullptr); toNode.setProperty(keys::kGv, static_cast<int>(static_cast<uint8_t>(step.trigOverride.gateValue)), nullptr); }
+                {
+                    toNode.setProperty(keys::kHg, 1, nullptr);
+                    toNode.setProperty(keys::kGv, static_cast<int>(static_cast<uint8_t>(step.trigOverride.gateValue)), nullptr);
+                }
                 if (step.trigOverride.hasSoundId)
-                { toNode.setProperty(keys::kHsi, 1, nullptr); toNode.setProperty(keys::kSi, step.trigOverride.soundId, nullptr); }
+                {
+                    toNode.setProperty(keys::kHsi, 1, nullptr);
+                    toNode.setProperty(keys::kSi, step.trigOverride.soundId, nullptr);
+                }
                 if (step.trigOverride.hasRetrig)
-                { toNode.setProperty(keys::kHrt, 1, nullptr); toNode.setProperty(keys::kRt, step.trigOverride.retrigRate, nullptr); }
+                {
+                    toNode.setProperty(keys::kHrt, 1, nullptr);
+                    toNode.setProperty(keys::kRt, step.trigOverride.retrigRate, nullptr);
+                }
                 stepNode.appendChild(toNode, nullptr);
             }
             if (!step.overrides.empty())
             {
                 juce::ValueTree plNode("PL");
-                step.overrides.forEach([&](int slot, float value)
-                {
+                step.overrides.forEach([&](int slot, float value) {
                     const juce::String sid = proc.idForSlot(trackIdx, slot);
                     if (sid.isEmpty()) return;
                     juce::ValueTree pNode("P");
-                    pNode.setProperty(keys::kParamId, sid,                      nullptr);
+                    pNode.setProperty(keys::kParamId, sid, nullptr);
                     pNode.setProperty(keys::kPLockVal, static_cast<double>(value), nullptr);
                     plNode.appendChild(pNode, nullptr);
                 });
@@ -143,9 +144,7 @@ namespace lockstep::PluginState
             }
             if (step.fillTrigState != FillTrigState::Inherit)
                 stepNode.setProperty(keys::kFillTS, static_cast<int>(step.fillTrigState), nullptr);
-            if (step.fillTrigOverride.noteCount > 0 || step.fillTrigOverride.hasVelocity
-                || step.fillTrigOverride.hasGate || step.fillTrigOverride.hasSoundId
-                || step.fillTrigOverride.hasRetrig)
+            if (step.fillTrigOverride.noteCount > 0 || step.fillTrigOverride.hasVelocity || step.fillTrigOverride.hasGate || step.fillTrigOverride.hasSoundId || step.fillTrigOverride.hasRetrig)
             {
                 juce::ValueTree ftoNode(keys::kFillTO);
                 if (step.fillTrigOverride.noteCount > 0)
@@ -156,24 +155,35 @@ namespace lockstep::PluginState
                                             step.fillTrigOverride.notes[static_cast<std::size_t>(ni)], nullptr);
                 }
                 if (step.fillTrigOverride.hasVelocity)
-                { ftoNode.setProperty(keys::kHv, 1, nullptr); ftoNode.setProperty("v", step.fillTrigOverride.velocity, nullptr); }
+                {
+                    ftoNode.setProperty(keys::kHv, 1, nullptr);
+                    ftoNode.setProperty("v", step.fillTrigOverride.velocity, nullptr);
+                }
                 if (step.fillTrigOverride.hasGate)
-                { ftoNode.setProperty(keys::kHg, 1, nullptr); ftoNode.setProperty(keys::kGv, static_cast<int>(static_cast<uint8_t>(step.fillTrigOverride.gateValue)), nullptr); }
+                {
+                    ftoNode.setProperty(keys::kHg, 1, nullptr);
+                    ftoNode.setProperty(keys::kGv, static_cast<int>(static_cast<uint8_t>(step.fillTrigOverride.gateValue)), nullptr);
+                }
                 if (step.fillTrigOverride.hasSoundId)
-                { ftoNode.setProperty(keys::kHsi, 1, nullptr); ftoNode.setProperty(keys::kSi, step.fillTrigOverride.soundId, nullptr); }
+                {
+                    ftoNode.setProperty(keys::kHsi, 1, nullptr);
+                    ftoNode.setProperty(keys::kSi, step.fillTrigOverride.soundId, nullptr);
+                }
                 if (step.fillTrigOverride.hasRetrig)
-                { ftoNode.setProperty(keys::kHrt, 1, nullptr); ftoNode.setProperty(keys::kRt, step.fillTrigOverride.retrigRate, nullptr); }
+                {
+                    ftoNode.setProperty(keys::kHrt, 1, nullptr);
+                    ftoNode.setProperty(keys::kRt, step.fillTrigOverride.retrigRate, nullptr);
+                }
                 stepNode.appendChild(ftoNode, nullptr);
             }
             if (!step.fillOverrides.empty())
             {
                 juce::ValueTree fplNode(keys::kFillPLocks);
-                step.fillOverrides.forEach([&](int slot, float value)
-                {
+                step.fillOverrides.forEach([&](int slot, float value) {
                     const juce::String sid = proc.idForSlot(trackIdx, slot);
                     if (sid.isEmpty()) return;
                     juce::ValueTree pNode("P");
-                    pNode.setProperty(keys::kParamId, sid,                      nullptr);
+                    pNode.setProperty(keys::kParamId, sid, nullptr);
                     pNode.setProperty(keys::kPLockVal, static_cast<double>(value), nullptr);
                     fplNode.appendChild(pNode, nullptr);
                 });
@@ -188,7 +198,7 @@ namespace lockstep::PluginState
     // slotResolver(id) → runtime slot index for a string param id; returns -1 if unknown.
     // Pass a no-op lambda (returning -1) when no machine context is available.
     static void readPhraseFromNode(const juce::ValueTree& node, Phrase& phrase,
-                                    std::function<int(const juce::String&)> slotResolver)
+                                   std::function<int(const juce::String&)> slotResolver)
     {
         phrase.length = std::clamp(static_cast<int>(node.getProperty(keys::kLen, 16)), 1, kMaxStepsPerTrack);
         if (node.hasProperty(keys::kNSel))
@@ -200,8 +210,8 @@ namespace lockstep::PluginState
         const auto tdNode = node.getChildWithName(keys::kTrigDefaults);
         if (tdNode.isValid())
         {
-            phrase.trigDefaults.note      = static_cast<int>(tdNode.getProperty(keys::kNote,  60));
-            phrase.trigDefaults.velocity  = static_cast<int>(tdNode.getProperty(keys::kVel,  100));
+            phrase.trigDefaults.note = static_cast<int>(tdNode.getProperty(keys::kNote, 60));
+            phrase.trigDefaults.velocity = static_cast<int>(tdNode.getProperty(keys::kVel, 100));
             phrase.trigDefaults.gateValue = static_cast<MusicalGate>(
                 static_cast<uint8_t>(static_cast<int>(tdNode.getProperty(keys::kGateV, 0))));
         }
@@ -213,7 +223,7 @@ namespace lockstep::PluginState
             const int s = static_cast<int>(stepNode.getProperty("i", -1));
             if (s < 0 || s >= kMaxStepsPerTrack) continue;
             auto& step = phrase.steps[static_cast<std::size_t>(s)];
-            step.trig        = (static_cast<int>(stepNode.getProperty("t", 0)) != 0);
+            step.trig = (static_cast<int>(stepNode.getProperty("t", 0)) != 0);
             step.microOffset = getFloat(stepNode, keys::kMo, 0.0f);
             const auto cNode = stepNode.getChildWithName("C");
             if (cNode.isValid()) step.condition = condFromTree(cNode);
@@ -225,13 +235,25 @@ namespace lockstep::PluginState
                     step.trigOverride.notes[static_cast<std::size_t>(ni)] =
                         static_cast<int>(toNode.getProperty("n" + juce::String(ni), 60));
                 if (static_cast<int>(toNode.getProperty(keys::kHv, 0)) != 0)
-                { step.trigOverride.hasVelocity = true; step.trigOverride.velocity = static_cast<int>(toNode.getProperty("v", 100)); }
+                {
+                    step.trigOverride.hasVelocity = true;
+                    step.trigOverride.velocity = static_cast<int>(toNode.getProperty("v", 100));
+                }
                 if (static_cast<int>(toNode.getProperty(keys::kHg, 0)) != 0)
-                { step.trigOverride.hasGate = true; step.trigOverride.gateValue = static_cast<MusicalGate>(static_cast<uint8_t>(static_cast<int>(toNode.getProperty(keys::kGv, 0)))); }
+                {
+                    step.trigOverride.hasGate = true;
+                    step.trigOverride.gateValue = static_cast<MusicalGate>(static_cast<uint8_t>(static_cast<int>(toNode.getProperty(keys::kGv, 0))));
+                }
                 if (static_cast<int>(toNode.getProperty(keys::kHsi, 0)) != 0)
-                { step.trigOverride.hasSoundId = true; step.trigOverride.soundId = static_cast<int>(toNode.getProperty(keys::kSi, -1)); }
+                {
+                    step.trigOverride.hasSoundId = true;
+                    step.trigOverride.soundId = static_cast<int>(toNode.getProperty(keys::kSi, -1));
+                }
                 if (static_cast<int>(toNode.getProperty(keys::kHrt, 0)) != 0)
-                { step.trigOverride.hasRetrig = true; step.trigOverride.retrigRate = static_cast<double>(toNode.getProperty(keys::kRt, 0.25)); }
+                {
+                    step.trigOverride.hasRetrig = true;
+                    step.trigOverride.retrigRate = static_cast<double>(toNode.getProperty(keys::kRt, 0.25));
+                }
             }
             const auto plNode = stepNode.getChildWithName(keys::kPLocks);
             if (plNode.isValid())
@@ -262,13 +284,25 @@ namespace lockstep::PluginState
                     step.fillTrigOverride.notes[static_cast<std::size_t>(ni)] =
                         static_cast<int>(ftoNode.getProperty("n" + juce::String(ni), 60));
                 if (static_cast<int>(ftoNode.getProperty(keys::kHv, 0)) != 0)
-                { step.fillTrigOverride.hasVelocity = true; step.fillTrigOverride.velocity = static_cast<int>(ftoNode.getProperty("v", 100)); }
+                {
+                    step.fillTrigOverride.hasVelocity = true;
+                    step.fillTrigOverride.velocity = static_cast<int>(ftoNode.getProperty("v", 100));
+                }
                 if (static_cast<int>(ftoNode.getProperty(keys::kHg, 0)) != 0)
-                { step.fillTrigOverride.hasGate = true; step.fillTrigOverride.gateValue = static_cast<MusicalGate>(static_cast<uint8_t>(static_cast<int>(ftoNode.getProperty(keys::kGv, 0)))); }
+                {
+                    step.fillTrigOverride.hasGate = true;
+                    step.fillTrigOverride.gateValue = static_cast<MusicalGate>(static_cast<uint8_t>(static_cast<int>(ftoNode.getProperty(keys::kGv, 0))));
+                }
                 if (static_cast<int>(ftoNode.getProperty(keys::kHsi, 0)) != 0)
-                { step.fillTrigOverride.hasSoundId = true; step.fillTrigOverride.soundId = static_cast<int>(ftoNode.getProperty(keys::kSi, -1)); }
+                {
+                    step.fillTrigOverride.hasSoundId = true;
+                    step.fillTrigOverride.soundId = static_cast<int>(ftoNode.getProperty(keys::kSi, -1));
+                }
                 if (static_cast<int>(ftoNode.getProperty(keys::kHrt, 0)) != 0)
-                { step.fillTrigOverride.hasRetrig = true; step.fillTrigOverride.retrigRate = static_cast<double>(ftoNode.getProperty(keys::kRt, 0.25)); }
+                {
+                    step.fillTrigOverride.hasRetrig = true;
+                    step.fillTrigOverride.retrigRate = static_cast<double>(ftoNode.getProperty(keys::kRt, 0.25));
+                }
             }
             const auto fplNode = stepNode.getChildWithName(keys::kFillPLocks);
             if (fplNode.isValid())
@@ -293,8 +327,8 @@ namespace lockstep::PluginState
     static juce::ValueTree writeKitNode(int trackIdx, const TrackKit& kit, LockstepProcessor& proc)
     {
         juce::ValueTree node(keys::kKit);
-        node.setProperty("t",       trackIdx,              nullptr);
-        node.setProperty(keys::kMId,     juce::String(kit.machineId),   nullptr);
+        node.setProperty("t", trackIdx, nullptr);
+        node.setProperty(keys::kMId, juce::String(kit.machineId), nullptr);
         if (!kit.destinationId.empty())
             node.setProperty(keys::kDId, juce::String(kit.destinationId), nullptr);
         if (!kit.midiPresetName.empty())
@@ -308,7 +342,7 @@ namespace lockstep::PluginState
         // id-keyed scheme as the legacy PartTrack so the kit owns its sound.
         auto tempMachine = proc.createMachineForId(kit.machineId);
         const int machinNp = tempMachine->numParams();
-        const int np       = proc.numSlotsWithMachine(*tempMachine);
+        const int np = proc.numSlotsWithMachine(*tempMachine);
         if (np > 0)
         {
             juce::ValueTree bpNode("BP");
@@ -325,16 +359,15 @@ namespace lockstep::PluginState
                     val = kit.fltrState.getSlot(s - machinNp);
                 else if (id.startsWith("lockstep.amp."))
                 {
-                    const int ampBase = machinNp
-                        + (tempMachine->hasInternalFilter() ? 0 : TrackFltrState::kNumSlots);
+                    const int ampBase = machinNp + (tempMachine->hasInternalFilter() ? 0 : TrackFltrState::kNumSlots);
                     val = kit.ampState.getSlot(s - ampBase);
                 }
                 else
                     val = 0.0f;
                 if (!floatNe(val, def)) continue;
                 juce::ValueTree pNode("P");
-                pNode.setProperty("id", id,                       nullptr);
-                pNode.setProperty("v",  static_cast<double>(val), nullptr);
+                pNode.setProperty("id", id, nullptr);
+                pNode.setProperty("v", static_cast<double>(val), nullptr);
                 bpNode.appendChild(pNode, nullptr);
             }
             if (bpNode.getNumChildren() > 0)
@@ -359,11 +392,12 @@ namespace lockstep::PluginState
                 const auto spec = tempEff->paramSpec(p);
                 const float def = spec.defaultValue;
                 const float val = (p < static_cast<int>(insSlot.baseParams.size()))
-                    ? insSlot.baseParams[static_cast<std::size_t>(p)] : def;
+                                      ? insSlot.baseParams[static_cast<std::size_t>(p)]
+                                      : def;
                 if (!floatNe(val, def)) continue;
                 juce::ValueTree pNode("P");
                 pNode.setProperty("id", juce::String(spec.id), nullptr);
-                pNode.setProperty("v",  static_cast<double>(val), nullptr);
+                pNode.setProperty("v", static_cast<double>(val), nullptr);
                 insNode.appendChild(pNode, nullptr);
             }
             node.appendChild(insNode, nullptr);
@@ -373,8 +407,8 @@ namespace lockstep::PluginState
 
     static void readKitFromNode(const juce::ValueTree& node, TrackKit& kit, LockstepProcessor& proc)
     {
-        kit.machineId    = node.getProperty(keys::kMId,    juce::String(SamplerMachine::kMachineId)).toString().toStdString();
-        kit.destinationId = node.getProperty(keys::kDId,   "").toString().toStdString();
+        kit.machineId = node.getProperty(keys::kMId, juce::String(SamplerMachine::kMachineId)).toString().toStdString();
+        kit.destinationId = node.getProperty(keys::kDId, "").toString().toStdString();
         kit.midiPresetName = node.getProperty(keys::kMPreset, "").toString().toStdString();
         kit.divider = static_cast<int>(node.getProperty(keys::kDiv, 1));
 
@@ -389,8 +423,8 @@ namespace lockstep::PluginState
         {
             for (auto pNode : bpNode)
             {
-                const juce::String id  = pNode.getProperty("id", "").toString();
-                const float        val = getFloat(pNode, "v", 0.0f);
+                const juce::String id = pNode.getProperty("id", "").toString();
+                const float val = getFloat(pNode, "v", 0.0f);
                 const int slot = proc.slotForIdWithMachine(*tempMachine, id);
                 if (slot < 0) continue;  // unknown id (e.g. machine changed) — skip
                 if (slot < machinNp)
@@ -399,8 +433,7 @@ namespace lockstep::PluginState
                     kit.fltrState.setSlot(slot - machinNp, val);
                 else if (id.startsWith("lockstep.amp."))
                 {
-                    const int ampBase = machinNp
-                        + (tempMachine->hasInternalFilter() ? 0 : TrackFltrState::kNumSlots);
+                    const int ampBase = machinNp + (tempMachine->hasInternalFilter() ? 0 : TrackFltrState::kNumSlots);
                     kit.ampState.setSlot(slot - ampBase, val);
                 }
             }
@@ -416,7 +449,7 @@ namespace lockstep::PluginState
             if (effId.empty()) continue;
             auto& insSlot = kit.inserts[static_cast<std::size_t>(s)];
             insSlot.effectId = effId;
-            insSlot.bypass   = (static_cast<int>(child.getProperty(keys::kBypass, 0)) != 0);
+            insSlot.bypass = (static_cast<int>(child.getProperty(keys::kBypass, 0)) != 0);
             auto tempEff = makeEffectForId(effId);
             if (tempEff)
             {
@@ -444,8 +477,8 @@ namespace lockstep::PluginState
     static void writeNewHierarchyNode(juce::ValueTree& root, LockstepProcessor& proc)
     {
         juce::ValueTree nhNode(keys::kNewHierarchy);
-        nhNode.setProperty(keys::kActivePiece, proc.activePieceIdx(),   nullptr);
-        nhNode.setProperty(keys::kActiveSect,  proc.activeSectionIdx(), nullptr);
+        nhNode.setProperty(keys::kActivePiece, proc.activePieceIdx(), nullptr);
+        nhNode.setProperty(keys::kActiveSect, proc.activeSectionIdx(), nullptr);
         nhNode.setProperty(keys::kLaunchQuant, proc.project().launchQuantizeBars, nullptr);
 
         for (int pi = 0; pi < kNumSongs; ++pi)
@@ -479,7 +512,13 @@ namespace lockstep::PluginState
                     const auto& phrase = lane.phrases[static_cast<std::size_t>(ph)];
                     if (!phrase.initialised && phrase.length == 16) continue;
                     bool hasData = phrase.length != 16 || phrase.initialised;
-                    if (!hasData) for (const auto& s : phrase.steps) if (s.trig) { hasData = true; break; }
+                    if (!hasData)
+                        for (const auto& s : phrase.steps)
+                            if (s.trig)
+                            {
+                                hasData = true;
+                                break;
+                            }
                     if (!hasData) continue;
                     songTrackNode.appendChild(writePhraseNode(ph, phrase, proc, t), nullptr);
                     laneHasContent = true;
@@ -498,13 +537,18 @@ namespace lockstep::PluginState
                 if (!sceneHasContent(sec)) continue;
                 juce::ValueTree sceneNode(keys::kScene);
                 sceneNode.setProperty("i", si, nullptr);
-                sceneNode.setProperty(keys::kCtN, sec.coreTime.numerator,   nullptr);
+                sceneNode.setProperty(keys::kCtN, sec.coreTime.numerator, nullptr);
                 sceneNode.setProperty(keys::kCtD, sec.coreTime.denominator, nullptr);
                 if (floatNe(sec.swing, 0.0f))
                     sceneNode.setProperty(keys::kSwing, static_cast<double>(sec.swing), nullptr);
                 // activeMask (default all true; only write if any false).
                 bool anyMasked = false;
-                for (const bool m : sec.activeMask) if (!m) { anyMasked = true; break; }
+                for (const bool m : sec.activeMask)
+                    if (!m)
+                    {
+                        anyMasked = true;
+                        break;
+                    }
                 if (anyMasked)
                 {
                     int maskBits = 0;
@@ -514,16 +558,15 @@ namespace lockstep::PluginState
                 }
                 // Scene A/B snapshots (Phase 7 Stage G; full morph impl = 5.2).
                 auto writeSceneMap = [&](const char* tag,
-                    const std::map<std::pair<int,int>,float>& sceneMap)
-                {
+                                         const std::map<std::pair<int, int>, float>& sceneMap) {
                     if (sceneMap.empty()) return;
                     juce::ValueTree scNode(tag);
                     for (const auto& [key, val] : sceneMap)
                     {
                         juce::ValueTree eNode("E");
-                        eNode.setProperty("t",  key.first,  nullptr);
-                        eNode.setProperty("s",  key.second, nullptr);
-                        eNode.setProperty("v",  static_cast<double>(val), nullptr);
+                        eNode.setProperty("t", key.first, nullptr);
+                        eNode.setProperty("s", key.second, nullptr);
+                        eNode.setProperty("v", static_cast<double>(val), nullptr);
                         scNode.appendChild(eNode, nullptr);
                     }
                     sceneNode.appendChild(scNode, nullptr);
@@ -552,11 +595,12 @@ namespace lockstep::PluginState
                     const auto spec = tempEff->paramSpec(p);
                     const float def = spec.defaultValue;
                     const float val = (p < static_cast<int>(mIns.baseParams.size()))
-                        ? mIns.baseParams[static_cast<std::size_t>(p)] : def;
+                                          ? mIns.baseParams[static_cast<std::size_t>(p)]
+                                          : def;
                     if (!floatNe(val, def)) continue;
                     juce::ValueTree pNode("P");
                     pNode.setProperty("id", juce::String(spec.id), nullptr);
-                    pNode.setProperty("v",  static_cast<double>(val), nullptr);
+                    pNode.setProperty("v", static_cast<double>(val), nullptr);
                     mInsNode.appendChild(pNode, nullptr);
                 }
                 songNode.appendChild(mInsNode, nullptr);
@@ -575,7 +619,7 @@ namespace lockstep::PluginState
         if (!nhNode.isValid()) return;
 
         const int activePiece = static_cast<int>(nhNode.getProperty(keys::kActivePiece, 0));
-        const int activeSect  = static_cast<int>(nhNode.getProperty(keys::kActiveSect,  0));
+        const int activeSect = static_cast<int>(nhNode.getProperty(keys::kActiveSect, 0));
         proc.project().launchQuantizeBars = static_cast<int>(nhNode.getProperty(keys::kLaunchQuant, 1));
 
         for (auto songNode : nhNode)
@@ -612,7 +656,7 @@ namespace lockstep::PluginState
                         if (ph < 0 || ph >= kPhrasesPerTrack) continue;
                         auto& phrase = song.tracks[static_cast<std::size_t>(t)].phrases[static_cast<std::size_t>(ph)];
                         readPhraseFromNode(phraseNode, phrase,
-                            [&](const juce::String& id) { return proc.slotForId(t, id); });
+                                           [&](const juce::String& id) { return proc.slotForId(t, id); });
                         phrase.initialised = true;
                     }
                 }
@@ -625,7 +669,7 @@ namespace lockstep::PluginState
                     if (effId.empty()) continue;
                     auto& mIns = song.masterInserts[static_cast<std::size_t>(s)];
                     mIns.effectId = effId;
-                    mIns.bypass   = (static_cast<int>(child.getProperty(keys::kBypass, 0)) != 0);
+                    mIns.bypass = (static_cast<int>(child.getProperty(keys::kBypass, 0)) != 0);
                     auto tempEff = makeEffectForId(effId);
                     if (tempEff)
                     {
@@ -653,10 +697,10 @@ namespace lockstep::PluginState
                     const int si = static_cast<int>(child.getProperty("i", -1));
                     if (si < 0 || si >= kScenesPerSong) continue;
                     auto& sec = song.scenes[static_cast<std::size_t>(si)];
-                    sec.coreTime.numerator   = static_cast<int>(child.getProperty(keys::kCtN, 4));
+                    sec.coreTime.numerator = static_cast<int>(child.getProperty(keys::kCtN, 4));
                     sec.coreTime.denominator = static_cast<int>(child.getProperty(keys::kCtD, 4));
                     legacyGp[static_cast<std::size_t>(si)] = static_cast<int>(child.getProperty(keys::kGp, si));
-                    sec.swing                = getFloat(child, keys::kSwing, 0.0f);
+                    sec.swing = getFloat(child, keys::kSwing, 0.0f);
                     sec.initialised = true;
 
                     if (child.hasProperty(keys::kMutesMask))
@@ -667,8 +711,7 @@ namespace lockstep::PluginState
                     }
                     // Scene A/B
                     auto readSceneMap = [&](const char* tag,
-                        std::map<std::pair<int,int>,float>& sceneMap)
-                    {
+                                            std::map<std::pair<int, int>, float>& sceneMap) {
                         const auto scNode = child.getChildWithName(tag);
                         if (!scNode.isValid()) return;
                         for (auto eNode : scNode)
@@ -676,7 +719,7 @@ namespace lockstep::PluginState
                             const int t2 = static_cast<int>(eNode.getProperty("t", -1));
                             const int s2 = static_cast<int>(eNode.getProperty("s", -1));
                             if (t2 >= 0 && s2 >= 0)
-                                sceneMap[{t2, s2}] = getFloat(eNode, "v", 0.0f);
+                                sceneMap[{ t2, s2 }] = getFloat(eNode, "v", 0.0f);
                         }
                     };
                     readSceneMap(keys::kMorphA, sec.morphA);
@@ -731,9 +774,9 @@ namespace lockstep::PluginState
             const auto* s = pool.get(i);
             if (!s) continue;
             juce::ValueTree entry(keys::kEntry);
-            entry.setProperty("i",    i,                               nullptr);
-            entry.setProperty(keys::kPath, juce::String(s->ref.path),       nullptr);
-            entry.setProperty(keys::kHash, hashToHex(s->ref.hashXX32),      nullptr);
+            entry.setProperty("i", i, nullptr);
+            entry.setProperty(keys::kPath, juce::String(s->ref.path), nullptr);
+            entry.setProperty(keys::kHash, hashToHex(s->ref.hashXX32), nullptr);
             poolNode.appendChild(entry, nullptr);
         }
         root.appendChild(poolNode, nullptr);
@@ -747,7 +790,7 @@ namespace lockstep::PluginState
         for (auto entry : poolNode)
         {
             const juce::String path = entry.getProperty(keys::kPath).toString();
-            const juce::String hex  = entry.getProperty(keys::kHash).toString();
+            const juce::String hex = entry.getProperty(keys::kHash).toString();
             const std::uint32_t savedHash = hexToHash(hex);
 
             const int loaded = proc.samplePool().load(path);
@@ -762,7 +805,7 @@ namespace lockstep::PluginState
             {
                 // File not found — insert a placeholder so pool indices remain intact.
                 SampleRef ref;
-                ref.path     = path.toStdString();
+                ref.path = path.toStdString();
                 ref.hashXX32 = savedHash;
                 proc.samplePool().addMissing(ref);
                 DBG("PluginState: missing sample '" + path + "'");
@@ -777,21 +820,21 @@ namespace lockstep::PluginState
     {
         switch (s)
         {
-        case CCScope::Global:        return "Global";
-        case CCScope::Track:         return "Track";
-        case CCScope::SelectedTrack: return "SelectedTrack";
-        case CCScope::Contextual:    return "Contextual";
-        case CCScope::Crossfader:    return "Crossfader";
+            case CCScope::Global:        return "Global";
+            case CCScope::Track:         return "Track";
+            case CCScope::SelectedTrack: return "SelectedTrack";
+            case CCScope::Contextual:    return "Contextual";
+            case CCScope::Crossfader:    return "Crossfader";
         }
         return "Track";
     }
 
     static CCScope strToScope(const juce::String& s)
     {
-        if (s == "Global")        return CCScope::Global;
+        if (s == "Global") return CCScope::Global;
         if (s == "SelectedTrack") return CCScope::SelectedTrack;
-        if (s == "Contextual")    return CCScope::Contextual;
-        if (s == "Crossfader")    return CCScope::Crossfader;
+        if (s == "Contextual") return CCScope::Contextual;
+        if (s == "Crossfader") return CCScope::Crossfader;
         return CCScope::Track;
     }
 
@@ -802,14 +845,14 @@ namespace lockstep::PluginState
         for (const auto& m : proc.ccMappingTable().mappings())
         {
             juce::ValueTree mNode("M");
-            mNode.setProperty("cc",    m.ccNumber,               nullptr);
-            mNode.setProperty(keys::kScope, scopeToStr(m.scope),      nullptr);
-            mNode.setProperty(keys::kCcTrack, m.trackIndex,             nullptr);
-            mNode.setProperty(keys::kMz,    m.mzPosition,             nullptr);
-            mNode.setProperty(keys::kApvts, juce::String(m.apvtsID),  nullptr);
-            mNode.setProperty(keys::kRel,   m.isRelative ? 1 : 0,     nullptr);
+            mNode.setProperty("cc", m.ccNumber, nullptr);
+            mNode.setProperty(keys::kScope, scopeToStr(m.scope), nullptr);
+            mNode.setProperty(keys::kCcTrack, m.trackIndex, nullptr);
+            mNode.setProperty(keys::kMz, m.mzPosition, nullptr);
+            mNode.setProperty(keys::kApvts, juce::String(m.apvtsID), nullptr);
+            mNode.setProperty(keys::kRel, m.isRelative ? 1 : 0, nullptr);
             mNode.setProperty(keys::kScale, static_cast<double>(m.scale), nullptr);
-            mNode.setProperty(keys::kEnc,   static_cast<int>(m.encoding), nullptr);
+            mNode.setProperty(keys::kEnc, static_cast<int>(m.encoding), nullptr);
 
             // Resolve the slot to a stable string ID so renames survive.
             // For SelectedTrack scope, track 0 is used as the schema reference.
@@ -827,8 +870,8 @@ namespace lockstep::PluginState
 
         // Focus track + standalone BPM.
         juce::ValueTree miscNode(keys::kMisc);
-        miscNode.setProperty(keys::kFocusTrack, proc.focusTrack(),       nullptr);
-        miscNode.setProperty(keys::kLocalBpm,   proc.clock().localBpm(), nullptr);
+        miscNode.setProperty(keys::kFocusTrack, proc.focusTrack(), nullptr);
+        miscNode.setProperty(keys::kLocalBpm, proc.clock().localBpm(), nullptr);
         root.appendChild(miscNode, nullptr);
     }
 
@@ -841,15 +884,15 @@ namespace lockstep::PluginState
             for (auto mNode : ccNode)
             {
                 CCMapping m;
-                m.ccNumber   = static_cast<int>(mNode.getProperty("cc",  -1));
-                m.scope      = strToScope(mNode.getProperty(keys::kScope).toString());
+                m.ccNumber = static_cast<int>(mNode.getProperty("cc", -1));
+                m.scope = strToScope(mNode.getProperty(keys::kScope).toString());
                 m.trackIndex = static_cast<int>(mNode.getProperty(keys::kCcTrack, 0));
-                m.mzPosition = static_cast<int>(mNode.getProperty(keys::kMz,   -1));
-                m.apvtsID    = mNode.getProperty(keys::kApvts).toString().toStdString();
+                m.mzPosition = static_cast<int>(mNode.getProperty(keys::kMz, -1));
+                m.apvtsID = mNode.getProperty(keys::kApvts).toString().toStdString();
                 m.isRelative = (static_cast<int>(mNode.getProperty(keys::kRel, 0)) != 0);
-                m.scale      = getFloat(mNode, keys::kScale, 1.0f / 128.0f);
-                m.encoding   = static_cast<RelativeCCEncoding>(
-                                   static_cast<int>(mNode.getProperty(keys::kEnc, 0)));
+                m.scale = getFloat(mNode, keys::kScale, 1.0f / 128.0f);
+                m.encoding = static_cast<RelativeCCEncoding>(
+                    static_cast<int>(mNode.getProperty(keys::kEnc, 0)));
 
                 // Resolve slot ID back to a runtime integer.
                 const juce::String slotId = mNode.getProperty(keys::kSlotId).toString();
@@ -930,7 +973,7 @@ namespace lockstep::PluginState
         bankNode.setProperty("i", 0, nullptr);
 
         juce::ValueTree patNode(keys::kPattern);
-        patNode.setProperty("i",       0, nullptr);
+        patNode.setProperty("i", 0, nullptr);
         patNode.setProperty(keys::kPartRef, 0, nullptr);
 
         juce::ValueTree partNode(keys::kPart);
@@ -967,7 +1010,7 @@ namespace lockstep::PluginState
             }
         }
 
-        bankNode.appendChild(patNode,  nullptr);
+        bankNode.appendChild(patNode, nullptr);
         bankNode.appendChild(partNode, nullptr);
         projNode.appendChild(bankNode, nullptr);
         v2.appendChild(projNode, nullptr);
@@ -1004,8 +1047,9 @@ namespace lockstep::PluginState
                         const float gms = static_cast<float>(
                             static_cast<double>(tdNode.getProperty(keys::kGateMs, 0.0)));
                         tdNode.setProperty(keys::kGateV,
-                            static_cast<int>(static_cast<uint8_t>(
-                                nearestMusicalGate(gms, 120.0))), nullptr);
+                                           static_cast<int>(static_cast<uint8_t>(
+                                               nearestMusicalGate(gms, 120.0))),
+                                           nullptr);
                         tdNode.removeProperty(keys::kGateMs, nullptr);
                     }
 
@@ -1021,8 +1065,9 @@ namespace lockstep::PluginState
                             const float gms = static_cast<float>(
                                 static_cast<double>(toNode.getProperty("g", 0.0)));
                             toNode.setProperty(keys::kGv,
-                                static_cast<int>(static_cast<uint8_t>(
-                                    nearestMusicalGate(gms, 120.0))), nullptr);
+                                               static_cast<int>(static_cast<uint8_t>(
+                                                   nearestMusicalGate(gms, 120.0))),
+                                               nullptr);
                             toNode.removeProperty("g", nullptr);
                         }
                     }
@@ -1075,12 +1120,10 @@ namespace lockstep::PluginState
             // Drop every legacy hierarchy node: "Project" (v2+) and the flat
             // pre-v2 "Sequence". Preserve APVTS ("Lockstep"), SamplePool, Misc,
             // CCMappings, and any already-present NewHierarchy.
-            if (child.getType() != juce::Identifier(keys::kProject)
-                && child.getType() != juce::Identifier("Sequence"))
+            if (child.getType() != juce::Identifier(keys::kProject) && child.getType() != juce::Identifier("Sequence"))
                 cur.appendChild(child.createCopy(), nullptr);
         }
-        DBG("PluginState: clean break to v" + juce::String(kCurrentVersion)
-            + ": legacy Project/Bank/Pattern/Part data discarded.");
+        DBG("PluginState: clean break to v" + juce::String(kCurrentVersion) + ": legacy Project/Bank/Pattern/Part data discarded.");
         return cur;
     }
 
@@ -1106,7 +1149,7 @@ namespace lockstep::PluginState
             for (auto paramNode : apvtsNode)
             {
                 if (paramNode.getType() != juce::Identifier("PARAM")) continue;
-                const auto id  = paramNode.getProperty("id").toString();
+                const auto id = paramNode.getProperty("id").toString();
                 const float val = static_cast<float>(
                     static_cast<double>(paramNode.getProperty("value", 0.0)));
                 if (id == juce::String(keys::kSwing))
@@ -1131,7 +1174,12 @@ namespace lockstep::PluginState
         // Skip migration if both levels are zero (default state — no-op).
         const bool hasLegacySwing = floatNe(legacyGlobal, 0.0f);
         bool hasLegacyTrackSwing = false;
-        for (float v : legacyTrack) if (floatNe(v, 0.0f)) { hasLegacyTrackSwing = true; break; }
+        for (float v : legacyTrack)
+            if (floatNe(v, 0.0f))
+            {
+                hasLegacyTrackSwing = true;
+                break;
+            }
 
         if (hasLegacySwing || hasLegacyTrackSwing)
         {
@@ -1141,7 +1189,7 @@ namespace lockstep::PluginState
                 // No NewHierarchy yet (bare v9 state) — inject a Song[0] node.
                 nhNode = juce::ValueTree(keys::kNewHierarchy);
                 nhNode.setProperty(keys::kActivePiece, 0, nullptr);
-                nhNode.setProperty(keys::kActiveSect,  0, nullptr);
+                nhNode.setProperty(keys::kActiveSect, 0, nullptr);
                 v10.appendChild(nhNode, nullptr);
             }
 
@@ -1149,8 +1197,7 @@ namespace lockstep::PluginState
             juce::ValueTree song0;
             for (auto child : nhNode)
             {
-                if (child.getType() == juce::Identifier(keys::kSong)
-                    && static_cast<int>(child.getProperty("i", -1)) == 0)
+                if (child.getType() == juce::Identifier(keys::kSong) && static_cast<int>(child.getProperty("i", -1)) == 0)
                 {
                     song0 = child;
                     break;
@@ -1176,8 +1223,7 @@ namespace lockstep::PluginState
                     juce::ValueTree trackNode;
                     for (auto child : song0)
                     {
-                        if (child.getType() == juce::Identifier(keys::kSongTrack)
-                            && static_cast<int>(child.getProperty("t", -1)) == t)
+                        if (child.getType() == juce::Identifier(keys::kSongTrack) && static_cast<int>(child.getProperty("t", -1)) == t)
                         {
                             trackNode = child;
                             break;
@@ -1193,8 +1239,7 @@ namespace lockstep::PluginState
                 }
             }
 
-            DBG("PluginState: v9→v10: migrated swing (global="
-                + juce::String(legacyGlobal) + ") into Song[0]");
+            DBG("PluginState: v9→v10: migrated swing (global=" + juce::String(legacyGlobal) + ") into Song[0]");
         }
 
         return v10;
@@ -1258,16 +1303,14 @@ namespace lockstep::PluginState
             version = static_cast<int>(tree.getProperty(keys::kVersion, 0));
 
         if (version > kCurrentVersion)
-            DBG("PluginState: state version " + juce::String(version)
-                + " is newer than this build (supports up to v"
-                + juce::String(kCurrentVersion) + "); loading anyway");
+            DBG("PluginState: state version " + juce::String(version) + " is newer than this build (supports up to v" + juce::String(kCurrentVersion) + "); loading anyway");
 
         // Apply each upgrade in order. Upgrades are idempotent with respect
         // to the chain: each runs only when needed by the version guard.
         // Pre-v1 trees (bare "Lockstep" APVTS root) are first normalised into a
         // LockstepState wrapper; everything below the current version then
         // collapses to the current format via the clean break.
-        if (version < 1)  tree = upgrade_v0_to_v1(tree);
+        if (version < 1) tree = upgrade_v0_to_v1(tree);
         if (version < 10) tree = cleanBreakToCurrent(tree);
         if (version == 9) tree = upgrade_v9_to_v10(tree);
         if (version < 11) tree = upgrade_v10_to_v11(tree);
@@ -1374,10 +1417,10 @@ namespace
                 // break discards all legacy hierarchy; APVTS/SamplePool/Misc stay.
                 juce::ValueTree v1(keys::kLockstepState);
                 v1.setProperty(keys::kVersion, 1, nullptr);
-                v1.appendChild(juce::ValueTree(keys::kLockstep),   nullptr);
+                v1.appendChild(juce::ValueTree(keys::kLockstep), nullptr);
                 v1.appendChild(juce::ValueTree(keys::kSamplePool), nullptr);
-                v1.appendChild(juce::ValueTree("Sequence"),   nullptr);
-                v1.appendChild(juce::ValueTree(keys::kMisc),       nullptr);
+                v1.appendChild(juce::ValueTree("Sequence"), nullptr);
+                v1.appendChild(juce::ValueTree(keys::kMisc), nullptr);
 
                 const auto result = lockstep::PluginState::applyUpgrades(v1);
 
@@ -1402,13 +1445,13 @@ namespace
                 // the pre-release clean break; the processor re-seeds defaults.
                 juce::ValueTree v2(keys::kLockstepState);
                 v2.setProperty(keys::kVersion, 2, nullptr);
-                v2.appendChild(juce::ValueTree(keys::kLockstep),    nullptr);
-                v2.appendChild(juce::ValueTree(keys::kSamplePool),  nullptr);
+                v2.appendChild(juce::ValueTree(keys::kLockstep), nullptr);
+                v2.appendChild(juce::ValueTree(keys::kSamplePool), nullptr);
 
                 juce::ValueTree proj(keys::kProject);
                 juce::ValueTree bank(keys::kBank);
                 bank.appendChild(juce::ValueTree(keys::kPattern), nullptr);
-                bank.appendChild(juce::ValueTree(keys::kPart),    nullptr);
+                bank.appendChild(juce::ValueTree(keys::kPart), nullptr);
                 proj.appendChild(bank, nullptr);
                 v2.appendChild(proj, nullptr);
                 v2.appendChild(juce::ValueTree(keys::kMisc), nullptr);
@@ -1432,7 +1475,7 @@ namespace
             {
                 juce::ValueTree cur(keys::kLockstepState);
                 cur.setProperty(keys::kVersion, lockstep::PluginState::kCurrentVersion, nullptr);
-                cur.appendChild(juce::ValueTree(keys::kLockstep),     nullptr);
+                cur.appendChild(juce::ValueTree(keys::kLockstep), nullptr);
                 cur.appendChild(juce::ValueTree(keys::kNewHierarchy), nullptr);
 
                 const auto result = lockstep::PluginState::applyUpgrades(cur);
@@ -1453,13 +1496,13 @@ namespace
                 juce::ValueTree apvts(keys::kLockstep);
                 {
                     juce::ValueTree p1("PARAM");
-                    p1.setProperty("id",    keys::kSwing, nullptr);
-                    p1.setProperty("value", 0.25,    nullptr);
+                    p1.setProperty("id", keys::kSwing, nullptr);
+                    p1.setProperty("value", 0.25, nullptr);
                     apvts.appendChild(p1, nullptr);
 
                     juce::ValueTree p2("PARAM");
-                    p2.setProperty("id",    "track_0_swing", nullptr);
-                    p2.setProperty("value", -0.1,            nullptr);
+                    p2.setProperty("id", "track_0_swing", nullptr);
+                    p2.setProperty("value", -0.1, nullptr);
                     apvts.appendChild(p2, nullptr);
                 }
                 v9.appendChild(apvts, nullptr);
@@ -1475,9 +1518,11 @@ namespace
 
                 juce::ValueTree song0;
                 for (auto c : nh)
-                    if (c.getType() == juce::Identifier(keys::kSong)
-                        && static_cast<int>(c.getProperty("i", -1)) == 0)
-                        { song0 = c; break; }
+                    if (c.getType() == juce::Identifier(keys::kSong) && static_cast<int>(c.getProperty("i", -1)) == 0)
+                    {
+                        song0 = c;
+                        break;
+                    }
                 expect(song0.isValid(), "v9->v10: Song[0] node created");
 
                 expectWithinAbsoluteError(
@@ -1486,9 +1531,11 @@ namespace
 
                 juce::ValueTree trk0;
                 for (auto c : song0)
-                    if (c.getType() == juce::Identifier(keys::kSongTrack)
-                        && static_cast<int>(c.getProperty("t", -1)) == 0)
-                        { trk0 = c; break; }
+                    if (c.getType() == juce::Identifier(keys::kSongTrack) && static_cast<int>(c.getProperty("t", -1)) == 0)
+                    {
+                        trk0 = c;
+                        break;
+                    }
                 expect(trk0.isValid(), "v9->v10: SongTrack[0] created for non-zero track swing");
                 expectWithinAbsoluteError(
                     static_cast<float>(static_cast<double>(trk0.getProperty(keys::kSwing, 0.0))),

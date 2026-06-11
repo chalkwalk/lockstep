@@ -10,13 +10,13 @@
 
 namespace lockstep
 {
-    using PS  = EditMode::PrimaryScope;
-    using CB  = ControllerButton;
-    using Ev  = ControllerEvent;
-    using ET  = ControllerEvent::Type;
+    using PS = EditMode::PrimaryScope;
+    using CB = ControllerButton;
+    using Ev = ControllerEvent;
+    using ET = ControllerEvent::Type;
 
     static Ev down(CB b) { return { ET::ButtonDown, b, -1, 0 }; }
-    static Ev up  (CB b) { return { ET::ButtonUp,   b, -1, 0 }; }
+    static Ev up(CB b) { return { ET::ButtonUp, b, -1, 0 }; }
 
     // ── Priority order ─────────────────────────────────────────────────────
     // Priority (highest to lowest, from EditMode.h comment):
@@ -100,16 +100,20 @@ namespace lockstep
 
     static void testSingleScopeIsolation()
     {
-        struct Case { CB button; PS expected; };
+        struct Case
+        {
+            CB button;
+            PS expected;
+        };
         constexpr Case cases[] = {
-            { CB::Func,        PS::Func   },
-            { CB::TrackScope,  PS::Track  },
+            { CB::Func, PS::Func },
+            { CB::TrackScope, PS::Track },
             { CB::PhraseScope, PS::Phrase },
-            { CB::SceneScope,  PS::Scene  },
-            { CB::MuteScope,   PS::Mute   },
-            { CB::MorphScope,  PS::Morph  },
-            { CB::SongScope,   PS::Song   },
-            { CB::FillScope,   PS::Fill   },
+            { CB::SceneScope, PS::Scene },
+            { CB::MuteScope, PS::Mute },
+            { CB::MorphScope, PS::Morph },
+            { CB::SongScope, PS::Song },
+            { CB::FillScope, PS::Fill },
         };
         for (const auto& c : cases)
         {
@@ -132,7 +136,7 @@ namespace lockstep
             EditMode em;
             em.onScopeEvent(down(CB::Func));
             em.onScopeEvent(down(CB::TrackScope));
-            CHECK(em.hasCompoundScope(),    "Func+Track = compound");
+            CHECK(em.hasCompoundScope(), "Func+Track = compound");
             CHECK(!em.hasSameColumnConflict(), "Func+Track not a conflict");
         }
         {
@@ -140,7 +144,7 @@ namespace lockstep
             EditMode em;
             em.onScopeEvent(down(CB::Func));
             em.onScopeEvent(down(CB::PhraseScope));
-            CHECK(em.hasCompoundScope(),    "Func+Phrase = compound");
+            CHECK(em.hasCompoundScope(), "Func+Phrase = compound");
             CHECK(!em.hasSameColumnConflict(), "Func+Phrase not a conflict");
         }
         {
@@ -174,7 +178,7 @@ namespace lockstep
             em.onScopeEvent(down(CB::PhraseScope));
             em.onScopeEvent(down(CB::MorphScope));
             CHECK(em.hasSameColumnConflict(), "Phrase+Morph = col-1 conflict");
-            CHECK(!em.hasCompoundScope(),     "col-1 conflict is not compound");
+            CHECK(!em.hasCompoundScope(), "col-1 conflict is not compound");
         }
         {
             EditMode em;
@@ -213,11 +217,11 @@ namespace lockstep
             // Default scope: callback fires with None.
             EditMode em;
             PS capturedScope = PS::Trig; // non-default sentinel
-            CB capturedVerb  = CB::None;
+            CB capturedVerb = CB::None;
             em.onVerbDispatched = [&](PS s, CB v) { capturedScope = s; capturedVerb = v; };
             em.onVerb(CB::VerbPlay);
-            CHECK(capturedScope == PS::None,    "verb with no scope → None");
-            CHECK(capturedVerb  == CB::VerbPlay, "verb is VerbPlay");
+            CHECK(capturedScope == PS::None, "verb with no scope → None");
+            CHECK(capturedVerb == CB::VerbPlay, "verb is VerbPlay");
         }
         {
             // Track scope: callback fires with Track.
@@ -245,14 +249,14 @@ namespace lockstep
     static void testNonModifierReturnsNotConsumed()
     {
         EditMode em;
-        CHECK(!em.onScopeEvent(down(CB::Step)),       "Step not consumed by EditMode");
-        CHECK(!em.onScopeEvent(down(CB::Section)),    "Section not consumed");
-        CHECK(!em.onScopeEvent(down(CB::VerbPlay)),   "VerbPlay not consumed");
-        CHECK(!em.onScopeEvent(down(CB::NavUp)),      "NavUp not consumed");
-        CHECK(!em.onScopeEvent(down(CB::TapTempo)),   "TapTempo not consumed");
+        CHECK(!em.onScopeEvent(down(CB::Step)), "Step not consumed by EditMode");
+        CHECK(!em.onScopeEvent(down(CB::Section)), "Section not consumed");
+        CHECK(!em.onScopeEvent(down(CB::VerbPlay)), "VerbPlay not consumed");
+        CHECK(!em.onScopeEvent(down(CB::NavUp)), "NavUp not consumed");
+        CHECK(!em.onScopeEvent(down(CB::TapTempo)), "TapTempo not consumed");
         // Modifier buttons ARE consumed.
-        CHECK(em.onScopeEvent(down(CB::Func)),        "Func IS consumed");
-        CHECK(em.onScopeEvent(down(CB::TrackScope)),  "TrackScope IS consumed");
+        CHECK(em.onScopeEvent(down(CB::Func)), "Func IS consumed");
+        CHECK(em.onScopeEvent(down(CB::TrackScope)), "TrackScope IS consumed");
     }
 
     // ── A1 sweep: recomputePrimary matches kScopePriority for all combos ──────
@@ -268,16 +272,16 @@ namespace lockstep
         // Mirrors the kScopePriority walk in EditMode::recomputePrimary.
         for (auto s : kScopePriority)
         {
-            if (s == PS::Trig    && trig)        { return s; }
+            if (s == PS::Trig && trig) { return s; }
             if (s == PS::Section && sectionHeld) { return s; }
-            if (s == PS::Track   && track)       { return s; }
-            if (s == PS::Phrase  && phrase)      { return s; }
-            if (s == PS::Scene   && scene)       { return s; }
-            if (s == PS::Mute    && mute)        { return s; }
-            if (s == PS::Morph   && morph)       { return s; }
-            if (s == PS::Song    && song)        { return s; }
-            if (s == PS::Fill    && fill)        { return s; }
-            if (s == PS::Func    && func)        { return s; }
+            if (s == PS::Track && track) { return s; }
+            if (s == PS::Phrase && phrase) { return s; }
+            if (s == PS::Scene && scene) { return s; }
+            if (s == PS::Mute && mute) { return s; }
+            if (s == PS::Morph && morph) { return s; }
+            if (s == PS::Song && song) { return s; }
+            if (s == PS::Fill && fill) { return s; }
+            if (s == PS::Func && func) { return s; }
         }
         return PS::None;
     }
@@ -288,40 +292,37 @@ namespace lockstep
         // verify recomputePrimary matches the reference walk of kScopePriority.
         for (int mask = 0; mask < 256; ++mask)
         {
-            const bool func   = (mask & 1)   != 0;
-            const bool track  = (mask & 2)   != 0;
-            const bool phrase = (mask & 4)   != 0;
-            const bool scene  = (mask & 8)   != 0;
-            const bool mute   = (mask & 16)  != 0;
-            const bool morph  = (mask & 32)  != 0;
-            const bool song   = (mask & 64)  != 0;
-            const bool fill   = (mask & 128) != 0;
+            const bool func = (mask & 1) != 0;
+            const bool track = (mask & 2) != 0;
+            const bool phrase = (mask & 4) != 0;
+            const bool scene = (mask & 8) != 0;
+            const bool mute = (mask & 16) != 0;
+            const bool morph = (mask & 32) != 0;
+            const bool song = (mask & 64) != 0;
+            const bool fill = (mask & 128) != 0;
 
             for (int flags = 0; flags < 4; ++flags)
             {
-                const bool trig    = (flags & 1) != 0;
+                const bool trig = (flags & 1) != 0;
                 const bool section = (flags & 2) != 0;
 
                 EditMode em;
-                if (func)   { em.onScopeEvent(down(CB::Func));        }
-                if (track)  { em.onScopeEvent(down(CB::TrackScope));  }
+                if (func) { em.onScopeEvent(down(CB::Func)); }
+                if (track) { em.onScopeEvent(down(CB::TrackScope)); }
                 if (phrase) { em.onScopeEvent(down(CB::PhraseScope)); }
-                if (scene)  { em.onScopeEvent(down(CB::SceneScope));  }
-                if (mute)   { em.onScopeEvent(down(CB::MuteScope));   }
-                if (morph)  { em.onScopeEvent(down(CB::MorphScope));  }
-                if (song)   { em.onScopeEvent(down(CB::SongScope));   }
-                if (fill)   { em.onScopeEvent(down(CB::FillScope));   }
+                if (scene) { em.onScopeEvent(down(CB::SceneScope)); }
+                if (mute) { em.onScopeEvent(down(CB::MuteScope)); }
+                if (morph) { em.onScopeEvent(down(CB::MorphScope)); }
+                if (song) { em.onScopeEvent(down(CB::SongScope)); }
+                if (fill) { em.onScopeEvent(down(CB::FillScope)); }
                 em.setTrigHeld(trig);
                 em.setSectionHeld(section);
 
                 const PS expected = referenceScope(trig, section, func, track,
                                                    phrase, scene, mute, morph, song, fill);
-                const PS actual   = em.primaryScope();
+                const PS actual = em.primaryScope();
                 CHECK(actual == expected,
-                      juce::String("scope sweep mismatch mask=") + juce::String(mask)
-                      + " flags=" + juce::String(flags)
-                      + " expected=" + juce::String(static_cast<int>(expected))
-                      + " actual="   + juce::String(static_cast<int>(actual)));
+                      juce::String("scope sweep mismatch mask=") + juce::String(mask) + " flags=" + juce::String(flags) + " expected=" + juce::String(static_cast<int>(expected)) + " actual=" + juce::String(static_cast<int>(actual)));
             }
         }
     }
@@ -333,35 +334,53 @@ namespace lockstep
         // firstHeldSectionSuiteScope returns the highest-priority one.
         for (int mask = 0; mask < 32; ++mask)
         {
-            const bool track  = (mask & 1)  != 0;
-            const bool phrase = (mask & 2)  != 0;
-            const bool scene  = (mask & 4)  != 0;
-            const bool morph  = (mask & 8)  != 0;
-            const bool song   = (mask & 16) != 0;
+            const bool track = (mask & 1) != 0;
+            const bool phrase = (mask & 2) != 0;
+            const bool scene = (mask & 4) != 0;
+            const bool morph = (mask & 8) != 0;
+            const bool song = (mask & 16) != 0;
 
             UiState ui;
-            ui.trackHeld        = track;
-            ui.phraseScopeHeld  = phrase;
-            ui.sceneHeld         = scene;
-            ui.morphHeld        = morph;
-            ui.songHeld        = song;
+            ui.trackHeld = track;
+            ui.phraseScopeHeld = phrase;
+            ui.sceneHeld = scene;
+            ui.morphHeld = morph;
+            ui.songHeld = song;
 
             // Reference: walk kScopePriority and return first suite scope held.
             PS expected = PS::None;
             for (auto s : kScopePriority)
             {
-                if (s == PS::Track  && track)  { expected = s; break; }
-                if (s == PS::Phrase && phrase) { expected = s; break; }
-                if (s == PS::Scene  && scene)  { expected = s; break; }
-                if (s == PS::Morph  && morph)  { expected = s; break; }
-                if (s == PS::Song   && song)   { expected = s; break; }
+                if (s == PS::Track && track)
+                {
+                    expected = s;
+                    break;
+                }
+                if (s == PS::Phrase && phrase)
+                {
+                    expected = s;
+                    break;
+                }
+                if (s == PS::Scene && scene)
+                {
+                    expected = s;
+                    break;
+                }
+                if (s == PS::Morph && morph)
+                {
+                    expected = s;
+                    break;
+                }
+                if (s == PS::Song && song)
+                {
+                    expected = s;
+                    break;
+                }
             }
 
             const PS actual = firstHeldSectionSuiteScope(ui);
             CHECK(actual == expected,
-                  juce::String("firstHeldSectionSuite mismatch mask=") + juce::String(mask)
-                  + " expected=" + juce::String(static_cast<int>(expected))
-                  + " actual="   + juce::String(static_cast<int>(actual)));
+                  juce::String("firstHeldSectionSuite mismatch mask=") + juce::String(mask) + " expected=" + juce::String(static_cast<int>(expected)) + " actual=" + juce::String(static_cast<int>(actual)));
         }
     }
 

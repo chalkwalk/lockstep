@@ -9,16 +9,14 @@ namespace lockstep::StateResolver
 
         // Morph tier: between base and P-Lock (P-Lock ▷ morph ▷ kit-base).
         // Only applied when the scene has morph data; skipped when maps are empty.
-        if (morph && morph->scene
-            && (!morph->scene->morphA.empty() || !morph->scene->morphB.empty()))
+        if (morph && morph->scene && (!morph->scene->morphA.empty() || !morph->scene->morphB.empty()))
         {
             for (int slot = 0; slot < static_cast<int>(frame.size()); ++slot)
             {
-                const bool stepped    = morph->machine
-                    ? morph->machine->paramSpec(slot).isStepped
-                    : false;
-                const bool equalPower = morph->machine
-                    && morph->machine->paramSpec(slot).role == ParamSpec::Role::Level;
+                const bool stepped = morph->machine
+                                         ? morph->machine->paramSpec(slot).isStepped
+                                         : false;
+                const bool equalPower = morph->machine && morph->machine->paramSpec(slot).role == ParamSpec::Role::Level;
                 frame[static_cast<std::size_t>(slot)] =
                     morphBlend(*morph->scene, morph->trackIndex, slot,
                                frame[static_cast<std::size_t>(slot)],
@@ -54,10 +52,10 @@ namespace lockstep::StateResolver
     TrigFields resolveTrig(const Track& track, int stepIndex, bool fillActive)
     {
         TrigFields result;
-        result.noteCount  = 1;
-        result.notes[0]   = track.trigDefaults.note;
-        result.velocity   = track.trigDefaults.velocity;
-        result.gateValue  = track.trigDefaults.gateValue;
+        result.noteCount = 1;
+        result.notes[0] = track.trigDefaults.note;
+        result.velocity = track.trigDefaults.velocity;
+        result.gateValue = track.trigDefaults.gateValue;
 
         if (stepIndex < 0 || stepIndex >= kMaxStepsPerTrack)
             return result;
@@ -65,19 +63,18 @@ namespace lockstep::StateResolver
         const auto& step = track.steps[static_cast<std::size_t>(stepIndex)];
 
         // Apply base Override layer.
-        const auto applyTrigOv = [&](const TrigOverride& ov)
-        {
+        const auto applyTrigOv = [&](const TrigOverride& ov) {
             if (ov.noteCount > 0)
             {
                 result.noteCount = ov.noteCount;
-                result.notes     = ov.notes;
+                result.notes = ov.notes;
             }
             if (ov.hasVelocity)
                 result.velocity = ov.velocity;
             if (ov.hasNoteVelocities)
             {
                 result.hasNoteVelocities = true;
-                result.velocities        = ov.velocities;
+                result.velocities = ov.velocities;
             }
             if (ov.hasGate)
                 result.gateValue = ov.gateValue;

@@ -43,10 +43,10 @@ namespace lockstep
                                       const TrigCondition& c)
     {
         juce::ValueTree v(type);
-        v.setProperty("p",  static_cast<int>(c.probabilityPercent), nullptr);
-        v.setProperty("n",  static_cast<int>(c.iterNumerator),      nullptr);
-        v.setProperty("d",  static_cast<int>(c.iterDenominator),    nullptr);
-        v.setProperty("pd", static_cast<int>(c.prevDependency),     nullptr);
+        v.setProperty("p", static_cast<int>(c.probabilityPercent), nullptr);
+        v.setProperty("n", static_cast<int>(c.iterNumerator), nullptr);
+        v.setProperty("d", static_cast<int>(c.iterDenominator), nullptr);
+        v.setProperty("pd", static_cast<int>(c.prevDependency), nullptr);
         return v;
     }
 
@@ -54,13 +54,13 @@ namespace lockstep
     {
         TrigCondition c;
         c.probabilityPercent = static_cast<std::uint8_t>(
-            static_cast<int>(v.getProperty("p",  100)));
-        c.iterNumerator  = static_cast<std::uint8_t>(
-            static_cast<int>(v.getProperty("n",   1)));
+            static_cast<int>(v.getProperty("p", 100)));
+        c.iterNumerator = static_cast<std::uint8_t>(
+            static_cast<int>(v.getProperty("n", 1)));
         c.iterDenominator = static_cast<std::uint8_t>(
-            static_cast<int>(v.getProperty("d",   1)));
-        c.prevDependency  = static_cast<std::uint8_t>(
-            static_cast<int>(v.getProperty("pd",  0)));
+            static_cast<int>(v.getProperty("d", 1)));
+        c.prevDependency = static_cast<std::uint8_t>(
+            static_cast<int>(v.getProperty("pd", 0)));
         return c;
     }
 
@@ -70,21 +70,21 @@ namespace lockstep
     {
         TrigCondition orig;
         orig.probabilityPercent = 73;
-        orig.iterNumerator      = 2;
-        orig.iterDenominator    = 3;
-        orig.prevDependency     = 1;
+        orig.iterNumerator = 2;
+        orig.iterDenominator = 3;
+        orig.prevDependency = 1;
 
         const auto tree = condToTree("TestCond", orig);
-        CHECK(static_cast<int>(tree.getProperty("p"))  == 73, "cond.p written");
-        CHECK(static_cast<int>(tree.getProperty("n"))  == 2,  "cond.n written");
-        CHECK(static_cast<int>(tree.getProperty("d"))  == 3,  "cond.d written");
-        CHECK(static_cast<int>(tree.getProperty("pd")) == 1,  "cond.pd written");
+        CHECK(static_cast<int>(tree.getProperty("p")) == 73, "cond.p written");
+        CHECK(static_cast<int>(tree.getProperty("n")) == 2, "cond.n written");
+        CHECK(static_cast<int>(tree.getProperty("d")) == 3, "cond.d written");
+        CHECK(static_cast<int>(tree.getProperty("pd")) == 1, "cond.pd written");
 
         const auto back = condFromTree(tree);
         CHECK(back.probabilityPercent == 73, "cond.prob round-trips");
-        CHECK(back.iterNumerator      == 2,  "cond.iterNum round-trips");
-        CHECK(back.iterDenominator    == 3,  "cond.iterDen round-trips");
-        CHECK(back.prevDependency     == 1,  "cond.prevDep round-trips");
+        CHECK(back.iterNumerator == 2, "cond.iterNum round-trips");
+        CHECK(back.iterDenominator == 3, "cond.iterDen round-trips");
+        CHECK(back.prevDependency == 1, "cond.prevDep round-trips");
 
         // Trivial condition round-trip.
         TrigCondition trivial;
@@ -106,9 +106,7 @@ namespace lockstep
             node.setProperty("mo", static_cast<double>(step.microOffset), nullptr);
         if (!step.condition.isTrivial())
             node.appendChild(condToTree("C", step.condition), nullptr);
-        if (step.trigOverride.noteCount > 0 || step.trigOverride.hasVelocity
-            || step.trigOverride.hasGate || step.trigOverride.hasSoundId
-            || step.trigOverride.hasRetrig)
+        if (step.trigOverride.noteCount > 0 || step.trigOverride.hasVelocity || step.trigOverride.hasGate || step.trigOverride.hasSoundId || step.trigOverride.hasRetrig)
         {
             juce::ValueTree toNode("TO");
             if (step.trigOverride.noteCount > 0)
@@ -122,31 +120,29 @@ namespace lockstep
             if (step.trigOverride.hasVelocity)
             {
                 toNode.setProperty("hv", 1, nullptr);
-                toNode.setProperty("v",  step.trigOverride.velocity, nullptr);
+                toNode.setProperty("v", step.trigOverride.velocity, nullptr);
             }
             if (step.trigOverride.hasGate)
             {
-                toNode.setProperty("hg",  1, nullptr);
-                toNode.setProperty("gv",  static_cast<int>(static_cast<std::uint8_t>(
-                                              step.trigOverride.gateValue)), nullptr);
+                toNode.setProperty("hg", 1, nullptr);
+                toNode.setProperty("gv", static_cast<int>(static_cast<std::uint8_t>(step.trigOverride.gateValue)), nullptr);
             }
             if (step.trigOverride.hasSoundId)
             {
                 toNode.setProperty("hsi", 1, nullptr);
-                toNode.setProperty("si",  step.trigOverride.soundId, nullptr);
+                toNode.setProperty("si", step.trigOverride.soundId, nullptr);
             }
             if (step.trigOverride.hasRetrig)
             {
                 toNode.setProperty("hrt", 1, nullptr);
-                toNode.setProperty("rt",  step.trigOverride.retrigRate, nullptr);
+                toNode.setProperty("rt", step.trigOverride.retrigRate, nullptr);
             }
             node.appendChild(toNode, nullptr);
         }
         if (!step.overrides.empty())
         {
             juce::ValueTree plNode("PL");
-            step.overrides.forEach([&](int slot, float value)
-            {
+            step.overrides.forEach([&](int slot, float value) {
                 juce::ValueTree pNode("P");
                 pNode.setProperty("s", slot, nullptr);
                 pNode.setProperty("v", static_cast<double>(value), nullptr);
@@ -160,7 +156,7 @@ namespace lockstep
     static Step parseStepNode(const juce::ValueTree& node)
     {
         Step step;
-        step.trig        = (static_cast<int>(node.getProperty("t", 0)) != 0);
+        step.trig = (static_cast<int>(node.getProperty("t", 0)) != 0);
         step.microOffset = static_cast<float>(static_cast<double>(
             node.getProperty("mo", 0.0)));
         const auto cNode = node.getChildWithName("C");
@@ -175,23 +171,23 @@ namespace lockstep
             if (static_cast<int>(toNode.getProperty("hv", 0)) != 0)
             {
                 step.trigOverride.hasVelocity = true;
-                step.trigOverride.velocity    = static_cast<int>(toNode.getProperty("v", 100));
+                step.trigOverride.velocity = static_cast<int>(toNode.getProperty("v", 100));
             }
             if (static_cast<int>(toNode.getProperty("hg", 0)) != 0)
             {
-                step.trigOverride.hasGate  = true;
+                step.trigOverride.hasGate = true;
                 step.trigOverride.gateValue = static_cast<MusicalGate>(
                     static_cast<std::uint8_t>(static_cast<int>(toNode.getProperty("gv", 0))));
             }
             if (static_cast<int>(toNode.getProperty("hsi", 0)) != 0)
             {
                 step.trigOverride.hasSoundId = true;
-                step.trigOverride.soundId    = static_cast<int>(toNode.getProperty("si", -1));
+                step.trigOverride.soundId = static_cast<int>(toNode.getProperty("si", -1));
             }
             if (static_cast<int>(toNode.getProperty("hrt", 0)) != 0)
             {
-                step.trigOverride.hasRetrig   = true;
-                step.trigOverride.retrigRate  = static_cast<double>(toNode.getProperty("rt", 0.25));
+                step.trigOverride.hasRetrig = true;
+                step.trigOverride.retrigRate = static_cast<double>(toNode.getProperty("rt", 0.25));
             }
         }
         const auto plNode = node.getChildWithName("PL");
@@ -200,7 +196,7 @@ namespace lockstep
             {
                 const int sl = static_cast<int>(pNode.getProperty("s", -1));
                 if (sl >= 0) step.overrides.set(sl, static_cast<float>(
-                    static_cast<double>(pNode.getProperty("v", 0.0))));
+                                                        static_cast<double>(pNode.getProperty("v", 0.0))));
             }
         return step;
     }
@@ -212,14 +208,14 @@ namespace lockstep
         // Basic trig + microOffset.
         {
             Step s;
-            s.trig        = true;
+            s.trig = true;
             s.microOffset = 0.125f;
             const auto tree = buildStepNode(3, s);
             CHECK(static_cast<int>(tree.getProperty("i")) == 3, "step idx written");
             CHECK(static_cast<int>(tree.getProperty("t")) == 1, "step trig written");
             const auto back = parseStepNode(tree);
-            CHECK(back.trig,                              "step trig round-trips");
-            CHECK(feq(back.microOffset, 0.125f),          "step microOffset round-trips");
+            CHECK(back.trig, "step trig round-trips");
+            CHECK(feq(back.microOffset, 0.125f), "step microOffset round-trips");
         }
 
         // Condition on step.
@@ -231,10 +227,10 @@ namespace lockstep
             s.condition.iterDenominator = 2;
             const auto tree = buildStepNode(0, s);
             const auto cNode = tree.getChildWithName("C");
-            CHECK(cNode.isValid(),                         "step condition node written");
+            CHECK(cNode.isValid(), "step condition node written");
             const auto back = parseStepNode(tree);
             CHECK(back.condition.probabilityPercent == 50, "step cond.prob round-trips");
-            CHECK(back.condition.iterDenominator    == 2,  "step cond.iterDen round-trips");
+            CHECK(back.condition.iterDenominator == 2, "step cond.iterDen round-trips");
         }
 
         // P-Lock.
@@ -244,7 +240,7 @@ namespace lockstep
             s.overrides.set(2, 0.75f);
             s.overrides.set(7, 0.33f);
             const auto tree = buildStepNode(5, s);
-            CHECK(tree.getChildWithName("PL").isValid(),   "PL node written");
+            CHECK(tree.getChildWithName("PL").isValid(), "PL node written");
             const auto back = parseStepNode(tree);
             CHECK(feq(back.overrides.get(2, -1.0f), 0.75f), "plock slot 2 round-trips");
             CHECK(feq(back.overrides.get(7, -1.0f), 0.33f), "plock slot 7 round-trips");
@@ -256,19 +252,19 @@ namespace lockstep
             Step s;
             s.trig = true;
             s.trigOverride.hasVelocity = true;
-            s.trigOverride.velocity    = 88;
-            s.trigOverride.noteCount   = 2;
-            s.trigOverride.notes[0]    = 60;
-            s.trigOverride.notes[1]    = 64;
+            s.trigOverride.velocity = 88;
+            s.trigOverride.noteCount = 2;
+            s.trigOverride.notes[0] = 60;
+            s.trigOverride.notes[1] = 64;
             const auto tree = buildStepNode(1, s);
             const auto toNode = tree.getChildWithName("TO");
-            CHECK(toNode.isValid(),                        "TO node written");
+            CHECK(toNode.isValid(), "TO node written");
             const auto back = parseStepNode(tree);
-            CHECK(back.trigOverride.hasVelocity,           "TO.hasVelocity round-trips");
-            CHECK(back.trigOverride.velocity == 88,        "TO.velocity round-trips");
-            CHECK(back.trigOverride.noteCount == 2,        "TO.noteCount round-trips");
-            CHECK(back.trigOverride.notes[0] == 60,        "TO.note[0] round-trips");
-            CHECK(back.trigOverride.notes[1] == 64,        "TO.note[1] round-trips");
+            CHECK(back.trigOverride.hasVelocity, "TO.hasVelocity round-trips");
+            CHECK(back.trigOverride.velocity == 88, "TO.velocity round-trips");
+            CHECK(back.trigOverride.noteCount == 2, "TO.noteCount round-trips");
+            CHECK(back.trigOverride.notes[0] == 60, "TO.note[0] round-trips");
+            CHECK(back.trigOverride.notes[1] == 64, "TO.note[1] round-trips");
         }
 
         // Trig override: soundId.
@@ -276,22 +272,22 @@ namespace lockstep
             Step s;
             s.trig = true;
             s.trigOverride.hasSoundId = true;
-            s.trigOverride.soundId    = 7;
+            s.trigOverride.soundId = 7;
             const auto tree = buildStepNode(0, s);
             const auto back = parseStepNode(tree);
-            CHECK(back.trigOverride.hasSoundId,            "TO.hasSoundId round-trips");
-            CHECK(back.trigOverride.soundId == 7,          "TO.soundId round-trips");
+            CHECK(back.trigOverride.hasSoundId, "TO.hasSoundId round-trips");
+            CHECK(back.trigOverride.soundId == 7, "TO.soundId round-trips");
         }
 
         // Trig override: retrig.
         {
             Step s;
             s.trig = true;
-            s.trigOverride.hasRetrig   = true;
-            s.trigOverride.retrigRate  = 0.5;
+            s.trigOverride.hasRetrig = true;
+            s.trigOverride.retrigRate = 0.5;
             const auto tree = buildStepNode(0, s);
             const auto back = parseStepNode(tree);
-            CHECK(back.trigOverride.hasRetrig,             "TO.hasRetrig round-trips");
+            CHECK(back.trigOverride.hasRetrig, "TO.hasRetrig round-trips");
             CHECK(std::abs(back.trigOverride.retrigRate - 0.5) < 1e-6,
                   "TO.retrigRate round-trips");
         }
@@ -304,23 +300,23 @@ namespace lockstep
     {
         // Build a Phrase node in the known format.
         juce::ValueTree phraseNode("Phrase");
-        phraseNode.setProperty("i",   5,   nullptr);  // phrase index
-        phraseNode.setProperty("len", 12,  nullptr);
-        phraseNode.setProperty("nsel", 1,  nullptr);   // NoteSelection::BotBias
+        phraseNode.setProperty("i", 5, nullptr);  // phrase index
+        phraseNode.setProperty("len", 12, nullptr);
+        phraseNode.setProperty("nsel", 1, nullptr);   // NoteSelection::BotBias
 
         TrigCondition bc;
         bc.probabilityPercent = 80;
         phraseNode.appendChild(condToTree("BaseCond", bc), nullptr);
 
         juce::ValueTree tdNode("TrigDefaults");
-        tdNode.setProperty("note",  48,  nullptr);
-        tdNode.setProperty("vel",   90,  nullptr);
-        tdNode.setProperty("gateV", 2,   nullptr);
+        tdNode.setProperty("note", 48, nullptr);
+        tdNode.setProperty("vel", 90, nullptr);
+        tdNode.setProperty("gateV", 2, nullptr);
         phraseNode.appendChild(tdNode, nullptr);
 
         juce::ValueTree stepsNode("Steps");
         Step s;
-        s.trig        = true;
+        s.trig = true;
         s.microOffset = 0.25f;
         s.condition.iterDenominator = 4;
         s.overrides.set(3, 0.9f);
@@ -328,12 +324,12 @@ namespace lockstep
         phraseNode.appendChild(stepsNode, nullptr);
 
         // Verify property names.
-        CHECK(static_cast<int>(phraseNode.getProperty("i")) == 5,   "phrase.i property name");
+        CHECK(static_cast<int>(phraseNode.getProperty("i")) == 5, "phrase.i property name");
         CHECK(static_cast<int>(phraseNode.getProperty("len")) == 12, "phrase.len property name");
         CHECK(static_cast<int>(phraseNode.getProperty("nsel")) == 1, "phrase.nsel property name");
-        CHECK(phraseNode.getChildWithName("BaseCond").isValid(),     "phrase BaseCond child name");
+        CHECK(phraseNode.getChildWithName("BaseCond").isValid(), "phrase BaseCond child name");
         CHECK(phraseNode.getChildWithName("TrigDefaults").isValid(), "phrase TrigDefaults child name");
-        CHECK(phraseNode.getChildWithName("Steps").isValid(),        "phrase Steps child name");
+        CHECK(phraseNode.getChildWithName("Steps").isValid(), "phrase Steps child name");
 
         // BaseCond survives.
         const auto bcNode = phraseNode.getChildWithName("BaseCond");
@@ -341,16 +337,16 @@ namespace lockstep
 
         // TrigDefaults survives.
         const auto tdBack = phraseNode.getChildWithName("TrigDefaults");
-        CHECK(static_cast<int>(tdBack.getProperty("note"))  == 48, "TrigDefaults.note preserved");
-        CHECK(static_cast<int>(tdBack.getProperty("vel"))   == 90, "TrigDefaults.vel preserved");
-        CHECK(static_cast<int>(tdBack.getProperty("gateV")) == 2,  "TrigDefaults.gateV preserved");
+        CHECK(static_cast<int>(tdBack.getProperty("note")) == 48, "TrigDefaults.note preserved");
+        CHECK(static_cast<int>(tdBack.getProperty("vel")) == 90, "TrigDefaults.vel preserved");
+        CHECK(static_cast<int>(tdBack.getProperty("gateV")) == 2, "TrigDefaults.gateV preserved");
 
         // Step survives.
         const auto stepsBack = phraseNode.getChildWithName("Steps");
-        const auto stepBack  = stepsBack.getChild(0);
+        const auto stepBack = stepsBack.getChild(0);
         const auto stepParsed = parseStepNode(stepBack);
-        CHECK(stepParsed.trig,                        "phrase step trig preserved");
-        CHECK(feq(stepParsed.microOffset, 0.25f),     "phrase step mo preserved");
+        CHECK(stepParsed.trig, "phrase step trig preserved");
+        CHECK(feq(stepParsed.microOffset, 0.25f), "phrase step mo preserved");
         CHECK(stepParsed.condition.iterDenominator == 4, "phrase step cond preserved");
         CHECK(feq(stepParsed.overrides.get(3, -1.f), 0.9f), "phrase step plock preserved");
     }
@@ -364,9 +360,7 @@ namespace lockstep
         auto node = buildStepNode(idx, step);  // primary fields
         if (step.fillTrigState != FillTrigState::Inherit)
             node.setProperty("fts", static_cast<int>(step.fillTrigState), nullptr);
-        if (step.fillTrigOverride.noteCount > 0 || step.fillTrigOverride.hasVelocity
-            || step.fillTrigOverride.hasGate || step.fillTrigOverride.hasSoundId
-            || step.fillTrigOverride.hasRetrig)
+        if (step.fillTrigOverride.noteCount > 0 || step.fillTrigOverride.hasVelocity || step.fillTrigOverride.hasGate || step.fillTrigOverride.hasSoundId || step.fillTrigOverride.hasRetrig)
         {
             juce::ValueTree fto("FTO");
             if (step.fillTrigOverride.noteCount > 0)
@@ -378,16 +372,21 @@ namespace lockstep
                                     nullptr);
             }
             if (step.fillTrigOverride.hasVelocity)
-            { fto.setProperty("hv", 1, nullptr); fto.setProperty("v", step.fillTrigOverride.velocity, nullptr); }
+            {
+                fto.setProperty("hv", 1, nullptr);
+                fto.setProperty("v", step.fillTrigOverride.velocity, nullptr);
+            }
             if (step.fillTrigOverride.hasSoundId)
-            { fto.setProperty("hsi", 1, nullptr); fto.setProperty("si", step.fillTrigOverride.soundId, nullptr); }
+            {
+                fto.setProperty("hsi", 1, nullptr);
+                fto.setProperty("si", step.fillTrigOverride.soundId, nullptr);
+            }
             node.appendChild(fto, nullptr);
         }
         if (!step.fillOverrides.empty())
         {
             juce::ValueTree fpl("FPL");
-            step.fillOverrides.forEach([&](int sl, float val)
-            {
+            step.fillOverrides.forEach([&](int sl, float val) {
                 juce::ValueTree p("P");
                 p.setProperty("s", sl, nullptr);
                 p.setProperty("v", static_cast<double>(val), nullptr);
@@ -412,9 +411,15 @@ namespace lockstep
                 step.fillTrigOverride.notes[static_cast<std::size_t>(ni)] =
                     static_cast<int>(fto.getProperty("n" + juce::String(ni), 60));
             if (static_cast<int>(fto.getProperty("hv", 0)) != 0)
-            { step.fillTrigOverride.hasVelocity = true; step.fillTrigOverride.velocity = static_cast<int>(fto.getProperty("v", 100)); }
+            {
+                step.fillTrigOverride.hasVelocity = true;
+                step.fillTrigOverride.velocity = static_cast<int>(fto.getProperty("v", 100));
+            }
             if (static_cast<int>(fto.getProperty("hsi", 0)) != 0)
-            { step.fillTrigOverride.hasSoundId = true; step.fillTrigOverride.soundId = static_cast<int>(fto.getProperty("si", -1)); }
+            {
+                step.fillTrigOverride.hasSoundId = true;
+                step.fillTrigOverride.soundId = static_cast<int>(fto.getProperty("si", -1));
+            }
         }
         const auto fpl = node.getChildWithName("FPL");
         if (fpl.isValid())
@@ -422,7 +427,7 @@ namespace lockstep
             {
                 const int sl = static_cast<int>(p.getProperty("s", -1));
                 if (sl >= 0) step.fillOverrides.set(sl, static_cast<float>(
-                    static_cast<double>(p.getProperty("v", 0.0))));
+                                                            static_cast<double>(p.getProperty("v", 0.0))));
             }
         return step;
     }
@@ -435,11 +440,11 @@ namespace lockstep
             s.trig = true;
             s.fillTrigState = FillTrigState::On;
             const auto tree = buildStepNodeFull(0, s);
-            CHECK(tree.hasProperty("fts"),                      "fillTrigState property written");
+            CHECK(tree.hasProperty("fts"), "fillTrigState property written");
             CHECK(static_cast<int>(tree.getProperty("fts")) == static_cast<int>(FillTrigState::On),
                   "fillTrigState value correct");
             const auto back = parseStepNodeFull(tree);
-            CHECK(back.fillTrigState == FillTrigState::On,      "fillTrigState round-trips");
+            CHECK(back.fillTrigState == FillTrigState::On, "fillTrigState round-trips");
         }
         // fillTrigState OFF
         {
@@ -447,18 +452,18 @@ namespace lockstep
             s.trig = true;
             s.fillTrigState = FillTrigState::Off;
             const auto back = parseStepNodeFull(buildStepNodeFull(0, s));
-            CHECK(back.fillTrigState == FillTrigState::Off,     "fillTrigState Off round-trips");
+            CHECK(back.fillTrigState == FillTrigState::Off, "fillTrigState Off round-trips");
         }
         // fillTrigOverride soundId
         {
             Step s;
             s.fillTrigOverride.hasSoundId = true;
-            s.fillTrigOverride.soundId    = 5;
+            s.fillTrigOverride.soundId = 5;
             const auto tree = buildStepNodeFull(0, s);
-            CHECK(tree.getChildWithName("FTO").isValid(),       "FTO node written");
+            CHECK(tree.getChildWithName("FTO").isValid(), "FTO node written");
             const auto back = parseStepNodeFull(tree);
-            CHECK(back.fillTrigOverride.hasSoundId,             "FTO.hasSoundId round-trips");
-            CHECK(back.fillTrigOverride.soundId == 5,           "FTO.soundId round-trips");
+            CHECK(back.fillTrigOverride.hasSoundId, "FTO.hasSoundId round-trips");
+            CHECK(back.fillTrigOverride.soundId == 5, "FTO.soundId round-trips");
         }
         // fillOverrides (fill P-Locks)
         {
@@ -466,9 +471,9 @@ namespace lockstep
             s.fillOverrides.set(4, 0.6f);
             s.fillOverrides.set(9, 0.25f);
             const auto tree = buildStepNodeFull(0, s);
-            CHECK(tree.getChildWithName("FPL").isValid(),       "FPL node written");
+            CHECK(tree.getChildWithName("FPL").isValid(), "FPL node written");
             const auto back = parseStepNodeFull(tree);
-            CHECK(feq(back.fillOverrides.get(4, -1.f), 0.6f),  "fillOverride slot 4 round-trips");
+            CHECK(feq(back.fillOverrides.get(4, -1.f), 0.6f), "fillOverride slot 4 round-trips");
             CHECK(feq(back.fillOverrides.get(9, -1.f), 0.25f), "fillOverride slot 9 round-trips");
         }
         // Inherit state: no fts property written
@@ -476,7 +481,7 @@ namespace lockstep
             Step s;
             s.trig = true;
             const auto tree = buildStepNodeFull(0, s);
-            CHECK(!tree.hasProperty("fts"),                     "Inherit state omits fts property");
+            CHECK(!tree.hasProperty("fts"), "Inherit state omits fts property");
             const auto back = parseStepNodeFull(tree);
             CHECK(back.fillTrigState == FillTrigState::Inherit, "default fillTrigState is Inherit");
         }
@@ -490,13 +495,13 @@ namespace lockstep
     {
         // Build a maximally-populated step.
         Step orig;
-        orig.trig            = true;
-        orig.microOffset     = 0.125f;
+        orig.trig = true;
+        orig.microOffset = 0.125f;
         orig.condition.probabilityPercent = 75;
         orig.trigOverride.hasVelocity = true;
-        orig.trigOverride.velocity    = 80;
-        orig.trigOverride.hasSoundId  = true;
-        orig.trigOverride.soundId     = 3;
+        orig.trigOverride.velocity = 80;
+        orig.trigOverride.hasSoundId = true;
+        orig.trigOverride.soundId = 3;
         orig.overrides.set(2, 0.5f);
         orig.fillTrigState = FillTrigState::On;
         orig.fillOverrides.set(5, 0.3f);
@@ -545,7 +550,7 @@ namespace lockstep
         {
             auto t = origTree.createCopy();
             auto plNode = t.getChildWithName("PL");
-            auto pNode  = plNode.getChild(0);
+            auto pNode = plNode.getChild(0);
             pNode.setProperty("v", 0.9, nullptr);
             const auto back = parseStepNodeFull(t);
             CHECK(!feq(back.overrides.get(2, -1.f), 0.5f), "mutation: P-Lock detectable");
@@ -561,7 +566,7 @@ namespace lockstep
         {
             auto t = origTree.createCopy();
             auto fplNode = t.getChildWithName("FPL");
-            auto pNode   = fplNode.getChild(0);
+            auto pNode = fplNode.getChild(0);
             pNode.setProperty("v", 0.9, nullptr);
             const auto back = parseStepNodeFull(t);
             CHECK(!feq(back.fillOverrides.get(5, -1.f), 0.3f), "mutation: fill P-Lock detectable");
@@ -579,8 +584,8 @@ namespace lockstep
     static juce::ValueTree buildPLockNodeV15(const juce::String& id, float value)
     {
         juce::ValueTree p("P");
-        p.setProperty("id", id,                       nullptr);
-        p.setProperty("v",  static_cast<double>(value), nullptr);
+        p.setProperty("id", id, nullptr);
+        p.setProperty("v", static_cast<double>(value), nullptr);
         return p;
     }
 
@@ -613,7 +618,7 @@ namespace lockstep
         // Simple slot-id map for testing: "filter.cutoff"→2, "amp.gain"→5.
         auto resolver = [](const juce::String& id) -> int {
             if (id == "filter.cutoff") return 2;
-            if (id == "amp.gain")      return 5;
+            if (id == "amp.gain") return 5;
             return -1;
         };
 
@@ -621,11 +626,11 @@ namespace lockstep
         {
             juce::ValueTree plNode("PL");
             plNode.appendChild(buildPLockNodeV15("filter.cutoff", 0.75f), nullptr);
-            plNode.appendChild(buildPLockNodeV15("amp.gain",      0.33f), nullptr);
+            plNode.appendChild(buildPLockNodeV15("amp.gain", 0.33f), nullptr);
             const auto locks = parsePLNodeDualPath(plNode, resolver);
             CHECK(feq(locks.get(2, -1.f), 0.75f), "v15: filter.cutoff resolves to slot 2");
             CHECK(feq(locks.get(5, -1.f), 0.33f), "v15: amp.gain resolves to slot 5");
-            CHECK(feq(locks.get(0, -1.f), -1.f),  "v15: unlocked slot returns sentinel");
+            CHECK(feq(locks.get(0, -1.f), -1.f), "v15: unlocked slot returns sentinel");
         }
 
         // v14 legacy: s-keyed P-Locks still load via dual-path reader.

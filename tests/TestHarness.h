@@ -19,14 +19,15 @@ namespace lockstep
         return std::abs(a - b) < eps;
     }
 
-    #define CHECK(cond, msg) \
-        do { \
-            if (!(cond)) { \
-                juce::Logger::writeToLog(juce::String("FAIL [") + __FILE__ ":" \
-                    + juce::String(__LINE__) + "] " + (msg)); \
-                ++lockstep::gFailed; \
-            } \
-        } while (false)
+#define CHECK(cond, msg)                                                                                             \
+    do                                                                                                               \
+    {                                                                                                                \
+        if (!(cond))                                                                                                 \
+        {                                                                                                            \
+            juce::Logger::writeToLog(juce::String("FAIL [") + __FILE__ ":" + juce::String(__LINE__) + "] " + (msg)); \
+            ++lockstep::gFailed;                                                                                     \
+        }                                                                                                            \
+    } while (false)
 
     void runSurfaceModelTests();
     void runStateResolverTests();

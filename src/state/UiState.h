@@ -26,15 +26,25 @@ namespace lockstep
 
     struct ConfirmState
     {
-        ConfirmKind kind   = ConfirmKind::None;
-        int         target = -1;
+        ConfirmKind kind = ConfirmKind::None;
+        int target = -1;
         [[nodiscard]] bool pending() const noexcept { return kind != ConfirmKind::None; }
-        void reset() noexcept { kind = ConfirmKind::None; target = -1; }
+        void reset() noexcept
+        {
+            kind = ConfirmKind::None;
+            target = -1;
+        }
     };
 
     // ── Delete picker scope ───────────────────────────────────────────────────
     // Which entity class the deletion picker is currently browsing.
-    enum class DeleteScope : uint8_t { None, Track, Phrase, Scene };
+    enum class DeleteScope : uint8_t
+    {
+        None,
+        Track,
+        Phrase,
+        Scene
+    };
 
     struct DeletePickerState
     {
@@ -51,17 +61,19 @@ namespace lockstep
     struct LatchState
     {
         // Col 1 (Func is not latchable):
-        bool phrase  = false;
-        bool morph   = false;
-        bool mute    = false;
+        bool phrase = false;
+        bool morph = false;
+        bool mute = false;
         // Col 2:
-        bool track   = false;
-        bool scene   = false;
-        bool song    = false;
-        bool fill    = false;
+        bool track = false;
+        bool scene = false;
+        bool song = false;
+        bool fill = false;
 
         [[nodiscard]] bool any() const noexcept
-        { return phrase || morph || mute || track || scene || song || fill; }
+        {
+            return phrase || morph || mute || track || scene || song || fill;
+        }
 
         // Returns true if any step latch is engaged (via EditContext — checked externally).
         // Placed here for structural symmetry with modifier latches.
@@ -86,19 +98,19 @@ namespace lockstep
         //   Col 1 (1/Q/A/Z): Func / Phrase / Morph / Mute.
         //   Col 2 (2/W/S/X): Track / Scene / Song / Fill.
         // Col 1:
-        bool funcHeld         = false;  // key 1
+        bool funcHeld = false;  // key 1
         bool phraseScopeHeld = false;  // key Q (MHY: moved from A)
         bool phraseScopeUsed = false;  // true if a step was pressed while PhraseScope held
-        bool morphHeld        = false;  // key A (MHY: moved from S)
-        int  morphNavQualifier = 0;    // 0=none 1=A-pole(^) 2=B-pole(v); held while Morph active
-        bool muteHeld         = false;  // key Z
+        bool morphHeld = false;  // key A (MHY: moved from S)
+        int morphNavQualifier = 0;    // 0=none 1=A-pole(^) 2=B-pole(v); held while Morph active
+        bool muteHeld = false;  // key Z
         // Col 2:
-        bool trackHeld        = false;  // key 2 (MHY: moved from Q)
-        bool sceneHeld         = false;  // key W (MHY new — §4.7)
-        bool songHeld       = false;  // key S (MHY: moved from X)
-        bool fillHeld         = false;  // key X (MHY: moved from 2)
+        bool trackHeld = false;  // key 2 (MHY: moved from Q)
+        bool sceneHeld = false;  // key W (MHY new — §4.7)
+        bool songHeld = false;  // key S (MHY: moved from X)
+        bool fillHeld = false;  // key X (MHY: moved from 2)
         // Cue is reserved (MU); no key bound post-MHY.
-        bool cueHeld          = false;
+        bool cueHeld = false;
 
         // MHZ.9.1: virtual-hold state. Kept in sync with xxxHeld (effective = physical OR latched).
         LatchState latch;
@@ -119,9 +131,9 @@ namespace lockstep
         // P-locked slots, packed into the first N cells; pressing a cell stages that
         // slot for removal. Pressing a staged cell cancels the removal. Clears are
         // committed permanently when Func is released.
-        bool        pLockClearMode   = false;
-        int         pLockClearTrack  = -1;
-        int         pLockClearStep   = -1;
+        bool pLockClearMode = false;
+        int pLockClearTrack = -1;
+        int pLockClearStep = -1;
         std::set<int> pLockClearStaged;  // slot indices pending permanent removal
 
         // MHZ.3.5: true while Func+Part are both held (machine picker mode).
@@ -132,9 +144,9 @@ namespace lockstep
         // Note-edit mode: Func+Src(NOTE)+step gesture. Step cells become a 1-octave
         // chromatic keyboard; pressing a cell toggles a pitch on the target steps.
         // Entered when a step is released while Func+Section(1/SRC) are still held.
-        bool funcSrcHeld     = false;  // true while Func + Section(1/SRC) are both held
-        bool noteEditMode    = false;
-        int  noteEditOctave  = 3;  // current view octave (C3 = MIDI 48, C4 = MIDI 60)
+        bool funcSrcHeld = false;  // true while Func + Section(1/SRC) are both held
+        bool noteEditMode = false;
+        int noteEditOctave = 3;  // current view octave (C3 = MIDI 48, C4 = MIDI 60)
         std::set<int> noteEditSteps;  // step indices currently being edited
         // Pitches (absolute MIDI note) staged for removal; committed on Func release.
         std::map<int, std::set<int>> noteEditStaged;  // stepIndex → set of MIDI notes
@@ -154,22 +166,22 @@ namespace lockstep
 
         // 6.5: Func+FX picker — re-skins the step grid to the effect catalogue.
         // funcFxInsertSlot: which insert slot (0 or 1) the picker targets.
-        bool funcFxHeld       = false;
-        int  funcFxInsertSlot = 0;
+        bool funcFxHeld = false;
+        int funcFxInsertSlot = 0;
 
         // 6.5: Master FX (global inserts).
         // masterFxPickerOpen — step grid shows effect catalogue overlay (Func+Song+FX chord).
         // masterFxInsertSlot — which of the 2 master slots the picker / MZ targets.
         // Params are visible whenever masterSection==5 (Song+FX navigates there).
         bool masterFxPickerOpen = false;
-        int  masterFxInsertSlot = 0;
+        int masterFxInsertSlot = 0;
 
         // 5.5 Euclidean generator: Phrase+Fill chord enters generator mode on focused track.
         // Parameters: Pulses/Offset/Accent shown in MZ via MetaBand::Euclidean.
-        bool euclidHeld    = false;
-        int  euclidPulses  = 4;    // number of onsets
-        int  euclidOffset  = 0;    // rotation (signed)
-        int  euclidAccents = 0;    // accented onsets (velocity 100 vs 64)
+        bool euclidHeld = false;
+        int euclidPulses = 4;    // number of onsets
+        int euclidOffset = 0;    // rotation (signed)
+        int euclidAccents = 0;    // accented onsets (velocity 100 vs 64)
 
         // MHZ.7.4: last note played per-track, used as LEVELS record-arm pitch.
         // Updated whenever a note is triggered (keyboard overlay or CHROMATIC mode).
@@ -200,9 +212,9 @@ namespace lockstep
         // Call AFTER committing or discarding the staged removals.
         void resetPLockClear() noexcept
         {
-            pLockClearMode   = false;
-            pLockClearTrack  = -1;
-            pLockClearStep   = -1;
+            pLockClearMode = false;
+            pLockClearTrack = -1;
+            pLockClearStep = -1;
             pLockClearStaged.clear();
         }
 
@@ -210,20 +222,20 @@ namespace lockstep
         // FX picker). Call on Func release or picker close.
         void resetFxPickers() noexcept
         {
-            funcTrackHeld       = false;
-            funcFxHeld          = false;
-            funcFxInsertSlot    = 0;
-            masterFxPickerOpen  = false;
-            masterFxInsertSlot  = 0;
+            funcTrackHeld = false;
+            funcFxHeld = false;
+            funcFxInsertSlot = 0;
+            masterFxPickerOpen = false;
+            masterFxInsertSlot = 0;
         }
 
         // Clears the Euclidean generator state (held flag and working params).
         // Call on Fill/Phrase release when euclid was active.
         void resetEuclid() noexcept
         {
-            euclidHeld    = false;
-            euclidPulses  = 4;
-            euclidOffset  = 0;
+            euclidHeld = false;
+            euclidPulses = 4;
+            euclidOffset = 0;
             euclidAccents = 0;
         }
 
@@ -234,8 +246,8 @@ namespace lockstep
             if (track < 0 || track >= static_cast<int>(kNumTracks) || info.firstSlot < 0)
                 return 0;
             const int section = trackSection[static_cast<std::size_t>(track)];
-            const int page    = trackPage[static_cast<std::size_t>(track)]
-                                         [static_cast<std::size_t>(section)];
+            const int page = trackPage[static_cast<std::size_t>(track)]
+                                      [static_cast<std::size_t>(section)];
             return info.firstSlot + (kParamsPerPage * page);
         }
     };

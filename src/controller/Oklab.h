@@ -13,9 +13,18 @@
 
 namespace lockstep::oklab
 {
-    struct Lab { float L = 0.0f, a = 0.0f, b = 0.0f; };
-    struct LCh { float L = 0.0f, C = 0.0f, h = 0.0f; };   // h in radians
-    struct Rgb { float r = 0.0f, g = 0.0f, b = 0.0f; };   // linear, 0..1
+    struct Lab
+    {
+        float L = 0.0f, a = 0.0f, b = 0.0f;
+    };
+    struct LCh
+    {
+        float L = 0.0f, C = 0.0f, h = 0.0f;
+    };   // h in radians
+    struct Rgb
+    {
+        float r = 0.0f, g = 0.0f, b = 0.0f;
+    };   // linear, 0..1
 
     // sRGB transfer (gamma) — per channel, 0..1.
     inline float srgbToLinear(float s) noexcept
@@ -88,8 +97,8 @@ namespace lockstep::oklab
     inline Lab packedRgbToOklab(std::uint32_t rgb) noexcept
     {
         return srgb8ToOklab(static_cast<int>((rgb >> 16) & 0xFF),
-                            static_cast<int>((rgb >>  8) & 0xFF),
-                            static_cast<int>( rgb        & 0xFF));
+                            static_cast<int>((rgb >> 8) & 0xFF),
+                            static_cast<int>(rgb & 0xFF));
     }
 
     inline float distanceSq(Lab x, Lab y) noexcept

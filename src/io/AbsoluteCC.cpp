@@ -4,7 +4,7 @@ namespace lockstep
 {
     float AbsoluteCCRouter::route(float currentValue, float incomingNormalised)
     {
-        if (! crossed_)
+        if (!crossed_)
         {
             if (lastIncoming_ < 0.0f)
             {
@@ -15,7 +15,7 @@ namespace lockstep
                 (lastIncoming_ <= currentValue && incomingNormalised >= currentValue) ||
                 (lastIncoming_ >= currentValue && incomingNormalised <= currentValue);
             lastIncoming_ = incomingNormalised;
-            if (! crossedNow)
+            if (!crossedNow)
                 return currentValue;
             crossed_ = true;
         }

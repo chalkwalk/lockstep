@@ -19,7 +19,7 @@ namespace lockstep
 
         std::array<Step, kMaxStepsPerTrack> steps{};
 
-        TrigDefaults  trigDefaults{};
+        TrigDefaults trigDefaults{};
         TrigCondition baseCond{};
         NoteSelection noteSelection = NoteSelection::TopBias;
 

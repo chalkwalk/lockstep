@@ -108,7 +108,7 @@ namespace lockstep
         //   Col 2:            track, part, master, fill.
         // Func is the universal qualifier and pairs with anything.
         const bool col1NonFunc = scope_.phrase || scope_.morph || scope_.mute;
-        const bool col2        = scope_.track   || scope_.scene  || scope_.song || scope_.fill;
+        const bool col2 = scope_.track || scope_.scene || scope_.song || scope_.fill;
         if (scope_.func && (col1NonFunc || col2)) { return true; }
         if (col1NonFunc && col2) { return true; }
         return false;
@@ -117,13 +117,8 @@ namespace lockstep
     bool EditMode::hasSameColumnConflict() const noexcept
     {
         // MHY columns. Two of the same column non-Func held = no-op conflict.
-        const int col1Count = (scope_.phrase ? 1 : 0)
-                            + (scope_.morph   ? 1 : 0)
-                            + (scope_.mute    ? 1 : 0);
-        const int col2Count = (scope_.track   ? 1 : 0)
-                            + (scope_.scene    ? 1 : 0)
-                            + (scope_.song  ? 1 : 0)
-                            + (scope_.fill    ? 1 : 0);
+        const int col1Count = (scope_.phrase ? 1 : 0) + (scope_.morph ? 1 : 0) + (scope_.mute ? 1 : 0);
+        const int col2Count = (scope_.track ? 1 : 0) + (scope_.scene ? 1 : 0) + (scope_.song ? 1 : 0) + (scope_.fill ? 1 : 0);
         return (col1Count >= 2) || (col2Count >= 2);
     }
 
@@ -132,11 +127,19 @@ namespace lockstep
         // Walk kScopePriority (ScopePriority.h) — the one SSOT for priority order.
         for (auto s : kScopePriority)
         {
-            if (isScopeHeld(s)) { primary_ = s; return; }
+            if (isScopeHeld(s))
+            {
+                primary_ = s;
+                return;
+            }
         }
         // Cue is reserved (no QWERTY binding); checked after the walk so it does
         // not displace ranked scopes but remains reachable for future input sources.
-        if (scope_.cue) { primary_ = PrimaryScope::Cue; return; }
+        if (scope_.cue)
+        {
+            primary_ = PrimaryScope::Cue;
+            return;
+        }
         primary_ = PrimaryScope::None;
     }
 

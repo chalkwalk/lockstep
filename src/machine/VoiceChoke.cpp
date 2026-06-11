@@ -20,8 +20,7 @@ namespace lockstep
     {
         if (fadeRemaining_ <= 0)
             return 0.0f;
-        const float gain = static_cast<float>(fadeRemaining_)
-                         / static_cast<float>(fadeSamples_);
+        const float gain = static_cast<float>(fadeRemaining_) / static_cast<float>(fadeSamples_);
         --fadeRemaining_;
         return gain;
     }

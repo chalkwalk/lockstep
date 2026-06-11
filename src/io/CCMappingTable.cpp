@@ -14,13 +14,13 @@ namespace lockstep
     {
         mappings_.erase(
             std::remove_if(mappings_.begin(), mappings_.end(),
-                [&](const CCMapping& m) {
-                    if (m.ccNumber != ccNumber || m.scope != scope)
-                        return false;
-                    if (scope == CCScope::Contextual)
-                        return m.mzPosition == mzPosition;
-                    return m.trackIndex == trackIndex && m.slot == slot;
-                }),
+                           [&](const CCMapping& m) {
+                               if (m.ccNumber != ccNumber || m.scope != scope)
+                                   return false;
+                               if (scope == CCScope::Contextual)
+                                   return m.mzPosition == mzPosition;
+                               return m.trackIndex == trackIndex && m.slot == slot;
+                           }),
             mappings_.end());
     }
 
@@ -30,11 +30,11 @@ namespace lockstep
         int ccNumber,
         int rawValue,
         int focusTrack,
-        const std::array<int, 4>&                      mzSlots,
-        const std::function<float(int, int)>&           getCurrentTrackValue,
-        const std::function<ParamSpec(int, int)>&        getMetadata,
-        const std::function<void(int, int, float)>&     writeTrackParam,
-        const std::function<void(float)>&               setCrossfaderValue)
+        const std::array<int, 4>& mzSlots,
+        const std::function<float(int, int)>& getCurrentTrackValue,
+        const std::function<ParamSpec(int, int)>& getMetadata,
+        const std::function<void(int, int, float)>& writeTrackParam,
+        const std::function<void(float)>& setCrossfaderValue)
     {
         for (auto& m : mappings_)
         {
@@ -54,7 +54,7 @@ namespace lockstep
                 continue; // APVTS write path wired in M5.4 global handling
 
             int targetTrack = -1;
-            int targetSlot  = m.slot;
+            int targetSlot = m.slot;
 
             if (m.scope == CCScope::Track)
             {
@@ -71,18 +71,18 @@ namespace lockstep
                 if (focusTrack < 0 || m.mzPosition < 0 || m.mzPosition > 3)
                     continue;
                 targetTrack = focusTrack;
-                targetSlot  = mzSlots[static_cast<std::size_t>(m.mzPosition)];
+                targetSlot = mzSlots[static_cast<std::size_t>(m.mzPosition)];
             }
 
             if (targetTrack < 0 || targetSlot < 0)
                 continue;
 
-            const auto  meta         = getMetadata(targetTrack, targetSlot);
-            const float range        = meta.maxValue - meta.minValue;
+            const auto meta = getMetadata(targetTrack, targetSlot);
+            const float range = meta.maxValue - meta.minValue;
             const float currentActual = getCurrentTrackValue(targetTrack, targetSlot);
-            const float currentNorm  = (range > 0.0f)
-                ? (currentActual - meta.minValue) / range
-                : 0.0f;
+            const float currentNorm = (range > 0.0f)
+                                          ? (currentActual - meta.minValue) / range
+                                          : 0.0f;
 
             float resultNorm;
             if (m.isRelative)

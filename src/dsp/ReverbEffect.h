@@ -25,11 +25,11 @@ namespace lockstep
             if (ch == 0 || numSamples <= 0) return;
 
             juce::Reverb::Parameters p;
-            p.roomSize   = params.size() > 0 ? params[0] : 0.5f;
-            p.damping    = params.size() > 1 ? params[1] : 0.5f;
-            p.wetLevel   = params.size() > 2 ? params[2] : 0.3f;
-            p.dryLevel   = 1.0f - p.wetLevel;
-            p.width      = params.size() > 3 ? params[3] : 1.0f;
+            p.roomSize = params.size() > 0 ? params[0] : 0.5f;
+            p.damping = params.size() > 1 ? params[1] : 0.5f;
+            p.wetLevel = params.size() > 2 ? params[2] : 0.3f;
+            p.dryLevel = 1.0f - p.wetLevel;
+            p.width = params.size() > 3 ? params[3] : 1.0f;
             p.freezeMode = 0.0f;
             reverb_.setParameters(p);
 
@@ -52,14 +52,42 @@ namespace lockstep
             static constexpr int kFxSec = 5;
             switch (i)
             {
-                case 0: { ParamSpec p; p.id="lockstep.verb.room";    p.label="Room";
-                          p.maxValue=1.0f; p.defaultValue=0.5f; p.sectionIndex=kFxSec; return p; }
-                case 1: { ParamSpec p; p.id="lockstep.verb.damp";    p.label="Damp";
-                          p.maxValue=1.0f; p.defaultValue=0.5f; p.sectionIndex=kFxSec; return p; }
-                case 2: { ParamSpec p; p.id="lockstep.verb.mix";     p.label="Mix";
-                          p.maxValue=1.0f; p.defaultValue=0.3f; p.sectionIndex=kFxSec; return p; }
-                case 3: { ParamSpec p; p.id="lockstep.verb.width";   p.label="Width";
-                          p.maxValue=1.0f; p.defaultValue=1.0f; p.sectionIndex=kFxSec; return p; }
+                case 0: {
+                    ParamSpec p;
+                    p.id = "lockstep.verb.room";
+                    p.label = "Room";
+                    p.maxValue = 1.0f;
+                    p.defaultValue = 0.5f;
+                    p.sectionIndex = kFxSec;
+                    return p;
+                }
+                case 1: {
+                    ParamSpec p;
+                    p.id = "lockstep.verb.damp";
+                    p.label = "Damp";
+                    p.maxValue = 1.0f;
+                    p.defaultValue = 0.5f;
+                    p.sectionIndex = kFxSec;
+                    return p;
+                }
+                case 2: {
+                    ParamSpec p;
+                    p.id = "lockstep.verb.mix";
+                    p.label = "Mix";
+                    p.maxValue = 1.0f;
+                    p.defaultValue = 0.3f;
+                    p.sectionIndex = kFxSec;
+                    return p;
+                }
+                case 3: {
+                    ParamSpec p;
+                    p.id = "lockstep.verb.width";
+                    p.label = "Width";
+                    p.maxValue = 1.0f;
+                    p.defaultValue = 1.0f;
+                    p.sectionIndex = kFxSec;
+                    return p;
+                }
                 default: return {};
             }
         }

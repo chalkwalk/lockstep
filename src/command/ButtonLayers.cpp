@@ -11,8 +11,8 @@ namespace lockstep
             switch (remap.layer)
             {
                 case LayerRemap::Layer::Track: active = ctx.trackHeld; break;
-                case LayerRemap::Layer::Mute:  active = ctx.muteHeld;  break;
-                case LayerRemap::Layer::Func:  active = ctx.funcHeld;  break;
+                case LayerRemap::Layer::Mute:  active = ctx.muteHeld; break;
+                case LayerRemap::Layer::Func:  active = ctx.funcHeld; break;
             }
             if (active)
             {

@@ -10,7 +10,7 @@ namespace lockstep::ctrl
     // Each unit equals exactly one parameter step in either direction.
     constexpr int decodeSignedMagnitudeDelta(int v) noexcept
     {
-        if (v >= 1  && v <= 63)  return  v;
+        if (v >= 1 && v <= 63) return v;
         if (v >= 65 && v <= 127) return -(v - 64);
         return 0;
     }
@@ -20,8 +20,8 @@ namespace lockstep::ctrl
     // The device sends larger magnitudes for faster turns, unlike signed-magnitude.
     constexpr int decodeTwosComplementDelta(int v) noexcept
     {
-        if (v >= 1 && v <= 63) return  v;
-        if (v >= 64)           return -(128 - v);
+        if (v >= 1 && v <= 63) return v;
+        if (v >= 64) return -(128 - v);
         return 0;
     }
 } // namespace lockstep::ctrl

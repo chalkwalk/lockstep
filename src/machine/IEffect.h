@@ -17,13 +17,13 @@ namespace lockstep
         virtual void prepare(double sampleRate, int maxBlockSize) = 0;
         virtual void reset() = 0;
         virtual void process(juce::AudioBuffer<float>& buffer,
-                             int                      numSamples,
-                             const ParamFrame&        params) = 0;
+                             int numSamples,
+                             const ParamFrame& params) = 0;
 
-        virtual int      numParams()             const = 0;
-        virtual ParamSpec paramSpec(int index)   const = 0;
-        virtual const std::string& effectId()    const = 0;
-        virtual juce::String badge()             const = 0;
+        virtual int numParams() const = 0;
+        virtual ParamSpec paramSpec(int index) const = 0;
+        virtual const std::string& effectId() const = 0;
+        virtual juce::String badge() const = 0;
     };
 
     // Create an effect by stable string ID. Returns nullptr for unknown IDs.

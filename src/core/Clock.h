@@ -25,10 +25,10 @@ namespace lockstep
         // instead of synthesising from localBpm_.
         struct MidiClockInput
         {
-            bool   active   = false;  // caller has a valid MIDI clock signal this block
+            bool active = false;  // caller has a valid MIDI clock signal this block
             double ppqStart = 0.0;
-            double ppqEnd   = 0.0;
-            double bpm      = 0.0;   // 0 = unknown; when > 0, bpm_ is updated
+            double ppqEnd = 0.0;
+            double bpm = 0.0;   // 0 = unknown; when > 0, bpm_ is updated
         };
 
         // Called once per prepareToPlay.
@@ -43,14 +43,14 @@ namespace lockstep
 
         // ---- Block-scope accessors (audio thread only, set by update()) ----
         double ppqAtBlockStart() const { return ppqBlockStart_; }
-        double ppqAtBlockEnd()   const { return ppqBlockEnd_; }
-        bool   ppqJumped()       const { return ppqJumped_; }
+        double ppqAtBlockEnd() const { return ppqBlockEnd_; }
+        bool ppqJumped() const { return ppqJumped_; }
 
         // ---- Effective clock state (audio thread) ---------------------------
-        double bpm()           const { return bpm_; }
+        double bpm() const { return bpm_; }
         double samplesPerPpq() const;
-        double sampleRate()    const { return sampleRate_; }
-        bool   hostPlaying()   const { return hostPlaying_; }
+        double sampleRate() const { return sampleRate_; }
+        bool hostPlaying() const { return hostPlaying_; }
 
         // ---- In-plugin transport (cross-thread, atomic) ---------------------
         bool inPluginPlaying() const
@@ -92,9 +92,9 @@ namespace lockstep
         }
 
         // ---- Standalone / Auto mode controls (UI thread) -------------------
-        void   setLocalBpm(double bpm);
+        void setLocalBpm(double bpm);
         double localBpm() const { return localBpm_; }
-        void   resetPhase();
+        void resetPhase();
 
         // ---- UI-safe PPQ read (atomic, UI thread) --------------------------
         // Returns the PPQ at the start of the last processed audio block.
@@ -109,20 +109,20 @@ namespace lockstep
 
     private:
         double sampleRate_ = 0.0;
-        double bpm_        = 120.0;
-        double localBpm_   = 120.0;
-        bool   hostPlaying_ = false;
+        double bpm_ = 120.0;
+        double localBpm_ = 120.0;
+        bool hostPlaying_ = false;
 
         double ppqBlockStart_ = 0.0;
-        double ppqBlockEnd_   = 0.0;
-        double localPpq_      = 0.0;
-        bool   ppqJumped_     = false;
+        double ppqBlockEnd_ = 0.0;
+        double localPpq_ = 0.0;
+        bool ppqJumped_ = false;
 
         // Cross-thread state.
-        std::atomic<bool>          inPluginPlaying_{false};
-        std::atomic<bool>          recordArmed_{false};
-        std::atomic<bool>          overdubArmed_{false};
-        std::atomic<bool>          metronomeEnabled_{false};
-        std::atomic<std::uint64_t> ppqUi_{0};  // double bits of ppqBlockStart_
+        std::atomic<bool> inPluginPlaying_{ false };
+        std::atomic<bool> recordArmed_{ false };
+        std::atomic<bool> overdubArmed_{ false };
+        std::atomic<bool> metronomeEnabled_{ false };
+        std::atomic<std::uint64_t> ppqUi_{ 0 };  // double bits of ppqBlockStart_
     };
 }

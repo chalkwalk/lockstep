@@ -24,13 +24,13 @@ namespace lockstep
         [[nodiscard]] bool isActiveForEditing() const { return !heldSteps_.empty(); }
 
         // Primary held step (first pressed), or -1 if none held.
-        [[nodiscard]] int  heldStepIndex() const
+        [[nodiscard]] int heldStepIndex() const
         {
             return heldSteps_.empty() ? -1 : heldSteps_.front();
         }
 
-        [[nodiscard]] int  heldTrackIndex() const { return heldTrack_; }
-        [[nodiscard]] int  activeSlot()     const { return activeSlot_; }
+        [[nodiscard]] int heldTrackIndex() const { return heldTrack_; }
+        [[nodiscard]] int activeSlot() const { return activeSlot_; }
 
         // Full ordered list of held step indices (press order).
         [[nodiscard]] const std::vector<int>& heldSteps() const { return heldSteps_; }
@@ -61,7 +61,7 @@ namespace lockstep
                 heldSteps_.end());
             if (heldSteps_.empty())
             {
-                heldTrack_    = -1;
+                heldTrack_ = -1;
                 paramWritten_ = false;
             }
         }
@@ -72,7 +72,7 @@ namespace lockstep
         {
             heldSteps_.clear();
             latchedSteps_.clear();
-            heldTrack_    = -1;
+            heldTrack_ = -1;
             paramWritten_ = false;
         }
 
@@ -108,9 +108,9 @@ namespace lockstep
 
     private:
         std::vector<int> heldSteps_;      // ordered by press time
-        std::set<int>    latchedSteps_;   // MHZ.9.1: subset of heldSteps_ that are virtual-held
-        int              heldTrack_    = -1;
-        bool             paramWritten_ = false;
-        int              activeSlot_   = -1;
+        std::set<int> latchedSteps_;   // MHZ.9.1: subset of heldSteps_ that are virtual-held
+        int heldTrack_ = -1;
+        bool paramWritten_ = false;
+        int activeSlot_ = -1;
     };
 }

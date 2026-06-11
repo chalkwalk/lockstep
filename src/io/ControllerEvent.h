@@ -54,7 +54,10 @@ namespace lockstep
         VerbPanic,        // Func+I: kill all voices + hard stop
 
         // Navigation (4=Up, E=Left, R=Down, T=Right).
-        NavUp, NavLeft, NavDown, NavRight,
+        NavUp,
+        NavLeft,
+        NavDown,
+        NavRight,
 
         // Section / meta-section buttons; index carries the section index (0-5).
         Section,          // keys 3-8 (Func not held)
@@ -90,13 +93,18 @@ namespace lockstep
     // hardware controller). Handlers downstream are fully source-agnostic.
     struct ControllerEvent
     {
-        enum class Type : std::uint8_t { ButtonDown, ButtonUp, EncoderDelta };
+        enum class Type : std::uint8_t
+        {
+            ButtonDown,
+            ButtonUp,
+            EncoderDelta
+        };
 
-        Type             type   = Type::ButtonDown;
+        Type type = Type::ButtonDown;
         ControllerButton button = ControllerButton::None;
-        int              index  = -1;  // step / section / track index
-        int              delta  = 0;   // for EncoderDelta only
-        int              velocity = 0; // 0 = none/unknown; >0 = source-supplied
+        int index = -1;  // step / section / track index
+        int delta = 0;   // for EncoderDelta only
+        int velocity = 0; // 0 = none/unknown; >0 = source-supplied
                                        // note velocity (Push pads). QWERTY/mouse
                                        // leave 0 → callers use the default.
     };

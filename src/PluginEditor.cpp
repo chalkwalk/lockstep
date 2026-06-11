@@ -25,8 +25,8 @@ namespace lockstep
         LockstepEditor& ed;
         explicit EditorEffects(LockstepEditor& e) : ed(e) {}
 
-        void status(const juce::String& msg) override       { ed.setStatus(msg); }
-        void requestRepaint() override                      { ed.repaint(); }
+        void status(const juce::String& msg) override { ed.setStatus(msg); }
+        void requestRepaint() override { ed.repaint(); }
         void transport(TransportAction a) override
         {
             using A = TransportAction;
@@ -136,12 +136,12 @@ namespace lockstep
 
         void sceneFloorPaste() override
         {
-            auto& cl  = ed.clipboard_;
+            auto& cl = ed.clipboard_;
             auto& dst = ed.processor_.section();
-            dst.activeMask  = cl.scene.floor.activeMask;
-            dst.coreTime    = cl.scene.floor.coreTime;
-            dst.morphA      = cl.scene.floor.morphA;
-            dst.morphB      = cl.scene.floor.morphB;
+            dst.activeMask = cl.scene.floor.activeMask;
+            dst.coreTime = cl.scene.floor.coreTime;
+            dst.morphA = cl.scene.floor.morphA;
+            dst.morphB = cl.scene.floor.morphB;
             dst.initialised = true;
             ed.setStatus(status::pastedSceneFloor());
         }
@@ -153,10 +153,10 @@ namespace lockstep
                 return;  // waiting for Yes/No
             ed.processor_.snapshot(CheckpointScope::Song, 0);
             auto& dst = ed.processor_.section();
-            dst.activeMask  = cl.scene.floor.activeMask;
-            dst.coreTime    = cl.scene.floor.coreTime;
-            dst.morphA      = cl.scene.floor.morphA;
-            dst.morphB      = cl.scene.floor.morphB;
+            dst.activeMask = cl.scene.floor.activeMask;
+            dst.coreTime = cl.scene.floor.coreTime;
+            dst.morphA = cl.scene.floor.morphA;
+            dst.morphB = cl.scene.floor.morphB;
             dst.initialised = true;
             for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
             {
@@ -204,11 +204,11 @@ namespace lockstep
             {
                 ed.processor_.snapshot(CheckpointScope::Song, 0);
                 auto& dst = ed.processor_.section();
-                auto& cl  = ed.clipboard_;
-                dst.activeMask  = cl.scene.floor.activeMask;
-                dst.coreTime    = cl.scene.floor.coreTime;
-                dst.morphA      = cl.scene.floor.morphA;
-                dst.morphB      = cl.scene.floor.morphB;
+                auto& cl = ed.clipboard_;
+                dst.activeMask = cl.scene.floor.activeMask;
+                dst.coreTime = cl.scene.floor.coreTime;
+                dst.morphA = cl.scene.floor.morphA;
+                dst.morphB = cl.scene.floor.morphB;
                 dst.initialised = true;
                 for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
                 {
@@ -249,13 +249,13 @@ namespace lockstep
                     {
                         for (auto& s : trk.steps)
                         {
-                            s.trig              = false;
-                            s.condition         = TrigCondition{};
-                            s.overrides         = PLock{};
-                            s.trigOverride      = TrigOverride{};
-                            s.fillTrigState     = FillTrigState::Off;
-                            s.fillOverrides     = PLock{};
-                            s.fillTrigOverride  = TrigOverride{};
+                            s.trig = false;
+                            s.condition = TrigCondition{};
+                            s.overrides = PLock{};
+                            s.trigOverride = TrigOverride{};
+                            s.fillTrigState = FillTrigState::Off;
+                            s.fillOverrides = PLock{};
+                            s.fillTrigOverride = TrigOverride{};
                         }
                     }
                     ed.setStatus(status::deletedPhrase());
@@ -294,14 +294,22 @@ namespace lockstep
         LockstepProcessor& p;
         explicit ProcessorCatalog(LockstepProcessor& proc) : p(proc) {}
 
-        [[nodiscard]] int         numParams (int track)           const override
-            { return p.numParams(track); }
-        [[nodiscard]] ParamSpec   paramSpec (int track, int slot) const override
-            { return p.paramSpec(track, slot); }
-        [[nodiscard]] SectionInfo section   (int track, int idx)  const override
-            { return p.section(track, idx); }
-        [[nodiscard]] const char* machineId (int track)           const override
-            { return p.getMachineIdRaw(track); }
+        [[nodiscard]] int numParams(int track) const override
+        {
+            return p.numParams(track);
+        }
+        [[nodiscard]] ParamSpec paramSpec(int track, int slot) const override
+        {
+            return p.paramSpec(track, slot);
+        }
+        [[nodiscard]] SectionInfo section(int track, int idx) const override
+        {
+            return p.section(track, idx);
+        }
+        [[nodiscard]] const char* machineId(int track) const override
+        {
+            return p.getMachineIdRaw(track);
+        }
     };
 
     // -------------------------------------------------------------------------
@@ -320,9 +328,9 @@ namespace lockstep
         // Load persisted display mode.
         {
             juce::PropertiesFile::Options o;
-            o.applicationName     = "Lockstep";
-            o.filenameSuffix      = ".xml";
-            o.folderName          = "Lockstep";
+            o.applicationName = "Lockstep";
+            o.filenameSuffix = ".xml";
+            o.folderName = "Lockstep";
             o.osxLibrarySubFolder = "Application Support";
             appProps_.setStorageParameters(o);
         }
@@ -332,8 +340,7 @@ namespace lockstep
         applyDisplayMode(gridMode_);
         addAndMakeVisible(transport_);
 
-        if (juce::PluginHostType::getPluginLoadedAs()
-                == juce::AudioProcessor::wrapperType_Standalone)
+        if (juce::PluginHostType::getPluginLoadedAs() == juce::AudioProcessor::wrapperType_Standalone)
         {
             tempoBar_ = std::make_unique<StandaloneTempoBar>(proc.clock());
             addAndMakeVisible(tempoBar_.get());
@@ -341,7 +348,7 @@ namespace lockstep
 
         // Sync mode ComboBox + APVTS attachment
         syncModeBox_.addItem("Locked", 1);
-        syncModeBox_.addItem("Auto",   2);
+        syncModeBox_.addItem("Auto", 2);
         syncModeBox_.setWantsKeyboardFocus(false);
         addAndMakeVisible(syncModeBox_);
         syncModeAttachment_ =
@@ -349,7 +356,7 @@ namespace lockstep
                 proc.apvts(), ParamIDs::syncMode, syncModeBox_);
 
         // Channel mode ComboBox + APVTS attachment
-        channelModeBox_.addItem("Omni",      1);
+        channelModeBox_.addItem("Omni", 1);
         channelModeBox_.addItem("Per-Track", 2);
         channelModeBox_.setWantsKeyboardFocus(false);
         addAndMakeVisible(channelModeBox_);
@@ -366,12 +373,10 @@ namespace lockstep
         updateTransportGhosting();
 
         // Wire section-change callbacks -> update ManipulationZone.
-        keyboardArea_.onSectionChanged = [this](int /*section*/, int /*page*/, int firstSlot)
-        {
+        keyboardArea_.onSectionChanged = [this](int /*section*/, int /*page*/, int firstSlot) {
             manipulationZone_.setSlotOffset(firstSlot);
         };
-        keyboardArea_.onMetaSectionChanged = [this](int metaSection)
-        {
+        keyboardArea_.onMetaSectionChanged = [this](int metaSection) {
             // Navigating to any meta section other than FX/Global (5 or -1) clears
             // the sticky master FX band so the newly-selected section wins.
             // Navigating to a different meta section closes the FX picker.
@@ -382,8 +387,7 @@ namespace lockstep
 
         // Track page toggle: flips between tracks 1-8 and 9-16.
         trackPageBtn_.setWantsKeyboardFocus(false);
-        trackPageBtn_.onClick = [this]
-        {
+        trackPageBtn_.onClick = [this] {
             trackPage_ = 1 - trackPage_;
             trackPageBtn_.setButtonText(trackPage_ == 0 ? "1-8" : "9-16");
             resized();
@@ -407,7 +411,7 @@ namespace lockstep
             trackBtns_[ti].setColour(juce::TextButton::buttonOnColourId,
                                      juce::Colours::transparentBlack);
             trackBtns_[ti].setColour(juce::TextButton::textColourOffId, juce::Colours::white);
-            trackBtns_[ti].setColour(juce::TextButton::textColourOnId,  juce::Colours::white);
+            trackBtns_[ti].setColour(juce::TextButton::textColourOnId, juce::Colours::white);
             addAndMakeVisible(trackBtns_[ti]);
 
             muteBtns_[ti].setButtonText("M");
@@ -426,8 +430,7 @@ namespace lockstep
         }
         trackBtns_[0].setToggleState(true, juce::dontSendNotification);
 
-        keyboardArea_.onActiveTrackChanged = [this](int newTrack)
-        {
+        keyboardArea_.onActiveTrackChanged = [this](int newTrack) {
             // Dismiss any sticky meta band so it never silently edits a stale track.
             if (uiState_.masterSection != -1)
                 uiState_.masterSection = -1;
@@ -449,8 +452,7 @@ namespace lockstep
         };
 
         displayModeBtn_.setWantsKeyboardFocus(false);
-        displayModeBtn_.onClick = [this]
-        {
+        displayModeBtn_.onClick = [this] {
             applyDisplayMode(static_cast<GridDisplayMode>(
                 (static_cast<int>(gridMode_) + 1) % 3));
         };
@@ -464,8 +466,7 @@ namespace lockstep
                               juce::Colour::fromRGB(100, 80, 200).withAlpha(0.6f));
         crossfader_.setWantsKeyboardFocus(false);
         crossfader_.setTooltip("Morph crossfader (0=A / 1=B); right-click to MIDI-learn");
-        crossfader_.onValueChange = [this]
-        {
+        crossfader_.onValueChange = [this] {
             // Slider is inverted: top (1.0) = A (f=0), bottom (0.0) = B (f=1).
             processor_.setMorphFader(1.0f - static_cast<float>(crossfader_.getValue()));
         };
@@ -475,9 +476,8 @@ namespace lockstep
         addAndMakeVisible(manipulationZone_);
         addAndMakeVisible(keyboardArea_);
 
-        greyoutLayer_.onPaint = [this](juce::Graphics& g)
-        {
-            const juce::Colour emptyGrey { juce::uint32(0x66444444u) };
+        greyoutLayer_.onPaint = [this](juce::Graphics& g) {
+            const juce::Colour emptyGrey{ juce::uint32(0x66444444u) };
             g.setColour(emptyGrey);
 
             // (A) per-empty-track strip = number button ∪ mute ∪ solo.
@@ -485,15 +485,12 @@ namespace lockstep
             {
                 if (!trackBtns_[t].isVisible()) continue;
                 if (!processor_.isTrackEmpty(static_cast<int>(t))) continue;
-                g.fillRect(trackBtns_[t].getBounds()
-                               .getUnion(muteBtns_[t].getBounds())
-                               .getUnion(soloBtns_[t].getBounds()));
+                g.fillRect(trackBtns_[t].getBounds().getUnion(muteBtns_[t].getBounds()).getUnion(soloBtns_[t].getBounds()));
             }
 
             // (B) focused track empty → grey the edit area (not the strip rows).
             const int at = keyboardArea_.getActiveTrack();
-            if (at >= 0 && at < static_cast<int>(kNumTracks)
-                && processor_.isTrackEmpty(at))
+            if (at >= 0 && at < static_cast<int>(kNumTracks) && processor_.isTrackEmpty(at))
             {
                 g.fillRect(manipulationZone_.getBounds().getUnion(crossfader_.getBounds()));
                 g.fillRect(keyboardArea_.getBounds());
@@ -502,8 +499,7 @@ namespace lockstep
         addAndMakeVisible(greyoutLayer_);
 
         poolBtn_.setWantsKeyboardFocus(false);
-        poolBtn_.onClick = [this]
-        {
+        poolBtn_.onClick = [this] {
             poolOverlay_.setVisible(!poolOverlay_.isVisible());
             if (poolOverlay_.isVisible())
                 poolOverlay_.toFront(false);
@@ -515,8 +511,7 @@ namespace lockstep
         addChildComponent(poolOverlay_);
 
         soundBankBtn_.setWantsKeyboardFocus(false);
-        soundBankBtn_.onClick = [this]
-        {
+        soundBankBtn_.onClick = [this] {
             soundBankOverlay_.setVisible(!soundBankOverlay_.isVisible());
             if (soundBankOverlay_.isVisible())
                 soundBankOverlay_.toFront(false);
@@ -528,21 +523,18 @@ namespace lockstep
         addChildComponent(soundBankOverlay_);
 
         manipulationZone_.setUiState(&uiState_);
-        manipulationZone_.onOpenPoolManager = [this]
-        {
+        manipulationZone_.onOpenPoolManager = [this] {
             poolOverlay_.setVisible(true);
             poolOverlay_.toFront(false);
         };
 
         // Wire mouse button events from KeyboardArea through the unified dispatch.
-        keyboardArea_.onButtonDown = [this](ControllerEvent ev)
-        {
+        keyboardArea_.onButtonDown = [this](ControllerEvent ev) {
             pressTracker_.press(PressTracker::kMouseSource, ev.button, ev.index);
             dispatchDown(ev, PressTracker::kMouseSource);
             keyboardArea_.repaint();
         };
-        keyboardArea_.onButtonUp = [this](ControllerEvent ev)
-        {
+        keyboardArea_.onButtonUp = [this](ControllerEvent ev) {
             pressTracker_.release(PressTracker::kMouseSource);
             dispatchUp(ev, PressTracker::kMouseSource);
             keyboardArea_.repaint();
@@ -558,16 +550,14 @@ namespace lockstep
 
         // Controller surfaces (DESIGN §35).
         xTouchSurface_ = std::make_unique<XTouchMiniSurface>();
-        push1Surface_  = std::make_unique<Push1Surface>();
+        push1Surface_ = std::make_unique<Push1Surface>();
 
-        controllerPorts_.onStateChange = [this](bool open)
-        {
+        controllerPorts_.onStateChange = [this](bool open) {
             setStatus(open ? "Controller: X-Touch Mini connected"
                            : "Controller: X-Touch Mini disconnected");
         };
 
-        push1Ports_.onStateChange = [this](bool open)
-        {
+        push1Ports_.onStateChange = [this](bool open) {
             setStatus(open ? "Controller: Ableton Push 1 connected"
                            : "Controller: Ableton Push 1 disconnected");
         };
@@ -598,8 +588,7 @@ namespace lockstep
         // learn): repaint so the VU meter colour updates immediately.
         for (int i = 0; i < static_cast<int>(kNumTracks); ++i)
         {
-            if (paramID == juce::String(ParamIDs::trackMute(i))
-                || paramID == juce::String(ParamIDs::trackSolo(i)))
+            if (paramID == juce::String(ParamIDs::trackMute(i)) || paramID == juce::String(ParamIDs::trackSolo(i)))
             {
                 juce::MessageManager::callAsync([this] { repaint(); });
                 return;
@@ -619,10 +608,14 @@ namespace lockstep
 
         for (std::size_t i = 0; i < kNumTracks; ++i)
         {
-            const float peak     = processor_.trackPeak(static_cast<int>(i));
+            const float peak = processor_.trackPeak(static_cast<int>(i));
             const float newMeter = std::max(peak, trackMeter_[i] * 0.80f);
-            const float floored  = (newMeter < kMeterFloor) ? 0.0f : newMeter;
-            if (std::abs(floored - trackMeter_[i]) > 0.0f) { trackMeter_[i] = floored; dirty = true; }
+            const float floored = (newMeter < kMeterFloor) ? 0.0f : newMeter;
+            if (std::abs(floored - trackMeter_[i]) > 0.0f)
+            {
+                trackMeter_[i] = floored;
+                dirty = true;
+            }
 
             if (processor_.takeTrigPulse(static_cast<int>(i)) > 0.5f)
             {
@@ -649,15 +642,27 @@ namespace lockstep
 
         const float newMaster = std::max(processor_.masterPeak(), masterMeter_ * 0.80f);
         const float flooredMaster = (newMaster < kMeterFloor) ? 0.0f : newMaster;
-        if (std::abs(flooredMaster - masterMeter_) > 0.0f) { masterMeter_ = flooredMaster; dirty = true; }
+        if (std::abs(flooredMaster - masterMeter_) > 0.0f)
+        {
+            masterMeter_ = flooredMaster;
+            dirty = true;
+        }
 
         // Transport state change: repaint so the PLAY/PAUSE label updates promptly.
         const bool nowPlaying = processor_.clock().inPluginPlaying();
-        if (nowPlaying != lastPlayingState_) { lastPlayingState_ = nowPlaying; dirty = true; }
+        if (nowPlaying != lastPlayingState_)
+        {
+            lastPlayingState_ = nowPlaying;
+            dirty = true;
+        }
 
         // Morph fader: detect on-screen crossfader moves so controller surfaces update.
         const float curMorphFader = processor_.morphFader();
-        if (curMorphFader != lastMorphFader_) { lastMorphFader_ = curMorphFader; dirty = true; }
+        if (curMorphFader != lastMorphFader_)
+        {
+            lastMorphFader_ = curMorphFader;
+            dirty = true;
+        }
 
         // Push the morph view state to KeyboardArea so its paint() gets current slot states.
         keyboardArea_.setMorphViewState(buildMorphViewState(),
@@ -676,20 +681,19 @@ namespace lockstep
         //   3. Mode transitions (holding Track, switching sections, etc.) call repaint()
         //      directly without touching the dirty flag here, so dirty is not a reliable
         //      signal for "controller state may have changed".
-        if ((xTouchSurface_ && controllerPorts_.isOpen())
-            || (push1Surface_ && push1Ports_.isOpen()))
+        if ((xTouchSurface_ && controllerPorts_.isOpen()) || (push1Surface_ && push1Ports_.isOpen()))
         {
             auto sink = buildControllerSink();
             const auto model = buildSurfaceModel(uiState_,
-                                                  processor_.editContext(),
-                                                  &pressTracker_,
-                                                  processor_,
-                                                  keyboardArea_.getActiveTrack(),
-                                                  keyboardArea_.currentPage(),
-                                                  gridMode_,
-                                                  manipulationZone_.slotOffset(),
-                                                  1.0f - processor_.morphFader(),
-                                                  buildMorphViewState());
+                                                 processor_.editContext(),
+                                                 &pressTracker_,
+                                                 processor_,
+                                                 keyboardArea_.getActiveTrack(),
+                                                 keyboardArea_.currentPage(),
+                                                 gridMode_,
+                                                 manipulationZone_.slotOffset(),
+                                                 1.0f - processor_.morphFader(),
+                                                 buildMorphViewState());
             if (xTouchSurface_ && controllerPorts_.isOpen())
                 controllerPorts_.drain(*xTouchSurface_, sink, model);
             if (push1Surface_ && push1Ports_.isOpen())
@@ -719,7 +723,7 @@ namespace lockstep
     // Maps a linear meter level [0,1] to a green→yellow→red colour.
     static juce::Colour meterColour(float level)
     {
-        if (level < 0.5f)  return juce::Colour::fromRGB(60, 200, 90);
+        if (level < 0.5f) return juce::Colour::fromRGB(60, 200, 90);
         if (level < 0.85f) return juce::Colour::fromRGB(220, 200, 60);
         return juce::Colour::fromRGB(230, 80, 60);
     }
@@ -732,17 +736,21 @@ namespace lockstep
         bool anySoloed = false;
         for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
             if (auto* p = processor_.apvts().getRawParameterValue(ParamIDs::trackSolo(t)))
-                if (p->load() >= 0.5f) { anySoloed = true; break; }
+                if (p->load() >= 0.5f)
+                {
+                    anySoloed = true;
+                    break;
+                }
 
         // Per-track VU underlaid behind the (transparent) track-number buttons.
         for (std::size_t i = 0; i < kNumTracks; ++i)
         {
-            const int  t       = static_cast<int>(i);
-            const bool gMuted  = processor_.getGlobalMute(t);
-            const bool pMuted  = processor_.getPatternMute(t);
-            const auto* sp     = processor_.apvts().getRawParameterValue(ParamIDs::trackSolo(t));
-            const bool soloed  = sp && sp->load() >= 0.5f;
-            const bool soloEx  = anySoloed && !soloed;
+            const int t = static_cast<int>(i);
+            const bool gMuted = processor_.getGlobalMute(t);
+            const bool pMuted = processor_.getPatternMute(t);
+            const auto* sp = processor_.apvts().getRawParameterValue(ParamIDs::trackSolo(t));
+            const bool soloed = sp && sp->load() >= 0.5f;
+            const bool soloEx = anySoloed && !soloed;
 
             const auto r = trackBtns_[i].getBounds();
             if (r.isEmpty()) continue;
@@ -751,7 +759,7 @@ namespace lockstep
             // pattern mute = orange, solo-exclusion = purple, soloed = teal,
             // audible = grey.
             juce::Colour bg = juce::Colour::fromRGB(28, 32, 38);
-            if      (gMuted) bg = juce::Colour::fromRGB(70, 20, 20);
+            if (gMuted) bg = juce::Colour::fromRGB(70, 20, 20);
             else if (pMuted) bg = juce::Colour::fromRGB(80, 50, 16);
             else if (soloEx) bg = juce::Colour::fromRGB(50, 24, 70);
             else if (soloed) bg = juce::Colour::fromRGB(20, 70, 50);
@@ -775,7 +783,7 @@ namespace lockstep
 
             // Machine type badge: abbreviated type in top-right corner for non-sampler tracks.
             {
-                const juce::String badge { processor_.trackBadge(t) };
+                const juce::String badge{ processor_.trackBadge(t) };
                 if (badge.isNotEmpty())
                 {
                     g.setColour(juce::Colour::fromRGB(180, 185, 190).withAlpha(0.85f));
@@ -790,12 +798,11 @@ namespace lockstep
     void LockstepEditor::updateTransportGhosting()
     {
         const bool isStandalone =
-            (juce::PluginHostType::getPluginLoadedAs()
-             == juce::AudioProcessor::wrapperType_Standalone);
+            (juce::PluginHostType::getPluginLoadedAs() == juce::AudioProcessor::wrapperType_Standalone);
         const auto* modeParam =
             processor_.apvts().getRawParameterValue(ParamIDs::syncMode);
         const bool isLocked = modeParam && static_cast<int>(modeParam->load()) == 0;
-        const bool ghost    = isLocked && !isStandalone;
+        const bool ghost = isLocked && !isStandalone;
         transport_.setGhosted(ghost);
     }
 
@@ -849,8 +856,7 @@ namespace lockstep
         }
         menu.showMenuAsync(
             juce::PopupMenu::Options().withTargetComponent(crossfader_),
-            [this, existing](int result)
-            {
+            [this, existing](int result) {
                 if (result == 0)
                     return;
                 if (existing.first)
@@ -880,10 +886,10 @@ namespace lockstep
         // ---- Crossfader A/B endpoint labels: inset 25% from each end toward
         // the centre so they sit inside the slider and don't clip adjacent UI.
         {
-            static const juce::Colour kMorphMagenta { 0xffb060d0 };
-            const auto fb       = crossfader_.getBounds();
-            const int  labelH   = 12;
-            const int  inset    = fb.getHeight() / 4;  // 25% of fader height
+            static const juce::Colour kMorphMagenta{ 0xffb060d0 };
+            const auto fb = crossfader_.getBounds();
+            const int labelH = 12;
+            const int inset = fb.getHeight() / 4;  // 25% of fader height
             g.setFont(juce::Font(juce::FontOptions(9.0f)).boldened());
             g.setColour(kMorphMagenta.withAlpha(0.9f));
             g.drawText("A", fb.getX(), fb.getY() + inset - labelH / 2, fb.getWidth(), labelH,
@@ -902,17 +908,17 @@ namespace lockstep
             for (std::size_t t = 0; t < kNumTracks; ++t)
             {
                 if (!trackBtns_[t].isVisible()) continue;
-                const int ti  = static_cast<int>(t);
+                const int ti = static_cast<int>(t);
                 const int cur = processor_.isTrackDeviated(ti)
-                    ? processor_.deviationPhraseIdxForTrack(ti)
-                    : processor_.activeSectionIdx();
+                                    ? processor_.deviationPhraseIdxForTrack(ti)
+                                    : processor_.activeSectionIdx();
                 if (cur == home) continue;
                 const auto r = trackBtns_[t].getBounds();
                 const float s = 7.0f;
                 juce::Path tri;
-                tri.addTriangle(static_cast<float>(r.getX()),     static_cast<float>(r.getY()),
-                                static_cast<float>(r.getX()) + s,  static_cast<float>(r.getY()),
-                                static_cast<float>(r.getX()),      static_cast<float>(r.getY()) + s);
+                tri.addTriangle(static_cast<float>(r.getX()), static_cast<float>(r.getY()),
+                                static_cast<float>(r.getX()) + s, static_cast<float>(r.getY()),
+                                static_cast<float>(r.getX()), static_cast<float>(r.getY()) + s);
                 g.fillPath(tri);
             }
         }
@@ -921,11 +927,11 @@ namespace lockstep
         // Left zone (~420..640): Bank/Pattern/Part identity + state badges (CK, CHN, QUE, SHR, CPY).
         // Right zone (~640..800): Held-context preview derived from modifier cluster state.
         {
-            static constexpr int kBadgeH   = 16;
-            static constexpr int kGap       = 3;
+            static constexpr int kBadgeH = 16;
+            static constexpr int kGap = 3;
             static constexpr int kDashStartX = 420;   // right edge of left controls
-            static constexpr int kRightBtnX  = 800;   // left edge of the three right buttons
-            static constexpr int kSplitX     = 640;   // dashboard/preview divider
+            static constexpr int kRightBtnX = 800;   // left edge of the three right buttons
+            static constexpr int kSplitX = 640;   // dashboard/preview divider
             const int by = (36 - kBadgeH) / 2;
 
             g.setFont(juce::Font(juce::FontOptions(10.0f)));
@@ -935,8 +941,7 @@ namespace lockstep
                 // Song / Scene identity pill.
                 const int sg = processor_.activePieceIdx() + 1;
                 const int sc = processor_.activeSectionIdx() + 1;
-                const juce::String identity = "Sg:" + juce::String(sg)
-                                            + "  Sc:" + juce::String(sc);
+                const juce::String identity = "Sg:" + juce::String(sg) + "  Sc:" + juce::String(sc);
                 {
                     const auto r = juce::Rectangle<int>(kDashStartX, by, 120, kBadgeH);
                     g.setColour(juce::Colour(0xFF262830u));
@@ -988,15 +993,21 @@ namespace lockstep
                 {
                     const int track = keyboardArea_.getActiveTrack();
                     const auto mode = (track >= 0 && track < static_cast<int>(kNumTracks))
-                                      ? uiState_.trackInputMode[static_cast<std::size_t>(track)]
-                                      : TrackInputMode::Play;
+                                          ? uiState_.trackInputMode[static_cast<std::size_t>(track)]
+                                          : TrackInputMode::Play;
                     const char* modeLabel = nullptr;
                     juce::Colour modeCol;
                     switch (mode)
                     {
-                        case TrackInputMode::Play:      break;  // no badge
-                        case TrackInputMode::Chromatic: modeLabel = "CHROM"; modeCol = juce::Colour(0xFF4090E0u); break;
-                        case TrackInputMode::Levels:    modeLabel = "LEVLS"; modeCol = juce::Colour(0xFFE07030u); break;
+                        case TrackInputMode::Play: break;  // no badge
+                        case TrackInputMode::Chromatic:
+                            modeLabel = "CHROM";
+                            modeCol = juce::Colour(0xFF4090E0u);
+                            break;
+                        case TrackInputMode::Levels:
+                            modeLabel = "LEVLS";
+                            modeCol = juce::Colour(0xFFE07030u);
+                            break;
                     }
                     if (modeLabel != nullptr && bx + 46 < kSplitX)
                     {
@@ -1022,8 +1033,7 @@ namespace lockstep
                 // MHZ.3.4: P-lock clear mode.
                 else if (ui.pLockClearMode)
                 {
-                    ctx = "FUNC + STEP " + juce::String(ui.pLockClearStep + 1)
-                          + "  |  press cell to clear P-Lock slot";
+                    ctx = "FUNC + STEP " + juce::String(ui.pLockClearStep + 1) + "  |  press cell to clear P-Lock slot";
                 }
                 else
                 {
@@ -1032,31 +1042,30 @@ namespace lockstep
                     if (ui.stepHeld && ec.isActiveForEditing())
                     {
                         const int stepNum = ec.heldStepIndex() + 1;
-                        const int cnt     = static_cast<int>(ec.heldSteps().size());
+                        const int cnt = static_cast<int>(ec.heldSteps().size());
                         ctx = cnt > 1
-                            ? juce::String(cnt) + " STEPS  |  turn knob to P-Lock"
-                            : "STEP " + juce::String(stepNum) + "  |  turn knob to P-Lock";
+                                  ? juce::String(cnt) + " STEPS  |  turn knob to P-Lock"
+                                  : "STEP " + juce::String(stepNum) + "  |  turn knob to P-Lock";
                     }
                     // Primary scope token. MHZ.9.7: show mode-cycle hint when Track+Control-All.
                     else if (ui.trackHeld && processor_.controlAllActive())
                     {
                         ctx = juce::String(u8"TRACK  |  ↑↓ cycle PLAY/CHROM/LEVLS");
                     }
-                    else if (ui.trackHeld)        ctx = "TRACK " + juce::String(keyboardArea_.getActiveTrack() + 1);
+                    else if (ui.trackHeld) ctx = "TRACK " + juce::String(keyboardArea_.getActiveTrack() + 1);
                     else if (ui.phraseScopeHeld) ctx = "PHRASE";
-                    else if (ui.sceneHeld)         ctx = "SCENE";
-                    else if (ui.morphHeld)        ctx = "MORPH";
-                    else if (ui.songHeld)       ctx = "SONG";
-                    else if (ui.muteHeld)         ctx = "MUTE";
-                    else if (ui.fillHeld)         ctx = "FILL";
-                    else if (ui.funcHeld)         ctx = "FUNC";
+                    else if (ui.sceneHeld) ctx = "SCENE";
+                    else if (ui.morphHeld) ctx = "MORPH";
+                    else if (ui.songHeld) ctx = "SONG";
+                    else if (ui.muteHeld) ctx = "MUTE";
+                    else if (ui.fillHeld) ctx = "FILL";
+                    else if (ui.funcHeld) ctx = "FUNC";
                 }
 
                 if (ctx.isEmpty()) return;   // nothing held — preview is blank
 
                 // Qualify with Func if held alongside another modifier (normal path only).
-                if (!ui.funcTrackHeld && !ui.pLockClearMode
-                    && ui.funcHeld && ctx != "FUNC")
+                if (!ui.funcTrackHeld && !ui.pLockClearMode && ui.funcHeld && ctx != "FUNC")
                     ctx = "FUNC + " + ctx;
 
                 // Active section suffix.
@@ -1084,7 +1093,7 @@ namespace lockstep
         // Master output meter: a thin bar along the very top edge.
         {
             const float level = juce::jlimit(0.0f, 1.0f, masterMeter_);
-            const int   w     = juce::roundToInt(static_cast<float>(getWidth()) * level);
+            const int w = juce::roundToInt(static_cast<float>(getWidth()) * level);
             g.setColour(juce::Colour::fromRGB(30, 34, 40));
             g.fillRect(0, 0, getWidth(), 3);
             if (w > 0)
@@ -1132,8 +1141,7 @@ namespace lockstep
     static bool isAudioFile(const juce::String& path)
     {
         const juce::String ext = juce::File(path).getFileExtension().toLowerCase();
-        return ext == ".wav" || ext == ".aiff" || ext == ".aif"
-            || ext == ".flac" || ext == ".ogg";
+        return ext == ".wav" || ext == ".aiff" || ext == ".aif" || ext == ".flac" || ext == ".ogg";
     }
 
     bool LockstepEditor::isInterestedInFileDrag(const juce::StringArray& files)
@@ -1193,7 +1201,11 @@ namespace lockstep
         // Checkpoint only if the phrase already has trigs (preserves undo).
         bool hasTrigs = false;
         for (int si = 0; si < len; ++si)
-            if (ph.steps[static_cast<std::size_t>(si)].trig) { hasTrigs = true; break; }
+            if (ph.steps[static_cast<std::size_t>(si)].trig)
+            {
+                hasTrigs = true;
+                break;
+            }
         if (hasTrigs)
             processor_.snapshot(CheckpointScope::Track, track);
 
@@ -1209,7 +1221,7 @@ namespace lockstep
             if (v > 0)
             {
                 s.trigOverride.hasVelocity = true;
-                s.trigOverride.velocity    = v;
+                s.trigOverride.velocity = v;
             }
             else
             {
@@ -1241,7 +1253,7 @@ namespace lockstep
     void LockstepEditor::escapeAllLatches()
     {
         using CB = ControllerButton;
-        using T  = ControllerEvent::Type;
+        using T = ControllerEvent::Type;
 
         const auto prevLatch = uiState_.latch;
         uiState_.latch = {};  // clear all latches before calling dispatchUp so guards pass
@@ -1270,7 +1282,11 @@ namespace lockstep
             // Only release from EditContext if the physical key is not held.
             bool physDown = false;
             for (const auto& [code, idx] : heldStepKeys_)
-                if (idx == s) { physDown = true; break; }
+                if (idx == s)
+                {
+                    physDown = true;
+                    break;
+                }
             if (!physDown)
                 ctx.release(s);
         }
@@ -1294,15 +1310,14 @@ namespace lockstep
     void LockstepEditor::setModifierLatch(ControllerButton cb, bool set)
     {
         using CB = ControllerButton;
-        using T  = ControllerEvent::Type;
+        using T = ControllerEvent::Type;
 
         if (set)
         {
             // Enforce column exclusivity by releasing any existing latch in the same column.
             // Calling dispatchUp (after clearing the latch bool) does the full release with
             // side effects (setControlAllActive, updateFillActivation, etc.).
-            const bool isCol1 = (cb == CB::PhraseScope || cb == CB::MorphScope
-                                 || cb == CB::MuteScope);
+            const bool isCol1 = (cb == CB::PhraseScope || cb == CB::MorphScope || cb == CB::MuteScope);
 
             auto releaseOther = [&](bool& latchBool, bool physHeld, CB btn) {
                 if (!latchBool || cb == btn) return;
@@ -1314,27 +1329,27 @@ namespace lockstep
             if (isCol1)
             {
                 releaseOther(uiState_.latch.phrase, physHeld_.phrase, CB::PhraseScope);
-                releaseOther(uiState_.latch.morph,   physHeld_.morph,   CB::MorphScope);
-                releaseOther(uiState_.latch.mute,    physHeld_.mute,    CB::MuteScope);
+                releaseOther(uiState_.latch.morph, physHeld_.morph, CB::MorphScope);
+                releaseOther(uiState_.latch.mute, physHeld_.mute, CB::MuteScope);
             }
             else
             {
-                releaseOther(uiState_.latch.track,  physHeld_.track,  CB::TrackScope);
-                releaseOther(uiState_.latch.scene,   physHeld_.scene,   CB::SceneScope);
+                releaseOther(uiState_.latch.track, physHeld_.track, CB::TrackScope);
+                releaseOther(uiState_.latch.scene, physHeld_.scene, CB::SceneScope);
                 releaseOther(uiState_.latch.song, physHeld_.song, CB::SongScope);
-                releaseOther(uiState_.latch.fill,   physHeld_.fill,   CB::FillScope);
+                releaseOther(uiState_.latch.fill, physHeld_.fill, CB::FillScope);
             }
         }
 
         switch (cb)
         {
             case CB::PhraseScope: uiState_.latch.phrase = set; break;
-            case CB::MorphScope:   uiState_.latch.morph   = set; break;
-            case CB::MuteScope:    uiState_.latch.mute    = set; break;
-            case CB::TrackScope:   uiState_.latch.track   = set; break;
-            case CB::SceneScope:    uiState_.latch.scene    = set; break;
-            case CB::SongScope:  uiState_.latch.song  = set; break;
-            case CB::FillScope:    uiState_.latch.fill    = set; break;
+            case CB::MorphScope:  uiState_.latch.morph = set; break;
+            case CB::MuteScope:   uiState_.latch.mute = set; break;
+            case CB::TrackScope:  uiState_.latch.track = set; break;
+            case CB::SceneScope:  uiState_.latch.scene = set; break;
+            case CB::SongScope:   uiState_.latch.song = set; break;
+            case CB::FillScope:   uiState_.latch.fill = set; break;
             case CB::Func:
             case CB::CueScope:
             case CB::VerbYes:
@@ -1393,14 +1408,16 @@ namespace lockstep
     {
         using T = ControllerEvent::Type;
         bool latched = false;
-        bool phys    = false;
+        bool phys = false;
         if (cb == ControllerButton::TrackScope)
         {
-            latched = uiState_.latch.track; phys = physHeld_.track;
+            latched = uiState_.latch.track;
+            phys = physHeld_.track;
         }
         else if (cb == ControllerButton::SceneScope)
         {
-            latched = uiState_.latch.scene; phys = physHeld_.scene;
+            latched = uiState_.latch.scene;
+            phys = physHeld_.scene;
         }
         else
         {
@@ -1421,8 +1438,7 @@ namespace lockstep
     // Func+scope+verb is that scope's secondary variant — not a global checkpoint.
     static bool sectionSuiteScopeHeld(const UiState& ui) noexcept
     {
-        return ui.trackHeld || ui.phraseScopeHeld || ui.sceneHeld
-            || ui.morphHeld || ui.songHeld;
+        return ui.trackHeld || ui.phraseScopeHeld || ui.sceneHeld || ui.morphHeld || ui.songHeld;
     }
 
     // dispatchDown — source-agnostic button-down handler fed by both keyboard
@@ -1443,10 +1459,7 @@ namespace lockstep
         // swing band is showing collapses back to machine params so the user can reach
         // sections/verbs/nav/steps without the scope re-routing the whole zone.
         // The scope keys themselves are excluded — they reset dismissed on re-hold.
-        if (resolveMetaBand(uiState_) == MetaBand::Swing
-            && ev.button != CB::TrackScope
-            && ev.button != CB::SceneScope
-            && ev.button != CB::SongScope)
+        if (resolveMetaBand(uiState_) == MetaBand::Swing && ev.button != CB::TrackScope && ev.button != CB::SceneScope && ev.button != CB::SongScope)
         {
             uiState_.swingDismissed = true;
             refreshMetaBand();
@@ -1467,8 +1480,7 @@ namespace lockstep
                 // MHZ.9.4: Func never latches; double-tap = universal escape (only if latches engaged).
                 {
                     const double now = juce::Time::getMillisecondCounterHiRes();
-                    if (doubleTap_.recordAndCheck(1000 + static_cast<int>(CB::Func), now)
-                        && (uiState_.latch.any() || processor_.editContext().hasAnyLatchedStep()))
+                    if (doubleTap_.recordAndCheck(1000 + static_cast<int>(CB::Func), now) && (uiState_.latch.any() || processor_.editContext().hasAnyLatchedStep()))
                     {
                         escapeAllLatches();
                     }
@@ -1501,10 +1513,10 @@ namespace lockstep
                     int onsets = 0;
                     for (int si = 0; si < ph.length; ++si)
                         if (ph.steps[static_cast<std::size_t>(si)].trig) ++onsets;
-                    uiState_.euclidPulses  = onsets > 0 ? onsets : 4;
-                    uiState_.euclidOffset  = 0;
+                    uiState_.euclidPulses = onsets > 0 ? onsets : 4;
+                    uiState_.euclidOffset = 0;
                     uiState_.euclidAccents = 0;
-                    uiState_.euclidHeld    = true;
+                    uiState_.euclidHeld = true;
                     refreshMetaBand();
                 }
                 handleModifierTap(CB::PhraseScope, uiState_.latch.phrase);
@@ -1531,10 +1543,10 @@ namespace lockstep
                     int onsets = 0;
                     for (int si = 0; si < ph.length; ++si)
                         if (ph.steps[static_cast<std::size_t>(si)].trig) ++onsets;
-                    uiState_.euclidPulses  = onsets > 0 ? onsets : 4;
-                    uiState_.euclidOffset  = 0;
+                    uiState_.euclidPulses = onsets > 0 ? onsets : 4;
+                    uiState_.euclidOffset = 0;
                     uiState_.euclidAccents = 0;
-                    uiState_.euclidHeld    = true;
+                    uiState_.euclidHeld = true;
                     refreshMetaBand();
                 }
                 updateFillActivation();
@@ -1587,8 +1599,7 @@ namespace lockstep
                 repaint();
                 return true;
 
-            case ControllerButton::Section:
-            {
+            case ControllerButton::Section: {
                 // Determine whether a section-suite scope modifier is held.
                 // Use the canonical kScopePriority ordering (ScopePriority.h SSOT).
                 using PS = EditMode::PrimaryScope;
@@ -1648,7 +1659,7 @@ namespace lockstep
                 if (heldSectionRawCode_ < 0)
                 {
                     heldSectionRawCode_ = rawCode;
-                    heldSectionIndex_   = ev.index;
+                    heldSectionIndex_ = ev.index;
                     editMode_.setSectionHeld(true);
                 }
                 return true;
@@ -1695,14 +1706,13 @@ namespace lockstep
                 keyboardArea_.selectMetaSection(ev.index);
                 return true;
 
-            case ControllerButton::Step:
-            {
+            case ControllerButton::Step: {
                 // ----------------------------------------------------------------
                 // 5.7: Retrig overlay (Fill+TRIG held)
                 // ----------------------------------------------------------------
                 // PPQ per repetition for each grid cell. 8 rates (cells 0-7),
                 // cells 8-15 are dark/ignored.
-                static constexpr std::array<double, 8> kRetrigRates = {{
+                static constexpr std::array<double, 8> kRetrigRates = { {
                     1.0,          // /4   (quarter-note)
                     2.0 / 3.0,    // /4T  (quarter triplet)
                     0.5,          // /8
@@ -1711,7 +1721,7 @@ namespace lockstep
                     1.0 / 6.0,    // /16T
                     0.125,        // /32
                     1.0 / 12.0,   // /32T
-                }};
+                } };
 
                 // 8.11 A4.3: route overlay step-grid layers through resolveActiveLayer().
                 // Behavior fix: MachinePicker (funcTrackHeld) now has correct priority
@@ -1719,9 +1729,9 @@ namespace lockstep
                 {
                     const int layerAt = keyboardArea_.getActiveTrack();
                     const auto layerMode = (layerAt >= 0)
-                        ? uiState_.trackInputMode[static_cast<std::size_t>(layerAt)]
-                        : TrackInputMode::Play;
-                    const LayerFacts stepFacts { layerMode, layerAt };
+                                               ? uiState_.trackInputMode[static_cast<std::size_t>(layerAt)]
+                                               : TrackInputMode::Play;
+                    const LayerFacts stepFacts{ layerMode, layerAt };
                     const SurfaceLayer layer = resolveActiveLayer(
                         uiState_, processor_.editContext(), stepFacts);
 
@@ -1770,8 +1780,7 @@ namespace lockstep
                             const auto& trk = processor_.sequence()
                                                   .tracks[static_cast<std::size_t>(at)];
                             const auto& ctx = processor_.editContext();
-                            if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == at
-                                && !ctx.heldSteps().empty())
+                            if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == at && !ctx.heldSteps().empty())
                             {
                                 const int si = ctx.heldSteps().front();
                                 if (si >= 0 && si < kMaxStepsPerTrack)
@@ -1794,7 +1803,7 @@ namespace lockstep
                                 {
                                     if (heldIdx < 0 || heldIdx >= kMaxStepsPerTrack) continue;
                                     auto& s = trk.steps[static_cast<std::size_t>(heldIdx)];
-                                    s.trigOverride.hasRetrig  = true;
+                                    s.trigOverride.hasRetrig = true;
                                     s.trigOverride.retrigRate = rate;
                                 }
                                 ctx.markParamWritten();
@@ -1825,7 +1834,7 @@ namespace lockstep
                                     if (heldIdx < 0 || heldIdx >= kMaxStepsPerTrack) continue;
                                     auto& s = trk.steps[static_cast<std::size_t>(heldIdx)];
                                     s.trigOverride.hasSoundId = true;
-                                    s.trigOverride.soundId    = ev.index;
+                                    s.trigOverride.soundId = ev.index;
                                 }
                                 ctx.markParamWritten();
                             }
@@ -1882,8 +1891,9 @@ namespace lockstep
                         const int numMachines = processor_.numAvailableMachines();
                         if (ev.index >= 0 && ev.index < numMachines)
                         {
-                            const std::string machineId {
-                                processor_.availableMachineInfo(ev.index).id };
+                            const std::string machineId{
+                                processor_.availableMachineInfo(ev.index).id
+                            };
                             processor_.setTrackMachine(keyboardArea_.getActiveTrack(), machineId);
                             keyboardArea_.syncToActiveTrack();
                             releaseTransientLatch(CB::TrackScope);
@@ -1907,7 +1917,7 @@ namespace lockstep
                     {
                         processor_.setTrackInsertBypass(at, slot, true);
                         animateBypassTrack_ = at;
-                        animateBypassSlot_  = slot;
+                        animateBypassSlot_ = slot;
                     }
                     return true;
                 }
@@ -1917,15 +1927,13 @@ namespace lockstep
                 // With step held: write noteOverride. Always: trigger live note.
                 {
                     const int at = keyboardArea_.getActiveTrack();
-                    if (at >= 0 && at < static_cast<int>(kNumTracks)
-                        && uiState_.trackInputMode[static_cast<std::size_t>(at)] == TrackInputMode::Chromatic
-                        )
+                    if (at >= 0 && at < static_cast<int>(kNumTracks) && uiState_.trackInputMode[static_cast<std::size_t>(at)] == TrackInputMode::Chromatic)
                     {
                         if (ev.index < 0 || ev.index >= 16) return true;
                         const int semitone = kPianoNoteOffset[static_cast<std::size_t>(ev.index)];
                         if (semitone < 0) return true;  // dead key (D, H, ;)
                         const int note = juce::jlimit(0, 127,
-                            (uiState_.noteEditOctave + 1) * 12 + semitone);
+                                                      (uiState_.noteEditOctave + 1) * 12 + semitone);
 
                         // If a step is held in the EditContext, write noteOverride to it.
                         auto& ctx = processor_.editContext();
@@ -1940,7 +1948,7 @@ namespace lockstep
                                 if (s.trigOverride.noteCount == 0)
                                     s.trigOverride.noteCount = 1;
                                 s.trigOverride.notes[0] = note;
-                                s.trig                  = true;
+                                s.trig = true;
                             }
                             ctx.markParamWritten();
                         }
@@ -1957,7 +1965,7 @@ namespace lockstep
                         if (chromaticHeldNote_[pad] >= 0)
                             processor_.liveNoteOff(chromaticHeldTrack_[pad],
                                                    chromaticHeldNote_[pad]);
-                        chromaticHeldNote_[pad]  = note;
+                        chromaticHeldNote_[pad] = note;
                         chromaticHeldTrack_[pad] = at;
                         processor_.liveNoteOn(at, note, vel);
                         return true;
@@ -1972,13 +1980,11 @@ namespace lockstep
                 // No step held + record-arm + playing → records trig+velocity to nearest step.
                 {
                     const int at = keyboardArea_.getActiveTrack();
-                    if (at >= 0 && at < static_cast<int>(kNumTracks)
-                        && uiState_.trackInputMode[static_cast<std::size_t>(at)] == TrackInputMode::Levels
-                        )
+                    if (at >= 0 && at < static_cast<int>(kNumTracks) && uiState_.trackInputMode[static_cast<std::size_t>(at)] == TrackInputMode::Levels)
                     {
                         const int vel = juce::roundToInt((ev.index + 1.0f) / 16.0f * 127.0f);
                         const int pitch = uiState_.lastPlayedNote[static_cast<std::size_t>(at)];
-                        const int note  = pitch > 0 ? pitch : 60;
+                        const int note = pitch > 0 ? pitch : 60;
                         auto& ctx = processor_.editContext();
 
                         if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == at)
@@ -1991,7 +1997,7 @@ namespace lockstep
                                 if (heldIdx < 0 || heldIdx >= kMaxStepsPerTrack) continue;
                                 auto& s = trk.steps[static_cast<std::size_t>(heldIdx)];
                                 s.trigOverride.hasVelocity = true;
-                                s.trigOverride.velocity    = vel;
+                                s.trigOverride.velocity = vel;
                             }
                             ctx.markParamWritten();
                             processor_.triggerNote(at, note, 350, vel, /*bypassEditorial=*/true);
@@ -2029,12 +2035,10 @@ namespace lockstep
                 //   Morph  + Func + step → broadcast: all tracks' length.
                 // (Morph is the old "Scene" all-tracks qualifier, renamed in 7.9.)
                 // Gated before the bare Phrase/Scene branches so Func qualifies.
-                if (uiState_.funcHeld && !uiState_.funcTrackHeld
-                    && (uiState_.phraseScopeHeld || uiState_.morphHeld))
+                if (uiState_.funcHeld && !uiState_.funcTrackHeld && (uiState_.phraseScopeHeld || uiState_.morphHeld))
                 {
-                    const int absStep = keyboardArea_.currentPage()
-                                            * KeyboardArea::kPageSteps + ev.index;
-                    const int newLen  = absStep + 1;
+                    const int absStep = keyboardArea_.currentPage() * KeyboardArea::kPageSteps + ev.index;
+                    const int newLen = absStep + 1;
                     if (uiState_.morphHeld)
                     {
                         for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
@@ -2090,8 +2094,7 @@ namespace lockstep
                         const bool funcHeld = uiState_.funcHeld;
                         const bool muteHeld = uiState_.muteHeld;
                         const bool isActive = (ev.index == processor_.activeSectionIdx());
-                        const bool occupied = isActive
-                                              || processor_.sceneSlotOccupied(ev.index);
+                        const bool occupied = isActive || processor_.sceneSlotOccupied(ev.index);
                         if (occupied && !funcHeld && !muteHeld)
                         {
                             // Single-tap = overlay, double-tap = floor.
@@ -2178,7 +2181,11 @@ namespace lockstep
                             auto& staged = uiState_.noteEditStaged[stepIdx];
                             bool inNotes = false;
                             for (int n = 0; n < s.trigOverride.noteCount; ++n)
-                                if (s.trigOverride.notes[static_cast<std::size_t>(n)] == absNote) { inNotes = true; break; }
+                                if (s.trigOverride.notes[static_cast<std::size_t>(n)] == absNote)
+                                {
+                                    inNotes = true;
+                                    break;
+                                }
                             if (inNotes && staged.count(absNote) == 0)
                                 staged.insert(absNote);        // stage for removal
                             else if (inNotes && staged.count(absNote) > 0)
@@ -2198,8 +2205,7 @@ namespace lockstep
                 // Suppress pLockClearMode; NoteEdit mode activates on step key release.
                 if (uiState_.funcSrcHeld && !uiState_.noteEditMode)
                 {
-                    const int absStep = keyboardArea_.currentPage() * KeyboardArea::kPageSteps
-                                        + ev.index;
+                    const int absStep = keyboardArea_.currentPage() * KeyboardArea::kPageSteps + ev.index;
                     uiState_.noteEditSteps = { absStep };
                     keyboardArea_.repaint();
                     return true;
@@ -2210,20 +2216,20 @@ namespace lockstep
                 // raw slot index). Staged removals are committed on Func release.
                 if (uiState_.pLockClearMode)
                 {
-                    const int cellIdx  = ev.index;
-                    const int track    = uiState_.pLockClearTrack;
-                    const int step     = uiState_.pLockClearStep;
+                    const int cellIdx = ev.index;
+                    const int track = uiState_.pLockClearTrack;
+                    const int step = uiState_.pLockClearStep;
                     const int numSlots = processor_.numParams(track);
                     if (track >= 0 && step >= 0 && step < kMaxStepsPerTrack)
                     {
                         // Rebuild the packed slot list (same order as the render).
                         const auto& stepData = processor_.sequence()
-                            .tracks[static_cast<std::size_t>(track)]
-                            .steps[static_cast<std::size_t>(step)];
+                                                   .tracks[static_cast<std::size_t>(track)]
+                                                   .steps[static_cast<std::size_t>(step)];
                         std::vector<int> lockedSlots;
                         const auto& tov = stepData.trigOverride;
-                        if (tov.hasVelocity)   lockedSlots.push_back(-2);
-                        if (tov.hasGate)       lockedSlots.push_back(-3);
+                        if (tov.hasVelocity) lockedSlots.push_back(-2);
+                        if (tov.hasGate) lockedSlots.push_back(-3);
                         for (int s = 0; s < numSlots; ++s)
                             if (stepData.overrides.has(s))
                                 lockedSlots.push_back(s);
@@ -2251,11 +2257,11 @@ namespace lockstep
                     {
                         const int mzLocal = ev.index % 8;
                         const int absSlot = manipulationZone_.slotOffset() + mzLocal;
-                        const int pole    = (ev.index < 8) ? 0 : 1;
-                        const auto key    = std::make_pair(track, absSlot);
-                        auto& dormant     = (pole == 0) ? morphDormantA_ : morphDormantB_;
-                        const auto info   = processor_.morphWidgetInfo(track, absSlot);
-                        const bool isActive  = (pole == 0) ? info.inA : info.inB;
+                        const int pole = (ev.index < 8) ? 0 : 1;
+                        const auto key = std::make_pair(track, absSlot);
+                        auto& dormant = (pole == 0) ? morphDormantA_ : morphDormantB_;
+                        const auto info = processor_.morphWidgetInfo(track, absSlot);
+                        const bool isActive = (pole == 0) ? info.inA : info.inB;
                         const bool isDormant = (dormant.count(key) > 0);
 
                         if (isActive)
@@ -2294,12 +2300,11 @@ namespace lockstep
                 // MHZ.9.5: use ctx.heldSteps().empty() so latched steps keep the edit context alive.
                 if (uiState_.funcHeld && processor_.editContext().heldSteps().empty())
                 {
-                    const int absStep = keyboardArea_.currentPage() * KeyboardArea::kPageSteps
-                                        + ev.index;
+                    const int absStep = keyboardArea_.currentPage() * KeyboardArea::kPageSteps + ev.index;
                     uiState_.pLockClearStaged.clear();  // fresh session
-                    uiState_.pLockClearMode  = true;
+                    uiState_.pLockClearMode = true;
                     uiState_.pLockClearTrack = keyboardArea_.getActiveTrack();
-                    uiState_.pLockClearStep  = absStep;
+                    uiState_.pLockClearStep = absStep;
                     keyboardArea_.repaint();
                     return true;
                 }
@@ -2321,14 +2326,17 @@ namespace lockstep
                     bool alreadyHeld = false;
                     for (auto& [code, _] : heldStepKeys_)
                     {
-                        if (code == rawCode) { alreadyHeld = true; break; }
+                        if (code == rawCode)
+                        {
+                            alreadyHeld = true;
+                            break;
+                        }
                     }
                     if (alreadyHeld) return true;
                 }
 
                 {
-                    const int absStep = keyboardArea_.currentPage() * KeyboardArea::kPageSteps
-                                        + ev.index;
+                    const int absStep = keyboardArea_.currentPage() * KeyboardArea::kPageSteps + ev.index;
                     const double now = juce::Time::getMillisecondCounterHiRes();
                     const bool isDouble = doubleTap_.recordAndCheck(absStep, now);
 
@@ -2347,18 +2355,16 @@ namespace lockstep
                         editMode_.setTrigHeld(true);
 
                         // Revert the first key-up trig flip if it happened on this step.
-                        if (lastTrigToggleApplied_
-                            && lastTrigToggleStep_  == absStep
-                            && lastTrigToggleTrack_ == ctx.heldTrackIndex())
+                        if (lastTrigToggleApplied_ && lastTrigToggleStep_ == absStep && lastTrigToggleTrack_ == ctx.heldTrackIndex())
                         {
                             auto& s = processor_.sequence()
-                                .tracks[static_cast<std::size_t>(lastTrigToggleTrack_)]
-                                .steps[static_cast<std::size_t>(lastTrigToggleStep_)];
+                                          .tracks[static_cast<std::size_t>(lastTrigToggleTrack_)]
+                                          .steps[static_cast<std::size_t>(lastTrigToggleStep_)];
                             s.trig = !s.trig;  // undo the first-tap's toggle
                         }
                         lastTrigToggleApplied_ = false;
-                        lastTrigToggleStep_    = -1;
-                        lastTrigToggleTrack_   = -1;
+                        lastTrigToggleStep_ = -1;
+                        lastTrigToggleTrack_ = -1;
                         repaint();
                         return true;
                     }
@@ -2370,15 +2376,14 @@ namespace lockstep
                     editMode_.setTrigHeld(true);
                     // Clear stale trig-toggle tracking on any new step press.
                     lastTrigToggleApplied_ = false;
-                    lastTrigToggleStep_    = -1;
-                    lastTrigToggleTrack_   = -1;
+                    lastTrigToggleStep_ = -1;
+                    lastTrigToggleTrack_ = -1;
                     repaint();
                 }
                 return true;
             }
 
-            case ControllerButton::SelectTrack:
-            {
+            case ControllerButton::SelectTrack: {
                 // When Track is held, QwertyOverlay routes step keys to this case
                 // (not the Step case). So the Track-compound gestures must be
                 // handled HERE, before the plain track-select fallback below.
@@ -2390,7 +2395,7 @@ namespace lockstep
                     if (ev.index >= 0 && ev.index < processor_.numAvailableMachines())
                     {
                         processor_.setTrackMachine(keyboardArea_.getActiveTrack(),
-                            std::string(processor_.availableMachineInfo(ev.index).id));
+                                                   std::string(processor_.availableMachineInfo(ev.index).id));
                         keyboardArea_.syncToActiveTrack();
                     }
                     keyboardArea_.repaint();
@@ -2425,8 +2430,7 @@ namespace lockstep
                 return true;
             }
 
-            case ControllerButton::NavUp:
-            {
+            case ControllerButton::NavUp: {
                 const int t = keyboardArea_.getActiveTrack();
                 // Morph+^ = force A-pole edits while ^ is held (DESIGN §17.3).
                 if (uiState_.morphHeld)
@@ -2446,16 +2450,15 @@ namespace lockstep
                     return true;
                 }
                 // MHZ.9.7: Track (no specific track selected) + NavUp → cycle input mode upward.
-                if (uiState_.trackHeld && processor_.controlAllActive()
-                    && t >= 0 && t < static_cast<int>(kNumTracks))
+                if (uiState_.trackHeld && processor_.controlAllActive() && t >= 0 && t < static_cast<int>(kNumTracks))
                 {
                     auto& mode = uiState_.trackInputMode[static_cast<std::size_t>(t)];
                     switch (mode)
                     {
-                        case TrackInputMode::Play:      mode = TrackInputMode::Levels;     break;
-                        case TrackInputMode::Chromatic: mode = TrackInputMode::Play;       break;
-                        case TrackInputMode::Levels:    mode = TrackInputMode::Chromatic;  break;
-                        default: break;
+                        case TrackInputMode::Play:      mode = TrackInputMode::Levels; break;
+                        case TrackInputMode::Chromatic: mode = TrackInputMode::Play; break;
+                        case TrackInputMode::Levels:    mode = TrackInputMode::Chromatic; break;
+                        default:                        break;
                     }
                     escapeAllLatches();  // entering new modality exits current latch
                     keyboardArea_.repaint();
@@ -2468,8 +2471,7 @@ namespace lockstep
                 return true;
             }
 
-            case ControllerButton::NavDown:
-            {
+            case ControllerButton::NavDown: {
                 const int t = keyboardArea_.getActiveTrack();
                 // Morph+v = force B-pole edits while v is held (DESIGN §17.3).
                 if (uiState_.morphHeld)
@@ -2489,16 +2491,15 @@ namespace lockstep
                     return true;
                 }
                 // MHZ.9.7: Track (no specific track selected) + NavDown → cycle input mode downward.
-                if (uiState_.trackHeld && processor_.controlAllActive()
-                    && t >= 0 && t < static_cast<int>(kNumTracks))
+                if (uiState_.trackHeld && processor_.controlAllActive() && t >= 0 && t < static_cast<int>(kNumTracks))
                 {
                     auto& mode = uiState_.trackInputMode[static_cast<std::size_t>(t)];
                     switch (mode)
                     {
-                        case TrackInputMode::Play:      mode = TrackInputMode::Chromatic;  break;
-                        case TrackInputMode::Chromatic: mode = TrackInputMode::Levels;     break;
-                        case TrackInputMode::Levels:    mode = TrackInputMode::Play;       break;
-                        default: break;
+                        case TrackInputMode::Play:      mode = TrackInputMode::Chromatic; break;
+                        case TrackInputMode::Chromatic: mode = TrackInputMode::Levels; break;
+                        case TrackInputMode::Levels:    mode = TrackInputMode::Play; break;
+                        default:                        break;
                     }
                     escapeAllLatches();  // entering new modality exits current latch
                     keyboardArea_.repaint();
@@ -2510,12 +2511,10 @@ namespace lockstep
                 return true;
             }
 
-            case ControllerButton::NavLeft:
-            {
+            case ControllerButton::NavLeft: {
                 // Note-edit mode and CHROMATIC mode both use NavLeft/Right for octave shift.
                 const int tl = keyboardArea_.getActiveTrack();
-                const bool chromL = tl >= 0 && tl < static_cast<int>(kNumTracks)
-                    && uiState_.trackInputMode[static_cast<std::size_t>(tl)] == TrackInputMode::Chromatic;
+                const bool chromL = tl >= 0 && tl < static_cast<int>(kNumTracks) && uiState_.trackInputMode[static_cast<std::size_t>(tl)] == TrackInputMode::Chromatic;
                 // Func+← = rotate the focused track's sequence one step left.
                 // In note-edit or Chromatic mode, Func+← keeps its octave-shift role.
                 if (uiState_.funcHeld && !uiState_.noteEditMode && !chromL)
@@ -2535,11 +2534,9 @@ namespace lockstep
                 return true;
             }
 
-            case ControllerButton::NavRight:
-            {
+            case ControllerButton::NavRight: {
                 const int tr = keyboardArea_.getActiveTrack();
-                const bool chromR = tr >= 0 && tr < static_cast<int>(kNumTracks)
-                    && uiState_.trackInputMode[static_cast<std::size_t>(tr)] == TrackInputMode::Chromatic;
+                const bool chromR = tr >= 0 && tr < static_cast<int>(kNumTracks) && uiState_.trackInputMode[static_cast<std::size_t>(tr)] == TrackInputMode::Chromatic;
                 // Func+→ = rotate the focused track's sequence one step right.
                 // In note-edit or Chromatic mode, Func+→ keeps its octave-shift role.
                 if (uiState_.funcHeld && !uiState_.noteEditMode && !chromR)
@@ -2572,12 +2569,10 @@ namespace lockstep
             // default transport / confirmation action; with a scope held, EditMode
             // routes them as grammar verbs (CPY / PST / CLR / confirm / cancel).
 
-            case ControllerButton::VerbPlay:
-            {
+            case ControllerButton::VerbPlay: {
                 using PS = EditMode::PrimaryScope;
                 // Scope held → grammar verb (Paste).
-                if (editMode_.primaryScope() != PS::None
-                    && editMode_.primaryScope() != PS::Func)
+                if (editMode_.primaryScope() != PS::None && editMode_.primaryScope() != PS::Func)
                 {
                     auto ctx = commandContext();
                     (void)commandCore_.handleVerb(editMode_.primaryScope(), ev.button, ctx, *editorEffects_);
@@ -2604,11 +2599,11 @@ namespace lockstep
                         switch (clipboard_.type)
                         {
                             case CT::None:    break;
-                            case CT::Step:    synScope = PS::Trig;    break;
+                            case CT::Step:    synScope = PS::Trig; break;
                             case CT::Section: synScope = PS::Section; break;
-                            case CT::Track:   synScope = PS::Track;   break;
-                            case CT::Pattern: synScope = PS::Phrase;  break;
-                            case CT::Scene:   synScope = PS::Scene;   break;
+                            case CT::Track:   synScope = PS::Track; break;
+                            case CT::Pattern: synScope = PS::Phrase; break;
+                            case CT::Scene:   synScope = PS::Scene; break;
                             case CT::All:     break;  // handled above
                         }
                         if (synScope != PS::None)
@@ -2642,8 +2637,7 @@ namespace lockstep
                 return true;
             }
 
-            case ControllerButton::VerbClear:
-            {
+            case ControllerButton::VerbClear: {
                 using PS = EditMode::PrimaryScope;
                 // Scene scope held → cancel queued scene.
                 if (uiState_.sceneHeld)
@@ -2661,8 +2655,7 @@ namespace lockstep
                     return true;
                 }
                 // Non-trivial scope → grammar verb (Clear scope contents).
-                if (editMode_.primaryScope() != PS::None
-                    && editMode_.primaryScope() != PS::Func)
+                if (editMode_.primaryScope() != PS::None && editMode_.primaryScope() != PS::Func)
                 {
                     auto ctx = commandContext();
                     (void)commandCore_.handleVerb(editMode_.primaryScope(), ev.button, ctx, *editorEffects_);
@@ -2686,8 +2679,7 @@ namespace lockstep
             // ControllerButton::VerbDelete — migrated to CommandCore::handleDown (8.24 Stage 7)
             // ControllerButton::VerbPanic — migrated to CommandCore::handleDown (8.11 A4.6)
 
-            case ControllerButton::VerbRecord:
-            {
+            case ControllerButton::VerbRecord: {
                 using PS = EditMode::PrimaryScope;
                 // Scene + Record: bake live deviations into home-row phrase content.
                 // Destructive — requires Yes/No confirmation.
@@ -2706,8 +2698,7 @@ namespace lockstep
                     return true;
                 }
                 // Scope held → grammar verb (e.g. copy).  No scope → arm recording.
-                if (editMode_.primaryScope() != PS::None
-                    && editMode_.primaryScope() != PS::Func)
+                if (editMode_.primaryScope() != PS::None && editMode_.primaryScope() != PS::Func)
                 {
                     auto ctx = commandContext();
                     (void)commandCore_.handleVerb(editMode_.primaryScope(), ev.button, ctx, *editorEffects_);
@@ -2715,8 +2706,7 @@ namespace lockstep
                     return true;
                 }
                 // Func+U with no non-trivial scope = omni copy (capture all layers).
-                if (editMode_.scopeState().func
-                    && editMode_.primaryScope() == PS::Func)
+                if (editMode_.scopeState().func && editMode_.primaryScope() == PS::Func)
                 {
                     captureScene();           // fills scene layer
                     {
@@ -2749,8 +2739,7 @@ namespace lockstep
                 return true;
             }
 
-            case ControllerButton::VerbYes:
-            {
+            case ControllerButton::VerbYes: {
                 using PS = EditMode::PrimaryScope;
                 // Y = Snapshot. Under scene scope → re-sync all to scene (scope-specific snapshot).
                 if (uiState_.sceneHeld)
@@ -2761,8 +2750,7 @@ namespace lockstep
                     return true;
                 }
                 // Non-trivial scope → scope-specific snapshot.
-                if (editMode_.primaryScope() != PS::None
-                    && editMode_.primaryScope() != PS::Func)
+                if (editMode_.primaryScope() != PS::None && editMode_.primaryScope() != PS::Func)
                 {
                     auto ctx = commandContext();
                     (void)commandCore_.handleVerb(editMode_.primaryScope(), ev.button, ctx, *editorEffects_);
@@ -2778,8 +2766,7 @@ namespace lockstep
                 return true;
             }
 
-            case ControllerButton::VerbNo:
-            {
+            case ControllerButton::VerbNo: {
                 using PS = EditMode::PrimaryScope;
                 const bool funcHeld = editMode_.scopeState().func;
 
@@ -2794,8 +2781,8 @@ namespace lockstep
                     // Quantize verb (DESIGN §19.3): scope + No zeros microOffset values.
                     // Trig (held steps) → those steps; Track → whole track; Phrase → all tracks.
                     // Bare No (no scope) falls through to snapshot/confirm.
-                    const auto qScope     = editMode_.primaryScope();
-                    const auto& qCtx      = processor_.editContext();
+                    const auto qScope = editMode_.primaryScope();
+                    const auto& qCtx = processor_.editContext();
                     const auto& heldSteps = qCtx.heldSteps();
 
                     if (!heldSteps.empty())
@@ -2849,10 +2836,9 @@ namespace lockstep
                 }
 
                 // Func+P = No/cancel. No scope → scope-aware Restore (resolved on key-up).
-                if (editMode_.primaryScope() == PS::None
-                    || editMode_.primaryScope() == PS::Func)
+                if (editMode_.primaryScope() == PS::None || editMode_.primaryScope() == PS::Func)
                 {
-                    restoreActive_    = true;
+                    restoreActive_ = true;
                     restoreKeyDownMs_ = juce::Time::getMillisecondCounterHiRes();
                     return true;
                 }
@@ -2891,8 +2877,7 @@ namespace lockstep
                 processor_.clock().resetPhase();
                 processor_.requestFreshStart();
                 return true;
-            case ControllerButton::RecordArm:
-            {
+            case ControllerButton::RecordArm: {
                 const double now = juce::Time::getMillisecondCounterHiRes();
                 const bool isDouble = doubleTap_.recordAndCheck(
                     1000 + static_cast<int>(ControllerButton::RecordArm), now);
@@ -2910,17 +2895,16 @@ namespace lockstep
             }
 
             // 8.11 A4.1: mute/solo cluster migrated to KeyBindings dispatch.
-            case ControllerButton::ToggleMute:
-            {
+            case ControllerButton::ToggleMute: {
                 const int trackIdx = ev.index;
                 if (trackIdx < 0 || trackIdx >= static_cast<int>(kNumTracks))
                     return true;
                 const int at = keyboardArea_.getActiveTrack();
                 const auto inputMode = (at >= 0)
-                    ? uiState_.trackInputMode[static_cast<std::size_t>(at)]
-                    : TrackInputMode::Play;
-                const LayerFacts facts { inputMode, at };
-                const auto layer    = resolveActiveLayer(uiState_, processor_.editContext(), facts);
+                                           ? uiState_.trackInputMode[static_cast<std::size_t>(at)]
+                                           : TrackInputMode::Play;
+                const LayerFacts facts{ inputMode, at };
+                const auto layer = resolveActiveLayer(uiState_, processor_.editContext(), facts);
                 const auto heldMods = heldModsFromUiState(uiState_);
                 const auto& binding = resolveBinding(ev.button, trackIdx, heldMods, layer);
                 if (binding.action != ActionId::None)
@@ -2945,9 +2929,9 @@ namespace lockstep
     bool LockstepEditor::keyPressed(const juce::KeyPress& key, juce::Component*)
     {
         const int rawCode = key.getKeyCode();
-        const int uCode   = (rawCode >= 'a' && rawCode <= 'z')
-                                ? rawCode - ('a' - 'A')
-                                : rawCode;
+        const int uCode = (rawCode >= 'a' && rawCode <= 'z')
+                              ? rawCode - ('a' - 'A')
+                              : rawCode;
 
         // Suppress OS key-repeat: if we already saw this key go down, ignore.
         if (!heldKeys_.insert(uCode).second)
@@ -2970,7 +2954,7 @@ namespace lockstep
     void LockstepEditor::dispatchUp(ControllerEvent ev, int rawCode)
     {
         using CB = ControllerButton;
-        using T  = ControllerEvent::Type;
+        using T = ControllerEvent::Type;
 
         // Phase 8.4 command core: try migrated handlers first.
         {
@@ -3136,8 +3120,8 @@ namespace lockstep
             case CB::Section:
             case CB::MetaSection:
                 heldSectionRawCode_ = -1;
-                heldSectionIndex_   = -1;
-                uiState_.funcSrcHeld  = false;
+                heldSectionIndex_ = -1;
+                uiState_.funcSrcHeld = false;
                 // 6.5: keep FX picker alive while Func is still held so the user
                 // can re-press FX to cycle the insert slot without losing the overlay.
                 // funcFxHeld is cleared on Func release (line ~2888).
@@ -3150,8 +3134,7 @@ namespace lockstep
                 playKeyHeld_ = false;
                 break;
 
-            case CB::Step:
-            {
+            case CB::Step: {
                 // CHROMATIC gate: a pad-release always ends the note it sounded —
                 // before any mode-specific handling, and regardless of the current
                 // mode/octave/track (we release the exact note we stored on press),
@@ -3172,12 +3155,11 @@ namespace lockstep
                 {
                     processor_.setTrackInsertBypass(animateBypassTrack_, animateBypassSlot_, false);
                     animateBypassTrack_ = -1;
-                    animateBypassSlot_  = -1;
+                    animateBypassSlot_ = -1;
                 }
 
                 // Func+Src+step: step release while funcSrcHeld → enter NoteEdit mode.
-                if (uiState_.funcSrcHeld && !uiState_.noteEditMode
-                    && !uiState_.noteEditSteps.empty())
+                if (uiState_.funcSrcHeld && !uiState_.noteEditMode && !uiState_.noteEditSteps.empty())
                 {
                     uiState_.noteEditMode = true;
                     uiState_.noteEditStaged.clear();
@@ -3187,12 +3169,12 @@ namespace lockstep
                     if (!uiState_.noteEditSteps.empty())
                     {
                         const int firstStep = *uiState_.noteEditSteps.begin();
-                        const int track     = processor_.editContext().heldTrackIndex();
+                        const int track = processor_.editContext().heldTrackIndex();
                         if (track >= 0 && firstStep >= 0)
                         {
                             const auto& s = processor_.sequence()
-                                .tracks[static_cast<std::size_t>(track)]
-                                .steps[static_cast<std::size_t>(firstStep)];
+                                                .tracks[static_cast<std::size_t>(track)]
+                                                .steps[static_cast<std::size_t>(firstStep)];
                             if (s.trigOverride.noteCount > 0)
                             {
                                 // Use the octave of the first note on the step.
@@ -3249,7 +3231,7 @@ namespace lockstep
                             break;
                         }
 
-                        const int  track      = ctx.heldTrackIndex();
+                        const int track = ctx.heldTrackIndex();
                         const bool paramWrote = ctx.wasParamWritten();
                         ctx.release(stepIdx);
                         // MHZ.3.1: next press starts a fresh chord capture.
@@ -3258,16 +3240,16 @@ namespace lockstep
                         if (!paramWrote && track >= 0 && stepIdx >= 0)
                         {
                             auto& s = processor_.sequence()
-                                .tracks[static_cast<std::size_t>(track)]
-                                .steps[static_cast<std::size_t>(stepIdx)];
+                                          .tracks[static_cast<std::size_t>(track)]
+                                          .steps[static_cast<std::size_t>(stepIdx)];
                             if (uiState_.fillHeld)
                             {
                                 // Cycle fill trig state: Inherit → On → Off → Inherit.
                                 using FTS = FillTrigState;
                                 switch (s.fillTrigState)
                                 {
-                                    case FTS::Inherit: s.fillTrigState = FTS::On;      break;
-                                    case FTS::On:      s.fillTrigState = FTS::Off;     break;
+                                    case FTS::Inherit: s.fillTrigState = FTS::On; break;
+                                    case FTS::On:      s.fillTrigState = FTS::Off; break;
                                     case FTS::Off:     s.fillTrigState = FTS::Inherit; break;
                                 }
                             }
@@ -3275,8 +3257,8 @@ namespace lockstep
                             {
                                 s.trig = !s.trig;
                                 // MHZ.9.5: record for possible revert if double-tap follows.
-                                lastTrigToggleStep_    = stepIdx;
-                                lastTrigToggleTrack_   = track;
+                                lastTrigToggleStep_ = stepIdx;
+                                lastTrigToggleTrack_ = track;
                                 lastTrigToggleApplied_ = true;
                             }
                         }
@@ -3297,8 +3279,7 @@ namespace lockstep
             case CB::VerbYes:
                 break;  // Y = Snapshot; no held-state to clear.
 
-            case CB::Restore:
-            {
+            case CB::Restore: {
                 if (!restoreActive_) break;
                 const double held = juce::Time::getMillisecondCounterHiRes() - restoreKeyDownMs_;
                 restoreActive_ = false;
@@ -3312,8 +3293,7 @@ namespace lockstep
                 break;
             }
 
-            case CB::VerbNo:
-            {
+            case CB::VerbNo: {
                 // Func+P "Restore" path (recorded press time in dispatchDown).
                 if (restoreActive_)
                 {
@@ -3372,10 +3352,9 @@ namespace lockstep
         // any keyboard entry that is no longer down and dispatch release logic.
         bool handled = false;
         std::vector<std::pair<int, ControllerEvent>> toRelease;
-        pressTracker_.forEachReleasedKeyboard([&](int src, ControllerButton btn, int idx)
-        {
+        pressTracker_.forEachReleasedKeyboard([&](int src, ControllerButton btn, int idx) {
             toRelease.push_back({ src,
-                { ControllerEvent::Type::ButtonUp, btn, idx, 0 } });
+                                  { ControllerEvent::Type::ButtonUp, btn, idx, 0 } });
         });
         for (auto& [src, relEv] : toRelease)
         {
@@ -3422,9 +3401,9 @@ namespace lockstep
 
         if (tapCount_ >= 2)
         {
-            const double spanMs    = tapTimes_[static_cast<std::size_t>(tapCount_ - 1)] - tapTimes_[0];
+            const double spanMs = tapTimes_[static_cast<std::size_t>(tapCount_ - 1)] - tapTimes_[0];
             const double intervals = static_cast<double>(tapCount_ - 1);
-            const double bpm       = (60000.0 * intervals) / spanMs;
+            const double bpm = (60000.0 * intervals) / spanMs;
             if (bpm >= kTapMinBpm && bpm <= kTapMaxBpm)
             {
                 processor_.clock().setLocalBpm(bpm);
@@ -3469,10 +3448,10 @@ namespace lockstep
         bounds.removeFromTop(2);
 
         // MHX.5: encoder band (MZ 4x2) + vertical crossfader to its right.
-        static constexpr int kMZHeight     = 160; // MHX 4x2 MZ (two rows of 4 slots)
-        static constexpr int kFaderW       = 28;  // crossfader strip width
-        static constexpr int kTrackRowH    = 26;  // track-number + VU row
-        static constexpr int kMsRowH       = 22;  // mute/solo row
+        static constexpr int kMZHeight = 160; // MHX 4x2 MZ (two rows of 4 slots)
+        static constexpr int kFaderW = 28;  // crossfader strip width
+        static constexpr int kTrackRowH = 26;  // track-number + VU row
+        static constexpr int kMsRowH = 22;  // mute/solo row
         {
             auto mzStrip = bounds.removeFromTop(kMZHeight).reduced(8, 4);
             auto faderArea = mzStrip.removeFromRight(kFaderW).reduced(2, 0);
@@ -3491,8 +3470,7 @@ namespace lockstep
             const int colW = trackRow.getWidth() / 8;
             for (std::size_t i = 0; i < kNumTracks; ++i)
             {
-                const bool visible = (static_cast<int>(i) >= pageStart
-                                   && static_cast<int>(i) < pageStart + 8);
+                const bool visible = (static_cast<int>(i) >= pageStart && static_cast<int>(i) < pageStart + 8);
                 trackBtns_[i].setVisible(visible);
                 if (visible)
                     trackBtns_[i].setBounds(trackRow.removeFromLeft(colW).reduced(1, 1));
@@ -3509,13 +3487,12 @@ namespace lockstep
             const int colW = msRow.getWidth() / 8;
             for (std::size_t i = 0; i < kNumTracks; ++i)
             {
-                const bool visible = (static_cast<int>(i) >= pageStart
-                                   && static_cast<int>(i) < pageStart + 8);
+                const bool visible = (static_cast<int>(i) >= pageStart && static_cast<int>(i) < pageStart + 8);
                 muteBtns_[i].setVisible(visible);
                 soloBtns_[i].setVisible(visible);
                 if (visible)
                 {
-                    auto col  = msRow.removeFromLeft(colW);
+                    auto col = msRow.removeFromLeft(colW);
                     auto mute = col.removeFromLeft(col.getWidth() / 2);
                     muteBtns_[i].setBounds(mute.reduced(1, 1));
                     soloBtns_[i].setBounds(col.reduced(1, 1));
@@ -3535,11 +3512,10 @@ namespace lockstep
         greyoutLayer_.setBounds(getLocalBounds());
 
         poolOverlay_.setBounds(manipulationZone_.getBounds()
-            .withBottom(keyboardArea_.getY() + keyboardArea_.stepRowsLocalY()));
+                                   .withBottom(keyboardArea_.getY() + keyboardArea_.stepRowsLocalY()));
 
         soundBankOverlay_.setBounds(manipulationZone_.getBounds()
-            .withBottom(keyboardArea_.getY() + keyboardArea_.stepRowsLocalY()));
-
+                                        .withBottom(keyboardArea_.getY() + keyboardArea_.stepRowsLocalY()));
     }
 
     // -------------------------------------------------------------------------
@@ -3557,15 +3533,13 @@ namespace lockstep
     bool LockstepEditor::phraseConflictAndConfirm(int phraseSlot, ConfirmKind kind)
     {
         // No-op skip: re-stamping identical content never needs a prompt.
-        if (kind == ConfirmKind::CreateScene
-            && processor_.phraseRowMatchesActiveContent(phraseSlot))
+        if (kind == ConfirmKind::CreateScene && processor_.phraseRowMatchesActiveContent(phraseSlot))
             return false;
 
         bool slotHasContent = false;
         for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
         {
-            if (processor_.song().tracks[static_cast<std::size_t>(t)]
-                    .phrases[static_cast<std::size_t>(phraseSlot)].initialised)
+            if (processor_.song().tracks[static_cast<std::size_t>(t)].phrases[static_cast<std::size_t>(phraseSlot)].initialised)
             {
                 slotHasContent = true;
                 break;
@@ -3590,7 +3564,7 @@ namespace lockstep
     void LockstepEditor::setStatus(const juce::String& msg)
     {
         statusMessage_ = msg;
-        statusSetMs_   = juce::Time::getMillisecondCounter();
+        statusSetMs_ = juce::Time::getMillisecondCounter();
         repaint();
     }
 
@@ -3600,7 +3574,7 @@ namespace lockstep
         const auto elapsed = juce::Time::getMillisecondCounter() - statusSetMs_;
         if (elapsed > kStatusDurationMs) return;
         const float alpha = juce::jlimit(0.0f, 1.0f,
-            1.0f - static_cast<float>(elapsed) / static_cast<float>(kStatusDurationMs));
+                                         1.0f - static_cast<float>(elapsed) / static_cast<float>(kStatusDurationMs));
         g.setColour(juce::Colour(0xFF1E2028u).withAlpha(alpha));
         g.fillRoundedRectangle(area.toFloat(), 3.0f);
         g.setColour(juce::Colour(0xFF80FFB0u).withAlpha(alpha));
@@ -3631,15 +3605,15 @@ namespace lockstep
     {
         return {
             uiState_.funcHeld,
-            uiState_.trackHeld  || uiState_.latch.track,
-            uiState_.muteHeld   || uiState_.latch.mute
+            uiState_.trackHeld || uiState_.latch.track,
+            uiState_.muteHeld || uiState_.latch.mute
         };
     }
 
     CommandContext LockstepEditor::commandContext()
     {
         // ProcessorCatalog is lightweight — safe to construct per-call.
-        static ProcessorCatalog catalog { processor_ };
+        static ProcessorCatalog catalog{ processor_ };
         return {
             processor_.arrangement(),
             processor_.sequence(),
@@ -3656,8 +3630,7 @@ namespace lockstep
     {
         ControllerEventSink sink;
 
-        sink.emitEvent = [this](ControllerEvent ev)
-        {
+        sink.emitEvent = [this](ControllerEvent ev) {
             // Apply all layer remaps (kLayerRemaps: Track > Mute > Func priority).
             // Previously only Step→SelectTrack/ToggleMute were handled here; now
             // resolveLayer() also closes the Section→MetaSection gap for controllers.
@@ -3680,23 +3653,22 @@ namespace lockstep
             keyboardArea_.repaint();
         };
 
-        sink.applyParamDelta = [this](int mzSlot, int rawDelta)
-        {
+        sink.applyParamDelta = [this](int mzSlot, int rawDelta) {
             const int track = keyboardArea_.getActiveTrack();
 
             // Meta band takes priority: encoder edits the shown band, not machine params.
             const MetaBand band = resolveMetaBand(uiState_);
             if (band != MetaBand::None)
             {
-                const int  swScope = swingScopeFor(uiState_);
-                const auto views   = buildMetaBand(band, swScope, processor_, track,
-                                                   processor_.editContext(), uiState_);
+                const int swScope = swingScopeFor(uiState_);
+                const auto views = buildMetaBand(band, swScope, processor_, track,
+                                                 processor_.editContext(), uiState_);
                 if (mzSlot < 0 || mzSlot >= 8) return;
                 const auto& v = views[static_cast<std::size_t>(mzSlot)];
                 if (!v.writable) return;
                 const float range = v.maxValue - v.minValue;
                 if (range <= 0.0f) return;
-                const float norm    = juce::jlimit(0.0f, 1.0f, (v.value - v.minValue) / range);
+                const float norm = juce::jlimit(0.0f, 1.0f, (v.value - v.minValue) / range);
                 const float newNorm = juce::jlimit(0.0f, 1.0f,
                                                    norm + static_cast<float>(rawDelta) / 128.0f);
                 writeMetaField(band, swScope, mzSlot, v.minValue + newNorm * range,
@@ -3707,13 +3679,12 @@ namespace lockstep
             const int absSlot = manipulationZone_.slotOffset() + mzSlot;
             if (absSlot >= processor_.numParams(track)) return;
 
-            const auto  spec  = processor_.paramSpec(track, absSlot);
+            const auto spec = processor_.paramSpec(track, absSlot);
             const float range = spec.maxValue - spec.minValue;
             if (range <= 0.0f) return;
 
-            const auto& ec       = processor_.editContext();
-            const bool  stepHeld = ec.isActiveForEditing()
-                                   && ec.heldTrackIndex() == track;
+            const auto& ec = processor_.editContext();
+            const bool stepHeld = ec.isActiveForEditing() && ec.heldTrackIndex() == track;
 
             // Morph-held + no step held → write morph overlay (DESIGN §17.3).
             // With ^/v qualifier: write directly to one pole (absolute delta).
@@ -3725,10 +3696,10 @@ namespace lockstep
                     const int pole = uiState_.morphNavQualifier - 1;  // 0=A, 1=B
                     const auto info = processor_.morphWidgetInfo(track, absSlot);
                     const float curPole = (pole == 0)
-                        ? (info.inA ? info.aValue : processor_.baseParamValue(track, absSlot))
-                        : (info.inB ? info.bValue : processor_.baseParamValue(track, absSlot));
+                                              ? (info.inA ? info.aValue : processor_.baseParamValue(track, absSlot))
+                                              : (info.inB ? info.bValue : processor_.baseParamValue(track, absSlot));
                     processor_.writeMorphPole(track, absSlot,
-                        juce::jlimit(spec.minValue, spec.maxValue, curPole + deltaAbs), pole);
+                                              juce::jlimit(spec.minValue, spec.maxValue, curPole + deltaAbs), pole);
                 }
                 else
                 {
@@ -3746,16 +3717,16 @@ namespace lockstep
                 if (heldStep >= 0)
                 {
                     const auto& s = processor_.sequence()
-                        .tracks[static_cast<std::size_t>(track)]
-                        .steps[static_cast<std::size_t>(heldStep)];
+                                        .tracks[static_cast<std::size_t>(track)]
+                                        .steps[static_cast<std::size_t>(heldStep)];
                     cur = s.overrides.get(absSlot, cur);
                 }
             }
 
-            const float norm    = juce::jlimit(0.0f, 1.0f, (cur - spec.minValue) / range);
+            const float norm = juce::jlimit(0.0f, 1.0f, (cur - spec.minValue) / range);
             const float newNorm = juce::jlimit(0.0f, 1.0f,
                                                norm + static_cast<float>(rawDelta) / 128.0f);
-            const float newVal  = spec.minValue + newNorm * range;
+            const float newVal = spec.minValue + newNorm * range;
 
             // Auto-morph-aware: bare encoder follows morph state of the slot.
             // No-morph → kit base (as before). One pole set → write that pole
@@ -3770,13 +3741,13 @@ namespace lockstep
                     {
                         const float curA = mInfo.aValue;
                         processor_.writeMorphPole(track, absSlot,
-                            juce::jlimit(spec.minValue, spec.maxValue, curA + deltaAbs), 0);
+                                                  juce::jlimit(spec.minValue, spec.maxValue, curA + deltaAbs), 0);
                     }
                     else if (!mInfo.inA && mInfo.inB)
                     {
                         const float curB = mInfo.bValue;
                         processor_.writeMorphPole(track, absSlot,
-                            juce::jlimit(spec.minValue, spec.maxValue, curB + deltaAbs), 1);
+                                                  juce::jlimit(spec.minValue, spec.maxValue, curB + deltaAbs), 1);
                     }
                     else
                     {
@@ -3791,13 +3762,12 @@ namespace lockstep
             processor_.editContext().markParamWritten();
         };
 
-        sink.resetSlot = [this](int mzSlot)
-        {
-            const int track   = keyboardArea_.getActiveTrack();
+        sink.resetSlot = [this](int mzSlot) {
+            const int track = keyboardArea_.getActiveTrack();
             const int absSlot = manipulationZone_.slotOffset() + mzSlot;
             if (absSlot >= processor_.numParams(track)) return;
 
-            auto& ctx      = processor_.editContext();
+            auto& ctx = processor_.editContext();
             const bool stepHeld = ctx.isActiveForEditing() && ctx.heldTrackIndex() == track;
 
             // Morph+Stop: bake the current fader-blended value into kit base,
@@ -3824,40 +3794,35 @@ namespace lockstep
             ctx.markParamWritten();
         };
 
-        sink.setCrossfader = [this](float normValue)
-        {
+        sink.setCrossfader = [this](float normValue) {
             // setValue triggers onValueChange which applies the inversion.
             crossfader_.setValue(static_cast<double>(normValue), juce::sendNotificationAsync);
         };
 
-        sink.applyGlobalDelta = [this](GlobalTarget target, int rawDelta)
-        {
+        sink.applyGlobalDelta = [this](GlobalTarget target, int rawDelta) {
             switch (target)
             {
-                case GlobalTarget::Tempo:
-                {
+                case GlobalTarget::Tempo: {
                     const double cur = processor_.clock().localBpm();
                     processor_.clock().setLocalBpm(
                         std::clamp(cur + static_cast<double>(rawDelta) * 0.5,
                                    20.0, 300.0));
                     break;
                 }
-                case GlobalTarget::Master:
-                {
+                case GlobalTarget::Master: {
                     auto* p = processor_.apvts().getParameter(ParamIDs::outputGain);
                     if (p)
                     {
-                        const float cur    = p->getValue();  // normalised 0..1
+                        const float cur = p->getValue();  // normalised 0..1
                         const float newVal = juce::jlimit(0.0f, 1.0f,
                                                           cur + static_cast<float>(rawDelta) / 128.0f);
                         p->setValueNotifyingHost(newVal);
                     }
                     break;
                 }
-                case GlobalTarget::Swing:
-                {
+                case GlobalTarget::Swing: {
                     // Song-all swing: encoder delta at ~1% per tick.
-                    const float cur    = processor_.swingSongAll();
+                    const float cur = processor_.swingSongAll();
                     const float newVal = std::clamp(cur + static_cast<float>(rawDelta) / 100.0f,
                                                     -0.5f, 0.5f);
                     processor_.setSwingSongAll(newVal);
@@ -3891,9 +3856,9 @@ namespace lockstep
             const auto info = processor_.morphWidgetInfo(track, absSlot);
 
             s.a = info.inA ? MPS::Active
-                : (morphDormantA_.count(key) > 0 ? MPS::Dormant : MPS::Dark);
+                           : (morphDormantA_.count(key) > 0 ? MPS::Dormant : MPS::Dark);
             s.b = info.inB ? MPS::Active
-                : (morphDormantB_.count(key) > 0 ? MPS::Dormant : MPS::Dark);
+                           : (morphDormantB_.count(key) > 0 ? MPS::Dormant : MPS::Dark);
         }
         return mv;
     }

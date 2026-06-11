@@ -46,7 +46,7 @@ namespace lockstep
     static float blockRms(const juce::AudioBuffer<float>& buf)
     {
         double sum = 0.0;
-        int    n   = 0;
+        int n = 0;
         for (int ch = 0; ch < buf.getNumChannels(); ++ch)
         {
             for (int i = 0; i < buf.getNumSamples(); ++i)
@@ -97,19 +97,19 @@ namespace lockstep
                                const char* releaseSlotId,
                                const char* name)
     {
-        constexpr int    kBlockSize = 256;
-        constexpr double kSR       = 48000.0;
+        constexpr int kBlockSize = 256;
+        constexpr double kSR = 48000.0;
 
         m.prepare(kSR, kBlockSize);
         m.reset();
 
         juce::AudioBuffer<float> buf(2, kBlockSize);
-        juce::MidiBuffer         midi;
-        ParamFrame               frame = defaultFrame(m);
+        juce::MidiBuffer midi;
+        ParamFrame frame = defaultFrame(m);
 
         // Force short release so we don't need thousands of blocks.
-        const int  releaseSlot = m.slotForId(releaseSlotId);
-        const bool hasRelease  = (releaseSlot >= 0);
+        const int releaseSlot = m.slotForId(releaseSlotId);
+        const bool hasRelease = (releaseSlot >= 0);
         if (hasRelease)
             frame[static_cast<size_t>(releaseSlot)] = m.paramSpec(releaseSlot).minValue;
 
@@ -129,8 +129,7 @@ namespace lockstep
             maxRms = std::max(maxRms, blockRms(buf));
         }
         CHECK(maxRms > 1e-4f,
-              juce::String(name) + ": no audio after note-on (RMS="
-              + juce::String(maxRms) + ")");
+              juce::String(name) + ": no audio after note-on (RMS=" + juce::String(maxRms) + ")");
 
         // Note-off.
         midi.addEvent(juce::MidiMessage::noteOff(1, noteNum), 0);
@@ -150,24 +149,22 @@ namespace lockstep
         {
             const float finalRms = blockRms(buf);
             CHECK(finalRms < silenceThreshold,
-                  juce::String(name) + ": envelope did not reach silence after release tail (RMS="
-                  + juce::String(finalRms) + ", threshold="
-                  + juce::String(silenceThreshold) + ")");
+                  juce::String(name) + ": envelope did not reach silence after release tail (RMS=" + juce::String(finalRms) + ", threshold=" + juce::String(silenceThreshold) + ")");
         }
     }
 
     // Smoke test for sample-playing machines: no crash, no NaN (silent without a loaded sample).
     static void smokeTestSampleMachine(IMachine& m, const char* name)
     {
-        constexpr int    kBlockSize = 256;
-        constexpr double kSR       = 48000.0;
+        constexpr int kBlockSize = 256;
+        constexpr double kSR = 48000.0;
 
         m.prepare(kSR, kBlockSize);
         m.reset();
 
         juce::AudioBuffer<float> buf(2, kBlockSize);
-        juce::MidiBuffer         midi;
-        ParamFrame               frame = defaultFrame(m);
+        juce::MidiBuffer midi;
+        ParamFrame frame = defaultFrame(m);
 
         midi.addEvent(juce::MidiMessage::noteOn(1, 60, static_cast<juce::uint8>(100)), 0);
         renderBlock(m, midi, frame, buf);
@@ -187,18 +184,18 @@ namespace lockstep
     static void blockSizeInvariance(IMachine& m, int noteNum,
                                     int activeBlocks64, const char* name)
     {
-        auto renderRms = [&](int blockSize) -> float
-        {
+        auto renderRms = [&](int blockSize) -> float {
             m.prepare(48000.0, blockSize);
             m.reset();
             juce::AudioBuffer<float> buf(2, blockSize);
-            juce::MidiBuffer         midi;
-            ParamFrame               frame = defaultFrame(m);
+            juce::MidiBuffer midi;
+            ParamFrame frame = defaultFrame(m);
 
             midi.addEvent(juce::MidiMessage::noteOn(1, noteNum,
-                static_cast<juce::uint8>(100)), 0);
+                                                    static_cast<juce::uint8>(100)),
+                          0);
             double sumSq = 0.0;
-            int    total = 0;
+            int total = 0;
             for (int b = 0; b < activeBlocks64; ++b)
             {
                 buf.clear();
@@ -215,11 +212,11 @@ namespace lockstep
                 total += blockSize * buf.getNumChannels();
             }
             return (total > 0)
-                ? static_cast<float>(std::sqrt(sumSq / static_cast<double>(total)))
-                : 0.0f;
+                       ? static_cast<float>(std::sqrt(sumSq / static_cast<double>(total)))
+                       : 0.0f;
         };
 
-        const float rms64  = renderRms(64);
+        const float rms64 = renderRms(64);
         const float rms512 = renderRms(512);
 
         CHECK(rms64 > 1e-5f,
@@ -229,16 +226,15 @@ namespace lockstep
 
         const float ratio = (rms512 > 0.0f) ? (rms64 / rms512) : 0.0f;
         CHECK(ratio > 0.1f && ratio < 10.0f,
-              juce::String(name) + ": block-size RMS ratio " + juce::String(ratio)
-              + " out of tolerance (>10x difference between 64 and 512 samples)");
+              juce::String(name) + ": block-size RMS ratio " + juce::String(ratio) + " out of tolerance (>10x difference between 64 and 512 samples)");
     }
 
     // -----------------------------------------------------------------------
     // IEffect smoke test: fill buffer with a sine, process, assert no NaN.
     static void smokeTestEffect(IEffect& fx, const char* name)
     {
-        constexpr int    kBlockSize = 256;
-        constexpr double kSR       = 48000.0;
+        constexpr int kBlockSize = 256;
+        constexpr double kSR = 48000.0;
 
         fx.prepare(kSR, kBlockSize);
         fx.reset();
@@ -273,10 +269,10 @@ namespace lockstep
 
         ParamFrame frame = defaultFrame(va);
 
-        const int slotA  = va.slotForId("va_amp_a");
-        const int slotD  = va.slotForId("va_amp_d");
-        const int slotS  = va.slotForId("va_amp_s");
-        const int slotR  = va.slotForId("va_amp_r");
+        const int slotA = va.slotForId("va_amp_a");
+        const int slotD = va.slotForId("va_amp_d");
+        const int slotS = va.slotForId("va_amp_s");
+        const int slotR = va.slotForId("va_amp_r");
         const int slotLv = va.slotForId("va_level");
 
         if (slotA < 0 || slotD < 0 || slotS < 0 || slotR < 0 || slotLv < 0)
@@ -291,18 +287,23 @@ namespace lockstep
             return (range > 0.0f) ? (val - ps.minValue) / range : 0.0f;
         };
 
-        frame[static_cast<size_t>(slotA)]  = norm(10.0f, va.paramSpec(slotA));
-        frame[static_cast<size_t>(slotD)]  = norm(50.0f, va.paramSpec(slotD));
-        frame[static_cast<size_t>(slotS)]  = 0.5f;
-        frame[static_cast<size_t>(slotR)]  = norm(20.0f, va.paramSpec(slotR));
+        frame[static_cast<size_t>(slotA)] = norm(10.0f, va.paramSpec(slotA));
+        frame[static_cast<size_t>(slotD)] = norm(50.0f, va.paramSpec(slotD));
+        frame[static_cast<size_t>(slotS)] = 0.5f;
+        frame[static_cast<size_t>(slotR)] = norm(20.0f, va.paramSpec(slotR));
         frame[static_cast<size_t>(slotLv)] = 1.0f;
 
         juce::AudioBuffer<float> buf(2, 64);
-        juce::MidiBuffer         midi;
+        juce::MidiBuffer midi;
 
         // Note-on; render ~15ms (11 blocks) to clear the attack.
         midi.addEvent(juce::MidiMessage::noteOn(1, 60, static_cast<juce::uint8>(100)), 0);
-        for (int b = 0; b < 11; ++b) { buf.clear(); va.process(midi, frame, buf); midi.clear(); }
+        for (int b = 0; b < 11; ++b)
+        {
+            buf.clear();
+            va.process(midi, frame, buf);
+            midi.clear();
+        }
         CHECK(!hasNaNOrInf(buf), "VA golden: NaN after attack");
 
         float peakAfterAttack = 0.0f;
@@ -315,19 +316,28 @@ namespace lockstep
               "VA golden: level too low after attack -- envelope may not be firing");
 
         // Render ~60ms more (45 blocks) to clear decay and settle at sustain.
-        for (int b = 0; b < 45; ++b) { buf.clear(); va.process(midi, frame, buf); midi.clear(); }
+        for (int b = 0; b < 45; ++b)
+        {
+            buf.clear();
+            va.process(midi, frame, buf);
+            midi.clear();
+        }
         CHECK(!hasNaNOrInf(buf), "VA golden: NaN after decay");
 
         // Note-off; render 50ms (38 blocks) release tail -- 20ms release should clear.
         midi.addEvent(juce::MidiMessage::noteOff(1, 60), 0);
-        for (int b = 0; b < 38; ++b) { buf.clear(); va.process(midi, frame, buf); midi.clear(); }
+        for (int b = 0; b < 38; ++b)
+        {
+            buf.clear();
+            va.process(midi, frame, buf);
+            midi.clear();
+        }
         CHECK(!hasNaNOrInf(buf), "VA golden: NaN after release tail");
 
         const float finalRms = blockRms(buf);
         // [SUSPECTED-BUGGY] -- if this fails after 8.20 envelope audit, update the threshold
         CHECK(finalRms < 1e-2f,
-              "VA golden: did not reach near-silence after 50ms release tail (RMS="
-              + juce::String(finalRms) + ")");
+              "VA golden: did not reach near-silence after 50ms release tail (RMS=" + juce::String(finalRms) + ")");
     }
 
     // -----------------------------------------------------------------------
@@ -361,11 +371,16 @@ namespace lockstep
         setSlot(fm, frame, "fm_rel_4", fm.paramSpec(fm.slotForId("fm_rel_4")).minValue);
 
         juce::AudioBuffer<float> buf(2, 64);
-        juce::MidiBuffer         midi;
+        juce::MidiBuffer midi;
 
         midi.addEvent(juce::MidiMessage::noteOn(1, 60, static_cast<juce::uint8>(100)), 0);
         // Render ~15ms.
-        for (int b = 0; b < 11; ++b) { buf.clear(); fm.process(midi, frame, buf); midi.clear(); }
+        for (int b = 0; b < 11; ++b)
+        {
+            buf.clear();
+            fm.process(midi, frame, buf);
+            midi.clear();
+        }
         CHECK(!hasNaNOrInf(buf), "FM golden: NaN after attack");
 
         float peakAfterAttack = 0.0f;
@@ -379,14 +394,18 @@ namespace lockstep
 
         // Note-off; render 50ms (38 blocks) release tail.
         midi.addEvent(juce::MidiMessage::noteOff(1, 60), 0);
-        for (int b = 0; b < 38; ++b) { buf.clear(); fm.process(midi, frame, buf); midi.clear(); }
+        for (int b = 0; b < 38; ++b)
+        {
+            buf.clear();
+            fm.process(midi, frame, buf);
+            midi.clear();
+        }
         CHECK(!hasNaNOrInf(buf), "FM golden: NaN after release tail");
 
         const float finalRms = blockRms(buf);
         // [SUSPECTED-BUGGY] -- if this fails after 8.20 envelope audit, update the threshold
         CHECK(finalRms < 1e-2f,
-              "FM golden: did not reach near-silence after 50ms release tail (RMS="
-              + juce::String(finalRms) + ")");
+              "FM golden: did not reach near-silence after 50ms release tail (RMS=" + juce::String(finalRms) + ")");
     }
 
     // -----------------------------------------------------------------------

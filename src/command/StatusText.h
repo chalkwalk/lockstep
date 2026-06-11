@@ -36,17 +36,17 @@ namespace lockstep::status
 
     // ---- phrase / pattern operations ----------------------------------------
 
-    inline juce::String copiedPhrase()    { return "Copied Phrase"; }
-    inline juce::String pastedPhrase()    { return "Pasted Phrase"; }
-    inline juce::String clearedPhrase()   { return "Cleared Phrase"; }
-    inline juce::String deletedPhrase()   { return "Deleted Phrase"; }
-    inline juce::String deletedPart()     { return "Deleted Part"; }
+    inline juce::String copiedPhrase() { return "Copied Phrase"; }
+    inline juce::String pastedPhrase() { return "Pasted Phrase"; }
+    inline juce::String clearedPhrase() { return "Cleared Phrase"; }
+    inline juce::String deletedPhrase() { return "Deleted Phrase"; }
+    inline juce::String deletedPart() { return "Deleted Part"; }
 
     // ---- scene operations ---------------------------------------------------
 
-    inline juce::String copiedScene()     { return "Copied Scene"; }
-    inline juce::String pastedScene()     { return "Pasted Scene"; }
-    inline juce::String pastedSceneFloor(){ return "Pasted Scene floor"; }
+    inline juce::String copiedScene() { return "Copied Scene"; }
+    inline juce::String pastedScene() { return "Pasted Scene"; }
+    inline juce::String pastedSceneFloor() { return "Pasted Scene floor"; }
 
     inline juce::String sceneCreated(int sceneNumber)
     {
@@ -77,23 +77,23 @@ namespace lockstep::status
 
     // ---- morph / bake -------------------------------------------------------
 
-    inline juce::String morphBaked()         { return "Morph baked"; }
-    inline juce::String morphErased()        { return "Morph erased"; }
-    inline juce::String morphMuteSet()       { return "Morph mute set"; }
-    inline juce::String morphMuteCleared()   { return "Morph mute cleared"; }
-    inline juce::String baked()              { return "Baked"; }
+    inline juce::String morphBaked() { return "Morph baked"; }
+    inline juce::String morphErased() { return "Morph erased"; }
+    inline juce::String morphMuteSet() { return "Morph mute set"; }
+    inline juce::String morphMuteCleared() { return "Morph mute cleared"; }
+    inline juce::String baked() { return "Baked"; }
     inline juce::String noDeviationsToBake() { return "No deviations to bake"; }
-    inline juce::String capturedAll()        { return "Captured all"; }
+    inline juce::String capturedAll() { return "Captured all"; }
 
     // ---- transport / meta ---------------------------------------------------
 
-    inline juce::String panic()        { return "Panic"; }
-    inline juce::String quantized()    { return "Quantized"; }
-    inline juce::String cancelled()    { return "Cancelled"; }
+    inline juce::String panic() { return "Panic"; }
+    inline juce::String quantized() { return "Quantized"; }
+    inline juce::String cancelled() { return "Cancelled"; }
 
     // ---- clipboard / paste flow ---------------------------------------------
 
-    inline juce::String nothingCopied()  { return "Nothing copied"; }
+    inline juce::String nothingCopied() { return "Nothing copied"; }
     inline juce::String pastePickScope() { return "Paste: pick a scope"; }
 
     // ---- confirm prompts (shown in the status band) -------------------------
@@ -117,8 +117,7 @@ namespace lockstep::status
 
     inline juce::String confirmBake(int numTracks, int rowIdx)
     {
-        return "Bake " + juce::String(numTracks) + " track(s) onto row "
-             + juce::String(rowIdx) + "?  P=Yes  Func+P=No";
+        return "Bake " + juce::String(numTracks) + " track(s) onto row " + juce::String(rowIdx) + "?  P=Yes  Func+P=No";
     }
 
 } // namespace lockstep::status

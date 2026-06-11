@@ -39,7 +39,7 @@ namespace lockstep
     // -------------------------------------------------------------------------
     static void testPanicKeyLabel()
     {
-        const KeyDef kd {
+        const KeyDef kd{
             KeyRole::VerbClear,
             "PANIC",  // natural
             "",       // funcLayer — no Func action on PANIC; hint absent
@@ -52,8 +52,8 @@ namespace lockstep
             const auto ec = makeEditContext();
             const auto kl = resolveKeyLabel(kd, ui, ec);
             CHECK(kl.primary == "PANIC", "PANIC no-mod: primary should be PANIC");
-            CHECK(kl.hint.isEmpty(),     "PANIC no-mod: hint should be empty (no funcLayer)");
-            CHECK(!kl.disabled,          "PANIC no-mod: should not be disabled");
+            CHECK(kl.hint.isEmpty(), "PANIC no-mod: hint should be empty (no funcLayer)");
+            CHECK(!kl.disabled, "PANIC no-mod: should not be disabled");
         }
 
         // 2. Func held: still primary="PANIC", hint="" — Func is a no-op on PANIC.
@@ -63,7 +63,7 @@ namespace lockstep
             const auto ec = makeEditContext();
             const auto kl = resolveKeyLabel(kd, ui, ec);
             CHECK(kl.primary == "PANIC", "PANIC func-held: primary must stay PANIC");
-            CHECK(kl.hint.isEmpty(),     "PANIC func-held: hint must be empty");
+            CHECK(kl.hint.isEmpty(), "PANIC func-held: hint must be empty");
         }
 
         // 3. Track scope held: primary="PANIC", hint="" (CPC relabel is builder-level).
@@ -73,7 +73,7 @@ namespace lockstep
             const auto ec = makeEditContext();
             const auto kl = resolveKeyLabel(kd, ui, ec);
             CHECK(kl.primary == "PANIC", "PANIC track-scope: primary must stay PANIC");
-            CHECK(kl.hint.isEmpty(),     "PANIC track-scope: hint must be empty");
+            CHECK(kl.hint.isEmpty(), "PANIC track-scope: hint must be empty");
         }
 
         // 4. Step held: primary="PANIC", hint="".
@@ -83,7 +83,7 @@ namespace lockstep
             const auto ec = makeEditContext();
             const auto kl = resolveKeyLabel(kd, ui, ec);
             CHECK(kl.primary == "PANIC", "PANIC step-held: primary must stay PANIC");
-            CHECK(kl.hint.isEmpty(),     "PANIC step-held: hint must be empty");
+            CHECK(kl.hint.isEmpty(), "PANIC step-held: hint must be empty");
         }
     }
 
@@ -97,7 +97,7 @@ namespace lockstep
     {
         // Use ASCII to avoid juce::String(const char*) non-ASCII assert.
         // (Real builder stores char8_t* and uses the char8_t* constructor path.)
-        const KeyDef kd {
+        const KeyDef kd{
             KeyRole::Nav,
             "NAV",   // stand-in for → (ASCII, avoids juce::String assert)
             "ROT",   // funcLayer (Func+→ = rotate in Slice 6)
@@ -110,7 +110,7 @@ namespace lockstep
             const auto ec = makeEditContext();
             const auto kl = resolveKeyLabel(kd, ui, ec);
             CHECK(kl.primary == "NAV", "Nav key: primary should be natural");
-            CHECK(kl.hint    == "ROT", "Nav key: hint should be funcLayer");
+            CHECK(kl.hint == "ROT", "Nav key: hint should be funcLayer");
         }
 
         // Func held: resolveKeyLabel still returns { natural, funcLayer } for Nav.
@@ -121,17 +121,17 @@ namespace lockstep
             const auto ec = makeEditContext();
             const auto kl = resolveKeyLabel(kd, ui, ec);
             CHECK(kl.primary == "NAV", "Nav key func-held: resolveKeyLabel primary stays natural");
-            CHECK(kl.hint    == "ROT", "Nav key func-held: hint stays funcLayer (builder promotes)");
+            CHECK(kl.hint == "ROT", "Nav key func-held: hint stays funcLayer (builder promotes)");
         }
 
         // No funcLayer: hint is empty (Func is a no-op on keys without funcLayer).
         {
-            const KeyDef kdNoFunc { KeyRole::Nav, "NAV", "", -1, true };
+            const KeyDef kdNoFunc{ KeyRole::Nav, "NAV", "", -1, true };
             const auto ui = makeUiState();
             const auto ec = makeEditContext();
             const auto kl = resolveKeyLabel(kdNoFunc, ui, ec);
             CHECK(kl.primary == "NAV", "Nav key no funcLayer: primary stays natural");
-            CHECK(kl.hint.isEmpty(),   "Nav key no funcLayer: hint absent");
+            CHECK(kl.hint.isEmpty(), "Nav key no funcLayer: hint absent");
         }
     }
 
@@ -140,7 +140,7 @@ namespace lockstep
     // -------------------------------------------------------------------------
     static void testSectionKeyLabel()
     {
-        const KeyDef kd {
+        const KeyDef kd{
             KeyRole::SectionKey,
             "TRIG",   // natural (canonical TRIG section)
             "COND",   // funcLayer (meta section label)
@@ -153,7 +153,7 @@ namespace lockstep
             const auto ec = makeEditContext();
             const auto kl = resolveKeyLabel(kd, ui, ec);
             CHECK(kl.primary == "TRIG", "TRIG no-mod: primary should be TRIG");
-            CHECK(!kl.disabled,         "TRIG no-mod: should not be disabled");
+            CHECK(!kl.disabled, "TRIG no-mod: should not be disabled");
         }
 
         // Track scope held: primary comes from scoped matrix, not natural
@@ -168,7 +168,7 @@ namespace lockstep
 
         // Machine doesn't have this section: disabled
         {
-            const KeyDef kdNoSection {
+            const KeyDef kdNoSection{
                 KeyRole::SectionKey,
                 "MOD", "MOD",
                 4, false   // machineHasSection=false
@@ -221,38 +221,38 @@ namespace lockstep
         // Locked: cannot step past the last in-range page (numPages 2 → max 1).
         {
             const auto r = clampStepPage(/*desiredPage=*/2, /*numPages=*/2, /*unlocked=*/false);
-            CHECK(r.page == 1,    "locked: clamps to last in-range page");
-            CHECK(!r.unlocked,    "locked: stays locked");
+            CHECK(r.page == 1, "locked: clamps to last in-range page");
+            CHECK(!r.unlocked, "locked: stays locked");
         }
         // Unlocked: the empty page (index numPages) becomes reachable.
         {
             const auto r = clampStepPage(/*desiredPage=*/2, /*numPages=*/2, /*unlocked=*/true);
-            CHECK(r.page == 2,    "unlocked: reaches the empty page");
-            CHECK(r.unlocked,     "unlocked: stays unlocked while on the empty page");
+            CHECK(r.page == 2, "unlocked: reaches the empty page");
+            CHECK(r.unlocked, "unlocked: stays unlocked while on the empty page");
         }
         // Unlocked but navigated back into range → auto-relock.
         {
             const auto r = clampStepPage(/*desiredPage=*/1, /*numPages=*/2, /*unlocked=*/true);
-            CHECK(r.page == 1,    "unlocked+back: lands on last in-range page");
-            CHECK(!r.unlocked,    "unlocked+back: auto-relocks once in range");
+            CHECK(r.page == 1, "unlocked+back: lands on last in-range page");
+            CHECK(!r.unlocked, "unlocked+back: auto-relocks once in range");
         }
         // Unlocked, but a longer length grew numPages so the former empty page is
         // now in range → auto-relock (page unchanged, still valid).
         {
             const auto r = clampStepPage(/*desiredPage=*/2, /*numPages=*/3, /*unlocked=*/true);
-            CHECK(r.page == 2,    "length grew: page now in range");
-            CHECK(!r.unlocked,    "length grew: auto-relocks");
+            CHECK(r.page == 2, "length grew: page now in range");
+            CHECK(!r.unlocked, "length grew: auto-relocks");
         }
         // Cannot reach two empty pages: unlocked grants exactly one.
         {
             const auto r = clampStepPage(/*desiredPage=*/3, /*numPages=*/2, /*unlocked=*/true);
-            CHECK(r.page == 2,    "unlocked grants exactly one empty page");
-            CHECK(r.unlocked,     "still on the (single) empty page");
+            CHECK(r.page == 2, "unlocked grants exactly one empty page");
+            CHECK(r.unlocked, "still on the (single) empty page");
         }
         // Negative desired clamps to 0.
         {
             const auto r = clampStepPage(/*desiredPage=*/-1, /*numPages=*/4, /*unlocked=*/false);
-            CHECK(r.page == 0,    "negative desired clamps to first page");
+            CHECK(r.page == 0, "negative desired clamps to first page");
         }
     }
 
@@ -263,7 +263,7 @@ namespace lockstep
     static void testCellAppearance()
     {
         // StepTrigCertain — pidx 21 (green trig), solid on X-Touch
-        CHECK(appearanceOf(CellState::StepTrigCertain).pushPad  == 21,
+        CHECK(appearanceOf(CellState::StepTrigCertain).pushPad == 21,
               "StepTrigCertain pushPad");
         CHECK(appearanceOf(CellState::StepTrigCertain).xtouchVel == 127,
               "StepTrigCertain xtouchVel");
@@ -273,9 +273,9 @@ namespace lockstep
               "StepEmpty xtouchVel");
 
         // MuteMuted — red (pidx 5), off on X-Touch
-        CHECK(appearanceOf(CellState::MuteMuted).pushPad   ==  5,
+        CHECK(appearanceOf(CellState::MuteMuted).pushPad == 5,
               "MuteMuted pushPad");
-        CHECK(appearanceOf(CellState::MuteMuted).xtouchVel ==  0,
+        CHECK(appearanceOf(CellState::MuteMuted).xtouchVel == 0,
               "MuteMuted xtouchVel");
 
         // SelectorCurrent — flash (1) on X-Touch
@@ -289,13 +289,13 @@ namespace lockstep
         // Unknown token → fallback (dark grey)
         const CellAppearance fb = appearanceOf(static_cast<CellState>(0xFFFF));
         CHECK(fb.screenFill == 0xFF303030u, "unknown token fallback screenFill");
-        CHECK(fb.pushPad    == 2,           "unknown token fallback pushPad");
+        CHECK(fb.pushPad == 2, "unknown token fallback pushPad");
 
         // ConfirmYes — green (pidx 21, solid), ConfirmNo — red (pidx 5, solid)
-        CHECK(appearanceOf(CellState::ConfirmYes).pushPad   == 21,  "ConfirmYes pushPad green");
+        CHECK(appearanceOf(CellState::ConfirmYes).pushPad == 21, "ConfirmYes pushPad green");
         CHECK(appearanceOf(CellState::ConfirmYes).xtouchVel == 127, "ConfirmYes xtouchVel solid");
-        CHECK(appearanceOf(CellState::ConfirmNo).pushPad    ==  5,  "ConfirmNo pushPad red");
-        CHECK(appearanceOf(CellState::ConfirmNo).xtouchVel  == 127, "ConfirmNo xtouchVel solid");
+        CHECK(appearanceOf(CellState::ConfirmNo).pushPad == 5, "ConfirmNo pushPad red");
+        CHECK(appearanceOf(CellState::ConfirmNo).xtouchVel == 127, "ConfirmNo xtouchVel solid");
     }
 
     // -------------------------------------------------------------------------
@@ -309,15 +309,15 @@ namespace lockstep
 
         // Without Func: P resolves to VerbConfirm, "YES", ConfirmYes state
         const auto& yes = resolveBinding(CB::VerbNo, -1, kModNone, SL::PendingConfirm);
-        CHECK(yes.action == ActionId::VerbConfirm,    "PendingConfirm bare P → VerbConfirm");
-        CHECK(juce::String(yes.primary) == "YES",     "PendingConfirm bare P primary = YES");
-        CHECK(yes.state == CS::ConfirmYes,            "PendingConfirm bare P state = ConfirmYes");
+        CHECK(yes.action == ActionId::VerbConfirm, "PendingConfirm bare P → VerbConfirm");
+        CHECK(juce::String(yes.primary) == "YES", "PendingConfirm bare P primary = YES");
+        CHECK(yes.state == CS::ConfirmYes, "PendingConfirm bare P state = ConfirmYes");
 
         // With Func: P resolves to VerbCancel, "NO", ConfirmNo state
         const auto& no = resolveBinding(CB::VerbNo, -1, kModFunc, SL::PendingConfirm);
-        CHECK(no.action == ActionId::VerbCancel,      "PendingConfirm Func+P → VerbCancel");
-        CHECK(juce::String(no.primary) == "NO",       "PendingConfirm Func+P primary = NO");
-        CHECK(no.state == CS::ConfirmNo,              "PendingConfirm Func+P state = ConfirmNo");
+        CHECK(no.action == ActionId::VerbCancel, "PendingConfirm Func+P → VerbCancel");
+        CHECK(juce::String(no.primary) == "NO", "PendingConfirm Func+P primary = NO");
+        CHECK(no.state == CS::ConfirmNo, "PendingConfirm Func+P state = ConfirmNo");
     }
 
     // -------------------------------------------------------------------------
@@ -377,19 +377,19 @@ namespace lockstep
         {
             const auto& b = resolveBinding(CB::NavUp, -1, kModTrack, SL::Base);
             CHECK(b.action == AId::CycleInputModeUp, "NavUp+Track resolves to CycleInputModeUp");
-            CHECK((b.requiredMods & kModTrack) != 0,  "NavUp+Track row includes Track bit");
+            CHECK((b.requiredMods & kModTrack) != 0, "NavUp+Track row includes Track bit");
         }
         // NavDown under Track → CycleInputModeDown; requiredMods includes kModTrack.
         {
             const auto& b = resolveBinding(CB::NavDown, -1, kModTrack, SL::Base);
             CHECK(b.action == AId::CycleInputModeDown, "NavDown+Track resolves to CycleInputModeDown");
-            CHECK((b.requiredMods & kModTrack) != 0,   "NavDown+Track row includes Track bit");
+            CHECK((b.requiredMods & kModTrack) != 0, "NavDown+Track row includes Track bit");
         }
         // MuteScope under Scene → HoldSceneMuteView; requiredMods includes kModScene.
         {
             const auto& b = resolveBinding(CB::MuteScope, -1, kModScene, SL::Base);
             CHECK(b.action == AId::HoldSceneMuteView, "MuteScope+Scene resolves to HoldSceneMuteView");
-            CHECK((b.requiredMods & kModScene) != 0,   "MuteScope+Scene row includes Scene bit");
+            CHECK((b.requiredMods & kModScene) != 0, "MuteScope+Scene row includes Scene bit");
         }
         // VerbClear under Phrase → VerbDelete or VerbScopeClear with Phrase bit.
         {

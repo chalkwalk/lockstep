@@ -14,10 +14,10 @@ namespace lockstep::ParamIDs
     inline constexpr auto channelMode = "channel_mode";
 
     // Per-track structural parameters (sequencer, not DSP).
-    inline std::string trackLength(int t)  { return "track_" + std::to_string(t) + "_length"; }
+    inline std::string trackLength(int t) { return "track_" + std::to_string(t) + "_length"; }
     inline std::string trackDivider(int t) { return "track_" + std::to_string(t) + "_divider"; }
-    inline std::string trackMute(int t)    { return "track_" + std::to_string(t) + "_mute"; }
-    inline std::string trackSolo(int t)   { return "track_" + std::to_string(t) + "_solo"; }
+    inline std::string trackMute(int t) { return "track_" + std::to_string(t) + "_mute"; }
+    inline std::string trackSolo(int t) { return "track_" + std::to_string(t) + "_solo"; }
 
     // Swing (DESIGN §19.2) is now stored in Song/Scene musical state, not APVTS.
     // See Song::swing, Song::SongTrack::swing, Scene::swing.

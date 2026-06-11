@@ -11,8 +11,8 @@ namespace lockstep
     // Fraction of the inner band height used for each row.  Two rows at this
     // fraction overlap vertically; the stagger keeps their knobs clear.
     static constexpr float kRowHeightFrac = 0.62f;
-    static constexpr int   kCellNameH     = 16;   // name label strip height
-    static constexpr int   kCellValueH    = 15;   // value label strip height
+    static constexpr int kCellNameH = 16;   // name label strip height
+    static constexpr int kCellValueH = 15;   // value label strip height
 
     ManipulationZone::ManipulationZone(LockstepProcessor& processor, KeyboardArea& area)
         : processor_(processor), area_(area)
@@ -33,13 +33,11 @@ namespace lockstep
 
             sliders_[si].setLookAndFeel(&laf_);
             sliders_[si].setWantsKeyboardFocus(false);
-            sliders_[si].onDragStart = [this, i]
-            {
+            sliders_[si].onDragStart = [this, i] {
                 if (band_ == MetaBand::None)
                     processor_.editContext().setActiveSlot(slotOffset_ + i);
             };
-            sliders_[si].onValueChange = [this, i]
-            {
+            sliders_[si].onValueChange = [this, i] {
                 if (updatingFromTimer_) return;
                 const float v = static_cast<float>(
                     sliders_[static_cast<std::size_t>(i)].getValue());
@@ -52,12 +50,13 @@ namespace lockstep
                     return;
                 }
                 // Machine-param path.
-                if (processor_.fillActive()) {
+                if (processor_.fillActive())
+                {
                     processor_.writeFillParam(area_.getActiveTrack(), slotOffset_ + i, v);
                     return;
                 }
                 const int track = area_.getActiveTrack();
-                const int slot  = slotOffset_ + i;
+                const int slot = slotOffset_ + i;
                 if (morphQualifier_ == 1)
                 {
                     processor_.writeMorphPole(track, slot, v, 0);
@@ -95,8 +94,7 @@ namespace lockstep
 
             clearBtns_[si].setButtonText("x");
             clearBtns_[si].setWantsKeyboardFocus(false);
-            clearBtns_[si].onClick = [this, i]
-            {
+            clearBtns_[si].onClick = [this, i] {
                 auto& ctx = processor_.editContext();
                 if (!ctx.isActiveForEditing()) return;
                 if (band_ == MetaBand::Trig)
@@ -117,8 +115,7 @@ namespace lockstep
 
         samplePickerBtn_.setWantsKeyboardFocus(false);
         samplePickerBtn_.addMouseListener(static_cast<juce::MouseListener*>(this), false);
-        samplePickerBtn_.onClick = [this]
-        {
+        samplePickerBtn_.onClick = [this] {
             const int track = area_.getActiveTrack();
             if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
             showSamplePicker(slotOffset_);
@@ -148,7 +145,7 @@ namespace lockstep
 
     void ManipulationZone::setBand(MetaBand band, int swingScope)
     {
-        band_       = band;
+        band_ = band;
         swingScope_ = swingScope;
 
         samplePickerBtn_.setVisible(false);
@@ -187,7 +184,7 @@ namespace lockstep
     void ManipulationZone::showMappingMenu(int slotIndex)
     {
         const int track = area_.getActiveTrack();
-        const int slot  = slotOffset_ + slotIndex;
+        const int slot = slotOffset_ + slotIndex;
         const auto info = processor_.queryWidgetMapping(slot, slotIndex);
 
         juce::PopupMenu menu;
@@ -198,10 +195,10 @@ namespace lockstep
             switch (info.scope)
             {
                 case CCScope::Track:         header += "T" + juce::String(info.trackIndex + 1); break;
-                case CCScope::SelectedTrack: header += "S";  break;
-                case CCScope::Contextual:    header += "C";  break;
-                case CCScope::Global:        header += "G";  break;
-                case CCScope::Crossfader:    header += "X";  break;
+                case CCScope::SelectedTrack: header += "S"; break;
+                case CCScope::Contextual:    header += "C"; break;
+                case CCScope::Global:        header += "G"; break;
+                case CCScope::Crossfader:    header += "X"; break;
             }
             header += ")";
             menu.addSectionHeader(header);
@@ -210,16 +207,14 @@ namespace lockstep
         else
         {
             menu.addSectionHeader("Map this control via MIDI Learn:");
-            menu.addItem(1, juce::String(u8"Fixed — track ") + juce::String(track + 1)
-                            + ", slot " + juce::String(slot));
+            menu.addItem(1, juce::String(u8"Fixed — track ") + juce::String(track + 1) + ", slot " + juce::String(slot));
             menu.addItem(2, "Selected track (follows focus)");
             menu.addItem(3, "Contextual (this display position)");
         }
 
         menu.showMenuAsync(
             juce::PopupMenu::Options().withTargetComponent(sliders_[static_cast<std::size_t>(slotIndex)]),
-            [this, info, track, slot, slotIndex](int result)
-            {
+            [this, info, track, slot, slotIndex](int result) {
                 if (result == 0)
                     return;
 
@@ -273,13 +268,14 @@ namespace lockstep
                 const auto& v = views[si];
                 const double lo = static_cast<double>(v.minValue);
                 const double hi = v.maxValue > v.minValue
-                    ? static_cast<double>(v.maxValue) : lo + 1.0;
+                                      ? static_cast<double>(v.maxValue)
+                                      : lo + 1.0;
                 sliders_[si].setRange(lo, hi, v.stepped ? 1.0 : 0.0);
                 sliders_[si].setValue(static_cast<double>(v.value), juce::dontSendNotification);
                 sliders_[si].setEnabled(v.writable);
                 sliders_[si].setAlpha(v.active ? 1.0f : 0.0f);
                 sliders_[si].ringMode = v.ringMode;
-                sliders_[si].marks    = v.marks;
+                sliders_[si].marks = v.marks;
                 labels_[si].setText(v.label, juce::dontSendNotification);
                 valueLabels_[si].setText(v.valueText, juce::dontSendNotification);
                 clearBtns_[si].setEnabled(v.hasOverride);
@@ -295,26 +291,25 @@ namespace lockstep
             return;
 
         const auto& ctx = processor_.editContext();
-        const auto& t   = processor_.sequence().tracks[static_cast<std::size_t>(track)];
+        const auto& t = processor_.sequence().tracks[static_cast<std::size_t>(track)];
 
         const int numMachineParams = processor_.numParams(track);
 
         // Determine the active section from the first visible slot so we can
         // blank trailing cells that belong to a different section.
         const int activeSectionIndex = (slotOffset_ < numMachineParams)
-            ? processor_.paramSpec(track, slotOffset_).sectionIndex
-            : -1;
+                                           ? processor_.paramSpec(track, slotOffset_).sectionIndex
+                                           : -1;
 
         updatingFromTimer_ = true;
         for (int i = 0; i < kNumSlots; ++i)
         {
-            const auto si   = static_cast<std::size_t>(i);
-            const int  slot = slotOffset_ + i;
+            const auto si = static_cast<std::size_t>(i);
+            const int slot = slotOffset_ + i;
 
             // Slot beyond this machine's schema, or belonging to a different
             // section than the page anchor — blank out the cell.
-            const bool outOfSection = (slot < numMachineParams)
-                && (processor_.paramSpec(track, slot).sectionIndex != activeSectionIndex);
+            const bool outOfSection = (slot < numMachineParams) && (processor_.paramSpec(track, slot).sectionIndex != activeSectionIndex);
             if (slot >= numMachineParams || outOfSection)
             {
                 sliders_[si].setEnabled(false);
@@ -329,14 +324,13 @@ namespace lockstep
             const auto meta = processor_.paramSpec(track, slot);
 
             // Set ring mode from param spec (fixes bipolar machine params on screen).
-            sliders_[si].ringMode = meta.isStepped ? RingMode::Dot
-                                  : (meta.minValue < 0.0f) ? RingMode::BipolarFromCentre
-                                  : RingMode::UnipolarFill;
+            sliders_[si].ringMode = meta.isStepped           ? RingMode::Dot
+                                    : (meta.minValue < 0.0f) ? RingMode::BipolarFromCentre
+                                                             : RingMode::UnipolarFill;
             sliders_[si].marks = {};
 
             // Sample slot: replace rotary with a name button + picker popup.
-            const bool isSampleSlot = (meta.id == "sample_id"
-                                    || meta.id == "slicer_sample_id");
+            const bool isSampleSlot = (meta.id == "sample_id" || meta.id == "slicer_sample_id");
 
             sliders_[si].setEnabled(!isSampleSlot);
             sliders_[si].setAlpha(isSampleSlot ? 0.0f : 1.0f);
@@ -356,7 +350,7 @@ namespace lockstep
             //   qualifier=2 → raw B endpoint
             //   qualifier=0 → fader-blended value (animates with crossfader)
             //   no morph data → kit base (existing behaviour)
-            const auto  mInfo = processor_.morphWidgetInfo(track, slot);
+            const auto mInfo = processor_.morphWidgetInfo(track, slot);
             float value = processor_.baseParamValue(track, slot);
             if (mInfo.exists)
             {
@@ -369,17 +363,17 @@ namespace lockstep
                     value = processor_.morphEffectiveValue(track, slot);
             }
 
-            const bool stepHeld  = ctx.isActiveForEditing() && ctx.heldTrackIndex() == track;
-            const int  heldStep  = ctx.heldStepIndex();
-            const bool fillHeld  = processor_.fillActive();
-            const bool fillEdit  = stepHeld && fillHeld && heldStep >= 0;
+            const bool stepHeld = ctx.isActiveForEditing() && ctx.heldTrackIndex() == track;
+            const int heldStep = ctx.heldStepIndex();
+            const bool fillHeld = processor_.fillActive();
+            const bool fillEdit = stepHeld && fillHeld && heldStep >= 0;
             bool hasLock = false;
 
             if (stepHeld && heldStep >= 0)
             {
                 const auto& s = t.steps[static_cast<std::size_t>(heldStep)];
                 // Resolved fill view: FillOverride → Override → Base.
-                value   = s.overrides.get(slot, value);
+                value = s.overrides.get(slot, value);
                 if (fillEdit)
                 {
                     // Show fill layer value if present; otherwise resolved base+override.
@@ -457,8 +451,7 @@ namespace lockstep
 
         menu.showMenuAsync(
             juce::PopupMenu::Options().withTargetComponent(samplePickerBtn_),
-            [this, track, absoluteSlot](int result)
-            {
+            [this, track, absoluteSlot](int result) {
                 if (result == 1000)
                 {
                     if (onOpenPoolManager) onOpenPoolManager();
@@ -473,24 +466,24 @@ namespace lockstep
     juce::Rectangle<int> ManipulationZone::slotCellBounds(int i) const
     {
         static constexpr int kCols = kMZSlots / 2;
-        const auto bounds  = getLocalBounds().reduced(4);
-        const int  baseW   = bounds.getWidth() / kCols;
-        const int  narrowW = baseW * 7 / 8;
-        const int  rowH    = static_cast<int>(bounds.getHeight() * kRowHeightFrac);
-        const int  upperX  = bounds.getX() + (bounds.getWidth() - kCols * narrowW);
+        const auto bounds = getLocalBounds().reduced(4);
+        const int baseW = bounds.getWidth() / kCols;
+        const int narrowW = baseW * 7 / 8;
+        const int rowH = static_cast<int>(bounds.getHeight() * kRowHeightFrac);
+        const int upperX = bounds.getX() + (bounds.getWidth() - kCols * narrowW);
         const bool isUpper = (i % 2 != 0);
-        const int  ci      = i / 2;
-        const int  x       = isUpper ? upperX + ci * narrowW : bounds.getX() + ci * narrowW;
-        const int  y       = isUpper ? bounds.getY() : bounds.getBottom() - rowH;
+        const int ci = i / 2;
+        const int x = isUpper ? upperX + ci * narrowW : bounds.getX() + ci * narrowW;
+        const int y = isUpper ? bounds.getY() : bounds.getBottom() - rowH;
         return juce::Rectangle<int>(x, y, narrowW, rowH).reduced(2, 2);
     }
 
     juce::Rectangle<int> ManipulationZone::slotKnobBounds(int i) const
     {
-        const auto cell     = slotCellBounds(i);
-        const int  knobSize = cell.getHeight() - kCellNameH - kCellValueH;
-        const int  knobX    = cell.getX() + (cell.getWidth() - knobSize) / 2;
-        const int  knobY    = cell.getY() + kCellNameH;
+        const auto cell = slotCellBounds(i);
+        const int knobSize = cell.getHeight() - kCellNameH - kCellValueH;
+        const int knobX = cell.getX() + (cell.getWidth() - knobSize) / 2;
+        const int knobY = cell.getY() + kCellNameH;
         return juce::Rectangle<int>(knobX, knobY, knobSize, knobSize);
     }
 
@@ -513,19 +506,19 @@ namespace lockstep
         {
             const bool fillEdit = processor_.fillActive();
             const juce::Colour editCol = fillEdit
-                ? juce::Colour::fromRGB(80, 200, 255)
-                : juce::Colour::fromRGB(255, 180, 50);
+                                             ? juce::Colour::fromRGB(80, 200, 255)
+                                             : juce::Colour::fromRGB(255, 180, 50);
             g.setColour(editCol.withAlpha(0.18f));
             g.fillAll();
 
             // Banner sits in the top-left deliberately-empty half-cell (the gap
             // to the left of where the upper row begins), so it never collides
             // with name labels of the cells above.
-            const auto bounds  = getLocalBounds().reduced(4);
-            const int  baseW   = bounds.getWidth() / (kMZSlots / 2);
-            const int  narrowW = baseW * 7 / 8;
-            const int  rowH    = static_cast<int>(bounds.getHeight() * kRowHeightFrac);
-            const int  upperX  = bounds.getX() + (bounds.getWidth() - (kMZSlots / 2) * narrowW);
+            const auto bounds = getLocalBounds().reduced(4);
+            const int baseW = bounds.getWidth() / (kMZSlots / 2);
+            const int narrowW = baseW * 7 / 8;
+            const int rowH = static_cast<int>(bounds.getHeight() * kRowHeightFrac);
+            const int upperX = bounds.getX() + (bounds.getWidth() - (kMZSlots / 2) * narrowW);
             const juce::Rectangle<int> banner(bounds.getX(), bounds.getY(),
                                               upperX - bounds.getX(), rowH);
 
@@ -534,8 +527,7 @@ namespace lockstep
             const auto topHalf = banner.withHeight(banner.getHeight() / 2).reduced(2, 0);
             const auto btmHalf = banner.withTop(banner.getCentreY()).reduced(2, 0);
             g.drawText(fillEdit ? "FILL" : "LOCK", topHalf, juce::Justification::centred);
-            g.drawText("T" + juce::String(ctx.heldTrackIndex() + 1)
-                       + " S" + juce::String(ctx.heldStepIndex() + 1),
+            g.drawText("T" + juce::String(ctx.heldTrackIndex() + 1) + " S" + juce::String(ctx.heldStepIndex() + 1),
                        btmHalf, juce::Justification::centred);
         }
     }
@@ -545,14 +537,14 @@ namespace lockstep
         if (band_ != MetaBand::None)
             return;  // meta bands: no CC badges or learn overlays
 
-        const int track  = area_.getActiveTrack();
+        const int track = area_.getActiveTrack();
         const bool pulse = (juce::Time::getMillisecondCounter() / 300) % 2 == 0;
 
         juce::ignoreUnused(track);
 
         for (int i = 0; i < kMZSlots; ++i)
         {
-            const int  slot = slotOffset_ + i;
+            const int slot = slotOffset_ + i;
             const auto knob = slotKnobBounds(i);
 
             // Listening overlay: pulsing highlight on the knob being learned.
@@ -607,10 +599,11 @@ namespace lockstep
         }
 
         // Morph A/B chips — anchored to the knob's right edge (A top, B bottom).
-        static const juce::Colour kMorphMagenta { 0xffb060d0 };
+        static const juce::Colour kMorphMagenta{ 0xffb060d0 };
         const int nmp = processor_.numParams(track);
         const int activeSec = (slotOffset_ < nmp)
-            ? processor_.paramSpec(track, slotOffset_).sectionIndex : -1;
+                                  ? processor_.paramSpec(track, slotOffset_).sectionIndex
+                                  : -1;
         for (int i = 0; i < kMZSlots; ++i)
         {
             const int slot = slotOffset_ + i;
@@ -619,9 +612,9 @@ namespace lockstep
             const auto mInfo = processor_.morphWidgetInfo(track, slot);
             if (!mInfo.exists) continue;
 
-            const auto knob  = slotKnobBounds(i);
-            const int chipW  = 10, chipH = 8;
-            const int chipX  = knob.getRight() + 2;  // just right of knob, inside cell
+            const auto knob = slotKnobBounds(i);
+            const int chipW = 10, chipH = 8;
+            const int chipX = knob.getRight() + 2;  // just right of knob, inside cell
             if (mInfo.inA)
             {
                 const juce::Rectangle<int> aChip(chipX, knob.getY() + 2, chipW, chipH);
@@ -649,7 +642,7 @@ namespace lockstep
         // paint, paintOverChildren, and layout are always in lockstep.
         for (int i = 0; i < kMZSlots; ++i)
         {
-            const auto si   = static_cast<std::size_t>(i);
+            const auto si = static_cast<std::size_t>(i);
             const auto cell = slotCellBounds(i);
             const auto knob = slotKnobBounds(i);
 

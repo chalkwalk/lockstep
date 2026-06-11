@@ -37,9 +37,9 @@ namespace lockstep
     // Info returned when querying whether a ManipulationZone widget has morph data.
     struct MorphWidgetInfo
     {
-        bool  exists = false;
-        bool  inA    = false;
-        bool  inB    = false;
+        bool exists = false;
+        bool inA = false;
+        bool inB = false;
         float aValue = 0.0f;
         float bValue = 0.0f;
     };
@@ -47,12 +47,12 @@ namespace lockstep
     // Info returned when querying whether a ManipulationZone widget has a CC mapping.
     struct WidgetMappingInfo
     {
-        bool    exists     = false;
-        CCScope scope      = CCScope::Track;
-        int     trackIndex = -1;  // for Track scope badge label
-        int     slot       = -1;
-        int     mzPosition = -1;
-        int     ccNumber   = -1;
+        bool exists = false;
+        CCScope scope = CCScope::Track;
+        int trackIndex = -1;  // for Track scope badge label
+        int slot = -1;
+        int mzPosition = -1;
+        int ccNumber = -1;
     };
 
     class LockstepProcessor : public juce::AudioProcessor
@@ -72,15 +72,15 @@ namespace lockstep
         bool hasEditor() const override { return true; }
 
         const juce::String getName() const override { return "Lockstep"; }
-        bool acceptsMidi() const override                    { return true; }
-        bool producesMidi() const override                   { return true; }
-        bool isMidiEffect() const override                   { return false; }
-        double getTailLengthSeconds() const override         { return 0.0; }
+        bool acceptsMidi() const override { return true; }
+        bool producesMidi() const override { return true; }
+        bool isMidiEffect() const override { return false; }
+        double getTailLengthSeconds() const override { return 0.0; }
 
-        int getNumPrograms() override                        { return 1; }
-        int getCurrentProgram() override                     { return 0; }
-        void setCurrentProgram(int) override                 {}
-        const juce::String getProgramName(int) override      { return {}; }
+        int getNumPrograms() override { return 1; }
+        int getCurrentProgram() override { return 0; }
+        void setCurrentProgram(int) override {}
+        const juce::String getProgramName(int) override { return {}; }
         void changeProgramName(int, const juce::String&) override {}
 
         void getStateInformation(juce::MemoryBlock& dest) override;
@@ -91,27 +91,27 @@ namespace lockstep
         // ── New hierarchy accessors (Phase 7 / DESIGN §4.7) ──────────────────
         // The Songs, playhead position, per-track deviation, and the working
         // Sequence the resolver reads all live in arrangement_ (7.9e-pre 2b).
-        Song&         song()              { return arrangement_.song(); }
-        const Song&   song()        const { return arrangement_.song(); }
-        Song&         songAt(int i)       { return arrangement_.songs[static_cast<std::size_t>(i)]; }
-        const Song&   songAt(int i) const { return arrangement_.songs[static_cast<std::size_t>(i)]; }
-        Scene&       section()            { return arrangement_.scene(); }
-        const Scene& section()      const { return arrangement_.scene(); }
-        Song::SongTrack&        lane(int t)       { return song().tracks[static_cast<std::size_t>(t)]; }
-        const Song::SongTrack&  lane(int t) const { return song().tracks[static_cast<std::size_t>(t)]; }
-        TrackKit&           kit(int t)        { return arrangement_.kit(t); }
-        const TrackKit&     kit(int t)  const { return arrangement_.kit(t); }
+        Song& song() { return arrangement_.song(); }
+        const Song& song() const { return arrangement_.song(); }
+        Song& songAt(int i) { return arrangement_.songs[static_cast<std::size_t>(i)]; }
+        const Song& songAt(int i) const { return arrangement_.songs[static_cast<std::size_t>(i)]; }
+        Scene& section() { return arrangement_.scene(); }
+        const Scene& section() const { return arrangement_.scene(); }
+        Song::SongTrack& lane(int t) { return song().tracks[static_cast<std::size_t>(t)]; }
+        const Song::SongTrack& lane(int t) const { return song().tracks[static_cast<std::size_t>(t)]; }
+        TrackKit& kit(int t) { return arrangement_.kit(t); }
+        const TrackKit& kit(int t) const { return arrangement_.kit(t); }
 
-        int activePieceIdx()   const { return arrangement_.songIdx; }
+        int activePieceIdx() const { return arrangement_.songIdx; }
         int activeSectionIdx() const { return arrangement_.sceneIdx; }
 
         // ── Working buffer = arrangement_.working (the resolver reads this) ───
-        Sequence&       sequence()       { return arrangement_.working; }
+        Sequence& sequence() { return arrangement_.working; }
         const Sequence& sequence() const { return arrangement_.working; }
-        Arrangement&        arrangement()        { return arrangement_; }
-        const Arrangement&  arrangement()  const { return arrangement_; }
-        Project&        project()        { return project_; }
-        const Project&  project()        const { return project_; }
+        Arrangement& arrangement() { return arrangement_; }
+        const Arrangement& arrangement() const { return arrangement_; }
+        Project& project() { return project_; }
+        const Project& project() const { return project_; }
 
         // ── New hierarchy navigation + gestures (Phase 7) ────────────────────
         void setActiveSong(int pieceIdx);
@@ -120,7 +120,7 @@ namespace lockstep
         // Load path only: jump to a saved position without writing the (stale)
         // working buffer back over the loaded phrases. See Arrangement::loadPosition.
         void loadActivePosition(int songIdx, int sceneIdx);
-        Phrase&       activePhrase(int t);
+        Phrase& activePhrase(int t);
         const Phrase& activePhrase(int t) const;
         // swapPhraseForTrack: deviate one track (Phrase+step / Track+Phrase+step).
         void swapPhraseForTrack(int t, int phraseIdx);
@@ -135,13 +135,13 @@ namespace lockstep
         void createBaselineCopyScene(int target);  // floor phrase only, no deviations
         void createDefaultScene(int target);       // blank
         bool phraseRowMatchesActiveContent(int slot) const;
-        int  countDeviatedTracks() const;
+        int countDeviatedTracks() const;
         bool sceneSlotOccupied(int s) const;
-        bool songSlotOccupied(int s)  const;
-        int  firstFreePhraseSlot() const;
+        bool songSlotOccupied(int s) const;
+        int firstFreePhraseSlot() const;
         // Read-only deviation state for UI (surface model, badge rendering).
         bool isTrackDeviated(int t) const;
-        int  deviationPhraseIdxForTrack(int t) const;
+        int deviationPhraseIdxForTrack(int t) const;
 
         // Copy the Kit (machine + base params) from srcTrack to dstTrack.
         // Does NOT copy step data (steps live per Phrase, not per Kit).
@@ -157,9 +157,9 @@ namespace lockstep
         void queueScene(int sectionIdx, bool toFloor = false);
         void cancelQueuedScene();
         bool hasQueuedScene() const;
-        int  queuedSectionIdx() const;
+        int queuedSectionIdx() const;
 
-        Clock&       clock()       { return clock_; }
+        Clock& clock() { return clock_; }
         const Clock& clock() const { return clock_; }
 
         // Mark that the next transport start should re-anchor the pattern to step 0
@@ -171,20 +171,20 @@ namespace lockstep
         EditContext& editContext() { return editContext_; }
         CCMappingTable& ccMappingTable() { return ccMappingTable_; }
 
-        int  focusTrack() const       { return focusTrack_; }
+        int focusTrack() const { return focusTrack_; }
         void setFocusTrack(int track) { focusTrack_ = track; }
 
         // MD.10: Control-All — broadcast param writes to all tracks with a matching slot id.
         // Set true when Track scope is held without a specific track selected.
         // UI-thread only; no atomic needed.
         void setControlAllActive(bool v) { controlAllActive_ = v; }
-        bool controlAllActive()    const { return controlAllActive_; }
+        bool controlAllActive() const { return controlAllActive_; }
 
         // 7.9e: Scope-respecting Checkpoints (DESIGN §13.6).
         // Delegate to arrangement_; the processor is a thin shell.
-        void snapshot       (CheckpointScope scope, int track) { arrangement_.snapshot(scope, track); }
-        bool restoreOne     (CheckpointScope scope, int track) { return arrangement_.restoreOne(scope, track); }
-        void restoreToFloor (CheckpointScope scope, int track) { arrangement_.restoreToFloor(scope, track); }
+        void snapshot(CheckpointScope scope, int track) { arrangement_.snapshot(scope, track); }
+        bool restoreOne(CheckpointScope scope, int track) { return arrangement_.restoreOne(scope, track); }
+        void restoreToFloor(CheckpointScope scope, int track) { arrangement_.restoreToFloor(scope, track); }
         [[nodiscard]] int checkpointDepth(CheckpointScope scope, int track) const
         {
             return arrangement_.checkpointDepth(scope, track);
@@ -210,12 +210,12 @@ namespace lockstep
         // Editing routes identically through writeFillParam (held step on current track).
         void setFillActive(bool active, bool allTracks = true, int trackIfNotAll = -1)
         {
-            fillActive_      .store(active,                       std::memory_order_relaxed);
-            fillAllTracks_   .store(allTracks,                    std::memory_order_relaxed);
-            fillLockedTrack_ .store(active && !allTracks ? trackIfNotAll : -1,
-                                                                  std::memory_order_relaxed);
+            fillActive_.store(active, std::memory_order_relaxed);
+            fillAllTracks_.store(allTracks, std::memory_order_relaxed);
+            fillLockedTrack_.store(active && !allTracks ? trackIfNotAll : -1,
+                                   std::memory_order_relaxed);
         }
-        bool fillActive()    const { return fillActive_.load(std::memory_order_relaxed); }
+        bool fillActive() const { return fillActive_.load(std::memory_order_relaxed); }
         bool fillActiveForTrack(int i) const
         {
             if (!fillActive_.load(std::memory_order_relaxed)) return false;
@@ -292,10 +292,10 @@ namespace lockstep
         void fluidMuteTrack(int track, float fader);
         // Returns the Level slot index within the machine's param schema for
         // fluid mute purposes, or -1 if the track has no amplitude control.
-        int  fluidMuteLevelSlot(int track) const;
+        int fluidMuteLevelSlot(int track) const;
         // True if the active scene has morph data on the Level slot for this track.
         bool hasFluidMute(int track) const;
-        int  fluidMutePole(int track) const;  // 0=A is silence, 1=B is silence, -1=unknown
+        int fluidMutePole(int track) const;  // 0=A is silence, 1=B is silence, -1=unknown
         // Current equal-power blend of the Level slot morph poles at the live fader.
         // Returns the kit-base level unchanged if no fluid mute is authored.
         float fluidMuteBlend(int track) const;
@@ -313,16 +313,16 @@ namespace lockstep
         //
         // Getters expose the three stored levels and the two "shown" seeds for the UI
         // (what to seed the control at when a scope qualifier activates).
-        void setSwingSongAll  (float effective);
+        void setSwingSongAll(float effective);
         void setSwingSongTrack(int t, float effective);
-        void setSwingSceneAll (float effective);
+        void setSwingSceneAll(float effective);
 
-        float swingSongAll()          const;         // stored song-all
+        float swingSongAll() const;         // stored song-all
         float swingSongTrackDelta(int t) const;      // stored song-track delta
-        float swingSceneAllDelta()    const;         // stored scene-all delta
+        float swingSceneAllDelta() const;         // stored scene-all delta
         float swingSongTrackShown(int t) const;      // songAll + sceneAll + songTrk[t] (cumulative track floor)
-        float swingSceneAllShown()    const;         // songAll + sceneAll   (seed for Scene qualifier)
-        float swingEffective(int t)   const;         // full clamped sum for focused track in active scene
+        float swingSceneAllShown() const;         // songAll + sceneAll   (seed for Scene qualifier)
+        float swingEffective(int t) const;         // full clamped sum for focused track in active scene
 
         // Bake: write the fader-blended value to kit base, then erase morph data.
         // Default delete gesture. Use removeMorph() for revert-without-bake.
@@ -385,12 +385,12 @@ namespace lockstep
 
         // 5.9 Chance macro — per-track probability scale (0.0=mute … 1.0=normal … 2.0=full).
         // Written on the message thread; read atomically on the audio thread.
-        void  setTrackChance(int track, float scale) noexcept;
-        float trackChance   (int track) const noexcept;
+        void setTrackChance(int track, float scale) noexcept;
+        float trackChance(int track) const noexcept;
 
         // MG.3: slice queries + set (message thread; don't call while audio thread is running).
-        bool hasTrackSlices(int track)       const;
-        int  trackSliceCount(int track)      const;
+        bool hasTrackSlices(int track) const;
+        int trackSliceCount(int track) const;
         void setTrackEqualSlices(int track, int count);
         void clearTrackSlices(int track);
 
@@ -404,12 +404,12 @@ namespace lockstep
         // MG.4: Sound Pool CRUD (message thread only).
         // saveTrackToSoundPool: snapshots the active Part's track state + sample index.
         // Returns the new pool index, or -1 on failure.
-        int  saveTrackToSoundPool(int track, const std::string& name = "Sound");
+        int saveTrackToSoundPool(int track, const std::string& name = "Sound");
         // recallSoundFromPool: applies the pool entry's params to the active Part + sequence track.
         bool recallSoundFromPool(int track, int entryIndex);
-        int  soundPoolSize()                    const { return project_.soundPool.size(); }
+        int soundPoolSize() const { return project_.soundPool.size(); }
         const SoundEntry* soundPoolEntry(int i) const { return project_.soundPool.get(i); }
-        void removeSoundEntry(int i)                  { project_.soundPool.remove(i); }
+        void removeSoundEntry(int i) { project_.soundPool.remove(i); }
 
         // Sample pool helpers — message-thread only.
         // sampleShortName returns the filename stem for a given pool index, or "(none)".
@@ -449,7 +449,7 @@ namespace lockstep
         // Returns the stable machineId string for the given track.
         [[nodiscard]] juce::String getMachineId(int track) const;
         // Returns the raw const char* machineId for the given track (static lifetime).
-        [[nodiscard]] const char*  getMachineIdRaw(int track) const;
+        [[nodiscard]] const char* getMachineIdRaw(int track) const;
 
         // Returns the short display badge for the given track's live machine.
         // Empty string means no badge (stub / null machine).
@@ -464,47 +464,51 @@ namespace lockstep
         // Used by PluginState so that round-trip works when a non-default machine
         // was saved (e.g. FM track deserialised while Sampler is still installed).
         [[nodiscard]] std::unique_ptr<IMachine> createMachineForId(const std::string& id);
-        [[nodiscard]] int      slotForIdWithMachine   (const IMachine& m, const juce::String& id) const;
-        [[nodiscard]] int      numSlotsWithMachine     (const IMachine& m) const;
-        [[nodiscard]] ParamSpec paramSpecWithMachine   (const IMachine& m, int slot) const;
+        [[nodiscard]] int slotForIdWithMachine(const IMachine& m, const juce::String& id) const;
+        [[nodiscard]] int numSlotsWithMachine(const IMachine& m) const;
+        [[nodiscard]] ParamSpec paramSpecWithMachine(const IMachine& m, int slot) const;
 
         // Machine catalogue — list of all available machine types.
-        struct MachineInfo { const char* id; const char* displayName; };
-        [[nodiscard]] int         numAvailableMachines()        const;
+        struct MachineInfo
+        {
+            const char* id;
+            const char* displayName;
+        };
+        [[nodiscard]] int numAvailableMachines() const;
         [[nodiscard]] MachineInfo availableMachineInfo(int idx) const;
 
         // 6.5: FX insert management (message thread).
         void setTrackInsert(int track, int slot, const std::string& effectId);
         void clearTrackInsert(int track, int slot);
         void setTrackInsertBypass(int track, int slot, bool bypass);
-        [[nodiscard]] std::string trackInsertId    (int track, int slot) const;
-        [[nodiscard]] bool        trackInsertBypass(int track, int slot) const;
+        [[nodiscard]] std::string trackInsertId(int track, int slot) const;
+        [[nodiscard]] bool trackInsertBypass(int track, int slot) const;
 
         // 6.5 master FX bus — 2 post-sum insert slots at Song scope.
-        void setMasterInsert   (int slot, const std::string& effectId);
-        void clearMasterInsert (int slot);
+        void setMasterInsert(int slot, const std::string& effectId);
+        void clearMasterInsert(int slot);
         void setMasterInsertBypass(int slot, bool bypass);
-        [[nodiscard]] std::string masterInsertId    (int slot) const;
-        [[nodiscard]] bool        masterInsertBypass(int slot) const;
-        [[nodiscard]] int         masterInsertNumParams(int slot) const;
-        [[nodiscard]] float       masterInsertParam(int slot, int param) const;
-        [[nodiscard]] ParamSpec   masterInsertParamSpec(int slot, int param) const;
+        [[nodiscard]] std::string masterInsertId(int slot) const;
+        [[nodiscard]] bool masterInsertBypass(int slot) const;
+        [[nodiscard]] int masterInsertNumParams(int slot) const;
+        [[nodiscard]] float masterInsertParam(int slot, int param) const;
+        [[nodiscard]] ParamSpec masterInsertParamSpec(int slot, int param) const;
         void setMasterInsertParam(int slot, int param, float value);
 
-        [[nodiscard]] int         numAvailableEffects() const;
-        [[nodiscard]] EffectInfo  availableEffectInfo(int idx) const;
+        [[nodiscard]] int numAvailableEffects() const;
+        [[nodiscard]] EffectInfo availableEffectInfo(int idx) const;
 
         // Schema query helpers — forward to the machine on the given track.
-        int         numParams(int track)              const;
-        ParamSpec   paramSpec(int track, int index)   const;
-        int         numSections(int track)            const;
+        int numParams(int track) const;
+        ParamSpec paramSpec(int track, int index) const;
+        int numSections(int track) const;
         SectionInfo section(int track, int sectionIndex) const;
 
         // Slot identity bridge — forwarded to the machine on the given track.
         // Used by the M8 serializer to translate between runtime indices and
         // stable string ids. Returns {} / -1 for out-of-range inputs.
-        juce::String idForSlot(int track, int index)       const;
-        int slotForId(int track, const juce::String& id)   const;
+        juce::String idForSlot(int track, int index) const;
+        int slotForId(int track, const juce::String& id) const;
 
         // --- Diagnostic metering (audio thread writes, UI thread reads) ---
         // trackPeak / masterPeak: instantaneous block-peak magnitude (linear).
@@ -538,7 +542,7 @@ namespace lockstep
         // call fn(), then resume. Use this wrapper for all [SUSPEND]-class mutations
         // (machine swap, insert swap, sample pool update, full state load).
         // Must be called from the message thread.
-        template<typename Fn>
+        template <typename Fn>
         void withQuiescedEngine(Fn&& fn)
         {
             suspendProcessing(true);
@@ -576,12 +580,12 @@ namespace lockstep
         Clock clock_;                    // [AUDIO] (internal BPM/PPQ state)
         EditContext editContext_;        // message thread only
         CCMappingTable ccMappingTable_;  // [SUSPEND] (learn writes via atomic gate)
-        int  focusTrack_       = -1;   // message thread only
+        int focusTrack_ = -1;   // message thread only
         bool controlAllActive_ = false; // message thread only
 
-        std::atomic<bool> fillActive_      { false };  // [ATOMIC]
-        std::atomic<bool> fillAllTracks_   { true };   // [ATOMIC]
-        std::atomic<int>  fillLockedTrack_ { -1 };     // [ATOMIC]
+        std::atomic<bool> fillActive_{ false };  // [ATOMIC]
+        std::atomic<bool> fillAllTracks_{ true };   // [ATOMIC]
+        std::atomic<int> fillLockedTrack_{ -1 };     // [ATOMIC]
 
         // Current slot index for each MZ display position.
         // Written by the UI thread, read by the audio thread (atomic).
@@ -591,19 +595,19 @@ namespace lockstep
         // learnActive_ (release); audio thread reads after acquire.
         struct PendingLearnRequest
         {
-            CCScope scope      = CCScope::Track;
-            int trackIndex     = -1;
-            int slot           = -1;
-            int mzPosition     = -1;
+            CCScope scope = CCScope::Track;
+            int trackIndex = -1;
+            int slot = -1;
+            int mzPosition = -1;
         };
-        std::atomic<bool>  learnActive_ { false };  // [ATOMIC]
+        std::atomic<bool> learnActive_{ false };  // [ATOMIC]
         PendingLearnRequest learnRequest_;           // protected by learnActive_ gate
 
         // Preview request: message thread writes both fields (track first, then
         // poolIndex with release ordering); audio thread consumes with acq_rel exchange.
         // Queued Section launch: fires at next core-time bar boundary (Phase 7).
         // -1 = none pending.
-        std::atomic<int> queuedSceneIdx_     { -1 };    // [ATOMIC]
+        std::atomic<int> queuedSceneIdx_{ -1 };    // [ATOMIC]
         std::atomic<bool> queuedSceneToFloor_{ false };  // [ATOMIC] pairs with queuedSceneIdx_
 
         // [QUEUE] Pre-staged scene switch (8.17 / DESIGN §38.4). Message thread calls
@@ -614,27 +618,27 @@ namespace lockstep
         struct StagedSceneSwap
         {
             Sequence working{};
-            int      sceneIdx = -1;
-            bool     toFloor  = false;
+            int sceneIdx = -1;
+            bool toFloor = false;
             std::array<bool, kNumTracks> deviated{};
-            std::array<int,  kNumTracks> deviationPhraseIdx{};
+            std::array<int, kNumTracks> deviationPhraseIdx{};
         };
-        StagedSceneSwap          stagedSwap_{};                        // [QUEUE]
-        std::atomic<bool>        stagedSwapReady_    { false };        // [ATOMIC]
-        std::atomic<bool>        pendingSceneApply_  { false };        // [ATOMIC]
-        std::atomic<bool>        sceneSwitchApplied_ { false };        // [ATOMIC]
+        StagedSceneSwap stagedSwap_{};                        // [QUEUE]
+        std::atomic<bool> stagedSwapReady_{ false };        // [ATOMIC]
+        std::atomic<bool> pendingSceneApply_{ false };        // [ATOMIC]
+        std::atomic<bool> sceneSwitchApplied_{ false };        // [ATOMIC]
         // Legacy: queued pattern switch. -1/-1 means no switch pending.
-        std::atomic<int>  previewPoolIndex_ { -1 };  // [ATOMIC]
-        std::atomic<int>  previewReqTrack_  { 0 };   // [ATOMIC]
+        std::atomic<int> previewPoolIndex_{ -1 };  // [ATOMIC]
+        std::atomic<int> previewReqTrack_{ 0 };   // [ATOMIC]
         // Panic request: UI thread sets true; audio thread consumes (exchange false)
         // to send All-Notes-Off on MIDI-out tracks and flush pending audio note-offs.
-        std::atomic<bool> panicPending_ { false };  // [ATOMIC]
+        std::atomic<bool> panicPending_{ false };  // [ATOMIC]
 
         // [QUEUE] EngineCmd FIFO — message thread enqueues, audio thread drains at
         // block top. Sized for 1024 entries; Control-All fan-out to 16 tracks uses
         // at most 16 × numParams ≈ 16×32 = 512 entries per UI event — well within limit.
         static constexpr int kEngineCmdQueueSize = 1024;
-        juce::AbstractFifo engineCmdFifo_ { kEngineCmdQueueSize };
+        juce::AbstractFifo engineCmdFifo_{ kEngineCmdQueueSize };
         std::array<EngineCmd, kEngineCmdQueueSize> engineCmdQueue_{};
         void pushEngineCmd(const EngineCmd& c) noexcept;
         void drainEngineCmds() noexcept;  // called at top of processBlock
@@ -644,33 +648,33 @@ namespace lockstep
         // fixed audition, 0 = sustain until matching note-off) or a note-off.
         struct KbdNoteCmd
         {
-            int16_t  track      = 0;
-            uint8_t  note       = 60;
-            uint8_t  velocity   = 100;
+            int16_t track = 0;
+            uint8_t note = 60;
+            uint8_t velocity = 100;
             uint16_t durationMs = 0;     // 0 = gate (sustain until note-off)
-            bool     noteOff    = false; // true = release (track, note)
-            bool     bypassEditorial = false;
+            bool noteOff = false; // true = release (track, note)
+            bool bypassEditorial = false;
         };
         static constexpr int kKbdQueueSize = 64;
-        juce::AbstractFifo               kbdFifo_ { kKbdQueueSize };
+        juce::AbstractFifo kbdFifo_{ kKbdQueueSize };
         std::array<KbdNoteCmd, kKbdQueueSize> kbdQueue_{};
         void pushKbdCmd(const KbdNoteCmd& c) noexcept;
 
         // Preview playback state — [AUDIO] audio thread only (no atomics needed).
-        bool previewActive_           = false;
-        int  previewTrack_            = 0;
-        int  previewSampleIndex_      = -1;
-        int  previewNoteOffRemaining_ = -1;
-        int  previewNote_             = 60;
+        bool previewActive_ = false;
+        int previewTrack_ = 0;
+        int previewSampleIndex_ = -1;
+        int previewNoteOffRemaining_ = -1;
+        int previewNote_ = 60;
 
         // MG.1 / poly: live keyboard voices — audio thread only. Each holds one
         // ringing note so chords sustain independently. samplesRemaining < 0 =
         // gate (held until a matching note-off); >= 0 = fixed-duration countdown.
         struct LiveVoice
         {
-            int  track = -1;
-            int  note  = -1;
-            int  samplesRemaining = -1;
+            int track = -1;
+            int note = -1;
+            int samplesRemaining = -1;
             bool bypass = false;
             bool active = false;
         };
@@ -679,28 +683,28 @@ namespace lockstep
 
         // MG.2 / 5.7: retrig state.
         // retrigReqTrack_: -2 = cancel, -1 = idle, >=0 = activate on that track.
-        std::atomic<int>    retrigReqTrack_   { -1 };    // [ATOMIC]
-        std::atomic<double> retrigReqRatePpq_ { 0.25 };  // [ATOMIC]
+        std::atomic<int> retrigReqTrack_{ -1 };    // [ATOMIC]
+        std::atomic<double> retrigReqRatePpq_{ 0.25 };  // [ATOMIC]
         std::array<std::atomic<float>, kNumTracks> trackChanceScale_;  // [ATOMIC]
-        std::atomic<int>    retrigReqNote_    { 60 };    // [ATOMIC]
+        std::atomic<int> retrigReqNote_{ 60 };    // [ATOMIC]
         // [AUDIO] retrig state consumed and advanced by the audio thread only.
-        int    retrigActiveTrack_      = -1;
-        double retrigRatePpq_          = 0.25;
-        int    retrigNote_             = 60;
-        double retrigNextFireSamples_  = 0.0;
-        int    retrigNoteOffRemaining_ = -1;
+        int retrigActiveTrack_ = -1;
+        double retrigRatePpq_ = 0.25;
+        int retrigNote_ = 60;
+        double retrigNextFireSamples_ = 0.0;
+        int retrigNoteOffRemaining_ = -1;
 
         Metronome metronome_;
         MidiInput midiInput_;
         MidiClockReceiver midiClockReceiver_;
         // ME.4: virtual slot count for the post-machine FLTR block (added to machine.numParams()).
-        static constexpr int kFltrSlots  = TrackFltrState::kNumSlots;  // 6
+        static constexpr int kFltrSlots = TrackFltrState::kNumSlots;  // 6
         static constexpr int kFltrSecIdx = 2;  // canonical FLTR section index
 
         // Absolute slot index where insert `insSlot` (0 or 1) params begin.
         [[nodiscard]] int insertParamOffset(int track, int insSlot) const noexcept;
-        static constexpr int kAmpSlots   = TrackAmpState::kNumSlots;  // 8
-        static constexpr int kAmpSecIdx  = 3;  // canonical AMP section index
+        static constexpr int kAmpSlots = TrackAmpState::kNumSlots;  // 8
+        static constexpr int kAmpSecIdx = 3;  // canonical AMP section index
 
         // [SUSPEND] structural: swapped only while processing is suspended.
         std::array<std::unique_ptr<IMachine>, kNumTracks> machines_;
@@ -721,10 +725,10 @@ namespace lockstep
         // Pending sequencer-scheduled note-offs that spill past the current block boundary.
         struct PendingNoteOff
         {
-            int  samplesRemaining = -1;    // -1 = none; else samples from start of next block
-            int  noteCount        = 1;
+            int samplesRemaining = -1;    // -1 = none; else samples from start of next block
+            int noteCount = 1;
             std::array<int, kMaxNotesPerStep> notes{ 60, 0, 0, 0 };
-            bool openEnded        = false; // gate=None: note playing indefinitely; close on
+            bool openEnded = false; // gate=None: note playing indefinitely; close on
                                            // cycle-back or sequencer stop
         };
         std::array<PendingNoteOff, kNumTracks> pendingNoteOffs_{};
@@ -732,10 +736,10 @@ namespace lockstep
         // Pending sequencer trigs deferred by a late swing/microOffset shift past a block edge.
         struct PendingTrig
         {
-            bool    pending   = false;
-            int     stepIndex = 0;
-            int64_t stepNum   = 0;   // for dedup with lastScheduledStepNum_
-            double  firePpq   = 0.0; // absolute PPQ at which to fire
+            bool pending = false;
+            int stepIndex = 0;
+            int64_t stepNum = 0;   // for dedup with lastScheduledStepNum_
+            double firePpq = 0.0; // absolute PPQ at which to fire
         };
         std::array<PendingTrig, kNumTracks> pendingTrigs_{};
 
@@ -749,12 +753,12 @@ namespace lockstep
         // Gate timing is finalised when all MIDI notes are released.
         struct ChordCapture
         {
-            bool    active          = false;  // true while ≥1 note physically held
-            int     heldCount       = 0;      // number of physically-held notes
+            bool active = false;  // true while ≥1 note physically held
+            int heldCount = 0;      // number of physically-held notes
             int64_t gateStartSample = 0;      // sample of first note-on in current chord
-            int     maxVelocity     = 0;
-            int     totalVelocity   = 0;      // sum of velocities (for mean)
-            int     capturedCount   = 0;      // total notes pressed (for mean)
+            int maxVelocity = 0;
+            int totalVelocity = 0;      // sum of velocities (for mean)
+            int capturedCount = 0;      // total notes pressed (for mean)
             std::array<bool, 128> heldNotes{};  // which MIDI notes are currently held
         };
         ChordCapture chordCapture_{};
@@ -765,37 +769,41 @@ namespace lockstep
         std::array<int64_t, kNumTracks> lastRecordedStepNum_{};
 
         // MHZ.6.1: per-track, per-note gate tracker for realtime record.
-        struct RealtimeNoteEntry { int stepIdx = -1; int64_t noteOnSample = 0; };
+        struct RealtimeNoteEntry
+        {
+            int stepIdx = -1;
+            int64_t noteOnSample = 0;
+        };
         std::array<std::array<RealtimeNoteEntry, 128>, kNumTracks> realtimeNotes_{};
         int64_t totalSamplesProcessed_ = 0;  // [AUDIO]
         std::array<double, kNumTracks> nextTriggerPpq_{};  // [AUDIO]
-        std::array<bool, kNumTracks>   lastStepFired_{};   // [AUDIO]
+        std::array<bool, kNumTracks> lastStepFired_{};   // [AUDIO]
         double anchorPpq_ = 0.0;  // [AUDIO]
         // When true, the next transport rising edge re-anchors the pattern to the
         // current position (step 0 here). Set on stop/reset; cleared on resume so
         // pause→resume continues in phase instead of restarting the pattern.
         std::atomic<bool> freshStartPending_{ true };
-        bool   wasInPluginPlaying_  = false;
-        bool   wasSequencerRunning_ = false;  // MF.6: falling-edge transport stop detection
+        bool wasInPluginPlaying_ = false;
+        bool wasSequencerRunning_ = false;  // MF.6: falling-edge transport stop detection
         std::array<bool, kNumTracks> wasSilent_{};  // MF.7: per-track mute rising-edge detection
 
         // [ATOMIC]* APVTS-managed parameter atomics — any thread may read.
-        std::atomic<float>* syncModeParam_    = nullptr;
+        std::atomic<float>* syncModeParam_ = nullptr;
         std::atomic<float>* channelModeParam_ = nullptr;
         std::array<std::atomic<float>*, kNumTracks> trackLengthParams_{};
         std::array<std::atomic<float>*, kNumTracks> trackDividerParams_{};
         std::array<std::atomic<float>*, kNumTracks> trackMuteParams_{};
         std::array<std::atomic<float>*, kNumTracks> trackSoloParams_{};
         // 5.2: Morph crossfader.
-        std::atomic<float> morphFaderTarget_ { 0.0f };           // [ATOMIC]
+        std::atomic<float> morphFaderTarget_{ 0.0f };           // [ATOMIC]
         juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> morphFaderSmoothed_;  // [AUDIO]
-        std::array<bool, kNumTracks> morphLastSide_ {};           // [AUDIO]
+        std::array<bool, kNumTracks> morphLastSide_{};           // [AUDIO]
 
         // Cached from prepareToPlay — getSampleRate()/getBlockSize() are 0 until
         // the host calls setRateAndBufferSizeDetails, so install/swap helpers must
         // use these values instead.
         double preparedSampleRate_ = 44100.0;
-        int    preparedBlockSize_  = 512;
+        int preparedBlockSize_ = 512;
 
         juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> gainSmoothed_;
         std::array<float, 2> dcX1_{};
@@ -805,7 +813,7 @@ namespace lockstep
         std::array<std::atomic<float>, kNumTracks> trackPeak_{};
         std::array<std::atomic<float>, kNumTracks> trigPulse_{};
         std::array<std::atomic<float>, kNumTracks> midiPulse_{};
-        std::atomic<float> masterPeak_ { 0.0f };
+        std::atomic<float> masterPeak_{ 0.0f };
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LockstepProcessor)
     };

@@ -16,8 +16,7 @@ namespace lockstep
 
         recBtn_.setClickingTogglesState(false);
         recBtn_.setWantsKeyboardFocus(false);
-        recBtn_.onClick = [this]
-        {
+        recBtn_.onClick = [this] {
             clock_.setRecordArmed(!clock_.isRecordArmed());
             refresh(buildTransportModel(clock_));
         };
@@ -25,8 +24,7 @@ namespace lockstep
 
         metroBtn_.setClickingTogglesState(false);
         metroBtn_.setWantsKeyboardFocus(false);
-        metroBtn_.onClick = [this]
-        {
+        metroBtn_.onClick = [this] {
             clock_.setMetronomeEnabled(!clock_.isMetronomeEnabled());
             refresh(buildTransportModel(clock_));
         };
@@ -50,10 +48,10 @@ namespace lockstep
         if (m.recArmed != shadow_.recArmed || m.overdubArmed != shadow_.overdubArmed)
         {
             juce::Colour bg;
-            if (m.overdubArmed)        bg = juce::Colour::fromRGB(210, 130, 30);
-            else if (m.recArmed)       bg = juce::Colour::fromRGB(200, 50, 50);
-            else                       bg = juce::LookAndFeel::getDefaultLookAndFeel()
-                                                .findColour(juce::TextButton::buttonColourId);
+            if (m.overdubArmed) bg = juce::Colour::fromRGB(210, 130, 30);
+            else if (m.recArmed) bg = juce::Colour::fromRGB(200, 50, 50);
+            else bg = juce::LookAndFeel::getDefaultLookAndFeel()
+                          .findColour(juce::TextButton::buttonColourId);
 
             recBtn_.setColour(juce::TextButton::buttonColourId, bg);
             recBtn_.setColour(juce::TextButton::textColourOffId,

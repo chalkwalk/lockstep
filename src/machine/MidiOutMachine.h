@@ -29,16 +29,16 @@ namespace lockstep
         // midiOut receives the same messages so the processor can also forward them
         // to the host MIDI output bus in plugin mode.
         void processMidi(const juce::MidiBuffer& events,
-                         const ParamFrame&       params,
-                         juce::MidiBuffer&       midiOut) override;
+                         const ParamFrame& params,
+                         juce::MidiBuffer& midiOut) override;
 
         [[nodiscard]] const char* machineId() const noexcept override { return kMachineId; }
-        [[nodiscard]] const char* badge()     const noexcept override { return "M"; }
+        [[nodiscard]] const char* badge() const noexcept override { return "M"; }
         static constexpr const char* kMachineId = "lockstep.midiout.v1";
 
-        [[nodiscard]] int       numParams()          const override { return kNumSlots; }
+        [[nodiscard]] int numParams() const override { return kNumSlots; }
         [[nodiscard]] ParamSpec paramSpec(int index) const override;
-        [[nodiscard]] int       numSections()        const override { return kNumSections; }
+        [[nodiscard]] int numSections() const override { return kNumSections; }
         [[nodiscard]] SectionInfo section(int index) const override;
 
         [[nodiscard]] Polyphony currentVoices(const ParamFrame&) const override
@@ -46,9 +46,9 @@ namespace lockstep
             // MIDI-out routes the step's full chord through unchanged.
             return Polyphony::V0;
         }
-        [[nodiscard]] bool isMidiOut()         const override { return true; }
+        [[nodiscard]] bool isMidiOut() const override { return true; }
         [[nodiscard]] bool hasInternalFilter() const override { return true; }
-        [[nodiscard]] bool hasInternalAmp()    const override { return true; }
+        [[nodiscard]] bool hasInternalAmp() const override { return true; }
 
         static constexpr int kNumCCs = 16;
 
@@ -59,7 +59,9 @@ namespace lockstep
 
         // Returns the device list refreshed at the last prepare() call.
         [[nodiscard]] const juce::Array<juce::MidiDeviceInfo>& availableDevices() const
-            { return devices_; }
+        {
+            return devices_;
+        }
 
         // Per-track configurable CC numbers (MF.4). Default: cc[i] → MIDI CC i.
         void setCCNumber(int ccSlot, int ccNumber);
@@ -82,33 +84,33 @@ namespace lockstep
 
     private:
         // Section 1 "SRC": destination, channel, program
-        static constexpr int kSlotDest    = 0;
+        static constexpr int kSlotDest = 0;
         static constexpr int kSlotChannel = 1;
         static constexpr int kSlotProgram = 2;
         // Section 2 (repurposed FLTR key → CC bank A): cc[0..7]
-        static constexpr int kSlotCC0     = 3;
+        static constexpr int kSlotCC0 = 3;
         // Section 3 (repurposed AMP key → CC bank B): cc[8..15]
         // cc[8] is at index 11, cc[15] at index 18.
 
-        static constexpr int kNumSlots    = 3 + kNumCCs;   // 19
+        static constexpr int kNumSlots = 3 + kNumCCs;   // 19
         static constexpr int kNumSections = 4;
 
         void openDevice(int destIdx);
 
-        juce::Array<juce::MidiDeviceInfo>  devices_;
-        std::unique_ptr<juce::MidiOutput>  midiOutput_;
-        std::string                        destinationId_;
-        int                                currentDestIdx_ = -1;
+        juce::Array<juce::MidiDeviceInfo> devices_;
+        std::unique_ptr<juce::MidiOutput> midiOutput_;
+        std::string destinationId_;
+        int currentDestIdx_ = -1;
 
-        std::array<int, kNumCCs>          ccNumbers_{};
+        std::array<int, kNumCCs> ccNumbers_{};
         std::array<juce::String, kNumCCs> ccLabels_{};
-        std::array<int, kNumCCs>          prevCC_{};   // change-detection cache
+        std::array<int, kNumCCs> prevCC_{};   // change-detection cache
 
         // MF.4: destination-specific CC name table; keyed by CC number.
         std::unordered_map<int, juce::String> nameTable_;
 
         // MF.3: active voice tracking for clean channel-change note-offs.
-        int activeNote_    = -1;  // -1 = no note sounding
+        int activeNote_ = -1;  // -1 = no note sounding
         int activeChannel_ = 1;
 
         // MF.3: program change change-detection. -2 = never sent (forces first-block emit).

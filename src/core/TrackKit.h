@@ -16,7 +16,7 @@ namespace lockstep
     {
         // Stable machine string id (e.g. "lockstep.sampler.v1").
         // Unknown ids on load fall back to StubMachine.
-        std::string machineId    = "lockstep.sampler.v1";
+        std::string machineId = "lockstep.sampler.v1";
 
         // Stable MIDI output device identifier (empty = none).
         std::string destinationId;
@@ -31,7 +31,7 @@ namespace lockstep
         TrackAmpState ampState;
 
         // Per-track CC slot config for MIDI-out tracks.
-        std::vector<int>         midiCCNumbers{};
+        std::vector<int> midiCCNumbers{};
         std::vector<std::string> midiCCLabels{};
 
         // Active hardware preset id (e.g. "elektron.digitone"; empty = none).
@@ -45,8 +45,8 @@ namespace lockstep
         struct InsertSlot
         {
             std::string effectId;   // stable id (e.g. "lockstep.delay.v1"); empty = none
-            ParamFrame  baseParams;
-            bool        bypass = false;
+            ParamFrame baseParams;
+            bool bypass = false;
         };
         std::array<InsertSlot, 2> inserts;
     };

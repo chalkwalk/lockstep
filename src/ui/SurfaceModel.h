@@ -10,10 +10,10 @@
 
 namespace lockstep
 {
-    class  LockstepProcessor;
+    class LockstepProcessor;
     struct UiState;
-    class  EditContext;
-    class  PressTracker;
+    class EditContext;
+    class PressTracker;
 
     // =========================================================================
     // CellState — add-only semantic token (§35.8.6, CLAUDE.md)
@@ -24,88 +24,88 @@ namespace lockstep
     enum class CellState : uint16_t
     {
         // Key family — folds in KeyButtonState.
-        Resting    = 0,
-        Pressed    = 1,
+        Resting = 0,
+        Pressed = 1,
         ModeActive = 2,
-        FuncHeld   = 3,   // retained for controller compat; screen uses Resting + label swap
-        Disabled   = 4,
+        FuncHeld = 3,   // retained for controller compat; screen uses Resting + label swap
+        Disabled = 4,
 
         // Step-grid family
-        StepEmpty          = 10,
-        StepTrigCertain    = 11,
-        StepTrigProbable   = 12,
+        StepEmpty = 10,
+        StepTrigCertain = 11,
+        StepTrigProbable = 12,
         StepTrigSuppressed = 13,
-        StepFillAdd        = 14,
-        StepFillSuppress   = 15,
-        StepOutOfRange     = 16,
-        StepPlayhead       = 17,
-        StepHeld           = 18,
+        StepFillAdd = 14,
+        StepFillSuppress = 15,
+        StepOutOfRange = 16,
+        StepPlayhead = 17,
+        StepHeld = 18,
 
         // Selector / re-skin family (scope picker, mute viewer, machine picker)
-        SelectorCurrent    = 30,
-        SelectorOccupied   = 31,
-        SelectorEmpty      = 32,
-        SelectorOutRange   = 33,
-        SelectorNext       = 34,
-        SelectorChain      = 35,
-        MuteMuted          = 40,
-        MuteAudible        = 41,
-        MachineCurrent     = 50,
-        MachineAvailable   = 51,
+        SelectorCurrent = 30,
+        SelectorOccupied = 31,
+        SelectorEmpty = 32,
+        SelectorOutRange = 33,
+        SelectorNext = 34,
+        SelectorChain = 35,
+        MuteMuted = 40,
+        MuteAudible = 41,
+        MachineCurrent = 50,
+        MachineAvailable = 51,
         MachineUnavailable = 52,
 
         // NoteEdit overlay family
-        NoteEditActive   = 60,
-        NoteEditStaged   = 61,  // note active and staged for removal
-        NoteEditOther    = 62,  // present in other octave(s) only
-        NoteEditResting  = 63,  // no note on this semitone
+        NoteEditActive = 60,
+        NoteEditStaged = 61,  // note active and staged for removal
+        NoteEditOther = 62,  // present in other octave(s) only
+        NoteEditResting = 63,  // no note on this semitone
 
         // Chromatic keyboard family
-        ChromaticWhite   = 70,
-        ChromaticBlack   = 71,
+        ChromaticWhite = 70,
+        ChromaticBlack = 71,
 
         // Levels velocity picker
-        LevelsCell       = 80,
+        LevelsCell = 80,
 
         // Phrase-length authoring re-skin (Phase 7 / DESIGN §34.4).
         // Applied while Phrase+Func (focused) or Morph+Func (broadcast) is held.
-        LengthInRun    = 90,   // step falls within the active phrase length
+        LengthInRun = 90,   // step falls within the active phrase length
         LengthBoundary = 91,   // the exact last step (length boundary marker)
-        LengthOutRun   = 92,   // step falls outside the active phrase length
+        LengthOutRun = 92,   // step falls outside the active phrase length
 
         // Phrase/Section selector badges (Phase 7 / DESIGN §4.7).
         SelectorDeviated = 95, // phrase currently playing due to a live deviation
-        SelectorHome     = 96, // the scene's global/home phrase (dual-marker border)
+        SelectorHome = 96, // the scene's global/home phrase (dual-marker border)
 
         // Morph step view (5.2): step grid in morph mode shows A/B pole states.
         // Row 0 (D-;) = A poles, Row 1 (C-/) = B poles.
-        MorphPoleActive  = 100,  // pole has a live value in the morph overlay
+        MorphPoleActive = 100,  // pole has a live value in the morph overlay
         MorphPoleDormant = 101,  // pole value saved in UI memory, suppressed from blend
-        MorphPoleDark    = 102,  // no value has been captured for this pole
+        MorphPoleDark = 102,  // no value has been captured for this pole
 
         // Sound Pool overlay (5.7): Fill+SRC re-skins the grid to saved sounds.
         SoundPoolOccupied = 110,  // slot has a saved sound
-        SoundPoolEmpty    = 111,  // slot is empty
-        SoundPoolCurrent  = 112,  // the currently active sound on this track
+        SoundPoolEmpty = 111,  // slot is empty
+        SoundPoolCurrent = 112,  // the currently active sound on this track
 
         // Retrig/ratchet overlay (5.7): Fill+TRIG re-skins the grid to rate choices.
         // Cells show available retrig rates; selected = the rate set on the held step.
-        RetrigRate        = 120,  // an available ratchet rate
-        RetrigSelected    = 121,  // the rate currently selected / authored on this step
+        RetrigRate = 120,  // an available ratchet rate
+        RetrigSelected = 121,  // the rate currently selected / authored on this step
 
         // Slice point picker (5.7): when the active track is ISliceable, the Retrig
         // overlay cells address slice points instead of rates.
-        SlicePoint        = 130,  // an addressable slice point
-        SliceSelected     = 131,  // slice point currently set on the held step
-        SliceEmpty        = 132,  // no slice at this index
+        SlicePoint = 130,  // an addressable slice point
+        SliceSelected = 131,  // slice point currently set on the held step
+        SliceEmpty = 132,  // no slice at this index
 
         // FX insert picker (6.5): Func+FX re-skins the step grid to the effect catalogue.
-        EffectAvailable   = 140,  // an available effect type (not loaded)
-        EffectLoaded      = 141,  // this effect is currently loaded in the focused insert slot
+        EffectAvailable = 140,  // an available effect type (not loaded)
+        EffectLoaded = 141,  // this effect is currently loaded in the focused insert slot
 
         // Confirm overlay (8.24): P key in PendingConfirm layer shows YES/NO.
-        ConfirmYes        = 150,  // P without Func — green affirm state
-        ConfirmNo         = 151,  // P with Func held — red cancel state
+        ConfirmYes = 150,  // P without Func — green affirm state
+        ConfirmNo = 151,  // P with Func held — red cancel state
     };
 
     // Pure mapping for the §34.4 length-edit re-skin: classify an absolute step
@@ -114,7 +114,7 @@ namespace lockstep
     inline CellState lengthEditCellState(int absStepIdx, int trackLength)
     {
         const int oneBased = absStepIdx + 1;
-        if (oneBased <  trackLength) return CellState::LengthInRun;
+        if (oneBased < trackLength) return CellState::LengthInRun;
         if (oneBased == trackLength) return CellState::LengthBoundary;
         return CellState::LengthOutRun;
     }
@@ -124,9 +124,9 @@ namespace lockstep
     // =========================================================================
     struct CellDecoration
     {
-        CellState token   = CellState::Resting;
-        uint32_t  colour  = 0;
-        bool      present = false;
+        CellState token = CellState::Resting;
+        uint32_t colour = 0;
+        bool present = false;
     };
 
     // =========================================================================
@@ -139,20 +139,20 @@ namespace lockstep
     {
         // --- Frozen §35.8.3 contract (do not reorder) ---
         ControllerButton button = ControllerButton::None;
-        int              index  = -1;           // step/section/track index, else -1
-        CellState        base       = CellState::Resting;  // semantic token
-        uint32_t         baseColour = 0;         // resolved ARGB — fallback for dumb devices
-        float            level      = 1.0f;      // 0..1 brightness (probability dim etc.)
-        CellDecoration   border{};               // playhead / held / mode-active outline
-        CellDecoration   dot{};                  // P-Lock presence
-        CellDecoration   strip{};                // compound-chord / fill marker
-        CellDecoration   pip{};                  // latch / virtual-hold (MHZ.9.6)
+        int index = -1;           // step/section/track index, else -1
+        CellState base = CellState::Resting;  // semantic token
+        uint32_t baseColour = 0;         // resolved ARGB — fallback for dumb devices
+        float level = 1.0f;      // 0..1 brightness (probability dim etc.)
+        CellDecoration border{};               // playhead / held / mode-active outline
+        CellDecoration dot{};                  // P-Lock presence
+        CellDecoration strip{};                // compound-chord / fill marker
+        CellDecoration pip{};                  // latch / virtual-hold (MHZ.9.6)
 
         // --- Screen-text extension (Slice 1+; controllers ignore) ---
         juce::String primary;    // ALWAYS the live function (decision 1)
         juce::String funcHint;   // dim secondary; "" = none (Func-variant or always-on hint)
         juce::String keyHint;    // physical QWERTY legend ("D", "5", "Q" etc.)
-        bool pressed  = false;   // physical OR mouse press, every modality
+        bool pressed = false;   // physical OR mouse press, every modality
         bool disabled = false;   // dead key — base label visibly dimmed
 
         // Scope-glow tint (MHZ.1.x, DESIGN §6.6): non-zero ARGB when this cell is
@@ -184,10 +184,10 @@ namespace lockstep
     // Reusable for any layered/delta parameter (swing, morph, etc.).
     struct ReferenceMark
     {
-        bool     present  = false;
-        float    position = 0.0f;   // normalised 0..1 along the ring
-        uint32_t colour   = 0;      // ARGB scope colour
-        float    alpha    = 1.0f;   // opacity multiplier
+        bool present = false;
+        float position = 0.0f;   // normalised 0..1 along the ring
+        uint32_t colour = 0;      // ARGB scope colour
+        float alpha = 1.0f;   // opacity multiplier
     };
 
     struct SurfaceSlot
@@ -195,10 +195,10 @@ namespace lockstep
         juce::String label;       // parameter label (empty when slot is out of range)
         juce::String sectionLabel; // owning section name (e.g. "FILTER"); for displays
         juce::String valueText;   // formatted value string (empty when out of range)
-        float        position  = 0.0f; // normalised 0..1 for ring/display
-        RingMode     ringMode  = RingMode::UnipolarFill;
-        bool         hasOverride = false; // true when a P-Lock is active for this slot
-        bool         inRange     = false; // false when slot index exceeds machine's schema
+        float position = 0.0f; // normalised 0..1 for ring/display
+        RingMode ringMode = RingMode::UnipolarFill;
+        bool hasOverride = false; // true when a P-Lock is active for this slot
+        bool inRange = false; // false when slot index exceeds machine's schema
         std::array<ReferenceMark, 2> marks{};  // scope-coloured reference ticks (0=inner)
     };
 
@@ -214,10 +214,10 @@ namespace lockstep
         uint32_t schemaVersion = kCurrentSchema;
 
         // Modifier cluster: Func/Track/Pattern/Part/Scene/Master/Mute/Fill (indices 0-7).
-        std::array<SurfaceCell, 8>  modifiers{};
+        std::array<SurfaceCell, 8> modifiers{};
 
         // Section row: TRIG/SRC/FILTER/AMP/MOD/FX (canonical section index 0-5).
-        std::array<SurfaceCell, 6>  section{};
+        std::array<SurfaceCell, 6> section{};
 
         // Function row: all 10 Q-row keys Q/W/E/R/T/Y/U/I/O/P (indices 0-9).
         std::array<SurfaceCell, 10> functionRow{};
@@ -254,7 +254,11 @@ namespace lockstep
         const char* gridBanner = nullptr;
 
         // Per-section page dots for the section bar (screen + controller visible).
-        struct PageDots { uint8_t count = 0; uint8_t active = 0; };
+        struct PageDots
+        {
+            uint8_t count = 0;
+            uint8_t active = 0;
+        };
         std::array<PageDots, IMachine::kMaxSections> pageDots{};
 
         // Lookup by (ControllerButton, index). Returns nullptr if not found.
@@ -268,8 +272,17 @@ namespace lockstep
     // =========================================================================
     struct MorphViewState
     {
-        enum class PoleState : uint8_t { Dark, Dormant, Active };
-        struct SlotState { PoleState a = PoleState::Dark; PoleState b = PoleState::Dark; };
+        enum class PoleState : uint8_t
+        {
+            Dark,
+            Dormant,
+            Active
+        };
+        struct SlotState
+        {
+            PoleState a = PoleState::Dark;
+            PoleState b = PoleState::Dark;
+        };
         std::array<SlotState, 8> slots{};
     };
 
@@ -280,14 +293,14 @@ namespace lockstep
     // Both the screen renderer and controller feedback call this; they cannot
     // diverge because they call the same function with the same state.
     // =========================================================================
-    SurfaceModel buildSurfaceModel(const UiState&         ui,
-                                   const EditContext&      ec,
-                                   const PressTracker*     press,
-                                   LockstepProcessor&      proc,
-                                   int                     activeTrack,
-                                   int                     stepPage,
-                                   GridDisplayMode         displayMode,
-                                   int                     slotOffset      = 0,
-                                   float                   crossfaderValue = 0.5f,
-                                   const MorphViewState&   morphView       = {});
+    SurfaceModel buildSurfaceModel(const UiState& ui,
+                                   const EditContext& ec,
+                                   const PressTracker* press,
+                                   LockstepProcessor& proc,
+                                   int activeTrack,
+                                   int stepPage,
+                                   GridDisplayMode displayMode,
+                                   int slotOffset = 0,
+                                   float crossfaderValue = 0.5f,
+                                   const MorphViewState& morphView = {});
 }

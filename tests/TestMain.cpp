@@ -46,9 +46,7 @@ int main()
             const auto* r = runner.getResult(i);
             if (r != nullptr && r->failures > 0)
             {
-                juce::Logger::writeToLog("FAIL [PluginState] " + r->unitTestName
-                    + " / " + r->subcategoryName + ": "
-                    + juce::String(r->failures) + " failure(s)");
+                juce::Logger::writeToLog("FAIL [PluginState] " + r->unitTestName + " / " + r->subcategoryName + ": " + juce::String(r->failures) + " failure(s)");
                 lockstep::gFailed += r->failures;
             }
         }

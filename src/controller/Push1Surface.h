@@ -70,8 +70,8 @@ namespace lockstep
         // ----------------------------------------------------------------
         struct TouchState
         {
-            bool      touching  = false;
-            bool      turned    = false;   // any turn since touch-down?
+            bool touching = false;
+            bool turned = false;   // any turn since touch-down?
             juce::int64 touchMs = 0;       // time of most recent touch-down
         };
         std::array<TouchState, 8> encoderTouch_{};
@@ -86,8 +86,8 @@ namespace lockstep
         std::array<uint8_t, 72> padShadow_{};
 
         // Upper display buttons (CC 20-27) and scene buttons (CC 36-43).
-        std::array<uint8_t, 8>  upperShadow_{};
-        std::array<uint8_t, 8>  sceneShadow_{};
+        std::array<uint8_t, 8> upperShadow_{};
+        std::array<uint8_t, 8> sceneShadow_{};
 
         // Mono function-button LEDs: indexed by shadow table position.
         // We track 40 potential CCs (see kMonoButtons).
@@ -107,10 +107,14 @@ namespace lockstep
         // Index 0-7 matches modifiers[0-7] in SurfaceModel.
         // Layout: col0=Func/Phrase/Morph/Mute (top→bottom), col1=Track/Scene/Song/Fill.
         static constexpr std::array<int, 8> kModifierNotes = {
-            92, 93,   // row 8: Func (col0), Track (col1)
-            84, 85,   // row 7: Phrase, Scene
-            76, 77,   // row 6: Morph, Song
-            68, 69,   // row 5: Mute, Fill
+            92,
+            93,   // row 8: Func (col0), Track (col1)
+            84,
+            85,   // row 7: Phrase, Scene
+            76,
+            77,   // row 6: Morph, Song
+            68,
+            69,   // row 5: Mute, Fill
         };
 
         // Section row: row 4 (notes 60-67).
@@ -128,8 +132,22 @@ namespace lockstep
 
         // Step rows: row 2 = steps 0-7 (notes 44-51), row 1 = steps 8-15 (notes 36-43).
         static constexpr std::array<int, 16> kStepNotes = {
-            44, 45, 46, 47, 48, 49, 50, 51,  // steps 0-7
-            36, 37, 38, 39, 40, 41, 42, 43,  // steps 8-15
+            44,
+            45,
+            46,
+            47,
+            48,
+            49,
+            50,
+            51,  // steps 0-7
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,  // steps 8-15
         };
 
         // ControllerButton values for verb/nav row (matches kVerbRowNotes order).
@@ -158,24 +176,28 @@ namespace lockstep
 
         // Mono CC button table: {cc, ControllerButton}.
         // Only the subset that maps to a Lockstep action is wired; the rest stay dark.
-        struct MonoEntry { int cc; ControllerButton button; };
-        static constexpr std::array<MonoEntry, 16> kMonoButtons = {{
-            {  85, ControllerButton::VerbPlay        },
-            {  86, ControllerButton::VerbRecord      },
-            {  44, ControllerButton::NavLeft         },
-            {  45, ControllerButton::NavRight        },
-            {  46, ControllerButton::NavUp           },
-            {  47, ControllerButton::NavDown         },
-            {   3, ControllerButton::TapTempo        },
-            {   9, ControllerButton::MetronomeToggle },
-            {  87, ControllerButton::VerbClear       },  // New → Clear alias
-            { 118, ControllerButton::VerbDelete      },  // Delete
-            { 119, ControllerButton::VerbNo          },  // Undo → No/cancel alias
-            {  49, ControllerButton::Func            },  // Shift → Func alias
-            {  60, ControllerButton::MuteScope       },  // Mute → hold-to-mute (= Z)
-            {  29, ControllerButton::StopReset       },  // Stop Clip → stop + reset to top
-            {  54, ControllerButton::NavLeft         },  // Octave Down → NavLeft (octave in note/chrom)
-            {  55, ControllerButton::NavRight        },  // Octave Up → NavRight (octave in note/chrom)
-        }};
+        struct MonoEntry
+        {
+            int cc;
+            ControllerButton button;
+        };
+        static constexpr std::array<MonoEntry, 16> kMonoButtons = { {
+            { 85, ControllerButton::VerbPlay },
+            { 86, ControllerButton::VerbRecord },
+            { 44, ControllerButton::NavLeft },
+            { 45, ControllerButton::NavRight },
+            { 46, ControllerButton::NavUp },
+            { 47, ControllerButton::NavDown },
+            { 3, ControllerButton::TapTempo },
+            { 9, ControllerButton::MetronomeToggle },
+            { 87, ControllerButton::VerbClear },  // New → Clear alias
+            { 118, ControllerButton::VerbDelete },  // Delete
+            { 119, ControllerButton::VerbNo },  // Undo → No/cancel alias
+            { 49, ControllerButton::Func },  // Shift → Func alias
+            { 60, ControllerButton::MuteScope },  // Mute → hold-to-mute (= Z)
+            { 29, ControllerButton::StopReset },  // Stop Clip → stop + reset to top
+            { 54, ControllerButton::NavLeft },  // Octave Down → NavLeft (octave in note/chrom)
+            { 55, ControllerButton::NavRight },  // Octave Up → NavRight (octave in note/chrom)
+        } };
     };
 }

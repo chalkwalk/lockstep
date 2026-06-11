@@ -79,7 +79,7 @@ namespace lockstep
             case CellState::SliceEmpty:         return kStepOutRange;
             case CellState::EffectAvailable:    return 0xFF30A030u;  // lime-green — available effect slot
             case CellState::EffectLoaded:       return 0xFFFFFFFFu;  // white — loaded/selected effect
-            default: return fallback;
+            default:                            return fallback;
         }
     }
 
@@ -91,28 +91,28 @@ namespace lockstep
     {
         switch (btn)
         {
-            case ControllerButton::Func:         return &modifiers[0];
-            case ControllerButton::TrackScope:   return &modifiers[1];
+            case ControllerButton::Func:        return &modifiers[0];
+            case ControllerButton::TrackScope:  return &modifiers[1];
             case ControllerButton::PhraseScope: return &modifiers[2];
-            case ControllerButton::SceneScope:    return &modifiers[3];
-            case ControllerButton::MorphScope:   return &modifiers[4];
-            case ControllerButton::SongScope:  return &modifiers[5];
-            case ControllerButton::MuteScope:    return &modifiers[6];
-            case ControllerButton::FillScope:    return &modifiers[7];
-            case ControllerButton::TapTempo:     return &tap;
-            case ControllerButton::NavUp:        return &navUp;
-            case ControllerButton::NavLeft:      return &functionRow[2];
-            case ControllerButton::NavDown:      return &functionRow[3];
-            case ControllerButton::NavRight:     return &functionRow[4];
-            case ControllerButton::VerbYes:      return &functionRow[5];
-            case ControllerButton::VerbRecord:   return &functionRow[6];
-            case ControllerButton::VerbPlay:     return &functionRow[7];
+            case ControllerButton::SceneScope:  return &modifiers[3];
+            case ControllerButton::MorphScope:  return &modifiers[4];
+            case ControllerButton::SongScope:   return &modifiers[5];
+            case ControllerButton::MuteScope:   return &modifiers[6];
+            case ControllerButton::FillScope:   return &modifiers[7];
+            case ControllerButton::TapTempo:    return &tap;
+            case ControllerButton::NavUp:       return &navUp;
+            case ControllerButton::NavLeft:     return &functionRow[2];
+            case ControllerButton::NavDown:     return &functionRow[3];
+            case ControllerButton::NavRight:    return &functionRow[4];
+            case ControllerButton::VerbYes:     return &functionRow[5];
+            case ControllerButton::VerbRecord:  return &functionRow[6];
+            case ControllerButton::VerbPlay:    return &functionRow[7];
             // functionRow[8] is the O key = CLEAR (button VerbClear). VerbStop is
             // the legacy identity for the same slot; map both so byButton(VerbClear)
             // resolves (without it the Push Clear pad / New→Clear alias stayed off).
             case ControllerButton::VerbStop:
-            case ControllerButton::VerbClear:    return &functionRow[8];
-            case ControllerButton::VerbNo:       return &functionRow[9];
+            case ControllerButton::VerbClear:   return &functionRow[8];
+            case ControllerButton::VerbNo:      return &functionRow[9];
             case ControllerButton::Section:
                 if (idx >= 0 && idx < 6) return &section[static_cast<std::size_t>(idx)];
                 return nullptr;
@@ -144,7 +144,7 @@ namespace lockstep
             const bool fires = [&]() -> bool {
                 if (fillActive)
                 {
-                    if (stp.fillTrigState == FillTrigState::On)  return true;
+                    if (stp.fillTrigState == FillTrigState::On) return true;
                     if (stp.fillTrigState == FillTrigState::Off) return false;
                 }
                 return stp.trig;
@@ -155,15 +155,15 @@ namespace lockstep
                 bool iterPass = true;
                 if (cond.iterDenominator > 1)
                 {
-                    const auto len   = static_cast<std::int64_t>(std::max(trackLen, 1));
+                    const auto len = static_cast<std::int64_t>(std::max(trackLen, 1));
                     const auto denom = static_cast<std::int64_t>(cond.iterDenominator);
-                    const auto iter  = (loopBase + static_cast<std::int64_t>(i)) / len;
+                    const auto iter = (loopBase + static_cast<std::int64_t>(i)) / len;
                     iterPass = (iter % denom == static_cast<std::int64_t>(cond.iterNumerator) - 1);
                 }
                 if (iterPass)
                 {
                     prob = std::clamp(static_cast<float>(cond.probabilityPercent) / 100.0f, 0.0f, 1.0f);
-                    if      (cond.prevDependency == 1) prob *= prevProb;
+                    if (cond.prevDependency == 1) prob *= prevProb;
                     else if (cond.prevDependency == 2) prob *= (1.0f - prevProb);
                 }
             }
@@ -174,16 +174,16 @@ namespace lockstep
         return out;
     }
 
-    SurfaceModel buildSurfaceModel(const UiState&         ui,
-                                   const EditContext&      ec,
-                                   const PressTracker*     press,
-                                   LockstepProcessor&      proc,
-                                   int                     activeTrack,
-                                   int                     stepPage,
-                                   GridDisplayMode         /*displayMode*/,
-                                   int                     slotOffset,
-                                   float                   crossfaderValue,
-                                   const MorphViewState&   morphView)
+    SurfaceModel buildSurfaceModel(const UiState& ui,
+                                   const EditContext& ec,
+                                   const PressTracker* press,
+                                   LockstepProcessor& proc,
+                                   int activeTrack,
+                                   int stepPage,
+                                   GridDisplayMode /*displayMode*/,
+                                   int slotOffset,
+                                   float crossfaderValue,
+                                   const MorphViewState& morphView)
     {
         SurfaceModel model;
 
@@ -197,37 +197,32 @@ namespace lockstep
         for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
         {
             const int cur = proc.isTrackDeviated(t)
-                ? proc.deviationPhraseIdxForTrack(t)
-                : proc.activeSectionIdx();
+                                ? proc.deviationPhraseIdxForTrack(t)
+                                : proc.activeSectionIdx();
             model.trackDeviated[static_cast<std::size_t>(t)] = (cur != homePhrase);
         }
 
         // Press-state helpers
-        auto keyDown = [&](int rawCode) -> bool
-        {
+        auto keyDown = [&](int rawCode) -> bool {
             return press ? press->isKeyHeld(rawCode)
                          : juce::KeyPress::isKeyCurrentlyDown(rawCode);
         };
-        auto mouseDown = [&](ControllerButton btn, int idx = -1) -> bool
-        {
+        auto mouseDown = [&](ControllerButton btn, int idx = -1) -> bool {
             return press && press->isMouseHeld(btn, idx);
         };
         // Hardware-controller presses (e.g. a Push pad) must highlight on screen
         // exactly like mouse/keyboard — they are tracked under kControllerSource.
-        auto controllerDown = [&](ControllerButton btn, int idx = -1) -> bool
-        {
+        auto controllerDown = [&](ControllerButton btn, int idx = -1) -> bool {
             return press && press->isControllerHeld(btn, idx);
         };
-        auto physPressed = [&](int rawCode, ControllerButton btn, int idx = -1) -> bool
-        {
+        auto physPressed = [&](int rawCode, ControllerButton btn, int idx = -1) -> bool {
             return keyDown(rawCode) || mouseDown(btn, idx) || controllerDown(btn, idx);
         };
 
         // Compound-chord overlay condition (MHY cross-column pair)
         const bool col1any = ui.phraseScopeHeld || ui.morphHeld || ui.muteHeld;
         const bool col2any = ui.trackHeld || ui.sceneHeld || ui.songHeld || ui.fillHeld;
-        const bool hasCompound = (ui.funcHeld && (col1any || col2any))
-                               || (col1any && col2any);
+        const bool hasCompound = (ui.funcHeld && (col1any || col2any)) || (col1any && col2any);
         // (kAmberStrip lives in UITheme.h)
 
         // Held-modifier bitmask — used by resolveBinding() for the label/action table.
@@ -242,23 +237,22 @@ namespace lockstep
                                 int rawCode, const char* label,
                                 bool isHeld, bool latchActive,
                                 uint32_t scopeCol, uint32_t dimCol,
-                                bool stripOn) -> void
-        {
-            c.button  = btn;
-            c.index   = -1;
-            c.pressed  = physPressed(rawCode, btn);
-            c.primary  = label;
+                                bool stripOn) -> void {
+            c.button = btn;
+            c.index = -1;
+            c.pressed = physPressed(rawCode, btn);
+            c.primary = label;
             c.funcHint = {};
             c.strip.present = stripOn;
-            c.strip.colour  = kAmberStrip;
+            c.strip.colour = kAmberStrip;
             if (latchActive && scopeCol != 0)
             {
                 c.pip.present = true;
-                c.pip.colour  = scopeCol;
+                c.pip.colour = scopeCol;
             }
-            if (c.pressed)      c.base = CellState::Pressed;
-            else if (isHeld)    c.base = CellState::ModeActive;
-            else                c.base = CellState::Resting;
+            if (c.pressed) c.base = CellState::Pressed;
+            else if (isHeld) c.base = CellState::ModeActive;
+            else c.base = CellState::Resting;
             c.baseColour = (c.base == CellState::ModeActive) ? scopeCol : dimCol;
             jassert(!c.primary.isEmpty());  // invariant: modifier cells always have a label
         };
@@ -268,19 +262,22 @@ namespace lockstep
         // =====================================================================
         {
             SurfaceCell& c = model.modifiers[0];
-            c.button  = ControllerButton::Func;
+            c.button = ControllerButton::Func;
             c.keyHint = "1";
-            c.pressed  = physPressed('1', ControllerButton::Func);
+            c.pressed = physPressed('1', ControllerButton::Func);
             c.funcHint = {};
             // Table-driven label: "FUNC" bare (no hint); Func+Func does not produce
             // a secondary, so funcHint stays empty from the binding row.
-            { const auto& r = resolveBinding(ControllerButton::Func, -1, heldMods, SurfaceLayer::Base);
-              c.primary = juce::String(r.primary); c.funcHint = juce::String(r.hint); }
+            {
+                const auto& r = resolveBinding(ControllerButton::Func, -1, heldMods, SurfaceLayer::Base);
+                c.primary = juce::String(r.primary);
+                c.funcHint = juce::String(r.hint);
+            }
             c.strip.present = hasCompound && ui.funcHeld;
-            c.strip.colour  = kAmberStrip;
-            c.base = c.pressed ? CellState::Pressed
-                   : ui.funcHeld ? CellState::ModeActive
-                   : CellState::Resting;
+            c.strip.colour = kAmberStrip;
+            c.base = c.pressed     ? CellState::Pressed
+                     : ui.funcHeld ? CellState::ModeActive
+                                   : CellState::Resting;
             c.baseColour = (c.base == CellState::ModeActive) ? kFuncActive : kFuncInactive;
         }
 
@@ -295,8 +292,11 @@ namespace lockstep
                          kScopeTrack, kScopeTrackDim,
                          hasCompound && ui.trackHeld);
             // Table-driven label: "TRACK" bare, "KIT" when Func held.
-            { const auto& r = resolveBinding(ControllerButton::TrackScope, -1, heldMods, SurfaceLayer::Base);
-              c.primary = juce::String(r.primary); c.funcHint = juce::String(r.hint); }
+            {
+                const auto& r = resolveBinding(ControllerButton::TrackScope, -1, heldMods, SurfaceLayer::Base);
+                c.primary = juce::String(r.primary);
+                c.funcHint = juce::String(r.hint);
+            }
         }
 
         // =====================================================================
@@ -319,23 +319,32 @@ namespace lockstep
                          kScopeSong, kScopeSongDim,
                          hasCompound && ui.songHeld);
             // Table-driven label: "SONG" bare, "GLOBAL" when Func held.
-            { const auto& r = resolveBinding(ControllerButton::SongScope, -1, heldMods, SurfaceLayer::Base);
-              c.primary = juce::String(r.primary); c.funcHint = juce::String(r.hint); }
+            {
+                const auto& r = resolveBinding(ControllerButton::SongScope, -1, heldMods, SurfaceLayer::Base);
+                c.primary = juce::String(r.primary);
+                c.funcHint = juce::String(r.hint);
+            }
         }
         {
             SurfaceCell& c = model.modifiers[6];
             c.keyHint = "Z";
             // Table-driven label: "MUTE" bare; Scene+Mute gives "S-MUTE" (scene-mute
             // grid view, DESIGN §13/§16). ActionId distinguishes the two modes.
-            { const auto& mutRow = resolveBinding(ControllerButton::MuteScope, -1, heldMods, SurfaceLayer::Base);
-              const juce::String muteLabel { mutRow.primary };
-              const bool sceneMuteMode = (mutRow.action == ActionId::HoldSceneMuteView);
-              fillModifier(c, ControllerButton::MuteScope, 'Z', muteLabel.toRawUTF8(),
-                           ui.muteHeld, ui.latch.mute,
-                           sceneMuteMode ? kScopePMute : kScopeMute, kScopeMuteDim,
-                           hasCompound && ui.muteHeld);
-              if (ui.latch.mute) c.pip.colour = kScopeMute;
-              if (ui.sceneHeld && !ui.muteHeld) { c.scopeTint = kScopeScene; c.baseColour = kScopeScene; } }
+            {
+                const auto& mutRow = resolveBinding(ControllerButton::MuteScope, -1, heldMods, SurfaceLayer::Base);
+                const juce::String muteLabel{ mutRow.primary };
+                const bool sceneMuteMode = (mutRow.action == ActionId::HoldSceneMuteView);
+                fillModifier(c, ControllerButton::MuteScope, 'Z', muteLabel.toRawUTF8(),
+                             ui.muteHeld, ui.latch.mute,
+                             sceneMuteMode ? kScopePMute : kScopeMute, kScopeMuteDim,
+                             hasCompound && ui.muteHeld);
+                if (ui.latch.mute) c.pip.colour = kScopeMute;
+                if (ui.sceneHeld && !ui.muteHeld)
+                {
+                    c.scopeTint = kScopeScene;
+                    c.baseColour = kScopeScene;
+                }
+            }
         }
         {
             SurfaceCell& c = model.modifiers[7];
@@ -351,14 +360,17 @@ namespace lockstep
         // =====================================================================
         {
             SurfaceCell& c = model.tap;
-            c.button  = ControllerButton::TapTempo;
+            c.button = ControllerButton::TapTempo;
             c.keyHint = "3";
-            c.pressed  = physPressed('3', ControllerButton::TapTempo);
-            c.base     = c.pressed ? CellState::Pressed : CellState::Resting;
+            c.pressed = physPressed('3', ControllerButton::TapTempo);
+            c.base = c.pressed ? CellState::Pressed : CellState::Resting;
             c.baseColour = kTapActive;
             // Table-driven label: "TAP" bare (hint "MET"); "MET" when Func held.
-            { const auto& r = resolveBinding(ControllerButton::TapTempo, -1, heldMods, SurfaceLayer::Base);
-              c.primary = juce::String(r.primary); c.funcHint = juce::String(r.hint); }
+            {
+                const auto& r = resolveBinding(ControllerButton::TapTempo, -1, heldMods, SurfaceLayer::Base);
+                c.primary = juce::String(r.primary);
+                c.funcHint = juce::String(r.hint);
+            }
             jassert(!c.primary.isEmpty());
         }
 
@@ -367,39 +379,42 @@ namespace lockstep
         // =====================================================================
         {
             SurfaceCell& c = model.navUp;
-            c.button  = ControllerButton::NavUp;
+            c.button = ControllerButton::NavUp;
             c.keyHint = "4";
-            c.pressed  = physPressed('4', ControllerButton::NavUp);
-            c.base     = c.pressed ? CellState::Pressed : CellState::Resting;
+            c.pressed = physPressed('4', ControllerButton::NavUp);
+            c.base = c.pressed ? CellState::Pressed : CellState::Resting;
             // Morph: A-pole qualifier active → accent; Morph held → morph tint.
             // Track: cycle-input-mode action is scope-specific → Track tint.
             // scopeTint drives on-screen colour (groupForCell reads it); baseColour
             // drives controller LEDs — set both so neither renderer diverges.
             if (ui.morphHeld && ui.morphNavQualifier == 1)
             {
-                c.scopeTint  = juce::Colour(kScopeMorphAcc).getARGB();
+                c.scopeTint = juce::Colour(kScopeMorphAcc).getARGB();
                 c.baseColour = juce::Colour(kScopeMorphAcc).getARGB();
             }
             else if (ui.morphHeld)
             {
-                c.scopeTint  = juce::Colour(kScopeMorph).getARGB();
+                c.scopeTint = juce::Colour(kScopeMorph).getARGB();
                 c.baseColour = juce::Colour(kScopeMorph).getARGB();
             }
             else if (ui.trackHeld)
             {
-                c.scopeTint  = kScopeTrack;
+                c.scopeTint = kScopeTrack;
                 c.baseColour = kScopeTrack;
             }
             else
             {
-                c.scopeTint  = 0u;
+                c.scopeTint = 0u;
                 c.baseColour = kNavActive;
             }
             // Table-driven label: ↑ bare (hint ×2); ×2 when Func held (not Track);
             // A-pole when Morph held; ↑ no-hint when Track held (cycles input mode).
             // Morph+Func gives ×2 (explicit combined row in table preserves dispatch order).
-            { const auto& r = resolveBinding(ControllerButton::NavUp, -1, heldMods, SurfaceLayer::Base);
-              c.primary = juce::String(r.primary); c.funcHint = juce::String(r.hint); }
+            {
+                const auto& r = resolveBinding(ControllerButton::NavUp, -1, heldMods, SurfaceLayer::Base);
+                c.primary = juce::String(r.primary);
+                c.funcHint = juce::String(r.hint);
+            }
             jassert(!c.primary.isEmpty());
         }
 
@@ -424,13 +439,10 @@ namespace lockstep
         static constexpr std::array<const char*, IMachine::kMaxSections> kMetaLabels = {
             "COND", "NOTE", "", "", "", ""
         };
-        auto isReservedMeta = [](int s) -> bool
-        {
-            return s < 0 || s >= IMachine::kMaxSections
-                || kMetaLabels[static_cast<std::size_t>(s)][0] == '\0';
+        auto isReservedMeta = [](int s) -> bool {
+            return s < 0 || s >= IMachine::kMaxSections || kMetaLabels[static_cast<std::size_t>(s)][0] == '\0';
         };
-        auto sectionHasMachineSlot = [&](int track, int canonicalIdx) -> bool
-        {
+        auto sectionHasMachineSlot = [&](int track, int canonicalIdx) -> bool {
             if (proc.section(track, canonicalIdx).firstSlot >= 0)
                 return true;
             const int total = proc.numSections(track);
@@ -446,14 +458,15 @@ namespace lockstep
         for (int s = 0; s < IMachine::kMaxSections; ++s)
         {
             SurfaceCell& c = model.section[static_cast<std::size_t>(s)];
-            c.button  = ControllerButton::Section;
-            c.index   = s;
+            c.button = ControllerButton::Section;
+            c.index = s;
             c.keyHint = kSectionKeyHints[s];
 
             const bool machineHasSection = sectionHasMachineSlot(activeTrack, s);
             const char* metaLabel = isReservedMeta(s)
-                ? nullptr : kMetaLabels[static_cast<std::size_t>(s)];
-            const KeyDef kd {
+                                        ? nullptr
+                                        : kMetaLabels[static_cast<std::size_t>(s)];
+            const KeyDef kd{
                 KeyRole::SectionKey,
                 IMachine::kCanonicalSectionNames[static_cast<std::size_t>(s)],
                 (metaLabel != nullptr) ? metaLabel : "",
@@ -462,8 +475,8 @@ namespace lockstep
             const KeyLabel kl = resolveKeyLabel(kd, ui, ec);
 
             c.disabled = kl.disabled;
-            c.primary  = kl.primary;
-            c.pressed  = physPressed(kSectionKeyCodes[s], ControllerButton::Section, s);
+            c.primary = kl.primary;
+            c.pressed = physPressed(kSectionKeyCodes[s], ControllerButton::Section, s);
 
             // Hint band = Func-layer only. AMP/MOD have no Func action → no hint.
             // Func-promotion: when Func held, meta label becomes the live primary.
@@ -471,7 +484,7 @@ namespace lockstep
                 c.funcHint = {};
             else if (ui.funcHeld)
             {
-                c.primary  = kl.hint;   // e.g. TRIG→COND, SRC→NOTE, FILTER→TRACK
+                c.primary = kl.hint;   // e.g. TRIG→COND, SRC→NOTE, FILTER→TRACK
                 c.funcHint = {};
             }
             else
@@ -479,17 +492,16 @@ namespace lockstep
 
             const bool isSrcNoteEdit = (!isScopedMode && ui.funcHeld && s == 1);  // SRC = note-edit anchor
             const bool isMasterActive = !isScopedMode && (ui.masterSection == s);
-            const bool isTrackActive  = !isScopedMode && (ui.masterSection == -1
-                && ui.trackSection[static_cast<std::size_t>(activeTrack)] == s);
+            const bool isTrackActive = !isScopedMode && (ui.masterSection == -1 && ui.trackSection[static_cast<std::size_t>(activeTrack)] == s);
 
             // Func layer (bare Func, no scope): the section row must announce its
             // secondary layer in colour, not just text (DESIGN §6.1 rule 3, §6.2).
             // Cells with a wired secondary (COND/NOTE/FX-picker) glow in the Func hue
             // and are always available; cells with none dim to Disabled.
-            const bool funcLayerActive  = (ui.funcHeld && !isScopedMode);
+            const bool funcLayerActive = (ui.funcHeld && !isScopedMode);
             // FX is normally reserved (no meta label) but Func+FX opens the insert
             // picker — treat it as having a func secondary so it illuminates, not dims.
-            const bool isFxPickerArmed  = (funcLayerActive && s == proc.kFxSecIdx);
+            const bool isFxPickerArmed = (funcLayerActive && s == proc.kFxSecIdx);
             const bool hasFuncSecondary = !isReservedMeta(s) || isFxPickerArmed;
             if (funcLayerActive)
                 c.disabled = !hasFuncSecondary;
@@ -497,7 +509,7 @@ namespace lockstep
             // Fill layer: TRIG (0) and SRC (1) glow when Fill is held to announce
             // the Retrig and SoundPool overlays respectively.
             const bool fillLayerActive = (ui.fillHeld && !isScopedMode && !ui.funcHeld);
-            const bool isFillArmed     = fillLayerActive && (s == 0 || s == 1);
+            const bool isFillArmed = fillLayerActive && (s == 0 || s == 1);
 
             if (c.pressed)
                 c.base = CellState::Pressed;
@@ -540,12 +552,11 @@ namespace lockstep
         // renderers can read it without re-deriving. resolveActiveLayer is the one
         // SSOT so rendering and dispatch cannot diverge.
         // =====================================================================
-        const bool validStepTrackMode = activeTrack >= 0
-                                     && activeTrack < static_cast<int>(kNumTracks);
+        const bool validStepTrackMode = activeTrack >= 0 && activeTrack < static_cast<int>(kNumTracks);
         const TrackInputMode activeTrackMode = validStepTrackMode
-            ? ui.trackInputMode[static_cast<std::size_t>(activeTrack)]
-            : TrackInputMode::Play;
-        const LayerFacts layerFacts { activeTrackMode, activeTrack };
+                                                   ? ui.trackInputMode[static_cast<std::size_t>(activeTrack)]
+                                                   : TrackInputMode::Play;
+        const LayerFacts layerFacts{ activeTrackMode, activeTrack };
         const SurfaceLayer activeLayer = resolveActiveLayer(ui, ec, layerFacts);
 
         // =====================================================================
@@ -557,50 +568,50 @@ namespace lockstep
         // button, and role remain here for event routing and cell-state logic.
         struct FRowDef
         {
-            int              keyCode;
-            const char8_t*   keyHint;
+            int keyCode;
+            const char8_t* keyHint;
             ControllerButton button;
-            KeyRole          role;
+            KeyRole role;
         };
 
-        static const std::array<FRowDef, 10> kFRowDefs = {{
-            { 'Q', u8"Q", ControllerButton::PhraseScope, KeyRole::Modifier  },
-            { 'W', u8"W", ControllerButton::SceneScope,  KeyRole::Modifier  },
-            { 'E', u8"E", ControllerButton::NavLeft,     KeyRole::Nav       },
-            { 'R', u8"R", ControllerButton::NavDown,     KeyRole::Nav       },
-            { 'T', u8"T", ControllerButton::NavRight,    KeyRole::Nav       },
-            { 'Y', u8"Y", ControllerButton::VerbYes,     KeyRole::VerbYes   },
-            { 'U', u8"U", ControllerButton::VerbRecord,  KeyRole::VerbCopy  },
-            { 'I', u8"I", ControllerButton::VerbPlay,    KeyRole::VerbPaste },
-            { 'O', u8"O", ControllerButton::VerbClear,   KeyRole::VerbClear },
-            { 'P', u8"P", ControllerButton::VerbNo,      KeyRole::VerbNo    },
-        }};
+        static const std::array<FRowDef, 10> kFRowDefs = { {
+            { 'Q', u8"Q", ControllerButton::PhraseScope, KeyRole::Modifier },
+            { 'W', u8"W", ControllerButton::SceneScope, KeyRole::Modifier },
+            { 'E', u8"E", ControllerButton::NavLeft, KeyRole::Nav },
+            { 'R', u8"R", ControllerButton::NavDown, KeyRole::Nav },
+            { 'T', u8"T", ControllerButton::NavRight, KeyRole::Nav },
+            { 'Y', u8"Y", ControllerButton::VerbYes, KeyRole::VerbYes },
+            { 'U', u8"U", ControllerButton::VerbRecord, KeyRole::VerbCopy },
+            { 'I', u8"I", ControllerButton::VerbPlay, KeyRole::VerbPaste },
+            { 'O', u8"O", ControllerButton::VerbClear, KeyRole::VerbClear },
+            { 'P', u8"P", ControllerButton::VerbNo, KeyRole::VerbNo },
+        } };
 
         const bool sectionScopeHeld = (firstHeldSectionSuiteScope(ui) != PS::None);
 
         for (int i = 0; i < 10; ++i)
         {
             const auto& def = kFRowDefs[static_cast<std::size_t>(i)];
-            SurfaceCell& c  = model.functionRow[static_cast<std::size_t>(i)];
+            SurfaceCell& c = model.functionRow[static_cast<std::size_t>(i)];
 
-            c.button  = def.button;
-            c.index   = -1;
+            c.button = def.button;
+            c.index = -1;
             c.keyHint = juce::String(def.keyHint);
             c.pressed = physPressed(def.keyCode, def.button);
 
-            const bool isOverdub  = (def.keyCode == 'U') && proc.clock().isOverdubArmed();
-            const bool isArmed    = (def.keyCode == 'U') && proc.clock().isRecordArmed();
-            const bool isPlaying  = (def.keyCode == 'I') && proc.clock().inPluginPlaying();
-            const bool isPatHeld  = (def.keyCode == 'Q') && ui.phraseScopeHeld;
-            const bool isPrtHeld  = (def.keyCode == 'W') && ui.sceneHeld;
+            const bool isOverdub = (def.keyCode == 'U') && proc.clock().isOverdubArmed();
+            const bool isArmed = (def.keyCode == 'U') && proc.clock().isRecordArmed();
+            const bool isPlaying = (def.keyCode == 'I') && proc.clock().inPluginPlaying();
+            const bool isPatHeld = (def.keyCode == 'Q') && ui.phraseScopeHeld;
+            const bool isPrtHeld = (def.keyCode == 'W') && ui.sceneHeld;
             const bool isModeActive = isArmed || isPlaying || isPatHeld || isPrtHeld;
 
             // Table-driven labels: covers Func-promotion, CPC relabels (COPY/PASTE/CLEAR
             // under scope), nav-hint suppression under Track, and Morph B-pole on NavDown.
             // Runtime states PAUSE and OD override afterwards since the table is static.
             const auto& binding = resolveBinding(def.button, -1, heldMods, SurfaceLayer::Base);
-            juce::String displayPrimary { binding.primary };
-            juce::String displayHint    { binding.hint    };
+            juce::String displayPrimary{ binding.primary };
+            juce::String displayHint{ binding.hint };
 
             // Runtime-only overrides (not encodable in a static table):
             if (def.keyCode == 'I' && isPlaying && !sectionScopeHeld && !ui.stepHeld)
@@ -608,25 +619,29 @@ namespace lockstep
             if (isOverdub)
                 displayPrimary = "OD";
 
-            c.primary  = displayPrimary;
+            c.primary = displayPrimary;
             c.funcHint = displayHint;
 
             // Compound overlay on Q (Pattern) and W (Part)
-            c.strip.present = hasCompound
-                && ((def.keyCode == 'Q' && ui.phraseScopeHeld)
-                 || (def.keyCode == 'W' && ui.sceneHeld));
-            c.strip.colour  = kAmberStrip;
+            c.strip.present = hasCompound && ((def.keyCode == 'Q' && ui.phraseScopeHeld) || (def.keyCode == 'W' && ui.sceneHeld));
+            c.strip.colour = kAmberStrip;
 
             // Latch pips: Pattern (Q) and Part (W)
             if (def.keyCode == 'Q' && ui.latch.phrase)
-                { c.pip.present = true; c.pip.colour = kScopePhrase; }
+            {
+                c.pip.present = true;
+                c.pip.colour = kScopePhrase;
+            }
             else if (def.keyCode == 'W' && ui.latch.scene)
-                { c.pip.present = true; c.pip.colour = kScopeScene; }
+            {
+                c.pip.present = true;
+                c.pip.colour = kScopeScene;
+            }
 
             // Cell state
-            if (c.pressed)         c.base = CellState::Pressed;
+            if (c.pressed) c.base = CellState::Pressed;
             else if (isModeActive) c.base = CellState::ModeActive;
-            else                   c.base = CellState::Resting;
+            else c.base = CellState::Resting;
 
             // baseColour for controller feedback and groupForCell()
             if (isOverdub)
@@ -637,17 +652,17 @@ namespace lockstep
                 c.baseColour = ui.sceneHeld ? kScopeScene : kScopeSceneDim;
             else if (def.keyCode == 'R' && ui.morphHeld && ui.morphNavQualifier == 2)
             {
-                c.scopeTint  = juce::Colour(kScopeMorphAcc).getARGB();
+                c.scopeTint = juce::Colour(kScopeMorphAcc).getARGB();
                 c.baseColour = juce::Colour(kScopeMorphAcc).getARGB();
             }
             else if (def.keyCode == 'R' && ui.morphHeld)
             {
-                c.scopeTint  = juce::Colour(kScopeMorph).getARGB();
+                c.scopeTint = juce::Colour(kScopeMorph).getARGB();
                 c.baseColour = juce::Colour(kScopeMorph).getARGB();
             }
             else if (def.keyCode == 'R' && ui.trackHeld)
             {
-                c.scopeTint  = kScopeTrack;
+                c.scopeTint = kScopeTrack;
                 c.baseColour = kScopeTrack;
             }
             else
@@ -663,20 +678,16 @@ namespace lockstep
             {
                 if (def.role == KeyRole::VerbNo)
                     c.disabled = true;
-                else if (def.role == KeyRole::VerbYes
-                      || (def.role == KeyRole::VerbCopy  && !ui.morphHeld)
-                      || (def.role == KeyRole::VerbPaste && !ui.morphHeld)
-                      || def.role == KeyRole::VerbClear)
+                else if (def.role == KeyRole::VerbYes || (def.role == KeyRole::VerbCopy && !ui.morphHeld) || (def.role == KeyRole::VerbPaste && !ui.morphHeld) || def.role == KeyRole::VerbClear)
                     c.scopeTint = scopeColour(sectionScope).getARGB();
             }
 
             // DeletePicker / PendingConfirm: dim all function-row keys except Func.
             // (Steps stay live for DeletePicker; PendingConfirm dims them separately.)
-            if (activeLayer == SurfaceLayer::DeletePicker
-                && def.button != ControllerButton::Func)
+            if (activeLayer == SurfaceLayer::DeletePicker && def.button != ControllerButton::Func)
             {
-                c.disabled  = true;
-                c.base      = CellState::Disabled;
+                c.disabled = true;
+                c.base = CellState::Disabled;
                 c.scopeTint = 0;
             }
 
@@ -688,17 +699,17 @@ namespace lockstep
                 {
                     const auto& b = resolveBinding(def.button, -1, heldMods,
                                                    SurfaceLayer::PendingConfirm);
-                    c.primary  = juce::String(b.primary);
+                    c.primary = juce::String(b.primary);
                     c.funcHint = juce::String(b.hint);
                     if (!c.pressed)
                         c.base = b.state;
-                    c.disabled  = false;
+                    c.disabled = false;
                     c.scopeTint = 0;
                 }
                 else if (def.button != ControllerButton::Func)
                 {
-                    c.disabled  = true;
-                    c.base      = CellState::Disabled;
+                    c.disabled = true;
+                    c.base = CellState::Disabled;
                     c.scopeTint = 0;
                 }
             }
@@ -709,9 +720,9 @@ namespace lockstep
 
         // Mirror Q and W into modifiers[2/3] for byButton() lookup.
         // Screen renders Q/W from functionRow[0/1]; controllers look up via modifiers.
-        model.modifiers[2]        = model.functionRow[0];
+        model.modifiers[2] = model.functionRow[0];
         model.modifiers[2].button = ControllerButton::PhraseScope;
-        model.modifiers[3]        = model.functionRow[1];
+        model.modifiers[3] = model.functionRow[1];
         model.modifiers[3].button = ControllerButton::SceneScope;
 
         // =====================================================================
@@ -719,12 +730,12 @@ namespace lockstep
         // =====================================================================
         {
             static constexpr int kStepKeyCodes[16] = {
-                'D','F','G','H','J','K','L', 59,
-                'C','V','B','N','M', 44, 46, 47
+                'D', 'F', 'G', 'H', 'J', 'K', 'L', 59,
+                'C', 'V', 'B', 'N', 'M', 44, 46, 47
             };
             static constexpr const char* kStepKeyHints[16] = {
-                "D","F","G","H","J","K","L",";",
-                "C","V","B","N","M",",",".","/"
+                "D", "F", "G", "H", "J", "K", "L", ";",
+                "C", "V", "B", "N", "M", ",", ".", "/"
             };
 
             // ── Layer-keyed branches (bodies verbatim from the original cascade) ──
@@ -733,51 +744,52 @@ namespace lockstep
                 // Dim all step cells — confirm resolves via P/Func+P only.
                 for (int i = 0; i < 16; ++i)
                 {
-                    auto& s       = model.step[static_cast<std::size_t>(i)];
-                    s.keyHint     = kStepKeyHints[static_cast<std::size_t>(i)];
-                    s.base        = CellState::Disabled;
-                    s.disabled    = true;
+                    auto& s = model.step[static_cast<std::size_t>(i)];
+                    s.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                    s.base = CellState::Disabled;
+                    s.disabled = true;
                 }
             }
             else if (activeLayer == SurfaceLayer::DeletePicker)
             {
                 // Delete-picker selector: show slots for the picker scope; tap selects target.
                 const DeleteScope dpScope = ui.deletePicker.scope;
-                int maxAvail  = 0;
+                int maxAvail = 0;
                 int activeIdx = 0;
                 if (dpScope == DeleteScope::Track)
                 {
-                    maxAvail  = static_cast<int>(kNumTracks);
+                    maxAvail = static_cast<int>(kNumTracks);
                     activeIdx = activeTrack;
                 }
                 else if (dpScope == DeleteScope::Phrase)
                 {
-                    maxAvail  = kPhrasesPerTrack;
+                    maxAvail = kPhrasesPerTrack;
                     const int at = activeTrack >= 0 ? activeTrack : 0;
                     activeIdx = proc.activeSectionIdx();
                     (void)at;
                 }
                 else // Scene
                 {
-                    maxAvail  = kScenesPerSong;
+                    maxAvail = kScenesPerSong;
                     activeIdx = proc.activeSectionIdx();
                 }
 
-                const juce::Colour scopeTint { 0xFFC03030u };  // red danger tint for delete
+                const juce::Colour scopeTint{ 0xFFC03030u };  // red danger tint for delete
                 for (int i = 0; i < 16; ++i)
                 {
                     SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
-                    c.button  = (dpScope == DeleteScope::Track)
-                                ? ControllerButton::SelectTrack : ControllerButton::Step;
-                    c.index   = i;
+                    c.button = (dpScope == DeleteScope::Track)
+                                   ? ControllerButton::SelectTrack
+                                   : ControllerButton::Step;
+                    c.index = i;
                     c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
                     c.pressed = physPressed(kStepKeyCodes[i],
-                                           c.button == ControllerButton::Step
-                                               ? ControllerButton::Step
-                                               : ControllerButton::SelectTrack,
-                                           i);
+                                            c.button == ControllerButton::Step
+                                                ? ControllerButton::Step
+                                                : ControllerButton::SelectTrack,
+                                            i);
 
-                    const bool avail   = i < maxAvail;
+                    const bool avail = i < maxAvail;
                     const bool isCurrent = avail && (i == activeIdx);
 
                     bool isEmpty = false;
@@ -791,22 +803,22 @@ namespace lockstep
 
                     if (!avail)
                     {
-                        c.base       = CellState::SelectorOutRange;
+                        c.base = CellState::SelectorOutRange;
                         c.baseColour = scopeTint.withAlpha(0.04f).getARGB();
                     }
                     else if (isEmpty)
                     {
-                        c.base       = CellState::SelectorEmpty;
+                        c.base = CellState::SelectorEmpty;
                         c.baseColour = scopeTint.withAlpha(0.09f).getARGB();
                     }
                     else if (isCurrent)
                     {
-                        c.base       = CellState::SelectorCurrent;
+                        c.base = CellState::SelectorCurrent;
                         c.baseColour = juce::Colours::white.interpolatedWith(scopeTint, 0.30f).getARGB();
                     }
                     else
                     {
-                        c.base       = CellState::SelectorOccupied;
+                        c.base = CellState::SelectorOccupied;
                         c.baseColour = scopeTint.withAlpha(0.18f).getARGB();
                     }
                 }
@@ -814,23 +826,30 @@ namespace lockstep
             else if (activeLayer == SurfaceLayer::SoundPool)
             {
                 // Sound Pool overlay: grid cells show saved sounds for the active track.
-                static constexpr std::array<double, 8> kRetrigRates = {{
-                    1.0, 2.0/3.0, 0.5, 1.0/3.0, 0.25, 1.0/6.0, 0.125, 1.0/12.0,
-                }};
+                static constexpr std::array<double, 8> kRetrigRates = { {
+                    1.0,
+                    2.0 / 3.0,
+                    0.5,
+                    1.0 / 3.0,
+                    0.25,
+                    1.0 / 6.0,
+                    0.125,
+                    1.0 / 12.0,
+                } };
                 (void)kRetrigRates;
-                const juce::Colour fillTint { kScopeFill };
+                const juce::Colour fillTint{ kScopeFill };
                 const int poolSize = proc.soundPoolSize();
                 for (int i = 0; i < 16; ++i)
                 {
                     SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
-                    c.button  = ControllerButton::Step;
-                    c.index   = i;
+                    c.button = ControllerButton::Step;
+                    c.index = i;
                     c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
                     c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
 
                     if (i >= poolSize)
                     {
-                        c.base      = CellState::SoundPoolEmpty;
+                        c.base = CellState::SoundPoolEmpty;
                         c.baseColour = kStepOutRange;
                     }
                     else
@@ -838,11 +857,12 @@ namespace lockstep
                         c.base = CellState::SoundPoolOccupied;
                         const auto* entry = proc.soundPoolEntry(i);
                         const juce::String label = entry
-                            ? juce::String(entry->name.c_str()) : juce::String(i + 1);
-                        c.primary    = label;
+                                                       ? juce::String(entry->name.c_str())
+                                                       : juce::String(i + 1);
+                        c.primary = label;
                         c.baseColour = c.pressed
-                            ? juce::Colours::white.withAlpha(0.22f).getARGB()
-                            : fillTint.withAlpha(0.18f).getARGB();
+                                           ? juce::Colours::white.withAlpha(0.22f).getARGB()
+                                           : fillTint.withAlpha(0.18f).getARGB();
                     }
                 }
             }
@@ -850,10 +870,11 @@ namespace lockstep
             {
                 // Retrig overlay: check if the machine is ISliceable (slice picker)
                 // or show ratchet rates.
-                const auto* machine    = proc.machineForTrack(activeTrack);
-                const auto* sliceable  = machine
-                    ? dynamic_cast<const ISliceable*>(machine) : nullptr;
-                const juce::Colour fillTint { kScopeFill };
+                const auto* machine = proc.machineForTrack(activeTrack);
+                const auto* sliceable = machine
+                                            ? dynamic_cast<const ISliceable*>(machine)
+                                            : nullptr;
+                const juce::Colour fillTint{ kScopeFill };
 
                 if (sliceable && sliceable->hasSlices())
                 {
@@ -862,53 +883,50 @@ namespace lockstep
                     for (int i = 0; i < 16; ++i)
                     {
                         SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
-                        c.button  = ControllerButton::Step;
-                        c.index   = i;
+                        c.button = ControllerButton::Step;
+                        c.index = i;
                         c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
                         c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
 
                         if (i >= numSlices)
                         {
-                            c.base      = CellState::SliceEmpty;
+                            c.base = CellState::SliceEmpty;
                             c.baseColour = kStepOutRange;
                         }
                         else
                         {
-                            c.base      = CellState::SlicePoint;
-                            c.primary   = juce::String(i + 1);
+                            c.base = CellState::SlicePoint;
+                            c.primary = juce::String(i + 1);
                             c.baseColour = c.pressed
-                                ? juce::Colours::white.withAlpha(0.70f).getARGB()
-                                : fillTint.withAlpha(0.20f + static_cast<float>(i)
-                                                              / static_cast<float>(numSlices) * 0.25f).getARGB();
+                                               ? juce::Colours::white.withAlpha(0.70f).getARGB()
+                                               : fillTint.withAlpha(0.20f + static_cast<float>(i) / static_cast<float>(numSlices) * 0.25f).getARGB();
                         }
                     }
                 }
                 else
                 {
                     // Ratchet-rate picker: 8 rates (cells 0-7), remainder dimmed.
-                    static constexpr std::array<const char*, 8> kRateLabels = {{
-                        "/4", "/4T", "/8", "/8T", "/16", "/16T", "/32", "/32T"
-                    }};
+                    static constexpr std::array<const char*, 8> kRateLabels = { { "/4", "/4T", "/8", "/8T", "/16", "/16T", "/32", "/32T" } };
                     for (int i = 0; i < 16; ++i)
                     {
                         SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
-                        c.button  = ControllerButton::Step;
-                        c.index   = i;
+                        c.button = ControllerButton::Step;
+                        c.index = i;
                         c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
                         c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
 
                         if (i >= 8)
                         {
-                            c.base      = CellState::StepOutOfRange;
+                            c.base = CellState::StepOutOfRange;
                             c.baseColour = kStepOutRange;
                         }
                         else
                         {
-                            c.base    = CellState::RetrigRate;
+                            c.base = CellState::RetrigRate;
                             c.primary = juce::String(kRateLabels[static_cast<std::size_t>(i)]);
                             c.baseColour = c.pressed
-                                ? juce::Colours::white.withAlpha(0.70f).getARGB()
-                                : fillTint.withAlpha(0.16f + static_cast<float>(7 - i) * 0.015f).getARGB();
+                                               ? juce::Colours::white.withAlpha(0.70f).getARGB()
+                                               : fillTint.withAlpha(0.16f + static_cast<float>(7 - i) * 0.015f).getARGB();
                         }
                     }
                 }
@@ -916,65 +934,65 @@ namespace lockstep
             else if (activeLayer == SurfaceLayer::MachinePicker)
             {
                 // Machine picker (MHZ.3.5): cells encode available machine slots.
-                const juce::Colour machineTint { kScopeMachine };
+                const juce::Colour machineTint{ kScopeMachine };
                 const int numMachines = proc.numAvailableMachines();
                 const juce::String activeMachineId = proc.getMachineId(activeTrack);
 
                 for (int i = 0; i < 16; ++i)
                 {
                     SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
-                    c.button  = ControllerButton::Step;
-                    c.index   = i;
+                    c.button = ControllerButton::Step;
+                    c.index = i;
                     c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
                     c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
 
                     const bool avail = i < numMachines;
                     if (!avail)
                     {
-                        c.base      = CellState::MachineUnavailable;
+                        c.base = CellState::MachineUnavailable;
                         c.baseColour = kStepOutRange;
                     }
                     else
                     {
-                        const juce::String machId { proc.availableMachineInfo(i).id };
+                        const juce::String machId{ proc.availableMachineInfo(i).id };
                         const bool isCur = (machId == activeMachineId);
-                        c.base      = isCur ? CellState::MachineCurrent : CellState::MachineAvailable;
+                        c.base = isCur ? CellState::MachineCurrent : CellState::MachineAvailable;
                         c.baseColour = isCur
-                            ? juce::Colours::white.withAlpha(0.18f).getARGB()
-                            : machineTint.withAlpha(0.12f).getARGB();
+                                           ? juce::Colours::white.withAlpha(0.18f).getARGB()
+                                           : machineTint.withAlpha(0.12f).getARGB();
                     }
                 }
             }
             else if (activeLayer == SurfaceLayer::TrackFxPicker)
             {
                 // FX insert picker (6.5): cells encode available effects for the active insert slot.
-                const juce::Colour fxTint { compatColour(CellState::EffectAvailable) };
+                const juce::Colour fxTint{ compatColour(CellState::EffectAvailable) };
                 const int numEffects = proc.numAvailableEffects();
                 const std::string loadedId = proc.trackInsertId(activeTrack,
-                                                                  ui.funcFxInsertSlot);
+                                                                ui.funcFxInsertSlot);
 
                 for (int i = 0; i < 16; ++i)
                 {
                     SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
-                    c.button  = ControllerButton::Step;
-                    c.index   = i;
+                    c.button = ControllerButton::Step;
+                    c.index = i;
                     c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
                     c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
 
                     if (i >= numEffects)
                     {
-                        c.base      = CellState::MachineUnavailable;
+                        c.base = CellState::MachineUnavailable;
                         c.baseColour = kStepOutRange;
                     }
                     else
                     {
-                        const auto  info  = proc.availableEffectInfo(i);
-                        const bool  isCur = (info.id == loadedId);
-                        c.base      = isCur ? CellState::EffectLoaded : CellState::EffectAvailable;
-                        c.primary   = juce::String(info.name.c_str());
+                        const auto info = proc.availableEffectInfo(i);
+                        const bool isCur = (info.id == loadedId);
+                        c.base = isCur ? CellState::EffectLoaded : CellState::EffectAvailable;
+                        c.primary = juce::String(info.name.c_str());
                         c.baseColour = isCur
-                            ? juce::Colours::white.withAlpha(0.20f).getARGB()
-                            : fxTint.withAlpha(0.12f).getARGB();
+                                           ? juce::Colours::white.withAlpha(0.20f).getARGB()
+                                           : fxTint.withAlpha(0.12f).getARGB();
                     }
                 }
             }
@@ -982,25 +1000,24 @@ namespace lockstep
             {
                 // NoteEdit overlay: cells encode semitone note state for one octave.
                 // Cells 0–11 = semitones C–B; 12–15 = dead.
-                static constexpr bool kNoteIsBlack[] =
-                    { false,true,false,true,false,false,true,false,true,false,true,false };
+                static constexpr bool kNoteIsBlack[] = { false, true, false, true, false, false, true, false, true, false, true, false };
 
-                const juce::Colour noteTint  { kScopeNoteEdit };
+                const juce::Colour noteTint{ kScopeNoteEdit };
                 const juce::Colour stageTint = juce::Colour::fromRGB(220, 100, 60);
-                const int octave    = ui.noteEditOctave;
-                const int trackIdx  = activeTrack;
+                const int octave = ui.noteEditOctave;
+                const int trackIdx = activeTrack;
 
                 for (int i = 0; i < 16; ++i)
                 {
                     SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
-                    c.button  = ControllerButton::Step;
-                    c.index   = i;
+                    c.button = ControllerButton::Step;
+                    c.index = i;
                     c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
                     c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
 
                     if (i >= 12)
                     {
-                        c.base      = CellState::StepOutOfRange;
+                        c.base = CellState::StepOutOfRange;
                         c.baseColour = kStepOutRange;
                         continue;
                     }
@@ -1012,10 +1029,9 @@ namespace lockstep
                     {
                         if (stepIdx < 0 || stepIdx >= kMaxStepsPerTrack) continue;
                         const auto& s = proc.sequence()
-                            .tracks[static_cast<std::size_t>(trackIdx)]
-                            .steps[static_cast<std::size_t>(stepIdx)];
-                        const auto* staged = [&]() -> const std::set<int>*
-                        {
+                                            .tracks[static_cast<std::size_t>(trackIdx)]
+                                            .steps[static_cast<std::size_t>(stepIdx)];
+                        const auto* staged = [&]() -> const std::set<int>* {
                             auto it = ui.noteEditStaged.find(stepIdx);
                             return (it != ui.noteEditStaged.end()) ? &it->second : nullptr;
                         }();
@@ -1038,22 +1054,22 @@ namespace lockstep
                     const bool isBlack = kNoteIsBlack[static_cast<std::size_t>(semitone)];
                     if (curActive && curStaged)
                     {
-                        c.base      = CellState::NoteEditStaged;
+                        c.base = CellState::NoteEditStaged;
                         c.baseColour = stageTint.withAlpha(0.12f).getARGB();
                     }
                     else if (curActive)
                     {
-                        c.base      = CellState::NoteEditActive;
+                        c.base = CellState::NoteEditActive;
                         c.baseColour = noteTint.withAlpha(isBlack ? 0.50f : 0.65f).getARGB();
                     }
                     else if (crossOctave)
                     {
-                        c.base      = CellState::NoteEditOther;
+                        c.base = CellState::NoteEditOther;
                         c.baseColour = noteTint.withAlpha(0.12f).getARGB();
                     }
                     else
                     {
-                        c.base      = CellState::NoteEditResting;
+                        c.base = CellState::NoteEditResting;
                         c.baseColour = juce::Colour(isBlack ? 0xff202830u : 0xff2c3540u).getARGB();
                     }
                 }
@@ -1061,17 +1077,17 @@ namespace lockstep
             else if (activeLayer == SurfaceLayer::PLockClear)
             {
                 // P-Lock clear overlay: cells map to packed P-locked slot list.
-                const juce::Colour clearTint { kScopePLock };
+                const juce::Colour clearTint{ kScopePLock };
                 const int targetStep = ui.pLockClearStep;
                 const auto& stepData = proc.sequence()
-                    .tracks[static_cast<std::size_t>(activeTrack)]
-                    .steps[static_cast<std::size_t>(targetStep)];
+                                           .tracks[static_cast<std::size_t>(activeTrack)]
+                                           .steps[static_cast<std::size_t>(targetStep)];
                 const int numSlots = proc.numParams(activeTrack);
 
                 std::vector<int> lockedSlots;
                 const auto& tov = stepData.trigOverride;
                 if (tov.hasVelocity) lockedSlots.push_back(-2);
-                if (tov.hasGate)     lockedSlots.push_back(-3);
+                if (tov.hasGate) lockedSlots.push_back(-3);
                 for (int s = 0; s < numSlots; ++s)
                     if (stepData.overrides.has(s))
                         lockedSlots.push_back(s);
@@ -1079,26 +1095,26 @@ namespace lockstep
                 for (int i = 0; i < 16; ++i)
                 {
                     SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
-                    c.button  = ControllerButton::Step;
-                    c.index   = i;
+                    c.button = ControllerButton::Step;
+                    c.index = i;
                     c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
                     c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
 
                     const bool hasPacked = i < static_cast<int>(lockedSlots.size());
                     if (!hasPacked)
                     {
-                        c.base      = CellState::SelectorOutRange;
+                        c.base = CellState::SelectorOutRange;
                         c.baseColour = kStepOutRange;
                     }
                     else
                     {
-                        const int slotIdx  = lockedSlots[static_cast<std::size_t>(i)];
+                        const int slotIdx = lockedSlots[static_cast<std::size_t>(i)];
                         const bool isStaged = ui.pLockClearStaged.count(slotIdx) > 0;
-                        c.base      = isStaged ? CellState::SelectorEmpty
-                                               : CellState::SelectorOccupied;
+                        c.base = isStaged ? CellState::SelectorEmpty
+                                          : CellState::SelectorOccupied;
                         c.baseColour = isStaged
-                            ? clearTint.withAlpha(0.10f).getARGB()
-                            : clearTint.withAlpha(0.45f).getARGB();
+                                           ? clearTint.withAlpha(0.10f).getARGB()
+                                           : clearTint.withAlpha(0.45f).getARGB();
                     }
                 }
             }
@@ -1111,48 +1127,48 @@ namespace lockstep
                 for (int i = 0; i < 16; ++i)
                 {
                     SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
-                    c.button  = ControllerButton::Step;
-                    c.index   = i;
+                    c.button = ControllerButton::Step;
+                    c.index = i;
                     c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
                     c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
 
                     const int semitone = kPianoNoteOffset[static_cast<std::size_t>(i)];
                     if (semitone < 0)
                     {
-                        c.base      = CellState::StepOutOfRange;
+                        c.base = CellState::StepOutOfRange;
                         c.baseColour = kStepOutRange;
                     }
                     else
                     {
                         const bool isBlack = (i < 8);  // top row (0-7) = black keys
-                        c.base      = isBlack ? CellState::ChromaticBlack : CellState::ChromaticWhite;
+                        c.base = isBlack ? CellState::ChromaticBlack : CellState::ChromaticWhite;
                         c.baseColour = c.pressed
-                            ? juce::Colours::white.withAlpha(0.70f).getARGB()
-                            : (isBlack ? blackKey : whiteKey).getARGB();
+                                           ? juce::Colours::white.withAlpha(0.70f).getARGB()
+                                           : (isBlack ? blackKey : whiteKey).getARGB();
                     }
                 }
             }
             else if (activeLayer == SurfaceLayer::LevelsInput)
             {
                 // Levels overlay: 16 velocity buckets (1/16..16/16 of 127).
-                static const juce::Colour lowCol  { 0xFF204060u };
-                static const juce::Colour highCol { 0xFFE07030u };
+                static const juce::Colour lowCol{ 0xFF204060u };
+                static const juce::Colour highCol{ 0xFFE07030u };
 
                 for (int i = 0; i < 16; ++i)
                 {
                     SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
-                    c.button  = ControllerButton::Step;
-                    c.index   = i;
+                    c.button = ControllerButton::Step;
+                    c.index = i;
                     c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
                     c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
 
-                    const float t      = static_cast<float>(i + 1) / 16.0f;
+                    const float t = static_cast<float>(i + 1) / 16.0f;
                     const juce::Colour cellCol = lowCol.interpolatedWith(highCol, t);
-                    c.base  = CellState::LevelsCell;
+                    c.base = CellState::LevelsCell;
                     c.level = t;  // store gradient position for consumer outline colour
                     c.baseColour = c.pressed
-                        ? juce::Colours::white.withAlpha(0.75f).getARGB()
-                        : cellCol.withAlpha(0.55f + t * 0.30f).getARGB();
+                                       ? juce::Colours::white.withAlpha(0.75f).getARGB()
+                                       : cellCol.withAlpha(0.55f + t * 0.30f).getARGB();
                 }
             }
             else if (activeLayer == SurfaceLayer::MorphMuteView)
@@ -1164,15 +1180,15 @@ namespace lockstep
                 for (int i = 0; i < 16; ++i)
                 {
                     SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
-                    c.button  = ControllerButton::Step;
-                    c.index   = i;
+                    c.button = ControllerButton::Step;
+                    c.index = i;
                     c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
                     c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
                     c.primary = juce::String(i + 1);
 
                     if (i >= static_cast<int>(kNumTracks))
                     {
-                        c.base       = CellState::SelectorOutRange;
+                        c.base = CellState::SelectorOutRange;
                         c.baseColour = kStepOutRange;
                         continue;
                     }
@@ -1185,22 +1201,22 @@ namespace lockstep
                         // crossfaderValue: 1.0 = A-side, 0.0 = B-side (slider convention).
                         const int pole = proc.fluidMutePole(i);
                         const juce::Colour poleCol = (pole != 1)
-                            ? juce::Colour(kScopeMorphA)   // A=silence → violet
-                            : juce::Colour(kScopeMorphB);  // B=silence → rose
+                                                         ? juce::Colour(kScopeMorphA)   // A=silence → violet
+                                                         : juce::Colour(kScopeMorphB);  // B=silence → rose
                         // brightness=1 when fader is at the silence pole.
                         const float brightness = (pole != 1)
-                            ? crossfaderValue              // A-pole: full at crossfader=1 (A)
-                            : (1.0f - crossfaderValue);    // B-pole: full at crossfader=0 (B)
+                                                     ? crossfaderValue              // A-pole: full at crossfader=1 (A)
+                                                     : (1.0f - crossfaderValue);    // B-pole: full at crossfader=0 (B)
                         const float alpha = 0.25f + brightness * 0.60f;
-                        c.base       = CellState::MorphPoleActive;
+                        c.base = CellState::MorphPoleActive;
                         c.baseColour = poleCol.withAlpha(alpha).getARGB();
                     }
                     else
                     {
-                        c.base       = CellState::MorphPoleDark;
+                        c.base = CellState::MorphPoleDark;
                         c.baseColour = c.pressed
-                            ? juce::Colour(kScopeMorphDim).withAlpha(0.40f).getARGB()
-                            : juce::Colour(kStepInactive).withAlpha(0.20f).getARGB();
+                                           ? juce::Colour(kScopeMorphDim).withAlpha(0.40f).getARGB()
+                                           : juce::Colour(kStepInactive).withAlpha(0.20f).getARGB();
                     }
                 }
             }
@@ -1210,35 +1226,36 @@ namespace lockstep
                 // paintStepRows can consume a single model path and add press feedback.
                 // Bare Mute = global mute view; Scene+Mute = scene-mute view (the
                 // scene's active-mask), in a distinct colour.
-                const bool sceneMute   = ui.sceneHeld;
+                const bool sceneMute = ui.sceneHeld;
                 const uint32_t muteCol = sceneMute ? kScopePMute : kScopeMute;
 
                 for (int i = 0; i < 16; ++i)
                 {
                     SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
-                    c.button  = ControllerButton::Step;
-                    c.index   = i;
+                    c.button = ControllerButton::Step;
+                    c.index = i;
                     c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
                     c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
 
                     const bool avail = i < static_cast<int>(kNumTracks);
                     if (!avail)
                     {
-                        c.base      = CellState::SelectorOutRange;
+                        c.base = CellState::SelectorOutRange;
                         c.baseColour = kStepOutRange;
                         continue;
                     }
 
                     const bool muted = sceneMute
-                        ? proc.getPatternMute(i) : proc.getGlobalMute(i);
+                                           ? proc.getPatternMute(i)
+                                           : proc.getGlobalMute(i);
 
                     c.base = muted ? CellState::MuteMuted : CellState::MuteAudible;
-                    const juce::Colour muteJCol  { muteCol };
+                    const juce::Colour muteJCol{ muteCol };
                     const juce::Colour audibleCol = juce::Colour(kStepInactive)
-                                                     .interpolatedWith(muteJCol, 0.5f);
+                                                        .interpolatedWith(muteJCol, 0.5f);
                     c.baseColour = muted
-                        ? muteJCol.withAlpha(0.80f).getARGB()
-                        : audibleCol.getARGB();
+                                       ? muteJCol.withAlpha(0.80f).getARGB()
+                                       : audibleCol.getARGB();
                 }
             }
             // ── Phase 7 / DESIGN §34.4: Phrase-length authoring re-skin ─────────
@@ -1247,9 +1264,9 @@ namespace lockstep
             else if (activeLayer == SurfaceLayer::LengthEdit)
             {
                 const bool broadcastMode = ui.morphHeld && ui.funcHeld;
-                const juce::Colour tint  = broadcastMode
-                    ? juce::Colour(kScopeMorph)
-                    : juce::Colour(kScopePhrase);
+                const juce::Colour tint = broadcastMode
+                                              ? juce::Colour(kScopeMorph)
+                                              : juce::Colour(kScopePhrase);
 
                 // Resolve length from the focused track's *working* sequence
                 // (same source as numPages()/the LEN encoder) so a live
@@ -1262,8 +1279,8 @@ namespace lockstep
                 for (int i = 0; i < 16; ++i)
                 {
                     SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
-                    c.button  = ControllerButton::Step;
-                    c.index   = i;
+                    c.button = ControllerButton::Step;
+                    c.index = i;
                     c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
                     c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
 
@@ -1271,9 +1288,9 @@ namespace lockstep
                     (void)broadcastMode;  // both modes use focused track for ref currently
 
                     c.base = lengthEditCellState(absIdx, phraseLen);
-                    const float alpha = (c.base == CellState::LengthInRun)    ? 0.35f
-                                      : (c.base == CellState::LengthBoundary) ? 0.85f
-                                                                              : 0.04f;
+                    const float alpha = (c.base == CellState::LengthInRun)      ? 0.35f
+                                        : (c.base == CellState::LengthBoundary) ? 0.85f
+                                                                                : 0.04f;
                     c.baseColour = tint.withAlpha(alpha).getARGB();
                     if (c.pressed) c.baseColour = 0xFFFFFFFFu;
                 }
@@ -1288,58 +1305,59 @@ namespace lockstep
             {
                 const int nmp = (activeTrack >= 0) ? proc.numParams(activeTrack) : 0;
                 const int anchorSec = (slotOffset < nmp && activeTrack >= 0)
-                    ? proc.paramSpec(activeTrack, slotOffset).sectionIndex : -1;
+                                          ? proc.paramSpec(activeTrack, slotOffset).sectionIndex
+                                          : -1;
 
                 for (int i = 0; i < 16; ++i)
                 {
-                    SurfaceCell& c  = model.step[static_cast<std::size_t>(i)];
-                    c.button   = ControllerButton::Step;
-                    c.index    = i;
-                    c.keyHint  = kStepKeyHints[static_cast<std::size_t>(i)];
-                    c.pressed  = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+                    SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                    c.button = ControllerButton::Step;
+                    c.index = i;
+                    c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                    c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
 
-                    const int mzLocal  = i % 8;             // slot index within MZ page
-                    const int absSlot  = slotOffset + mzLocal;
-                    const bool poleA   = (i < 8);           // top row = A, bottom = B
+                    const int mzLocal = i % 8;             // slot index within MZ page
+                    const int absSlot = slotOffset + mzLocal;
+                    const bool poleA = (i < 8);           // top row = A, bottom = B
 
                     // Blank out-of-schema and cross-section slots.
                     const bool outOfSchema = absSlot >= nmp;
-                    const bool outOfSec    = !outOfSchema && activeTrack >= 0
-                        && proc.paramSpec(activeTrack, absSlot).sectionIndex != anchorSec;
+                    const bool outOfSec = !outOfSchema && activeTrack >= 0 && proc.paramSpec(activeTrack, absSlot).sectionIndex != anchorSec;
                     if (outOfSchema || outOfSec)
                     {
-                        c.base      = CellState::MorphPoleDark;
+                        c.base = CellState::MorphPoleDark;
                         c.baseColour = kStepOutRange;
                         continue;
                     }
 
-                    const auto& ms   = morphView.slots[static_cast<std::size_t>(mzLocal)];
-                    const auto  pole = poleA ? ms.a : ms.b;
+                    const auto& ms = morphView.slots[static_cast<std::size_t>(mzLocal)];
+                    const auto pole = poleA ? ms.a : ms.b;
                     using MPS = MorphViewState::PoleState;
 
                     if (pole == MPS::Active)
                     {
-                        c.base       = CellState::MorphPoleActive;
+                        c.base = CellState::MorphPoleActive;
                         c.baseColour = juce::Colour(kScopeMorph).withAlpha(0.80f).getARGB();
                     }
                     else if (pole == MPS::Dormant)
                     {
-                        c.base      = CellState::MorphPoleDormant;
+                        c.base = CellState::MorphPoleDormant;
                         c.baseColour = c.pressed
-                            ? juce::Colour(kScopeMorph).withAlpha(0.50f).getARGB()
-                            : juce::Colour(kScopeMorphDim).withAlpha(0.70f).getARGB();
+                                           ? juce::Colour(kScopeMorph).withAlpha(0.50f).getARGB()
+                                           : juce::Colour(kScopeMorphDim).withAlpha(0.70f).getARGB();
                     }
                     else
                     {
-                        c.base      = CellState::MorphPoleDark;
+                        c.base = CellState::MorphPoleDark;
                         c.baseColour = c.pressed
-                            ? juce::Colour(kScopeMorphDim).withAlpha(0.40f).getARGB()
-                            : juce::Colour(kStepInactive).withAlpha(0.35f).getARGB();
+                                           ? juce::Colour(kScopeMorphDim).withAlpha(0.40f).getARGB()
+                                           : juce::Colour(kStepInactive).withAlpha(0.35f).getARGB();
                     }
 
                     // Store the param label for the inline screen residual.
                     c.primary = (activeTrack >= 0)
-                        ? juce::String(proc.paramSpec(activeTrack, absSlot).label) : juce::String{};
+                                    ? juce::String(proc.paramSpec(activeTrack, absSlot).label)
+                                    : juce::String{};
                 }
             }
             // ── End morph step view ──────────────────────────────────────────────
@@ -1354,7 +1372,7 @@ namespace lockstep
                 int activeIdx = 0;
                 if (ui.trackHeld)
                 {
-                    maxAvail  = static_cast<int>(kNumTracks);
+                    maxAvail = static_cast<int>(kNumTracks);
                     activeIdx = activeTrack;
                 }
                 else if (ui.phraseScopeHeld)
@@ -1363,22 +1381,22 @@ namespace lockstep
                     // The fill marks the CURRENT playing phrase (a live deviation if
                     // one is active, else the floor); the home border (below) marks
                     // the scene's global phrase, so deviation reads as fill ≠ border.
-                    maxAvail  = kPhrasesPerTrack;
+                    maxAvail = kPhrasesPerTrack;
                     const int at = activeTrack >= 0 ? activeTrack : 0;
                     activeIdx = proc.isTrackDeviated(at)
-                        ? proc.deviationPhraseIdxForTrack(at)
-                        : proc.activeSectionIdx();
+                                    ? proc.deviationPhraseIdxForTrack(at)
+                                    : proc.activeSectionIdx();
                 }
                 else if (ui.songHeld)
                 {
                     // Phase 7: show song slots within the Set.
-                    maxAvail  = kNumSongs;
+                    maxAvail = kNumSongs;
                     activeIdx = proc.activePieceIdx();
                 }
                 else // sceneHeld
                 {
                     // Phase 7: show sections within the active Song.
-                    maxAvail  = kScenesPerSong;
+                    maxAvail = kScenesPerSong;
                     activeIdx = proc.activeSectionIdx();
                 }
 
@@ -1413,59 +1431,57 @@ namespace lockstep
                 for (int i = 0; i < 16; ++i)
                 {
                     SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
-                    c.button  = ControllerButton::Step;
-                    c.index   = i;
+                    c.button = ControllerButton::Step;
+                    c.index = i;
                     c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
                     c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
 
-                    const bool avail   = i < maxAvail;
+                    const bool avail = i < maxAvail;
                     const bool isEmpty = avail && slotEmpty[static_cast<std::size_t>(i)];
                     const bool isCurrent = avail && !isEmpty && (i == activeIdx);
                     // Phase 7: section queue badge (Part scope) or deviation badge (Pattern scope).
-                    const int  cpos = (ui.sceneHeld && avail)
-                                      ? sectionQueuePos[static_cast<std::size_t>(i)] : 0;
-                    const bool isDeviated = ui.phraseScopeHeld && avail
-                                         && devTrack >= 0
-                                         && proc.isTrackDeviated(devTrack)
-                                         && i == proc.deviationPhraseIdxForTrack(devTrack);
-                    const bool isNext  = cpos == 1;
+                    const int cpos = (ui.sceneHeld && avail)
+                                         ? sectionQueuePos[static_cast<std::size_t>(i)]
+                                         : 0;
+                    const bool isDeviated = ui.phraseScopeHeld && avail && devTrack >= 0 && proc.isTrackDeviated(devTrack) && i == proc.deviationPhraseIdxForTrack(devTrack);
+                    const bool isNext = cpos == 1;
                     const bool isChain = cpos >= 2;
 
                     // CellState token + fill colour
                     if (!avail)
                     {
-                        c.base      = CellState::SelectorOutRange;
+                        c.base = CellState::SelectorOutRange;
                         c.baseColour = scopeTint.withAlpha(0.04f).getARGB();
                     }
                     else if (isEmpty)
                     {
-                        c.base      = CellState::SelectorEmpty;
+                        c.base = CellState::SelectorEmpty;
                         c.baseColour = scopeTint.withAlpha(0.09f).getARGB();
                     }
                     else if (isNext)
                     {
-                        c.base      = CellState::SelectorNext;
+                        c.base = CellState::SelectorNext;
                         c.baseColour = scopeTint.withAlpha(0.80f).getARGB();
                     }
                     else if (isChain)
                     {
-                        c.base      = CellState::SelectorChain;
+                        c.base = CellState::SelectorChain;
                         c.baseColour = scopeTint.withAlpha(0.42f).getARGB();
                     }
                     else if (isDeviated)
                     {
                         // Phrase currently playing due to a live track deviation.
-                        c.base      = CellState::SelectorDeviated;
+                        c.base = CellState::SelectorDeviated;
                         c.baseColour = scopeTint.withAlpha(0.70f).getARGB();
                     }
                     else if (isCurrent)
                     {
-                        c.base      = CellState::SelectorCurrent;
+                        c.base = CellState::SelectorCurrent;
                         c.baseColour = juce::Colours::white.interpolatedWith(scopeTint, 0.30f).getARGB();
                     }
                     else
                     {
-                        c.base      = CellState::SelectorOccupied;
+                        c.base = CellState::SelectorOccupied;
                         c.baseColour = scopeTint.withAlpha(0.18f).getARGB();
                     }
 
@@ -1474,8 +1490,8 @@ namespace lockstep
                     if (ui.phraseScopeHeld && avail && i == globalIdx)
                     {
                         c.border.present = true;
-                        c.border.token   = CellState::SelectorHome;
-                        c.border.colour  = kHomeAmber;
+                        c.border.token = CellState::SelectorHome;
+                        c.border.colour = kHomeAmber;
                     }
 
                     // level encodes queue position for badge rendering in paintStepRows
@@ -1486,146 +1502,141 @@ namespace lockstep
             {
 
             // Track length + playhead position
-            const bool validTrack = activeTrack >= 0
-                                 && activeTrack < static_cast<int>(kNumTracks);
-            auto* lenP = validTrack
-                ? proc.apvts().getRawParameterValue(ParamIDs::trackLength(activeTrack))
-                : nullptr;
-            auto* divP = validTrack
-                ? proc.apvts().getRawParameterValue(ParamIDs::trackDivider(activeTrack))
-                : nullptr;
-            const int trackLen  = lenP ? std::max(1, static_cast<int>(lenP->load())) : 16;
-            const int div       = divP ? std::max(1, static_cast<int>(divP->load())) : 1;
-            const double divPpq = 0.25 * static_cast<double>(div);
+                const bool validTrack = activeTrack >= 0 && activeTrack < static_cast<int>(kNumTracks);
+                auto* lenP = validTrack
+                                 ? proc.apvts().getRawParameterValue(ParamIDs::trackLength(activeTrack))
+                                 : nullptr;
+                auto* divP = validTrack
+                                 ? proc.apvts().getRawParameterValue(ParamIDs::trackDivider(activeTrack))
+                                 : nullptr;
+                const int trackLen = lenP ? std::max(1, static_cast<int>(lenP->load())) : 16;
+                const int div = divP ? std::max(1, static_cast<int>(divP->load())) : 1;
+                const double divPpq = 0.25 * static_cast<double>(div);
 
-            int playheadAbs = -1;
-            std::int64_t loopBase = 0;
-            if (divPpq > 0.0 && trackLen > 0 && validTrack)
-            {
-                const auto stepNum = static_cast<std::int64_t>(
-                    proc.clock().cumulativePpq() / divPpq);
-                playheadAbs = static_cast<int>(stepNum % trackLen);
-                loopBase    = (stepNum / static_cast<std::int64_t>(trackLen))
-                              * static_cast<std::int64_t>(trackLen);
-            }
+                int playheadAbs = -1;
+                std::int64_t loopBase = 0;
+                if (divPpq > 0.0 && trackLen > 0 && validTrack)
+                {
+                    const auto stepNum = static_cast<std::int64_t>(
+                        proc.clock().cumulativePpq() / divPpq);
+                    playheadAbs = static_cast<int>(stepNum % trackLen);
+                    loopBase = (stepNum / static_cast<std::int64_t>(trackLen)) * static_cast<std::int64_t>(trackLen);
+                }
 
-            const int baseStep   = stepPage * 16;
-            const bool fillOn    = proc.fillActive();
-            const auto& trk      = proc.sequence().tracks[static_cast<std::size_t>(
-                                       validTrack ? activeTrack : 0)];
-            const auto  preview  = stepPagePreview(trk, trackLen, loopBase, baseStep, fillOn);
-            const auto& ctx      = ec;
-            const auto& heldSteps = ctx.heldSteps();
+                const int baseStep = stepPage * 16;
+                const bool fillOn = proc.fillActive();
+                const auto& trk = proc.sequence().tracks[static_cast<std::size_t>(
+                    validTrack ? activeTrack : 0)];
+                const auto preview = stepPagePreview(trk, trackLen, loopBase, baseStep, fillOn);
+                const auto& ctx = ec;
+                const auto& heldSteps = ctx.heldSteps();
 
             // Scope body colour: adopt whichever modifier is held (fixes always-green).
             // Morph has no per-step action, so exclude it from step tinting.
-            const bool morphOnlyScope = ui.morphHeld && !ui.trackHeld
-                                     && !ui.phraseScopeHeld && !ui.sceneHeld && !ui.songHeld;
-            const juce::Colour scopeBodyCol = fillOn
-                ? juce::Colour(kScopeFill)
-                : (morphOnlyScope ? juce::Colour(kScopeStep) : scopeColourFromState(ui));
-            const juce::Colour inactiveCol(kStepInactive);
+                const bool morphOnlyScope = ui.morphHeld && !ui.trackHeld && !ui.phraseScopeHeld && !ui.sceneHeld && !ui.songHeld;
+                const juce::Colour scopeBodyCol = fillOn
+                                                      ? juce::Colour(kScopeFill)
+                                                      : (morphOnlyScope ? juce::Colour(kScopeStep) : scopeColourFromState(ui));
+                const juce::Colour inactiveCol(kStepInactive);
 
-            for (int i = 0; i < 16; ++i)
-            {
-                SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
-                c.button  = ControllerButton::Step;
-                c.index   = i;
-                c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
-                c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
-
-                const int absIdx  = baseStep + i;
-                const bool inRange = absIdx < trackLen && validTrack;
-
-                if (!inRange)
+                for (int i = 0; i < 16; ++i)
                 {
-                    c.base      = CellState::StepOutOfRange;
-                    c.baseColour = kStepOutRange;
-                    continue;
-                }
+                    SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                    c.button = ControllerButton::Step;
+                    c.index = i;
+                    c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                    c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
 
-                const auto& stepRef  = trk.steps[static_cast<std::size_t>(absIdx)];
-                const bool hasTrig   = stepRef.trig;
-                const bool isHeld    = ctx.heldTrackIndex() == activeTrack
-                                    && std::find(heldSteps.begin(), heldSteps.end(), absIdx)
-                                       != heldSteps.end();
-                const bool hasLock   = !stepRef.overrides.empty();
-                const bool hasFillLock = !stepRef.fillOverrides.empty();
-                const bool isHead    = (absIdx == playheadAbs);
-                const FillTrigState fts = stepRef.fillTrigState;
+                    const int absIdx = baseStep + i;
+                    const bool inRange = absIdx < trackLen && validTrack;
 
-                const float prob = [&]() -> float
-                {
-                    if (!hasTrig && fts == FillTrigState::On && !fillOn)
+                    if (!inRange)
                     {
-                        const auto& cond = stepRef.condition.isTrivial()
-                                           ? trk.baseCond : stepRef.condition;
-                        return std::clamp(
-                            static_cast<float>(cond.probabilityPercent) / 100.0f, 0.0f, 1.0f);
+                        c.base = CellState::StepOutOfRange;
+                        c.baseColour = kStepOutRange;
+                        continue;
                     }
-                    return preview[static_cast<std::size_t>(i)];
-                }();
 
-                float lerpFrac = 0.0f;
-                if (hasTrig)
-                {
-                    if (fts == FillTrigState::Off)
-                        lerpFrac = juce::jlimit(0.05f, 0.33f, 0.05f + prob * 0.28f);
-                    else
-                        lerpFrac = juce::jlimit(0.15f, 1.0f, 0.15f + prob * 0.85f);
-                }
-                else if (fts == FillTrigState::On)
-                {
-                    lerpFrac = juce::jlimit(0.10f, 0.67f, 0.10f + prob * 0.57f);
-                }
+                    const auto& stepRef = trk.steps[static_cast<std::size_t>(absIdx)];
+                    const bool hasTrig = stepRef.trig;
+                    const bool isHeld = ctx.heldTrackIndex() == activeTrack && std::find(heldSteps.begin(), heldSteps.end(), absIdx) != heldSteps.end();
+                    const bool hasLock = !stepRef.overrides.empty();
+                    const bool hasFillLock = !stepRef.fillOverrides.empty();
+                    const bool isHead = (absIdx == playheadAbs);
+                    const FillTrigState fts = stepRef.fillTrigState;
 
-                c.level      = lerpFrac;
-                c.baseColour = inactiveCol.interpolatedWith(scopeBodyCol, lerpFrac).getARGB();
+                    const float prob = [&]() -> float {
+                        if (!hasTrig && fts == FillTrigState::On && !fillOn)
+                        {
+                            const auto& cond = stepRef.condition.isTrivial()
+                                                   ? trk.baseCond
+                                                   : stepRef.condition;
+                            return std::clamp(
+                                static_cast<float>(cond.probabilityPercent) / 100.0f, 0.0f, 1.0f);
+                        }
+                        return preview[static_cast<std::size_t>(i)];
+                    }();
+
+                    float lerpFrac = 0.0f;
+                    if (hasTrig)
+                    {
+                        if (fts == FillTrigState::Off)
+                            lerpFrac = juce::jlimit(0.05f, 0.33f, 0.05f + prob * 0.28f);
+                        else
+                            lerpFrac = juce::jlimit(0.15f, 1.0f, 0.15f + prob * 0.85f);
+                    }
+                    else if (fts == FillTrigState::On)
+                    {
+                        lerpFrac = juce::jlimit(0.10f, 0.67f, 0.10f + prob * 0.57f);
+                    }
+
+                    c.level = lerpFrac;
+                    c.baseColour = inactiveCol.interpolatedWith(scopeBodyCol, lerpFrac).getARGB();
 
                 // CellState token — StepHeld overrides trig state for border rendering;
                 // paintStepRows checks stepRef.trig directly for note-count colour.
-                if (isHeld)
-                    c.base = CellState::StepHeld;
-                else if (hasTrig && fts == FillTrigState::Off)
-                    c.base = CellState::StepTrigSuppressed;
-                else if (hasTrig && prob < 0.999f && fts != FillTrigState::Off)
-                    c.base = CellState::StepTrigProbable;
-                else if (hasTrig)
-                    c.base = CellState::StepTrigCertain;
-                else if (fts == FillTrigState::On)
-                    c.base = CellState::StepFillAdd;
-                else
-                    c.base = CellState::StepEmpty;
+                    if (isHeld)
+                        c.base = CellState::StepHeld;
+                    else if (hasTrig && fts == FillTrigState::Off)
+                        c.base = CellState::StepTrigSuppressed;
+                    else if (hasTrig && prob < 0.999f && fts != FillTrigState::Off)
+                        c.base = CellState::StepTrigProbable;
+                    else if (hasTrig)
+                        c.base = CellState::StepTrigCertain;
+                    else if (fts == FillTrigState::On)
+                        c.base = CellState::StepFillAdd;
+                    else
+                        c.base = CellState::StepEmpty;
 
                 // Decorations
-                if (isHead)
-                {
-                    c.border.present = true;
-                    c.border.colour  = kStepPlayhead;
-                    c.border.token   = CellState::StepPlayhead;
-                }
-                if (hasLock)
-                {
-                    c.dot.present = true;
-                    c.dot.colour  = kStepPLock;
-                }
+                    if (isHead)
+                    {
+                        c.border.present = true;
+                        c.border.colour = kStepPlayhead;
+                        c.border.token = CellState::StepPlayhead;
+                    }
+                    if (hasLock)
+                    {
+                        c.dot.present = true;
+                        c.dot.colour = kStepPLock;
+                    }
                 // strip: fill-mode border takes priority over fill P-Lock badge
-                if (fillOn && fts != FillTrigState::Inherit)
-                {
-                    c.strip.present = true;
-                    c.strip.colour  = (fts == FillTrigState::On) ? kStepFillAdd : kStepFillSuppress;
+                    if (fillOn && fts != FillTrigState::Inherit)
+                    {
+                        c.strip.present = true;
+                        c.strip.colour = (fts == FillTrigState::On) ? kStepFillAdd : kStepFillSuppress;
+                    }
+                    else if (hasFillLock)
+                    {
+                        c.strip.present = true;
+                        c.strip.colour = kStepFillPLock;
+                    }
+                    if (ctx.isLatched(absIdx))
+                    {
+                        c.pip.present = true;
+                        c.pip.colour = kScopeStep;
+                    }
                 }
-                else if (hasFillLock)
-                {
-                    c.strip.present = true;
-                    c.strip.colour  = kStepFillPLock;
-                }
-                if (ctx.isLatched(absIdx))
-                {
-                    c.pip.present = true;
-                    c.pip.colour  = kScopeStep;
-                }
-            }
 
             } // end else (normal step grid)
         }
@@ -1644,32 +1655,31 @@ namespace lockstep
             {
                 // Meta surface: fill slots from MetaFieldView.
                 const int swScope = swingScopeFor(ui);
-                const auto views  = buildMetaBand(band, swScope, proc, activeTrack, ec, ui);
+                const auto views = buildMetaBand(band, swScope, proc, activeTrack, ec, ui);
 
                 for (int i = 0; i < 8; ++i)
                 {
                     const auto vi = static_cast<std::size_t>(i);
-                    auto& slot    = model.slots[vi];
+                    auto& slot = model.slots[vi];
                     const auto& v = views[vi];
-                    slot.inRange     = v.active;
-                    slot.label       = v.label;
+                    slot.inRange = v.active;
+                    slot.label = v.label;
                     slot.sectionLabel = {};   // meta bands have no owning section
-                    slot.valueText   = v.valueText;
+                    slot.valueText = v.valueText;
                     slot.hasOverride = v.hasOverride;
-                    slot.ringMode    = v.ringMode;
-                    slot.marks       = v.marks;
+                    slot.ringMode = v.ringMode;
+                    slot.marks = v.marks;
                     const float range = v.maxValue - v.minValue;
                     slot.position = (range > 0.0f && v.active)
-                        ? juce::jlimit(0.0f, 1.0f, (v.value - v.minValue) / range)
-                        : 0.0f;
+                                        ? juce::jlimit(0.0f, 1.0f, (v.value - v.minValue) / range)
+                                        : 0.0f;
                 }
             }
             else
             {
                 // Machine-param path: Override-ELSE-Base resolution.
-                const bool stepHeld = ec.isActiveForEditing()
-                                   && ec.heldTrackIndex() == activeTrack;
-                const int  heldStep = ec.heldStepIndex();
+                const bool stepHeld = ec.isActiveForEditing() && ec.heldTrackIndex() == activeTrack;
+                const int heldStep = ec.heldStepIndex();
                 const bool fillHeld = proc.fillActive();
                 const bool fillEdit = stepHeld && fillHeld && heldStep >= 0;
 
@@ -1688,7 +1698,7 @@ namespace lockstep
 
                     const auto spec = proc.paramSpec(activeTrack, absSlot);
                     slot.inRange = true;
-                    slot.label   = spec.label.isEmpty() ? juce::String(absSlot) : spec.label;
+                    slot.label = spec.label.isEmpty() ? juce::String(absSlot) : spec.label;
 
                     // Owning section name (machine label, falling back to canonical).
                     {
@@ -1696,23 +1706,21 @@ namespace lockstep
                                                         spec.sectionIndex);
                         const auto& secInfo = proc.section(activeTrack, secIdx);
                         slot.sectionLabel = secInfo.label.isNotEmpty()
-                            ? secInfo.label
-                            : juce::String(IMachine::kCanonicalSectionNames[
-                                  static_cast<std::size_t>(secIdx)]);
+                                                ? secInfo.label
+                                                : juce::String(IMachine::kCanonicalSectionNames[static_cast<std::size_t>(secIdx)]);
                     }
 
-                    float value   = proc.baseParamValue(activeTrack, absSlot);
-                    bool  hasLock = false;
+                    float value = proc.baseParamValue(activeTrack, absSlot);
+                    bool hasLock = false;
 
                     if (stepHeld && heldStep >= 0)
                     {
-                        const auto& s = proc.sequence().tracks[static_cast<std::size_t>(activeTrack)]
-                                            .steps[static_cast<std::size_t>(heldStep)];
+                        const auto& s = proc.sequence().tracks[static_cast<std::size_t>(activeTrack)].steps[static_cast<std::size_t>(heldStep)];
                         if (fillEdit)
                         {
                             if (s.fillOverrides.has(absSlot))
                             {
-                                value   = s.fillOverrides.get(absSlot, value);
+                                value = s.fillOverrides.get(absSlot, value);
                                 hasLock = true;
                             }
                             else
@@ -1722,20 +1730,20 @@ namespace lockstep
                         }
                         else
                         {
-                            value   = s.overrides.get(absSlot, value);
+                            value = s.overrides.get(absSlot, value);
                             hasLock = s.overrides.has(absSlot);
                         }
                     }
 
                     slot.hasOverride = hasLock;
-                    slot.valueText   = formatParamValue(value, spec);
+                    slot.valueText = formatParamValue(value, spec);
                     if (hasLock)
                         slot.valueText += " *";
 
                     const float range = spec.maxValue - spec.minValue;
                     slot.position = (range > 0.0f)
-                        ? juce::jlimit(0.0f, 1.0f, (value - spec.minValue) / range)
-                        : 0.0f;
+                                        ? juce::jlimit(0.0f, 1.0f, (value - spec.minValue) / range)
+                                        : 0.0f;
 
                     if (!spec.valueLabels.empty() || spec.isStepped)
                         slot.ringMode = RingMode::Dot;
@@ -1751,22 +1759,20 @@ namespace lockstep
         // Derived from activeLayer so it cannot diverge from the step-grid mode.
         switch (activeLayer)
         {
-            case SurfaceLayer::PendingConfirm: model.gridBanner = "CONFIRM?";       break;
-            case SurfaceLayer::DeletePicker:
-            {
+            case SurfaceLayer::PendingConfirm: model.gridBanner = "CONFIRM?"; break;
+            case SurfaceLayer::DeletePicker:   {
                 const DeleteScope dpScope = ui.deletePicker.scope;
-                if      (dpScope == DeleteScope::Track)  model.gridBanner = "DELETE WHICH TRACK?";
+                if (dpScope == DeleteScope::Track) model.gridBanner = "DELETE WHICH TRACK?";
                 else if (dpScope == DeleteScope::Phrase) model.gridBanner = "DELETE WHICH PHRASE?";
-                else if (dpScope == DeleteScope::Scene)  model.gridBanner = "DELETE WHICH SCENE?";
+                else if (dpScope == DeleteScope::Scene) model.gridBanner = "DELETE WHICH SCENE?";
                 break;
             }
-            case SurfaceLayer::MachinePicker:  model.gridBanner = "SELECT MACHINE"; break;
-            case SurfaceLayer::ScopeSelector:
-            {
+            case SurfaceLayer::MachinePicker: model.gridBanner = "SELECT MACHINE"; break;
+            case SurfaceLayer::ScopeSelector: {
                 const PS bannerScope = firstHeldSectionSuiteScope(ui);
-                if      (bannerScope == PS::Track)  { model.gridBanner = "SELECT TRACK";  }
+                if (bannerScope == PS::Track) { model.gridBanner = "SELECT TRACK"; }
                 else if (bannerScope == PS::Phrase) { model.gridBanner = "SELECT PHRASE"; }
-                else if (bannerScope == PS::Scene)  { model.gridBanner = "SELECT SCENE";  }
+                else if (bannerScope == PS::Scene) { model.gridBanner = "SELECT SCENE"; }
                 break;
             }
             default: break;
@@ -1775,8 +1781,8 @@ namespace lockstep
         // ── pageDots ─────────────────────────────────────────────────────────
         // Per-section: how many pages does the active track's section have?
         {
-            const int ti       = activeTrack;
-            const int numSecs  = proc.numSections(ti);
+            const int ti = activeTrack;
+            const int numSecs = proc.numSections(ti);
             for (int s = 0; s < IMachine::kMaxSections; ++s)
             {
                 int totalPages = 0;
@@ -1794,13 +1800,14 @@ namespace lockstep
                         totalPages += std::max(1, info.pageCount);
                 }
 
-                auto& dots  = model.pageDots[static_cast<std::size_t>(s)];
-                dots.count  = static_cast<uint8_t>(totalPages);
+                auto& dots = model.pageDots[static_cast<std::size_t>(s)];
+                dots.count = static_cast<uint8_t>(totalPages);
                 dots.active = (totalPages > 0)
-                    ? static_cast<uint8_t>(ui.trackPage
-                          [static_cast<std::size_t>(ti)]
-                          [static_cast<std::size_t>(s)] % totalPages)
-                    : 0u;
+                                  ? static_cast<uint8_t>(ui.trackPage
+                                                             [static_cast<std::size_t>(ti)]
+                                                             [static_cast<std::size_t>(s)] %
+                                                         totalPages)
+                                  : 0u;
             }
         }
 

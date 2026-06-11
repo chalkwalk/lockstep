@@ -42,7 +42,9 @@ namespace lockstep
 
     // Half-unit size in pixels for a component of the given width.
     inline int staggerHalfUnit(int componentWidth) noexcept
-    { return componentWidth / kStaggerHalfUnits; }
+    {
+        return componentWidth / kStaggerHalfUnits;
+    }
 
     // Cell width in staggered mode.
     inline int staggerCellW(int halfUnit) noexcept { return halfUnit * 2; }
