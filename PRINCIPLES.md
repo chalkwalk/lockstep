@@ -399,6 +399,28 @@ should be reluctant to. See also §10 *"Ergonomics first"* — when speed
 and self-documentation conflict, the cheap rung wins, but it must still
 announce itself in chrome.
 
+## 16. Destructive actions target selected entities, not the playing ones
+
+Lockstep is a live performance tool: the transport is often running and
+someone may be listening. A destructive action that silently deletes
+"the currently playing phrase" is hostile to that context — the user
+asked to *select* a target for deletion, which is a separate act.
+
+**Consequence.** Any action that erases or overwrites a persistent slot
+(phrase, scene, track) must first let the user **select the target**
+(via the deletion picker modality — scope+Func+Clear → grid highlights
+the scope's slots → tap to choose) and then **confirm by name** (the
+confirm prompt names the entity and its slot number). Confirming must
+not require re-holding the arming chord: the prompt is sticky until
+answered or explicitly cancelled by a non-Func key press. The Yes key
+shows YES/NO live (green when Func is up, red when Func is held) so the
+choice is visible before the press completes.
+
+Its mirror is *"Ergonomics first; chrome must announce state"* — that
+principle says the surface announces what it is about to do; this one
+says destructive actions must announce *which specific entity* is at
+risk, so the user can verify before confirming.
+
 ---
 
 ## Non-Goals — what Lockstep refuses to become

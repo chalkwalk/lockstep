@@ -10,18 +10,19 @@ satisfy, see `PRINCIPLES.md`. **Before adding a milestone here, confirm it is
 expressible within those principles and within the existing scope+verb grammar
 (DESIGN §13).**
 
-**Active focus:** **Phase 8 closeout — the A-series** (`8.11`): unify key-cell
-label/action resolution behind the `KeyBindings` table (A0–A3 shipped; A4
-dispatch wiring + the Task-B confirm/picker wiring pending). Phase 8 proper
-(`8.1`–`8.10`) shipped, as did the performance-grammar milestones that preceded
-it — `5.7` (retrig/sound-pool overlays), `5.9` (Euclidean + Chance), and `6.5`
-(FX system; serializer now **v14**). The only open Phase 7 / Phase 3 items are
-**manual** verification sweeps — `3.10` standalone (a–f) and `7.8` play-test +
-VST3/CLAP v14 round-trip — where the code shipped but the scripted runs are
-pending.
-**Last completed:** `8.11` A3 — KeyBindings table (label/action SSOT for key cells).
-**Next up (after the A-series):** *under review* — `6.7` Machine Module ABI
-(gates the Phase 4 catalogue) or remaining Phase 5/6 performance depth.
+**Active focus:** Phase 8 closeout. **8.24 UI/UX consistency pass shipped:**
+label-length tests, scope×Func combined rows, universal secondary hint rule
+(`testHintRule()`), confirm lifecycle into `CommandCore` (sticky; Func-exempt;
+`executeConfirm` seam), deletion picker modality (`DeletePicker` SurfaceLayer;
+`deletePhraseSlot`/`deleteSceneSlot` in PluginProcessor), scope-glow tint
+coverage, and full docs (PRINCIPLES §16; DESIGN §13/§6.5/§37.6; README §5.4a).
+A4 dispatch wiring (8.11) still pending. Serializer is now **v15** (P-Lock
+string ids, 8.23). Open verification sweeps: `3.10` standalone, `7.8` VST3/CLAP
+v15 round-trip, and the 8.24 standalone visual smoke (picker → named confirm →
+YES/NO live colour).
+**Last completed:** `8.24` UI/UX consistency pass.
+**Next up:** *under review* — `8.11` A4 dispatch wiring, `6.7` Machine Module ABI
+(gates the Phase 4 catalogue), or remaining Phase 5/6 performance depth.
 
 Phases 1–3 took Lockstep from an empty plugin to a frozen, playable performance
 surface; Phase 4 fills the machine catalogue; Phases 5–6 are the depth and
@@ -1384,6 +1385,39 @@ setMasterInsert, setTrackMachine, copyKit, state-load) now use
       `testV15PLockFormat`: v15 id-keyed round-trip, v14 legacy s-keyed
       backward compat, and unknown-id drop.
       Open: `7.8` host round-trip in Reaper/Bitwig (user to verify).
+
+- [x] **8.24** UI/UX consistency pass — label/action mismatches + confirm lifecycle:
+  - [x] **Stage 1** `tests: pin KeyBindings label-length conventions` — `testLabelLengths()`;
+        asserts primary ≤ 8 and hint ≤ 8 UTF-8 code points across the whole table.
+  - [x] **Stage 2** `KeyBindings: scope×Func combined rows; fix Scene/Morph verb mislabels` —
+        explicit `kModScope|kModFunc` rows for Track/Phrase/Scene delete; Morph BAKE (hint
+        ERASE) + ERASE rows; Scene+Record = BAKE (hint COPY); Scene+Play bare row removed
+        (dims honestly); raw bake literal moved to `status::confirmBake()` in `StatusText.h`.
+  - [x] **Stage 3** `KeyBindings: hint = Func-variant primary everywhere; test pins the rule` —
+        `testHintRule()` verifies universal secondary rule across the table.
+  - [x] **Stage 4** `state: pending-confirm into UiState; SurfaceLayer reads it directly` —
+        `ConfirmKind` enum + `ConfirmState` struct in `UiState.h`; `SurfaceLayer` no longer
+        needs `LayerFacts::pendingConfirm`; kind/target captured at arm time (scope-sticky).
+  - [x] **Stage 5** `SurfaceModel: render PendingConfirm — live YES/NO on P, all else dimmed` —
+        `ConfirmYes`/`ConfirmNo` CellState tokens; binding rows for `PendingConfirm` layer;
+        SurfaceModel dims everything except Func and paints P as YES/NO per Func state.
+  - [x] **Stage 6** `command: sticky confirm — survives chord release, foreign press cancels` —
+        `CommandCore::handleDown` intercept: Func never cancels; any other press = No (swallowed);
+        `CommandEffects::executeConfirm` seam; confirm bodies migrated out of PluginEditor.
+  - [x] **Stage 7** `command/ui: deletion picker — scope+Func+Clear opens selector; tap → confirm` —
+        `DeleteScope` + `DeletePickerState` in `UiState`; `SurfaceLayer::DeletePicker`;
+        `deletePhraseSlot()` + `deleteSceneSlot()` in `PluginProcessor`; picker grid in
+        `SurfaceModel`; CommandCore wires the picker; `EditorEffects::executeConfirm` routes all
+        three kinds (DeleteTrack / DeletePhrase / DeleteScene).
+  - [x] **Stage 8** `SurfaceModel: close nav/Mute scope-glow tint gaps` — NavDown under Track
+        gets `kScopeTrack` tint; Mute key gets `kScopeScene` tint when Scene held and Mute
+        itself not held; `testScopeTintBindings()` pins the binding-table preconditions.
+  - [x] **Stage 9** Docs: PRINCIPLES §16 (target selected, not playing); DESIGN §13 / §6.5 /
+        §37.6; README shortcut table + §5.4a deletion picker section + Morph BAKE/ERASE +
+        Scene BAKE/COPY/PASTE corrections; ROADMAP 8.24; CLAUDE.md gotcha bullet.
+  User to verify: standalone visual smoke (Phrase+Func+Clear → picker → tap → named
+  confirm; release chord → prompt stays; P=YES green / Func+P=NO red; any other key
+  cancels). Hardware: Push 1 / X-Touch render ConfirmYes/ConfirmNo + picker states sanely.
 
 ---
 

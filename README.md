@@ -490,8 +490,8 @@ actually lives on `P`.)
 | `Y` | **SNAP** | Push a checkpoint (scope-respecting) | Scope snapshot (`Scene`=re-sync; most scopes reserved/dim) | **Restore** — tap = pop one, hold = jump to floor |
 | `U` | **REC** | Toggle record-arm (double-tap = overdub) | **Copy** scope → clipboard | **Omni copy** (scene + track + phrase) |
 | `I` | **PLAY** | Play / Stop transport (double-tap = stop-to-top) | **Paste** clipboard → scope | **Unqualified paste** (stamp the one captured layer) |
-| `O` | **CLEAR** | Clear active P-Lock slot (`Scene`/`Phrase` held = cancel queued scene; `Song` held = Panic) | **Clear** scope | **Delete** entity (+ confirm) |
-| `P` | **YES** | Confirm a pending prompt | Scope confirm (dims on most scopes) | **No** / cancel a pending prompt |
+| `O` | **CLEAR** | Clear active P-Lock slot (`Scene`/`Phrase` held = cancel queued scene; `Song` held = Panic) | **Clear** scope contents | **Delete** — opens deletion picker (see §5.4a) |
+| `P` | **YES** | Confirm a pending prompt (green = YES / red under Func = NO) | Scope confirm (dims on most scopes) | **No** / cancel a pending prompt |
 
 > **Checkpoint push/restore.** Push is the bare `Y`(SNAP) key; restore is
 > `Func+Y`(RESTORE). Both are *scope-respecting*: with no scope held the
@@ -506,11 +506,33 @@ Transport and record-arm ride the verb row (no scope held — see §5.1):
 | Key | Action |
 |---|---|
 | `I` (Play) | Play / Stop transport (no scope held); `Func + I` = **unqualified paste** (stamps the single captured layer by type; rejects omni grab with "Paste: pick a scope"). |
-| `O` (Clear) | Clear active P-Lock slot (no scope held); `Func + O` = delete entity (+ confirm). |
+| `O` (Clear) | Clear active P-Lock slot (no scope held); `Func + O` = delete entity (opens deletion picker). |
 | `U` (Rec) | Toggle record-arm (overwrite). Double-tap = overdub (append); `Func + U` = **omni copy** (captures scene + active track + pattern in one grab; badge `CPY:ALL`). |
 | `3` | Tap tempo; `Func + 3` = toggle metronome. |
 | `4` | Navigate up (inverted-T above `E R T`). |
 | `E` / `R` / `T` | Navigate left / down / right. |
+
+### 5.4a Deletion picker and named confirms
+
+Holding a scope+Func+Clear chord (`Track/Phrase/Scene + Func + O`) enters the
+**deletion picker** modality — the step grid repaints as a slot-selector for
+that scope. Status reads "Delete which PHRASE?" (or TRACK / SCENE). The
+currently playing/focused slot is highlighted.
+
+- **Sticky prompt.** Releasing the arming chord does **not** cancel; the picker
+  persists until you tap a slot or press a non-Func key (shows "Cancelled").
+- **Tap a slot.** The picker exits and a named confirm replaces it: "Delete
+  PHRASE 3?  P=Yes  Func+P=No". The `P` key shows **YES (green)** with Func
+  up and **NO (red)** with Func held; the live colour is the signal.
+- **Confirm stickiness.** The confirm prompt is also sticky — releasing Func or
+  any held modifier does not cancel. Any key press other than `P` or `Func`
+  cancels (status "Cancelled"; press swallowed).
+- **Scope coverage.** Track / Phrase / Scene deletions use the picker.
+  `Song+Func+O` is inert (no entity to delete). `Morph+Func+O` = morph
+  **erase** (no picker; Morph maps are not entities).
+- **Delete semantics.** Delete Phrase N = reset slot N of the **focused track**
+  to uninitialised. Delete Scene N = clear scene slot N (falls back to scene 0
+  if the active scene is deleted). Delete Track = mark the track as empty.
 
 ### 5.5 Track selection and focus
 
@@ -1122,7 +1144,7 @@ Func (1)
 ├─ Func + Y (RESTORE) → restore checkpoint: tap = pop one, hold = jump to floor — §5.15
 ├─ Func + U           → omni copy (scene + track + phrase; badge CPY:ALL) — §5.4
 ├─ Func + I           → unqualified paste (stamp the one captured layer) — §5.4
-├─ Func + O           → delete the active entity (+ confirm) — §5.4
+├─ Func + O           → deletion picker (bare Func+O: inert; needs a scope) — §5.4a
 ├─ Func + P           → cancel a pending prompt — §5.3
 ├─ Func + 3           → toggle the metronome — §5.4
 ├─ Func + 5…0         → secondary section page (machine deep params; COND/NOTE meta; Func+7 = transport globals) — §5.8
@@ -1188,7 +1210,7 @@ Track (2)
 ├─ + ↑ / ↓ (no track selected) → cycle the focused track's input mode PLAY ↔ CHROMATIC ↔ LEVELS — §5.17
 ├─ + track-key + Nav → set the input mode on that specific track — §5.18
 ├─ + U / I / O       → copy / paste / clear the whole track — §5.9
-├─ + Func + O        → delete the track (then P confirms, Func+P cancels) — §5.9
+├─ + Func + O        → deletion picker: step grid shows tracks; tap to choose → named confirm (P=Yes, Func+P=No) — §5.4a
 ├─ + P (YES)         → Quantize: zero microOffset on every step of the track — §5.1
 ├─ + Scene           → re-sync the focused track to the active scene — §5.14
 ├─ + TRIG → kit divider (DIV meta) — §5.8
@@ -1209,6 +1231,7 @@ Phrase (Q)
 ├─ Track + Phrase + step → deviate the focused track to that phrase — §5.14
 ├─ Scene + Phrase + step → deviate all tracks; diagonal row = clear all deviations — §5.14
 ├─ + U / I / O       → copy / paste / clear the whole phrase (all tracks) — §5.9
+├─ + Func + O        → deletion picker: step grid shows phrase slots on the focused track; tap to choose → named confirm — §5.4a
 ├─ + P (YES)         → Quantize: zero microOffset across every step on every track — §5.1
 ├─ + O (queued scene pending) → cancel the queued scene — §5.14
 └─ + Fill (X, held together) → Euclidean generator on the focused track:
@@ -1227,13 +1250,14 @@ Scene (W)
 ├─ + step (empty slot)      → baked-copy create + launch (conflict-gated) — §5.14
 ├─ Func + Scene + step (occupied) → floor launch (arrive at saved floor) — §5.14
 ├─ Func + Scene + step (empty)    → default-create (blank) + launch — §5.14
-├─ + U (REC)                → commit-and-bake deviations (Yes/No confirm) — §5.14
+├─ + U (REC)                → **commit-and-bake** deviations (Yes/No confirm) — §5.14
 ├─ + O (CLEAR)              → revert the active scene to its floor / cancel a queued scene — §5.14
-├─ + Y (SNAP)              → re-sync all tracks to the active scene — §5.14
+├─ + Y (SNAP)               → re-sync all tracks to the active scene — §5.14
 ├─ Func + Scene + U         → copy the active scene to the clipboard (CPY:SCN) — §5.14
 ├─ Func + Scene + I         → paste the clipboard scene (baked; conflict-gated) — §5.14
+├─ Func + Scene + O         → deletion picker: step grid shows scene slots; tap to choose → named confirm — §5.4a
 ├─ Mute + Func + Scene + I  → paste floor only (strip the content overlay) — §5.14
-├─ + (held) → shows scene-all delta swing in band (SwScn + (D)) — §5.8
+├─ + (held)                 → shows scene-all delta swing in band (SwScn + (D)) — §5.8
 └─ Scene + Mute + step      → per-scene mute (this track's active-mask) — §5.11
 ```
 
@@ -1263,7 +1287,9 @@ Morph (A)   hold/latch = scene-layer selector (symmetric with held step → P-Lo
 ├─ + ↑ + encoder        → pure A write (fader ignored) — §5.2
 ├─ + ↓ + encoder        → pure B write (fader ignored) — §5.2
 ├─ + Stop on slot        → clear slot from both maps — §5.2
-└─ + Mute on track       → fluid mute (AMP Level → silence into near pole) — §5.2
+├─ + Mute on track       → fluid mute (AMP Level → silence into near pole) — §5.2
+├─ + O (CLEAR)           → **BAKE** — commit fader-split to both poles; hint "ERASE" — §5.2
+└─ Func + Morph + O      → **ERASE** — wipe both Morph maps for this scene — §5.2
 ```
 
 Links: [§5.2](#52-modifier-scope-keys)

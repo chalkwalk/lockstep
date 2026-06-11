@@ -1195,6 +1195,17 @@ The resolver follows three policies:
    return `disabled=true` for cells the held scope reinterprets to
    nothing (e.g. `Phrase + SRC`). The paint pipeline trusts
    `disabled` and never adds its own relabelling.
+4. **Universal secondary rule (8.24).** Every key's `hint` field
+   carries the label of what adding `Func` would do from the same
+   context. If there is no Func variant (or the Func key is not
+   meaningful on that chord), the hint is empty and the key dims
+   under `Func`. This rule is enforced by `testHintRule()` in
+   `tests/KeyBindingTest.cpp`: for every row in `kKeyBindings`, the
+   test resolves the row's mods + `kModFunc` and asserts `row.hint ==
+   funcVariantRow.primary`. Exemptions are documented inline in the
+   test. Label constraints: primary ≤ 8 code points (≤ 6 preferred
+   for 15 pt primaries), hint ≤ 8 code points — enforced by
+   `testLabelLengths()` in the same file.
 
 **Label expansion (3.3):** canonical section names and modifier-key
 labels now use up to 6 characters where they benefit: `FILTER` (was
@@ -1507,9 +1518,21 @@ The verb set is small and uniform:
 - Under any section-suite scope (Track / Phrase / Scene / Song / Morph), `Y U I O` glow
   in the scope colour and take their scoped meaning. `P` dims (reserved for the
   confirm/cancel channel).
-- `Func+O` = Delete sets a **pending-confirm** visible in the status band
-  ("Delete X?  Y=Yes  P=No"). `Y` = confirm; `P` = cancel.
-  No modal popup — PRINCIPLES §5.
+- **Scope+Func+O = deletion picker.** Holding a scoped Delete chord
+  (`Track/Phrase/Scene + Func + O`) enters the **deletion picker** modality:
+  the step grid repaints as a slot-selector for that scope; status reads
+  "Delete which PHRASE?" (or TRACK / SCENE). The user taps a slot to proceed.
+  The picker is **sticky** — releasing the arming chord does not cancel; only
+  an explicit non-Func key press does (shows "Cancelled"). `Func` itself never
+  cancels (it is needed to navigate Yes/No). After tapping a slot, a named
+  **pending-confirm** replaces the picker: "Delete PHRASE 3?  P=Yes  Func+P=No".
+  The `P` key shows **YES (green)** when Func is up and **NO (red)** when Func
+  is held; the live colour is the confirmation surface — no modal popup
+  (PRINCIPLES §5, §16). The pending-confirm is also sticky; any non-Func key
+  other than `P` cancels (status "Cancelled"; press swallowed). `Song+Func+O`
+  has no picker and remains inert; the key dims honestly under Song+Func.
+  Morph+Func+O = morph **erase** (no picker; Morph does not host deletable
+  entities). See PRINCIPLES §16.
 - Solo is `Func + Mute + step` (rung 4 — solo reads as "the
   secondary/advanced layer of mute"; PRINCIPLES §15). No verb acts as a
   held modifier: `Y` is only ever a verb (snapshot / dialog-confirm).
@@ -4613,6 +4636,28 @@ Golden tests pin each: `tests/SurfaceLayerTest.cpp`,
 `tests/KeyBindingTest.cpp`. Status: A0–A3 shipped; A4 (dispatch wiring)
 and Task B (confirm-prompt + master-FX-picker layers through
 `SurfaceLayer`) pending. ROADMAP 8.11 tracks the series.
+
+**8.24 additions to the binding table:**
+
+- **Explicit scope×Func combined rows.** A `{kModScope|kModFunc}` row
+  now exists for every scope where `Func+Scope+Clear` = Delete. Because
+  resolution is most-specific-wins, these outrank the bare-scope rows at
+  popcount 2; they carry the correct label and `ActionId::VerbDelete`.
+  Song has no delete-picker row; the key dims under `Song+Func`.
+- **Universal secondary rule (§6.5 policy 4).** Every row's `hint`
+  field must equal the `primary` of the resolved `Func`-variant row.
+  `testHintRule()` in `KeyBindingTest.cpp` enforces this; exemptions are
+  documented inline.
+- **Deletion picker + confirm layer.** `SurfaceLayer::DeletePicker` and
+  `SurfaceLayer::PendingConfirm` are now live layers (in that priority
+  order; confirm outranks picker). `resolveActiveLayer()` checks
+  `ui.deletePicker.active()` and `ui.confirm.pending()`. The confirm
+  layer exposes two binding rows for `VerbNo` (the `P` key): bare →
+  `VerbConfirm / "YES" / ConfirmYes`; with `kModFunc` →
+  `VerbCancel / "NO" / ConfirmNo`. Sticky lifecycle is in
+  `CommandCore::handleDown` — Func never cancels; any other foreign
+  press does. Execution routes through `CommandEffects::executeConfirm`
+  so confirm bodies are testable without `PluginEditor`.
 
 ---
 
