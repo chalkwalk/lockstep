@@ -149,7 +149,7 @@ namespace lockstep
         void sceneFullPaste(int destSlot) override
         {
             auto& cl = ed.clipboard_;
-            if (ed.phraseConflictAndConfirm(destSlot, PendingConfirm::PasteScene))
+            if (ed.phraseConflictAndConfirm(destSlot, ConfirmKind::PasteScene))
                 return;  // waiting for Yes/No
             ed.processor_.snapshot(CheckpointScope::Song, 0);
             auto& dst = ed.processor_.section();
@@ -1605,8 +1605,7 @@ namespace lockstep
                     const auto layerMode = (layerAt >= 0)
                         ? uiState_.trackInputMode[static_cast<std::size_t>(layerAt)]
                         : TrackInputMode::Play;
-                    const LayerFacts stepFacts { layerMode, layerAt,
-                        pendingConfirm_ != PendingConfirm::None };
+                    const LayerFacts stepFacts { layerMode, layerAt };
                     const SurfaceLayer layer = resolveActiveLayer(
                         uiState_, processor_.editContext(), stepFacts);
 
@@ -2005,8 +2004,7 @@ namespace lockstep
                         else if (!occupied && !funcHeld && !muteHeld)
                         {
                             // Empty + bare: baked copy (effective, follows deviations).
-                            if (phraseConflictAndConfirm(ev.index,
-                                                         PendingConfirm::CreateScene))
+                            if (phraseConflictAndConfirm(ev.index, ConfirmKind::CreateScene))
                                 break;   // waiting for Yes/No
                             processor_.snapshot(CheckpointScope::Song, 0);
                             processor_.createBakedCopyScene(ev.index);
@@ -2019,8 +2017,7 @@ namespace lockstep
                         else if (!occupied && funcHeld)
                         {
                             // Empty + Func: baseline copy (floor diagonal row, no deviations).
-                            if (phraseConflictAndConfirm(ev.index,
-                                                         PendingConfirm::CreateBaselineScene))
+                            if (phraseConflictAndConfirm(ev.index, ConfirmKind::CreateBaselineScene))
                                 break;   // waiting for Yes/No
                             processor_.snapshot(CheckpointScope::Song, 0);
                             processor_.createBaselineCopyScene(ev.index);
@@ -2581,23 +2578,31 @@ namespace lockstep
                     keyboardArea_.repaint();
                     return true;
                 }
-                // Build a description of the entity to delete based on current scope.
+                // Capture kind+target at arm time so Yes-resolution is scope-independent.
                 juce::String entityName;
                 switch (editMode_.primaryScope())
                 {
                     case PS::Track:
-                        entityName = "Track " + juce::String(keyboardArea_.getActiveTrack() + 1);
+                    {
+                        const int t = keyboardArea_.getActiveTrack();
+                        uiState_.confirm = { ConfirmKind::DeleteTrack, t };
+                        entityName = "Track " + juce::String(t + 1);
                         break;
+                    }
                     case PS::Phrase:
+                        uiState_.confirm = { ConfirmKind::DeletePhrase, -1 };
                         entityName = "Phrase";
                         break;
                     case PS::Scene:
+                    {
+                        const int si = processor_.activeSectionIdx();
+                        uiState_.confirm = { ConfirmKind::DeleteScene, si };
                         entityName = "Part";
                         break;
+                    }
                     default:
                         return true;  // No operand — inert.
                 }
-                pendingConfirm_ = PendingConfirm::Delete;
                 setStatus(status::confirmDelete(entityName));
                 keyboardArea_.repaint();
                 return true;
@@ -2619,7 +2624,7 @@ namespace lockstep
                         setStatus(status::noDeviationsToBake());
                         return true;
                     }
-                    pendingConfirm_ = PendingConfirm::BakeScene;
+                    uiState_.confirm = { ConfirmKind::BakeScene, -1 };
                     setStatus(status::confirmBake(nd, processor_.activeSectionIdx()));
                     repaint();
                     return true;
@@ -2705,54 +2710,41 @@ namespace lockstep
                 // Both primary P (Yes/confirm) and Func+P (No/cancel) arrive here as VerbNo.
                 // Distinguish by whether Func is held.
 
-                // Pending-confirm: P = execute, Func+P = cancel.
-                if (pendingConfirm_ != PendingConfirm::None)
+                // Pending-confirm: P = execute (Yes), Func+P = cancel (No).
+                if (uiState_.confirm.pending())
                 {
                     if (!funcHeld)
                     {
-                        if (pendingConfirm_ == PendingConfirm::BakeScene)
+                        const ConfirmKind kind   = uiState_.confirm.kind;
+                        const int         target = uiState_.confirm.target;
+                        if (kind == ConfirmKind::BakeScene)
                         {
                             processor_.snapshot(CheckpointScope::Song, 0);
                             processor_.bakeSceneState();
                             setStatus(status::baked());
-                            pendingConfirm_ = PendingConfirm::None;
-                            repaint();
-                            keyboardArea_.repaint();
-                            return true;
                         }
-                        if (pendingConfirm_ == PendingConfirm::CreateScene)
+                        else if (kind == ConfirmKind::CreateScene)
                         {
-                            const int tgt = pendingTarget_;
                             processor_.snapshot(CheckpointScope::Song, 0);
-                            processor_.createBakedCopyScene(tgt);
+                            processor_.createBakedCopyScene(target);
                             if (processor_.clock().inPluginPlaying())
-                                processor_.queueScene(tgt, false);
+                                processor_.queueScene(target, false);
                             else
-                                processor_.setActiveScene(tgt);
-                            setStatus(status::sceneCreated(tgt + 1));
-                            pendingConfirm_ = PendingConfirm::None;
-                            repaint();
-                            keyboardArea_.repaint();
-                            return true;
+                                processor_.setActiveScene(target);
+                            setStatus(status::sceneCreated(target + 1));
                         }
-                        if (pendingConfirm_ == PendingConfirm::CreateBaselineScene)
+                        else if (kind == ConfirmKind::CreateBaselineScene)
                         {
-                            const int tgt = pendingTarget_;
                             processor_.snapshot(CheckpointScope::Song, 0);
-                            processor_.createBaselineCopyScene(tgt);
+                            processor_.createBaselineCopyScene(target);
                             if (processor_.clock().inPluginPlaying())
-                                processor_.queueScene(tgt, false);
+                                processor_.queueScene(target, false);
                             else
-                                processor_.setActiveScene(tgt);
-                            setStatus(status::sceneBaseline(tgt + 1));
-                            pendingConfirm_ = PendingConfirm::None;
-                            repaint();
-                            keyboardArea_.repaint();
-                            return true;
+                                processor_.setActiveScene(target);
+                            setStatus(status::sceneBaseline(target + 1));
                         }
-                        if (pendingConfirm_ == PendingConfirm::PasteScene)
+                        else if (kind == ConfirmKind::PasteScene)
                         {
-                            const int destG = pendingTarget_;
                             processor_.snapshot(CheckpointScope::Song, 0);
                             auto& dst = processor_.section();
                             dst.activeMask  = clipboard_.scene.floor.activeMask;
@@ -2764,71 +2756,57 @@ namespace lockstep
                             {
                                 auto& ph =
                                     processor_.song().tracks[static_cast<std::size_t>(t)]
-                                        .phrases[static_cast<std::size_t>(destG)];
+                                        .phrases[static_cast<std::size_t>(target)];
                                 ph = clipboard_.scene.phrases[static_cast<std::size_t>(t)];
                                 ph.initialised = true;
                             }
                             processor_.refreshWorkingFromModel();
                             setStatus(status::pastedScene());
-                            pendingConfirm_ = PendingConfirm::None;
-                            repaint();
-                            keyboardArea_.repaint();
-                            return true;
                         }
-                        // Execute the pending delete against the current scope.
-                        // Snapshot first so the delete is undoable via Restore.
-                        switch (editMode_.primaryScope())
+                        else if (kind == ConfirmKind::DeleteTrack)
                         {
-                            case PS::Track:
+                            if (target >= 0 && target < static_cast<int>(kNumTracks))
                             {
-                                const int t = keyboardArea_.getActiveTrack();
-                                if (t >= 0 && t < static_cast<int>(kNumTracks))
+                                processor_.snapshot(CheckpointScope::Track, target);
+                                processor_.deleteTrack(target);
+                                setStatus(status::deletedTrack(target));
+                            }
+                        }
+                        else if (kind == ConfirmKind::DeletePhrase)
+                        {
+                            int ckTrk = 0;
+                            processor_.snapshot(ckScope(ckTrk), ckTrk);
+                            for (auto& trk : processor_.sequence().tracks)
+                            {
+                                for (auto& s : trk.steps)
                                 {
-                                    processor_.snapshot(CheckpointScope::Track, t);
-                                    processor_.deleteTrack(t);
-                                    setStatus(status::deletedTrack(t));
+                                    s.trig              = false;
+                                    s.condition         = TrigCondition{};
+                                    s.overrides         = PLock{};
+                                    s.trigOverride      = TrigOverride{};
+                                    s.fillTrigState     = FillTrigState::Off;
+                                    s.fillOverrides     = PLock{};
+                                    s.fillTrigOverride  = TrigOverride{};
                                 }
-                                break;
                             }
-                            case PS::Phrase:
-                            {
-                                int ckTrk = 0;
-                                processor_.snapshot(ckScope(ckTrk), ckTrk);
-                                for (auto& trk : processor_.sequence().tracks)
-                                {
-                                    for (auto& s : trk.steps)
-                                    {
-                                        s.trig              = false;
-                                        s.condition         = TrigCondition{};
-                                        s.overrides         = PLock{};
-                                        s.trigOverride      = TrigOverride{};
-                                        s.fillTrigState     = FillTrigState::Off;
-                                        s.fillOverrides     = PLock{};
-                                        s.fillTrigOverride  = TrigOverride{};
-                                    }
-                                }
-                                setStatus(status::deletedPhrase());
-                                break;
-                            }
-                            case PS::Scene:
-                            {
-                                int ckTrk = 0;
-                                processor_.snapshot(ckScope(ckTrk), ckTrk);
-                                processor_.deletePart();
-                                releaseTransientLatch(CB::SceneScope);
-                                setStatus(status::deletedPart());
-                                break;
-                            }
-                            default:
-                                break;
+                            setStatus(status::deletedPhrase());
+                        }
+                        else if (kind == ConfirmKind::DeleteScene)
+                        {
+                            int ckTrk = 0;
+                            processor_.snapshot(ckScope(ckTrk), ckTrk);
+                            processor_.deletePart();
+                            releaseTransientLatch(CB::SceneScope);
+                            setStatus(status::deletedPart());
                         }
                     }
                     else
                     {
                         setStatus(status::cancelled());
                     }
-                    pendingConfirm_ = PendingConfirm::None;
+                    uiState_.confirm.reset();
                     repaint();
+                    keyboardArea_.repaint();
                     return true;
                 }
 
@@ -3598,10 +3576,10 @@ namespace lockstep
         cl.type = ClipboardType::Scene;
     }
 
-    bool LockstepEditor::phraseConflictAndConfirm(int phraseSlot, PendingConfirm action)
+    bool LockstepEditor::phraseConflictAndConfirm(int phraseSlot, ConfirmKind kind)
     {
         // No-op skip: re-stamping identical content never needs a prompt.
-        if (action == PendingConfirm::CreateScene
+        if (kind == ConfirmKind::CreateScene
             && processor_.phraseRowMatchesActiveContent(phraseSlot))
             return false;
 
@@ -3618,8 +3596,7 @@ namespace lockstep
         if (!slotHasContent)
             return false;   // clean row — no conflict
 
-        pendingConfirm_ = action;
-        pendingTarget_  = phraseSlot;
+        uiState_.confirm = { kind, phraseSlot };
         const int freeSlot = processor_.firstFreePhraseSlot();
         juce::String msg = "Overwrite phrase row " + juce::String(phraseSlot) + "?";
         if (freeSlot >= 0) msg += "  free:S" + juce::String(freeSlot + 1);

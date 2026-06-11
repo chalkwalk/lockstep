@@ -35,7 +35,6 @@ namespace lockstep
   {
     TrackInputMode inputMode   = TrackInputMode::Play;  // active track's input mode
     int            activeTrack = 0;                     // index of the focused track
-    bool           pendingConfirm = false;              // Task B confirm overlay
   };
 
   // The one function that decides which overlay is active.

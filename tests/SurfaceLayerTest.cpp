@@ -276,18 +276,18 @@ namespace lockstep
 
     static void testPendingConfirmLayer()
     {
-        LayerFacts f = facts();
-        f.pendingConfirm = true;
-        CHECK(resolveActiveLayer(UiState{}, ec(), f) == SL::PendingConfirm,
-              "pendingConfirm=true → PendingConfirm (highest priority)");
+        // PendingConfirm is now driven by ui.confirm.pending() — no LayerFacts field.
+        UiState ui;
+        ui.confirm.kind = ConfirmKind::DeletePhrase;
+        CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::PendingConfirm,
+              "confirm.pending() → PendingConfirm (highest priority)");
 
         // PendingConfirm beats everything
-        UiState ui;
         ui.trigGridMode  = TrigGridMode::SoundPool;
         ui.funcTrackHeld = true;
         ui.morphHeld     = true;
         ui.muteHeld      = true;
-        CHECK(resolveActiveLayer(ui, ec(), f) == SL::PendingConfirm,
+        CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::PendingConfirm,
               "PendingConfirm beats all other conditions");
     }
 

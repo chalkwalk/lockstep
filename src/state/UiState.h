@@ -10,6 +10,28 @@
 
 namespace lockstep
 {
+    // ── Pending-confirm state ─────────────────────────────────────────────────
+    // Captured at arm time so Yes-resolution is correct even if scope is released.
+    enum class ConfirmKind : uint8_t
+    {
+        None,
+        DeleteTrack,          // target = track index
+        DeletePhrase,         // target = -1 (Stage 7 adds slot-specific deletion)
+        DeleteScene,          // target = scene index at arm time
+        BakeScene,            // target = unused
+        CreateScene,          // target = dest phrase slot
+        CreateBaselineScene,  // target = dest phrase slot
+        PasteScene,           // target = dest phrase slot
+    };
+
+    struct ConfirmState
+    {
+        ConfirmKind kind   = ConfirmKind::None;
+        int         target = -1;
+        [[nodiscard]] bool pending() const noexcept { return kind != ConfirmKind::None; }
+        void reset() noexcept { kind = ConfirmKind::None; target = -1; }
+    };
+
     // Virtual-hold (latch) state — one bool per latchable modifier.
     // Func never latches. Each bool, when true, means that modifier is held
     // hands-free; its corresponding xxxHeld flag in UiState stays true even
@@ -141,6 +163,9 @@ namespace lockstep
         // MHZ.7.4: last note played per-track, used as LEVELS record-arm pitch.
         // Updated whenever a note is triggered (keyboard overlay or CHROMATIC mode).
         std::array<int, kNumTracks> lastPlayedNote{};  // default 60 (C4)
+
+        // Pending-confirm state. Captured at arm time; cleared on Yes/No/cancel.
+        ConfirmState confirm;
 
         // ── Bundled gesture-group resets ─────────────────────────────────────────
         // Call these instead of scattering individual field assignments — each

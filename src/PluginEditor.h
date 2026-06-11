@@ -105,17 +105,7 @@ namespace lockstep
         int  lastTrigToggleTrack_   = -1;
         bool lastTrigToggleApplied_ = false;  // true iff the key-up actually toggled (paramWrote was false)
 
-        // Pending-confirm state: set by VerbDelete (Func+O); resolved by VerbNo (P=Yes) or
-        // Func+P (No/cancel). While set, a status-band prompt is shown.
-        enum class PendingConfirm : uint8_t
-        {
-            None, Delete, BakeScene,
-            CreateScene,         // create-baked-copy on a conflicted slot
-            CreateBaselineScene, // create-baseline-copy on a conflicted slot
-            PasteScene,          // baked scene paste on a conflicted slot
-        };
-        int pendingTarget_ = 0;  // scratch slot for Create/PasteScene
-        PendingConfirm pendingConfirm_ = PendingConfirm::None;
+        // Pending-confirm state lives in uiState_.confirm (ConfirmKind + target).
 
         // Last-known transport state: lets timerCallback detect play/pause
         // transitions so the keyboard PLAY/PAUSE label updates promptly.
@@ -229,7 +219,7 @@ namespace lockstep
 
         // True when writing phrase content into phraseSlot would overwrite shared
         // or already-initialised content. Shows confirm when true.
-        bool phraseConflictAndConfirm(int phraseSlot, PendingConfirm action);
+        bool phraseConflictAndConfirm(int phraseSlot, ConfirmKind kind);
 
         void applyDisplayMode(GridDisplayMode mode);
 
