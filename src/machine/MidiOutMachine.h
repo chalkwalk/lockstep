@@ -47,7 +47,6 @@ namespace lockstep
             return Polyphony::V0;
         }
         [[nodiscard]] bool isMidiOut() const override { return true; }
-        [[nodiscard]] bool hasInternalFilter() const override { return true; }
         [[nodiscard]] bool hasInternalAmp() const override { return true; }
 
         static constexpr int kNumCCs = 16;

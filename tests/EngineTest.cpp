@@ -473,8 +473,8 @@ namespace lockstep
         hA.renderBlocks(1);                              // drain SetMasterSendParam cmd
 
         // kit(0) amp sendA=0.7 / sendB=0.3 (written directly — base layer).
-        hA.processor().kit(0).ampState.sendA = 0.7f;
-        hA.processor().kit(0).ampState.sendB = 0.3f;
+        hA.processor().kit(0).channelState.sendA = 0.7f;
+        hA.processor().kit(0).channelState.sendB = 0.3f;
 
         // Install a DrumSynth on track 0 so the kit has a machine with valid params.
         installMachine(hA.processor(), 0, DrumSynthMachine::kMachineId);
@@ -499,12 +499,12 @@ namespace lockstep
               juce::String(loadedMix, 6) + ")");
 
         // kit amp sendA and sendB.
-        CHECK(feq(hB.processor().kit(0).ampState.sendA, 0.7f),
+        CHECK(feq(hB.processor().kit(0).channelState.sendA, 0.7f),
               "v17 round-trip: kit sendA survived (got=" +
-              juce::String(hB.processor().kit(0).ampState.sendA, 6) + ")");
-        CHECK(feq(hB.processor().kit(0).ampState.sendB, 0.3f),
+              juce::String(hB.processor().kit(0).channelState.sendA, 6) + ")");
+        CHECK(feq(hB.processor().kit(0).channelState.sendB, 0.3f),
               "v17 round-trip: kit sendB survived (got=" +
-              juce::String(hB.processor().kit(0).ampState.sendB, 6) + ")");
+              juce::String(hB.processor().kit(0).channelState.sendB, 6) + ")");
 
         // masterSends[1] should be empty (was never set).
         CHECK(hB.processor().songAt(0).masterSends[1].effectId.empty(),
@@ -545,9 +545,9 @@ namespace lockstep
               "v16→v17 upgrade: masterSends[1] empty in default state");
 
         // sendA/sendB default to 0 in a fresh kit.
-        CHECK(std::abs(hLoaded.processor().kit(0).ampState.sendA) < 1e-6f,
+        CHECK(std::abs(hLoaded.processor().kit(0).channelState.sendA) < 1e-6f,
               "v16→v17 upgrade: kit sendA defaults to 0");
-        CHECK(std::abs(hLoaded.processor().kit(0).ampState.sendB) < 1e-6f,
+        CHECK(std::abs(hLoaded.processor().kit(0).channelState.sendB) < 1e-6f,
               "v16→v17 upgrade: kit sendB defaults to 0");
 
         // No NaN after loading the upgraded state.
@@ -569,7 +569,7 @@ namespace lockstep
         step0on.trig = true;
         step0on.trigOverride.hasGate = true;
         step0on.trigOverride.gateValue = MusicalGate::G1_8;
-        hOn.processor().kit(0).ampState.sendA = 1.0f;
+        hOn.processor().kit(0).channelState.sendA = 1.0f;
         hOn.processor().setMasterSend(0, "lockstep.distortion.v1");
         hOn.processor().setMasterSendParam(0, 0, 1.0f);  // drive = max
         hOn.processor().setMasterSendParam(0, 2, 1.0f);  // mix   = fully wet
@@ -581,7 +581,7 @@ namespace lockstep
         step0off.trig = true;
         step0off.trigOverride.hasGate = true;
         step0off.trigOverride.gateValue = MusicalGate::G1_8;
-        hOff.processor().kit(0).ampState.sendA = 1.0f;
+        hOff.processor().kit(0).channelState.sendA = 1.0f;
         hOff.processor().setMasterSend(0, "lockstep.distortion.v1");
         hOff.processor().setMasterSendParam(0, 0, 1.0f);
         hOff.processor().setMasterSendParam(0, 2, 1.0f);

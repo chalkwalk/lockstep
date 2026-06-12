@@ -4,8 +4,9 @@
 #include <string>
 #include <vector>
 #include "../machine/IMachine.h"
-#include "TrackAmpState.h"
 #include "TrackFltrState.h"
+#include "TrackChannelState.h"
+#include "TrackEnvState.h"
 
 namespace lockstep
 {
@@ -24,11 +25,14 @@ namespace lockstep
         // Machine parameter defaults — one float per slot.
         ParamFrame baseParams{};
 
-        // Post-machine FLTR block (DESIGN §14).
+        // Post-machine FLTR block — always present (DESIGN §14).
         TrackFltrState fltrState;
 
-        // Post-machine AMP block (DESIGN §14).
-        TrackAmpState ampState;
+        // CHANNEL block — always present: level, pan, sendA, sendB (DESIGN §14).
+        TrackChannelState channelState;
+
+        // ENVELOPE block — present only when !hasInternalAmp() (DESIGN §14).
+        TrackEnvState envState;
 
         // Per-track CC slot config for MIDI-out tracks.
         std::vector<int> midiCCNumbers{};

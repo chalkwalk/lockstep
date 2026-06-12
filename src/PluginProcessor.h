@@ -29,8 +29,9 @@
 #include "machine/IMachine.h"
 #include "machine/SamplePool.h"
 #include "core/EngineCommand.h"
-#include "machine/TrackAmpDsp.h"
 #include "machine/TrackFltrDsp.h"
+#include "machine/TrackEnvDsp.h"
+#include "machine/TrackChannelDsp.h"
 #include "machine/VoiceChoke.h"
 
 namespace lockstep
@@ -742,18 +743,19 @@ namespace lockstep
         Metronome metronome_;
         MidiInput midiInput_;
         MidiClockReceiver midiClockReceiver_;
-        // ME.4: virtual slot count for the post-machine FLTR block (added to machine.numParams()).
-        static constexpr int kFltrSlots = TrackFltrState::kNumSlots;  // 6
-        static constexpr int kFltrSecIdx = 2;  // canonical FLTR section index
+        // Slot block sizes for the always-present track blocks (DESIGN §14).
+        static constexpr int kFltrSlots    = TrackFltrState::kNumSlots;      // 6
+        static constexpr int kChannelSlots = TrackChannelState::kNumSlots;   // 4
+        static constexpr int kEnvSlots     = TrackEnvState::kNumSlots;       // 6
+        static constexpr int kFltrSecIdx   = 2;  // canonical FLTR section index
+        static constexpr int kAmpSecIdx    = 3;  // canonical AMP section index
 
         // Absolute slot index where insert `insSlot` (0 or 1) params begin.
         [[nodiscard]] int insertParamOffset(int track, int insSlot) const noexcept;
-        static constexpr int kAmpSlots = TrackAmpState::kNumSlots;  // 8
 
         // Apply the master insert chain in-place. Called from both transport paths.
         // Also processes the send buses (if any) before the inserts.
         void processMasterChain(juce::AudioBuffer<float>& buf, int numSamples);
-        static constexpr int kAmpSecIdx = 3;  // canonical AMP section index
 
         // [SUSPEND] structural: swapped only while processing is suspended.
         std::array<std::unique_ptr<IMachine>, kNumTracks> machines_;
@@ -768,7 +770,7 @@ namespace lockstep
         std::array<juce::AudioBuffer<float>, 2> sendBusBufs_;
         std::array<VoiceChoke, kNumTracks> trackChokes_;
         std::array<TrackFltrDsp, kNumTracks> trackFltrs_;
-        std::array<TrackAmpDsp, kNumTracks> trackAmps_;
+        std::array<TrackEnvDsp, kNumTracks> trackEnvs_;
         // Last step index that actually fired per track; -1 until first fire.
         // Used for FLTR P-Lock resolution in the sequencer path.
         std::array<int, kNumTracks> firedStepIdx_{};

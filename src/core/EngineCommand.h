@@ -29,7 +29,8 @@ namespace lockstep
             SetBaseParam,       // sequence.tracks[track].baseParams[slot] = value
                                 // + kit(track).baseParams[slot] = value
             SetFltrSlot,        // kit(track).fltrState.setSlot(slot, value)
-            SetAmpSlot,         // kit(track).ampState.setSlot(slot, value)
+            SetChanSlot,        // kit(track).channelState.setSlot(slot, value)
+            SetEnvSlot,         // kit(track).envState.setSlot(slot, value)
             SetInsertParam,     // kit(track).inserts[aux].baseParams[slot] = value
             SetMasterInsertParam, // masterKit.inserts[aux].baseParams[slot] = value
             SetMasterSendParam,   // masterKit.sends[aux].baseParams[slot] = value (8.26)

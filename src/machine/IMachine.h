@@ -178,11 +178,12 @@ namespace lockstep
             return Polyphony::V1;
         }
 
-        // ME.6 opt-out flags: return true if the machine contains its own filter
-        // or amplitude processing for the canonical FLTR / AMP sections.
-        // When true, the processor routes that section key to the machine's own
-        // slots instead of the post-machine FLTR / AMP block.
-        virtual bool hasInternalFilter() const { return false; }
+        // hasInternalAmp(): return true if the machine shapes its own amplitude
+        // envelope. When true, the ENVELOPE block (AHDSR + gate source) is omitted
+        // from the track's slot space — the CHANNEL block (level/pan/sendA/sendB)
+        // is always present regardless of this flag (DESIGN §14).
+        // hasInternalFilter() was deleted in 8.28: the track filter is now universal
+        // (with an OFF mode for machines that don't need it).
         virtual bool hasInternalAmp() const { return false; }
 
         // MIDI-out machines override both of these. isMidiOut() lets the processor

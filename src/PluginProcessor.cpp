@@ -272,8 +272,8 @@ namespace lockstep
             choke.prepare(sampleRate, 1.5f);
         for (auto& fltr : trackFltrs_)
             fltr.prepare(sampleRate);
-        for (auto& amp : trackAmps_)
-            amp.prepare(sampleRate);
+        for (auto& env : trackEnvs_)
+            env.prepare(sampleRate);
         for (auto& ins : trackInserts_)
             for (auto& eff : ins)
                 if (eff)
@@ -519,18 +519,21 @@ namespace lockstep
             auto* m = machines_[ti].get();
             const int mnp = m->numParams();
             const int fltrOff = mnp;
-            const int ampOff = mnp + (m->hasInternalFilter() ? 0 : kFltrSlots);
+            const int chanOff = mnp + kFltrSlots;
+            const int envOff  = chanOff + kChannelSlots;
             float base;
             if (static_cast<std::size_t>(s) < trk.baseParams.size())
                 base = trk.baseParams[static_cast<std::size_t>(s)];
-            else if (!m->hasInternalFilter() && s >= fltrOff && s < fltrOff + kFltrSlots)
+            else if (!m->isMidiOut() && s >= fltrOff && s < fltrOff + kFltrSlots)
                 base = kit(static_cast<int>(ti)).fltrState.getSlot(s - fltrOff);
-            else if (!m->hasInternalAmp() && s >= ampOff && s < ampOff + kAmpSlots)
-                base = kit(static_cast<int>(ti)).ampState.getSlot(s - ampOff);
+            else if (!m->isMidiOut() && s >= chanOff && s < chanOff + kChannelSlots)
+                base = kit(static_cast<int>(ti)).channelState.getSlot(s - chanOff);
+            else if (!m->isMidiOut() && !m->hasInternalAmp() && s >= envOff && s < envOff + kEnvSlots)
+                base = kit(static_cast<int>(ti)).envState.getSlot(s - envOff);
             else
             {
                 // 6.5: insert base params.
-                int insOff = ampOff + (m->hasInternalAmp() ? 0 : kAmpSlots);
+                int insOff = envOff + (m->hasInternalAmp() ? 0 : kEnvSlots);
                 base = 0.0f;
                 for (int ins = 0; ins < 2; ++ins)
                 {
@@ -1136,24 +1139,24 @@ namespace lockstep
 
                     const int mnp = mi->numParams();
                     const int fltrOff = mnp;
-                    const int ampOff = mnp + (mi->hasInternalFilter() ? 0 : kFltrSlots);
+                    const int chanOff = mnp + kFltrSlots;
+                    const int envOff  = chanOff + kChannelSlots;
 
-                    if (!mi->hasInternalFilter())
+                    // FILTER: always present on audio tracks (OFF mode = passthrough).
                     {
                         TrackFltrState fltr = kit(static_cast<int>(i)).fltrState;
-                        // Morph tier for FLTR slots (before P-Lock override).
-                        for (int fs = 0; fs < TrackFltrState::kNumSlots; ++fs)
+                        for (int fs = 0; fs < kFltrSlots; ++fs)
                             fltr.setSlot(fs, morphBlend(section(), static_cast<int>(i),
                                                         fltrOff + fs, fltr.getSlot(fs), faderNow));
                         if (resolveStep >= 0 && resolveStep < kMaxStepsPerTrack)
                         {
                             const auto& step =
                                 sequence().tracks[i].steps[static_cast<std::size_t>(resolveStep)];
-                            for (int fs = 0; fs < TrackFltrState::kNumSlots; ++fs)
+                            for (int fs = 0; fs < kFltrSlots; ++fs)
                                 if (step.overrides.has(fltrOff + fs))
                                     fltr.setSlot(fs, step.overrides.get(fltrOff + fs, 0.0f));
                             if (fillNow)
-                                for (int fs = 0; fs < TrackFltrState::kNumSlots; ++fs)
+                                for (int fs = 0; fs < kFltrSlots; ++fs)
                                     if (step.fillOverrides.has(fltrOff + fs))
                                         fltr.setSlot(fs, step.fillOverrides.get(fltrOff + fs, 0.0f));
                         }
@@ -1161,42 +1164,54 @@ namespace lockstep
                                                     numBlockSamples);
                     }
 
-                    // 8.26: capture resolved send levels before the hasInternalAmp scope closes.
-                    float trackSendA = 0.0f, trackSendB = 0.0f;
+                    // CHANNEL: always present; resolve sends before applying level/pan.
+                    TrackChannelState ch = kit(static_cast<int>(i)).channelState;
+                    for (int cs = 0; cs < kChannelSlots; ++cs)
+                        ch.setSlot(cs, morphBlend(section(), static_cast<int>(i),
+                                                  chanOff + cs, ch.getSlot(cs), faderNow));
+                    if (resolveStep >= 0 && resolveStep < kMaxStepsPerTrack)
+                    {
+                        const auto& step =
+                            sequence().tracks[i].steps[static_cast<std::size_t>(resolveStep)];
+                        for (int cs = 0; cs < kChannelSlots; ++cs)
+                            if (step.overrides.has(chanOff + cs))
+                                ch.setSlot(cs, step.overrides.get(chanOff + cs, 0.0f));
+                        if (fillNow)
+                            for (int cs = 0; cs < kChannelSlots; ++cs)
+                                if (step.fillOverrides.has(chanOff + cs))
+                                    ch.setSlot(cs, step.fillOverrides.get(chanOff + cs, 0.0f));
+                    }
+                    const float trackSendA = ch.sendA;
+                    const float trackSendB = ch.sendB;
+
+                    // ENVELOPE: only for machines without internal amp.
                     if (!mi->hasInternalAmp())
                     {
-                        TrackAmpState amp = kit(static_cast<int>(i)).ampState;
-                        // Morph tier for AMP slots (before P-Lock override).
-                        for (int as = 0; as < TrackAmpState::kNumSlots; ++as)
-                            amp.setSlot(as, morphBlend(section(), static_cast<int>(i),
-                                                       ampOff + as, amp.getSlot(as), faderNow));
+                        TrackEnvState env = kit(static_cast<int>(i)).envState;
+                        for (int es = 0; es < kEnvSlots; ++es)
+                            env.setSlot(es, morphBlend(section(), static_cast<int>(i),
+                                                       envOff + es, env.getSlot(es), faderNow));
                         if (resolveStep >= 0 && resolveStep < kMaxStepsPerTrack)
                         {
                             const auto& step =
                                 sequence().tracks[i].steps[static_cast<std::size_t>(resolveStep)];
-                            for (int as = 0; as < TrackAmpState::kNumSlots; ++as)
-                                if (step.overrides.has(ampOff + as))
-                                    amp.setSlot(as, step.overrides.get(ampOff + as, 0.0f));
+                            for (int es = 0; es < kEnvSlots; ++es)
+                                if (step.overrides.has(envOff + es))
+                                    env.setSlot(es, step.overrides.get(envOff + es, 0.0f));
                             if (fillNow)
-                                for (int as = 0; as < TrackAmpState::kNumSlots; ++as)
-                                    if (step.fillOverrides.has(ampOff + as))
-                                        amp.setSlot(as, step.fillOverrides.get(ampOff + as, 0.0f));
+                                for (int es = 0; es < kEnvSlots; ++es)
+                                    if (step.fillOverrides.has(envOff + es))
+                                        env.setSlot(es, step.fillOverrides.get(envOff + es, 0.0f));
                         }
-                        trackSendA = amp.sendA;
-                        trackSendB = amp.sendB;
-                        const bool ampWasIdle = trackAmps_[i].isIdle();
-                        trackAmps_[i].processBlock(trackBuffers_[i], trackMidi[i], amp,
+                        const bool envWasIdle = trackEnvs_[i].isIdle();
+                        trackEnvs_[i].processBlock(trackBuffers_[i], trackMidi[i], env,
                                                    numBlockSamples);
-                        if (!ampWasIdle && trackAmps_[i].isIdle())
+                        if (!envWasIdle && trackEnvs_[i].isIdle())
                             mi->reset();
                     }
-                    else
-                    {
-                        // Internal-amp machines embed their own envelope; still expose
-                        // sendA/sendB so they route to the master send buses.
-                        trackSendA = kit(static_cast<int>(i)).ampState.sendA;
-                        trackSendB = kit(static_cast<int>(i)).ampState.sendB;
-                    }
+
+                    // Apply CHANNEL level/pan to the post-filter/envelope signal.
+                    applyChannel(trackBuffers_[i], ch, numBlockSamples);
 
                     // 6.5: post-machine insert chain — runs for all machines.
                     for (int ins = 0; ins < 2; ++ins)
@@ -1231,15 +1246,15 @@ namespace lockstep
                         if (trackSendA > 0.0f)
                         {
                             const int numCh = std::min(sendBusBufs_[0].getNumChannels(), numTrCh);
-                            for (int ch = 0; ch < numCh; ++ch)
-                                sendBusBufs_[0].addFrom(ch, 0, trackBuffers_[i], ch, 0,
+                            for (int bch = 0; bch < numCh; ++bch)
+                                sendBusBufs_[0].addFrom(bch, 0, trackBuffers_[i], bch, 0,
                                                         numBlockSamples, trackSendA);
                         }
                         if (trackSendB > 0.0f)
                         {
                             const int numCh = std::min(sendBusBufs_[1].getNumChannels(), numTrCh);
-                            for (int ch = 0; ch < numCh; ++ch)
-                                sendBusBufs_[1].addFrom(ch, 0, trackBuffers_[i], ch, 0,
+                            for (int bch = 0; bch < numCh; ++bch)
+                                sendBusBufs_[1].addFrom(bch, 0, trackBuffers_[i], bch, 0,
                                                         numBlockSamples, trackSendB);
                         }
                     }
@@ -1716,66 +1731,77 @@ namespace lockstep
 
                 const int mnp = mi->numParams();
                 const int fltrOff = mnp;
-                const int ampOff = mnp + (mi->hasInternalFilter() ? 0 : kFltrSlots);
+                const int chanOff = mnp + kFltrSlots;
+                const int envOff  = chanOff + kChannelSlots;
                 const int fsi = firedStepIdx_[i];
 
-                if (!mi->hasInternalFilter())
+                // FILTER: always present on audio tracks.
                 {
                     TrackFltrState fltr = kit(static_cast<int>(i)).fltrState;
-                    // Morph tier for FLTR slots (before P-Lock override).
-                    for (int fs = 0; fs < TrackFltrState::kNumSlots; ++fs)
+                    for (int fs = 0; fs < kFltrSlots; ++fs)
                         fltr.setSlot(fs, morphBlend(section(), static_cast<int>(i),
                                                     fltrOff + fs, fltr.getSlot(fs), faderNow));
                     if (fsi >= 0 && fsi < kMaxStepsPerTrack)
                     {
-                        const auto& step = sequence().tracks[i].steps[static_cast<std::size_t>(fsi)];
-                        for (int fs = 0; fs < TrackFltrState::kNumSlots; ++fs)
-                            if (step.overrides.has(fltrOff + fs))
-                                fltr.setSlot(fs, step.overrides.get(fltrOff + fs, 0.0f));
+                        const auto& fsiStep = sequence().tracks[i].steps[static_cast<std::size_t>(fsi)];
+                        for (int fs = 0; fs < kFltrSlots; ++fs)
+                            if (fsiStep.overrides.has(fltrOff + fs))
+                                fltr.setSlot(fs, fsiStep.overrides.get(fltrOff + fs, 0.0f));
                         if (curFillActive)
-                            for (int fs = 0; fs < TrackFltrState::kNumSlots; ++fs)
-                                if (step.fillOverrides.has(fltrOff + fs))
-                                    fltr.setSlot(fs, step.fillOverrides.get(fltrOff + fs, 0.0f));
+                            for (int fs = 0; fs < kFltrSlots; ++fs)
+                                if (fsiStep.fillOverrides.has(fltrOff + fs))
+                                    fltr.setSlot(fs, fsiStep.fillOverrides.get(fltrOff + fs, 0.0f));
                     }
                     trackFltrs_[i].processBlock(trackBuffers_[i], trackMidi[i], fltr,
                                                 numBlockSamples);
                 }
 
-                // 8.26: capture resolved send levels before the hasInternalAmp scope closes.
-                float trackSendA2 = 0.0f, trackSendB2 = 0.0f;
+                // CHANNEL: always present; resolve sends before applying level/pan.
+                TrackChannelState ch2 = kit(static_cast<int>(i)).channelState;
+                for (int cs = 0; cs < kChannelSlots; ++cs)
+                    ch2.setSlot(cs, morphBlend(section(), static_cast<int>(i),
+                                               chanOff + cs, ch2.getSlot(cs), faderNow));
+                if (fsi >= 0 && fsi < kMaxStepsPerTrack)
+                {
+                    const auto& fsiStep = sequence().tracks[i].steps[static_cast<std::size_t>(fsi)];
+                    for (int cs = 0; cs < kChannelSlots; ++cs)
+                        if (fsiStep.overrides.has(chanOff + cs))
+                            ch2.setSlot(cs, fsiStep.overrides.get(chanOff + cs, 0.0f));
+                    if (curFillActive)
+                        for (int cs = 0; cs < kChannelSlots; ++cs)
+                            if (fsiStep.fillOverrides.has(chanOff + cs))
+                                ch2.setSlot(cs, fsiStep.fillOverrides.get(chanOff + cs, 0.0f));
+                }
+                const float trackSendA2 = ch2.sendA;
+                const float trackSendB2 = ch2.sendB;
+
+                // ENVELOPE: only for machines without internal amp.
                 if (!mi->hasInternalAmp())
                 {
-                    TrackAmpState amp = kit(static_cast<int>(i)).ampState;
-                    // Morph tier for AMP slots (before P-Lock override).
-                    for (int as = 0; as < TrackAmpState::kNumSlots; ++as)
-                        amp.setSlot(as, morphBlend(section(), static_cast<int>(i),
-                                                   ampOff + as, amp.getSlot(as), faderNow));
+                    TrackEnvState env = kit(static_cast<int>(i)).envState;
+                    for (int es = 0; es < kEnvSlots; ++es)
+                        env.setSlot(es, morphBlend(section(), static_cast<int>(i),
+                                                   envOff + es, env.getSlot(es), faderNow));
                     if (fsi >= 0 && fsi < kMaxStepsPerTrack)
                     {
-                        const auto& step = sequence().tracks[i].steps[static_cast<std::size_t>(fsi)];
-                        for (int as = 0; as < TrackAmpState::kNumSlots; ++as)
-                            if (step.overrides.has(ampOff + as))
-                                amp.setSlot(as, step.overrides.get(ampOff + as, 0.0f));
+                        const auto& fsiStep = sequence().tracks[i].steps[static_cast<std::size_t>(fsi)];
+                        for (int es = 0; es < kEnvSlots; ++es)
+                            if (fsiStep.overrides.has(envOff + es))
+                                env.setSlot(es, fsiStep.overrides.get(envOff + es, 0.0f));
                         if (curFillActive)
-                            for (int as = 0; as < TrackAmpState::kNumSlots; ++as)
-                                if (step.fillOverrides.has(ampOff + as))
-                                    amp.setSlot(as, step.fillOverrides.get(ampOff + as, 0.0f));
+                            for (int es = 0; es < kEnvSlots; ++es)
+                                if (fsiStep.fillOverrides.has(envOff + es))
+                                    env.setSlot(es, fsiStep.fillOverrides.get(envOff + es, 0.0f));
                     }
-                    trackSendA2 = amp.sendA;
-                    trackSendB2 = amp.sendB;
-                    const bool ampWasIdle = trackAmps_[i].isIdle();
-                    trackAmps_[i].processBlock(trackBuffers_[i], trackMidi[i], amp,
+                    const bool envWasIdle2 = trackEnvs_[i].isIdle();
+                    trackEnvs_[i].processBlock(trackBuffers_[i], trackMidi[i], env,
                                                numBlockSamples);
-                    if (!ampWasIdle && trackAmps_[i].isIdle())
+                    if (!envWasIdle2 && trackEnvs_[i].isIdle())
                         mi->reset();
                 }
-                else
-                {
-                    // Internal-amp machines embed their own envelope; still expose
-                    // sendA/sendB so they route to the master send buses.
-                    trackSendA2 = kit(static_cast<int>(i)).ampState.sendA;
-                    trackSendB2 = kit(static_cast<int>(i)).ampState.sendB;
-                }
+
+                // Apply CHANNEL level/pan.
+                applyChannel(trackBuffers_[i], ch2, numBlockSamples);
 
                 // 6.5: post-machine insert chain — runs for all machines.
                 for (int ins = 0; ins < 2; ++ins)
@@ -1907,12 +1933,21 @@ namespace lockstep
         c.value = value;
         p.pushEngineCmd(c);
     }
-    static void enqueueAmpSlot(LockstepProcessor& p, int track, int ampSlot, float value)
+    static void enqueueChanSlot(LockstepProcessor& p, int track, int chanSlot, float value)
     {
         EngineCmd c;
-        c.op = EngineCmd::Op::SetAmpSlot;
+        c.op = EngineCmd::Op::SetChanSlot;
         c.track = static_cast<uint8_t>(track);
-        c.slot = static_cast<int16_t>(ampSlot);
+        c.slot = static_cast<int16_t>(chanSlot);
+        c.value = value;
+        p.pushEngineCmd(c);
+    }
+    static void enqueueEnvSlot(LockstepProcessor& p, int track, int envSlot, float value)
+    {
+        EngineCmd c;
+        c.op = EngineCmd::Op::SetEnvSlot;
+        c.track = static_cast<uint8_t>(track);
+        c.slot = static_cast<int16_t>(envSlot);
         c.value = value;
         p.pushEngineCmd(c);
     }
@@ -1945,38 +1980,60 @@ namespace lockstep
         auto* dm = proc.machines_[ti].get();
         if (!dm) return;
         const int dstMnp = dm->numParams();
-        const int dstAmpOff = dstMnp + (dm->hasInternalFilter() ? 0 : proc.kFltrSlots);
 
         if (dstSlot < dstMnp)
         {
             enqueueBaseParam(proc, t, dstSlot, value);
+            return;
         }
-        else if (!dm->hasInternalFilter() && dstSlot < dstAmpOff)
+        if (dm->isMidiOut())
+        {
+            // MIDI-out: no FLTR/CHAN/ENV blocks; inserts start right after machine params.
+            int dstInsOff = dstMnp;
+            for (int ins = 0; ins < 2; ++ins)
+            {
+                auto* de = proc.trackInserts_[ti][static_cast<std::size_t>(ins)].get();
+                if (!de) continue;
+                const int dnp = de->numParams();
+                if (dstSlot >= dstInsOff && dstSlot < dstInsOff + dnp)
+                {
+                    enqueueInsertParam(proc, t, ins, dstSlot - dstInsOff, value);
+                    return;
+                }
+                dstInsOff += dnp;
+            }
+            return;
+        }
+        // Audio track: FLTR → CHANNEL → ENV (if !hasInternalAmp) → inserts.
+        const int chanOff = dstMnp + proc.kFltrSlots;
+        const int envOff  = chanOff + proc.kChannelSlots;
+        const int ins0Off = envOff + (dm->hasInternalAmp() ? 0 : proc.kEnvSlots);
+        if (dstSlot < chanOff)
         {
             enqueueFltrSlot(proc, t, dstSlot - dstMnp, value);
         }
-        else if (!dm->hasInternalAmp())
+        else if (dstSlot < envOff)
         {
-            const int dstIns0Off = dstAmpOff + proc.kAmpSlots;
-            if (dstSlot < dstIns0Off)
+            enqueueChanSlot(proc, t, dstSlot - chanOff, value);
+        }
+        else if (!dm->hasInternalAmp() && dstSlot < ins0Off)
+        {
+            enqueueEnvSlot(proc, t, dstSlot - envOff, value);
+        }
+        else
+        {
+            int dstInsOff = ins0Off;
+            for (int ins = 0; ins < 2; ++ins)
             {
-                enqueueAmpSlot(proc, t, dstSlot - dstAmpOff, value);
-            }
-            else
-            {
-                int dstInsOff = dstIns0Off;
-                for (int ins = 0; ins < 2; ++ins)
+                auto* de = proc.trackInserts_[ti][static_cast<std::size_t>(ins)].get();
+                if (!de) continue;
+                const int dnp = de->numParams();
+                if (dstSlot >= dstInsOff && dstSlot < dstInsOff + dnp)
                 {
-                    auto* de = proc.trackInserts_[ti][static_cast<std::size_t>(ins)].get();
-                    if (!de) continue;
-                    const int dnp = de->numParams();
-                    if (dstSlot >= dstInsOff && dstSlot < dstInsOff + dnp)
-                    {
-                        enqueueInsertParam(proc, t, ins, dstSlot - dstInsOff, value);
-                        break;
-                    }
-                    dstInsOff += dnp;
+                    enqueueInsertParam(proc, t, ins, dstSlot - dstInsOff, value);
+                    break;
                 }
+                dstInsOff += dnp;
             }
         }
     }
@@ -2234,24 +2291,8 @@ namespace lockstep
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1;
         const auto* mi = machines_[static_cast<std::size_t>(track)].get();
         if (mi->isMidiOut()) return -1;
-        if (mi->hasInternalAmp())
-        {
-            // Some machines (e.g. FM) tag multiple slots Role::Level across
-            // different sections (e.g. Op1 Mix in section 1, output Level in
-            // section 3/AMP). We want the AMP-section (sectionIndex == 3) one.
-            // If none found in AMP, fall back to the first Role::Level found.
-            static constexpr int kAmpSectionIdx = 3;
-            int first = -1;
-            for (int s = 0; s < mi->numParams(); ++s)
-            {
-                const auto& spec = mi->paramSpec(s);
-                if (spec.role != ParamSpec::Role::Level) continue;
-                if (spec.sectionIndex == kAmpSectionIdx) return s;
-                if (first < 0) first = s;
-            }
-            return first;
-        }
-        return mi->numParams() + (mi->hasInternalFilter() ? 0 : kFltrSlots);
+        // CHANNEL Level is always at mnp + kFltrSlots (slot 0 of the CHANNEL block).
+        return mi->numParams() + kFltrSlots;
     }
 
     bool LockstepProcessor::hasFluidMute(int track) const
@@ -2609,7 +2650,13 @@ namespace lockstep
             return 0;
         const auto ti = static_cast<std::size_t>(track);
         auto* m = machines_[ti].get();
-        int n = m->numParams() + (m->hasInternalFilter() ? 0 : kFltrSlots) + (m->hasInternalAmp() ? 0 : kAmpSlots);
+        int n = m->numParams();
+        if (!m->isMidiOut())
+        {
+            n += kFltrSlots + kChannelSlots;
+            if (!m->hasInternalAmp())
+                n += kEnvSlots;
+        }
         for (auto& eff : trackInserts_[ti])
             if (eff) n += eff->numParams();
         return n;
@@ -2621,12 +2668,15 @@ namespace lockstep
         "lockstep.fltr.res", "lockstep.fltr.drive", "lockstep.fltr.env"
     };
 
-    // Stable string IDs for the 8 AMP virtual slots.
-    static const juce::String kAmpIds[TrackAmpState::kNumSlots] = {
-        "lockstep.amp.level", "lockstep.amp.pan", "lockstep.amp.gate",
-        "lockstep.amp.att", "lockstep.amp.hld", "lockstep.amp.dec",
-        "lockstep.amp.sus", "lockstep.amp.rel",
-        "lockstep.amp.sendA", "lockstep.amp.sendB"   // 8.26 AMP page 2
+    // Stable string IDs for CHANNEL and ENV virtual slots (disk IDs preserved from
+    // old TrackAmpState for backwards compatibility with saved projects).
+    static const juce::String kChanIds[TrackChannelState::kNumSlots] = {
+        "lockstep.amp.level", "lockstep.amp.pan",
+        "lockstep.amp.sendA", "lockstep.amp.sendB"
+    };
+    static const juce::String kEnvIds[TrackEnvState::kNumSlots] = {
+        "lockstep.amp.gate", "lockstep.amp.att", "lockstep.amp.hld",
+        "lockstep.amp.dec",  "lockstep.amp.sus", "lockstep.amp.rel"
     };
 
     ParamSpec LockstepProcessor::paramSpec(int track, int index) const
@@ -2638,11 +2688,29 @@ namespace lockstep
         const int mnp = m->numParams();
         if (index < mnp)
             return m->paramSpec(index);
+        if (m->isMidiOut())
+        {
+            // MIDI-out: inserts only after machine params.
+            int insOff = mnp;
+            for (int s = 0; s < 2; ++s)
+            {
+                auto* eff = trackInserts_[ti][static_cast<std::size_t>(s)].get();
+                if (!eff) continue;
+                const int insnp = eff->numParams();
+                if (index >= insOff && index < insOff + insnp)
+                    return eff->paramSpec(index - insOff);
+                insOff += insnp;
+            }
+            return {};
+        }
 
         const int fltrOff = mnp;
-        const int ampOff = mnp + (m->hasInternalFilter() ? 0 : kFltrSlots);
+        const int chanOff = mnp + kFltrSlots;
+        const int envOff  = chanOff + kChannelSlots;
+        const int ins0Off = envOff + (m->hasInternalAmp() ? 0 : kEnvSlots);
 
-        if (!m->hasInternalFilter() && index >= fltrOff && index < fltrOff + kFltrSlots)
+        // FLTR block — always present on audio tracks.
+        if (index >= fltrOff && index < fltrOff + kFltrSlots)
         {
             const int fs = index - fltrOff;
             ParamSpec p;
@@ -2653,7 +2721,8 @@ namespace lockstep
                 case 0:
                     p.label = "Mode";
                     p.isStepped = true;
-                    p.maxValue = 3.0f;
+                    p.maxValue = 4.0f;  // 0=LP 1=HP 2=BP 3=NO 4=OFF
+                    p.defaultValue = 4.0f;
                     break;
                 case 1:
                     p.label = "Slope";
@@ -2684,13 +2753,14 @@ namespace lockstep
             return p;
         }
 
-        if (!m->hasInternalAmp() && index >= ampOff && index < ampOff + kAmpSlots)
+        // CHANNEL block — always present on audio tracks (level, pan, sendA, sendB).
+        if (index >= chanOff && index < chanOff + kChannelSlots)
         {
-            const int as = index - ampOff;
+            const int cs = index - chanOff;
             ParamSpec p;
             p.sectionIndex = kAmpSecIdx;
-            p.id = kAmpIds[as];
-            switch (as)
+            p.id = kChanIds[cs];
+            switch (cs)
             {
                 case 0:
                     p.label = "Level";
@@ -2705,61 +2775,72 @@ namespace lockstep
                     p.role = ParamSpec::Role::Pan;
                     break;
                 case 2:
-                    p.label = "Gate";
-                    p.isStepped = true;
+                    p.label = "Send A";
                     p.maxValue = 1.0f;
                     break;
                 case 3:
-                    p.label = "Attack";
-                    p.maxValue = 1000.0f;
-                    p.defaultValue = 1.0f;
-                    p.unit = ParamSpec::Unit::Ms;
-                    p.role = ParamSpec::Role::Attack;
-                    break;
-                case 4:
-                    p.label = "Hold";
-                    p.maxValue = 1000.0f;
-                    p.unit = ParamSpec::Unit::Ms;
-                    p.role = ParamSpec::Role::Hold;
-                    break;
-                case 5:
-                    p.label = "Decay";
-                    p.maxValue = 2000.0f;
-                    p.unit = ParamSpec::Unit::Ms;
-                    p.role = ParamSpec::Role::Decay;
-                    break;
-                case 6:
-                    p.label = "Sustain";
-                    p.maxValue = 1.0f;
-                    p.defaultValue = 1.0f;
-                    p.role = ParamSpec::Role::Sustain;
-                    break;
-                case 7:
-                    p.label = "Release";
-                    p.maxValue = 2000.0f;
-                    p.defaultValue = 10.0f;
-                    p.unit = ParamSpec::Unit::Ms;
-                    p.role = ParamSpec::Role::Release;
-                    break;
-                case 8:
-                    p.label = "Send A";
-                    p.maxValue = 1.0f;
-                    p.defaultValue = 0.0f;
-                    break;
-                case 9:
                     p.label = "Send B";
                     p.maxValue = 1.0f;
-                    p.defaultValue = 0.0f;
                     break;
                 default: break;
             }
             return p;
         }
 
-        // 6.5: insert param ranges.
+        // ENV block — only for machines without internal amp.
+        if (!m->hasInternalAmp() && index >= envOff && index < envOff + kEnvSlots)
         {
-            const int ti2 = static_cast<int>(ti);
-            int insOff = ampOff + (m->hasInternalAmp() ? 0 : kAmpSlots);
+            const int es = index - envOff;
+            ParamSpec p;
+            p.sectionIndex = kAmpSecIdx;
+            p.id = kEnvIds[es];
+            switch (es)
+            {
+                case 0:
+                    p.label = "Gate";
+                    p.isStepped = true;
+                    p.maxValue = 1.0f;
+                    break;
+                case 1:
+                    p.label = "Attack";
+                    p.maxValue = 1000.0f;
+                    p.defaultValue = 1.0f;
+                    p.unit = ParamSpec::Unit::Ms;
+                    p.role = ParamSpec::Role::Attack;
+                    break;
+                case 2:
+                    p.label = "Hold";
+                    p.maxValue = 1000.0f;
+                    p.unit = ParamSpec::Unit::Ms;
+                    p.role = ParamSpec::Role::Hold;
+                    break;
+                case 3:
+                    p.label = "Decay";
+                    p.maxValue = 2000.0f;
+                    p.unit = ParamSpec::Unit::Ms;
+                    p.role = ParamSpec::Role::Decay;
+                    break;
+                case 4:
+                    p.label = "Sustain";
+                    p.maxValue = 1.0f;
+                    p.defaultValue = 1.0f;
+                    p.role = ParamSpec::Role::Sustain;
+                    break;
+                case 5:
+                    p.label = "Release";
+                    p.maxValue = 2000.0f;
+                    p.defaultValue = 10.0f;
+                    p.unit = ParamSpec::Unit::Ms;
+                    p.role = ParamSpec::Role::Release;
+                    break;
+                default: break;
+            }
+            return p;
+        }
+
+        // Insert params.
+        {
+            int insOff = ins0Off;
             for (int s = 0; s < 2; ++s)
             {
                 auto* eff = trackInserts_[ti][static_cast<std::size_t>(s)].get();
@@ -2769,7 +2850,6 @@ namespace lockstep
                     return eff->paramSpec(index - insOff);
                 insOff += insnp;
             }
-            (void)ti2;
         }
 
         return {};
@@ -2791,7 +2871,6 @@ namespace lockstep
         auto* m = machines_[ti].get();
 
         const int mnp = m->numParams();
-        const int ampOff = mnp + (m->hasInternalFilter() ? 0 : kFltrSlots);
 
         // 6.5: FX section (canonical section 5) shows insert params.
         if (sectionIndex == kFxSecIdx)
@@ -2805,8 +2884,8 @@ namespace lockstep
             return { "FX", ins1Off, (np1 + np2 + kParamsPerPage - 1) / kParamsPerPage, -1 };
         }
 
-        // Post-machine FLTR block owns canonical section 2 (when machine has no internal filter).
-        if (sectionIndex == kFltrSecIdx && !m->hasInternalFilter())
+        // Post-machine FLTR block owns canonical section 2 (always for audio tracks).
+        if (sectionIndex == kFltrSecIdx && !m->isMidiOut())
         {
             return { "FLTR",
                      mnp,
@@ -2814,12 +2893,15 @@ namespace lockstep
                      -1 };
         }
 
-        // Post-machine AMP block owns canonical section 3 (when machine has no internal amp).
-        if (sectionIndex == kAmpSecIdx && !m->hasInternalAmp())
+        // Post-machine AMP section owns canonical section 3 for audio tracks:
+        // CHANNEL (level/pan/sendA/sendB) always; ENV only if !hasInternalAmp().
+        if (sectionIndex == kAmpSecIdx && !m->isMidiOut())
         {
+            const int chanOff = mnp + kFltrSlots;
+            const int ampSlots = kChannelSlots + (m->hasInternalAmp() ? 0 : kEnvSlots);
             return { "AMP",
-                     ampOff,
-                     (kAmpSlots + kParamsPerPage - 1) / kParamsPerPage,
+                     chanOff,
+                     (ampSlots + kParamsPerPage - 1) / kParamsPerPage,
                      -1 };
         }
 
@@ -2852,22 +2934,42 @@ namespace lockstep
         const int mnp = m->numParams();
         if (index < mnp)
             return m->idForSlot(index);
+        if (m->isMidiOut())
+        {
+            // MIDI-out: inserts only.
+            int insOff = mnp;
+            for (int s = 0; s < 2; ++s)
+            {
+                auto* eff = trackInserts_[ti][static_cast<std::size_t>(s)].get();
+                if (!eff) continue;
+                const int insnp = eff->numParams();
+                if (index >= insOff && index < insOff + insnp)
+                {
+                    const juce::String rawId{ eff->paramSpec(index - insOff).id };
+                    if (rawId.isEmpty()) return {};
+                    return (s == 0 ? "lockstep.fx0." : "lockstep.fx1.") + rawId;
+                }
+                insOff += insnp;
+            }
+            return {};
+        }
+
         const int fltrOff = mnp;
-        const int ampOff = mnp + (m->hasInternalFilter() ? 0 : kFltrSlots);
-        if (!m->hasInternalFilter())
-        {
-            const int fs = index - fltrOff;
-            if (fs >= 0 && fs < kFltrSlots) return kFltrIds[fs];
-        }
-        if (!m->hasInternalAmp())
-        {
-            const int as = index - ampOff;
-            if (as >= 0 && as < kAmpSlots) return kAmpIds[as];
-        }
+        const int chanOff = mnp + kFltrSlots;
+        const int envOff  = chanOff + kChannelSlots;
+        const int ins0Off = envOff + (m->hasInternalAmp() ? 0 : kEnvSlots);
+
+        if (index >= fltrOff && index < fltrOff + kFltrSlots)
+            return kFltrIds[index - fltrOff];
+        if (index >= chanOff && index < chanOff + kChannelSlots)
+            return kChanIds[index - chanOff];
+        if (!m->hasInternalAmp() && index >= envOff && index < envOff + kEnvSlots)
+            return kEnvIds[index - envOff];
+
         // 6.5: insert params — ID namespaced by slot so Control-All matches same
         // param in the same insert slot across tracks (same effect loaded).
         {
-            int insOff = ampOff + (m->hasInternalAmp() ? 0 : kAmpSlots);
+            int insOff = ins0Off;
             for (int s = 0; s < 2; ++s)
             {
                 auto* eff = trackInserts_[ti][static_cast<std::size_t>(s)].get();
@@ -2891,18 +2993,23 @@ namespace lockstep
             return -1;
         const auto ti = static_cast<std::size_t>(track);
         auto* m = machines_[ti].get();
-        if (id.startsWith("lockstep.fltr.") && !m->hasInternalFilter())
+        if (id.startsWith("lockstep.fltr.") && !m->isMidiOut())
         {
             const int mnp = m->numParams();
             for (int fs = 0; fs < kFltrSlots; ++fs)
                 if (id == kFltrIds[fs]) return mnp + fs;
             return -1;
         }
-        if (id.startsWith("lockstep.amp.") && !m->hasInternalAmp())
+        if (id.startsWith("lockstep.amp."))
         {
-            const int ampOff = m->numParams() + (m->hasInternalFilter() ? 0 : kFltrSlots);
-            for (int as = 0; as < kAmpSlots; ++as)
-                if (id == kAmpIds[as]) return ampOff + as;
+            const int mnp = m->numParams();
+            const int chanOff = mnp + kFltrSlots;
+            const int envOff  = chanOff + kChannelSlots;
+            for (int cs = 0; cs < kChannelSlots; ++cs)
+                if (id == kChanIds[cs]) return chanOff + cs;
+            if (!m->hasInternalAmp())
+                for (int es = 0; es < kEnvSlots; ++es)
+                    if (id == kEnvIds[es]) return envOff + es;
             return -1;
         }
         // 6.5: insert param IDs namespaced as "lockstep.fx0.<paramId>" / "lockstep.fx1.<paramId>".
@@ -2932,14 +3039,18 @@ namespace lockstep
         auto* m = machines_[ti].get();
         const int mnp = m->numParams();
         const int fltrOff = mnp;
-        const int ampOff = mnp + (m->hasInternalFilter() ? 0 : kFltrSlots);
-        if (!m->hasInternalFilter() && slot >= fltrOff && slot < fltrOff + kFltrSlots)
+        const int chanOff = mnp + kFltrSlots;
+        const int envOff  = chanOff + kChannelSlots;
+        const int ins0Off = envOff + (m->hasInternalAmp() ? 0 : kEnvSlots);
+        if (!m->isMidiOut() && slot >= fltrOff && slot < fltrOff + kFltrSlots)
             return kit(static_cast<int>(ti)).fltrState.getSlot(slot - fltrOff);
-        if (!m->hasInternalAmp() && slot >= ampOff && slot < ampOff + kAmpSlots)
-            return kit(static_cast<int>(ti)).ampState.getSlot(slot - ampOff);
+        if (!m->isMidiOut() && slot >= chanOff && slot < chanOff + kChannelSlots)
+            return kit(static_cast<int>(ti)).channelState.getSlot(slot - chanOff);
+        if (!m->hasInternalAmp() && slot >= envOff && slot < envOff + kEnvSlots)
+            return kit(static_cast<int>(ti)).envState.getSlot(slot - envOff);
         // 6.5: insert params.
         {
-            int insOff = ampOff + (m->hasInternalAmp() ? 0 : kAmpSlots);
+            int insOff = m->isMidiOut() ? mnp : ins0Off;
             for (int s = 0; s < 2; ++s)
             {
                 auto* eff = trackInserts_[ti][static_cast<std::size_t>(s)].get();
@@ -3001,9 +3112,14 @@ namespace lockstep
                         kit(static_cast<int>(t)).fltrState.setSlot(c.slot, c.value);
                     break;
 
-                case EngineCmd::Op::SetAmpSlot:
+                case EngineCmd::Op::SetChanSlot:
                     if (t < kNumTracks)
-                        kit(static_cast<int>(t)).ampState.setSlot(c.slot, c.value);
+                        kit(static_cast<int>(t)).channelState.setSlot(c.slot, c.value);
+                    break;
+
+                case EngineCmd::Op::SetEnvSlot:
+                    if (t < kNumTracks)
+                        kit(static_cast<int>(t)).envState.setSlot(c.slot, c.value);
                     break;
 
                 case EngineCmd::Op::SetInsertParam: {
@@ -3505,8 +3621,9 @@ namespace lockstep
         const auto ti = static_cast<std::size_t>(track);
         auto* m = machines_[ti].get();
         const int mnp = m->numParams();
-        const int ampOff = mnp + (m->hasInternalFilter() ? 0 : kFltrSlots);
-        int off = ampOff + (m->hasInternalAmp() ? 0 : kAmpSlots);
+        int off = m->isMidiOut()
+                    ? mnp
+                    : mnp + kFltrSlots + kChannelSlots + (m->hasInternalAmp() ? 0 : kEnvSlots);
         for (int s = 0; s < insSlot && s < 2; ++s)
         {
             auto* eff = trackInserts_[ti][static_cast<std::size_t>(s)].get();
@@ -3821,17 +3938,21 @@ namespace lockstep
     int LockstepProcessor::slotForIdWithMachine(const IMachine& m, const juce::String& id) const
     {
         const int mnp = m.numParams();
-        if (id.startsWith("lockstep.fltr.") && !m.hasInternalFilter())
+        const int chanOff = mnp + kFltrSlots;
+        const int envOff  = chanOff + kChannelSlots;
+        if (id.startsWith("lockstep.fltr.") && !m.isMidiOut())
         {
             for (int fs = 0; fs < kFltrSlots; ++fs)
                 if (id == kFltrIds[fs]) return mnp + fs;
             return -1;
         }
-        if (id.startsWith("lockstep.amp.") && !m.hasInternalAmp())
+        if (id.startsWith("lockstep.amp."))
         {
-            const int ampOff = mnp + (m.hasInternalFilter() ? 0 : kFltrSlots);
-            for (int as = 0; as < kAmpSlots; ++as)
-                if (id == kAmpIds[as]) return ampOff + as;
+            for (int cs = 0; cs < kChannelSlots; ++cs)
+                if (id == kChanIds[cs]) return chanOff + cs;
+            if (!m.hasInternalAmp())
+                for (int es = 0; es < kEnvSlots; ++es)
+                    if (id == kEnvIds[es]) return envOff + es;
             return -1;
         }
         return m.slotForId(id);
@@ -3839,19 +3960,27 @@ namespace lockstep
 
     int LockstepProcessor::numSlotsWithMachine(const IMachine& m) const
     {
-        return m.numParams() + (m.hasInternalFilter() ? 0 : kFltrSlots) + (m.hasInternalAmp() ? 0 : kAmpSlots);
+        if (m.isMidiOut())
+            return m.numParams();
+        return m.numParams() + kFltrSlots + kChannelSlots + (m.hasInternalAmp() ? 0 : kEnvSlots);
     }
 
     ParamSpec LockstepProcessor::paramSpecWithMachine(const IMachine& m, int index) const
     {
+        // Delegate to the track-level paramSpec logic; share a dummy track index
+        // of -1 here is not safe, so forward to the non-machine-aware overload
+        // via an equivalent reconstruction. This offline variant is only called
+        // during PluginState load (B5) before machines_ is populated — its only
+        // caller passes an already-known machine reference.
         const int mnp = m.numParams();
-        const int fltrOff = mnp;
-        const int ampOff = mnp + (m.hasInternalFilter() ? 0 : kFltrSlots);
-
         if (index < mnp)
             return m.paramSpec(index);
 
-        if (!m.hasInternalFilter() && index >= fltrOff && index < fltrOff + kFltrSlots)
+        const int fltrOff = mnp;
+        const int chanOff = mnp + kFltrSlots;
+        const int envOff  = chanOff + kChannelSlots;
+
+        if (!m.isMidiOut() && index >= fltrOff && index < fltrOff + kFltrSlots)
         {
             const int fs = index - fltrOff;
             ParamSpec p;
@@ -3862,7 +3991,8 @@ namespace lockstep
                 case 0:
                     p.label = "Mode";
                     p.isStepped = true;
-                    p.maxValue = 3.0f;
+                    p.maxValue = 4.0f;
+                    p.defaultValue = 4.0f;
                     break;
                 case 1:
                     p.label = "Slope";
@@ -3893,13 +4023,13 @@ namespace lockstep
             return p;
         }
 
-        if (!m.hasInternalAmp() && index >= ampOff && index < ampOff + kAmpSlots)
+        if (!m.isMidiOut() && index >= chanOff && index < chanOff + kChannelSlots)
         {
-            const int as = index - ampOff;
+            const int cs = index - chanOff;
             ParamSpec p;
             p.sectionIndex = kAmpSecIdx;
-            p.id = kAmpIds[as];
-            switch (as)
+            p.id = kChanIds[cs];
+            switch (cs)
             {
                 case 0:
                     p.label = "Level";
@@ -3914,36 +4044,57 @@ namespace lockstep
                     p.role = ParamSpec::Role::Pan;
                     break;
                 case 2:
+                    p.label = "Send A";
+                    p.maxValue = 1.0f;
+                    break;
+                case 3:
+                    p.label = "Send B";
+                    p.maxValue = 1.0f;
+                    break;
+                default: break;
+            }
+            return p;
+        }
+
+        if (!m.hasInternalAmp() && index >= envOff && index < envOff + kEnvSlots)
+        {
+            const int es = index - envOff;
+            ParamSpec p;
+            p.sectionIndex = kAmpSecIdx;
+            p.id = kEnvIds[es];
+            switch (es)
+            {
+                case 0:
                     p.label = "Gate";
                     p.isStepped = true;
                     p.maxValue = 1.0f;
                     break;
-                case 3:
+                case 1:
                     p.label = "Attack";
                     p.maxValue = 1000.0f;
                     p.defaultValue = 1.0f;
                     p.unit = ParamSpec::Unit::Ms;
                     p.role = ParamSpec::Role::Attack;
                     break;
-                case 4:
+                case 2:
                     p.label = "Hold";
                     p.maxValue = 1000.0f;
                     p.unit = ParamSpec::Unit::Ms;
                     p.role = ParamSpec::Role::Hold;
                     break;
-                case 5:
+                case 3:
                     p.label = "Decay";
                     p.maxValue = 2000.0f;
                     p.unit = ParamSpec::Unit::Ms;
                     p.role = ParamSpec::Role::Decay;
                     break;
-                case 6:
+                case 4:
                     p.label = "Sustain";
                     p.maxValue = 1.0f;
                     p.defaultValue = 1.0f;
                     p.role = ParamSpec::Role::Sustain;
                     break;
-                case 7:
+                case 5:
                     p.label = "Release";
                     p.maxValue = 2000.0f;
                     p.defaultValue = 10.0f;
