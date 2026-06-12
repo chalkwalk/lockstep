@@ -665,7 +665,9 @@ available effects catalogue; press a step to load that effect into the focused
 slot. Re-press `Func+FX` while the picker is open to cycle the targeted insert
 slot (0 → 1 → 0). Press `FX` (alone) to navigate the insert's params in the MZ;
 hold `FX + step` momentarily to **animate bypass** (bypass on press, restore on
-release). MIDI-out tracks show no inserts.
+release). MIDI-out tracks show no inserts. Under **Song+FX focus**, the same gesture
+targets the master units — steps 0-3 bypass FX1, 4-7 bypass FX2, 8-11 bypass Send A,
+12-15 bypass Send B — and is suppressed when the master picker is open.
 
 **Master bus: 2 inserts + 2 send returns.** The master bus has four FX units at
 Song scope (DESIGN §32.3):
