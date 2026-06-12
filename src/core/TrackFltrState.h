@@ -20,30 +20,29 @@ namespace lockstep
 
         float getSlot(int s) const noexcept
         {
-            switch (s)
-            {
-                case 0:  return mode;
-                case 1:  return slope;
-                case 2:  return cutoff;
-                case 3:  return resonance;
-                case 4:  return drive;
-                case 5:  return envToCutoff;
-                default: return 0.0f;
-            }
+            static constexpr float TrackFltrState::* kSlots[] = {
+                &TrackFltrState::mode,
+                &TrackFltrState::slope,
+                &TrackFltrState::cutoff,
+                &TrackFltrState::resonance,
+                &TrackFltrState::drive,
+                &TrackFltrState::envToCutoff,
+            };
+            if (s >= 0 && s < kNumSlots) return this->*kSlots[s];
+            return 0.0f;
         }
 
         void setSlot(int s, float v) noexcept
         {
-            switch (s)
-            {
-                case 0:  mode = v; break;
-                case 1:  slope = v; break;
-                case 2:  cutoff = v; break;
-                case 3:  resonance = v; break;
-                case 4:  drive = v; break;
-                case 5:  envToCutoff = v; break;
-                default: break;
-            }
+            static constexpr float TrackFltrState::* kSlots[] = {
+                &TrackFltrState::mode,
+                &TrackFltrState::slope,
+                &TrackFltrState::cutoff,
+                &TrackFltrState::resonance,
+                &TrackFltrState::drive,
+                &TrackFltrState::envToCutoff,
+            };
+            if (s >= 0 && s < kNumSlots) this->*kSlots[s] = v;
         }
     };
 }
