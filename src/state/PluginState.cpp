@@ -370,6 +370,23 @@ namespace lockstep::PluginState
                 pNode.setProperty("v", static_cast<double>(val), nullptr);
                 bpNode.appendChild(pNode, nullptr);
             }
+            // sendA/sendB are post-fader mix levels, independent of the amp type.
+            // For machines with hasInternalAmp()=true the main loop skips the AMP
+            // section entirely, so write them separately here.
+            if (tempMachine->hasInternalAmp())
+            {
+                static const char* const kSendIds[] = { "lockstep.amp.sendA",
+                                                         "lockstep.amp.sendB" };
+                const float sends[] = { kit.ampState.sendA, kit.ampState.sendB };
+                for (int si = 0; si < 2; ++si)
+                {
+                    if (std::abs(sends[si]) < 1e-7f) continue;
+                    juce::ValueTree pNode("P");
+                    pNode.setProperty("id", juce::String(kSendIds[si]), nullptr);
+                    pNode.setProperty("v", static_cast<double>(sends[si]), nullptr);
+                    bpNode.appendChild(pNode, nullptr);
+                }
+            }
             if (bpNode.getNumChildren() > 0)
                 node.appendChild(bpNode, nullptr);
         }
@@ -426,7 +443,13 @@ namespace lockstep::PluginState
                 const juce::String id = pNode.getProperty("id", "").toString();
                 const float val = getFloat(pNode, "v", 0.0f);
                 const int slot = proc.slotForIdWithMachine(*tempMachine, id);
-                if (slot < 0) continue;  // unknown id (e.g. machine changed) — skip
+                if (slot < 0)
+                {
+                    // sendA/sendB persisted separately for internal-amp machines.
+                    if (id == "lockstep.amp.sendA") kit.ampState.sendA = val;
+                    else if (id == "lockstep.amp.sendB") kit.ampState.sendB = val;
+                    continue;
+                }
                 if (slot < machinNp)
                     kit.baseParams[static_cast<std::size_t>(slot)] = val;
                 else if (id.startsWith("lockstep.fltr."))
