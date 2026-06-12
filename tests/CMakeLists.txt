@@ -23,7 +23,8 @@ add_executable(lockstep_tests
     ParamSpecTest.cpp
     MachineDspTest.cpp
     EngineTest.cpp
-    ControllerTest.cpp)
+    ControllerTest.cpp
+    CaptureRecorderTest.cpp)
 
 target_link_libraries(lockstep_tests PRIVATE
     lockstep_engine

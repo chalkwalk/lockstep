@@ -55,4 +55,6 @@ namespace lockstep
     void runEngineTests();
     // 8.21 Controller-surface shared helpers
     void runControllerTests();
+    // 8.26 CaptureRecorder lifecycle
+    void runCaptureRecorderTests();
 }
