@@ -60,5 +60,6 @@ namespace lockstep
         virtual void soloToggle(int track) = 0;  // additive solo
         virtual void sceneMuteToggle(int track) = 0;  // current-scene active-mask
         virtual void fluidMuteToggle(int track) = 0;  // fluid-mute morph on Level slot
+        virtual void toggleCapture() = 0;             // arm/disarm WAV capture
     };
 }

@@ -195,6 +195,7 @@ namespace lockstep
             case AId::SoloToggle:       fx.soloToggle(ev.index); return true;
             case AId::SceneMuteToggle:  fx.sceneMuteToggle(ev.index); return true;
             case AId::FluidMuteToggle:  fx.fluidMuteToggle(ev.index); return true;
+            case AId::ToggleCapture:    fx.toggleCapture(); return true;
             default:                    return false;
         }
     }

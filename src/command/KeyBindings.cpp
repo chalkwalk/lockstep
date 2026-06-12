@@ -102,11 +102,13 @@ namespace lockstep
         // ── VerbRecord / REC (key U) ──────────────────────────────────────────
         // Scope+VerbRecord = COPY for Track/Phrase/Song. Scene bare = BAKE (arms confirm);
         // Func+Scene+Record = COPY (scene copy, handled in verbs::scene).
+        // Func+Song+Record = CAPTURE (arm/disarm WAV capture of master output).
+        { CB::VerbRecord, -1, kModSong | kModFunc, SL::Base, AId::ToggleCapture, u8"CAPTURE", u8"", CS::FuncHeld },
         { CB::VerbRecord, -1, kModScene | kModFunc, SL::Base, AId::VerbCopy, u8"COPY", u8"", CS::FuncHeld },
         { CB::VerbRecord, -1, kModTrack, SL::Base, AId::VerbCopy, u8"COPY", u8"", CS::Resting },
         { CB::VerbRecord, -1, kModPhrase, SL::Base, AId::VerbCopy, u8"COPY", u8"", CS::Resting },
         { CB::VerbRecord, -1, kModScene, SL::Base, AId::VerbBakeScene, u8"BAKE", u8"COPY", CS::Resting },
-        { CB::VerbRecord, -1, kModSong, SL::Base, AId::VerbCopy, u8"COPY", u8"", CS::Resting },
+        { CB::VerbRecord, -1, kModSong, SL::Base, AId::VerbCopy, u8"COPY", u8"CAPTURE", CS::Resting },
         { CB::VerbRecord, -1, kModNone, SL::Base, AId::VerbRecord, u8"REC", u8"", CS::Resting },
 
         // ── VerbPlay / PLAY (key I) ───────────────────────────────────────────

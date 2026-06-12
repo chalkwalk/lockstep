@@ -133,6 +133,31 @@ namespace lockstep
             }
             ed.repaint();
         }
+        void toggleCapture() override
+        {
+            if (ed.processor_.isCapturing())
+            {
+                const juce::RelativeTime dur = ed.processor_.stopCapture();
+                const juce::File f = ed.processor_.captureFile();
+                const int totalSec = static_cast<int>(dur.inSeconds());
+                const juce::String durStr = juce::String(totalSec / 60)
+                    + ":" + juce::String(totalSec % 60).paddedLeft('0', 2);
+                ed.setStatus(status::captureDisarmed(durStr, f.getFileName()));
+            }
+            else
+            {
+                if (ed.processor_.startCapture())
+                {
+                    ed.setStatus(status::captureArmed(
+                        ed.processor_.captureFile().getFileName()));
+                }
+                else
+                {
+                    ed.setStatus(status::captureFailed());
+                }
+            }
+            ed.repaint();
+        }
 
         void sceneFloorPaste() override
         {

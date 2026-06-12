@@ -90,6 +90,8 @@ namespace lockstep
         FluidMuteToggle,     // Morph+Mute+step: toggle fluid-mute morph
         // Misc
         QuantizeHeld,
+        // Capture
+        ToggleCapture,       // Func+Song+Record: arm/disarm WAV capture
     };
 
     // -------------------------------------------------------------------------

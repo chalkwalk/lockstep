@@ -85,6 +85,21 @@ namespace lockstep::status
     inline juce::String noDeviationsToBake() { return "No deviations to bake"; }
     inline juce::String capturedAll() { return "Captured all"; }
 
+    // ---- capture ------------------------------------------------------------
+
+    inline juce::String captureArmed(const juce::String& filename)
+    {
+        return "REC " + filename;
+    }
+
+    inline juce::String captureDisarmed(const juce::String& duration,
+                                        const juce::String& filepath)
+    {
+        return "Captured " + duration + " -> " + filepath;
+    }
+
+    inline juce::String captureFailed() { return "Capture: could not open file"; }
+
     // ---- transport / meta ---------------------------------------------------
 
     inline juce::String panic() { return "Panic"; }

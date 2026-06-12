@@ -61,6 +61,8 @@ namespace lockstep::test
         void soloToggle(int t) override { soloTracks.push_back(t); }
         void sceneMuteToggle(int t) override { sceneMuteTracks.push_back(t); }
         void fluidMuteToggle(int t) override { fluidMuteTracks.push_back(t); }
+        int captureToggles = 0;
+        void toggleCapture() override { ++captureToggles; }
 
         void reset()
         {
