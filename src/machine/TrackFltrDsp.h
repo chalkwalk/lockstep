@@ -95,7 +95,7 @@ namespace lockstep
                 {
                     float s = data[n];
                     if (drive > 0.0f)
-                        s = std::tanh(s * driveGain) / driveGain;
+                        s = std::tanh(driveGain * s) / std::tanh(driveGain);
                     s = stage1_[ch].process(s, mode);
                     if (is24) s = stage2_[ch].process(s, mode);
                     data[n] = s;
