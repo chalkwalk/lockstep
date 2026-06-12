@@ -10,19 +10,16 @@ satisfy, see `PRINCIPLES.md`. **Before adding a milestone here, confirm it is
 expressible within those principles and within the existing scope+verb grammar
 (DESIGN §13).**
 
-**Active focus:** Phase 8 closeout. **8.24 UI/UX consistency pass shipped:**
-label-length tests, scope×Func combined rows, universal secondary hint rule
-(`testHintRule()`), confirm lifecycle into `CommandCore` (sticky; Func-exempt;
-`executeConfirm` seam), deletion picker modality (`DeletePicker` SurfaceLayer;
-`deletePhraseSlot`/`deleteSceneSlot` in PluginProcessor), scope-glow tint
-coverage, and full docs (PRINCIPLES §16; DESIGN §13/§6.5/§37.6; README §5.4a).
-A4 dispatch wiring (8.11) still pending. Serializer is now **v15** (P-Lock
-string ids, 8.23). Open verification sweeps: `3.10` standalone, `7.8` VST3/CLAP
-v15 round-trip, and the 8.24 standalone visual smoke (picker → named confirm →
-YES/NO live colour).
-**Last completed:** `8.24` UI/UX consistency pass.
-**Next up:** *under review* — `8.11` A4 dispatch wiring, `6.7` Machine Module ABI
-(gates the Phase 4 catalogue), or remaining Phase 5/6 performance depth.
+**Active focus:** Phase 8/9 ongoing. **8.26 master-bus re-arch + FX catalogue
+shipped** (2-insert + 2-send master bus, 13 effects, WAV capture, Animate for
+master units; serializer **v17**). **8.11 A-series closed** (A4 dispatch fully
+wired; Task B done). Open verification sweeps: `3.10` standalone,
+`7.8` VST3/CLAP v17 round-trip, `7.9e` vocabulary rename, `8.24` standalone
+visual smoke (picker → named confirm → YES/NO live colour).
+**Last completed:** `8.26` master-bus re-arch + FX catalogue.
+**Next up:** bug fixes (segfault on new project, filter drive) + track-DSP
+re-architecture (channel/env split + universal filter; `8.28`); `6.7` Machine
+Module ABI (gates the Phase 4 catalogue).
 
 Phases 1–3 took Lockstep from an empty plugin to a frozen, playable performance
 surface; Phase 4 fills the machine catalogue; Phases 5–6 are the depth and
@@ -1128,7 +1125,7 @@ Not a CLAP/VST3 sub-host; in-process, no IPC/sandbox.
 
 ---
 
-## Phase 8 — Hardening & Maintainability  *[shipped — 8.11 A-series closeout in progress]*
+## Phase 8 — Hardening & Maintainability  *[shipped]*
 
 DESIGN §37 (Command Core), §35.8.7 (Cell appearance table), §37.4 (text SSOT),
 §37.5 (ParamRow). Root causes addressed: dispatch duplication across three input
@@ -1208,7 +1205,7 @@ DESIGN §37/§35.8.7/§37.4/§37.5 added; ROADMAP Phase 8 entry; CLAUDE.md statu
 - [x] **8.10** DESIGN reconcile + residuals noted; README shortcut sweep; ROADMAP
       ticks; CLAUDE.md layout map + gotchas; ControllerEvent.h nav-comment fix.
 
-### 8.11 — A-series: key-cell label/action SSOT  *[in progress]*
+### 8.11 — A-series: key-cell label/action SSOT  *[shipped]*
 Post-8.10 follow-up in the same hardening spirit: one table answers both "what
 does this key cell say/show" and "what does pressing it do", replacing scattered
 per-renderer label logic and per-key modifier checks. See DESIGN §37.6.
@@ -1223,7 +1220,7 @@ per-renderer label logic and per-key modifier checks. See DESIGN §37.6.
       (`ActionId` + label + `CellState` per row; most-specific-wins resolution,
       ties broken by `kScopePriority`); drives key-cell rendering;
       `tests/KeyBindingTest.cpp`.
-- [ ] **A4** Wire `ActionId` rows to the actual dispatch handlers (table becomes
+- [x] **A4** Wire `ActionId` rows to the actual dispatch handlers (table becomes
       the dispatch SSOT, not just the render SSOT).
   - [x] **A4.0** Delete dead `VerbStop` + `ForkPart` no-op cases.
   - [x] **A4.1** `CommandCore::handleAction(ActionId, ev, ctx, fx)` pilot —
@@ -1279,7 +1276,7 @@ per-renderer label logic and per-key modifier checks. See DESIGN §37.6.
 
 ---
 
-## Phase 8 — Quality: threading, dispatch, dedup (8.12–8.23)  *[in progress]*
+## Phase 8 — Quality: threading, dispatch, dedup (8.12–8.27)  *[shipped]*
 
 Code-quality audit findings across four workstreams (safety net, threading
 architecture, dispatch SSOT, dedup/cleanup). See DESIGN §38 for the threading
