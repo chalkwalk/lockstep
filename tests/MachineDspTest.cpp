@@ -400,6 +400,194 @@ namespace lockstep
     }
 
     // -----------------------------------------------------------------------
+    // VA legato golden.
+    // Verifies: (a) a second note pressed while first is held produces audio
+    // without hard-clicking, (b) releasing the first note does NOT kill the
+    // second (MonoGate.Ignore path), and (c) the voice silences after both
+    // notes are released.
+    static void vaLegatoGolden()
+    {
+        VAMachine va;
+        va.prepare(48000.0, 64);
+
+        ParamFrame frame = defaultFrame(va);
+
+        // Explicit mono+legato (defaults, but pin them so the test is self-describing).
+        if (!setSlot(va, frame, "va_voice_mode", 0.0f) ||
+            !setSlot(va, frame, "va_retrig", 0.0f))
+        {
+            juce::Logger::writeToLog("vaLegatoGolden: voice_mode/retrig ids not found - skipping");
+            return;
+        }
+
+        const int slotA  = va.slotForId("va_amp_a");
+        const int slotD  = va.slotForId("va_amp_d");
+        const int slotS  = va.slotForId("va_amp_s");
+        const int slotR  = va.slotForId("va_amp_r");
+        const int slotLv = va.slotForId("va_level");
+        if (slotA < 0 || slotD < 0 || slotS < 0 || slotR < 0 || slotLv < 0)
+        {
+            juce::Logger::writeToLog("vaLegatoGolden: amp slot ids not found - skipping");
+            return;
+        }
+
+        auto norm = [](float val, const ParamSpec& ps) -> float {
+            const float range = ps.maxValue - ps.minValue;
+            return (range > 0.0f) ? (val - ps.minValue) / range : 0.0f;
+        };
+        frame[static_cast<size_t>(slotA)]  = norm(10.0f, va.paramSpec(slotA));
+        frame[static_cast<size_t>(slotD)]  = norm(50.0f, va.paramSpec(slotD));
+        frame[static_cast<size_t>(slotS)]  = 0.7f;
+        frame[static_cast<size_t>(slotR)]  = norm(20.0f, va.paramSpec(slotR));
+        frame[static_cast<size_t>(slotLv)] = 1.0f;
+
+        juce::AudioBuffer<float> buf(2, 64);
+        juce::MidiBuffer midi;
+
+        // Note A (C4=60) on; render ~100 ms (75 blocks).
+        midi.addEvent(juce::MidiMessage::noteOn(1, 60, static_cast<juce::uint8>(100)), 0);
+        float lastSampleBeforeTransition = 0.0f;
+        for (int b = 0; b < 75; ++b)
+        {
+            renderBlock(va, midi, frame, buf);
+            if (b == 74)
+                lastSampleBeforeTransition = buf.getSample(0, 63);
+        }
+        CHECK(!hasNaNOrInf(buf), "VA legato: NaN after note A sustain");
+
+        // Note B (E4=64) on while A is still held — legato slide, no note A off.
+        midi.addEvent(juce::MidiMessage::noteOn(1, 64, static_cast<juce::uint8>(100)), 0);
+        renderBlock(va, midi, frame, buf);  // transition block
+        CHECK(!hasNaNOrInf(buf), "VA legato: NaN at A->B transition block");
+
+        const float firstSampleAfterTransition = buf.getSample(0, 0);
+        const float transitionDelta = std::abs(firstSampleAfterTransition - lastSampleBeforeTransition);
+        CHECK(transitionDelta < 0.5f,
+              "VA legato: hard click at A->B transition (delta=" + juce::String(transitionDelta, 6) + ")");
+
+        // Render ~100 ms more; note B should be sounding throughout.
+        float maxRmsHeld = 0.0f;
+        for (int b = 0; b < 74; ++b)
+        {
+            renderBlock(va, midi, frame, buf);
+            maxRmsHeld = std::max(maxRmsHeld, blockRms(buf));
+        }
+        CHECK(maxRmsHeld > 1e-3f,
+              "VA legato: note B not sounding after legato transition (RMS=" + juce::String(maxRmsHeld) + ")");
+
+        // Note A off — B is the active note, so MonoGate returns Ignore.
+        // Voice must keep playing (the bug this pins: note A off incorrectly killing B).
+        midi.addEvent(juce::MidiMessage::noteOff(1, 60), 0);
+        float maxRmsAfterAOff = 0.0f;
+        for (int b = 0; b < 15; ++b)
+        {
+            renderBlock(va, midi, frame, buf);
+            maxRmsAfterAOff = std::max(maxRmsAfterAOff, blockRms(buf));
+        }
+        CHECK(maxRmsAfterAOff > 1e-3f,
+              "VA legato: note B killed by note A off (RMS=" + juce::String(maxRmsAfterAOff) + ") "
+              "-- MonoGate Ignore path not respected");
+
+        // Note B off — envelope releases; silence expected after ~30 ms.
+        midi.addEvent(juce::MidiMessage::noteOff(1, 64), 0);
+        for (int b = 0; b < 38; ++b)
+            renderBlock(va, midi, frame, buf);
+        CHECK(!hasNaNOrInf(buf), "VA legato: NaN after release tail");
+        const float finalRms = blockRms(buf);
+        CHECK(finalRms < 1e-2f,
+              "VA legato: not silent after release tail (RMS=" + juce::String(finalRms) + ")");
+    }
+
+    // -----------------------------------------------------------------------
+    // FM legato golden — mirrors vaLegatoGolden() for FMMachine.
+    static void fmLegatoGolden()
+    {
+        FMMachine fm;
+        fm.prepare(48000.0, 64);
+
+        ParamFrame frame = defaultFrame(fm);
+
+        if (!setSlot(fm, frame, "fm_voice_mode", 0.0f) ||
+            !setSlot(fm, frame, "fm_retrig", 0.0f))
+        {
+            juce::Logger::writeToLog("fmLegatoGolden: voice_mode/retrig ids not found - skipping");
+            return;
+        }
+
+        // Fastest attack+release macro; minimum per-op release so the tail is short.
+        const int slotAtk = fm.slotForId("fm_macro_atk");
+        const int slotRel = fm.slotForId("fm_macro_rel");
+        if (slotAtk < 0 || slotRel < 0)
+        {
+            juce::Logger::writeToLog("fmLegatoGolden: macro slot ids not found - skipping");
+            return;
+        }
+        frame[static_cast<size_t>(slotAtk)] = fm.paramSpec(slotAtk).minValue;
+        frame[static_cast<size_t>(slotRel)] = fm.paramSpec(slotRel).minValue;
+
+        for (const char* relId : { "fm_rel_1", "fm_rel_2", "fm_rel_3", "fm_rel_4" })
+        {
+            const int s = fm.slotForId(relId);
+            if (s >= 0)
+                frame[static_cast<size_t>(s)] = fm.paramSpec(s).minValue;
+        }
+
+        juce::AudioBuffer<float> buf(2, 64);
+        juce::MidiBuffer midi;
+
+        // Note A (C4=60) on; render ~100 ms.
+        midi.addEvent(juce::MidiMessage::noteOn(1, 60, static_cast<juce::uint8>(100)), 0);
+        float lastSampleBeforeTransition = 0.0f;
+        for (int b = 0; b < 75; ++b)
+        {
+            renderBlock(fm, midi, frame, buf);
+            if (b == 74)
+                lastSampleBeforeTransition = buf.getSample(0, 63);
+        }
+        CHECK(!hasNaNOrInf(buf), "FM legato: NaN after note A sustain");
+
+        // Note B (E4=64) on while A is still held.
+        midi.addEvent(juce::MidiMessage::noteOn(1, 64, static_cast<juce::uint8>(100)), 0);
+        renderBlock(fm, midi, frame, buf);
+        CHECK(!hasNaNOrInf(buf), "FM legato: NaN at A->B transition block");
+
+        const float firstSampleAfterTransition = buf.getSample(0, 0);
+        const float transitionDelta = std::abs(firstSampleAfterTransition - lastSampleBeforeTransition);
+        CHECK(transitionDelta < 0.5f,
+              "FM legato: hard click at A->B transition (delta=" + juce::String(transitionDelta, 6) + ")");
+
+        float maxRmsHeld = 0.0f;
+        for (int b = 0; b < 74; ++b)
+        {
+            renderBlock(fm, midi, frame, buf);
+            maxRmsHeld = std::max(maxRmsHeld, blockRms(buf));
+        }
+        CHECK(maxRmsHeld > 1e-3f,
+              "FM legato: note B not sounding after legato transition (RMS=" + juce::String(maxRmsHeld) + ")");
+
+        // Note A off — B is active, MonoGate returns Ignore; voice must keep playing.
+        midi.addEvent(juce::MidiMessage::noteOff(1, 60), 0);
+        float maxRmsAfterAOff = 0.0f;
+        for (int b = 0; b < 15; ++b)
+        {
+            renderBlock(fm, midi, frame, buf);
+            maxRmsAfterAOff = std::max(maxRmsAfterAOff, blockRms(buf));
+        }
+        CHECK(maxRmsAfterAOff > 1e-3f,
+              "FM legato: note B killed by note A off (RMS=" + juce::String(maxRmsAfterAOff) + ") "
+              "-- MonoGate Ignore path not respected");
+
+        // Note B off — release tail.
+        midi.addEvent(juce::MidiMessage::noteOff(1, 64), 0);
+        for (int b = 0; b < 38; ++b)
+            renderBlock(fm, midi, frame, buf);
+        CHECK(!hasNaNOrInf(buf), "FM legato: NaN after release tail");
+        const float finalRms = blockRms(buf);
+        CHECK(finalRms < 1e-2f,
+              "FM legato: not silent after release tail (RMS=" + juce::String(finalRms) + ")");
+    }
+
+    // -----------------------------------------------------------------------
 
     void runMachineDspTests()
     {
@@ -414,6 +602,7 @@ namespace lockstep
             blockSizeInvariance(va, 60, /*activeBlocks=*/10, "VAMachine");
         }
         vaEnvelopeGolden();
+        vaLegatoGolden();
 
         // --- FMMachine ---
         {
@@ -425,6 +614,7 @@ namespace lockstep
             blockSizeInvariance(fm, 60, 10, "FMMachine");
         }
         fmEnvelopeGolden();
+        fmLegatoGolden();
 
         // --- DrumSynthMachine ---
         // Drums are AHD; after note-off they just complete the decay naturally.
