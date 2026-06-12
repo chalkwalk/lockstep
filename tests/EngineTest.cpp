@@ -371,6 +371,85 @@ namespace lockstep
     }
 
     // -----------------------------------------------------------------------
+    // A0 regression: master insert chain must process audio while the playhead
+    // is playing. Before the A0 fix, the master chain was only invoked on the
+    // non-playing (preview) path; this test pins the playing path.
+    //
+    // Two parallel harnesses are set up identically (DrumSynth on track 0,
+    // step 0 trig, 120 BPM). One runs with a high-drive distortion insert on
+    // master slot 0; the other has it bypassed. We render 40 blocks each and
+    // assert (a) both are non-silent, (b) no NaN/Inf in either, and (c) the
+    // RMS values differ by at least 5% — proving the insert is in the path.
+    static void testMasterInsertRunsWhilePlaying()
+    {
+        auto setupHarness = [](EngineHarness& h) {
+            installMachine(h.processor(), 0, DrumSynthMachine::kMachineId);
+            auto& step0 = h.processor().sequence().tracks[0].steps[0];
+            step0.trig = true;
+            step0.trigOverride.hasGate = true;
+            step0.trigOverride.gateValue = MusicalGate::G1_8;
+
+            // Install distortion on master insert slot 0 with drive=1 (max), mix=1.
+            h.processor().setMasterInsert(0, "lockstep.distortion.v1");
+            h.processor().setMasterInsertParam(0, 0, 1.0f);  // drive = max
+            h.processor().setMasterInsertParam(0, 2, 1.0f);  // mix   = fully wet
+        };
+
+        // Harness A: active insert.
+        EngineHarness hA;
+        setupHarness(hA);
+
+        // Harness B: same setup, insert bypassed.
+        EngineHarness hB;
+        setupHarness(hB);
+        hB.processor().setMasterInsertBypass(0, true);
+
+        constexpr int kBlocks = 40;
+
+        double sumSqA = 0.0, sumSqB = 0.0;
+        bool nanA = false, nanB = false;
+
+        for (int b = 0; b < kBlocks; ++b)
+        {
+            hA.renderBlocks(1);
+            hB.renderBlocks(1);
+            if (hA.lastBufferHasNaN()) nanA = true;
+            if (hB.lastBufferHasNaN()) nanB = true;
+
+            const auto& bufA = hA.buffer();
+            const auto& bufB = hB.buffer();
+            for (int ch = 0; ch < bufA.getNumChannels(); ++ch)
+                for (int i = 0; i < bufA.getNumSamples(); ++i)
+                {
+                    const double va = static_cast<double>(bufA.getSample(ch, i));
+                    const double vb = static_cast<double>(bufB.getSample(ch, i));
+                    sumSqA += va * va;
+                    sumSqB += vb * vb;
+                }
+        }
+
+        const int totalSamples = kBlocks * 256 * 2;  // channels included
+        const float rmsA = static_cast<float>(std::sqrt(sumSqA / totalSamples));
+        const float rmsB = static_cast<float>(std::sqrt(sumSqB / totalSamples));
+
+        CHECK(!nanA, "A0 master insert: NaN/Inf with insert active");
+        CHECK(!nanB, "A0 master insert: NaN/Inf with insert bypassed");
+        CHECK(rmsA > 1e-4f,
+              "A0 master insert: no audio with insert active (RMS=" + juce::String(rmsA) + ")");
+        CHECK(rmsB > 1e-4f,
+              "A0 master insert: no audio with insert bypassed (RMS=" + juce::String(rmsB) + ")");
+
+        // The distortion at max drive with mix=1 should produce a meaningfully
+        // different RMS (hard-clipped tanh vs clean). Threshold: 5% relative.
+        const float diff = std::abs(rmsA - rmsB);
+        const float refRms = std::max(rmsA, rmsB);
+        CHECK(diff / refRms > 0.05f,
+              "A0 master insert: bypassed and active runs have nearly identical RMS "
+              "(active=" + juce::String(rmsA, 6) + " bypassed=" + juce::String(rmsB, 6) + ") "
+              "-- master chain may not be in the playing path");
+    }
+
+    // -----------------------------------------------------------------------
 
     void runEngineTests()
     {
@@ -384,5 +463,6 @@ namespace lockstep
         testSceneSwitchAtBoundary();
         testEngineCmdAppliedAfterBlock();
         testEngineCmdQueueFullDrop();
+        testMasterInsertRunsWhilePlaying();
     }
 }
