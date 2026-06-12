@@ -1279,6 +1279,7 @@ namespace lockstep
             }
             masterPeak_.store(buffer.getMagnitude(0, numSamples),
                               std::memory_order_relaxed);
+            captureRecorder_.writeBlock(buffer, numBlockSamples);
             return;
         }
 
@@ -1866,6 +1867,7 @@ namespace lockstep
         }
         masterPeak_.store(buffer.getMagnitude(0, numSamples),
                           std::memory_order_relaxed);
+        captureRecorder_.writeBlock(buffer, numBlockSamples);
 
         totalSamplesProcessed_ += numBlockSamples;
     }
@@ -4353,5 +4355,23 @@ namespace lockstep
             savedStateHash_ = stateHash();
         }
         return ok;
+    }
+
+    // 8.26 C1: Performance capture API (message thread only).
+    bool LockstepProcessor::startCapture()
+    {
+        if (captureRecorder_.isCapturing())
+            return false;   // already running
+        const juce::File dest = chooseCaptureFile(currentProjectFile_);
+        const double sr = getSampleRate() > 0.0 ? getSampleRate() : 44100.0;
+        const int numCh = std::max(1, getTotalNumOutputChannels());
+        return captureRecorder_.arm(dest, sr, numCh);
+    }
+
+    juce::RelativeTime LockstepProcessor::stopCapture()
+    {
+        const double sr = getSampleRate() > 0.0 ? getSampleRate() : 44100.0;
+        const int64_t samples = captureRecorder_.disarm();
+        return juce::RelativeTime::seconds(static_cast<double>(samples) / sr);
     }
 }

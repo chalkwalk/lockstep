@@ -21,6 +21,7 @@
 #include "core/SyncMode.h"
 #include "io/CCMappingTable.h"
 #include "io/EditContext.h"
+#include "io/CaptureRecorder.h"
 #include "io/MidiClockReceiver.h"
 #include "io/MidiInput.h"
 #include "machine/IEffect.h"
@@ -417,6 +418,15 @@ namespace lockstep
         [[nodiscard]] juce::File currentProjectFile() const { return currentProjectFile_; }
         // savedStateHash: hash at the last new/load/save (for dirty comparison).
         [[nodiscard]] std::uint32_t savedStateHash() const { return savedStateHash_; }
+
+        // 8.26 C1: Performance WAV capture (message thread only).
+        // startCapture() arms recording to a timestamped WAV next to the project file.
+        // Returns false if the file cannot be opened. stopCapture() disarms and flushes;
+        // returns the captured duration as a juce::RelativeTime (zero if not capturing).
+        bool startCapture();
+        juce::RelativeTime stopCapture();
+        [[nodiscard]] bool isCapturing() const noexcept { return captureRecorder_.isCapturing(); }
+        [[nodiscard]] juce::File captureFile() const { return captureRecorder_.captureFile(); }
 
         // MG.4: Sound Pool CRUD (message thread only).
         // saveTrackToSoundPool: snapshots the active Part's track state + sample index.
@@ -851,6 +861,9 @@ namespace lockstep
         std::array<std::atomic<float>, kNumTracks> trigPulse_{};
         std::array<std::atomic<float>, kNumTracks> midiPulse_{};
         std::atomic<float> masterPeak_{ 0.0f };
+
+        // 8.26 C1: WAV performance capture.
+        CaptureRecorder captureRecorder_;
 
         // Project-file state — message thread only.
         juce::MemoryBlock defaultStateBlob_;          // pristine state captured at construction
