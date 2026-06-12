@@ -1660,10 +1660,11 @@ namespace lockstep
                     }
                     if (sectionScope == PS::Song && ev.index == 5)
                     {
-                        // Song+FX: master insert params (or global transport if none loaded).
-                        // Re-press while already at section 5 cycles the master insert slot.
+                        // Song+FX: master insert / send params.
+                        // Re-press while already at section 5 cycles through 4 units:
+                        // FX1 → FX2 → Snd A → Snd B → FX1 ...
                         if (uiState_.masterSection == 5)
-                            uiState_.masterFxInsertSlot = 1 - uiState_.masterFxInsertSlot;
+                            uiState_.masterFxInsertSlot = (uiState_.masterFxInsertSlot + 1) % 4;
                         else
                             uiState_.masterFxInsertSlot = 0;
                         keyboardArea_.selectMetaSection(5);
@@ -1692,7 +1693,7 @@ namespace lockstep
                 if (uiState_.funcHeld && uiState_.songHeld && ev.index == processor_.kFxSecIdx)
                 {
                     if (uiState_.masterFxPickerOpen)
-                        uiState_.masterFxInsertSlot = 1 - uiState_.masterFxInsertSlot;
+                        uiState_.masterFxInsertSlot = (uiState_.masterFxInsertSlot + 1) % 4;
                     else
                         uiState_.masterFxInsertSlot = 0;
                     uiState_.masterFxPickerOpen = true;
@@ -1870,7 +1871,12 @@ namespace lockstep
                         if (ev.index < 0 || ev.index >= 16) return true;
                         if (ev.index >= processor_.numAvailableEffects()) return true;
                         const auto info = processor_.availableEffectInfo(ev.index);
-                        processor_.setMasterInsert(uiState_.masterFxInsertSlot, info.id);
+                        // 8.26: units 0-1 = master inserts, units 2-3 = send returns.
+                        const int mSlot = uiState_.masterFxInsertSlot;
+                        if (mSlot >= 2)
+                            processor_.setMasterSend(mSlot - 2, info.id);
+                        else
+                            processor_.setMasterInsert(mSlot, info.id);
                         uiState_.masterFxPickerOpen = false;
                         refreshMetaBand();
                         repaint();
@@ -1887,6 +1893,8 @@ namespace lockstep
                         if (at < 0 || at >= static_cast<int>(kNumTracks)) return true;
                         if (ev.index >= processor_.numAvailableEffects()) return true;
                         const auto info = processor_.availableEffectInfo(ev.index);
+                        // 8.26: masterOnly effects cannot be placed in track inserts.
+                        if (info.masterOnly) return true;
                         const std::string curId = processor_.trackInsertId(at, uiState_.funcFxInsertSlot);
                         if (info.id == curId)
                         {

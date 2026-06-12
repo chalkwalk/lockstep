@@ -1035,8 +1035,12 @@ namespace lockstep
 
                     if (avail && idx < numEffects)
                     {
-                        const juce::String name{ processor_.availableEffectInfo(idx).name.c_str() };
-                        g.setColour(juce::Colours::white.withAlpha(isCurrent ? 0.90f : 0.65f));
+                        const auto& fxInfo = processor_.availableEffectInfo(idx);
+                        // 8.26: masterOnly effects are hidden from the track insert picker.
+                        const bool trackVisible = !fxInfo.masterOnly;
+                        const juce::String name{ fxInfo.name.c_str() };
+                        g.setColour(juce::Colours::white.withAlpha(
+                            trackVisible ? (isCurrent ? 0.90f : 0.65f) : 0.20f));
                         g.setFont(juce::Font(juce::FontOptions(8.5f)));
                         g.drawText(name, cell.reduced(2), juce::Justification::centred, true);
                     }
@@ -1059,7 +1063,12 @@ namespace lockstep
         {
             const juce::Colour fxTint = col(compatColour(CellState::EffectAvailable));
             const int numEffects = processor_.numAvailableEffects();
-            const std::string loadedId = processor_.masterInsertId(uiState_.masterFxInsertSlot);
+            // 8.26: units 0-1 = master inserts, units 2-3 = send returns.
+            const int mUnit = uiState_.masterFxInsertSlot;
+            const bool mIsSend = (mUnit >= 2);
+            const int mSlot = mIsSend ? mUnit - 2 : mUnit;
+            const std::string loadedId = mIsSend ? processor_.masterSendId(mSlot)
+                                                  : processor_.masterInsertId(mSlot);
 
             for (int row = 0; row < kRows; ++row)
             {
@@ -1108,7 +1117,11 @@ namespace lockstep
                 }
             }
 
-            const juce::String slotLabel = "MASTER INSERT " + juce::String(uiState_.masterFxInsertSlot + 1) + "  (re-press Func+Song+FX to toggle slot)";
+            // 8.26: friendly label for the 4 master units.
+            static const char* kUnitNames[4] = { "INSERT 1", "INSERT 2", "SEND A", "SEND B" };
+            const juce::String slotLabel = juce::String("MASTER ")
+                + juce::String(kUnitNames[uiState_.masterFxInsertSlot])
+                + "  (re-press Func+Song+FX to cycle)";
             g.setColour(juce::Colour::fromRGB(80, 95, 115));
             g.setFont(juce::Font(juce::FontOptions(10.0f)));
             g.drawText(slotLabel, navArea, juce::Justification::centred);

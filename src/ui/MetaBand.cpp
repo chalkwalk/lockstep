@@ -266,14 +266,19 @@ namespace lockstep
                                                           const UiState& ui)
     {
         std::array<MetaFieldView, 8> result{};
-        const int slot = ui.masterFxInsertSlot;
-        const int np = proc.masterInsertNumParams(slot);
+        // 8.26: units 0-1 = master inserts, units 2-3 = send returns.
+        const int unit = ui.masterFxInsertSlot;
+        const bool isSend = (unit >= 2);
+        const int slot = isSend ? unit - 2 : unit;
+        const int np = isSend ? proc.masterSendNumParams(slot) : proc.masterInsertNumParams(slot);
         if (np == 0) return result;
 
         for (int i = 0; i < std::min(np, 8); ++i)
         {
-            const auto spec = proc.masterInsertParamSpec(slot, i);
-            const float val = proc.masterInsertParam(slot, i);
+            const auto spec = isSend ? proc.masterSendParamSpec(slot, i)
+                                     : proc.masterInsertParamSpec(slot, i);
+            const float val = isSend ? proc.masterSendParam(slot, i)
+                                     : proc.masterInsertParam(slot, i);
             auto& v = result[static_cast<std::size_t>(i)];
             v.active = true;
             v.label = juce::String(spec.label);
@@ -629,8 +634,12 @@ namespace lockstep
             }
 
             case MetaBand::Global: {
-                // Song+FX: master insert params for current slot.
-                proc.setMasterInsertParam(ui.masterFxInsertSlot, field, value);
+                // 8.26: units 0-1 = master inserts, units 2-3 = send returns.
+                const int mUnit = ui.masterFxInsertSlot;
+                if (mUnit >= 2)
+                    proc.setMasterSendParam(mUnit - 2, field, value);
+                else
+                    proc.setMasterInsertParam(mUnit, field, value);
                 break;
             }
 
