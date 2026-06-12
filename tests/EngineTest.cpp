@@ -12,6 +12,7 @@
 //  - EngineCmd queue: enqueue→block→applied; queue-full drops without blocking
 //  - v17 round-trip: masterSends, kit amp sendA/sendB, and AMP P-Locks survive
 //    save → load across a fresh processor instance
+//  - A1 quiesce lifecycle: newProject() during active playback must not crash
 
 #include "TestHarness.h"
 #include "EngineHarness.h"
@@ -629,6 +630,24 @@ namespace lockstep
     }
 
     // -----------------------------------------------------------------------
+    // A1: newProject() during active playback must not crash or produce NaN.
+    // Previously, finishStateLoad() ran after the quiesce window closed, so
+    // machines_[t] was replaced while the audio thread was live (use-after-free).
+    static void testNewProjectDuringPlayback()
+    {
+        EngineHarness h;
+        h.renderBlocks(10);
+        CHECK(!h.lastBufferHasNaN(), "A1: pre-newProject NaN");
+
+        // Simulate what the message thread does when the user picks File > New.
+        // The audio thread continues rendering on the other side of processBlock.
+        h.processor().newProject();
+
+        h.renderBlocks(10);
+        CHECK(!h.lastBufferHasNaN(), "A1: post-newProject NaN — quiesce lifecycle bug");
+    }
+
+    // -----------------------------------------------------------------------
 
     void runEngineTests()
     {
@@ -646,5 +665,6 @@ namespace lockstep
         testV17StateRoundTrip();
         testV16UpgradeToV17();
         testMasterSendBypassSilences();
+        testNewProjectDuringPlayback();
     }
 }

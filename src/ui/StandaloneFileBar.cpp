@@ -113,14 +113,9 @@ namespace lockstep
                 .withButton("Cancel"),
             [this, fn = std::move(fn)](int result) {
                 if (result == 1)
-                {
-                    doSave();
-                    fn();
-                }
+                    doSave(fn);   // fn runs only after save actually completes
                 else if (result == 2)
-                {
                     fn();
-                }
                 // result == 3 or 0 = Cancel — do nothing
             });
     }
@@ -154,13 +149,16 @@ namespace lockstep
             });
     }
 
-    void StandaloneFileBar::doSave()
+    void StandaloneFileBar::doSave(std::function<void()> completion)
     {
         const auto f = proc_.currentProjectFile();
         if (f.existsAsFile())
+        {
             saveFile(f);
+            if (completion) completion();
+        }
         else
-            performSaveAs();
+            performSaveAs(std::move(completion));
     }
 
     void StandaloneFileBar::doSaveAs()
@@ -168,7 +166,7 @@ namespace lockstep
         performSaveAs();
     }
 
-    void StandaloneFileBar::performSaveAs()
+    void StandaloneFileBar::performSaveAs(std::function<void()> completion)
     {
         const auto startDir = proc_.currentProjectFile().existsAsFile()
                                   ? proc_.currentProjectFile().getParentDirectory()
@@ -176,13 +174,14 @@ namespace lockstep
         fileChooser_ = std::make_unique<juce::FileChooser>("Save Project As", startDir, kFileFilter);
         fileChooser_->launchAsync(
             juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::warnAboutOverwriting,
-            [this](const juce::FileChooser& fc) {
+            [this, completion = std::move(completion)](const juce::FileChooser& fc) {
                 const auto results = fc.getResults();
-                if (results.isEmpty()) return;
+                if (results.isEmpty()) return;   // user cancelled — do not run completion
                 auto f = results[0];
                 if (f.getFileExtension().isEmpty())
                     f = f.withFileExtension(".lockstep");
                 saveFile(f);
+                if (completion) completion();
             });
     }
 }

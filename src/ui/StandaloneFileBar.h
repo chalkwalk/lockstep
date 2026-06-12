@@ -34,10 +34,10 @@ namespace lockstep
 
         void doNew();
         void doOpen();
-        void doSave();
+        void doSave(std::function<void()> completion = {});
         void doSaveAs();
         void performOpen();
-        void performSaveAs();
+        void performSaveAs(std::function<void()> completion = {});
         void openFile(const juce::File& f);
         void saveFile(const juce::File& f);
         void persistLastFile(const juce::File& f);

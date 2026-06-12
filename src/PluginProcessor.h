@@ -581,14 +581,19 @@ namespace lockstep
         // on the message thread so pending param writes land before structural edits,
         // call fn(), then resume. Use this wrapper for all [SUSPEND]-class mutations
         // (machine swap, insert swap, sample pool update, full state load).
-        // Must be called from the message thread.
+        // Must be called from the message thread. Re-entrant: nested calls are no-ops
+        // (suspend/resume only on the outermost boundary).
         template <typename Fn>
         void withQuiescedEngine(Fn&& fn)
         {
-            suspendProcessing(true);
-            drainEngineCmds();
+            if (quiesceDepth_++ == 0)
+            {
+                suspendProcessing(true);
+                drainEngineCmds();
+            }
             fn();
-            suspendProcessing(false);
+            if (--quiesceDepth_ == 0)
+                suspendProcessing(false);
         }
 
         // Copies active section's phrase data + kit baseParams into sequence tracks.
@@ -869,7 +874,8 @@ namespace lockstep
         juce::MemoryBlock defaultStateBlob_;          // pristine state captured at construction
         juce::File currentProjectFile_;               // last opened/saved .lockstep file (invalid = none)
         std::uint32_t savedStateHash_ = 0;            // hash at last new/load/save
-        void finishStateLoad();                       // post-readFrom reinstall pass; called by setStateInformation + loadProjectFile
+        int quiesceDepth_ = 0;                        // withQuiescedEngine re-entrancy counter
+        void finishStateLoad();                       // post-readFrom reinstall pass; must be called inside withQuiescedEngine
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LockstepProcessor)
     };

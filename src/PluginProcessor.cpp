@@ -4210,8 +4210,10 @@ namespace lockstep
 
     void LockstepProcessor::setStateInformation(const void* data, int sizeInBytes)
     {
-        PluginState::readFrom(data, sizeInBytes, *this);
-        finishStateLoad();
+        withQuiescedEngine([&] {
+            PluginState::readFrom(data, sizeInBytes, *this);
+            finishStateLoad();
+        });
     }
 
     void LockstepProcessor::finishStateLoad()
@@ -4333,8 +4335,8 @@ namespace lockstep
             PluginState::readFrom(defaultStateBlob_.getData(),
                                   static_cast<int>(defaultStateBlob_.getSize()),
                                   *this);
+            finishStateLoad();
         });
-        finishStateLoad();
         currentProjectFile_ = juce::File{};
         savedStateHash_ = stateHash();
     }
@@ -4361,10 +4363,11 @@ namespace lockstep
         withQuiescedEngine([&] {
             arrangement_ = Arrangement{};
             ok = PluginState::readFromFile(file, *this);
+            if (ok)
+                finishStateLoad();
         });
         if (ok)
         {
-            finishStateLoad();
             currentProjectFile_ = file;
             savedStateHash_ = stateHash();
         }
