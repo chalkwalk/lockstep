@@ -534,15 +534,20 @@ namespace lockstep
     {
         static constexpr const char* kFMRetrigLabels[] = { "LEGATO", "RETRIG", nullptr };
         static constexpr const char* kFMVoiceModeLabels[] = { "MONO", "POLY", nullptr };
+        // Ratio table labels — one entry per FMMachine::kRatioTable value.
+        static constexpr const char* kFMRatioLabels[] = {
+            "0.5", "1", "1.5", "2", "3", "4", "5", "6",
+            "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", nullptr
+        };
     }
 
   // { id, label, min, max, def, skew, stepped, unit, role, variant, section, zcSnap, labels }
     static constexpr ParamRow kFMParams[] = {
     // --- SRC page 1: coarse ratios (section 1) ---
-        { "fm_ratio_1", "Op1 Ratio", 0.f, 17.f, 1.f, 1.f, 1, fm_u::None, fm_r::Pitch, 0, 1, 0, nullptr }, //  0
-        { "fm_ratio_2", "Op2 Ratio", 0.f, 17.f, 1.f, 1.f, 1, fm_u::None, fm_r::None, 0, 1, 0, nullptr }, //  1
-        { "fm_ratio_3", "Op3 Ratio", 0.f, 17.f, 1.f, 1.f, 1, fm_u::None, fm_r::None, 0, 1, 0, nullptr }, //  2
-        { "fm_ratio_4", "Op4 Ratio", 0.f, 17.f, 1.f, 1.f, 1, fm_u::None, fm_r::None, 0, 1, 0, nullptr }, //  3
+        { "fm_ratio_1", "Op1 Ratio", 0.f, 17.f, 1.f, 1.f, 1, fm_u::None, fm_r::Pitch, 0, 1, 0, kFMRatioLabels }, //  0
+        { "fm_ratio_2", "Op2 Ratio", 0.f, 17.f, 1.f, 1.f, 1, fm_u::None, fm_r::None, 0, 1, 0, kFMRatioLabels }, //  1
+        { "fm_ratio_3", "Op3 Ratio", 0.f, 17.f, 1.f, 1.f, 1, fm_u::None, fm_r::None, 0, 1, 0, kFMRatioLabels }, //  2
+        { "fm_ratio_4", "Op4 Ratio", 0.f, 17.f, 1.f, 1.f, 1, fm_u::None, fm_r::None, 0, 1, 0, kFMRatioLabels }, //  3
     // --- SRC page 2: fine tune (cents) ---
         { "fm_fine_1", "Op1 Fine", -100.f, 100.f, 0.f, 1.f, 0, fm_u::None, fm_r::None, 0, 1, 0, nullptr }, //  4
         { "fm_fine_2", "Op2 Fine", -100.f, 100.f, 0.f, 1.f, 0, fm_u::None, fm_r::None, 0, 1, 0, nullptr }, //  5
