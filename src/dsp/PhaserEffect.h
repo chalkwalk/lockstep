@@ -83,7 +83,9 @@ namespace lockstep
                         / static_cast<float>(sampleRate_));
                     const float a = (tan_fc - 1.0f) / (tan_fc + 1.0f);
 
-                    float s = d[n] + fz * ap[3];  // feedback from last stage
+                    // Feedback from last stage; clamp to prevent allpass-state
+                    // divergence at high feedback + extreme LFO sweep combinations.
+                    float s = juce::jlimit(-2.0f, 2.0f, d[n] + fz * ap[3]);
                     for (int stage = 0; stage < 4; ++stage)
                     {
                         const float out = a * s + ap[static_cast<std::size_t>(stage)];
