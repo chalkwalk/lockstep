@@ -1208,22 +1208,8 @@ namespace lockstep
                 for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
                     buffer.addFrom(ch, 0, trackBuffers_[ti], ch, 0, numBlockSamples);
 
-            // 6.5: master FX chain (post-sum, pre-gain).
-            for (int ins = 0; ins < 2; ++ins)
-            {
-                auto* meff = masterInserts_[static_cast<std::size_t>(ins)].get();
-                if (!meff) continue;
-                const auto& mSlot = song().masterInserts[static_cast<std::size_t>(ins)];
-                if (mSlot.bypass) continue;
-                const int mnp = meff->numParams();
-                ParamFrame mfxFrame(static_cast<std::size_t>(mnp));
-                for (int p = 0; p < mnp; ++p)
-                    mfxFrame[static_cast<std::size_t>(p)] =
-                        (static_cast<std::size_t>(p) < mSlot.baseParams.size())
-                            ? mSlot.baseParams[static_cast<std::size_t>(p)]
-                            : meff->paramSpec(p).defaultValue;
-                meff->process(buffer, numBlockSamples, mfxFrame);
-            }
+            // Master insert chain — shared helper used by both transport paths.
+            processMasterChain(buffer, numBlockSamples);
 
             // Keep audio path (gain smoothing, DC blocker) running so it doesn't freeze.
             const float targetGainDb = apvts_.getRawParameterValue(ParamIDs::outputGain)->load();
@@ -1778,6 +1764,9 @@ namespace lockstep
         for (std::size_t ti = 0; ti < kNumTracks; ++ti)
             for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
                 buffer.addFrom(ch, 0, trackBuffers_[ti], ch, 0, numBlockSamples);
+
+        // Master insert chain — before metronome so the click is not sent through FX.
+        processMasterChain(buffer, numBlockSamples);
 
         if (clock_.isMetronomeEnabled())
             metronome_.process(blockStart, blockEnd, samplesPerPpq, buffer,
@@ -3535,6 +3524,25 @@ namespace lockstep
     {
         if (slot < 0 || slot > 1) return false;
         return song().masterInserts[static_cast<std::size_t>(slot)].bypass;
+    }
+
+    void LockstepProcessor::processMasterChain(juce::AudioBuffer<float>& buf, int numSamples)
+    {
+        for (int ins = 0; ins < 2; ++ins)
+        {
+            auto* meff = masterInserts_[static_cast<std::size_t>(ins)].get();
+            if (!meff) continue;
+            const auto& mSlot = song().masterInserts[static_cast<std::size_t>(ins)];
+            if (mSlot.bypass) continue;
+            const int mnp = meff->numParams();
+            ParamFrame mfxFrame(static_cast<std::size_t>(mnp));
+            for (int p = 0; p < mnp; ++p)
+                mfxFrame[static_cast<std::size_t>(p)] =
+                    (static_cast<std::size_t>(p) < mSlot.baseParams.size())
+                        ? mSlot.baseParams[static_cast<std::size_t>(p)]
+                        : meff->paramSpec(p).defaultValue;
+            meff->process(buf, numSamples, mfxFrame);
+        }
     }
 
     int LockstepProcessor::masterInsertNumParams(int slot) const

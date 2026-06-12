@@ -723,6 +723,9 @@ namespace lockstep
         // Absolute slot index where insert `insSlot` (0 or 1) params begin.
         [[nodiscard]] int insertParamOffset(int track, int insSlot) const noexcept;
         static constexpr int kAmpSlots = TrackAmpState::kNumSlots;  // 8
+
+        // Apply the master insert chain in-place. Called from both transport paths.
+        void processMasterChain(juce::AudioBuffer<float>& buf, int numSamples);
         static constexpr int kAmpSecIdx = 3;  // canonical AMP section index
 
         // [SUSPEND] structural: swapped only while processing is suspended.

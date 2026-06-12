@@ -478,5 +478,45 @@ namespace lockstep
                 smokeTestEffect(*fx, id);
             }
         }
+
+        // --- A0 regression: master insert processes (output differs from dry) ---
+        // processMasterChain is not directly callable from here (it's an instance
+        // method on LockstepProcessor), so we test the IEffect path directly: a
+        // DistortionEffect at full drive should produce output that differs from the
+        // unprocessed input. This guarantees the effect actually runs and that the
+        // helper code path changes audio.
+        {
+            constexpr int kBlockSize = 256;
+            auto fx = makeEffectForId("lockstep.distortion.v1");
+            CHECK(fx != nullptr, "A0: distortion effect not found");
+            if (fx)
+            {
+                fx->prepare(48000.0, kBlockSize);
+                fx->reset();
+                juce::AudioBuffer<float> dry(2, kBlockSize);
+                juce::AudioBuffer<float> wet(2, kBlockSize);
+                for (int ch = 0; ch < 2; ++ch)
+                    for (int i = 0; i < kBlockSize; ++i)
+                    {
+                        const float v = std::sin(static_cast<float>(i) * 0.05f) * 0.5f;
+                        dry.setSample(ch, i, v);
+                        wet.setSample(ch, i, v);
+                    }
+                ParamFrame frame(static_cast<std::size_t>(fx->numParams()));
+                for (int p = 0; p < fx->numParams(); ++p)
+                    frame[static_cast<std::size_t>(p)] = fx->paramSpec(p).defaultValue;
+                // Set drive to max to guarantee measurable difference.
+                const int driveSlot = fx->numParams() > 0 ? 0 : -1;
+                if (driveSlot >= 0)
+                    frame[static_cast<std::size_t>(driveSlot)] = fx->paramSpec(driveSlot).maxValue;
+                fx->process(wet, kBlockSize, frame);
+                CHECK(!hasNaNOrInf(wet), "A0: master insert produced NaN/Inf");
+                bool differs = false;
+                for (int i = 0; i < kBlockSize && !differs; ++i)
+                    if (std::abs(wet.getSample(0, i) - dry.getSample(0, i)) > 1e-6f)
+                        differs = true;
+                CHECK(differs, "A0: master insert had no effect on output -- processMasterChain may be bypassed");
+            }
+        }
     }
 }
