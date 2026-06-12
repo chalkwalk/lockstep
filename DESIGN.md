@@ -3443,33 +3443,56 @@ plus params, so "copy the whole effect chain to another track" works;
 this is a deliberate extension of the §13.2 section-copy rule, which
 otherwise copies slot values only.
 
-### 32.3 Master effects (insert or send)
+### 32.3 Master effects — 2 inserts + 2 send returns
 
-Two **master** effect slots sit on the master bus, post track-sum,
-pre master-gain: `track sum → master FX 1 → master FX 2 → master
-gain`. Each slot carries a mode:
+The master bus carries **four fixed slots** in two roles:
 
-- **Insert mode** — the effect processes the full master signal
-  in-line (master compressor, master EQ, …).
-- **Send mode** — the slot becomes a return bus. Tracks feed it via
-  their per-track **Send A / Send B** levels (in the AMP output mix,
-  §14; P-lockable like any slot), and the processed return is summed
-  back into the master. This is what gives one shared reverb/delay
-  across many tracks — the capability the Octatrack's insert-only FX
-  famously lacks.
+**Master inserts (FX1, FX2)** — in-line processing of the full master
+signal, post track-sum:
 
-Master FX parameters are edited under the existing `Master` focus
-state (`{Master, Track1..16}`), so no new focus concept is needed: with
-Master focused, the FX section shows the master effects.
+```
+track sum → master FX1 → master FX2 → metronome → master gain → out
+```
 
-**Scope (provisional).** Master FX state is **Set-scope** — one
-master chain for the whole Set, read as global "front-of-house"
-infrastructure distinct from the per-track kit. This is the one
-scoping choice in this section flagged for revisiting: the
-alternative (Kit-scope, so a kit swap can change master processing)
-is coherent too, and consistent with per-track inserts being
-Kit-scope. Defaulting to Set keeps "the master bus is the master
-bus" simple until performance testing argues otherwise.
+**Send returns (Send A, Send B)** — each track carries **Send A** and
+**Send B** levels (AMP page 2, slots 8–9; P-lockable, morph-able). The
+levels are post-fader/post-insert taps, summed into dedicated send buses
+that pass through the send-return effects and are mixed back into the
+master bus before the master inserts:
+
+```
+each track: machine → FLTR → AMP → FX1 → FX2 ─┬─ (×sendA) → send bus A
+                                               ├─ (×sendB) → send bus B
+                                               └────────────→ track sum
+
+send bus A → send FX A (return) ─┐
+send bus B → send FX B (return) ──┴→ master sum → FX1 → FX2 → out
+```
+
+This gives one shared reverb/delay across many tracks — the capability
+the Octatrack's insert-only FX chain famously lacks — while keeping the
+master insert slots available for in-line processing (bus compressor, EQ,
+limiter). Any effect may be loaded in any slot; the **masterOnly** flag in
+the effect catalogue restricts certain HQ effects to master/send pickers only
+(they are too expensive for 32-instance track budgets).
+
+**AMP page 2 (Send A/B):** The AMP section grows from 8 to 10 slots. Slots
+8–9 are `lockstep.amp.sendA` / `lockstep.amp.sendB`, both 0..1, default 0
+(dry). When both sends are zero the send buses are not processed. Repeating
+the AMP section key cycles pages (same mechanism as the FX section).
+
+**Song+FX focus cycles four units:** master FX1 → FX2 → Send A return →
+Send B return. `Func+Song+FX` opens the effect picker for the focused unit;
+the picker shows the full catalogue (including masterOnly effects) for master
+slots, and hides masterOnly effects for track slots.
+
+**Smoothing policy (§32.1 addendum):** Machines read params block-rate
+(acceptable for ≤512-sample blocks). Effects must per-sample-smooth any param
+in the direct signal path (gain, mix, feedback, delay time) with a one-pole
+smoother (~5–15 ms). This is implemented in every effect in the catalogue.
+
+**Scope:** Master FX state is **Set-scope** — one master chain for the whole
+Set, shared "front-of-house" infrastructure distinct from per-track kits.
 
 ### 32.4 MIDI-out and parity
 

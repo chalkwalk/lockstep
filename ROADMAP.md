@@ -1047,8 +1047,9 @@ DESIGN §32. Depends on 2.4 + the §14 path (independent of 6.1–6.4).
 - [x] **FX-section clean separation:** `Song+FX` shows master insert params only;
       transport globals (Gain / Sync / Chan) relocated to `Func+7`
       (`MetaBand::Transport`).
-- [ ] Send routing (per-track Send A/B in the AMP mix).
-- [ ] MIDI-out tracks carry no inserts/sends.
+- [x] Send routing (per-track Send A/B in AMP slots 8–9; 2 send-return FX slots on the
+      master bus; HQ send-first candidates: verb, delay) — see **8.26**.
+- [x] MIDI-out tracks carry no inserts/sends (parity enforced at AMP CC-bank).
 
 ### 6.6 — External controller surfaces  *[in progress]*  *(was MW)*
 DESIGN §35. Generic third-party MIDI controllers as augmentation surfaces (worked
@@ -1437,6 +1438,27 @@ setMasterInsert, setTrackMachine, copyKit, state-load) now use
 - [x] **8.25** Format/lint gate — `tools/check.sh`; `.clang-format` adapted to house style
       (Allman braces, 4-space, `ColumnLimit:0`); mechanical whole-repo reformat; `.clang-tidy`
       `HeaderFilterRegex` fixed; `CMAKE_EXPORT_COMPILE_COMMANDS` pinned.
+
+### 8.26 — Master-bus re-arch: 2 inserts + 2 sends; FX catalogue expansion  *[in progress]*
+DESIGN §32.3 rewritten. Phase A: quality pass. Phase B: topology + catalogue.
+Phase C: WAV capture.
+
+- [x] **A0** Fix master-insert chain silent while sequencer running (`processMasterChain`
+      helper called from both transport paths; test added).
+- [x] **A1/A2** FM legato timbral-param updates; DrumSynth time-param skew 1.0→0.3;
+      VA/FM envelope `[SUSPECTED-BUGGY]` markers removed (goldens pass); per-sample
+      param smoothing on Delay/Distortion/Chorus effects; FM ratio `valueLabels` added.
+- [ ] **B1** Data model: `masterSends`, AMP slots 8–9 (sendA/B), serializer v17.
+- [ ] **B1** Engine: send buses; `setTimeInfo`; 4-unit `Song+FX` pagination.
+- [ ] **B2** Track effects: TiltEQ, Compressor, Bitcrusher, Flanger, Phaser.
+- [ ] **B3** HQ master effects: HQ Reverb, HQ Delay, Bus Compressor, Master Utility.
+- [ ] **C1** `CaptureRecorder`: N-stream ThreadedWriter + `capturing_` atomic tap.
+- [ ] **C2** `Master+Record` gesture; status chrome.
+- [ ] **C3** Docs: DESIGN capture subsection; README gesture + shortcut table.
+
+### 8.27 — Smoothing policy  *[shipped as part of 8.26-A]*
+Per-sample one-pole smoothing (~5 ms) on all gain-path effect params.
+See DESIGN §32.3 "Smoothing policy" addendum.
 
 ---
 
