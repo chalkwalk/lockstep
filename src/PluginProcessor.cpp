@@ -1190,6 +1190,13 @@ namespace lockstep
                         if (!ampWasIdle && trackAmps_[i].isIdle())
                             mi->reset();
                     }
+                    else
+                    {
+                        // Internal-amp machines embed their own envelope; still expose
+                        // sendA/sendB so they route to the master send buses.
+                        trackSendA = kit(static_cast<int>(i)).ampState.sendA;
+                        trackSendB = kit(static_cast<int>(i)).ampState.sendB;
+                    }
 
                     // 6.5: post-machine insert chain — runs for all machines.
                     for (int ins = 0; ins < 2; ++ins)
@@ -1761,6 +1768,13 @@ namespace lockstep
                                                numBlockSamples);
                     if (!ampWasIdle && trackAmps_[i].isIdle())
                         mi->reset();
+                }
+                else
+                {
+                    // Internal-amp machines embed their own envelope; still expose
+                    // sendA/sendB so they route to the master send buses.
+                    trackSendA2 = kit(static_cast<int>(i)).ampState.sendA;
+                    trackSendB2 = kit(static_cast<int>(i)).ampState.sendB;
                 }
 
                 // 6.5: post-machine insert chain — runs for all machines.
