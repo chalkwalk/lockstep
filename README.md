@@ -173,9 +173,12 @@ section is the other axis — what a **track** *is*, and the order sound
 flows through it. Every name here recurs throughout the manual:
 
 ```
-Phrase ──trigs──▶ Machine ──▶ Foundation (FILTER → AMP) ──▶ Inserts ×2 ──▶ track level
-                                                                              │
-                              all tracks sum ──▶ Master FX ×2 ──▶ output gain ┘
+Phrase ──trigs──▶ Machine ──▶ Foundation (FILTER → AMP) ──▶ Inserts ×2 ─┬─ (×sendA) → Send bus A
+                                                                           ├─ (×sendB) → Send bus B
+                                                                           └────────────────────▶ track sum
+                                    Send bus A ──▶ Send Return A ─┐
+                                    Send bus B ──▶ Send Return B ──┤
+                                    track sum ────────────────────▶ Σ ──▶ Master Insert 1 ──▶ 2 ──▶ output gain
 ```
 
 - **Machine** — the sound engine a track hosts (sampler, FM, VA, drum
@@ -189,13 +192,16 @@ Phrase ──trigs──▶ Machine ──▶ Foundation (FILTER → AMP) ──
   machine has none of its own. A machine's *own* filter, if it has one,
   still lives behind the canonical FILTER key — the foundation filter
   is in addition, downstream.
-- **Inserts** — two per-track `IEffect` slots after the foundation
-  (delay, reverb, distortion, chorus…). Loaded via the `Func+FX`
-  picker, edited on the FX section, momentarily bypassed with the
-  Animate gesture (`FX` + step). MIDI-out tracks have none (no audio).
-- **Master FX** — two more insert slots that process the *sum* of all
-  tracks, before the output gain. They belong to the Song scope:
-  loaded via `Func+Song+FX`, edited under `Song+FX`.
+- **Inserts** — two per-track `IEffect` slots after the foundation.
+  Loaded via the `Func+FX` picker, edited on the FX section,
+  momentarily bypassed with the Animate gesture (`FX` + step).
+  MIDI-out tracks have none (no audio).
+- **Send buses** — post-insert taps from each track. Set Send A / B
+  levels on AMP page 2. Send returns are processed before master inserts.
+- **Master FX** — four Song-scope units (2 inserts + 2 send returns)
+  over the summed output. Loaded via `Func+Song+FX`; cycle with
+  repeated press (FX1→FX2→Snd A→Snd B). HQ-only effects are hidden
+  from the track picker.
 
 And the *state* that feeds this path is layered, finest layer winning
 (this is "more specific scope wins" applied to values):
@@ -243,7 +249,8 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Choke** | A 1–2 ms micro-fade applied before retriggering a monophonic voice, to avoid clicks. |
 | **Foundation** | The post-machine FILTER + AMP blocks the *sequencer* owns on every track, identical regardless of machine. Reached via `Track + section` (the track-foundation row). See §2.5. |
 | **Insert (FX)** | One of a track's two post-foundation `IEffect` slots. Loaded via the `Func+FX` picker, edited on the FX section, momentarily bypassed via Animate (`FX` + step). MIDI-out tracks have none. |
-| **Master FX** | Two Song-scope insert slots over the summed output (pre output-gain). Loaded via `Func+Song+FX`; parameters under `Song+FX`. |
+| **Master FX** | Four Song-scope FX units on the master bus: 2 inserts (post-sum) + 2 send returns (post send-bus). Loaded via `Func+Song+FX`; cycle units with repeated press. |
+| **Send A / Send B** | Per-track post-insert level tap into shared send buses (AMP page 2, slots 8–9). Each send bus has a return effect before the master inserts. |
 | **Animate** | The momentary insert punch-in: hold `FX` + step to bypass (or enable) an insert for exactly the hold duration. Performance-only — never written to the pattern. |
 | **Chance (Scale)** | Per-track live probability fader: hold `Func` and the MZ encoders become one Chance Scale per track, scaling that track's existing trig-condition probabilities (0 % = suppress all, 100 % = as authored). No new randomness. |
 | **Retrig / ratchet** | Per-step re-triggering at a musical rate (`/4 … /32T`). `Fill+TRIG` opens the rate picker: press a rate for a live stutter on the focused track, or hold a step first to bake the rate as a per-step P-Lock. Slicer tracks show a slice picker instead. |
@@ -640,7 +647,7 @@ row always shows which secondaries are actually reachable.
 | `Phrase` | Phrase **length** (labelled `LEN`, per active phrase) | (dim) | (dim) |
 | `Scene` | Trig templates | Scene-assign FILTER | Scene-assign FX |
 | `Morph` | (dim — Morph never affects trigs) | Morph-assign FLTR | Morph-assign FX |
-| `Song` | (dim) | (dim — master FILTER reserved) | **Master FX 1+2** (labelled `GLBL`) |
+| `Song` | (dim) | (dim — master FILTER reserved) | **Master FX 1+2 + Send A/B** (4 units, cycled by re-press) |
 | `Func` (over any of the above) | The secondary variant of the cell (e.g. `Func+Scene+FILTER` = the other scene's filter assignments). |
 
 Each scope's `TRIG` cell opens the parameter owned by that hierarchy level.
@@ -659,11 +666,46 @@ slot (0 → 1 → 0). Press `FX` (alone) to navigate the insert's params in the 
 hold `FX + step` momentarily to **animate bypass** (bypass on press, restore on
 release). MIDI-out tracks show no inserts.
 
-**Master FX bus.** Two post-sum insert slots at Song scope. `Func+Song+FX`
-opens the master picker (same catalogue overlay; re-press to cycle slot 0/1).
-Once loaded, hold `Song+FX` to show the master insert's parameters in the MZ.
-Master inserts process after all track outputs are summed, before the output
-gain. State round-trips in serializer v14.
+**Master bus: 2 inserts + 2 send returns.** The master bus has four FX units at
+Song scope (DESIGN §32.3):
+
+| Unit | Key | Role | Signal flow |
+|---|---|---|---|
+| Insert 1 | `Song+FX` (cycle 1) | Post-sum insert | track sum → Ins 1 → Ins 2 → out |
+| Insert 2 | `Song+FX` (cycle 2) | Post-sum insert | (chained after Ins 1) |
+| Send A | `Song+FX` (cycle 3) | Send return | accumulated send bus A → return FX → sum |
+| Send B | `Song+FX` (cycle 4) | Send return | accumulated send bus B → return FX → sum |
+
+Sends are post-fader, post-insert taps from each track. Set **Send A** / **Send B**
+on **AMP page 2** (hold `AMP`, repeat to page-turn). `Func+Song+FX` opens the
+master picker for the currently focused unit; re-press to cycle through units 1-4.
+Send return effects are typically loaded with Mix=1.0 (wet-only); insert effects
+apply across the whole mix. MIDI-out tracks have no sends.
+
+**Available effects:**
+
+*Track inserts (any slot):*
+| Badge | Name | Key params |
+|---|---|---|
+| `DLY` | Delay | Time, Feedbk, Mix, LPF |
+| `REV` | Reverb | Size, Decay, Damp, Mix |
+| `DRV` | Distortion | Drive, Mix |
+| `CHR` | Chorus | Rate, Depth, Mix |
+| `TLT` | Tilt EQ | Tilt (−1..+1), Gain (dB) |
+| `CMP` | Compressor | Thresh, Ratio, Atk, Rel, Mkup |
+| `BIT` | Bitcrush | Bits, Rate, Mix |
+| `FLG` | Flanger | Rate, Depth, Feedbk, Mix |
+| `PHA` | Phaser | Rate, Depth, Centre, Feedbk, Mix |
+
+*Master inserts + send returns only (`masterOnly`):*
+| Badge | Name | Key params |
+|---|---|---|
+| `RVH` | HQ Reverb | PreDly, Size, Decay, Damp, LoCut, Mod, Mix |
+| `DLH` | HQ Delay | Time (tempo div), Feedbk, Color, Width, Mix |
+| `BUS` | Bus Compressor | Thresh, Ratio, Atk, Rel (Auto), SC HPF, Mkup, Mix |
+| `UTL` | Master Utility | Tilt, Width (M/S), Trim (dB) |
+
+State round-trips in serializer v17.
 
 **Chance macro.** While `Func` is held, the Manipulation Zone switches to the
 **Chance** band: the eight encoders map to Chance Scale for each of the eight

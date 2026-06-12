@@ -1448,10 +1448,14 @@ Phase C: WAV capture.
 - [x] **A1/A2** FM legato timbral-param updates; DrumSynth time-param skew 1.0→0.3;
       VA/FM envelope `[SUSPECTED-BUGGY]` markers removed (goldens pass); per-sample
       param smoothing on Delay/Distortion/Chorus effects; FM ratio `valueLabels` added.
-- [ ] **B1** Data model: `masterSends`, AMP slots 8–9 (sendA/B), serializer v17.
-- [ ] **B1** Engine: send buses; `setTimeInfo`; 4-unit `Song+FX` pagination.
-- [ ] **B2** Track effects: TiltEQ, Compressor, Bitcrusher, Flanger, Phaser.
-- [ ] **B3** HQ master effects: HQ Reverb, HQ Delay, Bus Compressor, Master Utility.
+- [x] **B1** Data model: `masterSends`, AMP slots 8–9 (sendA/B), serializer v17;
+      send-bus accumulation in both transport paths; `setTimeInfo` broadcast;
+      4-unit `Song+FX` pagination (FX1→FX2→Snd A→Snd B); `masterOnly` filter.
+- [x] **B2** Track effects: TiltEQ, Compressor, Bitcrusher, Flanger, Phaser
+      (header-only, per-sample smoothed, skew/units/roles correct).
+- [x] **B3** HQ master effects: HQ Reverb (8-line FDN), HQ Delay (tempo-synced
+      ping-pong), Bus Compressor (soft knee + auto-release), Master Utility
+      (tilt + M/S width + trim). All `masterOnly=true`.
 - [ ] **C1** `CaptureRecorder`: N-stream ThreadedWriter + `capturing_` atomic tap.
 - [ ] **C2** `Master+Record` gesture; status chrome.
 - [ ] **C3** Docs: DESIGN capture subsection; README gesture + shortcut table.
