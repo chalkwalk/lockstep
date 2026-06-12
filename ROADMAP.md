@@ -1468,6 +1468,31 @@ Phase C: WAV capture.
 Per-sample one-pole smoothing (~5 ms) on all gain-path effect params.
 See DESIGN §32.3 "Smoothing policy" addendum.
 
+### 8.28 — Track channel/envelope split + universal filter  *[active]*
+DESIGN §14 rewritten. Separates the conflated AMP block into a **CHANNEL** block
+(always-on: level/pan/sendA/sendB) and an optional **ENVELOPE** block (AHDSR +
+gate source; only for machines without `hasInternalAmp()`). Adds **OFF mode** to
+the track filter (always-present, defaults to OFF on new tracks). Deletes
+`hasInternalFilter()`; VA and other machines with internal filters get the track
+filter as an additional page rather than bypassing it. Serializer bumped to v18
+(trivial stamp; string-keyed ids resolve unchanged).
+
+- [x] **B0** Docs: DESIGN §14 / §32.3 rewrite; ROADMAP entry. *(this item)*
+- [ ] **B1** Core state + DSP: `TrackChannelState` {level,pan,sendA,sendB};
+      `TrackEnvState` {gateSrc,AHDSR}; `TrackEnvDsp` (envelope-only);
+      `TrackChannelDsp`; `TrackFltrState` OFF mode (value 4, early-exit, new-track default).
+- [ ] **B2** Slot layout + `hasInternalFilter()` delete; constexpr FLTR/CHANNEL/ENV
+      param-spec row tables (C2 folded in); all ~25 conditional-offset sites collapsed.
+- [ ] **B3** processBlock wiring: filter always → env iff `!hasInternalAmp()` →
+      channel always → inserts → send taps; delete internal-amp send special case.
+- [ ] **B4** Section/page UI: virtual sections for track FLTR/CHANNEL on
+      internal-amp/filter machines via `parentCanonical`.
+- [ ] **B5** Serializer v18; delete send special cases in write + load paths;
+      v17-fixture upgrade tests.
+- [ ] **B6** Behavioural tests: channel P-Lock on VA, filter-OFF passthrough,
+      filter-on-VA attenuates.
+- [ ] **B7** README + ROADMAP closeout.
+
 ---
 
 ## Phase 9 — Standalone & Files  *[active]*

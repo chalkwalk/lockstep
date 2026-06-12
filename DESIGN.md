@@ -940,8 +940,8 @@ The six section keys carry a fixed canonical taxonomy:
   |---|---|---|---|
   | 5 | 0 | **TRIG** | Trig defaults: note, velocity, gate. Also the host of track-meta `COND` / `TRIG` content (track-default conditions + step overrides). |
   | 6 | 1 | **SRC**  | Primary sound source: sampler controls, oscillator controls, FM ratios, MIDI program/channel for MIDI-out machines. |
-  | 7 | 2 | **FILTER** | Filter — usually the post-machine FILTER block (§14), but machines may opt out (`hasInternalFilter()`) and present their own. |
-  | 8 | 3 | **AMP**  | Amplitude envelope + output mix (Level, Pan, Sends) — usually the post-machine AMP block (§14). |
+  | 7 | 2 | **FILTER** | Track filter block (§14) — always present with an OFF mode; machines with internal filter expose their own pages first, track filter accessible as a virtual section. |
+  | 8 | 3 | **AMP**  | Output mix (Level, Pan, Sends) + optional amplitude envelope (§14); CHANNEL is always present, ENVELOPE block present only for machines without `hasInternalAmp()`. |
   | 9 | 4 | **MOD**  | Modulation, *deliberately shallow*: a minimal, performable set of live-tweakable modulators (e.g. one or two LFOs with canonical targets) at the primary page. Deep modulation — full matrices, per-operator envelopes, custom shapes — is machine-internal on MOD *extension* pages, not a uniform canonical promise (see the shallow-contract note below). (Renamed from `LFO` in 3.2.) |
   | 0 | 5 | **FX**   | Effects: machine-intrinsic (drive / bit-reduction) at primary; foundation-owned inserts on `Track+FX`; master FX on `Song+FX`. |
 
@@ -982,9 +982,9 @@ reactivation).
 
   | Scope     | 5 TRIG | 6 SRC | 7 FILTER | 8 AMP | 9 MOD | 0 FX |
   |-----------|--------|-------|--------|-------|-------|------|
-  | *(none)*  | machine trig | machine SRC | machine FILTER (opt) | machine AMP (opt) | machine MOD | machine FX (drive/bit) |
+  | *(none)*  | machine trig | machine SRC | machine FILTER (if present) | machine AMP (if `hasInternalAmp()`) | machine MOD | machine FX (drive/bit) |
   | `Func`    | COND (conditions) | NOTE (step entry) | (dim — reserved) | (dim — reserved) | (dim — reserved) | (dim — reserved) |
-  | `Track`   | kit divider (DIV) | input_source / Thru | post-machine FILTER | post-machine AMP + sends | per-track LFO (if any) | IEffect insert 1+2 |
+  | `Track`   | kit divider (DIV) | input_source / Thru | track FILTER (always; OFF mode available) | CHANNEL (level/pan/sends) + ENVELOPE (if !hasInternalAmp) | per-track LFO (if any) | IEffect insert 1+2 |
   | `Phrase`  | phrase length (LEN) | (dim) | (dim) | (dim) | (dim) | (dim) |
   | `Scene`   | launch / commit · coreTime | global + deviations | (dim) | active-mask | Morph snapshot | (dim) |
   | `Morph`   | (renamed `CXFD`) | morph-assign SRC | morph-assign FILTER | morph-assign AMP | morph-assign MOD | morph-assign FX |
@@ -1988,12 +1988,12 @@ two double-tap families cleanly separated.
 | Double-tap `Func` | Universal escape — clear all latches |
 | Double-press a verb | Amplified action (e.g. Play = stop + reset) |
 
-## 14. Signal Path and Post-Machine FILTER / AMP
+## 14. Signal Path and Post-Machine FILTER / CHANNEL / ENVELOPE
 
 The sequencer-side signal path for an internal-audio track is:
 
 ```
-[input fill] → machine.process() → [FILTER] → [AMP] → [FX1] → [FX2] → track sum
+[input fill] → machine.process() → [FILTER] → [ENVELOPE] → [CHANNEL] → [FX1] → [FX2] → track sum
 track sum → [master FX 1] → [master FX 2] → master gain → out (+ cue split)
 ```
 
@@ -2003,49 +2003,70 @@ machine synthesises into an empty buffer and the stage is a no-op.
 `[FX1]`/`[FX2]` are the per-track insert effects and `[master FX 1/2]`
 the global effects — both described in §32.
 
-`[FILTER]` and `[AMP]` are sequencer-side DSP blocks owned by the
-track (not the machine):
+`[FILTER]`, `[ENVELOPE]`, and `[CHANNEL]` are sequencer-side DSP blocks
+owned by the track (not the machine):
 
-- **FILTER.** A multi-mode state-variable filter (LP / BP / HP / Notch),
-  parameterised by Cutoff, Resonance, Drive, and an
-  Envelope-amount-to-cutoff that follows AMP's envelope.
-- **AMP.** The track's amplitude envelope (AHDSR), plus the track's
-  **output mix**: Level, Pan, and two send levels (Send A / Send B) to
-  the master Send-mode effects (§32). AMP responds to the sequencer-
-  emitted note-on/off pair — this is what gives every track a
-  consistent envelope feel regardless of which machine it hosts.
-  - **AMP gate source** (`{Envelope | Held-open}`). Default `Envelope`:
+- **FILTER.** A multi-mode state-variable filter (LP / HP / BP / Notch
+  / **OFF**). Present on every audio track. When mode is **OFF** the
+  filter is a bit-exact passthrough (early-exit before the SVF
+  computation) — no processing overhead, no DC offset. Drive,
+  Resonance, Cutoff, and envelope-to-cutoff are only active while mode
+  ≠ OFF. New tracks default to OFF.
+- **ENVELOPE.** The track's AHDSR amplitude envelope, driven by the
+  sequencer-emitted note-on/off pair. Present only for machines where
+  `IMachine::hasInternalAmp()` returns `false` (the default for all
+  machines that do not embed their own amplitude envelope — Sampler,
+  Slicer; absent for VA, FM, DrumSynth which shape their own). When
+  absent the envelope stage is skipped; the CHANNEL block still applies.
+  - **Gate source** (`{Envelope | Held-open}`). Default `Envelope`:
     the amplitude stage follows the note-on/off envelope, so the track
     needs trigs to sound. `Held-open` keeps the amplitude stage open
-    continuously — the basis of a continuous **Thru** (gated external
-    audio becomes always-on pass-through) and of **drones** on synth
-    tracks. For ordinary trig-driven machines `Held-open` has no
-    audible effect (they still need a trig to produce sound). It
-    composes with trigless/lock-only trigs (§30): an open-AMP track
-    still accepts lock-only steps that sweep parameters without
-    retriggering.
+    continuously — the basis of a continuous **Thru** and of **drones**
+    on synth tracks. Composes with trigless/lock-only trigs (§30).
+- **CHANNEL.** Level, Pan, Send A, and Send B — the track's output mix.
+  Present on **every** audio track regardless of machine type (including
+  machines with internal amp). This is the mixer-channel view: level
+  sets post-machine/post-envelope gain (0..2, default 1), pan is
+  constant-power stereo position, and the two send levels are
+  post-fader taps into the master send buses (§32.3). Because CHANNEL
+  is always present, P-Locks and Morph snapshots on `lockstep.amp.level`
+  / `lockstep.amp.pan` / `lockstep.amp.sendA` / `lockstep.amp.sendB`
+  work uniformly across all machine types.
 
-This is the Elektron model: a machine focuses on producing raw
-audio at unity gain; the surrounding FILTER + AMP + FX is uniform. The
-canonical FILTER (key 5), AMP (key 6), and FX (key 8) section buttons
-drive these blocks regardless of which machine the track hosts.
+**Slot layout (audio tracks, per-track slot space):**
 
-Machines may opt out:
+```
+[0, mnp)            machine params
+[mnp, +6)           FILTER     — always present (ids: lockstep.fltr.*)
+[mnp+6, +4)         CHANNEL    — always present (level, pan, sendA, sendB)
+[mnp+10, +6)        ENVELOPE   — iff !hasInternalAmp() (gate, att, hld, dec, sus, rel)
+[then]              insert FX params
+```
 
-- `IMachine::hasInternalFilter()` returning `true` causes the
-  sequencer to bypass the FILTER block; the FILTER section button on
-  that track is repurposed as a passthrough to the machine's
-  internal filter slots.
-- `IMachine::hasInternalAmp()` similarly bypasses AMP.
+Channel slots use the existing `lockstep.amp.level/pan/sendA/sendB` ids on
+disk for compatibility with v17 saves. Envelope slots use
+`lockstep.amp.gateSrc/attack/hold/decay/sustain/release`.
 
-Opt-out is rare and reserved for analog-emulation engines where
-filter and envelope are tightly coupled to the sound (e.g. an
-Analog Four-style synth). Most machines accept the default.
+This is the Elektron model: a machine focuses on producing raw audio;
+the surrounding FILTER + CHANNEL (+ optional ENVELOPE) + FX is uniform.
+The canonical FILTER (key 7) and AMP (key 8) section buttons drive these
+blocks regardless of which machine the track hosts. For machines with
+internal amp (VA, FM, DrumSynth) the AMP section button exposes the
+machine's own amp pages first, followed by the CHANNEL page as a virtual
+section (parentCanonical = kAmpSecIdx) so level/pan/sends remain
+accessible.
 
-For a MIDI-out track (§15), both FILTER and AMP are bypassed
-implicitly — there is no audio to filter or amplitude-shape — and
-the FILTER/AMP section buttons are repurposed to expose
-MIDI-output-relevant CC banks for that track instead.
+`IMachine::hasInternalAmp()` returning `true` suppresses only the
+ENVELOPE block; the CHANNEL block is always present. The
+`IMachine::hasInternalFilter()` virtual is **deleted** — the track filter
+is now universal; machines that previously returned `true` (VA) simply
+present their internal filter slots before the track FILTER page, which
+the user can engage or leave at OFF.
+
+For a MIDI-out track (§15), all three blocks — FILTER, ENVELOPE, and
+CHANNEL — are bypassed implicitly (no audio to process) and the
+FILTER/AMP section buttons are repurposed to expose MIDI CC banks
+for that track instead.
 
 ## 15. MIDI-out Machine (First-Class)
 
@@ -3455,15 +3476,16 @@ track sum → master FX1 → master FX2 → metronome → master gain → out
 ```
 
 **Send returns (Send A, Send B)** — each track carries **Send A** and
-**Send B** levels (AMP page 2, slots 8–9; P-lockable, morph-able). The
-levels are post-fader/post-insert taps, summed into dedicated send buses
-that pass through the send-return effects and are mixed back into the
-master bus before the master inserts:
+**Send B** levels (CHANNEL block, slots `lockstep.amp.sendA` /
+`lockstep.amp.sendB`; P-lockable, morph-able). The levels are
+post-fader/post-insert taps, summed into dedicated send buses that pass
+through the send-return effects and are mixed back into the master bus
+before the master inserts:
 
 ```
-each track: machine → FLTR → AMP → FX1 → FX2 ─┬─ (×sendA) → send bus A
-                                               ├─ (×sendB) → send bus B
-                                               └────────────→ track sum
+each track: machine → FILTER → [ENVELOPE] → CHANNEL → FX1 → FX2 ─┬─ (×sendA) → send bus A
+                                                                   ├─ (×sendB) → send bus B
+                                                                   └──────────→ track sum
 
 send bus A → send FX A (return) ─┐
 send bus B → send FX B (return) ──┴→ master sum → FX1 → FX2 → out
@@ -3476,10 +3498,12 @@ limiter). Any effect may be loaded in any slot; the **masterOnly** flag in
 the effect catalogue restricts certain HQ effects to master/send pickers only
 (they are too expensive for 32-instance track budgets).
 
-**AMP page 2 (Send A/B):** The AMP section grows from 8 to 10 slots. Slots
-8–9 are `lockstep.amp.sendA` / `lockstep.amp.sendB`, both 0..1, default 0
-(dry). When both sends are zero the send buses are not processed. Repeating
-the AMP section key cycles pages (same mechanism as the FX section).
+**CHANNEL block (Send A/B):** `lockstep.amp.sendA` / `lockstep.amp.sendB`,
+both 0..1, default 0 (dry). The CHANNEL block is present on every audio
+track — including machines with internal amp (VA/FM/DrumSynth) — so sends
+are always patchable via P-Lock or Morph. When both sends are zero the send
+buses are not processed. The AMP section key (key 8) cycles pages to expose
+all four CHANNEL params (level, pan, sendA, sendB).
 
 **Song+FX focus cycles four units:** master FX1 → FX2 → Send A return →
 Send B return. `Func+Song+FX` opens the effect picker for the focused unit;
@@ -4360,7 +4384,7 @@ struct LsmMachineVTable {
     const char* (*machineId)(void* inst);
     const char* (*badge)(void* inst);
     int32_t (*currentVoices)(void* inst, const float* baseParams, int32_t n); /* 0..4 */
-    uint32_t (*flags)(void* inst);     /* hasInternalFilter/Amp, isMidiOut (cacheable) */
+    uint32_t (*flags)(void* inst);     /* hasInternalAmp, isMidiOut (cacheable); hasInternalFilter removed in 8.28 */
     int32_t (*isVoiceActive)(void* inst);  /* dynamic per-block — not cached */
     void (*processMidi)(void* inst,
                         const LsmMidiEvent* events, int32_t numEvents,
@@ -4473,12 +4497,12 @@ modules → `StubMachine` fallback (§36.7).
 plus discovered-module manifests merged into one list; `MachineInfo`
 gains a `badge`, an `origin {Static, Module}`, and an `abiOk` flag so
 the picker can show third-party badges and grey out version-mismatched
-modules. The post-machine FILTER/AMP virtual-slot append and the
-`hasInternalFilter()` / `hasInternalAmp()` opt-outs stay entirely
-host-side and ABI-agnostic — only the two booleans cross (via `flags`);
-the module never sees the FILTER/AMP slots that live past its
-`numParams()` range. This registry is the static/dynamic sibling of the
-planned `ControllerRegistry` (§35.8.4).
+modules. The post-machine FILTER/CHANNEL/ENVELOPE virtual-slot append and
+the `hasInternalAmp()` opt-out stay entirely host-side and ABI-agnostic —
+only `hasInternalAmp` crosses (via `flags`); the module never sees the
+FILTER/CHANNEL/ENVELOPE slots that live past its `numParams()` range.
+This registry is the static/dynamic sibling of the planned
+`ControllerRegistry` (§35.8.4).
 
 ### 36.6 Versioning and capabilities — add-only
 
