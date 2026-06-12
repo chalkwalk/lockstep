@@ -998,17 +998,17 @@ namespace lockstep
                 int bx = kDashStartX + 120 + kGap;
 
                 // Clipboard badge.
-                const char* cbLabel = nullptr;
-                switch (clipboard_.type)
-                {
-                    case ClipboardType::None:    break;
-                    case ClipboardType::Step:    cbLabel = "CPY:STP"; break;
-                    case ClipboardType::Section: cbLabel = "CPY:SEC"; break;
-                    case ClipboardType::Track:   cbLabel = "CPY:TRK"; break;
-                    case ClipboardType::Pattern: cbLabel = "CPY:PHR"; break;
-                    case ClipboardType::Scene:   cbLabel = "CPY:SCN"; break;
-                    case ClipboardType::All:     cbLabel = "CPY:ALL"; break;
-                }
+                static constexpr const char* kCbLabels[] = {
+                    nullptr,     // None
+                    "CPY:STP",   // Step
+                    "CPY:SEC",   // Section
+                    "CPY:TRK",   // Track
+                    "CPY:PHR",   // Pattern
+                    "CPY:SCN",   // Scene
+                    "CPY:ALL",   // All
+                };
+                const auto ctIdx = static_cast<std::size_t>(clipboard_.type);
+                const char* cbLabel = (ctIdx < std::size(kCbLabels)) ? kCbLabels[ctIdx] : nullptr;
                 if (cbLabel != nullptr && bx + 56 < kSplitX)
                 {
                     const auto r = juce::Rectangle<int>(bx, by, 56, kBadgeH);
@@ -2670,17 +2670,18 @@ namespace lockstep
                     else
                     {
                         // Map clipboard type → matching scope and dispatch paste.
-                        PS synScope = PS::None;
-                        switch (clipboard_.type)
-                        {
-                            case CT::None:    break;
-                            case CT::Step:    synScope = PS::Trig; break;
-                            case CT::Section: synScope = PS::Section; break;
-                            case CT::Track:   synScope = PS::Track; break;
-                            case CT::Pattern: synScope = PS::Phrase; break;
-                            case CT::Scene:   synScope = PS::Scene; break;
-                            case CT::All:     break;  // handled above
-                        }
+                        static constexpr PS kSynScopes[] = {
+                            PS::None,    // None (unreachable here)
+                            PS::Trig,    // Step
+                            PS::Section, // Section
+                            PS::Track,   // Track
+                            PS::Phrase,  // Pattern
+                            PS::Scene,   // Scene
+                            PS::None,    // All (handled above)
+                        };
+                        const auto ctIdx = static_cast<std::size_t>(clipboard_.type);
+                        const PS synScope = (ctIdx < std::size(kSynScopes))
+                                                ? kSynScopes[ctIdx] : PS::None;
                         if (synScope != PS::None)
                         {
                             auto ctx = commandContext();
