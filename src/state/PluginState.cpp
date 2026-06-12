@@ -1472,6 +1472,16 @@ namespace lockstep::PluginState
         return v17;
     }
 
+    // v17 → v18: Trivial stamp. TrackAmpState split into TrackChannelState +
+    // TrackEnvState; disk ids (lockstep.amp.* / lockstep.fltr.*) are unchanged.
+    // slotForIdWithMachine() now routes them to the correct struct fields.
+    static juce::ValueTree upgrade_v17_to_v18(const juce::ValueTree& v17)
+    {
+        juce::ValueTree v18 = v17.createCopy();
+        v18.setProperty(keys::kVersion, 18, nullptr);
+        return v18;
+    }
+
     juce::ValueTree applyUpgrades(juce::ValueTree tree)
     {
         // Determine the version. v0 has root type "Lockstep" and no version attribute.
@@ -1497,6 +1507,7 @@ namespace lockstep::PluginState
         if (version < 15) tree = upgrade_v14_to_v15(tree);
         if (version < 16) tree = upgrade_v15_to_v16(tree);
         if (version < 17) tree = upgrade_v16_to_v17(tree);
+        if (version < 18) tree = upgrade_v17_to_v18(tree);
 
         return tree;
     }

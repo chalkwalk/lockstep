@@ -37,7 +37,10 @@ namespace lockstep
         //      Missing SoundPool node on load = empty pool (trivial upgrade from v15).
         // v17: Song::masterSends (MasterSnd nodes) + TrackAmpState sendA/sendB slots 8-9.
         //      Missing MasterSnd nodes = empty sends; sendA/B P-Locks use string ids.
-        inline constexpr int kCurrentVersion = 17;
+        // v18: TrackAmpState split into TrackChannelState (level/pan/sendA/sendB) +
+        //      TrackEnvState (gateSrc/att/hld/dec/sus/rel); FLTR always present; disk
+        //      ids unchanged (lockstep.amp.* / lockstep.fltr.*); trivial stamp upgrade.
+        inline constexpr int kCurrentVersion = 18;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);
