@@ -400,6 +400,103 @@ namespace lockstep
     }
 
     // -----------------------------------------------------------------------
+    // Retrig click metric: fires note-on, renders ~50 ms to reach a stable
+    // amplitude, then fires note-on again on the same pitch and measures the
+    // RMS amplitude ratio across the retrig boundary.
+    //
+    // The ghost-fade mechanism preserves amplitude continuity at retrig: the
+    // block-before and block-after RMS should be within a 3× window.  A hard
+    // cut-to-silence or a sudden amplitude spike would blow this ratio.
+    //
+    // This metric avoids per-sample delta comparisons which are confounded by
+    // the polyBlep oscillator's natural wrap-around discontinuity (max |Δ| of
+    // a 2-osc saw can legitimately exceed ±4 on the cycle boundary — that is
+    // NOT a retrig artifact).
+    static void testRetrigClickMetrics()
+    {
+        constexpr int kBlockSize = 64;
+        constexpr double kSR = 48000.0;
+
+        auto runRetrigRatioTest = [&](IMachine& m, const ParamFrame& frame,
+                                      const char* name) {
+            m.prepare(kSR, kBlockSize);
+            m.reset();
+
+            juce::AudioBuffer<float> buf(2, kBlockSize);
+            juce::MidiBuffer midi;
+
+            // Note-on; render ~50 ms (37 blocks).
+            midi.addEvent(juce::MidiMessage::noteOn(1, 60, static_cast<juce::uint8>(127)), 0);
+            for (int b = 0; b < 36; ++b)
+                renderBlock(m, midi, frame, buf);
+
+            // Block 37: capture RMS just before retrig.
+            renderBlock(m, midi, frame, buf);
+            const float rmsBefore = blockRms(buf);
+
+            CHECK(!hasNaNOrInf(buf),
+                  juce::String(name) + " retrig: NaN/Inf before retrig event");
+
+            // Retrig: same note.
+            midi.addEvent(juce::MidiMessage::noteOn(1, 60, static_cast<juce::uint8>(127)), 0);
+            renderBlock(m, midi, frame, buf);
+            const float rmsRetrig = blockRms(buf);
+
+            CHECK(!hasNaNOrInf(buf),
+                  juce::String(name) + " retrig: NaN/Inf in retrig block");
+
+            juce::Logger::writeToLog(juce::String(name) + " retrig RMS before=" +
+                                     juce::String(rmsBefore, 6) + " retrig=" +
+                                     juce::String(rmsRetrig, 6));
+
+            // Both blocks should be non-silent (the voice is still sounding).
+            CHECK(rmsBefore > 1e-4f,
+                  juce::String(name) + " retrig: no audio before retrig (precondition)");
+            CHECK(rmsRetrig > 1e-4f,
+                  juce::String(name) + " retrig: audio silenced at retrig boundary "
+                  "-- ghost-fade should maintain amplitude continuity");
+
+            // Ratio: retrig block vs before block within a 3× window.
+            // A ghost-fade keeps the ratio near 1.0; a hard cut would give ~0.
+            const float ratio = rmsRetrig / rmsBefore;
+            CHECK(ratio > 1.0f / 3.0f && ratio < 3.0f,
+                  juce::String(name) + " retrig: amplitude discontinuity at retrig boundary "
+                  "(ratio=" + juce::String(ratio, 3) + ") -- ghost-fade not working");
+        };
+
+        // VA in RETRIG mode: 1.5 ms ghost-fade (VAMachine.cpp ~:695).
+        {
+            VAMachine va;
+            ParamFrame frame = defaultFrame(va);
+            setSlot(va, frame, "va_voice_mode", 0.0f);  // MONO
+            setSlot(va, frame, "va_retrig", 1.0f);       // RETRIG
+            setSlot(va, frame, "va_level", 1.0f);
+            runRetrigRatioTest(va, frame, "VA");
+        }
+
+        // FM in RETRIG mode: 1.5 ms ghost-fade (FMMachine.cpp ~:399).
+        {
+            FMMachine fm;
+            ParamFrame frame = defaultFrame(fm);
+            setSlot(fm, frame, "fm_voice_mode", 0.0f);  // MONO
+            setSlot(fm, frame, "fm_retrig", 1.0f);       // RETRIG
+            setSlot(fm, frame, "fm_level", 1.0f);
+            runRetrigRatioTest(fm, frame, "FM");
+        }
+
+        // DrumSynth: AHD always-retrig.
+        {
+            DrumSynthMachine ds;
+            ParamFrame frame = defaultFrame(ds);
+            setSlot(ds, frame, "drum_level", 1.0f);
+            runRetrigRatioTest(ds, frame, "DrumSynth");
+        }
+
+        // Sample-playing machines have no sample loaded → silence; skip.
+        juce::Logger::writeToLog("retrig click: Sampler/Slicer skipped (no sample loaded)");
+    }
+
+    // -----------------------------------------------------------------------
     // VA legato golden.
     // Verifies: (a) a second note pressed while first is held produces audio
     // without hard-clicking, (b) releasing the first note does NOT kill the
@@ -603,6 +700,7 @@ namespace lockstep
         }
         vaEnvelopeGolden();
         vaLegatoGolden();
+        testRetrigClickMetrics();
 
         // --- FMMachine ---
         {
