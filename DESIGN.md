@@ -3521,6 +3521,36 @@ written to the pattern); the effect's parameters are tweaked the normal way
 (encoders / P-Locks). Master inserts (§32.3) carry the same momentary toggle,
 giving a one-key master-FX punch-in without a master-FX mode.
 
+### 32.6 Performance capture (8.26)
+
+`Func+Song+Record` arms or disarms a live recording of the master output
+to a timestamped 32-bit-float WAV file (`capture-YYYYMMDD-HHMMSS.wav`).
+The tap point is the very end of the audio thread's `processBlock`, after
+master gain, DC blocker, and soft-clip — exactly what appears at the main
+outputs. Capture runs continuously across transport stop and start, so a
+performance file is a single uninterrupted stream.
+
+**File location:** next to the current project file in a `Captures/`
+subdirectory when a project is open; otherwise in
+`~/Music/Lockstep/Captures/`. The directory is created on arm if absent.
+
+**Implementation note:** a `CaptureRecorder` owns a `juce::TimeSliceThread`
+and a `juce::AudioFormatWriter::ThreadedWriter` (lock-free ring buffer).
+`arm()` and `disarm()` run on the message thread; the audio thread only
+touches an `std::atomic<bool> capturing_` gate and the ring-buffer write.
+The recorder is shaped to hold N streams so that per-track stem export can
+be added later by arming additional streams — no redesign needed. Per-track
+taps are not added now; today exactly one stream (the master bus) is active.
+
+**Status chrome:** arming shows `REC <filename>` in the status band;
+disarming shows `Captured m:ss -> <filename>`. Failure (unwritable
+directory) shows a single error status and leaves capture unarmed — the
+audio thread never panics.
+
+**Non-goal (explicit):** multi-track stem export (one file per track +
+master). The recorder shape accommodates it, but no per-track taps are
+wired and no UI for stem selection is planned at this milestone.
+
 ## 33. 3.1 — The 10×4 Surface Revamp (amended by 3.2)
 
 The intended *final* control surface and UX grammar. Earlier

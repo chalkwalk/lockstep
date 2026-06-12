@@ -1439,7 +1439,7 @@ setMasterInsert, setTrackMachine, copyKit, state-load) now use
       (Allman braces, 4-space, `ColumnLimit:0`); mechanical whole-repo reformat; `.clang-tidy`
       `HeaderFilterRegex` fixed; `CMAKE_EXPORT_COMPILE_COMMANDS` pinned.
 
-### 8.26 — Master-bus re-arch: 2 inserts + 2 sends; FX catalogue expansion  *[in progress]*
+### 8.26 — Master-bus re-arch: 2 inserts + 2 sends; FX catalogue expansion  *[shipped]*
 DESIGN §32.3 rewritten. Phase A: quality pass. Phase B: topology + catalogue.
 Phase C: WAV capture.
 
@@ -1456,9 +1456,10 @@ Phase C: WAV capture.
 - [x] **B3** HQ master effects: HQ Reverb (8-line FDN), HQ Delay (tempo-synced
       ping-pong), Bus Compressor (soft knee + auto-release), Master Utility
       (tilt + M/S width + trim). All `masterOnly=true`.
-- [ ] **C1** `CaptureRecorder`: N-stream ThreadedWriter + `capturing_` atomic tap.
-- [ ] **C2** `Master+Record` gesture; status chrome.
-- [ ] **C3** Docs: DESIGN capture subsection; README gesture + shortcut table.
+- [x] **C1** `CaptureRecorder`: N-stream ThreadedWriter + `capturing_` atomic tap
+      at the end of `processBlock` in both transport paths.
+- [x] **C2** `Func+Song+Record` gesture; arm/disarm status chrome.
+- [x] **C3** Docs: DESIGN §32.6 capture subsection; README §5.20 + shortcut table.
 
 ### 8.27 — Smoothing policy  *[shipped as part of 8.26-A]*
 Per-sample one-pole smoothing (~5 ms) on all gain-path effect params.

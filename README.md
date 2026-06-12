@@ -515,6 +515,7 @@ Transport and record-arm ride the verb row (no scope held — see §5.1):
 | `I` (Play) | Play / Stop transport (no scope held); `Func + I` = **unqualified paste** (stamps the single captured layer by type; rejects omni grab with "Paste: pick a scope"). |
 | `O` (Clear) | Clear active P-Lock slot (no scope held); `Func + O` = delete entity (opens deletion picker). |
 | `U` (Rec) | Toggle record-arm (overwrite). Double-tap = overdub (append); `Func + U` = **omni copy** (captures scene + active track + pattern in one grab; badge `CPY:ALL`). |
+| `Func + Song + U` | **Capture** — arm or disarm WAV capture of the master output (see §5.20). |
 | `3` | Tap tempo; `Func + 3` = toggle metronome. |
 | `4` | Navigate up (inverted-T above `E R T`). |
 | `E` / `R` / `T` | Navigate left / down / right. |
@@ -1059,7 +1060,7 @@ buttons: **New**, **Open**, **Save**, and **Save As…**
 
 - **File format:** `.lockstep` files are plain UTF-8 XML — human-readable and
   git-diffable. They use the same versioned serializer as DAW session state
-  (currently v16), so the full upgrade chain applies on load.
+  (currently v17), so the full upgrade chain applies on load.
 - **New** — resets the project to the pristine default (one sampler track, no
   samples, no P-Locks). If the current project has unsaved changes a
   three-way **Save / Discard / Cancel** dialog appears first.
@@ -1077,6 +1078,25 @@ buttons: **New**, **Open**, **Save**, and **Save As…**
 - **Quit guard** — the standalone wrapper saves its own session on quit, so no
   data is lost across a clean restart. A dedicated quit-confirmation dialog
   (requiring a custom standalone app) is deferred to a future phase.
+
+### 5.20 Performance capture *(shipped — Phase 8.26)*
+
+`Func + Song + U` (Func + Song + Rec) arms or disarms a live recording of
+the master output to a 32-bit-float WAV file.
+
+- **Tap point:** post master gain, DC blocker, and soft-clip — exactly
+  what appears at the physical outputs. Capture runs continuously across
+  transport stop and start; a performance recording has no gaps.
+- **File location:** `Captures/capture-YYYYMMDD-HHMMSS.wav` next to the
+  current project file (standalone) or in `~/Music/Lockstep/Captures/`
+  (plugin / no project open). The directory is created automatically.
+- **Status:** arm → `REC capture-….wav`; disarm → `Captured m:ss ->
+  filename`. A failed arm (unwritable directory) shows an error in the
+  status band — the audio thread never panics.
+- **Format:** 32-bit float WAV, stereo, device sample rate. Open in any
+  audio editor; Reaper/Audacity/DAWs read 32-bit float WAV natively.
+- **Stem export** is not yet available (one file per track + master); the
+  recorder is architecturally N-stream-shaped for a future milestone.
 
 ---
 
