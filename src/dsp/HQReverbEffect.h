@@ -104,9 +104,12 @@ namespace lockstep
                 lcZ_ += lcAlpha * (input - lcZ_);
                 const float filtered = input - lcZ_;
 
-                // Pre-delay.
+                // Pre-delay. Clamp to at least 1 sample so the read position never
+                // equals the write position (read-before-write in ring buffer); at
+                // predelay=0ms this gives ~0.02ms of pre-delay, which is inaudible.
                 const int pdLen = static_cast<int>(preDelayBuf_.size());
-                const int pdRd = ((preHead_ - static_cast<int>(pdSamples) + pdLen) % pdLen);
+                const int pdSamplesInt = std::max(1, static_cast<int>(pdSamples));
+                const int pdRd = ((preHead_ - pdSamplesInt + pdLen) % pdLen);
                 const float preOut = preDelayBuf_[static_cast<std::size_t>(pdRd)];
                 preDelayBuf_[static_cast<std::size_t>(preHead_)] = filtered;
                 preHead_ = (preHead_ + 1) % pdLen;
