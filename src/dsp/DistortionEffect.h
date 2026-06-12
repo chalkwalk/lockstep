@@ -6,13 +6,17 @@
 namespace lockstep
 {
     // Soft-clip distortion — Drive / Tone (post-LPF) / Mix.
+    // Per-sample smoothing on drive and mix (~5ms) to prevent zipper noise.
     class DistortionEffect final : public IEffect
     {
     public:
         void prepare(double sampleRate, int maxBlockSize) override
         {
             sampleRate_ = sampleRate;
+            smoothCoef_ = 1.0f - std::exp(-1.0f / static_cast<float>(0.005 * sampleRate));
             for (auto& z : lpfZ_) z = 0.0f;
+            for (auto& z : driveZ_) z = 1.0f;
+            for (auto& z : mixZ_) z = 0.5f;
             (void)maxBlockSize;
         }
 
@@ -27,20 +31,25 @@ namespace lockstep
             const int ch = buffer.getNumChannels();
             if (ch == 0 || numSamples <= 0) return;
 
-            const float drive = params.size() > 0 ? (1.0f + params[0] * 19.0f) : 1.0f;
+            const float driveTarget = 1.0f + (params.size() > 0 ? params[0] : 0.3f) * 19.0f;
             const float tone = params.size() > 1 ? params[1] : 1.0f;
-            const float mix = params.size() > 2 ? params[2] : 0.5f;
+            const float mixTarget = params.size() > 2 ? params[2] : 0.5f;
 
             for (int c = 0; c < ch; ++c)
             {
                 auto* data = buffer.getWritePointer(c);
-                auto& lpZ = lpfZ_[static_cast<std::size_t>(std::min(c, 1))];
+                const int ci = std::min(c, 1);
+                auto& lpZ = lpfZ_[static_cast<std::size_t>(ci)];
+                auto& driveZ = driveZ_[static_cast<std::size_t>(ci)];
+                auto& mixZ = mixZ_[static_cast<std::size_t>(ci)];
                 for (int i = 0; i < numSamples; ++i)
                 {
+                    driveZ += smoothCoef_ * (driveTarget - driveZ);
+                    mixZ += smoothCoef_ * (mixTarget - mixZ);
                     const float dry = data[i];
-                    float wet = std::tanh(dry * drive);
+                    float wet = std::tanh(dry * driveZ);
                     lpZ += tone * (wet - lpZ);
-                    data[i] = dry * (1.0f - mix) + lpZ * mix;
+                    data[i] = dry * (1.0f - mixZ) + lpZ * mixZ;
                 }
             }
         }
@@ -89,6 +98,9 @@ namespace lockstep
     private:
         static inline const std::string kId = "lockstep.distortion.v1";
         double sampleRate_ = 44100.0;
+        float smoothCoef_ = 0.005f;
         std::array<float, 2> lpfZ_{};
+        std::array<float, 2> driveZ_{ 1.0f, 1.0f };
+        std::array<float, 2> mixZ_{ 0.5f, 0.5f };
     };
 }
