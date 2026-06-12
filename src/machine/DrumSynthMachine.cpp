@@ -51,16 +51,16 @@ namespace lockstep
         { "drum_type", "Type", 0.f, 7.f, 0.f, 1.f, 1, ds_u::None, ds_r::None, 0, 1, 0, kDSTypeLabels }, //  0
         { "drum_tune", "Tune", -24.f, 24.f, 0.f, 1.f, 0, ds_u::Semi, ds_r::Pitch, 0, 1, 0, nullptr }, //  1
         { "drum_sweep", "Sweep", 0.f, 48.f, 24.f, 1.f, 0, ds_u::Semi, ds_r::None, 0, 1, 0, nullptr }, //  2
-        { "drum_sweep_decay", "Swp Dec", 1.f, 500.f, 60.f, 1.f, 0, ds_u::Ms, ds_r::None, 0, 1, 0, nullptr }, //  3
+        { "drum_sweep_decay", "Swp Dec", 1.f, 500.f, 60.f, 0.3f, 0, ds_u::Ms, ds_r::None, 0, 1, 0, nullptr }, //  3
         { "drum_punch", "Punch", 0.f, 1.f, 0.5f, 1.f, 0, ds_u::None, ds_r::None, 0, 1, 0, nullptr }, //  4
         { "drum_tone", "Tone", 0.f, 1.f, 0.3f, 1.f, 0, ds_u::None, ds_r::None, 0, 1, 0, nullptr }, //  5
         { "drum_body", "Body", 0.f, 1.f, 0.5f, 1.f, 0, ds_u::None, ds_r::None, 0, 1, 0, nullptr }, //  6
         { "drum_snap", "Snap", 0.f, 1.f, 0.5f, 1.f, 0, ds_u::None, ds_r::None, 0, 1, 0, nullptr }, //  7
     // --- AMP (section 3) ---
-        { "drum_attack", "Attack", 0.f, 50.f, 2.f, 1.f, 0, ds_u::Ms, ds_r::Atk, 0, 3, 0, nullptr }, //  8
-        { "drum_hold", "Hold", 0.f, 200.f, 0.f, 1.f, 0, ds_u::Ms, ds_r::Hold, 0, 3, 0, nullptr }, //  9
+        { "drum_attack", "Attack", 0.f, 50.f, 2.f, 0.3f, 0, ds_u::Ms, ds_r::Atk, 0, 3, 0, nullptr }, //  8
+        { "drum_hold", "Hold", 0.f, 200.f, 0.f, 0.3f, 0, ds_u::Ms, ds_r::Hold, 0, 3, 0, nullptr }, //  9
         { "drum_decay", "Decay", 1.f, 5000.f, 500.f, 0.3f, 0, ds_u::Ms, ds_r::Dcy, 0, 3, 0, nullptr }, // 10
-        { "drum_noise_decay", "Nz Dec", 1.f, 2000.f, 200.f, 1.f, 0, ds_u::Ms, ds_r::None, 0, 3, 0, nullptr }, // 11
+        { "drum_noise_decay", "Nz Dec", 1.f, 2000.f, 200.f, 0.3f, 0, ds_u::Ms, ds_r::None, 0, 3, 0, nullptr }, // 11
         { "drum_level", "Level", 0.f, 1.f, 0.5f, 1.f, 0, ds_u::Pct, ds_r::Level, 0, 3, 0, nullptr }, // 12
         { "drum_retrig", "Retrig", 0.f, 1.f, 0.f, 1.f, 1, ds_u::None, ds_r::None, 0, 3, 0, kDSRetrigLabels }, // 13
         { "drum_vel_sens", "Vel Sens", 0.f, 1.f, 0.f, 1.f, 0, ds_u::Pct, ds_r::None, 0, 3, 0, nullptr }, // 14

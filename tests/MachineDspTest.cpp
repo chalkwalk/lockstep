@@ -3,16 +3,11 @@
 // For synthesis machines (VA, FM, DrumSynth): construct, prepare, fire a
 // note-on, render N blocks, assert non-silence + no NaN/Inf; then note-off
 // with a short release time set, render release tail, assert silence.
-// This is the regression detector for the VA/FM envelope issues flagged as a
-// potential consequence of the 4.4 SamplePlayingMachineBase refactor.
 //
 // For sample-playing machines (Sampler, Slicer): no sample is loaded so audio
 // is silent -- we just assert no crash and no NaN.
 //
 // For IEffect: drive with a non-zero input, assert no NaN/Inf.
-//
-// Envelope goldens tagged [SUSPECTED-BUGGY] may be updated in 8.20 if the
-// regression is confirmed there.
 
 #include "TestHarness.h"
 #include "../src/machine/VAMachine.h"
@@ -260,8 +255,6 @@ namespace lockstep
     // Sets A=10ms, D=50ms, S=0.5, R=20ms at 48 kHz and verifies:
     //   - after attack (>=10ms): peak is non-trivial
     //   - after release tail (>=60ms): near silence
-    //
-    // Tagged [SUSPECTED-BUGGY] on the silence check -- verify in 8.20.
     static void vaEnvelopeGolden()
     {
         VAMachine va;
@@ -335,7 +328,6 @@ namespace lockstep
         CHECK(!hasNaNOrInf(buf), "VA golden: NaN after release tail");
 
         const float finalRms = blockRms(buf);
-        // [SUSPECTED-BUGGY] -- if this fails after 8.20 envelope audit, update the threshold
         CHECK(finalRms < 1e-2f,
               "VA golden: did not reach near-silence after 50ms release tail (RMS=" + juce::String(finalRms) + ")");
     }
@@ -403,7 +395,6 @@ namespace lockstep
         CHECK(!hasNaNOrInf(buf), "FM golden: NaN after release tail");
 
         const float finalRms = blockRms(buf);
-        // [SUSPECTED-BUGGY] -- if this fails after 8.20 envelope audit, update the threshold
         CHECK(finalRms < 1e-2f,
               "FM golden: did not reach near-silence after 50ms release tail (RMS=" + juce::String(finalRms) + ")");
     }

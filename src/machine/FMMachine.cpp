@@ -189,6 +189,15 @@ namespace lockstep
         voice.midiNote = midiNote;
         voice.age = ++voiceCounter_;
         voice.velocity = std::clamp(velocity, 0.0f, 1.0f);
+        voice.outputLevel = p(kSlotOutputLevel);
+
+        const float macroSustain = p(kSlotMacroSustain);
+        const float macroRelease = p(kSlotMacroRelease);
+
+        for (int dst = 0; dst < kNumOps; ++dst)
+            for (int src = 0; src < kNumOps; ++src)
+                voice.modMatrix[static_cast<std::size_t>(src)][static_cast<std::size_t>(dst)] =
+                    p(kSlotModBase + dst * kNumOps + src);
 
         for (int i = 0; i < kNumOps; ++i)
         {
@@ -198,6 +207,11 @@ namespace lockstep
             const float ratio = kRatioTable[static_cast<std::size_t>(ratioIdx)];
             const double fineCents = static_cast<double>(p(opSlot.fine));
             op.phaseInc = midiFreq * static_cast<double>(ratio) * std::pow(2.0, fineCents / 1200.0) / sampleRate_;
+            // Update timbral params so P-Lock changes take effect on legato steps.
+            // Envelope stage/progress intentionally unchanged (no re-attack).
+            op.mixerLevel = p(opSlot.mix);
+            op.sustainLevel = std::clamp(p(opSlot.sus) * macroSustain, 0.0f, 1.0f);
+            op.releaseSamples = msToSamples(p(opSlot.rel) * macroRelease, sampleRate_);
         }
     }
 
