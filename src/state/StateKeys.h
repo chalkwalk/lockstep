@@ -107,6 +107,7 @@ namespace lockstep::keys
   // ── Insert / MasterIns nodes ─────────────────────────────────────────────────
     inline constexpr const char* kIns = "Ins";
     inline constexpr const char* kMasterIns = "MasterIns";
+    inline constexpr const char* kMasterSnd = "MasterSnd";  // 8.26: send return slot
     inline constexpr const char* kSlot = "slot";
     inline constexpr const char* kEid = "eid";
     inline constexpr const char* kBypass = "bypass";

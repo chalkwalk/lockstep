@@ -32,5 +32,9 @@ namespace lockstep
         float swing = 0.0f;
         // 6.5 master FX: 2 post-sum insert slots, processed after all track outputs are summed.
         std::array<TrackKit::InsertSlot, 2> masterInserts{};
+        // 8.26 send returns: 2 post-track-sum send buses, each with a return effect.
+        // Tracks tap into them via AMP sendA/sendB (slots 8–9). Returns mix into the
+        // master bus before the master inserts.
+        std::array<TrackKit::InsertSlot, 2> masterSends{};
     };
 }

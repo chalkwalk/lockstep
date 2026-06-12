@@ -265,6 +265,8 @@ namespace lockstep
             const int numOut = getTotalNumOutputChannels();
             for (auto& tb : trackBuffers_)
                 tb.setSize(numOut, samplesPerBlock, false, true, false);
+            for (auto& sb : sendBusBufs_)
+                sb.setSize(numOut, samplesPerBlock, false, true, false);
         }
         for (auto& choke : trackChokes_)
             choke.prepare(sampleRate, 1.5f);
@@ -334,6 +336,20 @@ namespace lockstep
         // Clear per-track scratch buffers once per block.
         for (auto& tb : trackBuffers_)
             tb.clear();
+        // 8.26: clear send buses at block start; they accumulate per-track taps below.
+        for (auto& sb : sendBusBufs_)
+            sb.clear();
+        // 8.26: broadcast tempo to all installed effects (tempo-synced effects use this).
+        {
+            const double blockBpm = clock_.bpm();
+            for (auto& ins : trackInserts_)
+                for (auto& eff : ins)
+                    if (eff) eff->setTimeInfo(blockBpm);
+            for (auto& eff : masterInserts_)
+                if (eff) eff->setTimeInfo(blockBpm);
+            for (auto& eff : masterSends_)
+                if (eff) eff->setTimeInfo(blockBpm);
+        }
 
         // --- MIDI clock scanning (before any other processing) ---------------
         const bool isStandalone =
@@ -1145,6 +1161,8 @@ namespace lockstep
                                                     numBlockSamples);
                     }
 
+                    // 8.26: capture resolved send levels before the hasInternalAmp scope closes.
+                    float trackSendA = 0.0f, trackSendB = 0.0f;
                     if (!mi->hasInternalAmp())
                     {
                         TrackAmpState amp = kit(static_cast<int>(i)).ampState;
@@ -1164,6 +1182,8 @@ namespace lockstep
                                     if (step.fillOverrides.has(ampOff + as))
                                         amp.setSlot(as, step.fillOverrides.get(ampOff + as, 0.0f));
                         }
+                        trackSendA = amp.sendA;
+                        trackSendB = amp.sendB;
                         const bool ampWasIdle = trackAmps_[i].isIdle();
                         trackAmps_[i].processBlock(trackBuffers_[i], trackMidi[i], amp,
                                                    numBlockSamples);
@@ -1196,6 +1216,25 @@ namespace lockstep
                             fxFrame[static_cast<std::size_t>(p)] = resolved;
                         }
                         eff->process(trackBuffers_[i], numBlockSamples, fxFrame);
+                    }
+
+                    // 8.26: post-insert, post-level send taps. MIDI-out tracks skipped above.
+                    {
+                        const int numTrCh = trackBuffers_[i].getNumChannels();
+                        if (trackSendA > 0.0f)
+                        {
+                            const int numCh = std::min(sendBusBufs_[0].getNumChannels(), numTrCh);
+                            for (int ch = 0; ch < numCh; ++ch)
+                                sendBusBufs_[0].addFrom(ch, 0, trackBuffers_[i], ch, 0,
+                                                        numBlockSamples, trackSendA);
+                        }
+                        if (trackSendB > 0.0f)
+                        {
+                            const int numCh = std::min(sendBusBufs_[1].getNumChannels(), numTrCh);
+                            for (int ch = 0; ch < numCh; ++ch)
+                                sendBusBufs_[1].addFrom(ch, 0, trackBuffers_[i], ch, 0,
+                                                        numBlockSamples, trackSendB);
+                        }
                     }
 
                     trackPeak_[i].store(trackBuffers_[i].getMagnitude(0, numBlockSamples),
@@ -1694,6 +1733,8 @@ namespace lockstep
                                                 numBlockSamples);
                 }
 
+                // 8.26: capture resolved send levels before the hasInternalAmp scope closes.
+                float trackSendA2 = 0.0f, trackSendB2 = 0.0f;
                 if (!mi->hasInternalAmp())
                 {
                     TrackAmpState amp = kit(static_cast<int>(i)).ampState;
@@ -1712,6 +1753,8 @@ namespace lockstep
                                 if (step.fillOverrides.has(ampOff + as))
                                     amp.setSlot(as, step.fillOverrides.get(ampOff + as, 0.0f));
                     }
+                    trackSendA2 = amp.sendA;
+                    trackSendB2 = amp.sendB;
                     const bool ampWasIdle = trackAmps_[i].isIdle();
                     trackAmps_[i].processBlock(trackBuffers_[i], trackMidi[i], amp,
                                                numBlockSamples);
@@ -1744,6 +1787,25 @@ namespace lockstep
                         fxFrame2[static_cast<std::size_t>(p)] = resolved;
                     }
                     eff->process(trackBuffers_[i], numBlockSamples, fxFrame2);
+                }
+
+                // 8.26: post-insert, post-level send taps. MIDI-out tracks skipped above.
+                {
+                    const int numTrCh = trackBuffers_[i].getNumChannels();
+                    if (trackSendA2 > 0.0f)
+                    {
+                        const int numCh = std::min(sendBusBufs_[0].getNumChannels(), numTrCh);
+                        for (int ch = 0; ch < numCh; ++ch)
+                            sendBusBufs_[0].addFrom(ch, 0, trackBuffers_[i], ch, 0,
+                                                    numBlockSamples, trackSendA2);
+                    }
+                    if (trackSendB2 > 0.0f)
+                    {
+                        const int numCh = std::min(sendBusBufs_[1].getNumChannels(), numTrCh);
+                        for (int ch = 0; ch < numCh; ++ch)
+                            sendBusBufs_[1].addFrom(ch, 0, trackBuffers_[i], ch, 0,
+                                                    numBlockSamples, trackSendB2);
+                    }
                 }
 
                 trackPeak_[i].store(trackBuffers_[i].getMagnitude(0, numBlockSamples),
@@ -2547,7 +2609,8 @@ namespace lockstep
     static const juce::String kAmpIds[TrackAmpState::kNumSlots] = {
         "lockstep.amp.level", "lockstep.amp.pan", "lockstep.amp.gate",
         "lockstep.amp.att", "lockstep.amp.hld", "lockstep.amp.dec",
-        "lockstep.amp.sus", "lockstep.amp.rel"
+        "lockstep.amp.sus", "lockstep.amp.rel",
+        "lockstep.amp.sendA", "lockstep.amp.sendB"   // 8.26 AMP page 2
     };
 
     ParamSpec LockstepProcessor::paramSpec(int track, int index) const
@@ -2661,6 +2724,16 @@ namespace lockstep
                     p.defaultValue = 10.0f;
                     p.unit = ParamSpec::Unit::Ms;
                     p.role = ParamSpec::Role::Release;
+                    break;
+                case 8:
+                    p.label = "Send A";
+                    p.maxValue = 1.0f;
+                    p.defaultValue = 0.0f;
+                    break;
+                case 9:
+                    p.label = "Send B";
+                    p.maxValue = 1.0f;
+                    p.defaultValue = 0.0f;
                     break;
                 default: break;
             }
@@ -2930,6 +3003,14 @@ namespace lockstep
                 case EngineCmd::Op::SetMasterInsertParam: {
                     if (c.aux >= 2) break;
                     auto& bp = song().masterInserts[static_cast<std::size_t>(c.aux)].baseParams;
+                    if (c.slot >= 0 && static_cast<std::size_t>(c.slot) < bp.size())
+                        bp[static_cast<std::size_t>(c.slot)] = c.value;
+                    break;
+                }
+
+                case EngineCmd::Op::SetMasterSendParam: {
+                    if (c.aux >= 2) break;
+                    auto& bp = song().masterSends[static_cast<std::size_t>(c.aux)].baseParams;
                     if (c.slot >= 0 && static_cast<std::size_t>(c.slot) < bp.size())
                         bp[static_cast<std::size_t>(c.slot)] = c.value;
                     break;
@@ -3528,6 +3609,38 @@ namespace lockstep
 
     void LockstepProcessor::processMasterChain(juce::AudioBuffer<float>& buf, int numSamples)
     {
+        // 8.26: process each send bus through its return effect, then sum into master.
+        for (int snd = 0; snd < 2; ++snd)
+        {
+            auto* seff = masterSends_[static_cast<std::size_t>(snd)].get();
+            auto& sendBuf = sendBusBufs_[static_cast<std::size_t>(snd)];
+            if (!seff)
+            {
+                sendBuf.clear();
+                continue;
+            }
+            const auto& sSlot = song().masterSends[static_cast<std::size_t>(snd)];
+            if (sSlot.bypass)
+            {
+                sendBuf.clear();
+                continue;
+            }
+            const int snp = seff->numParams();
+            ParamFrame sfxFrame(static_cast<std::size_t>(snp));
+            for (int p = 0; p < snp; ++p)
+                sfxFrame[static_cast<std::size_t>(p)] =
+                    (static_cast<std::size_t>(p) < sSlot.baseParams.size())
+                        ? sSlot.baseParams[static_cast<std::size_t>(p)]
+                        : seff->paramSpec(p).defaultValue;
+            seff->process(sendBuf, numSamples, sfxFrame);
+            // Sum processed send return into master.
+            const int numCh = std::min(buf.getNumChannels(), sendBuf.getNumChannels());
+            for (int ch = 0; ch < numCh; ++ch)
+                buf.addFrom(ch, 0, sendBuf, ch, 0, numSamples);
+            sendBuf.clear();
+        }
+
+        // Master inserts (in-line, post send-return sum).
         for (int ins = 0; ins < 2; ++ins)
         {
             auto* meff = masterInserts_[static_cast<std::size_t>(ins)].get();
@@ -3576,6 +3689,87 @@ namespace lockstep
         const auto& insSlot = song().masterInserts[si];
         if (param < 0 || static_cast<std::size_t>(param) >= insSlot.baseParams.size()) return;
         pushEngineCmd({ EngineCmd::Op::SetMasterInsertParam,
+                        0,
+                        static_cast<uint8_t>(slot),
+                        0,
+                        static_cast<int16_t>(param),
+                        value });
+    }
+
+    // ── 8.26 Master send-return API ─────────────────────────────────────────────
+
+    void LockstepProcessor::setMasterSend(int slot, const std::string& effectId)
+    {
+        if (slot < 0 || slot > 1) return;
+        const auto si = static_cast<std::size_t>(slot);
+        auto newEff = makeEffectForId(effectId);
+        if (!newEff) return;
+        newEff->prepare(preparedSampleRate_, preparedBlockSize_);
+        song().masterSends[si].effectId = effectId;
+        const int np = newEff->numParams();
+        song().masterSends[si].baseParams.assign(static_cast<std::size_t>(np), 0.0f);
+        for (int p = 0; p < np; ++p)
+            song().masterSends[si].baseParams[static_cast<std::size_t>(p)] = newEff->paramSpec(p).defaultValue;
+        withQuiescedEngine([&] { masterSends_[si] = std::move(newEff); });
+    }
+
+    void LockstepProcessor::clearMasterSend(int slot)
+    {
+        if (slot < 0 || slot > 1) return;
+        const auto si = static_cast<std::size_t>(slot);
+        song().masterSends[si] = {};
+        withQuiescedEngine([&] { masterSends_[si].reset(); });
+    }
+
+    void LockstepProcessor::setMasterSendBypass(int slot, bool bypass)
+    {
+        if (slot < 0 || slot > 1) return;
+        song().masterSends[static_cast<std::size_t>(slot)].bypass = bypass;
+    }
+
+    std::string LockstepProcessor::masterSendId(int slot) const
+    {
+        if (slot < 0 || slot > 1) return {};
+        return song().masterSends[static_cast<std::size_t>(slot)].effectId;
+    }
+
+    bool LockstepProcessor::masterSendBypass(int slot) const
+    {
+        if (slot < 0 || slot > 1) return false;
+        return song().masterSends[static_cast<std::size_t>(slot)].bypass;
+    }
+
+    int LockstepProcessor::masterSendNumParams(int slot) const
+    {
+        if (slot < 0 || slot > 1) return 0;
+        auto* eff = masterSends_[static_cast<std::size_t>(slot)].get();
+        return eff ? eff->numParams() : 0;
+    }
+
+    float LockstepProcessor::masterSendParam(int slot, int param) const
+    {
+        if (slot < 0 || slot > 1) return 0.0f;
+        const auto si = static_cast<std::size_t>(slot);
+        const auto& sndSlot = song().masterSends[si];
+        if (param < 0 || static_cast<std::size_t>(param) >= sndSlot.baseParams.size()) return 0.0f;
+        return sndSlot.baseParams[static_cast<std::size_t>(param)];
+    }
+
+    ParamSpec LockstepProcessor::masterSendParamSpec(int slot, int param) const
+    {
+        if (slot < 0 || slot > 1) return {};
+        auto* eff = masterSends_[static_cast<std::size_t>(slot)].get();
+        if (!eff || param < 0 || param >= eff->numParams()) return {};
+        return eff->paramSpec(param);
+    }
+
+    void LockstepProcessor::setMasterSendParam(int slot, int param, float value)
+    {
+        if (slot < 0 || slot > 1) return;
+        const auto si = static_cast<std::size_t>(slot);
+        const auto& sndSlot = song().masterSends[si];
+        if (param < 0 || static_cast<std::size_t>(param) >= sndSlot.baseParams.size()) return;
+        pushEngineCmd({ EngineCmd::Op::SetMasterSendParam,
                         0,
                         static_cast<uint8_t>(slot),
                         0,

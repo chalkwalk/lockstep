@@ -514,6 +514,17 @@ namespace lockstep
         [[nodiscard]] ParamSpec masterInsertParamSpec(int slot, int param) const;
         void setMasterInsertParam(int slot, int param, float value);
 
+        // 8.26 send-return FX (mirrors the master-insert API).
+        void setMasterSend(int slot, const std::string& effectId);
+        void clearMasterSend(int slot);
+        void setMasterSendBypass(int slot, bool bypass);
+        [[nodiscard]] std::string masterSendId(int slot) const;
+        [[nodiscard]] bool masterSendBypass(int slot) const;
+        [[nodiscard]] int masterSendNumParams(int slot) const;
+        [[nodiscard]] float masterSendParam(int slot, int param) const;
+        [[nodiscard]] ParamSpec masterSendParamSpec(int slot, int param) const;
+        void setMasterSendParam(int slot, int param, float value);
+
         [[nodiscard]] int numAvailableEffects() const;
         [[nodiscard]] EffectInfo availableEffectInfo(int idx) const;
 
@@ -725,6 +736,7 @@ namespace lockstep
         static constexpr int kAmpSlots = TrackAmpState::kNumSlots;  // 8
 
         // Apply the master insert chain in-place. Called from both transport paths.
+        // Also processes the send buses (if any) before the inserts.
         void processMasterChain(juce::AudioBuffer<float>& buf, int numSamples);
         static constexpr int kAmpSecIdx = 3;  // canonical AMP section index
 
@@ -733,9 +745,12 @@ namespace lockstep
         using InsertPair = std::array<std::unique_ptr<IEffect>, 2>;
         std::array<InsertPair, kNumTracks> trackInserts_;
         InsertPair masterInserts_;
+        InsertPair masterSends_;    // 8.26: send return FX (post track-sum, pre master inserts)
 
         // [AUDIO] per-block scratch and DSP state — audio thread only.
         std::array<juce::AudioBuffer<float>, kNumTracks> trackBuffers_;
+        // 8.26: per-block send buses (resized in prepareToPlay).
+        std::array<juce::AudioBuffer<float>, 2> sendBusBufs_;
         std::array<VoiceChoke, kNumTracks> trackChokes_;
         std::array<TrackFltrDsp, kNumTracks> trackFltrs_;
         std::array<TrackAmpDsp, kNumTracks> trackAmps_;

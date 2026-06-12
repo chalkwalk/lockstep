@@ -35,7 +35,9 @@ namespace lockstep
         //      Loader accepts both; "s" int entries still load (legacy compat).
         // v16: Project::soundPool (SoundPool / SE nodes) now serialized.
         //      Missing SoundPool node on load = empty pool (trivial upgrade from v15).
-        inline constexpr int kCurrentVersion = 16;
+        // v17: Song::masterSends (MasterSnd nodes) + TrackAmpState sendA/sendB slots 8-9.
+        //      Missing MasterSnd nodes = empty sends; sendA/B P-Locks use string ids.
+        inline constexpr int kCurrentVersion = 17;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);

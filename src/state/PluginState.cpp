@@ -606,6 +606,35 @@ namespace lockstep::PluginState
                 songNode.appendChild(mInsNode, nullptr);
                 pieceHasContent = true;
             }
+            // v17: master send return slots for this song.
+            for (int s = 0; s < 2; ++s)
+            {
+                const auto& mSnd = song.masterSends[static_cast<std::size_t>(s)];
+                if (mSnd.effectId.empty()) continue;
+                auto tempEff = makeEffectForId(mSnd.effectId);
+                if (!tempEff) continue;
+                juce::ValueTree mSndNode(keys::kMasterSnd);
+                mSndNode.setProperty("slot", s, nullptr);
+                mSndNode.setProperty(keys::kEid, juce::String(mSnd.effectId), nullptr);
+                if (mSnd.bypass)
+                    mSndNode.setProperty(keys::kBypass, 1, nullptr);
+                const int np = tempEff->numParams();
+                for (int p = 0; p < np; ++p)
+                {
+                    const auto spec = tempEff->paramSpec(p);
+                    const float def = spec.defaultValue;
+                    const float val = (p < static_cast<int>(mSnd.baseParams.size()))
+                                          ? mSnd.baseParams[static_cast<std::size_t>(p)]
+                                          : def;
+                    if (!floatNe(val, def)) continue;
+                    juce::ValueTree pNode("P");
+                    pNode.setProperty("id", juce::String(spec.id), nullptr);
+                    pNode.setProperty("v", static_cast<double>(val), nullptr);
+                    mSndNode.appendChild(pNode, nullptr);
+                }
+                songNode.appendChild(mSndNode, nullptr);
+                pieceHasContent = true;
+            }
 
             if (pieceHasContent || pi == proc.activePieceIdx())
                 nhNode.appendChild(songNode, nullptr);
@@ -686,6 +715,38 @@ namespace lockstep::PluginState
                                 if (juce::String(tempEff->paramSpec(p).id) == id)
                                 {
                                     mIns.baseParams[static_cast<std::size_t>(p)] = getFloat(pNode, "v", 0.0f);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                else if (child.getType() == juce::Identifier(keys::kMasterSnd))
+                {
+                    // v17: master send return slot.
+                    const int s = static_cast<int>(child.getProperty("slot", -1));
+                    if (s < 0 || s > 1) continue;
+                    const std::string effId = child.getProperty(keys::kEid, "").toString().toStdString();
+                    if (effId.empty()) continue;
+                    auto& mSnd = song.masterSends[static_cast<std::size_t>(s)];
+                    mSnd.effectId = effId;
+                    mSnd.bypass = (static_cast<int>(child.getProperty(keys::kBypass, 0)) != 0);
+                    auto tempEff = makeEffectForId(effId);
+                    if (tempEff)
+                    {
+                        const int np = tempEff->numParams();
+                        mSnd.baseParams.assign(static_cast<std::size_t>(np), 0.0f);
+                        for (int p = 0; p < np; ++p)
+                            mSnd.baseParams[static_cast<std::size_t>(p)] = tempEff->paramSpec(p).defaultValue;
+                        for (auto pNode : child)
+                        {
+                            if (pNode.getType() != juce::Identifier("P")) continue;
+                            const juce::String id = pNode.getProperty("id", "").toString();
+                            for (int p = 0; p < np; ++p)
+                            {
+                                if (juce::String(tempEff->paramSpec(p).id) == id)
+                                {
+                                    mSnd.baseParams[static_cast<std::size_t>(p)] = getFloat(pNode, "v", 0.0f);
                                     break;
                                 }
                             }
@@ -1393,6 +1454,16 @@ namespace lockstep::PluginState
         return v16;
     }
 
+    // v16 → v17: Song::masterSends (MasterSnd nodes) + AMP sendA/sendB slots 8-9.
+    // Missing MasterSnd nodes = empty sends; sendA/B P-Lock ids are string-keyed so
+    // they appear in the existing P-Lock load path without special upgrade steps.
+    juce::ValueTree upgrade_v16_to_v17(const juce::ValueTree& v16)
+    {
+        juce::ValueTree v17 = v16.createCopy();
+        v17.setProperty(keys::kVersion, 17, nullptr);
+        return v17;
+    }
+
     juce::ValueTree applyUpgrades(juce::ValueTree tree)
     {
         // Determine the version. v0 has root type "Lockstep" and no version attribute.
@@ -1417,6 +1488,7 @@ namespace lockstep::PluginState
         if (version < 14) tree = upgrade_v13_to_v14(tree);
         if (version < 15) tree = upgrade_v14_to_v15(tree);
         if (version < 16) tree = upgrade_v15_to_v16(tree);
+        if (version < 17) tree = upgrade_v16_to_v17(tree);
 
         return tree;
     }

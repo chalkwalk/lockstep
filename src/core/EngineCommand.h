@@ -32,6 +32,7 @@ namespace lockstep
             SetAmpSlot,         // kit(track).ampState.setSlot(slot, value)
             SetInsertParam,     // kit(track).inserts[aux].baseParams[slot] = value
             SetMasterInsertParam, // masterKit.inserts[aux].baseParams[slot] = value
+            SetMasterSendParam,   // masterKit.sends[aux].baseParams[slot] = value (8.26)
             SetStepOverride,    // sequence.tracks[track].steps[aux].overrides.set(slot, value)
             ClearStepOverride,  // sequence.tracks[track].steps[aux].overrides.clear(slot)
             SetFillOverride,    // sequence.tracks[track].steps[aux].fillOverrides.set(slot, value)

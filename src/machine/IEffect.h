@@ -20,6 +20,10 @@ namespace lockstep
                              int numSamples,
                              const ParamFrame& params) = 0;
 
+        // Called once per block with the host BPM. Default no-op; override for
+        // tempo-synced effects (e.g. HQ Delay).
+        virtual void setTimeInfo(double /*bpm*/) {}
+
         virtual int numParams() const = 0;
         virtual ParamSpec paramSpec(int index) const = 0;
         virtual const std::string& effectId() const = 0;

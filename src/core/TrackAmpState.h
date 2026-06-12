@@ -6,7 +6,7 @@ namespace lockstep
     // These are the base (unmodulated) values; step P-Locks layer on top.
     struct TrackAmpState
     {
-        static constexpr int kNumSlots = 8;
+        static constexpr int kNumSlots = 10;  // 8 existing + sendA (8) + sendB (9)
 
         float level = 0.5f;   // 0..1
         float pan = 0.0f;   // -1..1
@@ -22,6 +22,9 @@ namespace lockstep
         float decay = 0.0f;   // 0..5000 ms
         float sustain = 1.0f;   // 0..1; default full sustain
         float release = 10.0f;  // 0..5000 ms; default 10 ms
+        // AMP page 2: send levels (8.26 / DESIGN §32.3). Post-fader taps.
+        float sendA = 0.0f;    // 0..1; default 0 (dry/off)
+        float sendB = 0.0f;    // 0..1; default 0 (dry/off)
 
         float getSlot(int s) const noexcept
         {
@@ -35,6 +38,8 @@ namespace lockstep
                 case 5:  return decay;
                 case 6:  return sustain;
                 case 7:  return release;
+                case 8:  return sendA;
+                case 9:  return sendB;
                 default: return 0.0f;
             }
         }
@@ -51,6 +56,8 @@ namespace lockstep
                 case 5:  decay = v; break;
                 case 6:  sustain = v; break;
                 case 7:  release = v; break;
+                case 8:  sendA = v; break;
+                case 9:  sendB = v; break;
                 default: break;
             }
         }
