@@ -17,6 +17,7 @@
 #include "TestHarness.h"
 #include "EngineHarness.h"
 #include "../src/machine/DrumSynthMachine.h"
+#include "../src/machine/VAMachine.h"
 
 namespace lockstep
 {
@@ -630,6 +631,139 @@ namespace lockstep
     }
 
     // -----------------------------------------------------------------------
+    // Helper: install a VA machine on a track. Creates a temporary VAMachine to
+    // query the correct param count and defaults (the generic installMachine helper
+    // hard-codes DrumSynthMachine for its schema query).
+    static void installVA(LockstepProcessor& proc, int track)
+    {
+        VAMachine tmp;
+        const int np = tmp.numParams();
+        auto& k = proc.kit(track);
+        k.machineId = VAMachine::kMachineId;
+        k.baseParams.resize(static_cast<std::size_t>(np));
+        for (int i = 0; i < np; ++i)
+            k.baseParams[static_cast<std::size_t>(i)] = tmp.paramSpec(i).defaultValue;
+        proc.reinstallMachinesFromActiveKit();
+    }
+
+    // -----------------------------------------------------------------------
+    // B6a: Channel-level P-Lock on a VA track (hasInternalAmp=true) audibly
+    // scales the output. Step 0 with lockstep.amp.level P-Lock=0.0 must be
+    // silent; the same step at default level must produce audio.
+    static void testChannelLevelPLockOnVA()
+    {
+        // Render with level P-Lock = 0.0 (silence).
+        EngineHarness hMuted;
+        installVA(hMuted.processor(), 0);
+        auto& step0m = hMuted.processor().sequence().tracks[0].steps[0];
+        step0m.trig = true;
+        step0m.trigOverride.hasGate = true;
+        step0m.trigOverride.gateValue = MusicalGate::G1_8;
+        const int levelSlot = hMuted.processor().slotForId(0, "lockstep.amp.level");
+        CHECK(levelSlot >= 0, "B6a: lockstep.amp.level slot not found on VA track");
+        if (levelSlot >= 0)
+            step0m.overrides.set(levelSlot, 0.0f);
+
+        // Render with default level (no P-Lock override).
+        EngineHarness hNormal;
+        installVA(hNormal.processor(), 0);
+        auto& step0n = hNormal.processor().sequence().tracks[0].steps[0];
+        step0n.trig = true;
+        step0n.trigOverride.hasGate = true;
+        step0n.trigOverride.gateValue = MusicalGate::G1_8;
+
+        constexpr int kBlocks = 30;
+        double sumMuted = 0.0, sumNormal = 0.0;
+        for (int b = 0; b < kBlocks; ++b)
+        {
+            hMuted.renderBlocks(1);
+            hNormal.renderBlocks(1);
+            const auto& bm = hMuted.buffer();
+            const auto& bn = hNormal.buffer();
+            for (int ch = 0; ch < bm.getNumChannels(); ++ch)
+            {
+                for (int i = 0; i < bm.getNumSamples(); ++i)
+                {
+                    const double vm = static_cast<double>(bm.getSample(ch, i));
+                    const double vn = static_cast<double>(bn.getSample(ch, i));
+                    sumMuted  += vm * vm;
+                    sumNormal += vn * vn;
+                }
+            }
+        }
+        const int totalSamples = kBlocks * EngineHarness::kBlockSize * 2;
+        const float rmsMuted  = static_cast<float>(std::sqrt(sumMuted  / totalSamples));
+        const float rmsNormal = static_cast<float>(std::sqrt(sumNormal / totalSamples));
+
+        CHECK(!hMuted.lastBufferHasNaN(),  "B6a: NaN in muted-level VA run");
+        CHECK(!hNormal.lastBufferHasNaN(), "B6a: NaN in normal-level VA run");
+        CHECK(rmsNormal > 1e-4f,
+              "B6a: VA at default level produced no audio (RMS=" + juce::String(rmsNormal) + ")");
+        CHECK(rmsMuted < 1e-5f,
+              "B6a: channel level P-Lock=0 did not silence VA output "
+              "(RMS=" + juce::String(rmsMuted, 6) + ") — CHANNEL block may not be in signal path for hasInternalAmp machines");
+    }
+
+    // -----------------------------------------------------------------------
+    // B6b: Track filter LP at low cutoff attenuates VA output.
+    // Mode=LP, cutoff=0.0 (~20 Hz) should heavily attenuate a VA synth playing
+    // a note in the ~200–2000 Hz range. Compare to mode=OFF (4) as reference.
+    static void testTrackFilterLPOnVA()
+    {
+        // Reference: filter OFF.
+        EngineHarness hOff;
+        installVA(hOff.processor(), 0);
+        hOff.processor().kit(0).fltrState.mode = 4.0f;  // OFF
+        auto& step0off = hOff.processor().sequence().tracks[0].steps[0];
+        step0off.trig = true;
+        step0off.trigOverride.hasGate = true;
+        step0off.trigOverride.gateValue = MusicalGate::G1_8;
+
+        // Test: filter LP at very low cutoff.
+        EngineHarness hLP;
+        installVA(hLP.processor(), 0);
+        hLP.processor().kit(0).fltrState.mode   = 0.0f;  // LP
+        hLP.processor().kit(0).fltrState.cutoff = 0.0f;  // ~20 Hz
+        auto& step0lp = hLP.processor().sequence().tracks[0].steps[0];
+        step0lp.trig = true;
+        step0lp.trigOverride.hasGate = true;
+        step0lp.trigOverride.gateValue = MusicalGate::G1_8;
+
+        constexpr int kBlocks = 30;
+        double sumOff = 0.0, sumLP = 0.0;
+        for (int b = 0; b < kBlocks; ++b)
+        {
+            hOff.renderBlocks(1);
+            hLP.renderBlocks(1);
+            const auto& bOff = hOff.buffer();
+            const auto& bLP  = hLP.buffer();
+            for (int ch = 0; ch < bOff.getNumChannels(); ++ch)
+            {
+                for (int i = 0; i < bOff.getNumSamples(); ++i)
+                {
+                    const double vOff = static_cast<double>(bOff.getSample(ch, i));
+                    const double vLP  = static_cast<double>(bLP.getSample(ch, i));
+                    sumOff += vOff * vOff;
+                    sumLP  += vLP  * vLP;
+                }
+            }
+        }
+        const int totalSamples = kBlocks * EngineHarness::kBlockSize * 2;
+        const float rmsOff = static_cast<float>(std::sqrt(sumOff / totalSamples));
+        const float rmsLP  = static_cast<float>(std::sqrt(sumLP  / totalSamples));
+
+        CHECK(!hOff.lastBufferHasNaN(), "B6b: NaN in filter-OFF VA run");
+        CHECK(!hLP.lastBufferHasNaN(),  "B6b: NaN in filter-LP VA run");
+        CHECK(rmsOff > 1e-4f,
+              "B6b: VA with filter OFF produced no audio (RMS=" + juce::String(rmsOff) + ")");
+        // LP at 20 Hz must attenuate a pitched VA note by at least 10 dB (3.16× RMS).
+        CHECK(rmsOff / (rmsLP + 1e-9f) > 3.0f,
+              "B6b: track LP filter at 20 Hz did not attenuate VA output (rmsOff=" +
+              juce::String(rmsOff, 6) + " rmsLP=" + juce::String(rmsLP, 6) +
+              ") — track filter may not be in signal path for hasInternalAmp machines");
+    }
+
+    // -----------------------------------------------------------------------
     // A1: newProject() during active playback must not crash or produce NaN.
     // Previously, finishStateLoad() ran after the quiesce window closed, so
     // machines_[t] was replaced while the audio thread was live (use-after-free).
@@ -666,5 +800,7 @@ namespace lockstep
         testV16UpgradeToV17();
         testMasterSendBypassSilences();
         testNewProjectDuringPlayback();
+        testChannelLevelPLockOnVA();
+        testTrackFilterLPOnVA();
     }
 }

@@ -134,11 +134,59 @@ namespace lockstep
               "(ratio=" + juce::String(ratio, 4) + ") — old tanh(s*g)/g formula still in effect");
     }
 
+    // B6: Filter mode=4 (OFF) is a bit-exact passthrough — no sample is modified.
+    static void testFilterOffIsPassthrough()
+    {
+        constexpr int kN = 64;
+
+        juce::AudioBuffer<float> buf(2, kN);
+        for (int ch = 0; ch < 2; ++ch)
+            for (int i = 0; i < kN; ++i)
+                buf.setSample(ch, i, static_cast<float>(i + 1) * 0.01f);
+
+        // Capture original samples as raw bits (memcmp avoids -Wfloat-equal).
+        std::vector<uint32_t> orig;
+        orig.reserve(2 * static_cast<size_t>(kN));
+        for (int ch = 0; ch < 2; ++ch)
+        {
+            for (int i = 0; i < kN; ++i)
+            {
+                const float v = buf.getSample(ch, i);
+                uint32_t bits = 0;
+                std::memcpy(&bits, &v, 4);
+                orig.push_back(bits);
+            }
+        }
+
+        TrackFltrState fltr;
+        fltr.mode = 4.0f;  // OFF
+        juce::MidiBuffer noMidi;
+        TrackFltrDsp dsp;
+        dsp.prepare(48000.0);
+        dsp.processBlock(buf, noMidi, fltr, kN);
+
+        bool identical = true;
+        for (int ch = 0; ch < 2; ++ch)
+        {
+            for (int i = 0; i < kN; ++i)
+            {
+                const float v = buf.getSample(ch, i);
+                uint32_t bits = 0;
+                std::memcpy(&bits, &v, 4);
+                if (bits != orig[static_cast<size_t>((ch * kN) + i)])
+                    identical = false;
+            }
+        }
+
+        CHECK(identical, "B6 filter OFF: processBlock modified samples (not bit-exact passthrough)");
+    }
+
     void runAmpDspTests()
     {
         testDefaultIsHeldOpen();
         testHeldOpenIgnoresNoteOff();
         testEnvelopeReleasesOnNoteOff();
         testFilterDriveUnityGain();
+        testFilterOffIsPassthrough();
     }
 }
