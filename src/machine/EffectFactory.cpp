@@ -10,6 +10,11 @@
 #include "../dsp/BitcrusherEffect.h"
 #include "../dsp/FlangerEffect.h"
 #include "../dsp/PhaserEffect.h"
+// B3: HQ master-only effects (8.26)
+#include "../dsp/HQReverbEffect.h"
+#include "../dsp/HQDelayEffect.h"
+#include "../dsp/BusCompressorEffect.h"
+#include "../dsp/MasterUtilityEffect.h"
 
 namespace lockstep
 {
@@ -25,6 +30,11 @@ namespace lockstep
         if (id == "lockstep.bitcrush.v1")    return std::make_unique<BitcrusherEffect>();
         if (id == "lockstep.flanger.v1")     return std::make_unique<FlangerEffect>();
         if (id == "lockstep.phaser.v1")      return std::make_unique<PhaserEffect>();
+        // B3: HQ master-only effects
+        if (id == "lockstep.verbhq.v1")      return std::make_unique<HQReverbEffect>();
+        if (id == "lockstep.delayhq.v1")     return std::make_unique<HQDelayEffect>();
+        if (id == "lockstep.buscomp.v1")     return std::make_unique<BusCompressorEffect>();
+        if (id == "lockstep.mutility.v1")    return std::make_unique<MasterUtilityEffect>();
         return nullptr;
     }
 
@@ -38,6 +48,11 @@ namespace lockstep
         { "lockstep.bitcrush.v1",    "Bitcrush",   "BIT", false },
         { "lockstep.flanger.v1",     "Flanger",    "FLG", false },
         { "lockstep.phaser.v1",      "Phaser",     "PHA", false },
+        // B3: HQ master-only (masterOnly=true — hidden from track insert picker)
+        { "lockstep.verbhq.v1",      "HQ Reverb",  "RVH", true  },
+        { "lockstep.delayhq.v1",     "HQ Delay",   "DLH", true  },
+        { "lockstep.buscomp.v1",     "Bus Comp",   "BUS", true  },
+        { "lockstep.mutility.v1",    "Utility",    "UTL", true  },
     };
 
     std::vector<EffectInfo> availableEffects() { return kEffects; }
