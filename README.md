@@ -565,12 +565,31 @@ Tracks 1–8 default to `SamplerMachine` and tracks 9–16 to `MidiOutMachine` (
 | `DrumSynthMachine` | DR | Rytm-style per-track drum synthesis. One stepped `Type` param selects the variant; each has dedicated DSP. Eight types ship: KICK, SNARE, HAT, TOM, CLAP, COWBELL, CYMBAL, RIMSHOT. |
 | `MidiOutMachine` | M | MIDI CC / note output to external gear. Configurable destination, channel, program, 16 CC slots with user-assignable numbers and labels. |
 
+**Per-track DSP chain (universal, 8.28).** Every audio track runs the same
+post-machine signal chain regardless of machine type:
+
+```
+machine → FLTR (LP/HP/BP/Notch/OFF) → [ENVELOPE] → CHANNEL → inserts → sends
+```
+
+- **FLTR** — always present; default mode is **OFF** (bit-exact passthrough, no CPU cost).
+  Shared with the machine's FILTER section key on machines that don't own one natively;
+  VA/FM/DrumSynth (which have internal filters) get a second FLTR page appended.
+- **ENVELOPE** (AHDSR + gate source) — present only for machines that don't provide
+  their own amplitude envelope (`SamplerMachine`, `SlicerMachine`, `MidiOutMachine`).
+  VA/FM/DrumSynth handle amplitude internally and bypass this block.
+- **CHANNEL** (level, pan, sendA, sendB) — always present for all machines including
+  VA/FM/DrumSynth. P-locking `lockstep.amp.level` on any track audibly scales output.
+
 **Stepped (enum) parameter values.** These are the closed value sets the
 Manipulation Zone shows as text instead of numbers (from each machine's
 `ParamSpec.valueLabels`; exhaustive as of Phase 4):
 
 | Machine | Parameter | Values |
 |---|---|---|
+| *(all audio tracks)* | FLTR mode | `LP` · `HP` · `BP` · `NO` · `OFF` |
+| | FLTR slope | `12dB` · `24dB` |
+| | ENV gate src | `Envelope` · `Held-open` |
 | `SamplerMachine` | Loop mode | `OFF` · `SUS` · `S+R` · `ALL` |
 | | Retrig | `LEGATO` · `RETRIG` |
 | `SlicerMachine` | Mode | `SLICE` · `SCRUB` |
@@ -708,7 +727,7 @@ apply across the whole mix. MIDI-out tracks have no sends.
 | `BUS` | Bus Compressor | Thresh, Ratio, Atk, Rel (Auto), SC HPF, Mkup, Mix |
 | `UTL` | Master Utility | Tilt, Width (M/S), Trim (dB) |
 
-State round-trips in serializer v17.
+State round-trips in serializer v18.
 
 **Chance macro.** While `Func` is held, the Manipulation Zone switches to the
 **Chance** band: the eight encoders map to Chance Scale for each of the eight
@@ -1062,7 +1081,7 @@ buttons: **New**, **Open**, **Save**, and **Save As…**
 
 - **File format:** `.lockstep` files are plain UTF-8 XML — human-readable and
   git-diffable. They use the same versioned serializer as DAW session state
-  (currently v17), so the full upgrade chain applies on load.
+  (currently v18), so the full upgrade chain applies on load.
 - **New** — resets the project to the pristine default (one sampler track, no
   samples, no P-Locks). If the current project has unsaved changes a
   three-way **Save / Discard / Cancel** dialog appears first.

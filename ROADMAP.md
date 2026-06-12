@@ -10,16 +10,17 @@ satisfy, see `PRINCIPLES.md`. **Before adding a milestone here, confirm it is
 expressible within those principles and within the existing scope+verb grammar
 (DESIGN §13).**
 
-**Active focus:** Phase 8/9 ongoing. **8.26 master-bus re-arch + FX catalogue
-shipped** (2-insert + 2-send master bus, 13 effects, WAV capture, Animate for
-master units; serializer **v17**). **8.11 A-series closed** (A4 dispatch fully
-wired; Task B done). Open verification sweeps: `3.10` standalone,
-`7.8` VST3/CLAP v17 round-trip, `7.9e` vocabulary rename, `8.24` standalone
-visual smoke (picker → named confirm → YES/NO live colour).
-**Last completed:** `8.26` master-bus re-arch + FX catalogue.
-**Next up:** bug fixes (segfault on new project, filter drive) + track-DSP
-re-architecture (channel/env split + universal filter; `8.28`); `6.7` Machine
-Module ABI (gates the Phase 4 catalogue).
+**Active focus:** Phase 8/9 ongoing. **8.28 track channel/envelope split shipped**
+(CHANNEL always-on, ENVELOPE optional, FLTR universal with OFF mode, serializer
+**v18**, behavioral tests). **8.26 master-bus re-arch + FX catalogue shipped**
+(2-insert + 2-send master bus, 13 effects, WAV capture, Animate for master units).
+**8.11 A-series closed** (A4 dispatch fully wired; Task B done).
+Open verification sweeps: `3.10` standalone, `7.8` VST3/CLAP v18 round-trip,
+`7.9e` vocabulary rename, `8.24` standalone visual smoke
+(picker → named confirm → YES/NO live colour).
+**Last completed:** `8.28` track channel/envelope split + universal filter.
+**Next up:** `9.2` quit guard; `6.7` Machine Module ABI (gates the Phase 4 catalogue);
+gain-staging audit (A3); table refactors (C1, C3–C6).
 
 Phases 1–3 took Lockstep from an empty plugin to a frozen, playable performance
 surface; Phase 4 fills the machine catalogue; Phases 5–6 are the depth and
@@ -296,6 +297,8 @@ starting point for the refactor.
 - [x] Per-track post-machine AMP (AHDSR, pan, level, gate source
       `{Envelope|Held-open}`) in `Part::track[i].ampState`.
 - [x] Machine opt-out (`hasInternalFilter()` / `hasInternalAmp()`).
+  *(Note: `hasInternalFilter()` deleted in 8.28; FLTR is now always-present
+  with OFF mode. `hasInternalAmp()` retained to gate the ENVELOPE block only.)*
 
 ### 2.5 — MIDI-out machine (first-class)  *[shipped]*  *(was MF)*
 - [x] `MidiOutMachine` (`currentVoices() = V0`); schema `dest/channel/program/
@@ -1468,7 +1471,7 @@ Phase C: WAV capture.
 Per-sample one-pole smoothing (~5 ms) on all gain-path effect params.
 See DESIGN §32.3 "Smoothing policy" addendum.
 
-### 8.28 — Track channel/envelope split + universal filter  *[active]*
+### 8.28 — Track channel/envelope split + universal filter  *[shipped]*
 DESIGN §14 rewritten. Separates the conflated AMP block into a **CHANNEL** block
 (always-on: level/pan/sendA/sendB) and an optional **ENVELOPE** block (AHDSR +
 gate source; only for machines without `hasInternalAmp()`). Adds **OFF mode** to
@@ -1478,20 +1481,20 @@ filter as an additional page rather than bypassing it. Serializer bumped to v18
 (trivial stamp; string-keyed ids resolve unchanged).
 
 - [x] **B0** Docs: DESIGN §14 / §32.3 rewrite; ROADMAP entry. *(this item)*
-- [ ] **B1** Core state + DSP: `TrackChannelState` {level,pan,sendA,sendB};
+- [x] **B1** Core state + DSP: `TrackChannelState` {level,pan,sendA,sendB};
       `TrackEnvState` {gateSrc,AHDSR}; `TrackEnvDsp` (envelope-only);
       `TrackChannelDsp`; `TrackFltrState` OFF mode (value 4, early-exit, new-track default).
-- [ ] **B2** Slot layout + `hasInternalFilter()` delete; constexpr FLTR/CHANNEL/ENV
+- [x] **B2** Slot layout + `hasInternalFilter()` delete; constexpr FLTR/CHANNEL/ENV
       param-spec row tables (C2 folded in); all ~25 conditional-offset sites collapsed.
-- [ ] **B3** processBlock wiring: filter always → env iff `!hasInternalAmp()` →
+- [x] **B3** processBlock wiring: filter always → env iff `!hasInternalAmp()` →
       channel always → inserts → send taps; delete internal-amp send special case.
-- [ ] **B4** Section/page UI: virtual sections for track FLTR/CHANNEL on
+- [x] **B4** Section/page UI: virtual sections for track FLTR/CHANNEL on
       internal-amp/filter machines via `parentCanonical`.
-- [ ] **B5** Serializer v18; delete send special cases in write + load paths;
+- [x] **B5** Serializer v18; delete send special cases in write + load paths;
       v17-fixture upgrade tests.
-- [ ] **B6** Behavioural tests: channel P-Lock on VA, filter-OFF passthrough,
+- [x] **B6** Behavioural tests: channel P-Lock on VA, filter-OFF passthrough,
       filter-on-VA attenuates.
-- [ ] **B7** README + ROADMAP closeout.
+- [x] **B7** README + ROADMAP closeout.
 
 ---
 
