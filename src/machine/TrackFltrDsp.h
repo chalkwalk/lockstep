@@ -40,11 +40,20 @@ namespace lockstep
 
         // Process `numSamples` samples of `buf` in-place.
         // Scans `midi` for note-on/off to drive the Env->Cutoff follower.
+        // mode=4 (OFF) is a bit-exact passthrough: reset state once on entry, return.
         void processBlock(juce::AudioBuffer<float>& buf,
                           const juce::MidiBuffer& midi,
                           const TrackFltrState& fltr,
                           int numSamples) noexcept
         {
+            // OFF mode: bit-exact passthrough (DESIGN §14). Reset filter state once
+            // on transition so stale coefficients don't bleed when mode changes.
+            if (static_cast<int>(std::round(fltr.mode)) == 4)
+            {
+                reset();
+                return;
+            }
+
             // Update Env->Cutoff follower from MIDI events (block-level granularity)
             for (const auto meta : midi)
             {

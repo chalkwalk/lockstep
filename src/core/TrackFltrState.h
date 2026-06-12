@@ -8,7 +8,10 @@ namespace lockstep
     {
         static constexpr int kNumSlots = 6;
 
-        float mode = 0.0f;  // stepped: 0=LP, 1=HP, 2=BP, 3=Notch
+        // stepped: 0=LP, 1=HP, 2=BP, 3=Notch, 4=OFF (bit-exact passthrough, no DSP).
+        // 4=OFF is the new-track default (DESIGN §14). Values 0-3 are unchanged for
+        // v17 compatibility — stored floats in old saves resolve to the correct mode.
+        float mode = 4.0f;
         float slope = 1.0f;  // stepped: 0=12dB, 1=24dB; default 24dB
         float cutoff = 1.0f;  // 0..1 -> 20Hz..20kHz (log)
         float resonance = 0.0f;  // 0..1
