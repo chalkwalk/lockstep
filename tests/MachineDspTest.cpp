@@ -226,7 +226,9 @@ namespace lockstep
 
     // -----------------------------------------------------------------------
     // IEffect smoke test: fill buffer with a sine, process, assert no NaN.
-    static void smokeTestEffect(IEffect& fx, const char* name)
+    // Retained as a named helper for ad-hoc use; the catalogue loop in
+    // runMachineDspTests() does the same via inline code for all 13 effects.
+    [[maybe_unused]] static void smokeTestEffect(IEffect& fx, const char* name)
     {
         constexpr int kBlockSize = 256;
         constexpr double kSR = 48000.0;
@@ -738,23 +740,310 @@ namespace lockstep
             smokeTestSampleMachine(slicer, "SlicerMachine");
         }
 
-        // --- IEffect catalogue ---
+        // --- IEffect catalogue — all 13 effects ---
+        // Phase 1: for every catalogued effect, smoke-test at default params then
+        // at per-param min and max.
         {
-            const char* effectIds[] = {
-                "lockstep.delay.v1",
-                "lockstep.reverb.v1",
-                "lockstep.distortion.v1",
-                "lockstep.chorus.v1",
+            constexpr int kBlockSize = 256;
+            constexpr double kSR = 48000.0;
+
+            auto makeSine = [](juce::AudioBuffer<float>& buf) {
+                for (int ch = 0; ch < buf.getNumChannels(); ++ch)
+                    for (int i = 0; i < buf.getNumSamples(); ++i)
+                        buf.setSample(ch, i, std::sin(static_cast<float>(i) * 0.05f) * 0.35f);
             };
-            for (const char* id : effectIds)
+
+            const auto catalogue = availableEffects();
+            for (const auto& info : catalogue)
             {
-                auto fx = makeEffectForId(id);
-                if (fx == nullptr)
+                const std::string& id = info.id;
+
+                // Reusable source — fresh sine for every process() call so wet-only
+                // effects (mix=1) don't recirculate their own output as the next input.
+                juce::AudioBuffer<float> sineSource(2, kBlockSize);
+                makeSine(sineSource);
+
+                // -- Smoke at default params --
                 {
-                    CHECK(false, "makeEffectForId returned nullptr for " + juce::String(id));
-                    continue;
+                    auto fx = makeEffectForId(id);
+                    CHECK(fx != nullptr, "makeEffectForId returned nullptr for id=" + juce::String(id));
+                    if (!fx) continue;
+
+                    fx->prepare(kSR, kBlockSize);
+                    fx->reset();
+
+                    ParamFrame frame(static_cast<size_t>(fx->numParams()));
+                    for (int p = 0; p < fx->numParams(); ++p)
+                        frame[static_cast<size_t>(p)] = fx->paramSpec(p).defaultValue;
+
+                    juce::AudioBuffer<float> buf(2, kBlockSize);
+
+                    // 10 blocks with fresh sine each iteration (let smoothers settle).
+                    for (int b = 0; b < 10; ++b)
+                    {
+                        buf.makeCopyOf(sineSource);
+                        fx->process(buf, kBlockSize, frame);
+                    }
+
+                    CHECK(!hasNaNOrInf(buf), "effect smoke (default): NaN/Inf for " + juce::String(id));
+                    // delayhq default delay is 1/4 note (24000 samples, ~94 blocks at 256) —
+                    // silence on the first 10 blocks is expected; Phase 2 covers it explicitly.
+                    if (id != "lockstep.delayhq.v1")
+                        CHECK(blockRms(buf) > 1e-6f, "effect smoke (default): silent output for " + juce::String(id));
                 }
-                smokeTestEffect(*fx, id);
+
+                // -- Stress at min params --
+                {
+                    auto fx = makeEffectForId(id);
+                    if (!fx) continue;
+                    fx->prepare(kSR, kBlockSize);
+                    fx->reset();
+
+                    ParamFrame frame(static_cast<size_t>(fx->numParams()));
+                    for (int p = 0; p < fx->numParams(); ++p)
+                        frame[static_cast<size_t>(p)] = fx->paramSpec(p).minValue;
+
+                    juce::AudioBuffer<float> buf(2, kBlockSize);
+                    for (int b = 0; b < 20; ++b)
+                    {
+                        buf.makeCopyOf(sineSource);
+                        fx->process(buf, kBlockSize, frame);
+                    }
+
+                    CHECK(!hasNaNOrInf(buf), "effect stress (min): NaN/Inf for " + juce::String(id));
+                }
+
+                // -- Stress at max params --
+                {
+                    auto fx = makeEffectForId(id);
+                    if (!fx) continue;
+                    fx->prepare(kSR, kBlockSize);
+                    fx->reset();
+
+                    ParamFrame frame(static_cast<size_t>(fx->numParams()));
+                    for (int p = 0; p < fx->numParams(); ++p)
+                        frame[static_cast<size_t>(p)] = fx->paramSpec(p).maxValue;
+
+                    juce::AudioBuffer<float> buf(2, kBlockSize);
+                    for (int b = 0; b < 20; ++b)
+                    {
+                        buf.makeCopyOf(sineSource);
+                        fx->process(buf, kBlockSize, frame);
+                    }
+
+                    CHECK(!hasNaNOrInf(buf), "effect stress (max): NaN/Inf for " + juce::String(id));
+                }
+            }
+        }
+
+        // Phase 2: effect-specific assertions for the 9 new effects.
+        {
+            constexpr int kBlockSize = 256;
+            constexpr double kSR = 48000.0;
+
+            // Helper: approx-passthrough check (max abs diff < 1e-2).
+            auto checkPassthrough = [&](IEffect& fx, const ParamFrame& frame, const char* label) {
+                fx.prepare(kSR, kBlockSize);
+                fx.reset();
+                juce::AudioBuffer<float> dry(2, kBlockSize), wet(2, kBlockSize);
+                for (int ch = 0; ch < 2; ++ch)
+                    for (int i = 0; i < kBlockSize; ++i)
+                    {
+                        const float v = std::sin(static_cast<float>(i) * 0.05f) * 0.35f;
+                        dry.setSample(ch, i, v);
+                        wet.setSample(ch, i, v);
+                    }
+                // Settle smoothers first.
+                for (int b = 0; b < 10; ++b)
+                    fx.process(wet, kBlockSize, frame);
+                // Re-load dry and measure diff.
+                for (int ch = 0; ch < 2; ++ch)
+                    for (int i = 0; i < kBlockSize; ++i)
+                        wet.setSample(ch, i, dry.getSample(ch, i));
+                fx.process(wet, kBlockSize, frame);
+                float maxDiff = 0.0f;
+                for (int ch = 0; ch < 2; ++ch)
+                    for (int i = 0; i < kBlockSize; ++i)
+                        maxDiff = std::max(maxDiff, std::abs(wet.getSample(ch, i) - dry.getSample(ch, i)));
+                CHECK(maxDiff < 1e-2f,
+                      juce::String(label) + " passthrough: max diff=" + juce::String(maxDiff, 6) +
+                      " (expected < 0.01 at neutral settings)");
+            };
+
+            // tilt EQ: tilt=0, gain=0 → passthrough.
+            {
+                auto fx = makeEffectForId("lockstep.tilteq.v1");
+                if (fx)
+                {
+                    ParamFrame frame(static_cast<size_t>(fx->numParams()));
+                    for (int p = 0; p < fx->numParams(); ++p) frame[static_cast<size_t>(p)] = 0.0f;
+                    checkPassthrough(*fx, frame, "tilteq tilt=0/gain=0");
+                }
+            }
+
+            // Compressor: thresh=0 dBFS → compressor never fires (our sine is ~-9 dBFS);
+            // makeup=0 → unity gain; effectively passthrough.
+            // Note: kRatios[] = {2:1, 4:1, 8:1, 20:1} — no 1:1 option; use thresh to
+            // suppress compression instead.
+            {
+                auto fx = makeEffectForId("lockstep.comp.v1");
+                if (fx)
+                {
+                    ParamFrame frame(static_cast<size_t>(fx->numParams()));
+                    for (int p = 0; p < fx->numParams(); ++p)
+                        frame[static_cast<size_t>(p)] = fx->paramSpec(p).defaultValue;
+                    frame[0] = fx->paramSpec(0).maxValue;  // thresh=0 dBFS (never triggers)
+                    frame[4] = 0.0f;                        // makeup=0 dB
+                    checkPassthrough(*fx, frame, "comp thresh=0dBFS/makeup=0");
+                }
+            }
+
+            // Bitcrush: bits=max, rate=max → minimal crushing; mix=0 → passthrough.
+            {
+                auto fx = makeEffectForId("lockstep.bitcrush.v1");
+                if (fx)
+                {
+                    ParamFrame frame(static_cast<size_t>(fx->numParams()));
+                    for (int p = 0; p < fx->numParams(); ++p)
+                        frame[static_cast<size_t>(p)] = fx->paramSpec(p).defaultValue;
+                    frame[2] = 0.0f;  // mix=0 → dry passthrough
+                    checkPassthrough(*fx, frame, "bitcrush mix=0");
+                }
+            }
+
+            // Flanger: mix=0 → passthrough.
+            {
+                auto fx = makeEffectForId("lockstep.flanger.v1");
+                if (fx)
+                {
+                    ParamFrame frame(static_cast<size_t>(fx->numParams()));
+                    for (int p = 0; p < fx->numParams(); ++p)
+                        frame[static_cast<size_t>(p)] = fx->paramSpec(p).defaultValue;
+                    frame[3] = 0.0f;  // mix=0 → dry passthrough
+                    checkPassthrough(*fx, frame, "flanger mix=0");
+                }
+            }
+
+            // Phaser: mix=0 → passthrough.
+            {
+                auto fx = makeEffectForId("lockstep.phaser.v1");
+                if (fx)
+                {
+                    ParamFrame frame(static_cast<size_t>(fx->numParams()));
+                    for (int p = 0; p < fx->numParams(); ++p)
+                        frame[static_cast<size_t>(p)] = fx->paramSpec(p).defaultValue;
+                    frame[4] = 0.0f;  // mix=0 → dry passthrough
+                    checkPassthrough(*fx, frame, "phaser mix=0");
+                }
+            }
+
+            // Master Utility: tilt=0, width=1, trim=0 → passthrough.
+            {
+                auto fx = makeEffectForId("lockstep.mutility.v1");
+                if (fx)
+                {
+                    ParamFrame frame = { 0.0f, 1.0f, 0.0f };  // tilt, width, trim
+                    checkPassthrough(*fx, frame, "mutility tilt=0/width=1/trim=0");
+                }
+            }
+
+            // HQ Reverb: produces a tail (non-silence) after input stops.
+            {
+                auto fx = makeEffectForId("lockstep.verbhq.v1");
+                if (fx)
+                {
+                    fx->prepare(kSR, kBlockSize);
+                    fx->reset();
+                    ParamFrame frame(static_cast<size_t>(fx->numParams()));
+                    for (int p = 0; p < fx->numParams(); ++p)
+                        frame[static_cast<size_t>(p)] = fx->paramSpec(p).defaultValue;
+
+                    // Feed 10 blocks of fresh sine to fill the FDN delay lines.
+                    // Must copy fresh sine each iteration — mix=1 means fx->process()
+                    // replaces buf with wet output; reprocessing that would feed silence.
+                    // Shortest FDN line is ~30 ms (~5.5 blocks), so 10 blocks is enough.
+                    juce::AudioBuffer<float> sineRef(2, kBlockSize);
+                    for (int ch = 0; ch < 2; ++ch)
+                        for (int i = 0; i < kBlockSize; ++i)
+                            sineRef.setSample(ch, i, std::sin(static_cast<float>(i) * 0.05f) * 0.35f);
+
+                    juce::AudioBuffer<float> buf(2, kBlockSize);
+                    for (int b = 0; b < 10; ++b)
+                    {
+                        buf.makeCopyOf(sineRef);
+                        fx->process(buf, kBlockSize, frame);
+                    }
+
+                    // Then feed silence; the reverb tail should continue.
+                    buf.clear();
+                    float maxTailRms = 0.0f;
+                    for (int b = 0; b < 5; ++b)
+                    {
+                        buf.clear();
+                        fx->process(buf, kBlockSize, frame);
+                        maxTailRms = std::max(maxTailRms, blockRms(buf));
+                    }
+                    CHECK(maxTailRms > 1e-4f,
+                          "verbhq: no reverb tail after input stops (max tail RMS=" +
+                          juce::String(maxTailRms, 6) + ")");
+                }
+            }
+
+            // HQ Delay: a delayed copy appears after the dry block (mix=1, div=1/16).
+            {
+                auto fx = makeEffectForId("lockstep.delayhq.v1");
+                if (fx)
+                {
+                    fx->prepare(kSR, kBlockSize);
+                    fx->reset();
+                    fx->setTimeInfo(120.0);  // 120 BPM
+
+                    // time=0 (div index 0 = 1/16 note), feedback=0, mix=1.
+                    // 1/16 note at 120 BPM = 0.25 beats * (60/120 s/beat) * 48000 = 6000 samples.
+                    // 6000 / 256 = 23.4 blocks → delayed copy starts appearing mid-block 23
+                    // (silence blocks numbered from 0 after the initial sine block).
+                    ParamFrame frame(static_cast<size_t>(fx->numParams()));
+                    for (int p = 0; p < fx->numParams(); ++p)
+                        frame[static_cast<size_t>(p)] = fx->paramSpec(p).defaultValue;
+                    frame[0] = 0.0f;  // time=1/16 note (kDivBeats[0] = 0.25 beats)
+                    frame[1] = 0.0f;  // feedback=0
+                    frame[4] = 1.0f;  // mix=1 (full wet)
+
+                    // Feed one block of sine.
+                    juce::AudioBuffer<float> buf(2, kBlockSize);
+                    for (int ch = 0; ch < 2; ++ch)
+                        for (int i = 0; i < kBlockSize; ++i)
+                            buf.setSample(ch, i, std::sin(static_cast<float>(i) * 0.05f) * 0.35f);
+                    fx->process(buf, kBlockSize, frame);
+
+                    // Feed silence; check blocks 22-26 where the delayed copy appears.
+                    float maxDelayRms = 0.0f;
+                    for (int b = 0; b < 27; ++b)
+                    {
+                        buf.clear();
+                        fx->process(buf, kBlockSize, frame);
+                        if (b >= 22)
+                            maxDelayRms = std::max(maxDelayRms, blockRms(buf));
+                    }
+                    CHECK(maxDelayRms > 1e-4f,
+                          "delayhq: no delayed copy in expected window (blocks 22-26 RMS=" +
+                          juce::String(maxDelayRms, 6) + ")");
+                }
+            }
+
+            // Bus Compressor: thresh=0 (max, never fires), mix=1, makeup=0 → passthrough.
+            {
+                auto fx = makeEffectForId("lockstep.buscomp.v1");
+                if (fx)
+                {
+                    ParamFrame frame(static_cast<size_t>(fx->numParams()));
+                    for (int p = 0; p < fx->numParams(); ++p)
+                        frame[static_cast<size_t>(p)] = fx->paramSpec(p).defaultValue;
+                    frame[0] = fx->paramSpec(0).maxValue;  // thresh=0 dB (never triggers)
+                    frame[5] = 0.0f;                        // makeup=0 dB
+                    frame[6] = 1.0f;                        // mix=1
+                    checkPassthrough(*fx, frame, "buscomp thresh=0dB/makeup=0");
+                }
             }
         }
 
