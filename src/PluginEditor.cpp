@@ -1957,11 +1957,33 @@ namespace lockstep
                 }
 
                 // ----------------------------------------------------------------
-                // 6.5: Animate bypass — FX section key held + step
+                // 6.5 / 8.26: Animate bypass — FX section key held + step
                 // ----------------------------------------------------------------
                 if (heldSectionIndex_ == processor_.kFxSecIdx && !uiState_.funcHeld)
                 {
                     if (ev.index < 0 || ev.index >= 16) return true;
+
+                    // 8.26: Song+FX focus — target master units (picker must be closed).
+                    if (uiState_.masterSection == 5 && !uiState_.masterFxPickerOpen)
+                    {
+                        // Quadrant: 0-3→FX1, 4-7→FX2, 8-11→SndA, 12-15→SndB.
+                        const int unit = ev.index / 4;  // 0-3
+                        const bool isInsert = (unit < 2);
+                        const int slot = unit % 2;
+                        const bool loaded = isInsert
+                            ? !processor_.masterInsertId(slot).empty()
+                            : !processor_.masterSendId(slot).empty();
+                        if (loaded)
+                        {
+                            if (isInsert)
+                                processor_.setMasterInsertBypass(slot, true);
+                            else
+                                processor_.setMasterSendBypass(slot, true);
+                            animateBypassMasterUnit_ = unit;
+                        }
+                        return true;
+                    }
+
                     const int at = keyboardArea_.getActiveTrack();
                     if (at < 0 || at >= static_cast<int>(kNumTracks)) return true;
                     // Step index selects insert slot: 0-7 → slot 0, 8-15 → slot 1.
@@ -3203,12 +3225,23 @@ namespace lockstep
                     }
                 }
 
-                // 6.5 Animate bypass restore: step-up ends the momentary bypass.
+                // 6.5 / 8.26 Animate bypass restore: step-up ends the momentary bypass.
                 if (animateBypassTrack_ >= 0)
                 {
                     processor_.setTrackInsertBypass(animateBypassTrack_, animateBypassSlot_, false);
                     animateBypassTrack_ = -1;
                     animateBypassSlot_ = -1;
+                }
+                if (animateBypassMasterUnit_ >= 0)
+                {
+                    const int unit = animateBypassMasterUnit_;
+                    const bool isInsert = (unit < 2);
+                    const int slot = unit % 2;
+                    if (isInsert)
+                        processor_.setMasterInsertBypass(slot, false);
+                    else
+                        processor_.setMasterSendBypass(slot, false);
+                    animateBypassMasterUnit_ = -1;
                 }
 
                 // Func+Src+step: step release while funcSrcHeld → enter NoteEdit mode.

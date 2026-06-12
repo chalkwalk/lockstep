@@ -556,6 +556,79 @@ namespace lockstep
     }
 
     // -----------------------------------------------------------------------
+    // 8.26 Animate: setMasterSendBypass changes the output of an active send return.
+    // Uses distortion (drive=max, mix=1) on the send bus so the send contribution
+    // is large and clearly distinguishable from the direct drum signal.
+    static void testMasterSendBypassSilences()
+    {
+        // Harness A: active send (no bypass).
+        EngineHarness hOn;
+        installMachine(hOn.processor(), 0, DrumSynthMachine::kMachineId);
+        auto& step0on = hOn.processor().sequence().tracks[0].steps[0];
+        step0on.trig = true;
+        step0on.trigOverride.hasGate = true;
+        step0on.trigOverride.gateValue = MusicalGate::G1_8;
+        hOn.processor().kit(0).ampState.sendA = 1.0f;
+        hOn.processor().setMasterSend(0, "lockstep.distortion.v1");
+        hOn.processor().setMasterSendParam(0, 0, 1.0f);  // drive = max
+        hOn.processor().setMasterSendParam(0, 2, 1.0f);  // mix   = fully wet
+
+        // Harness B: send bypassed from the start.
+        EngineHarness hOff;
+        installMachine(hOff.processor(), 0, DrumSynthMachine::kMachineId);
+        auto& step0off = hOff.processor().sequence().tracks[0].steps[0];
+        step0off.trig = true;
+        step0off.trigOverride.hasGate = true;
+        step0off.trigOverride.gateValue = MusicalGate::G1_8;
+        hOff.processor().kit(0).ampState.sendA = 1.0f;
+        hOff.processor().setMasterSend(0, "lockstep.distortion.v1");
+        hOff.processor().setMasterSendParam(0, 0, 1.0f);
+        hOff.processor().setMasterSendParam(0, 2, 1.0f);
+        hOff.processor().setMasterSendBypass(0, true);
+
+        constexpr int kBlocks = 40;
+        double sumSqOn = 0.0, sumSqOff = 0.0;
+        bool nanOn = false, nanOff = false;
+
+        for (int b = 0; b < kBlocks; ++b)
+        {
+            hOn.renderBlocks(1);
+            hOff.renderBlocks(1);
+            if (hOn.lastBufferHasNaN()) nanOn = true;
+            if (hOff.lastBufferHasNaN()) nanOff = true;
+
+            const auto& bufOn  = hOn.buffer();
+            const auto& bufOff = hOff.buffer();
+            for (int ch = 0; ch < bufOn.getNumChannels(); ++ch)
+                for (int i = 0; i < bufOn.getNumSamples(); ++i)
+                {
+                    const double v1 = static_cast<double>(bufOn.getSample(ch, i));
+                    const double v2 = static_cast<double>(bufOff.getSample(ch, i));
+                    sumSqOn  += v1 * v1;
+                    sumSqOff += v2 * v2;
+                }
+        }
+
+        const int totalSamples = kBlocks * 256 * 2;
+        const float rmsOn  = static_cast<float>(std::sqrt(sumSqOn  / totalSamples));
+        const float rmsOff = static_cast<float>(std::sqrt(sumSqOff / totalSamples));
+
+        CHECK(!nanOn,  "8.26 send bypass: NaN/Inf with bypass off");
+        CHECK(!nanOff, "8.26 send bypass: NaN/Inf with bypass on");
+        CHECK(rmsOn > 1e-4f,
+              "8.26 send bypass: no audio with bypass off (RMS=" + juce::String(rmsOn) + ")");
+
+        // Bypass must change the output: distortion at max drive with mix=1 adds strong energy.
+        // Require at least a 10% RMS difference between bypassed and active runs.
+        const float diff = std::abs(rmsOn - rmsOff);
+        const float ref  = std::max(rmsOn, rmsOff);
+        CHECK(diff / ref > 0.10f,
+              "8.26 send bypass: bypassed and active send runs are nearly identical "
+              "(on=" + juce::String(rmsOn, 6) + " off=" + juce::String(rmsOff, 6) + ") "
+              "-- setMasterSendBypass may not be in the signal path");
+    }
+
+    // -----------------------------------------------------------------------
 
     void runEngineTests()
     {
@@ -572,5 +645,6 @@ namespace lockstep
         testMasterInsertRunsWhilePlaying();
         testV17StateRoundTrip();
         testV16UpgradeToV17();
+        testMasterSendBypassSilences();
     }
 }

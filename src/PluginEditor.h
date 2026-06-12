@@ -151,6 +151,8 @@ namespace lockstep
         // 6.5 Animate bypass: track/slot bypassed by FX-held + step; restored on step-up.
         int animateBypassTrack_ = -1;
         int animateBypassSlot_ = -1;
+        // 8.26 Animate: master unit (0=FX1, 1=FX2, 2=SndA, 3=SndB); -1=none.
+        int animateBypassMasterUnit_ = -1;
         juce::Component* keyListenerTarget_ = nullptr;
 
         InPluginTransport transport_;

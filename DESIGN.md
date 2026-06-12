@@ -3521,6 +3521,16 @@ written to the pattern); the effect's parameters are tweaked the normal way
 (encoders / P-Locks). Master inserts (§32.3) carry the same momentary toggle,
 giving a one-key master-FX punch-in without a master-FX mode.
 
+**Master-unit Animate under Song+FX focus (8.26).** When the Song+FX MetaSection
+is focused (`uiState_.masterSection == 5`) and the FX picker is closed, the same
+FX-held+step gesture targets the four master units instead of the active track's
+inserts. The step grid is divided into four quadrants: steps 0-3 momentarily bypass
+master FX1 (insert slot 0), steps 4-7 bypass master FX2 (insert slot 1), steps 8-11
+bypass master Send A (send slot 0), steps 12-15 bypass master Send B (send slot 1).
+The step is silently ignored if the targeted unit has no effect loaded, or if the FX
+picker is open (steps mean "choose effect" there). Release restores the bypass state.
+Track Animate remains available when Song+FX is not focused.
+
 ### 32.6 Performance capture (8.26)
 
 `Func+Song+Record` arms or disarms a live recording of the master output

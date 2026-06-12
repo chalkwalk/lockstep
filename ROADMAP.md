@@ -1460,6 +1460,12 @@ Phase C: WAV capture.
       at the end of `processBlock` in both transport paths.
 - [x] **C2** `Func+Song+Record` gesture; arm/disarm status chrome.
 - [x] **C3** Docs: DESIGN §32.6 capture subsection; README §5.20 + shortcut table.
+- [x] **A3/gap closure** (post-audit): A0 regression test; legato goldens for VA/FM;
+      retrig click-metric tests; effect smoke + specific assertions for all 13 effects;
+      serializer v17 round-trip + v16 upgrade tests; Animate for the 4 master units
+      (DESIGN §32.5 + Song+FX quadrant mapping; test pins `setMasterSendBypass`);
+      bugfix: internal-amp machines (DrumSynth/VA/FM/Sampler) never routed sendA/sendB
+      to master send buses (both transport paths fixed).
 
 ### 8.27 — Smoothing policy  *[shipped as part of 8.26-A]*
 Per-sample one-pole smoothing (~5 ms) on all gain-path effect params.
