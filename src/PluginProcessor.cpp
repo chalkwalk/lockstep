@@ -2855,11 +2855,34 @@ namespace lockstep
         return {};
     }
 
+    // Returns {mHasFltr, mHasAmp}: whether any machine paramSpec has sectionIndex
+    // == kFltrSecIdx (2) or kAmpSecIdx (3). Determines who owns canonical sections
+    // 2/3 and whether virtual extension sections are needed for the track DSP blocks.
+    static std::pair<bool, bool> machineOwnsFltrAmp(const IMachine& m) noexcept
+    {
+        bool hasFltr = false, hasAmp = false;
+        const int mnp = m.numParams();
+        for (int i = 0; i < mnp && !(hasFltr && hasAmp); ++i)
+        {
+            const int si = m.paramSpec(i).sectionIndex;
+            if (si == 2) hasFltr = true;
+            if (si == 3) hasAmp  = true;
+        }
+        return { hasFltr, hasAmp };
+    }
+
     int LockstepProcessor::numSections(int track) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return 0;
-        return machines_[static_cast<std::size_t>(track)]->numSections();
+        auto* m = machines_[static_cast<std::size_t>(track)].get();
+        if (m->isMidiOut())
+            return m->numSections();
+        // Virtual extension sections (parentCanonical = 2 or 3) are appended at
+        // indices >= kMaxSections so sectionsForKey() can find them.
+        const auto [mHasFltr, mHasAmp] = machineOwnsFltrAmp(*m);
+        const int base = std::max(m->numSections(), IMachine::kMaxSections);
+        return base + (mHasFltr ? 1 : 0) + (mHasAmp ? 1 : 0);
     }
 
     // Computes SectionInfo including firstSlot and pageCount from the machine's ParamSpec list.
@@ -2884,45 +2907,79 @@ namespace lockstep
             return { "FX", ins1Off, (np1 + np2 + kParamsPerPage - 1) / kParamsPerPage, -1 };
         }
 
-        // Post-machine FLTR block owns canonical section 2 (always for audio tracks).
-        if (sectionIndex == kFltrSecIdx && !m->isMidiOut())
+        if (m->isMidiOut())
         {
-            return { "FLTR",
-                     mnp,
-                     (kFltrSlots + kParamsPerPage - 1) / kParamsPerPage,
-                     -1 };
-        }
-
-        // Post-machine AMP section owns canonical section 3 for audio tracks:
-        // CHANNEL (level/pan/sendA/sendB) always; ENV only if !hasInternalAmp().
-        if (sectionIndex == kAmpSecIdx && !m->isMidiOut())
-        {
-            const int chanOff = mnp + kFltrSlots;
-            const int ampSlots = kChannelSlots + (m->hasInternalAmp() ? 0 : kEnvSlots);
-            return { "AMP",
-                     chanOff,
-                     (ampSlots + kParamsPerPage - 1) / kParamsPerPage,
-                     -1 };
-        }
-
-        SectionInfo info = m->section(sectionIndex);
-        // Compute firstSlot and slotCount from the ParamSpec list so callers
-        // don't have to query paramSpec() themselves.
-        info.firstSlot = -1;
-        int count = 0;
-        const int np = m->numParams();
-        for (int i = 0; i < np; ++i)
-        {
-            if (m->paramSpec(i).sectionIndex == sectionIndex)
+            SectionInfo info = m->section(sectionIndex);
+            info.firstSlot = -1;
+            int count = 0;
+            for (int i = 0; i < mnp; ++i)
             {
-                if (info.firstSlot < 0)
-                    info.firstSlot = i;
-                ++count;
+                if (m->paramSpec(i).sectionIndex == sectionIndex)
+                {
+                    if (info.firstSlot < 0) info.firstSlot = i;
+                    ++count;
+                }
+            }
+            info.pageCount = (count + kParamsPerPage - 1) / kParamsPerPage;
+            if (info.firstSlot >= 0 && info.pageCount < 1) info.pageCount = 1;
+            return info;
+        }
+
+        const auto [mHasFltr, mHasAmp] = machineOwnsFltrAmp(*m);
+        const int chanOff  = mnp + kFltrSlots;
+        const int ampSlots = kChannelSlots + (m->hasInternalAmp() ? 0 : kEnvSlots);
+
+        // Canonical FLTR section (2): track block owns it unless machine has params there.
+        if (sectionIndex == kFltrSecIdx && !mHasFltr)
+            return { "FLTR", mnp, (kFltrSlots + kParamsPerPage - 1) / kParamsPerPage, -1 };
+
+        // Canonical AMP section (3): track block owns it unless machine has params there.
+        if (sectionIndex == kAmpSecIdx && !mHasAmp)
+            return { "AMP", chanOff, (ampSlots + kParamsPerPage - 1) / kParamsPerPage, -1 };
+
+        // Machine-owned canonical sections.
+        if (sectionIndex < m->numSections())
+        {
+            SectionInfo info = m->section(sectionIndex);
+            info.firstSlot = -1;
+            int count = 0;
+            for (int i = 0; i < mnp; ++i)
+            {
+                if (m->paramSpec(i).sectionIndex == sectionIndex)
+                {
+                    if (info.firstSlot < 0) info.firstSlot = i;
+                    ++count;
+                }
+            }
+            info.pageCount = (count + kParamsPerPage - 1) / kParamsPerPage;
+            if (info.firstSlot >= 0 && info.pageCount < 1) info.pageCount = 1;
+            return info;
+        }
+
+        // Virtual extension sections: track DSP blocks appended when machine owns
+        // canonical sections 2/3. Indices start at max(m->numSections(), kMaxSections)
+        // so sectionsForKey()'s extension loop (s >= kMaxSections) finds them.
+        {
+            const int base = std::max(m->numSections(), IMachine::kMaxSections);
+            int virtIdx = sectionIndex - base;
+            if (virtIdx >= 0)
+            {
+                if (mHasFltr)
+                {
+                    if (virtIdx == 0)
+                        return { "FLTR", mnp,
+                                 (kFltrSlots + kParamsPerPage - 1) / kParamsPerPage,
+                                 kFltrSecIdx };
+                    --virtIdx;
+                }
+                if (mHasAmp && virtIdx == 0)
+                    return { "AMP", chanOff,
+                             (ampSlots + kParamsPerPage - 1) / kParamsPerPage,
+                             kAmpSecIdx };
             }
         }
-        info.pageCount = (count + kParamsPerPage - 1) / kParamsPerPage;
-        if (info.firstSlot >= 0 && info.pageCount < 1) info.pageCount = 1;
-        return info;
+
+        return {};
     }
 
     juce::String LockstepProcessor::idForSlot(int track, int index) const
