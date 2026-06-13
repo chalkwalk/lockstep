@@ -82,6 +82,11 @@ namespace lockstep
         {
             processor_ = std::make_unique<LockstepProcessor>();
             processor_->setPlayHead(&playHead_);
+            // A real host always calls setRateAndBufferSizeDetails() before
+            // prepareToPlay(); without it getSampleRate() returns 0, which zeroes
+            // every getSampleRate()-based calc in the audio path (e.g. musical-gate
+            // length → instant note-off → silent envelope machines). Mirror the host.
+            processor_->setRateAndBufferSizeDetails(kSampleRate, kBlockSize);
             processor_->prepareToPlay(kSampleRate, kBlockSize);
             // Start the in-plugin transport so sequencerRunning=true regardless
             // of which SyncMode the APVTS defaults to (Locked mode uses
