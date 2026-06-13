@@ -1,0 +1,31 @@
+diff --git a/modules/juce_audio_plugin_client/Standalone/juce_StandaloneFilterWindow.h b/modules/juce_audio_plugin_client/Standalone/juce_StandaloneFilterWindow.h
+index 75e932616f..51e2886268 100644
+--- a/modules/juce_audio_plugin_client/Standalone/juce_StandaloneFilterWindow.h
++++ b/modules/juce_audio_plugin_client/Standalone/juce_StandaloneFilterWindow.h
+@@ -778,12 +778,24 @@ public:
+         pluginHolder->startPlaying();
+     }
+ 
++    // Lockstep D2 — dirty-guard hook. When set, the callback receives the
++    // actual quit action (savePluginState + quit) so it can defer or cancel it
++    // (e.g. show a Save/Discard/Cancel dialog). Clear to restore default behaviour.
++    std::function<void (std::function<void()>)> onCloseRequested;
++
+     //==============================================================================
+     void closeButtonPressed() override
+     {
+-        pluginHolder->savePluginState();
++        auto doQuit = [this]
++        {
++            pluginHolder->savePluginState();
++            JUCEApplicationBase::quit();
++        };
+ 
+-        JUCEApplicationBase::quit();
++        if (onCloseRequested)
++            onCloseRequested (std::move (doQuit));
++        else
++            doQuit();
+     }
+ 
+     void handleMenuResult (int result)
