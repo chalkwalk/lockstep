@@ -270,7 +270,7 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Step-hold capture window** | The canonical chord-edit path: hold a step → play MIDI → each note-on snapshots all currently-held notes; release commits velocity (highest) and gate. Empty capture = no change. Independent of record-arm and transport. Multi-step: all held steps receive the same chord. |
 | **Note-count badge** | 1–4 stacked tick marks on the left edge of each step cell showing `trigOverride.noteCount` — immediately visible without entering any edit mode. |
 | **Note-edit mode** | `Func + Src + step` (the SRC key relabels NOTE; release the step while Func+Src held) enters a 1-octave chromatic keyboard on the step grid: cells 0–11 = C through B, 12–15 unused. Press a cell to toggle that pitch in the current view octave. Cross-octave instances show small octave-number badges. NavUp/NavDown shift the octave. Staged removals commit on Func release. |
-| **P-Lock clear gestures** | `Trig + Func + Stop` clears every P-Lock on the held step(s), leaving trig intact. `Trig + (active MZ slot) + Stop` clears only that one slot. `Func + step` enters P-Lock clear mode: cells re-skin orange showing only the *set* P-locks (packed, not by raw slot index); press a cell to stage it for removal, press again to cancel; release Func to commit all staged removals. |
+| **P-Lock clear gestures** | `Trig + Func + Clear` (`Trig + 1 + O`) clears every P-Lock on the held step(s), leaving trig and condition intact. `Trig + (active MZ slot) + Clear` clears only that one slot. `Func + step` enters P-Lock clear mode: cells re-skin orange showing only the *set* P-Locks (packed, not by raw slot index); press a cell to stage it for removal, press again to cancel; release Func to commit. `Trig + Func + No` (`Trig + 1 + P`) clears note / velocity / gate overrides only, leaving trig and P-Locks intact. The hint band shows these gestures automatically when a step with P-Locks or note overrides is held. |
 | **NoteSelection bias** | Per-track bias for chord-note spread when the machine voice count is smaller than the step's note count. `TopBias` (default) includes top + bottom and fills from the top; `BottomBias` fills from the bottom. Set in the TRIG meta-section, slot 3 (Bias = TOP / BOT). |
 | **Func+Track machine/Kit picker** | Hold Func (1) + Track (2) — the Track key relabels to KIT; step cells show available machine names. Press a step to assign that machine to the focused track. |
 
@@ -498,7 +498,7 @@ actually lives on `P`.)
 | `U` | **REC** | Toggle record-arm (double-tap = overdub) | **Copy** scope → clipboard | **Omni copy** (scene + track + phrase) |
 | `I` | **PLAY** | Play / Stop transport (double-tap = stop-to-top) | **Paste** clipboard → scope | **Unqualified paste** (stamp the one captured layer) |
 | `O` | **CLEAR** | Clear active P-Lock slot (`Scene`/`Phrase` held = cancel queued scene; `Song` held = Panic) | **Clear** scope contents | **Delete** — opens deletion picker (see §5.4a) |
-| `P` | **YES** | Confirm a pending prompt (green = YES / red under Func = NO) | Scope confirm (dims on most scopes) | **No** / cancel a pending prompt |
+| `P` | **YES** | Confirm a pending prompt (green = YES / red under Func = NO) | **Quantize** (Trig/Track/Phrase scope: zero microOffset on held steps / whole track / all tracks); scope confirm (dims on Scene/Morph/Song/Mute/Fill) | **No** / cancel a pending prompt |
 
 > **Checkpoint push/restore.** Push is the bare `Y`(SNAP) key; restore is
 > `Func+Y`(RESTORE). Both are *scope-respecting*: with no scope held the
@@ -765,7 +765,7 @@ A single uniform grammar — **hold scope, press verb**:
 
 | Scope held | + Copy (`U`/Rec) | + Paste (`I`/Play) | + Clear (`O`/Clear) |
 |---|---|---|---|
-| **Trig** (1+ steps) | Copy steps (trigs + conditions + P-Locks) | Paste onto held steps | Clear held steps' overrides |
+| **Trig** (1+ steps) | Copy steps (trigs + conditions + P-Locks) | Paste onto held steps | Full clear: trig off + condition reset + all P-Locks. `Func+Clear` = P-Locks only (keep trig). `Func+No` = note/velocity/gate only (keep trig + P-Locks). |
 | **Section** key | Copy that section's params | Paste section to current track | Reset section to default |
 | **Track** (specific) | Copy whole track | Paste track | Clear track steps (keeps length/divider/base) |
 | **Phrase** (`Q`) | Copy whole phrase (all tracks' steps) | Paste phrase | Clear phrase |
@@ -1164,7 +1164,7 @@ shipped behaviour and the design intent. To avoid confusion:
   song-track + scene-all, ±50%, `effectiveSwing = clamp(sum, ±50%)`); morph-style
   qualifier editing (hold Song or Scene while TRACK meta is open to retarget the
   Swing encoder); sample-accurate look-ahead scheduler; live-record residual capture;
-  `Quantize` verb (`scope + No` zeros microOffset); amber/cyan step-grid nudge ticks;
+  `Quantize` verb (`scope + Yes` zeros microOffset — see §5.3); amber/cyan step-grid nudge ticks;
   TRACK band effective-swing readout.
 
 - **Retrig / ratchet overlay** (`Fill+TRIG` rate picker + per-step bake) and

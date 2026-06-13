@@ -1174,16 +1174,44 @@ namespace lockstep
                         const int stepNum = ec.heldStepIndex() + 1;
                         const int cnt = static_cast<int>(ec.heldSteps().size());
                         ctx = cnt > 1
-                                  ? juce::String(cnt) + " STEPS  |  turn knob to P-Lock"
-                                  : "STEP " + juce::String(stepNum) + "  |  turn knob to P-Lock";
+                                  ? juce::String(cnt) + " STEPS  |  knob = P-Lock"
+                                  : "STEP " + juce::String(stepNum) + "  |  knob = P-Lock";
+                        if (!ui.funcHeld)
+                        {
+                            // Show content-aware clear hints on single-step holds.
+                            if (cnt == 1)
+                            {
+                                const int t = ec.heldTrackIndex();
+                                const int si = ec.heldStepIndex();
+                                if (t >= 0 && t < static_cast<int>(kNumTracks)
+                                    && si >= 0 && si < kMaxStepsPerTrack)
+                                {
+                                    const auto& s = processor_.sequence()
+                                                        .tracks[static_cast<std::size_t>(t)]
+                                                        .steps[static_cast<std::size_t>(si)];
+                                    if (!s.overrides.empty())
+                                        ctx += "  |  Func+Clear = wipe P-Locks";
+                                    if (s.trigOverride.noteCount > 0)
+                                        ctx += "  |  Func+No = clear notes";
+                                }
+                            }
+                            ctx += "  |  Yes = Quantize";
+                        }
                     }
                     // Primary scope token. MHZ.9.7: show mode-cycle hint when Track+Control-All.
                     else if (ui.trackHeld && processor_.controlAllActive())
                     {
                         ctx = juce::String(u8"TRACK  |  ↑↓ cycle PLAY/CHROM/LEVLS");
                     }
-                    else if (ui.trackHeld) ctx = "TRACK " + juce::String(keyboardArea_.getActiveTrack() + 1);
-                    else if (ui.phraseScopeHeld) ctx = "PHRASE";
+                    else if (ui.trackHeld)
+                    {
+                        ctx = "TRACK " + juce::String(keyboardArea_.getActiveTrack() + 1);
+                        if (!ui.funcHeld) ctx += "  |  Yes = Quantize";
+                    }
+                    else if (ui.phraseScopeHeld)
+                    {
+                        ctx = ui.funcHeld ? "PHRASE" : "PHRASE  |  Yes = Quantize";
+                    }
                     else if (ui.sceneHeld) ctx = "SCENE";
                     else if (ui.morphHeld) ctx = "MORPH";
                     else if (ui.songHeld) ctx = "SONG";
