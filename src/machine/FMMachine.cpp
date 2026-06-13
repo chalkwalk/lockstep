@@ -604,7 +604,7 @@ namespace lockstep
         { "fm_mod_s3_d4", "3->4", -1.f, 1.f, 0.f, 1.f, 0, fm_u::None, fm_r::None, 0, 6, 0, nullptr }, // 51
         { "fm_mod_s4_d4", "4->4", -1.f, 1.f, 0.f, 1.f, 0, fm_u::None, fm_r::None, 0, 6, 0, nullptr }, // 52
     // --- VOICE (section 7) ---
-        { "fm_voice_mode", "Voice", 0.f, 1.f, 0.f, 1.f, 1, fm_u::None, fm_r::None, 0, 7, 0, kFMVoiceModeLabels }, // 53
+        { "fm_voice_mode", "Voice", 0.f, 1.f, 1.f, 1.f, 1, fm_u::None, fm_r::None, 0, 7, 0, kFMVoiceModeLabels }, // 53
     };
     static_assert(std::size(kFMParams) == FMMachine::kNumSlots,
                   "kFMParams row count must equal kNumSlots");
