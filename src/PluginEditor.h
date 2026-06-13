@@ -50,6 +50,8 @@ namespace lockstep
         void parentHierarchyChanged() override;
         void focusLost(FocusChangeType cause) override;
         void mouseDown(const juce::MouseEvent& e) override;
+        void mouseDrag(const juce::MouseEvent& e) override;
+        void mouseUp(const juce::MouseEvent& e) override;
 
         // juce::FileDragAndDropTarget
         bool isInterestedInFileDrag(const juce::StringArray& files) override;
@@ -153,6 +155,17 @@ namespace lockstep
         int animateBypassSlot_ = -1;
         // 8.26 Animate: master unit (0=FX1, 1=FX2, 2=SndA, 3=SndB); -1=none.
         int animateBypassMasterUnit_ = -1;
+
+        // Item 7 — meter drag: vertical drag on a track button adjusts its AMP level
+        // (left-click drag) or sendA (right-click drag).
+        struct MeterDrag
+        {
+            int track = -1;
+            int paramSlot = -1;
+            float startValue = 0.0f;
+            float paramMax = 1.0f;
+            int startY = 0;
+        } meterDrag_;
         juce::Component* keyListenerTarget_ = nullptr;
 
         InPluginTransport transport_;

@@ -486,6 +486,7 @@ namespace lockstep
                                      juce::Colours::transparentBlack);
             trackBtns_[ti].setColour(juce::TextButton::textColourOffId, juce::Colours::white);
             trackBtns_[ti].setColour(juce::TextButton::textColourOnId, juce::Colours::white);
+            trackBtns_[ti].addMouseListener(this, false);  // meter drag
             addAndMakeVisible(trackBtns_[ti]);
 
             muteBtns_[ti].setButtonText("M");
@@ -926,6 +927,26 @@ namespace lockstep
 
     void LockstepEditor::mouseDown(const juce::MouseEvent& e)
     {
+        // Meter drag: vertical drag on a track button sets AMP level (left) or sendA (right).
+        meterDrag_ = {};
+        for (int i = 0; i < static_cast<int>(kNumTracks); ++i)
+        {
+            if (e.eventComponent != &trackBtns_[static_cast<std::size_t>(i)])
+                continue;
+            const juce::String paramId = e.mods.isRightButtonDown()
+                                             ? "lockstep.amp.sendA"
+                                             : "lockstep.amp.level";
+            const int slot = processor_.slotForId(i, paramId);
+            if (slot < 0) break;
+            const auto spec = processor_.paramSpec(i, slot);
+            meterDrag_.track = i;
+            meterDrag_.paramSlot = slot;
+            meterDrag_.startValue = processor_.baseParamValue(i, slot);
+            meterDrag_.paramMax = spec.maxValue > spec.minValue ? spec.maxValue : 1.0f;
+            meterDrag_.startY = e.getScreenY();
+            break;
+        }
+
         if (e.eventComponent != &crossfader_ || !e.mods.isRightButtonDown())
             return;
         // Right-click on crossfader: show MIDI-learn / clear menu (DESIGN §17.5).
@@ -962,6 +983,22 @@ namespace lockstep
                     processor_.startLearn(CCScope::Crossfader, -1, -1);
                 }
             });
+    }
+
+    void LockstepEditor::mouseDrag(const juce::MouseEvent& e)
+    {
+        if (meterDrag_.track < 0) return;
+        const float kDragScale = 200.0f;  // pixels for full range
+        const int dy = meterDrag_.startY - e.getScreenY();
+        const float delta = static_cast<float>(dy) / kDragScale * meterDrag_.paramMax;
+        const float newVal = juce::jlimit(0.0f, meterDrag_.paramMax,
+                                          meterDrag_.startValue + delta);
+        processor_.writeParam(meterDrag_.track, meterDrag_.paramSlot, newVal);
+    }
+
+    void LockstepEditor::mouseUp(const juce::MouseEvent& /*e*/)
+    {
+        meterDrag_ = {};
     }
 
     void LockstepEditor::paint(juce::Graphics& g)
