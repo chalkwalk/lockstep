@@ -104,6 +104,15 @@ namespace lockstep
         return stepArea.removeFromBottom(kNavRowH);
     }
 
+    bool KeyboardArea::navStripOverlayActive() const noexcept
+    {
+        return uiState_.masterFxPickerOpen
+            || uiState_.funcFxHeld
+            || uiState_.funcTrackHeld
+            || (uiState_.noteEditMode && !uiState_.noteEditSteps.empty())
+            || (uiState_.trigGridMode != TrigGridMode::Default);
+    }
+
     // -------------------------------------------------------------------------
     // Track / page
 
@@ -426,14 +435,17 @@ namespace lockstep
         return true;
     }
 
-    void KeyboardArea::selectMetaSection(int sectionIndex)
+    void KeyboardArea::selectMetaSection(int sectionIndex, bool toggle)
     {
         // sectionIndex is a meta CONTENT index (0/1/2/5), not a Func-row label
         // slot — scope gestures (Track+TRIG, Phrase+LEN, Song+FX) reach content
         // the Func row no longer advertises, so validate against the content set.
         if (!metaContentExists(sectionIndex))
             return;
-        uiState_.masterSection = (uiState_.masterSection == sectionIndex) ? -1 : sectionIndex;
+        if (toggle)
+            uiState_.masterSection = (uiState_.masterSection == sectionIndex) ? -1 : sectionIndex;
+        else
+            uiState_.masterSection = sectionIndex;
         repaint();
         if (onMetaSectionChanged)
             onMetaSectionChanged(uiState_.masterSection);
@@ -1027,9 +1039,8 @@ namespace lockstep
         if (uiState_.funcFxHeld)
         {
             const juce::Colour fxTint = col(compatColour(CellState::EffectAvailable));
+            const juce::Colour otherTint = col(compatColour(CellState::EffectLoadedOther));
             const int numEffects = processor_.numAvailableEffects();
-            const juce::String loadedId = processor_.trackInsertId(uiState_.activeTrack,
-                                                                   uiState_.funcFxInsertSlot);
 
             for (int row = 0; row < kRows; ++row)
             {
@@ -1039,6 +1050,7 @@ namespace lockstep
                     const SurfaceCell& sc = model.step[static_cast<std::size_t>(idx)];
                     const bool avail = sc.base != CellState::MachineUnavailable;
                     const bool isCurrent = sc.base == CellState::EffectLoaded;
+                    const bool isOther = sc.base == CellState::EffectLoadedOther;
 
                     const int x = colX(row, col2 + 2);
                     const int y = rowY(row);
@@ -1051,6 +1063,11 @@ namespace lockstep
                     {
                         g.setColour(juce::Colours::white.withAlpha(0.60f));
                         g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
+                    }
+                    else if (avail && isOther)
+                    {
+                        g.setColour(otherTint.withAlpha(0.45f));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
                     }
                     else if (avail)
                     {
@@ -1071,7 +1088,7 @@ namespace lockstep
                         const bool trackVisible = !fxInfo.masterOnly;
                         const juce::String name{ fxInfo.name.c_str() };
                         g.setColour(juce::Colours::white.withAlpha(
-                            trackVisible ? (isCurrent ? 0.90f : 0.65f) : 0.20f));
+                            trackVisible ? (isCurrent ? 0.90f : (isOther ? 0.55f : 0.65f)) : 0.20f));
                         g.setFont(juce::Font(juce::FontOptions(8.5f)));
                         g.drawText(name, cell.reduced(2), juce::Justification::centred, true);
                     }
@@ -1093,13 +1110,8 @@ namespace lockstep
         if (uiState_.masterFxPickerOpen)
         {
             const juce::Colour fxTint = col(compatColour(CellState::EffectAvailable));
+            const juce::Colour otherTint = col(compatColour(CellState::EffectLoadedOther));
             const int numEffects = processor_.numAvailableEffects();
-            // 8.26: units 0-1 = master inserts, units 2-3 = send returns.
-            const int mUnit = uiState_.masterFxInsertSlot;
-            const bool mIsSend = (mUnit >= 2);
-            const int mSlot = mIsSend ? mUnit - 2 : mUnit;
-            const std::string loadedId = mIsSend ? processor_.masterSendId(mSlot)
-                                                  : processor_.masterInsertId(mSlot);
 
             for (int row = 0; row < kRows; ++row)
             {
@@ -1108,7 +1120,8 @@ namespace lockstep
                     const int idx = row * kCols + col2;
                     const SurfaceCell& sc = model.step[static_cast<std::size_t>(idx)];
                     const bool avail = sc.base != CellState::MachineUnavailable;
-                    const bool isCurrent = (idx < numEffects) && (processor_.availableEffectInfo(idx).id == loadedId);
+                    const bool isCurrent = sc.base == CellState::EffectLoaded;
+                    const bool isOther = sc.base == CellState::EffectLoadedOther;
 
                     const int x = colX(row, col2 + 2);
                     const int y = rowY(row);
@@ -1121,6 +1134,11 @@ namespace lockstep
                     {
                         g.setColour(juce::Colours::white.withAlpha(0.60f));
                         g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
+                    }
+                    else if (avail && isOther)
+                    {
+                        g.setColour(otherTint.withAlpha(0.45f));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
                     }
                     else if (avail)
                     {
@@ -1137,7 +1155,7 @@ namespace lockstep
                     if (avail && idx < numEffects)
                     {
                         const juce::String name{ processor_.availableEffectInfo(idx).name.c_str() };
-                        g.setColour(juce::Colours::white.withAlpha(isCurrent ? 0.90f : 0.65f));
+                        g.setColour(juce::Colours::white.withAlpha(isCurrent ? 0.90f : (isOther ? 0.55f : 0.65f)));
                         g.setFont(juce::Font(juce::FontOptions(8.5f)));
                         g.drawText(name, cell.reduced(2), juce::Justification::centred, true);
                     }

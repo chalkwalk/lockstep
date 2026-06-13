@@ -45,7 +45,7 @@ namespace lockstep
 
         // Section API (was in SectionBar)
         bool selectSection(int sectionIndex);
-        void selectMetaSection(int sectionIndex);
+        void selectMetaSection(int sectionIndex, bool toggle = true);
         // True if the section key carries a Func-row secondary (COND/NOTE only).
         static bool isReservedMeta(int sectionIndex);
         // True if metaSection_=contentIndex is a real MZ group (0/1/2/5).
@@ -59,6 +59,11 @@ namespace lockstep
 
         // Returns the nav-strip (64-step overview) bounds in this component's local space.
         juce::Rectangle<int> navAreaBounds() const;
+
+        // True when an overlay (FX picker, note edit, machine picker, etc.) is drawing
+        // its own banner over the nav strip. Used by the editor to suppress the floating
+        // context pill that would otherwise overlap the overlay's banner.
+        bool navStripOverlayActive() const noexcept;
 
 
         // Callbacks
