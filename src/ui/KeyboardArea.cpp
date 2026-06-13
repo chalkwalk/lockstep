@@ -1238,7 +1238,7 @@ namespace lockstep
                                                 .steps[static_cast<std::size_t>(stepIdx)];
                             for (int n = 0; n < s.trigOverride.noteCount; ++n)
                             {
-                                const int noteVal = s.trigOverride.notes[n];
+                                const int noteVal = s.trigOverride.notes[static_cast<std::size_t>(n)];
                                 if (noteVal % 12 != semitone) continue;
                                 const int noteOctave = noteVal / 12 - 1;
                                 if (noteOctave == octave) continue;
@@ -1283,7 +1283,7 @@ namespace lockstep
                             int totalW = -gap;
                             for (const auto& gl : glyphs)
                             {
-                                const int w = juce::roundToInt(badgeFont.getStringWidthFloat(gl)) + 6;
+                                const int w = juce::roundToInt(juce::GlyphArrangement::getStringWidth(badgeFont, gl)) + 6;
                                 widths.push_back(w);
                                 totalW += w + gap;
                             }

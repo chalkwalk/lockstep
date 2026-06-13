@@ -34,15 +34,19 @@ namespace lockstep
                 return false;
 
             juce::WavAudioFormat wav;
-            auto os = std::unique_ptr<juce::FileOutputStream>(destFile.createOutputStream());
+            std::unique_ptr<juce::OutputStream> os(destFile.createOutputStream());
             if (!os) return false;
 
-            // 32-bit float WAV, no metadata.
-            auto* writer = wav.createWriterFor(os.get(),
-                sampleRate, static_cast<unsigned int>(numChannels), 32, {}, 0);
+            // 32-bit float WAV, no metadata. createWriterFor moves ownership of the
+            // stream into the writer on success.
+            const auto options = juce::AudioFormatWriterOptions{}
+                                     .withSampleRate(sampleRate)
+                                     .withNumChannels(numChannels)
+                                     .withBitsPerSample(32)
+                                     .withSampleFormat(juce::AudioFormatWriterOptions::SampleFormat::floatingPoint);
+            auto writer = wav.createWriterFor(os, options);
             if (!writer)
                 return false;
-            os.release();  // writer now owns the stream
 
             destFile_ = destFile;
             samplesWritten_ = 0;
@@ -56,7 +60,7 @@ namespace lockstep
             // Buffer: ~4 seconds of audio at the given rate.
             const int bufferSamples = static_cast<int>(sampleRate * 4.0);
             auto tw = std::make_unique<juce::AudioFormatWriter::ThreadedWriter>(
-                writer, *thread_, bufferSamples);
+                writer.release(), *thread_, bufferSamples);
             threadedWriter_.reset(tw.release());
             capturing_.store(true, std::memory_order_release);
             return true;

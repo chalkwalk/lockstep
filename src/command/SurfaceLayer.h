@@ -5,7 +5,7 @@
 namespace lockstep
 {
     struct UiState;
-    struct EditContext;
+    class EditContext;
 
   // The active step-grid rendering layer — the single SSOT for which overlay
   // is shown on the step grid and drives dispatch. Priority order: first match wins.

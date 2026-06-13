@@ -352,8 +352,8 @@ namespace lockstep
           keyboardArea_(proc, uiState_),
           manipulationZone_(proc, keyboardArea_),
           poolOverlay_(proc),
-          soundBankOverlay_(proc),
-          editorEffects_(std::make_unique<EditorEffects>(*this))
+          editorEffects_(std::make_unique<EditorEffects>(*this)),
+          soundBankOverlay_(proc)
     {
         // Load persisted display mode.
         {
@@ -3131,6 +3131,7 @@ namespace lockstep
             default:
                 return false;
         }
+        return false;
     }
 
     bool LockstepEditor::keyPressed(const juce::KeyPress& key, juce::Component*)

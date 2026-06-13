@@ -344,19 +344,20 @@ namespace lockstep
     {
         // Neutrals.
         constexpr uint8_t kOff = 0, kWhite = 119, kGreyMid = 2, kGreyDim = 71;
-        // Bold hues — active / high-importance states.
-        constexpr uint8_t kAmber = 9, kRed = 5, kGreen = 21, kOrange = 61,
-                          kBlue = 46, kCyan = 37, kAzure = 41, kIndigo = 50,
-                          kMagenta = 53, kGold = 97, kChartreuse = 17,
-                          kSpring = 25, kViolet = 80, kTeal = 34, kLime = 18,
-                          kRose = 57;
+        // Bold hues — active / high-importance states. (Reference palette: some
+        // entries are unused today but kept for completeness.)
+        [[maybe_unused]] constexpr uint8_t kAmber = 9, kRed = 5, kGreen = 21, kOrange = 61,
+                                           kBlue = 46, kCyan = 37, kAzure = 41, kIndigo = 50,
+                                           kMagenta = 53, kGold = 97, kChartreuse = 17,
+                                           kSpring = 25, kViolet = 80, kTeal = 34, kLime = 18,
+                                           kRose = 57;
         // Step-grid green variants.
-        constexpr uint8_t kGreenDim = 23, kTealDk = 31;
+        [[maybe_unused]] constexpr uint8_t kGreenDim = 23, kTealDk = 31;
         // Dark hues — resting modifiers / dim variants.
-        constexpr uint8_t kAmberDk = 11, kCyanDk = 39, kSpringDk = 27,
-                          kIndigoDk = 51, kGoldDk = 15, kMagentaDk = 55,
-                          kRedDk = 7, kChartreuseDk = 19, kAzureDk = 43,
-                          kOrangeDk = 10;
+        [[maybe_unused]] constexpr uint8_t kAmberDk = 11, kCyanDk = 39, kSpringDk = 27,
+                                           kIndigoDk = 51, kGoldDk = 15, kMagentaDk = 55,
+                                           kRedDk = 7, kChartreuseDk = 19, kAzureDk = 43,
+                                           kOrangeDk = 10;
         // Navigation slate.
         constexpr uint8_t kSlate = 103;
     }

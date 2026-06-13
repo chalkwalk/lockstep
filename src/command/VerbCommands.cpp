@@ -6,7 +6,7 @@
 
 namespace lockstep::verbs
 {
-    bool trig(ControllerButton verb, CommandContext& ctx, CommandEffects& fx)
+    bool trig(ControllerButton verb, CommandContext& ctx, [[maybe_unused]] CommandEffects& fx)
     {
         using CB = ControllerButton;
 
@@ -254,7 +254,7 @@ namespace lockstep::verbs
         return false;
     }
 
-    bool section(ControllerButton verb, CommandContext& ctx, CommandEffects& fx)
+    bool section(ControllerButton verb, CommandContext& ctx, [[maybe_unused]] CommandEffects& fx)
     {
         using CB = ControllerButton;
         const int at = ctx.uiState.activeTrack;

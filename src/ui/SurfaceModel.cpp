@@ -1037,7 +1037,7 @@ namespace lockstep
                         }();
                         for (int n = 0; n < s.trigOverride.noteCount; ++n)
                         {
-                            const int noteVal = s.trigOverride.notes[n];
+                            const int noteVal = s.trigOverride.notes[static_cast<std::size_t>(n)];
                             if (noteVal % 12 != semitone) continue;
                             if (noteVal / 12 - 1 == octave)
                             {
