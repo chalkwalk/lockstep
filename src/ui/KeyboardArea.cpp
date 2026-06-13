@@ -98,6 +98,12 @@ namespace lockstep
         return computeRowAreas().step.getY();
     }
 
+    juce::Rectangle<int> KeyboardArea::navAreaBounds() const
+    {
+        auto stepArea = computeRowAreas().step;
+        return stepArea.removeFromBottom(kNavRowH);
+    }
+
     // -------------------------------------------------------------------------
     // Track / page
 

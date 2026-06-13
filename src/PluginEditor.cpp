@@ -1216,6 +1216,24 @@ namespace lockstep
 
                 // Transient CPC status overlays the context-HUD for ~1.5s.
                 paintStatus(g, r);
+
+                // Hint pill floating over the mini-sequencer strip.
+                {
+                    const auto navLocal = keyboardArea_.navAreaBounds();
+                    const auto navInEditor = navLocal.translated(
+                        keyboardArea_.getX(), keyboardArea_.getY());
+                    const int pillH = 18;
+                    const int pillW = juce::jmin(360, navInEditor.getWidth() - 16);
+                    const auto pill = juce::Rectangle<int>(
+                        navInEditor.getCentreX() - pillW / 2,
+                        navInEditor.getCentreY() - pillH / 2,
+                        pillW, pillH);
+                    g.setColour(juce::Colour(0xCC1E2028u));
+                    g.fillRoundedRectangle(pill.toFloat(), 8.0f);
+                    g.setColour(juce::Colour(0xFFCCDDEEu));
+                    g.setFont(juce::Font(juce::FontOptions(11.0f)));
+                    g.drawText(ctx, pill.reduced(6, 0), juce::Justification::centred, true);
+                }
             }
         }
 

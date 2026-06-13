@@ -57,6 +57,10 @@ namespace lockstep
         // Used by the editor to position the pool overlay.
         int stepRowsLocalY() const;
 
+        // Returns the nav-strip (64-step overview) bounds in this component's local space.
+        juce::Rectangle<int> navAreaBounds() const;
+
+
         // Callbacks
         std::function<void(int)> onActiveTrackChanged;
         std::function<void(GridDisplayMode)> onDisplayModeChanged;
