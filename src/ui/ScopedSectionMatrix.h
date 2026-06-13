@@ -21,8 +21,9 @@ namespace lockstep
 
     struct ScopedCellInfo
     {
-        const char* label = nullptr;  // nullptr = use machine/canonical label
+        const char* label = nullptr;     // nullptr = use machine/canonical label
         bool hasContent = false;
+        const char* funcLabel = nullptr; // nullptr = no Func secondary in scoped mode
     };
 
     // Returns the cell info for the given (scope, section) pair.
@@ -78,12 +79,12 @@ namespace lockstep
         } };
 
         static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kSong = { {
-            { nullptr, false },   // dim — no content planned
-            { nullptr, false },   // dim — no content planned
-            { nullptr, false },   // FLTR — master FLTR (MV, not yet implemented)
-            { nullptr, false },   // AMP — master gain + sends (MV, not yet implemented)
-            { nullptr, false },   // dim — no content planned
-            { "GLBL", true },   // GLOBAL meta: output gain / sync / clock (DESIGN §6.2)
+            { nullptr, false },          // dim — no content planned
+            { nullptr, false },          // dim — no content planned
+            { nullptr, false },          // FLTR — master FLTR (MV, not yet implemented)
+            { nullptr, false },          // AMP — master gain + sends (MV, not yet implemented)
+            { nullptr, false },          // dim — no content planned
+            { "FX", true, "PICK FX" },   // master FX inserts/sends; Func+Song+FX = picker
         } };
 
         if (section < 0 || section >= IMachine::kMaxSections)

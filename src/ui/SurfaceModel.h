@@ -102,6 +102,7 @@ namespace lockstep
         // FX insert picker (6.5): Func+FX re-skins the step grid to the effect catalogue.
         EffectAvailable = 140,  // an available effect type (not loaded)
         EffectLoaded = 141,  // this effect is currently loaded in the focused insert slot
+        EffectLoadedOther = 142,  // this effect is loaded in a different slot (dim cross-slot hint)
 
         // Confirm overlay (8.24): P key in PendingConfirm layer shows YES/NO.
         ConfirmYes = 150,  // P without Func — green affirm state
