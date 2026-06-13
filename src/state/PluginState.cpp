@@ -335,6 +335,10 @@ namespace lockstep::PluginState
             node.setProperty(keys::kMPreset, juce::String(kit.midiPresetName), nullptr);
         if (kit.divider != 1)
             node.setProperty(keys::kDiv, kit.divider, nullptr);
+        if (kit.densityMusicality != Density::Musicality::Mixed)
+            node.setProperty(keys::kDensMus, static_cast<int>(kit.densityMusicality), nullptr);
+        if (kit.densitySelection != Density::DensitySelection::Scrub)
+            node.setProperty(keys::kDensSel, static_cast<int>(kit.densitySelection), nullptr);
 
         // Base params + post-machine FLTR/AMP via temp machine to get correct
         // slot IDs. The slot range covers machine params, then the foundation
@@ -415,6 +419,12 @@ namespace lockstep::PluginState
         kit.destinationId = node.getProperty(keys::kDId, "").toString().toStdString();
         kit.midiPresetName = node.getProperty(keys::kMPreset, "").toString().toStdString();
         kit.divider = static_cast<int>(node.getProperty(keys::kDiv, 1));
+        kit.densityMusicality = static_cast<Density::Musicality>(
+            static_cast<int>(node.getProperty(keys::kDensMus,
+                static_cast<int>(Density::Musicality::Mixed))));
+        kit.densitySelection = static_cast<Density::DensitySelection>(
+            static_cast<int>(node.getProperty(keys::kDensSel,
+                static_cast<int>(Density::DensitySelection::Scrub))));
 
         auto tempMachine = proc.createMachineForId(kit.machineId);
         const int machinNp = tempMachine->numParams();
@@ -1482,6 +1492,15 @@ namespace lockstep::PluginState
         return v18;
     }
 
+    static juce::ValueTree upgrade_v18_to_v19(const juce::ValueTree& v18)
+    {
+        // v19 adds densityMusicality / densitySelection to Kit nodes.
+        // New fields default to Mixed/Scrub on read; no data migration needed.
+        juce::ValueTree v19 = v18.createCopy();
+        v19.setProperty(keys::kVersion, 19, nullptr);
+        return v19;
+    }
+
     juce::ValueTree applyUpgrades(juce::ValueTree tree)
     {
         // Determine the version. v0 has root type "Lockstep" and no version attribute.
@@ -1508,6 +1527,7 @@ namespace lockstep::PluginState
         if (version < 16) tree = upgrade_v15_to_v16(tree);
         if (version < 17) tree = upgrade_v16_to_v17(tree);
         if (version < 18) tree = upgrade_v17_to_v18(tree);
+        if (version < 19) tree = upgrade_v18_to_v19(tree);
 
         return tree;
     }
@@ -1785,6 +1805,46 @@ namespace
                        "v15->v16: no SoundPool node invented (upgrade is trivial)");
                 expect(result.getChildWithName(keys::kNewHierarchy).isValid(),
                        "v15->v16: NewHierarchy preserved");
+            }
+
+            beginTest("v18 -> v19: density fields default to Mixed/Scrub on upgrade");
+            {
+                // Minimal v18 tree with one Kit node that has no density properties.
+                juce::ValueTree v18(keys::kLockstepState);
+                v18.setProperty(keys::kVersion, 18, nullptr);
+                auto nh = juce::ValueTree(keys::kNewHierarchy);
+                auto song = juce::ValueTree(keys::kSong);
+                auto songTrack = juce::ValueTree(keys::kSongTrack);
+                auto kitNode = juce::ValueTree(keys::kKit);
+                kitNode.setProperty(keys::kMId, juce::String(SamplerMachine::kMachineId), nullptr);
+                songTrack.appendChild(kitNode, nullptr);
+                song.appendChild(songTrack, nullptr);
+                nh.appendChild(song, nullptr);
+                v18.appendChild(nh, nullptr);
+                v18.appendChild(juce::ValueTree(keys::kLockstep), nullptr);
+                v18.appendChild(juce::ValueTree(keys::kSamplePool), nullptr);
+                v18.appendChild(juce::ValueTree(keys::kMisc), nullptr);
+
+                const auto result = lockstep::PluginState::applyUpgrades(v18);
+
+                expectEquals(static_cast<int>(result.getProperty(keys::kVersion, -1)),
+                             lockstep::PluginState::kCurrentVersion,
+                             "v18->v19: version stamped to current");
+
+                // Density fields are absent from the v18 Kit node; readKitFromNode
+                // will default them to Mixed/Scrub — no data migration needed.
+                // Verify the Kit node was preserved and the upgrade didn't corrupt it.
+                const auto nhResult = result.getChildWithName(keys::kNewHierarchy);
+                expect(nhResult.isValid(), "v18->v19: NewHierarchy preserved");
+                const auto kitResult = nhResult.getChildWithName(keys::kSong)
+                                               .getChildWithName(keys::kSongTrack)
+                                               .getChildWithName(keys::kKit);
+                expect(kitResult.isValid(), "v18->v19: Kit node preserved");
+                // dMus/dSel absent on disk; defaults applied at read time.
+                expect(!kitResult.hasProperty(keys::kDensMus),
+                       "v18->v19: dMus absent (default applied at read)");
+                expect(!kitResult.hasProperty(keys::kDensSel),
+                       "v18->v19: dSel absent (default applied at read)");
             }
 
             beginTest("future version: valid tree returned without crash");

@@ -5,6 +5,7 @@
 #include <vector>
 #include "../machine/IMachine.h"
 #include "../machine/StubMachine.h"
+#include "Density.h"
 #include "TrackFltrState.h"
 #include "TrackChannelState.h"
 #include "TrackEnvState.h"
@@ -50,6 +51,10 @@ namespace lockstep
         // Clock divider: 1 = base 1/16 grid.  Moved here from Track (Phase 7);
         // it is a property of the musician for the song, not of the phrase.
         int divider = 1;
+
+        // Density overlay (§39) — durable per-song-per-track; serialized v19+.
+        Density::Musicality densityMusicality = Density::Musicality::Mixed;
+        Density::DensitySelection densitySelection = Density::DensitySelection::Scrub;
 
         // 6.5: per-track insert slots (post-AMP).  effectId empty = no effect.
         struct InsertSlot

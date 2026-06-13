@@ -40,7 +40,9 @@ namespace lockstep
         // v18: TrackAmpState split into TrackChannelState (level/pan/sendA/sendB) +
         //      TrackEnvState (gateSrc/att/hld/dec/sus/rel); FLTR always present; disk
         //      ids unchanged (lockstep.amp.* / lockstep.fltr.*); trivial stamp upgrade.
-        inline constexpr int kCurrentVersion = 18;
+        // v19: TrackKit gains densityMusicality (dMus) + densitySelection (dSel);
+        //      defaults Mixed/Scrub; ephemeral density amounts not serialized.
+        inline constexpr int kCurrentVersion = 19;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);

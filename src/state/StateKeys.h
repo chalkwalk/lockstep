@@ -99,6 +99,8 @@ namespace lockstep::keys
     inline constexpr const char* kDId = "dId";
     inline constexpr const char* kMPreset = "mPreset";
     inline constexpr const char* kDiv = "div";
+    inline constexpr const char* kDensMus = "dMus"; // Density::Musicality (uint8)
+    inline constexpr const char* kDensSel = "dSel"; // Density::DensitySelection (uint8)
 
   // ── Base params container (BP) ───────────────────────────────────────────────
     inline constexpr const char* kBaseParams = "BP";
