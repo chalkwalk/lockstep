@@ -197,6 +197,11 @@ namespace lockstep
         // Takes a checkpoint first if the phrase has any existing trigs.
         void applyEuclidToTrack(int track);
 
+        // Song+FX unit-cycle helpers. Return a unit index 0-3 (0-1=inserts, 2-3=sends).
+        // Skip empty units; fall back to 0 if none loaded.
+        int firstLoadedMasterUnit() const noexcept;
+        int nextLoadedMasterUnit(int current) const noexcept;
+
         // Transparent layer that draws the empty-track grey-out hints. Declared
         // before poolOverlay_ / soundBankOverlay_ so addAndMakeVisible inserts it
         // below them in JUCE's z-order, letting the popups always paint on top.

@@ -1226,10 +1226,28 @@ namespace lockstep
                 if (!ui.funcTrackHeld && !ui.pLockClearMode && ui.funcHeld && ctx != "FUNC")
                     ctx = "FUNC + " + ctx;
 
-                // Active section suffix.
+                // Active section suffix — master-aware: show master unit name in master mode.
                 const int activeTrack = keyboardArea_.getActiveTrack();
-                if (activeTrack >= 0)
+                if (ui.masterSection == 5)
                 {
+                    // Song+FX meta: show which master unit is focused.
+                    static const char* kUnitSuffixes[4] = {
+                        "FX: Insert 1", "FX: Insert 2",
+                        "FX: Send A",   "FX: Send B"
+                    };
+                    const int u = juce::jlimit(0, 3, ui.masterFxInsertSlot);
+                    ctx += juce::String("  |  ") + juce::String(kUnitSuffixes[u]);
+                }
+                else if (ui.masterSection >= 0)
+                {
+                    // Other meta sections (Cond, Trig, Divider, PhraseLen) — meta name.
+                    static const char* kMetaSuffixes[] = { "Cond", "Trig", "", "Div", "Len", "" };
+                    if (ui.masterSection < 6)
+                        ctx += juce::String("  |  ") + juce::String(kMetaSuffixes[ui.masterSection]);
+                }
+                else if (activeTrack >= 0)
+                {
+                    // Normal track mode: show the current track section name.
                     const int sec = ui.trackSection[static_cast<std::size_t>(activeTrack)];
                     if (sec >= 0 && sec < IMachine::kMaxSections)
                         ctx += juce::String("  |  ") + juce::String(IMachine::kCanonicalSectionNames[static_cast<std::size_t>(sec)]);
@@ -1246,6 +1264,9 @@ namespace lockstep
                 paintStatus(g, r);
 
                 // Hint pill floating over the mini-sequencer strip.
+                // Suppressed when an overlay (FX picker, note edit, machine picker, etc.)
+                // is already drawing its own banner in the nav strip area.
+                if (!keyboardArea_.navStripOverlayActive())
                 {
                     const auto navLocal = keyboardArea_.navAreaBounds();
                     const auto navInEditor = navLocal.translated(
@@ -1360,6 +1381,35 @@ namespace lockstep
     void LockstepEditor::refreshMetaBand()
     {
         manipulationZone_.setBand(resolveMetaBand(uiState_), swingScopeFor(uiState_));
+    }
+
+    // Returns the first master unit (0-3) that has an effect loaded, skipping empties.
+    // Falls back to 0 so the picker remains reachable even on a fresh project.
+    int LockstepEditor::firstLoadedMasterUnit() const noexcept
+    {
+        for (int u = 0; u < 4; ++u)
+        {
+            const bool isSend = (u >= 2);
+            const bool loaded = isSend ? !processor_.masterSendId(u - 2).empty()
+                                       : !processor_.masterInsertId(u).empty();
+            if (loaded) return u;
+        }
+        return 0;
+    }
+
+    // Returns the next loaded master unit after `current`, wrapping around and
+    // skipping empty units. Returns `current` if no other unit is loaded.
+    int LockstepEditor::nextLoadedMasterUnit(int current) const noexcept
+    {
+        for (int step = 1; step <= 4; ++step)
+        {
+            const int u = (current + step) % 4;
+            const bool isSend = (u >= 2);
+            const bool loaded = isSend ? !processor_.masterSendId(u - 2).empty()
+                                       : !processor_.masterInsertId(u).empty();
+            if (loaded) return u;
+        }
+        return current;  // no other loaded unit found
     }
 
     void LockstepEditor::updateSwingQualifier()
@@ -1817,13 +1867,16 @@ namespace lockstep
                     if (sectionScope == PS::Song && ev.index == 5)
                     {
                         // Song+FX: master insert / send params.
-                        // Re-press while already at section 5 cycles through 4 units:
-                        // FX1 → FX2 → Snd A → Snd B → FX1 ...
+                        // Re-press while already at section 5 cycles through loaded units
+                        // (skips empty); entering for the first time lands on the first
+                        // loaded unit (or Insert1 if none). Never toggles out of master mode.
                         if (uiState_.masterSection == 5)
-                            uiState_.masterFxInsertSlot = (uiState_.masterFxInsertSlot + 1) % 4;
+                            uiState_.masterFxInsertSlot = nextLoadedMasterUnit(
+                                uiState_.masterFxInsertSlot);
                         else
-                            uiState_.masterFxInsertSlot = 0;
-                        keyboardArea_.selectMetaSection(5);
+                            uiState_.masterFxInsertSlot = firstLoadedMasterUnit();
+                        keyboardArea_.selectMetaSection(5, /*toggle=*/false);
+                        refreshMetaBand();
                         return true;
                     }
                     // All other non-dim scope cells fall through to the machine's own
@@ -1845,7 +1898,7 @@ namespace lockstep
             case ControllerButton::MetaSection:
                 // 6.5: Func+Song+FX → open master FX picker on the step grid.
                 // Also navigates to Song+FX meta section so MZ shows master insert params.
-                // Re-pressing while picker is open cycles the targeted slot (0↔1).
+                // Re-pressing while picker is open cycles all 4 slots (to load into empties too).
                 if (uiState_.funcHeld && uiState_.songHeld && ev.index == processor_.kFxSecIdx)
                 {
                     if (uiState_.masterFxPickerOpen)
@@ -1854,7 +1907,7 @@ namespace lockstep
                         uiState_.masterFxInsertSlot = 0;
                     uiState_.masterFxPickerOpen = true;
                     // Navigate to Song+FX meta section so MZ shows master FX params.
-                    keyboardArea_.selectMetaSection(processor_.kFxSecIdx);
+                    keyboardArea_.selectMetaSection(processor_.kFxSecIdx, /*toggle=*/false);
                     refreshMetaBand();
                     repaint();
                     return true;
@@ -2028,11 +2081,34 @@ namespace lockstep
                         if (ev.index >= processor_.numAvailableEffects()) return true;
                         const auto info = processor_.availableEffectInfo(ev.index);
                         // 8.26: units 0-1 = master inserts, units 2-3 = send returns.
-                        const int mSlot = uiState_.masterFxInsertSlot;
-                        if (mSlot >= 2)
-                            processor_.setMasterSend(mSlot - 2, info.id);
+                        const int mUnit = uiState_.masterFxInsertSlot;
+                        const bool isSend = (mUnit >= 2);
+                        const int mSlot = isSend ? mUnit - 2 : mUnit;
+                        const std::string curId = isSend ? processor_.masterSendId(mSlot)
+                                                         : processor_.masterInsertId(mSlot);
+                        if (info.id == curId)
+                        {
+                            // Re-pick the loaded effect → toggle bypass.
+                            const bool byp = isSend ? processor_.masterSendBypass(mSlot)
+                                                    : processor_.masterInsertBypass(mSlot);
+                            if (isSend)
+                                processor_.setMasterSendBypass(mSlot, !byp);
+                            else
+                                processor_.setMasterInsertBypass(mSlot, !byp);
+                        }
                         else
-                            processor_.setMasterInsert(mSlot, info.id);
+                        {
+                            if (isSend)
+                            {
+                                processor_.setMasterSend(mSlot, info.id);
+                                processor_.setMasterSendBypass(mSlot, false);
+                            }
+                            else
+                            {
+                                processor_.setMasterInsert(mSlot, info.id);
+                                processor_.setMasterInsertBypass(mSlot, false);
+                            }
+                        }
                         uiState_.masterFxPickerOpen = false;
                         refreshMetaBand();
                         repaint();
