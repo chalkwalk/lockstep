@@ -79,6 +79,7 @@ namespace lockstep
             case CellState::SliceEmpty:         return kStepOutRange;
             case CellState::EffectAvailable:    return 0xFF30A030u;  // lime-green — available effect slot
             case CellState::EffectLoaded:       return 0xFFFFFFFFu;  // white — loaded/selected effect
+            case CellState::EffectLoadedOther:  return 0xFF6E8E6Eu;  // muted green — cross-slot hint
             default:                            return fallback;
         }
     }
@@ -435,9 +436,10 @@ namespace lockstep
         // Func-row secondary labels (the Func-held section row). Empty = no
         // secondary on that key → it dims under Func (DESIGN §6.1 rule 3).
         // TRACK (length/divider) relocated to Track+TRIG; GLOBAL (gain/sync/clock)
-        // relocated to Song+FX. Only COND/NOTE remain Func secondaries (§6.2).
+        // relocated to Song+FX. COND/NOTE remain Func secondaries (§6.2); FX
+        // gains "PICK FX" to announce the insert picker.
         static constexpr std::array<const char*, IMachine::kMaxSections> kMetaLabels = {
-            "COND", "NOTE", "", "", "", ""
+            "COND", "NOTE", "", "", "", "PICK FX"
         };
         auto isReservedMeta = [](int s) -> bool {
             return s < 0 || s >= IMachine::kMaxSections || kMetaLabels[static_cast<std::size_t>(s)][0] == '\0';
@@ -480,7 +482,24 @@ namespace lockstep
 
             // Hint band = Func-layer only. AMP/MOD have no Func action → no hint.
             // Func-promotion: when Func held, meta label becomes the live primary.
-            if (isScopedMode || isReservedMeta(s))
+            // In scoped mode, honor per-cell funcLabel if present (e.g. Song+FX → "PICK FX").
+            if (isScopedMode)
+            {
+                const auto scInfo = scopedCell(sectionScope, s);
+                if (scInfo.funcLabel != nullptr)
+                {
+                    if (ui.funcHeld)
+                    {
+                        c.primary = scInfo.funcLabel;
+                        c.funcHint = {};
+                    }
+                    else
+                        c.funcHint = scInfo.funcLabel;
+                }
+                else
+                    c.funcHint = {};
+            }
+            else if (isReservedMeta(s))
                 c.funcHint = {};
             else if (ui.funcHeld)
             {
@@ -966,10 +985,14 @@ namespace lockstep
             else if (activeLayer == SurfaceLayer::TrackFxPicker)
             {
                 // FX insert picker (6.5): cells encode available effects for the active insert slot.
+                // Cross-slot: the other insert slot's loaded effect shows a dim EffectLoadedOther hint.
                 const juce::Colour fxTint{ compatColour(CellState::EffectAvailable) };
+                const juce::Colour otherTint{ compatColour(CellState::EffectLoadedOther) };
                 const int numEffects = proc.numAvailableEffects();
                 const std::string loadedId = proc.trackInsertId(activeTrack,
                                                                 ui.funcFxInsertSlot);
+                const std::string otherSlotId = proc.trackInsertId(activeTrack,
+                                                                   1 - ui.funcFxInsertSlot);
 
                 for (int i = 0; i < 16; ++i)
                 {
@@ -988,11 +1011,71 @@ namespace lockstep
                     {
                         const auto info = proc.availableEffectInfo(i);
                         const bool isCur = (info.id == loadedId);
-                        c.base = isCur ? CellState::EffectLoaded : CellState::EffectAvailable;
+                        const bool isOther = !isCur && !otherSlotId.empty() && (info.id == otherSlotId);
+                        c.base = isCur   ? CellState::EffectLoaded
+                               : isOther ? CellState::EffectLoadedOther
+                                         : CellState::EffectAvailable;
                         c.primary = juce::String(info.name.c_str());
-                        c.baseColour = isCur
-                                           ? juce::Colours::white.withAlpha(0.20f).getARGB()
-                                           : fxTint.withAlpha(0.12f).getARGB();
+                        c.baseColour = isCur   ? juce::Colours::white.withAlpha(0.20f).getARGB()
+                                     : isOther ? otherTint.withAlpha(0.14f).getARGB()
+                                               : fxTint.withAlpha(0.12f).getARGB();
+                    }
+                }
+            }
+            else if (activeLayer == SurfaceLayer::MasterFxPicker)
+            {
+                // Master FX picker (6.5): cells encode available effects for the active master unit.
+                // Active unit's loaded effect = EffectLoaded; other units' effects = EffectLoadedOther.
+                const juce::Colour fxTint{ compatColour(CellState::EffectAvailable) };
+                const juce::Colour otherTint{ compatColour(CellState::EffectLoadedOther) };
+                const int numEffects = proc.numAvailableEffects();
+                const int mUnit = ui.masterFxInsertSlot;
+                const bool mIsSend = (mUnit >= 2);
+                const int mSlot = mIsSend ? mUnit - 2 : mUnit;
+                const std::string activeId = mIsSend ? proc.masterSendId(mSlot)
+                                                     : proc.masterInsertId(mSlot);
+                // Collect IDs from all other units for cross-slot dim hints.
+                std::array<std::string, 4> allUnitIds = {
+                    proc.masterInsertId(0), proc.masterInsertId(1),
+                    proc.masterSendId(0),   proc.masterSendId(1)
+                };
+
+                for (int i = 0; i < 16; ++i)
+                {
+                    SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                    c.button = ControllerButton::Step;
+                    c.index = i;
+                    c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                    c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+
+                    if (i >= numEffects)
+                    {
+                        c.base = CellState::MachineUnavailable;
+                        c.baseColour = kStepOutRange;
+                    }
+                    else
+                    {
+                        const auto info = proc.availableEffectInfo(i);
+                        const bool isCur = (info.id == activeId);
+                        bool isOther = false;
+                        if (!isCur && !info.id.empty())
+                        {
+                            for (int u = 0; u < 4; ++u)
+                            {
+                                if (u != mUnit && allUnitIds[static_cast<std::size_t>(u)] == info.id)
+                                {
+                                    isOther = true;
+                                    break;
+                                }
+                            }
+                        }
+                        c.base = isCur   ? CellState::EffectLoaded
+                               : isOther ? CellState::EffectLoadedOther
+                                         : CellState::EffectAvailable;
+                        c.primary = juce::String(info.name.c_str());
+                        c.baseColour = isCur   ? juce::Colours::white.withAlpha(0.20f).getARGB()
+                                     : isOther ? otherTint.withAlpha(0.14f).getARGB()
+                                               : fxTint.withAlpha(0.12f).getARGB();
                     }
                 }
             }
