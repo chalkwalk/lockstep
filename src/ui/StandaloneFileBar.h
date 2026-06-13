@@ -20,6 +20,11 @@ namespace lockstep
         // Wired to the editor's status display (same pattern as SoundBankOverlay::onStatus).
         std::function<void(const juce::String&)> onStatus;
 
+        // If state is dirty, shows a three-way Save/Discard/Cancel dialog then calls fn.
+        // fn is called immediately (synchronously) if the state is clean.
+        // Public so PluginEditor can wire it as the D2 standalone close-button callback.
+        void withDirtyGuard(std::function<void()> fn);
+
     private:
         LockstepProcessor& proc_;
         juce::ApplicationProperties& appProps_;
@@ -41,10 +46,6 @@ namespace lockstep
         void openFile(const juce::File& f);
         void saveFile(const juce::File& f);
         void persistLastFile(const juce::File& f);
-
-        // If state is dirty, shows a three-way Save/Discard/Cancel dialog then calls fn.
-        // fn is called immediately (synchronously) if the state is clean.
-        void withDirtyGuard(std::function<void()> fn);
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(StandaloneFileBar)
     };

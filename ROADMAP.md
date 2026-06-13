@@ -18,9 +18,8 @@ expressible within those principles and within the existing scope+verb grammar
 Open verification sweeps: `3.10` standalone, `7.8` VST3/CLAP v18 round-trip,
 `7.9e` vocabulary rename, `8.24` standalone visual smoke
 (picker → named confirm → YES/NO live colour).
-**Last completed:** `8.28` track channel/envelope split + universal filter.
-**Next up:** `9.2` quit guard; `6.7` Machine Module ABI (gates the Phase 4 catalogue);
-gain-staging audit (A3); table refactors (C1, C3–C6).
+**Last completed:** `9.2` standalone quit guard.
+**Next up:** `A3` gain-staging audit; `6.7` Machine Module ABI; Phase 9+ backlog.
 
 Phases 1–3 took Lockstep from an empty plugin to a frozen, playable performance
 surface; Phase 4 fills the machine catalogue; Phases 5–6 are the depth and
@@ -1514,11 +1513,21 @@ filter as an additional page rather than bypassing it. Serializer bumped to v18
 - [x] Serializer v16: `Project::soundPool` (SoundPool/SE nodes); missing node on load =
       empty pool (trivial upgrade from v15).
 
-### 9.2 — Custom standalone app + quit guard  *[planned]*
-- [ ] `JUCE_USE_CUSTOM_PLUGIN_STANDALONE_APP` + custom `JUCEApplication` subclass.
-- [ ] Quit-confirmation dialog (intercept the window-close event before the wrapper
-      saves its session; show Save/Discard/Cancel if dirty).
+### 9.2 — Standalone quit guard  *[shipped]*
+Intercepts the standalone window's close button before the JUCE wrapper saves
+its session; shows the existing Save/Discard/Cancel dirty guard if the project
+has unsaved changes.
+
+- [x] Minimal patch to `juce_StandaloneFilterWindow.h`: add `onCloseRequested`
+      callback field; `closeButtonPressed()` calls it (with the saveState+quit
+      lambda) when set, else falls through to the original behaviour.
+- [x] `PluginEditor::parentHierarchyChanged()`: when a `StandaloneFilterWindow`
+      parent is detected (standalone only via `JucePlugin_Build_Standalone`),
+      wire `window->onCloseRequested = [fileBar](doQuit){ fileBar->withDirtyGuard(doQuit); }`.
+- [x] `StandaloneFileBar::withDirtyGuard` promoted to public; used for both
+      New/Open buttons and the new quit path.
 - [ ] Optional: single-instance enforcement, native menu bar (macOS).
+- [ ] Full custom `JUCEApplication` subclass (future; not needed for the guard).
 
 ---
 

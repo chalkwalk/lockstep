@@ -13,6 +13,11 @@
 #include "ui/SurfaceModel.h"
 #include <algorithm>
 
+// D2: dirty-guard hook requires access to StandaloneFilterWindow (standalone target only).
+#if JucePlugin_Build_Standalone
+  #include <juce_audio_plugin_client/Standalone/juce_StandaloneFilterWindow.h>
+#endif
+
 namespace lockstep
 {
     // -------------------------------------------------------------------------
@@ -861,6 +866,24 @@ namespace lockstep
         keyListenerTarget_ = newTop;
         if (keyListenerTarget_ != nullptr && keyListenerTarget_ != this)
             keyListenerTarget_->addKeyListener(this);
+
+        // D2: wire dirty guard to the standalone window's close-button callback.
+        // fileBar_ is only constructed in standalone mode; the cast is also guarded
+        // by JucePlugin_Build_Standalone so this block is elided in plugin builds.
+#if JucePlugin_Build_Standalone
+        if (fileBar_)
+        {
+            if (auto* w = dynamic_cast<juce::StandaloneFilterWindow*>(newTop))
+            {
+                // Capture fileBar_ by raw pointer (editor outlives the window).
+                auto* fb = fileBar_.get();
+                w->onCloseRequested = [fb](std::function<void()> doQuit)
+                {
+                    fb->withDirtyGuard(std::move(doQuit));
+                };
+            }
+        }
+#endif
     }
 
     void LockstepEditor::focusLost(FocusChangeType /*cause*/)
