@@ -1054,14 +1054,13 @@ namespace lockstep
         }
 
         // ---- MHZ.2.2: top-bar dashboard (free space between left controls and right buttons) ----
-        // Left zone (~420..640): Bank/Pattern/Part identity + state badges (CK, CHN, QUE, SHR, CPY).
-        // Right zone (~640..800): Held-context preview derived from modifier cluster state.
+        // STATE only: Song/Scene identity + persistent badges (CK, CHN, QUE, SHR, CPY, mode).
+        // Gesture context lives exclusively in the bottom nav strip pill (single source of truth).
         {
             static constexpr int kBadgeH = 16;
             static constexpr int kGap = 3;
             static constexpr int kDashStartX = 420;   // right edge of left controls
-            static constexpr int kRightBtnX = 800;   // left edge of the three right buttons
-            static constexpr int kSplitX = 640;   // dashboard/preview divider
+            static constexpr int kSplitX = 640;   // right boundary of the state dashboard
             const int by = (36 - kBadgeH) / 2;
 
             g.setFont(juce::Font(juce::FontOptions(10.0f)));
@@ -1220,6 +1219,14 @@ namespace lockstep
                     else if (ui.funcHeld) ctx = "FUNC";
                 }
 
+                // Transient CPC status always uses the nav lane — flash even without active gesture.
+                {
+                    const auto navLocal = keyboardArea_.navAreaBounds();
+                    const auto navInEditor = navLocal.translated(
+                        keyboardArea_.getX(), keyboardArea_.getY());
+                    paintStatus(g, navInEditor);
+                }
+
                 if (ctx.isEmpty()) return;   // nothing held — preview is blank
 
                 // Qualify with Func if held alongside another modifier (normal path only).
@@ -1253,17 +1260,9 @@ namespace lockstep
                         ctx += juce::String("  |  ") + juce::String(IMachine::kCanonicalSectionNames[static_cast<std::size_t>(sec)]);
                 }
 
-                const int previewW = kRightBtnX - kSplitX - kGap;
-                const auto r = juce::Rectangle<int>(kSplitX, by, previewW, kBadgeH);
-                g.setColour(juce::Colour(0xFF1E2028u));
-                g.fillRoundedRectangle(r.toFloat(), 3.0f);
-                g.setColour(juce::Colour(0xFFDDEEFFu));
-                g.drawText(ctx, r.reduced(4, 0), juce::Justification::centredLeft, true);
-
-                // Transient CPC status overlays the context-HUD for ~1.5s.
-                paintStatus(g, r);
-
                 // Hint pill floating over the mini-sequencer strip.
+                // Bottom nav strip is the single CONTEXT lane: shows the active gesture
+                // banner when idle; pickers draw their own banner (navStripOverlayActive).
                 // Suppressed when an overlay (FX picker, note edit, machine picker, etc.)
                 // is already drawing its own banner in the nav strip area.
                 if (!keyboardArea_.navStripOverlayActive())
