@@ -1953,6 +1953,13 @@ namespace lockstep
     }
     static void enqueueInsertParam(LockstepProcessor& p, int track, int ins, int param, float value)
     {
+        // Immediate message-thread write so the 30 Hz MZ timer doesn't snap back.
+        if (track >= 0 && track < static_cast<int>(kNumTracks))
+        {
+            auto& kIns = p.kit(track).inserts[static_cast<std::size_t>(ins)];
+            if (static_cast<std::size_t>(param) < kIns.baseParams.size())
+                kIns.baseParams[static_cast<std::size_t>(param)] = value;
+        }
         EngineCmd c;
         c.op = EngineCmd::Op::SetInsertParam;
         c.track = static_cast<uint8_t>(track);
@@ -3876,8 +3883,11 @@ namespace lockstep
     {
         if (slot < 0 || slot > 1) return;
         const auto si = static_cast<std::size_t>(slot);
-        const auto& insSlot = song().masterInserts[si];
+        auto& insSlot = song().masterInserts[si];
         if (param < 0 || static_cast<std::size_t>(param) >= insSlot.baseParams.size()) return;
+        // Write immediately so the 30 Hz MZ timer reads the new value without
+        // waiting for the audio-thread drain (mirrors the swing direct-write pattern).
+        insSlot.baseParams[static_cast<std::size_t>(param)] = value;
         pushEngineCmd({ EngineCmd::Op::SetMasterInsertParam,
                         0,
                         static_cast<uint8_t>(slot),
@@ -3957,8 +3967,9 @@ namespace lockstep
     {
         if (slot < 0 || slot > 1) return;
         const auto si = static_cast<std::size_t>(slot);
-        const auto& sndSlot = song().masterSends[si];
+        auto& sndSlot = song().masterSends[si];
         if (param < 0 || static_cast<std::size_t>(param) >= sndSlot.baseParams.size()) return;
+        sndSlot.baseParams[static_cast<std::size_t>(param)] = value;
         pushEngineCmd({ EngineCmd::Op::SetMasterSendParam,
                         0,
                         static_cast<uint8_t>(slot),
