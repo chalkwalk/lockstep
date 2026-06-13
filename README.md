@@ -679,14 +679,17 @@ transport globals sat under `Song+FX`; that cell now carries the master
 insert parameters.)
 
 **FX inserts and the effect picker.** Each track has two insert slots (slot
-0 / slot 1). `Func+FX` opens the effect picker — the step grid re-skins to the
-available effects catalogue; press a step to load that effect into the focused
-slot. Re-press `Func+FX` while the picker is open to cycle the targeted insert
-slot (0 → 1 → 0). Press `FX` (alone) to navigate the insert's params in the MZ;
-hold `FX + step` momentarily to **animate bypass** (bypass on press, restore on
-release). MIDI-out tracks show no inserts. Under **Song+FX focus**, the same gesture
-targets the master units — steps 0-3 bypass FX1, 4-7 bypass FX2, 8-11 bypass Send A,
-12-15 bypass Send B — and is suppressed when the master picker is open.
+0 / slot 1). The `FX` key shows a dim **"PICK FX"** secondary hint at rest; holding
+`Func` promotes it to the primary label. `Func+FX` opens the effect picker — the
+step grid re-skins to the available effects catalogue; press a step to load that
+effect into the focused slot (the other slot's loaded effect shows a dim cross-slot
+hint). Re-press the active effect to toggle bypass. Re-press `Func+FX` while the
+picker is open to cycle the targeted insert slot (0 → 1 → 0). Press `FX` (alone)
+to navigate the insert's params in the MZ; hold `FX + step` momentarily to
+**animate bypass** (bypass on press, restore on release). MIDI-out tracks show no
+inserts. Under **Song+FX focus**, the same gesture targets the master units —
+steps 0-3 bypass FX1, 4-7 bypass FX2, 8-11 bypass Send A, 12-15 bypass Send B —
+and is suppressed when the master picker is open.
 
 **Master bus: 2 inserts + 2 send returns.** The master bus has four FX units at
 Song scope (DESIGN §32.3):
@@ -700,7 +703,11 @@ Song scope (DESIGN §32.3):
 
 Sends are post-fader, post-insert taps from each track. Set **Send A** / **Send B**
 on **AMP page 2** (hold `AMP`, repeat to page-turn). `Func+Song+FX` opens the
-master picker for the currently focused unit; re-press to cycle through units 1-4.
+master picker for the currently focused unit (re-press to cycle all four slots
+regardless of whether they are loaded; re-pick the active effect to toggle bypass;
+the other units' loaded effects show a dim cross-slot hint). `Song+FX` re-press
+cycles through **loaded** units only, skipping empty ones (falls back to Insert 1 if
+none are loaded); exit back to track params by pressing any bare section key.
 Send return effects are typically loaded with Mix=1.0 (wet-only); insert effects
 apply across the whole mix. MIDI-out tracks have no sends.
 
@@ -1278,8 +1285,8 @@ Func (1)
 ├─ Func + P           → cancel a pending prompt — §5.3
 ├─ Func + 3           → toggle the metronome — §5.4
 ├─ Func + 5…0         → secondary section page (machine deep params; COND/NOTE meta; Func+7 = transport globals) — §5.8
-│   ├─ Func + FX (0)          → effect picker: step grid re-skins to effect catalogue; press step to load — §5.8
-│   └─ Func + Song + FX (0)  → master FX picker (same catalogue; loads into Song-scope master insert) — §5.8
+│   ├─ Func + FX (0)          → effect picker: step grid re-skins to effect catalogue; press step to load; re-pick active = toggle bypass — §5.8
+│   └─ Func + Song + FX (0)  → master FX picker (same catalogue; loads into Song-scope master unit; re-press to cycle all 4 slots; re-pick active = toggle bypass) — §5.8
 ├─ Func + ← / →       → rotate the focused track's steps −1 / +1 — §5.17
 ├─ Func + ↑ / ↓       → double / halve the focused track length — §5.17
 ├─ Func + step        → P-Lock clear mode (cells show set P-Locks; stage removals, release to commit) — §5.17
@@ -1401,8 +1408,8 @@ Song (S)
 ├─ + step            → switch Songs (quantized; a full reset, live deviations clear) — §5.14
 ├─ + O (CLEAR)       → Panic — kill all voices immediately — §5.14
 ├─ + (held) → shows song-all swing in band (Swing, absolute root) — §5.8
-├─ + FX (0)          → master insert params in the MZ (GLBL cell) — §5.8
-├─ Func + Song + FX (0) → master FX picker (catalogue overlay; re-press cycles slot 0/1) — §5.8
+├─ + FX (0)          → master FX params in MZ (FX cell, dim "PICK FX" hint); re-press = cycle loaded master units — §5.8
+├─ Func + Song + FX (0) → master FX picker (catalogue overlay; re-press cycles all 4 units; re-pick active = toggle bypass) — §5.8
 └─ Func + Song       → Global / master-bus focus — §5.2
 ```
 

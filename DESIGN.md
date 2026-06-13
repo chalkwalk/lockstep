@@ -3505,10 +3505,19 @@ are always patchable via P-Lock or Morph. When both sends are zero the send
 buses are not processed. The AMP section key (key 8) cycles pages to expose
 all four CHANNEL params (level, pan, sendA, sendB).
 
-**Song+FX focus cycles four units:** master FX1 → FX2 → Send A return →
-Send B return. `Func+Song+FX` opens the effect picker for the focused unit;
-the picker shows the full catalogue (including masterOnly effects) for master
-slots, and hides masterOnly effects for track slots.
+**Song+FX focus cycles loaded units:** `Song+FX` re-press walks master
+FX1 → FX2 → Send A return → Send B return, skipping empty units; the FX
+section key shows `"FX"` (not "GLBL") under Song scope — the Song modifier
+already disambiguates it as the master copy. A dim **"PICK FX"** secondary
+hint appears on the FX key in both track and Song scope; `Func` promotes it
+to the primary label. `Func+Song+FX` opens the effect picker for the focused
+unit (cycles all four slots so you can load into empties; re-pick the active
+effect to toggle bypass; other units' loaded effects show a dim cross-slot
+hint). The picker shows the full catalogue (including masterOnly effects) for
+master slots, and hides masterOnly effects for track slots. A scoped section
+cell that carries a `funcLabel` field has `Func` promote it to primary — this
+is the grammar extension enabling Song+Func+FX → "PICK FX" under any scope
+that wires a `funcLabel`.
 
 **Smoothing policy (§32.1 addendum):** Machines read params block-rate
 (acceptable for ≤512-sample blocks). Effects must per-sample-smooth any param
@@ -4685,7 +4694,7 @@ direct `uiState_.trackPage` paint path.
 
 `ScopedSectionMatrix.h` section name cells that duplicate canonical
 names reference `IMachine::kCanonicalSectionNames[i]` directly; only
-genuine overrides (`"DIV"`, `"LEN"`, `"GLBL"`, `nullptr`) stay literal.
+genuine overrides (`"DIV"`, `"LEN"`, `"FX"`, `nullptr`) stay literal.
 
 ### 37.5 ParamRow — LsmParamSpec precursor (`src/machine/MachineParamTable.h`)
 
