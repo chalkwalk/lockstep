@@ -96,6 +96,8 @@ namespace lockstep
         { CB::NavRight, -1, kModNone, SL::Base, AId::NavPageRight, u8"→", u8"ROT→", CS::Resting },
 
         // ── VerbYes / SNAP (key Y) ────────────────────────────────────────────
+        // Scene+Y = SYNC (re-sync all tracks to scene floor).
+        { CB::VerbYes, -1, kModScene, SL::Base, AId::VerbConfirm, u8"SYNC", u8"", CS::Resting },
         { CB::VerbYes, -1, kModFunc, SL::Base, AId::VerbRestore, u8"RESTORE", u8"", CS::Resting },
         { CB::VerbYes, -1, kModNone, SL::Base, AId::VerbSnapshot, u8"SNAP", u8"RESTORE", CS::Resting },
 
@@ -137,8 +139,11 @@ namespace lockstep
         { CB::VerbClear, -1, kModNone, SL::Base, AId::VerbClear, u8"CLEAR", u8"DEL", CS::Resting },
 
         // ── VerbNo / YES (key P) ─────────────────────────────────────────────
-        { CB::VerbNo, -1, kModFunc, SL::Base, AId::VerbCancel, u8"NO", u8"", CS::Resting },
-        { CB::VerbNo, -1, kModNone, SL::Base, AId::VerbConfirm, u8"YES", u8"NO", CS::Resting },
+        // Scope+P = QUANT (zero microOffset on scope). Func+P = NO/cancel.
+        { CB::VerbNo, -1, kModTrack,  SL::Base, AId::VerbConfirm, u8"QUANT", u8"NO", CS::Resting },
+        { CB::VerbNo, -1, kModPhrase, SL::Base, AId::VerbConfirm, u8"QUANT", u8"NO", CS::Resting },
+        { CB::VerbNo, -1, kModFunc,   SL::Base, AId::VerbCancel,  u8"NO", u8"", CS::Resting },
+        { CB::VerbNo, -1, kModNone,   SL::Base, AId::VerbConfirm, u8"YES", u8"NO", CS::Resting },
 
         // ── PendingConfirm layer — P key shows live YES (green) / NO (red) ──────
         { CB::VerbNo, -1, kModFunc, SL::PendingConfirm, AId::VerbCancel, u8"NO", u8"", CS::ConfirmNo },

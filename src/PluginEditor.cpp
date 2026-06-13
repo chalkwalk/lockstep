@@ -1206,7 +1206,6 @@ namespace lockstep
                                         ctx += "  |  Func+No = clear notes";
                                 }
                             }
-                            ctx += "  |  Yes = Quantize";
                         }
                     }
                     // Primary scope token. MHZ.9.7: show mode-cycle hint when Track+Control-All.
@@ -1217,11 +1216,10 @@ namespace lockstep
                     else if (ui.trackHeld)
                     {
                         ctx = "TRACK " + juce::String(keyboardArea_.getActiveTrack() + 1);
-                        if (!ui.funcHeld) ctx += "  |  Yes = Quantize";
                     }
                     else if (ui.phraseScopeHeld)
                     {
-                        ctx = ui.funcHeld ? "PHRASE" : "PHRASE  |  Yes = Quantize";
+                        ctx = "PHRASE";
                     }
                     else if (ui.sceneHeld) ctx = "SCENE";
                     else if (ui.morphHeld) ctx = "MORPH";
