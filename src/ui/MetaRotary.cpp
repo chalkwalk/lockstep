@@ -93,6 +93,80 @@ namespace lockstep
             }
         }
 
+        // --- Density cell overlay (DESIGN §39) ---
+        // Drawn before the indicator dot so the dot sits on top.
+        if (mr && mr->densityCell)
+        {
+            const float halfPi = juce::MathConstants<float>::halfPi;
+            const float master = mr->densityMasterOffset;  // [-1, 1]
+            const float perTrack = juce::jlimit(0.0f, 1.0f, sliderPos);
+
+            // Arc spans from pointer angle toward the master-offset direction.
+            // masterEnd is the raw (unclamped) effective position.
+            const float masterEndRaw = perTrack + master;
+            const float masterEndClamped = juce::jlimit(0.0f, 1.0f, masterEndRaw);
+            const float masterEndAngle = rotaryStartAngle
+                + masterEndClamped * (rotaryEndAngle - rotaryStartAngle);
+
+            // Draw the master-offset arc (dimmed fill colour).
+            if (std::abs(master) > 0.005f)
+            {
+                const float arcFrom = juce::jmin(valueAngle, masterEndAngle);
+                const float arcTo   = juce::jmax(valueAngle, masterEndAngle);
+                if (arcTo - arcFrom > 0.005f)
+                {
+                    juce::Path arcPath;
+                    arcPath.addCentredArc(centreX, centreY, radius, radius, 0.0f,
+                                         arcFrom, arcTo, true);
+                    g.setColour(slider.findColour(juce::Slider::rotarySliderFillColourId)
+                                    .withAlpha(0.55f));
+                    g.strokePath(arcPath, juce::PathStrokeType(trackW, juce::PathStrokeType::curved,
+                                                               juce::PathStrokeType::rounded));
+                }
+
+                // Overshoot zone: if masterEndRaw exceeds [0, 1], draw a dimmed
+                // continuation arc so "turning but pinned" is visible.
+                if (masterEndRaw > 1.0f)
+                {
+                    juce::Path overshoot;
+                    overshoot.addCentredArc(centreX, centreY, radius, radius, 0.0f,
+                                            rotaryEndAngle,
+                                            rotaryEndAngle + (masterEndRaw - 1.0f)
+                                                * (rotaryEndAngle - rotaryStartAngle) * 0.2f,
+                                            true);
+                    g.setColour(slider.findColour(juce::Slider::rotarySliderFillColourId)
+                                    .withAlpha(0.2f));
+                    g.strokePath(overshoot, juce::PathStrokeType(trackW, juce::PathStrokeType::curved,
+                                                                  juce::PathStrokeType::rounded));
+                }
+                else if (masterEndRaw < 0.0f)
+                {
+                    juce::Path overshoot;
+                    overshoot.addCentredArc(centreX, centreY, radius, radius, 0.0f,
+                                            rotaryStartAngle + masterEndRaw * (rotaryEndAngle - rotaryStartAngle) * 0.2f,
+                                            rotaryStartAngle,
+                                            true);
+                    g.setColour(slider.findColour(juce::Slider::rotarySliderFillColourId)
+                                    .withAlpha(0.2f));
+                    g.strokePath(overshoot, juce::PathStrokeType(trackW, juce::PathStrokeType::curved,
+                                                                  juce::PathStrokeType::rounded));
+                }
+            }
+
+            // Tick at the effective (clamped) position — the audible value.
+            {
+                const float effectiveAngle = rotaryStartAngle
+                    + mr->densityEffective * (rotaryEndAngle - rotaryStartAngle);
+                const float tickInner = radius - trackW * 1.2f;
+                const float tickOuter = radius + trackW * 1.2f;
+                const float cosA = std::cos(effectiveAngle - halfPi);
+                const float sinA = std::sin(effectiveAngle - halfPi);
+                g.setColour(slider.findColour(juce::Slider::thumbColourId).withAlpha(0.6f));
+                g.drawLine(centreX + tickInner * cosA, centreY + tickInner * sinA,
+                           centreX + tickOuter * cosA, centreY + tickOuter * sinA, trackW);
+            }
+        }
+
         // --- Indicator dot ---
         {
             const float halfPi = juce::MathConstants<float>::halfPi;

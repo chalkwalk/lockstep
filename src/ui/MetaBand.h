@@ -22,7 +22,8 @@ namespace lockstep
         PhraseLen,
         Global,
         Swing,
-        Chance,
+        Density,
+        DensityMode,
         MasterFx,
         Euclidean,
         Transport
@@ -45,6 +46,11 @@ namespace lockstep
         bool hasOverride = false;
         RingMode ringMode = RingMode::UnipolarFill;
         std::array<ReferenceMark, 2> marks{};  // scope-coloured reference ticks
+
+        // Density-cell metadata (only meaningful when band == Density).
+        bool densityCell = false;
+        float densityMasterOffset = 0.0f;   // master offset in [-1, 1]
+        float densityEffective = 1.0f;      // clamp(per+master, 0.01, 1.0) normalised [0,1]
     };
 
     // -------------------------------------------------------------------------

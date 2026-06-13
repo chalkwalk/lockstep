@@ -17,6 +17,14 @@ namespace lockstep
 
         RingMode ringMode = RingMode::UnipolarFill;
         std::array<ReferenceMark, 2> marks{};
+
+        // Density cell (DESIGN §39): when true, drawRotarySlider renders the
+        // arc/overshoot/tick visual instead of the standard ring.
+        // masterOffset: additive master-density value in [-1, 1].
+        // effective:    clamp(perTrack + master, 0.01, 1.0) normalised to [0, 1].
+        bool densityCell = false;
+        float densityMasterOffset = 0.0f;
+        float densityEffective = 1.0f;
     };
 
     // MetaRotaryLookAndFeel — custom rotary renderer.

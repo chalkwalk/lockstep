@@ -276,6 +276,9 @@ namespace lockstep
                 sliders_[si].setAlpha(v.active ? 1.0f : 0.0f);
                 sliders_[si].ringMode = v.ringMode;
                 sliders_[si].marks = v.marks;
+                sliders_[si].densityCell = v.densityCell;
+                sliders_[si].densityMasterOffset = v.densityMasterOffset;
+                sliders_[si].densityEffective = v.densityEffective;
                 labels_[si].setText(v.label, juce::dontSendNotification);
                 valueLabels_[si].setText(v.valueText, juce::dontSendNotification);
                 clearBtns_[si].setEnabled(v.hasOverride);

@@ -177,6 +177,10 @@ namespace lockstep
         bool masterFxPickerOpen = false;
         int masterFxInsertSlot = 0;
 
+        // §39 Density band pagination: 0 = tracks 0-7, 1 = tracks 8-15.
+        // Cycles on Func+Nav while the Density band is showing.
+        int densityPage = 0;
+
         // 5.5 Euclidean generator: Phrase+Fill chord enters generator mode on focused track.
         // Parameters: Pulses/Offset/Accent shown in MZ via MetaBand::Euclidean.
         bool euclidHeld = false;

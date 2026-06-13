@@ -31,7 +31,7 @@ namespace lockstep
         if (swingScopeFor(ui) != 0 && !ui.swingDismissed)
             return MetaBand::Swing;
         if (ui.funcHeld)
-            return MetaBand::Chance;
+            return MetaBand::Density;
         return MetaBand::None;
     }
 
@@ -405,7 +405,6 @@ namespace lockstep
         return result;
     }
 
-    // 5.9 Chance macro — 8 tracks (0-7), one encoder each, 0-200%.
     static std::array<MetaFieldView, 8> buildEuclidBand(LockstepProcessor& proc,
                                                         int track,
                                                         const UiState& ui)
@@ -446,23 +445,61 @@ namespace lockstep
         return result;
     }
 
-    static std::array<MetaFieldView, 8> buildChanceBand(LockstepProcessor& proc)
+    // §39 Density band — 16 tracks paginated (8 per page), arc/tick visual.
+    // Page is derived from the focused track so the band always shows the bank
+    // containing the active track (tracks 0-7 → page 0, 8-15 → page 1).
+    // When Song is held all 8 slots reflect the single master-density knob.
+    static std::array<MetaFieldView, 8> buildDensityBand(LockstepProcessor& proc,
+                                                          const UiState& ui,
+                                                          int focusedTrack)
     {
         std::array<MetaFieldView, 8> result{};
+        const float master = proc.masterDensity();
+
+        // Func+Song: all slots show master density as a bipolar field.
+        if (ui.songHeld)
+        {
+            for (int i = 0; i < 8; ++i)
+            {
+                auto& v = result[static_cast<std::size_t>(i)];
+                v.active = true;
+                v.label = "MSTR";
+                v.minValue = -100.0f;
+                v.maxValue = 100.0f;
+                v.value = master * 100.0f;
+                v.stepped = false;
+                v.writable = true;
+                v.hasOverride = (master != 0.0f);
+                v.valueText = (master >= 0.0f ? "+" : "")
+                    + juce::String(juce::roundToInt(master * 100.0f)) + "%";
+                v.ringMode = RingMode::BipolarFromCentre;
+            }
+            return result;
+        }
+
+        // Normal: per-track density, 8 per page.
+        const int page = (focusedTrack >= 8) ? 1 : 0;
+        const int pageOffset = page * 8;
         for (int i = 0; i < 8; ++i)
         {
-            const float chance = proc.trackDensity(i);
+            const int trackIdx = pageOffset + i;
+            if (trackIdx >= static_cast<int>(kNumTracks)) { break; }
+            const float perTrack = proc.trackDensity(trackIdx);
+            const float effective = juce::jlimit(0.01f, 1.0f, perTrack + master);
             auto& v = result[static_cast<std::size_t>(i)];
             v.active = true;
-            v.label = "Tr " + juce::String(i + 1);
+            v.label = "T" + juce::String(trackIdx + 1);
             v.minValue = 0.0f;
-            v.maxValue = 200.0f;
-            v.value = chance * 100.0f;
+            v.maxValue = 100.0f;
+            v.value = perTrack * 100.0f;
             v.stepped = false;
             v.writable = true;
-            v.hasOverride = (chance != 1.0f);
-            v.valueText = juce::String(juce::roundToInt(chance * 100.0f)) + "%";
-            v.ringMode = RingMode::Dot;
+            v.hasOverride = (perTrack != 1.0f || master != 0.0f);
+            v.valueText = juce::String(juce::roundToInt(effective * 100.0f)) + "%";
+            v.ringMode = RingMode::UnipolarFill;
+            v.densityCell = true;
+            v.densityMasterOffset = master;
+            v.densityEffective = effective;
         }
         return result;
     }
@@ -474,8 +511,8 @@ namespace lockstep
                                                const EditContext& ctx,
                                                const UiState& ui)
     {
-        if (band == MetaBand::Chance)
-            return buildChanceBand(proc);
+        if (band == MetaBand::Density)
+            return buildDensityBand(proc, ui, track);
         if (band == MetaBand::Euclidean)
             return buildEuclidBand(proc, track, ui);
 
@@ -672,9 +709,21 @@ namespace lockstep
                 break;
             }
 
-            case MetaBand::Chance: {
+            case MetaBand::Density: {
+                // Func+Song+encoder → master density (bidirectional offset, -100..+100).
+                if (ui.songHeld)
+                {
+                    proc.setMasterDensity(juce::jlimit(-1.0f, 1.0f, value / 100.0f));
+                    break;
+                }
                 if (field >= 0 && field < 8)
-                    proc.setTrackDensity(field, juce::jlimit(0.01f, 1.0f, value / 100.0f));
+                {
+                    // Page mirrors buildDensityBand: derives from focused track bank.
+                    const int page = (track >= 8) ? 1 : 0;
+                    const int trackIdx = page * 8 + field;
+                    if (trackIdx < static_cast<int>(kNumTracks))
+                        proc.setTrackDensity(trackIdx, juce::jlimit(0.01f, 1.0f, value / 100.0f));
+                }
                 break;
             }
 
