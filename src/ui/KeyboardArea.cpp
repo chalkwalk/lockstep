@@ -124,6 +124,12 @@ namespace lockstep
         --stepPage_;
         clampPage();
     }
+    void KeyboardArea::setPage(int page)
+    {
+        stepPage_ = page;
+        clampPage();
+        repaint();
+    }
 
     void KeyboardArea::setDisplayMode(GridDisplayMode mode)
     {
@@ -652,6 +658,25 @@ namespace lockstep
             {
                 mouseHeldButton_ = ev;
                 if (onButtonDown) onButtonDown(ev);
+                return;
+            }
+        }
+
+        // Nav strip (64-step overview): left=toggle trig, middle=scroll page, right=set length.
+        {
+            auto stepCheck = areas.step;
+            const auto navArea = stepCheck.removeFromBottom(kNavRowH);
+            if (navArea.contains(pos))
+            {
+                const int kNavSteps = 64;
+                const int absStep = juce::jlimit(0, kNavSteps - 1,
+                    (pos.x - navArea.getX()) * kNavSteps / juce::jmax(1, navArea.getWidth()));
+                if (e.mods.isLeftButtonDown() && onMiniSeqToggle)
+                    onMiniSeqToggle(absStep);
+                else if (e.mods.isMiddleButtonDown() && onMiniSeqScrollToStep)
+                    onMiniSeqScrollToStep(absStep);
+                else if (e.mods.isRightButtonDown() && onMiniSeqSetLength)
+                    onMiniSeqSetLength(absStep);
                 return;
             }
         }

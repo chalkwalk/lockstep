@@ -425,6 +425,31 @@ namespace lockstep
         keyboardArea_.onSectionChanged = [this](int /*section*/, int /*page*/, int firstSlot) {
             manipulationZone_.setSlotOffset(firstSlot);
         };
+
+        // Mini-sequencer strip mouse aids (item 6).
+        keyboardArea_.onMiniSeqToggle = [this](int absStep) {
+            const int track = keyboardArea_.getActiveTrack();
+            if (track < 0) return;
+            auto* lp = processor_.apvts().getRawParameterValue(ParamIDs::trackLength(track));
+            const int len = lp ? static_cast<int>(lp->load()) : KeyboardArea::kPageSteps;
+            if (absStep >= len) return;
+            auto& s = processor_.sequence()
+                          .tracks[static_cast<std::size_t>(track)]
+                          .steps[static_cast<std::size_t>(absStep)];
+            s.trig = !s.trig;
+            repaint();
+        };
+        keyboardArea_.onMiniSeqScrollToStep = [this](int absStep) {
+            keyboardArea_.setPage(absStep / KeyboardArea::kPageSteps);
+        };
+        keyboardArea_.onMiniSeqSetLength = [this](int absStep) {
+            const int track = keyboardArea_.getActiveTrack();
+            if (track < 0) return;
+            auto* p = processor_.apvts().getParameter(ParamIDs::trackLength(track));
+            if (p)
+                p->setValueNotifyingHost(static_cast<float>(absStep) / 63.0f);
+        };
+
         keyboardArea_.onMetaSectionChanged = [this](int metaSection) {
             // Navigating to any meta section other than FX/Global (5 or -1) clears
             // the sticky master FX band so the newly-selected section wins.

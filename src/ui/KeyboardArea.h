@@ -68,6 +68,15 @@ namespace lockstep
         std::function<void(ControllerEvent)> onButtonDown;
         std::function<void(ControllerEvent)> onButtonUp;
 
+        // Mini-sequencer strip (nav row) mouse aids — new-user training wheels.
+        // absStep is the 0-based absolute step index (0-63).
+        std::function<void(int)> onMiniSeqToggle;        // left-click: toggle trig
+        std::function<void(int)> onMiniSeqScrollToStep;  // middle-click: page to step
+        std::function<void(int)> onMiniSeqSetLength;     // right-click: set track length
+
+        // Jump the visible 16-step page to the one that contains absStep.
+        void setPage(int page);
+
         // Wired from PluginEditor so paint can query held state for both
         // keyboard and mouse without polling juce::KeyPress::isKeyCurrentlyDown.
         void setPressTracker(const PressTracker* pt) { pressTracker_ = pt; }
