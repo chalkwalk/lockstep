@@ -659,6 +659,7 @@ namespace lockstep
                             s.trigOverride.noteCount = 0;
                             s.trigOverride.hasNoteVelocities = false;
                             s.microOffset = 0.0f;  // clear before residual capture below
+                            s.condition = TrigCondition{};  // stale condition must not gate the new trig
                         }
                         // Capture sub-step timing residual (DESIGN §19.1). Measure the
                         // note-on position against the swung step location so that a
