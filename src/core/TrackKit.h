@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include "../machine/IMachine.h"
+#include "../machine/StubMachine.h"
 #include "TrackFltrState.h"
 #include "TrackChannelState.h"
 #include "TrackEnvState.h"
@@ -17,7 +18,12 @@ namespace lockstep
     {
         // Stable machine string id (e.g. "lockstep.sampler.v1").
         // Unknown ids on load fall back to StubMachine.
-        std::string machineId = "lockstep.sampler.v1";
+        // Default is StubMachine (empty/unmaterialised track): the serializer
+        // skips writing default-stub tracks (PluginState §songTrack), so the
+        // read-back default MUST be stub too — otherwise skipped tracks would
+        // resurrect as samplers and newProject() would diverge from a fresh
+        // construction (track 0 sampler, the rest empty).
+        std::string machineId = StubMachine::kMachineId;
 
         // Stable MIDI output device identifier (empty = none).
         std::string destinationId;

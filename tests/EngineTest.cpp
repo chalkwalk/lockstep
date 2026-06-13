@@ -18,6 +18,8 @@
 #include "EngineHarness.h"
 #include "../src/machine/DrumSynthMachine.h"
 #include "../src/machine/VAMachine.h"
+#include "../src/machine/SamplerMachine.h"
+#include "../src/machine/StubMachine.h"
 
 namespace lockstep
 {
@@ -782,6 +784,34 @@ namespace lockstep
     }
 
     // -----------------------------------------------------------------------
+    // A1b: newProject() must reproduce the pristine construction default —
+    // track 0 = sampler, tracks 1..15 = stub (empty). A serializer round-trip
+    // that skipped default-stub tracks but defaulted absent tracks to sampler
+    // used to resurrect all 15 empty tracks as samplers.
+    static void testNewProjectDefaultMachines()
+    {
+        EngineHarness h;
+        auto& p = h.processor();
+
+        // Sanity: fresh construction is sampler-on-0, stub elsewhere.
+        CHECK(juce::String(p.getMachineIdRaw(0)) == SamplerMachine::kMachineId,
+              "A1b: fresh track 0 is not a sampler");
+        for (int t = 1; t < static_cast<int>(kNumTracks); ++t)
+            CHECK(juce::String(p.getMachineIdRaw(t)) == StubMachine::kMachineId,
+                  "A1b: fresh track " + juce::String(t) + " is not a stub");
+
+        // newProject must round-trip to the same identities.
+        p.newProject();
+        CHECK(juce::String(p.getMachineIdRaw(0)) == SamplerMachine::kMachineId,
+              "A1b: newProject track 0 is not a sampler");
+        for (int t = 1; t < static_cast<int>(kNumTracks); ++t)
+            CHECK(juce::String(p.getMachineIdRaw(t)) == StubMachine::kMachineId,
+                  "A1b: newProject track " + juce::String(t) +
+                  " resurrected as " + juce::String(p.getMachineIdRaw(t)) +
+                  " (expected stub) — empty tracks must not become samplers");
+    }
+
+    // -----------------------------------------------------------------------
 
     void runEngineTests()
     {
@@ -800,6 +830,7 @@ namespace lockstep
         testV16UpgradeToV17();
         testMasterSendBypassSilences();
         testNewProjectDuringPlayback();
+        testNewProjectDefaultMachines();
         testChannelLevelPLockOnVA();
         testTrackFilterLPOnVA();
     }
