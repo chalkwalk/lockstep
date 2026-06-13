@@ -35,6 +35,8 @@ int main()
     lockstep::runControllerTests();
     // 8.26 CaptureRecorder lifecycle
     lockstep::runCaptureRecorderTests();
+    // Density overlay (§39)
+    lockstep::runDensityTests();
 
     // Also drive the JUCE UnitTests registered in lockstep_core (the serializer
     // upgrade chain, "PluginState" category) so they run headlessly in CI rather

@@ -57,4 +57,6 @@ namespace lockstep
     void runControllerTests();
     // 8.26 CaptureRecorder lifecycle
     void runCaptureRecorderTests();
+    // Density overlay (§39)
+    void runDensityTests();
 }
