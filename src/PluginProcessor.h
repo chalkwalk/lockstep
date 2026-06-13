@@ -878,6 +878,10 @@ namespace lockstep
         std::uint32_t savedStateHash_ = 0;            // hash at last new/load/save
         int quiesceDepth_ = 0;                        // withQuiescedEngine re-entrancy counter
         void finishStateLoad();                       // post-readFrom reinstall pass; must be called inside withQuiescedEngine
+        // Reset arrangement_ to a fresh default in place. sizeof(Arrangement) is
+        // ~47 MB, so `arrangement_ = Arrangement{}` would materialize that as a
+        // stack temporary and blow the message-thread stack — allocate on the heap.
+        void resetArrangement();
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LockstepProcessor)
     };

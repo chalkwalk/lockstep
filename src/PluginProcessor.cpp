@@ -4548,10 +4548,18 @@ namespace lockstep
         return Hash::xx32(xmlStr.toRawUTF8(), static_cast<std::size_t>(xmlStr.getNumBytesAsUTF8()));
     }
 
+    void LockstepProcessor::resetArrangement()
+    {
+        // Arrangement is ~47 MB; a stack temporary (`arrangement_ = Arrangement{}`)
+        // overflows the message-thread stack. Build the fresh one on the heap and
+        // move it in — the move is field-wise and uses no large stack temporary.
+        arrangement_ = std::move(*std::make_unique<Arrangement>());
+    }
+
     void LockstepProcessor::newProject()
     {
         withQuiescedEngine([&] {
-            arrangement_ = Arrangement{};
+            resetArrangement();
             PluginState::readFrom(defaultStateBlob_.getData(),
                                   static_cast<int>(defaultStateBlob_.getSize()),
                                   *this);
@@ -4581,7 +4589,7 @@ namespace lockstep
     {
         bool ok = false;
         withQuiescedEngine([&] {
-            arrangement_ = Arrangement{};
+            resetArrangement();
             ok = PluginState::readFromFile(file, *this);
             if (ok)
                 finishStateLoad();
