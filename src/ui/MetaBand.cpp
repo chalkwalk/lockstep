@@ -451,7 +451,7 @@ namespace lockstep
         std::array<MetaFieldView, 8> result{};
         for (int i = 0; i < 8; ++i)
         {
-            const float chance = proc.trackChance(i);
+            const float chance = proc.trackDensity(i);
             auto& v = result[static_cast<std::size_t>(i)];
             v.active = true;
             v.label = "Tr " + juce::String(i + 1);
@@ -674,7 +674,7 @@ namespace lockstep
 
             case MetaBand::Chance: {
                 if (field >= 0 && field < 8)
-                    proc.setTrackChance(field, juce::jlimit(0.0f, 2.0f, value / 100.0f));
+                    proc.setTrackDensity(field, juce::jlimit(0.01f, 1.0f, value / 100.0f));
                 break;
             }
 

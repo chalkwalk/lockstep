@@ -23,14 +23,15 @@ namespace lockstep::TrigEvaluator
     // trackLen     — active track length; used to derive pattern iteration.
     // prevFired    — whether the immediately preceding step slot fired.
     // fillActive   — whether the Fill scope is currently held.
+    // Density thinning is evaluated separately by the caller (DESIGN §39);
+    // probability/conditions here are uniform and unscaled.
     inline bool shouldFire(const Step& step,
                            const TrigCondition& cond,
                            std::size_t trackIdx,
                            std::int64_t absoluteStep,
                            int trackLen,
                            bool prevFired,
-                           bool fillActive = false,
-                           float chanceScale = 1.0f)
+                           bool fillActive = false)
     {
         // Fill trig state determines whether this step fires at all during fill.
         if (fillActive)
@@ -63,12 +64,9 @@ namespace lockstep::TrigEvaluator
         if (cond.prevDependency == 1 && !prevFired) { return false; }
         if (cond.prevDependency == 2 && prevFired) { return false; }
 
-        // Probability check (scaled by the per-track Chance macro).
-        const int scaledProb = std::clamp(
-            static_cast<int>(static_cast<float>(cond.probabilityPercent) * chanceScale),
-            0, 100);
-        if (scaledProb >= 100) { return true; }
-        if (scaledProb == 0) { return false; }
-        return deterministicPercent(trackIdx, absoluteStep) < scaledProb;
+        // Probability check — uniform, unscaled (Density thinning is caller-side).
+        if (cond.probabilityPercent >= 100) { return true; }
+        if (cond.probabilityPercent == 0) { return false; }
+        return deterministicPercent(trackIdx, absoluteStep) < cond.probabilityPercent;
     }
 }

@@ -110,7 +110,17 @@ namespace lockstep
         nextTriggerPpq_.fill(0.0);
         firedStepIdx_.fill(-1);
         lastRecordedStepNum_.fill(std::numeric_limits<int64_t>::min());
-        for (auto& ch : trackChanceScale_) ch.store(1.0f, std::memory_order_relaxed);
+        for (auto& d : trackDensity_) d.store(1.0f, std::memory_order_relaxed);
+        masterDensity_.store(0.0f, std::memory_order_relaxed);
+        // Seed reroll state per track. Use FNV-style hashing of the track index so
+        // tracks start with uncorrelated RNG streams even before the first block.
+        for (std::size_t t = 0; t < kNumTracks; ++t)
+        {
+            rerollState_[t] = static_cast<uint32_t>(t + 1u) * 0x9e3779b1u;
+            rerollState_[t] ^= rerollState_[t] >> 16u;
+            rerollState_[t] *= 0x45d9f3bu;
+        }
+        lastDensityStepNum_.fill(std::numeric_limits<std::int64_t>::min());
 
         for (auto& s : mzSlots_)
             s.store(-1, std::memory_order_relaxed);
@@ -1581,10 +1591,26 @@ namespace lockstep
                         const TrigCondition& cond = step.condition.isTrivial()
                                                         ? track.baseCond
                                                         : step.condition;
-                        const float chance = trackChanceScale_[i].load(std::memory_order_relaxed);
-                        const bool fired = TrigEvaluator::shouldFire(
+                        bool fired = TrigEvaluator::shouldFire(
                             step, cond, i, stepNum, trackLen,
-                            lastStepFired_[i], curFillActive, chance);
+                            lastStepFired_[i], curFillActive);
+
+                        if (fired)
+                        {
+                            // §39 Density gate — subtractive, downstream of all conditions.
+                            const float perTrack = trackDensity_[i].load(std::memory_order_relaxed);
+                            const float master = masterDensity_.load(std::memory_order_relaxed);
+                            const double barPpq = section().coreTime.barPpq();
+                            const double ppqInBar = std::fmod(nextTriggerPpq_[i], barPpq);
+                            const auto& kit = song().tracks[i].kit;
+                            const int qLevel = static_cast<int>(
+                                std::round(std::clamp(perTrack + master, 0.01f, 1.0f) * 100.0f));
+                            const float rerollR = nextRerollR(i, stepNum);
+                            fired = Density::densitySurvives(
+                                perTrack, master, ppqInBar, barPpq,
+                                kit.densityMusicality, kit.densitySelection,
+                                i, stepNum, qLevel, rerollR);
+                        }
 
                         if (fired)
                         {
@@ -1653,9 +1679,28 @@ namespace lockstep
                         const TrigCondition& cond = step.condition.isTrivial()
                                                         ? track.baseCond
                                                         : step.condition;
-                        const float chance2 = trackChanceScale_[i].load(std::memory_order_relaxed);
-                        if (TrigEvaluator::shouldFire(step, cond, i, stepNum, trackLen,
-                                                      lastStepFired_[i], curFillActive, chance2))
+                        bool lookaheadFired = TrigEvaluator::shouldFire(
+                            step, cond, i, stepNum, trackLen, lastStepFired_[i], curFillActive);
+
+                        if (lookaheadFired)
+                        {
+                            // §39 Density gate — same computation as main scan; rerollR
+                            // is memoised so the same stepNum returns the same R value.
+                            const float perTrack = trackDensity_[i].load(std::memory_order_relaxed);
+                            const float master = masterDensity_.load(std::memory_order_relaxed);
+                            const double barPpq = section().coreTime.barPpq();
+                            const double ppqInBar = std::fmod(nextGridPpq, barPpq);
+                            const auto& kit = song().tracks[i].kit;
+                            const int qLevel = static_cast<int>(
+                                std::round(std::clamp(perTrack + master, 0.01f, 1.0f) * 100.0f));
+                            const float rerollR = nextRerollR(i, stepNum);
+                            lookaheadFired = Density::densitySurvives(
+                                perTrack, master, ppqInBar, barPpq,
+                                kit.densityMusicality, kit.densitySelection,
+                                i, stepNum, qLevel, rerollR);
+                        }
+
+                        if (lookaheadFired)
                         {
                             const bool isOdd = (stepNum % 2) == 1;
                             const float swingDelta = isOdd ? effSwing : 0.0f;
@@ -3992,17 +4037,27 @@ namespace lockstep
         return lockstep::availableEffectInfo(idx);
     }
 
-    void LockstepProcessor::setTrackChance(int track, float scale) noexcept
+    void LockstepProcessor::setTrackDensity(int track, float amount) noexcept
     {
-        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
-        trackChanceScale_[static_cast<std::size_t>(track)].store(
-            juce::jlimit(0.0f, 2.0f, scale), std::memory_order_relaxed);
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) { return; }
+        trackDensity_[static_cast<std::size_t>(track)].store(
+            juce::jlimit(0.01f, 1.0f, amount), std::memory_order_relaxed);
     }
 
-    float LockstepProcessor::trackChance(int track) const noexcept
+    float LockstepProcessor::trackDensity(int track) const noexcept
     {
-        if (track < 0 || track >= static_cast<int>(kNumTracks)) return 1.0f;
-        return trackChanceScale_[static_cast<std::size_t>(track)].load(std::memory_order_relaxed);
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) { return 1.0f; }
+        return trackDensity_[static_cast<std::size_t>(track)].load(std::memory_order_relaxed);
+    }
+
+    void LockstepProcessor::setMasterDensity(float offset) noexcept
+    {
+        masterDensity_.store(juce::jlimit(-1.0f, 1.0f, offset), std::memory_order_relaxed);
+    }
+
+    float LockstepProcessor::masterDensity() const noexcept
+    {
+        return masterDensity_.load(std::memory_order_relaxed);
     }
 
     std::unique_ptr<IMachine> LockstepProcessor::createMachineForId(const std::string& id)
