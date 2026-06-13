@@ -670,6 +670,9 @@ namespace lockstep
             bool toFloor = false;
             std::array<bool, kNumTracks> deviated{};
             std::array<int, kNumTracks> deviationPhraseIdx{};
+            // §39 Density state for the target scene.
+            std::array<float, kNumTracks> density{};  // filled to 1.0f by queueScene
+            float masterDensity = 0.0f;
         };
         StagedSceneSwap stagedSwap_{};                        // [QUEUE]
         std::atomic<bool> stagedSwapReady_{ false };        // [ATOMIC]

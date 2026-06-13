@@ -220,7 +220,9 @@ namespace lockstep
         arrangement_.prepareSceneLaunch(sectionIdx, toFloor,
                                         stagedSwap_.working,
                                         stagedSwap_.deviated,
-                                        stagedSwap_.deviationPhraseIdx);
+                                        stagedSwap_.deviationPhraseIdx,
+                                        stagedSwap_.density,
+                                        stagedSwap_.masterDensity);
         stagedSwap_.sceneIdx = sectionIdx;
         stagedSwap_.toFloor = toFloor;
         stagedSwapReady_.store(true, std::memory_order_release);
@@ -974,6 +976,10 @@ namespace lockstep
                                               stagedSwap_.working,
                                               stagedSwap_.deviated,
                                               stagedSwap_.deviationPhraseIdx);
+                // Sync density atomics from the staged overlay values.
+                for (std::size_t t = 0; t < kNumTracks; ++t)
+                    trackDensity_[t].store(stagedSwap_.density[t], std::memory_order_relaxed);
+                masterDensity_.store(stagedSwap_.masterDensity, std::memory_order_relaxed);
                 sceneSwitchApplied_.store(true, std::memory_order_release);
             }
 
@@ -4040,8 +4046,9 @@ namespace lockstep
     void LockstepProcessor::setTrackDensity(int track, float amount) noexcept
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) { return; }
-        trackDensity_[static_cast<std::size_t>(track)].store(
-            juce::jlimit(0.01f, 1.0f, amount), std::memory_order_relaxed);
+        const float clamped = juce::jlimit(0.01f, 1.0f, amount);
+        trackDensity_[static_cast<std::size_t>(track)].store(clamped, std::memory_order_relaxed);
+        arrangement_.liveDensity[static_cast<std::size_t>(track)] = clamped;
     }
 
     float LockstepProcessor::trackDensity(int track) const noexcept
@@ -4052,7 +4059,9 @@ namespace lockstep
 
     void LockstepProcessor::setMasterDensity(float offset) noexcept
     {
-        masterDensity_.store(juce::jlimit(-1.0f, 1.0f, offset), std::memory_order_relaxed);
+        const float clamped = juce::jlimit(-1.0f, 1.0f, offset);
+        masterDensity_.store(clamped, std::memory_order_relaxed);
+        arrangement_.liveMasterDensity = clamped;
     }
 
     float LockstepProcessor::masterDensity() const noexcept
@@ -4308,6 +4317,10 @@ namespace lockstep
             return;
         arrangement_.setActiveSong(pieceIdx);
         reinstallMachinesFromActiveKit();
+        // Reset density atomics — ephemeral state does not cross song boundaries.
+        for (std::size_t t = 0; t < kNumTracks; ++t)
+            trackDensity_[t].store(1.0f, std::memory_order_relaxed);
+        masterDensity_.store(0.0f, std::memory_order_relaxed);
     }
 
     void LockstepProcessor::setActiveScene(int sectionIdx)
@@ -4324,12 +4337,20 @@ namespace lockstep
             return;
         arrangement_.setActiveSceneToFloor(sectionIdx);
         reinstallMachinesFromActiveKit();
+        // Floor launch wipes density — double-tap floor = clean state.
+        for (std::size_t t = 0; t < kNumTracks; ++t)
+            trackDensity_[t].store(1.0f, std::memory_order_relaxed);
+        masterDensity_.store(0.0f, std::memory_order_relaxed);
     }
 
     void LockstepProcessor::loadActivePosition(int songIdx, int sceneIdx)
     {
         arrangement_.loadPosition(songIdx, sceneIdx);
         reinstallMachinesFromActiveKit();
+        // Reset density atomics — loadPosition is a hard navigation reset.
+        for (std::size_t t = 0; t < kNumTracks; ++t)
+            trackDensity_[t].store(1.0f, std::memory_order_relaxed);
+        masterDensity_.store(0.0f, std::memory_order_relaxed);
     }
 
     void LockstepProcessor::swapPhraseForTrack(int t, int phraseIdx)

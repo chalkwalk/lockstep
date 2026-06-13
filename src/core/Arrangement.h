@@ -38,7 +38,7 @@ namespace lockstep
     class Arrangement
     {
     public:
-        Arrangement() { syncWorkingFromActive(); }
+        Arrangement() { liveDensity.fill(1.0f); syncWorkingFromActive(); }
 
         // ── Model ────────────────────────────────────────────────────────────
         std::array<Song, kNumSongs> songs{};
@@ -51,6 +51,11 @@ namespace lockstep
         // This is the LIVE overlay for the scene currently under the playhead.
         std::array<bool, kNumTracks> deviated{};
         std::array<int, kNumTracks> deviationPhraseIdx{};
+        // §39 Density — ephemeral live state (not serialized).
+        // Mirrors the processor's trackDensity_[] / masterDensity_ atomics on the
+        // message thread so that stash/restore and song-reset work correctly.
+        std::array<float, kNumTracks> liveDensity{};   // default {} → 0.0f, filled to 1.0f in ctor
+        float liveMasterDensity = 0.0f;
 
         // ── Per-scene remembered live overlay (DESIGN §4.7/§16, build 3) ──────
         // Each scene remembers its own uncommitted deviations while the set runs.
@@ -63,7 +68,17 @@ namespace lockstep
             bool active = false;   // has a remembered overlay been stashed?
             std::array<bool, kNumTracks> deviated{};
             std::array<int, kNumTracks> deviationPhraseIdx{};
+            // §39 Density — per-scene remembered amounts.
+            std::array<float, kNumTracks> density{};  // default {} = 0.0f; real default is 1.0f
+            float masterDensity = 0.0f;
         };
+        // Factory for a cleared overlay with density defaults (1.0 per track, 0.0 master).
+        static SceneOverlay defaultOverlay() noexcept
+        {
+            SceneOverlay o{};
+            o.density.fill(1.0f);
+            return o;
+        }
         std::array<std::array<SceneOverlay, kScenesPerSong>, kNumSongs> overlays{};
 
         // ── Accessors ────────────────────────────────────────────────────────
@@ -120,6 +135,8 @@ namespace lockstep
             clearOverlayForCurrent();                   // drop the target's overlay
             deviated.fill(false);
             deviationPhraseIdx.fill(0);
+            liveDensity.fill(1.0f);                     // §39: floor wipe resets density
+            liveMasterDensity = 0.0f;
             syncWorkingFromActive();
         }
 
@@ -135,17 +152,21 @@ namespace lockstep
         void prepareSceneLaunch(int targetSceneIdx, bool toFloor,
                                 Sequence& outWorking,
                                 std::array<bool, kNumTracks>& outDeviated,
-                                std::array<int, kNumTracks>& outDeviationPhraseIdx)
+                                std::array<int, kNumTracks>& outDeviationPhraseIdx,
+                                std::array<float, kNumTracks>& outDensity,
+                                float& outMasterDensity)
         {
             writeBackWorkingToActive();
             if (targetSceneIdx != sceneIdx) stashCurrentOverlay();
             if (toFloor)
-                overlays[idx(songIdx)][idx(targetSceneIdx)] = SceneOverlay{};
-            // Build deviation state for the target scene.
+                overlays[idx(songIdx)][idx(targetSceneIdx)] = defaultOverlay();
+            // Build deviation + density state for the target scene.
             if (toFloor)
             {
                 outDeviated.fill(false);
                 outDeviationPhraseIdx.fill(0);
+                outDensity.fill(1.0f);
+                outMasterDensity = 0.0f;
             }
             else
             {
@@ -154,11 +175,15 @@ namespace lockstep
                 {
                     outDeviated = ov.deviated;
                     outDeviationPhraseIdx = ov.deviationPhraseIdx;
+                    outDensity = ov.density;
+                    outMasterDensity = ov.masterDensity;
                 }
                 else
                 {
                     outDeviated.fill(false);
                     outDeviationPhraseIdx.fill(0);
+                    outDensity.fill(1.0f);
+                    outMasterDensity = 0.0f;
                 }
             }
             // Project working sequence for the target scene.
@@ -197,6 +222,9 @@ namespace lockstep
             songIdx = s;
             sceneIdx = 0;
             restoreOverlayForCurrent();      // remembered overlay for the new song's scene 0
+            // §39: song change resets density (ephemerality boundary).
+            liveDensity.fill(1.0f);
+            liveMasterDensity = 0.0f;
             syncWorkingFromActive();
             seedFloor();                     // re-seed floor on song switch (DESIGN §13.6)
         }
@@ -212,6 +240,8 @@ namespace lockstep
             sceneIdx = std::clamp(scene, 0, kScenesPerSong - 1);
             deviated.fill(false);
             deviationPhraseIdx.fill(0);
+            liveDensity.fill(1.0f);          // §39: project load resets density
+            liveMasterDensity = 0.0f;
             clearAllOverlays();              // a fresh load carries no live overlay
             syncWorkingFromActive();
             seedFloor();                     // re-seed floor from loaded state (DESIGN §13.6)
@@ -414,7 +444,11 @@ namespace lockstep
             o.active = true;
             o.deviated = deviated;
             o.deviationPhraseIdx = deviationPhraseIdx;
+            o.density = liveDensity;
+            o.masterDensity = liveMasterDensity;
         }
+        // Returns the density arrays from the restored (or default) overlay.
+        // Caller must sync the processor atomics after calling this.
         void restoreOverlayForCurrent()
         {
             const auto& o = overlays[idx(songIdx)][idx(sceneIdx)];
@@ -422,22 +456,26 @@ namespace lockstep
             {
                 deviated = o.deviated;
                 deviationPhraseIdx = o.deviationPhraseIdx;
+                liveDensity = o.density;
+                liveMasterDensity = o.masterDensity;
             }
             else
             {
                 deviated.fill(false);
                 deviationPhraseIdx.fill(0);
+                liveDensity.fill(1.0f);
+                liveMasterDensity = 0.0f;
             }
         }
         void clearOverlayForCurrent()
         {
-            overlays[idx(songIdx)][idx(sceneIdx)] = SceneOverlay{};
+            overlays[idx(songIdx)][idx(sceneIdx)] = defaultOverlay();
         }
         void clearAllOverlays()
         {
-            for (auto& song : overlays)
-                for (auto& o : song)
-                    o = SceneOverlay{};
+            for (auto& songOverlays : overlays)
+                for (auto& o : songOverlays)
+                    o = defaultOverlay();
         }
 
         // ── Sync primitives (active model ⇄ working buffer) ───────────────────

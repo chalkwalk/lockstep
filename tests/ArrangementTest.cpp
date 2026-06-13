@@ -341,6 +341,70 @@ namespace lockstep
               "baked create with deviation: deviated phrase content captured");
     }
 
+    // Density: live density rides a single-tap scene launch and returns on switch-back.
+    static void testDensityRidesSceneOverlay()
+    {
+        auto arr = makeSeededArrangement();
+        // Set per-track density on scene 0.
+        arr->liveDensity[0] = 0.4f;
+        arr->liveDensity[1] = 0.7f;
+        arr->liveMasterDensity = -0.1f;
+
+        arr->setActiveScene(1);   // single-tap to scene 1 — stashes scene 0 density
+        // Scene 1 has no overlay → live density resets to defaults.
+        CHECK(arr->liveDensity[0] == 1.0f, "scene 1 (virgin): track 0 density resets to 1.0");
+        CHECK(arr->liveMasterDensity == 0.0f, "scene 1 (virgin): master density resets to 0");
+
+        arr->setActiveScene(0);   // single-tap back to scene 0 — restores stashed density
+        CHECK(arr->liveDensity[0] == 0.4f, "scene 0 density remembered across switch");
+        CHECK(arr->liveDensity[1] == 0.7f, "scene 0 track 1 density remembered");
+        CHECK(arr->liveMasterDensity == -0.1f, "scene 0 master density remembered");
+    }
+
+    // Density: double-tap floor launch wipes density to defaults (not saved in overlay).
+    static void testFloorLaunchWipesDensity()
+    {
+        auto arr = makeSeededArrangement();
+        arr->liveDensity[0] = 0.3f;
+        arr->liveMasterDensity = 0.2f;
+
+        arr->setActiveSceneToFloor(0);   // double-tap current scene = floor-wipe
+        CHECK(arr->liveDensity[0] == 1.0f, "floor launch: track 0 density wiped to 1.0");
+        CHECK(arr->liveMasterDensity == 0.0f, "floor launch: master density wiped to 0");
+
+        // Also verify the overlay is cleared: switch away and back — still default.
+        arr->setActiveScene(1);
+        arr->setActiveScene(0);
+        CHECK(arr->liveDensity[0] == 1.0f, "floor launch: density not resurrected on return");
+    }
+
+    // Density: prepareSceneLaunch (staged path) carries density from overlay or defaults.
+    static void testPrepareSceneLaunchCarriesDensity()
+    {
+        auto arr = makeSeededArrangement();
+        // Stash a density overlay for scene 1 by visiting it.
+        arr->setActiveScene(1);
+        arr->liveDensity[2] = 0.5f;
+        arr->liveMasterDensity = 0.15f;
+        arr->setActiveScene(0);   // stashes scene 1's density
+
+        // Now use the staged path to switch to scene 1 (non-floor).
+        Sequence outWorking{};
+        std::array<bool, kNumTracks> outDev{};
+        std::array<int, kNumTracks> outDevPhr{};
+        std::array<float, kNumTracks> outDensity{};
+        float outMaster = 0.0f;
+        arr->prepareSceneLaunch(1, false, outWorking, outDev, outDevPhr, outDensity, outMaster);
+
+        CHECK(outDensity[2] == 0.5f, "staged launch: track 2 density from stashed overlay");
+        CHECK(outMaster == 0.15f, "staged launch: master density from stashed overlay");
+
+        // Floor-staged launch should yield defaults regardless of stashed values.
+        arr->prepareSceneLaunch(1, true, outWorking, outDev, outDevPhr, outDensity, outMaster);
+        CHECK(outDensity[2] == 1.0f, "staged floor launch: density defaulted to 1.0");
+        CHECK(outMaster == 0.0f, "staged floor launch: master density defaulted to 0");
+    }
+
     void runArrangementTests()
     {
         testSceneSwitchPreservesEdit();
@@ -360,5 +424,8 @@ namespace lockstep
         testSceneInitialisedOnMutation();
         testSceneSlotOccupied();
         testFirstFreePhraseSlot();
+        testDensityRidesSceneOverlay();
+        testFloorLaunchWipesDensity();
+        testPrepareSceneLaunchCarriesDensity();
     }
 }
