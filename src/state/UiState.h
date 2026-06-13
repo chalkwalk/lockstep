@@ -181,6 +181,11 @@ namespace lockstep
         // Cycles on Func+Nav while the Density band is showing.
         int densityPage = 0;
 
+        // §39 DensityMode band armed: set when Song key is pressed while Func+Density
+        // band is active (Func held). Cleared on Song release. While armed + Song held +
+        // Func NOT held, resolveMetaBand returns DensityMode instead of Swing.
+        bool densityModeArmed = false;
+
         // 5.5 Euclidean generator: Phrase+Fill chord enters generator mode on focused track.
         // Parameters: Pulses/Offset/Accent shown in MZ via MetaBand::Euclidean.
         bool euclidHeld = false;

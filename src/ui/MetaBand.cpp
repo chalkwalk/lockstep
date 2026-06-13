@@ -2,6 +2,7 @@
 #include "UITheme.h"
 #include "../PluginProcessor.h"
 #include "../ParameterIDs.h"
+#include "../core/Density.h"
 #include "../core/Euclidean.h"
 #include "../core/TrigCondition.h"
 #include "../core/Track.h"
@@ -28,6 +29,10 @@ namespace lockstep
         // euclidHeld and masterFxHeld are explicit sub-modes that outrank passive swing.
         if (ui.euclidHeld)
             return MetaBand::Euclidean;
+        // DensityMode: Song held + densityModeArmed (armed by pressing Song while Func+Density
+        // is active). Gates before Swing so it intercepts the song-held swing path.
+        if (ui.songHeld && ui.densityModeArmed && !ui.funcHeld)
+            return MetaBand::DensityMode;
         if (swingScopeFor(ui) != 0 && !ui.swingDismissed)
             return MetaBand::Swing;
         if (ui.funcHeld)
@@ -504,6 +509,43 @@ namespace lockstep
         return result;
     }
 
+    // §39 DensityMode band — Musicality (3-state stepped) per track, same page as
+    // Density band. Func qualifier in writeMetaField toggles DensitySelection instead.
+    static std::array<MetaFieldView, 8> buildDensityModeBand(LockstepProcessor& proc,
+                                                              int focusedTrack)
+    {
+        std::array<MetaFieldView, 8> result{};
+        const int page = (focusedTrack >= 8) ? 1 : 0;
+        const int pageOffset = page * 8;
+
+        static const char* musLabels[] = { "UNIF", "MIX", "MTRK" };
+        static const char* selLabels[] = { "SCRB", "RROL" };
+
+        for (int i = 0; i < 8; ++i)
+        {
+            const int trackIdx = pageOffset + i;
+            if (trackIdx >= static_cast<int>(kNumTracks)) { break; }
+            const auto& kit = proc.kit(trackIdx);
+            const auto mus = kit.densityMusicality;
+            const auto sel = kit.densitySelection;
+            const int musVal = static_cast<int>(mus);
+            auto& v = result[static_cast<std::size_t>(i)];
+            v.active = true;
+            v.label = "T" + juce::String(trackIdx + 1);
+            v.minValue = 0.0f;
+            v.maxValue = 2.0f;
+            v.value = static_cast<float>(musVal);
+            v.stepped = true;
+            v.writable = true;
+            v.hasOverride = (mus != Density::Musicality::Mixed
+                          || sel != Density::DensitySelection::Scrub);
+            const bool isScrub = (sel == Density::DensitySelection::Scrub);
+            v.valueText = juce::String(musLabels[musVal]) + "/" + juce::String(selLabels[isScrub ? 0 : 1]);
+            v.ringMode = RingMode::Dot;
+        }
+        return result;
+    }
+
     std::array<MetaFieldView, 8> buildMetaBand(MetaBand band,
                                                int swingScope,
                                                LockstepProcessor& proc,
@@ -513,6 +555,8 @@ namespace lockstep
     {
         if (band == MetaBand::Density)
             return buildDensityBand(proc, ui, track);
+        if (band == MetaBand::DensityMode)
+            return buildDensityModeBand(proc, track);
         if (band == MetaBand::Euclidean)
             return buildEuclidBand(proc, track, ui);
 
@@ -705,6 +749,32 @@ namespace lockstep
                         if (track >= 0) proc.setSwingSongTrack(track, value);
                         break;
                     default: proc.setSwingSongAll(value); break;  // scope 1 = song-all
+                }
+                break;
+            }
+
+            case MetaBand::DensityMode: {
+                // Turn encoder → cycle Musicality (3-state stepped).
+                // Func+turn (ui.funcHeld) → toggle DensitySelection.
+                if (field >= 0 && field < 8)
+                {
+                    const int page = (track >= 8) ? 1 : 0;
+                    const int trackIdx = page * 8 + field;
+                    if (trackIdx < static_cast<int>(kNumTracks))
+                    {
+                        auto& kit = proc.kit(trackIdx);
+                        if (ui.funcHeld)
+                        {
+                            kit.densitySelection = (kit.densitySelection == Density::DensitySelection::Scrub)
+                                ? Density::DensitySelection::Reroll
+                                : Density::DensitySelection::Scrub;
+                        }
+                        else
+                        {
+                            const int next = (static_cast<int>(kit.densityMusicality) + 1) % 3;
+                            kit.densityMusicality = static_cast<Density::Musicality>(next);
+                        }
+                    }
                 }
                 break;
             }

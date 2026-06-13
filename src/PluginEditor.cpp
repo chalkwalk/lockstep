@@ -1799,6 +1799,9 @@ namespace lockstep
             case CB::SongScope:
                 physHeld_.song = true;
                 uiState_.songHeld = true;
+                // §39: if Func+Density band is active, arm DensityMode for when Func releases.
+                if (uiState_.funcHeld)
+                    uiState_.densityModeArmed = true;
                 editMode_.onScopeEvent(ev);
                 handleModifierTap(CB::SongScope, uiState_.latch.song);
                 uiState_.swingDismissed = false;
@@ -3393,6 +3396,7 @@ namespace lockstep
             case CB::SongScope:
                 physHeld_.song = false;
                 uiState_.masterFxPickerOpen = false;
+                uiState_.densityModeArmed = false;  // §39: clear on Song release
                 if (!uiState_.songHeld)
                 {
                     uiState_.swingDismissed = false;
