@@ -151,9 +151,10 @@ are sequencing decisions with no other home.
   if it rewards practice; it is rejected as a *crutch* (does the musical work for
   the user) or *dead weight* (cost never repaid in performance). → PRINCIPLES §14.
 - **Deterministic generators print; stochastic authoring is refused.** A Euclidean
-  fill or Chance macro is admissible *because* it is deterministic and prints
-  ordinary trigs; engines that roll dice at edit time are out. → PRINCIPLES
-  "Pragmatic determinism" / "Reward mastery"; DESIGN §13.5.
+  fill or Density overlay is admissible *because* it is deterministic and
+  leaves the trig data unchanged (subtractive only); engines that roll dice at
+  edit time are out. → PRINCIPLES "Pragmatic determinism" / "Reward mastery";
+  DESIGN §13.5, §39.
 - **MOD is a shallow canonical promise.** Minimal performable modulation in the
   canonical section; deep modulation is machine-internal; no custom-LFO designer,
   no free automation lanes. → DESIGN §6.1.
@@ -952,10 +953,16 @@ scope+verb. Stochastic / generative authoring is explicitly *not* here (NON-GOAL
       checkpoint pushed first if phrase has existing trigs. Output is ordinary
       hand-editable trig data. Accent layer Euclidean-distributes N accented
       onsets over the K pulses (higher velocity). See `core/Euclidean.h`.
-- [x] **Chance macro**: a global scalar over the *existing* conditional-trig
-      probabilities (`Func`-held → MZ switches to Chance band; encoders = Chance
-      Scale per track) to thin / build a pattern live — no new randomness,
-      deterministic given the pattern seed.
+- [ ] **Density overlay** (replaces Chance macro): a live, subtractive trig-thinning
+      overlay strictly downstream of fill/iteration/prev-dep/probability — only
+      silences would-fire trigs, never re-enables them. Per-track density amounts +
+      master offset are ephemeral (reset on song change; ride scene sticky/floor
+      launch). Musicality (Uniform/Mixed/Metric) and Selection (Scrub/Reroll) are
+      durable per-song-per-track in TrackKit (serializer v18→v19). Gestures:
+      `Func`-held → 16-track Density band (paginated); `Func+Song+encoder` → master
+      offset; `Song`-held → durable mode editor. Visual: rotary = per-track value,
+      arc = master offset, tick = effective (sticks at rail with dimmed overshoot).
+      See DESIGN §39. *(Chance macro superseded.)*
 - [ ] **Scale-aware CHROMATIC layout** (DESIGN §34.2): the per-phrase scale lock
       remaps the CHROMATIC keyboard to scale degrees — a *playable layout*, never
       note auto-correct (out-of-scale entry stays verbatim and reachable).

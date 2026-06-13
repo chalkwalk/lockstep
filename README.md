@@ -252,7 +252,7 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Master FX** | Four Song-scope FX units on the master bus: 2 inserts (post-sum) + 2 send returns (post send-bus). Loaded via `Func+Song+FX`; cycle units with repeated press. |
 | **Send A / Send B** | Per-track post-insert level tap into shared send buses (AMP page 2, slots 8–9). Each send bus has a return effect before the master inserts. |
 | **Animate** | The momentary insert punch-in: hold `FX` + step to bypass (or enable) an insert for exactly the hold duration. Performance-only — never written to the pattern. Under Song+FX focus the step grid targets the four master units: steps 0-3 = master FX1, 4-7 = FX2, 8-11 = Send A, 12-15 = Send B. |
-| **Chance (Scale)** | Per-track live probability fader: hold `Func` and the MZ encoders become one Chance Scale per track, scaling that track's existing trig-condition probabilities (0 % = suppress all, 100 % = as authored). No new randomness. |
+| **Density** | Live, subtractive trig-thinning overlay: `Func`-held → 16-track Density band; `Func+Song+encoder` → master offset. Only silences would-fire trigs. Ephemeral amounts; durable Musicality + Selection per track. See Density overlay §. |
 | **Retrig / ratchet** | Per-step re-triggering at a musical rate (`/4 … /32T`). `Fill+TRIG` opens the rate picker: press a rate for a live stutter on the focused track, or hold a step first to bake the rate as a per-step P-Lock. Slicer tracks show a slice picker instead. |
 | **Euclidean generator** | `Phrase+Fill` held: encoders shape `PULSE / OFSET / ACCNT` against the phrase length, audible live; releasing **prints** the rhythm as ordinary trigs (checkpoint pushed first). |
 | **Control-All** | Holding `Track` with no track selected broadcasts the next parameter edit to every track that has a matching control. |
@@ -734,13 +734,30 @@ apply across the whole mix. MIDI-out tracks have no sends.
 | `BUS` | Bus Compressor | Thresh, Ratio, Atk, Rel (Auto), SC HPF, Mkup, Mix |
 | `UTL` | Master Utility | Tilt, Width (M/S), Trim (dB) |
 
-State round-trips in serializer v18.
+State round-trips in serializer v18 (v19 when Density ships).
 
-**Chance macro.** While `Func` is held, the Manipulation Zone switches to the
-**Chance** band: the eight encoders map to Chance Scale for each of the eight
-tracks. Turn an encoder to scale the probability of every trig on that track —
-0 % = all trigs suppressed, 100 % = full probability (default). Chance Scale
-is a master fader over the per-trig probability settings, not a replace.
+**Density overlay.** While `Func` is held, the Manipulation Zone switches to the
+**Density** band: 16 per-track rotaries (paginated, low 8 / high 8) show and
+edit each track's density amount — the fraction of would-fire trigs that actually
+play. `Func + Song + encoder` adjusts a single master offset applied additively to
+all tracks; the arc on each rotary shows the offset and a tick marks the effective
+(audible) value — sticking at the rail with a dimmed overshoot when clamped.
+
+Density is strictly downstream of the probability/condition system and only
+silences trigs — it never re-enables a step and never touches the pattern.
+Per-track amounts and master offset are **ephemeral** (reset on song/project
+change; ride the scene sticky/floor launch). While `Song` is held, the band
+switches to the **DensityMode** editor: choose per-track Musicality
+(Uniform / Mixed / Metric) and Selection (Scrub / Re-roll) — these are durable
+(saved per song per track).
+
+| Mode | Behaviour |
+|---|---|
+| **Uniform** | Pure random thinning (all steps equally likely to survive). |
+| **Mixed** | Blends metric weighting and random (default). |
+| **Metric** | Downbeats survive longest; finest offbeats die first. |
+| **Scrub** | Deterministic hash: same knob level always picks the same subset. Turning reshuffles. |
+| **Re-roll** | Live RNG: shimmer varies bar-to-bar; not recallable. |
 
 **Swing by held scope.** Holding a scope key shows a single `Swing` rotary
 whose value is the **cumulative groove at that scope level** — what you hear:
@@ -1185,7 +1202,7 @@ shipped behaviour and the design intent. To avoid confusion:
   upgrade chain, New/Open/Save/Save As with dirty guard, last-project auto-open.
 - **Per-track FX inserts** (2 slots, `Func+FX` picker, `FX+step` animate-bypass).
 - **Master FX bus** (2 post-sum slots, `Func+Song+FX` picker, MZ params under `Song+FX`, serializer v14).
-- **Chance macro** (`Func` held → MZ shows Chance Scale per track).
+- **Density overlay** (`Func`-held → 16-track Density band; `Func+Song+encoder` = master offset; `Song`-held = durable mode editor).
 
 **Planned** — the rest of the
 machine catalogue (`4.5` Static, `4.6` Percussion, `4.7` Digital); **Phase 5**
@@ -1290,7 +1307,8 @@ Func (1)
 ├─ Func + ← / →       → rotate the focused track's steps −1 / +1 — §5.17
 ├─ Func + ↑ / ↓       → double / halve the focused track length — §5.17
 ├─ Func + step        → P-Lock clear mode (cells show set P-Locks; stage removals, release to commit) — §5.17
-└─ (hold)             → MZ switches to Chance band: encoders = Chance Scale per track — §5.8
+├─ Func + Song + ↕ encoder → master Density offset (arc on all rotaries shifts; tick = effective) — §39
+└─ (hold)             → MZ switches to Density band: 16 rotaries = per-track density (paginated) — §39
 ```
 
 Links: [§5.15](#515-checkpoints-live-undo) ·

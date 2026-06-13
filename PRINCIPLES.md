@@ -253,13 +253,13 @@ surface — no random LFO start phase, no probabilistic voice steal, no
 desired, it expresses through trig conditions.
 
 **Deterministic generators are not randomness.** A Euclidean fill, a
-pendulum playback direction, a `Chance` macro that scales the *existing*
-trig-condition probabilities — these are admissible precisely because they
-are deterministic: same state, same result, and the output is ordinary,
-hand-editable trig data (the Euclidean rhythm *prints* to plain trigs when
-the modifier is released). Both shipped in this form (5.9): Euclidean as
-the `Phrase+Fill` held chord, Chance as the `Func`-held per-track encoder
-band. The line is drawn at *stochastic authoring* —
+pendulum playback direction, a `Density` overlay that subtracts trigs
+downstream of the probability/condition system — these are admissible
+precisely because they are deterministic: same state, same result, and the
+existing hand-editable trig data is unchanged (Density only silences
+would-fire trigs; the pattern is unmodified). Euclidean shipped in this form
+(5.9) as the `Phrase+Fill` held chord; Density (§39) replaces the old Chance
+macro as the `Func`-held per-track band. The line is drawn at *stochastic authoring* —
 engines that pick the notes or the pattern for you by rolling dice at edit
 time (Oxi's stochastic modes, Polyend's smart genre fills, Torso's generative
 voicing). Those we refuse; a clocked, repeatable generator we welcome, in the

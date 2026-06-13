@@ -4892,3 +4892,118 @@ Machine reinstall after the switch: `callAsync` fires `reinstallMachines
 FromActiveKit()` under `withQuiescedEngine`. Kit data is already correct
 after the writeback in `prepareSceneLaunch`, so the reinstall is safe to
 run any time after staging completes.
+
+## 39. Density — Live Trig-Thinning Overlay
+
+Density replaces the old Chance macro. It is a **live, subtractive performance
+overlay** that thins the trigs that *would* fire, strictly downstream of the full
+trig-evaluation pipeline (fill → base-trig → iteration → prev-dep → probability).
+It can only *silence* would-fire trigs; it never re-enables a step and never
+modifies the probability/condition system.
+
+### 39.1 Keep-score math
+
+After `TrigEvaluator::shouldFire` returns true, one final gate runs:
+
+```
+effective = clamp(per_track_density + master_density, 0.01, 1.00)
+
+Dmetric   = metricDrop(ppqInBar, barPpq)    // 0 = downbeat (survives); 1 = finest offbeat (dies first)
+R         = Scrub:  hash(trackIdx, stepPos, round(effective * 100))
+            Reroll: live per-track xorshift RNG
+
+K         = m * Dmetric + (1 - m) * R       // m = musicalityM(track.musicality)
+survive iff K < effective
+```
+
+Expected surviving count ≈ `effective` regardless of `m` and Selection, so
+the knob stays intuitive ("keep about this fraction of trigs").
+
+**Floor at 1%** — Density is never a second Mute; a fully-closed Density still
+lets the rarest step through. Use `Mute` to silence a track.
+
+**Additive master** — master density is a **signed offset** (`−1.0 … +1.0`,
+default 0) applied additively before clamping. This lets the master sweep the
+whole kit up or down without proportional interaction. The offset has no mode of
+its own; each track thins according to its own Musicality setting.
+
+### 39.2 Metric weighting (Dmetric)
+
+There is no global bar at trig time (Clock is PPQ/BPM only). Anchor off the
+active scene's `coreTime` (`Scene.h`, `TimeSig::barPpq()`):
+
+```
+ppqInBar = fmod(nextTriggerPpq_[i], barPpq)   // use the grid PPQ, not swing-shifted firePpq
+```
+
+Quantise `phase = ppqInBar / barPpq` to the 16th-grid index `k`; compute
+**metric depth** as the number of trailing zero bits of `k` (downbeat k=0 →
+depth max; finest offbeat → depth 0). Map to drop-propensity:
+`Dmetric = 1 − clamp(depth / maxDepth, 0, 1)`.
+
+This works for polymetric tracks because it is keyed off the step's absolute PPQ
+position in the bar, not the track's own length. Odd time signatures (7/8 etc.)
+are tolerated; the bar PPQ from `coreTime` determines the grid.
+
+### 39.3 Selection modes
+
+| Selection | Behaviour |
+|---|---|
+| **Scrub** | `densityScrubHash(trackIdx, stepPos, round(effective*100))` — deterministic; same knob level always selects the same subset; turning reshuffles. Recallable. |
+| **Re-roll** | Live per-track xorshift RNG, advanced once per distinct `stepNum` (memoised so the lookahead and main scan agree). Shimmers bar-to-bar; not recallable. |
+
+Scrub hashes must use **different salt constants** than `TrigEvaluator`'s
+`deterministicPercent` (salts `2654435761u / 2246822519ull / 0x45d9f3bu`) to
+avoid correlating density selection with which steps barely passed probability.
+
+Under pure **Metric** weighting (m=1), R is moot — Scrub and Re-roll are
+identical (accepted; metric fully determines survival order).
+
+### 39.4 Two lifetimes
+
+| Data | Lifetime | Location |
+|---|---|---|
+| **Musicality** (Uniform / Mixed / Metric), **Selection** (Scrub / Re-roll) | Durable, per-song, per-track | `TrackKit` — serialized (v18 → v19) |
+| Per-track density amounts | Ephemeral | RAM — reset on song/project change; rides scene overlay |
+| Master density offset | Ephemeral | RAM — same |
+
+**Ephemerality** is implemented by carrying density + master offset inside the
+scene overlay (`SceneOverlay`), mirroring the existing `deviated` / `deviationPhraseIdx`
+mechanism. Single-tap scene launch keeps live density deviations (sticky); double-tap
+floor launch wipes them. `setActiveSong` and `loadPosition` always reset to defaults.
+
+### 39.5 Grammar and surface
+
+| Gesture | Effect |
+|---|---|
+| `Func` (held) | MZ → Density band: 16 per-track rotaries, paginated (low 8 / high 8) |
+| `Func + Song + encoder` | Adjust master density offset; arc on all rotaries shifts |
+| `Song` (held) | MZ → DensityMode band: per-track Musicality and Selection (durable) |
+
+No bespoke single-purpose buttons. The `Song` band reuses the Song scope key
+(cross-column compound with Func). Gate from normal song-launch via a
+`densityModeArmed` flag set when entering the Density band.
+
+### 39.6 Density cell visual
+
+The agreed single-visual readout per rotary cell:
+
+- **Rotary pointer** = per-track density amount (your hand; always editable).
+- **Arc** = master offset applied additively (length and direction = how much/
+  which way the global pushes the track value).
+- **Tick** = effective (audible) value. Normally sits at the arc's far end.
+  When `track + master` exceeds the clamped range, the tick **sticks at the
+  rail (1% or 100%)** and the arc continues into a **dimmed overshoot zone** —
+  showing "turning but pinned" with no silent deception.
+
+Reuses the `ReferenceMark` / `RingMode` visual vocabulary from the swing band
+(§19.2), extended with the arc segment and the dimmed overshoot path.
+
+### 39.7 Prev-dep interaction
+
+A density-killed trig must take the **not-fired branch** of the existing evaluator
+(so `lastStepFired_[i] = false`). This means density thinning is visible to
+prev-dep trig conditions on subsequent steps — thinning a step can cascade to
+silence a step that was conditioned on it firing. This is intentional and is part
+of what makes metric-weighted thinning feel musical (gutting offbeats also removes
+the syncopated deps that hang off them).
