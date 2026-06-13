@@ -1540,22 +1540,28 @@ namespace lockstep
             }; // end emitTrig
 
             // Drain pending trig deferred by a late shift from the previous block.
+            // A late micro-offset/swing shift can be many blocks ahead: a +0.3
+            // shift on a 1/16 step is ~0.075 PPQ, while one block is ~0.011 PPQ.
+            // So keep the trig pending until its fire time actually lands in a
+            // block — clearing it after a single block (when ptFire is still in
+            // the future) silently dropped every late-shifted note.
             if (pendingTrigs_[i].pending)
             {
-                const int ptStep = pendingTrigs_[i].stepIndex;
-                const auto ptStNum = pendingTrigs_[i].stepNum;
                 const double ptFire = pendingTrigs_[i].firePpq;
-                pendingTrigs_[i].pending = false;
-                if (ptFire >= blockStart && ptFire < blockEnd)
+                if (ptFire < blockEnd)
                 {
+                    const int ptStep = pendingTrigs_[i].stepIndex;
+                    const auto ptStNum = pendingTrigs_[i].stepNum;
                     const int fireAt = std::clamp(
                         static_cast<int>((ptFire - blockStart) * samplesPerPpq),
                         0, numBlockSamples - 1);
                     firedStepIdx_[i] = ptStep;
                     lastScheduledStepNum_[i] = ptStNum;
                     lastStepFired_[i] = true;
+                    pendingTrigs_[i].pending = false;
                     emitTrig(ptStep, fireAt);
                 }
+                // else: fire time is still beyond this block — keep it pending.
             }
 
             // Main scan: walk the grid and emit per fired step with shift applied.

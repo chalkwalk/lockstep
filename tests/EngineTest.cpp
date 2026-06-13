@@ -649,6 +649,71 @@ namespace lockstep
     }
 
     // -----------------------------------------------------------------------
+    // B7: a late-shifted step (positive microOffset, or late swing) must still
+    // fire. The deferred-trig drain used to clear `pending` after one block, but
+    // a +0.3 microOffset on a 1/16 step is ~0.075 PPQ ≈ 7 blocks ahead — so the
+    // fire time hadn't arrived, pending was cleared, and the note was dropped.
+    // Negative offsets fire inline and were unaffected, which is why only notes
+    // played slightly LATE (live-record timing residual) went silent.
+    static void testLateShiftedTrigsStillFire()
+    {
+        constexpr int kStepSamples = 6000;   // 0.25 PPQ * 24000 samples/PPQ
+        constexpr int kNumStepsToCheck = 20; // > one 16-step loop
+
+        auto countSilentSteps = [&](MusicalGate gate, float microOffset) {
+            EngineHarness h;
+            installVA(h.processor(), 0);
+            for (auto& st : h.processor().sequence().tracks[0].steps)
+            {
+                st.trig = true;
+                st.trigOverride.hasGate = (gate != MusicalGate::None);
+                st.trigOverride.gateValue = gate;
+                st.microOffset = microOffset;
+            }
+
+            std::array<double, kNumStepsToCheck> stepEnergy{};
+            std::array<int, kNumStepsToCheck> stepCount{};
+            int absSample = 0;
+            const int totalBlocks =
+                kNumStepsToCheck * kStepSamples / EngineHarness::kBlockSize + 4;
+            for (int b = 0; b < totalBlocks; ++b)
+            {
+                h.renderBlocks(1);
+                const auto& buf = h.buffer();
+                for (int s = 0; s < buf.getNumSamples(); ++s)
+                {
+                    const int stepBin = absSample / kStepSamples;
+                    if (stepBin < kNumStepsToCheck)
+                    {
+                        const double v = buf.getSample(0, s);
+                        stepEnergy[static_cast<std::size_t>(stepBin)] += v * v;
+                        stepCount[static_cast<std::size_t>(stepBin)]++;
+                    }
+                    ++absSample;
+                }
+            }
+            int silent = 0;
+            for (int s = 2; s < kNumStepsToCheck; ++s)  // skip onset
+            {
+                const int c = stepCount[static_cast<std::size_t>(s)];
+                const double rms = c > 0
+                    ? std::sqrt(stepEnergy[static_cast<std::size_t>(s)] / c) : 0.0;
+                if (rms < 0.02) ++silent;
+            }
+            return silent;
+        };
+
+        // Sweep the full microOffset range, gated and gateless: no step may drop.
+        for (float mo : { -0.49f, -0.3f, -0.1f, 0.0f, 0.1f, 0.2f, 0.3f, 0.49f })
+        {
+            CHECK(countSilentSteps(MusicalGate::G1_8, mo) == 0,
+                  "B7: gated step dropped at microOffset=" + juce::String(mo, 2));
+            CHECK(countSilentSteps(MusicalGate::None, mo) == 0,
+                  "B7: gateless step dropped at microOffset=" + juce::String(mo, 2));
+        }
+    }
+
+    // -----------------------------------------------------------------------
     // B6a: Channel-level P-Lock on a VA track (hasInternalAmp=true) audibly
     // scales the output. Step 0 with lockstep.amp.level P-Lock=0.0 must be
     // silent; the same step at default level must produce audio.
@@ -831,6 +896,7 @@ namespace lockstep
         testMasterSendBypassSilences();
         testNewProjectDuringPlayback();
         testNewProjectDefaultMachines();
+        testLateShiftedTrigsStillFire();
         testChannelLevelPLockOnVA();
         testTrackFilterLPOnVA();
     }
