@@ -47,6 +47,8 @@ namespace lockstep
                     writeMetaField(band_, swingScope_, i, v, processor_,
                                    area_.getActiveTrack(), processor_.editContext(),
                                    uiState_ ? *uiState_ : kEmptyUiState);
+                    if (band_ == MetaBand::Euclidean && onEuclidParamChanged)
+                        onEuclidParamChanged();
                     return;
                 }
                 // Machine-param path.

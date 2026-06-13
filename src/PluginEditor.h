@@ -194,8 +194,15 @@ namespace lockstep
         void updateSwingQualifier();
 
         // 5.5: write the current Euclidean pattern to the focused track's active phrase.
-        // Takes a checkpoint first if the phrase has any existing trigs.
+        // Takes a checkpoint first if the phrase has any existing trigs (use for final commit).
         void applyEuclidToTrack(int track);
+        // Apply euclid pattern to live phrase steps without snapshotting (live preview).
+        void applyEuclidLive(int track);
+
+        // 5.5: stash of phrase steps captured at euclid-arm time; restored on No/escape.
+        std::array<Step, kMaxStepsPerTrack> euclidStash_{};
+        int euclidStashLen_ = 0;
+        int euclidTrack_ = -1;
 
         // Song+FX unit-cycle helpers. Return a unit index 0-3 (0-1=inserts, 2-3=sends).
         // Skip empty units; fall back to 0 if none loaded.

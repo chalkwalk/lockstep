@@ -603,6 +603,13 @@ namespace lockstep
             poolOverlay_.setVisible(true);
             poolOverlay_.toFront(false);
         };
+        manipulationZone_.onEuclidParamChanged = [this] {
+            if (uiState_.euclidHeld && euclidTrack_ >= 0)
+            {
+                applyEuclidLive(euclidTrack_);
+                repaint();
+            }
+        };
 
         // Wire mouse button events from KeyboardArea through the unified dispatch.
         keyboardArea_.onButtonDown = [this](ControllerEvent ev) {
@@ -1154,8 +1161,13 @@ namespace lockstep
             {
                 juce::String ctx;
                 const auto& ui = uiState_;
+                // 5.5: Euclidean modal armed — show commit/cancel banner.
+                if (ui.euclidHeld)
+                {
+                    ctx = "EUCLID  P/O/A  |  Y = COMMIT  P = CANCEL";
+                }
                 // MHZ.3.5: Func+Part = machine picker — show dedicated hint.
-                if (ui.funcTrackHeld)
+                else if (ui.funcTrackHeld)
                 {
                     ctx = "FUNC + MACH  |  press step to select machine";
                 }
@@ -1455,6 +1467,34 @@ namespace lockstep
         }
     }
 
+    void LockstepEditor::applyEuclidLive(int track)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        auto& ph = processor_.activePhrase(track);
+        const int len = ph.length;
+        if (len <= 0) return;
+
+        const auto vels = euclideanAccents(len,
+                                           uiState_.euclidPulses,
+                                           uiState_.euclidOffset,
+                                           uiState_.euclidAccents);
+        for (int si = 0; si < len; ++si)
+        {
+            auto& s = ph.steps[static_cast<std::size_t>(si)];
+            const int v = vels[static_cast<std::size_t>(si)];
+            s.trig = (v > 0);
+            if (v > 0)
+            {
+                s.trigOverride.hasVelocity = true;
+                s.trigOverride.velocity = v;
+            }
+            else
+            {
+                s.trigOverride.hasVelocity = false;
+            }
+        }
+    }
+
     void LockstepEditor::updateFillActivation()
     {
         const bool fillHeld = uiState_.fillHeld;
@@ -1702,12 +1742,26 @@ namespace lockstep
                 refreshMetaBand();  // 1c: Func held → show Chance band in MZ
                 keyboardArea_.repaint();
                 repaint();
-                // MHZ.9.4: Func never latches; double-tap = universal escape (only if latches engaged).
+                // MHZ.9.4: Func never latches; double-tap = universal escape.
+                // Cancels latches AND any active Euclidean modal (restores stashed phrase).
                 {
                     const double now = juce::Time::getMillisecondCounterHiRes();
-                    if (doubleTap_.recordAndCheck(1000 + static_cast<int>(CB::Func), now) && (uiState_.latch.any() || processor_.editContext().hasAnyLatchedStep()))
+                    if (doubleTap_.recordAndCheck(1000 + static_cast<int>(CB::Func), now))
                     {
-                        escapeAllLatches();
+                        if (uiState_.latch.any() || processor_.editContext().hasAnyLatchedStep())
+                            escapeAllLatches();
+                        if (uiState_.euclidHeld)
+                        {
+                            auto& ph = processor_.activePhrase(euclidTrack_);
+                            for (int si = 0; si < euclidStashLen_; ++si)
+                                ph.steps[static_cast<std::size_t>(si)] =
+                                    euclidStash_[static_cast<std::size_t>(si)];
+                            uiState_.resetEuclid();
+                            euclidTrack_ = -1;
+                            euclidStashLen_ = 0;
+                            refreshMetaBand();
+                            repaint();
+                        }
                     }
                 }
                 return true;
@@ -1730,7 +1784,7 @@ namespace lockstep
                 uiState_.phraseScopeHeld = true;
                 uiState_.phraseScopeUsed = false;
                 editMode_.onScopeEvent(ev);
-                // 5.5: Fill+Phrase chord → enter Euclidean generator mode.
+                // 5.5: Fill+Phrase chord → enter Euclidean tap-to-arm modal.
                 if (uiState_.fillHeld && !uiState_.euclidHeld)
                 {
                     const int at = keyboardArea_.getActiveTrack();
@@ -1742,6 +1796,14 @@ namespace lockstep
                     uiState_.euclidOffset = 0;
                     uiState_.euclidAccents = 0;
                     uiState_.euclidHeld = true;
+                    // Stash original phrase for No-cancel restore.
+                    euclidTrack_ = at < 0 ? 0 : at;
+                    euclidStashLen_ = ph.length;
+                    const auto& srcPh = processor_.activePhrase(euclidTrack_);
+                    for (int si = 0; si < euclidStashLen_; ++si)
+                        euclidStash_[static_cast<std::size_t>(si)] =
+                            srcPh.steps[static_cast<std::size_t>(si)];
+                    applyEuclidLive(euclidTrack_);
                     refreshMetaBand();
                 }
                 handleModifierTap(CB::PhraseScope, uiState_.latch.phrase);
@@ -1760,7 +1822,7 @@ namespace lockstep
                 physHeld_.fill = true;
                 uiState_.fillHeld = true;
                 editMode_.onScopeEvent(ev);
-                // 5.5: Phrase+Fill chord → enter Euclidean generator mode.
+                // 5.5: Phrase+Fill chord → enter Euclidean tap-to-arm modal.
                 if (uiState_.phraseScopeHeld && !uiState_.euclidHeld)
                 {
                     const int at = keyboardArea_.getActiveTrack();
@@ -1772,6 +1834,14 @@ namespace lockstep
                     uiState_.euclidOffset = 0;
                     uiState_.euclidAccents = 0;
                     uiState_.euclidHeld = true;
+                    // Stash original phrase for No-cancel restore.
+                    euclidTrack_ = at < 0 ? 0 : at;
+                    euclidStashLen_ = ph.length;
+                    const auto& srcPh = processor_.activePhrase(euclidTrack_);
+                    for (int si = 0; si < euclidStashLen_; ++si)
+                        euclidStash_[static_cast<std::size_t>(si)] =
+                            srcPh.steps[static_cast<std::size_t>(si)];
+                    applyEuclidLive(euclidTrack_);
                     refreshMetaBand();
                 }
                 updateFillActivation();
@@ -3026,6 +3096,24 @@ namespace lockstep
 
             case ControllerButton::VerbYes: {
                 using PS = EditMode::PrimaryScope;
+                // 5.5: Euclid modal armed → Yes commits the live pattern (single undo).
+                // Restores stash first (to give applyEuclidToTrack the original for its snapshot),
+                // then re-applies the euclid pattern with a proper checkpoint.
+                if (uiState_.euclidHeld)
+                {
+                    auto& ph = processor_.activePhrase(euclidTrack_);
+                    for (int si = 0; si < euclidStashLen_; ++si)
+                        ph.steps[static_cast<std::size_t>(si)] =
+                            euclidStash_[static_cast<std::size_t>(si)];
+                    applyEuclidToTrack(euclidTrack_);
+                    uiState_.resetEuclid();
+                    euclidTrack_ = -1;
+                    euclidStashLen_ = 0;
+                    refreshMetaBand();
+                    setStatus("EUCLID committed");
+                    repaint();
+                    return true;
+                }
                 // Y = Snapshot. Under scene scope → re-sync all to scene (scope-specific snapshot).
                 if (uiState_.sceneHeld)
                 {
@@ -3054,6 +3142,22 @@ namespace lockstep
             case ControllerButton::VerbNo: {
                 using PS = EditMode::PrimaryScope;
                 const bool funcHeld = editMode_.scopeState().func;
+
+                // 5.5: Euclid modal armed → bare Yes (P without Func) or No/Func+P both cancel.
+                // Restore the stashed phrase; euclid commit only happens via VerbYes (Y).
+                if (uiState_.euclidHeld)
+                {
+                    auto& ph = processor_.activePhrase(euclidTrack_);
+                    for (int si = 0; si < euclidStashLen_; ++si)
+                        ph.steps[static_cast<std::size_t>(si)] =
+                            euclidStash_[static_cast<std::size_t>(si)];
+                    uiState_.resetEuclid();
+                    euclidTrack_ = -1;
+                    euclidStashLen_ = 0;
+                    refreshMetaBand();
+                    repaint();
+                    return true;
+                }
 
                 // Both primary P (Yes/confirm) and Func+P (No/cancel) arrive here as VerbNo.
                 // Distinguish by whether Func is held.
@@ -3325,12 +3429,8 @@ namespace lockstep
                 physHeld_.phrase = false;
                 if (!uiState_.phraseScopeHeld)
                 {
-                    if (uiState_.euclidHeld)  // 5.5: commit Euclidean pattern on release
-                    {
-                        applyEuclidToTrack(keyboardArea_.getActiveTrack());
-                        uiState_.resetEuclid();
-                        refreshMetaBand();
-                    }
+                    // 5.5: euclid modal stays armed after key release — do not commit here.
+                    // Yes commits; No cancels; double-tap Func escapes.
                     uiState_.phraseScopeUsed = false;
                 }
                 break;
@@ -3353,12 +3453,8 @@ namespace lockstep
                 physHeld_.fill = false;
                 if (!uiState_.fillHeld)
                 {
-                    if (uiState_.euclidHeld)  // 5.5: commit Euclidean pattern on release
-                    {
-                        applyEuclidToTrack(keyboardArea_.getActiveTrack());
-                        uiState_.resetEuclid();
-                        refreshMetaBand();
-                    }
+                    // 5.5: euclid modal stays armed after key release — do not commit here.
+                    // Yes commits; No cancels; double-tap Func escapes.
                     updateFillActivation();
                     // 5.7: release any momentary trig-grid overlay (Retrig / SoundPool).
                     if (uiState_.trigGridMode == TrigGridMode::SoundPool)
@@ -3973,6 +4069,8 @@ namespace lockstep
                                                    norm + static_cast<float>(rawDelta) / 128.0f);
                 writeMetaField(band, swScope, mzSlot, v.minValue + newNorm * range,
                                processor_, track, processor_.editContext(), uiState_);
+                if (band == MetaBand::Euclidean && uiState_.euclidHeld && euclidTrack_ >= 0)
+                    applyEuclidLive(euclidTrack_);
                 return;
             }
 

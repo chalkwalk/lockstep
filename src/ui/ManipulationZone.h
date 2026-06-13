@@ -52,6 +52,10 @@ namespace lockstep
         // Called when the user clicks "Manage pool..." from the sample picker menu.
         std::function<void()> onOpenPoolManager;
 
+        // 5.5: Called after a Euclidean meta-band encoder write so the editor can
+        // re-apply the live euclid pattern to the armed track.
+        std::function<void()> onEuclidParamChanged;
+
     public:
         // MHX §26.2: 8 encoders in a 4x2 staggered band.  Single constant so the
         // hardware-grow path (4 → 8) was a one-line change.
