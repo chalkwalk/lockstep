@@ -1492,6 +1492,12 @@ namespace lockstep
         refreshMetaBand();
     }
 
+    void LockstepEditor::clearSwingDismissed()
+    {
+        uiState_.swingDismissed = false;
+        updateSwingQualifier();
+    }
+
     void LockstepEditor::applyEuclidToTrack(int track)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
@@ -1898,8 +1904,7 @@ namespace lockstep
                 processor_.setControlAllActive(true);  // MD.10: active until a track is selected
                 editMode_.onScopeEvent(ev);
                 handleModifierTap(CB::TrackScope, uiState_.latch.track);
-                uiState_.swingDismissed = false;
-                updateSwingQualifier();
+                clearSwingDismissed();
                 repaint();
                 return true;
 
@@ -1990,8 +1995,7 @@ namespace lockstep
                 uiState_.songHeld = true;
                 editMode_.onScopeEvent(ev);
                 handleModifierTap(CB::SongScope, uiState_.latch.song);
-                uiState_.swingDismissed = false;
-                updateSwingQualifier();
+                clearSwingDismissed();
                 repaint();
                 return true;
 
@@ -2008,8 +2012,7 @@ namespace lockstep
                 uiState_.sceneHeld = true;
                 editMode_.onScopeEvent(ev);
                 handleModifierTap(CB::SceneScope, uiState_.latch.scene);
-                uiState_.swingDismissed = false;
-                updateSwingQualifier();
+                clearSwingDismissed();
                 keyboardArea_.repaint();
                 repaint();
                 return true;
@@ -3539,9 +3542,8 @@ namespace lockstep
                 uiState_.funcTrackHeld = false;
                 if (!uiState_.trackHeld)  // cleared by handleUp → not latched
                 {
-                    uiState_.swingDismissed = false;
                     processor_.setControlAllActive(false);  // MD.10
-                    updateSwingQualifier();
+                    clearSwingDismissed();
                 }
                 break;
 
@@ -3559,8 +3561,7 @@ namespace lockstep
                 physHeld_.scene = false;
                 if (!uiState_.sceneHeld)
                 {
-                    uiState_.swingDismissed = false;
-                    updateSwingQualifier();
+                    clearSwingDismissed();
                 }
                 break;
 
@@ -3613,9 +3614,7 @@ namespace lockstep
                 uiState_.masterFxPickerOpen = false;
                 if (!uiState_.songHeld)
                 {
-                    uiState_.swingDismissed = false;
-                    updateSwingQualifier();
-                    refreshMetaBand();
+                    clearSwingDismissed();
                 }
                 break;
 

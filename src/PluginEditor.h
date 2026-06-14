@@ -197,6 +197,10 @@ namespace lockstep
         // Thin alias for call sites that were wired before refreshMetaBand existed.
         void updateSwingQualifier();
 
+        // Clear swingDismissed and refresh the swing qualifier in one call.
+        // Use instead of the scattered `swingDismissed=false; updateSwingQualifier();` pairs.
+        void clearSwingDismissed();
+
         // 5.5: write the current Euclidean pattern to the focused track's active phrase.
         // Takes a checkpoint first if the phrase has any existing trigs (use for final commit).
         void applyEuclidToTrack(int track);
