@@ -4353,6 +4353,20 @@ namespace lockstep
         masterDensity_.store(0.0f, std::memory_order_relaxed);
     }
 
+    bool LockstepProcessor::restoreOne(CheckpointScope scope, int track)
+    {
+        const bool ok = arrangement_.restoreOne(scope, track);
+        if (ok)
+            reinstallMachinesFromActiveKit();
+        return ok;
+    }
+
+    void LockstepProcessor::restoreToFloor(CheckpointScope scope, int track)
+    {
+        arrangement_.restoreToFloor(scope, track);
+        reinstallMachinesFromActiveKit();
+    }
+
     void LockstepProcessor::swapPhraseForTrack(int t, int phraseIdx)
     {
         arrangement_.swapPhraseForTrack(t, phraseIdx);

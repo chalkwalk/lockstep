@@ -11,7 +11,12 @@ namespace lockstep::StateResolver
         // Only applied when the scene has morph data; skipped when maps are empty.
         if (morph && morph->scene && (!morph->scene->morphA.empty() || !morph->scene->morphB.empty()))
         {
-            for (int slot = 0; slot < static_cast<int>(frame.size()); ++slot)
+            // Clamp to machine capacity: a stale frame (e.g. after a scope restore that
+            // changed machine type) must not drive paramSpec() out of range.
+            const int morphLimit = morph->machine
+                ? std::min(static_cast<int>(frame.size()), morph->machine->numParams())
+                : static_cast<int>(frame.size());
+            for (int slot = 0; slot < morphLimit; ++slot)
             {
                 const bool stepped = morph->machine
                                          ? morph->machine->paramSpec(slot).isStepped

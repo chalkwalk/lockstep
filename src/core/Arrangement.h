@@ -566,6 +566,8 @@ namespace lockstep
                     }
                     else
                     {
+                        // DESIGN-DEBT(undo-model): floor-fallback silently wipes to project baseline.
+                        // Rethink in the undo-model redesign session — should this be a no-op or prompt?
                         song() = floorSong_;
                     }
                     syncWorkingFromActive();

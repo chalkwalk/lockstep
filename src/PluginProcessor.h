@@ -185,8 +185,8 @@ namespace lockstep
         // 7.9e: Scope-respecting Checkpoints (DESIGN §13.6).
         // Delegate to arrangement_; the processor is a thin shell.
         void snapshot(CheckpointScope scope, int track) { arrangement_.snapshot(scope, track); }
-        bool restoreOne(CheckpointScope scope, int track) { return arrangement_.restoreOne(scope, track); }
-        void restoreToFloor(CheckpointScope scope, int track) { arrangement_.restoreToFloor(scope, track); }
+        bool restoreOne(CheckpointScope scope, int track);
+        void restoreToFloor(CheckpointScope scope, int track);
         [[nodiscard]] int checkpointDepth(CheckpointScope scope, int track) const
         {
             return arrangement_.checkpointDepth(scope, track);
