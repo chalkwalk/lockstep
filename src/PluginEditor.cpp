@@ -1185,9 +1185,13 @@ namespace lockstep
                 // Sticky DENSITY mode context.
                 else if (ui.densityStickyMode)
                 {
-                    ctx = (ui.densitySubPage == UiState::DensitySubPage::Mode)
-                        ? "DENSITY  Mode  |  turn = Musicality  Func+turn = Selection  FX = amount"
-                        : "DENSITY  Amount  |  nav = bank  Song = master  FX = mode";
+                    using SP = UiState::DensitySubPage;
+                    if (ui.densitySubPage == SP::Musicality)
+                        ctx = "DENSITY  Musicality  |  turn = Unif / Mix / Metric  FX = selection";
+                    else if (ui.densitySubPage == SP::Selection)
+                        ctx = "DENSITY  Selection  |  turn = Scrub / Re-roll  FX = amount";
+                    else
+                        ctx = "DENSITY  Amount  |  nav = bank  Song = master  FX = musicality";
                 }
                 else
                 {
@@ -1654,10 +1658,11 @@ namespace lockstep
         }
         if (btn == CB::Section && index == 5)
         {
+            using SP = UiState::DensitySubPage;
             uiState_.densitySubPage =
-                (uiState_.densitySubPage == UiState::DensitySubPage::Amount)
-                    ? UiState::DensitySubPage::Mode
-                    : UiState::DensitySubPage::Amount;
+                (uiState_.densitySubPage == SP::Amount)     ? SP::Musicality :
+                (uiState_.densitySubPage == SP::Musicality) ? SP::Selection  :
+                                                              SP::Amount;
             refreshMetaBand();
             repaint();
             return true;
@@ -4182,6 +4187,7 @@ namespace lockstep
                         || band == MetaBand::Trig || band == MetaBand::Divider
                         || band == MetaBand::PhraseLen || band == MetaBand::Euclidean
                         || band == MetaBand::DensityMode
+                        || band == MetaBand::DensitySelection
                         || (band == MetaBand::Density && !densityEditsMaster(uiState_)));
                     if (isTrackBand)
                     {

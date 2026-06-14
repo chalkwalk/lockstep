@@ -181,7 +181,7 @@ namespace lockstep
         bool densityStickyMode = false;
         int  densityBank = 0;  // 0 = tracks 0-7, 1 = tracks 8-15
 
-        enum class DensitySubPage { Amount, Mode };
+        enum class DensitySubPage { Amount, Musicality, Selection };
         DensitySubPage densitySubPage = DensitySubPage::Amount;
 
         // 5.5 Euclidean generator: Phrase+Fill chord enters generator mode on focused track.

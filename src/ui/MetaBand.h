@@ -23,7 +23,8 @@ namespace lockstep
         Global,
         Swing,
         Density,
-        DensityMode,
+        DensityMode,       // Musicality sub-page (Uniform / Mixed / Metric)
+        DensitySelection,  // Selection sub-page (Scrub / Re-roll)
         MasterFx,
         Euclidean,
         Transport

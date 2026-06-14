@@ -46,9 +46,11 @@ namespace lockstep
         UiState ui;
         ui.densityStickyMode = true;
         ui.densitySubPage = UiState::DensitySubPage::Amount;
-        CHECK(resolveMetaBand(ui) == MetaBand::Density, "sticky Amount → Density");
-        ui.densitySubPage = UiState::DensitySubPage::Mode;
-        CHECK(resolveMetaBand(ui) == MetaBand::DensityMode, "sticky Mode → DensityMode");
+        CHECK(resolveMetaBand(ui) == MetaBand::Density,         "sticky Amount → Density");
+        ui.densitySubPage = UiState::DensitySubPage::Musicality;
+        CHECK(resolveMetaBand(ui) == MetaBand::DensityMode,     "sticky Musicality → DensityMode");
+        ui.densitySubPage = UiState::DensitySubPage::Selection;
+        CHECK(resolveMetaBand(ui) == MetaBand::DensitySelection, "sticky Selection → DensitySelection");
     }
 
     static void testResolveMetaBandFuncSong()
