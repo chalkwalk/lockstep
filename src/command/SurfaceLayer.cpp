@@ -42,6 +42,10 @@ namespace lockstep
         }
         if (ui.morphHeld && !ui.funcHeld) { return SurfaceLayer::MorphStepView; }
 
+        // Euclidean modal outranks scope-selector: the grid must show trigs, not
+        // the phrase-select banner, whether Phrase is held or latched.
+        if (ui.euclidHeld) { return SurfaceLayer::Base; }
+
         if (ui.trackHeld || ui.phraseScopeHeld || ui.sceneHeld || ui.songHeld)
         {
             return SurfaceLayer::ScopeSelector;
