@@ -1426,8 +1426,6 @@ namespace lockstep
             if (mode == TrackInputMode::Chromatic)
             {
                 const juce::Colour border = col(kScopeTrack).withAlpha(0.70f);
-                const int octave = uiState_.noteEditOctave;
-
                 for (int row = 0; row < kRows; ++row)
                 {
                     for (int col2 = 0; col2 < kCols; ++col2)
@@ -1462,11 +1460,8 @@ namespace lockstep
                     }
                 }
 
-                const int midiBase = (octave + 1) * 12;
-                const juce::String msg = "CHROMATIC  C" + juce::String(octave) + " (MIDI " + juce::String(midiBase) + ")  |  NavLeft/Right = octave";
-                g.setColour(juce::Colour::fromRGB(80, 95, 115));
-                g.setFont(juce::Font(juce::FontOptions(10.0f)));
-                g.drawText(msg, navArea, juce::Justification::centred);
+                // Mode badge is in the top context band; mini-seq occupies nav row.
+                paintTimeline(g, navArea);
                 return;
             }
         }
@@ -1516,10 +1511,8 @@ namespace lockstep
                     }
                 }
 
-                g.setColour(juce::Colour::fromRGB(80, 95, 115));
-                g.setFont(juce::Font(juce::FontOptions(10.0f)));
-                g.drawText("LEVELS  |  step=P-Lock vel  |  no step=base vel  |  rec-arm=write trig",
-                           navArea, juce::Justification::centred);
+                // Mode badge is in the top context band; mini-seq occupies nav row.
+                paintTimeline(g, navArea);
                 return;
             }
         }
