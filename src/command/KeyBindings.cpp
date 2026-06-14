@@ -139,9 +139,11 @@ namespace lockstep
         { CB::VerbClear, -1, kModNone, SL::Base, AId::VerbClear, u8"CLEAR", u8"DEL", CS::Resting },
 
         // ── VerbConfirm / CONFIRM (key P) ─────────────────────────────────────────
-        // Scope+P = QUANT (zero microOffset on scope). Func+P = CANCEL.
-        { CB::VerbConfirm, -1, kModTrack,  SL::Base, AId::VerbConfirm, u8"QUANT", u8"CANCEL", CS::Resting },
-        { CB::VerbConfirm, -1, kModPhrase, SL::Base, AId::VerbConfirm, u8"QUANT", u8"CANCEL", CS::Resting },
+        // Scope+P = QUANT (zero microOffset on scope). No hint: holding Func over
+        // Track/Phrase+P still resolves to QUANT (scope wins the popcount tiebreak),
+        // so there is no distinct Func-overlay to preview.
+        { CB::VerbConfirm, -1, kModTrack,  SL::Base, AId::VerbConfirm, u8"QUANT", u8"", CS::Resting },
+        { CB::VerbConfirm, -1, kModPhrase, SL::Base, AId::VerbConfirm, u8"QUANT", u8"", CS::Resting },
         { CB::VerbConfirm, -1, kModFunc,   SL::Base, AId::VerbCancel,  u8"CANCEL", u8"", CS::Resting },
         { CB::VerbConfirm, -1, kModNone,   SL::Base, AId::VerbConfirm, u8"CONFIRM", u8"CANCEL", CS::Resting },
 

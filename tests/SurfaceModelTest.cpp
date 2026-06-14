@@ -356,9 +356,9 @@ namespace lockstep
         CHECK(juce::String(scopedCell(PS::Morph, 2).label) == "FLTR",
               "Morph+FILTER override is FLTR (abbreviated)");
 
-        // Song scope: only GLBL is non-null, at index 5.
-        CHECK(juce::String(scopedCell(PS::Song, 5).label) == "GLBL",
-              "Song+FX override is GLBL");
+        // Song scope: only FX is non-null, at index 5 (master-bus FX; Func = picker).
+        CHECK(juce::String(scopedCell(PS::Song, 5).label) == "FX",
+              "Song+FX override is FX");
         CHECK(scopedCell(PS::Song, 0).label == nullptr, "Song+TRIG is nullptr");
     }
 

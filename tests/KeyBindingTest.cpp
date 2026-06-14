@@ -157,9 +157,9 @@ namespace lockstep
         CHECK(resolve(CB::VerbClear, kModMorph) == AId::VerbMorphBake, "Morph+O = BAKE");
         CHECK(resolve(CB::VerbClear, kModMorph | kModFunc) == AId::VerbMorphErase, "Func+Morph+O = ERASE");
 
-        // P: YES / NO
-        CHECK(resolve(CB::VerbConfirm, kModNone) == AId::VerbConfirm, "P bare = YES");
-        CHECK(resolve(CB::VerbConfirm, kModFunc) == AId::VerbCancel, "Func+P = NO");
+        // P: CONFIRM / CANCEL
+        CHECK(resolve(CB::VerbConfirm, kModNone) == AId::VerbConfirm, "P bare = CONFIRM");
+        CHECK(resolve(CB::VerbConfirm, kModFunc) == AId::VerbCancel, "Func+P = CANCEL");
     }
 
     // ── Section keys ─────────────────────────────────────────────────────────
