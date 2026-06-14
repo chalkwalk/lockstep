@@ -3,6 +3,21 @@
 
 namespace lockstep
 {
+    void MetaRotary::applyView(const View& v)
+    {
+        setRange(v.rangeLo, v.rangeHi, v.interval);
+        setSkewFactor(v.skew);
+        setDoubleClickReturnValue(v.doubleClickEnabled, v.doubleClickValue);
+        setValue(v.value, juce::dontSendNotification);
+        setEnabled(v.enabled);
+        setAlpha(v.alpha);
+        ringMode = v.ringMode;
+        marks = v.marks;
+        densityCell = v.densityCell;
+        densityMasterOffset = v.densityMasterOffset;
+        densityEffective = v.densityEffective;
+    }
+
     void MetaRotaryLookAndFeel::drawRotarySlider(juce::Graphics& g,
                                                  int x, int y, int width, int height,
                                                  float sliderPos,

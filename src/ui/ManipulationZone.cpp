@@ -272,22 +272,20 @@ namespace lockstep
                 const double hi = v.maxValue > v.minValue
                                       ? static_cast<double>(v.maxValue)
                                       : lo + 1.0;
-                sliders_[si].setRange(lo, hi, v.stepped ? 1.0 : 0.0);
-                // Meta bands are linear: reset any non-unity skew left over from the
-                // underlying machine-param section. Without this the slider for a slot
-                // whose hidden machine param is skewed (e.g. AMP decay, skew 0.3) keeps
-                // that curve, so its thumb diverges from the linear arc/effective tick —
-                // reading as a "double-rate" move on that one slot (e.g. density slot 3).
-                sliders_[si].setSkewFactor(1.0);
-                sliders_[si].setDoubleClickReturnValue(false, 0.0);
-                sliders_[si].setValue(static_cast<double>(v.value), juce::dontSendNotification);
-                sliders_[si].setEnabled(v.writable);
-                sliders_[si].setAlpha(v.active ? 1.0f : 0.0f);
-                sliders_[si].ringMode = v.ringMode;
-                sliders_[si].marks = v.marks;
-                sliders_[si].densityCell = v.densityCell;
-                sliders_[si].densityMasterOffset = v.densityMasterOffset;
-                sliders_[si].densityEffective = v.densityEffective;
+                MetaRotary::View mv;
+                mv.rangeLo = lo;
+                mv.rangeHi = hi;
+                mv.interval = v.stepped ? 1.0 : 0.0;
+                mv.value = static_cast<double>(v.value);
+                mv.enabled = v.writable;
+                mv.alpha = v.active ? 1.0f : 0.0f;
+                mv.ringMode = v.ringMode;
+                mv.marks = v.marks;
+                mv.densityCell = v.densityCell;
+                mv.densityMasterOffset = v.densityMasterOffset;
+                mv.densityEffective = v.densityEffective;
+                // skew defaults to 1.0; doubleClickEnabled defaults to false.
+                sliders_[si].applyView(mv);
                 labels_[si].setText(v.label, juce::dontSendNotification);
                 valueLabels_[si].setText(v.valueText, juce::dontSendNotification);
                 clearBtns_[si].setEnabled(v.hasOverride);
@@ -324,8 +322,10 @@ namespace lockstep
             const bool outOfSection = (slot < numMachineParams) && (processor_.paramSpec(track, slot).sectionIndex != activeSectionIndex);
             if (slot >= numMachineParams || outOfSection)
             {
-                sliders_[si].setEnabled(false);
-                sliders_[si].setAlpha(0.0f);
+                MetaRotary::View dv;
+                dv.enabled = false;
+                dv.alpha = 0.0f;
+                sliders_[si].applyView(dv);
                 labels_[si].setText({}, juce::dontSendNotification);
                 valueLabels_[si].setText({}, juce::dontSendNotification);
                 clearBtns_[si].setEnabled(false);
@@ -335,27 +335,11 @@ namespace lockstep
 
             const auto meta = processor_.paramSpec(track, slot);
 
-            // Set ring mode from param spec (fixes bipolar machine params on screen).
-            sliders_[si].ringMode = meta.isStepped           ? RingMode::Dot
-                                    : (meta.minValue < 0.0f) ? RingMode::BipolarFromCentre
-                                                             : RingMode::UnipolarFill;
-            sliders_[si].marks = {};
-
             // Sample slot: replace rotary with a name button + picker popup.
             const bool isSampleSlot = (meta.id == "sample_id" || meta.id == "slicer_sample_id");
 
-            sliders_[si].setEnabled(!isSampleSlot);
-            sliders_[si].setAlpha(isSampleSlot ? 0.0f : 1.0f);
-            // Guard: JUCE Slider asserts on a zero-extent range (min == max).
             const double lo = static_cast<double>(meta.minValue);
             const double hi = static_cast<double>(meta.maxValue);
-            sliders_[si].setRange(lo, (hi > lo ? hi : lo + 1.0),
-                                  meta.isStepped ? 1.0 : 0.0);
-            // MHZ.5.2: non-linear encoder curve for time params (attack/decay/release).
-            sliders_[si].setSkewFactor(meta.isStepped ? 1.0 : static_cast<double>(meta.skew));
-            // MHZ.2.4: double-click resets to parameter default.
-            sliders_[si].setDoubleClickReturnValue(true,
-                                                   static_cast<double>(meta.defaultValue));
 
             // Show the morph-appropriate value when morph data exists:
             //   qualifier=1 → raw A endpoint (pole preview while editing A)
@@ -399,7 +383,20 @@ namespace lockstep
                 }
             }
 
-            sliders_[si].setValue(static_cast<double>(value), juce::dontSendNotification);
+            MetaRotary::View sv;
+            sv.rangeLo = lo;
+            sv.rangeHi = hi > lo ? hi : lo + 1.0;
+            sv.interval = meta.isStepped ? 1.0 : 0.0;
+            sv.skew = meta.isStepped ? 1.0 : static_cast<double>(meta.skew);
+            sv.doubleClickEnabled = true;
+            sv.doubleClickValue = static_cast<double>(meta.defaultValue);
+            sv.ringMode = meta.isStepped           ? RingMode::Dot
+                          : (meta.minValue < 0.0f) ? RingMode::BipolarFromCentre
+                                                   : RingMode::UnipolarFill;
+            sv.enabled = !isSampleSlot;
+            sv.alpha = isSampleSlot ? 0.0f : 1.0f;
+            sv.value = static_cast<double>(value);
+            sliders_[si].applyView(sv);
 
             if (isSampleSlot)
             {
