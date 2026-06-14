@@ -26,15 +26,20 @@ namespace lockstep
             case 5:  return MetaBand::Global;     // Song+FX: master insert params
             default: break;
         }
-        // euclidHeld and masterFxHeld are explicit sub-modes that outrank passive swing.
+        // Euclidean modal outranks everything else.
         if (ui.euclidHeld)
             return MetaBand::Euclidean;
-        // DensityMode: Song held + densityModeArmed (armed by pressing Song while Func+Density
-        // is active). Gates before Swing so it intercepts the song-held swing path.
-        if (ui.songHeld && ui.densityModeArmed && !ui.funcHeld)
-            return MetaBand::DensityMode;
+        // Sticky density mode (entered via double-tap Func).
+        if (ui.densityStickyMode)
+            return ui.densitySubPage == UiState::DensitySubPage::Mode
+                       ? MetaBand::DensityMode : MetaBand::Density;
+        // Transient Func+Song → master density overlay (order-independent).
+        if (ui.funcHeld && ui.songHeld)
+            return MetaBand::Density;
+        // Song (or Scene/Track) alone → swing. Guards after the Func+Song check above.
         if (swingScopeFor(ui) != 0 && !ui.swingDismissed)
             return MetaBand::Swing;
+        // Func alone → transient per-track density peek.
         if (ui.funcHeld)
             return MetaBand::Density;
         return MetaBand::None;
@@ -461,29 +466,9 @@ namespace lockstep
         std::array<MetaFieldView, 8> result{};
         const float master = proc.masterDensity();
 
-        // Func+Song: all slots show master density as a bipolar field.
-        if (ui.songHeld)
-        {
-            for (int i = 0; i < 8; ++i)
-            {
-                auto& v = result[static_cast<std::size_t>(i)];
-                v.active = true;
-                v.label = "MSTR";
-                v.minValue = -100.0f;
-                v.maxValue = 100.0f;
-                v.value = master * 100.0f;
-                v.stepped = false;
-                v.writable = true;
-                v.hasOverride = (master != 0.0f);
-                v.valueText = (master >= 0.0f ? "+" : "")
-                    + juce::String(juce::roundToInt(master * 100.0f)) + "%";
-                v.ringMode = RingMode::BipolarFromCentre;
-            }
-            return result;
-        }
-
-        // Normal: per-track density, 8 per page.
-        const int page = (focusedTrack >= 8) ? 1 : 0;
+        // Per-track density, 8 per page. Bank source: sticky mode uses densityBank,
+        // transient mode follows the focused track.
+        const int page = ui.densityStickyMode ? ui.densityBank : ((focusedTrack >= 8) ? 1 : 0);
         const int pageOffset = page * 8;
         for (int i = 0; i < 8; ++i)
         {
@@ -512,10 +497,11 @@ namespace lockstep
     // §39 DensityMode band — Musicality (3-state stepped) per track, same page as
     // Density band. Func qualifier in writeMetaField toggles DensitySelection instead.
     static std::array<MetaFieldView, 8> buildDensityModeBand(LockstepProcessor& proc,
+                                                              const UiState& ui,
                                                               int focusedTrack)
     {
         std::array<MetaFieldView, 8> result{};
-        const int page = (focusedTrack >= 8) ? 1 : 0;
+        const int page = ui.densityStickyMode ? ui.densityBank : ((focusedTrack >= 8) ? 1 : 0);
         const int pageOffset = page * 8;
 
         static const char* musLabels[] = { "UNIF", "MIX", "MTRK" };
@@ -556,7 +542,7 @@ namespace lockstep
         if (band == MetaBand::Density)
             return buildDensityBand(proc, ui, track);
         if (band == MetaBand::DensityMode)
-            return buildDensityModeBand(proc, track);
+            return buildDensityModeBand(proc, ui, track);
         if (band == MetaBand::Euclidean)
             return buildEuclidBand(proc, track, ui);
 
@@ -758,7 +744,7 @@ namespace lockstep
                 // Func+turn (ui.funcHeld) → toggle DensitySelection.
                 if (field >= 0 && field < 8)
                 {
-                    const int page = (track >= 8) ? 1 : 0;
+                    const int page = ui.densityStickyMode ? ui.densityBank : ((track >= 8) ? 1 : 0);
                     const int trackIdx = page * 8 + field;
                     if (trackIdx < static_cast<int>(kNumTracks))
                     {
@@ -780,16 +766,10 @@ namespace lockstep
             }
 
             case MetaBand::Density: {
-                // Func+Song+encoder → master density (bidirectional offset, -100..+100).
-                if (ui.songHeld)
-                {
-                    proc.setMasterDensity(juce::jlimit(-1.0f, 1.0f, value / 100.0f));
-                    break;
-                }
                 if (field >= 0 && field < 8)
                 {
-                    // Page mirrors buildDensityBand: derives from focused track bank.
-                    const int page = (track >= 8) ? 1 : 0;
+                    // Page mirrors buildDensityBand: sticky mode uses densityBank, else focus-derived.
+                    const int page = ui.densityStickyMode ? ui.densityBank : ((track >= 8) ? 1 : 0);
                     const int trackIdx = page * 8 + field;
                     if (trackIdx < static_cast<int>(kNumTracks))
                         proc.setTrackDensity(trackIdx, juce::jlimit(0.01f, 1.0f, value / 100.0f));

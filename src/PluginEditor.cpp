@@ -1559,6 +1559,9 @@ namespace lockstep
 
         const auto prevLatch = uiState_.latch;
         uiState_.latch = {};  // clear all latches before calling dispatchUp so guards pass
+        uiState_.densityStickyMode = false;
+        uiState_.densityBank = 0;
+        uiState_.densitySubPage = UiState::DensitySubPage::Amount;
 
         // For each latched modifier that isn't physically held, do a full release.
         // dispatchUp now checks !uiState_.latch.xxx (already false), so it runs completely.
@@ -1799,6 +1802,19 @@ namespace lockstep
                             refreshMetaBand();
                             repaint();
                         }
+                        else if (!uiState_.latch.any()
+                                 && !processor_.editContext().hasAnyLatchedStep())
+                        {
+                            // No latches/euclid to escape — toggle sticky DENSITY mode.
+                            uiState_.densityStickyMode = !uiState_.densityStickyMode;
+                            if (!uiState_.densityStickyMode)
+                            {
+                                uiState_.densityBank = 0;
+                                uiState_.densitySubPage = UiState::DensitySubPage::Amount;
+                            }
+                            refreshMetaBand();
+                            repaint();
+                        }
                     }
                 }
                 return true;
@@ -1901,9 +1917,6 @@ namespace lockstep
             case CB::SongScope:
                 physHeld_.song = true;
                 uiState_.songHeld = true;
-                // §39: if Func+Density band is active, arm DensityMode for when Func releases.
-                if (uiState_.funcHeld)
-                    uiState_.densityModeArmed = true;
                 editMode_.onScopeEvent(ev);
                 handleModifierTap(CB::SongScope, uiState_.latch.song);
                 uiState_.swingDismissed = false;
@@ -2818,6 +2831,14 @@ namespace lockstep
             }
 
             case ControllerButton::NavUp: {
+                // Sticky DENSITY mode: any nav key flips the track bank.
+                if (uiState_.densityStickyMode)
+                {
+                    uiState_.densityBank ^= 1;
+                    refreshMetaBand();
+                    repaint();
+                    return true;
+                }
                 const int t = keyboardArea_.getActiveTrack();
                 // Morph+^ = force A-pole edits while ^ is held (DESIGN §17.3).
                 if (uiState_.morphHeld)
@@ -2859,6 +2880,14 @@ namespace lockstep
             }
 
             case ControllerButton::NavDown: {
+                // Sticky DENSITY mode: any nav key flips the track bank.
+                if (uiState_.densityStickyMode)
+                {
+                    uiState_.densityBank ^= 1;
+                    refreshMetaBand();
+                    repaint();
+                    return true;
+                }
                 const int t = keyboardArea_.getActiveTrack();
                 // Morph+v = force B-pole edits while v is held (DESIGN §17.3).
                 if (uiState_.morphHeld)
@@ -2899,6 +2928,14 @@ namespace lockstep
             }
 
             case ControllerButton::NavLeft: {
+                // Sticky DENSITY mode: any nav key flips the track bank.
+                if (uiState_.densityStickyMode)
+                {
+                    uiState_.densityBank ^= 1;
+                    refreshMetaBand();
+                    repaint();
+                    return true;
+                }
                 // Note-edit mode and CHROMATIC mode both use NavLeft/Right for octave shift.
                 const int tl = keyboardArea_.getActiveTrack();
                 const bool chromL = tl >= 0 && tl < static_cast<int>(kNumTracks) && uiState_.trackInputMode[static_cast<std::size_t>(tl)] == TrackInputMode::Chromatic;
@@ -2922,6 +2959,14 @@ namespace lockstep
             }
 
             case ControllerButton::NavRight: {
+                // Sticky DENSITY mode: any nav key flips the track bank.
+                if (uiState_.densityStickyMode)
+                {
+                    uiState_.densityBank ^= 1;
+                    refreshMetaBand();
+                    repaint();
+                    return true;
+                }
                 const int tr = keyboardArea_.getActiveTrack();
                 const bool chromR = tr >= 0 && tr < static_cast<int>(kNumTracks) && uiState_.trackInputMode[static_cast<std::size_t>(tr)] == TrackInputMode::Chromatic;
                 // Func+→ = rotate the focused track's sequence one step right.
@@ -3521,7 +3566,6 @@ namespace lockstep
             case CB::SongScope:
                 physHeld_.song = false;
                 uiState_.masterFxPickerOpen = false;
-                uiState_.densityModeArmed = false;  // §39: clear on Song release
                 if (!uiState_.songHeld)
                 {
                     uiState_.swingDismissed = false;
@@ -4100,6 +4144,14 @@ namespace lockstep
                         setStatus("EMPTY -- Func+Track to add a machine");
                         return;
                     }
+                }
+                // Density + Song held → adjust master density as a relative delta.
+                if (band == MetaBand::Density && uiState_.songHeld)
+                {
+                    processor_.setMasterDensity(juce::jlimit(-1.0f, 1.0f,
+                        processor_.masterDensity() + static_cast<float>(rawDelta) / 128.0f));
+                    refreshMetaBand();
+                    return;
                 }
                 const int swScope = swingScopeFor(uiState_);
                 const auto views = buildMetaBand(band, swScope, processor_, track,
