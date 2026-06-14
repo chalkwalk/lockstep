@@ -747,6 +747,14 @@ Two CC pathways:
 - **Relative CC (delta arithmetic).** Endless-encoder messages bypass
   takeover and apply +/- integer deltas directly.
 
+**Discrete-encoder mapping rule.** For stepped (integer-valued) parameters,
+encoder deltas are translated into integer steps, not normalized fractions.
+The device sends acceleration magnitude 1–7; the mapping scales this so
+one turn never moves more than ¼ of the total step count, and `ceil` ensures
+the minimum never rounds to 0 (one slow detent = exactly 1 step). This applies
+uniformly to machine params and meta-band fields (Euclidean pulse/offset/accent,
+phrase length, Musicality, etc.) whenever the param or field carries a stepped flag.
+
 ### 5.2 CC mapping scopes
 
 Each CC mapping carries a **scope** that determines its target:
@@ -4995,13 +5003,18 @@ floor launch wipes them. `setActiveSong` and `loadPosition` always reset to defa
 
 | Gesture | Effect |
 |---|---|
-| `Func` (held) | MZ → Density band: 16 per-track rotaries, paginated (low 8 / high 8) |
-| `Func + Song + encoder` | Adjust master density offset; arc on all rotaries shifts |
-| `Song` (held) | MZ → DensityMode band: per-track Musicality and Selection (durable) |
+| `Func` (held) | MZ → transient Density band (8 per-track rotaries, bank follows focused track) |
+| `Song`+encoder (within Density band) | Adjust master density offset; arc on all rotaries shifts |
+| `Func` double-tap | Toggle sticky DENSITY mode (latched; double-tap again or escape to exit) |
+| nav keys (↑↓←→) while sticky | Page between bank 1-8 and bank 9-16 |
+| FX section key while sticky | Toggle Amount sub-page (per-track rotaries) ↔ Mode sub-page (Musicality/Selection) |
 
-No bespoke single-purpose buttons. The `Song` band reuses the Song scope key
-(cross-column compound with Func). Gate from normal song-launch via a
-`densityModeArmed` flag set when entering the Density band.
+**Song disambiguation:** `Song`-alone opens song-level swing (unchanged). `Song`+encoder
+within the Density band adjusts master offset. The switch is mode-scoped, not
+chord-order-dependent: holding Func then Song, or Song then Func, both reach master
+density while the Density band is active. This replaces the old `densityModeArmed`
+flag; `Song` no longer has a separate DensityMode band — Musicality/Selection is
+reached via the FX sub-page key within sticky DENSITY mode.
 
 ### 39.6 Density cell visual
 
