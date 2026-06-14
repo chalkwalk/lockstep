@@ -99,55 +99,39 @@ namespace lockstep
         {
             const float halfPi = juce::MathConstants<float>::halfPi;
             const float master = mr->densityMasterOffset;  // [-1, 1]
-            const float perTrack = juce::jlimit(0.0f, 1.0f, sliderPos);
+            const float totalAngle = rotaryEndAngle - rotaryStartAngle;
 
-            // Arc spans from pointer angle toward the master-offset direction.
-            // masterEnd is the raw (unclamped) effective position.
-            const float masterEndRaw = perTrack + master;
-            const float masterEndClamped = juce::jlimit(0.0f, 1.0f, masterEndRaw);
-            const float masterEndAngle = rotaryStartAngle
-                + masterEndClamped * (rotaryEndAngle - rotaryStartAngle);
-
-            // Draw the master-offset arc (dimmed fill colour).
-            if (std::abs(master) > 0.005f)
+            // Master-level arc: anchored at rotaryStartAngle (absolute zero) so it
+            // stays fixed as per-track changes.  Positive master → arc from start
+            // forward; negative master → short backward stub before start.
+            if (master > 0.005f)
             {
-                const float arcFrom = juce::jmin(valueAngle, masterEndAngle);
-                const float arcTo   = juce::jmax(valueAngle, masterEndAngle);
-                if (arcTo - arcFrom > 0.005f)
+                const float masterAngle = rotaryStartAngle
+                    + juce::jlimit(0.0f, 1.0f, master) * totalAngle;
+                if (masterAngle - rotaryStartAngle > 0.005f)
                 {
                     juce::Path arcPath;
                     arcPath.addCentredArc(centreX, centreY, radius, radius, 0.0f,
-                                         arcFrom, arcTo, true);
+                                         rotaryStartAngle, masterAngle, true);
                     g.setColour(slider.findColour(juce::Slider::rotarySliderFillColourId)
                                     .withAlpha(0.55f));
                     g.strokePath(arcPath, juce::PathStrokeType(trackW, juce::PathStrokeType::curved,
                                                                juce::PathStrokeType::rounded));
                 }
-
-                // Overshoot zone: if masterEndRaw exceeds [0, 1], draw a dimmed
-                // continuation arc so "turning but pinned" is visible.
-                if (masterEndRaw > 1.0f)
+            }
+            else if (master < -0.005f)
+            {
+                // Negative master: small stub going backward from start so the
+                // direction of the cut is visible even when the pointer is near zero.
+                const float stubAngle = rotaryStartAngle
+                    - juce::jlimit(0.0f, 1.0f, -master) * totalAngle * 0.2f;
+                if (rotaryStartAngle - stubAngle > 0.005f)
                 {
                     juce::Path overshoot;
                     overshoot.addCentredArc(centreX, centreY, radius, radius, 0.0f,
-                                            rotaryEndAngle,
-                                            rotaryEndAngle + (masterEndRaw - 1.0f)
-                                                * (rotaryEndAngle - rotaryStartAngle) * 0.2f,
-                                            true);
+                                            stubAngle, rotaryStartAngle, true);
                     g.setColour(slider.findColour(juce::Slider::rotarySliderFillColourId)
-                                    .withAlpha(0.2f));
-                    g.strokePath(overshoot, juce::PathStrokeType(trackW, juce::PathStrokeType::curved,
-                                                                  juce::PathStrokeType::rounded));
-                }
-                else if (masterEndRaw < 0.0f)
-                {
-                    juce::Path overshoot;
-                    overshoot.addCentredArc(centreX, centreY, radius, radius, 0.0f,
-                                            rotaryStartAngle + masterEndRaw * (rotaryEndAngle - rotaryStartAngle) * 0.2f,
-                                            rotaryStartAngle,
-                                            true);
-                    g.setColour(slider.findColour(juce::Slider::rotarySliderFillColourId)
-                                    .withAlpha(0.2f));
+                                    .withAlpha(0.35f));
                     g.strokePath(overshoot, juce::PathStrokeType(trackW, juce::PathStrokeType::curved,
                                                                   juce::PathStrokeType::rounded));
                 }
@@ -156,7 +140,7 @@ namespace lockstep
             // Tick at the effective (clamped) position — the audible value.
             {
                 const float effectiveAngle = rotaryStartAngle
-                    + mr->densityEffective * (rotaryEndAngle - rotaryStartAngle);
+                    + mr->densityEffective * totalAngle;
                 const float tickInner = radius - trackW * 1.2f;
                 const float tickOuter = radius + trackW * 1.2f;
                 const float cosA = std::cos(effectiveAngle - halfPi);
