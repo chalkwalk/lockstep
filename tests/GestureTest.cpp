@@ -84,7 +84,9 @@ namespace lockstep
         CHECK(!f.track(0).steps[7].overrides.has(0), "P-Lock cleared");
     }
 
-    // Scenario 5: PS::Trig / VerbConfirm with Func held → clear note/vel/gate overrides
+    // Scenario 5: PS::Trig / VerbClear with SRC section held → clear note/vel/gate
+    // overrides on held step(s), leaving trig and P-Locks intact. (DESIGN §13.2 —
+    // replaces the old Func+P note-clear; all clearing now lives on the Clear verb.)
 
     static void scenario_trigClearNotes()
     {
@@ -94,15 +96,20 @@ namespace lockstep
         s1.trigOverride.noteCount = 2;
         s1.trigOverride.hasVelocity = true;
         s1.trigOverride.velocity = 80;
+        s1.overrides.set(0, 0.5f);  // a P-Lock that must survive the note-clear
 
-        f.editMode.onScopeEvent({ T::ButtonDown, CB::Func, -1, 0 });
+        // Hold the SRC section (index 1) while holding the step. Trig outranks
+        // Section, so primaryScope stays Trig; sectionHeld() routes the domain.
+        f.uiState.trackSection[0] = IMachine::kSrcSecIdx;
+        f.editMode.setSectionHeld(true);
         f.holdStep(0, 1);
 
-        const bool handled = f.verb(PS::Trig, CB::VerbConfirm);
-        CHECK(handled, "Trig+Func+No should be handled");
+        const bool handled = f.verb(PS::Trig, CB::VerbClear);
+        CHECK(handled, "Trig+SRC+Clear should be handled");
         CHECK(f.track(0).steps[1].trigOverride.noteCount == 0, "noteCount cleared");
         CHECK(!f.track(0).steps[1].trigOverride.hasVelocity, "hasVelocity cleared");
         CHECK(f.track(0).steps[1].trig, "trig still set");
+        CHECK(f.track(0).steps[1].overrides.has(0), "P-Lock preserved (notes-only clear)");
     }
 
     // Scenario 6: no held steps → trig copy returns false (no-op)

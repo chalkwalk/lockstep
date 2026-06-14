@@ -270,7 +270,7 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Step-hold capture window** | The canonical chord-edit path: hold a step → play MIDI → each note-on snapshots all currently-held notes; release commits velocity (highest) and gate. Empty capture = no change. Independent of record-arm and transport. Multi-step: all held steps receive the same chord. |
 | **Note-count badge** | 1–4 stacked tick marks on the left edge of each step cell showing `trigOverride.noteCount` — immediately visible without entering any edit mode. |
 | **Note-edit mode** | `Func + Src + step` (the SRC key relabels NOTE; release the step while Func+Src held) enters a 1-octave chromatic keyboard on the step grid: cells 0–11 = C through B, 12–15 unused. Press a cell to toggle that pitch in the current view octave. Cross-octave instances show small octave-number badges. NavUp/NavDown shift the octave. Staged removals commit on Func release. |
-| **P-Lock clear gestures** | `Trig + Func + Clear` (`Trig + 1 + O`) clears every P-Lock on the held step(s), leaving trig and condition intact. `Trig + (active MZ slot) + Clear` clears only that one slot. `Func + step` enters P-Lock clear mode: cells re-skin orange showing only the *set* P-Locks (packed, not by raw slot index); press a cell to stage it for removal, press again to cancel; release Func to commit. `Trig + Func + P` (`Trig + 1 + P`) clears note / velocity / gate overrides only, leaving trig and P-Locks intact. The hint band shows these gestures automatically when a step with P-Locks or note overrides is held. |
+| **P-Lock clear gestures** | `Trig + Func + Clear` (`Trig + 1 + O`) clears every P-Lock on the held step(s), leaving trig and condition intact. `Trig + (active MZ slot) + Clear` clears only that one slot. `Func + step` enters P-Lock clear mode: cells re-skin orange showing only the *set* P-Locks (packed, not by raw slot index); press a cell to stage it for removal, press again to cancel; release Func to commit. `Trig + (section key) + Clear` clears just that section's overrides on the held step(s); since **SRC** owns the note payload, `Trig + SRC + Clear` clears note / velocity / gate overrides only, leaving trig and P-Locks intact. The hint band shows these gestures automatically when a step with P-Locks or note overrides is held. |
 | **NoteSelection bias** | Per-track bias for chord-note spread when the machine voice count is smaller than the step's note count. `TopBias` (default) includes top + bottom and fills from the top; `BottomBias` fills from the bottom. Set in the TRIG meta-section, slot 3 (Bias = TOP / BOT). |
 | **Func+Track machine/Kit picker** | Hold Func (1) + Track (2) — the Track key relabels to KIT; step cells show available machine names. Press a step to assign that machine to the focused track. |
 
@@ -789,7 +789,7 @@ A single uniform grammar — **hold scope, press verb**:
 
 | Scope held | + Copy (`U`/Rec) | + Paste (`I`/Play) | + Clear (`O`/Clear) |
 |---|---|---|---|
-| **Trig** (1+ steps) | Copy steps (trigs + conditions + P-Locks) | Paste onto held steps | Full clear: trig off + condition reset + all P-Locks. `Func+Clear` = P-Locks only (keep trig). `Func+P` = note/velocity/gate only (keep trig + P-Locks). |
+| **Trig** (1+ steps) | Copy steps (trigs + conditions + P-Locks) | Paste onto held steps | Full clear: trig off + condition reset + all P-Locks. `Func+Clear` = P-Locks only (keep trig). `SRC+Clear` = note/velocity/gate only (keep trig + P-Locks); any other `section+Clear` = that section's P-Locks. |
 | **Section** key | Copy that section's params | Paste section to current track | Reset section to default |
 | **Track** (specific) | Copy whole track | Paste track | Clear track steps (keeps length/divider/base) |
 | **Phrase** (`Q`) | Copy whole phrase (all tracks' steps) | Paste phrase | Clear phrase |
@@ -1096,7 +1096,7 @@ The step grid can be re-skinned into non-step roles. Three paths exist:
   MZ labels. **Releasing either key commits the pattern**: trigs in
   `[0, phrase length)` are replaced with the computed Euclidean rhythm. If
   the phrase already has trigs a checkpoint is pushed first (undo-able via
-  `Func + P`). Output is ordinary hand-editable trig data.
+  `Func + Y` = Restore). Output is ordinary hand-editable trig data.
 
 ### 5.19 Standalone project files *(shipped — Phase 9)*
 
@@ -1325,7 +1325,7 @@ step(s) held
 ├─ + O               → clear held step(s) (full: trig + condition + P-Locks) — §5.9
 ├─ + Func + O        → clear all P-Locks on held step(s), keep the trig — §5.17
 ├─ + (MZ slot) + O   → clear only that one slot's P-Lock on held step(s) — §5.17
-├─ + Func + P        → clear notes / velocity / gate on held step(s) — §5.7
+├─ + (section) + O   → clear that section's overrides on held step(s); SRC+O = clear notes/velocity/gate — §5.17
 ├─ + P (QUANT)       → Quantize: zero microOffset on held step(s) — §5.1
 ├─ + section key     → edit that section's field as a step override (P-Lock / trig override) — §5.7
 └─ + encoder turn    → write a P-Lock on the held step(s) — §5.7

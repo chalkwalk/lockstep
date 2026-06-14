@@ -141,6 +141,12 @@ namespace lockstep
         static constexpr std::array<const char*, kMaxSections> kCanonicalSectionNames = {
             "TRIG", "SRC", "FILTER", "AMP", "MOD", "FX"
         };
+
+        // Canonical section indices into kCanonicalSectionNames. SRC is the
+        // note domain: it owns the per-step trig note/velocity/gate payload, so
+        // section-scoped clears on SRC also wipe the trig override (DESIGN §13.2).
+        static constexpr int kTrigSecIdx = 0;
+        static constexpr int kSrcSecIdx  = 1;
         virtual int numSections() const { return 0; }
         virtual SectionInfo section(int /*index*/) const { return {}; }
 

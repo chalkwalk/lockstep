@@ -53,7 +53,28 @@ namespace lockstep::verbs
         {
             const bool funcHeld = ctx.editMode.scopeState().func;
             const int activeSlot = ec.activeSlot();
-            if (funcHeld)
+            if (ctx.editMode.sectionHeld())
+            {
+                // Trig + <section held> + Clear — domain-scoped clear on the held
+                // step(s): wipe every override owned by the held section, leaving
+                // other sections (and trig + condition) intact. SRC owns the note/
+                // velocity/gate payload, so on SRC we also clear the trig override.
+                // This is the home of "clear notes" — formerly Func+P. (DESIGN §13.2)
+                const int at = ctx.uiState.activeTrack;
+                const int secIdx = ctx.uiState.trackSection[static_cast<std::size_t>(at)];
+                const int nSlots = ctx.catalog.numParams(at);
+                for (int idx : ec.heldSteps())
+                {
+                    if (idx < 0 || idx >= kMaxStepsPerTrack) continue;
+                    auto& s = trk.steps[static_cast<std::size_t>(idx)];
+                    for (int sl = 0; sl < nSlots; ++sl)
+                        if (ctx.catalog.paramSpec(at, sl).sectionIndex == secIdx)
+                            s.overrides.clear(sl);
+                    if (secIdx == IMachine::kSrcSecIdx)
+                        s.trigOverride = TrigOverride{};
+                }
+            }
+            else if (funcHeld)
             {
                 // Trig + Func + Clear — clear all P-Locks on held step(s),
                 // leaving trig and condition intact.
@@ -93,24 +114,6 @@ namespace lockstep::verbs
                 }
             }
             ec.markParamWritten();
-            return true;
-        }
-
-        if (verb == CB::VerbConfirm && ctx.editMode.scopeState().func)
-        {
-            // Trig + Func + P — clear note/velocity/gate overrides on held
-            // step(s), leaving step.trig and P-Locks intact.
-            for (int idx : ec.heldSteps())
-            {
-                if (idx < 0 || idx >= kMaxStepsPerTrack) continue;
-                auto& s = trk.steps[static_cast<std::size_t>(idx)];
-                s.trigOverride.noteCount = 0;
-                s.trigOverride.notes = {};
-                s.trigOverride.hasVelocity = false;
-                s.trigOverride.velocity = 100;
-                s.trigOverride.hasGate = false;
-                s.trigOverride.gateValue = MusicalGate::None;
-            }
             return true;
         }
 
@@ -310,6 +313,12 @@ namespace lockstep::verbs
                 for (int st = 0; st < trkLen; ++st)
                     trk.steps[static_cast<std::size_t>(st)].overrides.clear(sl);
             }
+            // SRC owns the note/velocity/gate payload — clearing the SRC domain at
+            // section scope wipes the trig overrides across the track too, mirroring
+            // the held-step SRC clear in step(). (DESIGN §13.2)
+            if (secIdx == IMachine::kSrcSecIdx)
+                for (int st = 0; st < trkLen; ++st)
+                    trk.steps[static_cast<std::size_t>(st)].trigOverride = TrigOverride{};
             return true;
         }
         return false;

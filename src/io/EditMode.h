@@ -66,6 +66,12 @@ namespace lockstep
         [[nodiscard]] const ScopeState& scopeState() const { return scope_; }
         [[nodiscard]] PrimaryScope primaryScope() const { return primary_; }
 
+        // True while a section key (5-0) is physically held. Distinct from "a
+        // section is merely displayed": only a held key drives section-scoped
+        // verbs. Trig outranks Section, so under a step hold this stays readable
+        // even though primaryScope() reports Trig.
+        [[nodiscard]] bool sectionHeld() const noexcept { return sectionHeld_; }
+
         // Returns true when a cross-column compound scope is active (one col-1 modifier
         // AND one col-2 modifier held simultaneously, excluding Func which is universal).
         // Func+col2 counts as a compound; col1+col2 (non-Func) also counts.

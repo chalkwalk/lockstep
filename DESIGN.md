@@ -1612,7 +1612,8 @@ secondary layer of mute).
 
 **Rung 5 — `mod + mod + key`, cross-column (3 keys).** `Scene+Mute+step`
 per-scene mute (active-mask); `Track+Phrase+step` per-track phrase
-deviation; `Track+section+verb` track-scoped section copy/paste/clear;
+deviation; `Trig+section+Clear` domain-scoped step clear (`Trig+SRC+Clear`
+= clear notes); `Track+section+verb` track-scoped section copy/paste/clear;
 `Track+track-key+Nav` set input mode on a specific track; `Morph+^+v`
 assign both endpoints at once.
 
@@ -1663,10 +1664,11 @@ done via the Kit picker (`Func+Track`) instead.
 | `Trig` + Clear | Clear those steps' overrides (trig + P-Locks). |
 | `Trig` + `Func + Clear` | Clear **all** P-Locks on the held step(s), leaving the trig itself intact. The `Func` qualifier narrows `Clear`'s scope from "clear the step" to "clear locks only". |
 | `Trig` + `(MZ slot)` + Clear | Clear **only that slot's** P-Lock on the held step. Targeted by the held slot (the same slot the MZ would write). |
+| `Trig` + `(section key)` + Clear | **Domain-scoped clear** on the held step(s): wipe every override owned by the held section, leaving other sections, the trig, and the condition intact. **SRC** owns the note payload, so `Trig + SRC + Clear` clears the **note / velocity / gate** overrides (and keeps P-Locks). Same "hold the thing, press Clear" idiom as the MZ-slot row, one level coarser. (This is the home of "clear notes" — it replaced the old `Func + P` overload, which is now purely Cancel everywhere.) |
 | `Func` + step (P-Lock clear mode) | Hold Func then press a step → step cells re-skin orange: bright for P-locked slots, dim for empty. Press any step cell to clear that slot's P-Lock on the target step. Release Func to exit. Slots 0-15 are shown; each cell maps to one machine slot by index. |
 | `Section` key + Record | Copy all of that section's params (base + P-Locks across all steps). |
 | `Section` key + Play | Paste section onto current track. |
-| `Section` key + Clear | Reset section to default. |
+| `Section` key + Clear | Reset section to default (clears that section's P-Locks across the track). **SRC** additionally clears the note / velocity / gate overrides track-wide — the whole-track mirror of `Trig + SRC + Clear`. |
 | `Track` (specific track) + Record | Copy the whole track within the Song. |
 | `Track` + Play | Paste track. |
 | `Track` + Clear | Clear track. |
@@ -2631,8 +2633,8 @@ grammar:
 
 | Gesture | Effect |
 |---|---|
-| `Trig` (one step held) + `Yes` | Fire that step's *resolved* trig once, off the sequencer's schedule. P-Locks, trig overrides, and the OEB-resolved note/velocity/gate all apply, so the user hears exactly what that step will produce when it next fires. |
-| `Track` scope held (no track-key) + `Yes` | Fire the focused track's *base* trig once: `Track::defaultNote`, `Track::defaultVelocity`, `Track::gateLength` at the current `baseParams`. Useful for "what does this track sound like right now?". |
+| `Trig` (one step held) + `Confirm` | Fire that step's *resolved* trig once, off the sequencer's schedule. P-Locks, trig overrides, and the OEB-resolved note/velocity/gate all apply, so the user hears exactly what that step will produce when it next fires. |
+| `Track` scope held (no track-key) + `Confirm` | Fire the focused track's *base* trig once: `Track::defaultNote`, `Track::defaultVelocity`, `Track::gateLength` at the current `baseParams`. Useful for "what does this track sound like right now?". |
 
 Both bypass the sequencer event stream: the sequencer injects a
 one-shot note-on/off pair directly onto the target track's
@@ -2752,7 +2754,7 @@ latent in the data model from 3.5 but only becomes visible in
   glance.
 - Three clear gestures cover the three axes:
   `Trig + step` toggles `step.trig`;
-  `Trig + Func + P` clears notes + velocity + gateValue;
+  `Trig + SRC + Clear` clears notes + velocity + gateValue;
   `Trig + Func + Clear` clears P-Locks.
 
 This supports the "sketch a chord progression, mute trigs to find
