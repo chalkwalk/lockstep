@@ -6,6 +6,7 @@
 #include "TestHarness.h"
 #include "../src/core/StateResolver.h"
 #include "../src/core/Track.h"
+#include "../src/machine/StubMachine.h"
 
 namespace lockstep
 {
@@ -98,6 +99,34 @@ namespace lockstep
         CHECK(fill.notes[0] == 72, "trig fill on: fill trig override note wins");
     }
 
+    // Regression: restore crash fix — defensive morph-loop clamp guards against
+    // a stale baseParams frame (size N) paired with a machine that has M < N params.
+    // The morph loop must not call machine->paramSpec(slot) for slot >= M.
+    static void testMorphClampWithStalerFrame()
+    {
+        // Track with 4 params; StubMachine has 0 params.
+        auto t = makeTrack({ 0.1f, 0.2f, 0.3f, 0.4f });
+
+        Scene scene;
+        // Add morph data for slot 0 on track 0 — would be read if the loop ran past 0.
+        scene.morphA[{ 0, 0 }] = 0.5f;
+        scene.morphB[{ 0, 0 }] = 0.9f;
+
+        StubMachine stub;
+        MorphContext morph;
+        morph.scene = &scene;
+        morph.trackIndex = 0;
+        morph.fader = 0.5f;
+        morph.machine = &stub;  // numParams() == 0
+
+        // Must not OOB-crash; morph loop clamps to min(4, 0) = 0 iterations.
+        const auto f = StateResolver::resolve(t, -1, false, &morph);
+        CHECK(f.size() == 4, "morph clamp: frame size preserved");
+        // No morph was applied (loop skipped) so values equal original base.
+        CHECK(feq(f[0], 0.1f), "morph clamp: slot 0 untouched when machine has 0 params");
+        CHECK(feq(f[3], 0.4f), "morph clamp: slot 3 untouched");
+    }
+
     void runStateResolverTests()
     {
         testResolveBaseOnly();
@@ -105,5 +134,6 @@ namespace lockstep
         testResolveFillPrecedence();
         testResolveTrigDefaultsAndOverride();
         testResolveTrigFillLayer();
+        testMorphClampWithStalerFrame();
     }
 }
