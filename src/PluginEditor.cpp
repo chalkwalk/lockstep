@@ -1575,9 +1575,7 @@ namespace lockstep
 
         const auto prevLatch = uiState_.latch;
         uiState_.latch = {};  // clear all latches before calling dispatchUp so guards pass
-        uiState_.densityStickyMode = false;
-        uiState_.densityBank = 0;
-        uiState_.densitySubPage = UiState::DensitySubPage::Amount;
+        escapeDensitySticky();
 
         // For each latched modifier that isn't physically held, do a full release.
         // dispatchUp now checks !uiState_.latch.xxx (already false), so it runs completely.
@@ -1623,6 +1621,16 @@ namespace lockstep
         uiState_.latch.anySteps = ctx.hasAnyLatchedStep();
         keyboardArea_.repaint();
         repaint();
+    }
+
+    // -------------------------------------------------------------------------
+    // §39: density-sticky exit SSOT.
+
+    void LockstepEditor::escapeDensitySticky()
+    {
+        uiState_.densityStickyMode = false;
+        uiState_.densityBank = 0;
+        uiState_.densitySubPage = UiState::DensitySubPage::Amount;
     }
 
     // -------------------------------------------------------------------------
@@ -1786,6 +1794,22 @@ namespace lockstep
             refreshMetaBand();
         }
 
+        // §39 Density-sticky discharge: pressing a foreign cluster scope while density is
+        // pinned exits the mode before the scope runs its normal handler. On release you
+        // land at Base, not back in density. Song, Func, Nav, and section keys are
+        // deliberately excluded — they remain density's own controls.
+        // Invariant: density-sticky and a foreign-scope-held state are mutually exclusive;
+        // resolveMetaBand and resolveActiveLayer can therefore never disagree about which
+        // is active (density-sticky is impossible when any of these keys are held).
+        if (uiState_.densityStickyMode
+            && (ev.button == CB::TrackScope || ev.button == CB::PhraseScope
+                || ev.button == CB::SceneScope || ev.button == CB::MorphScope
+                || ev.button == CB::MuteScope  || ev.button == CB::FillScope))
+        {
+            escapeDensitySticky();
+            refreshMetaBand();
+        }
+
         switch (ev.button)
         {
             case CB::Func:
@@ -1822,11 +1846,16 @@ namespace lockstep
                                  && !processor_.editContext().hasAnyLatchedStep())
                         {
                             // No latches/euclid to escape — toggle sticky DENSITY mode.
-                            uiState_.densityStickyMode = !uiState_.densityStickyMode;
-                            if (!uiState_.densityStickyMode)
+                            // Entry guard: don't enter if a foreign scope is physically held,
+                            // so density-sticky and foreign-scope-held stay mutually exclusive.
+                            if (uiState_.densityStickyMode)
                             {
-                                uiState_.densityBank = 0;
-                                uiState_.densitySubPage = UiState::DensitySubPage::Amount;
+                                escapeDensitySticky();
+                            }
+                            else if (!physHeld_.track && !physHeld_.phrase && !physHeld_.scene
+                                     && !physHeld_.morph && !physHeld_.mute && !physHeld_.fill)
+                            {
+                                uiState_.densityStickyMode = true;
                             }
                             refreshMetaBand();
                             repaint();

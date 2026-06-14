@@ -317,6 +317,11 @@ namespace lockstep
         // Only called when latch.any() || ctx.hasAnyLatchedStep().
         void escapeAllLatches();
 
+        // §39: single source for "leave density-sticky mode". Invariant: density-sticky
+        // and any foreign cluster scope (Track/Phrase/Scene/Morph/Mute/Fill) are
+        // mutually exclusive — enforced at dispatchDown and the toggle-on entry edge.
+        void escapeDensitySticky();
+
         // MHZ.9.3: toggle one modifier's latch (set=true to engage, false to release).
         // When engaging, enforces column exclusivity (releases any other latch in the same column).
         void setModifierLatch(ControllerButton cb, bool set);
