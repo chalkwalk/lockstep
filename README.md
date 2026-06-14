@@ -1093,11 +1093,16 @@ The step grid can be re-skinned into non-step roles. Three paths exist:
   - **ACCNT** — number of accented onsets (Euclidean-distributed over pulses;
     accented trigs get velocity 100, unaccented get velocity 64).
 
-  Adjust the encoders while both keys are held to preview the count in the
-  MZ labels. **Releasing either key commits the pattern**: trigs in
-  `[0, phrase length)` are replaced with the computed Euclidean rhythm. If
-  the phrase already has trigs a checkpoint is pushed first (undo-able via
-  `Func + Y` = Restore). Output is ordinary hand-editable trig data.
+  Once armed, the step grid shows the live Euclidean pattern (not the
+  phrase-select banner), and encoders continue to update the preview even
+  after releasing the chord keys (the mode is latched until committed or
+  cancelled). The status bar reads **EUCLID  pulses / offset / accent  |
+  COMMIT / CANCEL**; the Y and P keys relabel accordingly.
+
+  **COMMIT (Y):** saves the original phrase as an undo checkpoint (always,
+  even if the phrase was empty), then bakes the live pattern in place.
+  **CANCEL (P):** restores the original phrase. Output is ordinary
+  hand-editable trig data.
 
 ### 5.19 Standalone project files *(shipped — Phase 9)*
 
@@ -1286,7 +1291,9 @@ Legends in parentheses are the on-screen key labels (see
 
 When the focused track is in **CHROMATIC** or **LEVELS** input mode, the
 step keys instead play notes / set velocity buckets — see
-[§5.18](#518-modal-trig-grid-surfaces).
+[§5.18](#518-modal-trig-grid-surfaces). The **mini-sequencer timeline** in the
+nav row remains visible in all three modes; the mode badge in the top context
+band identifies the active mode.
 
 Links: [§5.6](#56-step-editing) · [§5.17](#517-keyboard-ui-revamp) ·
 [§5.15](#515-checkpoints-live-undo) · [§5.4](#54-transport-and-navigation) ·

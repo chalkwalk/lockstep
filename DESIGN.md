@@ -1822,13 +1822,22 @@ step row and turns the encoders into Euclidean parameters against that track's
 - **Rotation / offset** — rotate the pattern's starting position.
 - *(optional)* **Accent / velocity** of the generated hits.
 
-While the chord is held, the generated rhythm is **audible and visible** in
-real time — the performer dials it in against the playing sequence. On
-**release** it *prints*: it **replaces** the trigs within the track length
-with the generated pattern (existing trigs in range are overwritten; a
-checkpoint pushes first — §13.6 — so the prior pattern is recoverable). The
-printed output is **ordinary trig data**, indistinguishable from hand entry
-and fully hand-editable afterward.
+While armed, the generated rhythm is **audible and visible** in real time —
+the step grid shows live trigs (not the phrase-select banner) and the
+Euclidean MetaBand persists whether the chord keys are held or latched.
+The status bar reads **"EUCLID  pulses / offset / accent  |  COMMIT / CANCEL"**;
+Y and P relabel accordingly.
+
+**COMMIT (Y):** the original phrase is saved as an undo checkpoint
+(always, even onto an empty phrase — §13.6), then the live Euclidean
+pattern is baked in place. **CANCEL (P or Func-escape):** the original
+phrase is restored. The printed output is **ordinary trig data**,
+indistinguishable from hand entry and fully hand-editable afterward.
+
+*Implementation note:* `euclidHeld` (not `phraseScopeHeld`) is the
+authority for the Euclidean MetaBand and the `resolveActiveLayer()`
+bypass. The mode survives releasing the arm chord because `euclidHeld`
+remains true until commit/cancel/Func-escape clear it.
 
 This is deliberately the deterministic, *prints-to-real-state* form sanctioned
 by PRINCIPLES *"Pragmatic determinism"* and *"Reward mastery"*: Lockstep
@@ -3975,11 +3984,12 @@ single-colour device, an RGB pad, and a future colour-ring device each
 render the *same model* to the limit of their hardware with no per-state
 code in the engine.
 
-The playhead is the one always-moving indicator and is handled at the
-render site as a single moving cursor (clear previous cell, light new)
-rather than a full-grid repaint, so a running transport does not saturate
-the link. This is a property of the emitter's diff/render step, not of the
-model.
+The playhead is the one always-moving indicator. `SurfaceModel.playheadPhase`
+carries a normalised sub-step phase (0 = step start, 1 = step end; -1 when
+stopped) derived from `clock().cumulativePpq()`. A dumb single-colour
+controller (e.g. X-Touch Mini) uses this to synthesise a phase-accurate
+**1/8-off / 3/4-on / 1/8-off** envelope rather than the slow firmware flash
+(`vel=1`). The on-screen playhead remains integer-step as before.
 
 ### 35.5 Profile files
 
