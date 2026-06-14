@@ -4023,6 +4023,23 @@ namespace lockstep
         };
     }
 
+    // Maps a relative encoder delta (|rawDelta| up to 7) to a new value for a
+    // discrete stepped field. Scales by the step count so one turn never moves
+    // more than 1/4 of the range; ceiling ensures the minimum never rounds to 0.
+    // intervals = number of discrete steps (value-count - 1).
+    static float applyDiscreteEncoderDelta(float minV, float maxV, int intervals,
+                                           float cur, int rawDelta)
+    {
+        if (intervals <= 0 || rawDelta == 0) return cur;
+        const int mag  = std::min(std::abs(rawDelta), 7);
+        const int unit = (rawDelta > 0 ? 1 : -1)
+                       * static_cast<int>(std::ceil(static_cast<double>(mag) * intervals / 28.0));
+        const float quantum = (maxV - minV) / static_cast<float>(intervals);
+        const int curIdx = juce::roundToInt((cur - minV) / quantum);
+        const int newIdx = juce::jlimit(0, intervals, curIdx + unit);
+        return minV + static_cast<float>(newIdx) * quantum;
+    }
+
     ControllerEventSink LockstepEditor::buildControllerSink()
     {
         ControllerEventSink sink;
@@ -4065,10 +4082,21 @@ namespace lockstep
                 if (!v.writable) return;
                 const float range = v.maxValue - v.minValue;
                 if (range <= 0.0f) return;
-                const float norm = juce::jlimit(0.0f, 1.0f, (v.value - v.minValue) / range);
-                const float newNorm = juce::jlimit(0.0f, 1.0f,
-                                                   norm + static_cast<float>(rawDelta) / 128.0f);
-                writeMetaField(band, swScope, mzSlot, v.minValue + newNorm * range,
+                float newVal;
+                if (v.stepped)
+                {
+                    const int intervals = juce::roundToInt(v.maxValue - v.minValue);
+                    newVal = applyDiscreteEncoderDelta(v.minValue, v.maxValue, intervals,
+                                                      v.value, rawDelta);
+                }
+                else
+                {
+                    const float norm = juce::jlimit(0.0f, 1.0f, (v.value - v.minValue) / range);
+                    const float newNorm = juce::jlimit(0.0f, 1.0f,
+                                                       norm + static_cast<float>(rawDelta) / 128.0f);
+                    newVal = v.minValue + newNorm * range;
+                }
+                writeMetaField(band, swScope, mzSlot, newVal,
                                processor_, track, processor_.editContext(), uiState_);
                 if (band == MetaBand::Euclidean && uiState_.euclidHeld && euclidTrack_ >= 0)
                     applyEuclidLive(euclidTrack_);
@@ -4082,6 +4110,23 @@ namespace lockstep
             const float range = spec.maxValue - spec.minValue;
             if (range <= 0.0f) return;
 
+            // Compute step count for discrete params; 0 = continuous.
+            const int intervals = spec.isStepped
+                ? (spec.valueLabels.size() > 0
+                       ? static_cast<int>(spec.valueLabels.size()) - 1
+                       : juce::roundToInt(spec.maxValue - spec.minValue))
+                : 0;
+
+            // Returns the new value for a given current value, respecting discrete stepping.
+            auto stepVal = [&](float c) -> float {
+                if (intervals > 0)
+                    return applyDiscreteEncoderDelta(spec.minValue, spec.maxValue,
+                                                     intervals, c, rawDelta);
+                const float n = juce::jlimit(0.0f, 1.0f, (c - spec.minValue) / range);
+                return spec.minValue + juce::jlimit(0.0f, 1.0f,
+                                                    n + static_cast<float>(rawDelta) / 128.0f) * range;
+            };
+
             const auto& ec = processor_.editContext();
             const bool stepHeld = ec.isActiveForEditing() && ec.heldTrackIndex() == track;
 
@@ -4089,7 +4134,6 @@ namespace lockstep
             // With ^/v qualifier: write directly to one pole (absolute delta).
             if (uiState_.morphHeld && !stepHeld)
             {
-                const float deltaAbs = static_cast<float>(rawDelta) / 128.0f * range;
                 if (uiState_.morphNavQualifier != 0)
                 {
                     const int pole = uiState_.morphNavQualifier - 1;  // 0=A, 1=B
@@ -4098,10 +4142,13 @@ namespace lockstep
                                               ? (info.inA ? info.aValue : processor_.baseParamValue(track, absSlot))
                                               : (info.inB ? info.bValue : processor_.baseParamValue(track, absSlot));
                     processor_.writeMorphPole(track, absSlot,
-                                              juce::jlimit(spec.minValue, spec.maxValue, curPole + deltaAbs), pole);
+                                              juce::jlimit(spec.minValue, spec.maxValue,
+                                                           stepVal(curPole)), pole);
                 }
                 else
                 {
+                    const float base = processor_.baseParamValue(track, absSlot);
+                    const float deltaAbs = stepVal(base) - base;
                     processor_.writeMorph(track, absSlot, deltaAbs, processor_.morphFader());
                 }
                 return;
@@ -4122,10 +4169,7 @@ namespace lockstep
                 }
             }
 
-            const float norm = juce::jlimit(0.0f, 1.0f, (cur - spec.minValue) / range);
-            const float newNorm = juce::jlimit(0.0f, 1.0f,
-                                               norm + static_cast<float>(rawDelta) / 128.0f);
-            const float newVal = spec.minValue + newNorm * range;
+            const float newVal = stepVal(cur);
 
             // Auto-morph-aware: bare encoder follows morph state of the slot.
             // No-morph → kit base (as before). One pole set → write that pole
@@ -4135,21 +4179,22 @@ namespace lockstep
                 const auto mInfo = processor_.morphWidgetInfo(track, absSlot);
                 if (mInfo.exists)
                 {
-                    const float deltaAbs = static_cast<float>(rawDelta) / 128.0f * range;
                     if (mInfo.inA && !mInfo.inB)
                     {
-                        const float curA = mInfo.aValue;
                         processor_.writeMorphPole(track, absSlot,
-                                                  juce::jlimit(spec.minValue, spec.maxValue, curA + deltaAbs), 0);
+                                                  juce::jlimit(spec.minValue, spec.maxValue,
+                                                               stepVal(mInfo.aValue)), 0);
                     }
                     else if (!mInfo.inA && mInfo.inB)
                     {
-                        const float curB = mInfo.bValue;
                         processor_.writeMorphPole(track, absSlot,
-                                                  juce::jlimit(spec.minValue, spec.maxValue, curB + deltaAbs), 1);
+                                                  juce::jlimit(spec.minValue, spec.maxValue,
+                                                               stepVal(mInfo.bValue)), 1);
                     }
                     else
                     {
+                        const float base = processor_.baseParamValue(track, absSlot);
+                        const float deltaAbs = stepVal(base) - base;
                         processor_.writeMorph(track, absSlot, deltaAbs, processor_.morphFader());
                     }
                     processor_.editContext().markParamWritten();
