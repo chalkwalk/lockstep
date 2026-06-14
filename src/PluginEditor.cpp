@@ -1633,6 +1633,32 @@ namespace lockstep
         uiState_.densitySubPage = UiState::DensitySubPage::Amount;
     }
 
+    bool LockstepEditor::consumeDensityStickyKey(ControllerButton btn, int index)
+    {
+        if (!uiState_.densityStickyMode)
+            return false;
+
+        using CB = ControllerButton;
+        if (btn == CB::NavUp || btn == CB::NavDown || btn == CB::NavLeft || btn == CB::NavRight)
+        {
+            uiState_.densityBank ^= 1;
+            refreshMetaBand();
+            repaint();
+            return true;
+        }
+        if (btn == CB::Section && index == 5)
+        {
+            uiState_.densitySubPage =
+                (uiState_.densitySubPage == UiState::DensitySubPage::Amount)
+                    ? UiState::DensitySubPage::Mode
+                    : UiState::DensitySubPage::Amount;
+            refreshMetaBand();
+            repaint();
+            return true;
+        }
+        return false;
+    }
+
     // -------------------------------------------------------------------------
     // MHZ.9.3: column-exclusivity-aware modifier latch toggle.
 
@@ -2009,17 +2035,7 @@ namespace lockstep
                     return true;
                 }
 
-                // Sticky DENSITY mode: FX section key (index 5) toggles Amount/Mode sub-page.
-                if (uiState_.densityStickyMode && ev.index == 5)
-                {
-                    uiState_.densitySubPage =
-                        (uiState_.densitySubPage == UiState::DensitySubPage::Amount)
-                            ? UiState::DensitySubPage::Mode
-                            : UiState::DensitySubPage::Amount;
-                    refreshMetaBand();
-                    repaint();
-                    return true;
-                }
+                if (consumeDensityStickyKey(CB::Section, ev.index)) return true;
 
                 if (sectionScope != PS::None)
                 {
@@ -2888,14 +2904,7 @@ namespace lockstep
             }
 
             case ControllerButton::NavUp: {
-                // Sticky DENSITY mode: any nav key flips the track bank.
-                if (uiState_.densityStickyMode)
-                {
-                    uiState_.densityBank ^= 1;
-                    refreshMetaBand();
-                    repaint();
-                    return true;
-                }
+                if (consumeDensityStickyKey(CB::NavUp)) return true;
                 const int t = keyboardArea_.getActiveTrack();
                 // Morph+^ = force A-pole edits while ^ is held (DESIGN §17.3).
                 if (uiState_.morphHeld)
@@ -2937,14 +2946,7 @@ namespace lockstep
             }
 
             case ControllerButton::NavDown: {
-                // Sticky DENSITY mode: any nav key flips the track bank.
-                if (uiState_.densityStickyMode)
-                {
-                    uiState_.densityBank ^= 1;
-                    refreshMetaBand();
-                    repaint();
-                    return true;
-                }
+                if (consumeDensityStickyKey(CB::NavDown)) return true;
                 const int t = keyboardArea_.getActiveTrack();
                 // Morph+v = force B-pole edits while v is held (DESIGN §17.3).
                 if (uiState_.morphHeld)
@@ -2985,14 +2987,7 @@ namespace lockstep
             }
 
             case ControllerButton::NavLeft: {
-                // Sticky DENSITY mode: any nav key flips the track bank.
-                if (uiState_.densityStickyMode)
-                {
-                    uiState_.densityBank ^= 1;
-                    refreshMetaBand();
-                    repaint();
-                    return true;
-                }
+                if (consumeDensityStickyKey(CB::NavLeft)) return true;
                 // Note-edit mode and CHROMATIC mode both use NavLeft/Right for octave shift.
                 const int tl = keyboardArea_.getActiveTrack();
                 const bool chromL = tl >= 0 && tl < static_cast<int>(kNumTracks) && uiState_.trackInputMode[static_cast<std::size_t>(tl)] == TrackInputMode::Chromatic;
@@ -3016,14 +3011,7 @@ namespace lockstep
             }
 
             case ControllerButton::NavRight: {
-                // Sticky DENSITY mode: any nav key flips the track bank.
-                if (uiState_.densityStickyMode)
-                {
-                    uiState_.densityBank ^= 1;
-                    refreshMetaBand();
-                    repaint();
-                    return true;
-                }
+                if (consumeDensityStickyKey(CB::NavRight)) return true;
                 const int tr = keyboardArea_.getActiveTrack();
                 const bool chromR = tr >= 0 && tr < static_cast<int>(kNumTracks) && uiState_.trackInputMode[static_cast<std::size_t>(tr)] == TrackInputMode::Chromatic;
                 // Func+→ = rotate the focused track's sequence one step right.

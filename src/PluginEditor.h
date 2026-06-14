@@ -322,6 +322,11 @@ namespace lockstep
         // mutually exclusive — enforced at dispatchDown and the toggle-on entry edge.
         void escapeDensitySticky();
 
+        // §39: returns true and performs the density-sticky action if the button is one
+        // of density's own keys (Nav→bank flip; FX section index 5→sub-page toggle).
+        // Call at the top of each nav/section chokepoint to replace the inline copies.
+        bool consumeDensityStickyKey(ControllerButton btn, int index = -1);
+
         // MHZ.9.3: toggle one modifier's latch (set=true to engage, false to release).
         // When engaging, enforces column exclusivity (releases any other latch in the same column).
         void setModifierLatch(ControllerButton cb, bool set);
