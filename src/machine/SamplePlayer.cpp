@@ -155,10 +155,11 @@ namespace lockstep
 
         const float env = nextEnvSample();
 
-        // During Release (no-loop case) and Idle, yield only the envelope fade —
-        // the sampler mutes audio once the sample position is exhausted.
-        // Modes SustAndRel and All continue reading audio during Release.
-        const bool readAudio = (stage != Stage::Release && stage != Stage::Idle) || loopMode == LoopMode::SustAndRel || loopMode == LoopMode::All;
+        // Read audio in all non-Idle stages; the release envelope fades real sound.
+        // The position >= effEnd branch below clamps and naturally silences when the
+        // sample is exhausted.  loopActive (below) already excludes looping during
+        // Release for non-SustAndRel/All modes, so the tail plays straight through.
+        const bool readAudio = (stage != Stage::Idle);
 
         float audioOut = 0.0f;
 
