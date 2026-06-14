@@ -98,7 +98,7 @@ namespace lockstep::verbs
 
         if (verb == CB::VerbConfirm && ctx.editMode.scopeState().func)
         {
-            // Trig + Func + Cancel (P) — clear note/velocity/gate overrides on held
+            // Trig + Func + P — clear note/velocity/gate overrides on held
             // step(s), leaving step.trig and P-Locks intact.
             for (int idx : ec.heldSteps())
             {

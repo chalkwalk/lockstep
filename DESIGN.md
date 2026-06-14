@@ -670,8 +670,8 @@ Elektron users reach for, without a new key:
   the current Kit into the library. Loading copies the whole bundle
   (machine + base params + FILTER/AMP + CC config + divider).
 - **Reload (revert to saved).** Not a bespoke gesture: it is the
-  `Track`-scope floor of the Checkpoint stack (§13.6) — hold `Func+No`
-  with `Track` held to revert the live Kit to its on-disk saved state.
+  `Track`-scope floor of the Checkpoint stack (§13.6) — hold `Func+Y`
+  (RESTORE) with `Track` held to revert the live Kit to its on-disk saved state.
   This is the generalised Octatrack "Part-reload" (§4.7.1).
 
 > ⚑ **Provisional gesture detail.** The machine-vs-library paging of the
@@ -1546,7 +1546,7 @@ The verb set is small and uniform:
   an explicit non-Func key press does (shows "Cancelled"). `Func` itself never
   cancels (it is needed to navigate CONFIRM/CANCEL). After tapping a slot, a named
   **pending-confirm** replaces the picker: "Delete PHRASE 3?  P=CONFIRM  Func+P=CANCEL".
-  The `P` key shows **YES (green)** when Func is up and **NO (red)** when Func
+  The `P` key shows **CONFIRM (green)** when Func is up and **CANCEL (red)** when Func
   is held; the live colour is the confirmation surface — no modal popup
   (PRINCIPLES §5, §16). The pending-confirm is also sticky; any non-Func key
   other than `P` cancels (status "Cancelled"; press swallowed). `Song+Func+O`
@@ -1583,7 +1583,7 @@ sync when a gesture is added or changed.
 
 **Rung 1 — `key` (1 key).** Step tap = toggle trig; verb tap (`Y` (SNAP)
 push checkpoint / `U` record-arm / `I` play-pause, double-tap = stop-to-
-top / `O` clear active P-Lock / `P` (YES) confirm a pending prompt);
+top / `O` clear active P-Lock / `P` (CONFIRM) confirm a pending prompt);
 navigation; tap-tempo.
 
 **Rung 2 — `Func + key` (2 keys, Func cheapest).** `Func+Y` (RESTORE)
@@ -1861,12 +1861,14 @@ set-and-forget noodler (PRINCIPLES *"Reward mastery"*). Any spec must satisfy:
 
 Snapshot is **not** a bespoke global feature — it is a scope-respecting
 verb, exactly like every other gesture on the surface (PRINCIPLES §13).
-`Func+Yes` snapshots **whatever scope is currently held**, onto *that
-scope's own* LIFO stack; `Func+No` walks that same scope's stack back
-down. With **no scope held, the scope is the Song** — the default
-working unit.
+The bare **`Y` (SNAP)** verb snapshots **whatever scope is currently
+held**, onto *that scope's own* LIFO stack; **`Func+Y` (RESTORE)** walks
+that same scope's stack back down. With **no scope held, the scope is the
+Song** — the default working unit. (The `Y` key owns both halves —
+snapshot and restore; `P` is the confirm/cancel key and plays no part in
+checkpoints.)
 
-| Held scope | `Func+Yes` snapshots | `Func+No` restores |
+| Held scope | `Y` (SNAP) snapshots | `Func+Y` (RESTORE) restores |
 |---|---|---|
 | *(none)* | the whole **Song** | the Song |
 | `Track` | that track's Kit + current Phrase + base params | that track |
@@ -1882,16 +1884,16 @@ This is the **same floor/overlay split** a Scene already runs (§4.7/§16):
 the Scene-scope checkpoint floor **is** the Scene's saved floor, and a
 Scene's live overlay is working state above it. So the Scene-level reverts
 are one behaviour reached several ways — double-tap a Scene launch,
-`Scene + Clear`, or `Func + Cancel` walked to the Scene's floor.
+`Scene + Clear`, or `Func+Y` (RESTORE) walked to the Scene's floor.
 
 **The floor is the saved state.** Each scope's stack is seeded, on Song
 load / Song switch, with a single **floor** entry = that scope's
-on-disk saved state. `Func+Yes` pushes working snapshots above the
+on-disk saved state. `Y` (SNAP) pushes working snapshots above the
 floor; the floor itself can never be popped away. This folds the
 Octatrack "Part-reload" into the stack:
 
-> **"Reload saved" = walk a scope's stack down to its floor.** `Func+No`
-> resolves **on key release**, and the hold duration picks the action
+> **"Reload saved" = walk a scope's stack down to its floor.** `Func+Y`
+> (RESTORE) resolves **on key release**, and the hold duration picks the action
 > (reusing the tap/hold threshold of §13.7): a brief **tap** pops one
 > entry; a **hold** then release jumps straight to the floor (the live
 > "reset this to saved, now" move). Resolving on *release* rather than
@@ -1921,7 +1923,7 @@ Behaviour notes:
 
 Checkpoints emerge naturally as a live performance undo: experiment with
 a destructive copy/paste or a Control-All sweep, then revert with
-`Func+No` if it didn't land — at the grain you were working at. The
+`Func+Y` (RESTORE) if it didn't land — at the grain you were working at. The
 stack depth gives a few levels of "two-mistakes-deep" recovery without
 bloating into a full DAW-style history.
 
@@ -2183,7 +2185,7 @@ meanings are `Func`-qualified, §13.2):
 - `Scene + Clear` — **revert**: discard the live overlay, return to the
   Scene's saved floor. Same behaviour as a double-tap launch of the active
   Scene, and the same restore the §13.6 Checkpoint floor reaches via
-  `Func + No` walked to a Scene scope's floor — one behaviour, several
+  `Func+Y` (RESTORE) walked to a Scene scope's floor — one behaviour, several
   doors.
 
 **No stored arrangement.** There is no song timeline, no arrangement
@@ -2750,7 +2752,7 @@ latent in the data model from 3.5 but only becomes visible in
   glance.
 - Three clear gestures cover the three axes:
   `Trig + step` toggles `step.trig`;
-  `Trig + Func + No` clears notes + velocity + gateValue;
+  `Trig + Func + P` clears notes + velocity + gateValue;
   `Trig + Func + Clear` clears P-Locks.
 
 This supports the "sketch a chord progression, mute trigs to find
@@ -2957,9 +2959,9 @@ floor-paste chord (three modifiers + verb + step), accepted because it is a
 deliberate, rare librarian action.
 
 **Conflict / no-op skip.** When a create/paste target already holds phrase
-content, a "Overwrite phrase row N? free:Sk P=Yes Func+P=No" confirm is
+content, a "Overwrite phrase row N? free:Sk P=CONFIRM Func+P=CANCEL" confirm is
 raised. A free-slot hint (`free:Sk`) suggests an empty Scene. Re-stamping
-**identical** content skips the prompt and executes silently. `P=Yes` confirms;
+**identical** content skips the prompt and executes silently. `P` (CONFIRM) confirms;
 `Func+P` cancels. Clean rows execute immediately.
 
 ## 24. State Colour Taxonomy

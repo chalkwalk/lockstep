@@ -115,13 +115,13 @@ namespace lockstep::status
 
     inline juce::String confirmDelete(const juce::String& entityName)
     {
-        return "Delete " + entityName + "?  P=Yes  Func+P=No";
+        return "Delete " + entityName + "?  P=CONFIRM  Func+P=CANCEL";
     }
 
-    // Named confirm with 1-based slot index: "Delete PHRASE 3?  P=Yes  Func+P=No"
+    // Named confirm with 1-based slot index: "Delete PHRASE 3?  P=CONFIRM  Func+P=CANCEL"
     inline juce::String confirmDeleteNamed(const juce::String& entity, int oneBasedIdx)
     {
-        return "Delete " + entity + " " + juce::String(oneBasedIdx) + "?  P=Yes  Func+P=No";
+        return "Delete " + entity + " " + juce::String(oneBasedIdx) + "?  P=CONFIRM  Func+P=CANCEL";
     }
 
     // Delete picker entry prompt: "Delete which PHRASE?"
@@ -132,7 +132,7 @@ namespace lockstep::status
 
     inline juce::String confirmBake(int numTracks, int rowIdx)
     {
-        return "Bake " + juce::String(numTracks) + " track(s) onto row " + juce::String(rowIdx) + "?  P=Yes  Func+P=No";
+        return "Bake " + juce::String(numTracks) + " track(s) onto row " + juce::String(rowIdx) + "?  P=CONFIRM  Func+P=CANCEL";
     }
 
     // ---- sound bank ---------------------------------------------------------

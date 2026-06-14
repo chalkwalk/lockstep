@@ -48,7 +48,7 @@ namespace lockstep
         virtual void sceneFullPaste(int destSlot) = 0;  // full baked paste + conflict check
 
     // Execute a pending confirmation (kind + target captured at arm time).
-    // Called by CommandCore after the user presses P (Yes) in PendingConfirm layer.
+    // Called by CommandCore after the user presses P (CONFIRM) in PendingConfirm layer.
         virtual void executeConfirm(ConfirmKind kind, int target) = 0;
 
     // Morph operations.

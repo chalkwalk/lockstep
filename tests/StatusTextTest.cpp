@@ -55,7 +55,7 @@ namespace lockstep
         CHECK(status::lengthAllTracks(8) == "Length 8 (all tracks)", "lengthAllTracks");
 
         // Confirm-delete includes entity name.
-        CHECK(status::confirmDelete("Phrase") == "Delete Phrase?  P=Yes  Func+P=No",
+        CHECK(status::confirmDelete("Phrase") == "Delete Phrase?  P=CONFIRM  Func+P=CANCEL",
               "confirmDelete content");
 
         // Sound bank builders — non-empty and content checks.

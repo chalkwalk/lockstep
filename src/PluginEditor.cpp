@@ -200,7 +200,7 @@ namespace lockstep
             ed.setStatus(status::pastedScene());
         }
 
-        // Executes a confirmed (Yes) action. Called by CommandCore on P-press in
+        // Executes a confirmed (CONFIRM) action. Called by CommandCore on P-press in
         // PendingConfirm layer; confirm state already reset by the time this returns.
         void executeConfirm(ConfirmKind kind, int target) override
         {
@@ -1203,7 +1203,7 @@ namespace lockstep
                                     if (!s.overrides.empty())
                                         ctx += "  |  Func+Clear = wipe P-Locks";
                                     if (s.trigOverride.noteCount > 0)
-                                        ctx += "  |  Func+No = clear notes";
+                                        ctx += "  |  Func+P = clear notes";
                                 }
                             }
                         }
@@ -3222,13 +3222,9 @@ namespace lockstep
                     return true;
                 }
 
-                // Func+P = No/cancel. No scope → scope-aware Restore (resolved on key-up).
-                if (editMode_.primaryScope() == PS::None || editMode_.primaryScope() == PS::Func)
-                {
-                    restoreActive_ = true;
-                    restoreKeyDownMs_ = juce::Time::getMillisecondCounterHiRes();
-                    return true;
-                }
+                // Func+P = Cancel. A pending prompt is intercepted earlier by CommandCore;
+                // with nothing pending, cancel is a no-op. Restore lives solely on Func+Y —
+                // the legacy Func+P restore overload was removed (DESIGN §13.6).
                 {
                     auto ctx = commandContext();
                     (void)commandCore_.handleVerb(editMode_.primaryScope(), ev.button, ctx, *editorEffects_);
@@ -3247,8 +3243,9 @@ namespace lockstep
                 repaint();
                 return true;
             case ControllerButton::Restore:
-                // Resolve on key-up (tap = pop one, hold = jump to floor).
+                // Func+Y = Restore. Resolve on key-up (tap = pop one, hold = jump to floor).
                 if (sectionSuiteScopeHeld(uiState_)) return true;
+                restoreActive_ = true;
                 restoreKeyDownMs_ = juce::Time::getMillisecondCounterHiRes();
                 return true;
 
@@ -3685,23 +3682,6 @@ namespace lockstep
                 break;
             }
 
-            case CB::VerbConfirm: {
-                // Func+P "Restore" path (recorded press time in dispatchDown).
-                if (restoreActive_)
-                {
-                    const double held = juce::Time::getMillisecondCounterHiRes() - restoreKeyDownMs_;
-                    restoreActive_ = false;
-                    int ckTrk = 0;
-                    const CheckpointScope scp = ckScope(ckTrk);
-                    if (held >= kHoldRestoreMs)
-                        processor_.restoreToFloor(scp, ckTrk);
-                    else
-                        processor_.restoreOne(scp, ckTrk);
-                    repaint();
-                }
-                break;
-            }
-
             case CB::NavUp:
             case CB::NavDown:
                 uiState_.morphNavQualifier = 0;
@@ -3946,7 +3926,7 @@ namespace lockstep
         const int freeSlot = processor_.firstFreePhraseSlot();
         juce::String msg = "Overwrite phrase row " + juce::String(phraseSlot) + "?";
         if (freeSlot >= 0) msg += "  free:S" + juce::String(freeSlot + 1);
-        msg += "  P=Yes  Func+P=No";
+        msg += "  P=CONFIRM  Func+P=CANCEL";
         setStatus(msg);
         repaint();
         return true;    // conflict raised — caller must wait for Yes/No
