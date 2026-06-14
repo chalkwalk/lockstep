@@ -1182,6 +1182,13 @@ namespace lockstep
                 {
                     ctx = "FUNC + STEP " + juce::String(ui.pLockClearStep + 1) + "  |  press cell to clear P-Lock slot";
                 }
+                // Sticky DENSITY mode context.
+                else if (ui.densityStickyMode)
+                {
+                    ctx = (ui.densitySubPage == UiState::DensitySubPage::Mode)
+                        ? "DENSITY  Mode  |  turn = Musicality  Func+turn = Selection  FX = amount"
+                        : "DENSITY  Amount  |  nav = bank  Song = master  FX = mode";
+                }
                 else
                 {
                     // Step held (no modifier) → P-Lock edit mode.
@@ -1270,7 +1277,16 @@ namespace lockstep
                     else if (ui.songHeld) ctx = "SONG";
                     else if (ui.muteHeld) ctx = "MUTE";
                     else if (ui.fillHeld) ctx = "FILL";
-                    else if (ui.funcHeld) ctx = "FUNC";
+                    else if (ui.funcHeld)
+                    {
+                        const MetaBand activeBand = resolveMetaBand(ui);
+                        if (activeBand == MetaBand::Density && ui.songHeld)
+                            ctx = "DENSITY  master overlay";
+                        else if (activeBand == MetaBand::Density)
+                            ctx = "DENSITY  per-track  (double-tap Func to pin)";
+                        else
+                            ctx = "FUNC";
+                    }
                 }
 
                 // Transient CPC status always uses the nav lane — flash even without active gesture.
@@ -1960,6 +1976,18 @@ namespace lockstep
                 if (uiState_.fillHeld && ev.index == 1)
                 {
                     uiState_.trigGridMode = TrigGridMode::SoundPool;
+                    repaint();
+                    return true;
+                }
+
+                // Sticky DENSITY mode: FX section key (index 5) toggles Amount/Mode sub-page.
+                if (uiState_.densityStickyMode && ev.index == 5)
+                {
+                    uiState_.densitySubPage =
+                        (uiState_.densitySubPage == UiState::DensitySubPage::Amount)
+                            ? UiState::DensitySubPage::Mode
+                            : UiState::DensitySubPage::Amount;
+                    refreshMetaBand();
                     repaint();
                     return true;
                 }
