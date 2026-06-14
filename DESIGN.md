@@ -5004,18 +5004,33 @@ floor launch wipes them. `setActiveSong` and `loadPosition` always reset to defa
 | Gesture | Effect |
 |---|---|
 | `Func` (held) | MZ → transient Density band (8 per-track rotaries, bank follows focused track) |
-| `Song`+encoder (within Density band) | Adjust master density offset; arc on all rotaries shifts |
+| `Song`-held + encoder or drag (within Density band) | Adjust master density offset; arc + effective tick sweep on all rotaries; thumbs stay per-track |
 | `Func` double-tap | Toggle sticky DENSITY mode (latched; double-tap again or escape to exit). Entry blocked if a foreign cluster scope is physically held — see §39.8. |
 | nav keys (↑↓←→) while sticky | Page between bank 1-8 and bank 9-16 |
 | FX section key while sticky | Toggle Amount sub-page (per-track rotaries) ↔ Mode sub-page (Musicality/Selection) |
 | Track / Phrase / Scene / Morph / Mute / Fill while sticky | Discharges sticky mode before running the scope's normal handler — see §39.8 |
 
-**Song disambiguation:** `Song`-alone opens song-level swing (unchanged). `Song`+encoder
-within the Density band adjusts master offset. The switch is mode-scoped, not
-chord-order-dependent: holding Func then Song, or Song then Func, both reach master
-density while the Density band is active. This replaces the old `densityModeArmed`
-flag; `Song` no longer has a separate DensityMode band — Musicality/Selection is
-reached via the FX sub-page key within sticky DENSITY mode.
+**Song disambiguation:** `Song`-alone opens song-level swing (unchanged). `Song`-held
+within the Density band adjusts master offset — both the hardware encoder *and* the
+on-screen MZ drag. The switch is mode-scoped, not chord-order-dependent: holding Func
+then Song, or Song then Func, both reach master density while the Density band is
+active. This replaces the old `densityModeArmed` flag; `Song` no longer has a separate
+DensityMode band — Musicality/Selection is reached via the FX sub-page key within
+sticky DENSITY mode.
+
+**Routing SSOT:** `densityEditsMaster(UiState)` (returns `ui.songHeld`) is the single
+predicate consulted by every write path. `densityWriteTarget(ui, field, focusedTrack)`
+resolves the per-track index and absorbs the bank-paging formula. Both live in
+`MetaBand.{h,cpp}` — all three decision sites (mouse in ManipulationZone,
+encoder in PluginEditor, writeMetaField guard) call these rather than inlining
+their own check.
+
+**Per-device delta extraction:** The on-screen rotary uses JUCE `RotaryHorizontalVerticalDrag`,
+which accumulates an absolute value from the drag origin and ignores mid-drag `setValue`
+calls. Master writes therefore use an incremental-delta approach: `ManipulationZone`
+tracks `lastSlotValue_[slot]` per drag and applies `(v - last) / 100.0f` additively
+to `masterDensity`. The hardware encoder provides a raw relative delta (`rawDelta / 128`).
+Both clamp to `[-1, 1]`. Per-track writes continue to use the absolute slot value directly.
 
 ### 39.6 Density cell visual
 

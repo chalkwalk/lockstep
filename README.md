@@ -252,7 +252,7 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Master FX** | Four Song-scope FX units on the master bus: 2 inserts (post-sum) + 2 send returns (post send-bus). Loaded via `Func+Song+FX`; cycle units with repeated press. |
 | **Send A / Send B** | Per-track post-insert level tap into shared send buses (AMP page 2, slots 8–9). Each send bus has a return effect before the master inserts. |
 | **Animate** | The momentary insert punch-in: hold `FX` + step to bypass (or enable) an insert for exactly the hold duration. Performance-only — never written to the pattern. Under Song+FX focus the step grid targets the four master units: steps 0-3 = master FX1, 4-7 = FX2, 8-11 = Send A, 12-15 = Send B. |
-| **Density** | Live, subtractive trig-thinning overlay. `Func`-held → transient per-track Density band. **Double-tap Func** → sticky DENSITY mode; nav keys page between tracks 1-8 and 9-16; `Song`+encoder → master offset (visible as arc baseline shift); FX key cycles Amount/Mode sub-page (Musicality + Selection). `Song`-alone = swing (unchanged). Only silences would-fire trigs. Ephemeral amounts; durable Musicality + Selection per track. |
+| **Density** | Live, subtractive trig-thinning overlay. `Func`-held → transient per-track Density band. **Double-tap Func** → sticky DENSITY mode; nav keys page between tracks 1-8 and 9-16; `Song`-held (encoder or on-screen drag) → master offset (visible as arc baseline shift); FX key cycles Amount/Mode sub-page (Musicality + Selection). `Song`-alone = swing (unchanged). Only silences would-fire trigs. Ephemeral amounts; durable Musicality + Selection per track. |
 | **Retrig / ratchet** | Per-step re-triggering at a musical rate (`/4 … /32T`). `Fill+TRIG` opens the rate picker: press a rate for a live stutter on the focused track, or hold a step first to bake the rate as a per-step P-Lock. Slicer tracks show a slice picker instead. |
 | **Euclidean generator** | `Phrase+Fill` held: encoders shape `PULSE / OFSET / ACCNT` against the phrase length, audible live; the mode is latched until **P** (commit) or **Func+P** (cancel). Y is inert in this mode. |
 | **Control-All** | Holding `Track` with no track selected broadcasts the next parameter edit to every track that has a matching control. |
@@ -741,8 +741,8 @@ State round-trips in serializer v18 (v19 when Density ships).
 **Density** band: 8 rotaries for the 8 tracks in the current bank (bank follows
 focused track). **Double-tap Func** pins sticky DENSITY mode; any nav key (↑↓←→)
 pages between banks 1-8 and 9-16. While in the band (transient or sticky),
-`Song`+encoder adjusts the master offset additively to all tracks; the arc on each
-rotary shifts to show the offset and a tick marks the effective (audible) value.
+`Song`-held (encoder or on-screen drag) adjusts the master offset additively to all tracks;
+the arc on each rotary shifts to show the offset and a tick marks the effective (audible) value.
 Double-tap Func again to exit sticky mode.
 
 Pressing **Track, Phrase, Scene, Morph, Mute, or Fill** while sticky exits the mode
@@ -752,7 +752,7 @@ releasing returns to Base, not back into Density. `Song` (master offset), nav ke
 controls and do not exit sticky mode.
 
 Inside sticky DENSITY mode, press the **FX** section key to toggle between:
-- **Amount** sub-page: per-track rotaries, Song+encoder = master offset.
+- **Amount** sub-page: per-track rotaries; Song-held (encoder or drag) = master offset.
 - **Mode** sub-page: per-track Musicality (Uniform / Mixed / Metric) and Selection
   (Scrub / Re-roll) — these are durable (saved per song per track).
 
@@ -1219,7 +1219,7 @@ shipped behaviour and the design intent. To avoid confusion:
   upgrade chain, New/Open/Save/Save As with dirty guard, last-project auto-open.
 - **Per-track FX inserts** (2 slots, `Func+FX` picker, `FX+step` animate-bypass).
 - **Master FX bus** (2 post-sum slots, `Func+Song+FX` picker, MZ params under `Song+FX`, serializer v14).
-- **Density overlay** (`Func`-held → transient per-track Density band; double-tap Func = sticky DENSITY mode; nav = bank 1-8/9-16; `Song`+encoder = master offset; FX key = Amount/Mode sub-page; `Song`-alone = swing).
+- **Density overlay** (`Func`-held → transient per-track Density band; double-tap Func = sticky DENSITY mode; nav = bank 1-8/9-16; `Song`-held = master offset (encoder or drag); FX key = Amount/Mode sub-page; `Song`-alone = swing).
 
 **Planned** — the rest of the
 machine catalogue (`4.5` Static, `4.6` Percussion, `4.7` Digital); **Phase 5**
@@ -1326,8 +1326,8 @@ Func (1)
 ├─ Func + ← / →       → rotate the focused track's steps −1 / +1 — §5.17
 ├─ Func + ↑ / ↓       → double / halve the focused track length — §5.17
 ├─ Func + step        → P-Lock clear mode (cells show set P-Locks; stage removals, release to commit) — §5.17
-├─ Func (hold)        → transient Density band (8 tracks, bank follows focus); Song+encoder = master offset — §39
-└─ Func double-tap    → sticky DENSITY mode: nav = bank 1-8/9-16; Song+enc = master; FX key = Amount/Mode — §39
+├─ Func (hold)        → transient Density band (8 tracks, bank follows focus); Song-held = master offset (encoder or drag) — §39
+└─ Func double-tap    → sticky DENSITY mode: nav = bank 1-8/9-16; Song-held = master (encoder or drag); FX key = Amount/Mode — §39
 ```
 
 Links: [§5.15](#515-checkpoints-live-undo) ·
