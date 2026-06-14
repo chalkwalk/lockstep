@@ -4458,6 +4458,13 @@ namespace lockstep
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
         const auto ti = static_cast<std::size_t>(track);
 
+        // Stub → real machine: wipe any leftover state so the new track starts clean.
+        if (isTrackEmpty(track))
+        {
+            kit(track) = TrackKit{};
+            withQuiescedEngine([&] { sequence().tracks[ti] = Track{}; });
+        }
+
         auto nm = makeMachineForId(machineId, samplePool_);
         nm->prepare(preparedSampleRate_, preparedBlockSize_);
 

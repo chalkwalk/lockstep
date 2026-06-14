@@ -190,6 +190,10 @@ namespace lockstep
         // meta-section change, track change).
         void refreshMetaBand();
 
+        // Returns true when the active track is a stub/empty track — content edits
+        // are blocked and only machine-pick is allowed.
+        [[nodiscard]] bool activeTrackContentLocked() const;
+
         // Thin alias for call sites that were wired before refreshMetaBand existed.
         void updateSwingQualifier();
 

@@ -428,6 +428,7 @@ namespace lockstep
 
         // Mini-sequencer strip mouse aids (item 6).
         keyboardArea_.onMiniSeqToggle = [this](int absStep) {
+            if (activeTrackContentLocked()) return;
             const int track = keyboardArea_.getActiveTrack();
             if (track < 0) return;
             auto* lp = processor_.apvts().getRawParameterValue(ParamIDs::trackLength(track));
@@ -569,6 +570,11 @@ namespace lockstep
             {
                 g.fillRect(manipulationZone_.getBounds().getUnion(crossfader_.getBounds()));
                 g.fillRect(keyboardArea_.getBounds());
+                g.setColour(juce::Colours::white.withAlpha(0.55f));
+                g.setFont(11.0f);
+                g.drawFittedText("EMPTY  --  Func+Track: choose machine  |  Track+here: copy",
+                                 keyboardArea_.getBounds().reduced(8, 4),
+                                 juce::Justification::centred, 2);
             }
         };
         addAndMakeVisible(greyoutLayer_);
@@ -1430,6 +1436,12 @@ namespace lockstep
         manipulationZone_.setBand(resolveMetaBand(uiState_), swingScopeFor(uiState_));
     }
 
+    bool LockstepEditor::activeTrackContentLocked() const
+    {
+        const int t = keyboardArea_.getActiveTrack();
+        return t >= 0 && t < static_cast<int>(kNumTracks) && processor_.isTrackEmpty(t);
+    }
+
     // Returns the first master unit (0-3) that has an effect loaded, skipping empties.
     // Falls back to 0 so the picker remains reachable even on a fresh project.
     int LockstepEditor::firstLoadedMasterUnit() const noexcept
@@ -1810,7 +1822,7 @@ namespace lockstep
                 uiState_.phraseScopeUsed = false;
                 editMode_.onScopeEvent(ev);
                 // 5.5: Fill+Phrase chord → enter Euclidean tap-to-arm modal.
-                if (uiState_.fillHeld && !uiState_.euclidHeld)
+                if (uiState_.fillHeld && !uiState_.euclidHeld && !activeTrackContentLocked())
                 {
                     const int at = keyboardArea_.getActiveTrack();
                     euclidTrack_ = at < 0 ? 0 : at;
@@ -1846,7 +1858,7 @@ namespace lockstep
                 uiState_.fillHeld = true;
                 editMode_.onScopeEvent(ev);
                 // 5.5: Phrase+Fill chord → enter Euclidean tap-to-arm modal.
-                if (uiState_.phraseScopeHeld && !uiState_.euclidHeld)
+                if (uiState_.phraseScopeHeld && !uiState_.euclidHeld && !activeTrackContentLocked())
                 {
                     const int at = keyboardArea_.getActiveTrack();
                     euclidTrack_ = at < 0 ? 0 : at;
@@ -3649,7 +3661,8 @@ namespace lockstep
                         // MHZ.3.1: next press starts a fresh chord capture.
                         if (track >= 0)
                             processor_.cancelChordCapture(track, stepIdx);
-                        if (!paramWrote && track >= 0 && stepIdx >= 0)
+                        if (!paramWrote && track >= 0 && stepIdx >= 0
+                            && !processor_.isTrackEmpty(track))
                         {
                             auto& s = processor_.sequence()
                                           .tracks[static_cast<std::size_t>(track)]
@@ -4074,6 +4087,20 @@ namespace lockstep
             const MetaBand band = resolveMetaBand(uiState_);
             if (band != MetaBand::None)
             {
+                // Stub tracks: block track-scoped band writes; allow global/song-level.
+                if (activeTrackContentLocked())
+                {
+                    const bool isTrackBand = (band == MetaBand::Cond
+                        || band == MetaBand::Trig || band == MetaBand::Divider
+                        || band == MetaBand::PhraseLen || band == MetaBand::Euclidean
+                        || band == MetaBand::DensityMode
+                        || (band == MetaBand::Density && !uiState_.songHeld));
+                    if (isTrackBand)
+                    {
+                        setStatus("EMPTY -- Func+Track to add a machine");
+                        return;
+                    }
+                }
                 const int swScope = swingScopeFor(uiState_);
                 const auto views = buildMetaBand(band, swScope, processor_, track,
                                                  processor_.editContext(), uiState_);
@@ -4100,6 +4127,13 @@ namespace lockstep
                                processor_, track, processor_.editContext(), uiState_);
                 if (band == MetaBand::Euclidean && uiState_.euclidHeld && euclidTrack_ >= 0)
                     applyEuclidLive(euclidTrack_);
+                return;
+            }
+
+            // Stub track: no real machine params.
+            if (activeTrackContentLocked())
+            {
+                setStatus("EMPTY -- Func+Track to add a machine");
                 return;
             }
 
