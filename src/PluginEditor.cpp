@@ -1467,7 +1467,7 @@ namespace lockstep
     void LockstepEditor::applyEuclidToTrack(int track)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
-        auto& ph = processor_.activePhrase(track);
+        auto& ph = processor_.sequence().tracks[static_cast<std::size_t>(track)];
         const int len = ph.length;
         if (len <= 0) return;
 
@@ -1495,7 +1495,7 @@ namespace lockstep
     void LockstepEditor::applyEuclidLive(int track)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
-        auto& ph = processor_.activePhrase(track);
+        auto& ph = processor_.sequence().tracks[static_cast<std::size_t>(track)];
         const int len = ph.length;
         if (len <= 0) return;
 
@@ -1777,9 +1777,9 @@ namespace lockstep
                             escapeAllLatches();
                         if (uiState_.euclidHeld)
                         {
-                            auto& ph = processor_.activePhrase(euclidTrack_);
+                            auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(euclidTrack_)];
                             for (int si = 0; si < euclidStashLen_; ++si)
-                                ph.steps[static_cast<std::size_t>(si)] =
+                                wt.steps[static_cast<std::size_t>(si)] =
                                     euclidStash_[static_cast<std::size_t>(si)];
                             uiState_.resetEuclid();
                             euclidTrack_ = -1;
@@ -1813,21 +1813,19 @@ namespace lockstep
                 if (uiState_.fillHeld && !uiState_.euclidHeld)
                 {
                     const int at = keyboardArea_.getActiveTrack();
-                    const auto& ph = processor_.activePhrase(at < 0 ? 0 : at);
+                    euclidTrack_ = at < 0 ? 0 : at;
+                    const auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(euclidTrack_)];
                     int onsets = 0;
-                    for (int si = 0; si < ph.length; ++si)
-                        if (ph.steps[static_cast<std::size_t>(si)].trig) ++onsets;
+                    for (int si = 0; si < wt.length; ++si)
+                        if (wt.steps[static_cast<std::size_t>(si)].trig) ++onsets;
                     uiState_.euclidPulses = onsets > 0 ? onsets : 4;
                     uiState_.euclidOffset = 0;
                     uiState_.euclidAccents = 0;
                     uiState_.euclidHeld = true;
-                    // Stash original phrase for No-cancel restore.
-                    euclidTrack_ = at < 0 ? 0 : at;
-                    euclidStashLen_ = ph.length;
-                    const auto& srcPh = processor_.activePhrase(euclidTrack_);
+                    // Stash working-buffer steps for cancel/escape restore.
+                    euclidStashLen_ = wt.length;
                     for (int si = 0; si < euclidStashLen_; ++si)
-                        euclidStash_[static_cast<std::size_t>(si)] =
-                            srcPh.steps[static_cast<std::size_t>(si)];
+                        euclidStash_[static_cast<std::size_t>(si)] = wt.steps[static_cast<std::size_t>(si)];
                     applyEuclidLive(euclidTrack_);
                     refreshMetaBand();
                 }
@@ -1851,21 +1849,19 @@ namespace lockstep
                 if (uiState_.phraseScopeHeld && !uiState_.euclidHeld)
                 {
                     const int at = keyboardArea_.getActiveTrack();
-                    const auto& ph = processor_.activePhrase(at < 0 ? 0 : at);
+                    euclidTrack_ = at < 0 ? 0 : at;
+                    const auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(euclidTrack_)];
                     int onsets = 0;
-                    for (int si = 0; si < ph.length; ++si)
-                        if (ph.steps[static_cast<std::size_t>(si)].trig) ++onsets;
+                    for (int si = 0; si < wt.length; ++si)
+                        if (wt.steps[static_cast<std::size_t>(si)].trig) ++onsets;
                     uiState_.euclidPulses = onsets > 0 ? onsets : 4;
                     uiState_.euclidOffset = 0;
                     uiState_.euclidAccents = 0;
                     uiState_.euclidHeld = true;
-                    // Stash original phrase for No-cancel restore.
-                    euclidTrack_ = at < 0 ? 0 : at;
-                    euclidStashLen_ = ph.length;
-                    const auto& srcPh = processor_.activePhrase(euclidTrack_);
+                    // Stash working-buffer steps for cancel/escape restore.
+                    euclidStashLen_ = wt.length;
                     for (int si = 0; si < euclidStashLen_; ++si)
-                        euclidStash_[static_cast<std::size_t>(si)] =
-                            srcPh.steps[static_cast<std::size_t>(si)];
+                        euclidStash_[static_cast<std::size_t>(si)] = wt.steps[static_cast<std::size_t>(si)];
                     applyEuclidLive(euclidTrack_);
                     refreshMetaBand();
                 }
@@ -3125,12 +3121,12 @@ namespace lockstep
                 // Restore stash → snapshot (always, even onto an empty phrase) → re-apply.
                 if (uiState_.euclidHeld)
                 {
-                    auto& ph = processor_.activePhrase(euclidTrack_);
+                    auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(euclidTrack_)];
                     // Restore original so snapshot captures pre-Euclid state as undo point.
                     for (int si = 0; si < euclidStashLen_; ++si)
-                        ph.steps[static_cast<std::size_t>(si)] =
+                        wt.steps[static_cast<std::size_t>(si)] =
                             euclidStash_[static_cast<std::size_t>(si)];
-                    if (ph.length > 0)
+                    if (wt.length > 0)
                         processor_.snapshot(CheckpointScope::Phrase, euclidTrack_);
                     applyEuclidToTrack(euclidTrack_);
                     uiState_.resetEuclid();
@@ -3174,9 +3170,9 @@ namespace lockstep
                 // Restore the stashed phrase; euclid commit only happens via VerbSnapshot (Y).
                 if (uiState_.euclidHeld)
                 {
-                    auto& ph = processor_.activePhrase(euclidTrack_);
+                    auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(euclidTrack_)];
                     for (int si = 0; si < euclidStashLen_; ++si)
-                        ph.steps[static_cast<std::size_t>(si)] =
+                        wt.steps[static_cast<std::size_t>(si)] =
                             euclidStash_[static_cast<std::size_t>(si)];
                     uiState_.resetEuclid();
                     euclidTrack_ = -1;
