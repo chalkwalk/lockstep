@@ -417,7 +417,7 @@ namespace lockstep
         std::array<MetaFieldView, 8> result{};
 
         const int safeTrack = (track >= 0 && track < static_cast<int>(kNumTracks)) ? track : 0;
-        const int phraseLen = proc.activePhrase(safeTrack).length;
+        const int phraseLen = proc.sequence().tracks[static_cast<std::size_t>(safeTrack)].length;
 
         auto makeField = [](const char* lbl, float lo, float hi, float val,
                             const char* txt, bool stepped) -> MetaFieldView {
@@ -439,8 +439,8 @@ namespace lockstep
                               static_cast<float>(ui.euclidPulses),
                               juce::String(ui.euclidPulses).toRawUTF8(), true);
         result[1] = makeField("OFSET",
-                              static_cast<float>(-(phraseLen > 0 ? phraseLen - 1 : 15)),
-                              static_cast<float>(phraseLen > 0 ? phraseLen - 1 : 15),
+                              static_cast<float>(-((phraseLen > 0 ? phraseLen : 16) + 1) / 2),
+                              static_cast<float>(((phraseLen > 0 ? phraseLen : 16) + 1) / 2),
                               static_cast<float>(ui.euclidOffset),
                               juce::String(ui.euclidOffset).toRawUTF8(), true);
         result[2] = makeField("ACCNT",
@@ -593,7 +593,7 @@ namespace lockstep
         if (band == MetaBand::Euclidean)
         {
             const int safeTrack = (track >= 0 && track < static_cast<int>(kNumTracks)) ? track : 0;
-            const int phraseLen = proc.activePhrase(safeTrack).length;
+            const int phraseLen = proc.sequence().tracks[static_cast<std::size_t>(safeTrack)].length;
             const int maxLen = phraseLen > 0 ? phraseLen : 16;
             switch (field)
             {
@@ -601,9 +601,9 @@ namespace lockstep
                     ui.euclidPulses = std::clamp(static_cast<int>(std::round(value)), 0, maxLen);
                     ui.euclidAccents = std::min(ui.euclidAccents, ui.euclidPulses);
                     break;
-                case 1:  // Offset
+                case 1:  // Offset — redundant rotations beyond ±ceil(len/2) are eliminated.
                     ui.euclidOffset = std::clamp(static_cast<int>(std::round(value)),
-                                                 -(maxLen - 1), maxLen - 1);
+                                                 -(maxLen + 1) / 2, (maxLen + 1) / 2);
                     break;
                 case 2:  // Accents
                     ui.euclidAccents = std::clamp(static_cast<int>(std::round(value)), 0, ui.euclidPulses);
