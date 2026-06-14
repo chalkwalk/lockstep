@@ -273,6 +273,13 @@ namespace lockstep
                                       ? static_cast<double>(v.maxValue)
                                       : lo + 1.0;
                 sliders_[si].setRange(lo, hi, v.stepped ? 1.0 : 0.0);
+                // Meta bands are linear: reset any non-unity skew left over from the
+                // underlying machine-param section. Without this the slider for a slot
+                // whose hidden machine param is skewed (e.g. AMP decay, skew 0.3) keeps
+                // that curve, so its thumb diverges from the linear arc/effective tick —
+                // reading as a "double-rate" move on that one slot (e.g. density slot 3).
+                sliders_[si].setSkewFactor(1.0);
+                sliders_[si].setDoubleClickReturnValue(false, 0.0);
                 sliders_[si].setValue(static_cast<double>(v.value), juce::dontSendNotification);
                 sliders_[si].setEnabled(v.writable);
                 sliders_[si].setAlpha(v.active ? 1.0f : 0.0f);
