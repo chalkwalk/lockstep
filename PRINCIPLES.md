@@ -43,8 +43,11 @@ Every action in Lockstep is some combination of **scope + verb**. Scopes
 are the held modifiers — the eight-key cluster (`Func`, `Track`,
 `Phrase`, `Scene`, `Morph`, `Song`, `Mute`, `Fill`), plus a **held
 step** (`Trig`) and a **section** key — combined cross-column into
-compound scopes. Verbs are the small fixed set (`Record`, `Play`,
-`Stop`, `Yes`, `No`, plus encoder turns for live tweaks). New features
+compound scopes. Verbs are the small fixed set (`Snapshot`, `Record`,
+`Play`, `Clear`, `Confirm` — each with a `Func`-layer secondary
+`Restore` / `Copy` / `Paste` / `Delete` / `Cancel` — plus encoder turns
+for live tweaks). (`Stop` is retired as a standalone verb: transport stop
+is now a `Play` double-press.) New features
 must fit this grammar. If a feature needs a bespoke chord — a one-off
 key combination that doesn't compose with anything else — the design is
 wrong.
@@ -223,8 +226,9 @@ it does not bind stay neutral. An unbound key is either an *ambient*
 utility (navigation, tap / metronome — it keeps its normal action) or
 *reserved* (dimmed, inert). Verbs and operands never silently pass
 through into a different scope's meaning: an op that would read as
-scope-qualified but isn't — snapshot / restore live on bare `Func` — is
-suppressed under that scope, not offered ambiguously.
+scope-qualified but isn't — snapshot is the bare `Snapshot` (Y) verb,
+restore is `Func+Y` — is suppressed under a held scope, not offered
+ambiguously.
 
 **Beginner mode is more chrome, never less grammar.** A beginner sees a
 chrome densely annotated with current state and "next action will do X"
@@ -412,9 +416,9 @@ asked to *select* a target for deletion, which is a separate act.
 the scope's slots → tap to choose) and then **confirm by name** (the
 confirm prompt names the entity and its slot number). Confirming must
 not require re-holding the arming chord: the prompt is sticky until
-answered or explicitly cancelled by a non-Func key press. The Yes key
-shows YES/NO live (green when Func is up, red when Func is held) so the
-choice is visible before the press completes.
+answered or explicitly cancelled by a non-Func key press. The Confirm key
+shows CONFIRM/CANCEL live (green when Func is up, red when Func is held) so
+the choice is visible before the press completes.
 
 Its mirror is *"Ergonomics first; chrome must announce state"* — that
 principle says the surface announces what it is about to do; this one

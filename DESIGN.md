@@ -557,7 +557,7 @@ part of the overlay and are **never** promoted to the floor *as routing*
 (commit instead bakes them into phrase content — see below). The effective
 live phrase for a track is `liveDeviation(t) ?? sceneIdx`. Each Scene
 **remembers its own** overlay while the set is running. **`Scene + Record` =
-commit-and-bake** (Yes/No-confirmed, §16): it writes live mask changes into
+commit-and-bake** (confirm-gated, §16): it writes live mask changes into
 the floor *and* **bakes** the per-track deviations down into content — for
 each deviated track it copies that track's effective live phrase into its
 diagonal row (`sceneIdx`) slot, then clears the deviation. A hand-curated
@@ -565,9 +565,9 @@ heterogeneous arrangement persists by **materialising content onto the
 diagonal**, not by storing a routing vector. Because the bake **overwrites
 phrase content and severs sharing** — the baked slot becomes a snapshot,
 disconnected from the phrase it copied (the Phrase/Scene split, below) — it
-is destructive and prompts a **Yes/No confirmation** before writing.
+is destructive and prompts a **confirmation** (CONFIRM/CANCEL) before writing.
 Discarding the overlay: re-launching the active Scene (`Scene + active-step`
-single-tap, or `Scene + Stop`) returns to the floor; `Func + Scene + step`
+single-tap, or `Scene + Clear`) returns to the floor; `Func + Scene + step`
 launches any Scene at its clean floor (§16). This split is the same machinery
 as the scope-respecting Checkpoint (§13.6): the floor is the saved state, the
 overlay is working state above it.
@@ -866,9 +866,9 @@ real estate.
 - `4 / E R T` = inverted-T navigation (Up / Left / Down / Right).
 - `5–0` = the six canonical sections TRIG / SRC / FILTER / AMP / MOD / FX
   (note `LFO`→`MOD` rename from 3.2; see §6.1.1).
-- `Y U I O P` = verbs `Snapshot / Record / Play / Clear / Yes` (colour-rethink).
+- `Y U I O P` = verbs `Snapshot / Record / Play / Clear / Confirm` (colour-rethink).
   `Func+Y` = Restore (pop checkpoint); `Func+U` = Omni copy; `Func+I` = Unqualified paste; `Func+O` = Delete (+ confirm);
-  `Func+P` = No / cancel. `Record-Arm` / `Play-Stop` chords on `9 / 0` are deferred —
+  `Func+P` = Cancel. `Record-Arm` / `Play-Stop` chords on `9 / 0` are deferred —
   see §33.1.
 
 **Step keys.** Row 3 `D F G H J K L ;` = steps 0–7; row 4
@@ -1474,7 +1474,7 @@ cluster in the left two columns of the 10×4 QWERTY layout (see §5.5,
 | `Morph` | `A` (col 1) | Morph assignment; `Morph + ^/v` picks endpoint A/B (§17.5). | Nav, encoder, `Song`, `Fill`. |
 | `Mute` | `Z` (col 1) | Live global mute layer (hold and tap many); `Scene + Mute + step` = per-scene mute. | Track/step keys, `Scene`. |
 | `Track` | `2` (col 2) | One or more track slots; none selected = Control-All. `Func+Track` activates the machine/Kit picker via step-cell re-skin. | Verb, encoder, or a col-1 modifier. |
-| `Scene` | `W` (col 2) | Scene launch + commit/revert (§16): `Scene + step` on a *different* Scene = carry overlay; on the *active* Scene = revert to floor; on an *empty* slot = create a **baked copy** (current effective layout, deviations included). `Func + Scene + step` = **baseline** (existing Scene → floor-only launch; *empty* slot → create a fresh default/empty Scene). `Scene + Stop` = revert active Scene; `Scene + Record` = **commit-and-bake** (Yes/No-confirmed): folds global-pattern + mask into the floor and bakes per-track deviations into home-row phrase content (§16, §23.3). *(Undeviated duplication lives on the clipboard, not a create chord — `Mute + Scene + step` is reserved for scene-mute; §23.3.)* | Verb, step key, `Track`. |
+| `Scene` | `W` (col 2) | Scene launch + commit/revert (§16): `Scene + step` on a *different* Scene = carry overlay; on the *active* Scene = revert to floor; on an *empty* slot = create a **baked copy** (current effective layout, deviations included). `Func + Scene + step` = **baseline** (existing Scene → floor-only launch; *empty* slot → create a fresh default/empty Scene). `Scene + Clear` = revert active Scene; `Scene + Record` = **commit-and-bake** (confirm-gated): folds global-pattern + mask into the floor and bakes per-track deviations into home-row phrase content (§16, §23.3). *(Undeviated duplication lives on the clipboard, not a create chord — `Mute + Scene + step` is reserved for scene-mute; §23.3.)* | Verb, step key, `Track`. |
 | `Song` | `S` (col 2) | Song select: `Song + step` queues a Song change (§16). `Func+Song` = Global/project params (incl. master-bus / FX focus, §32.3). | Verb, step key, section key, `Morph`. |
 | `Fill` | `X` (col 2) | "While I'm holding this, fill conditions evaluate true." | Step keys; (no verb needed — it's the state itself). |
 | `Trig` (hold a step) | `D–;` / `C–/` | The held step(s); multi-step hold is allowed. | Verb, encoder, or note key. |
@@ -1544,8 +1544,8 @@ The verb set is small and uniform:
   "Delete which PHRASE?" (or TRACK / SCENE). The user taps a slot to proceed.
   The picker is **sticky** — releasing the arming chord does not cancel; only
   an explicit non-Func key press does (shows "Cancelled"). `Func` itself never
-  cancels (it is needed to navigate Yes/No). After tapping a slot, a named
-  **pending-confirm** replaces the picker: "Delete PHRASE 3?  P=Yes  Func+P=No".
+  cancels (it is needed to navigate CONFIRM/CANCEL). After tapping a slot, a named
+  **pending-confirm** replaces the picker: "Delete PHRASE 3?  P=CONFIRM  Func+P=CANCEL".
   The `P` key shows **YES (green)** when Func is up and **NO (red)** when Func
   is held; the live colour is the confirmation surface — no modal popup
   (PRINCIPLES §5, §16). The pending-confirm is also sticky; any non-Func key
@@ -1606,7 +1606,7 @@ planned).
 **Rung 4 — `Func + mod + key` (3 keys).** `Func+Track+step` machine/Kit
 picker assign; `Func+Scene+step` baseline launch (floor, discard
 overlay); `Func+Scene+Rec`/`Func+Scene+Play` Scene copy / paste;
-`Func+Section+step` note-edit entry; `Trig+Func+Stop` clear
+`Func+Section+step` note-edit entry; `Trig+Func+Clear` clear
 all P-Locks on the held step(s); **`Func+Mute+step` solo** (the
 secondary layer of mute).
 
@@ -1660,37 +1660,37 @@ done via the Kit picker (`Func+Track`) instead.
 |---|---|
 | `Trig` (hold 1+ steps) + Record | Copy those steps (trigs + condition + P-Locks). |
 | `Trig` + Play | Paste clipboard onto the held steps. |
-| `Trig` + Stop | Clear those steps' overrides (trig + P-Locks). |
-| `Trig` + `Func + Stop` | Clear **all** P-Locks on the held step(s), leaving the trig itself intact. The `Func` qualifier narrows `Stop`'s scope from "clear the step" to "clear locks only". |
-| `Trig` + `(MZ slot)` + Stop | Clear **only that slot's** P-Lock on the held step. Targeted by the held slot (the same slot the MZ would write). |
+| `Trig` + Clear | Clear those steps' overrides (trig + P-Locks). |
+| `Trig` + `Func + Clear` | Clear **all** P-Locks on the held step(s), leaving the trig itself intact. The `Func` qualifier narrows `Clear`'s scope from "clear the step" to "clear locks only". |
+| `Trig` + `(MZ slot)` + Clear | Clear **only that slot's** P-Lock on the held step. Targeted by the held slot (the same slot the MZ would write). |
 | `Func` + step (P-Lock clear mode) | Hold Func then press a step → step cells re-skin orange: bright for P-locked slots, dim for empty. Press any step cell to clear that slot's P-Lock on the target step. Release Func to exit. Slots 0-15 are shown; each cell maps to one machine slot by index. |
 | `Section` key + Record | Copy all of that section's params (base + P-Locks across all steps). |
 | `Section` key + Play | Paste section onto current track. |
-| `Section` key + Stop | Reset section to default. |
+| `Section` key + Clear | Reset section to default. |
 | `Track` (specific track) + Record | Copy the whole track within the Song. |
 | `Track` + Play | Paste track. |
-| `Track` + Stop | Clear track. |
+| `Track` + Clear | Clear track. |
 | `Phrase` + Record | Copy the focused track's phrase. |
 | `Phrase` + Play | Paste phrase. |
-| `Phrase` + Stop | Clear phrase (back to empty). |
+| `Phrase` + Clear | Clear phrase (back to empty). |
 | `Func` + `Scene` + Record | Copy the active Scene to the typed clipboard. The grab is the full **effective** layout (floor + live deviations as content), losslessly. **No move** (cf. the create-and-move `Scene + step`). Baked-vs-floor is chosen at *paste* (§23.3). Type tag = `Scene`; badge = `CPY:SCN`. |
 | `Func` + `Scene` + Play | Paste the Scene clipboard onto the active Scene — lays down the **baked** layout. Conflict-gated (§23.3). |
 | `Mute` + `Func` + `Scene` + Play | Paste **floor only** (deviations stripped). `Mute` = the "floor-only / strip the overlay" qualifier; distinct from verbless scene-mute by the `Play` verb (§23.3). |
-| `Func` + `Scene` + Stop | Clear the Scene to empty / default. |
+| `Func` + `Scene` + Clear | Clear the Scene to empty / default. |
 | `Func + U` (no scope) | **Omni copy** — captures the full live stack: scene + active track + pattern. Type tag = `All`; badge = `CPY:ALL`. |
 | `Func + I` (no scope) | **Unqualified paste** — stamps the single captured layer by reading the clipboard's type tag. Rejects with "Paste: pick a scope" if type is `All` (omni grab has no single default). `None` = "Nothing copied". |
 
 > **Why `Scene` copy is `Func`-qualified.** Every other scope's bare
-> copy/paste/clear triad is `Record`/`Play`/`Stop`. `Scene` is the one
+> copy/paste/clear triad is `Record`/`Play`/`Clear`. `Scene` is the one
 > exception: its *bare* triad is reserved for live launch-unit verbs —
 > `Scene + Record` = **author** (commit-and-bake live state into the Scene —
 > folds global/mask into the floor and bakes deviations into home-row content,
-> Yes/No-confirmed; §16),
-> `Scene + Play` = **launch now**, `Scene + Stop` = **revert to stored**
+> confirm-gated; §16),
+> `Scene + Play` = **launch now**, `Scene + Clear` = **revert to stored**
 > (§16). `Func` therefore *lifts* the clipboard triad up one level
-> (`Func + Scene + Record/Play/Stop` = copy/paste/clear of a Scene as
-> data), exactly as `Func` narrows `Trig + Stop` (clear step) to
-> `Trig + Func + Stop` (clear locks only). The clipboard is typed: a
+> (`Func + Scene + Record/Play/Clear` = copy/paste/clear of a Scene as
+> data), exactly as `Func` narrows `Trig + Clear` (clear step) to
+> `Trig + Func + Clear` (clear locks only). The clipboard is typed: a
 > Scene clipboard pastes only into a Scene slot.
 
 Multi-step holds copy a contiguous *or* discontinuous group: the
@@ -1882,7 +1882,7 @@ This is the **same floor/overlay split** a Scene already runs (§4.7/§16):
 the Scene-scope checkpoint floor **is** the Scene's saved floor, and a
 Scene's live overlay is working state above it. So the Scene-level reverts
 are one behaviour reached several ways — double-tap a Scene launch,
-`Scene + Stop`, or `Func + No` walked to the Scene's floor.
+`Scene + Clear`, or `Func + Cancel` walked to the Scene's floor.
 
 **The floor is the saved state.** Each scope's stack is seeded, on Song
 load / Song switch, with a single **floor** entry = that scope's
@@ -2129,7 +2129,7 @@ own overlay while the set runs.
 - **`Scene + step` on a different Scene** — carry the current live overlay
   to the new Scene (deviations and any live global-pattern changes persist
   above the new Scene's floor).
-- **`Scene + step` on the active Scene** (or `Scene + Stop`) — revert:
+- **`Scene + step` on the active Scene** (or `Scene + Clear`) — revert:
   discard the active Scene's overlay and return to its saved floor. This is
   the "reset to stock" move.
 - **`Func + Scene + step`** — **baseline launch**: switch to any Scene at
@@ -2166,7 +2166,7 @@ use `Func + Scene + step` (baseline launch, above).
 **Scene commit / revert** (the bare `Scene` triad; the copy/paste/clear
 meanings are `Func`-qualified, §13.2):
 
-- `Scene + Record` — **commit-and-bake** (Yes/No-confirmed): write live mask
+- `Scene + Record` — **commit-and-bake** (confirm-gated): write live mask
   changes into the Scene's saved floor, *and* **bake** the per-track deviations
   into content — each deviated track's effective phrase is copied into its
   diagonal row (`sceneIdx`) slot, then the deviation clears. This is the
@@ -2174,13 +2174,13 @@ meanings are `Func`-qualified, §13.2):
   the floor stores no routing vector, so curated phrases are materialised
   onto the diagonal *as content*. Because it overwrites phrase slots and severs
   phrase sharing (the baked slot is a snapshot, §4.7), it is destructive and
-  **prompts a Yes/No confirmation**. *Scratch-pad workflow:* park on one Scene,
+  **prompts a confirmation** (CONFIRM/CANCEL). *Scratch-pad workflow:* park on one Scene,
   audition ideas into high phrase slots via `Phrase + step` deviations, then
-  `Scene + Record` → `Yes` bakes the keepers onto the diagonal.
+  `Scene + Record` → `CONFIRM` bakes the keepers onto the diagonal.
 - `Scene + Play` — **launch now**: an unquantized re-fire of the active
   Scene immediately (apply its phrases + active mask now, not at the next
   core-time boundary).
-- `Scene + Stop` — **revert**: discard the live overlay, return to the
+- `Scene + Clear` — **revert**: discard the live overlay, return to the
   Scene's saved floor. Same behaviour as a double-tap launch of the active
   Scene, and the same restore the §13.6 Checkpoint floor reaches via
   `Func + No` walked to a Scene scope's floor — one behaviour, several
@@ -2317,9 +2317,9 @@ override the ratio:
 
 - `Morph + ^` + encoder → pure A write (ignores fader position)
 - `Morph + v` + encoder → pure B write (ignores fader position)
-- `Morph + ^` + `Stop` on a slot → removes from A's map
-- `Morph + v` + `Stop` on a slot → removes from B's map
-- `Morph + Stop` on a slot → removes from both maps (clears assignment)
+- `Morph + ^` + `Clear` on a slot → removes from A's map
+- `Morph + v` + `Clear` on a slot → removes from B's map
+- `Morph + Clear` on a slot → removes from both maps (clears assignment)
 
 On a hardware surface with a physical fader, `^`/`v` are natural
 "commit this exact position" shortcuts; on QWERTY they are the primary
@@ -2523,18 +2523,18 @@ existing verb set via `<scope> + No`:
 
 | Gesture | Effect |
 |---|---|
-| `Trig` (1+ steps held) + `No` | Zero those steps' `microOffset`. |
-| `Track` (single track held) + `No` | Zero all `microOffset` values on that track. |
-| `Phrase` + `No` | Zero `microOffset` across every step of the active phrase. |
+| `Trig` (1+ steps held) + `P` (QUANT) | Zero those steps' `microOffset`. |
+| `Track` (single track held) + `P` (QUANT) | Zero all `microOffset` values on that track. |
+| `Phrase` + `P` (QUANT) | Zero `microOffset` across every step of the active phrase. |
 
-(`No` was previously used only for checkpoint pop. Pop is scoped to
-"no scope held + Func + No" — see §13.6 — so the two readings of
-`No` do not collide: with any scope held, `No` quantizes; without
-a scope, `Func + No` pops a checkpoint.)
+(The `P` key bare = CONFIRM; under a `Trig` / `Track` / `Phrase` scope it
+relabels to **QUANT** and zeroes timing offsets. Checkpoint pop is
+unrelated — it lives on `Func + Y` (Restore), §13.6 — so the two readings
+of `P` do not collide.)
 
 Quantize never touches trigs themselves, P-Locks, or trig
 overrides — only the timing offset. To remove a trig entirely, use
-`Stop`.
+`Clear`.
 
 Swing is not affected by Quantize. To reset swing, hold the relevant
 scope key (Song / Scene / Track) and zero the swing encoder.
@@ -2751,7 +2751,7 @@ latent in the data model from 3.5 but only becomes visible in
 - Three clear gestures cover the three axes:
   `Trig + step` toggles `step.trig`;
   `Trig + Func + No` clears notes + velocity + gateValue;
-  `Trig + Func + Stop` clears P-Locks.
+  `Trig + Func + Clear` clears P-Locks.
 
 This supports the "sketch a chord progression, mute trigs to find
 the part" workflow without losing authored chords.
@@ -3142,7 +3142,7 @@ value duplicating information. 3.4 collapses each slot to **rotary
 - The parameter's name moves to a slim header (or piggybacks on the
   section-key label since context already names the page).
 - The standalone `x` clear button is removed; clearing a P-Lock is a
-  grammar gesture under `Trig + (slot) + Stop` / `Trig + Func + Stop`
+  grammar gesture under `Trig + (slot) + Clear` / `Trig + Func + Clear`
   / step-driven edit mode (§13.2), keyboard-first.
 - The reclaimed space grows the rotary itself, so it's actually
   legible at performing distance.

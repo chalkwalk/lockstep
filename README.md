@@ -489,8 +489,8 @@ catalogued in DESIGN §13.0.
 
 The five verb keys carry an on-screen primary legend, a `Func`-layer
 secondary legend, and a scope-compound meaning. (Note: the key the README
-historically called "Yes" is the `Y`/SNAP key; the confirm/"Yes" action
-actually lives on `P`.)
+historically called "Yes" is the `Y`/SNAP key; the confirm action lives on
+`P`, now labelled **CONFIRM** / **CANCEL**.)
 
 | Key | Legend | No scope | Under a scope | `Func + key` |
 |---|---|---|---|---|
@@ -498,7 +498,7 @@ actually lives on `P`.)
 | `U` | **REC** | Toggle record-arm (double-tap = overdub) | **Copy** scope → clipboard | **Omni copy** (scene + track + phrase) |
 | `I` | **PLAY** | Play / Stop transport (double-tap = stop-to-top) | **Paste** clipboard → scope | **Unqualified paste** (stamp the one captured layer) |
 | `O` | **CLEAR** | Clear active P-Lock slot (`Scene`/`Phrase` held = cancel queued scene; `Song` held = Panic) | **Clear** scope contents | **Delete** — opens deletion picker (see §5.4a) |
-| `P` | **YES** | Confirm a pending prompt (green = YES / red under Func = NO) | **Quantize** (Trig/Track/Phrase scope: zero microOffset on held steps / whole track / all tracks); scope confirm (dims on Scene/Morph/Song/Mute/Fill) | **No** / cancel a pending prompt |
+| `P` | **CONFIRM** | Confirm a pending prompt (green = CONFIRM / red under Func = CANCEL) | **Quantize** (Trig/Track/Phrase scope: zero microOffset on held steps / whole track / all tracks); scope confirm (dims on Scene/Morph/Song/Mute/Fill) | **Cancel** a pending prompt |
 
 > **Checkpoint push/restore.** Push is the bare `Y`(SNAP) key; restore is
 > `Func+Y`(RESTORE). Both are *scope-respecting*: with no scope held the
@@ -867,8 +867,8 @@ Scenes and switch Songs live.
 | `Scene (W) + step key` | Launch a Scene (quantized when playing). On a *different* occupied Scene: carries the live overlay; double-tap = floor launch. On the *active* Scene: reverts to floor. On an **empty** slot: **baked-copy create** + launch (current effective content, including deviations). Conflict-gated when target phrase row has content; no-op skip when identical. |
 | `Func + Scene + step key` | On an occupied Scene: **floor launch**. On an **empty** slot: **baseline-copy create** (floor diagonal row only, no deviations) + launch. Conflict-gated. |
 | `Mute + Scene + empty-step` | **Blank create** — a fresh empty Scene, no content copied. |
-| `Scene + Stop` | Revert the active Scene to its saved floor (same as re-launching it). |
-| `Scene + Record` | **Commit-and-bake** (Yes/No confirmed): for each deviated track, copy its effective phrase content into the Scene's diagonal row (`sceneIdx`), then clear the deviation. If no deviations, no-op. |
+| `Scene + Clear` | Revert the active Scene to its saved floor (same as re-launching it). |
+| `Scene + Record` | **Commit-and-bake** (confirm-gated): for each deviated track, copy its effective phrase content into the Scene's diagonal row (`sceneIdx`), then clear the deviation. If no deviations, no-op. |
 | `Func + Scene + Record` | Copy the active Scene (floor + all effective phrases) to the typed clipboard. Badge: `CPY:SCN`. |
 | `Func + Scene + Play` | Paste clipboard Scene onto the active Scene (baked layout). Conflict-gated. |
 | `Mute + Func + Scene + Play` | Paste **floor only** (strip deviations). The `Mute` qualifier reads as "strip the content overlay; apply floor metadata only". |
@@ -957,9 +957,9 @@ Stage E / 7.5 and has shipped — see *Phrase-length authoring* below.)
   replace-on-hold). Velocity = highest; gate = span if all notes
   released before step, else track default. Works with transport
   stopped and record-arm off; an empty buffer is a no-op (non-destructive).
-- **P-Lock clear gestures.** `Trig + Func + Stop` clears all
+- **P-Lock clear gestures.** `Trig + Func + Clear` clears all
   P-Locks on the held step(s), trig left intact. `Trig + (active MZ
-  slot) + Stop` clears only that one slot's P-Lock. Both use the
+  slot) + Clear` clears only that one slot's P-Lock. Both use the
   existing scope+verb grammar.
 - **Step-driven P-Lock clear mode.** Hold Func (1), then press a
   step → step cells re-skin orange: cells map to the *packed* list
@@ -1262,7 +1262,7 @@ The tree below roots each gesture under its **highest-priority held
 scope** (the resolution order is `Trig > Section > Track > Phrase > Scene >
 Mute > Morph > Song > Fill > Func`); `Func`-only gestures live under
 **Func**. `Cue` is a reserved scope with no key bound yet (6.4), and
-`Morph` is a fully live scope (5.2) with encoder, nav-qualifier, Stop,
+`Morph` is a fully live scope (5.2) with encoder, nav-qualifier, Clear,
 and Mute gestures; `Cue` is reserved with no key bound yet (6.4).
 
 Legends in parentheses are the on-screen key labels (see
@@ -1405,7 +1405,7 @@ Scene (W)
 ├─ + step (empty slot)      → baked-copy create + launch (conflict-gated) — §5.14
 ├─ Func + Scene + step (occupied) → floor launch (arrive at saved floor) — §5.14
 ├─ Func + Scene + step (empty)    → default-create (blank) + launch — §5.14
-├─ + U (REC)                → **commit-and-bake** deviations (Yes/No confirm) — §5.14
+├─ + U (REC)                → **commit-and-bake** deviations (confirm-gated) — §5.14
 ├─ + O (CLEAR)              → revert the active scene to its floor / cancel a queued scene — §5.14
 ├─ + Y (SNAP)               → re-sync all tracks to the active scene — §5.14
 ├─ Func + Scene + U         → copy the active scene to the clipboard (CPY:SCN) — §5.14
@@ -1441,7 +1441,7 @@ Morph (A)   hold/latch = scene-layer selector (symmetric with held step → P-Lo
 ├─ + encoder            → sculpt morph at fader split (da/db normalised 1:1) — §5.2
 ├─ + ↑ + encoder        → pure A write (fader ignored) — §5.2
 ├─ + ↓ + encoder        → pure B write (fader ignored) — §5.2
-├─ + Stop on slot        → clear slot from both maps — §5.2
+├─ + Clear on slot       → clear slot from both maps — §5.2
 ├─ + Mute on track       → fluid mute (AMP Level → silence into near pole) — §5.2
 ├─ + O (CLEAR)           → **BAKE** — commit fader-split to both poles; hint "ERASE" — §5.2
 └─ Func + Morph + O      → **ERASE** — wipe both Morph maps for this scene — §5.2
