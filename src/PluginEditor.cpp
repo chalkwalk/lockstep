@@ -1164,7 +1164,7 @@ namespace lockstep
                 // 5.5: Euclidean modal armed — show commit/cancel banner.
                 if (ui.euclidHeld)
                 {
-                    ctx = "EUCLID  pulses / offset / accent  |  COMMIT / CANCEL";
+                    ctx = "EUCLID  pulses / offset / accent  |  P = commit  Func+P = cancel";
                 }
                 // MHZ.3.5: Func+Part = machine picker — show dedicated hint.
                 else if (ui.funcTrackHeld)
@@ -3117,26 +3117,9 @@ namespace lockstep
 
             case ControllerButton::VerbSnapshot: {
                 using PS = EditMode::PrimaryScope;
-                // 5.5: Euclid modal armed → COMMIT bakes live preview.
-                // Restore stash → snapshot (always, even onto an empty phrase) → re-apply.
+                // 5.5: Euclid modal armed → Y is inert (commit is on bare P).
                 if (uiState_.euclidHeld)
-                {
-                    auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(euclidTrack_)];
-                    // Restore original so snapshot captures pre-Euclid state as undo point.
-                    for (int si = 0; si < euclidStashLen_; ++si)
-                        wt.steps[static_cast<std::size_t>(si)] =
-                            euclidStash_[static_cast<std::size_t>(si)];
-                    if (wt.length > 0)
-                        processor_.snapshot(CheckpointScope::Phrase, euclidTrack_);
-                    applyEuclidToTrack(euclidTrack_);
-                    uiState_.resetEuclid();
-                    euclidTrack_ = -1;
-                    euclidStashLen_ = 0;
-                    refreshMetaBand();
-                    setStatus("EUCLID committed");
-                    repaint();
                     return true;
-                }
                 // Y = Snapshot. Under scene scope → re-sync all to scene (scope-specific snapshot).
                 if (uiState_.sceneHeld)
                 {
@@ -3166,14 +3149,29 @@ namespace lockstep
                 using PS = EditMode::PrimaryScope;
                 const bool funcHeld = editMode_.scopeState().func;
 
-                // 5.5: Euclid modal armed → bare Yes (P without Func) or No/Func+P both cancel.
-                // Restore the stashed phrase; euclid commit only happens via VerbSnapshot (Y).
+                // 5.5: Euclid modal armed → bare P = commit; Func+P = cancel.
                 if (uiState_.euclidHeld)
                 {
                     auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(euclidTrack_)];
-                    for (int si = 0; si < euclidStashLen_; ++si)
-                        wt.steps[static_cast<std::size_t>(si)] =
-                            euclidStash_[static_cast<std::size_t>(si)];
+                    if (!funcHeld)
+                    {
+                        // Commit: restore stash first (snapshot captures pre-Euclid state),
+                        // then apply the Euclid pattern.
+                        for (int si = 0; si < euclidStashLen_; ++si)
+                            wt.steps[static_cast<std::size_t>(si)] =
+                                euclidStash_[static_cast<std::size_t>(si)];
+                        if (wt.length > 0)
+                            processor_.snapshot(CheckpointScope::Phrase, euclidTrack_);
+                        applyEuclidToTrack(euclidTrack_);
+                        setStatus("EUCLID committed");
+                    }
+                    else
+                    {
+                        // Cancel: restore stashed phrase.
+                        for (int si = 0; si < euclidStashLen_; ++si)
+                            wt.steps[static_cast<std::size_t>(si)] =
+                                euclidStash_[static_cast<std::size_t>(si)];
+                    }
                     uiState_.resetEuclid();
                     euclidTrack_ = -1;
                     euclidStashLen_ = 0;

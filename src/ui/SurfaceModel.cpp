@@ -648,12 +648,7 @@ namespace lockstep
                 displayPrimary = "QUANT";
                 displayHint = {};
             }
-            // 5.5: Euclidean modal armed → Y = COMMIT, P = CANCEL.
-            if (ui.euclidHeld)
-            {
-                if (def.keyCode == 'Y') { displayPrimary = "COMMIT"; displayHint = {}; }
-                if (def.keyCode == 'P') { displayPrimary = "CANCEL"; displayHint = {}; }
-            }
+
 
             c.primary = displayPrimary;
             c.funcHint = displayHint;
