@@ -4183,7 +4183,7 @@ namespace lockstep
                         || band == MetaBand::Trig || band == MetaBand::Divider
                         || band == MetaBand::PhraseLen || band == MetaBand::Euclidean
                         || band == MetaBand::DensityMode
-                        || (band == MetaBand::Density && !uiState_.songHeld));
+                        || (band == MetaBand::Density && !densityEditsMaster(uiState_)));
                     if (isTrackBand)
                     {
                         setStatus("EMPTY -- Func+Track to add a machine");
@@ -4191,7 +4191,7 @@ namespace lockstep
                     }
                 }
                 // Density + Song held → adjust master density as a relative delta.
-                if (band == MetaBand::Density && uiState_.songHeld)
+                if (band == MetaBand::Density && densityEditsMaster(uiState_))
                 {
                     processor_.setMasterDensity(juce::jlimit(-1.0f, 1.0f,
                         processor_.masterDensity() + static_cast<float>(rawDelta) / 128.0f));

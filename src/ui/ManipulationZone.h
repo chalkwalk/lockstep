@@ -92,5 +92,11 @@ namespace lockstep
         std::array<juce::TextButton, kNumSlots> clearBtns_;
         juce::TextButton samplePickerBtn_;  // replaces sliders_[i] when a sample slot is in view
         bool updatingFromTimer_ = false;
+
+        // Incremental-delta tracking for on-screen density master edits.
+        // JUCE RotaryHorizontalVerticalDrag accumulates from the drag origin and
+        // ignores setValue() mid-drag, so master writes must diff successive events.
+        std::array<float, kNumSlots> lastSlotValue_{};
+        bool lastSlotValid_ = false;
     };
 }

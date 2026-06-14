@@ -53,6 +53,19 @@ namespace lockstep
         return 0;
     }
 
+    bool densityEditsMaster(const UiState& ui) noexcept
+    {
+        return ui.songHeld;
+    }
+
+    DensityWriteTarget densityWriteTarget(const UiState& ui, int field, int focusedTrack) noexcept
+    {
+        if (densityEditsMaster(ui))
+            return { true, -1 };
+        const int page = ui.densityStickyMode ? ui.densityBank : ((focusedTrack >= 8) ? 1 : 0);
+        return { false, page * 8 + field };
+    }
+
     // =========================================================================
     // buildMetaBand
     // =========================================================================
@@ -766,12 +779,13 @@ namespace lockstep
             }
 
             case MetaBand::Density: {
+                // Master writes are handled upstream (mouse incremental delta in
+                // ManipulationZone, relative rawDelta in the encoder path).
+                if (densityEditsMaster(ui)) break;
                 if (field >= 0 && field < 8)
                 {
-                    // Page mirrors buildDensityBand: sticky mode uses densityBank, else focus-derived.
-                    const int page = ui.densityStickyMode ? ui.densityBank : ((track >= 8) ? 1 : 0);
-                    const int trackIdx = page * 8 + field;
-                    if (trackIdx < static_cast<int>(kNumTracks))
+                    const int trackIdx = densityWriteTarget(ui, field, track).trackIdx;
+                    if (trackIdx >= 0 && trackIdx < static_cast<int>(kNumTracks))
                         proc.setTrackDensity(trackIdx, juce::jlimit(0.01f, 1.0f, value / 100.0f));
                 }
                 break;

@@ -36,6 +36,8 @@ namespace lockstep
             sliders_[si].onDragStart = [this, i] {
                 if (band_ == MetaBand::None)
                     processor_.editContext().setActiveSlot(slotOffset_ + i);
+                lastSlotValid_ = false;  // start each drag with a clean reference point
+                juce::ignoreUnused(i);
             };
             sliders_[si].onValueChange = [this, i] {
                 if (updatingFromTimer_) return;
@@ -43,6 +45,22 @@ namespace lockstep
                     sliders_[static_cast<std::size_t>(i)].getValue());
                 if (band_ != MetaBand::None)
                 {
+                    // Density + Song: use incremental delta so JUCE's accumulating
+                    // absolute value doesn't snap the master when dragging starts.
+                    if (band_ == MetaBand::Density && uiState_ && densityEditsMaster(*uiState_))
+                    {
+                        if (lastSlotValid_)
+                        {
+                            const float dMaster = (v - lastSlotValue_[static_cast<std::size_t>(i)]) / 100.0f;
+                            processor_.setMasterDensity(juce::jlimit(-1.0f, 1.0f,
+                                processor_.masterDensity() + dMaster));
+                        }
+                        lastSlotValue_[static_cast<std::size_t>(i)] = v;
+                        lastSlotValid_ = true;
+                        refreshSliders();
+                        return;
+                    }
+
                     static UiState kEmptyUiState{};
                     writeMetaField(band_, swingScope_, i, v, processor_,
                                    area_.getActiveTrack(), processor_.editContext(),
@@ -149,6 +167,7 @@ namespace lockstep
     {
         band_ = band;
         swingScope_ = swingScope;
+        lastSlotValid_ = false;
 
         samplePickerBtn_.setVisible(false);
         for (std::size_t i = 0; i < kNumSlots; ++i)

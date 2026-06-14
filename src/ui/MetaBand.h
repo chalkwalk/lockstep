@@ -62,6 +62,17 @@ namespace lockstep
     // swingScopeFor — 0=none, 1=song-all, 2=scene-all delta, 3=song-track delta.
     int swingScopeFor(const UiState& ui);
 
+    // densityEditsMaster — true when a density-band edit should target the global
+    // master offset rather than the per-track knob.  Single predicate consulted by
+    // every write path (mouse, encoder, writeMetaField guard) so they cannot disagree.
+    bool densityEditsMaster(const UiState& ui) noexcept;
+
+    // densityWriteTarget — resolve which track index a density-band slot edit lands on.
+    // master==true means the edit targets the master offset; trackIdx is -1 in that case.
+    // Absorbs the paging formula shared by buildDensityBand and writeMetaField.
+    struct DensityWriteTarget { bool master; int trackIdx; };
+    DensityWriteTarget densityWriteTarget(const UiState& ui, int field, int focusedTrack) noexcept;
+
     // -------------------------------------------------------------------------
     // buildMetaBand — pure builder: fills 8 MetaFieldViews from current state.
     // Lifted verbatim from ManipulationZone::refresh*Sliders.
