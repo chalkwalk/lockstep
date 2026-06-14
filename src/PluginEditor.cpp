@@ -1471,17 +1471,6 @@ namespace lockstep
         const int len = ph.length;
         if (len <= 0) return;
 
-        // Checkpoint only if the phrase already has trigs (preserves undo).
-        bool hasTrigs = false;
-        for (int si = 0; si < len; ++si)
-            if (ph.steps[static_cast<std::size_t>(si)].trig)
-            {
-                hasTrigs = true;
-                break;
-            }
-        if (hasTrigs)
-            processor_.snapshot(CheckpointScope::Track, track);
-
         const auto vels = euclideanAccents(len,
                                            uiState_.euclidPulses,
                                            uiState_.euclidOffset,
@@ -3132,15 +3121,17 @@ namespace lockstep
 
             case ControllerButton::VerbSnapshot: {
                 using PS = EditMode::PrimaryScope;
-                // 5.5: Euclid modal armed → Yes commits the live pattern (single undo).
-                // Restores stash first (to give applyEuclidToTrack the original for its snapshot),
-                // then re-applies the euclid pattern with a proper checkpoint.
+                // 5.5: Euclid modal armed → COMMIT bakes live preview.
+                // Restore stash → snapshot (always, even onto an empty phrase) → re-apply.
                 if (uiState_.euclidHeld)
                 {
                     auto& ph = processor_.activePhrase(euclidTrack_);
+                    // Restore original so snapshot captures pre-Euclid state as undo point.
                     for (int si = 0; si < euclidStashLen_; ++si)
                         ph.steps[static_cast<std::size_t>(si)] =
                             euclidStash_[static_cast<std::size_t>(si)];
+                    if (ph.length > 0)
+                        processor_.snapshot(CheckpointScope::Phrase, euclidTrack_);
                     applyEuclidToTrack(euclidTrack_);
                     uiState_.resetEuclid();
                     euclidTrack_ = -1;
