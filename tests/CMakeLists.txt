@@ -25,7 +25,11 @@ add_executable(lockstep_tests
     EngineTest.cpp
     ControllerTest.cpp
     CaptureRecorderTest.cpp
-    DensityTest.cpp)
+    DensityTest.cpp
+    MetaBandTest.cpp
+    # UI modules needed by MetaBandTest (live only in the plugin target otherwise)
+    ../src/ui/MetaBand.cpp
+    ../src/ui/MetaRotary.cpp)
 
 target_link_libraries(lockstep_tests PRIVATE
     lockstep_engine

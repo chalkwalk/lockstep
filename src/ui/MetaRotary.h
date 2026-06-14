@@ -40,6 +40,13 @@ namespace lockstep
 
         void applyView(const View& v);
 
+        // Const getters for test access (L&F reads private members directly).
+        [[nodiscard]] RingMode getRingMode() const noexcept { return ringMode; }
+        [[nodiscard]] const std::array<ReferenceMark, 2>& getMarks() const noexcept { return marks; }
+        [[nodiscard]] bool isDensityCell() const noexcept { return densityCell; }
+        [[nodiscard]] float getDensityMasterOffset() const noexcept { return densityMasterOffset; }
+        [[nodiscard]] float getDensityEffective() const noexcept { return densityEffective; }
+
     private:
         friend class MetaRotaryLookAndFeel;
 

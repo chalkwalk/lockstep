@@ -59,4 +59,6 @@ namespace lockstep
     void runCaptureRecorderTests();
     // Density overlay (§39)
     void runDensityTests();
+    // MetaBand routing SSOT + MetaRotary::applyView totality
+    void runMetaBandTests();
 }
