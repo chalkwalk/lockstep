@@ -79,8 +79,8 @@ namespace lockstep
         VerbCopy,    // U / REC    — COPY when scope+verb compound; no Func action
         VerbPaste,   // I / PLAY   — PASTE when scope+verb compound; Func = PANIC
         VerbClear,   // O / CLEAR  — CLEAR when scope+verb compound; Func = DEL
-        VerbYes,     // Y / SNAP   — Snapshot; scope variant under scope; Func = RESTORE
-        VerbNo,      // P / YES    — Yes/confirm (primary); No/cancel (Func+P); dims under scope
+        VerbSnapshot,     // Y / SNAP   — Snapshot; scope variant under scope; Func = RESTORE
+        VerbConfirm,      // P / CONFIRM — Confirm (primary); Cancel (Func+P); dims under scope
         Nav,         // E / R / T  — navigation
         Utility,     // TAP (3), NavUp (4), anything else
     };

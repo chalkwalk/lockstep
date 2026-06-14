@@ -38,19 +38,22 @@ namespace lockstep
         CueScope,
 
         // Verb keys (MHY: primary layer Y/U/I/O/P; meaning changes with active scope).
-        VerbYes,          // key Y: Snapshot (push checkpoint); under scope = scope snapshot; Func+Y = Restore
+        // NB: these enumerator NAMES were renamed to match current behaviour
+        // (was VerbYes/VerbStop/VerbNo, the original Yes/Stop/No grammar). The
+        // enum ORDER is ABI-frozen — renaming is value-preserving, so safe.
+        VerbSnapshot,     // key Y: Snapshot (push checkpoint); under scope = scope snapshot; Func+Y = Restore
         VerbRecord,       // key U: Record / arm overdub; under scope = Copy
         VerbPlay,         // key I: Play/Pause (double-tap = Stop-to-top); under scope = Paste; Func+I = Panic
-        VerbStop,         // key O: (legacy — superseded by VerbClear; kept for ABI stability)
-        VerbNo,           // key P: Yes / confirm prompt; Func+P = No / cancel
+        VerbStopLegacy,   // key O: DEAD — superseded by VerbClear; kept only for ABI stability (do not use)
+        VerbConfirm,      // key P: Confirm a pending prompt; Func+P = Cancel
 
-        // Checkpoint operations — triggered via Func+verb layer.
-        Snapshot,         // Func+Y: push checkpoint (now primary Y)
-        Restore,          // Func+Y: pop checkpoint (Func+Y)
+        // Checkpoint operations — the Func-resolved verb buttons.
+        Snapshot,         // bare Y resolves here: push checkpoint
+        Restore,          // Func+Y resolves here: pop checkpoint
 
         // New verb keys appended for colour-rethink (ABI: add-only, never reorder).
         VerbClear,        // key O: Clear active operand; under scope = clear scope contents; Func+O = Delete
-        VerbDelete,       // Func+O: delete the active entity (requires confirm via VerbYes/VerbNo)
+        VerbDelete,       // Func+O: delete the active entity (requires confirm via VerbConfirm / Func+P cancel)
         VerbPanic,        // Func+I: kill all voices + hard stop
 
         // Navigation (4=Up, E=Left, R=Down, T=Right).

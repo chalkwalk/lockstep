@@ -13,14 +13,14 @@ namespace lockstep
 
         // ── Pending-confirm intercept ─────────────────────────────────────────
         // Sticky: releasing the arming chord never cancels. Any NEW press other
-        // than Func cancels (= "No", status "Cancelled", event swallowed).
-        // Yes = P with Func up; No = P with Func held. Func itself is exempt.
+        // than Func cancels (= "Cancel", status "Cancelled", event swallowed).
+        // Confirm = P with Func up; Cancel = P with Func held. Func itself is exempt.
         if (ctx.uiState.confirm.pending())
         {
             if (ev.button == CB::Func)
-                return false;  // Func never cancels — user may need it to reach No
+                return false;  // Func never cancels — user may need it to reach Cancel
 
-            if (ev.button == CB::VerbNo)
+            if (ev.button == CB::VerbConfirm)
             {
                 const bool funcDown = ctx.uiState.funcHeld;
                 if (!funcDown)
@@ -32,7 +32,7 @@ namespace lockstep
                 return true;
             }
 
-            // Any other new press = No (cancel; event swallowed).
+            // Any other new press = Cancel (event swallowed).
             ctx.uiState.confirm.reset();
             fx.status(status::cancelled());
             fx.requestRepaint();

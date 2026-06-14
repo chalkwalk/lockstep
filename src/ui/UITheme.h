@@ -133,7 +133,7 @@ namespace lockstep::theme
     inline constexpr uint32_t kVerbClearActive = 0xFF8A5A1Cu;
     inline constexpr uint32_t kVerbClearAccent = 0xFFBB6030u;
 
-    // Snapshot (VerbYes): violet-blue (distinct from slate verbs)
+    // Snapshot (VerbSnapshot): violet-blue (distinct from slate verbs)
     inline constexpr uint32_t kVerbSnapActive = 0xFF3A44A0u;
     inline constexpr uint32_t kVerbSnapAccent = 0xFF5060C8u;
 

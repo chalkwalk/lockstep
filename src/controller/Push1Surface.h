@@ -10,7 +10,7 @@ namespace lockstep
     // Pad layout (bottom-left origin = note 36, note = 36 + row*8 + col):
     //   Rows 5-8 top-left 2 cols : 8 modifier cluster (mirrors on-screen col 1-2)
     //   Row 4 (notes 60-67)      : TAP, NavUp, TRIG, SRC, FILTER, AMP, MOD, FX
-    //   Row 3 (notes 52-59)      : NavLeft, NavDown, NavRight, Snapshot, Rec, Play, Clear, Yes
+    //   Row 3 (notes 52-59)      : NavLeft, NavDown, NavRight, Snapshot, Rec, Play, Clear, Confirm
     //   Row 2 (notes 44-51)      : steps 0-7
     //   Row 1 (notes 36-43)      : steps 8-15
     //   Top-right pads (rows 5-8, cols 2-7) : dark / unused
@@ -125,7 +125,7 @@ namespace lockstep
 
         // Verb/nav row: row 3 (notes 52-59).
         // NavLeft=52, NavDown=53, NavRight=54, Snapshot=55,
-        // Rec=56, Play=57, Clear=58, Yes=59.
+        // Rec=56, Play=57, Clear=58, Confirm=59.
         static constexpr std::array<int, 8> kVerbRowNotes = {
             52, 53, 54, 55, 56, 57, 58, 59
         };
@@ -155,11 +155,11 @@ namespace lockstep
             ControllerButton::NavLeft,
             ControllerButton::NavDown,
             ControllerButton::NavRight,
-            ControllerButton::VerbYes,    // Snapshot
+            ControllerButton::VerbSnapshot,    // Snapshot
             ControllerButton::VerbRecord,
             ControllerButton::VerbPlay,
             ControllerButton::VerbClear,
-            ControllerButton::VerbNo,
+            ControllerButton::VerbConfirm,
         };
 
         // ControllerButton values for modifier pads (matches kModifierNotes order).
@@ -192,7 +192,7 @@ namespace lockstep
             { 9, ControllerButton::MetronomeToggle },
             { 87, ControllerButton::VerbClear },  // New → Clear alias
             { 118, ControllerButton::VerbDelete },  // Delete
-            { 119, ControllerButton::VerbNo },  // Undo → No/cancel alias
+            { 119, ControllerButton::VerbConfirm },  // Undo → Cancel alias
             { 49, ControllerButton::Func },  // Shift → Func alias
             { 60, ControllerButton::MuteScope },  // Mute → hold-to-mute (= Z)
             { 29, ControllerButton::StopReset },  // Stop Clip → stop + reset to top

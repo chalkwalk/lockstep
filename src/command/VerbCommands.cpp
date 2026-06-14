@@ -96,9 +96,9 @@ namespace lockstep::verbs
             return true;
         }
 
-        if (verb == CB::VerbNo && ctx.editMode.scopeState().func)
+        if (verb == CB::VerbConfirm && ctx.editMode.scopeState().func)
         {
-            // Trig + Func + No — clear note/velocity/gate overrides on held
+            // Trig + Func + Cancel (P) — clear note/velocity/gate overrides on held
             // step(s), leaving step.trig and P-Locks intact.
             for (int idx : ec.heldSteps())
             {
@@ -246,7 +246,7 @@ namespace lockstep::verbs
     bool noScope(ControllerButton verb, CommandContext& ctx, CommandEffects&)
     {
         using CB = ControllerButton;
-        if (verb == CB::VerbYes)
+        if (verb == CB::VerbSnapshot)
         {
             ctx.arrangement.snapshot(CheckpointScope::Song, ctx.uiState.activeTrack);
             return true;

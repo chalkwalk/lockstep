@@ -95,11 +95,11 @@ namespace lockstep
         { CB::NavRight, -1, kModTrack, SL::Base, AId::CycleInputModeRight, u8"→", u8"", CS::Resting },
         { CB::NavRight, -1, kModNone, SL::Base, AId::NavPageRight, u8"→", u8"ROT→", CS::Resting },
 
-        // ── VerbYes / SNAP (key Y) ────────────────────────────────────────────
+        // ── VerbSnapshot / SNAP (key Y) ────────────────────────────────────────────
         // Scene+Y = SYNC (re-sync all tracks to scene floor).
-        { CB::VerbYes, -1, kModScene, SL::Base, AId::VerbConfirm, u8"SYNC", u8"", CS::Resting },
-        { CB::VerbYes, -1, kModFunc, SL::Base, AId::VerbRestore, u8"RESTORE", u8"", CS::Resting },
-        { CB::VerbYes, -1, kModNone, SL::Base, AId::VerbSnapshot, u8"SNAP", u8"RESTORE", CS::Resting },
+        { CB::VerbSnapshot, -1, kModScene, SL::Base, AId::VerbConfirm, u8"SYNC", u8"", CS::Resting },
+        { CB::VerbSnapshot, -1, kModFunc, SL::Base, AId::VerbRestore, u8"RESTORE", u8"", CS::Resting },
+        { CB::VerbSnapshot, -1, kModNone, SL::Base, AId::VerbSnapshot, u8"SNAP", u8"RESTORE", CS::Resting },
 
         // ── VerbRecord / REC (key U) ──────────────────────────────────────────
         // Scope+VerbRecord = COPY for Track/Phrase/Song. Scene bare = BAKE (arms confirm);
@@ -138,16 +138,16 @@ namespace lockstep
         { CB::VerbClear, -1, kModSong, SL::Base, AId::VerbScopedClear, u8"PANIC", u8"", CS::Resting },
         { CB::VerbClear, -1, kModNone, SL::Base, AId::VerbClear, u8"CLEAR", u8"DEL", CS::Resting },
 
-        // ── VerbNo / YES (key P) ─────────────────────────────────────────────
-        // Scope+P = QUANT (zero microOffset on scope). Func+P = NO/cancel.
-        { CB::VerbNo, -1, kModTrack,  SL::Base, AId::VerbConfirm, u8"QUANT", u8"NO", CS::Resting },
-        { CB::VerbNo, -1, kModPhrase, SL::Base, AId::VerbConfirm, u8"QUANT", u8"NO", CS::Resting },
-        { CB::VerbNo, -1, kModFunc,   SL::Base, AId::VerbCancel,  u8"NO", u8"", CS::Resting },
-        { CB::VerbNo, -1, kModNone,   SL::Base, AId::VerbConfirm, u8"YES", u8"NO", CS::Resting },
+        // ── VerbConfirm / CONFIRM (key P) ─────────────────────────────────────────
+        // Scope+P = QUANT (zero microOffset on scope). Func+P = CANCEL.
+        { CB::VerbConfirm, -1, kModTrack,  SL::Base, AId::VerbConfirm, u8"QUANT", u8"CANCEL", CS::Resting },
+        { CB::VerbConfirm, -1, kModPhrase, SL::Base, AId::VerbConfirm, u8"QUANT", u8"CANCEL", CS::Resting },
+        { CB::VerbConfirm, -1, kModFunc,   SL::Base, AId::VerbCancel,  u8"CANCEL", u8"", CS::Resting },
+        { CB::VerbConfirm, -1, kModNone,   SL::Base, AId::VerbConfirm, u8"CONFIRM", u8"CANCEL", CS::Resting },
 
-        // ── PendingConfirm layer — P key shows live YES (green) / NO (red) ──────
-        { CB::VerbNo, -1, kModFunc, SL::PendingConfirm, AId::VerbCancel, u8"NO", u8"", CS::ConfirmNo },
-        { CB::VerbNo, -1, kModNone, SL::PendingConfirm, AId::VerbConfirm, u8"YES", u8"NO", CS::ConfirmYes },
+        // ── PendingConfirm layer — P key shows live CONFIRM (green) / CANCEL (red) ──
+        { CB::VerbConfirm, -1, kModFunc, SL::PendingConfirm, AId::VerbCancel, u8"CANCEL", u8"", CS::ConfirmNo },
+        { CB::VerbConfirm, -1, kModNone, SL::PendingConfirm, AId::VerbConfirm, u8"CONFIRM", u8"CANCEL", CS::ConfirmYes },
 
         // ── Section keys (5-0): ActionId only; labels from ScopedSectionMatrix ──
         { CB::Section, 0, kModFunc, SL::Base, AId::SelectMetaSection, u8"", u8"", CS::Resting },

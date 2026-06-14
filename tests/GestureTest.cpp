@@ -84,7 +84,7 @@ namespace lockstep
         CHECK(!f.track(0).steps[7].overrides.has(0), "P-Lock cleared");
     }
 
-    // Scenario 5: PS::Trig / VerbNo with Func held → clear note/vel/gate overrides
+    // Scenario 5: PS::Trig / VerbConfirm with Func held → clear note/vel/gate overrides
 
     static void scenario_trigClearNotes()
     {
@@ -98,7 +98,7 @@ namespace lockstep
         f.editMode.onScopeEvent({ T::ButtonDown, CB::Func, -1, 0 });
         f.holdStep(0, 1);
 
-        const bool handled = f.verb(PS::Trig, CB::VerbNo);
+        const bool handled = f.verb(PS::Trig, CB::VerbConfirm);
         CHECK(handled, "Trig+Func+No should be handled");
         CHECK(f.track(0).steps[1].trigOverride.noteCount == 0, "noteCount cleared");
         CHECK(!f.track(0).steps[1].trigOverride.hasVelocity, "hasVelocity cleared");
@@ -182,14 +182,14 @@ namespace lockstep
               "transport action is Panic");
     }
 
-    // Scenario 11: PS::None / VerbYes → Song-scope snapshot
+    // Scenario 11: PS::None / VerbSnapshot → Song-scope snapshot
 
     static void scenario_noneSnapshot()
     {
         GestureFixture f;
         // No scope held, so primaryScope() == None.
-        const bool handled = f.verb(PS::None, CB::VerbYes);
-        CHECK(handled, "None+VerbYes handled (snapshot)");
+        const bool handled = f.verb(PS::None, CB::VerbSnapshot);
+        CHECK(handled, "None+VerbSnapshot handled (snapshot)");
         // No crash; arrangement state unchanged (just verifying it doesn't assert).
     }
 
@@ -448,14 +448,14 @@ namespace lockstep
         CHECK(f.uiState.confirm.pending(), "confirm survives Func press");
     }
 
-    // Pending → Func held → VerbNo (P) → cancel (No).
+    // Pending → Func held → VerbConfirm (P) → cancel (No).
     static void scenario_confirmFuncPCancels()
     {
         GestureFixture f;
         armConfirm(f, ConfirmKind::DeletePhrase);
         f.uiState.funcHeld = true;  // simulate Func held
 
-        const bool handled = f.down({ ControllerEvent::Type::ButtonDown, CB::VerbNo, -1 });
+        const bool handled = f.down({ ControllerEvent::Type::ButtonDown, CB::VerbConfirm, -1 });
         CHECK(handled, "Func+P swallowed");
         CHECK(!f.uiState.confirm.pending(), "confirm cleared");
         CHECK(f.effects.confirmsExecuted.empty(), "executeConfirm NOT called on No");
@@ -469,7 +469,7 @@ namespace lockstep
         armConfirm(f, ConfirmKind::DeleteTrack, 5);
         f.uiState.funcHeld = false;
 
-        const bool handled = f.down({ ControllerEvent::Type::ButtonDown, CB::VerbNo, -1 });
+        const bool handled = f.down({ ControllerEvent::Type::ButtonDown, CB::VerbConfirm, -1 });
         CHECK(handled, "P swallowed");
         CHECK(!f.uiState.confirm.pending(), "confirm cleared");
         CHECK(f.effects.confirmsExecuted.size() == 1, "executeConfirm called once");

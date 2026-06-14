@@ -39,7 +39,7 @@ namespace lockstep
     // layer grammar; every input source uses resolveLayer(), never inline checks.
     //
     // Note: entries where kPrimary and kFunc map the same key to the same
-    // button (P→VerbNo, U→VerbRecord) are intentionally absent — resolveLayer
+    // button (P→VerbConfirm, U→VerbRecord) are intentionally absent — resolveLayer
     // returns the event unchanged and the no-op is free.
     inline constexpr LayerRemap kLayerRemaps[] = {
         // Track layer (priority 1): step keys → select-track
@@ -49,7 +49,7 @@ namespace lockstep
         // Func layer (priority 3):
         { ControllerButton::Section, LayerRemap::Layer::Func, ControllerButton::MetaSection },
         { ControllerButton::TapTempo, LayerRemap::Layer::Func, ControllerButton::MetronomeToggle },
-        { ControllerButton::VerbYes, LayerRemap::Layer::Func, ControllerButton::Restore },
+        { ControllerButton::VerbSnapshot, LayerRemap::Layer::Func, ControllerButton::Restore },
         { ControllerButton::VerbClear, LayerRemap::Layer::Func, ControllerButton::VerbDelete },
     };
 

@@ -42,13 +42,13 @@ namespace lockstep
             { code('R'), B::NavDown, -1 },
             { code('T'), B::NavRight, -1 },
 
-            // Right-utility verbs (MHY.4): Snapshot / Rec / Play / Clear / Yes
+            // Right-utility verbs (MHY.4): Snapshot / Rec / Play / Clear / Confirm
             // (Func layer remaps Y→Restore, O→VerbDelete via kLayerRemaps)
-            { code('Y'), B::VerbYes, -1 },
+            { code('Y'), B::VerbSnapshot, -1 },
             { code('U'), B::VerbRecord, -1 },
             { code('I'), B::VerbPlay, -1 },
             { code('O'), B::VerbClear, -1 },
-            { code('P'), B::VerbNo, -1 },
+            { code('P'), B::VerbConfirm, -1 },
 
             // Step grid row 1 (D-; = steps 0-7)
             // (Track layer → SelectTrack; Mute layer → ToggleMute via kLayerRemaps)

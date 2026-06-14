@@ -496,11 +496,11 @@ namespace lockstep
             CB::NavLeft,
             CB::NavDown,
             CB::NavRight,
-            CB::VerbYes,
+            CB::VerbSnapshot,
             CB::VerbRecord,
             CB::VerbPlay,
-            CB::VerbStop,
-            CB::VerbNo,
+            CB::VerbStopLegacy,
+            CB::VerbConfirm,
         } };
 
         const int n = static_cast<int>(kButtons.size());

@@ -98,18 +98,18 @@ namespace lockstep
     static void testVerbKeys()
     {
         // Plain
-        checkKey("Y-plain", code('Y'), false, false, false, B::VerbYes, -1);
+        checkKey("Y-plain", code('Y'), false, false, false, B::VerbSnapshot, -1);
         checkKey("U-plain", code('U'), false, false, false, B::VerbRecord, -1);
         checkKey("I-plain", code('I'), false, false, false, B::VerbPlay, -1);
         checkKey("O-plain", code('O'), false, false, false, B::VerbClear, -1);
-        checkKey("P-plain", code('P'), false, false, false, B::VerbNo, -1);
+        checkKey("P-plain", code('P'), false, false, false, B::VerbConfirm, -1);
 
         // Func layer remaps
         checkKey("Y-func", code('Y'), true, false, false, B::Restore, -1);
         checkKey("U-func", code('U'), true, false, false, B::VerbRecord, -1); // VerbRecord kept (omni copy)
         checkKey("I-func", code('I'), true, false, false, B::VerbPlay, -1); // falls through to primary
         checkKey("O-func", code('O'), true, false, false, B::VerbDelete, -1);
-        checkKey("P-func", code('P'), true, false, false, B::VerbNo, -1);
+        checkKey("P-func", code('P'), true, false, false, B::VerbConfirm, -1);
 
         // key 3: TapTempo plain, MetronomeToggle under func
         checkKey("key3-func", code('3'), true, false, false, B::MetronomeToggle, -1);

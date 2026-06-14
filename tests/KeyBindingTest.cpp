@@ -127,8 +127,8 @@ namespace lockstep
     static void testVerbRow()
     {
         // Y: SNAP / RESTORE
-        CHECK(resolve(CB::VerbYes, kModNone) == AId::VerbSnapshot, "Y bare = SNAP");
-        CHECK(resolve(CB::VerbYes, kModFunc) == AId::VerbRestore, "Func+Y = RESTORE");
+        CHECK(resolve(CB::VerbSnapshot, kModNone) == AId::VerbSnapshot, "Y bare = SNAP");
+        CHECK(resolve(CB::VerbSnapshot, kModFunc) == AId::VerbRestore, "Func+Y = RESTORE");
 
         // U: REC / COPY under scope (not Morph). Scene bare = BAKE; Func+Scene = COPY.
         CHECK(resolve(CB::VerbRecord, kModNone) == AId::VerbRecord, "U bare = REC");
@@ -158,8 +158,8 @@ namespace lockstep
         CHECK(resolve(CB::VerbClear, kModMorph | kModFunc) == AId::VerbMorphErase, "Func+Morph+O = ERASE");
 
         // P: YES / NO
-        CHECK(resolve(CB::VerbNo, kModNone) == AId::VerbConfirm, "P bare = YES");
-        CHECK(resolve(CB::VerbNo, kModFunc) == AId::VerbCancel, "Func+P = NO");
+        CHECK(resolve(CB::VerbConfirm, kModNone) == AId::VerbConfirm, "P bare = YES");
+        CHECK(resolve(CB::VerbConfirm, kModFunc) == AId::VerbCancel, "Func+P = NO");
     }
 
     // ── Section keys ─────────────────────────────────────────────────────────

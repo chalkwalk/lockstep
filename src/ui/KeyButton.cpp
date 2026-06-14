@@ -66,12 +66,12 @@ namespace lockstep
                 return { kNavInactive, kNavActive, kNavAccent };
 
             // --- Verb keys: neutral slate at rest; conventional colour on-active ---
-            case ControllerButton::VerbYes:
+            case ControllerButton::VerbSnapshot:
                 // Y = Snapshot. ModeActive not currently used; resting is always slate.
                 return { kVerbInactive, kVerbSnapActive, kVerbSnapAccent };
 
-            case ControllerButton::VerbNo:
-                // P = Yes/confirm. Neutral slate resting.
+            case ControllerButton::VerbConfirm:
+                // P = Confirm. Neutral slate resting.
                 return { kVerbInactive, kVerbActive, kVerbAccent };
 
             case ControllerButton::VerbRecord:
@@ -89,7 +89,7 @@ namespace lockstep
                            ? KeyGroup{ kVerbInactive, kVerbPlayActive, kVerbPlayAccent }
                            : KeyGroup{ kVerbInactive, kVerbActive, kVerbAccent };
 
-            case ControllerButton::VerbStop:
+            case ControllerButton::VerbStopLegacy:
                 // Legacy — no key emits this anymore. Show as neutral.
                 return { kVerbInactive, kVerbActive, kVerbAccent };
 

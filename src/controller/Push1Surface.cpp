@@ -452,14 +452,14 @@ namespace lockstep
                 return active ? pidx::kGreen : pidx::kGreyDim;
             case ControllerButton::VerbClear:
                 return active ? pidx::kOrangeDk : pidx::kGreyDim;
-            case ControllerButton::VerbYes:                 // Snapshot
+            case ControllerButton::VerbSnapshot:                 // Snapshot
                 return active ? pidx::kViolet : pidx::kGreyDim;
-            case ControllerButton::VerbNo:                  // confirm
+            case ControllerButton::VerbConfirm:                  // confirm
                 return active ? pidx::kGreen : pidx::kGreyDim;
             case ControllerButton::VerbDelete:
             case ControllerButton::VerbPanic:
                 return pidx::kRed;
-            case ControllerButton::VerbStop:                // legacy — neutral
+            case ControllerButton::VerbStopLegacy:                // legacy — neutral
                 return pidx::kGreyDim;
 
             case ControllerButton::Section:

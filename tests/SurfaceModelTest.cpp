@@ -307,16 +307,16 @@ namespace lockstep
         using SL = SurfaceLayer;
         using CS = CellState;
 
-        // Without Func: P resolves to VerbConfirm, "YES", ConfirmYes state
-        const auto& yes = resolveBinding(CB::VerbNo, -1, kModNone, SL::PendingConfirm);
+        // Without Func: P resolves to VerbConfirm, "CONFIRM", ConfirmYes state
+        const auto& yes = resolveBinding(CB::VerbConfirm, -1, kModNone, SL::PendingConfirm);
         CHECK(yes.action == ActionId::VerbConfirm, "PendingConfirm bare P → VerbConfirm");
-        CHECK(juce::String(yes.primary) == "YES", "PendingConfirm bare P primary = YES");
+        CHECK(juce::String(yes.primary) == "CONFIRM", "PendingConfirm bare P primary = CONFIRM");
         CHECK(yes.state == CS::ConfirmYes, "PendingConfirm bare P state = ConfirmYes");
 
-        // With Func: P resolves to VerbCancel, "NO", ConfirmNo state
-        const auto& no = resolveBinding(CB::VerbNo, -1, kModFunc, SL::PendingConfirm);
+        // With Func: P resolves to VerbCancel, "CANCEL", ConfirmNo state
+        const auto& no = resolveBinding(CB::VerbConfirm, -1, kModFunc, SL::PendingConfirm);
         CHECK(no.action == ActionId::VerbCancel, "PendingConfirm Func+P → VerbCancel");
-        CHECK(juce::String(no.primary) == "NO", "PendingConfirm Func+P primary = NO");
+        CHECK(juce::String(no.primary) == "CANCEL", "PendingConfirm Func+P primary = CANCEL");
         CHECK(no.state == CS::ConfirmNo, "PendingConfirm Func+P state = ConfirmNo");
     }
 

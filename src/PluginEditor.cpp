@@ -1615,11 +1615,11 @@ namespace lockstep
             case CB::FillScope:   uiState_.latch.fill = set; break;
             case CB::Func:
             case CB::CueScope:
-            case CB::VerbYes:
+            case CB::VerbSnapshot:
             case CB::VerbRecord:
             case CB::VerbPlay:
-            case CB::VerbStop:
-            case CB::VerbNo:
+            case CB::VerbStopLegacy:
+            case CB::VerbConfirm:
             case CB::Snapshot:
             case CB::Restore:
             case CB::NavUp:
@@ -3092,7 +3092,7 @@ namespace lockstep
                 return true;
             }
 
-            case ControllerButton::VerbYes: {
+            case ControllerButton::VerbSnapshot: {
                 using PS = EditMode::PrimaryScope;
                 // 5.5: Euclid modal armed → Yes commits the live pattern (single undo).
                 // Restores stash first (to give applyEuclidToTrack the original for its snapshot),
@@ -3137,12 +3137,12 @@ namespace lockstep
                 return true;
             }
 
-            case ControllerButton::VerbNo: {
+            case ControllerButton::VerbConfirm: {
                 using PS = EditMode::PrimaryScope;
                 const bool funcHeld = editMode_.scopeState().func;
 
                 // 5.5: Euclid modal armed → bare Yes (P without Func) or No/Func+P both cancel.
-                // Restore the stashed phrase; euclid commit only happens via VerbYes (Y).
+                // Restore the stashed phrase; euclid commit only happens via VerbSnapshot (Y).
                 if (uiState_.euclidHeld)
                 {
                     auto& ph = processor_.activePhrase(euclidTrack_);
@@ -3157,9 +3157,9 @@ namespace lockstep
                     return true;
                 }
 
-                // Both primary P (Yes/confirm) and Func+P (No/cancel) arrive here as VerbNo.
+                // Both primary P (Yes/confirm) and Func+P (No/cancel) arrive here as VerbConfirm.
                 // Distinguish by whether Func is held.
-                // Note: when confirm is pending, CommandCore::handleDown intercepts VerbNo
+                // Note: when confirm is pending, CommandCore::handleDown intercepts VerbConfirm
                 // before this point and calls executeConfirm / status::cancelled() directly.
 
                 // No pending confirm. Bare Yes (no Func) = Quantize or snapshot/confirm verb.
@@ -3668,7 +3668,7 @@ namespace lockstep
                 break;
             }
 
-            case CB::VerbYes:
+            case CB::VerbSnapshot:
                 break;  // Y = Snapshot; no held-state to clear.
 
             case CB::Restore: {
@@ -3685,7 +3685,7 @@ namespace lockstep
                 break;
             }
 
-            case CB::VerbNo: {
+            case CB::VerbConfirm: {
                 // Func+P "Restore" path (recorded press time in dispatchDown).
                 if (restoreActive_)
                 {
@@ -3710,7 +3710,7 @@ namespace lockstep
                 break;
 
             case CB::VerbRecord:
-            case CB::VerbStop:
+            case CB::VerbStopLegacy:
             case CB::VerbClear:
             case CB::VerbDelete:
             case CB::VerbPanic:

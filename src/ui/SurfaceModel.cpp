@@ -105,15 +105,15 @@ namespace lockstep
             case ControllerButton::NavLeft:     return &functionRow[2];
             case ControllerButton::NavDown:     return &functionRow[3];
             case ControllerButton::NavRight:    return &functionRow[4];
-            case ControllerButton::VerbYes:     return &functionRow[5];
+            case ControllerButton::VerbSnapshot:     return &functionRow[5];
             case ControllerButton::VerbRecord:  return &functionRow[6];
             case ControllerButton::VerbPlay:    return &functionRow[7];
-            // functionRow[8] is the O key = CLEAR (button VerbClear). VerbStop is
+            // functionRow[8] is the O key = CLEAR (button VerbClear). VerbStopLegacy is
             // the legacy identity for the same slot; map both so byButton(VerbClear)
             // resolves (without it the Push Clear pad / New→Clear alias stayed off).
-            case ControllerButton::VerbStop:
+            case ControllerButton::VerbStopLegacy:
             case ControllerButton::VerbClear:   return &functionRow[8];
-            case ControllerButton::VerbNo:      return &functionRow[9];
+            case ControllerButton::VerbConfirm:      return &functionRow[9];
             case ControllerButton::Section:
                 if (idx >= 0 && idx < 6) return &section[static_cast<std::size_t>(idx)];
                 return nullptr;
@@ -599,11 +599,11 @@ namespace lockstep
             { 'E', u8"E", ControllerButton::NavLeft, KeyRole::Nav },
             { 'R', u8"R", ControllerButton::NavDown, KeyRole::Nav },
             { 'T', u8"T", ControllerButton::NavRight, KeyRole::Nav },
-            { 'Y', u8"Y", ControllerButton::VerbYes, KeyRole::VerbYes },
+            { 'Y', u8"Y", ControllerButton::VerbSnapshot, KeyRole::VerbSnapshot },
             { 'U', u8"U", ControllerButton::VerbRecord, KeyRole::VerbCopy },
             { 'I', u8"I", ControllerButton::VerbPlay, KeyRole::VerbPaste },
             { 'O', u8"O", ControllerButton::VerbClear, KeyRole::VerbClear },
-            { 'P', u8"P", ControllerButton::VerbNo, KeyRole::VerbNo },
+            { 'P', u8"P", ControllerButton::VerbConfirm, KeyRole::VerbConfirm },
         } };
 
         const bool sectionScopeHeld = (firstHeldSectionSuiteScope(ui) != PS::None);
@@ -696,14 +696,14 @@ namespace lockstep
             // Hybrid pass-through + scope glow (DESIGN §6.6): verbs are
             // scope-combining. Under a section-suite scope, Y/U/I/O (Snapshot/Copy/
             // Paste/Clear) all participate in the scope grammar and glow in the scope
-            // colour. P (Yes/confirm) is the confirm/cancel channel — reserved/dim
+            // colour. P (Confirm) is the confirm/cancel channel — reserved/dim
             // under scope, but still fires for pending-confirm resolution.
             // Nav/TAP are ambient and untouched.
             if (sectionScopeHeld)
             {
-                if (def.role == KeyRole::VerbNo)
+                if (def.role == KeyRole::VerbConfirm)
                     c.disabled = true;
-                else if (def.role == KeyRole::VerbYes || (def.role == KeyRole::VerbCopy && !ui.morphHeld) || (def.role == KeyRole::VerbPaste && !ui.morphHeld) || def.role == KeyRole::VerbClear)
+                else if (def.role == KeyRole::VerbSnapshot || (def.role == KeyRole::VerbCopy && !ui.morphHeld) || (def.role == KeyRole::VerbPaste && !ui.morphHeld) || def.role == KeyRole::VerbClear)
                     c.scopeTint = scopeColour(sectionScope).getARGB();
             }
 
@@ -720,7 +720,7 @@ namespace lockstep
             // every other key dims. Func itself is exempt (user needs it to reach NO).
             if (activeLayer == SurfaceLayer::PendingConfirm)
             {
-                if (def.role == KeyRole::VerbNo)
+                if (def.role == KeyRole::VerbConfirm)
                 {
                     const auto& b = resolveBinding(def.button, -1, heldMods,
                                                    SurfaceLayer::PendingConfirm);
