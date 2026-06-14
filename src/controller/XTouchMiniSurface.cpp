@@ -116,7 +116,19 @@ namespace lockstep
         for (int step = 0; step < 16; ++step)
         {
             const auto& cell = model.step[static_cast<std::size_t>(step)];
-            const uint8_t vel = cellStateToVelocity(cell.base, cell.border);
+            // Playhead cell: phase-driven on/off envelope (1/8 off → 3/4 on → 1/8 off)
+            // instead of slow firmware flash. Resting state returns once the playhead passes.
+            uint8_t vel;
+            if (cell.border.present && cell.border.token == CellState::StepPlayhead
+                && model.playheadPhase >= 0.0f)
+            {
+                const float ph = model.playheadPhase;
+                vel = (ph >= 0.125f && ph < 0.875f) ? 127u : appearanceOf(cell.base).xtouchVel;
+            }
+            else
+            {
+                vel = cellStateToVelocity(cell.base, cell.border);
+            }
             const auto idx = static_cast<std::size_t>(step);
 
             if (vel != ledShadow_[idx])

@@ -211,7 +211,7 @@ namespace lockstep
     // =========================================================================
     struct SurfaceModel
     {
-        static constexpr uint32_t kCurrentSchema = 2;
+        static constexpr uint32_t kCurrentSchema = 3;
         uint32_t schemaVersion = kCurrentSchema;
 
         // Modifier cluster: Func/Track/Pattern/Part/Scene/Master/Mute/Fill (indices 0-7).
@@ -249,6 +249,11 @@ namespace lockstep
         // Scene A/B crossfader value normalised 0..1 (0 = full A, 1 = full B).
         // Passed explicitly to buildSurfaceModel since it lives in the editor.
         float crossfader = 0.0f;
+
+        // Sub-step phase for the active playhead step: 0.0 (step start) → 1.0 (step end).
+        // -1.0 when the clock is stopped or no valid active track. Used by controllers to
+        // render a phase-accurate playhead pulse instead of the slow firmware flash.
+        float playheadPhase = -1.0f;
 
         // Contextual banner shown above the step grid when a picker/selector is active.
         // nullptr = no banner. Static string lifetimes (literals or kCanonicalSectionNames).

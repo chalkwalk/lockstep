@@ -1624,10 +1624,11 @@ namespace lockstep
                 std::int64_t loopBase = 0;
                 if (divPpq > 0.0 && trackLen > 0 && validTrack)
                 {
-                    const auto stepNum = static_cast<std::int64_t>(
-                        proc.clock().cumulativePpq() / divPpq);
+                    const double cumPpq = proc.clock().cumulativePpq();
+                    const auto stepNum = static_cast<std::int64_t>(cumPpq / divPpq);
                     playheadAbs = static_cast<int>(stepNum % trackLen);
                     loopBase = (stepNum / static_cast<std::int64_t>(trackLen)) * static_cast<std::int64_t>(trackLen);
+                    model.playheadPhase = static_cast<float>(std::fmod(cumPpq, divPpq) / divPpq);
                 }
 
                 const int baseStep = stepPage * 16;
