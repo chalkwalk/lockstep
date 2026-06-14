@@ -430,7 +430,8 @@ The verb keys are **context-sensitive** — they read three layers:
   starts/stops the transport (double-tap = stop-to-top), `O`(CLEAR) clears
   the active P-Lock slot, `P`(CONFIRM) confirms a pending prompt.
 - **A scope held** — the scope verbs: `U`=Copy, `I`=Paste, `O`=Clear.
-  `Y` is the scope's snapshot (reserved/dim on most scopes); `P` dims.
+  `Y` is the scope's snapshot (reserved/dim on most scopes); `P`=**QUANT**
+  under Trig/Track/Phrase (zero microOffset), dim on Scene/Morph/Song/Mute/Fill.
 - **`Func` qualifier** — `Func+Y`=Restore (pop/floor), `Func+U`=omni copy,
   `Func+I`=unqualified paste, `Func+O`=delete entity, `Func+P`=cancel a
   prompt.

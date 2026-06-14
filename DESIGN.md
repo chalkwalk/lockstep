@@ -2628,13 +2628,18 @@ audition; this section pins down the concrete gestures.
 
 ### 21.1 Preview (non-recording)
 
-Two preview gestures, both expressed in the existing scope+verb
-grammar:
+Two preview gestures. Audition is **monitoring** — "let me hear this" —
+so it lives on the reserved **`Cue`** scope (§31, the monitor/preview
+column), *not* on a verb key. (It was originally drafted on `Confirm`,
+but `Trig/Track + Confirm` is the live **QUANT** gesture — zero
+`microOffset` on the held steps / track, §19.3 — so `Confirm` is taken
+under exactly the scopes audition wanted. `Cue` is the semantically
+correct home and collision-free; it awaits its keybinding at MU/§31.)
 
 | Gesture | Effect |
 |---|---|
-| `Trig` (one step held) + `Confirm` | Fire that step's *resolved* trig once, off the sequencer's schedule. P-Locks, trig overrides, and the OEB-resolved note/velocity/gate all apply, so the user hears exactly what that step will produce when it next fires. |
-| `Track` scope held (no track-key) + `Confirm` | Fire the focused track's *base* trig once: `Track::defaultNote`, `Track::defaultVelocity`, `Track::gateLength` at the current `baseParams`. Useful for "what does this track sound like right now?". |
+| `Cue` + step (one step held) | Fire that step's *resolved* trig once, off the sequencer's schedule. P-Locks, trig overrides, and the OEB-resolved note/velocity/gate all apply, so the user hears exactly what that step will produce when it next fires. |
+| `Cue` (held, no step) | Fire the focused track's *base* trig once: `Track::defaultNote`, `Track::defaultVelocity`, `Track::gateLength` at the current `baseParams`. Useful for "what does this track sound like right now?". |
 
 Both bypass the sequencer event stream: the sequencer injects a
 one-shot note-on/off pair directly onto the target track's

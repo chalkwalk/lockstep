@@ -632,11 +632,22 @@ namespace lockstep
             juce::String displayPrimary{ binding.primary };
             juce::String displayHint{ binding.hint };
 
+            // QUANT lives on the P/Confirm key under quantizing scopes (Trig held
+            // steps / Track / Phrase): it zeros microOffset. The binding table can't
+            // express the Trig case (Trig is not a modifier bit), so surface it here.
+            // Scene/Morph/Song keep P as the dim confirm channel. (DESIGN §19.3)
+            const bool quantScope = ui.stepHeld || ui.trackHeld || ui.phraseScopeHeld;
+
             // Runtime-only overrides (not encodable in a static table):
             if (def.keyCode == 'I' && isPlaying && !sectionScopeHeld && !ui.stepHeld)
                 displayPrimary = "PAUSE";
             if (isOverdub)
                 displayPrimary = "OD";
+            if (def.keyCode == 'P' && quantScope && !ui.euclidHeld)
+            {
+                displayPrimary = "QUANT";
+                displayHint = {};
+            }
             // 5.5: Euclidean modal armed → Y = COMMIT, P = CANCEL.
             if (ui.euclidHeld)
             {
@@ -702,7 +713,14 @@ namespace lockstep
             if (sectionScopeHeld)
             {
                 if (def.role == KeyRole::VerbConfirm)
-                    c.disabled = true;
+                {
+                    // QUANT under Track/Phrase is an active scoped verb — glow, don't
+                    // dim. Under Scene/Morph/Song, P stays the reserved confirm channel.
+                    if (quantScope)
+                        c.scopeTint = scopeColour(sectionScope).getARGB();
+                    else
+                        c.disabled = true;
+                }
                 else if (def.role == KeyRole::VerbSnapshot || (def.role == KeyRole::VerbCopy && !ui.morphHeld) || (def.role == KeyRole::VerbPaste && !ui.morphHeld) || def.role == KeyRole::VerbClear)
                     c.scopeTint = scopeColour(sectionScope).getARGB();
             }
