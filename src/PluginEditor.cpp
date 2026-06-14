@@ -1164,7 +1164,7 @@ namespace lockstep
                 // 5.5: Euclidean modal armed — show commit/cancel banner.
                 if (ui.euclidHeld)
                 {
-                    ctx = "EUCLID  P/O/A  |  Y = COMMIT  P = CANCEL";
+                    ctx = "EUCLID  pulses / offset / accent  |  COMMIT / CANCEL";
                 }
                 // MHZ.3.5: Func+Part = machine picker — show dedicated hint.
                 else if (ui.funcTrackHeld)
