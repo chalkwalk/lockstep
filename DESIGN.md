@@ -5005,9 +5005,10 @@ floor launch wipes them. `setActiveSong` and `loadPosition` always reset to defa
 |---|---|
 | `Func` (held) | MZ → transient Density band (8 per-track rotaries, bank follows focused track) |
 | `Song`+encoder (within Density band) | Adjust master density offset; arc on all rotaries shifts |
-| `Func` double-tap | Toggle sticky DENSITY mode (latched; double-tap again or escape to exit) |
+| `Func` double-tap | Toggle sticky DENSITY mode (latched; double-tap again or escape to exit). Entry blocked if a foreign cluster scope is physically held — see §39.8. |
 | nav keys (↑↓←→) while sticky | Page between bank 1-8 and bank 9-16 |
 | FX section key while sticky | Toggle Amount sub-page (per-track rotaries) ↔ Mode sub-page (Musicality/Selection) |
+| Track / Phrase / Scene / Morph / Mute / Fill while sticky | Discharges sticky mode before running the scope's normal handler — see §39.8 |
 
 **Song disambiguation:** `Song`-alone opens song-level swing (unchanged). `Song`+encoder
 within the Density band adjusts master offset. The switch is mode-scoped, not
@@ -5031,7 +5032,34 @@ The agreed single-visual readout per rotary cell:
 Reuses the `ReferenceMark` / `RingMode` visual vocabulary from the swing band
 (§19.2), extended with the arc segment and the dimmed overshoot path.
 
-### 39.7 Prev-dep interaction
+### 39.8 Sticky-mode mutual exclusion invariant
+
+**Invariant:** `densityStickyMode` and any *foreign cluster scope* being held
+(`trackHeld / phraseScopeHeld / sceneHeld / morphHeld / muteHeld / fillHeld`)
+are mutually exclusive at all times.
+
+This is what lets `resolveMetaBand` (MZ axis) and `resolveActiveLayer` (grid
+axis) remain consistent without merging into one resolver: because the conflicting
+state is never allowed to exist, they can never disagree about which is active.
+
+**Entry guard** — `Func` double-tap only enters sticky mode when no foreign
+cluster scope is physically held. If one is held, the double-tap is ignored.
+
+**Discharge guard** — in `dispatchDown`, pressing a foreign cluster scope key
+while density is already sticky calls `escapeDensitySticky()` + `refreshMetaBand()`
+*before* the scope's normal handler runs. On release, the user lands at Base, not
+back in density mode.
+
+**Density's own keys** (exempt from the discharge rule):
+- `Song` — master-density offset in the Density band
+- `Func` — toggle/exit
+- `Nav` (↑↓←→) — bank flip
+- FX section key (index 5) — Amount/Mode sub-page toggle
+
+These are centralised in `consumeDensityStickyKey()` and `escapeDensitySticky()`
+in `PluginEditor.cpp`; do not duplicate inline.
+
+### 39.9 Prev-dep interaction
 
 A density-killed trig must take the **not-fired branch** of the existing evaluator
 (so `lastStepFired_[i] = false`). This means density thinning is visible to
