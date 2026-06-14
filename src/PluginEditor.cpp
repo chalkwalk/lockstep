@@ -1189,21 +1189,38 @@ namespace lockstep
                                   : "STEP " + juce::String(stepNum) + "  |  knob = P-Lock";
                         if (!ui.funcHeld)
                         {
-                            // Show content-aware clear hints on single-step holds.
-                            if (cnt == 1)
+                            const int t = ec.heldTrackIndex();
+                            if (t >= 0 && t < static_cast<int>(kNumTracks))
                             {
-                                const int t = ec.heldTrackIndex();
-                                const int si = ec.heldStepIndex();
-                                if (t >= 0 && t < static_cast<int>(kNumTracks)
-                                    && si >= 0 && si < kMaxStepsPerTrack)
+                                const auto& trk = processor_.sequence()
+                                                      .tracks[static_cast<std::size_t>(t)];
+                                // QUANT granularity (Trig scope = the held steps): surface
+                                // P's target when any held step actually carries a microOffset.
+                                bool anyOffset = false;
+                                for (int si : ec.heldSteps())
+                                    if (si >= 0 && si < kMaxStepsPerTrack
+                                        && trk.steps[static_cast<std::size_t>(si)].microOffset != 0.0f)
+                                    {
+                                        anyOffset = true;
+                                        break;
+                                    }
+                                if (anyOffset)
+                                    ctx += cnt == 1
+                                               ? "  |  P = QUANT step"
+                                               : "  |  P = QUANT " + juce::String(cnt) + " steps";
+
+                                // Content-aware clear hints on single-step holds.
+                                if (cnt == 1)
                                 {
-                                    const auto& s = processor_.sequence()
-                                                        .tracks[static_cast<std::size_t>(t)]
-                                                        .steps[static_cast<std::size_t>(si)];
-                                    if (!s.overrides.empty())
-                                        ctx += "  |  Func+Clear = wipe P-Locks";
-                                    if (s.trigOverride.noteCount > 0)
-                                        ctx += "  |  Func+P = clear notes";
+                                    const int si = ec.heldStepIndex();
+                                    if (si >= 0 && si < kMaxStepsPerTrack)
+                                    {
+                                        const auto& s = trk.steps[static_cast<std::size_t>(si)];
+                                        if (!s.overrides.empty())
+                                            ctx += "  |  Func+Clear = wipe P-Locks";
+                                        if (s.trigOverride.noteCount > 0)
+                                            ctx += "  |  SRC+Clear = clear notes";
+                                    }
                                 }
                             }
                         }
@@ -1215,11 +1232,32 @@ namespace lockstep
                     }
                     else if (ui.trackHeld)
                     {
-                        ctx = "TRACK " + juce::String(keyboardArea_.getActiveTrack() + 1);
+                        const int t = keyboardArea_.getActiveTrack();
+                        ctx = "TRACK " + juce::String(t + 1);
+                        // QUANT granularity: Track scope quantizes the whole focused track.
+                        if (t >= 0 && t < static_cast<int>(kNumTracks))
+                        {
+                            const auto& trk = processor_.sequence().tracks[static_cast<std::size_t>(t)];
+                            bool anyOffset = false;
+                            for (const auto& s : trk.steps)
+                                if (s.microOffset != 0.0f) { anyOffset = true; break; }
+                            if (anyOffset)
+                                ctx += "  |  P = QUANT track";
+                        }
                     }
                     else if (ui.phraseScopeHeld)
                     {
                         ctx = "PHRASE";
+                        // QUANT granularity: Phrase scope quantizes every track.
+                        bool anyOffset = false;
+                        for (const auto& trk : processor_.sequence().tracks)
+                        {
+                            for (const auto& s : trk.steps)
+                                if (s.microOffset != 0.0f) { anyOffset = true; break; }
+                            if (anyOffset) break;
+                        }
+                        if (anyOffset)
+                            ctx += "  |  P = QUANT all tracks";
                     }
                     else if (ui.sceneHeld) ctx = "SCENE";
                     else if (ui.morphHeld) ctx = "MORPH";
