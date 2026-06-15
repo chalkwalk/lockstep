@@ -1615,6 +1615,8 @@ namespace lockstep
                                     : Density::rerollPerBar(i, barIndex, stepInBar);
                             fired = Density::densitySurvives(
                                 perTrack, master, ppqInBar, barPpq,
+                                section().coreTime.numerator,
+                                section().coreTime.denominator,
                                 kit.densityMusicality, kit.densitySelection,
                                 i, stepNum, qLevel, rerollR);
                         }
@@ -1712,6 +1714,8 @@ namespace lockstep
                                     : Density::rerollPerBar(i, barIndex, stepInBar);
                             lookaheadFired = Density::densitySurvives(
                                 perTrack, master, ppqInBar, barPpq,
+                                section().coreTime.numerator,
+                                section().coreTime.denominator,
                                 kit.densityMusicality, kit.densitySelection,
                                 i, stepNum, qLevel, rerollR);
                         }

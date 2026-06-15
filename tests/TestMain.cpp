@@ -35,6 +35,8 @@ int main()
     lockstep::runControllerTests();
     // 8.26 CaptureRecorder lifecycle
     lockstep::runCaptureRecorderTests();
+    // MetricGrid primitive (§39 metric-weight foundation)
+    lockstep::runMetricGridTests();
     // Density overlay (§39)
     lockstep::runDensityTests();
     // MetaBand routing SSOT + MetaRotary::applyView totality

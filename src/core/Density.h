@@ -1,5 +1,6 @@
 #pragma once
 
+#include "MetricGrid.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -29,21 +30,12 @@ namespace lockstep::Density
 
     // Metric drop-propensity for a step at ppqInBar within a bar of barPpq length.
     // Returns 0 for the downbeat (survives longest) and 1 for the finest offbeat (dies first).
-    // Quantises the phase to a 16th-grid index and uses trailing-zero-bit depth.
-    inline float metricDrop(double ppqInBar, double barPpq) noexcept
+    // Delegates to MetricGrid::metricWeight for music-theoretically correct grouping
+    // across all time signatures (not just duple meters).
+    inline float metricDrop(double ppqInBar, double barPpq,
+                            int numerator, int denominator) noexcept
     {
-        if (barPpq <= 0.0) { return 0.0f; }
-        const double phase = std::fmod(ppqInBar, barPpq) / barPpq;
-        // Map to 16th-grid index [0..15].
-        const auto k = static_cast<unsigned>(std::round(phase * 16.0)) % 16u;
-        if (k == 0u) { return 0.0f; } // downbeat: always survives
-        // Count trailing zeros of k as metric depth (1..3 for the 16th grid).
-        unsigned depth = 0u;
-        auto tmp = k;
-        while ((tmp & 1u) == 0u) { ++depth; tmp >>= 1u; }
-        // maxDepth for a 16-step grid is 3 (k=8 → 3 trailing zeros).
-        constexpr unsigned kMaxDepth = 3u;
-        return 1.0f - std::min(static_cast<float>(depth) / static_cast<float>(kMaxDepth), 1.0f);
+        return 1.0f - MetricGrid::metricWeight(ppqInBar, barPpq, numerator, denominator);
     }
 
     // Deterministic hash for Scrub selection.
@@ -123,6 +115,8 @@ namespace lockstep::Density
     //   master           — signed master offset [-1.0..1.0] (default 0.0)
     //   ppqInBar         — step's PPQ position within the bar (grid PPQ)
     //   barPpq           — bar length in PPQ from the active scene's coreTime
+    //   numerator        — time-signature numerator (for metric grouping)
+    //   denominator      — time-signature denominator (passed through; affects only pulse duration)
     //   musicality       — Uniform / Mixed / Metric
     //   selection        — Scrub / Reroll
     //   trackIdx         — track index (for hash decoration)
@@ -131,13 +125,15 @@ namespace lockstep::Density
     //   rerollR          — caller-supplied value in [0,1) for Reroll mode
     inline bool densitySurvives(float perTrack, float master,
                                 double ppqInBar, double barPpq,
+                                int numerator, int denominator,
                                 Musicality musicality, DensitySelection selection,
                                 std::size_t trackIdx, std::int64_t stepPos,
                                 int quantizedKnobLevel, float rerollR) noexcept
     {
         const float effective = std::clamp(perTrack + master, 0.01f, 1.0f);
         const float m = musicalityM(musicality);
-        const float w = 1.0f - ((m > 0.0f) ? metricDrop(ppqInBar, barPpq) : 0.0f);
+        const float w = 1.0f - ((m > 0.0f)
+            ? metricDrop(ppqInBar, barPpq, numerator, denominator) : 0.0f);
         const float p = std::clamp(
             effective + kBias * m * (2.0f * w - 1.0f) * (1.0f - effective),
             0.01f, 1.0f);

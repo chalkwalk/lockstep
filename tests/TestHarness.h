@@ -57,6 +57,8 @@ namespace lockstep
     void runControllerTests();
     // 8.26 CaptureRecorder lifecycle
     void runCaptureRecorderTests();
+    // MetricGrid primitive (§39 metric-weight foundation)
+    void runMetricGridTests();
     // Density overlay (§39)
     void runDensityTests();
     // MetaBand routing SSOT + MetaRotary::applyView totality
