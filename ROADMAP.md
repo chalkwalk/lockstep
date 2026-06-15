@@ -968,6 +968,16 @@ scope+verb. Stochastic / generative authoring is explicitly *not* here (NON-GOAL
       and `metricDrop` now take `numerator`/`denominator` and produce musically
       correct thinning in 3/4, 6/8, 7/8, 9/8, etc. Regression-safe: 4/4 behaviour
       unchanged. See DESIGN §39.2. *(b29d1bf)*
+- [x] **Deterministic Scrub density selection** (`MetricSelect.h`, §39.3a): Scrub mode
+      now uses a count-based tier+Euclid algorithm instead of the old hash-biased r<p
+      path. Metric importance tiers (from `MetricGrid::metricWeight`) are filled
+      strongest-first; the partially-included boundary tier is resolved with
+      `bjorklund(M, k)` — evenly distributed, per-count recomputed (not drop-point).
+      Mixed = top-T/2 metric-protected + remainder hash-filled at adjusted density
+      (T−P)/(N−P); Uniform degenerates to pure `hash < effective`, regression-safe.
+      A per-track `DensityTableCache` in `PluginProcessor` precomputes the mask table
+      and rebuilds only on meter/divider change. Reroll path (§39.3b) unchanged.
+      See DESIGN §39.3a. *(bbc2392, 2233b5f)*
 - [x] **Accent velocity generator** (`Func+Fill` chord, §39.10): bakes
       Lerdahl–Jackendoff metric-weighted velocities into the focused track's trig
       steps. MetaBand::Accent exposes DEPTH (0–100 %) and CENTR (1–127). Live

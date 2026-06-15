@@ -5001,18 +5001,73 @@ absolute PPQ position in the bar, not the track's own length.
 
 ### 39.3 Selection modes
 
-| Selection | Behaviour |
-|---|---|
-| **Scrub** | `densityScrubHash(trackIdx, stepPos, round(effective*100))` — deterministic; same knob level always selects the same subset; turning reshuffles. Recallable. |
-| **Re-roll** | Pure hash, cadence depends on Musicality — see below. Evolves; not recallable. |
+| Selection | Intent | Behaviour |
+|---|---|---|
+| **Scrub** | Deterministic | Count-based tier+Euclid (see §39.3a). Same knob level always selects the same subset; turning reshuffles. Recallable. |
+| **Re-roll** | Stochastic | `r < p` comparison (§39.1 formula); `r` is a cadence-aware hash (see §39.3b). Evolves; not recallable. |
 
-**Reroll cadence:**
+**The two modes are fundamentally different algorithms, not just different hash sources.**
+Scrub produces a clean, evenly-spread subset at every density level; Reroll produces a
+continuously-evolving random subset shaped by the metric probability curve.
+
+#### 39.3a Deterministic Scrub model (MetricSelect)
+
+Scrub ignores the `r < p` formula entirely. Instead, for each density level it
+computes an **exact integer target survivor count** and fills it tier-by-tier:
+
+```
+N         = stepsPerBar                          // grid positions per bar
+effective = clamp(per_track + master, 0.01, 1)
+T         = round(effective * N)                 // exact target count
+m         = musicalityM(musicality)              // 0 / 0.5 / 1
+P         = round(m * T)                         // metric-protected count
+
+survive(s) =
+    metricMask[P] bit s                          // s in top-P metric set → keep
+    OR  hashFrac(s) < (T − P) / (N − P)          // else uniform fill for remainder
+```
+
+`hashFrac(s) = densityScrubHash(track, s, round(effective*100)) % 10000 / 10000.0`
+
+**Boundary behaviour (all three musicalities derive from one formula):**
+
+| Musicality | m | P | Result |
+|---|---|---|---|
+| Uniform | 0 | 0 | Pure hash: `hashFrac < T/N = effective` — identical to old Scrub-Uniform. |
+| Metric | 1 | T | Pure metric mask: tier+Euclid only; hash branch unreachable. |
+| Mixed | 0.5 | T/2 | Top T/2 by metric importance, remaining T/2 hash-filled at adjusted density (T−P)/(N−P). |
+
+**Metric mask construction (`MetricSelect::build`, `src/core/MetricSelect.h`):**
+
+For each target count `T` from 0 to N:
+1. Sort bar positions by descending `MetricGrid::metricWeight`. Equal-weight positions
+   form a **tier**; positions within a tier retain their index order.
+2. Walk tiers strongest-first, accumulating the survivor set.
+3. When a tier would overflow the target (boundary tier, M positions, k more needed):
+   select k positions using `bjorklund(M, k)` — evenly distributed over the tier.
+4. Store as a `uint64_t` bitmask `mask[T]`.
+
+**Per-count Euclid, not drop-point Euclid.** `bjorklund(M, k)` is recomputed at each
+density level independently. A position may be present at T, absent at T+1, present at
+T+2 — this is by design. Even spread at each count matters more than monotonic add/remove.
+
+The table is a pure function of (numerator, denominator, stepsPerBar). It is
+precomputed into a per-track `DensityTableCache` in `PluginProcessor` and rebuilt only
+when the meter or track divider changes (O(N²) over N≤64).
+
+#### 39.3b Stochastic Reroll model (unchanged)
+
+The §39.1 `r < p` formula with `kBias = 0.9` is **frozen**. Reroll hashes are:
+
 - **Uniform** → `rerollPerStep(trackIdx, stepNum)`: fresh each time the step plays;
   selection evolves every loop iteration.
 - **Mixed / Metric** → `rerollPerBar(trackIdx, barIndex, stepInBar)`: one value per
   (track, bar, step-in-bar) triple; fixed for a full bar, fresh each new bar. Creates
-  a per-bar filter set that thinly shifts bar-to-bar.
+  a per-bar filter set that gently shifts bar-to-bar.
   `barIndex = floor(firePpq / barPpq)`, `stepInBar = stepNum % stepsPerBar`.
+
+Mixed-stochastic is the exact mean of Uniform-prob and Metric-prob because `p` is
+linear in `m` — no special-casing needed.
 
 All Reroll hashes are **pure functions** (no mutable RNG state). Main and lookahead
 scans agree automatically since they hash the same inputs.
