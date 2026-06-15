@@ -33,6 +33,7 @@
 #include "machine/TrackEnvDsp.h"
 #include "machine/TrackChannelDsp.h"
 #include "machine/VoiceChoke.h"
+#include "core/MetricSelect.h"
 
 namespace lockstep
 {
@@ -738,6 +739,15 @@ namespace lockstep
         std::atomic<double> retrigReqRatePpq_{ 0.25 };  // [ATOMIC]
         std::array<std::atomic<float>, kNumTracks> trackDensity_;  // [ATOMIC] per-track density [0.01..1.0]
         std::atomic<float> masterDensity_{ 0.0f };               // [ATOMIC] master offset [-1.0..1.0]
+        // §39 Scrub: per-track cached MetricSelect tables (audio-thread-owned, rebuilt on meter/divider change).
+        struct DensityTableCache
+        {
+            int numerator = 0;
+            int denominator = 0;
+            std::int64_t stepsPerBar = 0;
+            MetricSelect::Table table{};
+        };
+        std::array<DensityTableCache, kNumTracks> densityTableCache_{};
         std::atomic<int> retrigReqNote_{ 60 };    // [ATOMIC]
         // [AUDIO] retrig state consumed and advanced by the audio thread only.
         int retrigActiveTrack_ = -1;
