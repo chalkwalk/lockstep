@@ -163,8 +163,9 @@ Set
   saved. Launched live (`Scene+step`), not chained into a written arrangement.
 
 Tracks are **polymetric**: each has its own length (1–64 steps) and
-clock divider, so a 7-step track and a 16-step track phase against each
-other naturally with no master-bar concept.
+musical subdivision (1/64 to 4/1, straight / dotted / triplet), so a
+7-step track and a 16-step track phase against each other naturally with
+no master-bar concept.
 
 ### 2.5 The sound path: what the names mean and where they sit
 
@@ -252,10 +253,10 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Master FX** | Four Song-scope FX units on the master bus: 2 inserts (post-sum) + 2 send returns (post send-bus). Loaded via `Func+Song+FX`; cycle units with repeated press. |
 | **Send A / Send B** | Per-track post-insert level tap into shared send buses (AMP page 2, slots 8–9). Each send bus has a return effect before the master inserts. |
 | **Animate** | The momentary insert punch-in: hold `FX` + step to bypass (or enable) an insert for exactly the hold duration. Performance-only — never written to the pattern. Under Song+FX focus the step grid targets the four master units: steps 0-3 = master FX1, 4-7 = FX2, 8-11 = Send A, 12-15 = Send B. |
-| **Density** | Live, subtractive trig-thinning overlay. `Func`-held → transient per-track Density band. **Double-tap Func** → sticky DENSITY mode; nav keys page between tracks 1-8 and 9-16; `Song`-held (encoder or on-screen drag) → master offset (visible as arc baseline shift); FX key cycles Amount/Mode sub-page (Musicality + Selection). `Song`-alone = swing (unchanged). Only silences would-fire trigs. Ephemeral amounts; durable Musicality + Selection per track. |
+| **Density** | Live, subtractive trig-thinning overlay. `Func`-held → transient per-track Density band. **Double-tap Func** → sticky DENSITY mode; nav keys page between tracks 1-8 and 9-16; `Song`-held (encoder or on-screen drag) → master offset (visible as arc baseline shift); FX key cycles Amount/Mode sub-page (Musicality + Selection). `Song`-alone = swing (unchanged). Only silences would-fire trigs. Ephemeral amounts; durable Musicality + Selection per track. Selection has three detents: **Scrub** (deterministic), **Re-roll** (stochastic), **Exempt** (track bypasses density entirely — amount and Musicality cells greyed). |
+| **Velocity overlay** | Per-track live velocity modulation computed at emit time, not baked. **Double-tap AMP** section key → sticky VEL OVERLAY mode; AMP re-press cycles sub-pages (Depth → Center → Mode → Blend); nav keys page between tracks 1-8 and 9-16. Mode: Off (no overlay) / Bar (metric weight against coreTime bar). Blend: Replace (overlay supersedes authored velocity) / Mix (overlay delta added on top; Euclidean-baked accents stay active). Durable per-track, serialized (v20). |
 | **Retrig / ratchet** | Per-step re-triggering at a musical rate (`/4 … /32T`). `Fill+TRIG` opens the rate picker: press a rate for a live stutter on the focused track, or hold a step first to bake the rate as a per-step P-Lock. Slicer tracks show a slice picker instead. |
 | **Euclidean generator** | `Phrase+Fill` held: encoders shape `PULSE / OFSET / ACCNT` against the phrase length, audible live; the mode is latched until **P** (commit) or **Func+P** (cancel). Y is inert in this mode. |
-| **Accent generator** | `Func+Fill` held: bakes metric-weighted MIDI velocities into the focused track's trig steps. Encoders set `DEPTH` (swing amount, 0–100 %) and `CENTR` (center velocity, 1–127). Downbeats louder; finest offbeats quieter. Works in any time signature (uses Lerdahl–Jackendoff metric weights). Live preview; **P** = commit, **Func+P** = cancel. |
 | **Control-All** | Holding `Track` with no track selected broadcasts the next parameter edit to every track that has a matching control. |
 | **Mute** | Suppresses a track's trigs non-destructively. `Mute+step` = global mute (survives scene/song changes); `Scene+Mute+step` = per-scene mute (the scene's active-mask). |
 | **Fill** | A momentary modifier: while held, fill-conditioned steps fire. Used for live variation. |
@@ -665,7 +666,7 @@ row always shows which secondaries are actually reachable.
 
 | Held scope | What `+5` (TRIG) means | …`+7` (FILTER) | …`+0` (FX) |
 |---|---|---|---|
-| `Track` | Kit **divider** (labelled `DIV`) | Post-machine (foundation) FILTER | Track inserts |
+| `Track` | Kit **subdivision** (labelled `DIV`; two fields: note value + flavour Straight/Dotted/Triplet) | Post-machine (foundation) FILTER | Track inserts |
 | `Phrase` | Phrase **length** (labelled `LEN`, per active phrase) | (dim) | (dim) |
 | `Scene` | Trig templates | Scene-assign FILTER | Scene-assign FX |
 | `Morph` | (dim — Morph never affects trigs) | Morph-assign FLTR | Morph-assign FX |

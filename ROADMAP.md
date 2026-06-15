@@ -18,7 +18,10 @@ expressible within those principles and within the existing scope+verb grammar
 Open verification sweeps: `3.10` standalone, `7.8` VST3/CLAP v18 round-trip,
 `7.9e` vocabulary rename, `8.24` standalone visual smoke
 (picker → named confirm → YES/NO live colour).
-**Last completed:** `9.2` standalone quit guard.
+**Last completed:** `9.2` standalone quit guard. **Serializer v20** shipped:
+musical subdivision picker (1/64–4/1 straight/dotted/triplet; two-field DIV band);
+density Exempt detent; live velocity overlay (AMP sticky mode, Replace/Mix blend,
+v20 fields in TrackKit; Func+Fill accent baker removed).
 **Next up:** `A3` gain-staging audit; `6.7` Machine Module ABI; Phase 9+ backlog.
 
 Phases 1–3 took Lockstep from an empty plugin to a frozen, playable performance
@@ -980,11 +983,17 @@ scope+verb. Stochastic / generative authoring is explicitly *not* here (NON-GOAL
       unprotected positions, global-bar scope. Table gains `metric[]` + `mixed[]`;
       `euclidHit()` (O(1), no allocation) added to `Euclidean.h`. Reroll path unchanged.
       See DESIGN §39.3a. *(bbc2392, 2233b5f, 381f7a3, c811675)*
-- [x] **Accent velocity generator** (`Func+Fill` chord, §39.10): bakes
-      Lerdahl–Jackendoff metric-weighted velocities into the focused track's trig
-      steps. MetaBand::Accent exposes DEPTH (0–100 %) and CENTR (1–127). Live
-      preview; checkpoint+commit or restore-stash cancel. Works in any time
-      signature. See DESIGN §39.10. *(7fb3f01)*
+- [x] **Accent velocity generator** (`Func+Fill` chord, §39.10): shipped then
+      **replaced** by the live velocity overlay (v20). See §39.10.
+      *(7fb3f01 → replaced by 427a5d7)*
+- [x] **Musical subdivision picker** (DIV band two-field — base note value +
+      flavour Straight/Dotted/Triplet; range 4/1 … 1/64; serializer v19→v20 remap).
+      See DESIGN §4.2. *(Commits 1-2, v20)*
+- [x] **Density Exempt detent** — third DensitySelection state; engine early-out;
+      Amount + Musicality cells greyed. See DESIGN §39.2. *(Commit 3, v20)*
+- [x] **Live velocity overlay** — AMP sticky mode (double-tap AMP); 4 sub-pages
+      (Depth/Center/Mode/Blend); Replace/Mix blend; Bar-metric weight at emit time;
+      durable TrackKit fields; serializer v20. See DESIGN §39.10. *(Commits 4-5, v20)*
 - [ ] **Scale-aware CHROMATIC layout** (DESIGN §34.2): the per-phrase scale lock
       remaps the CHROMATIC keyboard to scale degrees — a *playable layout*, never
       note auto-correct (out-of-scale entry stays verbatim and reachable).

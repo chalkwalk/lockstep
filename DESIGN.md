@@ -317,7 +317,7 @@ layers.
 Tracks are independent. Each carries:
 
 - a step length in [1, 64];
-- a clock divider (1, 2, 4, 8, …) against a shared 16th-note grid;
+- a musical subdivision (1/64 … 4/1, straight / dotted / triplet) against a shared PPQ grid;
 - its own base parameter frame.
 
 The clock itself only advances a shared `samplePosition`; per-track
@@ -5005,6 +5005,7 @@ absolute PPQ position in the bar, not the track's own length.
 |---|---|---|
 | **Scrub** | Deterministic | Count-based tier+Euclid (see §39.3a). Same knob level always selects the same subset; turning reshuffles. Recallable. |
 | **Re-roll** | Stochastic | `r < p` comparison (§39.1 formula); `r` is a cadence-aware hash (see §39.3b). Evolves; not recallable. |
+| **Exempt** | Bypass | Track is invisible to both master dial and per-track amount; always fires regardless of global density. Amount + Musicality cells greyed in MZ. |
 
 **The two modes are fundamentally different algorithms, not just different hash sources.**
 Scrub produces a clean, evenly-spread subset at every density level; Reroll produces a
@@ -5098,7 +5099,7 @@ avoid correlating density selection with which steps barely passed probability.
 
 | Data | Lifetime | Location |
 |---|---|---|
-| **Musicality** (Uniform / Mixed / Metric), **Selection** (Scrub / Re-roll) | Durable, per-song, per-track | `TrackKit` — serialized (v18 → v19) |
+| **Musicality** (Uniform / Mixed / Metric), **Selection** (Scrub / Re-roll / Exempt) | Durable, per-song, per-track | `TrackKit` — serialized (v19) |
 | Per-track density amounts | Ephemeral | RAM — reset on song/project change; rides scene overlay |
 | Master density offset | Ephemeral | RAM — same |
 
@@ -5199,41 +5200,49 @@ silence a step that was conditioned on it firing. This is intentional and is par
 of what makes metric-weighted thinning feel musical (gutting offbeats also removes
 the syncopated deps that hang off them).
 
-### 39.10 Print-auto-velocity accent generator (Func+Fill)
+### 39.10 Live velocity overlay (AMP sticky mode)
 
-A **bake/print** generator that writes metric-weighted MIDI velocities into the
-active track's phrase. Uses the same `MetricGrid::metricWeight` primitive as
-Dmetric; produces audibly correct accents in any time signature.
+A **durable, per-track** overlay that modulates note velocity at emit time using
+the same `MetricGrid::metricWeight` primitive as Dmetric. Unlike the removed
+bake/print generator, it never writes into phrase steps — it is computed live on
+every trig fire, so phrase-length co-primes with the bar never produce drift.
 
-**Arm:** `Func+Fill` (cross-column chord; legal — Func=col1, Fill=col2).
-Blocked on content-locked (stub) tracks. Mirrors the Euclidean generator
-(§28 / Func+Phrase) end-to-end.
+**State (TrackKit, serialized v20):**
 
-**MetaBand — two knobs:**
-
-| Slot | Label | Range | Default |
+| Field | Type | Default | Meaning |
 |---|---|---|---|
-| 0 | DEPTH | 0–100 % | 60 % |
-| 1 | CENTR | 1–127 | 90 |
+| `velMode` | `VelMode` (Off / Bar) | Off | Metric frame; Bar = coreTime |
+| `velBlend` | `VelBlend` (Replace / Mix) | Replace | Replace overwrites authored vel; Mix adds delta |
+| `velDepth` | float [0,1] | 0.6 | Swing swing depth |
+| `velCenter` | int [1,127] | 90 | Velocity at bar downbeat |
 
-**Velocity mapping** (per active trig step `i`):
+**Engine formula (emitTrig lambda, Bar mode):**
 ```
-ppqInBar = fmod(i * divPpq, barPpq)
-w        = metricWeight(ppqInBar, barPpq, numerator, denominator)   // [0,1]
-maxSwing = min(Center−1, 127−Center)
-vel      = round(clamp(Center + Depth * maxSwing * (2w−1), 1, 127))
+ppqInBar = fmod(gridPpq, barPpq)
+w        = MetricGrid::metricWeight(ppqInBar, barPpq, num, den)   // [0,1]
+maxSwing = min(velCenter−1, 127−velCenter)
+// Replace:  vel = round(clamp(velCenter + velDepth * maxSwing * (2w−1), 1, 127))
+// Mix:      vel = clamp(authoredVel + round(velDepth * maxSwing * (2w−1)), 1, 127)
 ```
-- `Depth=0` → flat center (no accent).
-- `Depth=1, Center=90` → downbeat gets `90+37=127`; finest offbeat gets `90−37=53`.
-- Only trig steps are written; rest steps untouched.
-- `divPpq = 0.25 * trackDivider`; uses section `coreTime.numerator/denominator`.
+Replace supersedes authored (incl. Euclidean-baked) velocity; Mix adds a metric
+bump on top of it. The Euclidean generator's baked accent is authored content —
+it survives unchanged and can be combined with the overlay via Mix.
 
-**Live preview** fires on every Depth/Center change (`onAccentParamChanged`
-lambda → `applyAccentLive`). Banner reads:
-`ACCENT  depth / center  |  P = commit  Func+P = cancel`.
+**Entry:** double-tap AMP section key (index 3). AMP re-press cycles sub-pages:
+Depth → Center → Mode → Blend (and wraps). Nav keys page between bank 1-8 / 9-16.
+Foreign cluster scope keys (Track / Phrase / Scene / Morph / Mute / Fill) exit
+vel sticky, parallel to density sticky's §39.8 invariant. Density sticky and vel
+sticky are mutually exclusive; entering one exits the other.
 
-**Commit:** bare `Play/Confirm` (`VerbConfirm`) → checkpoint then
-`applyAccentToTrack`, clears `accentHeld`.
+**MetaBand sub-pages (8 per-track rotaries, paginated like density):**
 
-**Cancel:** `Func+Play/Confirm` or `Func` double-tap escape → restore stash,
-`resetAccent()`. Stash is a full copy of phrase steps taken at arm time.
+| Sub-page | Controls | Range |
+|---|---|---|
+| Depth | velDepth per track | 0–100 % |
+| Center | velCenter per track | 1–127 |
+| Mode | velMode per track | Off / Bar (stepped) |
+| Blend | velBlend per track | Replace / Mix (stepped) |
+
+Depth and Center cells are greyed (writable=false) when velMode==Off.
+
+**Func+Fill is freed** — the old bake/print accent generator gesture is removed.
