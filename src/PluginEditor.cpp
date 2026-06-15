@@ -1193,6 +1193,19 @@ namespace lockstep
                     else
                         ctx = "DENSITY  Amount  |  nav = bank  Song = master  FX = musicality";
                 }
+                // Sticky VEL sticky mode context.
+                else if (ui.velStickyMode)
+                {
+                    using VP = UiState::VelSubPage;
+                    if (ui.velSubPage == VP::Center)
+                        ctx = "VEL OVERLAY  Center  |  turn = 1-127  AMP = mode";
+                    else if (ui.velSubPage == VP::Mode)
+                        ctx = "VEL OVERLAY  Mode  |  turn = Off / Bar  AMP = blend";
+                    else if (ui.velSubPage == VP::Blend)
+                        ctx = "VEL OVERLAY  Blend  |  turn = Replace / Mix  AMP = depth";
+                    else
+                        ctx = "VEL OVERLAY  Depth  |  nav = bank  AMP = center";
+                }
                 else
                 {
                     // Step held (no modifier) → P-Lock edit mode.
@@ -1670,6 +1683,38 @@ namespace lockstep
         return false;
     }
 
+    void LockstepEditor::escapeVelSticky()
+    {
+        uiState_.velStickyMode = false;
+        uiState_.velBank = 0;
+        uiState_.velSubPage = UiState::VelSubPage::Depth;
+    }
+
+    bool LockstepEditor::consumeVelStickyKey(ControllerButton btn, int index)
+    {
+        if (!uiState_.velStickyMode) return false;
+        using CB = ControllerButton;
+        if (btn == CB::NavUp || btn == CB::NavDown || btn == CB::NavLeft || btn == CB::NavRight)
+        {
+            uiState_.velBank ^= 1;
+            refreshMetaBand();
+            repaint();
+            return true;
+        }
+        if (btn == CB::Section && index == 3)  // AMP: cycle sub-pages
+        {
+            using VP = UiState::VelSubPage;
+            uiState_.velSubPage =
+                (uiState_.velSubPage == VP::Depth)  ? VP::Center :
+                (uiState_.velSubPage == VP::Center) ? VP::Mode   :
+                (uiState_.velSubPage == VP::Mode)   ? VP::Blend  : VP::Depth;
+            refreshMetaBand();
+            repaint();
+            return true;
+        }
+        return false;
+    }
+
     // -------------------------------------------------------------------------
     // MHZ.9.3: column-exclusivity-aware modifier latch toggle.
 
@@ -1846,6 +1891,14 @@ namespace lockstep
             escapeDensitySticky();
             refreshMetaBand();
         }
+        if (uiState_.velStickyMode
+            && (ev.button == CB::TrackScope || ev.button == CB::PhraseScope
+                || ev.button == CB::SceneScope || ev.button == CB::MorphScope
+                || ev.button == CB::MuteScope  || ev.button == CB::FillScope))
+        {
+            escapeVelSticky();
+            refreshMetaBand();
+        }
 
         switch (ev.button)
         {
@@ -1885,6 +1938,7 @@ namespace lockstep
                             // No latches/euclid to escape — toggle sticky DENSITY mode.
                             // Entry guard: don't enter if a foreign scope is physically held,
                             // so density-sticky and foreign-scope-held stay mutually exclusive.
+                            // Vel sticky and density sticky are also mutually exclusive.
                             if (uiState_.densityStickyMode)
                             {
                                 escapeDensitySticky();
@@ -1893,6 +1947,7 @@ namespace lockstep
                                      && !physHeld_.morph && !physHeld_.mute && !physHeld_.fill)
                             {
                                 uiState_.densityStickyMode = true;
+                                escapeVelSticky();
                             }
                             refreshMetaBand();
                             repaint();
@@ -2049,6 +2104,27 @@ namespace lockstep
                 {
                     escapeDensitySticky();
                     refreshMetaBand();
+                }
+
+                if (consumeVelStickyKey(CB::Section, ev.index)) return true;
+                // Sections other than AMP (3) exit vel sticky.
+                if (sectionSelectClearsVelSticky(uiState_, ev.index))
+                {
+                    escapeVelSticky();
+                    refreshMetaBand();
+                }
+                // AMP (index 3) double-tap enters vel sticky mode.
+                if (ev.index == 3 && !uiState_.velStickyMode)
+                {
+                    const double now = juce::Time::getMillisecondCounterHiRes();
+                    if (doubleTap_.recordAndCheck(3000 + ev.index, now))
+                    {
+                        uiState_.velStickyMode = true;
+                        escapeDensitySticky();
+                        refreshMetaBand();
+                        repaint();
+                        return true;
+                    }
                 }
 
                 if (sectionScope != PS::None)
@@ -2919,6 +2995,7 @@ namespace lockstep
 
             case ControllerButton::NavUp: {
                 if (consumeDensityStickyKey(CB::NavUp)) return true;
+                if (consumeVelStickyKey(CB::NavUp)) return true;
                 const int t = keyboardArea_.getActiveTrack();
                 // Morph+^ = force A-pole edits while ^ is held (DESIGN §17.3).
                 if (uiState_.morphHeld)
@@ -2961,6 +3038,7 @@ namespace lockstep
 
             case ControllerButton::NavDown: {
                 if (consumeDensityStickyKey(CB::NavDown)) return true;
+                if (consumeVelStickyKey(CB::NavDown)) return true;
                 const int t = keyboardArea_.getActiveTrack();
                 // Morph+v = force B-pole edits while v is held (DESIGN §17.3).
                 if (uiState_.morphHeld)
@@ -3002,6 +3080,7 @@ namespace lockstep
 
             case ControllerButton::NavLeft: {
                 if (consumeDensityStickyKey(CB::NavLeft)) return true;
+                if (consumeVelStickyKey(CB::NavLeft)) return true;
                 // Note-edit mode and CHROMATIC mode both use NavLeft/Right for octave shift.
                 const int tl = keyboardArea_.getActiveTrack();
                 const bool chromL = tl >= 0 && tl < static_cast<int>(kNumTracks) && uiState_.trackInputMode[static_cast<std::size_t>(tl)] == TrackInputMode::Chromatic;
@@ -3026,6 +3105,7 @@ namespace lockstep
 
             case ControllerButton::NavRight: {
                 if (consumeDensityStickyKey(CB::NavRight)) return true;
+                if (consumeVelStickyKey(CB::NavRight)) return true;
                 const int tr = keyboardArea_.getActiveTrack();
                 const bool chromR = tr >= 0 && tr < static_cast<int>(kNumTracks) && uiState_.trackInputMode[static_cast<std::size_t>(tr)] == TrackInputMode::Chromatic;
                 // Func+→ = rotate the focused track's sequence one step right.

@@ -340,6 +340,14 @@ namespace lockstep::PluginState
             node.setProperty(keys::kDensMus, static_cast<int>(kit.densityMusicality), nullptr);
         if (kit.densitySelection != Density::DensitySelection::Scrub)
             node.setProperty(keys::kDensSel, static_cast<int>(kit.densitySelection), nullptr);
+        if (kit.velMode != VelMode::Off)
+            node.setProperty(keys::kVelMode, static_cast<int>(kit.velMode), nullptr);
+        if (kit.velBlend != VelBlend::Replace)
+            node.setProperty(keys::kVelBlend, static_cast<int>(kit.velBlend), nullptr);
+        if (kit.velDepth != 0.6f)
+            node.setProperty(keys::kVelDepth, static_cast<double>(kit.velDepth), nullptr);
+        if (kit.velCenter != 90)
+            node.setProperty(keys::kVelCenter, kit.velCenter, nullptr);
 
         // Base params + post-machine FLTR/AMP via temp machine to get correct
         // slot IDs. The slot range covers machine params, then the foundation
@@ -426,6 +434,13 @@ namespace lockstep::PluginState
         kit.densitySelection = static_cast<Density::DensitySelection>(
             static_cast<int>(node.getProperty(keys::kDensSel,
                 static_cast<int>(Density::DensitySelection::Scrub))));
+        kit.velMode   = static_cast<VelMode>(
+            static_cast<int>(node.getProperty(keys::kVelMode, static_cast<int>(VelMode::Off))));
+        kit.velBlend  = static_cast<VelBlend>(
+            static_cast<int>(node.getProperty(keys::kVelBlend, static_cast<int>(VelBlend::Replace))));
+        kit.velDepth  = static_cast<float>(
+            static_cast<double>(node.getProperty(keys::kVelDepth, 0.6)));
+        kit.velCenter = static_cast<int>(node.getProperty(keys::kVelCenter, 90));
 
         auto tempMachine = proc.createMachineForId(kit.machineId);
         const int machinNp = tempMachine->numParams();

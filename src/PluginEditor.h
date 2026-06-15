@@ -331,6 +331,11 @@ namespace lockstep
         // Call at the top of each nav/section chokepoint to replace the inline copies.
         bool consumeDensityStickyKey(ControllerButton btn, int index = -1);
 
+        // Velocity overlay sticky mode — parallel to density sticky.
+        // Entered via double-tap AMP section key (index 3); AMP re-press cycles sub-pages.
+        void escapeVelSticky();
+        bool consumeVelStickyKey(ControllerButton btn, int index = -1);
+
         // MHZ.9.3: toggle one modifier's latch (set=true to engage, false to release).
         // When engaging, enforces column exclusivity (releases any other latch in the same column).
         void setModifierLatch(ControllerButton cb, bool set);

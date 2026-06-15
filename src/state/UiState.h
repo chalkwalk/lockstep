@@ -184,6 +184,14 @@ namespace lockstep
         enum class DensitySubPage { Amount, Musicality, Selection };
         DensitySubPage densitySubPage = DensitySubPage::Amount;
 
+        // Velocity overlay sticky mode: double-tap AMP section (index 3) enters this;
+        // AMP re-press cycles sub-pages; nav keys page between banks.
+        bool velStickyMode = false;
+        int  velBank = 0;   // 0 = tracks 0-7, 1 = tracks 8-15
+
+        enum class VelSubPage { Depth, Center, Mode, Blend };
+        VelSubPage velSubPage = VelSubPage::Depth;
+
         // 5.5 Euclidean generator: Phrase+Fill chord enters generator mode on focused track.
         // Parameters: Pulses/Offset/Accent shown in MZ via MetaBand::Euclidean.
         bool euclidHeld = false;

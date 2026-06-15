@@ -2,6 +2,7 @@
 #include "UITheme.h"
 #include "../PluginProcessor.h"
 #include "../ParameterIDs.h"
+#include "../core/AccentVel.h"
 #include "../core/Density.h"
 #include "../core/Subdivision.h"
 #include "../core/Euclidean.h"
@@ -37,6 +38,15 @@ namespace lockstep
             if (ui.densitySubPage == SP::Musicality) return MetaBand::DensityMode;
             if (ui.densitySubPage == SP::Selection)  return MetaBand::DensitySelection;
             return MetaBand::Density;
+        }
+        // Sticky velocity overlay mode (entered via double-tap AMP section key).
+        if (ui.velStickyMode)
+        {
+            using VP = UiState::VelSubPage;
+            if (ui.velSubPage == VP::Center) return MetaBand::VelCenter;
+            if (ui.velSubPage == VP::Mode)   return MetaBand::VelMode;
+            if (ui.velSubPage == VP::Blend)  return MetaBand::VelBlend;
+            return MetaBand::Vel;
         }
         // Transient Func+Song → master density overlay (order-independent).
         if (ui.funcHeld && ui.songHeld)
@@ -74,6 +84,11 @@ namespace lockstep
     bool sectionSelectClearsDensitySticky(const UiState& ui, int sectionIndex) noexcept
     {
         return ui.densityStickyMode && sectionIndex != 5;
+    }
+
+    bool sectionSelectClearsVelSticky(const UiState& ui, int sectionIndex) noexcept
+    {
+        return ui.velStickyMode && sectionIndex != 3;  // AMP = index 3
     }
 
     // =========================================================================
@@ -609,6 +624,122 @@ namespace lockstep
         return result;
     }
 
+    // =========================================================================
+    // Velocity overlay bands (4 sub-pages, per-track paginated like density).
+    // AMP section 3 sticky mode: double-tap AMP to enter, re-press to cycle.
+    // =========================================================================
+
+    static std::array<MetaFieldView, 8> buildVelBand(LockstepProcessor& proc, const UiState& ui,
+                                                      int focusedTrack)
+    {
+        std::array<MetaFieldView, 8> result{};
+        const int page = ui.velStickyMode ? ui.velBank : ((focusedTrack >= 8) ? 1 : 0);
+        const int pageOffset = page * 8;
+        for (int i = 0; i < 8; ++i)
+        {
+            const int trackIdx = pageOffset + i;
+            if (trackIdx >= static_cast<int>(kNumTracks)) { break; }
+            const auto& kit = proc.kit(trackIdx);
+            const bool off = (kit.velMode == VelMode::Off);
+            auto& v = result[static_cast<std::size_t>(i)];
+            v.active      = true;
+            v.label       = "T" + juce::String(trackIdx + 1);
+            v.minValue    = 0.0f;
+            v.maxValue    = 100.0f;
+            v.value       = kit.velDepth * 100.0f;
+            v.stepped     = false;
+            v.writable    = !off;
+            v.hasOverride = !off && (kit.velDepth != 0.6f);
+            v.valueText   = off ? "OFF" : juce::String(juce::roundToInt(kit.velDepth * 100.0f));
+            v.ringMode    = RingMode::UnipolarFill;
+        }
+        return result;
+    }
+
+    static std::array<MetaFieldView, 8> buildVelCenterBand(LockstepProcessor& proc,
+                                                            const UiState& ui, int focusedTrack)
+    {
+        std::array<MetaFieldView, 8> result{};
+        const int page = ui.velStickyMode ? ui.velBank : ((focusedTrack >= 8) ? 1 : 0);
+        const int pageOffset = page * 8;
+        for (int i = 0; i < 8; ++i)
+        {
+            const int trackIdx = pageOffset + i;
+            if (trackIdx >= static_cast<int>(kNumTracks)) { break; }
+            const auto& kit = proc.kit(trackIdx);
+            const bool off = (kit.velMode == VelMode::Off);
+            auto& v = result[static_cast<std::size_t>(i)];
+            v.active      = true;
+            v.label       = "T" + juce::String(trackIdx + 1);
+            v.minValue    = 1.0f;
+            v.maxValue    = 127.0f;
+            v.value       = static_cast<float>(kit.velCenter);
+            v.stepped     = false;
+            v.writable    = !off;
+            v.hasOverride = !off && (kit.velCenter != 90);
+            v.valueText   = off ? "OFF" : juce::String(kit.velCenter);
+            v.ringMode    = RingMode::UnipolarFill;
+        }
+        return result;
+    }
+
+    static std::array<MetaFieldView, 8> buildVelModeBand(LockstepProcessor& proc,
+                                                          const UiState& ui, int focusedTrack)
+    {
+        std::array<MetaFieldView, 8> result{};
+        const int page = ui.velStickyMode ? ui.velBank : ((focusedTrack >= 8) ? 1 : 0);
+        const int pageOffset = page * 8;
+        static const char* modeLabels[] = { "OFF", "BAR" };
+        for (int i = 0; i < 8; ++i)
+        {
+            const int trackIdx = pageOffset + i;
+            if (trackIdx >= static_cast<int>(kNumTracks)) { break; }
+            const auto& kit = proc.kit(trackIdx);
+            const int modeVal = static_cast<int>(kit.velMode);
+            auto& v = result[static_cast<std::size_t>(i)];
+            v.active      = true;
+            v.label       = "T" + juce::String(trackIdx + 1);
+            v.minValue    = 0.0f;
+            v.maxValue    = 1.0f;
+            v.value       = static_cast<float>(modeVal);
+            v.stepped     = true;
+            v.writable    = true;
+            v.hasOverride = (kit.velMode != VelMode::Off);
+            v.valueText   = juce::String(modeLabels[modeVal]);
+            v.ringMode    = RingMode::Dot;
+        }
+        return result;
+    }
+
+    static std::array<MetaFieldView, 8> buildVelBlendBand(LockstepProcessor& proc,
+                                                           const UiState& ui, int focusedTrack)
+    {
+        std::array<MetaFieldView, 8> result{};
+        const int page = ui.velStickyMode ? ui.velBank : ((focusedTrack >= 8) ? 1 : 0);
+        const int pageOffset = page * 8;
+        static const char* blendLabels[] = { "RPLC", "MIX" };
+        for (int i = 0; i < 8; ++i)
+        {
+            const int trackIdx = pageOffset + i;
+            if (trackIdx >= static_cast<int>(kNumTracks)) { break; }
+            const auto& kit = proc.kit(trackIdx);
+            const int blendVal = static_cast<int>(kit.velBlend);
+            const bool off = (kit.velMode == VelMode::Off);
+            auto& v = result[static_cast<std::size_t>(i)];
+            v.active      = true;
+            v.label       = "T" + juce::String(trackIdx + 1);
+            v.minValue    = 0.0f;
+            v.maxValue    = 1.0f;
+            v.value       = static_cast<float>(blendVal);
+            v.stepped     = true;
+            v.writable    = !off;
+            v.hasOverride = !off && (kit.velBlend != VelBlend::Replace);
+            v.valueText   = off ? "OFF" : juce::String(blendLabels[blendVal]);
+            v.ringMode    = RingMode::Dot;
+        }
+        return result;
+    }
+
     std::array<MetaFieldView, 8> buildMetaBand(MetaBand band,
                                                int swingScope,
                                                LockstepProcessor& proc,
@@ -624,6 +755,14 @@ namespace lockstep
             return buildDensitySelectionBand(proc, ui, track);
         if (band == MetaBand::Euclidean)
             return buildEuclidBand(proc, track, ui);
+        if (band == MetaBand::Vel)
+            return buildVelBand(proc, ui, track);
+        if (band == MetaBand::VelCenter)
+            return buildVelCenterBand(proc, ui, track);
+        if (band == MetaBand::VelMode)
+            return buildVelModeBand(proc, ui, track);
+        if (band == MetaBand::VelBlend)
+            return buildVelBlendBand(proc, ui, track);
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return {};
 
@@ -868,6 +1007,56 @@ namespace lockstep
                     const int trackIdx = densityWriteTarget(ui, field, track).trackIdx;
                     if (trackIdx >= 0 && trackIdx < static_cast<int>(kNumTracks))
                         proc.setTrackDensity(trackIdx, juce::jlimit(0.01f, 1.0f, value / 100.0f));
+                }
+                break;
+            }
+
+            case MetaBand::Vel: {
+                // Depth sub-page: value is 0-100 (normalised to 0..1).
+                if (field >= 0 && field < 8)
+                {
+                    const int page = ui.velStickyMode ? ui.velBank : ((track >= 8) ? 1 : 0);
+                    const int trackIdx = page * 8 + field;
+                    if (trackIdx < static_cast<int>(kNumTracks))
+                        proc.kit(trackIdx).velDepth = juce::jlimit(0.0f, 1.0f, value / 100.0f);
+                }
+                break;
+            }
+
+            case MetaBand::VelCenter: {
+                // Center sub-page: value is 1-127.
+                if (field >= 0 && field < 8)
+                {
+                    const int page = ui.velStickyMode ? ui.velBank : ((track >= 8) ? 1 : 0);
+                    const int trackIdx = page * 8 + field;
+                    if (trackIdx < static_cast<int>(kNumTracks))
+                        proc.kit(trackIdx).velCenter = juce::jlimit(1, 127, juce::roundToInt(value));
+                }
+                break;
+            }
+
+            case MetaBand::VelMode: {
+                // Mode sub-page: 0 = Off, 1 = Bar.
+                if (field >= 0 && field < 8)
+                {
+                    const int page = ui.velStickyMode ? ui.velBank : ((track >= 8) ? 1 : 0);
+                    const int trackIdx = page * 8 + field;
+                    if (trackIdx < static_cast<int>(kNumTracks))
+                        proc.kit(trackIdx).velMode =
+                            static_cast<VelMode>(juce::jlimit(0, 1, juce::roundToInt(value)));
+                }
+                break;
+            }
+
+            case MetaBand::VelBlend: {
+                // Blend sub-page: 0 = Replace, 1 = Mix.
+                if (field >= 0 && field < 8)
+                {
+                    const int page = ui.velStickyMode ? ui.velBank : ((track >= 8) ? 1 : 0);
+                    const int trackIdx = page * 8 + field;
+                    if (trackIdx < static_cast<int>(kNumTracks))
+                        proc.kit(trackIdx).velBlend =
+                            static_cast<VelBlend>(juce::jlimit(0, 1, juce::roundToInt(value)));
                 }
                 break;
             }

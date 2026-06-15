@@ -27,7 +27,11 @@ namespace lockstep
         DensitySelection,  // Selection sub-page (Scrub / Re-roll)
         MasterFx,
         Euclidean,
-        Transport
+        Transport,
+        Vel,        // velocity overlay depth sub-page (per-track, paginated)
+        VelCenter,  // velocity overlay center sub-page
+        VelMode,    // velocity overlay mode sub-page (Off / Bar)
+        VelBlend    // velocity overlay blend sub-page (Replace / Mix)
     };
 
     // -------------------------------------------------------------------------
@@ -77,8 +81,11 @@ namespace lockstep
     // sectionSelectClearsDensitySticky — focus-change supersede policy.
     // Returns true when a bare section press (index 0-4) should exit density sticky mode.
     // Section 5 / FX is reserved for subpage cycling inside the mode; nav keys page banks.
-    // Future exclusive sticky overlays should extend this predicate.
     bool sectionSelectClearsDensitySticky(const UiState& ui, int sectionIndex) noexcept;
+
+    // sectionSelectClearsVelSticky — parallel policy for vel sticky mode.
+    // Returns true when a section press (anything except AMP = index 3) should exit.
+    bool sectionSelectClearsVelSticky(const UiState& ui, int sectionIndex) noexcept;
 
     // -------------------------------------------------------------------------
     // buildMetaBand — pure builder: fills 8 MetaFieldViews from current state.
