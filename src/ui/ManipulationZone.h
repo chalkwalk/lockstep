@@ -56,9 +56,6 @@ namespace lockstep
         // re-apply the live euclid pattern to the armed track.
         std::function<void()> onEuclidParamChanged;
 
-        // Called after an Accent meta-band encoder write so the editor can
-        // re-apply the live accent velocities to the armed track.
-        std::function<void()> onAccentParamChanged;
 
     public:
         // MHX §26.2: 8 encoders in a 4x2 staggered band.  Single constant so the

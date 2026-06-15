@@ -617,14 +617,6 @@ namespace lockstep
                 repaint();
             }
         };
-        manipulationZone_.onAccentParamChanged = [this] {
-            if (uiState_.accentHeld && accentTrack_ >= 0)
-            {
-                applyAccentLive(accentTrack_);
-                repaint();
-            }
-        };
-
         // Wire mouse button events from KeyboardArea through the unified dispatch.
         keyboardArea_.onButtonDown = [this](ControllerEvent ev) {
             pressTracker_.press(PressTracker::kMouseSource, ev.button, ev.index);
@@ -1180,11 +1172,6 @@ namespace lockstep
                 {
                     ctx = "EUCLID  pulses / offset / accent  |  P = commit  Func+P = cancel";
                 }
-                // Accent generator armed — show commit/cancel banner.
-                else if (ui.accentHeld)
-                {
-                    ctx = "ACCENT  depth / center  |  P = commit  Func+P = cancel";
-                }
                 // MHZ.3.5: Func+Part = machine picker — show dedicated hint.
                 else if (ui.funcTrackHeld)
                 {
@@ -1571,77 +1558,6 @@ namespace lockstep
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Accent generator — print metric-weighted velocities into active trig steps.
-
-    static void writeAccentVelocities(Track& ph, float depth, int center,
-                                      double divPpq, double barPpq,
-                                      int numerator, int denominator)
-    {
-        const int len = ph.length;
-        if (len <= 0 || barPpq <= 0.0) { return; }
-
-        using MetricGrid::metricWeight;
-        for (int si = 0; si < len; ++si)
-        {
-            auto& s = ph.steps[static_cast<std::size_t>(si)];
-            if (!s.trig) { continue; }
-
-            const double ppqInBar = std::fmod(
-                static_cast<double>(si) * divPpq, barPpq);
-            const float w = metricWeight(ppqInBar, barPpq, numerator, denominator);
-
-            const float maxSwing = static_cast<float>(
-                std::min(center - 1, 127 - center));
-            const float vel = std::round(
-                std::clamp(static_cast<float>(center) + depth * maxSwing * (2.0f * w - 1.0f),
-                           1.0f, 127.0f));
-            s.trigOverride.hasVelocity = true;
-            s.trigOverride.velocity    = static_cast<int>(vel);
-        }
-    }
-
-    void LockstepEditor::applyAccentToTrack(int track)
-    {
-        if (track < 0 || track >= static_cast<int>(kNumTracks)) { return; }
-        auto& ph = processor_.sequence().tracks[static_cast<std::size_t>(track)];
-        if (ph.length > 0)
-            processor_.snapshot(CheckpointScope::Phrase, track);
-        const auto& ct = processor_.section().coreTime;
-        const double barPpq = ct.barPpq();
-        const auto trackDiv = static_cast<int>(
-            processor_.apvts().getRawParameterValue(ParamIDs::trackDivider(track))->load());
-        const double divPpq = 0.25 * static_cast<double>(trackDiv <= 0 ? 1 : trackDiv);
-        writeAccentVelocities(ph, uiState_.accentDepth, uiState_.accentCenter,
-                              divPpq, barPpq, ct.numerator, ct.denominator);
-    }
-
-    void LockstepEditor::applyAccentLive(int track)
-    {
-        if (track < 0 || track >= static_cast<int>(kNumTracks)) { return; }
-        auto& ph = processor_.sequence().tracks[static_cast<std::size_t>(track)];
-        const auto& ct = processor_.section().coreTime;
-        const double barPpq = ct.barPpq();
-        const auto trackDiv = static_cast<int>(
-            processor_.apvts().getRawParameterValue(ParamIDs::trackDivider(track))->load());
-        const double divPpq = 0.25 * static_cast<double>(trackDiv <= 0 ? 1 : trackDiv);
-        writeAccentVelocities(ph, uiState_.accentDepth, uiState_.accentCenter,
-                              divPpq, barPpq, ct.numerator, ct.denominator);
-    }
-
-    void LockstepEditor::armAccentGenerator()
-    {
-        const int at = keyboardArea_.getActiveTrack();
-        accentTrack_ = at < 0 ? 0 : at;
-        const auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(accentTrack_)];
-        accentStashLen_ = wt.length;
-        for (int si = 0; si < accentStashLen_; ++si)
-            accentStash_[static_cast<std::size_t>(si)] = wt.steps[static_cast<std::size_t>(si)];
-        uiState_.accentHeld = true;
-        applyAccentLive(accentTrack_);
-        refreshMetaBand();
-    }
-
     void LockstepEditor::updateFillActivation()
     {
         const bool fillHeld = uiState_.fillHeld;
@@ -1939,18 +1855,12 @@ namespace lockstep
                 // the compound re-skins the step grid to machine names directly.
                 uiState_.funcTrackHeld = uiState_.trackHeld;
                 editMode_.onScopeEvent(ev);
-                // Accent generator: Func+Fill chord (Func pressed while Fill held).
-                if (uiState_.fillHeld && !uiState_.euclidHeld
-                    && !uiState_.accentHeld && !activeTrackContentLocked())
-                {
-                    armAccentGenerator();
-                }
                 updateFillActivation();
                 refreshMetaBand();  // 1c: Func held → show Chance band in MZ
                 keyboardArea_.repaint();
                 repaint();
                 // MHZ.9.4: Func never latches; double-tap = universal escape.
-                // Cancels latches AND any active Euclidean or Accent modal.
+                // Cancels latches and any active Euclidean modal.
                 {
                     const double now = juce::Time::getMillisecondCounterHiRes();
                     if (doubleTap_.recordAndCheck(1000 + static_cast<int>(CB::Func), now))
@@ -1966,18 +1876,6 @@ namespace lockstep
                             uiState_.resetEuclid();
                             euclidTrack_ = -1;
                             euclidStashLen_ = 0;
-                            refreshMetaBand();
-                            repaint();
-                        }
-                        else if (uiState_.accentHeld)
-                        {
-                            auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(accentTrack_)];
-                            for (int si = 0; si < accentStashLen_; ++si)
-                                wt.steps[static_cast<std::size_t>(si)] =
-                                    accentStash_[static_cast<std::size_t>(si)];
-                            uiState_.resetAccent();
-                            accentTrack_    = -1;
-                            accentStashLen_ = 0;
                             refreshMetaBand();
                             repaint();
                         }
@@ -2075,13 +1973,6 @@ namespace lockstep
                         euclidStash_[static_cast<std::size_t>(si)] = wt.steps[static_cast<std::size_t>(si)];
                     applyEuclidLive(euclidTrack_);
                     refreshMetaBand();
-                }
-                // Accent generator: Func+Fill chord (Fill pressed while Func held).
-                else if (uiState_.funcHeld && !uiState_.euclidHeld
-                         && !uiState_.accentHeld && !activeTrackContentLocked())
-                {
-                    armAccentGenerator();
-                    repaint();
                 }
                 updateFillActivation();
                 handleModifierTap(CB::FillScope, uiState_.latch.fill);
@@ -3400,35 +3291,6 @@ namespace lockstep
                     uiState_.resetEuclid();
                     euclidTrack_ = -1;
                     euclidStashLen_ = 0;
-                    refreshMetaBand();
-                    repaint();
-                    return true;
-                }
-
-                // Accent modal armed → bare P = commit; Func+P = cancel.
-                if (uiState_.accentHeld)
-                {
-                    auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(accentTrack_)];
-                    if (!funcHeld)
-                    {
-                        // Commit: restore stash first (snapshot captures pre-accent state),
-                        // then bake the metric-weighted velocities.
-                        for (int si = 0; si < accentStashLen_; ++si)
-                            wt.steps[static_cast<std::size_t>(si)] =
-                                accentStash_[static_cast<std::size_t>(si)];
-                        applyAccentToTrack(accentTrack_);
-                        setStatus("ACCENT committed");
-                    }
-                    else
-                    {
-                        // Cancel: restore stashed phrase.
-                        for (int si = 0; si < accentStashLen_; ++si)
-                            wt.steps[static_cast<std::size_t>(si)] =
-                                accentStash_[static_cast<std::size_t>(si)];
-                    }
-                    uiState_.resetAccent();
-                    accentTrack_    = -1;
-                    accentStashLen_ = 0;
                     refreshMetaBand();
                     repaint();
                     return true;

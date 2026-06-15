@@ -27,7 +27,6 @@ namespace lockstep
         DensitySelection,  // Selection sub-page (Scrub / Re-roll)
         MasterFx,
         Euclidean,
-        Accent,
         Transport
     };
 

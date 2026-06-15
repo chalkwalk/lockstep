@@ -212,16 +212,6 @@ namespace lockstep
         int euclidStashLen_ = 0;
         int euclidTrack_ = -1;
 
-        // Print-auto-velocity accent generator (Func+Fill chord).
-        void applyAccentToTrack(int track); // checkpoint then write
-        void applyAccentLive(int track);    // write without snapshot (live preview)
-        void armAccentGenerator();          // capture stash + set accentHeld
-
-        // Stash of phrase steps captured at accent-arm time; restored on No/escape.
-        std::array<Step, kMaxStepsPerTrack> accentStash_{};
-        int accentStashLen_ = 0;
-        int accentTrack_    = -1;
-
         // Song+FX unit-cycle helpers. Return a unit index 0-3 (0-1=inserts, 2-3=sends).
         // Skip empty units; fall back to 0 if none loaded.
         int firstLoadedMasterUnit() const noexcept;

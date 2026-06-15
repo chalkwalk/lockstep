@@ -1,6 +1,7 @@
 #include "PluginProcessor.h"
 #include "Parameters.h"
 #include "ParameterIDs.h"
+#include "core/AccentVel.h"
 #include "core/Subdivision.h"
 #include "core/SoundPoolOps.h"
 #include "core/StateResolver.h"
@@ -1485,17 +1486,53 @@ namespace lockstep
                     }
                 }
 
+                // Resolve authored velocity per note, then apply live overlay.
                 const auto uniformVel =
                     static_cast<juce::uint8>(std::clamp(trig.velocity, 1, 127));
+                std::array<juce::uint8, kMaxNotesPerStep> finalVels{};
                 for (int n = 0; n < notesToEmit; ++n)
                 {
                     const auto ni = static_cast<std::size_t>(n);
-                    const auto vel = trig.hasNoteVelocities
-                                         ? static_cast<juce::uint8>(
-                                               std::clamp(static_cast<int>(emitVels[ni]), 1, 127))
-                                         : uniformVel;
+                    finalVels[ni] = trig.hasNoteVelocities
+                        ? static_cast<juce::uint8>(std::clamp(static_cast<int>(emitVels[ni]), 1, 127))
+                        : uniformVel;
+                }
+                // Velocity overlay (VelMode::Bar): metric weight modulates velocity.
+                const auto& velKit = song().tracks[i].kit;
+                if (velKit.velMode == VelMode::Bar)
+                {
+                    const double velBarPpq = section().coreTime.barPpq();
+                    const double velPpqInBar = (velBarPpq > 0.0)
+                        ? std::fmod(nextTriggerPpq_[i], velBarPpq) : 0.0;
+                    const float w = MetricGrid::metricWeight(
+                        velPpqInBar, velBarPpq,
+                        section().coreTime.numerator, section().coreTime.denominator);
+                    if (velKit.velBlend == VelBlend::Replace)
+                    {
+                        const auto ov = static_cast<juce::uint8>(
+                            accentVelocity(velKit.velCenter, velKit.velDepth, w));
+                        for (int n = 0; n < notesToEmit; ++n)
+                            finalVels[static_cast<std::size_t>(n)] = ov;
+                    }
+                    else // Mix
+                    {
+                        const float maxSwing = static_cast<float>(
+                            std::min(velKit.velCenter - 1, 127 - velKit.velCenter));
+                        const float delta = velKit.velDepth * maxSwing * ((2.0f * w) - 1.0f);
+                        const int roundedDelta = static_cast<int>(std::lround(delta));
+                        for (int n = 0; n < notesToEmit; ++n)
+                        {
+                            const auto ni = static_cast<std::size_t>(n);
+                            finalVels[ni] = static_cast<juce::uint8>(
+                                std::clamp(static_cast<int>(finalVels[ni]) + roundedDelta, 1, 127));
+                        }
+                    }
+                }
+                for (int n = 0; n < notesToEmit; ++n)
+                {
+                    const auto ni = static_cast<std::size_t>(n);
                     trackMidi[i].addEvent(
-                        juce::MidiMessage::noteOn(1, emitNotes[ni], vel), fireAt);
+                        juce::MidiMessage::noteOn(1, emitNotes[ni], finalVels[ni]), fireAt);
                 }
 
                 if (trig.gateValue != MusicalGate::None)

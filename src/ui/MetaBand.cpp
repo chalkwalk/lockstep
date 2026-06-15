@@ -27,11 +27,9 @@ namespace lockstep
             case 5:  return MetaBand::Global;     // Song+FX: master insert params
             default: break;
         }
-        // Euclidean modal outranks everything else; accent generator next.
+        // Euclidean modal outranks everything else.
         if (ui.euclidHeld)
             return MetaBand::Euclidean;
-        if (ui.accentHeld)
-            return MetaBand::Accent;
         // Sticky density mode (entered via double-tap Func).
         if (ui.densityStickyMode)
         {
@@ -502,38 +500,6 @@ namespace lockstep
         return result;
     }
 
-    // Print-auto-velocity Accent band — Depth (field 0) and Center (field 1).
-    static std::array<MetaFieldView, 8> buildAccentBand(const UiState& ui)
-    {
-        std::array<MetaFieldView, 8> result{};
-
-        // Depth [0, 100] — 0 = flat (all steps get Center velocity), 100 = full swing.
-        auto& depth = result[0];
-        depth.active = true;
-        depth.label = "DEPTH";
-        depth.minValue = 0.0f;
-        depth.maxValue = 100.0f;
-        depth.value = ui.accentDepth * 100.0f;
-        depth.stepped = false;
-        depth.writable = true;
-        depth.valueText = juce::String(juce::roundToInt(ui.accentDepth * 100.0f));
-        depth.ringMode = RingMode::UnipolarFill;
-
-        // Center [1, 127] — velocity applied to the bar downbeat.
-        auto& center = result[1];
-        center.active = true;
-        center.label = "CENTR";
-        center.minValue = 1.0f;
-        center.maxValue = 127.0f;
-        center.value = static_cast<float>(ui.accentCenter);
-        center.stepped = false;
-        center.writable = true;
-        center.valueText = juce::String(ui.accentCenter);
-        center.ringMode = RingMode::UnipolarFill;
-
-        return result;
-    }
-
     // §39 Density band — 16 tracks paginated (8 per page), arc/tick visual.
     // Page is derived from the focused track so the band always shows the bank
     // containing the active track (tracks 0-7 → page 0, 8-15 → page 1).
@@ -658,9 +624,6 @@ namespace lockstep
             return buildDensitySelectionBand(proc, ui, track);
         if (band == MetaBand::Euclidean)
             return buildEuclidBand(proc, track, ui);
-        if (band == MetaBand::Accent)
-            return buildAccentBand(ui);
-
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return {};
 
@@ -690,22 +653,6 @@ namespace lockstep
                         EditContext& ctx,
                         UiState& ui)
     {
-        // Accent generator params — update UiState staging area.
-        if (band == MetaBand::Accent)
-        {
-            switch (field)
-            {
-                case 0: // Depth [0..100]
-                    ui.accentDepth = std::clamp(value / 100.0f, 0.0f, 1.0f);
-                    break;
-                case 1: // Center [1..127]
-                    ui.accentCenter = std::clamp(static_cast<int>(std::round(value)), 1, 127);
-                    break;
-                default: break;
-            }
-            return;
-        }
-
         // 5.5: Euclidean params — update UiState staging area.
         if (band == MetaBand::Euclidean)
         {

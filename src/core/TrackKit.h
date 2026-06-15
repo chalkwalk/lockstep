@@ -5,6 +5,7 @@
 #include <vector>
 #include "../machine/IMachine.h"
 #include "../machine/StubMachine.h"
+#include "AccentVel.h"
 #include "Density.h"
 #include "Subdivision.h"
 #include "TrackFltrState.h"
@@ -56,6 +57,14 @@ namespace lockstep
         // Density overlay (§39) — durable per-song-per-track; serialized v19+.
         Density::Musicality densityMusicality = Density::Musicality::Mixed;
         Density::DensitySelection densitySelection = Density::DensitySelection::Scrub;
+
+        // Live velocity overlay — durable per-song-per-track; serialized v20+.
+        // When velMode==Bar, metric weight against coreTime modulates note velocity
+        // at emit time (Replace = override authored; Mix = add delta on top).
+        VelMode  velMode   = VelMode::Off;
+        VelBlend velBlend  = VelBlend::Replace;
+        float    velDepth  = 0.6f;   // [0,1]
+        int      velCenter = 90;     // [1,127]
 
         // 6.5: per-track insert slots (post-AMP).  effectId empty = no effect.
         struct InsertSlot
