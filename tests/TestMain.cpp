@@ -43,6 +43,8 @@ int main()
     lockstep::runMetaBandTests();
     // §39 print-auto-velocity accent generator
     lockstep::runAccentTests();
+    // §39 MetricSelect tier+Euclid deterministic Scrub
+    lockstep::runMetricSelectTests();
 
     // Also drive the JUCE UnitTests registered in lockstep_core (the serializer
     // upgrade chain, "PluginState" category) so they run headlessly in CI rather

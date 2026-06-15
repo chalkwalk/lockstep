@@ -65,4 +65,6 @@ namespace lockstep
     void runMetaBandTests();
     // §39 print-auto-velocity accent generator formula
     void runAccentTests();
+    // §39 MetricSelect tier+Euclid deterministic Scrub selector
+    void runMetricSelectTests();
 }

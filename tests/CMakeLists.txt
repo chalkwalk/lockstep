@@ -29,6 +29,7 @@ add_executable(lockstep_tests
     DensityTest.cpp
     MetaBandTest.cpp
     AccentTest.cpp
+    MetricSelectTest.cpp
     # UI modules needed by MetaBandTest (live only in the plugin target otherwise)
     ../src/ui/MetaBand.cpp
     ../src/ui/MetaRotary.cpp)
