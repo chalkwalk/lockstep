@@ -1616,7 +1616,9 @@ namespace lockstep
                             if (kit.densitySelection == Density::DensitySelection::Scrub)
                             {
                                 // §39 Deterministic Scrub: tier+Euclid via MetricSelect.
-                                // Rebuild the cached table when meter or step-grid changes.
+                                // Fixed per-track rotation de-correlates same-density tracks.
+                                const int off = static_cast<int>(
+                                    Density::densityScrubHash(i, 0, 0));
                                 auto& cache = densityTableCache_[i];
                                 const int num = section().coreTime.numerator;
                                 const int den = section().coreTime.denominator;
@@ -1633,7 +1635,7 @@ namespace lockstep
                                         wts[static_cast<std::size_t>(s)] =
                                             MetricGrid::metricWeight(ppqPos, barPpq, num, den);
                                     }
-                                    cache.table = MetricSelect::build(wts, n);
+                                    cache.table = MetricSelect::build(wts, n, off);
                                     cache.numerator = num;
                                     cache.denominator = den;
                                     cache.stepsPerBar = stepsPerBar;
@@ -1641,15 +1643,24 @@ namespace lockstep
                                 const float effective = std::clamp(perTrack + master, 0.01f, 1.0f);
                                 const int N = static_cast<int>(
                                     std::min(stepsPerBar, std::int64_t{ 64 }));
+                                const int barStep = static_cast<int>(stepInBar % static_cast<std::int64_t>(N));
                                 const int T = static_cast<int>(
                                     std::round(effective * static_cast<float>(N)));
-                                const float m = Density::musicalityM(kit.densityMusicality);
-                                const int P = static_cast<int>(
-                                    std::round(m * static_cast<float>(T)));
-                                const std::uint32_t hash =
-                                    Density::densityScrubHash(i, stepNum, qLevel);
-                                fired = MetricSelect::scrubSurvives(
-                                    cache.table, static_cast<int>(stepInBar), N, T, P, hash);
+                                if (kit.densityMusicality == Density::Musicality::Uniform)
+                                {
+                                    const int Tl = static_cast<int>(
+                                        std::round(effective * static_cast<float>(trackLen)));
+                                    fired = MetricSelect::uniformSurvives(
+                                        stepIdx, trackLen, Tl, off);
+                                }
+                                else if (kit.densityMusicality == Density::Musicality::Metric)
+                                {
+                                    fired = MetricSelect::metricSurvives(cache.table, barStep, T);
+                                }
+                                else // Mixed
+                                {
+                                    fired = MetricSelect::mixedSurvives(cache.table, barStep, T);
+                                }
                             }
                             else
                             {
@@ -1756,6 +1767,8 @@ namespace lockstep
                             if (kit.densitySelection == Density::DensitySelection::Scrub)
                             {
                                 // §39 Deterministic Scrub: reuse cached table (same bar, same grid).
+                                const int off = static_cast<int>(
+                                    Density::densityScrubHash(i, 0, 0));
                                 auto& cache = densityTableCache_[i];
                                 const int num = section().coreTime.numerator;
                                 const int den = section().coreTime.denominator;
@@ -1772,7 +1785,7 @@ namespace lockstep
                                         wts[static_cast<std::size_t>(s)] =
                                             MetricGrid::metricWeight(ppqPos, barPpq, num, den);
                                     }
-                                    cache.table = MetricSelect::build(wts, n);
+                                    cache.table = MetricSelect::build(wts, n, off);
                                     cache.numerator = num;
                                     cache.denominator = den;
                                     cache.stepsPerBar = stepsPerBar;
@@ -1780,15 +1793,28 @@ namespace lockstep
                                 const float effective = std::clamp(perTrack + master, 0.01f, 1.0f);
                                 const int N = static_cast<int>(
                                     std::min(stepsPerBar, std::int64_t{ 64 }));
+                                const int barStep = static_cast<int>(stepInBar % static_cast<std::int64_t>(N));
                                 const int T = static_cast<int>(
                                     std::round(effective * static_cast<float>(N)));
-                                const float m = Density::musicalityM(kit.densityMusicality);
-                                const int P = static_cast<int>(
-                                    std::round(m * static_cast<float>(T)));
-                                const std::uint32_t hash =
-                                    Density::densityScrubHash(i, stepNum, qLevel);
-                                lookaheadFired = MetricSelect::scrubSurvives(
-                                    cache.table, static_cast<int>(stepInBar), N, T, P, hash);
+                                const int lookaheadStepIdx = static_cast<int>(
+                                    stepNum % static_cast<std::int64_t>(trackLen));
+                                if (kit.densityMusicality == Density::Musicality::Uniform)
+                                {
+                                    const int Tl = static_cast<int>(
+                                        std::round(effective * static_cast<float>(trackLen)));
+                                    lookaheadFired = MetricSelect::uniformSurvives(
+                                        lookaheadStepIdx, trackLen, Tl, off);
+                                }
+                                else if (kit.densityMusicality == Density::Musicality::Metric)
+                                {
+                                    lookaheadFired = MetricSelect::metricSurvives(
+                                        cache.table, barStep, T);
+                                }
+                                else // Mixed
+                                {
+                                    lookaheadFired = MetricSelect::mixedSurvives(
+                                        cache.table, barStep, T);
+                                }
                             }
                             else
                             {
