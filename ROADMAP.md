@@ -953,7 +953,7 @@ scope+verb. Stochastic / generative authoring is explicitly *not* here (NON-GOAL
       checkpoint pushed first if phrase has existing trigs. Output is ordinary
       hand-editable trig data. Accent layer Euclidean-distributes N accented
       onsets over the K pulses (higher velocity). See `core/Euclidean.h`.
-- [ ] **Density overlay** (replaces Chance macro): a live, subtractive trig-thinning
+- [x] **Density overlay** (replaces Chance macro): a live, subtractive trig-thinning
       overlay strictly downstream of fill/iteration/prev-dep/probability — only
       silences would-fire trigs, never re-enables them. Per-track density amounts +
       master offset are ephemeral (reset on song change; ride scene sticky/floor
@@ -963,6 +963,16 @@ scope+verb. Stochastic / generative authoring is explicitly *not* here (NON-GOAL
       offset; `Song`-held → durable mode editor. Visual: rotary = per-track value,
       arc = master offset, tick = effective (sticks at rail with dimmed overshoot).
       See DESIGN §39. *(Chance macro superseded.)*
+- [x] **Meter-aware metric weighting** (`MetricGrid.h`): replaced the 4/4-only
+      trailing-zero depth with Lerdahl–Jackendoff dot-counts; `densitySurvives`
+      and `metricDrop` now take `numerator`/`denominator` and produce musically
+      correct thinning in 3/4, 6/8, 7/8, 9/8, etc. Regression-safe: 4/4 behaviour
+      unchanged. See DESIGN §39.2. *(b29d1bf)*
+- [x] **Accent velocity generator** (`Func+Fill` chord, §39.10): bakes
+      Lerdahl–Jackendoff metric-weighted velocities into the focused track's trig
+      steps. MetaBand::Accent exposes DEPTH (0–100 %) and CENTR (1–127). Live
+      preview; checkpoint+commit or restore-stash cancel. Works in any time
+      signature. See DESIGN §39.10. *(7fb3f01)*
 - [ ] **Scale-aware CHROMATIC layout** (DESIGN §34.2): the per-phrase scale lock
       remaps the CHROMATIC keyboard to scale degrees — a *playable layout*, never
       note auto-correct (out-of-scale entry stays verbatim and reachable).

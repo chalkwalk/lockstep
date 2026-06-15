@@ -255,6 +255,7 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Density** | Live, subtractive trig-thinning overlay. `Func`-held → transient per-track Density band. **Double-tap Func** → sticky DENSITY mode; nav keys page between tracks 1-8 and 9-16; `Song`-held (encoder or on-screen drag) → master offset (visible as arc baseline shift); FX key cycles Amount/Mode sub-page (Musicality + Selection). `Song`-alone = swing (unchanged). Only silences would-fire trigs. Ephemeral amounts; durable Musicality + Selection per track. |
 | **Retrig / ratchet** | Per-step re-triggering at a musical rate (`/4 … /32T`). `Fill+TRIG` opens the rate picker: press a rate for a live stutter on the focused track, or hold a step first to bake the rate as a per-step P-Lock. Slicer tracks show a slice picker instead. |
 | **Euclidean generator** | `Phrase+Fill` held: encoders shape `PULSE / OFSET / ACCNT` against the phrase length, audible live; the mode is latched until **P** (commit) or **Func+P** (cancel). Y is inert in this mode. |
+| **Accent generator** | `Func+Fill` held: bakes metric-weighted MIDI velocities into the focused track's trig steps. Encoders set `DEPTH` (swing amount, 0–100 %) and `CENTR` (center velocity, 1–127). Downbeats louder; finest offbeats quieter. Works in any time signature (uses Lerdahl–Jackendoff metric weights). Live preview; **P** = commit, **Func+P** = cancel. |
 | **Control-All** | Holding `Track` with no track selected broadcasts the next parameter edit to every track that has a matching control. |
 | **Mute** | Suppresses a track's trigs non-destructively. `Mute+step` = global mute (survives scene/song changes); `Scene+Mute+step` = per-scene mute (the scene's active-mask). |
 | **Fill** | A momentary modifier: while held, fill-conditioned steps fire. Used for live variation. |
@@ -767,7 +768,7 @@ change; ride the scene sticky/floor launch).
 |---|---|
 | **Uniform** | Pure random thinning — all steps equally likely to survive. |
 | **Mixed** | Blends metric weighting and random (default). |
-| **Metric** | Importance-weighted: downbeats stay, finest offbeats drop first. Gradual thinning — no abrupt whole-tier cliff. |
+| **Metric** | Importance-weighted using Lerdahl–Jackendoff dot-counts: downbeats stay, finest offbeats drop first. Works correctly in any time signature (3/4, 6/8, 7/8, 9/8, …). Gradual thinning — no abrupt whole-tier cliff. |
 | **Scrub** | Deterministic hash: same knob level always picks the same subset. Turning reshuffles. |
 | **Re-roll** | Pure hash cadence — Uniform: fresh each step firing; Mixed/Metric: one roll per step-in-bar drawn at the bar boundary. Shimmers bar-to-bar; not recallable. |
 
@@ -1114,6 +1115,24 @@ The step grid can be re-skinned into non-step roles. Three paths exist:
   (always, even if the phrase was empty), then bakes the live pattern in
   place. **Cancel (Func+P):** restores the original phrase. **Y is inert**
   in this mode. Output is ordinary hand-editable trig data.
+
+- **Accent velocity generator (shipped, §39.10).** `Func + Fill` held together
+  enters accent-print mode on the **focused track**. The Manipulation Zone
+  switches to two encoders:
+  - **DEPTH** — swing depth (0–100 %). At 0 every trig gets exactly Center.
+  - **CENTR** — center velocity (1–127; default 90).
+
+  Velocities are computed as:
+  `vel = Center + Depth × range × (2w − 1)`, where `w` is the Lerdahl–Jackendoff
+  metric weight [0,1] of the step's position in the bar (`w=1` = downbeat,
+  `w=0` = finest offbeat). Works correctly in any time signature.
+  Only trig steps are written; rest steps are untouched.
+
+  Live preview fires on every encoder change. The status bar reads
+  **ACCENT  depth / center  |  P = commit  Func+P = cancel**.
+
+  **Commit (bare P):** checkpoint then bakes velocities. **Cancel (Func+P or
+  Func double-tap):** restores the original phrase.
 
 ### 5.19 Standalone project files *(shipped — Phase 9)*
 
@@ -1488,8 +1507,10 @@ Fill (X)
 ├─ + TRIG (5)        → Retrig overlay: step grid → ratchet-rate picker (/4…/32T) — §5.18
 │   └─ press rate    → start live stutter at that rate; hold a step first to bake per-step P-Lock
 ├─ + TRIG (5) on slicer track → Slice-point picker: step cells = slice indices — §5.18
-└─ + SRC (6)         → Sound Pool overlay: step grid → saved-sound selector — §5.18
-    └─ press sound   → live-swap track to that sound; hold a step first to bake sound_id P-Lock
+├─ + SRC (6)         → Sound Pool overlay: step grid → saved-sound selector — §5.18
+│   └─ press sound   → live-swap track to that sound; hold a step first to bake sound_id P-Lock
+└─ Func + Fill       → Accent velocity generator on the focused track (§39.10):
+                       encoders = DEPTH (0-100%) / CENTR (1-127); live preview; P = commit, Func+P = cancel
 ```
 
 Links: [§5.12](#512-fills)

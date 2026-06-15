@@ -4966,14 +4966,38 @@ active scene's `coreTime` (`Scene.h`, `TimeSig::barPpq()`):
 ppqInBar = fmod(nextTriggerPpq_[i], barPpq)   // use the grid PPQ, not swing-shifted firePpq
 ```
 
-Quantise `phase = ppqInBar / barPpq` to the 16th-grid index `k`; compute
-**metric depth** as the number of trailing zero bits of `k` (downbeat k=0 →
-depth max; finest offbeat → depth 0). Map to drop-propensity:
-`Dmetric = 1 − clamp(depth / maxDepth, 0, 1)`.
+**Metric weight** is computed by `MetricGrid::metricWeight(ppqInBar, barPpq, numerator, denominator)`
+(`src/core/MetricGrid.h`) using the **Lerdahl–Jackendoff dot-count** algorithm:
 
-This works for polymetric tracks because it is keyed off the step's absolute PPQ
-position in the bar, not the track's own length. Odd time signatures (7/8 etc.)
-are tolerated; the bar PPQ from `coreTime` determines the grid.
+1. Partition the bar into `numerator` equal pulses. Recursively split each span
+   (prefer binary halving; then ternary; then greedy front-loaded 3s for primes):
+   `w[i]` = number of recursive levels at which pulse `i` is the group head
+   (its "dot count"). Downbeat heads every level → maximal.
+2. Extend below the pulse level with a fixed sub-grid (`kSubGridSize=4`,
+   `kSubLevels=2`): a position exactly on pulse `i` adds `+kSubLevels` to its
+   count; a position `f` fractions of a pulse interval away contributes
+   `kSubLevels − trailing_zeros(round(f * kSubGridSize))`.
+3. Normalise: `weight = (count−1) / (downbeatCount−1)` → [0,1].
+   Downbeat = 1.0, finest sub-pulse offbeat = 0.0.
+
+Drop propensity: `Dmetric = 1 − weight` (the density `metricDrop` wrapper).
+
+Worked pulse-weight vectors (pinned by `MetricGridTest`):
+
+| Meter | pulse weights `w[]` | strong beats |
+|---|---|---|
+| 4/4 (4 pulses) | `[3,1,2,1]` | 1 > 3 > 2,4 |
+| 3/4 (3 pulses) | `[2,1,1]` | 1 > 2,3 |
+| 6/8 (6 pulses) | `[3,1,1,2,1,1]` | 1 > 4 (two dotted beats) |
+| 9/8 (9 pulses) | `[3,1,1,2,1,1,2,1,1]` | 1 > 4 > 7 |
+| 7/8 (7 pulses) | `[3,1,1,2,1,2,1]` | 1 > 4,6 (= 3+2+2) |
+
+In 4/4 with a 16th-note grid this reproduces the old trailing-zero ranking
+exactly (counts 5/4/3/2/1 at positions 0/8/4·12/2·6·10·14/odd) — regression-safe.
+6/8 vs 3/4 differ purely from numerator (6 vs 3); no special compound-meter case.
+
+This works for polymetric tracks because weighting is keyed off the step's
+absolute PPQ position in the bar, not the track's own length.
 
 ### 39.3 Selection modes
 
@@ -5093,3 +5117,42 @@ prev-dep trig conditions on subsequent steps — thinning a step can cascade to
 silence a step that was conditioned on it firing. This is intentional and is part
 of what makes metric-weighted thinning feel musical (gutting offbeats also removes
 the syncopated deps that hang off them).
+
+### 39.10 Print-auto-velocity accent generator (Func+Fill)
+
+A **bake/print** generator that writes metric-weighted MIDI velocities into the
+active track's phrase. Uses the same `MetricGrid::metricWeight` primitive as
+Dmetric; produces audibly correct accents in any time signature.
+
+**Arm:** `Func+Fill` (cross-column chord; legal — Func=col1, Fill=col2).
+Blocked on content-locked (stub) tracks. Mirrors the Euclidean generator
+(§28 / Func+Phrase) end-to-end.
+
+**MetaBand — two knobs:**
+
+| Slot | Label | Range | Default |
+|---|---|---|---|
+| 0 | DEPTH | 0–100 % | 60 % |
+| 1 | CENTR | 1–127 | 90 |
+
+**Velocity mapping** (per active trig step `i`):
+```
+ppqInBar = fmod(i * divPpq, barPpq)
+w        = metricWeight(ppqInBar, barPpq, numerator, denominator)   // [0,1]
+maxSwing = min(Center−1, 127−Center)
+vel      = round(clamp(Center + Depth * maxSwing * (2w−1), 1, 127))
+```
+- `Depth=0` → flat center (no accent).
+- `Depth=1, Center=90` → downbeat gets `90+37=127`; finest offbeat gets `90−37=53`.
+- Only trig steps are written; rest steps untouched.
+- `divPpq = 0.25 * trackDivider`; uses section `coreTime.numerator/denominator`.
+
+**Live preview** fires on every Depth/Center change (`onAccentParamChanged`
+lambda → `applyAccentLive`). Banner reads:
+`ACCENT  depth / center  |  P = commit  Func+P = cancel`.
+
+**Commit:** bare `Play/Confirm` (`VerbConfirm`) → checkpoint then
+`applyAccentToTrack`, clears `accentHeld`.
+
+**Cancel:** `Func+Play/Confirm` or `Func` double-tap escape → restore stash,
+`resetAccent()`. Stash is a full copy of phrase steps taken at arm time.
