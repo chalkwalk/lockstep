@@ -141,6 +141,39 @@ namespace lockstep
     }
 
     // -------------------------------------------------------------------------
+    // sectionSelectClearsDensitySticky — focus-change supersede policy
+
+    static void testSectionSelectClearsDensitySticky()
+    {
+        UiState ui;
+
+        // Not in sticky mode: predicate always false.
+        ui.densityStickyMode = false;
+        for (int i = 0; i <= 5; ++i)
+            CHECK(!sectionSelectClearsDensitySticky(ui, i), "not sticky → false for all sections");
+
+        // In sticky mode: sections 0-4 supersede, section 5 does not.
+        ui.densityStickyMode = true;
+        for (int i = 0; i <= 4; ++i)
+            CHECK(sectionSelectClearsDensitySticky(ui, i), "sticky + section 0-4 → true");
+        CHECK(!sectionSelectClearsDensitySticky(ui, 5), "sticky + section 5 → false (FX cycles subpage)");
+
+        // Sequenced: predicate true → escape clears mode → resolveMetaBand returns None.
+        ui.densitySubPage = UiState::DensitySubPage::Amount;
+        CHECK(sectionSelectClearsDensitySticky(ui, 2), "pre-escape predicate fires");
+        ui.densityStickyMode = false;  // simulate escapeDensitySticky
+        ui.densityBank = 0;
+        ui.densitySubPage = UiState::DensitySubPage::Amount;
+        CHECK(resolveMetaBand(ui) == MetaBand::None, "post-escape → MetaBand::None");
+
+        // Sequenced: section 5 does not supersede → mode persists → still a Density* band.
+        ui.densityStickyMode = true;
+        ui.densitySubPage = UiState::DensitySubPage::Amount;
+        CHECK(!sectionSelectClearsDensitySticky(ui, 5), "section 5 doesn't clear sticky");
+        CHECK(resolveMetaBand(ui) == MetaBand::Density, "mode still active → Density band");
+    }
+
+    // -------------------------------------------------------------------------
     // Per-track side-effect via EngineHarness
 
     static void testWriteMetaFieldDensityPerTrack()
@@ -253,6 +286,8 @@ namespace lockstep
         testDensityWriteTargetPage0();
         testDensityWriteTargetPage1();
         testDensityWriteTargetStickyBank();
+
+        testSectionSelectClearsDensitySticky();
 
         testWriteMetaFieldDensityPerTrack();
         testWriteMetaFieldDensityMasterIsGuardedNoOp();

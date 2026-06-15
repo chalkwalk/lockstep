@@ -2153,6 +2153,12 @@ namespace lockstep
                 }
 
                 if (consumeDensityStickyKey(CB::Section, ev.index)) return true;
+                // Sections 0-4 exit density sticky; FX/nav are consumed above.
+                if (sectionSelectClearsDensitySticky(uiState_, ev.index))
+                {
+                    escapeDensitySticky();
+                    refreshMetaBand();
+                }
 
                 if (sectionScope != PS::None)
                 {

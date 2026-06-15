@@ -5177,10 +5177,18 @@ back in density mode.
 - `Song` — master-density offset in the Density band
 - `Func` — toggle/exit
 - `Nav` (↑↓←→) — bank flip
-- FX section key (index 5) — Amount/Mode sub-page toggle
+- FX section key (index 5) — Amount/Musicality/Selection sub-page cycle
 
-These are centralised in `consumeDensityStickyKey()` and `escapeDensitySticky()`
-in `PluginEditor.cpp`; do not duplicate inline.
+**Section-select exit** — pressing any section key with index 0–4 while density
+sticky is active exits the mode (same result as double-tap Func) and selects the
+pressed section, routing encoders back to that section's machine params.
+`sectionSelectClearsDensitySticky()` in `MetaBand.cpp` is the canonical predicate
+for this rule; `PluginEditor.cpp` Section handler calls it right after
+`consumeDensityStickyKey()`.
+
+These are centralised in `consumeDensityStickyKey()`, `escapeDensitySticky()`,
+and `sectionSelectClearsDensitySticky()` in `PluginEditor.cpp` / `MetaBand.cpp`;
+do not duplicate inline.
 
 ### 39.9 Prev-dep interaction
 

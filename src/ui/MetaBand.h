@@ -75,6 +75,12 @@ namespace lockstep
     struct DensityWriteTarget { bool master; int trackIdx; };
     DensityWriteTarget densityWriteTarget(const UiState& ui, int field, int focusedTrack) noexcept;
 
+    // sectionSelectClearsDensitySticky — focus-change supersede policy.
+    // Returns true when a bare section press (index 0-4) should exit density sticky mode.
+    // Section 5 / FX is reserved for subpage cycling inside the mode; nav keys page banks.
+    // Future exclusive sticky overlays should extend this predicate.
+    bool sectionSelectClearsDensitySticky(const UiState& ui, int sectionIndex) noexcept;
+
     // -------------------------------------------------------------------------
     // buildMetaBand — pure builder: fills 8 MetaFieldViews from current state.
     // Lifted verbatim from ManipulationZone::refresh*Sliders.

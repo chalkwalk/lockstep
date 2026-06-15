@@ -1238,7 +1238,7 @@ shipped behaviour and the design intent. To avoid confusion:
   upgrade chain, New/Open/Save/Save As with dirty guard, last-project auto-open.
 - **Per-track FX inserts** (2 slots, `Func+FX` picker, `FX+step` animate-bypass).
 - **Master FX bus** (2 post-sum slots, `Func+Song+FX` picker, MZ params under `Song+FX`, serializer v14).
-- **Density overlay** (`Func`-held → transient per-track Density band; double-tap Func = sticky DENSITY mode; nav = bank 1-8/9-16; `Song`-held = master offset (encoder or drag); FX key = Amount/Mode sub-page; `Song`-alone = swing).
+- **Density overlay** (`Func`-held → transient per-track Density band; double-tap Func = sticky DENSITY mode; nav = bank 1-8/9-16; `Song`-held = master offset (encoder or drag); FX key = Amount/Mode/Selection sub-page; section key 0-4 or foreign scope = exit sticky mode; `Song`-alone = swing).
 
 **Planned** — the rest of the
 machine catalogue (`4.5` Static, `4.6` Percussion, `4.7` Digital); **Phase 5**

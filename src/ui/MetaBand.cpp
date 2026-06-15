@@ -72,6 +72,11 @@ namespace lockstep
         return { false, page * 8 + field };
     }
 
+    bool sectionSelectClearsDensitySticky(const UiState& ui, int sectionIndex) noexcept
+    {
+        return ui.densityStickyMode && sectionIndex != 5;
+    }
+
     // =========================================================================
     // buildMetaBand
     // =========================================================================
