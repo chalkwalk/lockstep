@@ -4130,16 +4130,14 @@ namespace lockstep
     }
 
     // Maps a relative encoder delta (|rawDelta| up to 7) to a new value for a
-    // discrete stepped field. Scales by the step count so one turn never moves
-    // more than 1/4 of the range; ceiling ensures the minimum never rounds to 0.
+    // discrete stepped field. One value per device delta unit (single detent = ±1,
+    // fast flick = device-accelerated delta, capped at ±7).
     // intervals = number of discrete steps (value-count - 1).
     static float applyDiscreteEncoderDelta(float minV, float maxV, int intervals,
                                            float cur, int rawDelta)
     {
         if (intervals <= 0 || rawDelta == 0) return cur;
-        const int mag  = std::min(std::abs(rawDelta), 7);
-        const int unit = (rawDelta > 0 ? 1 : -1)
-                       * static_cast<int>(std::ceil(static_cast<double>(mag) * intervals / 28.0));
+        const int unit = juce::jlimit(-7, 7, rawDelta);
         const float quantum = (maxV - minV) / static_cast<float>(intervals);
         const int curIdx = juce::roundToInt((cur - minV) / quantum);
         const int newIdx = juce::jlimit(0, intervals, curIdx + unit);
