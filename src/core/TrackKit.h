@@ -6,6 +6,7 @@
 #include "../machine/IMachine.h"
 #include "../machine/StubMachine.h"
 #include "Density.h"
+#include "Subdivision.h"
 #include "TrackFltrState.h"
 #include "TrackChannelState.h"
 #include "TrackEnvState.h"
@@ -48,9 +49,9 @@ namespace lockstep
         // Active hardware preset id (e.g. "elektron.digitone"; empty = none).
         std::string midiPresetName;
 
-        // Clock divider: 1 = base 1/16 grid.  Moved here from Track (Phase 7);
-        // it is a property of the musician for the song, not of the phrase.
-        int divider = 1;
+        // Musical subdivision: combined index (0-26, see Subdivision.h).
+        // Default 18 = 1/16 straight.  Moved here from Track (Phase 7).
+        int subdivIndex = kSubdivDefault;
 
         // Density overlay (§39) — durable per-song-per-track; serialized v19+.
         Density::Musicality densityMusicality = Density::Musicality::Mixed;

@@ -1,5 +1,6 @@
 #include "KeyboardArea.h"
 #include "KeyButton.h"
+#include "../core/Subdivision.h"
 #include "KeyLabel.h"
 #include "PageNav.h"
 #include "ScopedSectionMatrix.h"
@@ -1907,8 +1908,9 @@ namespace lockstep
 
         auto* divP = processor_.apvts().getRawParameterValue(
             ParamIDs::trackDivider(uiState_.activeTrack));
-        const int div = divP ? juce::jmax(1, static_cast<int>(divP->load())) : 1;
-        const double divPpq = 0.25 * static_cast<double>(div);
+        const int subdivIdx = divP ? std::clamp(static_cast<int>(divP->load()),
+                                                 kSubdivMin, kSubdivMax) : kSubdivDefault;
+        const double divPpq = subdivisionPpqFromIndex(subdivIdx);
 
         // Playhead position (-1 when stopped / divPpq==0)
         int playheadAbs = -1;
@@ -1921,7 +1923,7 @@ namespace lockstep
 
         // Beat / bar dividers from time signature
         const auto& ts = processor_.section().coreTime;
-        const double beatPpq = divPpq > 0.0 ? (4.0 / static_cast<double>(div)) : 4.0;
+        const double beatPpq = 4.0 / static_cast<double>(ts.denominator);
         const int stepsPerBeat = juce::jmax(1, static_cast<int>(std::round(beatPpq / divPpq)));
         const int stepsPerBar = juce::jmax(stepsPerBeat,
                                            static_cast<int>(std::round(ts.barPpq() / divPpq)));

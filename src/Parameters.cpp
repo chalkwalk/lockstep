@@ -36,11 +36,11 @@ namespace lockstep
                 "Track " + juce::String(t + 1) + " Length",
                 1, kMaxStepsPerTrack, 16));
 
-            // Divider: 1 = 16th-note grid; 2 = 8th; 4 = quarter; etc.
+            // Subdivision: combined index 0-26 (see Subdivision.h); default 18 = 1/16 straight.
             layout.add(std::make_unique<juce::AudioParameterInt>(
                 juce::ParameterID{ ParamIDs::trackDivider(t), 1 },
-                "Track " + juce::String(t + 1) + " Divider",
-                1, 16, 1));
+                "Track " + juce::String(t + 1) + " Subdivision",
+                0, 26, 18));
 
             layout.add(std::make_unique<juce::AudioParameterBool>(
                 juce::ParameterID{ ParamIDs::trackMute(t), 1 },

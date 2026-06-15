@@ -38,7 +38,7 @@ namespace lockstep
     {
         Track t;
         t.length = phrase.length;
-        t.divider = kit.divider;
+        t.subdivIndex = kit.subdivIndex;
         t.baseParams = kit.baseParams;
         t.baseCond = phrase.baseCond;
         t.trigDefaults = phrase.trigDefaults;
@@ -64,6 +64,6 @@ namespace lockstep
     inline void applyTrackBaseToKit(const Track& src, TrackKit& dst)
     {
         dst.baseParams = src.baseParams;
-        dst.divider = src.divider;
+        dst.subdivIndex = src.subdivIndex;
     }
 }

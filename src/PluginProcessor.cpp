@@ -1,6 +1,7 @@
 #include "PluginProcessor.h"
 #include "Parameters.h"
 #include "ParameterIDs.h"
+#include "core/Subdivision.h"
 #include "core/SoundPoolOps.h"
 #include "core/StateResolver.h"
 #include "core/Swing.h"
@@ -487,8 +488,9 @@ namespace lockstep
         {
             for (std::size_t i = 0; i < kNumTracks; ++i)
             {
-                const int div = static_cast<int>(trackDividerParams_[i]->load());
-                const double divPpq = 0.25 * static_cast<double>(div <= 0 ? 1 : div);
+                const int subdivIdx = std::clamp(static_cast<int>(trackDividerParams_[i]->load()),
+                                                  kSubdivMin, kSubdivMax);
+                const double divPpq = subdivisionPpqFromIndex(subdivIdx);
                 if (divPpq > 0.0)
                     nextTriggerPpq_[i] = std::floor(blockStart / divPpq) * divPpq;
                 lastStepFired_[i] = false;
@@ -640,8 +642,9 @@ namespace lockstep
                 // number accumulate (same visit). A new absolute step number = a new visit;
                 // in overwrite mode the step is cleared before the first note of the visit,
                 // so each pass through the pattern replaces rather than piles up.
-                const int trackDiv = static_cast<int>(trackDividerParams_[ti]->load());
-                const double divPpq = 0.25 * static_cast<double>(trackDiv <= 0 ? 1 : trackDiv);
+                const int subdivIdx2 = std::clamp(static_cast<int>(trackDividerParams_[ti]->load()),
+                                                   kSubdivMin, kSubdivMax);
+                const double divPpq = subdivisionPpqFromIndex(subdivIdx2);
                 const int trackLen = static_cast<int>(trackLengthParams_[ti]->load());
                 if (divPpq > 0.0 && trackLen > 0 && samplesPerPpq > 0.0)
                 {
@@ -1352,7 +1355,8 @@ namespace lockstep
             const auto& track = sequence().tracks[i];
 
             const int trackLen = static_cast<int>(trackLengthParams_[i]->load());
-            const int trackDiv = static_cast<int>(trackDividerParams_[i]->load());
+            const int trackSubdiv = std::clamp(static_cast<int>(trackDividerParams_[i]->load()),
+                                               kSubdivMin, kSubdivMax);
             // MD.6/MD.7: combined mute = global (APVTS) || section active-mask.
             const bool globalMuted = trackMuteParams_[i]->load() >= 0.5f;
             const bool sectionMuted = !section().activeMask[i];
@@ -1371,8 +1375,7 @@ namespace lockstep
             }
             wasSilent_[i] = silent;
 
-            // 16th note = 0.25 PPQ; divider scales the grid coarser.
-            const double divPpq = 0.25 * static_cast<double>(trackDiv <= 0 ? 1 : trackDiv);
+            const double divPpq = subdivisionPpqFromIndex(trackSubdiv);
 
             if (divPpq <= 0.0 || samplesPerPpq <= 0.0 || trackLen <= 0 || silent)
                 continue;

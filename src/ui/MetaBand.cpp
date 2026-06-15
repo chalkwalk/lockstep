@@ -3,6 +3,7 @@
 #include "../PluginProcessor.h"
 #include "../ParameterIDs.h"
 #include "../core/Density.h"
+#include "../core/Subdivision.h"
 #include "../core/Euclidean.h"
 #include "../core/TrigCondition.h"
 #include "../core/Track.h"
@@ -255,21 +256,43 @@ namespace lockstep
 
     static std::array<MetaFieldView, 8> buildDivBand(LockstepProcessor& proc, int track)
     {
-        const float divider = proc.apvts()
-                                  .getRawParameterValue(ParamIDs::trackDivider(track))
-                                  ->load();
+        const int idx = std::clamp(
+            static_cast<int>(proc.apvts()
+                                 .getRawParameterValue(ParamIDs::trackDivider(track))
+                                 ->load()),
+            kSubdivMin, kSubdivMax);
+        const auto base    = baseFromIndex(idx);
+        const auto flavour = flavourFromIndex(idx);
 
         std::array<MetaFieldView, 8> result{};
+
         auto& f0 = result[0];
-        f0.active = true;
-        f0.label = "Divider";
-        f0.minValue = 1.0f;
-        f0.maxValue = 16.0f;
-        f0.value = divider;
-        f0.stepped = true;
-        f0.writable = true;
-        f0.valueText = juce::String(static_cast<int>(divider));
-        f0.ringMode = RingMode::Dot;
+        f0.active    = true;
+        f0.label     = "Note";
+        f0.minValue  = 0.0f;
+        f0.maxValue  = static_cast<float>(kNumDivBases - 1);
+        f0.value     = static_cast<float>(base);
+        f0.stepped   = true;
+        f0.writable  = true;
+        f0.valueText = juce::String(baseLabel(base));
+        f0.ringMode  = RingMode::Dot;
+
+        auto& f1 = result[1];
+        f1.active    = true;
+        f1.label     = "Flavour";
+        f1.minValue  = 0.0f;
+        f1.maxValue  = static_cast<float>(kNumDivFlavours - 1);
+        f1.value     = static_cast<float>(flavour);
+        f1.stepped   = true;
+        f1.writable  = true;
+        switch (flavour)
+        {
+            case DivFlavour::Straight: f1.valueText = "STR";  break;
+            case DivFlavour::Dotted:   f1.valueText = "DOT";  break;
+            case DivFlavour::Triplet:  f1.valueText = "TRIP"; break;
+        }
+        f1.ringMode = RingMode::Dot;
+
         return result;
     }
 
@@ -783,11 +806,24 @@ namespace lockstep
             }
 
             case MetaBand::Divider: {
-                if (field != 0) return;
+                if (field > 1) return;
                 if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == track)
                     ctx.markParamWritten();
                 auto* p = proc.apvts().getParameter(ParamIDs::trackDivider(track));
-                if (p) p->setValueNotifyingHost(std::clamp((value - 1.0f) / 15.0f, 0.0f, 1.0f));
+                if (!p) return;
+                const int curIdx = std::clamp(
+                    static_cast<int>(proc.apvts()
+                                         .getRawParameterValue(ParamIDs::trackDivider(track))
+                                         ->load()),
+                    kSubdivMin, kSubdivMax);
+                int baseInt    = static_cast<int>(baseFromIndex(curIdx));
+                int flavourInt = static_cast<int>(flavourFromIndex(curIdx));
+                if (field == 0)
+                    baseInt    = std::clamp(static_cast<int>(value), 0, kNumDivBases    - 1);
+                else
+                    flavourInt = std::clamp(static_cast<int>(value), 0, kNumDivFlavours - 1);
+                const int newIdx = (baseInt * kNumDivFlavours) + flavourInt;
+                p->setValueNotifyingHost(static_cast<float>(newIdx) / static_cast<float>(kSubdivMax));
                 break;
             }
 

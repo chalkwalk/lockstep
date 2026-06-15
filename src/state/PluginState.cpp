@@ -334,8 +334,8 @@ namespace lockstep::PluginState
             node.setProperty(keys::kDId, juce::String(kit.destinationId), nullptr);
         if (!kit.midiPresetName.empty())
             node.setProperty(keys::kMPreset, juce::String(kit.midiPresetName), nullptr);
-        if (kit.divider != 1)
-            node.setProperty(keys::kDiv, kit.divider, nullptr);
+        if (kit.subdivIndex != kSubdivDefault)
+            node.setProperty(keys::kDiv, kit.subdivIndex, nullptr);
         if (kit.densityMusicality != Density::Musicality::Mixed)
             node.setProperty(keys::kDensMus, static_cast<int>(kit.densityMusicality), nullptr);
         if (kit.densitySelection != Density::DensitySelection::Scrub)
@@ -419,7 +419,7 @@ namespace lockstep::PluginState
         kit.machineId = node.getProperty(keys::kMId, juce::String(SamplerMachine::kMachineId)).toString().toStdString();
         kit.destinationId = node.getProperty(keys::kDId, "").toString().toStdString();
         kit.midiPresetName = node.getProperty(keys::kMPreset, "").toString().toStdString();
-        kit.divider = static_cast<int>(node.getProperty(keys::kDiv, 1));
+        kit.subdivIndex = static_cast<int>(node.getProperty(keys::kDiv, kSubdivDefault));
         kit.densityMusicality = static_cast<Density::Musicality>(
             static_cast<int>(node.getProperty(keys::kDensMus,
                 static_cast<int>(Density::Musicality::Mixed))));

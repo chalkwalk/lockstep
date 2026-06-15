@@ -4,6 +4,7 @@
 #include <cstdint>
 #include "MusicalGate.h"
 #include "Step.h"
+#include "Subdivision.h"
 #include "../machine/IMachine.h"
 
 namespace lockstep
@@ -34,7 +35,7 @@ namespace lockstep
     struct Track
     {
         int length = 16;       // 1..kMaxStepsPerTrack
-        int divider = 1;       // clock divider; 1 = base 16th grid
+        int subdivIndex = kSubdivDefault; // musical subdivision combined index (0-26)
         ParamFrame baseParams{}; // track-level "default" values
         TrigCondition baseCond{};  // track-level condition; step condition overrides if non-trivial
         TrigDefaults trigDefaults{};

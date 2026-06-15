@@ -30,7 +30,7 @@ namespace lockstep
         Song::SongTrack st;
         st.kit.baseParams.assign(3, 0.0f);
         st.kit.baseParams[0] = 0.25f;
-        st.kit.divider = 4;
+        st.kit.subdivIndex = 12; // D1_4 Straight = 1.0 PPQ (old divider=4 equivalent)
         st.phrases[0].length = 12;
         st.phrases[0].steps[2].trig = true;
         st.phrases[0].trigDefaults.note = 67;
@@ -41,8 +41,8 @@ namespace lockstep
         CHECK(t.length == 12, "project: length comes from Phrase");
         CHECK(t.steps[2].trig, "project: steps come from Phrase");
         CHECK(t.trigDefaults.note == 67, "project: trigDefaults come from Phrase");
-        // Kit owns sound + divider.
-        CHECK(t.divider == 4, "project: divider comes from Kit");
+        // Kit owns sound + subdivision.
+        CHECK(t.subdivIndex == 12, "project: subdivIndex comes from Kit");
         CHECK(t.baseParams.size() == 3 && feq(t.baseParams[0], 0.25f),
               "project: baseParams come from Kit");
     }

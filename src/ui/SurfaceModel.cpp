@@ -1,5 +1,6 @@
 #include "SurfaceModel.h"
 #include "MetaBand.h"
+#include "../core/Subdivision.h"
 #include "UITheme.h"
 #include "KeyLabel.h"
 #include "../command/SurfaceLayer.h"
@@ -1612,8 +1613,9 @@ namespace lockstep
                                  ? proc.apvts().getRawParameterValue(ParamIDs::trackDivider(activeTrack))
                                  : nullptr;
                 const int trackLen = lenP ? std::max(1, static_cast<int>(lenP->load())) : 16;
-                const int div = divP ? std::max(1, static_cast<int>(divP->load())) : 1;
-                const double divPpq = 0.25 * static_cast<double>(div);
+                const int subdivIdx = divP ? std::clamp(static_cast<int>(divP->load()),
+                                                         kSubdivMin, kSubdivMax) : kSubdivDefault;
+                const double divPpq = subdivisionPpqFromIndex(subdivIdx);
 
                 int playheadAbs = -1;
                 std::int64_t loopBase = 0;
