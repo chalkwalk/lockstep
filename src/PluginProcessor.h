@@ -738,28 +738,6 @@ namespace lockstep
         std::atomic<double> retrigReqRatePpq_{ 0.25 };  // [ATOMIC]
         std::array<std::atomic<float>, kNumTracks> trackDensity_;  // [ATOMIC] per-track density [0.01..1.0]
         std::atomic<float> masterDensity_{ 0.0f };               // [ATOMIC] master offset [-1.0..1.0]
-        // [AUDIO] xorshift state for Reroll selection; one entry per track.
-        std::array<uint32_t, kNumTracks> rerollState_{};
-        // [AUDIO] memoised step number per track; avoids advancing RNG twice per step
-        // (lookahead + main scan both observe the same firePpq).
-        std::array<std::int64_t, kNumTracks> lastDensityStepNum_{};
-
-        // Advance or re-use the xorshift RNG for Reroll density selection.
-        // Returns a value in [0,1); memoises per stepNum so that the lookahead scan
-        // and the main scan agree for the same logical step firing.
-        [[nodiscard]] float nextRerollR(std::size_t track, std::int64_t stepNum) noexcept
-        {
-            if (lastDensityStepNum_[track] != stepNum)
-            {
-                // xorshift32
-                auto& s = rerollState_[track];
-                s ^= s << 13u;
-                s ^= s >> 17u;
-                s ^= s << 5u;
-                lastDensityStepNum_[track] = stepNum;
-            }
-            return static_cast<float>(rerollState_[track] % 10000u) / 10000.0f;
-        }
         std::atomic<int> retrigReqNote_{ 60 };    // [ATOMIC]
         // [AUDIO] retrig state consumed and advanced by the audio thread only.
         int retrigActiveTrack_ = -1;

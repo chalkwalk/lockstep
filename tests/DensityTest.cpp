@@ -338,6 +338,51 @@ namespace lockstep
               "densitySurvives: positive master offset raises survival rate");
     }
 
+    // -----------------------------------------------------------------------
+    // Reroll cadence helpers (Item 3)
+
+    // rerollPerStep: different step numbers must yield different values (evolves).
+    static void testRerollPerStepEvolves()
+    {
+        int sameCount = 0;
+        constexpr int kN = 500;
+        for (int i = 0; i < kN - 1; ++i)
+        {
+            float r0 = rerollPerStep(0u, static_cast<std::int64_t>(i));
+            float r1 = rerollPerStep(0u, static_cast<std::int64_t>(i + 1));
+            if (r0 == r1) { ++sameCount; }
+        }
+        CHECK(sameCount < 20, "rerollPerStep: consecutive steps produce different values");
+    }
+
+    // rerollPerBar: stable within a bar (same stepInBar), fresh each new bar.
+    static void testRerollPerBarCadence()
+    {
+        // Same bar, same stepInBar across multiple tracks of check → always equal.
+        const float r0 = rerollPerBar(3u, 7LL, 2LL);
+        const float r1 = rerollPerBar(3u, 7LL, 2LL);
+        CHECK(r0 == r1, "rerollPerBar: same inputs → same output");
+
+        // Different bar → different value for the same step position.
+        const float rBar0 = rerollPerBar(0u, 0LL, 0LL);
+        const float rBar1 = rerollPerBar(0u, 1LL, 0LL);
+        CHECK(rBar0 != rBar1, "rerollPerBar: bar change at same stepInBar gives new value");
+
+        // Different stepInBar within same bar → different value (per-step discrimination).
+        const float rStep0 = rerollPerBar(0u, 5LL, 0LL);
+        const float rStep3 = rerollPerBar(0u, 5LL, 3LL);
+        CHECK(rStep0 != rStep3, "rerollPerBar: different stepInBar within same bar differ");
+
+        // Across many bars the value changes frequently (not stuck).
+        int sameBar = 0;
+        for (std::int64_t bar = 0; bar < 99; ++bar)
+        {
+            if (rerollPerBar(1u, bar, 0LL) == rerollPerBar(1u, bar + 1, 0LL))
+                ++sameBar;
+        }
+        CHECK(sameBar < 10, "rerollPerBar: value varies across bars");
+    }
+
     void runDensityTests()
     {
         testMetricDropDownbeat();
@@ -353,6 +398,8 @@ namespace lockstep
         testMasterOffset();
         testMetricScrubVsRerollDiffer();
         testMetricGradualThinning();
+        testRerollPerStepEvolves();
+        testRerollPerBarCadence();
     }
 
 } // namespace lockstep

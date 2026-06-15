@@ -112,15 +112,6 @@ namespace lockstep
         lastRecordedStepNum_.fill(std::numeric_limits<int64_t>::min());
         for (auto& d : trackDensity_) d.store(1.0f, std::memory_order_relaxed);
         masterDensity_.store(0.0f, std::memory_order_relaxed);
-        // Seed reroll state per track. Use FNV-style hashing of the track index so
-        // tracks start with uncorrelated RNG streams even before the first block.
-        for (std::size_t t = 0; t < kNumTracks; ++t)
-        {
-            rerollState_[t] = static_cast<uint32_t>(t + 1u) * 0x9e3779b1u;
-            rerollState_[t] ^= rerollState_[t] >> 16u;
-            rerollState_[t] *= 0x45d9f3bu;
-        }
-        lastDensityStepNum_.fill(std::numeric_limits<std::int64_t>::min());
 
         for (auto& s : mzSlots_)
             s.store(-1, std::memory_order_relaxed);
@@ -1611,7 +1602,17 @@ namespace lockstep
                             const auto& kit = song().tracks[i].kit;
                             const int qLevel = static_cast<int>(
                                 std::round(std::clamp(perTrack + master, 0.01f, 1.0f) * 100.0f));
-                            const float rerollR = nextRerollR(i, stepNum);
+                            // Reroll cadence: Uniform = per-step hash, Musical/Metric = per-bar hash.
+                            const auto stepsPerBar = (barPpq > 0.0 && divPpq > 0.0)
+                                ? std::max(std::int64_t{ 1 }, static_cast<std::int64_t>(std::round(barPpq / divPpq)))
+                                : std::int64_t{ 1 };
+                            const auto barIndex  = (barPpq > 0.0)
+                                ? static_cast<std::int64_t>(nextTriggerPpq_[i] / barPpq) : std::int64_t{ 0 };
+                            const auto stepInBar = stepNum % stepsPerBar;
+                            const float rerollR =
+                                (kit.densityMusicality == Density::Musicality::Uniform)
+                                    ? Density::rerollPerStep(i, stepNum)
+                                    : Density::rerollPerBar(i, barIndex, stepInBar);
                             fired = Density::densitySurvives(
                                 perTrack, master, ppqInBar, barPpq,
                                 kit.densityMusicality, kit.densitySelection,
@@ -1690,8 +1691,8 @@ namespace lockstep
 
                         if (lookaheadFired)
                         {
-                            // §39 Density gate — same computation as main scan; rerollR
-                            // is memoised so the same stepNum returns the same R value.
+                            // §39 Density gate — same computation as main scan; pure hashes
+                            // guarantee identical r for the same logical step, no memoisation needed.
                             const float perTrack = trackDensity_[i].load(std::memory_order_relaxed);
                             const float master = masterDensity_.load(std::memory_order_relaxed);
                             const double barPpq = section().coreTime.barPpq();
@@ -1699,7 +1700,16 @@ namespace lockstep
                             const auto& kit = song().tracks[i].kit;
                             const int qLevel = static_cast<int>(
                                 std::round(std::clamp(perTrack + master, 0.01f, 1.0f) * 100.0f));
-                            const float rerollR = nextRerollR(i, stepNum);
+                            const auto stepsPerBar = (barPpq > 0.0 && divPpq > 0.0)
+                                ? std::max(std::int64_t{ 1 }, static_cast<std::int64_t>(std::round(barPpq / divPpq)))
+                                : std::int64_t{ 1 };
+                            const auto barIndex  = (barPpq > 0.0)
+                                ? static_cast<std::int64_t>(nextGridPpq / barPpq) : std::int64_t{ 0 };
+                            const auto stepInBar = stepNum % stepsPerBar;
+                            const float rerollR =
+                                (kit.densityMusicality == Density::Musicality::Uniform)
+                                    ? Density::rerollPerStep(i, stepNum)
+                                    : Density::rerollPerBar(i, barIndex, stepInBar);
                             lookaheadFired = Density::densitySurvives(
                                 perTrack, master, ppqInBar, barPpq,
                                 kit.densityMusicality, kit.densitySelection,

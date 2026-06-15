@@ -65,6 +65,35 @@ namespace lockstep::Density
         return h;
     }
 
+    // Pure hash for Reroll cadence — Uniform musicality: one roll per step firing.
+    // Each (track, absolute-step-number) pair produces the same r every time the
+    // step plays in the same loop position, but evolves as stepPos increments.
+    inline float rerollPerStep(std::size_t trackIdx, std::int64_t stepPos) noexcept
+    {
+        auto h = static_cast<uint32_t>(trackIdx) * 0xb5297a4du;
+        h ^= static_cast<uint32_t>(static_cast<uint64_t>(stepPos) * 0x6c62272eull);
+        h ^= h >> 16u;
+        h *= 0x45d9f3bu;
+        h ^= h >> 16u;
+        return static_cast<float>(h % 10000u) / 10000.0f;
+    }
+
+    // Pure hash for Reroll cadence — Musical/Metric musicality: one roll per
+    // (track, bar, step-in-bar) triple. Fixed within a bar, fresh each new bar.
+    // stepInBar = stepNum % stepsPerBar, computed by the caller.
+    inline float rerollPerBar(std::size_t trackIdx,
+                              std::int64_t barIndex,
+                              std::int64_t stepInBar) noexcept
+    {
+        auto h = static_cast<uint32_t>(trackIdx) * 0xb5297a4du;
+        h ^= static_cast<uint32_t>(static_cast<uint64_t>(barIndex) * 0x1b873593ull);
+        h ^= static_cast<uint32_t>(static_cast<uint64_t>(stepInBar) * 0xe654ab55ull);
+        h ^= h >> 16u;
+        h *= 0x45d9f3bu;
+        h ^= h >> 16u;
+        return static_cast<float>(h % 10000u) / 10000.0f;
+    }
+
     // Bias constant: controls how strongly Metric musicality spreads survival
     // probabilities by importance. kBias=0.9 means at low density the downbeat
     // probability approaches 0.9 while the weakest offbeat approaches 0.01.
