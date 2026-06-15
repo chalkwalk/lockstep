@@ -765,11 +765,11 @@ change; ride the scene sticky/floor launch).
 
 | Mode | Behaviour |
 |---|---|
-| **Uniform** | Pure random thinning (all steps equally likely to survive). |
+| **Uniform** | Pure random thinning — all steps equally likely to survive. |
 | **Mixed** | Blends metric weighting and random (default). |
-| **Metric** | Downbeats survive longest; finest offbeats die first. |
+| **Metric** | Importance-weighted: downbeats stay, finest offbeats drop first. Gradual thinning — no abrupt whole-tier cliff. |
 | **Scrub** | Deterministic hash: same knob level always picks the same subset. Turning reshuffles. |
-| **Re-roll** | Live RNG: shimmer varies bar-to-bar; not recallable. |
+| **Re-roll** | Pure hash cadence — Uniform: fresh each step firing; Mixed/Metric: one roll per step-in-bar drawn at the bar boundary. Shimmers bar-to-bar; not recallable. |
 
 **Swing by held scope.** Holding a scope key shows a single `Swing` rotary
 whose value is the **cumulative groove at that scope level** — what you hear:

@@ -4934,17 +4934,20 @@ After `TrigEvaluator::shouldFire` returns true, one final gate runs:
 
 ```
 effective = clamp(per_track_density + master_density, 0.01, 1.00)
-
-Dmetric   = metricDrop(ppqInBar, barPpq)    // 0 = downbeat (survives); 1 = finest offbeat (dies first)
-R         = Scrub:  hash(trackIdx, stepPos, round(effective * 100))
-            Reroll: live per-track xorshift RNG
-
-K         = m * Dmetric + (1 - m) * R       // m = musicalityM(track.musicality)
-survive iff K < effective
+w         = 1 - metricDrop(ppqInBar, barPpq)   // importance: 1 = downbeat, 0 = finest offbeat
+m         = musicalityM(track.musicality)       // 0, 0.5, or 1
+p         = clamp(effective + kBias * m * (2w - 1) * (1 - effective), 0.01, 1)
+R         = see §39.3 (Scrub hash or cadence-aware Reroll hash)
+survive iff R < p
 ```
 
-Expected surviving count ≈ `effective` regardless of `m` and Selection, so
-the knob stays intuitive ("keep about this fraction of trigs").
+`kBias ≈ 0.9` (tunable constexpr in `Density.h`). This model:
+- Preserves the full pattern at `effective = 1` (p = 1 for all steps).
+- Produces pure random thinning at `Uniform` (m = 0, p = effective).
+- At `Metric` (m = 1) drops least-important beats first, gradually —
+  downbeats approach `p ≈ kBias` at low density while the finest offbeats
+  approach `p ≈ 0.01`. Average `p ≈ effective`, so the knob stays honest.
+- R always matters (Scrub ≠ Reroll in every musicality).
 
 **Floor at 1%** — Density is never a second Mute; a fully-closed Density still
 lets the rarest step through. Use `Mute` to silence a track.
@@ -4977,14 +4980,22 @@ are tolerated; the bar PPQ from `coreTime` determines the grid.
 | Selection | Behaviour |
 |---|---|
 | **Scrub** | `densityScrubHash(trackIdx, stepPos, round(effective*100))` — deterministic; same knob level always selects the same subset; turning reshuffles. Recallable. |
-| **Re-roll** | Live per-track xorshift RNG, advanced once per distinct `stepNum` (memoised so the lookahead and main scan agree). Shimmers bar-to-bar; not recallable. |
+| **Re-roll** | Pure hash, cadence depends on Musicality — see below. Evolves; not recallable. |
 
-Scrub hashes must use **different salt constants** than `TrigEvaluator`'s
+**Reroll cadence:**
+- **Uniform** → `rerollPerStep(trackIdx, stepNum)`: fresh each time the step plays;
+  selection evolves every loop iteration.
+- **Mixed / Metric** → `rerollPerBar(trackIdx, barIndex, stepInBar)`: one value per
+  (track, bar, step-in-bar) triple; fixed for a full bar, fresh each new bar. Creates
+  a per-bar filter set that thinly shifts bar-to-bar.
+  `barIndex = floor(firePpq / barPpq)`, `stepInBar = stepNum % stepsPerBar`.
+
+All Reroll hashes are **pure functions** (no mutable RNG state). Main and lookahead
+scans agree automatically since they hash the same inputs.
+
+Scrub and Reroll hashes must use **different salt constants** than `TrigEvaluator`'s
 `deterministicPercent` (salts `2654435761u / 2246822519ull / 0x45d9f3bu`) to
 avoid correlating density selection with which steps barely passed probability.
-
-Under pure **Metric** weighting (m=1), R is moot — Scrub and Re-roll are
-identical (accepted; metric fully determines survival order).
 
 ### 39.4 Two lifetimes
 
