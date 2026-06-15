@@ -65,18 +65,41 @@ namespace lockstep::Density
         return h;
     }
 
+    // Bias constant: controls how strongly Metric musicality spreads survival
+    // probabilities by importance. kBias=0.9 means at low density the downbeat
+    // probability approaches 0.9 while the weakest offbeat approaches 0.01.
+    // Tunable without changing the API.
+    inline constexpr float kBias = 0.9f;
+
     // Returns true if the trig should survive the density gate.
-    //   perTrack         — per-track density amount [0.01..1.0] (default 1.0 = full)
+    //
+    // Model: importance sets a per-step survival probability; r (the selection
+    // value) is always compared against it. This separates Scrub (deterministic
+    // r) from Reroll (cadence-aware r) in all musicality modes, and produces
+    // gradual metric thinning via per-step randomness rather than hard tiers.
+    //
+    //   effective = clamp(perTrack + master, 0.01, 1)
+    //   w  = 1 - metricDrop(ppqInBar, barPpq)     // importance: downbeat=1
+    //   m  = musicalityM(musicality)               // 0, 0.5, 1
+    //   p  = clamp(effective + kBias * m * (2w-1) * (1-effective), 0.01, 1)
+    //   survive = (r < p)
+    //
+    // Properties:
+    //   effective=1 → p=1 for all steps (full pattern preserved).
+    //   Uniform (m=0) → p=effective (pure random thinning).
+    //   Metric (m=1), decreasing density → downbeats survive longest,
+    //     weakest offbeats drop first. Average p ≈ effective (honest knob).
+    //
+    //   perTrack         — per-track density amount [0.01..1.0] (default 1.0)
     //   master           — signed master offset [-1.0..1.0] (default 0.0)
-    //   ppqInBar         — step's PPQ position within the bar (grid PPQ, not swing-shifted)
+    //   ppqInBar         — step's PPQ position within the bar (grid PPQ)
     //   barPpq           — bar length in PPQ from the active scene's coreTime
     //   musicality       — Uniform / Mixed / Metric
     //   selection        — Scrub / Reroll
     //   trackIdx         — track index (for hash decoration)
-    //   stepPos          — track-local absolute step counter (for hash)
-    //   quantizedKnobLevel — round(effective * 100), pre-computed by caller so
-    //                        turning the knob reshuffles the Scrub selection
-    //   rerollR          — caller-supplied RNG value in [0,1) for Reroll mode
+    //   stepPos          — track-local absolute step counter (for Scrub hash)
+    //   quantizedKnobLevel — round(effective * 100); Scrub re-scrambles on change
+    //   rerollR          — caller-supplied value in [0,1) for Reroll mode
     inline bool densitySurvives(float perTrack, float master,
                                 double ppqInBar, double barPpq,
                                 Musicality musicality, DensitySelection selection,
@@ -85,8 +108,10 @@ namespace lockstep::Density
     {
         const float effective = std::clamp(perTrack + master, 0.01f, 1.0f);
         const float m = musicalityM(musicality);
-
-        const float dMetric = (m > 0.0f) ? metricDrop(ppqInBar, barPpq) : 0.0f;
+        const float w = 1.0f - ((m > 0.0f) ? metricDrop(ppqInBar, barPpq) : 0.0f);
+        const float p = std::clamp(
+            effective + kBias * m * (2.0f * w - 1.0f) * (1.0f - effective),
+            0.01f, 1.0f);
 
         float r;
         if (selection == DensitySelection::Scrub)
@@ -99,8 +124,7 @@ namespace lockstep::Density
             r = rerollR;
         }
 
-        const float k = (m * dMetric) + ((1.0f - m) * r);
-        return k < effective;
+        return r < p;
     }
 
 } // namespace lockstep::Density

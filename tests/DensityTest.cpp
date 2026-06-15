@@ -145,10 +145,9 @@ namespace lockstep
 
     static void testSurvivingCountMetric()
     {
-        // Metric mode changes *which* steps survive, not necessarily the exact count.
-        // With a uniform 16th grid, Dmetric is discrete (0, 0.33, 0.67, 1.0), so the
-        // surviving fraction is not proportional to effective at all knob positions.
-        // Verify the count is non-zero and non-trivial (not all-or-nothing).
+        // Metric mode changes *which* steps survive based on metric importance.
+        // With the importance→probability model, average p ≈ effective across the grid.
+        // Verify the count is non-zero, non-trivial, and close to the expected average.
         constexpr int kSteps = 10000;
         constexpr float kEffective = 0.5f;
         constexpr double kBarPpq = 1920.0;
@@ -167,11 +166,81 @@ namespace lockstep
                 ++survived;
             }
         }
-        // With a 16th grid and effective=0.5, only downbeats and quarter-beats survive
-        // (Dmetric < 0.5 for 4 of 16 slots) = ~25%. The key invariant is non-zero and
-        // not trivially all-surviving.
-        CHECK(survived > 0 && survived < kSteps,
-              "densitySurvives Metric: some steps survive, some don't (non-trivial gate)");
+        // Average p ≈ effective = 0.5, so expect roughly 30–70% survival.
+        CHECK(survived > 3000 && survived < 7000,
+              "densitySurvives Metric: survival count near effective average");
+    }
+
+    // Regression guard: Scrub and Reroll must produce different surviving sets
+    // in Metric mode. Pre-fix, the selection value had zero weight at m=1, so
+    // both modes produced identical results (the zero-weight bug).
+    static void testMetricScrubVsRerollDiffer()
+    {
+        constexpr float kEffective = 0.5f;
+        constexpr double kBarPpq = 1920.0;
+        constexpr double kSixteenth = kBarPpq / 16.0;
+        const int qLevel = static_cast<int>(std::round(kEffective * 100.0f));
+
+        int sameCount = 0;
+        constexpr int kTrials = 500;
+        for (int i = 0; i < kTrials; ++i)
+        {
+            const double ppqInBar = kSixteenth * static_cast<double>(i % 16);
+            const float rerollR = static_cast<float>(i % 997) / 997.0f;
+            const auto ti = static_cast<std::size_t>(i);
+            const auto si = static_cast<std::int64_t>(i);
+
+            const bool scrub  = densitySurvives(kEffective, 0.0f, ppqInBar, kBarPpq,
+                                                Musicality::Metric, DensitySelection::Scrub,
+                                                ti, si, qLevel, rerollR);
+            const bool reroll = densitySurvives(kEffective, 0.0f, ppqInBar, kBarPpq,
+                                                Musicality::Metric, DensitySelection::Reroll,
+                                                ti, si, qLevel, rerollR);
+            if (scrub == reroll) { ++sameCount; }
+        }
+        // The Scrub r comes from a hash; rerollR is an independent sequence.
+        // Expect significant disagreement (not 100% same = not the old zero-weight bug).
+        CHECK(sameCount < kTrials,
+              "densitySurvives Metric: Scrub and Reroll produce different selections");
+    }
+
+    // Gradual thinning: as density decreases from 1, offbeats drop before downbeats.
+    // Specifically at effective=0.1, very few sixteenth offbeats survive but a healthy
+    // fraction of downbeats do — no whole-tier cliff.
+    static void testMetricGradualThinning()
+    {
+        constexpr double kBarPpq = 1920.0;
+        constexpr double kSixteenth = kBarPpq / 16.0;
+        constexpr int kTrials = 1000;
+
+        auto countSurvived = [&](float effective, double ppqInBar) -> int {
+            const int qLevel = static_cast<int>(std::round(effective * 100.0f));
+            int count = 0;
+            for (int i = 0; i < kTrials; ++i)
+            {
+                const auto ti = static_cast<std::size_t>(i * 7 + 3);
+                const auto si = static_cast<std::int64_t>(i);
+                const float rerollR = static_cast<float>(i % 997) / 997.0f;
+                if (densitySurvives(effective, 0.0f, ppqInBar, kBarPpq,
+                                    Musicality::Metric, DensitySelection::Scrub,
+                                    ti, si, qLevel, rerollR))
+                {
+                    ++count;
+                }
+            }
+            return count;
+        };
+
+        // At low density (0.15), downbeats survive far more than sixteenth offbeats.
+        const int downbeat  = countSurvived(0.15f, 0.0);               // w=1
+        const int sixteenth = countSurvived(0.15f, 1.0 * kSixteenth);  // w=0
+
+        CHECK(downbeat > sixteenth * 3,
+              "gradual thinning: downbeats survive significantly more than finest offbeats at low density");
+        CHECK(downbeat > 0,
+              "gradual thinning: downbeats still survive at density=0.15");
+        CHECK(sixteenth < kTrials,
+              "gradual thinning: sixteenth offbeats are thinned at density=0.15");
     }
 
     static void testFloorAndCeiling()
@@ -282,6 +351,8 @@ namespace lockstep
         testFloorAndCeiling();
         testMetricModeOrdering();
         testMasterOffset();
+        testMetricScrubVsRerollDiffer();
+        testMetricGradualThinning();
     }
 
 } // namespace lockstep
