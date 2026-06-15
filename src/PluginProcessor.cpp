@@ -1598,6 +1598,14 @@ namespace lockstep
                         if (fired)
                         {
                             // §39 Density gate — subtractive, downstream of all conditions.
+                            // Exempt tracks skip the gate entirely (master + per-track ignored).
+                            const auto& kitRef = song().tracks[i].kit;
+                            if (kitRef.densitySelection == Density::DensitySelection::Exempt)
+                            {
+                                // fired stays true — fall through to emit
+                            }
+                            else
+                            {
                             const float perTrack = trackDensity_[i].load(std::memory_order_relaxed);
                             const float master = masterDensity_.load(std::memory_order_relaxed);
                             const double barPpq = section().coreTime.barPpq();
@@ -1674,6 +1682,7 @@ namespace lockstep
                                     kit.densityMusicality, kit.densitySelection,
                                     i, stepNum, qLevel, rerollR);
                             }
+                            } // end else (not Exempt)
                         }
 
                         if (fired)

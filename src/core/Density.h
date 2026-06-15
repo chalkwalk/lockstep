@@ -13,9 +13,11 @@
 
 namespace lockstep::Density
 {
-    // Durable per-song-per-track settings (serialized in TrackKit, v19).
+    // Durable per-song-per-track settings (serialized in TrackKit, v19+).
     enum class Musicality : uint8_t { Uniform, Mixed, Metric };
-    enum class DensitySelection : uint8_t { Scrub, Reroll };
+    // Scrub / Reroll: selection modes.  Exempt: track bypasses the density gate entirely.
+    // Add-only — serialized as uint8; never renumber or remove.
+    enum class DensitySelection : uint8_t { Scrub, Reroll, Exempt };
 
     inline float musicalityM(Musicality m) noexcept
     {

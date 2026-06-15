@@ -555,20 +555,22 @@ namespace lockstep
             if (trackIdx >= static_cast<int>(kNumTracks)) { break; }
             const float perTrack = proc.trackDensity(trackIdx);
             const float effective = juce::jlimit(0.01f, 1.0f, perTrack + master);
+            const bool exempt = (proc.kit(trackIdx).densitySelection == Density::DensitySelection::Exempt);
             auto& v = result[static_cast<std::size_t>(i)];
-            v.active = true;
-            v.label = "T" + juce::String(trackIdx + 1);
+            v.active   = true;
+            v.label    = "T" + juce::String(trackIdx + 1);
             v.minValue = 0.0f;
             v.maxValue = 100.0f;
-            v.value = perTrack * 100.0f;
-            v.stepped = false;
-            v.writable = true;
-            v.hasOverride = (perTrack != 1.0f || master != 0.0f);
-            v.valueText = juce::String(juce::roundToInt(effective * 100.0f)) + "%";
-            v.ringMode = RingMode::UnipolarFill;
-            v.densityCell = true;
+            v.value    = perTrack * 100.0f;
+            v.stepped  = false;
+            v.writable = !exempt;
+            v.hasOverride = !exempt && (perTrack != 1.0f || master != 0.0f);
+            v.valueText   = exempt ? "EXMT"
+                                   : (juce::String(juce::roundToInt(effective * 100.0f)) + "%");
+            v.ringMode    = RingMode::UnipolarFill;
+            v.densityCell = !exempt;
             v.densityMasterOffset = master;
-            v.densityEffective = effective;
+            v.densityEffective    = exempt ? 1.0f : effective;
         }
         return result;
     }
@@ -590,22 +592,23 @@ namespace lockstep
             if (trackIdx >= static_cast<int>(kNumTracks)) { break; }
             const auto& kit = proc.kit(trackIdx);
             const int musVal = static_cast<int>(kit.densityMusicality);
+            const bool exempt = (kit.densitySelection == Density::DensitySelection::Exempt);
             auto& v = result[static_cast<std::size_t>(i)];
-            v.active = true;
-            v.label = "T" + juce::String(trackIdx + 1);
+            v.active   = true;
+            v.label    = "T" + juce::String(trackIdx + 1);
             v.minValue = 0.0f;
             v.maxValue = 2.0f;
-            v.value = static_cast<float>(musVal);
-            v.stepped = true;
-            v.writable = true;
-            v.hasOverride = (kit.densityMusicality != Density::Musicality::Mixed);
-            v.valueText = juce::String(musLabels[musVal]);
-            v.ringMode = RingMode::Dot;
+            v.value    = static_cast<float>(musVal);
+            v.stepped  = true;
+            v.writable = !exempt;
+            v.hasOverride = !exempt && (kit.densityMusicality != Density::Musicality::Mixed);
+            v.valueText   = exempt ? "EXMT" : juce::String(musLabels[musVal]);
+            v.ringMode    = RingMode::Dot;
         }
         return result;
     }
 
-    // §39 DensitySelection band — Scrub vs Re-roll (2-state stepped) per track.
+    // §39 DensitySelection band — Scrub / Re-roll / Exempt (3-state) per track.
     static std::array<MetaFieldView, 8> buildDensitySelectionBand(LockstepProcessor& proc,
                                                                    const UiState& ui,
                                                                    int focusedTrack)
@@ -619,17 +622,22 @@ namespace lockstep
             const int trackIdx = pageOffset + i;
             if (trackIdx >= static_cast<int>(kNumTracks)) { break; }
             const auto& kit = proc.kit(trackIdx);
-            const bool isReroll = (kit.densitySelection == Density::DensitySelection::Reroll);
+            const int selVal = static_cast<int>(kit.densitySelection);
             auto& v = result[static_cast<std::size_t>(i)];
-            v.active = true;
-            v.label = "T" + juce::String(trackIdx + 1);
+            v.active   = true;
+            v.label    = "T" + juce::String(trackIdx + 1);
             v.minValue = 0.0f;
-            v.maxValue = 1.0f;
-            v.value = isReroll ? 1.0f : 0.0f;
-            v.stepped = true;
+            v.maxValue = 2.0f;
+            v.value    = static_cast<float>(selVal);
+            v.stepped  = true;
             v.writable = true;
-            v.hasOverride = isReroll;
-            v.valueText = isReroll ? "RROL" : "SCRB";
+            v.hasOverride = (kit.densitySelection != Density::DensitySelection::Scrub);
+            switch (kit.densitySelection)
+            {
+                case Density::DensitySelection::Scrub:  v.valueText = "SCRB"; break;
+                case Density::DensitySelection::Reroll: v.valueText = "RROL"; break;
+                case Density::DensitySelection::Exempt: v.valueText = "EXMT"; break;
+            }
             v.ringMode = RingMode::Dot;
         }
         return result;
@@ -889,15 +897,17 @@ namespace lockstep
             }
 
             case MetaBand::DensitySelection: {
-                // Selection sub-page: value 0 = Scrub, 1 = Re-roll.
+                // Selection sub-page: value 0 = Scrub, 1 = Re-roll, 2 = Exempt.
                 if (field >= 0 && field < 8)
                 {
                     const int page = ui.densityStickyMode ? ui.densityBank : ((track >= 8) ? 1 : 0);
                     const int trackIdx = page * 8 + field;
                     if (trackIdx < static_cast<int>(kNumTracks))
-                        proc.kit(trackIdx).densitySelection = (value >= 0.5f)
-                            ? Density::DensitySelection::Reroll
-                            : Density::DensitySelection::Scrub;
+                    {
+                        const int clampedVal = juce::jlimit(0, 2, juce::roundToInt(value));
+                        proc.kit(trackIdx).densitySelection =
+                            static_cast<Density::DensitySelection>(clampedVal);
+                    }
                 }
                 break;
             }

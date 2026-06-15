@@ -1202,7 +1202,7 @@ namespace lockstep
                     if (ui.densitySubPage == SP::Musicality)
                         ctx = "DENSITY  Musicality  |  turn = Unif / Mix / Metric  FX = selection";
                     else if (ui.densitySubPage == SP::Selection)
-                        ctx = "DENSITY  Selection  |  turn = Scrub / Re-roll  FX = amount";
+                        ctx = "DENSITY  Selection  |  turn = Scrub / Re-roll / Exempt  FX = amount";
                     else
                         ctx = "DENSITY  Amount  |  nav = bank  Song = master  FX = musicality";
                 }
