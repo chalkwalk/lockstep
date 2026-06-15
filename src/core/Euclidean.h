@@ -37,6 +37,20 @@ namespace lockstep
         return result;
     }
 
+    // euclidHit — O(1) membership test mirroring bjorklund's formula + rotation.
+    // Returns true iff position `pos` is an onset in bjorklund(length, pulses, offset).
+    // Safe to call on the audio thread — no allocation.
+    inline bool euclidHit(int pos, int length, int pulses, int offset = 0) noexcept
+    {
+        if (length <= 0 || pulses <= 0) return false;
+        if (pulses >= length) return true;
+        int rot = offset % length;
+        if (rot < 0) rot += length;
+        int pmod = ((pos % length) + length) % length;
+        int q = (pmod - rot + length) % length;
+        return (q * pulses) % length < pulses;
+    }
+
     // euclideanAccents — assign velocities to an Euclidean pattern.
     // Returns a vector<int> of velocities for each step:
     //   0   = rest

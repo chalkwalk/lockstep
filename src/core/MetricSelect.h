@@ -9,39 +9,53 @@
 // MetricSelect — deterministic Scrub density selection (DESIGN §39).
 // JUCE-free, header-only, pure — all functions are stateless and testable.
 //
-// Implements the tier+Euclid model:
-//   T = round(effective * N)   — target survivor count over the bar grid
-//   P = round(m * T)           — count protected by metric importance
+// Implements the fully-deterministic tier+Euclid model (no per-step hash):
 //
-//   survive(s) =
-//     metricMask[P] bit s      — s in the top-P metric set → keep
-//     OR hashFrac < (T−P)/(N−P) — else uniform fill over the remainder
+//   effective = clamp(perTrack + master, 0.01, 1)
+//   off       = densityScrubHash(track, 0, 0)   // fixed per-track rotation
 //
-// The metric mask for T is built by filling importance tiers strongest-first;
-// when a tier is partially needed, bjorklund(tierSize, k) evenly spreads
-// the k slots. This is recomputed per density level — monotonic membership
-// is NOT a goal; uniform spread at each count is.
+//   Uniform  (whole loop, period L):
+//     Tl = round(effective * L)
+//     survive(loopPos) = euclidHit(loopPos, L, Tl, off)
+//
+//   Metric   (global bar, period N):
+//     T = round(effective * N)
+//     survive(barStep) = metric[T] bit barStep   // tier+Euclid, no rotation
+//
+//   Mixed    (global bar, period N):
+//     T = round(effective * N);  P = round(0.5 * T)
+//     survive(barStep) = mixed[T] bit barStep
+//       where mixed[T] = metric[P]               // protect top-P (no rotation)
+//                      | euclidFill(unprotected, T-P, off)  // even fill, rotated
 
 namespace lockstep::MetricSelect
 {
-    // Precomputed per-bar table. mask[T] is a uint64_t where bit s is set iff
-    // step-in-bar position s is in the metric-importance top-T set.
+    // Precomputed per-bar table.
+    //   metric[T] — bit s set iff step s is in the metric-importance top-T set.
+    //   mixed[T]  — bit s set iff step s survives at target T in Mixed musicality:
+    //               the top-P=round(0.5T) positions from metric[P], plus a
+    //               per-track-rotated Euclidean fill of T-P positions from the rest.
     // n is the step count the table was built for (0 = uninitialized).
     struct Table
     {
         int n = 0;
-        std::array<std::uint64_t, 65> mask{};
+        std::array<std::uint64_t, 65> metric{};
+        std::array<std::uint64_t, 65> mixed{};
     };
 
     // Build a Table from per-position metric weights.
     // weights[i] = MetricGrid::metricWeight(...) for position i (i in 0..n-1).
+    // trackOffset = fixed per-track rotation for the Mixed fill (and Uniform, handled
+    //   at call site via euclidHit). Use densityScrubHash(track, 0, 0).
     // n must be in [1, 64]; returns a zeroed Table for invalid n.
-    inline Table build(const std::array<float, 64>& weights, int n)
+    inline Table build(const std::array<float, 64>& weights, int n,
+                       int trackOffset = 0)
     {
         Table t;
         if (n <= 0 || n > 64) return t;
         t.n = n;
-        t.mask[0] = 0;
+        t.metric[0] = 0;
+        t.mixed[0]  = 0;
 
         struct WP { float w; int pos; };
         std::array<WP, 64> wp{};
@@ -52,6 +66,7 @@ namespace lockstep::MetricSelect
         std::stable_sort(wp.begin(), wp.begin() + n,
                          [](const WP& a, const WP& b) { return a.w > b.w; });
 
+        // --- metric[] ---
         for (int T = 1; T <= n; ++T)
         {
             std::uint64_t mask = 0;
@@ -59,7 +74,6 @@ namespace lockstep::MetricSelect
             int i = 0;
             while (i < n && accumulated < T)
             {
-                // Identify the extent of this tier (all positions with the same weight).
                 const float tierW = wp[static_cast<std::size_t>(i)].w;
                 const int tierStart = i;
                 while (i < n && wp[static_cast<std::size_t>(i)].w == tierW) ++i;
@@ -68,63 +82,81 @@ namespace lockstep::MetricSelect
 
                 if (tierSize <= need)
                 {
-                    // Whole tier fits — include all positions in this tier.
                     for (int j = tierStart; j < i; ++j)
                         mask |= (std::uint64_t(1) << wp[static_cast<std::size_t>(j)].pos);
                     accumulated += tierSize;
                 }
                 else
                 {
-                    // Boundary tier: select `need` of `tierSize` via Euclidean distribution.
-                    // Per-count recompute — spread uniformity at each density matters more
-                    // than monotonic add/remove across density levels.
+                    // Boundary tier: select `need` of `tierSize` via Euclidean spread.
+                    // No rotation on the metric mask — downbeat must stay at step 0.
                     const auto euclid = bjorklund(tierSize, need);
                     for (int j = 0; j < tierSize; ++j)
-                    {
                         if (euclid[static_cast<std::size_t>(j)])
                             mask |= (std::uint64_t(1) << wp[static_cast<std::size_t>(tierStart + j)].pos);
-                    }
                     accumulated += need;
                 }
             }
-            t.mask[static_cast<std::size_t>(T)] = mask;
+            t.metric[static_cast<std::size_t>(T)] = mask;
+        }
+
+        // --- mixed[] ---
+        // For each T, protect the top P = round(0.5*T) positions via metric[P],
+        // then fill the remaining T-P slots from the unprotected positions using
+        // bjorklund(n-P, T-P, trackOffset) — even and rotated per track.
+        for (int T = 1; T <= n; ++T)
+        {
+            const int P = static_cast<int>(std::round(0.5f * static_cast<float>(T)));
+            const std::uint64_t metricP = t.metric[static_cast<std::size_t>(P)];
+
+            // Collect positions not in metric[P], ascending.
+            std::array<int, 64> remaining{};
+            int remCount = 0;
+            for (int s = 0; s < n; ++s)
+                if (!(metricP & (std::uint64_t(1) << s)))
+                    remaining[static_cast<std::size_t>(remCount++)] = s;
+
+            std::uint64_t mixedMask = metricP;
+            const int fill = T - P;
+            if (fill > 0 && remCount > 0)
+            {
+                const auto euclid = bjorklund(remCount, std::min(fill, remCount), trackOffset);
+                for (int j = 0; j < remCount; ++j)
+                    if (euclid[static_cast<std::size_t>(j)])
+                        mixedMask |= (std::uint64_t(1) << remaining[static_cast<std::size_t>(j)]);
+            }
+            t.mixed[static_cast<std::size_t>(T)] = mixedMask;
         }
 
         return t;
     }
 
-    // Deterministic Scrub survival decision.
-    // stepInBar — position within the bar's grid [0, n).
-    // T         — target survivor count = round(effective * n).
-    // P         — metric-protected count = round(m * T).
-    // hash      — Density::densityScrubHash(track, stepPos, qLevel).
-    //
-    // Boundary behaviour:
-    //   Uniform (P=0): purely hash < T/N — identical to old Scrub-uniform.
-    //   Metric  (P=T): purely metricMask[T] — tier+Euclid, no hash.
-    //   Mixed   (P=T/2): top T/2 protected, remainder hash-filled at (T-P)/(N-P).
-    inline bool scrubSurvives(const Table& t, int stepInBar, int n, int T, int P,
-                               std::uint32_t hash) noexcept
+    // --- Survival helpers for each Scrub musicality ---
+
+    // Metric: step survives iff it is in the metric-importance top-T set.
+    inline bool metricSurvives(const Table& t, int barStep, int T) noexcept
     {
-        if (n <= 0) return true;
-        T = std::clamp(T, 0, n);
-        P = std::clamp(P, 0, T);
-        if (stepInBar < 0 || stepInBar >= n) return false;
+        if (t.n <= 0 || barStep < 0 || barStep >= t.n) return false;
+        T = std::clamp(T, 0, t.n);
         if (T == 0) return false;
+        return (t.metric[static_cast<std::size_t>(T)] & (std::uint64_t(1) << barStep)) != 0;
+    }
 
-        // Metric-protected set: check mask[P].
-        if (P > 0)
-        {
-            const std::uint64_t bit = std::uint64_t(1) << stepInBar;
-            if (t.mask[static_cast<std::size_t>(P)] & bit) return true;
-        }
+    // Mixed: top-P metric-protected positions always kept; the rest filled by a
+    // per-track-rotated Euclidean spread. Exactly T survivors over N positions.
+    inline bool mixedSurvives(const Table& t, int barStep, int T) noexcept
+    {
+        if (t.n <= 0 || barStep < 0 || barStep >= t.n) return false;
+        T = std::clamp(T, 0, t.n);
+        if (T == 0) return false;
+        return (t.mixed[static_cast<std::size_t>(T)] & (std::uint64_t(1) << barStep)) != 0;
+    }
 
-        // Hash fills the uniform remainder.
-        const int hashNumer = T - P;
-        const int hashDenom = n - P;
-        if (hashNumer <= 0 || hashDenom <= 0) return false;
-        const float hashFrac = static_cast<float>(hash % 10000u) / 10000.0f;
-        return hashFrac < static_cast<float>(hashNumer) / static_cast<float>(hashDenom);
+    // Uniform: O(1) Euclidean membership test over the whole loop (period L).
+    // loopPos in [0, L); Tl = round(effective * L); offset = fixed per-track rotation.
+    inline bool uniformSurvives(int loopPos, int L, int Tl, int offset) noexcept
+    {
+        return euclidHit(loopPos, L, Tl, offset);
     }
 
 } // namespace lockstep::MetricSelect
