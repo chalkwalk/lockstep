@@ -501,7 +501,7 @@ namespace lockstep
             }
             else if (isReservedMeta(s))
                 c.funcHint = {};
-            else if (ui.funcHeld)
+            else if (ui.funcHeld && !kl.hint.isEmpty())
             {
                 c.primary = kl.hint;   // e.g. TRIG→COND, SRC→NOTE, FILTER→TRACK
                 c.funcHint = {};

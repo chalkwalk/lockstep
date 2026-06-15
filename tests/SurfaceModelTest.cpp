@@ -399,6 +399,48 @@ namespace lockstep
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Test: density-sticky + Func held — FX key primary must be non-empty.
+    // Regression guard for the jassert(c.disabled || !c.primary.isEmpty()) crash:
+    // density-sticky repurposes the FX key with a non-empty primary and empty hint;
+    // the SurfaceModel Func-promotion guard must not overwrite primary with the
+    // empty hint when Func is held.
+    // -------------------------------------------------------------------------
+    static void testDensityStickyFuncInvariant()
+    {
+        const KeyDef kdFx{
+            KeyRole::SectionKey,
+            "FX",   // natural
+            "",     // funcLayer — empty (FX reserved slot, no meta label)
+            5, true // sectionIdx=5, machineHasSection=true
+        };
+
+        // density-sticky + Func: FX key shows sub-page cycle label (not empty)
+        {
+            auto ui = makeUiState();
+            ui.densityStickyMode = true;
+            ui.funcHeld = true;
+            ui.densitySubPage = UiState::DensitySubPage::Amount;
+            const auto ec = makeEditContext();
+            const auto kl = resolveKeyLabel(kdFx, ui, ec);
+            CHECK(!kl.primary.isEmpty(),
+                  "density-sticky+Func: FX key primary must not be empty");
+            CHECK(!kl.disabled,
+                  "density-sticky+Func: FX key must not be disabled");
+        }
+
+        // density-sticky alone (no Func): same invariant
+        {
+            auto ui = makeUiState();
+            ui.densityStickyMode = true;
+            ui.densitySubPage = UiState::DensitySubPage::Musicality;
+            const auto ec = makeEditContext();
+            const auto kl = resolveKeyLabel(kdFx, ui, ec);
+            CHECK(!kl.primary.isEmpty(),
+                  "density-sticky: FX key primary must not be empty");
+        }
+    }
+
     void runSurfaceModelTests()
     {
         testPanicKeyLabel();
@@ -410,6 +452,7 @@ namespace lockstep
         testScopedSectionMatrixCanonical();
         testPendingConfirmBindings();
         testScopeTintBindings();
+        testDensityStickyFuncInvariant();
     }
 
 } // namespace lockstep
