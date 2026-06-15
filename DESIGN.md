@@ -5012,46 +5012,64 @@ continuously-evolving random subset shaped by the metric probability curve.
 
 #### 39.3a Deterministic Scrub model (MetricSelect)
 
-Scrub ignores the `r < p` formula entirely. Instead, for each density level it
-computes an **exact integer target survivor count** and fills it tier-by-tier:
+Scrub ignores the `r < p` formula entirely. It is **fully deterministic and loop-stable**
+— no per-step hash, no stochastic element. A fixed per-track rotation seed
+(`off = densityScrubHash(track, 0, 0)`) de-correlates same-density tracks without
+any loop-to-loop reshuffling.
+
+Each musicality mode is independent:
 
 ```
-N         = stepsPerBar                          // grid positions per bar
 effective = clamp(per_track + master, 0.01, 1)
-T         = round(effective * N)                 // exact target count
-m         = musicalityM(musicality)              // 0 / 0.5 / 1
-P         = round(m * T)                         // metric-protected count
+off       = densityScrubHash(track, 0, 0)        // fixed per-track rotation
 
-survive(s) =
-    metricMask[P] bit s                          // s in top-P metric set → keep
-    OR  hashFrac(s) < (T − P) / (N − P)          // else uniform fill for remainder
+Uniform  (whole loop, period L = track length in steps):
+    Tl = round(effective * L)
+    survive(loopPos) = euclidHit(loopPos, L, Tl, off)   // even, rotated
+
+Metric   (global bar, period N = stepsPerBar):
+    T = round(effective * N)
+    survive(barStep) = metric[T] bit barStep             // tier+Euclid, no rotation
+
+Mixed    (global bar, period N):
+    T = round(effective * N);  P = round(0.5 * T)
+    survive(barStep) = mixed[T] bit barStep
+      metric-protected core: mixed[T] ⊇ metric[P]       // top-P always kept
+      even fill: bjorklund(N−P, T−P, off) on unprotected positions
 ```
 
-`hashFrac(s) = densityScrubHash(track, s, round(effective*100)) % 10000 / 10000.0`
+**Loop scope:** Metric and Mixed lock to the **global bar** (mask indexed by
+bar-local step → identical across bars for the same density). Uniform spans the
+**whole track** (period = track length) so it may vary bar-to-bar within a long
+loop but repeats exactly every loop.
 
-**Boundary behaviour (all three musicalities derive from one formula):**
+**Per-musicality behaviour:**
 
-| Musicality | m | P | Result |
+| Musicality | Period | De-correlation | Result |
 |---|---|---|---|
-| Uniform | 0 | 0 | Pure hash: `hashFrac < T/N = effective` — identical to old Scrub-Uniform. |
-| Metric | 1 | T | Pure metric mask: tier+Euclid only; hash branch unreachable. |
-| Mixed | 0.5 | T/2 | Top T/2 by metric importance, remaining T/2 hash-filled at adjusted density (T−P)/(N−P). |
+| Uniform | track length | per-track `off` rotation | Even spread over whole loop; same pattern every loop. |
+| Metric | bar | none (downbeat anchored at step 0) | Clean tier-by-tier Euclid thinning; downbeats outlast backbeats outlast offbeats. |
+| Mixed | bar | per-track `off` rotation on fill | Metric core always kept; remainder filled by even Euclid, rotated per track. |
 
 **Metric mask construction (`MetricSelect::build`, `src/core/MetricSelect.h`):**
 
-For each target count `T` from 0 to N:
+For each target count `T` from 0 to N, `Table::metric[T]` is computed:
 1. Sort bar positions by descending `MetricGrid::metricWeight`. Equal-weight positions
    form a **tier**; positions within a tier retain their index order.
 2. Walk tiers strongest-first, accumulating the survivor set.
 3. When a tier would overflow the target (boundary tier, M positions, k more needed):
    select k positions using `bjorklund(M, k)` — evenly distributed over the tier.
-4. Store as a `uint64_t` bitmask `mask[T]`.
+4. Store as a `uint64_t` bitmask `metric[T]`.
+
+**Mixed mask construction:** For each T, `Table::mixed[T]` = `metric[P]` (P=round(0.5T))
+ORed with `bjorklund(N−P, T−P, off)` mapped onto the ascending list of positions absent
+from `metric[P]`. Count-honest: exactly T survivors.
 
 **Per-count Euclid, not drop-point Euclid.** `bjorklund(M, k)` is recomputed at each
 density level independently. A position may be present at T, absent at T+1, present at
 T+2 — this is by design. Even spread at each count matters more than monotonic add/remove.
 
-The table is a pure function of (numerator, denominator, stepsPerBar). It is
+The table is a pure function of (numerator, denominator, stepsPerBar, trackOffset). It is
 precomputed into a per-track `DensityTableCache` in `PluginProcessor` and rebuilt only
 when the meter or track divider changes (O(N²) over N≤64).
 

@@ -769,7 +769,7 @@ change; ride the scene sticky/floor launch).
 | **Uniform** | Pure random thinning — all steps equally likely to survive. |
 | **Mixed** | Blends metric weighting and random (default). |
 | **Metric** | Importance-weighted using Lerdahl–Jackendoff dot-counts: downbeats stay, finest offbeats drop first. Works correctly in any time signature (3/4, 6/8, 7/8, 9/8, …). Gradual thinning — no abrupt whole-tier cliff. |
-| **Scrub** | Deterministic tier+Euclid: targets an exact integer count, fills metric importance tiers strongest-first, and uses the Euclidean algorithm for even spread within the partially-included boundary tier. Uniform = pure hash at the effective density. Mixed = top half metric-protected, bottom half hash-filled at adjusted density. Metric = pure tier+Euclid. Same knob level always selects the same set; turning reshuffles. Recallable. |
+| **Scrub** | Fully deterministic, loop-stable, hash-free. Each track gets a fixed rotation offset so same-density tracks land on different steps. **Uniform**: even Euclidean spread across the whole loop length; exact same pattern every play-through. **Metric**: clean tier-by-tier Euclid thinning over the bar — downbeats outlast backbeats outlast offbeats. **Mixed**: metric core always kept, remainder filled with an even Euclidean spread. Recallable; turning the knob reshuffles. |
 | **Re-roll** | Stochastic (r < p formula). Uniform: fresh roll each step firing. Mixed/Metric: one roll per step-in-bar drawn at the bar boundary, shifting bar-to-bar. Not recallable. |
 
 **Swing by held scope.** Holding a scope key shows a single `Swing` rotary
