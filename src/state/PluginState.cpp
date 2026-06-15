@@ -1,5 +1,6 @@
 #include "PluginState.h"
 #include "StateKeys.h"
+#include "../core/Subdivision.h"
 #include "../PluginProcessor.h"
 #include "../core/Phrase.h"
 #include "../core/Song.h"
@@ -1501,6 +1502,38 @@ namespace lockstep::PluginState
         return v19;
     }
 
+    static juce::ValueTree upgrade_v19_to_v20(const juce::ValueTree& v19)
+    {
+        // v20: kDiv in Kit nodes changes from old int divider (1-16, PPQ = 0.25*d)
+        // to the combined subdivision index (0-26, see Subdivision.h).
+        // Remap each Kit node's "div" property to the nearest musical subdivision.
+        // New vel fields (vMd/vBl/vDp/vCt) default-read; no migration needed.
+        juce::ValueTree v20 = v19.createCopy();
+        v20.setProperty(keys::kVersion, 20, nullptr);
+
+        // Walk the entire tree to remap Kit nodes wherever they appear.
+        std::function<void(juce::ValueTree&)> remapKits = [&](juce::ValueTree& node)
+        {
+            if (node.getType() == juce::Identifier(keys::kKit))
+            {
+                const int oldDiv = static_cast<int>(node.getProperty(keys::kDiv, 1));
+                const double oldPpq = 0.25 * static_cast<double>(oldDiv);
+                const int newIdx = nearestSubdivIndex(oldPpq);
+                if (newIdx == kSubdivDefault)
+                    node.removeProperty(keys::kDiv, nullptr); // omit default
+                else
+                    node.setProperty(keys::kDiv, newIdx, nullptr);
+            }
+            for (int ci = 0; ci < node.getNumChildren(); ++ci)
+            {
+                auto child = node.getChild(ci);
+                remapKits(child);
+            }
+        };
+        remapKits(v20);
+        return v20;
+    }
+
     juce::ValueTree applyUpgrades(juce::ValueTree tree)
     {
         // Determine the version. v0 has root type "Lockstep" and no version attribute.
@@ -1528,6 +1561,7 @@ namespace lockstep::PluginState
         if (version < 17) tree = upgrade_v16_to_v17(tree);
         if (version < 18) tree = upgrade_v17_to_v18(tree);
         if (version < 19) tree = upgrade_v18_to_v19(tree);
+        if (version < 20) tree = upgrade_v19_to_v20(tree);
 
         return tree;
     }

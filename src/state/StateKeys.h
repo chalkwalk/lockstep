@@ -101,6 +101,10 @@ namespace lockstep::keys
     inline constexpr const char* kDiv = "div";
     inline constexpr const char* kDensMus = "dMus"; // Density::Musicality (uint8)
     inline constexpr const char* kDensSel = "dSel"; // Density::DensitySelection (uint8)
+    inline constexpr const char* kVelMode  = "vMd";  // VelMode (uint8): Off/Bar
+    inline constexpr const char* kVelBlend = "vBl";  // VelBlend (uint8): Replace/Mix
+    inline constexpr const char* kVelDepth = "vDp";  // float [0,1]
+    inline constexpr const char* kVelCenter = "vCt"; // int [1,127]
 
   // ── Base params container (BP) ───────────────────────────────────────────────
     inline constexpr const char* kBaseParams = "BP";

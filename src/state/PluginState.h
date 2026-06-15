@@ -42,7 +42,10 @@ namespace lockstep
         //      ids unchanged (lockstep.amp.* / lockstep.fltr.*); trivial stamp upgrade.
         // v19: TrackKit gains densityMusicality (dMus) + densitySelection (dSel);
         //      defaults Mixed/Scrub; ephemeral density amounts not serialized.
-        inline constexpr int kCurrentVersion = 19;
+        // v20: TrackKit::divider replaced by subdivIndex (int, 0-26, default 18 = 1/16 straight).
+        //      Old kDiv values (1-16 = 0.25*d PPQ) remapped to nearest combined index.
+        //      TrackKit gains velMode/velBlend/velDepth/velCenter for the live velocity overlay.
+        inline constexpr int kCurrentVersion = 20;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);
