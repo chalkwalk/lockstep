@@ -67,6 +67,8 @@ namespace lockstep
                                    uiState_ ? *uiState_ : kEmptyUiState);
                     if (band_ == MetaBand::Euclidean && onEuclidParamChanged)
                         onEuclidParamChanged();
+                    if (band_ == MetaBand::Accent && onAccentParamChanged)
+                        onAccentParamChanged();
                     return;
                 }
                 // Machine-param path.

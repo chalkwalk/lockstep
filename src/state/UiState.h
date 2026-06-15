@@ -191,6 +191,13 @@ namespace lockstep
         int euclidOffset = 0;    // rotation (signed)
         int euclidAccents = 0;    // accented onsets (velocity 100 vs 64)
 
+        // Print-auto-velocity generator: Func+Fill chord bakes metric-weighted
+        // velocities into the focused track's active trig steps.
+        // Parameters: Depth/Center shown in MZ via MetaBand::Accent.
+        bool accentHeld = false;
+        float accentDepth  = 0.6f;  // [0,1]: 0=flat, 1=full swing around center
+        int   accentCenter = 90;    // [1,127]: velocity at which the downbeat lands
+
         // MHZ.7.4: last note played per-track, used as LEVELS record-arm pitch.
         // Updated whenever a note is triggered (keyboard overlay or CHROMATIC mode).
         std::array<int, kNumTracks> lastPlayedNote{};  // default 60 (C4)
@@ -245,6 +252,15 @@ namespace lockstep
             euclidPulses = 4;
             euclidOffset = 0;
             euclidAccents = 0;
+        }
+
+        // Clears the accent generator state (held flag and working params).
+        // Call on Func/Fill release when accent was active, or on cancel.
+        void resetAccent() noexcept
+        {
+            accentHeld  = false;
+            accentDepth  = 0.6f;
+            accentCenter = 90;
         }
 
         // Returns the first slot index for the currently active page on the given track.

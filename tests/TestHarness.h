@@ -63,4 +63,6 @@ namespace lockstep
     void runDensityTests();
     // MetaBand routing SSOT + MetaRotary::applyView totality
     void runMetaBandTests();
+    // §39 print-auto-velocity accent generator formula
+    void runAccentTests();
 }

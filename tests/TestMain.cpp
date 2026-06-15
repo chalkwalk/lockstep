@@ -41,6 +41,8 @@ int main()
     lockstep::runDensityTests();
     // MetaBand routing SSOT + MetaRotary::applyView totality
     lockstep::runMetaBandTests();
+    // §39 print-auto-velocity accent generator
+    lockstep::runAccentTests();
 
     // Also drive the JUCE UnitTests registered in lockstep_core (the serializer
     // upgrade chain, "PluginState" category) so they run headlessly in CI rather
