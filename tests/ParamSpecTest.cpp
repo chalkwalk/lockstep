@@ -228,6 +228,7 @@ namespace lockstep
             "sustain",         // 11
             "release",         // 12
             "samp_retrig",     // 13
+            "samp_velsens",    // 14
         };
         checkGoldenIds(m, "SamplerMachine", golden);
         checkInvariants(m, "SamplerMachine");

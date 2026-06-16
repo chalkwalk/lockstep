@@ -23,15 +23,41 @@ namespace lockstep
         ui.masterSection = 5;  CHECK(resolveMetaBand(ui) == MetaBand::Global,    "masterSection 5 → Global");
     }
 
-    static void testResolveMetaBandMasterSectionOutranksAll()
+    static void testResolveMetaBandTransientOutranksMasterSection()
     {
-        UiState ui;
-        ui.masterSection = 1;
-        ui.euclidHeld = true;
-        ui.densityStickyMode = true;
-        ui.songHeld = true;
-        // masterSection always wins
-        CHECK(resolveMetaBand(ui) == MetaBand::Trig, "masterSection outranks euclidHeld + song + sticky");
+        // Transient overlays outrank the latched masterSection page so that
+        // arming euclid (or holding a modifier) over a latched DIV/LEN page
+        // updates the band immediately instead of going stale.
+        {
+            UiState ui;
+            ui.masterSection = 1;        // latched Trig page
+            ui.euclidHeld = true;        // but euclid is armed
+            CHECK(resolveMetaBand(ui) == MetaBand::Euclidean,
+                  "euclidHeld outranks latched masterSection");
+        }
+        {
+            UiState ui;
+            ui.masterSection = 3;        // latched Divider page
+            ui.densityStickyMode = true;
+            ui.densitySubPage = UiState::DensitySubPage::Amount;
+            CHECK(resolveMetaBand(ui) == MetaBand::Density,
+                  "density sticky outranks latched masterSection");
+        }
+        {
+            UiState ui;
+            ui.masterSection = 4;        // latched PhraseLen page
+            ui.funcHeld = true;
+            ui.songHeld = true;
+            CHECK(resolveMetaBand(ui) == MetaBand::Density,
+                  "Func+Song outranks latched masterSection");
+        }
+        {
+            // With nothing transient active, the latched page still resolves.
+            UiState ui;
+            ui.masterSection = 1;
+            CHECK(resolveMetaBand(ui) == MetaBand::Trig,
+                  "latched masterSection resolves when no transient is active");
+        }
     }
 
     static void testResolveMetaBandEuclid()
@@ -272,7 +298,7 @@ namespace lockstep
     void runMetaBandTests()
     {
         testResolveMetaBandMasterSection();
-        testResolveMetaBandMasterSectionOutranksAll();
+        testResolveMetaBandTransientOutranksMasterSection();
         testResolveMetaBandEuclid();
         testResolveMetaBandDensitySticky();
         testResolveMetaBandFuncSong();
