@@ -465,6 +465,11 @@ namespace lockstep
         //   encoder); mirrors to the APVTS trackLength param so display, audio,
         //   and Phrase write-back stay single-sourced.
         void setTrackLength(int track, int newLen);
+        // setTrackSubdivision: set the working track subdivision index, clamped to
+        //   [kSubdivMin, kSubdivMax]. The single write path for clock-division
+        //   authoring; mirrors to the APVTS trackDivider param and Track.subdivIndex
+        //   so the engine, DIV band, and Kit write-back stay single-sourced.
+        void setTrackSubdivision(int track, int idx);
         // doubleTrackLength: copy steps [0,len) into [len, 2*len), up to kMaxStepsPerTrack.
         //   No-op if already at max. APVTS trackLength param is updated.
         void doubleTrackLength(int track);
@@ -894,6 +899,7 @@ namespace lockstep
         std::uint32_t savedStateHash_ = 0;            // hash at last new/load/save
         int quiesceDepth_ = 0;                        // withQuiescedEngine re-entrancy counter
         void finishStateLoad();                       // post-readFrom reinstall pass; must be called inside withQuiescedEngine
+        void syncTrackParamsFromActiveKit();          // push kit subdivIndex + phrase length into APVTS params and working Track
         // Reset arrangement_ to a fresh default in place. sizeof(Arrangement) is
         // ~47 MB, so `arrangement_ = Arrangement{}` would materialize that as a
         // stack temporary and blow the message-thread stack — allocate on the heap.

@@ -903,8 +903,6 @@ namespace lockstep
                 if (field > 1) return;
                 if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == track)
                     ctx.markParamWritten();
-                auto* p = proc.apvts().getParameter(ParamIDs::trackDivider(track));
-                if (!p) return;
                 const int curIdx = std::clamp(
                     static_cast<int>(proc.apvts()
                                          .getRawParameterValue(ParamIDs::trackDivider(track))
@@ -917,7 +915,7 @@ namespace lockstep
                 else
                     flavourInt = std::clamp(static_cast<int>(value), 0, kNumDivFlavours - 1);
                 const int newIdx = (baseInt * kNumDivFlavours) + flavourInt;
-                p->setValueNotifyingHost(static_cast<float>(newIdx) / static_cast<float>(kSubdivMax));
+                proc.setTrackSubdivision(track, newIdx);
                 break;
             }
 

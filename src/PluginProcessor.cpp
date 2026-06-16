@@ -2851,6 +2851,16 @@ namespace lockstep
             p->setValueNotifyingHost(p->convertTo0to1(static_cast<float>(clamped)));
     }
 
+    void LockstepProcessor::setTrackSubdivision(int track, int idx)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        auto& trk = sequence().tracks[static_cast<std::size_t>(track)];
+        const int clamped = std::clamp(idx, kSubdivMin, kSubdivMax);
+        trk.subdivIndex = clamped;
+        if (auto* p = apvts_.getParameter(ParamIDs::trackDivider(track)))
+            p->setValueNotifyingHost(static_cast<float>(clamped) / static_cast<float>(kSubdivMax));
+    }
+
     void LockstepProcessor::doubleTrackLength(int track)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
@@ -4475,6 +4485,7 @@ namespace lockstep
                                     slotForId(static_cast<int>(t), "slicer_sample_id"),
                                     sequence().tracks[t].baseParams);
         }
+        syncTrackParamsFromActiveKit();
     }
 
     // The switching + write-back logic lives in Arrangement (tested in isolation);
@@ -4680,6 +4691,10 @@ namespace lockstep
             machines_[di] = std::move(nm);
             sequence().tracks[di].baseParams = kit(dstTrack).baseParams;
         });
+
+        // Push the copied kit's subdivision to the APVTS param and working Track
+        // so the engine and DIV band immediately reflect the source track's division.
+        setTrackSubdivision(dstTrack, kit(dstTrack).subdivIndex);
     }
 
     bool LockstepProcessor::isTrackEmpty(int track) const
@@ -4802,6 +4817,34 @@ namespace lockstep
                 step.overrides.reserve(np);
                 step.fillOverrides.reserve(np);
             }
+        }
+
+        // Reconcile kit/phrase authoritative values with APVTS params so the engine
+        // and all display bands agree from the first render block.
+        syncTrackParamsFromActiveKit();
+    }
+
+    void LockstepProcessor::syncTrackParamsFromActiveKit()
+    {
+        // Push each track's authoritative kit/phrase values into the APVTS params
+        // and the working Track so the engine, DIV band, and LEN band are consistent.
+        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+        {
+            const auto ti = static_cast<std::size_t>(t);
+            const auto& k = kit(t);
+            const auto& trk = sequence().tracks[ti];
+
+            // Subdivision: kit is authoritative; push to working Track + param.
+            const int subdivIdx = std::clamp(k.subdivIndex, kSubdivMin, kSubdivMax);
+            sequence().tracks[ti].subdivIndex = subdivIdx;
+            if (auto* p = apvts_.getParameter(ParamIDs::trackDivider(t)))
+                p->setValueNotifyingHost(static_cast<float>(subdivIdx) / static_cast<float>(kSubdivMax));
+
+            // Length: phrase length (already in working Track via syncWorkingFromActive)
+            // is the authority; mirror to param for band display consistency.
+            const int len = std::clamp(trk.length, 1, kMaxStepsPerTrack);
+            if (auto* p = apvts_.getParameter(ParamIDs::trackLength(t)))
+                p->setValueNotifyingHost(p->convertTo0to1(static_cast<float>(len)));
         }
     }
 
