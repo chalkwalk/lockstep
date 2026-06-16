@@ -1199,13 +1199,13 @@ namespace lockstep
                 {
                     using VP = UiState::VelSubPage;
                     if (ui.velSubPage == VP::Center)
-                        ctx = "VEL OVERLAY  Center  |  turn = 1-127  AMP = mode";
+                        ctx = "VEL CENTER  |  turn = 1-127  AMP = mode  sec key = exit";
                     else if (ui.velSubPage == VP::Mode)
-                        ctx = "VEL OVERLAY  Mode  |  turn = Off / Bar  AMP = blend";
+                        ctx = "VEL MODE  |  turn = Off / Bar  AMP = blend  sec key = exit";
                     else if (ui.velSubPage == VP::Blend)
-                        ctx = "VEL OVERLAY  Blend  |  turn = Replace / Mix  AMP = depth";
+                        ctx = "VEL BLEND  |  turn = Repl / Mix  AMP = depth  sec key = exit";
                     else
-                        ctx = "VEL OVERLAY  Depth  |  nav = bank  AMP = center";
+                        ctx = "VEL DEPTH  |  nav = bank  AMP = center  sec key = exit";
                 }
                 else
                 {
@@ -2116,18 +2116,15 @@ namespace lockstep
                     escapeVelSticky();
                     refreshMetaBand();
                 }
-                // AMP (index 3) double-tap enters vel sticky mode.
-                if (ev.index == 3 && !uiState_.velStickyMode)
+                // Func+AMP enters vel sticky mode (Func is not a section-suite scope,
+                // so it falls through here before the sectionScope dispatch block).
+                if (uiState_.funcHeld && ev.index == 3 && !uiState_.velStickyMode)
                 {
-                    const double now = juce::Time::getMillisecondCounterHiRes();
-                    if (doubleTap_.recordAndCheck(3000 + ev.index, now))
-                    {
-                        uiState_.velStickyMode = true;
-                        escapeDensitySticky();
-                        refreshMetaBand();
-                        repaint();
-                        return true;
-                    }
+                    uiState_.velStickyMode = true;
+                    escapeDensitySticky();
+                    refreshMetaBand();
+                    repaint();
+                    return true;
                 }
 
                 if (sectionScope != PS::None)
