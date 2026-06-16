@@ -18,7 +18,7 @@ namespace lockstep
         [[nodiscard]] const char* badge() const noexcept override { return "SP"; }
         static constexpr const char* kMachineId = "lockstep.sampler.v1";
 
-        static constexpr int kNumSlots = 14;
+        static constexpr int kNumSlots = 15;
 
         int numParams() const override { return kNumSlots; }
         ParamSpec paramSpec(int index) const override;
@@ -48,12 +48,13 @@ namespace lockstep
         static constexpr int kSlotSustain = 11;
         static constexpr int kSlotRelease = 12;
         static constexpr int kSlotRetrig = 13;  // 0=LEGATO 1=RETRIG 2=FREE
+        static constexpr int kSlotVelSens = 14; // velocity → level scaling 0..1 (default 0 = off)
 
         static constexpr int kNumSections = 4;
 
-        [[nodiscard]] SamplePlayer::Spec buildSpec(int midiNote,
+        [[nodiscard]] SamplePlayer::Spec buildSpec(int midiNote, float velocity,
                                                    const ParamFrame& params) const;
-        void triggerVoice(int midiNote, const ParamFrame& params);
-        void startVoiceAtSlice(int sliceIndex, const ParamFrame& params);
+        void triggerVoice(int midiNote, float velocity, const ParamFrame& params);
+        void startVoiceAtSlice(int sliceIndex, float velocity, const ParamFrame& params);
     };
 }

@@ -12,7 +12,7 @@ namespace lockstep
 
     // -------------------------------------------------------------------------
 
-    SamplePlayer::Spec SamplerMachine::buildSpec(int midiNote,
+    SamplePlayer::Spec SamplerMachine::buildSpec(int midiNote, float velocity,
                                                  const ParamFrame& params) const
     {
         const auto p = [&](int s) {
@@ -77,7 +77,9 @@ namespace lockstep
         spec.windowStart = winStart;
         spec.windowEnd = winEnd;
         spec.rate = std::pow(2.0, semitones / 12.0);
-        spec.level = p(kSlotLevel);
+        const float velSens = (params.size() > static_cast<std::size_t>(kSlotVelSens))
+                                   ? std::clamp(p(kSlotVelSens), 0.0f, 1.0f) : 0.0f;
+        spec.level = p(kSlotLevel) * (1.0f + velSens * (velocity - 1.0f));
         spec.attackSamples = msToSamples(p(kSlotAttack), sampleRate_);
         spec.holdSamples = msToSamples(p(kSlotHold), sampleRate_);
         spec.decaySamples = msToSamples(p(kSlotDecay), sampleRate_);
@@ -89,11 +91,12 @@ namespace lockstep
         return spec;
     }
 
-    void SamplerMachine::startVoiceAtSlice(int sliceIndex, const ParamFrame& params)
+    void SamplerMachine::startVoiceAtSlice(int sliceIndex, float velocity,
+                                             const ParamFrame& params)
     {
         if (sliceIndex < 0 || sliceIndex >= numSlices_)
         {
-            voices_[0].player.trigger(buildSpec(60, params));
+            voices_[0].player.trigger(buildSpec(60, velocity, params));
             return;
         }
 
@@ -106,12 +109,12 @@ namespace lockstep
                                     ? static_cast<double>(normPos) * static_cast<double>(sample->pcm.getNumSamples())
                                     : 0.0;
 
-        auto spec = buildSpec(60, params);
+        auto spec = buildSpec(60, velocity, params);
         spec.positionStart = startPos;
         voices_[0].player.trigger(spec);
     }
 
-    void SamplerMachine::triggerVoice(int midiNote, const ParamFrame& params)
+    void SamplerMachine::triggerVoice(int midiNote, float velocity, const ParamFrame& params)
     {
         auto& vs = voices_[0];
 
@@ -125,6 +128,7 @@ namespace lockstep
         if (vs.player.isActive())
         {
             vs.pendingNote = midiNote;
+            vs.pendingVelocity = velocity;
             vs.pendingParams = params;
             vs.hasPending = true;
             if (!vs.choke.isFading())
@@ -136,9 +140,9 @@ namespace lockstep
         vs.age = ++voiceCounter_;
 
         if (numSlices_ > 0 && midiNote >= 0 && midiNote < numSlices_)
-            startVoiceAtSlice(midiNote, params);
+            startVoiceAtSlice(midiNote, velocity, params);
         else
-            vs.player.trigger(buildSpec(midiNote, params));
+            vs.player.trigger(buildSpec(midiNote, velocity, params));
     }
 
     // -------------------------------------------------------------------------
@@ -149,6 +153,7 @@ namespace lockstep
     {
         int triggerAt = -1;
         int triggerNote = 60;
+        float triggerVelocity = 1.0f;
         int releaseAt = -1;
 
         for (const auto& meta : events)
@@ -158,6 +163,7 @@ namespace lockstep
             {
                 triggerAt = meta.samplePosition;
                 triggerNote = msg.getNoteNumber();
+                triggerVelocity = msg.getFloatVelocity();
             }
             else if (msg.isNoteOff() && releaseAt < 0)
             {
@@ -191,7 +197,7 @@ namespace lockstep
 
             if (triggerAt >= 0 && i == triggerAt)
             {
-                triggerVoice(triggerNote, params);
+                triggerVoice(triggerNote, triggerVelocity, params);
                 if (!vs.choke.isFading())
                 {
                     sample = pool_.get(vs.player.sampleIndex);
@@ -210,15 +216,16 @@ namespace lockstep
             {
                 vs.hasPending = false;
                 const int pn = vs.pendingNote;
+                const float pv = vs.pendingVelocity;
                 const ParamFrame pp = vs.pendingParams;
 
                 vs.midiNote = pn;
                 vs.age = ++voiceCounter_;
 
                 if (numSlices_ > 0 && pn >= 0 && pn < numSlices_)
-                    startVoiceAtSlice(pn, pp);
+                    startVoiceAtSlice(pn, pv, pp);
                 else
-                    vs.player.trigger(buildSpec(pn, pp));
+                    vs.player.trigger(buildSpec(pn, pv, pp));
 
                 sample = pool_.get(vs.player.sampleIndex);
                 if (sample == nullptr)
@@ -280,6 +287,7 @@ namespace lockstep
         { "sustain", "Sustain", 0.f, 1.f, 0.5f, 1.f, 0, sa_u::Pct, sa_r::Sus, 0, 3, 0, nullptr }, // 11
         { "release", "Release", 1.f, 10000.f, 200.f, 0.3f, 0, sa_u::Ms, sa_r::Rel, 0, 3, 0, nullptr }, // 12
         { "samp_retrig", "Retrig", 0.f, 1.f, 0.f, 1.f, 1, sa_u::None, sa_r::None, 0, 3, 0, kSARetrigLabels }, // 13
+        { "samp_velsens", "Vel>Amp", 0.f, 1.f, 0.f, 1.f, 0, sa_u::Pct, sa_r::None, 0, 3, 0, nullptr }, // 14
     };
     static_assert(std::size(kSAParams) == SamplerMachine::kNumSlots,
                   "kSAParams row count must equal kNumSlots");

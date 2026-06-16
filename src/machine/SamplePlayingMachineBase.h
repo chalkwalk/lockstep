@@ -62,6 +62,7 @@ namespace lockstep
             VoiceChoke choke{};
             bool hasPending = false;
             int pendingNote = 60;
+            float pendingVelocity = 1.0f;
             ParamFrame pendingParams{};
             std::uint64_t age = 0;
             int midiNote = -1;  // note currently sounding (-1 = idle)
