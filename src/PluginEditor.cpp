@@ -425,6 +425,7 @@ namespace lockstep
         // Wire section-change callbacks -> update ManipulationZone.
         keyboardArea_.onSectionChanged = [this](int /*section*/, int /*page*/, int firstSlot) {
             manipulationZone_.setSlotOffset(firstSlot);
+            refreshMetaBand();
         };
 
         // Mini-sequencer strip mouse aids (item 6).
@@ -1986,6 +1987,7 @@ namespace lockstep
                     uiState_.euclidOffset = 0;
                     uiState_.euclidAccents = 0;
                     uiState_.euclidHeld = true;
+                    uiState_.masterSection = -1;  // dismiss any latched DIV/LEN page
                     // Stash working-buffer steps for cancel/escape restore.
                     euclidStashLen_ = wt.length;
                     for (int si = 0; si < euclidStashLen_; ++si)
@@ -2022,6 +2024,7 @@ namespace lockstep
                     uiState_.euclidOffset = 0;
                     uiState_.euclidAccents = 0;
                     uiState_.euclidHeld = true;
+                    uiState_.masterSection = -1;  // dismiss any latched DIV/LEN page
                     // Stash working-buffer steps for cancel/escape restore.
                     euclidStashLen_ = wt.length;
                     for (int si = 0; si < euclidStashLen_; ++si)

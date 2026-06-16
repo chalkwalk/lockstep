@@ -18,16 +18,10 @@ namespace lockstep
 {
     MetaBand resolveMetaBand(const UiState& ui)
     {
-        switch (ui.masterSection)
-        {
-            case 0:  return MetaBand::Cond;
-            case 1:  return MetaBand::Trig;
-            case 2:  return MetaBand::Transport;  // Func+7: output gain / sync / channel mode
-            case 3:  return MetaBand::Divider;
-            case 4:  return MetaBand::PhraseLen;
-            case 5:  return MetaBand::Global;     // Song+FX: master insert params
-            default: break;
-        }
+        // Transient overlays outrank the latched masterSection page so that
+        // arming euclid, entering density/vel sticky, or holding swing while a
+        // DIV/LEN page is latched immediately shows the relevant band.
+
         // Euclidean modal outranks everything else.
         if (ui.euclidHeld)
             return MetaBand::Euclidean;
@@ -39,7 +33,7 @@ namespace lockstep
             if (ui.densitySubPage == SP::Selection)  return MetaBand::DensitySelection;
             return MetaBand::Density;
         }
-        // Sticky velocity overlay mode (entered via double-tap AMP section key).
+        // Sticky velocity overlay mode.
         if (ui.velStickyMode)
         {
             using VP = UiState::VelSubPage;
@@ -57,6 +51,18 @@ namespace lockstep
         // Func alone → transient per-track density peek.
         if (ui.funcHeld)
             return MetaBand::Density;
+
+        // Latched meta pages (set by scope+section chords; survive modifier release).
+        switch (ui.masterSection)
+        {
+            case 0:  return MetaBand::Cond;
+            case 1:  return MetaBand::Trig;
+            case 2:  return MetaBand::Transport;  // Func+7: output gain / sync / channel mode
+            case 3:  return MetaBand::Divider;
+            case 4:  return MetaBand::PhraseLen;
+            case 5:  return MetaBand::Global;     // Song+FX: master insert params
+            default: break;
+        }
         return MetaBand::None;
     }
 
