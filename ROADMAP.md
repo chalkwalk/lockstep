@@ -20,8 +20,14 @@ Open verification sweeps: `3.10` standalone, `7.8` VST3/CLAP v18 round-trip,
 (picker → named confirm → YES/NO live colour).
 **Last completed:** `9.2` standalone quit guard. **Serializer v20** shipped:
 musical subdivision picker (1/64–4/1 straight/dotted/triplet; two-field DIV band);
-density Exempt detent; live velocity overlay (AMP sticky mode, Replace/Mix blend,
+density Exempt detent; live velocity overlay (Func+AMP entry, Replace/Mix blend,
 v20 fields in TrackKit; Func+Fill accent baker removed).
+**v20 follow-up shipped:** subdivision single-source-of-truth (new project +
+copy/scene-switch desync fixed); meta-band precedence (euclid/density/vel
+transients now outrank latched DIV/LEN page); vel-overlay entry changed from
+double-tap AMP → Func+AMP (section-key paging collision); sampler Vel>Amp param
+(opt-in, default off); VA machine pan removed (pan is a track CHANNEL operation;
+double-pan / level-jump on panning fixed).
 **Next up:** `A3` gain-staging audit; `6.7` Machine Module ABI; Phase 9+ backlog.
 
 Phases 1–3 took Lockstep from an empty plugin to a frozen, playable performance
@@ -991,9 +997,10 @@ scope+verb. Stochastic / generative authoring is explicitly *not* here (NON-GOAL
       See DESIGN §4.2. *(Commits 1-2, v20)*
 - [x] **Density Exempt detent** — third DensitySelection state; engine early-out;
       Amount + Musicality cells greyed. See DESIGN §39.2. *(Commit 3, v20)*
-- [x] **Live velocity overlay** — AMP sticky mode (double-tap AMP); 4 sub-pages
-      (Depth/Center/Mode/Blend); Replace/Mix blend; Bar-metric weight at emit time;
-      durable TrackKit fields; serializer v20. See DESIGN §39.10. *(Commits 4-5, v20)*
+- [x] **Live velocity overlay** — **Func+AMP** entry (was double-tap AMP, which
+      collided with AMP page cycling); 4 sub-pages (Depth/Center/Mode/Blend);
+      Replace/Mix blend; Bar-metric weight at emit time; durable TrackKit fields;
+      serializer v20. See DESIGN §39.10. *(Commits 4-5, v20; entry gesture fixed v20+1)*
 - [ ] **Scale-aware CHROMATIC layout** (DESIGN §34.2): the per-phrase scale lock
       remaps the CHROMATIC keyboard to scale degrees — a *playable layout*, never
       note auto-correct (out-of-scale entry stays verbatim and reachable).

@@ -254,7 +254,7 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Send A / Send B** | Per-track post-insert level tap into shared send buses (AMP page 2, slots 8–9). Each send bus has a return effect before the master inserts. |
 | **Animate** | The momentary insert punch-in: hold `FX` + step to bypass (or enable) an insert for exactly the hold duration. Performance-only — never written to the pattern. Under Song+FX focus the step grid targets the four master units: steps 0-3 = master FX1, 4-7 = FX2, 8-11 = Send A, 12-15 = Send B. |
 | **Density** | Live, subtractive trig-thinning overlay. `Func`-held → transient per-track Density band. **Double-tap Func** → sticky DENSITY mode; nav keys page between tracks 1-8 and 9-16; `Song`-held (encoder or on-screen drag) → master offset (visible as arc baseline shift); FX key cycles Amount/Mode sub-page (Musicality + Selection). `Song`-alone = swing (unchanged). Only silences would-fire trigs. Ephemeral amounts; durable Musicality + Selection per track. Selection has three detents: **Scrub** (deterministic), **Re-roll** (stochastic), **Exempt** (track bypasses density entirely — amount and Musicality cells greyed). |
-| **Velocity overlay** | Per-track live velocity modulation computed at emit time, not baked. **Double-tap AMP** section key → sticky VEL OVERLAY mode; AMP re-press cycles sub-pages (Depth → Center → Mode → Blend); nav keys page between tracks 1-8 and 9-16. Mode: Off (no overlay) / Bar (metric weight against coreTime bar). Blend: Replace (overlay supersedes authored velocity) / Mix (overlay delta added on top; Euclidean-baked accents stay active). Durable per-track, serialized (v20). |
+| **Velocity overlay** | Per-track live velocity modulation computed at emit time, not baked. **Func+AMP** → sticky VEL OVERLAY mode; AMP re-press cycles sub-pages (Depth → Center → Mode → Blend); press any other section key to exit; nav keys page between tracks 1-8 and 9-16. Mode: Off (no overlay) / Bar (metric weight against coreTime bar). Blend: Replace (overlay supersedes authored velocity) / Mix (overlay delta added on top; Euclidean-baked accents stay active). Durable per-track, serialized (v20). |
 | **Retrig / ratchet** | Per-step re-triggering at a musical rate (`/4 … /32T`). `Fill+TRIG` opens the rate picker: press a rate for a live stutter on the focused track, or hold a step first to bake the rate as a per-step P-Lock. Slicer tracks show a slice picker instead. |
 | **Euclidean generator** | `Phrase+Fill` held: encoders shape `PULSE / OFSET / ACCNT` against the phrase length, audible live; the mode is latched until **P** (commit) or **Func+P** (cancel). Y is inert in this mode. |
 | **Control-All** | Holding `Track` with no track selected broadcasts the next parameter edit to every track that has a matching control. |
@@ -583,6 +583,8 @@ machine → FLTR (LP/HP/BP/Notch/OFF) → [ENVELOPE] → CHANNEL → inserts →
   VA/FM/DrumSynth handle amplitude internally and bypass this block.
 - **CHANNEL** (level, pan, sendA, sendB) — always present for all machines including
   VA/FM/DrumSynth. P-locking `lockstep.amp.level` on any track audibly scales output.
+  Pan is a track-level operation applied once here; machines output dual-mono and do not
+  apply their own pan. (VA's internal pan slot is inert; the CHANNEL pan is canonical.)
 
 **Stepped (enum) parameter values.** These are the closed value sets the
 Manipulation Zone shows as text instead of numbers (from each machine's
@@ -595,6 +597,7 @@ Manipulation Zone shows as text instead of numbers (from each machine's
 | | ENV gate src | `Envelope` · `Held-open` |
 | `SamplerMachine` | Loop mode | `OFF` · `SUS` · `S+R` · `ALL` |
 | | Retrig | `LEGATO` · `RETRIG` |
+| | Vel>Amp | continuous 0–100 % (default 0 = velocity-independent; increase to scale level by note velocity) |
 | `SlicerMachine` | Mode | `SLICE` · `SCRUB` |
 | | Slice source | `EQUAL` · `TRANS` |
 | | Loop mode | `OFF` · `SUS` · `S+R` · `ALL` |
