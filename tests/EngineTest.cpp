@@ -831,6 +831,102 @@ namespace lockstep
     }
 
     // -----------------------------------------------------------------------
+    // E (pan diagnostic): render a VA track at several CHANNEL pan settings and
+    // measure per-channel (L vs R) RMS. The track CHANNEL block is the only place
+    // pan is applied; machines emit in-phase dual-mono. Correct behaviour:
+    //   * pan = 0   -> L == R, both at full level (centred, loud)
+    //   * pan = +x  -> R > L (image moves right), L attenuated
+    //   * pan never RAISES total energy above centre (anti-phase would do that)
+    // Prints the measured values so a contradicting on-hardware report can be
+    // compared against ground truth.
+    struct PanMeasure { float rmsL, rmsR, rmsMono; };
+
+    static void testTrackPanLaw()
+    {
+        // Render a VA track at the given channel pan and measure per-channel
+        // (L, R) RMS plus the RMS of the mono downmix (L+R per sample). The mono
+        // sum is the sharpest test for inter-channel phase: in-phase content
+        // sums to ~2x a single channel, anti-phase content cancels toward zero.
+        auto measure = [](float pan, float level) -> PanMeasure {
+            EngineHarness h;
+            installVA(h.processor(), 0);
+            h.processor().kit(0).channelState.pan   = pan;
+            h.processor().kit(0).channelState.level = level;
+            auto& step0 = h.processor().sequence().tracks[0].steps[0];
+            step0.trig = true;
+            step0.trigOverride.hasGate = true;
+            step0.trigOverride.gateValue = MusicalGate::G1_8;
+
+            constexpr int kBlocks = 30;
+            double sumL = 0.0, sumR = 0.0, sumMono = 0.0;
+            for (int b = 0; b < kBlocks; ++b)
+            {
+                h.renderBlocks(1);
+                const auto& buf = h.buffer();
+                for (int i = 0; i < buf.getNumSamples(); ++i)
+                {
+                    const double l = static_cast<double>(buf.getSample(0, i));
+                    const double r = static_cast<double>(buf.getSample(1, i));
+                    const double mono = l + r;
+                    sumL    += l * l;
+                    sumR    += r * r;
+                    sumMono += mono * mono;
+                }
+            }
+            const double n = kBlocks * EngineHarness::kBlockSize;
+            return { static_cast<float>(std::sqrt(sumL / n)),
+                     static_cast<float>(std::sqrt(sumR / n)),
+                     static_cast<float>(std::sqrt(sumMono / n)) };
+        };
+
+        const auto centre = measure(0.0f, 1.0f);
+        const auto right  = measure(0.5f, 1.0f);
+        const auto left   = measure(-0.5f, 1.0f);
+
+        juce::Logger::writeToLog(
+            "  pan law  centre L=" + juce::String(centre.rmsL, 6) +
+            " R=" + juce::String(centre.rmsR, 6) +
+            " mono=" + juce::String(centre.rmsMono, 6) +
+            " | right(+0.5) L=" + juce::String(right.rmsL, 6) +
+            " R=" + juce::String(right.rmsR, 6) +
+            " | left(-0.5) L=" + juce::String(left.rmsL, 6) +
+            " R=" + juce::String(left.rmsR, 6));
+
+        // Centre: both channels present and balanced.
+        CHECK(centre.rmsL > 1e-4f && centre.rmsR > 1e-4f,
+              "E: pan=0 produced silence on a channel (L=" +
+              juce::String(centre.rmsL, 6) + " R=" + juce::String(centre.rmsR, 6) + ")");
+        CHECK(std::abs(centre.rmsL - centre.rmsR) < 0.05f * centre.rmsL,
+              "E: pan=0 is not balanced (L=" + juce::String(centre.rmsL, 6) +
+              " R=" + juce::String(centre.rmsR, 6) + ") — centre image is off-centre");
+
+        // Mono downmix: machines emit in-phase dual-mono, so summing L+R must
+        // ADD, not cancel. In-phase => mono ~= 2x a channel; anti-phase => ~0.
+        // This catches any stage that inverts one channel, even if the stereo
+        // image still looks fine on a scope.
+        CHECK(centre.rmsMono > centre.rmsL * 1.9f,
+              "E: mono downmix L+R cancels at centre (mono=" +
+              juce::String(centre.rmsMono, 6) + " vs per-channel " +
+              juce::String(centre.rmsL, 6) + ") — channels are anti-phase");
+
+        // Pan must MOVE the image, not just change level.
+        CHECK(right.rmsR > right.rmsL * 1.2f,
+              "E: pan=+0.5 did not move image right (L=" + juce::String(right.rmsL, 6) +
+              " R=" + juce::String(right.rmsR, 6) + ")");
+        CHECK(left.rmsL > left.rmsR * 1.2f,
+              "E: pan=-0.5 did not move image left (L=" + juce::String(left.rmsL, 6) +
+              " R=" + juce::String(left.rmsR, 6) + ")");
+
+        // Anti-phase fingerprint: panning must NOT raise total energy above centre.
+        const float centreTot = centre.rmsL + centre.rmsR;
+        const float rightTot  = right.rmsL + right.rmsR;
+        CHECK(rightTot <= centreTot * 1.05f,
+              "E: panning RAISED total level vs centre (centre=" +
+              juce::String(centreTot, 6) + " right=" + juce::String(rightTot, 6) +
+              ") — anti-phase L/R cancelling at centre");
+    }
+
+    // -----------------------------------------------------------------------
     // A1: newProject() during active playback must not crash or produce NaN.
     // Previously, finishStateLoad() ran after the quiesce window closed, so
     // machines_[t] was replaced while the audio thread was live (use-after-free).
@@ -899,5 +995,6 @@ namespace lockstep
         testLateShiftedTrigsStillFire();
         testChannelLevelPLockOnVA();
         testTrackFilterLPOnVA();
+        testTrackPanLaw();
     }
 }
