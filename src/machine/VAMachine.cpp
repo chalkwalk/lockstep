@@ -626,7 +626,7 @@ namespace lockstep
         const float velSens = p(kSlotVelSens);
         const float velGain = 1.0f - velSens + velSens * voiceVelocity_;
         const float outputLevel = p(kSlotLevel) * (1.0f + lfoAmpMod) * velGain;
-        const float pan = std::clamp(p(kSlotPan), -1.0f, 1.0f);
+        (void) p(kSlotPan);  // pan is owned by the track CHANNEL block; inert at machine level
 
         const float osc2CoarseST = p(kSlotOsc2Coarse);
         const float osc2FineCent = p(kSlotOsc2Fine);
@@ -848,19 +848,9 @@ namespace lockstep
             dcX1_ = filtered;
             dcY1_ = blocked;
 
-            // ---- Output ----
-            const float gainL = (numOut >= 2) ? std::sqrt(std::max(0.0f, 1.0f - pan) * 0.5f + 0.5f) : 1.0f;
-            const float gainR = (numOut >= 2) ? std::sqrt(std::max(0.0f, 1.0f + pan) * 0.5f + 0.5f) : 1.0f;
-
-            if (numOut >= 2)
-            {
-                buffer.addSample(0, i, blocked * gainL);
-                buffer.addSample(1, i, blocked * gainR);
-            }
-            else if (numOut == 1)
-            {
-                buffer.addSample(0, i, blocked);
-            }
+            // ---- Output — write dual-mono; pan is owned by the track CHANNEL block ----
+            for (int ch = 0; ch < numOut; ++ch)
+                buffer.addSample(ch, i, blocked);
         }
     }
 
