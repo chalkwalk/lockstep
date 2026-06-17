@@ -748,7 +748,7 @@ focused track). **`Func+FX`** pins sticky DENSITY mode; any nav key (↑↓←�
 pages between banks 1-8 and 9-16. While in the band (transient or sticky),
 `Song`-held (encoder or on-screen drag) adjusts the master offset additively to all tracks;
 the arc on each rotary shifts to show the offset and a tick marks the effective (audible) value.
-`Func` double-tap (universal escape) or `Func+FX` again to exit sticky mode.
+`Func` double-tap (universal escape) or a foreign scope key to exit sticky mode.
 
 Pressing **Track, Phrase, Scene, Morph, Mute, or Fill** while sticky exits the mode
 before the scope's normal handler runs — so holding Track to pick a track then

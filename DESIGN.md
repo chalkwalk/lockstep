@@ -5251,7 +5251,7 @@ launch (`Func + Scene + step`) wipes them. `setActiveSong` and `loadPosition` al
 |---|---|
 | `Func` (held) | MZ → transient Density band (8 per-track rotaries, bank follows focused track) |
 | `Song`-held + encoder or drag (within Density band) | Adjust master density offset; arc + effective tick sweep on all rotaries; thumbs stay per-track |
-| `Func + FX` (chord) | Enter sticky DENSITY mode (pinned; `Func` double-tap or `Func + FX` again to exit). Entry blocked if a foreign cluster scope is physically held — see §39.8. |
+| `Func + FX` (chord) | Enter sticky DENSITY mode (pinned). Exit via `Func` double-tap (universal escape) or a foreign cluster scope key. Entry blocked if a foreign cluster scope is physically held — see §39.8. |
 | nav keys (↑↓←→) while sticky | Page between bank 1-8 and bank 9-16 |
 | FX section key while sticky | Toggle Amount sub-page (per-track rotaries) ↔ Mode sub-page (Musicality/Selection) |
 | Track / Phrase / Scene / Morph / Mute / Fill while sticky | Discharges sticky mode before running the scope's normal handler — see §39.8 |
@@ -5314,7 +5314,6 @@ back in density mode.
 **Density's own keys** (exempt from the discharge rule):
 - `Song` — master-density offset in the Density band
 - `Func` (double-tap) — universal escape / exit sticky mode
-- `Func + FX` — re-enter / toggle sticky mode (same chord that entered it)
 - `Nav` (↑↓←→) — bank flip
 - FX section key (index 5) — Amount/Musicality/Selection sub-page cycle
 
