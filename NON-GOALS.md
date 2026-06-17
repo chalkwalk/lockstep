@@ -77,10 +77,14 @@ are **not** non-goals, listed here only to forestall confusion:
   hold `Phrase+Fill`, shape `PULSE / OFSET / ACCNT` on the encoders, release
   to print — it replaces the trigs in the phrase length with ordinary,
   hand-editable trig data (deterministic; DESIGN §13.5).
-- **A "Chance" macro** (Elektron Model) is **in** and shipped (5.9): while
-  `Func` is held the MZ becomes the Chance band — one encoder per track,
-  each a fader scaling that track's *already sanctioned* trig-condition
-  probabilities. It adds no new randomness.
+- **A "Chance" macro** (Elektron Model) was granted in reshaped form and has
+  since been **superseded by Density** (DESIGN §39, ROADMAP 5.9). While `Func`
+  is held the MZ becomes the per-track **Density** band — a live, subtractive
+  overlay that thins *would-fire* trigs strictly downstream of the
+  probability/condition system. It silences, never re-enables, and never
+  touches the trig data itself, so it adds no new randomness (it is a
+  deterministic generator under *Pragmatic determinism*). The earlier
+  probability-scaling Chance band is retired.
 - **Granular synthesis** (Roland Aira P-6, and our own Tonverk lineage) is
   **in**, as a machine module (DESIGN §29), not catalogue bloat.
 
