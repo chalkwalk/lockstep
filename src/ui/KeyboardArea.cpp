@@ -790,6 +790,14 @@ namespace lockstep
             // Page dots — from model.pageDots (§35.8.1 residual now closed).
             const bool isMasterActive = !isScopedMode && (uiState_.masterSection == s);
             const bool isTrackActive = !isScopedMode && (uiState_.masterSection == -1 && uiState_.trackSection[static_cast<std::size_t>(uiState_.activeTrack)] == s);
+
+            // §26.4.3 — Section-key fill highlight: active section gets a tinted
+            // background overlay so the user sees which section's params are showing.
+            if ((isMasterActive || isTrackActive) && !isScopedMode)
+            {
+                g.setColour(kColourTrackActive.withAlpha(0.18f));
+                g.fillRect(cell);
+            }
             const auto& dots = model.pageDots[static_cast<std::size_t>(s)];
 
             if (dots.count > 1 && !isMasterActive)

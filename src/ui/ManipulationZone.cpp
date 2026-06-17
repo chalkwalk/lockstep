@@ -163,6 +163,14 @@ namespace lockstep
         refreshSliders();
     }
 
+    void ManipulationZone::setNormalTitle(const juce::String& title, int page, int pageCount)
+    {
+        normalTitle_    = title;
+        normalPage_     = page;
+        normalPageCount_ = pageCount;
+        repaint();
+    }
+
     void ManipulationZone::setBand(MetaBand band, int swingScope)
     {
         band_ = band;
@@ -494,8 +502,9 @@ namespace lockstep
     juce::Rectangle<int> ManipulationZone::slotCellBounds(int i) const
     {
         static constexpr int kCols = kMZSlots / 2;
-        const auto bounds = getLocalBounds().reduced(4);
-        const int baseW = bounds.getWidth() / kCols;
+        // §26.4.1: reserve kHeaderH pixels at the top for the persistent header strip.
+        const auto bounds = getLocalBounds().reduced(4).withTrimmedTop(kHeaderH);
+        const int baseW  = bounds.getWidth() / kCols;
         const int narrowW = baseW * 7 / 8;
         const int rowH = static_cast<int>(bounds.getHeight() * kRowHeightFrac);
         const int upperX = bounds.getX() + (bounds.getWidth() - kCols * narrowW);
@@ -522,13 +531,63 @@ namespace lockstep
         g.setColour(juce::Colour::fromRGB(60, 70, 85));
         g.drawRect(getLocalBounds(), 1);
 
-        if (band_ != MetaBand::None)
+        // §26.4.1 — Persistent header strip: always visible, shows active band / section.
         {
-            // Amber tint for all meta bands — sliders handle the content.
-            g.setColour(juce::Colour::fromRGB(255, 180, 50).withAlpha(0.06f));
-            g.fillAll();
+            const auto headerRect = getLocalBounds().withHeight(4 + kHeaderH);
+
+            const auto& ctx = processor_.editContext();
+            const bool isStepEdit = ctx.isActiveForEditing();
+            const bool isMeta     = (band_ != MetaBand::None);
+
+            juce::String title;
+            juce::String pageStr;
+
+            if (isStepEdit)
+            {
+                const bool fillEdit = processor_.fillActive();
+                title = fillEdit ? "FILL" : "P-LOCK";
+                title += " T" + juce::String(ctx.heldTrackIndex() + 1)
+                       + " S" + juce::String(ctx.heldStepIndex() + 1);
+            }
+            else if (isMeta)
+            {
+                title = bandTitle(band_);
+                // Bank indicator for paginated meta bands (density/vel).
+                if ((band_ == MetaBand::Density || band_ == MetaBand::Vel) && uiState_ != nullptr)
+                {
+                    const int bank = (band_ == MetaBand::Density) ? uiState_->densityBank
+                                                                   : uiState_->velBank;
+                    pageStr = juce::String(bank + 1) + "/2";
+                }
+            }
+            else
+            {
+                title = normalTitle_;
+                if (normalPageCount_ > 1)
+                    pageStr = juce::String(normalPage_ + 1) + "/" + juce::String(normalPageCount_);
+            }
+
+            // Header background (slightly lighter than MZ body).
+            g.setColour(juce::Colour::fromRGB(38, 43, 52));
+            g.fillRect(headerRect);
+            g.setColour(juce::Colour::fromRGB(60, 70, 85));
+            g.drawLine(0.0f, static_cast<float>(headerRect.getBottom()),
+                       static_cast<float>(getWidth()), static_cast<float>(headerRect.getBottom()), 1.0f);
+
+            // Title text and optional page indicator.
+            const juce::Colour headerFg = isStepEdit ? juce::Colour::fromRGB(255, 180, 50)
+                                        : isMeta     ? juce::Colour::fromRGB(160, 120, 240)
+                                                     : juce::Colour::fromRGB(180, 195, 210);
+            g.setColour(headerFg);
+            g.setFont(juce::Font(juce::FontOptions(10.0f)));
+            const auto textArea = headerRect.reduced(6, 2);
+            g.drawText(title, textArea, juce::Justification::centredLeft, true);
+            if (pageStr.isNotEmpty())
+                g.drawText(pageStr, textArea, juce::Justification::centredRight, true);
         }
 
+        // §26.4.2 — Modal colour families: amber for P-Lock/step-override,
+        // violet for meta-modals, none for normal machine params.
         const auto& ctx = processor_.editContext();
         if (ctx.isActiveForEditing())
         {
@@ -538,25 +597,12 @@ namespace lockstep
                                              : juce::Colour::fromRGB(255, 180, 50);
             g.setColour(editCol.withAlpha(0.18f));
             g.fillAll();
-
-            // Banner sits in the top-left deliberately-empty half-cell (the gap
-            // to the left of where the upper row begins), so it never collides
-            // with name labels of the cells above.
-            const auto bounds = getLocalBounds().reduced(4);
-            const int baseW = bounds.getWidth() / (kMZSlots / 2);
-            const int narrowW = baseW * 7 / 8;
-            const int rowH = static_cast<int>(bounds.getHeight() * kRowHeightFrac);
-            const int upperX = bounds.getX() + (bounds.getWidth() - (kMZSlots / 2) * narrowW);
-            const juce::Rectangle<int> banner(bounds.getX(), bounds.getY(),
-                                              upperX - bounds.getX(), rowH);
-
-            g.setColour(editCol);
-            g.setFont(juce::Font(juce::FontOptions(9.0f)));
-            const auto topHalf = banner.withHeight(banner.getHeight() / 2).reduced(2, 0);
-            const auto btmHalf = banner.withTop(banner.getCentreY()).reduced(2, 0);
-            g.drawText(fillEdit ? "FILL" : "LOCK", topHalf, juce::Justification::centred);
-            g.drawText("T" + juce::String(ctx.heldTrackIndex() + 1) + " S" + juce::String(ctx.heldStepIndex() + 1),
-                       btmHalf, juce::Justification::centred);
+        }
+        else if (band_ != MetaBand::None)
+        {
+            // Cool/violet tint distinguishes meta-modal bands from P-Lock (amber) at a glance.
+            g.setColour(juce::Colour::fromRGB(120, 80, 200).withAlpha(0.07f));
+            g.fillAll();
         }
     }
 

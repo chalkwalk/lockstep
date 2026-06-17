@@ -423,8 +423,14 @@ namespace lockstep
         updateTransportGhosting();
 
         // Wire section-change callbacks -> update ManipulationZone.
-        keyboardArea_.onSectionChanged = [this](int /*section*/, int /*page*/, int firstSlot) {
+        keyboardArea_.onSectionChanged = [this](int section, int page, int firstSlot) {
             manipulationZone_.setSlotOffset(firstSlot);
+            const int track = keyboardArea_.getActiveTrack();
+            if (track >= 0)
+            {
+                const auto info = processor_.section(track, section);
+                manipulationZone_.setNormalTitle(info.label, page, info.pageCount);
+            }
             refreshMetaBand();
         };
 

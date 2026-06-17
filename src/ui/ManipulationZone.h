@@ -33,6 +33,10 @@ namespace lockstep
         void setSlotOffset(int offset);
         [[nodiscard]] int slotOffset() const { return slotOffset_; }
 
+        // Set the section title for normal (band==None) mode — shown in the MZ header strip.
+        // Call from PluginEditor whenever the active section or page changes.
+        void setNormalTitle(const juce::String& title, int page, int pageCount);
+
         // Switch the zone to a MetaBand (resolveMetaBand result) with the given swing scope.
         // MetaBand::None = normal machine params; anything else renders the meta surface.
         void setBand(MetaBand band, int swingScope);
@@ -61,6 +65,8 @@ namespace lockstep
         // MHX §26.2: 8 encoders in a 4x2 staggered band.  Single constant so the
         // hardware-grow path (4 → 8) was a one-line change.
         static constexpr int kMZSlots = 8;
+        // §26.4.1: height of the persistent header strip at the top of the MZ.
+        static constexpr int kHeaderH = 14;
 
     private:
         static constexpr int kNumSlots = kMZSlots;
@@ -79,6 +85,9 @@ namespace lockstep
         int slotOffset_ = 0;
         MetaBand band_ = MetaBand::None;
         int swingScope_ = 0;   // 0=none, 1=song-all, 2=scene-all delta, 3=song-track delta
+        juce::String normalTitle_;   // section name for normal (band==None) mode
+        int normalPage_ = 0;         // 0-based current page index
+        int normalPageCount_ = 0;    // total pages for this section (0 = unpaginated)
         UiState* uiState_ = nullptr;
         int morphQualifier_ = 0;   // 0=blend, 1=A-pole preview, 2=B-pole preview
         bool morphHeld_ = false;

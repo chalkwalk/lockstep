@@ -1069,4 +1069,29 @@ namespace lockstep
         }
     }
 
+    juce::String bandTitle(MetaBand band)
+    {
+        switch (band)
+        {
+            case MetaBand::None:           return {};
+            case MetaBand::Cond:           return "COND";
+            case MetaBand::Trig:           return "TRIG";
+            case MetaBand::Divider:        return "DIVIDER";
+            case MetaBand::PhraseLen:      return "PHRASE LEN";
+            case MetaBand::Global:         return "GLOBAL";
+            case MetaBand::Swing:          return "SWING";
+            case MetaBand::Density:        return "DENSITY";
+            case MetaBand::DensityMode:    return "DENSITY / MODE";
+            case MetaBand::DensitySelection: return "DENSITY / SEL";
+            case MetaBand::MasterFx:       return "MASTER FX";
+            case MetaBand::Euclidean:      return "EUCLID";
+            case MetaBand::Transport:      return "TRANSPORT";
+            case MetaBand::Vel:            return "VEL";
+            case MetaBand::VelCenter:      return "VEL / CENTER";
+            case MetaBand::VelMode:        return "VEL / MODE";
+            case MetaBand::VelBlend:       return "VEL / BLEND";
+            default:                       return {};
+        }
+    }
+
 }  // namespace lockstep
