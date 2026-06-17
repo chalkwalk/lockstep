@@ -2658,8 +2658,8 @@ namespace lockstep
                 }
 
                 // Scene + step: scene launch or create-on-empty (DESIGN §16/§23.3).
-                //   occupied + no-func + no-mute:  single-tap=overlay, double-tap=floor
-                //   occupied + func:               floor launch unconditionally
+                //   occupied + no-func + no-mute:  overlay launch (PRINCIPLES §17 — no double-tap floor)
+                //   occupied + func:               floor launch unconditionally (Func+Scene+step)
                 //   occupied + mute:               reserved for scene-mute (§23.3, no-op)
                 //   empty    + no-func + no-mute:  baked-copy create → launch
                 //   empty    + func:               baseline-copy create → launch
@@ -2675,14 +2675,9 @@ namespace lockstep
                         const bool occupied = isActive || processor_.sceneSlotOccupied(ev.index);
                         if (occupied && !funcHeld && !muteHeld)
                         {
-                            // Single-tap = overlay, double-tap = floor.
-                            const double now = juce::Time::getMillisecondCounterHiRes();
-                            const bool toFloor =
-                                doubleTap_.recordAndCheck(3000 + ev.index, now);
+                            // Always overlay launch — floor is reached only via Func+Scene+step.
                             if (processor_.clock().inPluginPlaying())
-                                processor_.queueScene(ev.index, toFloor);
-                            else if (toFloor)
-                                processor_.setActiveSceneToFloor(ev.index);
+                                processor_.queueScene(ev.index, false);
                             else
                                 processor_.setActiveScene(ev.index);
                         }
