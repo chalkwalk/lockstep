@@ -434,6 +434,12 @@ and a reason to guard the budget fiercely. Certain gesture patterns are
 grafting a new action onto them destroys the reliability that makes them
 valuable.
 
+The gesture vocabulary has **two time-based axes**: the *double-tap/double-press*
+family (repeating the same key quickly) and the *press-duration* axis (how long
+a key is held). Both are governed by this principle.
+
+### Double-tap / double-press families
+
 The reserved families, with their invariant meanings:
 
 - **Modifier double-tap** = latch (virtual-hold): the same scope, hands-free.
@@ -443,10 +449,22 @@ The reserved families, with their invariant meanings:
   steps in one gesture. `Func` never latches; its escape is *unconditional*,
   so the performer always knows the exit. (DESIGN §13.7.)
 - **Step double-tap** = virtual-hold into the edit context (P-Lock / trig
-  override operand). (DESIGN §13.7; *"The grid is the menu"* §5.)
+  override operand). (DESIGN §13.7; *"The grid is the menu"* §5.) This
+  reservation is scope-local to the trig grid; a re-skin of the step grid for
+  a different purpose (e.g. scene slots) does **not** inherit this meaning — a
+  borrow of step-double-tap for an unrelated action requires explicit approval
+  and a matching family entry here.
 - **Verb double-press** = amplified / intensified action (e.g. `Play`
   double-press = stop + reset phase). Verbs are instantaneous — their
   double-press is *intensification*, not latch. (DESIGN §13.7.)
+- **Nav double-tap at a range boundary** = reveal / unlock out-of-range content
+  (e.g. NavRight double-tap at the last page = unlock scroll past the visible
+  end). Single nav = move; double nav at a boundary = reveal. This is the
+  "light switch" pattern: the second tap unlocks a thing, not repeats a move.
+- **Operand double-tap (hardware encoder push)** = reset the slot to its
+  default value. Applies to any addressable slot (P-Lock slot, meta-band
+  rotary). This is a *reset*, not a latch — the operand is the key, so it
+  carries the double-tap meaning without touching any family above.
 
 **Section keys are excluded from all double-tap gestures.** A section key
 advances through its sub-pages on single tap; a repeated tap is already
@@ -454,12 +472,27 @@ semantically occupied by that paging cycle. New gestures targeting a section
 key must use `Func + section` or long-press — never double-tap. (See also
 *"One grammar, no exceptions"* §2; DESIGN §6.1.)
 
-**Consequence.** Before adding any double-tap or double-press meaning, confirm
-which family it belongs to and that the family has capacity for the new entry.
-If it doesn't fit any existing family — and especially if it would reach into
-the section-key layer — the proposal requires a revision to this principle
-first, not a silent exception. See *"Gesture cost is graduated"* §15;
-NON-GOALS §14.
+### Press-duration axis
+
+The **hold duration of a key** is a meaning-bearing axis for **verbs and
+operands only** — never for modifiers or `Func`. Modifiers and `Func` are
+already held to form compound chords; a "long press" on them cannot be
+distinguished from a chord-in-progress, so assigning a held meaning to them is
+a category error and is **forbidden**.
+
+The canonical legal instance is `Func + Y` (RESTORE): a brief tap pops one
+checkpoint entry; holding `Y` then releasing jumps straight to the floor.
+**`Y` (the operand) carries the hold; `Func` is merely the scope.** This is
+the general form: any incremental verb or operand may carry a hold-intensifier
+meaning, and the hold is measured on the *released* key, not on the qualifier.
+(The "hold = all the way" grammar convention in DESIGN §13 is a direct corollary.)
+
+**Consequence.** Before adding any double-tap, double-press, or held-key
+meaning, confirm which family it belongs to and that the family has capacity
+for the new entry. If it doesn't fit any existing family — and especially if it
+would reach into the section-key layer, or attach a duration meaning to a
+modifier or `Func` — the proposal requires a revision to this principle first,
+not a silent exception. See *"Gesture cost is graduated"* §15; NON-GOALS §14.
 
 ---
 
