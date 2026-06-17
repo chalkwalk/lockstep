@@ -1311,6 +1311,52 @@ single view-model:
 Both zones read the same view-model so what the bar says and what
 the next verb does cannot drift.
 
+### 6.9 Naming-clarity policy — param labels and value labels
+
+Labels in the Manipulation Zone must be readable under performance
+conditions. Two common failure modes: (a) param labels so abbreviated they
+require memorisation ("F Atk" — filter attack? flanger attack?); (b) value
+labels abbreviated to the point of opacity ("STR" — straight? stretch?
+string?). This section sets the policy.
+
+#### Param labels (the name strip above the rotary)
+
+- Labels are **terse but unambiguous**: short enough to fit the ~5-character
+  cell without reflow, clear enough to identify the parameter without
+  cross-referencing the section page.
+- When a label would be ambiguous in isolation, **prefix with the domain**:
+  `F.Atk` (filter attack) over `Atk` (could be amp or filter); `Osc2 Dtun`
+  over `Dtune`.
+- Meta band labels (density, swing) must identify their target fully enough
+  to stand alone. With the §26.4.1 header providing the band name, per-track
+  slot labels can be short: `Trk 1` through `Trk 8` (not `T1`, which reads
+  as a trig condition at a glance).
+
+#### Value labels (`valueLabels` / `valueText`)
+
+Stepped params with a `valueLabels` array should **spell out the value where
+space allows**, rather than abbreviating to a cryptic short form:
+
+| Avoid | Prefer | Reason |
+|---|---|---|
+| `STR` | `STRAIGHT` | "str" has multiple expansions |
+| `EXMT` | `EXEMPT` | abbreviation of an uncommon word |
+| `SCRB` | `SCRUB` | the full word fits |
+| `RROL` | `RE-ROLL` | unpronounceable abbreviation |
+| `S+R` | `SUS+REL` | inconsistent with the adjacent `SUS` label |
+| `UNIF` | `UNIFORM` | fits if the cell is wide enough; otherwise `UNIFM` |
+
+Exceptions — short forms that are genuinely idiomatic and self-evident:
+
+- Waveform names: `SIN`, `TRI`, `SAW`, `SQR`, `S&H`, `RND` — these are
+  industry-standard abbreviations musicians already carry.
+- Filter type names: `LP24`, `LP12`, `HP`, `BP` — standard.
+- On/Off: `OFF`, `ON` — universal.
+- Note-name / octave fields where the cell is too narrow for full text.
+
+The test: **a new user encountering the label for the first time should be
+able to infer its meaning without a manual**. If they can't, spell it out.
+
 ## 7. Host Serialization
 
 Plugin state carries:
@@ -3200,6 +3246,60 @@ Double-click on a rotary resets its slot to the `ParamSpec` default,
 routed through one helper so the eventual hardware push-encoder-twice
 gesture lands on the same code path (consistent with §17.5
 single-axis push-encoder discipline).
+
+### 26.4 Mode identity — self-announcing MZ design
+
+Every param mode must **self-identify at a glance**. Two failure modes
+the current surface has exhibited: (a) there is no persistent title showing
+*which* band is active, so the user must infer from slot labels; (b) every
+meta-modal and P-Lock override share the same amber tint, making them
+visually identical.
+
+#### 26.4.1 MZ header strip
+
+A **persistent header strip** appears at the top of the ManipulationZone,
+always rendered, naming the active band:
+
+| Active band | Header text | Page indicator |
+|---|---|---|
+| Machine section params (no meta band) | Section name, e.g. `FILTER`, `AMP` | `1/2` when the section has multiple pages |
+| P-Lock / step-override edit (held step) | `P-LOCK · T3 S5` (track and step number) | slot page if paginated |
+| Density band | `DENSITY` | `1/2` for tracks 1-8 / 9-16 |
+| Swing band | `SWING` | none (single page) |
+| Euclidean band | `EUCLID` | none |
+| Velocity overlay band | `VEL` | `1/2` for track banks |
+| Transport / global band | `GLOBAL` | sub-page index |
+
+The header title is the **unambiguous discriminator**: even when colour
+families look similar on a dim screen, the title leaves no doubt.
+
+#### 26.4.2 Modal colour families
+
+Replace the single shared amber tint with two named families so
+P-Lock is visually distinct from meta-modals at a glance:
+
+- **Step-override / P-Lock** — **amber** (warm, ties to the existing
+  P-Lock dot chrome throughout the surface). All held-step edits stay amber.
+- **Meta-modals** (Density, Swing, Euclidean, Velocity, Transport/Global)
+  — a **cool / violet** tint, visually distinct from amber, indicating
+  "system-level overlay, not a per-step edit." The header title remains the
+  primary discriminator; the tint is a fast pre-attentive cue.
+
+Machine section params (band = None, normal mode) use the section's
+canonical scope colour from §6.6, not amber or violet — machine params
+are never highlighted as "modal" because they are the default state.
+
+#### 26.4.3 Section-key fill highlight
+
+When a machine section's params are showing in the MZ, that section key
+receives a **fill highlight** (the key's background is painted with the
+section's scope colour at reduced alpha), not just the existing page-dot
+cue. This closes the feedback loop: the user sees *both* which section is
+active (filled key) and how many pages remain (dot count). The fill is
+removed when any meta-band takes over the MZ.
+
+This is a chrome update — it ships in the same commit as the MZ header
+(PRINCIPLES §10: "every new modifier ships with its chrome update").
 
 ## 27. Audio Routing and Track Input Sources
 
