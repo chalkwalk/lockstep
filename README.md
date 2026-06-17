@@ -65,8 +65,8 @@ What makes it distinctive:
   feature that works on a sampler track works identically on a track
   sequencing your hardware.
 - **Tiny project files.** Samples are stored as references (path +
-  content hash), never as embedded audio. Saves are instant and DAW
-  auto-saves stay cheap.
+  content hash), never as embedded audio. Saves are instant, whether to a
+  standalone project file or a DAW host save, and auto-saves stay cheap.
 
 ---
 

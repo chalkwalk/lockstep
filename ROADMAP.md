@@ -33,10 +33,15 @@ double-pan / level-jump on panning fixed).
 Phases 1–3 took Lockstep from an empty plugin to a frozen, playable performance
 surface; Phase 4 fills the machine catalogue; Phases 5–6 are the depth and
 platform passes; Phase 7 built the Set/Song/Scene/Phrase musical hierarchy;
-Phase 8 is the hardening/maintainability pass. The framing comes from DESIGN §1 and `PRINCIPLES.md`: Lockstep
-is for both bringing existing material on stage **and** improvising new material
-from a blank pool. Every milestone targets both workflows and must satisfy the
-principles.
+Phase 8 is the hardening/maintainability pass; Phase 9 brings standalone up to a
+co-equal host (project files, file bar, quit guard). The framing comes from
+DESIGN §1 and `PRINCIPLES.md`: Lockstep is for both bringing existing material on
+stage **and** improvising new material from a blank pool, and it runs equally
+standalone or as a plugin (`PRINCIPLES.md` §3). Every milestone targets both
+workflows and must satisfy the principles. The dedicated hardware controller is a
+*later* distillation, designed only after playtesting on the keyboard +
+generic-controller surface (`PRINCIPLES.md` §4, DESIGN §10/§35) — it is not a
+near-term phase.
 
 > **Numbering note.** This roadmap was renumbered from an earlier mixed
 > `M0–M10 / MA–MW / MH.x / MHZ.x` scheme into the phase-based decimal scheme
