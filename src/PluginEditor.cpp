@@ -1310,7 +1310,7 @@ namespace lockstep
                         if (activeBand == MetaBand::Density && ui.songHeld)
                             ctx = "DENSITY  master overlay";
                         else if (activeBand == MetaBand::Density)
-                            ctx = "DENSITY  per-track  (double-tap Func to pin)";
+                            ctx = "DENSITY  per-track  (Func+FX to pin)";
                         else
                             ctx = "FUNC";
                     }
@@ -1943,22 +1943,12 @@ namespace lockstep
                             repaint();
                         }
                         else if (!uiState_.latch.any()
-                                 && !processor_.editContext().hasAnyLatchedStep())
+                                 && !processor_.editContext().hasAnyLatchedStep()
+                                 && uiState_.densityStickyMode)
                         {
-                            // No latches/euclid to escape — toggle sticky DENSITY mode.
-                            // Entry guard: don't enter if a foreign scope is physically held,
-                            // so density-sticky and foreign-scope-held stay mutually exclusive.
-                            // Vel sticky and density sticky are also mutually exclusive.
-                            if (uiState_.densityStickyMode)
-                            {
-                                escapeDensitySticky();
-                            }
-                            else if (!physHeld_.track && !physHeld_.phrase && !physHeld_.scene
-                                     && !physHeld_.morph && !physHeld_.mute && !physHeld_.fill)
-                            {
-                                uiState_.densityStickyMode = true;
-                                escapeVelSticky();
-                            }
+                            // Func double-tap = universal escape; also clears density sticky
+                            // when no modifier latches or step latches are present.
+                            escapeDensitySticky();
                             refreshMetaBand();
                             repaint();
                         }
@@ -2133,6 +2123,22 @@ namespace lockstep
                     escapeDensitySticky();
                     refreshMetaBand();
                     repaint();
+                    return true;
+                }
+                // Func+FX enters density sticky mode, symmetric with Func+AMP for vel (§39.5).
+                // Gated on !densityStickyMode: when already sticky, bare FX cycles sub-pages
+                // (handled by consumeDensityStickyKey above, which already returned true).
+                if (uiState_.funcHeld && ev.index == 5 && !uiState_.densityStickyMode)
+                {
+                    // Entry guard: don't enter if a foreign scope is physically held.
+                    if (!physHeld_.track && !physHeld_.phrase && !physHeld_.scene
+                        && !physHeld_.morph && !physHeld_.mute && !physHeld_.fill)
+                    {
+                        uiState_.densityStickyMode = true;
+                        escapeVelSticky();
+                        refreshMetaBand();
+                        repaint();
+                    }
                     return true;
                 }
 
@@ -3132,9 +3138,9 @@ namespace lockstep
                     keyboardArea_.repaint();
                     return true;
                 }
-                // DESIGN §34.4: at the last in-length page, a single NavRight is a
-                // no-op (clamped); a double-tap unlocks one empty page past the
-                // end so a longer length can be set out there.
+                // DESIGN §34.4 / PRINCIPLES §17 (nav reveal/unlock family): at the last
+                // in-length page, a single NavRight is a no-op (clamped); a double-tap
+                // unlocks one empty page past the end so a longer length can be set.
                 if (keyboardArea_.currentPage() >= keyboardArea_.numPages() - 1)
                 {
                     const double now = juce::Time::getMillisecondCounterHiRes();
