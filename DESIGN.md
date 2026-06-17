@@ -849,7 +849,7 @@ of which are performance specialists.
 | `1` | Func    | section scope + universal qualifier | composes with every other scope to give the "secondary variant" |
 | `2` | Track   | section scope | focused-track edits, post-machine FILTER/AMP cells |
 | `Q` | Phrase  | section scope | phrase length / scale |
-| `W` | Scene   | section scope | scene launch (single/double-tap) / commit / revert (§16). The Kit / machine picker is on `Func+Track`. |
+| `W` | Scene   | section scope | scene launch (`Scene+step` = overlay; `Func+Scene+step` = floor) / commit / revert (§16). The Kit / machine picker is on `Func+Track`. |
 | `A` | Morph   | section scope | morph-assign per scene |
 | `S` | Song    | section scope | song select; `Func+Song` = Global / master FX / gain cells |
 | `Z` | Mute    | performance specialist | hold-and-tap-many multi-mute |
@@ -1646,6 +1646,18 @@ These conventions compose with §13.7 Latch and with PRINCIPLES §17: the
 family, and "bare = universal scope" ensures no bare verb carries a second
 meaning that differs from its Song-scoped form.
 
+**Time-based gestures (two axes; see PRINCIPLES §17).**
+
+| Axis | Legal on | Key rule |
+|---|---|---|
+| **Double-tap / double-press** | Modifiers (→ latch); `Func` (→ escape); steps (→ edit context, scope-local to trig grid); verbs (→ amplified action); nav at boundary (→ reveal/unlock); HW operand encoder push (→ reset to default) | Every double-tap must belong to a named family; step-double-tap is trig-grid-scoped only |
+| **Press duration (hold)** | Verbs and operands **only** | Modifiers and `Func` are forbidden — they are already held for chords; no free "long" variant exists |
+
+Band-pinning (sticky mode) for meta-bands is a **`Func + section` chord**, not
+a double-tap. Velocity sticky → `Func + AMP` (§13.7 / §39.10); density sticky
+→ `Func + FX` (§39.5). This is consistent with §17: `Func` never latches or
+pins via double-tap.
+
 ### 13.0 Gesture cost reference
 
 Every live gesture, grouped by its PRINCIPLES §15 rung. The rung is the
@@ -1670,7 +1682,7 @@ the bare `Y` — rung 1.) **Panic** (kill voices): `Song + Clear (O)` —
 rung 3.
 
 **Rung 3 — `mod + key` (2 keys).** `Mute+step` global mute (hold-tap-
-many); `Scene+step` launch (carry overlay; double-tap = floor);
+many); `Scene+step` launch (carry overlay); `Func+Scene+step` = floor launch;
 `Scene+verb` bake (Rec) / revert (Clear) / re-sync-all (Snap);
 `Song+step` queue song; `Song+Clear` Panic; `Phrase+step`
 unison/set-global; `Fill+step` mark fill; `section+verb` copy/paste/clear
@@ -1969,8 +1981,8 @@ exactly what a Scene owns.
 This is the **same floor/overlay split** a Scene already runs (§4.7/§16):
 the Scene-scope checkpoint floor **is** the Scene's saved floor, and a
 Scene's live overlay is working state above it. So the Scene-level reverts
-are one behaviour reached several ways — double-tap a Scene launch,
-`Scene + Clear`, or `Func+Y` (RESTORE) walked to the Scene's floor.
+are one behaviour reached several ways — `Scene + active-step`, `Scene + Clear`,
+or `Func+Y` (RESTORE) walked to the Scene's floor.
 
 **The floor is the saved state.** Each scope's stack is seeded, on Song
 load / Song switch, with a single **floor** entry = that scope's
@@ -2047,6 +2059,10 @@ difference. Latch is persistence, not a new clause.
   for the key that started a mode. (When no latch is engaged, `Func` behaves
   exactly as today — the escape is a no-op and never pre-empts `Func`'s normal
   key-up commits such as the §13.4 deferred pattern-mute multi-select.)
+  **`Func` also never pins a meta-band via double-tap.** Meta-band sticky modes
+  (velocity, density) are entered by a `Func + section` chord: `Func + AMP` =
+  velocity sticky (§39.10); `Func + FX` = density sticky (§39.5). This is
+  consistent with PRINCIPLES §17 — `Func`'s double-tap is escape only.
 - **Steps are operands, never the exit.** Double-tapping a step virtual-holds
   it into the edit context (P-Lock / trig override), so encoder edits land on
   it hands-free. A **single tap still toggles that step's trig**, even while
@@ -2225,8 +2241,6 @@ own overlay while the set runs.
 - **`Func + Scene + step`** — **baseline launch**: switch to any Scene at
   its clean saved floor, discarding all overlay state regardless of which
   Scene you pick.
-- **Double-tap** (kept as a quick shortcut) — same effect as baseline for
-  the tapped Scene; equivalent to `Func + Scene + step` on that Scene.
 
 At the launch boundary the band takes the Scene's effective phrases
 (floor, or floor+overlay for a single-tap), the active mask
@@ -2271,8 +2285,8 @@ meanings are `Func`-qualified, §13.2):
   Scene immediately (apply its phrases + active mask now, not at the next
   core-time boundary).
 - `Scene + Clear` — **revert**: discard the live overlay, return to the
-  Scene's saved floor. Same behaviour as a double-tap launch of the active
-  Scene, and the same restore the §13.6 Checkpoint floor reaches via
+  Scene's saved floor. Same behaviour as `Scene + active-step` (re-tap the
+  active Scene), and the same restore the §13.6 Checkpoint floor reaches via
   `Func+Y` (RESTORE) walked to a Scene scope's floor — one behaviour, several
   doors.
 
@@ -5228,8 +5242,8 @@ avoid correlating density selection with which steps barely passed probability.
 
 **Ephemerality** is implemented by carrying density + master offset inside the
 scene overlay (`SceneOverlay`), mirroring the existing `deviated` / `deviationPhraseIdx`
-mechanism. Single-tap scene launch keeps live density deviations (sticky); double-tap
-floor launch wipes them. `setActiveSong` and `loadPosition` always reset to defaults.
+mechanism. Overlay-carry scene launch keeps live density deviations (sticky); floor
+launch (`Func + Scene + step`) wipes them. `setActiveSong` and `loadPosition` always reset to defaults.
 
 ### 39.5 Grammar and surface
 
@@ -5237,7 +5251,7 @@ floor launch wipes them. `setActiveSong` and `loadPosition` always reset to defa
 |---|---|
 | `Func` (held) | MZ → transient Density band (8 per-track rotaries, bank follows focused track) |
 | `Song`-held + encoder or drag (within Density band) | Adjust master density offset; arc + effective tick sweep on all rotaries; thumbs stay per-track |
-| `Func` double-tap | Toggle sticky DENSITY mode (latched; double-tap again or escape to exit). Entry blocked if a foreign cluster scope is physically held — see §39.8. |
+| `Func + FX` (chord) | Enter sticky DENSITY mode (pinned; `Func` double-tap or `Func + FX` again to exit). Entry blocked if a foreign cluster scope is physically held — see §39.8. |
 | nav keys (↑↓←→) while sticky | Page between bank 1-8 and bank 9-16 |
 | FX section key while sticky | Toggle Amount sub-page (per-track rotaries) ↔ Mode sub-page (Musicality/Selection) |
 | Track / Phrase / Scene / Morph / Mute / Fill while sticky | Discharges sticky mode before running the scope's normal handler — see §39.8 |
@@ -5289,8 +5303,8 @@ This is what lets `resolveMetaBand` (MZ axis) and `resolveActiveLayer` (grid
 axis) remain consistent without merging into one resolver: because the conflicting
 state is never allowed to exist, they can never disagree about which is active.
 
-**Entry guard** — `Func` double-tap only enters sticky mode when no foreign
-cluster scope is physically held. If one is held, the double-tap is ignored.
+**Entry guard** — `Func + FX` (chord) only enters sticky mode when no foreign
+cluster scope is physically held. If one is held, the chord is ignored.
 
 **Discharge guard** — in `dispatchDown`, pressing a foreign cluster scope key
 while density is already sticky calls `escapeDensitySticky()` + `refreshMetaBand()`
@@ -5299,13 +5313,14 @@ back in density mode.
 
 **Density's own keys** (exempt from the discharge rule):
 - `Song` — master-density offset in the Density band
-- `Func` — toggle/exit
+- `Func` (double-tap) — universal escape / exit sticky mode
+- `Func + FX` — re-enter / toggle sticky mode (same chord that entered it)
 - `Nav` (↑↓←→) — bank flip
 - FX section key (index 5) — Amount/Musicality/Selection sub-page cycle
 
 **Section-select exit** — pressing any section key with index 0–4 while density
-sticky is active exits the mode (same result as double-tap Func) and selects the
-pressed section, routing encoders back to that section's machine params.
+sticky is active exits the mode (same result as `Func` double-tap escape) and
+selects the pressed section, routing encoders back to that section's machine params.
 `sectionSelectClearsDensitySticky()` in `MetaBand.cpp` is the canonical predicate
 for this rule; `PluginEditor.cpp` Section handler calls it right after
 `consumeDensityStickyKey()`.

@@ -461,7 +461,7 @@ in the scope-section matrix); two are **performance specialists**
 | `1` | **Func** | Universal qualifier — composes with any other scope to flip to its "secondary variant." Also the modifier layer for snapshots, verbs, and machine secondaries. |
 | `2` | **Track** | One or more tracks; or, with none selected, Control-All. `Track+section` opens the track-foundation row (post-machine FILTER/AMP, IEffect inserts). **`Func+Track`** opens the machine/Kit picker (step cells show machines; press one to assign it to the focused track). |
 | `Q` | **Phrase** | A per-track musical phrase (pure note content). `Phrase+step` (or `Track+Phrase+step`) deviates the focused track to that phrase. `Scene+Phrase+step` deviates all tracks; landing on the diagonal row clears all deviations. To clear all deviations: `Scene+Phrase+step` on diagonal, re-launch active Scene, or `Func+Scene+step`. |
-| `W` | **Scene** | A launchable cross-track row (diagonal phrase row + active-mask + core time). Scene N always plays phrase row N. `Scene+step` occupied = carry overlay (double-tap = floor); on active = revert to floor; on **empty** = baked-copy create + launch. `Func+Scene+empty` = baseline-copy create; `Mute+Scene+empty` = blank create. `Func+Scene+occupied` = floor launch. `Scene+Record` = commit-and-bake. `Func+Scene+Record/Play` = copy/paste. |
+| `W` | **Scene** | A launchable cross-track row (diagonal phrase row + active-mask + core time). Scene N always plays phrase row N. `Scene+step` occupied = carry overlay; on active = revert to floor; on **empty** = baked-copy create + launch. `Func+Scene+empty` = baseline-copy create; `Mute+Scene+empty` = blank create. `Func+Scene+occupied` = floor launch. `Scene+Record` = commit-and-bake. `Func+Scene+Record/Play` = copy/paste. |
 | `A` | **Morph** | The A/B crossfader scope. Hold/latch + encoder sculpts overlay at current fader split; `Morph+^`/`v` forces pure A/B writes; `Morph+Mute` = fluid mute a track. |
 | `S` | **Song** | Song select (`Song+step`). `Func+Song` = Global / master-bus focus. |
 | `Z` | **Mute** | Global mute mask (hold and tap several tracks). `Scene+Mute+step` = per-scene mute. |
@@ -744,11 +744,11 @@ State round-trips in serializer v18 (v19 when Density ships).
 
 **Density overlay.** While `Func` is held, the Manipulation Zone shows a transient
 **Density** band: 8 rotaries for the 8 tracks in the current bank (bank follows
-focused track). **Double-tap Func** pins sticky DENSITY mode; any nav key (↑↓←→)
+focused track). **`Func+FX`** pins sticky DENSITY mode; any nav key (↑↓←→)
 pages between banks 1-8 and 9-16. While in the band (transient or sticky),
 `Song`-held (encoder or on-screen drag) adjusts the master offset additively to all tracks;
 the arc on each rotary shifts to show the offset and a tick marks the effective (audible) value.
-Double-tap Func again to exit sticky mode.
+`Func` double-tap (universal escape) or `Func+FX` again to exit sticky mode.
 
 Pressing **Track, Phrase, Scene, Morph, Mute, or Fill** while sticky exits the mode
 before the scope's normal handler runs — so holding Track to pick a track then
@@ -881,7 +881,7 @@ Scenes and switch Songs live.
 
 | Gesture | Action |
 |---|---|
-| `Scene (W) + step key` | Launch a Scene (quantized when playing). On a *different* occupied Scene: carries the live overlay; double-tap = floor launch. On the *active* Scene: reverts to floor. On an **empty** slot: **baked-copy create** + launch (current effective content, including deviations). Conflict-gated when target phrase row has content; no-op skip when identical. |
+| `Scene (W) + step key` | Launch a Scene (quantized when playing). On a *different* occupied Scene: carries the live overlay. On the *active* Scene: reverts to floor. On an **empty** slot: **baked-copy create** + launch (current effective content, including deviations). Conflict-gated when target phrase row has content; no-op skip when identical. |
 | `Func + Scene + step key` | On an occupied Scene: **floor launch**. On an **empty** slot: **baseline-copy create** (floor diagonal row only, no deviations) + launch. Conflict-gated. |
 | `Mute + Scene + empty-step` | **Blank create** — a fresh empty Scene, no content copied. |
 | `Scene + Clear` | Revert the active Scene to its saved floor (same as re-launching it). |
@@ -1242,7 +1242,7 @@ shipped behaviour and the design intent. To avoid confusion:
   upgrade chain, New/Open/Save/Save As with dirty guard, last-project auto-open.
 - **Per-track FX inserts** (2 slots, `Func+FX` picker, `FX+step` animate-bypass).
 - **Master FX bus** (2 post-sum slots, `Func+Song+FX` picker, MZ params under `Song+FX`, serializer v14).
-- **Density overlay** (`Func`-held → transient per-track Density band; double-tap Func = sticky DENSITY mode; nav = bank 1-8/9-16; `Song`-held = master offset (encoder or drag); FX key = Amount/Mode/Selection sub-page; section key 0-4 or foreign scope = exit sticky mode; `Song`-alone = swing).
+- **Density overlay** (`Func`-held → transient per-track Density band; `Func+FX` = sticky DENSITY mode; nav = bank 1-8/9-16; `Song`-held = master offset (encoder or drag); FX key = Amount/Mode/Selection sub-page; section key 0-4 or foreign scope = exit sticky mode; `Song`-alone = swing).
 
 **Planned** — the rest of the
 machine catalogue (`4.5` Static, `4.6` Percussion, `4.7` Digital); **Phase 5**

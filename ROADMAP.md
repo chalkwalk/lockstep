@@ -1590,6 +1590,22 @@ and dogfooding (8.28 era). Docs shipped in the same pass; code follows.
       rules; avoid/prefer audit table; idiomatic-short-form exceptions.
 - [x] **DESIGN §39.10** — Fix vel-sticky entry from `AMP` double-tap to
       `Func+AMP` (PRINCIPLES §17 compliance).
+- [x] **A1/A2** — Two-axis time-gesture model: PRINCIPLES §17 extended with
+      nav reveal/unlock family, operand double-tap = reset-to-default family,
+      step-double-tap scope-locality note, and explicit duration fence (hold on
+      verb/operand only; modifiers/`Func` forbidden). NON-GOALS §14 widened to
+      include (b) duration-meaning on modifier or `Func`.
+- [x] **A3** — DESIGN updated: §13 "Time-based gestures" two-axis table +
+      band-pin note; §13.7 Latch "Func never pins via double-tap" note; §39.5
+      density entry gesture `Func double-tap` → `Func+FX` chord; §39.8 entry
+      guard updated; §16 double-tap floor bullet removed; README + all stale
+      "double-tap Func/Scene" refs fixed.
+- [ ] **B1 (density rebind)** — `PluginEditor.cpp`: delete double-tap density
+      toggle branch (`:1945-1964`); add `Func+FX` (index 5) sticky entry after
+      vel block (~`:2137`); fix status string "Func+FX to pin".
+- [ ] **B2 (scene double-tap removal)** — `PluginEditor.cpp`: remove
+      `doubleTap_.recordAndCheck(3000+ev.index)` from scene `!funcHeld` branch;
+      single-tap always overlay.
 - [x] **B1** — Stereo master meter: `masterPeakR_` added to
       `PluginProcessor`; two stacked 3px bars (L/R) in `paintOverChildren`.
 - [x] **B2** — MZ header strip (§26.4.1) + modal colour families (§26.4.2,
