@@ -1600,12 +1600,12 @@ and dogfooding (8.28 era). Docs shipped in the same pass; code follows.
       density entry gesture `Func double-tap` → `Func+FX` chord; §39.8 entry
       guard updated; §16 double-tap floor bullet removed; README + all stale
       "double-tap Func/Scene" refs fixed.
-- [ ] **B1 (density rebind)** — `PluginEditor.cpp`: delete double-tap density
-      toggle branch (`:1945-1964`); add `Func+FX` (index 5) sticky entry after
-      vel block (~`:2137`); fix status string "Func+FX to pin".
-- [ ] **B2 (scene double-tap removal)** — `PluginEditor.cpp`: remove
+- [x] **B1 (density rebind)** — `PluginEditor.cpp`: deleted double-tap density
+      entry; added `Func+FX` (index 5) sticky entry after vel block; Func double-tap
+      still clears density sticky as part of universal escape; fixed status string.
+- [x] **B2 (scene double-tap removal)** — `PluginEditor.cpp`: removed
       `doubleTap_.recordAndCheck(3000+ev.index)` from scene `!funcHeld` branch;
-      single-tap always overlay.
+      single-tap always overlay; floor only via `Func+Scene+step`.
 - [x] **B1** — Stereo master meter: `masterPeakR_` added to
       `PluginProcessor`; two stacked 3px bars (L/R) in `paintOverChildren`.
 - [x] **B2** — MZ header strip (§26.4.1) + modal colour families (§26.4.2,
