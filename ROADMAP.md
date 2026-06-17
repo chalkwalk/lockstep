@@ -1574,6 +1574,39 @@ has unsaved changes.
 - [ ] Optional: single-instance enforcement, native menu bar (macOS).
 - [ ] Full custom `JUCEApplication` subclass (future; not needed for the guard).
 
+### 9.3 — UX-clarity pass  *[active]*
+Surface honesty and mode-legibility improvements surfaced during gain-staging
+and dogfooding (8.28 era). Docs shipped in the same pass; code follows.
+
+- [x] **PRINCIPLES §17** — Reserved gestures are fences, not conventions:
+      double-tap families documented; section-key exclusion stated.
+- [x] **NON-GOALS §14** — Reserved-gesture overload fence.
+- [x] **DESIGN §13 grammar conventions** — "hold = all the way"; "bare verb
+      = universal-scope synonym" (bare `Y` ≡ `Song+Y`).
+- [x] **DESIGN §26.4** — Modal-identity spec: MZ header strip + page
+      indicator; P-Lock amber / meta-modal violet colour families;
+      section-key fill highlight.
+- [x] **DESIGN §6.9** — Naming-clarity policy: param label and value-label
+      rules; avoid/prefer audit table; idiomatic-short-form exceptions.
+- [x] **DESIGN §39.10** — Fix vel-sticky entry from `AMP` double-tap to
+      `Func+AMP` (PRINCIPLES §17 compliance).
+- [ ] **B1** — Stereo master meter: add `masterPeakR_` to
+      `PluginProcessor`; render two bars in `paintOverChildren`.
+- [ ] **B2** — MZ header + modal colour families + section-key fill;
+      implement §26.4 in `ManipulationZone.cpp` / `KeyboardArea.cpp`.
+- [ ] **B3** — Value-label / naming edits: lengthen `valueLabels` arrays
+      per §6.9 audit in `src/machine/*.cpp` and `MetaBand.cpp`; adjust
+      meta density label (`T1` → `Trk 1`).
+
+### 9.4 — Snapshot design session  *[planned — unscheduled]*
+Dedicated session to resolve the snapshot dual-purpose tension (J1 safety-net
+vs J2 performance scratch) and produce shippable CUJ docs and restore-semantics
+spec. Seeded by the study brief in the plan that shipped 9.3.
+
+Prerequisites: 9.3 B2 shipped (MZ header provides the feedback surface for
+restore-label display); design session decides A/B/C model. Output lands in
+`README.md` (workflow) and `DESIGN.md` §13.6 (rationale + UX).
+
 ---
 
 ## Appendix — Legacy code → new id
