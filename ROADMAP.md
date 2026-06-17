@@ -1590,13 +1590,13 @@ and dogfooding (8.28 era). Docs shipped in the same pass; code follows.
       rules; avoid/prefer audit table; idiomatic-short-form exceptions.
 - [x] **DESIGN §39.10** — Fix vel-sticky entry from `AMP` double-tap to
       `Func+AMP` (PRINCIPLES §17 compliance).
-- [ ] **B1** — Stereo master meter: add `masterPeakR_` to
-      `PluginProcessor`; render two bars in `paintOverChildren`.
-- [ ] **B2** — MZ header + modal colour families + section-key fill;
-      implement §26.4 in `ManipulationZone.cpp` / `KeyboardArea.cpp`.
-- [ ] **B3** — Value-label / naming edits: lengthen `valueLabels` arrays
-      per §6.9 audit in `src/machine/*.cpp` and `MetaBand.cpp`; adjust
-      meta density label (`T1` → `Trk 1`).
+- [x] **B1** — Stereo master meter: `masterPeakR_` added to
+      `PluginProcessor`; two stacked 3px bars (L/R) in `paintOverChildren`.
+- [x] **B2** — MZ header strip (§26.4.1) + modal colour families (§26.4.2,
+      amber/violet) + section-key fill highlight (§26.4.3);
+      `ManipulationZone.cpp` / `KeyboardArea.cpp` / `MetaBand.cpp`.
+- [x] **B3** — Value-label clarity per §6.9: "Trk N" density labels;
+      "EXEMPT"/"SCRUB"/"RE-ROLL"/"REPLACE"/"UNIFM"/"METRIC"/"SUS+REL".
 
 ### 9.4 — Snapshot design session  *[planned — unscheduled]*
 Dedicated session to resolve the snapshot dual-purpose tension (J1 safety-net
