@@ -425,6 +425,42 @@ principle says the surface announces what it is about to do; this one
 says destructive actions must announce *which specific entity* is at
 risk, so the user can verify before confirming.
 
+## 17. Reserved gestures are fences, not conventions
+
+The gesture vocabulary is **small and shared**: every user must carry the
+complete grammar in their hands, which is both the instrument's strength
+and a reason to guard the budget fiercely. Certain gesture patterns are
+**reserved** because they carry cross-surface, cross-machine meanings;
+grafting a new action onto them destroys the reliability that makes them
+valuable.
+
+The reserved families, with their invariant meanings:
+
+- **Modifier double-tap** = latch (virtual-hold): the same scope, hands-free.
+  Double-tap the same modifier again = release the latch. No other meaning may
+  be added to modifier double-tap. (DESIGN §13.7.)
+- **`Func` double-tap** = universal escape: clear all latches and virtual-held
+  steps in one gesture. `Func` never latches; its escape is *unconditional*,
+  so the performer always knows the exit. (DESIGN §13.7.)
+- **Step double-tap** = virtual-hold into the edit context (P-Lock / trig
+  override operand). (DESIGN §13.7; *"The grid is the menu"* §5.)
+- **Verb double-press** = amplified / intensified action (e.g. `Play`
+  double-press = stop + reset phase). Verbs are instantaneous — their
+  double-press is *intensification*, not latch. (DESIGN §13.7.)
+
+**Section keys are excluded from all double-tap gestures.** A section key
+advances through its sub-pages on single tap; a repeated tap is already
+semantically occupied by that paging cycle. New gestures targeting a section
+key must use `Func + section` or long-press — never double-tap. (See also
+*"One grammar, no exceptions"* §2; DESIGN §6.1.)
+
+**Consequence.** Before adding any double-tap or double-press meaning, confirm
+which family it belongs to and that the family has capacity for the new entry.
+If it doesn't fit any existing family — and especially if it would reach into
+the section-key layer — the proposal requires a revision to this principle
+first, not a silent exception. See *"Gesture cost is graduated"* §15;
+NON-GOALS §14.
+
 ---
 
 ## Non-Goals — what Lockstep refuses to become
@@ -460,3 +496,8 @@ the performable alternative we offer instead. The summary:
 11. **No crutch tooling.** Note auto-correct, custom-LFO designers, free
     automation lanes — capability that lowers the floor or never gets played.
     → *Reward mastery*.
+12. **No reserved-gesture overload.** No new meaning on modifier double-tap
+    (latch), `Func` double-tap (universal escape), step double-tap (edit-context
+    entry), verb double-press (amplified action), or any double-tap on a section
+    key. → *Reserved gestures are fences, not conventions*; DESIGN §13.7;
+    NON-GOALS §14.

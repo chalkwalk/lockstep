@@ -1579,6 +1579,27 @@ render neutral. In-scope keys glow in the scope colour (§6.6);
 reserved verbs dim. This is the operational form of PRINCIPLES §10
 ("a held scope recolours the keys it rebinds").
 
+**Standing grammar conventions.** Two recurring patterns apply to *any* feature
+that adds an incremental action or a scoped verb, so they are documented here
+once rather than re-derived per feature:
+
+- **Hold = "all the way."** When a verb performs an incremental/stepwise action,
+  *holding* it means "carry the action to its terminal extent" — floor, not just
+  one level; all, not just one. Canonical instance: a brief `Func+Y` (RESTORE)
+  = pop one checkpoint entry; hold `Func+Y` then release = jump straight to the
+  floor. Any new incremental verb inherits this intensifier automatically;
+  controller surfaces and hardware both reach the extremity by holding.
+- **Bare verb = universal-scope synonym.** A verb pressed with no scope modifier
+  is identical to the verb qualified with the top / universal scope. Canonical
+  instance: bare `Y` (Snapshot) ≡ `Song + Y`. This makes the bare form a
+  *shorthand*, not an exception — `Song + Y` is always the admissible explicit
+  form of the bare press, and the grammar is total (no scope is ever "missing").
+
+These conventions compose with §13.7 Latch and with PRINCIPLES §17: the
+"hold = all the way" behaviour is an instance of the verb hold-intensification
+family, and "bare = universal scope" ensures no bare verb carries a second
+meaning that differs from its Song-scoped form.
+
 ### 13.0 Gesture cost reference
 
 Every live gesture, grouped by its PRINCIPLES §15 rung. The rung is the
@@ -1997,7 +2018,9 @@ is never a stale modality lurking under a freshly chosen one.
 meaning — the established one being a double-press of Play = stop + reset
 phase (§13 transport). Verbs are instantaneous, so latching them is
 meaningless; that they instead carry the "amplified action" reading keeps the
-two double-tap families cleanly separated.
+two double-tap families cleanly separated. Both families are fenced by
+PRINCIPLES §17 — adding a new meaning to either requires a revision to that
+principle, not a silent exception here.
 
 | Gesture | Effect |
 |---|---|
@@ -5228,11 +5251,14 @@ Replace supersedes authored (incl. Euclidean-baked) velocity; Mix adds a metric
 bump on top of it. The Euclidean generator's baked accent is authored content —
 it survives unchanged and can be combined with the overlay via Mix.
 
-**Entry:** double-tap AMP section key (index 3). AMP re-press cycles sub-pages:
-Depth → Center → Mode → Blend (and wraps). Nav keys page between bank 1-8 / 9-16.
-Foreign cluster scope keys (Track / Phrase / Scene / Morph / Mute / Fill) exit
-vel sticky, parallel to density sticky's §39.8 invariant. Density sticky and vel
-sticky are mutually exclusive; entering one exits the other.
+**Entry:** `Func + AMP` section key (index 3). (Section keys never take a
+double-tap gesture — PRINCIPLES §17; new section-key gestures use `Func +
+section` or long-press.) AMP re-press while vel-sticky is active cycles
+sub-pages: Depth → Center → Mode → Blend (and wraps). Nav keys page between
+bank 1-8 / 9-16. Foreign cluster scope keys (Track / Phrase / Scene / Morph /
+Mute / Fill) exit vel sticky, parallel to density sticky's §39.8 invariant.
+Density sticky and vel sticky are mutually exclusive; entering one exits the
+other.
 
 **MetaBand sub-pages (8 per-track rotaries, paginated like density):**
 
