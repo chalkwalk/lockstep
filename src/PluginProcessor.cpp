@@ -1311,10 +1311,10 @@ namespace lockstep
                     buffer.setSample(ch, i, std::tanh(s));
                 }
             }
-            masterPeak_.store(buffer.getMagnitude(0, numSamples),
+            masterPeak_.store(buffer.getMagnitude(0, 0, numSamples),
                               std::memory_order_relaxed);
             masterPeakR_.store(buffer.getNumChannels() > 1
-                                   ? buffer.getMagnitude(1, numSamples)
+                                   ? buffer.getMagnitude(1, 0, numSamples)
                                    : masterPeak_.load(std::memory_order_relaxed),
                                std::memory_order_relaxed);
             captureRecorder_.writeBlock(buffer, numBlockSamples);
@@ -2137,10 +2137,10 @@ namespace lockstep
                 buffer.setSample(ch, i, std::tanh(s));
             }
         }
-        masterPeak_.store(buffer.getMagnitude(0, numSamples),
+        masterPeak_.store(buffer.getMagnitude(0, 0, numSamples),
                           std::memory_order_relaxed);
         masterPeakR_.store(buffer.getNumChannels() > 1
-                               ? buffer.getMagnitude(1, numSamples)
+                               ? buffer.getMagnitude(1, 0, numSamples)
                                : masterPeak_.load(std::memory_order_relaxed),
                            std::memory_order_relaxed);
         captureRecorder_.writeBlock(buffer, numBlockSamples);
