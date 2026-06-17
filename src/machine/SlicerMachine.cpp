@@ -294,7 +294,7 @@ namespace lockstep
     {
         static constexpr const char* kSLModeLabels[] = { "SLICE", "SCRUB", nullptr };
         static constexpr const char* kSLSrcLabels[] = { "EQUAL", "TRANS", nullptr };
-        static constexpr const char* kSLLoopLabels[] = { "OFF", "SUS", "S+R", "ALL", nullptr };
+        static constexpr const char* kSLLoopLabels[] = { "OFF", "SUS", "SUS+REL", "ALL", nullptr };
         static constexpr const char* kSLVoiceLabels[] = { "MONO", "POLY", nullptr };
     }
 

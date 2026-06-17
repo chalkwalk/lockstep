@@ -545,14 +545,14 @@ namespace lockstep
             const bool exempt = (proc.kit(trackIdx).densitySelection == Density::DensitySelection::Exempt);
             auto& v = result[static_cast<std::size_t>(i)];
             v.active   = true;
-            v.label    = "T" + juce::String(trackIdx + 1);
+            v.label    = "Trk " + juce::String(trackIdx + 1);
             v.minValue = 0.0f;
             v.maxValue = 100.0f;
             v.value    = perTrack * 100.0f;
             v.stepped  = false;
             v.writable = !exempt;
             v.hasOverride = !exempt && (perTrack != 1.0f || master != 0.0f);
-            v.valueText   = exempt ? "EXMT"
+            v.valueText   = exempt ? "EXEMPT"
                                    : (juce::String(juce::roundToInt(effective * 100.0f)) + "%");
             v.ringMode    = RingMode::UnipolarFill;
             v.densityCell = !exempt;
@@ -571,7 +571,7 @@ namespace lockstep
         const int page = ui.densityStickyMode ? ui.densityBank : ((focusedTrack >= 8) ? 1 : 0);
         const int pageOffset = page * 8;
 
-        static const char* musLabels[] = { "UNIF", "MIX", "MTRK" };
+        static const char* musLabels[] = { "UNIFM", "MIX", "METRIC" };
 
         for (int i = 0; i < 8; ++i)
         {
@@ -582,14 +582,14 @@ namespace lockstep
             const bool exempt = (kit.densitySelection == Density::DensitySelection::Exempt);
             auto& v = result[static_cast<std::size_t>(i)];
             v.active   = true;
-            v.label    = "T" + juce::String(trackIdx + 1);
+            v.label    = "Trk " + juce::String(trackIdx + 1);
             v.minValue = 0.0f;
             v.maxValue = 2.0f;
             v.value    = static_cast<float>(musVal);
             v.stepped  = true;
             v.writable = !exempt;
             v.hasOverride = !exempt && (kit.densityMusicality != Density::Musicality::Mixed);
-            v.valueText   = exempt ? "EXMT" : juce::String(musLabels[musVal]);
+            v.valueText   = exempt ? "EXEMPT" : juce::String(musLabels[musVal]);
             v.ringMode    = RingMode::Dot;
         }
         return result;
@@ -612,7 +612,7 @@ namespace lockstep
             const int selVal = static_cast<int>(kit.densitySelection);
             auto& v = result[static_cast<std::size_t>(i)];
             v.active   = true;
-            v.label    = "T" + juce::String(trackIdx + 1);
+            v.label    = "Trk " + juce::String(trackIdx + 1);
             v.minValue = 0.0f;
             v.maxValue = 2.0f;
             v.value    = static_cast<float>(selVal);
@@ -621,9 +621,9 @@ namespace lockstep
             v.hasOverride = (kit.densitySelection != Density::DensitySelection::Scrub);
             switch (kit.densitySelection)
             {
-                case Density::DensitySelection::Scrub:  v.valueText = "SCRB"; break;
-                case Density::DensitySelection::Reroll: v.valueText = "RROL"; break;
-                case Density::DensitySelection::Exempt: v.valueText = "EXMT"; break;
+                case Density::DensitySelection::Scrub:  v.valueText = "SCRUB"; break;
+                case Density::DensitySelection::Reroll: v.valueText = "RE-ROLL"; break;
+                case Density::DensitySelection::Exempt: v.valueText = "EXEMPT"; break;
             }
             v.ringMode = RingMode::Dot;
         }
@@ -649,7 +649,7 @@ namespace lockstep
             const bool off = (kit.velMode == VelMode::Off);
             auto& v = result[static_cast<std::size_t>(i)];
             v.active      = true;
-            v.label       = "T" + juce::String(trackIdx + 1);
+            v.label       = "Trk " + juce::String(trackIdx + 1);
             v.minValue    = 0.0f;
             v.maxValue    = 100.0f;
             v.value       = kit.velDepth * 100.0f;
@@ -676,7 +676,7 @@ namespace lockstep
             const bool off = (kit.velMode == VelMode::Off);
             auto& v = result[static_cast<std::size_t>(i)];
             v.active      = true;
-            v.label       = "T" + juce::String(trackIdx + 1);
+            v.label       = "Trk " + juce::String(trackIdx + 1);
             v.minValue    = 1.0f;
             v.maxValue    = 127.0f;
             v.value       = static_cast<float>(kit.velCenter);
@@ -704,7 +704,7 @@ namespace lockstep
             const int modeVal = static_cast<int>(kit.velMode);
             auto& v = result[static_cast<std::size_t>(i)];
             v.active      = true;
-            v.label       = "T" + juce::String(trackIdx + 1);
+            v.label       = "Trk " + juce::String(trackIdx + 1);
             v.minValue    = 0.0f;
             v.maxValue    = 1.0f;
             v.value       = static_cast<float>(modeVal);
@@ -723,7 +723,7 @@ namespace lockstep
         std::array<MetaFieldView, 8> result{};
         const int page = ui.velStickyMode ? ui.velBank : ((focusedTrack >= 8) ? 1 : 0);
         const int pageOffset = page * 8;
-        static const char* blendLabels[] = { "RPLC", "MIX" };
+        static const char* blendLabels[] = { "REPLACE", "MIX" };
         for (int i = 0; i < 8; ++i)
         {
             const int trackIdx = pageOffset + i;
@@ -733,7 +733,7 @@ namespace lockstep
             const bool off = (kit.velMode == VelMode::Off);
             auto& v = result[static_cast<std::size_t>(i)];
             v.active      = true;
-            v.label       = "T" + juce::String(trackIdx + 1);
+            v.label       = "Trk " + juce::String(trackIdx + 1);
             v.minValue    = 0.0f;
             v.maxValue    = 1.0f;
             v.value       = static_cast<float>(blendVal);

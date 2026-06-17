@@ -265,7 +265,7 @@ namespace lockstep
 
     namespace
     {
-        static constexpr const char* kSALoopLabels[] = { "OFF", "SUS", "S+R", "ALL", nullptr };
+        static constexpr const char* kSALoopLabels[] = { "OFF", "SUS", "SUS+REL", "ALL", nullptr };
         static constexpr const char* kSARetrigLabels[] = { "LEGATO", "RETRIG", nullptr };
     }
 
