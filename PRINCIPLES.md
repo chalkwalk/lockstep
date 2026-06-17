@@ -85,15 +85,19 @@ time a user has to remember a one-off rule. `Func` is the universal
 qualifier — it composes with any other scope to reach a "secondary
 variant" — but it never invents a meaning that doesn't compose.
 
-## 3. Performance is the goal, studio is the home
+## 3. Performance is the goal; standalone and DAW are equal homes
 
-Lockstep is a live instrument that lives inside a DAW. Performance
-ergonomics shape every decision — that is the lens through which
-features are accepted or rejected. Studio integration (host transport,
-MIDI-out, stem capture, resampling, project state serialisation) exists
-so that the performer can carry their stage flow into a studio session
-and produce stems for editing — not so that the tool can pretend to be a
-DAW.
+Lockstep is a live instrument, and performance ergonomics shape every
+decision — that is the lens through which features are accepted or
+rejected. It runs **equally** as a standalone application and as a plugin
+inside a DAW; neither is the "real" Lockstep and the other a degraded
+fallback. The same surface, the same grammar, the same project — the only
+difference is who owns the transport, the clock, and the save file (the
+standalone owns its own; the DAW host owns those when embedded). Studio
+integration (host transport, MIDI-out, stem / WAV capture, resampling,
+project state serialisation) exists so that a performer can carry their
+stage flow into *either* host and produce stems for editing — not so that
+the tool can pretend to be a DAW.
 
 There is no "design mode" vs "performance mode": the gestures that let a
 performer manipulate pre-authored material **are** the gestures that let
@@ -107,13 +111,28 @@ no new chord, no new mode, and no expansion of the grammar.
 
 ## 4. Hardware = fewer-key QWERTY
 
-The eventual hardware controller is the same key→action map in a denser,
-gig-ready package. Every action must be reachable from software QWERTY
-today; the hardware adds *no new features*, only ergonomics. Conversely,
-no software gesture should require a control axis the planned hardware
-can't provide. The one continuous axis is the crossfader (DESIGN §17);
-it has no QWERTY mapping because a typing keyboard cannot satisfy it
-honestly.
+The surface a performer uses **today** is the computer keyboard plus a
+generic MIDI controller — an X-Touch-class encoder/fader box is the sweet
+spot, and such devices are first-class *augmentation surfaces* now, not a
+someday nicety (DESIGN §35). The **eventual** dedicated hardware is the
+ergonomic distillation of that pairing once it has been proven by
+playtesting on exactly those: the same key→action map in a denser,
+gig-ready package. It is not designed up front and it adds *no new
+features* — it only makes the proven gestures faster.
+
+That sets the discipline. Every action must be reachable from software
+QWERTY today; the hardware adds nothing QWERTY can't already do.
+Conversely, no software gesture may require a control axis a typing
+keyboard can't honestly stand in for. The one continuous axis is the
+crossfader (DESIGN §17); it has no QWERTY mapping because a typing
+keyboard cannot satisfy it honestly, which is exactly why it is the
+*single* sanctioned exception.
+
+The usability target is graded, and it is the yardstick the whole surface
+is measured against: a fluent performer should be able to do **many things
+without looking at the screen, and almost anything without the mouse.**
+Chrome (§10) exists for when you *do* look; the grammar exists so that you
+mostly needn't.
 
 **Consequence.** Single-purpose buttons are forbidden — both in software
 (they violate the grammar) and in hardware (they bloat the surface).
@@ -300,15 +319,16 @@ Samples live as `{path, xxHash32}` refs; the plugin state never carries
 PCM bytes. The same discipline applies to anything content-heavy a
 machine might want to point at (wavetables, IRs, external destination CC
 tables): the project state holds a reference, not the payload. Project
-files stay tiny; DAW auto-saves stay cheap; performance recall stays
-instant.
+files stay tiny; host auto-saves and standalone project files stay cheap;
+performance recall stays instant.
 
 **Consequence.** When a feature would tempt us to embed bulk data into
 the project (e.g. "save the sampled audio inline so the user doesn't
 have to manage files"), we instead build the reference flow properly —
 explicit pool management, relink dialogs on load, hash verification — and
 accept the slightly higher one-time UX cost in exchange for never
-blocking the audio thread or bloating the host save.
+blocking the audio thread or bloating the host save / standalone project
+file.
 
 **Corollary (machine modules, 6.7).** This rule survives the machine
 boundary. A loadable machine module never owns or serialises bulk
