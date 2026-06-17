@@ -40,7 +40,7 @@ the *form*, then offer the performable version of the same desire.
 | 6 | Control axis the hardware can't honestly provide (MPE / pressure / tilt / per-track faders) | Ableton Push 3, TE EP-133, Roland Aira D-Motion, Roland MC-707 channel strips | *Hardware = fewer-key QWERTY* | Eight encoders + the single crossfader; no axis a typing keyboard can't stand in for |
 | 7 | Foreign-plugin / standalone-host ecosystem | Ableton Push 3, Akai Force | "No sub-host" (DESIGN §2, §36) | A bespoke, in-process machine module ABI — trusted native modules, no IPC, no sandbox |
 | 8 | Destructive tape workflow | Teenage Engineering OP-1 | *State refs, not contents* | Non-destructive P-locks / overrides; Recorder + Looper for live audio (refs, never baked-in PCM) |
-| 9 | Companion app / external editor as the primary surface | Yamaha Seqtrak | One *Surface model* (DESIGN §35.8) | A single `buildSurfaceModel()` both screen and controllers render from; the DAW is the screen |
+| 9 | Companion app / external editor as the primary surface | Yamaha Seqtrak | One *Surface model* (DESIGN §35.8) | A single `buildSurfaceModel()` both screen and controllers render from; the host's own window — standalone or DAW — is the screen |
 | 10 | Dual-project concurrent playback | Squarp Hapax | *Performance is the goal* | One set, performed; transitions are Scene/Song launches, not a second project |
 | 11 | Heavyweight performance-FX **mode** | Polyend Play FX grid, OP-Z punch-in, Roland MC-707 Scatter, Sonicware stutter | *Reward mastery* (dead weight); "No design/perform split" | A **thin "Animate" toggle** (Novation-Peak style) that momentarily bypasses/enables the existing inserts — power without a mode. Shipped (6.5): hold `FX` + step. |
 | 12 | Custom-LFO designer / free automation lanes | Octatrack LFO designer, Korg Electribe motion, Torso CC loops | *Reward mastery* (dead weight) | P-locks (stepped) + Morph (interpolated); rich modulation lives **inside a machine**, not in a canonical section |
@@ -57,6 +57,18 @@ not this" anchors:
   antithesis of *Pragmatic determinism*. We admire it; we are not it.
 - **OP-1 tape (#8)** — a destructive, linear tape metaphor is the opposite of
   a non-destructive, reference-based state model.
+
+One fence is narrower than it first reads, and the boundary is worth stating:
+
+- **Faders / extra axes on a controller you already own (#6)** — fence #6
+  rejects *designing the grammar around* an axis the eventual hardware can't
+  honestly provide (MPE, per-pad pressure, tilt, a wall of per-track faders).
+  It does **not** reject *supporting* a generic controller that happens to
+  **offer** such axes. Mapping the encoders, transport, and the single
+  crossfader onto an X-Touch-class box (an augmentation surface — DESIGN §35)
+  is exactly the intended near-term input story; the fence bites only when a
+  gesture comes to *require* an axis a typing keyboard can't stand in for. Use
+  the fader a performer already has; never make the grammar depend on it.
 
 One shipped feature sits **knowingly close to a fence** and is flagged as a
 live tension, not blessed:
