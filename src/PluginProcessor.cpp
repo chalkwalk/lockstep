@@ -1313,6 +1313,10 @@ namespace lockstep
             }
             masterPeak_.store(buffer.getMagnitude(0, numSamples),
                               std::memory_order_relaxed);
+            masterPeakR_.store(buffer.getNumChannels() > 1
+                                   ? buffer.getMagnitude(1, numSamples)
+                                   : masterPeak_.load(std::memory_order_relaxed),
+                               std::memory_order_relaxed);
             captureRecorder_.writeBlock(buffer, numBlockSamples);
             return;
         }
@@ -2135,6 +2139,10 @@ namespace lockstep
         }
         masterPeak_.store(buffer.getMagnitude(0, numSamples),
                           std::memory_order_relaxed);
+        masterPeakR_.store(buffer.getNumChannels() > 1
+                               ? buffer.getMagnitude(1, numSamples)
+                               : masterPeak_.load(std::memory_order_relaxed),
+                           std::memory_order_relaxed);
         captureRecorder_.writeBlock(buffer, numBlockSamples);
 
         totalSamplesProcessed_ += numBlockSamples;

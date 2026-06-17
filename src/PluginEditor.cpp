@@ -730,11 +730,14 @@ namespace lockstep
             }
         }
 
-        const float newMaster = std::max(processor_.masterPeak(), masterMeter_ * 0.80f);
-        const float flooredMaster = (newMaster < kMeterFloor) ? 0.0f : newMaster;
-        if (std::abs(flooredMaster - masterMeter_) > 0.0f)
+        const float newMasterL  = std::max(processor_.masterPeak(),  masterMeter_  * 0.80f);
+        const float newMasterR  = std::max(processor_.masterPeakR(), masterMeterR_ * 0.80f);
+        const float flooredL    = (newMasterL < kMeterFloor) ? 0.0f : newMasterL;
+        const float flooredR    = (newMasterR < kMeterFloor) ? 0.0f : newMasterR;
+        if (std::abs(flooredL - masterMeter_) > 0.0f || std::abs(flooredR - masterMeterR_) > 0.0f)
         {
-            masterMeter_ = flooredMaster;
+            masterMeter_  = flooredL;
+            masterMeterR_ = flooredR;
             dirty = true;
         }
 
@@ -1374,17 +1377,17 @@ namespace lockstep
         }
 
         // ---- Diagnostic meters drawn over children ----
-        // Master output meter: a thin bar along the very top edge.
+        // Stereo master output meter: two stacked 3px bars (L top, R below).
         {
-            const float level = juce::jlimit(0.0f, 1.0f, masterMeter_);
-            const int w = juce::roundToInt(static_cast<float>(getWidth()) * level);
+            const int fullW = getWidth();
+            const float levelL = juce::jlimit(0.0f, 1.0f, masterMeter_);
+            const float levelR = juce::jlimit(0.0f, 1.0f, masterMeterR_);
+            const int wL = juce::roundToInt(static_cast<float>(fullW) * levelL);
+            const int wR = juce::roundToInt(static_cast<float>(fullW) * levelR);
             g.setColour(juce::Colour::fromRGB(30, 34, 40));
-            g.fillRect(0, 0, getWidth(), 3);
-            if (w > 0)
-            {
-                g.setColour(meterColour(level));
-                g.fillRect(0, 0, w, 3);
-            }
+            g.fillRect(0, 0, fullW, 6);
+            if (wL > 0) { g.setColour(meterColour(levelL)); g.fillRect(0, 0, wL, 3); }
+            if (wR > 0) { g.setColour(meterColour(levelR)); g.fillRect(0, 3, wR, 3); }
         }
         // Per-track trig (left, cyan) + MIDI-in (right, magenta) activity dots.
         for (std::size_t i = 0; i < kNumTracks; ++i)

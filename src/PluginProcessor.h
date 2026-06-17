@@ -568,7 +568,8 @@ namespace lockstep
             if (track < 0 || track >= static_cast<int>(kNumTracks)) return 0.0f;
             return trackPeak_[static_cast<std::size_t>(track)].load(std::memory_order_relaxed);
         }
-        float masterPeak() const { return masterPeak_.load(std::memory_order_relaxed); }
+        float masterPeak()  const { return masterPeak_.load(std::memory_order_relaxed); }
+        float masterPeakR() const { return masterPeakR_.load(std::memory_order_relaxed); }
         float takeTrigPulse(int track)
         {
             if (track < 0 || track >= static_cast<int>(kNumTracks)) return 0.0f;
@@ -889,6 +890,7 @@ namespace lockstep
         std::array<std::atomic<float>, kNumTracks> trigPulse_{};
         std::array<std::atomic<float>, kNumTracks> midiPulse_{};
         std::atomic<float> masterPeak_{ 0.0f };
+        std::atomic<float> masterPeakR_{ 0.0f };
 
         // 8.26 C1: WAV performance capture.
         CaptureRecorder captureRecorder_;

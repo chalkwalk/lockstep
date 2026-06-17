@@ -241,7 +241,8 @@ namespace lockstep
         std::array<float, kNumTracks> trackMeter_{};
         std::array<float, kNumTracks> trigBlink_{};
         std::array<float, kNumTracks> midiBlink_{};
-        float masterMeter_ = 0.0f;
+        float masterMeter_  = 0.0f;
+        float masterMeterR_ = 0.0f;
         void paintMeters(juce::Graphics& g);
 
         // Last-seen morphFader value: used to detect on-screen fader moves and
