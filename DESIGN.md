@@ -14,6 +14,12 @@ a passive automation surface: discrete trigger programming, conditional
 logic, and step-based parameter locking ("P-Locks") replace the
 continuous DAW automation paradigm.
 
+Standalone and plugin are **co-equal hosts**, not a primary mode and a
+fallback. The same surface, grammar, and project run in both; the only
+difference is who owns the transport, the clock, and the save file — the
+standalone owns its own (project files, file bar, quit guard; ROADMAP
+Phase 9), the DAW host owns them when embedded (`PRINCIPLES.md` §3).
+
 The reference lineage is explicit:
 
 - **Digitakt** for the core feel — the trig grid, P-Locks, trig
@@ -48,11 +54,17 @@ Three non-negotiable design pillars:
    is reachable from the QWERTY keyboard alone. In-context selection
    — machine type, P-lock target slot, track, pattern, part — is
    always a step-key press; section keys navigate the MZ to a
-   parameter page and never launch a picker or popup. The eventual
-   hardware controller is literally a special, fewer-key QWERTY
-   keyboard in a grid layout — same key→action mapping, ergonomically denser
-   package, **no extra features**. If a workflow can't be done from
-   the software's QWERTY today, the hardware won't add it.
+   parameter page and never launch a picker or popup. The graded target
+   (`PRINCIPLES.md` §4): a fluent performer does **many things without
+   looking at the screen, and almost anything without the mouse.** The
+   surface used *today* is the computer keyboard plus a generic MIDI
+   controller — an X-Touch-class box is the sweet spot, supported now as a
+   first-class augmentation surface (§35). The eventual dedicated hardware
+   is the ergonomic distillation of that pairing once playtesting has
+   proven it: literally a fewer-key QWERTY in a grid layout — same
+   key→action mapping, denser package, **no extra features**. If a workflow
+   can't be done from the software's QWERTY today, the hardware won't add
+   it.
 2. **A strict DSP encapsulation boundary.** Sound-generating engines —
    "Machines" — are isolated behind a tightly scoped interface so that
    a native engine, a MIDI-out adapter, and any future plugin-host
@@ -1440,11 +1452,16 @@ it ever happened it would be just one more machine module written
 against the §36 SDK by whoever wanted it — no core sequencer changes —
 but it is not a goal and ships no first-party support.
 
-## 10. Phase 4 — Open-Source Hardware Companion
+## 10. The Eventual Dedicated Hardware
 
-A consolidated, gig-ready control surface mirrors the Phase 1 software
-UI 1:1. Headline points (full hardware design out of scope for this
-document):
+The dedicated controller is a **later** distillation, not a near-term
+deliverable: it is designed only after playtesting on the keyboard +
+generic-controller surface (§35, `PRINCIPLES.md` §4) has proven the
+ergonomics worth casting in hardware. It adds **no new features** — it is
+a consolidated, gig-ready package of the exact same key→action map, a
+fewer-key QWERTY mirroring the software surface 1:1. The sketch below is
+forward design, not committed scope (and not a roadmap phase — current
+status lives in `ROADMAP.md`):
 
 - A 256×64 SPI OLED flanked by 4 endless push-encoders for the
   Manipulation Zone.
@@ -1455,11 +1472,15 @@ document):
   QWERTY mapping; MIDI carries CC and SysEx.
 - Bidirectional SysEx for LED state, P-Lock indicators, and OLED
   rendering data, so the hardware is a self-sufficient face for the
-  plugin during live performance.
+  instrument during live performance.
 
-## 11. v0.1 Scope
+## 11. v0.1 Scope *(historical — shipped)*
 
-v0.1 is the "first usable" milestone. It includes:
+> This was the original "first usable" milestone and shipped long ago;
+> it is kept for context. Live status and forward work live in
+> `ROADMAP.md`, not here.
+
+v0.1 included:
 
 - The single sampler Machine inheriting `IMachine` end-to-end, driven
   by sequencer-emitted MIDI events.
@@ -1483,8 +1504,8 @@ v0.1 is the "first usable" milestone. It includes:
 - State serialization including P-Lock data, trig overrides, and
   sample references; slot identity stored as stable string ids.
 
-The hardware companion (§10) and arbitrary-plugin wrapping (§9) are
-out of v0.1 scope; the architecture is built to absorb them without
+The dedicated hardware (§10) and arbitrary-plugin wrapping (§9) were
+out of v0.1 scope; the architecture was built to absorb them without
 restructuring.
 
 ## 12. Open Questions / Future Work
@@ -3967,8 +3988,11 @@ tokens (add-only); no ad-hoc paint.
 
 Lockstep's grammar is designed for one canonical surface — the 10×4
 QWERTY (and its denser hardware twin, §33, §26, `PRINCIPLES.md` §4).
-But performers already own generic MIDI controllers (encoder boxes,
-pad grids, fader banks). This section defines how such a device
+Pairing that keyboard with a generic MIDI controller the performer
+already owns (encoder boxes, pad grids, fader banks) is the **current,
+first-class** input story, not a someday nicety — it is the surface
+Lockstep is played on today while the dedicated hardware is still being
+proven (`PRINCIPLES.md` §4). This section defines how such a device
 *augments* the canonical surface without becoming a second, divergent
 input language. This is ROADMAP **6.6**, *in progress*: the load-bearing
 **surface model** (§35.8) has landed — `SurfaceModel.{h,cpp}`, the
