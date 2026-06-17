@@ -15,9 +15,35 @@
 > belong in Lockstep — or the principles need to be revised first,
 > deliberately, not silently.
 >
-> Other docs cite principles by their short title (e.g. *"One grammar,
-> no exceptions"*) rather than by number, so the numbering can be revised
-> without chasing cross-references.
+> **Citing principles.** Principles are referenced by number (`§N`) across
+> `DESIGN.md`, `ROADMAP.md`, `README.md`, and source comments, and the
+> `NON-GOALS.md` fences are referenced as `§N` / `fence #N`. The numbers are
+> **stable anchors** — do not renumber a principle or a fence casually. The
+> short titles (e.g. *"One grammar, no exceptions"*) are mnemonics, not the
+> citation key. If a renumber is ever unavoidable, sweep every `PRINCIPLES §N`,
+> `NON-GOALS §N`, and `fence #N` reference in the docs **and** `src/` in the
+> same change.
+
+## How to use this document
+
+Run a feature proposal through this gate **before** it reaches `DESIGN.md`. Each
+rung names what the proposal must answer and the principle that owns the test.
+If any answer is "no" or "well, except…", the proposal bends, not the principle.
+
+1. **Grammar** — Is it scope + verb, with no bespoke one-off chord? (§2)
+2. **Cost** — Name its rung (§15 ladder) and its expected frequency. Does cheap
+   track common? (§15)
+3. **Mastery** — Name the practised skill it rewards and the live moment that
+   practice pays back. Is it neither a crutch nor dead weight? (§14)
+4. **Surface** — Is it a grid/scope-change, not a popup, on a hardware-honest
+   axis? (§5, §4)
+5. **Equality** — Does it work identically on a MIDI-out track? (§6)
+6. **Resolution** — Does it extend Override-ELSE-Base rather than replace it? (§7)
+7. **Sections** — Does timbre processing stay an `IEffect`, and any new control
+   land under its canonical section? (§8, §9)
+8. **Chrome** — Does its state announcement ship in the same commit? (§10)
+9. **Fences** — Does it clear the reserved double-tap / press-duration gestures
+   and the Non-Goals catalogue? (§17, Non-Goals)
 
 ## 1. Vim, not nano
 
@@ -32,10 +58,10 @@ of *"Ergonomics first; chrome announces state"* below.)
 underlying gestures are identical at every level of skill; only the
 density of on-screen annotation changes.
 
-Its mirror is *"Reward mastery — no crutches, no dead weight"* below: this
-principle refuses to strip capability for beginners; that one refuses to
-*admit* capability that doesn't reward practice. Together they fence both
-sides — Lockstep is neither dumbed down nor padded out.
+This is one half of a pair with *"Reward mastery — no crutches, no dead
+weight"* (§14): this principle refuses to strip capability for beginners; §14
+refuses to admit capability that doesn't reward practice. Together they fence
+both sides — Lockstep is neither dumbed down nor padded out.
 
 ## 2. One grammar, no exceptions
 
@@ -233,10 +259,9 @@ ambiguously.
 **Beginner mode is more chrome, never less grammar.** A beginner sees a
 chrome densely annotated with current state and "next action will do X"
 hints; a power user toggles individual hints off as fluency grows. Both
-see the same grammar; the difference is only how much the UI shouts.
-This is how *"Vim, not nano"* welcomes newcomers without a stripped-down
-mode: the feedback layer is granular and additive, never a different set
-of gestures.
+see the same grammar; the difference is only how much the UI shouts. This
+granular, additive feedback layer is the mechanism by which *"Vim, not nano"*
+(§1) welcomes newcomers without a stripped-down mode.
 
 **Consequence.** Every new modifier ships with its chrome update in the
 same commit. A modifier that doesn't render is not done.
@@ -338,9 +363,7 @@ Two failure modes get a feature rejected:
 - **Crutch.** It does the musical work *for* the user — lowering the skill
   floor without raising the ceiling. Note auto-correct ("no wrong notes"),
   smart generators that pick the notes, genre-template fills, anything that
-  makes *wrong* impossible. This is the mirror of *"Vim, not nano"*: that
-  principle refuses to strip capability for beginners; this one refuses to
-  paper over the learning curve.
+  makes *wrong* impossible. (The mirror half of *"Vim, not nano"* §1.)
 - **Dead weight.** Its cognitive cost is never repaid in performance — a
   set-and-forget knob, a studio convenience, a mode you configure once and
   never touch on stage.
@@ -498,39 +521,26 @@ not a silent exception. See *"Gesture cost is graduated"* §15; NON-GOALS §14.
 
 ## Non-Goals — what Lockstep refuses to become
 
-The standing refusals, each tied to the principle that does the rejecting.
-`NON-GOALS.md` carries the long form — which groovebox prompted each fence and
-the performable alternative we offer instead. The summary:
+The standing refusals. `NON-GOALS.md` is the **authoritative catalogue** — it
+carries the long form: which groovebox prompted each fence, the principle that
+rejects it, and the performable alternative we offer instead. The numbering here
+mirrors that catalogue exactly, so `NON-GOALS §N` resolves to the same fence in
+both files. This index is a pointer, not a second copy — edit the fence text in
+`NON-GOALS.md`.
 
-1. **No song / arrangement / linear chaining.** The set order is performed,
-   not stored. → *Performance is the goal*; DESIGN §16.
-2. **No stochastic or generative authoring.** Engines that pick the notes or
-   the pattern by rolling dice at edit time are out; deterministic generators
-   that print ordinary trigs are in. → *Pragmatic determinism*; *Reward
-   mastery*.
-3. **No un-clocked or "organic" timing.** No free-running analog drift, no
-   quantize-off "flux" mode. → *Pragmatic determinism*.
-4. **No tracker command-column / hex-FX paradigm.** The grid is a picker, not
-   a typed command language. → *The grid is the menu*.
-5. **No unbounded / scrolling canvas.** The surface is fixed and memorisable.
-   → *The grid is the menu*; *Hardware = fewer-key QWERTY*.
-6. **No control axis the hardware can't honestly provide.** No MPE, per-pad
-   pressure, or tilt/motion; one crossfader, no wall of per-track faders. →
-   *Hardware = fewer-key QWERTY*.
-7. **No foreign-plugin or standalone-host ecosystem.** The machine ABI is a
-   bespoke in-process contract, not a CLAP/VST3 sub-host. → DESIGN §2, §36.
-8. **No destructive tape workflow.** State is references and overrides, never
-   baked-in audio. → *State refs, not contents*.
-9. **No companion app as the primary surface.** One surface model; the DAW is
-   the screen. → DESIGN §35.8.
-10. **No heavyweight performance-FX *mode*.** Momentary effect punch-in is a
-    thin toggle over the existing inserts, not a mode of its own (shipped as
-    Animate: hold `FX` + step). → *Reward mastery*; *Performance is the goal*.
-11. **No crutch tooling.** Note auto-correct, custom-LFO designers, free
-    automation lanes — capability that lowers the floor or never gets played.
-    → *Reward mastery*.
-12. **No reserved-gesture overload.** No new meaning on modifier double-tap
-    (latch), `Func` double-tap (universal escape), step double-tap (edit-context
-    entry), verb double-press (amplified action), or any double-tap on a section
-    key. → *Reserved gestures are fences, not conventions*; DESIGN §13.7;
-    NON-GOALS §14.
+| # | Refusal | Rejected by |
+|---|---|---|
+| 1 | Song / arrangement / linear chaining | *Performance is the goal* (§3); DESIGN §16 |
+| 2 | Stochastic / generative note & pattern engines | *Pragmatic determinism* (§11); *Reward mastery* (§14) |
+| 3 | Un-clocked / "organic" / quantize-off timing | *Pragmatic determinism* (§11) |
+| 4 | Tracker command-column / hex-FX paradigm | *The grid is the menu* (§5) |
+| 5 | Unbounded / scrolling canvas | *The grid is the menu* (§5); *Hardware = fewer-key QWERTY* (§4) |
+| 6 | Control axis the hardware can't honestly provide (MPE, pressure, tilt, per-track faders) | *Hardware = fewer-key QWERTY* (§4) |
+| 7 | Foreign-plugin / standalone-host ecosystem | DESIGN §2, §36 |
+| 8 | Destructive tape workflow | *State refs, not contents* (§12) |
+| 9 | Companion app as the primary surface | DESIGN §35.8 |
+| 10 | Dual-project concurrent playback | *Performance is the goal* (§3) |
+| 11 | Heavyweight performance-FX *mode* (shipped instead as the thin Animate toggle) | *Reward mastery* (§14); *Performance is the goal* (§3) |
+| 12 | Custom-LFO designer / free automation lanes | *Reward mastery* (§14) |
+| 13 | Note auto-correct ("no wrong notes") | *Reward mastery* (§14) |
+| 14 | Reserved-gesture overload (double-tap / press-duration) | *Reserved gestures are fences* (§17); DESIGN §13.7 |
