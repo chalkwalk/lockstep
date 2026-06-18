@@ -1676,7 +1676,7 @@ meaning that differs from its Song-scoped form.
 
 Band-pinning (sticky mode) for meta-bands is a **`Func + section` chord**, not
 a double-tap. Velocity sticky → `Func + AMP` (§13.7 / §39.10); density sticky
-→ `Func + FX` (§39.5). This is consistent with §17: `Func` never latches or
+→ `Func + MOD` (§39.5). This is consistent with §17: `Func` never latches or
 pins via double-tap.
 
 ### 13.0 Gesture cost reference
@@ -2082,7 +2082,7 @@ difference. Latch is persistence, not a new clause.
   key-up commits such as the §13.4 deferred pattern-mute multi-select.)
   **`Func` also never pins a meta-band via double-tap.** Meta-band sticky modes
   (velocity, density) are entered by a `Func + section` chord: `Func + AMP` =
-  velocity sticky (§39.10); `Func + FX` = density sticky (§39.5). This is
+  velocity sticky (§39.10); `Func + MOD` = density sticky (§39.5). This is
   consistent with PRINCIPLES §17 — `Func`'s double-tap is escape only.
 - **Steps are operands, never the exit.** Double-tapping a step virtual-holds
   it into the edit context (P-Lock / trig override), so encoder edits land on
@@ -5275,9 +5275,9 @@ launch (`Func + Scene + step`) wipes them. `setActiveSong` and `loadPosition` al
 |---|---|
 | `Func` (held) | MZ → transient Density band (8 per-track rotaries, bank follows focused track) |
 | `Song`-held + encoder or drag (within Density band) | Adjust master density offset; arc + effective tick sweep on all rotaries; thumbs stay per-track |
-| `Func + FX` (chord) | Enter sticky DENSITY mode (pinned). Exit via `Func` double-tap (universal escape) or a foreign cluster scope key. Entry blocked if a foreign cluster scope is physically held — see §39.8. |
+| `Func + MOD` (chord) | Enter sticky DENSITY mode (pinned). `Func + Song + MOD` enters with the master page engaged. Exit via `Func` double-tap (universal escape) or a foreign cluster scope key. Entry blocked if a foreign cluster scope (other than `Song`) is physically held — see §39.8. |
 | nav keys (↑↓←→) while sticky | Page between bank 1-8 and bank 9-16 |
-| FX section key while sticky | Toggle Amount sub-page (per-track rotaries) ↔ Mode sub-page (Musicality/Selection) |
+| MOD section key while sticky | Toggle Amount sub-page (per-track rotaries) ↔ Mode sub-page (Musicality/Selection) |
 | Track / Phrase / Scene / Morph / Mute / Fill while sticky | Discharges sticky mode before running the scope's normal handler — see §39.8 |
 
 **Song disambiguation:** `Song`-alone opens song-level swing (unchanged). `Song`-held
@@ -5285,8 +5285,19 @@ within the Density band adjusts master offset — both the hardware encoder *and
 on-screen MZ drag. The switch is mode-scoped, not chord-order-dependent: holding Func
 then Song, or Song then Func, both reach master density while the Density band is
 active. This replaces the old `densityModeArmed` flag; `Song` no longer has a separate
-DensityMode band — Musicality/Selection is reached via the FX sub-page key within
+DensityMode band — Musicality/Selection is reached via the MOD sub-page key within
 sticky DENSITY mode.
+
+**Why MOD, not FX:** the `FX` section key is the effect-picker key (`Func+FX` =
+track insert picker, `Func+Song+FX` = master FX picker). Because `ButtonLayers`
+remaps `Section`→`MetaSection` whenever `Func` is held, a `Func+FX` press is
+consumed by the picker and can never reach a density-entry handler — so the
+original `Func+FX` density gesture was unreachable. `MOD` (canonical index 4) is
+unused under both `Func` and `Song`, so it hosts density entry + the sub-page
+toggle cleanly. The symmetric velocity sticky lives on `AMP` (index 3) for the
+same reason. Both entries are dispatched from the `MetaSection` case in
+`PluginEditor.cpp`; the bare re-press toggle and exit are dispatched from the
+`Section` case (the toggle key is pressed without `Func`).
 
 **Routing SSOT:** `densityEditsMaster(UiState)` (returns `ui.songHeld`) is the single
 predicate consulted by every write path. `densityWriteTarget(ui, field, focusedTrack)`
@@ -5327,8 +5338,9 @@ This is what lets `resolveMetaBand` (MZ axis) and `resolveActiveLayer` (grid
 axis) remain consistent without merging into one resolver: because the conflicting
 state is never allowed to exist, they can never disagree about which is active.
 
-**Entry guard** — `Func + FX` (chord) only enters sticky mode when no foreign
-cluster scope is physically held. If one is held, the chord is ignored.
+**Entry guard** — `Func + MOD` (chord) only enters sticky mode when no foreign
+cluster scope *other than `Song`* is physically held. `Song` is exempt because
+`Func + Song + MOD` is the master-page entry; any other held scope ignores the chord.
 
 **Discharge guard** — in `dispatchDown`, pressing a foreign cluster scope key
 while density is already sticky calls `escapeDensitySticky()` + `refreshMetaBand()`
@@ -5339,10 +5351,10 @@ back in density mode.
 - `Song` — master-density offset in the Density band
 - `Func` (double-tap) — universal escape / exit sticky mode
 - `Nav` (↑↓←→) — bank flip
-- FX section key (index 5) — Amount/Musicality/Selection sub-page cycle
+- MOD section key (index 4) — Amount/Musicality/Selection sub-page cycle
 
-**Section-select exit** — pressing any section key with index 0–4 while density
-sticky is active exits the mode (same result as `Func` double-tap escape) and
+**Section-select exit** — pressing any section key *other than MOD (index 4)* while
+density sticky is active exits the mode (same result as `Func` double-tap escape) and
 selects the pressed section, routing encoders back to that section's machine params.
 `sectionSelectClearsDensitySticky()` in `MetaBand.cpp` is the canonical predicate
 for this rule; `PluginEditor.cpp` Section handler calls it right after
@@ -5389,8 +5401,10 @@ Replace supersedes authored (incl. Euclidean-baked) velocity; Mix adds a metric
 bump on top of it. The Euclidean generator's baked accent is authored content —
 it survives unchanged and can be combined with the overlay via Mix.
 
-**Entry:** `Func + AMP` section key (index 3). (Section keys never take a
-double-tap gesture — PRINCIPLES §17; new section-key gestures use `Func +
+**Entry:** `Func + AMP` section key (index 3), dispatched from the `MetaSection`
+case (ButtonLayers remaps `Section`→`MetaSection` under `Func`, so the entry
+cannot live in the `Section` case). (Section keys never take a double-tap
+gesture — PRINCIPLES §17; new section-key gestures use `Func +
 section` or long-press.) AMP re-press while vel-sticky is active cycles
 sub-pages: Depth → Center → Mode → Blend (and wraps). Nav keys page between
 bank 1-8 / 9-16. Foreign cluster scope keys (Track / Phrase / Scene / Morph /

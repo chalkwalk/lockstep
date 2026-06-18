@@ -25,7 +25,7 @@ namespace lockstep
         // Euclidean modal outranks everything else.
         if (ui.euclidHeld)
             return MetaBand::Euclidean;
-        // Sticky density mode (entered via double-tap Func).
+        // Sticky density mode (entered via Func+MOD; Func double-tap escapes it).
         if (ui.densityStickyMode)
         {
             using SP = UiState::DensitySubPage;
@@ -89,7 +89,7 @@ namespace lockstep
 
     bool sectionSelectClearsDensitySticky(const UiState& ui, int sectionIndex) noexcept
     {
-        return ui.densityStickyMode && sectionIndex != 5;
+        return ui.densityStickyMode && sectionIndex != 4;  // MOD = sub-page toggle, not exit
     }
 
     bool sectionSelectClearsVelSticky(const UiState& ui, int sectionIndex) noexcept

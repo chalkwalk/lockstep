@@ -62,6 +62,8 @@ namespace lockstep
     {
     public:
         static constexpr int kFxSecIdx = 5;  // canonical FX section index (public for editor)
+        static constexpr int kDensitySecIdx = 4;  // MOD: density-sticky entry + sub-page toggle
+        static constexpr int kVelSecIdx = 3;      // AMP: velocity-sticky entry + sub-page toggle
 
         LockstepProcessor();
         ~LockstepProcessor() override;

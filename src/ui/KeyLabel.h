@@ -118,15 +118,26 @@ namespace lockstep
         // --- Section keys (TRIG / SRC / FILTER / AMP / MOD / FX) ----------
         if (def.role == KeyRole::SectionKey)
         {
-            // In density sticky mode the FX key (index 5) acts as sub-page cycle.
+            // In density sticky mode the MOD key (index 4) acts as sub-page cycle.
             // Label shows the next destination so the user knows what one press will do.
-            if (def.sectionIdx == 5 && ui.densityStickyMode)
+            if (def.sectionIdx == 4 && ui.densityStickyMode)
             {
                 using SP = UiState::DensitySubPage;
                 const char* nextLabel =
                     ui.densitySubPage == SP::Amount     ? "MUSIC" :
                     ui.densitySubPage == SP::Musicality ? "SELECT" :
                     /* Selection */                       "AMOUNT";
+                return { juce::String(nextLabel), {}, false };
+            }
+            // In velocity sticky mode the AMP key (index 3) acts as sub-page cycle.
+            if (def.sectionIdx == 3 && ui.velStickyMode)
+            {
+                using VP = UiState::VelSubPage;
+                const char* nextLabel =
+                    ui.velSubPage == VP::Depth  ? "CENTER" :
+                    ui.velSubPage == VP::Center ? "MODE"   :
+                    ui.velSubPage == VP::Mode   ? "BLEND"  :
+                    /* Blend */                   "DEPTH";
                 return { juce::String(nextLabel), {}, false };
             }
             if (!isScopedMode)

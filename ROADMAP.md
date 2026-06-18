@@ -1608,6 +1608,15 @@ and dogfooding (8.28 era). Docs shipped in the same pass; code follows.
 - [x] **B1 (density rebind)** — `PluginEditor.cpp`: deleted double-tap density
       entry; added `Func+FX` (index 5) sticky entry after vel block; Func double-tap
       still clears density sticky as part of universal escape; fixed status string.
+- [x] **B1-fix (FX→MOD relocation, 2026-06-17)** — the B1 `Func+FX` entry was
+      unreachable: `ButtonLayers` remaps `Section`→`MetaSection` under `Func`, so
+      `Func+FX` always hit the effect-picker (`MetaSection` case) and the density
+      entry (in the dead `Section` case) never fired. Same bug killed `Func+AMP`
+      vel-sticky. Relocated **density → `Func+MOD`** (index 4) and moved both sticky
+      entries into the `MetaSection` case; in-sticky toggle + clear-guard moved to
+      MOD; vel-sticky entry made reachable on `AMP` (index 3). Added `kDensitySecIdx`
+      / `kVelSecIdx`; SurfaceModel announces `DENS`/`VEL` Func secondaries; KeyLabel
+      cycle labels follow; tests updated (MetaBandTest, SurfaceModelTest).
 - [x] **B2 (scene double-tap removal)** — `PluginEditor.cpp`: removed
       `doubleTap_.recordAndCheck(3000+ev.index)` from scene `!funcHeld` branch;
       single-tap always overlay; floor only via `Func+Scene+step`.

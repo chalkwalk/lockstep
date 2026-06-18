@@ -438,9 +438,13 @@ namespace lockstep
         // secondary on that key → it dims under Func (DESIGN §6.1 rule 3).
         // TRACK (length/divider) relocated to Track+TRIG; GLOBAL (gain/sync/clock)
         // relocated to Song+FX. COND/NOTE remain Func secondaries (§6.2); FX
-        // gains "PICK FX" to announce the insert picker.
+        // gains "PICK FX" to announce the insert picker; AMP/MOD announce the
+        // velocity/density sticky entries (§39.5/§39.10). This display map is
+        // intentionally richer than KeyboardArea's dispatch-side kMetaLabels:
+        // Func+AMP/MOD/FX are special-cased in dispatch (sticky entry / picker),
+        // not routed through selectMetaSection.
         static constexpr std::array<const char*, IMachine::kMaxSections> kMetaLabels = {
-            "COND", "NOTE", "", "", "", "PICK FX"
+            "COND", "NOTE", "", "VEL", "DENS", "PICK FX"
         };
         auto isReservedMeta = [](int s) -> bool {
             return s < 0 || s >= IMachine::kMaxSections || kMetaLabels[static_cast<std::size_t>(s)][0] == '\0';

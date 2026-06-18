@@ -178,11 +178,12 @@ namespace lockstep
         for (int i = 0; i <= 5; ++i)
             CHECK(!sectionSelectClearsDensitySticky(ui, i), "not sticky → false for all sections");
 
-        // In sticky mode: sections 0-4 supersede, section 5 does not.
+        // In sticky mode: every section except MOD (4) supersedes; MOD cycles sub-page.
         ui.densityStickyMode = true;
-        for (int i = 0; i <= 4; ++i)
-            CHECK(sectionSelectClearsDensitySticky(ui, i), "sticky + section 0-4 → true");
-        CHECK(!sectionSelectClearsDensitySticky(ui, 5), "sticky + section 5 → false (FX cycles subpage)");
+        for (int i = 0; i <= 5; ++i)
+            if (i != 4)
+                CHECK(sectionSelectClearsDensitySticky(ui, i), "sticky + non-MOD section → true");
+        CHECK(!sectionSelectClearsDensitySticky(ui, 4), "sticky + section 4 → false (MOD cycles subpage)");
 
         // Sequenced: predicate true → escape clears mode → resolveMetaBand returns None.
         ui.densitySubPage = UiState::DensitySubPage::Amount;
@@ -192,10 +193,10 @@ namespace lockstep
         ui.densitySubPage = UiState::DensitySubPage::Amount;
         CHECK(resolveMetaBand(ui) == MetaBand::None, "post-escape → MetaBand::None");
 
-        // Sequenced: section 5 does not supersede → mode persists → still a Density* band.
+        // Sequenced: section 4 (MOD) does not supersede → mode persists → still a Density* band.
         ui.densityStickyMode = true;
         ui.densitySubPage = UiState::DensitySubPage::Amount;
-        CHECK(!sectionSelectClearsDensitySticky(ui, 5), "section 5 doesn't clear sticky");
+        CHECK(!sectionSelectClearsDensitySticky(ui, 4), "section 4 (MOD) doesn't clear sticky");
         CHECK(resolveMetaBand(ui) == MetaBand::Density, "mode still active → Density band");
     }
 

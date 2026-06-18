@@ -1197,11 +1197,11 @@ namespace lockstep
                 {
                     using SP = UiState::DensitySubPage;
                     if (ui.densitySubPage == SP::Musicality)
-                        ctx = "DENSITY  Musicality  |  turn = Unif / Mix / Metric  FX = selection";
+                        ctx = "DENSITY  Musicality  |  turn = Unif / Mix / Metric  MOD = selection";
                     else if (ui.densitySubPage == SP::Selection)
-                        ctx = "DENSITY  Selection  |  turn = Scrub / Re-roll / Exempt  FX = amount";
+                        ctx = "DENSITY  Selection  |  turn = Scrub / Re-roll / Exempt  MOD = amount";
                     else
-                        ctx = "DENSITY  Amount  |  nav = bank  Song = master  FX = musicality";
+                        ctx = "DENSITY  Amount  |  nav = bank  Song = master  MOD = musicality";
                 }
                 // Sticky VEL sticky mode context.
                 else if (ui.velStickyMode)
@@ -1310,7 +1310,7 @@ namespace lockstep
                         if (activeBand == MetaBand::Density && ui.songHeld)
                             ctx = "DENSITY  master overlay";
                         else if (activeBand == MetaBand::Density)
-                            ctx = "DENSITY  per-track  (Func+FX to pin)";
+                            ctx = "DENSITY  per-track  (Func+MOD to pin)";
                         else
                             ctx = "FUNC";
                     }
@@ -1679,7 +1679,7 @@ namespace lockstep
             repaint();
             return true;
         }
-        if (btn == CB::Section && index == 5)
+        if (btn == CB::Section && index == processor_.kDensitySecIdx)
         {
             using SP = UiState::DensitySubPage;
             uiState_.densitySubPage =
@@ -2115,32 +2115,12 @@ namespace lockstep
                     escapeVelSticky();
                     refreshMetaBand();
                 }
-                // Func+AMP enters vel sticky mode (Func is not a section-suite scope,
-                // so it falls through here before the sectionScope dispatch block).
-                if (uiState_.funcHeld && ev.index == 3 && !uiState_.velStickyMode)
-                {
-                    uiState_.velStickyMode = true;
-                    escapeDensitySticky();
-                    refreshMetaBand();
-                    repaint();
-                    return true;
-                }
-                // Func+FX enters density sticky mode, symmetric with Func+AMP for vel (§39.5).
-                // Gated on !densityStickyMode: when already sticky, bare FX cycles sub-pages
-                // (handled by consumeDensityStickyKey above, which already returned true).
-                if (uiState_.funcHeld && ev.index == 5 && !uiState_.densityStickyMode)
-                {
-                    // Entry guard: don't enter if a foreign scope is physically held.
-                    if (!physHeld_.track && !physHeld_.phrase && !physHeld_.scene
-                        && !physHeld_.morph && !physHeld_.mute && !physHeld_.fill)
-                    {
-                        uiState_.densityStickyMode = true;
-                        escapeVelSticky();
-                        refreshMetaBand();
-                        repaint();
-                    }
-                    return true;
-                }
+                // NOTE: sticky-mode *entry* (Func+MOD density, Func+AMP vel) is handled
+                // in the MetaSection case below, not here. ButtonLayers remaps Section→
+                // MetaSection whenever Func is held (kLayerRemaps), so a Func+section press
+                // never reaches this Section case. The bare re-press *toggle* and exit are
+                // handled above (consume*StickyKey / sectionSelectClears*), which do arrive
+                // here because the toggle key is pressed without Func.
 
                 if (sectionScope != PS::None)
                 {
@@ -2218,6 +2198,36 @@ namespace lockstep
                     else
                         uiState_.funcFxInsertSlot = 0;
                     uiState_.funcFxHeld = true;
+                    repaint();
+                    return true;
+                }
+                // §39.5: Func+MOD enters sticky DENSITY mode. Func+Song+MOD enters it
+                // with master writes already engaged (Song held → densityEditsMaster).
+                // Lives here, not in the Section case, because ButtonLayers remaps
+                // Section→MetaSection while Func is held. The bare MOD re-press toggle
+                // and exit are handled in the Section case (consumeDensityStickyKey).
+                if (uiState_.funcHeld && ev.index == processor_.kDensitySecIdx
+                    && !uiState_.densityStickyMode)
+                {
+                    // Entry guard: don't enter if a foreign cluster scope is physically
+                    // held (Song is intentionally allowed — it selects the master page).
+                    if (!physHeld_.track && !physHeld_.phrase && !physHeld_.scene
+                        && !physHeld_.morph && !physHeld_.mute && !physHeld_.fill)
+                    {
+                        uiState_.densityStickyMode = true;
+                        escapeVelSticky();
+                        refreshMetaBand();
+                        repaint();
+                    }
+                    return true;
+                }
+                // §39.10: Func+AMP enters sticky VELOCITY mode (symmetric with density).
+                if (uiState_.funcHeld && ev.index == processor_.kVelSecIdx
+                    && !uiState_.velStickyMode)
+                {
+                    uiState_.velStickyMode = true;
+                    escapeDensitySticky();
+                    refreshMetaBand();
                     repaint();
                     return true;
                 }

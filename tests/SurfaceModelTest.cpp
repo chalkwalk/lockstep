@@ -400,33 +400,33 @@ namespace lockstep
     }
 
     // -------------------------------------------------------------------------
-    // Test: density-sticky + Func held — FX key primary must be non-empty.
+    // Test: density-sticky + Func held — MOD key primary must be non-empty.
     // Regression guard for the jassert(c.disabled || !c.primary.isEmpty()) crash:
-    // density-sticky repurposes the FX key with a non-empty primary and empty hint;
-    // the SurfaceModel Func-promotion guard must not overwrite primary with the
-    // empty hint when Func is held.
+    // density-sticky repurposes the MOD key (§39.5) with a non-empty primary and
+    // empty hint; the SurfaceModel Func-promotion guard must not overwrite primary
+    // with the empty hint when Func is held.
     // -------------------------------------------------------------------------
     static void testDensityStickyFuncInvariant()
     {
-        const KeyDef kdFx{
+        const KeyDef kdMod{
             KeyRole::SectionKey,
-            "FX",   // natural
-            "",     // funcLayer — empty (FX reserved slot, no meta label)
-            5, true // sectionIdx=5, machineHasSection=true
+            "MOD",   // natural
+            "DENS",  // funcLayer — density-sticky entry hint
+            4, true  // sectionIdx=4, machineHasSection=true
         };
 
-        // density-sticky + Func: FX key shows sub-page cycle label (not empty)
+        // density-sticky + Func: MOD key shows sub-page cycle label (not empty)
         {
             auto ui = makeUiState();
             ui.densityStickyMode = true;
             ui.funcHeld = true;
             ui.densitySubPage = UiState::DensitySubPage::Amount;
             const auto ec = makeEditContext();
-            const auto kl = resolveKeyLabel(kdFx, ui, ec);
+            const auto kl = resolveKeyLabel(kdMod, ui, ec);
             CHECK(!kl.primary.isEmpty(),
-                  "density-sticky+Func: FX key primary must not be empty");
+                  "density-sticky+Func: MOD key primary must not be empty");
             CHECK(!kl.disabled,
-                  "density-sticky+Func: FX key must not be disabled");
+                  "density-sticky+Func: MOD key must not be disabled");
         }
 
         // density-sticky alone (no Func): same invariant
@@ -435,9 +435,9 @@ namespace lockstep
             ui.densityStickyMode = true;
             ui.densitySubPage = UiState::DensitySubPage::Musicality;
             const auto ec = makeEditContext();
-            const auto kl = resolveKeyLabel(kdFx, ui, ec);
+            const auto kl = resolveKeyLabel(kdMod, ui, ec);
             CHECK(!kl.primary.isEmpty(),
-                  "density-sticky: FX key primary must not be empty");
+                  "density-sticky: MOD key primary must not be empty");
         }
     }
 
