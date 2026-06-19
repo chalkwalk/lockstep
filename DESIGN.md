@@ -738,14 +738,16 @@ numerator drives the `MetricGrid::metricWeight` pulse tree, so 8/8 produces
 eight weight-graded ticks per bar while 4/4 produces four. Both have the same
 `barPpq`; they differ in accent density.
 
-**Grammar editing** — `Func+Song` → Set-level default; bare `Song` → Song
-override; bare `Scene` → Scene override. The Manipulation Zone opens a
-`TimeSig` stepped-value band (curated list: 4/4 → 3/4 → 6/8 → 7/8 → 5/4 →
-5/8 → 12/8 → 2/4 → 2/2 → 8/8; INHERIT at the Song/Scene levels clears the
-override). The inherited value is shown as a scope-coloured reference marker
-(same idiom as swing, §19.2). `Scene + TRIG` is the dedicated gesture for
-editing the active Scene's time signature from the trig meta slot (§6.2
-table; that slot is otherwise unused at the Scene scope).
+**Grammar editing** — **`Scene+TRIG`** opens the TIME SIG sticky band (the
+TRIG key shows an active label while the band is open). Inside the band:
+`Func+Song` → Set-level default; bare `Song` → Song override; bare `Scene`
+→ Scene override; no modifier held → Scene scope (the entry scope; see §13
+momentary-hold convention). One stepped knob shows the resolved time-sig at
+the current scope (curated list: 4/4 → 3/4 → 6/8 → 7/8 → 5/4 → 5/8 →
+12/8 → 2/4 → 2/2 → 8/8; INHERIT at index 0 clears the override at
+Song/Scene scope). The inherited value is shown as a scope-coloured
+reference marker (same idiom as swing, §19.2). **Hold scope + Clear** also
+reverts that scope's override (§13).
 
 **Per-track phrase-end override.** Each track has a `launchMode` flag
 (`GlobalBar` default | `PhraseEnd`). Tracks set to `PhraseEnd` switch to
@@ -777,10 +779,11 @@ effectiveTempo(song, scene) =
 ```
 
 Setting a Song tempo of 90 BPM while the global root is 120 stores `ratio =
-0.75`; displaying it back shows 90 BPM. Clearing the override (INHERIT)
-restores the parent value. The ratios survive a change to the global root —
-a Scene at 0.5× always runs at half the global tempo regardless of what that
-root is.
+0.75`; displaying it back shows 90 BPM. **Reverting to parent:** hold the
+scope key and press **Clear** (`O`) while the TEMPO band is open — this
+clears `hasTempo` so the scope inherits its parent's effective tempo. The
+ratios survive a change to the global root — a Scene at 0.5× always runs at
+half the global tempo regardless of what that root is.
 
 The Clock is fed the `effectiveTempo` at every Song/Scene boundary (and in
 real time when tempo is edited in the grammar); a rate change is applied at
@@ -792,12 +795,15 @@ shows the *effective* tempo in scope colour (Song-gold if a Song ratio is
 active, Scene-green if a Scene ratio is active, neutral for the bare global
 root).
 
-**Grammar editing** — `Func+Song` → global (standalone: editable; DAW:
-read-only); bare `Song` → Song override; bare `Scene` → Scene override. The
-Manipulation Zone opens a `Tempo` encoder band. Inherited value shown as a
-scope-coloured reference. `Func+Song+Morph` (three-key) opens the meta-band
-with global scope pre-selected (rung 4; the global edit is rare enough to
-earn the extra key).
+**Grammar editing** — **`Song+TRIG`** opens the TEMPO sticky band (the TRIG
+key shows an active label while the band is open). Inside the band:
+`Func+Song` → global scope (standalone: editable; DAW: read-only); bare
+`Song` → Song override; bare `Scene` → Scene override; no modifier held →
+Song scope (the entry scope; see §13 momentary-hold convention). One knob
+shows the resolved absolute BPM at the current scope; a scope-coloured arc
+tick marks the parent floor. Editing the knob writes the back-solved ratio.
+**Hold scope + Clear** reverts that scope's override (§13). The TRIG key's
+active relabelling follows the §13 sticky-key pattern.
 
 **Serializer v21** fields: `Song.hasTempo`/`Song.tempoRatio`,
 `Scene.hasTempo`/`Scene.tempoRatio`. `Clock.localBpm_` continues to serialize
@@ -1777,6 +1783,33 @@ once rather than re-derived per feature:
   instance: bare `Y` (Snapshot) ≡ `Song + Y`. This makes the bare form a
   *shorthand*, not an exception — `Song + Y` is always the admissible explicit
   form of the bare press, and the grammar is total (no scope is ever "missing").
+
+- **Hierarchical-band single-knob pattern.** When a meta-band edits a
+  *derived* (hierarchical) value — one composed from a parent and a local
+  override — the band shows exactly **one** editable knob at the resolved
+  value *at the held scope*. Editing that knob stores the back-solved delta
+  (ratio, delta, or flag) so the displayed value matches what you set. The
+  inherited parent value is shown as a **scope-coloured reference tick** on
+  the knob arc (`ReferenceMark`). The header readout is the always-on global
+  effective. A second, read-only "effective" knob is never added — that would
+  be an unintuitive dead control. Canonical instances: Swing (§19.2), Tempo
+  (§4.9), Time Signature (§4.8).
+- **Hold-scope + Clear = revert override.** For the three scope-coloured meta
+  bands that have a parent/child relationship (Swing, Tempo, Time Signature),
+  while the band is visible, pressing **Clear** (`O`) with a scope held reverts
+  that scope's local override to "inherit from parent": for Tempo this clears
+  `hasTempo`; for Time Signature this clears `hasTimeSig` (or selects INHERIT
+  on the stepped list); for Swing this zeros the scope's delta. If no modifier
+  is held, the revert targets the band's entry scope (see below). Reverts at
+  the global/Set level are no-ops (no parent above them).
+- **Momentary-hold + entry-scope fallback.** When a meta-band sticky mode is
+  entered (e.g. Song+TRIG opens TEMPO), the scope remains determined by
+  whichever modifier the performer holds — Song, Func+Song (=Set/global),
+  Scene. Releasing all modifiers while the band stays open does not silently
+  retarget to a wrong scope: edits fall to the **entry scope** — the natural
+  scope for that band (Song for Tempo; Scene for Time Signature). This is
+  recorded on the `UiState` at the moment the sticky mode activates so that
+  subsequent writes are unambiguous even with no modifier held.
 
 These conventions compose with §13.7 Latch and with PRINCIPLES §17: the
 "hold = all the way" behaviour is an instance of the verb hold-intensification
