@@ -108,6 +108,11 @@ namespace lockstep
     // Returns true when a section press (anything except AMP = index 3) should exit.
     bool sectionSelectClearsVelSticky(const UiState& ui, int sectionIndex) noexcept;
 
+    // sectionSelectClearsTimeSticky — parallel policy for TIME sticky mode.
+    // Returns true when a bare section press (anything except TRIG = index 0) should exit.
+    // TRIG (0) is the entry chord (Song/Scene+TRIG re-press toggles), so it is excluded.
+    bool sectionSelectClearsTimeSticky(const UiState& ui, int sectionIndex) noexcept;
+
     // bandTitle — short display name for a MetaBand, used by the MZ header strip (§26.4.1).
     juce::String bandTitle(MetaBand band);
 

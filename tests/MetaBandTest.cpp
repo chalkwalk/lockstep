@@ -650,6 +650,35 @@ namespace lockstep
         CHECK(resolveMetaBand(ui) == MetaBand::Time, "latch: TIME band active");
     }
 
+    // Regression: TIME sticky must exit on a bare non-TRIG section press, at parity
+    // with density/vel (the wires that shipped missing — "too sticky" bug). TRIG (0)
+    // is excluded because Song/Scene+TRIG re-press toggles TIME via isTimeEntryChord.
+    static void testSectionSelectClearsTimeSticky()
+    {
+        UiState ui;
+
+        // Not in TIME: predicate always false.
+        ui.timeStickyMode = false;
+        for (int i = 0; i <= 5; ++i)
+            CHECK(!sectionSelectClearsTimeSticky(ui, i), "not sticky → false for all sections");
+
+        // In TIME: every section except TRIG (0) supersedes; TRIG re-press toggles.
+        ui.timeStickyMode = true;
+        for (int i = 0; i <= 5; ++i)
+            if (i != 0)
+                CHECK(sectionSelectClearsTimeSticky(ui, i), "sticky + non-TRIG section → true");
+        CHECK(!sectionSelectClearsTimeSticky(ui, 0), "sticky + section 0 → false (TRIG toggles)");
+
+        // Sequenced: predicate true → escape clears mode → resolveMetaBand returns None,
+        // and swingDismissed is set so we don't drop into Swing on the way out.
+        ui.timeStickyMode = true;
+        CHECK(sectionSelectClearsTimeSticky(ui, 2), "pre-escape predicate fires");
+        escapeTimeSticky(ui);  // simulate the section-dispatch escape
+        CHECK(!ui.timeStickyMode, "post-escape: timeStickyMode cleared");
+        CHECK(ui.swingDismissed, "post-escape: swingDismissed set");
+        CHECK(resolveMetaBand(ui) == MetaBand::None, "post-escape → MetaBand::None");
+    }
+
     // =========================================================================
     // Tempo INHERIT floor round-trip: write at floor clears hasTempo.
     // =========================================================================
@@ -769,6 +798,9 @@ namespace lockstep
         testCujTimeExclusivityDensity();
         testCujTimeExclusivityVel();
         testCujTimeLatchedModifier();
+
+        // Regression: bare non-TRIG section press exits TIME sticky (the missing wire)
+        testSectionSelectClearsTimeSticky();
 
         // Tempo INHERIT floor: write at floor clears hasTempo; round-trip
         testTempoInheritFloor();

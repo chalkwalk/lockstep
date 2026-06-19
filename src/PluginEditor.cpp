@@ -1957,6 +1957,16 @@ namespace lockstep
             escapeVelSticky();
             refreshMetaBand();
         }
+        // TIME sticky exits on a foreign scope, but NOT on Song/Scene: those retarget
+        // the TIME scope (timeScopeFor) and are the page's own controls, not foreign.
+        if (uiState_.timeStickyMode
+            && (ev.button == CB::TrackScope || ev.button == CB::PhraseScope
+                || ev.button == CB::MorphScope || ev.button == CB::MuteScope
+                || ev.button == CB::FillScope))
+        {
+            escapeTimeSticky(uiState_);
+            refreshMetaBand();
+        }
 
         switch (ev.button)
         {
@@ -1992,11 +2002,15 @@ namespace lockstep
                         }
                         else if (!uiState_.latch.any()
                                  && !processor_.editContext().hasAnyLatchedStep()
-                                 && uiState_.densityStickyMode)
+                                 && (uiState_.densityStickyMode || uiState_.velStickyMode
+                                     || uiState_.timeStickyMode))
                         {
-                            // Func double-tap = universal escape; also clears density sticky
-                            // when no modifier latches or step latches are present.
+                            // Func double-tap = universal escape; also clears any active
+                            // sticky overlay (density / vel / TIME) when no modifier or
+                            // step latches are present.
                             escapeDensitySticky();
+                            escapeVelSticky();
+                            escapeTimeSticky(uiState_);
                             refreshMetaBand();
                             repaint();
                         }
@@ -2161,6 +2175,14 @@ namespace lockstep
                 if (sectionSelectClearsVelSticky(uiState_, ev.index))
                 {
                     escapeVelSticky();
+                    refreshMetaBand();
+                }
+
+                // Sections other than TRIG (0) exit TIME sticky; TRIG re-press toggles
+                // it via the scope-specific isTimeEntryChord path below.
+                if (sectionSelectClearsTimeSticky(uiState_, ev.index))
+                {
+                    escapeTimeSticky(uiState_);
                     refreshMetaBand();
                 }
                 // NOTE: sticky-mode *entry* (Func+MOD density, Func+AMP vel) is handled

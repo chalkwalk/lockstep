@@ -133,6 +133,11 @@ namespace lockstep
         return ui.velStickyMode && sectionIndex != 3;  // AMP = index 3
     }
 
+    bool sectionSelectClearsTimeSticky(const UiState& ui, int sectionIndex) noexcept
+    {
+        return ui.timeStickyMode && sectionIndex != 0;  // TRIG = entry chord, re-press toggles
+    }
+
     // =========================================================================
     // buildMetaBand
     // =========================================================================
