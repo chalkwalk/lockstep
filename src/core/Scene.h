@@ -20,6 +20,8 @@ namespace lockstep
 
         // Time signature for this section: drives launch-quantize grid,
         // metronome downbeat, and seeds new-phrase default length.
+        // When hasTimeSig is false the scene inherits from Song or Set (DESIGN §4.8).
+        bool hasTimeSig = false;
         TimeSig coreTime{};
 
         // Scene A/B parameter snapshots (Phase 7.7 / DESIGN §17).
@@ -49,7 +51,7 @@ namespace lockstep
     {
         for (const bool m : s.activeMask)
             if (!m) return true;
-        if (!(s.coreTime == TimeSig{})) return true;
+        if (s.hasTimeSig) return true;
         if (s.swing != 0.0f) return true;
         return !s.morphA.empty() || !s.morphB.empty();
     }

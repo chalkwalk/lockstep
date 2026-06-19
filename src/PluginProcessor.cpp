@@ -1327,7 +1327,7 @@ namespace lockstep
             const int qSecIdx = queuedSceneIdx_.load(std::memory_order_acquire);
             if (qSecIdx >= 0 && samplesPerPpq > 0.0)
             {
-                const auto& ct = section().coreTime;
+                const auto ct = effectiveTimeSig();
                 const double barPpq = ct.barPpq() * static_cast<double>(project_.launchQuantizeBars);
                 if (barPpq > 0.0)
                 {
@@ -1505,7 +1505,8 @@ namespace lockstep
                 const auto& velKit = song().tracks[i].kit;
                 if (velKit.velMode == VelMode::Bar || velKit.velMode == VelMode::Phrase)
                 {
-                    const double velBarPpq = section().coreTime.barPpq();
+                    const auto velCt = effectiveTimeSig();
+                    const double velBarPpq = velCt.barPpq();
                     double velPpqInBar = 0.0;
                     if (velBarPpq > 0.0)
                     {
@@ -1516,7 +1517,7 @@ namespace lockstep
                     }
                     const float w = MetricGrid::metricWeight(
                         velPpqInBar, velBarPpq,
-                        section().coreTime.numerator, section().coreTime.denominator);
+                        velCt.numerator, velCt.denominator);
                     if (velKit.velBlend == VelBlend::Replace)
                     {
                         const auto ov = static_cast<juce::uint8>(
@@ -1669,7 +1670,8 @@ namespace lockstep
                             {
                             const float perTrack = trackDensity_[i].load(std::memory_order_relaxed);
                             const float master = masterDensity_.load(std::memory_order_relaxed);
-                            const double barPpq = section().coreTime.barPpq();
+                            const auto densCt = effectiveTimeSig();
+                            const double barPpq = densCt.barPpq();
                             const double ppqInBar = std::fmod(nextTriggerPpq_[i], barPpq);
                             const auto& kit = song().tracks[i].kit;
                             const int qLevel = static_cast<int>(
@@ -1692,8 +1694,8 @@ namespace lockstep
                                 const int off = static_cast<int>(
                                     Density::densityScrubHash(i, 0, 0));
                                 auto& cache = densityTableCache_[i];
-                                const int num = section().coreTime.numerator;
-                                const int den = section().coreTime.denominator;
+                                const int num = densCt.numerator;
+                                const int den = densCt.denominator;
                                 if (cache.numerator != num || cache.denominator != den
                                     || cache.stepsPerBar != stepsPerBar)
                                 {
@@ -1738,8 +1740,8 @@ namespace lockstep
                             {
                                 fired = Density::densitySurvives(
                                     perTrack, master, ppqInBar, barPpq,
-                                    section().coreTime.numerator,
-                                    section().coreTime.denominator,
+                                    densCt.numerator,
+                                    densCt.denominator,
                                     kit.densityMusicality, kit.densitySelection,
                                     i, stepNum, qLevel, rerollR);
                             }
@@ -1822,7 +1824,8 @@ namespace lockstep
                             // guarantee identical r for the same logical step, no memoisation needed.
                             const float perTrack = trackDensity_[i].load(std::memory_order_relaxed);
                             const float master = masterDensity_.load(std::memory_order_relaxed);
-                            const double barPpq = section().coreTime.barPpq();
+                            const auto densCt2 = effectiveTimeSig();
+                            const double barPpq = densCt2.barPpq();
                             const double ppqInBar = std::fmod(nextGridPpq, barPpq);
                             const auto& kit = song().tracks[i].kit;
                             const int qLevel = static_cast<int>(
@@ -1843,8 +1846,8 @@ namespace lockstep
                                 const int off = static_cast<int>(
                                     Density::densityScrubHash(i, 0, 0));
                                 auto& cache = densityTableCache_[i];
-                                const int num = section().coreTime.numerator;
-                                const int den = section().coreTime.denominator;
+                                const int num = densCt2.numerator;
+                                const int den = densCt2.denominator;
                                 if (cache.numerator != num || cache.denominator != den
                                     || cache.stepsPerBar != stepsPerBar)
                                 {
@@ -1893,8 +1896,8 @@ namespace lockstep
                             {
                                 lookaheadFired = Density::densitySurvives(
                                     perTrack, master, ppqInBar, barPpq,
-                                    section().coreTime.numerator,
-                                    section().coreTime.denominator,
+                                    densCt2.numerator,
+                                    densCt2.denominator,
                                     kit.densityMusicality, kit.densitySelection,
                                     i, stepNum, qLevel, rerollR);
                             }
@@ -2124,9 +2127,11 @@ namespace lockstep
         processMasterChain(buffer, numBlockSamples);
 
         if (clock_.isMetronomeEnabled())
+        {
+            const auto metroCt = effectiveTimeSig();
             metronome_.process(blockStart, blockEnd, samplesPerPpq, buffer,
-                               section().coreTime.numerator,
-                               section().coreTime.denominator);
+                               metroCt.numerator, metroCt.denominator);
+        }
 
         // Output stage: smoothed gain → DC blocker → soft-clip
         const float targetGainDb = apvts_.getRawParameterValue(ParamIDs::outputGain)->load();

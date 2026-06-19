@@ -110,6 +110,16 @@ namespace lockstep
         int activePieceIdx() const { return arrangement_.songIdx; }
         int activeSectionIdx() const { return arrangement_.sceneIdx; }
 
+        // Resolved time signature: Scene → Song → Set (DESIGN §4.8).
+        [[nodiscard]] TimeSig effectiveTimeSig() const
+        {
+            const auto& sc = section();
+            if (sc.hasTimeSig) return sc.coreTime;
+            const auto& sg = song();
+            if (sg.hasTimeSig) return sg.timeSig;
+            return project_.defaultTimeSig;
+        }
+
         // ── Working buffer = arrangement_.working (the resolver reads this) ───
         Sequence& sequence() { return arrangement_.working; }
         const Sequence& sequence() const { return arrangement_.working; }

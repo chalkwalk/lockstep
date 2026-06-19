@@ -34,6 +34,11 @@ namespace lockstep::keys
     inline constexpr const char* kScene = "Scene";
     inline constexpr const char* kCtN = "ct_n";
     inline constexpr const char* kCtD = "ct_d";
+    inline constexpr const char* kHasTs = "hasTs";         // v21: Scene/Song hasTimeSig flag
+    inline constexpr const char* kSongTsN = "song_ct_n";  // v21: Song-level timeSig numerator
+    inline constexpr const char* kSongTsD = "song_ct_d";  // v21: Song-level timeSig denominator
+    inline constexpr const char* kSetTsN = "set_ct_n";    // v21: Set-level defaultTimeSig numerator
+    inline constexpr const char* kSetTsD = "set_ct_d";    // v21: Set-level defaultTimeSig denominator
     inline constexpr const char* kMutesMask = "mutesMask";
 
   // ── Morph snapshot maps ─────────────────────────────────────────────────────

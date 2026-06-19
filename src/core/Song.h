@@ -3,6 +3,7 @@
 #include <array>
 #include "Phrase.h"
 #include "Scene.h"
+#include "TimeSig.h"
 #include "TrackKit.h"
 #include "Sequence.h"   // kNumTracks
 
@@ -30,6 +31,10 @@ namespace lockstep
         std::array<Scene, kScenesPerSong> scenes{};
         // Song-wide base swing (DESIGN §19.2). The "conductor" gesture — applies to all tracks.
         float swing = 0.0f;
+        // Optional Song-level time-signature override (DESIGN §4.8).
+        // When false the song inherits from Project::defaultTimeSig.
+        bool hasTimeSig = false;
+        TimeSig timeSig{};
         // 6.5 master FX: 2 post-sum insert slots, processed after all track outputs are summed.
         std::array<TrackKit::InsertSlot, 2> masterInserts{};
         // 8.26 send returns: 2 post-track-sum send buses, each with a return effect.

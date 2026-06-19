@@ -1,6 +1,7 @@
 #pragma once
 
 #include "SoundPool.h"
+#include "TimeSig.h"
 
 namespace lockstep
 {
@@ -14,6 +15,10 @@ namespace lockstep
     {
         // Global launch-quantize amount in core-time bars (default 1 bar).
         int launchQuantizeBars = 1;
+
+        // Set-level default time signature (DESIGN §4.8 hierarchy: Set → Song → Scene).
+        // Song/Scene overrides inherit from this when their hasTimeSig flag is false.
+        TimeSig defaultTimeSig{};
 
         SoundPool soundPool{};  // project-scope sound library
     };

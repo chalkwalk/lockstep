@@ -45,7 +45,12 @@ namespace lockstep
         // v20: TrackKit::divider replaced by subdivIndex (int, 0-26, default 18 = 1/16 straight).
         //      Old kDiv values (1-16 = 0.25*d PPQ) remapped to nearest combined index.
         //      TrackKit gains velMode/velBlend/velDepth/velCenter for the live velocity overlay.
-        inline constexpr int kCurrentVersion = 20;
+        // v21: Hierarchical time signature (DESIGN §4.8).
+        //      Project::defaultTimeSig (Set-level) in NewHierarchy root.
+        //      Song::hasTimeSig + Song::timeSig optional override in Song node.
+        //      Scene::hasTimeSig presence flag; kCtN/kCtD only written when hasTimeSig true.
+        //      Missing fields → 4/4 default; trivial stamp upgrade from v20.
+        inline constexpr int kCurrentVersion = 21;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);

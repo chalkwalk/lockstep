@@ -24,8 +24,9 @@ namespace lockstep
         masked.activeMask[0] = false;
         CHECK(sceneHasContent(masked), "scene with an active-mask change has content");
 
-        // A non-4/4 core time is non-default content.
+        // An explicitly-set core time (hasTimeSig = true) is non-default content.
         Scene meter;
+        meter.hasTimeSig = true;
         meter.coreTime.numerator = 7;
         meter.coreTime.denominator = 8;
         CHECK(sceneHasContent(meter), "scene with a non-default coreTime has content");

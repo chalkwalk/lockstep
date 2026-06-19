@@ -514,6 +514,13 @@ namespace lockstep::PluginState
         nhNode.setProperty(keys::kActivePiece, proc.activePieceIdx(), nullptr);
         nhNode.setProperty(keys::kActiveSect, proc.activeSectionIdx(), nullptr);
         nhNode.setProperty(keys::kLaunchQuant, proc.project().launchQuantizeBars, nullptr);
+        // v21: Set-level default time signature (only write if non-default).
+        const auto& setTs = proc.project().defaultTimeSig;
+        if (!(setTs == TimeSig{}))
+        {
+            nhNode.setProperty(keys::kSetTsN, setTs.numerator, nullptr);
+            nhNode.setProperty(keys::kSetTsD, setTs.denominator, nullptr);
+        }
 
         for (int pi = 0; pi < kNumSongs; ++pi)
         {
@@ -524,6 +531,13 @@ namespace lockstep::PluginState
             songNode.setProperty("i", pi, nullptr);
             if (floatNe(song.swing, 0.0f))
                 songNode.setProperty(keys::kSwing, static_cast<double>(song.swing), nullptr);
+            // v21: optional Song-level time signature override.
+            if (song.hasTimeSig)
+            {
+                songNode.setProperty(keys::kHasTs, 1, nullptr);
+                songNode.setProperty(keys::kSongTsN, song.timeSig.numerator, nullptr);
+                songNode.setProperty(keys::kSongTsD, song.timeSig.denominator, nullptr);
+            }
 
             for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
             {
@@ -571,8 +585,13 @@ namespace lockstep::PluginState
                 if (!sceneHasContent(sec)) continue;
                 juce::ValueTree sceneNode(keys::kScene);
                 sceneNode.setProperty("i", si, nullptr);
-                sceneNode.setProperty(keys::kCtN, sec.coreTime.numerator, nullptr);
-                sceneNode.setProperty(keys::kCtD, sec.coreTime.denominator, nullptr);
+                // v21: only write coreTime when explicitly set via hasTimeSig.
+                if (sec.hasTimeSig)
+                {
+                    sceneNode.setProperty(keys::kHasTs, 1, nullptr);
+                    sceneNode.setProperty(keys::kCtN, sec.coreTime.numerator, nullptr);
+                    sceneNode.setProperty(keys::kCtD, sec.coreTime.denominator, nullptr);
+                }
                 if (floatNe(sec.swing, 0.0f))
                     sceneNode.setProperty(keys::kSwing, static_cast<double>(sec.swing), nullptr);
                 // activeMask (default all true; only write if any false).
@@ -684,6 +703,14 @@ namespace lockstep::PluginState
         const int activePiece = static_cast<int>(nhNode.getProperty(keys::kActivePiece, 0));
         const int activeSect = static_cast<int>(nhNode.getProperty(keys::kActiveSect, 0));
         proc.project().launchQuantizeBars = static_cast<int>(nhNode.getProperty(keys::kLaunchQuant, 1));
+        // v21: Set-level default time signature.
+        if (nhNode.hasProperty(keys::kSetTsN))
+        {
+            proc.project().defaultTimeSig.numerator =
+                static_cast<int>(nhNode.getProperty(keys::kSetTsN, 4));
+            proc.project().defaultTimeSig.denominator =
+                static_cast<int>(nhNode.getProperty(keys::kSetTsD, 4));
+        }
 
         for (auto songNode : nhNode)
         {
@@ -692,6 +719,13 @@ namespace lockstep::PluginState
             if (pi < 0 || pi >= kNumSongs) continue;
             auto& song = proc.songAt(pi);
             song.swing = getFloat(songNode, keys::kSwing, 0.0f);
+            // v21: optional Song-level time signature override.
+            if (static_cast<int>(songNode.getProperty(keys::kHasTs, 0)) != 0)
+            {
+                song.hasTimeSig = true;
+                song.timeSig.numerator = static_cast<int>(songNode.getProperty(keys::kSongTsN, 4));
+                song.timeSig.denominator = static_cast<int>(songNode.getProperty(keys::kSongTsD, 4));
+            }
 
             // Collect legacy globalPhrase values (v10 and earlier stored a movable home
             // row; absent "gp" defaults to si = no migration needed for new saves).
@@ -792,8 +826,17 @@ namespace lockstep::PluginState
                     const int si = static_cast<int>(child.getProperty("i", -1));
                     if (si < 0 || si >= kScenesPerSong) continue;
                     auto& sec = song.scenes[static_cast<std::size_t>(si)];
-                    sec.coreTime.numerator = static_cast<int>(child.getProperty(keys::kCtN, 4));
-                    sec.coreTime.denominator = static_cast<int>(child.getProperty(keys::kCtD, 4));
+                    // v21: hasTimeSig flag gates coreTime; v20 and older scenes that wrote
+                    // kCtN/kCtD unconditionally are handled by the hasTs check (absent = false).
+                    if (static_cast<int>(child.getProperty(keys::kHasTs, 0)) != 0
+                        || (child.hasProperty(keys::kCtN)
+                            && !child.hasProperty(keys::kHasTs)))
+                    {
+                        // Accept old v20 scenes that always wrote kCtN/kCtD (no hasTs flag).
+                        sec.hasTimeSig = true;
+                        sec.coreTime.numerator = static_cast<int>(child.getProperty(keys::kCtN, 4));
+                        sec.coreTime.denominator = static_cast<int>(child.getProperty(keys::kCtD, 4));
+                    }
                     legacyGp[static_cast<std::size_t>(si)] = static_cast<int>(child.getProperty(keys::kGp, si));
                     sec.swing = getFloat(child, keys::kSwing, 0.0f);
                     sec.initialised = true;
@@ -1549,6 +1592,17 @@ namespace lockstep::PluginState
         return v20;
     }
 
+    static juce::ValueTree upgrade_v20_to_v21(const juce::ValueTree& v20)
+    {
+        // v21: hierarchical time-sig fields added.
+        // Scene kCtN/kCtD written only when hasTimeSig=true going forward; existing v20
+        // scenes that wrote kCtN/kCtD unconditionally are accepted by the read path.
+        // No data migration needed; trivial stamp bump.
+        juce::ValueTree v21 = v20.createCopy();
+        v21.setProperty(keys::kVersion, 21, nullptr);
+        return v21;
+    }
+
     juce::ValueTree applyUpgrades(juce::ValueTree tree)
     {
         // Determine the version. v0 has root type "Lockstep" and no version attribute.
@@ -1577,6 +1631,7 @@ namespace lockstep::PluginState
         if (version < 18) tree = upgrade_v17_to_v18(tree);
         if (version < 19) tree = upgrade_v18_to_v19(tree);
         if (version < 20) tree = upgrade_v19_to_v20(tree);
+        if (version < 21) tree = upgrade_v20_to_v21(tree);
 
         return tree;
     }
