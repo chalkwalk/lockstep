@@ -476,6 +476,265 @@ namespace lockstep
         CHECK(proc.section().hasTimeSig, "write at Scene: hasTimeSig=true");
     }
 
+    // =========================================================================
+    // CUJ sequence tests — drive UiState through the pure transition fns
+    // and assert (band, scope) after each event.
+    // =========================================================================
+
+    // CUJ 1: enter via Scene+TRIG, retarget to Song then Set, release back to entry.
+    static void testCujTimeEnterViaScene()
+    {
+        UiState ui;
+        ui.sceneHeld = true;
+
+        // Before entry: bare Scene → Swing (not dismissed yet).
+        ui.swingDismissed = false;
+        CHECK(resolveMetaBand(ui) == MetaBand::Swing, "pre-entry: Scene alone → Swing");
+
+        // Entry: applyTimeEntry sets timeStickyMode, timeEntryScope=3, swingDismissed=true.
+        applyTimeEntry(ui);
+        CHECK(ui.timeStickyMode, "after entry: timeStickyMode=true");
+        CHECK(ui.timeEntryScope == 3, "after entry via Scene: entry scope=3");
+        CHECK(ui.swingDismissed, "after entry: swingDismissed=true");
+        CHECK(resolveMetaBand(ui) == MetaBand::Time, "after entry: resolves to Time");
+        CHECK(timeScopeFor(ui) == 3, "Scene held: scope=3");
+
+        // Retarget: hold Song modifier.
+        ui.sceneHeld = false;
+        ui.songHeld = true;
+        CHECK(resolveMetaBand(ui) == MetaBand::Time, "retarget Song: still Time");
+        CHECK(timeScopeFor(ui) == 2, "Song held: scope=2");
+
+        // Retarget to Set: hold Func+Song.
+        ui.funcHeld = true;
+        CHECK(resolveMetaBand(ui) == MetaBand::Time, "retarget Set: still Time");
+        CHECK(timeScopeFor(ui) == 1, "Func+Song: scope=1");
+
+        // Release all modifiers: falls back to entry scope.
+        ui.funcHeld = false;
+        ui.songHeld = false;
+        CHECK(resolveMetaBand(ui) == MetaBand::Time, "release all: still Time (entry scope)");
+        CHECK(timeScopeFor(ui) == 3, "release all: scope = entry scope (3)");
+
+        // Exit: applyTimeEntry again → exits TIME.
+        applyTimeEntry(ui);
+        CHECK(!ui.timeStickyMode, "after exit: timeStickyMode=false");
+        CHECK(resolveMetaBand(ui) == MetaBand::None, "after exit: None");
+    }
+
+    // CUJ 2: enter via Song+TRIG; entry scope=2.
+    static void testCujTimeEnterViaSong()
+    {
+        UiState ui;
+        ui.songHeld = true;
+        ui.swingDismissed = false;
+
+        // Pre-entry: Song alone → Swing.
+        CHECK(resolveMetaBand(ui) == MetaBand::Swing, "pre-entry: Song alone → Swing");
+
+        applyTimeEntry(ui);
+        CHECK(ui.timeStickyMode, "after Song+TRIG entry: timeStickyMode=true");
+        CHECK(ui.timeEntryScope == 2, "Song entry: entry scope=2");
+        CHECK(resolveMetaBand(ui) == MetaBand::Time, "Song entry: → Time");
+        CHECK(timeScopeFor(ui) == 2, "Song held: scope=2");
+
+        // Release Song; no modifier: falls back to entry scope (2, not 0 or 3).
+        ui.songHeld = false;
+        CHECK(timeScopeFor(ui) == 2, "no modifier: scope = entry scope (2) — scope-0 regression guard");
+        CHECK(timeScopeFor(ui) != 0, "no modifier: never 0");
+    }
+
+    // CUJ 3: scope retarget walk without re-entering.
+    // timeScopeFor priority: Func+Song > Song > Scene > entry scope (same as swingScopeFor).
+    static void testCujTimeScopeRetarget()
+    {
+        UiState ui;
+        ui.songHeld = true;
+        applyTimeEntry(ui);
+        CHECK(ui.timeEntryScope == 2, "entry via Song: scope=2");
+
+        // Song held → 2; Scene held simultaneously → Song wins.
+        ui.sceneHeld = true;
+        CHECK(timeScopeFor(ui) == 2, "Song+Scene both held: Song wins → scope=2");
+
+        // Release Song, keep Scene → retargets to 3.
+        ui.songHeld = false;
+        CHECK(timeScopeFor(ui) == 3, "only Scene held → scope=3");
+
+        // Release Scene: falls to entry scope.
+        ui.sceneHeld = false;
+        CHECK(timeScopeFor(ui) == 2, "no modifier → entry scope 2");
+
+        // Func+Song → Set (1).
+        ui.funcHeld = true;
+        ui.songHeld = true;
+        CHECK(timeScopeFor(ui) == 1, "Func+Song → Set (1)");
+    }
+
+    // CUJ 4: swing suppression — entering TIME sets swingDismissed; bare modifier
+    // while TIME is closed does NOT re-trigger Swing until the flag clears.
+    static void testCujTimeSwingSuppression()
+    {
+        UiState ui;
+        ui.sceneHeld = true;
+        ui.swingDismissed = false;
+
+        // Initial: swing visible.
+        CHECK(resolveMetaBand(ui) == MetaBand::Swing, "pre-entry: Swing visible");
+
+        // Enter TIME: swingDismissed=true.
+        applyTimeEntry(ui);
+        CHECK(ui.swingDismissed, "after entry: swingDismissed=true");
+        CHECK(resolveMetaBand(ui) == MetaBand::Time, "in TIME: Time band");
+
+        // Exit TIME: escapeTimeSticky keeps swingDismissed=true so bare modifier
+        // held won't drop back to Swing immediately.
+        escapeTimeSticky(ui);
+        CHECK(!ui.timeStickyMode, "after escape: timeStickyMode=false");
+        CHECK(ui.swingDismissed, "after escape: swingDismissed still true");
+
+        // With Scene held and swingDismissed: Swing band is suppressed.
+        CHECK(resolveMetaBand(ui) == MetaBand::None, "swing suppressed after escape");
+
+        // Clearing dismissed: Swing returns.
+        ui.swingDismissed = false;
+        CHECK(resolveMetaBand(ui) == MetaBand::Swing, "swingDismissed=false: Swing returns");
+    }
+
+    // CUJ 5: sticky exclusivity — entering density exits TIME.
+    static void testCujTimeExclusivityDensity()
+    {
+        UiState ui;
+        ui.songHeld = true;
+        applyTimeEntry(ui);
+        CHECK(resolveMetaBand(ui) == MetaBand::Time, "TIME active");
+
+        // Simulate density sticky entry (as in PluginEditor).
+        ui.densityStickyMode = true;
+        escapeTimeSticky(ui);
+
+        CHECK(!ui.timeStickyMode, "density entry: timeStickyMode cleared");
+        CHECK(resolveMetaBand(ui) != MetaBand::Time, "density entry: not Time band");
+    }
+
+    // CUJ 6: sticky exclusivity — entering vel exits TIME; entering TIME exits vel.
+    static void testCujTimeExclusivityVel()
+    {
+        UiState ui;
+        ui.songHeld = true;
+        applyTimeEntry(ui);
+        CHECK(resolveMetaBand(ui) == MetaBand::Time, "TIME active");
+
+        // applyTimeEntry clears vel sticky.
+        ui.velStickyMode = true;
+        applyTimeEntry(ui);  // toggle off
+        applyTimeEntry(ui);  // toggle on again from clean state
+        CHECK(!ui.velStickyMode, "entering TIME clears velStickyMode");
+
+        // And vice-versa: entering vel clears TIME.
+        ui.velStickyMode = true;
+        escapeTimeSticky(ui);
+        CHECK(!ui.timeStickyMode, "entering vel: timeStickyMode cleared");
+    }
+
+    // CUJ 7: latch + TIME — latched Scene modifier keeps TIME scope at 3.
+    static void testCujTimeLatchedModifier()
+    {
+        UiState ui;
+        ui.latch.scene = true;
+        ui.sceneHeld = true;  // effective held = physical OR latched
+
+        applyTimeEntry(ui);
+        CHECK(ui.timeEntryScope == 3, "latch: entry scope = Scene = 3");
+        CHECK(timeScopeFor(ui) == 3, "latch: timeScopeFor still 3");
+        CHECK(resolveMetaBand(ui) == MetaBand::Time, "latch: TIME band active");
+    }
+
+    // =========================================================================
+    // Tempo INHERIT floor round-trip: write at floor clears hasTempo.
+    // =========================================================================
+
+    static void testTempoInheritFloor()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+
+        // Set a Song tempo override.
+        proc.song().hasTempo = true;
+        proc.song().tempoRatio = 0.8;
+
+        UiState ui;
+        ui.timeStickyMode = true;
+        ui.timeEntryScope = 2;  // Song
+        ui.songHeld = true;
+        EditContext ctx;
+
+        // buildTempoBand at Song scope: should report hasOverride=true.
+        {
+            const auto fields = buildMetaBand(MetaBand::Time, 0, proc, 0, ctx, ui);
+            CHECK(fields[0].hasOverride, "with override: hasOverride=true");
+            CHECK(fields[0].minValue == 0.0f, "Song scope: minValue=0 (INHERIT floor)");
+        }
+
+        // Write at floor (0.0 = INHERIT): should clear hasTempo.
+        writeMetaField(MetaBand::Time, 0, 0, 0.0f, proc, 0, ctx, ui);
+        CHECK(!proc.song().hasTempo, "write at INHERIT floor: hasTempo cleared");
+
+        // buildTempoBand after clear: hasOverride=false, value=0.
+        {
+            const auto fields = buildMetaBand(MetaBand::Time, 0, proc, 0, ctx, ui);
+            CHECK(!fields[0].hasOverride, "after inherit: hasOverride=false");
+            CHECK(fields[0].value == 0.0f, "after inherit: value=0 (floor)");
+        }
+
+        // Write a real BPM (above floor): should set hasTempo again.
+        writeMetaField(MetaBand::Time, 0, 0, 120.0f, proc, 0, ctx, ui);
+        CHECK(proc.song().hasTempo, "write 120 BPM: hasTempo=true again");
+    }
+
+    // =========================================================================
+    // Bar-length order: verify kTimeSigs ascending via buildMetaBand field 1
+    // =========================================================================
+
+    static void testTimeSigsBarLengthOrder()
+    {
+        // Build the TIME band at Set scope (no INHERIT slot), iterate field 1 stepped values.
+        // The bar length of entry i is num/den as a fraction of a 4/4 bar.
+        // We can't access kTimeSigs directly, but we can sample via writeMetaField at Set
+        // scope and check effectiveTimeSig is non-decreasing.
+        EngineHarness h;
+        auto& proc = h.processor();
+
+        UiState ui;
+        ui.timeStickyMode = true;
+        ui.timeEntryScope = 1;  // Set scope
+        ui.funcHeld = true;
+        ui.songHeld = true;
+        EditContext ctx;
+
+        const auto fields = buildMetaBand(MetaBand::Time, 0, proc, 0, ctx, ui);
+        CHECK(fields[1].active,  "Sig field active at Set scope");
+        CHECK(fields[1].stepped, "Sig field is stepped");
+
+        const int maxIdx = static_cast<int>(fields[1].maxValue);
+        CHECK(maxIdx >= 11, "at least 12 entries in the time-sig list");
+
+        // Write each index, read back effectiveTimeSig, check non-decreasing bar length.
+        double prevBarLen = 0.0;
+        bool allNonDecreasing = true;
+        for (int i = 0; i <= maxIdx; ++i)
+        {
+            writeMetaField(MetaBand::Time, 0, 1, static_cast<float>(i), proc, 0, ctx, ui);
+            const TimeSig ts = proc.project().defaultTimeSig;
+            const double barLen = static_cast<double>(ts.numerator)
+                                / static_cast<double>(ts.denominator);
+            if (barLen < prevBarLen - 1e-9)
+                allNonDecreasing = false;
+            prevBarLen = barLen;
+        }
+        CHECK(allNonDecreasing, "time-sig list ordered by non-decreasing bar length");
+    }
+
     // -------------------------------------------------------------------------
 
     void runMetaBandTests()
@@ -501,6 +760,21 @@ namespace lockstep
         testWriteMetaFieldTempoEntryScope();
         testWriteMetaFieldTimeSigInheritClearsOverride();
         testWriteMetaFieldTimeSigSetsValue();
+
+        // CUJ sequence tests — enter, retarget, latch, swing suppression, exclusivity
+        testCujTimeEnterViaScene();
+        testCujTimeEnterViaSong();
+        testCujTimeScopeRetarget();
+        testCujTimeSwingSuppression();
+        testCujTimeExclusivityDensity();
+        testCujTimeExclusivityVel();
+        testCujTimeLatchedModifier();
+
+        // Tempo INHERIT floor: write at floor clears hasTempo; round-trip
+        testTempoInheritFloor();
+
+        // Bar-length order assertion on kTimeSigs (via buildMetaBand field 1 order)
+        testTimeSigsBarLengthOrder();
 
         testDensityEditsMaster();
 
