@@ -319,10 +319,35 @@ namespace lockstep
     static_assert(std::size(kSLParams) == SlicerMachine::kNumSlots,
                   "kSLParams row count must equal kNumSlots");
 
+    namespace
+    {
+        // §6.10 contextLabel: LpStart/LpLen annotations based on loop mode.
+        // kSlotLoopMode = 7 (hardcoded to avoid private-member access).
+        int slLoopMode(const ParamFrame& f)
+        {
+            if (static_cast<int>(f.size()) <= 7) return 0;
+            return std::clamp(static_cast<int>(std::round(f[7])), 0, 3);
+        }
+
+        juce::String slLpStartLabel(const ParamFrame& f)
+        {
+            return (slLoopMode(f) == 3) ? juce::String("LpStart (auto)") : juce::String("LpStart");
+        }
+
+        juce::String slLpLenLabel(const ParamFrame& f)
+        {
+            const int m = slLoopMode(f);
+            return (m == 2 || m == 3) ? juce::String("LpLen (auto)") : juce::String("LpLen");
+        }
+    }
+
     ParamSpec SlicerMachine::paramSpec(int index) const
     {
         if (index < 0 || index >= kNumSlots) return {};
-        return toParamSpec(kSLParams[static_cast<std::size_t>(index)]);
+        auto spec = toParamSpec(kSLParams[static_cast<std::size_t>(index)]);
+        if (index == kSlotLoopStart) spec.contextLabel = slLpStartLabel;
+        if (index == kSlotLoopLen)   spec.contextLabel = slLpLenLabel;
+        return spec;
     }
 
     SectionInfo SlicerMachine::section(int index) const

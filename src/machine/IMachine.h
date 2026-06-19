@@ -90,6 +90,14 @@ namespace lockstep
         // the range (exponential feel for time parameters). Applied by the MZ
         // rotary only — P-Lock and serializer always work with actual values.
         float skew = 1.0f;
+
+        // Optional contextual label hook (§6.10).  When non-null, ManipulationZone
+        // calls contextLabel(frame) instead of using the static `label` field.
+        // The frame is the track's current base ParamFrame (not the resolved per-step
+        // frame) so the label reflects the persistent machine state.
+        // Use a function pointer so the struct stays POD-friendly for the future
+        // Machine ABI (§36) — the hook's identity is baked into the function itself.
+        juce::String (*contextLabel)(const ParamFrame&) = nullptr;
     };
 
     // Returned by LockstepProcessor::section() after augmenting the machine's

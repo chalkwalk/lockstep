@@ -68,10 +68,113 @@ namespace lockstep
     static_assert(std::size(kDSParams) == DrumSynthMachine::kNumSlots,
                   "kDSParams row count must equal kNumSlots");
 
+    // §6.10 contextLabel helpers — per-slot, per-type alias tables.
+    // Each function takes the full ParamFrame and reads kSlotType to choose the label.
+    namespace
+    {
+        // Returns the drum type as an int [0..7] from a ParamFrame.
+        // kSlotType = 0 (hardcoded to avoid private-member access in static function).
+        int dsType(const ParamFrame& f)
+        {
+            if (f.empty()) return 0;
+            return std::clamp(static_cast<int>(std::lround(f[0])), 0, 7);
+        }
+
+        // Slot 2 — Sweep: pitch sweep (KICK/TOM), tap count (CLAP), interval (COWBELL), spread (CYMBAL)
+        juce::String sweepLabel(const ParamFrame& f)
+        {
+            switch (dsType(f))
+            {
+                case 4: return "Taps";      // CLAP: tap count
+                case 5: return "Interval";  // COWBELL: two-osc interval
+                case 6: return "Spread";    // CYMBAL: partial spread
+                default: return "Sweep";
+            }
+        }
+
+        // Slot 3 — Swp Dec: tap spacing (CLAP), otherwise sweep decay
+        juce::String swpDecLabel(const ParamFrame& f)
+        {
+            return (dsType(f) == 4) ? juce::String("Tap Spac") : juce::String("Swp Dec");
+        }
+
+        // Slot 4 — Punch: click transient level (not used by SNARE/HAT/CLAP/CYMBAL)
+        juce::String punchLabel(const ParamFrame& f)
+        {
+            switch (dsType(f))
+            {
+                case 1: return "—";        // SNARE: Snap replaces punch
+                case 2: return "—";        // HAT: no click
+                case 4: return "—";        // CLAP: no click
+                case 6: return "—";        // CYMBAL: no click
+                default: return "Punch";
+            }
+        }
+
+        // Slot 5 — Tone: waveshaper (KICK/TOM), BP cutoff (SNARE), resonance (HAT),
+        //                BP resonance (CLAP/RIMSHOT), ring Q (COWBELL), reso (CYMBAL)
+        juce::String toneLabel(const ParamFrame& f)
+        {
+            switch (dsType(f))
+            {
+                case 0: return "Drive";     // KICK
+                case 1: return "BP Freq";   // SNARE: noise bandpass cutoff (500–8kHz)
+                case 2: return "Reso";      // HAT: HP filter resonance (svfK)
+                case 3: return "Drive";     // TOM: same as KICK (scaled 0.25×)
+                case 4: return "BP Reso";   // CLAP: bandpass resonance
+                case 5: return "Ring Q";    // COWBELL: bandpass ring Q
+                case 6: return "Reso";      // CYMBAL: HP resonance
+                case 7: return "BP Reso";   // RIMSHOT: bandpass resonance
+                default: return "Tone";
+            }
+        }
+
+        // Slot 6 — Body: snare body/noise balance, hat HP cutoff,
+        //                 clap tail length, cowbell BP centre, cymbal HP cutoff, rimshot tok/crack
+        juce::String bodyLabel(const ParamFrame& f)
+        {
+            switch (dsType(f))
+            {
+                case 0: return "—";         // KICK: unused
+                case 1: return "Tone Mix";  // SNARE: body(sine)/noise balance
+                case 2: return "HP Cut";    // HAT: highpass cutoff (4–18 kHz via Tune; Body unused)
+                case 3: return "—";         // TOM: unused
+                case 4: return "Tail";      // CLAP: tail decay length (20–180 ms)
+                case 5: return "BP Ctr";    // COWBELL: bandpass centre (1.5×–3.5× upper osc)
+                case 6: return "HP Cut";    // CYMBAL: highpass cutoff (300–3000 Hz)
+                case 7: return "Tok/Crk";   // RIMSHOT: tok vs crack balance
+                default: return "Body";
+            }
+        }
+
+        // Slot 7 — Snap: snap transient (SNARE), sizzle amount (CYMBAL), unused otherwise
+        juce::String snapLabel(const ParamFrame& f)
+        {
+            switch (dsType(f))
+            {
+                case 1: return "Snap";      // SNARE: click/snap transient level
+                case 6: return "Sizzle";    // CYMBAL: noise sizzle amount
+                default: return "—";        // unused for other types
+            }
+        }
+    }
+
     ParamSpec DrumSynthMachine::paramSpec(int index) const
     {
         if (index < 0 || index >= kNumSlots) return {};
-        return toParamSpec(kDSParams[static_cast<std::size_t>(index)]);
+        auto spec = toParamSpec(kDSParams[static_cast<std::size_t>(index)]);
+        // §6.10: attach contextLabel for type-dependent SRC slots.
+        switch (index)
+        {
+            case kSlotSweep:     spec.contextLabel = sweepLabel;  break;
+            case kSlotSweepDecay:spec.contextLabel = swpDecLabel; break;
+            case kSlotPunch:     spec.contextLabel = punchLabel;  break;
+            case kSlotTone:      spec.contextLabel = toneLabel;   break;
+            case kSlotBody:      spec.contextLabel = bodyLabel;   break;
+            case kSlotSnap:      spec.contextLabel = snapLabel;   break;
+            default: break;
+        }
+        return spec;
     }
 
     SectionInfo DrumSynthMachine::section(int index) const

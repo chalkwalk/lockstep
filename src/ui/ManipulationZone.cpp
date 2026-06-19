@@ -455,9 +455,14 @@ namespace lockstep
                 valueLabels_[si].setText(valueText, juce::dontSendNotification);
             }
 
-            const juce::String nameText = meta.label.isEmpty()
-                                              ? juce::String(slot)
-                                              : meta.label;
+            // §6.10: use contextLabel hook when set; otherwise static label.
+            juce::String nameText;
+            if (meta.contextLabel != nullptr)
+                nameText = meta.contextLabel(t.baseParams);
+            else if (!meta.label.isEmpty())
+                nameText = meta.label;
+            else
+                nameText = juce::String(slot);
             labels_[si].setText(nameText, juce::dontSendNotification);
 
             clearBtns_[si].setEnabled(hasLock);

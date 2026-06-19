@@ -292,10 +292,48 @@ namespace lockstep
     static_assert(std::size(kSAParams) == SamplerMachine::kNumSlots,
                   "kSAParams row count must equal kNumSlots");
 
+    namespace
+    {
+        // §6.10 contextLabel: LpStart/LpLen annotations based on loop mode.
+        // kSlotLoopMode = 4 (hardcoded to avoid private-member access).
+        int saLoopMode(const ParamFrame& f)
+        {
+            if (static_cast<int>(f.size()) <= 4) return 0;
+            return std::clamp(static_cast<int>(std::round(f[4])), 0, 3);
+        }
+
+        juce::String lpStartLabel(const ParamFrame& f)
+        {
+            switch (saLoopMode(f))
+            {
+                case 0: return "LpStart";          // Off: slot exists but unused
+                case 1: return "LpStart";          // Sust: user-set start
+                case 2: return "LpStart";          // SustRel: user-set start
+                case 3: return "LpStart (auto)";   // All: auto = window start
+                default: return "LpStart";
+            }
+        }
+
+        juce::String lpLenLabel(const ParamFrame& f)
+        {
+            switch (saLoopMode(f))
+            {
+                case 0: return "LpLen";            // Off: unused
+                case 1: return "LpLen";            // Sust: user-set length
+                case 2: return "LpLen (auto)";     // SustRel: auto = to window end
+                case 3: return "LpLen (auto)";     // All: auto = full window
+                default: return "LpLen";
+            }
+        }
+    }
+
     ParamSpec SamplerMachine::paramSpec(int index) const
     {
         if (index < 0 || index >= kNumSlots) return {};
-        return toParamSpec(kSAParams[static_cast<std::size_t>(index)]);
+        auto spec = toParamSpec(kSAParams[static_cast<std::size_t>(index)]);
+        if (index == kSlotLoopStart) spec.contextLabel = lpStartLabel;
+        if (index == kSlotLoopLen)   spec.contextLabel = lpLenLabel;
+        return spec;
     }
 
     SectionInfo SamplerMachine::section(int index) const
