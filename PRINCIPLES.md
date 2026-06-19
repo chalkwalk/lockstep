@@ -547,6 +547,33 @@ would reach into the section-key layer, or attach a duration meaning to a
 modifier or `Func` — the proposal requires a revision to this principle first,
 not a silent exception. See *"Gesture cost is graduated"* §15; NON-GOALS §14.
 
+## 18. One mode enum; no ad-hoc UI state booleans
+
+The UI has a small closed family of **mutually-exclusive sticky overlays**
+(Time, Density, Vel, Euclid). Exactly one may be active at any time.
+
+**Consequence.** Mutually-exclusive modality is encoded in a **single closed
+enum field** (`UiState::overlay`). Adding a new sticky overlay means adding
+one enum value and one descriptor row in the reducer — not a new boolean.
+Free-standing booleans (`timeStickyMode`, `densityStickyMode`, …) allow
+illegal coexistence that the compiler cannot see; the single-field design
+makes it structurally unrepresentable.
+
+**Consequence.** The entry/exit/supersede policy for every overlay lives in
+one declarative descriptor table (`kOverlays` in `ModeReducer.cpp`). A field
+in `OverlayDescriptor` without a default value forces every existing entry to
+state its policy explicitly — a missing exit wire becomes a compile-time
+omission, not a silent gap. The TIME "too sticky" bug (missing three exit
+wires) was the case study that motivated this design; it is now impossible.
+
+**Consequence.** Do not add free-standing booleans for modal state elsewhere
+either. The same logic applies to Func-layer pickers (`FuncReskin` enum),
+modifier latch (`LatchState`), and confirm state (`ConfirmState`): each is a
+small closed set; each uses a typed field so the compiler rejects combinations
+that the grammar forbids. See `src/ui/mode/` for all current modal
+sub-systems. See *"One grammar, no exceptions"* §2 for the general principle;
+§17 for gesture-family enforcement. DESIGN §13 for the scope+verb grammar.
+
 ---
 
 ## Non-Goals — what Lockstep refuses to become

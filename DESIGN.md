@@ -5085,6 +5085,51 @@ and Task B (confirm-prompt + master-FX-picker layers through
   press does. Execution routes through `CommandEffects::executeConfirm`
   so confirm bodies are testable without `PluginEditor`.
 
+### §37.7 UI mode layer (`src/ui/mode/`) — correct-by-construction overlay management
+
+The `src/ui/mode/` package makes illegal overlay coexistence structurally
+unrepresentable and "forgot to wire an exit" a compile-time error, not a
+silent gap. All modules are pure (no `juce::Component`) and unit-tested.
+
+**Overlay enum (`state/UiState.h`).**
+`UiState::overlay` is a single closed-enum field of type `Overlay`
+`{None, Euclid, Time, Density, Vel}`. At most one sticky mode is active;
+the second assignment atomically exits the first. `Overlay.h` is a shim
+that includes `UiState.h`. See PRINCIPLES §18.
+
+**`OverlayDescriptor` + `kOverlays` table (`ModeReducer.cpp`).**
+Each overlay has one declarative record stating its full exit policy:
+which section index is "own" (cycles sub-page vs. exits), which scope
+keys are foreign (exit on press), whether `Func` double-tap exits, etc.
+`ExitPolicy` has **no default** — every field must be stated. Adding a
+new overlay: add one `Overlay` enum value + one row to `kOverlays`; the
+compiler rejects any omission. The TIME "too-sticky" bug (three missing
+exits) cannot recur under this design.
+
+**`ModeReducer` public API (`ModeReducer.h`):**
+- `activeOverlay(ui)` — returns `Overlay::Euclid` when `euclidHeld`
+  (transient chord), otherwise `ui.overlay`.
+- `escapeOverlay(ui, ov)` — clears `overlay` and resets per-overlay
+  params; guards with `if (ui.overlay == ov)` so defensive calls are no-ops.
+- `handleOverlayEvent(ui, ev, ctx)` — iterates `kOverlays` and applies
+  consume/exit policy. Returns `Consumed`, `Exited`, or `NotConsumed`.
+- `overlayInternalSectionLabel(ui, idx)` — dynamic relabel for the active
+  overlay's "own" section key (replaces scattered per-mode `if` branches).
+
+**Supporting modules:**
+- `GestureRecognizer.h` — single timing home for double-tap + long-press.
+  Non-colliding tokens: modifiers `1000 + int(ControllerButton)`, steps
+  0–63, `kNavRightUnlock = 4000`, `kRestoreLongPressToken = 5000`.
+- `FuncReskin.{h,cpp}` — `activeFuncReskin(ui)` / `exitFuncReskin(ui)`:
+  unified enter/exit for the five Func-layer picker+editor modes
+  (MachinePicker / TrackFxPicker / MasterFxPicker / NoteEdit / PLockClear).
+- `LatchOps.{h,cpp}` — `latchColumn(cb)` / `latchBoolFor(state, cb)` /
+  `clearLatchColumnExcept(state, cb)`: pure column-exclusivity helpers for
+  modifier latch; tested independently to catch drift from `setModifierLatch`.
+
+Tests: `tests/ModeReducerTest.cpp`, `tests/GestureTest.cpp`,
+`tests/FuncReskinTest.cpp`, `tests/LatchOpsTest.cpp`.
+
 ---
 
 ## §38 Threading Contract
