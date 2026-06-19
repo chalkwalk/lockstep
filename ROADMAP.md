@@ -1672,7 +1672,7 @@ See DESIGN §6.10.
 - [ ] **Tests.** Unit test: `contextLabel` returns expected string for representative
       TYPE/loop-mode values.
 
-### 9.7 — Hierarchical time signature  *[active]*
+### 9.7 — Hierarchical time signature  *[shipped]*
 Make time signature a first-class, grammar-editable, hierarchical value.
 See DESIGN §4.8. Serializer v21.
 
@@ -1682,41 +1682,64 @@ See DESIGN §4.8. Serializer v21.
       (launch-quantize, metronome, velocity, density, phrase seeding). `sceneHasContent()`
       updated. Serializer v21: Set default + Song/Scene presence flags. v20→v21 upgrade stamp.
 - [x] **E2 — Grammar editing UI.** `buildTimeSigBand` / `writeMetaField` in MetaBand.
-      Curated stepped list (4/4 → 3/4 → 6/8 → 7/8 → 5/4 → 5/8 → 12/8 → 2/4 →
-      2/2 → 8/8) + INHERIT at Song/Scene levels. Scope selection via held-scope
-      flags (Func+Song = Set; Song = Song; Scene = Scene). Scene+TRIG claims the
-      unused dispatch slot (ScopedSectionMatrix.h line ~63; PluginEditor.cpp line ~2125).
-      Inherited value as scope-coloured reference (swing tick idiom).
+      Curated stepped list + INHERIT at Song/Scene levels. Scope selection via held-scope
+      flags (Func+Song = Set; Song = Song; Scene = Scene).
 - [x] **Tests.** Round-trip each level; resolution precedence; 4/4 default when absent.
 
-### 9.8 — Hierarchical tempo + top-display rework  *[active]*
+### 9.8 — Hierarchical tempo + top-display rework  *[shipped]*
 Make tempo a hierarchical peer of time signature; retire the mouse-driven
-standalone tempo bar. See DESIGN §4.9. Serializer v21.
+standalone tempo bar. See DESIGN §4.8 (unified TIME page). Serializer v21.
 
 - [x] **F1 — Data model (highest risk).** `Song.hasTempo`/`Song.tempoRatio`;
       `Scene.hasTempo`/`Scene.tempoRatio`. `effectiveTempoRatio()` multiplies song ×
       scene ratios; feeds density/velocity metric math. DAW host BPM as root.
       Serialize ratios under v21 (kHasTempo/kTempoRatio for Song and Scene nodes).
       Density lookahead barIndex fixed to use musicalGridPpq.
-- [x] **F2 — Grammar editing.** `buildTempoBand`/`writeMetaField` in MetaBand.
-      Song+TRIG toggles tempoStickyMode; scope: Func+Song=global, Song=Song, Scene=Scene.
-      Absolute BPM entered; ratio stored implicitly. Inherited reference in scope colour.
+- [x] **F2 — Grammar editing.** Unified TIME page (`MetaBand::Time`) with two controls
+      (Tempo + Sig). `Song+TRIG` or `Scene+TRIG` opens the band; entry modifier sets
+      entry scope. Per-control INHERIT floor reverts; no hold-scope+Clear needed on
+      this band. Time-sigs ordered by ascending bar length.
 - [x] **F3 — Remove tempo bar + top readout.** `StandaloneTempoBar.*` deleted;
       PluginEditor replaced with `juce::Label tempoReadout_` showing scope-coloured
-      effective BPM + time-sig (Scene colour if scene owns override, Song if song, grey=global).
-- [ ] **Tests.** Resolution math; boundary tempo change keeps phase sane; DAW host
-      as root; v21 serializer round-trip; v20 projects load cleanly.
+      effective BPM + time-sig.
+- [x] **Tests.** CUJ sequence tests (entry, retarget, latch, swing suppression,
+      sticky exclusivity); build/write round-trips; bar-length order assert;
+      v21 serializer round-trip; v20 projects load cleanly.
+
+### 9.8a — TIME page cleanup pass  *[active]*
+Structural cleanup: merge Tempo + Time-Sig into one TIME page; per-control INHERIT
+floor; bar-length-ordered time-sigs; pure transition layer; CUJ tests.
+See DESIGN §4.8 and §13.
+
+- [x] **Docs.** DESIGN §4.8/§4.9 merged; §13 grammar updated; README TIME row
+      collapsed; CLAUDE.md single-sticky invariant noted.
+- [ ] **Collapse model.** `UiState`: `timeStickyMode` + `timeEntryScope` replace four
+      fields. `MetaBand::Time` replaces `Tempo` + `TimeSig`. `timeScopeFor` unifies
+      the two scope fns. `ScopedSectionMatrix` kSong[0] "TEMPO"→"TIME". `KeyLabel`
+      single relabel.
+- [ ] **Pure transition layer.** `applyTimeEntry` / `escapeTimeSticky` /
+      `isTimeEntryChord` as pure fns. PluginEditor wired; VerbClear Tempo+TimeSig
+      blocks deleted; Swing block kept.
+- [ ] **Single TIME band builder + writer.** `buildTimeBand` (Tempo field + Sig field);
+      `kTimeSigs` ascending bar length; `writeMetaField` `case MetaBand::Time`.
+- [ ] **CUJ + unit tests.** Sequence tests; build/write round-trips; bar-length-order
+      assert; SurfaceModelTest label update.
 
 ### 9.9 — README + verification  *[active]*
-- [x] **G — README.** Time-sig/tempo grammar, velocity Phrase/Mix/Phrase mode,
-      contextual labels, and top-bar readout moved into the implemented working set;
-      shortcut table updated (Scene+TRIG, Song+TRIG, Func+AMP vel modes).
-- [ ] **End-to-end verification.** Build; run tests; standalone smoke (tempo bar
-      gone, readout recolours, scope edits work, INHERIT clears overrides, vel
-      skip-pages, Mix/Phrase musical, DrumSynth labels change with TYPE, Sampler
-      loop labels annotate per mode). DAW (v21 round-trip; v20 project compat).
+- [x] **G — README.** TIME page grammar (single row), gesture tree updated.
+- [ ] **End-to-end verification.** Build; run tests; standalone smoke (TIME page shows
+      two controls; Song+TRIG and Scene+TRIG both open it; scope retarget works;
+      INHERIT on each control clears its override; time-sigs in bar-length order;
+      entering density/vel exits TIME; swing not triggered while TIME open). DAW
+      (v21 round-trip; v20 project compat).
 - [ ] **Remaining open:** C (skip-disabled vel sub-pages + inert affordance),
-      contextLabel unit test (D2), tempo resolution tests (F1).
+      contextLabel unit test (D2).
+
+### Future (structural)
+- **Replace `timeStickyMode` / `densityStickyMode` / `velStickyMode` with a
+  `StickyMode` enum** so that coexistence is unrepresentable at the type level.
+  Currently enforced by invariant + tests; enum makes it a compile-time guarantee.
+  Deferred to avoid touching shipped density/vel call-sites in this pass.
 
 ---
 

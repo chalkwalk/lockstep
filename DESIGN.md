@@ -693,122 +693,94 @@ Elektron users reach for, without a new key:
 > recallable unit reached through `Func+Track`, not a selectable per-Scene
 > object.
 
-### 4.8 Core time and launch quantize
+### 4.8 TIME page — tempo and time signature
 
-**Core time** is a `TimeSig { int numerator; int denominator; }` (default `{4,
-4}`) that drives three roles across all consumers:
+Tempo and time-sig share an identical scope ladder (Set → Song → Scene) and
+are edited together on a single **TIME** page.
 
-1. **Launch-quantize grid.** The global `launchQuantizeBars` setting
-   (Set-level; default 1) measures in core-time bars. A bar =
-   `numerator × (4.0 / denominator)` quarter-note PPQ. A Scene or
-   Song launch fires at the next multiple of
-   `launchQuantizeBars × barPpq` past the current playhead.
-   Example: 4/4, 1 bar → fires at each 4-beat boundary. 7/8 core time,
-   1 bar → fires at each 3.5-beat boundary. Polymeter within a Scene is
-   unrestricted — phrase lengths are independent of core time (§4.2).
-2. **Metronome downbeat.** The metronome accent pattern is derived from
-   core time; the "1" fires at `barPpq` intervals. Core time is the
-   only place the metronome reads a sense of a "bar".
-3. **Default phrase length.** When a new Phrase is created while a
-   Scene is active, its length is seeded from core time:
-   `numerator × (4 / denominator)` steps at the default step resolution
-   (1/16 note = 1 step), so a 4/4 Scene seeds 16-step phrases and a
-   7/8 Scene seeds 7-step phrases. This is a *default only* — the
-   phrase length is freely editable afterward and never constrained by
-   core time.
+**Grammar entry** — **`Song+TRIG`** or **`Scene+TRIG`** both open the TIME
+sticky band (the TRIG key relabels to "TIME" while the band is open). The
+held modifier at entry sets the **entry scope** — the scope that edits target
+when no modifier is held. Inside the band: `Func+Song` → Set/global scope;
+bare `Song` → Song scope; bare `Scene` → Scene scope; no modifier → entry
+scope (see §13 momentary-hold convention).
 
-**Hierarchy.** Core time is resolved via a three-level hierarchy (finest
-explicit override wins; same OEB logic as §4.1):
+**TIME band — two controls:**
+
+- **Field 0 — Tempo** (continuous). Shows the resolved absolute BPM at the
+  current scope; a scope-coloured arc tick marks the parent floor. Editing
+  writes the back-solved ratio. At Song/Scene scope, dialing to the floor
+  displays `INHERIT (<parent bpm>)` and clears `hasTempo`. At Set scope there
+  is no INHERIT floor — the global owns its value. In DAW mode the global
+  scope is read-only (host BPM; Lockstep never writes to the host clock —
+  PRINCIPLES §3).
+
+- **Field 1 — Time Sig** (stepped). Curated list ordered by ascending bar
+  length: `3/8 → 2/4 → 5/8 → 3/4 → 6/8 → 7/8 → 4/4 → 9/8 → 5/4 → 11/8
+  → 12/8 → 7/4`; Set default is 4/4. At Song/Scene scope index 0 =
+  `INHERIT (<parent sig>)`, which clears the override. The scope-coloured
+  reference tick shows the inherited parent.
+
+**Revert to parent (INHERIT floor).** For both controls the revert mechanism
+is built into the control itself: dial tempo to the range floor, or dial
+time-sig to index 0. Each reverts independently. (The hold-scope + Clear
+chord is **not** used on this band — it remains active for Swing only,
+§19.2.)
+
+**Effective values:**
 
 ```
-effectiveTimeSig = Scene.timeSig       (if Scene.hasTimeSig)
-               ?? Song.timeSig         (if Song.hasTimeSig)
+effectiveTimeSig = Scene.timeSig           (if Scene.hasTimeSig)
+               ?? Song.timeSig             (if Song.hasTimeSig)
                ?? Project.defaultTimeSig   (always present; default 4/4)
+
+effectiveTempo =
+    globalRoot
+    × (Song.hasTempo  ? Song.tempoRatio  : 1.0)
+    × (Scene.hasTempo ? Scene.tempoRatio : 1.0)
 ```
 
 All consumers (`PluginProcessor` launch-quantize, metronome, velocity-weight,
-density-weight, phrase-length seeding) call the `effectiveTimeSig` accessor
-rather than reading `Scene.coreTime` directly. The resolved value is displayed
-at the top of the UI in **scope colour** — Song-gold when the Song override is
-active, Scene-green when a Scene override applies, neutral when the Set default
-rules.
+density-weight, phrase-length seeding) call `effectiveTimeSig` rather than
+reading `Scene.coreTime` directly. The top-bar readout shows both values in
+scope colour. The Clock is fed `effectiveTempo` at every Song/Scene boundary
+and when tempo is edited in real time; rate changes apply at the next
+sub-block boundary for phase continuity.
 
 Note: 8/8 and 4/4 are *different* time signatures for Lockstep's purposes —
 numerator drives the `MetricGrid::metricWeight` pulse tree, so 8/8 produces
 eight weight-graded ticks per bar while 4/4 produces four. Both have the same
 `barPpq`; they differ in accent density.
 
-**Grammar editing** — **`Scene+TRIG`** opens the TIME SIG sticky band (the
-TRIG key shows an active label while the band is open). Inside the band:
-`Func+Song` → Set-level default; bare `Song` → Song override; bare `Scene`
-→ Scene override; no modifier held → Scene scope (the entry scope; see §13
-momentary-hold convention). One stepped knob shows the resolved time-sig at
-the current scope (curated list: 4/4 → 3/4 → 6/8 → 7/8 → 5/4 → 5/8 →
-12/8 → 2/4 → 2/2 → 8/8; INHERIT at index 0 clears the override at
-Song/Scene scope). The inherited value is shown as a scope-coloured
-reference marker (same idiom as swing, §19.2). **Hold scope + Clear** also
-reverts that scope's override (§13).
+**Swing suppression.** Holding Song or Scene alone (no TRIG) opens the Swing
+band as normal. Once the TIME page is open, the `swingDismissed` flag prevents
+the bare modifier from accidentally re-entering Swing for the duration of the
+session; it clears on a fresh unmediated modifier press.
+
+**Merge rule.** Controls are merged onto one page only when they share a scope
+ladder. Tempo and time-sig both live on Set → Song → Scene. Swing's ladder is
+Song → Scene → Track (per-track, no Set); it stays on its own page.
+
+**Core time roles:**
+
+1. **Launch-quantize grid.** `launchQuantizeBars` (Set-level; default 1)
+   measures in core-time bars. A bar = `numerator × (4.0 / denominator)`
+   quarter-note PPQ. A Scene or Song launch fires at the next multiple of
+   `launchQuantizeBars × barPpq`.
+2. **Metronome downbeat.** The "1" fires at `barPpq` intervals.
+3. **Default phrase length.** New Phrase seeded from `numerator × (4 /
+   denominator)` steps (a default only — freely editable afterward).
 
 **Per-track phrase-end override.** Each track has a `launchMode` flag
 (`GlobalBar` default | `PhraseEnd`). Tracks set to `PhraseEnd` switch to
-a new Scene assignment at the *end of their current phrase cycle*
-rather than at the shared core-time boundary.
+a new Scene assignment at the *end of their current phrase cycle* rather than
+at the shared core-time boundary.
 
 **Serializer v21** fields: `Project.defaultTimeSig` (numerator/denominator),
-`Song.hasTimeSig`/`Song.timeSig`, `Scene.hasTimeSig` alongside the existing
-`coreTime` fields. Legacy v20 projects read as Set-default 4/4 (no Song/Scene
-overrides — the pre-hierarchy behaviour is fully preserved). See §4.9 for the
-parallel tempo hierarchy.
-
-### 4.9 Tempo hierarchy
-
-Tempo is a **peer of core time** in the hierarchy (§4.8). The global tempo
-root is:
-- **Standalone**: the internal `Clock::localBpm_` (editable via grammar).
-- **Plugin with DAW transport**: the host's BPM (read-only at the global level;
-  Lockstep never writes to the host clock — PRINCIPLES §3).
-
-Per-Song and per-Scene overrides are stored as **ratios vs the parent** and
-*entered* in absolute BPM; the ratio is implicit:
-
-```
-effectiveTempo(song, scene) =
-    globalRoot
-    × (Song.hasTempo ? Song.tempoRatio : 1.0)
-    × (Scene.hasTempo ? Scene.tempoRatio : 1.0)
-```
-
-Setting a Song tempo of 90 BPM while the global root is 120 stores `ratio =
-0.75`; displaying it back shows 90 BPM. **Reverting to parent:** hold the
-scope key and press **Clear** (`O`) while the TEMPO band is open — this
-clears `hasTempo` so the scope inherits its parent's effective tempo. The
-ratios survive a change to the global root — a Scene at 0.5× always runs at
-half the global tempo regardless of what that root is.
-
-The Clock is fed the `effectiveTempo` at every Song/Scene boundary (and in
-real time when tempo is edited in the grammar); a rate change is applied at
-the next sub-block boundary for phase continuity.
-
-In DAW mode the global row in the tempo band is **read-only** (shows host BPM,
-cannot be edited). Song/Scene overrides remain editable. The top-bar readout
-shows the *effective* tempo in scope colour (Song-gold if a Song ratio is
-active, Scene-green if a Scene ratio is active, neutral for the bare global
-root).
-
-**Grammar editing** — **`Song+TRIG`** opens the TEMPO sticky band (the TRIG
-key shows an active label while the band is open). Inside the band:
-`Func+Song` → global scope (standalone: editable; DAW: read-only); bare
-`Song` → Song override; bare `Scene` → Scene override; no modifier held →
-Song scope (the entry scope; see §13 momentary-hold convention). One knob
-shows the resolved absolute BPM at the current scope; a scope-coloured arc
-tick marks the parent floor. Editing the knob writes the back-solved ratio.
-**Hold scope + Clear** reverts that scope's override (§13). The TRIG key's
-active relabelling follows the §13 sticky-key pattern.
-
-**Serializer v21** fields: `Song.hasTempo`/`Song.tempoRatio`,
-`Scene.hasTempo`/`Scene.tempoRatio`. `Clock.localBpm_` continues to serialize
-for standalone. Legacy v20 projects carry neither field; they load with all
-ratios = 1.0 (no deviation from root).
+`Song.hasTimeSig`/`Song.timeSig`, `Scene.hasTimeSig`, `Song.hasTempo`/
+`Song.tempoRatio`, `Scene.hasTempo`/`Scene.tempoRatio`. `Clock.localBpm_`
+continues to serialize for standalone. Legacy v20 projects load with Set-default
+4/4 and all ratios = 1.0 (no deviation from root).
 
 ## 5. Input Layer
 
@@ -1409,7 +1381,7 @@ Both zones read the same view-model so what the bar says and what
 the next verb does cannot drift.
 
 The standalone-only `StandaloneTempoBar` mouse-drag widget is **retired**.
-Tempo is set entirely through the grammar (§4.9) and reflected in the left
+Tempo is set entirely through the grammar (§4.8) and reflected in the left
 dashboard readout. The freed vertical space is reclaimed by the header.
 
 ### 6.9 Naming-clarity policy — param labels and value labels
@@ -1792,24 +1764,25 @@ once rather than re-derived per feature:
   inherited parent value is shown as a **scope-coloured reference tick** on
   the knob arc (`ReferenceMark`). The header readout is the always-on global
   effective. A second, read-only "effective" knob is never added — that would
-  be an unintuitive dead control. Canonical instances: Swing (§19.2), Tempo
-  (§4.9), Time Signature (§4.8).
-- **Hold-scope + Clear = revert override.** For the three scope-coloured meta
-  bands that have a parent/child relationship (Swing, Tempo, Time Signature),
-  while the band is visible, pressing **Clear** (`O`) with a scope held reverts
-  that scope's local override to "inherit from parent": for Tempo this clears
-  `hasTempo`; for Time Signature this clears `hasTimeSig` (or selects INHERIT
-  on the stepped list); for Swing this zeros the scope's delta. If no modifier
-  is held, the revert targets the band's entry scope (see below). Reverts at
-  the global/Set level are no-ops (no parent above them).
-- **Momentary-hold + entry-scope fallback.** When a meta-band sticky mode is
-  entered (e.g. Song+TRIG opens TEMPO), the scope remains determined by
+  be an unintuitive dead control. Canonical instances: Swing (§19.2), TIME
+  page — tempo + time-sig (§4.8).
+- **INHERIT floor = revert (TIME page).** Tempo and time-sig each carry their
+  own revert mechanism built into the control. Dial tempo to the range floor
+  → label shows `INHERIT (<parent bpm>)`, clears `hasTempo`. Dial time-sig to
+  index 0 → clears `hasTimeSig`. Each reverts independently; no chord is needed.
+  Reverts at Set scope are no-ops (no parent above them).
+- **Hold-scope + Clear = revert (Swing only).** For the Swing band, pressing
+  **Clear** (`O`) while a scope is held zeroes that scope's delta. If no
+  modifier is held, the revert targets the entry scope. This chord is *not*
+  active on the TIME page (see above).
+- **Momentary-hold + entry-scope fallback.** When the TIME sticky mode is
+  entered (`Song+TRIG` or `Scene+TRIG`), the scope remains determined by
   whichever modifier the performer holds — Song, Func+Song (=Set/global),
   Scene. Releasing all modifiers while the band stays open does not silently
-  retarget to a wrong scope: edits fall to the **entry scope** — the natural
-  scope for that band (Song for Tempo; Scene for Time Signature). This is
-  recorded on the `UiState` at the moment the sticky mode activates so that
-  subsequent writes are unambiguous even with no modifier held.
+  retarget to a wrong scope: edits fall to the **entry scope** — the scope
+  that was held at the moment of entry. This is recorded on the `UiState` at
+  the moment the sticky mode activates so that subsequent writes are
+  unambiguous even with no modifier held.
 
 These conventions compose with §13.7 Latch and with PRINCIPLES §17: the
 "hold = all the way" behaviour is an instance of the verb hold-intensification
