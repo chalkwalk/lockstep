@@ -476,8 +476,6 @@ namespace lockstep
     {
         std::array<MetaFieldView, 8> result{};
 
-        // Compute the effective value at the current scope.
-        const auto effectiveTs = proc.effectiveTimeSig();
         // Resolve the parent (what the current level inherits from).
         const auto& song = proc.song();
         const auto& scene = proc.section();
@@ -517,9 +515,11 @@ namespace lockstep
             ? static_cast<float>(theme::kScopeSong)
             : (tsScope == 3 ? static_cast<float>(theme::kScopeScene) : static_cast<float>(theme::kScopeSong));
 
+        const char* scopeLabel = (tsScope == 1) ? "Set" : (tsScope == 2) ? "Song" : "Scene";
+
         auto& f = result[0];
         f.active = true;
-        f.label = "TimeSig";
+        f.label = scopeLabel;
         f.minValue = 0.0f;
         f.maxValue = static_cast<float>(maxIdx);
         f.value = static_cast<float>(displayIdx);
@@ -549,15 +549,6 @@ namespace lockstep
             f.marks[0] = ReferenceMark{ true, parentNorm, static_cast<juce::uint32>(scopeColour), 1.0f };
         }
 
-        // Field 1: show effective (resolved) time-sig as a read-only label.
-        auto& ef = result[1];
-        ef.active = true;
-        ef.label = "Effct";
-        ef.valueText = juce::String(effectiveTs.numerator) + "/"
-                       + juce::String(effectiveTs.denominator);
-        ef.writable = false;
-
-        (void)scopeColour;
         return result;
     }
 
@@ -608,9 +599,11 @@ namespace lockstep
             ? static_cast<float>(theme::kScopeScene)
             : static_cast<float>(theme::kScopeSong);
 
+        const char* scopeLabel = (tpScope == 1) ? "Set" : (tpScope == 2) ? "Song" : "Scene";
+
         auto& f = result[0];
         f.active = true;
-        f.label = "Tempo";
+        f.label = scopeLabel;
         f.minValue = kMinBpm;
         f.maxValue = kMaxBpm;
         f.value = std::clamp(displayBpm, kMinBpm, kMaxBpm);
@@ -639,14 +632,7 @@ namespace lockstep
                                         static_cast<juce::uint32>(scopeColourF), 1.0f };
         }
 
-        // Field 1: effective BPM read-only.
-        auto& ef = result[1];
-        ef.active = true;
-        ef.label = "Effct";
-        ef.valueText = juce::String(static_cast<int>(std::round(effectiveBpm))) + " BPM";
-        ef.writable = false;
-
-        (void)scopeColourF;
+        (void)effectiveBpm;  // header readout is the global-effective indicator
         return result;
     }
 

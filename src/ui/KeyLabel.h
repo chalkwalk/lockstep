@@ -140,6 +140,12 @@ namespace lockstep
                     /* Blend */                   "DEPTH";
                 return { juce::String(nextLabel), {}, false };
             }
+            // Tempo and time-sig sticky modes relabel the TRIG key (index 0) to signal the
+            // active band. This mirrors the density/vel pattern above.
+            if (def.sectionIdx == 0 && ui.tempoStickyMode)
+                return { "TEMPO", {}, false };
+            if (def.sectionIdx == 0 && ui.timeSigStickyMode)
+                return { "TIME", {}, false };
             if (!isScopedMode)
             {
                 // Normal mode: machine availability drives disabled state.
