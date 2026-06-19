@@ -1700,6 +1700,33 @@ namespace lockstep
         uiState_.velSubPage = UiState::VelSubPage::Depth;
     }
 
+    // Returns true if any track has velocity overlay enabled (velMode != Off).
+    bool LockstepEditor::velAnyEnabled() const
+    {
+        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+            if (processor_.kit(t).velMode != VelMode::Off)
+                return true;
+        return false;
+    }
+
+    // Returns the next vel sub-page after `current`, skipping disabled ones.
+    // Disabled pages: Depth / Center / Blend are skipped when no track is enabled.
+    // Mode is always reachable. If nothing else is enabled, cycles back to Mode.
+    UiState::VelSubPage LockstepEditor::nextVelSubPage(UiState::VelSubPage current) const
+    {
+        using VP = UiState::VelSubPage;
+        const bool anyEnabled = velAnyEnabled();
+        if (!anyEnabled) return VP::Mode;  // only Mode is reachable when all Off
+        switch (current)
+        {
+            case VP::Depth:  return VP::Center;
+            case VP::Center: return VP::Mode;
+            case VP::Mode:   return VP::Blend;
+            case VP::Blend:  return VP::Depth;
+        }
+        return VP::Depth;
+    }
+
     bool LockstepEditor::consumeVelStickyKey(ControllerButton btn, int index)
     {
         if (!uiState_.velStickyMode) return false;
@@ -1711,13 +1738,9 @@ namespace lockstep
             repaint();
             return true;
         }
-        if (btn == CB::Section && index == 3)  // AMP: cycle sub-pages
+        if (btn == CB::Section && index == 3)  // AMP: cycle sub-pages, skip disabled
         {
-            using VP = UiState::VelSubPage;
-            uiState_.velSubPage =
-                (uiState_.velSubPage == VP::Depth)  ? VP::Center :
-                (uiState_.velSubPage == VP::Center) ? VP::Mode   :
-                (uiState_.velSubPage == VP::Mode)   ? VP::Blend  : VP::Depth;
+            uiState_.velSubPage = nextVelSubPage(uiState_.velSubPage);
             refreshMetaBand();
             repaint();
             return true;
@@ -2226,6 +2249,10 @@ namespace lockstep
                     && !uiState_.velStickyMode)
                 {
                     uiState_.velStickyMode = true;
+                    // Land on Mode when all tracks are Off (skip-disabled rule);
+                    // otherwise land on Depth.
+                    uiState_.velSubPage = velAnyEnabled()
+                        ? UiState::VelSubPage::Depth : UiState::VelSubPage::Mode;
                     escapeDensitySticky();
                     refreshMetaBand();
                     repaint();

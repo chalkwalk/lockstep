@@ -22,6 +22,9 @@ LS_CELLSTATE(Pressed,            1,  0xFFFFFFFFu, 0x00000000u, 119, 127)
 LS_CELLSTATE(ModeActive,         2,  0xFF8898A8u, 0x00000000u,   2, 127)
 LS_CELLSTATE(FuncHeld,           3,  0xFFC07800u, 0x00000000u,   9,   0)
 LS_CELLSTATE(Disabled,           4,  0xFF1A1A1Au, 0x00000000u,   0,   0)
+// Modal-entry key exists and is reachable but currently has no enabled content.
+// Rendered as dim amber to signal "configurable here, nothing active yet".
+LS_CELLSTATE(ModalEntryInert,    5,  0xFF3A2400u, 0x00000000u,  61,   0)
 
 // ---- step-grid family -------------------------------------------------
 LS_CELLSTATE(StepEmpty,         10,  0xFF2D3741u, 0x00000000u,  71,   0)

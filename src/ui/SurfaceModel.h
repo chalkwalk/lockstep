@@ -29,6 +29,7 @@ namespace lockstep
         ModeActive = 2,
         FuncHeld = 3,   // retained for controller compat; screen uses Resting + label swap
         Disabled = 4,
+        ModalEntryInert = 5,  // modal-entry key: reachable but band has no enabled content
 
         // Step-grid family
         StepEmpty = 10,

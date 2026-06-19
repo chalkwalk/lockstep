@@ -335,6 +335,8 @@ namespace lockstep
         // Velocity overlay sticky mode — parallel to density sticky.
         // Entered via double-tap AMP section key (index 3); AMP re-press cycles sub-pages.
         void escapeVelSticky();
+        bool velAnyEnabled() const;
+        UiState::VelSubPage nextVelSubPage(UiState::VelSubPage current) const;
         bool consumeVelStickyKey(ControllerButton btn, int index = -1);
 
         // MHZ.9.3: toggle one modifier's latch (set=true to engage, false to release).

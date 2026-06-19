@@ -35,6 +35,7 @@ namespace lockstep
             case CellState::ModeActive:         return kScopeStep;
             case CellState::FuncHeld:           return kFuncActive;
             case CellState::Disabled:           return 0xFF1A1A1Au;
+            case CellState::ModalEntryInert:    return 0xFF3A2400u;  // dim amber: reachable but no active content
             case CellState::StepEmpty:          return kStepInactive;
             case CellState::StepTrigCertain:    return kStepActive;
             case CellState::StepTrigProbable:   return kStepActive;
@@ -535,17 +536,30 @@ namespace lockstep
             const bool fillLayerActive = (ui.fillHeld && !isScopedMode && !ui.funcHeld);
             const bool isFillArmed = fillLayerActive && (s == 0 || s == 1);
 
+            // §39.10: Func+AMP is "available-but-inert" when no tracks have velMode enabled.
+            const bool isVelInert = funcLayerActive && s == proc.kVelSecIdx
+                && [&]() {
+                    for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+                        if (proc.kit(t).velMode != VelMode::Off)
+                            return false;
+                    return true;
+                }();
+
             if (c.pressed)
                 c.base = CellState::Pressed;
             else if (c.disabled)
                 c.base = CellState::Disabled;
+            else if (isVelInert)
+                c.base = CellState::ModalEntryInert;
             else if (isTrackActive || isMasterActive || isFxPickerArmed || isFillArmed)
                 c.base = CellState::ModeActive;
             else
                 c.base = CellState::Resting;
 
             // baseColour distinguishes special visual modes for groupForCell()
-            if (funcLayerActive && hasFuncSecondary)
+            if (isVelInert)
+                c.baseColour = 0xFF3A2400u;     // dim amber — inert modal entry
+            else if (funcLayerActive && hasFuncSecondary)
                 c.baseColour = kScopeFunc;      // Func-secondary glow (COND / NOTE / FX)
             else if (isFillArmed)
                 c.baseColour = kScopeFill;      // Fill-secondary glow (TRIG / SRC)
