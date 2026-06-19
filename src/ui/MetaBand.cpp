@@ -695,7 +695,7 @@ namespace lockstep
         std::array<MetaFieldView, 8> result{};
         const int page = ui.velStickyMode ? ui.velBank : ((focusedTrack >= 8) ? 1 : 0);
         const int pageOffset = page * 8;
-        static const char* modeLabels[] = { "OFF", "BAR" };
+        static const char* modeLabels[] = { "OFF", "BAR", "PHRASE" };
         for (int i = 0; i < 8; ++i)
         {
             const int trackIdx = pageOffset + i;
@@ -706,7 +706,7 @@ namespace lockstep
             v.active      = true;
             v.label       = "Trk " + juce::String(trackIdx + 1);
             v.minValue    = 0.0f;
-            v.maxValue    = 1.0f;
+            v.maxValue    = 2.0f;
             v.value       = static_cast<float>(modeVal);
             v.stepped     = true;
             v.writable    = true;
@@ -1040,14 +1040,14 @@ namespace lockstep
             }
 
             case MetaBand::VelMode: {
-                // Mode sub-page: 0 = Off, 1 = Bar.
+                // Mode sub-page: 0 = Off, 1 = Bar, 2 = Phrase.
                 if (field >= 0 && field < 8)
                 {
                     const int page = ui.velStickyMode ? ui.velBank : ((track >= 8) ? 1 : 0);
                     const int trackIdx = page * 8 + field;
                     if (trackIdx < static_cast<int>(kNumTracks))
                         proc.kit(trackIdx).velMode =
-                            static_cast<VelMode>(juce::jlimit(0, 1, juce::roundToInt(value)));
+                            static_cast<VelMode>(juce::jlimit(0, 2, juce::roundToInt(value)));
                 }
                 break;
             }

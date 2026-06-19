@@ -10,8 +10,8 @@
 
 namespace lockstep
 {
-    // Durable per-track velocity overlay mode (TrackKit, v20+).
-    enum class VelMode  : uint8_t { Off, Bar };       // Off = authored; Bar = metric weight vs coreTime
+    // Durable per-track velocity overlay mode (TrackKit, v21+).
+    enum class VelMode  : uint8_t { Off, Bar, Phrase }; // Bar = coreTime grid; Phrase = bar anchored to phrase start
     enum class VelBlend : uint8_t { Replace, Mix };   // Replace = override; Mix = add on top
 
     // Metric-weight -> velocity curve.

@@ -1501,13 +1501,19 @@ namespace lockstep
                         ? static_cast<juce::uint8>(std::clamp(static_cast<int>(emitVels[ni]), 1, 127))
                         : uniformVel;
                 }
-                // Velocity overlay (VelMode::Bar): metric weight modulates velocity.
+                // Velocity overlay: metric weight modulates velocity (Bar or Phrase mode).
                 const auto& velKit = song().tracks[i].kit;
-                if (velKit.velMode == VelMode::Bar)
+                if (velKit.velMode == VelMode::Bar || velKit.velMode == VelMode::Phrase)
                 {
                     const double velBarPpq = section().coreTime.barPpq();
-                    const double velPpqInBar = (velBarPpq > 0.0)
-                        ? std::fmod(nextTriggerPpq_[i], velBarPpq) : 0.0;
+                    double velPpqInBar = 0.0;
+                    if (velBarPpq > 0.0)
+                    {
+                        if (velKit.velMode == VelMode::Bar)
+                            velPpqInBar = std::fmod(nextTriggerPpq_[i], velBarPpq);
+                        else // Phrase: anchor bar grid to phrase start to avoid drift
+                            velPpqInBar = std::fmod(static_cast<double>(stepIdx) * divPpq, velBarPpq);
+                    }
                     const float w = MetricGrid::metricWeight(
                         velPpqInBar, velBarPpq,
                         section().coreTime.numerator, section().coreTime.denominator);
@@ -1518,17 +1524,31 @@ namespace lockstep
                         for (int n = 0; n < notesToEmit; ++n)
                             finalVels[static_cast<std::size_t>(n)] = ov;
                     }
-                    else // Mix
+                    else // Mix: swing around velCenter for un-authored steps
                     {
                         const float maxSwing = static_cast<float>(
                             std::min(velKit.velCenter - 1, 127 - velKit.velCenter));
                         const float delta = velKit.velDepth * maxSwing * ((2.0f * w) - 1.0f);
                         const int roundedDelta = static_cast<int>(std::lround(delta));
+                        // Check raw step override — TrigFields doesn't carry has-flags.
+                        bool hasAuthoredVel = trig.hasNoteVelocities;
+                        if (!hasAuthoredVel && stepIdx >= 0 && stepIdx < kMaxStepsPerTrack)
+                        {
+                            const auto si = static_cast<std::size_t>(stepIdx);
+                            hasAuthoredVel = curFillActive
+                                ? (track.steps[si].fillTrigOverride.hasVelocity
+                                   || track.steps[si].fillTrigOverride.hasNoteVelocities
+                                   || track.steps[si].trigOverride.hasVelocity)
+                                : track.steps[si].trigOverride.hasVelocity;
+                        }
                         for (int n = 0; n < notesToEmit; ++n)
                         {
                             const auto ni = static_cast<std::size_t>(n);
+                            const int baseline = hasAuthoredVel
+                                ? static_cast<int>(finalVels[ni])
+                                : velKit.velCenter;
                             finalVels[ni] = static_cast<juce::uint8>(
-                                std::clamp(static_cast<int>(finalVels[ni]) + roundedDelta, 1, 127));
+                                std::clamp(baseline + roundedDelta, 1, 127));
                         }
                     }
                 }
