@@ -1218,7 +1218,7 @@ namespace lockstep
                     ctx = "FUNC + STEP " + juce::String(ui.pLockClearStep + 1) + "  |  press cell to clear P-Lock slot";
                 }
                 // Sticky DENSITY mode context.
-                else if (ui.densityStickyMode)
+                else if ((ui.overlay == Overlay::Density))
                 {
                     using SP = UiState::DensitySubPage;
                     if (ui.densitySubPage == SP::Musicality)
@@ -1229,7 +1229,7 @@ namespace lockstep
                         ctx = "DENSITY  Amount  |  nav = bank  Song = master  MOD = musicality";
                 }
                 // Sticky VEL sticky mode context.
-                else if (ui.velStickyMode)
+                else if ((ui.overlay == Overlay::Vel))
                 {
                     using VP = UiState::VelSubPage;
                     if (ui.velSubPage == VP::Center)
@@ -1692,7 +1692,7 @@ namespace lockstep
 
     bool LockstepEditor::consumeDensityStickyKey(ControllerButton btn, int /*index*/)
     {
-        if (!uiState_.densityStickyMode)
+        if (!(uiState_.overlay == Overlay::Density))
             return false;
 
         using CB = ControllerButton;
@@ -1741,7 +1741,7 @@ namespace lockstep
 
     bool LockstepEditor::consumeVelStickyKey(ControllerButton btn, int /*index*/)
     {
-        if (!uiState_.velStickyMode) return false;
+        if (!(uiState_.overlay == Overlay::Vel)) return false;
         using CB = ControllerButton;
         if (btn == CB::NavUp || btn == CB::NavDown || btn == CB::NavLeft || btn == CB::NavRight)
         {
@@ -2234,14 +2234,14 @@ namespace lockstep
                 // Section→MetaSection while Func is held. The bare MOD re-press toggle
                 // and exit are handled in the Section case (consumeDensityStickyKey).
                 if (uiState_.funcHeld && ev.index == processor_.kDensitySecIdx
-                    && !uiState_.densityStickyMode)
+                    && !(uiState_.overlay == Overlay::Density))
                 {
                     // Entry guard: don't enter if a foreign cluster scope is physically
                     // held (Song is intentionally allowed — it selects the master page).
                     if (!physHeld_.track && !physHeld_.phrase && !physHeld_.scene
                         && !physHeld_.morph && !physHeld_.mute && !physHeld_.fill)
                     {
-                        uiState_.densityStickyMode = true;
+                        uiState_.overlay = Overlay::Density;
                         escapeVelSticky();
                         escapeOverlay(uiState_, Overlay::Time);
                         refreshMetaBand();
@@ -2251,9 +2251,9 @@ namespace lockstep
                 }
                 // §39.10: Func+AMP enters sticky VELOCITY mode (symmetric with density).
                 if (uiState_.funcHeld && ev.index == processor_.kVelSecIdx
-                    && !uiState_.velStickyMode)
+                    && !(uiState_.overlay == Overlay::Vel))
                 {
-                    uiState_.velStickyMode = true;
+                    uiState_.overlay = Overlay::Vel;
                     // Land on Mode when all tracks are Off (skip-disabled rule);
                     // otherwise land on Depth.
                     uiState_.velSubPage = velAnyEnabled()

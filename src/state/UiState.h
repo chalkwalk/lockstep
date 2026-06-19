@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include <map>
 #include <set>
 #include "../core/Sequence.h"        // kNumTracks
@@ -10,6 +11,20 @@
 
 namespace lockstep
 {
+    // ── Overlay ──────────────────────────────────────────────────────────────
+    // The mutually-exclusive sticky/modal overlay family.
+    // Exactly one value is active at a time: illegal co-existence is
+    // unrepresentable.  UiState::overlay is the SSOT; activeOverlay() in
+    // ModeReducer reads euclidHeld first (transient chord), then this field.
+    enum class Overlay : uint8_t
+    {
+        None,     // no sticky overlay active
+        Euclid,   // Euclidean generator (Phrase+Fill chord — stored in euclidHeld, not here)
+        Time,     // tempo + time-sig (Song/Scene+TRIG entry chord)
+        Density,  // density editor (Func+MOD entry chord)
+        Vel,      // velocity overlay (Func+AMP entry chord)
+    };
+
     // ── Pending-confirm state ─────────────────────────────────────────────────
     // Captured at arm time so Yes-resolution is correct even if scope is released.
     enum class ConfirmKind : uint8_t
@@ -177,26 +192,28 @@ namespace lockstep
         bool masterFxPickerOpen = false;
         int masterFxInsertSlot = 0;
 
-        // §39 Density sticky mode: double-tap Func toggles this; nav keys page between banks.
-        bool densityStickyMode = false;
+        // Active sticky overlay (Overlay::None when no overlay is active).
+        // Replaces the former timeStickyMode / densityStickyMode / velStickyMode booleans.
+        // ModeReducer::activeOverlay() checks euclidHeld first, then this field.
+        Overlay overlay = Overlay::None;
+
+        // Per-overlay parameters (remain even when their overlay is not active;
+        // cleared by escapeOverlay when that overlay exits).
+        // ── Density ──
         int  densityBank = 0;  // 0 = tracks 0-7, 1 = tracks 8-15
 
         enum class DensitySubPage { Amount, Musicality, Selection };
         DensitySubPage densitySubPage = DensitySubPage::Amount;
 
-        // Velocity overlay sticky mode: double-tap AMP section (index 3) enters this;
-        // AMP re-press cycles sub-pages; nav keys page between banks.
-        bool velStickyMode = false;
+        // ── Vel ──
         int  velBank = 0;   // 0 = tracks 0-7, 1 = tracks 8-15
 
         enum class VelSubPage { Depth, Center, Mode, Blend };
         VelSubPage velSubPage = VelSubPage::Depth;
 
-        // TIME sticky mode (DESIGN §4.8): Song+TRIG or Scene+TRIG enters this.
-        // Scope chosen by held modifier (Func+Song=Set=1, Song=2, Scene=3).
-        // timeEntryScope is set to the resolved scope at toggle-on time so that
+        // ── Time ──
+        // timeEntryScope: set to the resolved scope at toggle-on time so that
         // bare (no modifier held) writes land on the intended level, not scope 0.
-        bool timeStickyMode = false;
         int  timeEntryScope = 2;  // default: Song
 
         // 5.5 Euclidean generator: Phrase+Fill chord enters generator mode on focused track.

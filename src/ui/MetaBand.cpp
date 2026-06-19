@@ -26,23 +26,23 @@ namespace lockstep
         if (ui.euclidHeld)
             return MetaBand::Euclidean;
         // TIME sticky mode (entered via Song+TRIG or Scene+TRIG; Func double-tap escapes it).
-        if (ui.timeStickyMode)
+        if (ui.overlay == Overlay::Time)
             return MetaBand::Time;
         // Sticky density mode (entered via Func+MOD; Func double-tap escapes it).
-        if (ui.densityStickyMode)
+        if (ui.overlay == Overlay::Density)
         {
             using SP = UiState::DensitySubPage;
-            if (ui.densitySubPage == SP::Musicality) return MetaBand::DensityMode;
-            if (ui.densitySubPage == SP::Selection)  return MetaBand::DensitySelection;
+            if (ui.densitySubPage == SP::Musicality) { return MetaBand::DensityMode; }
+            if (ui.densitySubPage == SP::Selection)  { return MetaBand::DensitySelection; }
             return MetaBand::Density;
         }
         // Sticky velocity overlay mode.
-        if (ui.velStickyMode)
+        if (ui.overlay == Overlay::Vel)
         {
             using VP = UiState::VelSubPage;
-            if (ui.velSubPage == VP::Center) return MetaBand::VelCenter;
-            if (ui.velSubPage == VP::Mode)   return MetaBand::VelMode;
-            if (ui.velSubPage == VP::Blend)  return MetaBand::VelBlend;
+            if (ui.velSubPage == VP::Center) { return MetaBand::VelCenter; }
+            if (ui.velSubPage == VP::Mode)   { return MetaBand::VelMode; }
+            if (ui.velSubPage == VP::Blend)  { return MetaBand::VelBlend; }
             return MetaBand::Vel;
         }
         // Transient Func+Song → master density overlay (order-independent).
@@ -93,20 +93,19 @@ namespace lockstep
 
     bool applyTimeEntry(UiState& ui) noexcept
     {
-        ui.timeStickyMode = !ui.timeStickyMode;
-        if (ui.timeStickyMode)
+        const bool entering = (ui.overlay != Overlay::Time);
+        ui.overlay = entering ? Overlay::Time : Overlay::None;
+        if (entering)
         {
             ui.timeEntryScope = timeScopeFor(ui);
             ui.swingDismissed = true;
-            ui.densityStickyMode = false;
-            ui.velStickyMode = false;
         }
-        return ui.timeStickyMode;
+        return entering;
     }
 
     void escapeTimeSticky(UiState& ui) noexcept
     {
-        ui.timeStickyMode = false;
+        if (ui.overlay == Overlay::Time) { ui.overlay = Overlay::None; }
         ui.swingDismissed = true;
     }
 
@@ -119,23 +118,23 @@ namespace lockstep
     {
         if (densityEditsMaster(ui))
             return { true, -1 };
-        const int page = ui.densityStickyMode ? ui.densityBank : ((focusedTrack >= 8) ? 1 : 0);
+        const int page = (ui.overlay == Overlay::Density) ? ui.densityBank : ((focusedTrack >= 8) ? 1 : 0);
         return { false, page * 8 + field };
     }
 
     bool sectionSelectClearsDensitySticky(const UiState& ui, int sectionIndex) noexcept
     {
-        return ui.densityStickyMode && sectionIndex != 4;  // MOD = sub-page toggle, not exit
+        return ui.overlay == Overlay::Density && sectionIndex != 4;
     }
 
     bool sectionSelectClearsVelSticky(const UiState& ui, int sectionIndex) noexcept
     {
-        return ui.velStickyMode && sectionIndex != 3;  // AMP = index 3
+        return ui.overlay == Overlay::Vel && sectionIndex != 3;
     }
 
     bool sectionSelectClearsTimeSticky(const UiState& ui, int sectionIndex) noexcept
     {
-        return ui.timeStickyMode && sectionIndex != 0;  // TRIG = entry chord, re-press toggles
+        return ui.overlay == Overlay::Time && sectionIndex != 0;
     }
 
     // =========================================================================
@@ -776,7 +775,7 @@ namespace lockstep
 
         // Per-track density, 8 per page. Bank source: sticky mode uses densityBank,
         // transient mode follows the focused track.
-        const int page = ui.densityStickyMode ? ui.densityBank : ((focusedTrack >= 8) ? 1 : 0);
+        const int page = (ui.overlay == Overlay::Density) ? ui.densityBank : ((focusedTrack >= 8) ? 1 : 0);
         const int pageOffset = page * 8;
         for (int i = 0; i < 8; ++i)
         {
@@ -810,7 +809,7 @@ namespace lockstep
                                                               int focusedTrack)
     {
         std::array<MetaFieldView, 8> result{};
-        const int page = ui.densityStickyMode ? ui.densityBank : ((focusedTrack >= 8) ? 1 : 0);
+        const int page = (ui.overlay == Overlay::Density) ? ui.densityBank : ((focusedTrack >= 8) ? 1 : 0);
         const int pageOffset = page * 8;
 
         static const char* musLabels[] = { "UNIFM", "MIX", "METRIC" };
@@ -843,7 +842,7 @@ namespace lockstep
                                                                    int focusedTrack)
     {
         std::array<MetaFieldView, 8> result{};
-        const int page = ui.densityStickyMode ? ui.densityBank : ((focusedTrack >= 8) ? 1 : 0);
+        const int page = (ui.overlay == Overlay::Density) ? ui.densityBank : ((focusedTrack >= 8) ? 1 : 0);
         const int pageOffset = page * 8;
 
         for (int i = 0; i < 8; ++i)
@@ -881,7 +880,7 @@ namespace lockstep
                                                       int focusedTrack)
     {
         std::array<MetaFieldView, 8> result{};
-        const int page = ui.velStickyMode ? ui.velBank : ((focusedTrack >= 8) ? 1 : 0);
+        const int page = (ui.overlay == Overlay::Vel) ? ui.velBank : ((focusedTrack >= 8) ? 1 : 0);
         const int pageOffset = page * 8;
         for (int i = 0; i < 8; ++i)
         {
@@ -908,7 +907,7 @@ namespace lockstep
                                                             const UiState& ui, int focusedTrack)
     {
         std::array<MetaFieldView, 8> result{};
-        const int page = ui.velStickyMode ? ui.velBank : ((focusedTrack >= 8) ? 1 : 0);
+        const int page = (ui.overlay == Overlay::Vel) ? ui.velBank : ((focusedTrack >= 8) ? 1 : 0);
         const int pageOffset = page * 8;
         for (int i = 0; i < 8; ++i)
         {
@@ -935,7 +934,7 @@ namespace lockstep
                                                           const UiState& ui, int focusedTrack)
     {
         std::array<MetaFieldView, 8> result{};
-        const int page = ui.velStickyMode ? ui.velBank : ((focusedTrack >= 8) ? 1 : 0);
+        const int page = (ui.overlay == Overlay::Vel) ? ui.velBank : ((focusedTrack >= 8) ? 1 : 0);
         const int pageOffset = page * 8;
         static const char* modeLabels[] = { "OFF", "BAR", "PHRASE" };
         for (int i = 0; i < 8; ++i)
@@ -963,7 +962,7 @@ namespace lockstep
                                                            const UiState& ui, int focusedTrack)
     {
         std::array<MetaFieldView, 8> result{};
-        const int page = ui.velStickyMode ? ui.velBank : ((focusedTrack >= 8) ? 1 : 0);
+        const int page = (ui.overlay == Overlay::Vel) ? ui.velBank : ((focusedTrack >= 8) ? 1 : 0);
         const int pageOffset = page * 8;
         static const char* blendLabels[] = { "REPLACE", "MIX" };
         for (int i = 0; i < 8; ++i)
@@ -1230,7 +1229,7 @@ namespace lockstep
                 // Musicality sub-page: value is 0/1/2 (Uniform/Mixed/Metric).
                 if (field >= 0 && field < 8)
                 {
-                    const int page = ui.densityStickyMode ? ui.densityBank : ((track >= 8) ? 1 : 0);
+                    const int page = (ui.overlay == Overlay::Density) ? ui.densityBank : ((track >= 8) ? 1 : 0);
                     const int trackIdx = page * 8 + field;
                     if (trackIdx < static_cast<int>(kNumTracks))
                         proc.kit(trackIdx).densityMusicality =
@@ -1243,7 +1242,7 @@ namespace lockstep
                 // Selection sub-page: value 0 = Scrub, 1 = Re-roll, 2 = Exempt.
                 if (field >= 0 && field < 8)
                 {
-                    const int page = ui.densityStickyMode ? ui.densityBank : ((track >= 8) ? 1 : 0);
+                    const int page = (ui.overlay == Overlay::Density) ? ui.densityBank : ((track >= 8) ? 1 : 0);
                     const int trackIdx = page * 8 + field;
                     if (trackIdx < static_cast<int>(kNumTracks))
                     {
@@ -1272,7 +1271,7 @@ namespace lockstep
                 // Depth sub-page: value is 0-100 (normalised to 0..1).
                 if (field >= 0 && field < 8)
                 {
-                    const int page = ui.velStickyMode ? ui.velBank : ((track >= 8) ? 1 : 0);
+                    const int page = (ui.overlay == Overlay::Vel) ? ui.velBank : ((track >= 8) ? 1 : 0);
                     const int trackIdx = page * 8 + field;
                     if (trackIdx < static_cast<int>(kNumTracks))
                         proc.kit(trackIdx).velDepth = juce::jlimit(0.0f, 1.0f, value / 100.0f);
@@ -1284,7 +1283,7 @@ namespace lockstep
                 // Center sub-page: value is 1-127.
                 if (field >= 0 && field < 8)
                 {
-                    const int page = ui.velStickyMode ? ui.velBank : ((track >= 8) ? 1 : 0);
+                    const int page = (ui.overlay == Overlay::Vel) ? ui.velBank : ((track >= 8) ? 1 : 0);
                     const int trackIdx = page * 8 + field;
                     if (trackIdx < static_cast<int>(kNumTracks))
                         proc.kit(trackIdx).velCenter = juce::jlimit(1, 127, juce::roundToInt(value));
@@ -1296,7 +1295,7 @@ namespace lockstep
                 // Mode sub-page: 0 = Off, 1 = Bar, 2 = Phrase.
                 if (field >= 0 && field < 8)
                 {
-                    const int page = ui.velStickyMode ? ui.velBank : ((track >= 8) ? 1 : 0);
+                    const int page = (ui.overlay == Overlay::Vel) ? ui.velBank : ((track >= 8) ? 1 : 0);
                     const int trackIdx = page * 8 + field;
                     if (trackIdx < static_cast<int>(kNumTracks))
                         proc.kit(trackIdx).velMode =
@@ -1309,7 +1308,7 @@ namespace lockstep
                 // Blend sub-page: 0 = Replace, 1 = Mix.
                 if (field >= 0 && field < 8)
                 {
-                    const int page = ui.velStickyMode ? ui.velBank : ((track >= 8) ? 1 : 0);
+                    const int page = (ui.overlay == Overlay::Vel) ? ui.velBank : ((track >= 8) ? 1 : 0);
                     const int trackIdx = page * 8 + field;
                     if (trackIdx < static_cast<int>(kNumTracks))
                         proc.kit(trackIdx).velBlend =

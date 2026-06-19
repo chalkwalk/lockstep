@@ -183,11 +183,8 @@ namespace lockstep
 
     Overlay activeOverlay(const UiState& ui) noexcept
     {
-        if (ui.euclidHeld)         return Overlay::Euclid;
-        if (ui.timeStickyMode)     return Overlay::Time;
-        if (ui.densityStickyMode)  return Overlay::Density;
-        if (ui.velStickyMode)      return Overlay::Vel;
-        return Overlay::None;
+        if (ui.euclidHeld) { return Overlay::Euclid; }
+        return ui.overlay;
     }
 
     void escapeOverlay(UiState& ui, Overlay ov) noexcept
@@ -195,18 +192,27 @@ namespace lockstep
         switch (ov)
         {
             case Overlay::Density:
-                ui.densityStickyMode = false;
-                ui.densityBank = 0;
-                ui.densitySubPage = UiState::DensitySubPage::Amount;
+                if (ui.overlay == Overlay::Density)
+                {
+                    ui.overlay = Overlay::None;
+                    ui.densityBank = 0;
+                    ui.densitySubPage = UiState::DensitySubPage::Amount;
+                }
                 break;
             case Overlay::Vel:
-                ui.velStickyMode = false;
-                ui.velBank = 0;
-                ui.velSubPage = UiState::VelSubPage::Depth;
+                if (ui.overlay == Overlay::Vel)
+                {
+                    ui.overlay = Overlay::None;
+                    ui.velBank = 0;
+                    ui.velSubPage = UiState::VelSubPage::Depth;
+                }
                 break;
             case Overlay::Time:
-                ui.timeStickyMode = false;
-                ui.swingDismissed = true;
+                if (ui.overlay == Overlay::Time)
+                {
+                    ui.overlay = Overlay::None;
+                    ui.swingDismissed = true;
+                }
                 break;
             case Overlay::Euclid:
                 ui.resetEuclid();

@@ -420,7 +420,7 @@ namespace lockstep
         // density-sticky + Func: MOD key shows sub-page cycle label (not empty)
         {
             auto ui = makeUiState();
-            ui.densityStickyMode = true;
+            ui.overlay = Overlay::Density;
             ui.funcHeld = true;
             ui.densitySubPage = UiState::DensitySubPage::Amount;
             const auto ec = makeEditContext();
@@ -434,7 +434,7 @@ namespace lockstep
         // density-sticky alone (no Func): same invariant
         {
             auto ui = makeUiState();
-            ui.densityStickyMode = true;
+            ui.overlay = Overlay::Density;
             ui.densitySubPage = UiState::DensitySubPage::Musicality;
             const auto ec = makeEditContext();
             const auto kl = resolveKeyLabel(kdMod, ui, ec);

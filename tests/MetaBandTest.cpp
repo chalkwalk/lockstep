@@ -38,7 +38,7 @@ namespace lockstep
         {
             UiState ui;
             ui.masterSection = 3;        // latched Divider page
-            ui.densityStickyMode = true;
+            ui.overlay = Overlay::Density;
             ui.densitySubPage = UiState::DensitySubPage::Amount;
             CHECK(resolveMetaBand(ui) == MetaBand::Density,
                   "density sticky outranks latched masterSection");
@@ -70,7 +70,7 @@ namespace lockstep
     static void testResolveMetaBandDensitySticky()
     {
         UiState ui;
-        ui.densityStickyMode = true;
+        ui.overlay = Overlay::Density;
         ui.densitySubPage = UiState::DensitySubPage::Amount;
         CHECK(resolveMetaBand(ui) == MetaBand::Density,         "sticky Amount → Density");
         ui.densitySubPage = UiState::DensitySubPage::Musicality;
@@ -159,7 +159,7 @@ namespace lockstep
     static void testDensityWriteTargetStickyBank()
     {
         UiState ui;
-        ui.densityStickyMode = true;
+        ui.overlay = Overlay::Density;
         ui.densityBank = 1;
         auto t = densityWriteTarget(ui, 0, 0);  // focusedTrack 0 would be page0, but sticky overrides
         CHECK(!t.master, "sticky, no song → per-track");
@@ -174,12 +174,12 @@ namespace lockstep
         UiState ui;
 
         // Not in sticky mode: predicate always false.
-        ui.densityStickyMode = false;
+        ui.overlay = Overlay::None;
         for (int i = 0; i <= 5; ++i)
             CHECK(!sectionSelectClearsDensitySticky(ui, i), "not sticky → false for all sections");
 
         // In sticky mode: every section except MOD (4) supersedes; MOD cycles sub-page.
-        ui.densityStickyMode = true;
+        ui.overlay = Overlay::Density;
         for (int i = 0; i <= 5; ++i)
             if (i != 4)
                 CHECK(sectionSelectClearsDensitySticky(ui, i), "sticky + non-MOD section → true");
@@ -188,13 +188,13 @@ namespace lockstep
         // Sequenced: predicate true → escape clears mode → resolveMetaBand returns None.
         ui.densitySubPage = UiState::DensitySubPage::Amount;
         CHECK(sectionSelectClearsDensitySticky(ui, 2), "pre-escape predicate fires");
-        ui.densityStickyMode = false;  // simulate escapeDensitySticky
+        ui.overlay = Overlay::None;  // simulate escapeDensitySticky
         ui.densityBank = 0;
         ui.densitySubPage = UiState::DensitySubPage::Amount;
         CHECK(resolveMetaBand(ui) == MetaBand::None, "post-escape → MetaBand::None");
 
         // Sequenced: section 4 (MOD) does not supersede → mode persists → still a Density* band.
-        ui.densityStickyMode = true;
+        ui.overlay = Overlay::Density;
         ui.densitySubPage = UiState::DensitySubPage::Amount;
         CHECK(!sectionSelectClearsDensitySticky(ui, 4), "section 4 (MOD) doesn't clear sticky");
         CHECK(resolveMetaBand(ui) == MetaBand::Density, "mode still active → Density band");
@@ -299,29 +299,22 @@ namespace lockstep
 
     static void testResolveMetaBandTime()
     {
-        // timeStickyMode (single flag, unified) outranks density/vel/swing.
+        // overlay == Time → Time band; euclid outranks it via euclidHeld.
+        // Mutual exclusion with Density/Vel is now structural (single field).
         {
             UiState ui;
-            ui.timeStickyMode = true;
-            CHECK(resolveMetaBand(ui) == MetaBand::Time, "timeStickyMode → Time");
+            ui.overlay = Overlay::Time;
+            CHECK(resolveMetaBand(ui) == MetaBand::Time, "overlay Time → Time");
 
             // outranks swing (swingDismissed guards, but even without it Time wins)
             ui.songHeld = true;
             ui.swingDismissed = false;
-            CHECK(resolveMetaBand(ui) == MetaBand::Time, "timeStickyMode outranks swing");
+            CHECK(resolveMetaBand(ui) == MetaBand::Time, "Time outranks swing");
 
-            // outranks density sticky
-            ui.densityStickyMode = true;
-            CHECK(resolveMetaBand(ui) == MetaBand::Time, "timeStickyMode outranks density sticky");
-
-            // outranks vel sticky
-            ui.densityStickyMode = false;
-            ui.velStickyMode = true;
-            CHECK(resolveMetaBand(ui) == MetaBand::Time, "timeStickyMode outranks vel sticky");
-
-            // euclid outranks Time
+            // euclid outranks Time (via transient euclidHeld, not overlay field)
             ui.euclidHeld = true;
-            CHECK(resolveMetaBand(ui) == MetaBand::Euclidean, "euclidHeld outranks timeStickyMode");
+            CHECK(resolveMetaBand(ui) == MetaBand::Euclidean, "euclidHeld outranks Time");
+            ui.euclidHeld = false;
         }
     }
 
@@ -372,7 +365,7 @@ namespace lockstep
         auto& proc = h.processor();
 
         UiState ui;
-        ui.timeStickyMode = true;
+        ui.overlay = Overlay::Time;
         ui.timeEntryScope = 2;  // Song entry
         EditContext ctx;
 
@@ -397,7 +390,7 @@ namespace lockstep
         CHECK(!proc.song().hasTempo, "song.hasTempo starts false");
 
         UiState ui;
-        ui.timeStickyMode = true;
+        ui.overlay = Overlay::Time;
         ui.timeEntryScope = 2;  // Song
         ui.songHeld = true;     // explicit Song scope
         EditContext ctx;
@@ -421,7 +414,7 @@ namespace lockstep
         auto& proc = h.processor();
 
         UiState ui;
-        ui.timeStickyMode = true;
+        ui.overlay = Overlay::Time;
         ui.timeEntryScope = 2;  // Song entry
         // No songHeld / sceneHeld
         EditContext ctx;
@@ -448,7 +441,7 @@ namespace lockstep
         proc.song().timeSig.denominator = 4;
 
         UiState ui;
-        ui.timeStickyMode = true;
+        ui.overlay = Overlay::Time;
         ui.timeEntryScope = 2;  // Song
         ui.songHeld = true;
         EditContext ctx;
@@ -465,7 +458,7 @@ namespace lockstep
         auto& proc = h.processor();
 
         UiState ui;
-        ui.timeStickyMode = true;
+        ui.overlay = Overlay::Time;
         ui.timeEntryScope = 3;  // Scene
         ui.sceneHeld = true;
         EditContext ctx;
@@ -493,7 +486,7 @@ namespace lockstep
 
         // Entry: applyTimeEntry sets timeStickyMode, timeEntryScope=3, swingDismissed=true.
         applyTimeEntry(ui);
-        CHECK(ui.timeStickyMode, "after entry: timeStickyMode=true");
+        CHECK((ui.overlay == Overlay::Time), "after entry: timeStickyMode=true");
         CHECK(ui.timeEntryScope == 3, "after entry via Scene: entry scope=3");
         CHECK(ui.swingDismissed, "after entry: swingDismissed=true");
         CHECK(resolveMetaBand(ui) == MetaBand::Time, "after entry: resolves to Time");
@@ -518,7 +511,7 @@ namespace lockstep
 
         // Exit: applyTimeEntry again → exits TIME.
         applyTimeEntry(ui);
-        CHECK(!ui.timeStickyMode, "after exit: timeStickyMode=false");
+        CHECK(!(ui.overlay == Overlay::Time), "after exit: timeStickyMode=false");
         CHECK(resolveMetaBand(ui) == MetaBand::None, "after exit: None");
     }
 
@@ -533,7 +526,7 @@ namespace lockstep
         CHECK(resolveMetaBand(ui) == MetaBand::Swing, "pre-entry: Song alone → Swing");
 
         applyTimeEntry(ui);
-        CHECK(ui.timeStickyMode, "after Song+TRIG entry: timeStickyMode=true");
+        CHECK((ui.overlay == Overlay::Time), "after Song+TRIG entry: timeStickyMode=true");
         CHECK(ui.timeEntryScope == 2, "Song entry: entry scope=2");
         CHECK(resolveMetaBand(ui) == MetaBand::Time, "Song entry: → Time");
         CHECK(timeScopeFor(ui) == 2, "Song held: scope=2");
@@ -590,7 +583,7 @@ namespace lockstep
         // Exit TIME: escapeTimeSticky keeps swingDismissed=true so bare modifier
         // held won't drop back to Swing immediately.
         escapeTimeSticky(ui);
-        CHECK(!ui.timeStickyMode, "after escape: timeStickyMode=false");
+        CHECK(!(ui.overlay == Overlay::Time), "after escape: timeStickyMode=false");
         CHECK(ui.swingDismissed, "after escape: swingDismissed still true");
 
         // With Scene held and swingDismissed: Swing band is suppressed.
@@ -610,10 +603,10 @@ namespace lockstep
         CHECK(resolveMetaBand(ui) == MetaBand::Time, "TIME active");
 
         // Simulate density sticky entry (as in PluginEditor).
-        ui.densityStickyMode = true;
+        ui.overlay = Overlay::Density;
         escapeTimeSticky(ui);
 
-        CHECK(!ui.timeStickyMode, "density entry: timeStickyMode cleared");
+        CHECK(!(ui.overlay == Overlay::Time), "density entry: timeStickyMode cleared");
         CHECK(resolveMetaBand(ui) != MetaBand::Time, "density entry: not Time band");
     }
 
@@ -626,15 +619,15 @@ namespace lockstep
         CHECK(resolveMetaBand(ui) == MetaBand::Time, "TIME active");
 
         // applyTimeEntry clears vel sticky.
-        ui.velStickyMode = true;
+        ui.overlay = Overlay::Vel;
         applyTimeEntry(ui);  // toggle off
         applyTimeEntry(ui);  // toggle on again from clean state
-        CHECK(!ui.velStickyMode, "entering TIME clears velStickyMode");
+        CHECK(!(ui.overlay == Overlay::Vel), "entering TIME clears velStickyMode");
 
         // And vice-versa: entering vel clears TIME.
-        ui.velStickyMode = true;
+        ui.overlay = Overlay::Vel;
         escapeTimeSticky(ui);
-        CHECK(!ui.timeStickyMode, "entering vel: timeStickyMode cleared");
+        CHECK(!(ui.overlay == Overlay::Time), "entering vel: timeStickyMode cleared");
     }
 
     // CUJ 7: latch + TIME — latched Scene modifier keeps TIME scope at 3.
@@ -658,12 +651,12 @@ namespace lockstep
         UiState ui;
 
         // Not in TIME: predicate always false.
-        ui.timeStickyMode = false;
+        ui.overlay = Overlay::None;
         for (int i = 0; i <= 5; ++i)
             CHECK(!sectionSelectClearsTimeSticky(ui, i), "not sticky → false for all sections");
 
         // In TIME: every section except TRIG (0) supersedes; TRIG re-press toggles.
-        ui.timeStickyMode = true;
+        ui.overlay = Overlay::Time;
         for (int i = 0; i <= 5; ++i)
             if (i != 0)
                 CHECK(sectionSelectClearsTimeSticky(ui, i), "sticky + non-TRIG section → true");
@@ -671,10 +664,10 @@ namespace lockstep
 
         // Sequenced: predicate true → escape clears mode → resolveMetaBand returns None,
         // and swingDismissed is set so we don't drop into Swing on the way out.
-        ui.timeStickyMode = true;
+        ui.overlay = Overlay::Time;
         CHECK(sectionSelectClearsTimeSticky(ui, 2), "pre-escape predicate fires");
         escapeTimeSticky(ui);  // simulate the section-dispatch escape
-        CHECK(!ui.timeStickyMode, "post-escape: timeStickyMode cleared");
+        CHECK(!(ui.overlay == Overlay::Time), "post-escape: timeStickyMode cleared");
         CHECK(ui.swingDismissed, "post-escape: swingDismissed set");
         CHECK(resolveMetaBand(ui) == MetaBand::None, "post-escape → MetaBand::None");
     }
@@ -693,7 +686,7 @@ namespace lockstep
         proc.song().tempoRatio = 0.8;
 
         UiState ui;
-        ui.timeStickyMode = true;
+        ui.overlay = Overlay::Time;
         ui.timeEntryScope = 2;  // Song
         ui.songHeld = true;
         EditContext ctx;
@@ -735,7 +728,7 @@ namespace lockstep
         auto& proc = h.processor();
 
         UiState ui;
-        ui.timeStickyMode = true;
+        ui.overlay = Overlay::Time;
         ui.timeEntryScope = 1;  // Set scope
         ui.funcHeld = true;
         ui.songHeld = true;

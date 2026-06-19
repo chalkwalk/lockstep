@@ -21,21 +21,21 @@ namespace lockstep
     // entry path, which is not yet through the reducer).
     static void enterDensity(UiState& ui)
     {
-        ui.densityStickyMode = true;
+        ui.overlay = Overlay::Density;
         ui.densityBank = 0;
         ui.densitySubPage = UiState::DensitySubPage::Amount;
     }
 
     static void enterVel(UiState& ui)
     {
-        ui.velStickyMode = true;
+        ui.overlay = Overlay::Vel;
         ui.velBank = 0;
         ui.velSubPage = UiState::VelSubPage::Depth;
     }
 
     static void enterTime(UiState& ui)
     {
-        ui.timeStickyMode = true;
+        ui.overlay = Overlay::Time;
         ui.timeEntryScope = 2;
         ui.swingDismissed = false;
     }
@@ -52,27 +52,28 @@ namespace lockstep
     // activeOverlay
     // =========================================================================
 
-    static void testActiveOverlayPriority()
+    static void testActiveOverlayValues()
     {
+        // Each overlay maps to its enum value; mutual exclusion is now structural.
         UiState ui;
-        CHECK(activeOverlay(ui) == Overlay::None, "default → None");
+        CHECK(activeOverlay(ui) == Overlay::None,    "default → None");
 
-        ui.densityStickyMode = true;
-        CHECK(activeOverlay(ui) == Overlay::Density, "density active");
+        ui.overlay = Overlay::Density;
+        CHECK(activeOverlay(ui) == Overlay::Density, "overlay field Density");
 
-        ui.velStickyMode = true;
-        CHECK(activeOverlay(ui) == Overlay::Density, "density outranks vel when both set");
-        ui.velStickyMode = false;
+        ui.overlay = Overlay::Vel;
+        CHECK(activeOverlay(ui) == Overlay::Vel,     "overlay field Vel");
 
-        ui.timeStickyMode = true;
-        CHECK(activeOverlay(ui) == Overlay::Time, "time outranks density");
+        ui.overlay = Overlay::Time;
+        CHECK(activeOverlay(ui) == Overlay::Time,    "overlay field Time");
 
+        // euclidHeld is transient and takes priority over the overlay field.
+        ui.overlay = Overlay::Time;
         ui.euclidHeld = true;
-        CHECK(activeOverlay(ui) == Overlay::Euclid, "euclid outranks everything");
+        CHECK(activeOverlay(ui) == Overlay::Euclid,  "euclidHeld outranks overlay field");
 
         ui.euclidHeld = false;
-        ui.timeStickyMode = false;
-        ui.densityStickyMode = false;
+        ui.overlay = Overlay::None;
     }
 
     // =========================================================================
@@ -88,7 +89,7 @@ namespace lockstep
 
         escapeOverlay(ui, Overlay::Density);
 
-        CHECK(!ui.densityStickyMode, "density cleared");
+        CHECK(!(ui.overlay == Overlay::Density), "density cleared");
         CHECK(ui.densityBank == 0, "bank reset");
         CHECK(ui.densitySubPage == UiState::DensitySubPage::Amount, "subpage reset");
         CHECK(activeOverlay(ui) == Overlay::None, "no overlay after escape");
@@ -103,7 +104,7 @@ namespace lockstep
 
         escapeOverlay(ui, Overlay::Vel);
 
-        CHECK(!ui.velStickyMode, "vel cleared");
+        CHECK(!(ui.overlay == Overlay::Vel), "vel cleared");
         CHECK(ui.velBank == 0, "bank reset");
         CHECK(ui.velSubPage == UiState::VelSubPage::Depth, "subpage reset");
     }
@@ -115,7 +116,7 @@ namespace lockstep
 
         escapeOverlay(ui, Overlay::Time);
 
-        CHECK(!ui.timeStickyMode, "time cleared");
+        CHECK(!(ui.overlay == Overlay::Time), "time cleared");
         CHECK(ui.swingDismissed, "swingDismissed set (guards against swing re-trigger)");
     }
 
@@ -148,7 +149,7 @@ namespace lockstep
         const auto r = handleOverlayEvent(ui, { ModeEventKind::SectionPress, 4 });
 
         CHECK(r == OverlayResult::Consumed, "MOD → Consumed");
-        CHECK(ui.densityStickyMode, "density still active after subpage cycle");
+        CHECK((ui.overlay == Overlay::Density), "density still active after subpage cycle");
         CHECK(ui.densitySubPage == UiState::DensitySubPage::Musicality,
               "Amount → Musicality on first press");
     }
@@ -181,7 +182,7 @@ namespace lockstep
 
             CHECK(r == OverlayResult::Exited,
                   "density foreign sec " + juce::String(sec) + " → Exited");
-            CHECK(!ui.densityStickyMode,
+            CHECK(!(ui.overlay == Overlay::Density),
                   "density cleared for sec " + juce::String(sec));
         }
     }
@@ -196,7 +197,7 @@ namespace lockstep
         const auto r = handleOverlayEvent(ui, { ModeEventKind::SectionPress, 3 }, ctx);
 
         CHECK(r == OverlayResult::Consumed, "AMP → Consumed");
-        CHECK(ui.velStickyMode, "vel still active");
+        CHECK((ui.overlay == Overlay::Vel), "vel still active");
         CHECK(ui.velSubPage == UiState::VelSubPage::Center,
               "Depth → Center on first press");
     }
@@ -248,7 +249,7 @@ namespace lockstep
 
             CHECK(r == OverlayResult::Exited,
                   "vel foreign sec " + juce::String(sec) + " → Exited");
-            CHECK(!ui.velStickyMode,
+            CHECK(!(ui.overlay == Overlay::Vel),
                   "vel cleared for sec " + juce::String(sec));
         }
     }
@@ -262,7 +263,7 @@ namespace lockstep
         const auto r = handleOverlayEvent(ui, { ModeEventKind::SectionPress, 0 });
 
         CHECK(r == OverlayResult::NotConsumed, "TRIG → NotConsumed (pass-through)");
-        CHECK(ui.timeStickyMode, "TIME still active — toggle handled by isTimeEntryChord");
+        CHECK((ui.overlay == Overlay::Time), "TIME still active — toggle handled by isTimeEntryChord");
     }
 
     static void testTimeSectionPressForeignExits()
@@ -276,7 +277,7 @@ namespace lockstep
 
             CHECK(r == OverlayResult::Exited,
                   "TIME foreign sec " + juce::String(sec) + " → Exited");
-            CHECK(!ui.timeStickyMode,
+            CHECK(!(ui.overlay == Overlay::Time),
                   "TIME cleared for sec " + juce::String(sec));
         }
     }
@@ -311,7 +312,7 @@ namespace lockstep
         const auto r = handleOverlayEvent(ui,
             { ModeEventKind::ScopePress, -1, ControllerButton::SongScope });
         CHECK(r == OverlayResult::NotConsumed, "Song is own → NotConsumed");
-        CHECK(ui.densityStickyMode, "density still active");
+        CHECK((ui.overlay == Overlay::Density), "density still active");
     }
 
     static void testDensityScopePressAllForeignScopes()
@@ -327,7 +328,7 @@ namespace lockstep
             enterDensity(ui);
             const auto r = handleOverlayEvent(ui, { ModeEventKind::ScopePress, -1, scope });
             CHECK(r == OverlayResult::Exited, "density exits on foreign scope");
-            CHECK(!ui.densityStickyMode, "density cleared");
+            CHECK(!(ui.overlay == Overlay::Density), "density cleared");
         }
     }
 
@@ -339,12 +340,12 @@ namespace lockstep
         auto r = handleOverlayEvent(ui,
             { ModeEventKind::ScopePress, -1, ControllerButton::SongScope });
         CHECK(r == OverlayResult::NotConsumed, "TIME: Song is own");
-        CHECK(ui.timeStickyMode, "TIME still active after Song press");
+        CHECK((ui.overlay == Overlay::Time), "TIME still active after Song press");
 
         r = handleOverlayEvent(ui,
             { ModeEventKind::ScopePress, -1, ControllerButton::SceneScope });
         CHECK(r == OverlayResult::NotConsumed, "TIME: Scene is own");
-        CHECK(ui.timeStickyMode, "TIME still active after Scene press");
+        CHECK((ui.overlay == Overlay::Time), "TIME still active after Scene press");
     }
 
     static void testTimeScopePressAllForeignScopes()
@@ -360,7 +361,7 @@ namespace lockstep
             enterTime(ui);
             const auto r = handleOverlayEvent(ui, { ModeEventKind::ScopePress, -1, scope });
             CHECK(r == OverlayResult::Exited, "TIME exits on foreign scope");
-            CHECK(!ui.timeStickyMode, "TIME cleared");
+            CHECK(!(ui.overlay == Overlay::Time), "TIME cleared");
         }
     }
 
@@ -376,7 +377,7 @@ namespace lockstep
             enterDensity(ui);
             const auto r = handleOverlayEvent(ui, { ModeEventKind::DoubleTapFunc });
             CHECK(r == OverlayResult::Exited, "Func dbl-tap exits density");
-            CHECK(!ui.densityStickyMode, "density cleared");
+            CHECK(!(ui.overlay == Overlay::Density), "density cleared");
         }
         // Vel
         {
@@ -384,7 +385,7 @@ namespace lockstep
             enterVel(ui);
             const auto r = handleOverlayEvent(ui, { ModeEventKind::DoubleTapFunc });
             CHECK(r == OverlayResult::Exited, "Func dbl-tap exits vel");
-            CHECK(!ui.velStickyMode, "vel cleared");
+            CHECK(!(ui.overlay == Overlay::Vel), "vel cleared");
         }
         // TIME
         {
@@ -392,7 +393,7 @@ namespace lockstep
             enterTime(ui);
             const auto r = handleOverlayEvent(ui, { ModeEventKind::DoubleTapFunc });
             CHECK(r == OverlayResult::Exited, "Func dbl-tap exits TIME");
-            CHECK(!ui.timeStickyMode, "TIME cleared");
+            CHECK(!(ui.overlay == Overlay::Time), "TIME cleared");
             CHECK(ui.swingDismissed, "swingDismissed set on TIME exit");
         }
         // Euclid
@@ -428,7 +429,7 @@ namespace lockstep
         enterDensity(ui);
 
         CHECK(activeOverlay(ui) == Overlay::Density, "only Density after transition");
-        CHECK(!ui.timeStickyMode, "TIME cleared");
+        CHECK(!(ui.overlay == Overlay::Time), "TIME cleared");
     }
 
     // =========================================================================
@@ -505,7 +506,7 @@ namespace lockstep
     void runModeReducerTests()
     {
         // activeOverlay priority
-        testActiveOverlayPriority();
+        testActiveOverlayValues();
 
         // escapeOverlay correctness
         testEscapeOverlayClearsDensity();
