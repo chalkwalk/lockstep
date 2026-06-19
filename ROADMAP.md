@@ -1648,15 +1648,19 @@ mode, and enable UX improvements. Serializer v21.
       (`fmod(stepIdx * divPpq, barPpq)`) so accents don't drift against
       bar-co-prime phrase lengths. MetaBand Mode labels: `OFF / BAR / PHRASE`.
       Serializer v21 — confirm read path accepts value 2.
-- [ ] **C — Skip-disabled sub-pages (general rule).** Modal-band sub-page cycle
+- [x] **C — Skip-disabled sub-pages (general rule).** Modal-band sub-page cycle
       and landing skip inapplicable pages. For velocity: Depth/Center/Blend
       skipped when all tracks in scope have velMode == Off; Mode is always
-      reachable. Landing = Mode when none enabled, else Depth. Same skip
-      framework available to density and future modal bands. Remove per-cell
-      `writable=false` greying (pages are now simply absent from the cycle).
-- [ ] **C — "Available-but-inert" affordance.** `Func+AMP` key uses `ModalEntryInert`
-      CellState (add-only, §35.8.6) when the band exists but has no enabled
-      content. Same affordance on `Func+MOD` (density). See DESIGN §39.10.
+      reachable. Landing = Mode when none enabled, else Depth. `velAnyEnabled()` /
+      `nextVelSubPage()` in PluginEditor; `ScopeCtx.velAnyEnabled` wired to
+      `handleOverlayEvent`. *(716ed55)*
+      Remaining: per-cell `writable=false` greying removed from vel band builders
+      (Depth/Center/Blend); pages absent from cycle makes per-cell greying redundant.
+      *(Stage 7 follow-up commit)*
+- [x] **C — "Available-but-inert" affordance.** `Func+AMP` key uses `ModalEntryInert`
+      CellState (dim amber, §35.8.6) when all tracks have velMode==Off. *(716ed55)*
+      `Func+MOD` (density): assessed n/a — density amounts are ephemeral (reset on
+      overlay exit), so "no durable enabled content" has no meaningful state to read.
 
 ### 9.6 — Contextual parameter-name aliasing  *[active]*
 `ParamSpec` hook for mode-dependent labels; applied to DrumSynth + Sampler/Slicer.
@@ -1733,14 +1737,15 @@ See DESIGN §4.8 and §13.
       INHERIT on each control clears its override; time-sigs in bar-length order;
       entering density/vel exits TIME; swing not triggered while TIME open). DAW
       (v21 round-trip; v20 project compat).
-- [ ] **Remaining open:** C (skip-disabled vel sub-pages + inert affordance),
+- [ ] **Remaining open:** vel band per-cell greying removal (C follow-up),
       contextLabel unit test (D2).
 
 ### Future (structural)
-- **Replace `timeStickyMode` / `densityStickyMode` / `velStickyMode` with a
-  `StickyMode` enum** so that coexistence is unrepresentable at the type level.
-  Currently enforced by invariant + tests; enum makes it a compile-time guarantee.
-  Deferred to avoid touching shipped density/vel call-sites in this pass.
+- [x] **Collapse `timeStickyMode` / `densityStickyMode` / `velStickyMode` into a
+  single `Overlay overlay` field** in `UiState` so that coexistence is unrepresentable
+  at the type level. `Overlay` enum now defined in `state/UiState.h`; `Overlay.h`
+  is a shim. `activeOverlay()` returns `ui.overlay`; `escapeOverlay()` guards each
+  arm. *(Stage 6 — 5259b6a)*
 
 ---
 
