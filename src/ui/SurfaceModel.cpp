@@ -1879,27 +1879,9 @@ namespace lockstep
         }
 
         // ── gridBanner ───────────────────────────────────────────────────────
-        // Derived from activeLayer so it cannot diverge from the step-grid mode.
-        switch (activeLayer)
-        {
-            case SurfaceLayer::PendingConfirm: model.gridBanner = "CONFIRM?"; break;
-            case SurfaceLayer::DeletePicker:   {
-                const DeleteScope dpScope = ui.deletePicker.scope;
-                if (dpScope == DeleteScope::Track) model.gridBanner = "DELETE WHICH TRACK?";
-                else if (dpScope == DeleteScope::Phrase) model.gridBanner = "DELETE WHICH PHRASE?";
-                else if (dpScope == DeleteScope::Scene) model.gridBanner = "DELETE WHICH SCENE?";
-                break;
-            }
-            case SurfaceLayer::MachinePicker: model.gridBanner = "SELECT MACHINE"; break;
-            case SurfaceLayer::ScopeSelector: {
-                const PS bannerScope = firstHeldSectionSuiteScope(ui);
-                if (bannerScope == PS::Track) { model.gridBanner = "SELECT TRACK"; }
-                else if (bannerScope == PS::Phrase) { model.gridBanner = "SELECT PHRASE"; }
-                else if (bannerScope == PS::Scene) { model.gridBanner = "SELECT SCENE"; }
-                break;
-            }
-            default: break;
-        }
+        // layerBanner() has an exhaustive switch (no default:) so adding a new
+        // SurfaceLayer without wiring its banner text is a compile error.
+        model.gridBanner = layerBanner(activeLayer, ui);
 
         // ── pageDots ─────────────────────────────────────────────────────────
         // Per-section: how many pages does the active track's section have?

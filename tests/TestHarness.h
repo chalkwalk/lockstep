@@ -71,4 +71,6 @@ namespace lockstep
     void runModeReducerTests();
     // Stage 2: GestureRecognizer unit tests
     void runGestureRecognizerTests();
+    // Stage 3: layerBanner() golden tests
+    void runLayerBannerTests();
 }

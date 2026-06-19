@@ -49,6 +49,8 @@ int main()
     lockstep::runModeReducerTests();
     // Stage 2: GestureRecognizer timing invariants
     lockstep::runGestureRecognizerTests();
+    // Stage 3: layerBanner() presentation goldens
+    lockstep::runLayerBannerTests();
 
     // Also drive the JUCE UnitTests registered in lockstep_core (the serializer
     // upgrade chain, "PluginState" category) so they run headlessly in CI rather

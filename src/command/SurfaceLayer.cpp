@@ -1,4 +1,5 @@
 #include "SurfaceLayer.h"
+#include "ScopePriority.h"
 #include "../state/UiState.h"
 #include "../io/EditContext.h"
 #include "../io/TrigGridMode.h"
@@ -52,5 +53,52 @@ namespace lockstep
         }
 
         return SurfaceLayer::Base;
+    }
+
+    const char* layerBanner(SurfaceLayer layer, const UiState& ui) noexcept
+    {
+        using PS = EditMode::PrimaryScope;
+        switch (layer)
+        {
+            case SurfaceLayer::PendingConfirm:
+                return "CONFIRM?";
+
+            case SurfaceLayer::DeletePicker:
+                switch (ui.deletePicker.scope)
+                {
+                    case DeleteScope::Track:  return "DELETE WHICH TRACK?";
+                    case DeleteScope::Phrase: return "DELETE WHICH PHRASE?";
+                    case DeleteScope::Scene:  return "DELETE WHICH SCENE?";
+                    case DeleteScope::None:   return nullptr;
+                }
+                return nullptr;  // unreachable — DeleteScope is exhaustive above
+
+            case SurfaceLayer::MachinePicker:
+                return "SELECT MACHINE";
+
+            case SurfaceLayer::ScopeSelector: {
+                const PS scope = firstHeldSectionSuiteScope(ui);
+                if (scope == PS::Track)  { return "SELECT TRACK"; }
+                if (scope == PS::Phrase) { return "SELECT PHRASE"; }
+                if (scope == PS::Scene)  { return "SELECT SCENE"; }
+                return nullptr;
+            }
+
+            case SurfaceLayer::SoundPool:
+            case SurfaceLayer::RetrigPicker:
+            case SurfaceLayer::MasterFxPicker:
+            case SurfaceLayer::TrackFxPicker:
+            case SurfaceLayer::NoteEdit:
+            case SurfaceLayer::PLockClear:
+            case SurfaceLayer::ChromaticInput:
+            case SurfaceLayer::LevelsInput:
+            case SurfaceLayer::MorphMuteView:
+            case SurfaceLayer::MuteView:
+            case SurfaceLayer::LengthEdit:
+            case SurfaceLayer::MorphStepView:
+            case SurfaceLayer::Base:
+                return nullptr;
+        }
+        return nullptr;  // unreachable — SurfaceLayer is exhaustive above
     }
 } // namespace lockstep

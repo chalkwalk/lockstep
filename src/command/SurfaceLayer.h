@@ -45,4 +45,11 @@ namespace lockstep
                                     const EditContext& ec,
                                     const LayerFacts& f) noexcept;
 
+  // Returns the banner text for the given active layer, or nullptr when no banner
+  // applies. The switch inside is exhaustive (no default:) so adding a new
+  // SurfaceLayer without wiring its banner text is a compile error under -Werror.
+  // Dynamic banners (DeletePicker scope, ScopeSelector held scope) are resolved
+  // from `ui` directly; callers need not inspect ui.deletePicker or heldScopes.
+    const char* layerBanner(SurfaceLayer layer, const UiState& ui) noexcept;
+
 } // namespace lockstep
