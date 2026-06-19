@@ -295,6 +295,239 @@ namespace lockstep
     }
 
     // -------------------------------------------------------------------------
+    // Tempo + TimeSig sticky mode: resolveMetaBand precedence
+
+    static void testResolveMetaBandTempoTimeSig()
+    {
+        // timeSigStickyMode outranks everything except euclidHeld.
+        {
+            UiState ui;
+            ui.timeSigStickyMode = true;
+            CHECK(resolveMetaBand(ui) == MetaBand::TimeSig, "timeSigStickyMode → TimeSig");
+
+            // outranks swing
+            ui.songHeld = true;
+            ui.swingDismissed = false;
+            CHECK(resolveMetaBand(ui) == MetaBand::TimeSig, "timeSigStickyMode outranks swing");
+
+            // outranks density sticky
+            ui.densityStickyMode = true;
+            CHECK(resolveMetaBand(ui) == MetaBand::TimeSig, "timeSigStickyMode outranks density sticky");
+
+            // euclid outranks time-sig
+            ui.euclidHeld = true;
+            CHECK(resolveMetaBand(ui) == MetaBand::Euclidean, "euclidHeld outranks timeSigStickyMode");
+        }
+        // tempoStickyMode outranks swing and density; yields to timeSigStickyMode.
+        {
+            UiState ui;
+            ui.tempoStickyMode = true;
+            CHECK(resolveMetaBand(ui) == MetaBand::Tempo, "tempoStickyMode → Tempo");
+
+            ui.songHeld = true;
+            ui.swingDismissed = false;
+            CHECK(resolveMetaBand(ui) == MetaBand::Tempo, "tempoStickyMode outranks swing");
+
+            // timeSig sticky outranks tempo sticky
+            ui.timeSigStickyMode = true;
+            CHECK(resolveMetaBand(ui) == MetaBand::TimeSig, "timeSigStickyMode outranks tempoStickyMode");
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // timeSigScopeFor / tempoScopeFor — modifier routing + entry-scope fallback
+
+    static void testTimeSigScopeFor()
+    {
+        // Func+Song = Set (1), Song = Song (2), Scene = Scene (3).
+        {
+            UiState ui;
+            ui.funcHeld = true;
+            ui.songHeld = true;
+            CHECK(timeSigScopeFor(ui) == 1, "Func+Song → Set (1)");
+        }
+        {
+            UiState ui;
+            ui.songHeld = true;
+            CHECK(timeSigScopeFor(ui) == 2, "Song alone → Song (2)");
+        }
+        {
+            UiState ui;
+            ui.sceneHeld = true;
+            CHECK(timeSigScopeFor(ui) == 3, "Scene alone → Scene (3)");
+        }
+        // No modifier: returns entry scope, never 0 (scope-0 regression guard).
+        {
+            UiState ui;
+            ui.timeSigEntryScope = 3;  // default
+            const int s = timeSigScopeFor(ui);
+            CHECK(s != 0, "no modifier → never returns 0 (scope-0 regression)");
+            CHECK(s == 3, "no modifier → entry scope (3)");
+        }
+        {
+            UiState ui;
+            ui.timeSigEntryScope = 2;  // hypothetical Song entry
+            const int s = timeSigScopeFor(ui);
+            CHECK(s == 2, "no modifier → respects explicit entry scope");
+        }
+    }
+
+    static void testTempoScopeFor()
+    {
+        {
+            UiState ui;
+            ui.funcHeld = true;
+            ui.songHeld = true;
+            CHECK(tempoScopeFor(ui) == 1, "Func+Song → global (1)");
+        }
+        {
+            UiState ui;
+            ui.songHeld = true;
+            CHECK(tempoScopeFor(ui) == 2, "Song alone → Song (2)");
+        }
+        {
+            UiState ui;
+            ui.sceneHeld = true;
+            CHECK(tempoScopeFor(ui) == 3, "Scene alone → Scene (3)");
+        }
+        // No modifier: returns entry scope, never 0.
+        {
+            UiState ui;
+            ui.tempoEntryScope = 2;  // default
+            const int s = tempoScopeFor(ui);
+            CHECK(s != 0, "no modifier → never returns 0 (scope-0 regression)");
+            CHECK(s == 2, "no modifier → entry scope (2)");
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // buildMetaBand Tempo / TimeSig: single active field, no dead field 1
+
+    static void testTempoBandSingleField()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+
+        UiState ui;
+        ui.tempoStickyMode = true;
+        ui.tempoEntryScope = 2;
+        EditContext ctx;
+
+        const auto fields = buildMetaBand(MetaBand::Tempo, 0, proc, 0, ctx, ui);
+        CHECK(fields[0].active,   "Tempo band: field 0 is active");
+        CHECK(fields[0].writable, "Tempo band: field 0 is writable");
+        CHECK(!fields[1].active,  "Tempo band: field 1 is inactive (no dead Effct knob)");
+    }
+
+    static void testTimeSigBandSingleField()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+
+        UiState ui;
+        ui.timeSigStickyMode = true;
+        ui.timeSigEntryScope = 3;
+        EditContext ctx;
+
+        const auto fields = buildMetaBand(MetaBand::TimeSig, 0, proc, 0, ctx, ui);
+        CHECK(fields[0].active,   "TimeSig band: field 0 is active");
+        CHECK(fields[0].writable, "TimeSig band: field 0 is writable");
+        CHECK(!fields[1].active,  "TimeSig band: field 1 is inactive (no dead Effct knob)");
+    }
+
+    // -------------------------------------------------------------------------
+    // writeMetaField Tempo: write round-trip, entry scope defaults to Song
+
+    static void testWriteMetaFieldTempoSongScope()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+
+        // Sanity: Song starts with no tempo override.
+        CHECK(!proc.song().hasTempo, "song.hasTempo starts false");
+
+        UiState ui;
+        ui.tempoStickyMode = true;
+        ui.tempoEntryScope = 2;  // Song
+        ui.songHeld = true;      // explicit Song scope
+        EditContext ctx;
+
+        const double globalBpm = proc.clock().bpm();
+        const float targetBpm = static_cast<float>(globalBpm) * 0.75f;
+
+        writeMetaField(MetaBand::Tempo, 0, 0, targetBpm, proc, 0, ctx, ui);
+
+        CHECK(proc.song().hasTempo, "after write: song.hasTempo=true");
+        const double expectedRatio = static_cast<double>(targetBpm) / globalBpm;
+        const double storedRatio = proc.song().tempoRatio;
+        CHECK(std::abs(storedRatio - expectedRatio) < 1e-6,
+              "stored ratio = targetBpm / globalBpm");
+    }
+
+    static void testWriteMetaFieldTempoEntryScope()
+    {
+        // No modifier held: write should target entry scope (Song=2), not Scene.
+        EngineHarness h;
+        auto& proc = h.processor();
+
+        UiState ui;
+        ui.tempoStickyMode = true;
+        ui.tempoEntryScope = 2;  // Song entry
+        // No songHeld / sceneHeld
+        EditContext ctx;
+
+        const float targetBpm = 100.0f;
+
+        writeMetaField(MetaBand::Tempo, 0, 0, targetBpm, proc, 0, ctx, ui);
+
+        CHECK(proc.song().hasTempo, "entry-scope write sets song.hasTempo (not scene)");
+        CHECK(!proc.section().hasTempo, "entry-scope write does NOT touch section.hasTempo");
+    }
+
+    // -------------------------------------------------------------------------
+    // writeMetaField TimeSig: INHERIT (idx 0) clears override
+
+    static void testWriteMetaFieldTimeSigInheritClearsOverride()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+
+        // Set a Song time-sig override.
+        proc.song().hasTimeSig = true;
+        proc.song().timeSig.numerator = 3;
+        proc.song().timeSig.denominator = 4;
+
+        UiState ui;
+        ui.timeSigStickyMode = true;
+        ui.timeSigEntryScope = 2;  // Song
+        ui.songHeld = true;
+        EditContext ctx;
+
+        // Write idx=0 (INHERIT) to Song scope.
+        writeMetaField(MetaBand::TimeSig, 0, 0, 0.0f, proc, 0, ctx, ui);
+
+        CHECK(!proc.song().hasTimeSig, "INHERIT (idx 0) clears song.hasTimeSig");
+    }
+
+    static void testWriteMetaFieldTimeSigSetsValue()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+
+        UiState ui;
+        ui.timeSigStickyMode = true;
+        ui.timeSigEntryScope = 3;  // Scene
+        ui.sceneHeld = true;
+        EditContext ctx;
+
+        // Write idx=2 at Scene scope (idx 1 = first curated entry at Song/Scene, idx 0 = INHERIT)
+        // kTimeSigs[0] is 4/4 at Set scope; at Song/Scene INHERIT is 0, 4/4 is idx 1.
+        writeMetaField(MetaBand::TimeSig, 0, 0, 1.0f, proc, 0, ctx, ui);
+
+        CHECK(proc.section().hasTimeSig, "write at Scene: hasTimeSig=true");
+    }
+
+    // -------------------------------------------------------------------------
 
     void runMetaBandTests()
     {
@@ -306,6 +539,21 @@ namespace lockstep
         testResolveMetaBandSwing();
         testResolveMetaBandFuncAlone();
         testResolveMetaBandNone();
+
+        // Tempo + TimeSig sticky mode precedence + scope routing
+        testResolveMetaBandTempoTimeSig();
+        testTimeSigScopeFor();
+        testTempoScopeFor();
+
+        // Single-knob bands (no dead field 1)
+        testTempoBandSingleField();
+        testTimeSigBandSingleField();
+
+        // Write round-trips + entry-scope correctness
+        testWriteMetaFieldTempoSongScope();
+        testWriteMetaFieldTempoEntryScope();
+        testWriteMetaFieldTimeSigInheritClearsOverride();
+        testWriteMetaFieldTimeSigSetsValue();
 
         testDensityEditsMaster();
 

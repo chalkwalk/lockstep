@@ -1975,6 +1975,72 @@ namespace
                        "v18->v19: dSel absent (default applied at read)");
             }
 
+            beginTest("v20 -> v21: tempo/timesig hierarchy: v20 song node has no hasTp/tpRat");
+            {
+                // v20 tree with a Song node; tempo/timesig fields absent → loaded with defaults.
+                juce::ValueTree v20(keys::kLockstepState);
+                v20.setProperty(keys::kVersion, 20, nullptr);
+                auto nh = juce::ValueTree(keys::kNewHierarchy);
+                auto song = juce::ValueTree(keys::kSong);
+                nh.appendChild(song, nullptr);
+                v20.appendChild(nh, nullptr);
+                v20.appendChild(juce::ValueTree(keys::kLockstep), nullptr);
+                v20.appendChild(juce::ValueTree(keys::kSamplePool), nullptr);
+                v20.appendChild(juce::ValueTree(keys::kMisc), nullptr);
+
+                const auto result = lockstep::PluginState::applyUpgrades(v20);
+
+                expectEquals(static_cast<int>(result.getProperty(keys::kVersion, -1)),
+                             lockstep::PluginState::kCurrentVersion,
+                             "v20->v21: version stamped to current");
+
+                const auto nhResult = result.getChildWithName(keys::kNewHierarchy);
+                expect(nhResult.isValid(), "v20->v21: NewHierarchy preserved");
+                const auto songResult = nhResult.getChildWithName(keys::kSong);
+                expect(songResult.isValid(), "v20->v21: Song node preserved");
+                expect(!songResult.hasProperty(keys::kHasTempo),
+                       "v20->v21: kHasTempo absent (read path defaults to ratio=1.0)");
+                expect(!songResult.hasProperty(keys::kTempoRatio),
+                       "v20->v21: kTempoRatio absent (no override stored for v20 songs)");
+                expect(!songResult.hasProperty(keys::kHasTs),
+                       "v20->v21: kHasTs absent (timesig inherits project default)");
+            }
+
+            beginTest("v21: song tempo ratio round-trips through ValueTree properties");
+            {
+                // A v21 tree with explicit Song tempo and time-sig override.
+                juce::ValueTree v21(keys::kLockstepState);
+                v21.setProperty(keys::kVersion, 21, nullptr);
+                auto nh = juce::ValueTree(keys::kNewHierarchy);
+                auto song = juce::ValueTree(keys::kSong);
+                song.setProperty(keys::kHasTempo, 1, nullptr);
+                song.setProperty(keys::kTempoRatio, 0.75, nullptr);
+                song.setProperty(keys::kHasTs, 1, nullptr);
+                song.setProperty(keys::kSongTsN, 3, nullptr);
+                song.setProperty(keys::kSongTsD, 4, nullptr);
+                nh.appendChild(song, nullptr);
+                v21.appendChild(nh, nullptr);
+                v21.appendChild(juce::ValueTree(keys::kLockstep), nullptr);
+                v21.appendChild(juce::ValueTree(keys::kSamplePool), nullptr);
+                v21.appendChild(juce::ValueTree(keys::kMisc), nullptr);
+
+                const auto result = lockstep::PluginState::applyUpgrades(v21);
+                const auto songResult = result.getChildWithName(keys::kNewHierarchy)
+                                              .getChildWithName(keys::kSong);
+
+                expectEquals(static_cast<int>(songResult.getProperty(keys::kHasTempo, 0)),
+                             1, "v21: kHasTempo round-trips as 1");
+                expectWithinAbsoluteError(
+                    static_cast<double>(songResult.getProperty(keys::kTempoRatio, 1.0)),
+                    0.75, 1e-9, "v21: kTempoRatio round-trips as 0.75");
+                expectEquals(static_cast<int>(songResult.getProperty(keys::kHasTs, 0)),
+                             1, "v21: kHasTs round-trips as 1");
+                expectEquals(static_cast<int>(songResult.getProperty(keys::kSongTsN, 4)),
+                             3, "v21: kSongTsN round-trips as 3");
+                expectEquals(static_cast<int>(songResult.getProperty(keys::kSongTsD, 4)),
+                             4, "v21: kSongTsD round-trips as 4");
+            }
+
             beginTest("future version: valid tree returned without crash");
             {
                 juce::ValueTree future(keys::kLockstepState);

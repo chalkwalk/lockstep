@@ -341,8 +341,9 @@ namespace lockstep
         CHECK(juce::String(scopedCell(PS::Track, 0).label) == "DIV",
               "Track+TRIG override is DIV");
 
-        // Scene scope: indices 0,2-5 should match canonical.
-        CHECK(scopedCell(PS::Scene, 0).label == can[0], "Scene+TRIG matches canonical");
+        // Scene scope: index 0 is overridden to "TIME" (time-sig sticky); 2-5 match canonical.
+        CHECK(juce::String(scopedCell(PS::Scene, 0).label) == "TIME",
+              "Scene+TRIG override is TIME (time-sig sticky)");
         CHECK(scopedCell(PS::Scene, 2).label == can[2], "Scene+FILTER matches canonical");
         CHECK(scopedCell(PS::Scene, 3).label == can[3], "Scene+AMP matches canonical");
         CHECK(scopedCell(PS::Scene, 4).label == can[4], "Scene+MOD matches canonical");
@@ -356,10 +357,11 @@ namespace lockstep
         CHECK(juce::String(scopedCell(PS::Morph, 2).label) == "FLTR",
               "Morph+FILTER override is FLTR (abbreviated)");
 
-        // Song scope: only FX is non-null, at index 5 (master-bus FX; Func = picker).
+        // Song scope: index 0 is "TEMPO" (tempo sticky); index 5 is "FX" (master-bus FX).
         CHECK(juce::String(scopedCell(PS::Song, 5).label) == "FX",
               "Song+FX override is FX");
-        CHECK(scopedCell(PS::Song, 0).label == nullptr, "Song+TRIG is nullptr");
+        CHECK(juce::String(scopedCell(PS::Song, 0).label) == "TEMPO",
+              "Song+TRIG override is TEMPO (tempo sticky)");
     }
 
     // -------------------------------------------------------------------------
