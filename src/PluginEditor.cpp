@@ -9,6 +9,7 @@
 #include "machine/IMachine.h"
 #include "machine/ISliceable.h"
 #include "machine/SamplerMachine.h"
+#include "ui/KeyLabel.h"
 #include "ui/MetaBand.h"
 #include "ui/ScopedSectionMatrix.h"
 #include "ui/SurfaceModel.h"
@@ -371,11 +372,12 @@ namespace lockstep
         applyDisplayMode(gridMode_);
         addAndMakeVisible(transport_);
 
+        tempoReadout_.setJustificationType(juce::Justification::centredLeft);
+        tempoReadout_.setInterceptsMouseClicks(false, false);
+        addAndMakeVisible(tempoReadout_);
+
         if (juce::PluginHostType::getPluginLoadedAs() == juce::AudioProcessor::wrapperType_Standalone)
         {
-            tempoBar_ = std::make_unique<StandaloneTempoBar>(proc.clock());
-            addAndMakeVisible(tempoBar_.get());
-
             fileBar_ = std::make_unique<StandaloneFileBar>(proc, appProps_);
             fileBar_->onStatus = [this](const juce::String& msg) { setStatus(msg); };
             addAndMakeVisible(fileBar_.get());
@@ -769,6 +771,28 @@ namespace lockstep
                                         1.0f - processor_.morphFader());
 
         if (dirty) repaint();
+
+        // Update the scope-coloured tempo + time-sig readout.
+        {
+            const auto effTs = processor_.effectiveTimeSig();
+            const double effBpm = processor_.effectiveBpm();
+            const juce::String readout =
+                juce::String(static_cast<int>(std::round(effBpm))) + " BPM  "
+                + juce::String(effTs.numerator) + "/" + juce::String(effTs.denominator);
+            // Colour by the scope that currently owns the resolved tempo:
+            // Scene owns if scene has tempo, Song owns if song has, else global (Song colour).
+            const auto& sc = processor_.section();
+            const auto& sg = processor_.song();
+            juce::Colour readoutColour;
+            if (sc.hasTempo || sc.hasTimeSig)
+                readoutColour = scopeColour(EditMode::PrimaryScope::Scene);
+            else if (sg.hasTempo || sg.hasTimeSig)
+                readoutColour = scopeColour(EditMode::PrimaryScope::Song);
+            else
+                readoutColour = juce::Colours::grey;
+            tempoReadout_.setColour(juce::Label::textColourId, readoutColour);
+            tempoReadout_.setText(readout, juce::dontSendNotification);
+        }
 
         // Controller: drain MIDI FIFO → surface.onInput(), then render feedback LEDs.
         // drain() is called unconditionally every tick (never gated on dirty) because:
@@ -1610,6 +1634,7 @@ namespace lockstep
         uiState_.latch = {};  // clear all latches before calling dispatchUp so guards pass
         escapeDensitySticky();
         uiState_.timeSigStickyMode = false;
+        uiState_.tempoStickyMode = false;
 
         // For each latched modifier that isn't physically held, do a full release.
         // dispatchUp now checks !uiState_.latch.xxx (already false), so it runs completely.
@@ -2176,6 +2201,13 @@ namespace lockstep
                         else
                             uiState_.masterFxInsertSlot = firstLoadedMasterUnit();
                         keyboardArea_.selectMetaSection(5, /*toggle=*/false);
+                        refreshMetaBand();
+                        return true;
+                    }
+                    if (sectionScope == PS::Song && ev.index == 0)
+                    {
+                        // Song+TRIG: toggle tempo sticky mode (DESIGN §4.9).
+                        uiState_.tempoStickyMode = !uiState_.tempoStickyMode;
                         refreshMetaBand();
                         return true;
                     }
@@ -4082,11 +4114,10 @@ namespace lockstep
         poolBtn_.setBounds(header.removeFromRight(80).reduced(4));
         soundBankBtn_.setBounds(header.removeFromRight(60).reduced(4));
 
-        // Tempo bar + Manipulation Zone are anchored to the top at fixed heights;
+        // Tempo readout + Manipulation Zone are anchored to the top at fixed heights;
         // the key rows below fill the remaining space, so growing the window makes
         // the (QWERTY-emulating) buttons taller/squarer while the MZ stays put.
-        if (tempoBar_)
-            tempoBar_->setBounds(bounds.removeFromTop(28).reduced(8, 2));
+        tempoReadout_.setBounds(bounds.removeFromTop(28).reduced(8, 2));
         if (fileBar_)
             fileBar_->setBounds(bounds.removeFromTop(24).reduced(8, 1));
         bounds.removeFromTop(2);

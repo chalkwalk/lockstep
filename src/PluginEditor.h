@@ -30,7 +30,6 @@
 #include "ui/SamplePoolOverlay.h"
 #include "ui/SoundBankOverlay.h"
 #include "ui/StandaloneFileBar.h"
-#include "ui/StandaloneTempoBar.h"
 
 namespace lockstep
 {
@@ -169,7 +168,7 @@ namespace lockstep
         juce::Component* keyListenerTarget_ = nullptr;
 
         InPluginTransport transport_;
-        std::unique_ptr<StandaloneTempoBar> tempoBar_;
+        juce::Label tempoReadout_;           // scope-coloured BPM + time-sig display
         std::unique_ptr<StandaloneFileBar> fileBar_;
         int trackPage_ = 0;  // 0 = tracks 1-8 visible, 1 = tracks 9-16 visible
         juce::TextButton trackPageBtn_{ "1-8" };

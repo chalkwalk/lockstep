@@ -28,6 +28,9 @@ namespace lockstep
         // Sticky time-sig mode (entered via Scene+TRIG; Func double-tap escapes it).
         if (ui.timeSigStickyMode)
             return MetaBand::TimeSig;
+        // Sticky tempo mode (entered via Song+TRIG; Func double-tap escapes it).
+        if (ui.tempoStickyMode)
+            return MetaBand::Tempo;
         // Sticky density mode (entered via Func+MOD; Func double-tap escapes it).
         if (ui.densityStickyMode)
         {
@@ -80,6 +83,14 @@ namespace lockstep
     int timeSigScopeFor(const UiState& ui)
     {
         if (ui.funcHeld && ui.songHeld) return 1;  // Set level
+        if (ui.songHeld) return 2;                 // Song level
+        if (ui.sceneHeld) return 3;                // Scene level
+        return 0;
+    }
+
+    int tempoScopeFor(const UiState& ui)
+    {
+        if (ui.funcHeld && ui.songHeld) return 1;  // global/Set level
         if (ui.songHeld) return 2;                 // Song level
         if (ui.sceneHeld) return 3;                // Scene level
         return 0;
@@ -550,6 +561,95 @@ namespace lockstep
         return result;
     }
 
+    static std::array<MetaFieldView, 8> buildTempoBand(int tpScope, LockstepProcessor& proc)
+    {
+        std::array<MetaFieldView, 8> result{};
+
+        // BPM range used throughout.
+        constexpr float kMinBpm = 20.0f;
+        constexpr float kMaxBpm = 300.0f;
+
+        // Global root BPM (standalone localBpm or host bpm when host-synced).
+        const double globalBpm = proc.clock().bpm();
+        // Resolved Song-level BPM (global × song ratio).
+        const auto& sg = proc.song();
+        const double songBpm = globalBpm * (sg.hasTempo ? sg.tempoRatio : 1.0);
+        // Effective BPM at current scene.
+        const double effectiveBpm = proc.effectiveBpm();
+
+        // Parent BPM for the current scope (what this scope inherits from).
+        const double parentBpm = [&]() -> double {
+            if (tpScope == 3) return songBpm;   // Scene inherits from Song
+            if (tpScope == 2) return globalBpm; // Song inherits from global
+            return globalBpm;                   // global has no parent
+        }();
+
+        // Current override BPM at this scope (what's stored, in absolute terms).
+        const double overrideBpm = [&]() -> double {
+            const auto& sc = proc.section();
+            if (tpScope == 3 && sc.hasTempo) return parentBpm * sc.tempoRatio;
+            if (tpScope == 2 && sg.hasTempo) return globalBpm * sg.tempoRatio;
+            return (tpScope == 1) ? globalBpm : parentBpm; // global or no override
+        }();
+
+        const bool hasOverride = [&]() -> bool {
+            if (tpScope == 3) return proc.section().hasTempo;
+            if (tpScope == 2) return sg.hasTempo;
+            return false; // global always owns its value
+        }();
+
+        // INHERIT is available at Song and Scene scopes.
+        const bool hasInherit = (tpScope == 2 || tpScope == 3);
+
+        // Display value: either parentBpm (INHERIT) or the override BPM.
+        const float displayBpm = static_cast<float>(hasInherit && !hasOverride ? parentBpm : overrideBpm);
+
+        const float scopeColourF = (tpScope == 3)
+            ? static_cast<float>(theme::kScopeScene)
+            : static_cast<float>(theme::kScopeSong);
+
+        auto& f = result[0];
+        f.active = true;
+        f.label = "Tempo";
+        f.minValue = kMinBpm;
+        f.maxValue = kMaxBpm;
+        f.value = std::clamp(displayBpm, kMinBpm, kMaxBpm);
+        f.stepped = false;
+        f.writable = true;
+        f.hasOverride = hasOverride;
+        f.ringMode = RingMode::UnipolarFill;
+
+        // Value text: INHERIT or absolute BPM.
+        if (hasInherit && !hasOverride)
+        {
+            f.valueText = juce::String("INHERIT (")
+                          + juce::String(static_cast<int>(std::round(parentBpm))) + ")";
+        }
+        else
+        {
+            f.valueText = juce::String(static_cast<int>(std::round(displayBpm))) + " BPM";
+        }
+
+        // Reference mark: parent BPM position (scope-coloured).
+        if (hasInherit)
+        {
+            const float parentNorm = (kMaxBpm > kMinBpm)
+                ? (static_cast<float>(parentBpm) - kMinBpm) / (kMaxBpm - kMinBpm) : 0.0f;
+            f.marks[0] = ReferenceMark{ true, std::clamp(parentNorm, 0.0f, 1.0f),
+                                        static_cast<juce::uint32>(scopeColourF), 1.0f };
+        }
+
+        // Field 1: effective BPM read-only.
+        auto& ef = result[1];
+        ef.active = true;
+        ef.label = "Effct";
+        ef.valueText = juce::String(static_cast<int>(std::round(effectiveBpm))) + " BPM";
+        ef.writable = false;
+
+        (void)scopeColourF;
+        return result;
+    }
+
     static std::array<MetaFieldView, 8> buildSwingBand(int swingScope, LockstepProcessor& proc,
                                                        int track)
     {
@@ -893,6 +993,8 @@ namespace lockstep
             return buildVelBlendBand(proc, ui, track);
         if (band == MetaBand::TimeSig)
             return buildTimeSigBand(timeSigScopeFor(ui), proc);
+        if (band == MetaBand::Tempo)
+            return buildTempoBand(tempoScopeFor(ui), proc);
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return {};
 
@@ -1234,6 +1336,40 @@ namespace lockstep
                 break;
             }
 
+            case MetaBand::Tempo: {
+                if (field != 0) break;  // only field 0 is writable
+                constexpr float kMinBpm = 20.0f;
+                constexpr float kMaxBpm = 300.0f;
+                const double bpmVal = static_cast<double>(std::clamp(value, kMinBpm, kMaxBpm));
+                const int tpScope = tempoScopeFor(ui);
+                const double globalBpm = proc.clock().bpm();
+                const auto& sg = proc.song();
+                const double songBpm = globalBpm * (sg.hasTempo ? sg.tempoRatio : 1.0);
+
+                if (tpScope == 1)  // global level
+                {
+                    proc.clock().setLocalBpm(bpmVal);
+                }
+                else if (tpScope == 2)  // Song level
+                {
+                    if (globalBpm > 0.0)
+                    {
+                        proc.song().hasTempo = true;
+                        proc.song().tempoRatio = bpmVal / globalBpm;
+                    }
+                }
+                else  // Scene level (tpScope == 3)
+                {
+                    const double parentBpm = songBpm;
+                    if (parentBpm > 0.0)
+                    {
+                        proc.section().hasTempo = true;
+                        proc.section().tempoRatio = bpmVal / parentBpm;
+                    }
+                }
+                break;
+            }
+
             default: break;
         }
     }
@@ -1260,6 +1396,7 @@ namespace lockstep
             case MetaBand::VelMode:        return "VEL / MODE";
             case MetaBand::VelBlend:       return "VEL / BLEND";
             case MetaBand::TimeSig:        return "TIME SIG";
+            case MetaBand::Tempo:          return "TEMPO";
             default:                       return {};
         }
     }
