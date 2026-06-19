@@ -13,6 +13,7 @@
 #include "ui/MetaBand.h"
 #include "ui/ScopedSectionMatrix.h"
 #include "ui/SurfaceModel.h"
+#include "ui/mode/ModeReducer.h"
 #include <algorithm>
 
 // D2: dirty-guard hook requires access to StandaloneFilterWindow (standalone target only).
@@ -1686,12 +1687,10 @@ namespace lockstep
 
     void LockstepEditor::escapeDensitySticky()
     {
-        uiState_.densityStickyMode = false;
-        uiState_.densityBank = 0;
-        uiState_.densitySubPage = UiState::DensitySubPage::Amount;
+        escapeOverlay(uiState_, Overlay::Density);
     }
 
-    bool LockstepEditor::consumeDensityStickyKey(ControllerButton btn, int index)
+    bool LockstepEditor::consumeDensityStickyKey(ControllerButton btn, int /*index*/)
     {
         if (!uiState_.densityStickyMode)
             return false;
@@ -1704,25 +1703,13 @@ namespace lockstep
             repaint();
             return true;
         }
-        if (btn == CB::Section && index == processor_.kDensitySecIdx)
-        {
-            using SP = UiState::DensitySubPage;
-            uiState_.densitySubPage =
-                (uiState_.densitySubPage == SP::Amount)     ? SP::Musicality :
-                (uiState_.densitySubPage == SP::Musicality) ? SP::Selection  :
-                                                              SP::Amount;
-            refreshMetaBand();
-            repaint();
-            return true;
-        }
+        // Section handling moved to handleOverlayEvent in the Section dispatch.
         return false;
     }
 
     void LockstepEditor::escapeVelSticky()
     {
-        uiState_.velStickyMode = false;
-        uiState_.velBank = 0;
-        uiState_.velSubPage = UiState::VelSubPage::Depth;
+        escapeOverlay(uiState_, Overlay::Vel);
     }
 
     // Returns true if any track has velocity overlay enabled (velMode != Off).
@@ -1752,7 +1739,7 @@ namespace lockstep
         return VP::Depth;
     }
 
-    bool LockstepEditor::consumeVelStickyKey(ControllerButton btn, int index)
+    bool LockstepEditor::consumeVelStickyKey(ControllerButton btn, int /*index*/)
     {
         if (!uiState_.velStickyMode) return false;
         using CB = ControllerButton;
@@ -1763,13 +1750,7 @@ namespace lockstep
             repaint();
             return true;
         }
-        if (btn == CB::Section && index == 3)  // AMP: cycle sub-pages, skip disabled
-        {
-            uiState_.velSubPage = nextVelSubPage(uiState_.velSubPage);
-            refreshMetaBand();
-            repaint();
-            return true;
-        }
+        // Section handling moved to handleOverlayEvent in the Section dispatch.
         return false;
     }
 
@@ -1934,38 +1915,17 @@ namespace lockstep
             refreshMetaBand();
         }
 
-        // §39 Density-sticky discharge: pressing a foreign cluster scope while density is
-        // pinned exits the mode before the scope runs its normal handler. On release you
-        // land at Base, not back in density. Song, Func, Nav, and section keys are
-        // deliberately excluded — they remain density's own controls.
-        // Invariant: density-sticky and a foreign-scope-held state are mutually exclusive;
-        // resolveMetaBand and resolveActiveLayer can therefore never disagree about which
-        // is active (density-sticky is impossible when any of these keys are held).
-        if (uiState_.densityStickyMode
-            && (ev.button == CB::TrackScope || ev.button == CB::PhraseScope
-                || ev.button == CB::SceneScope || ev.button == CB::MorphScope
-                || ev.button == CB::MuteScope  || ev.button == CB::FillScope))
+        // Foreign-scope discharge: pressing a scope modifier that is "foreign" to the
+        // active overlay exits the overlay before the scope runs its normal handler.
+        // Per-overlay foreign-scope policy lives in ModeReducer's kOverlays descriptor
+        // table — which scopes are "own" vs "foreign" is data, not scattered ifs.
+        // Invariant: an active overlay and a foreign-scope-held state are mutually
+        // exclusive; resolveMetaBand and resolveActiveLayer can therefore never disagree.
         {
-            escapeDensitySticky();
-            refreshMetaBand();
-        }
-        if (uiState_.velStickyMode
-            && (ev.button == CB::TrackScope || ev.button == CB::PhraseScope
-                || ev.button == CB::SceneScope || ev.button == CB::MorphScope
-                || ev.button == CB::MuteScope  || ev.button == CB::FillScope))
-        {
-            escapeVelSticky();
-            refreshMetaBand();
-        }
-        // TIME sticky exits on a foreign scope, but NOT on Song/Scene: those retarget
-        // the TIME scope (timeScopeFor) and are the page's own controls, not foreign.
-        if (uiState_.timeStickyMode
-            && (ev.button == CB::TrackScope || ev.button == CB::PhraseScope
-                || ev.button == CB::MorphScope || ev.button == CB::MuteScope
-                || ev.button == CB::FillScope))
-        {
-            escapeTimeSticky(uiState_);
-            refreshMetaBand();
+            const auto r = handleOverlayEvent(uiState_,
+                { ModeEventKind::ScopePress, -1, ev.button });
+            if (r == OverlayResult::Exited)
+                refreshMetaBand();
         }
 
         switch (ev.button)
@@ -1981,38 +1941,41 @@ namespace lockstep
                 keyboardArea_.repaint();
                 repaint();
                 // MHZ.9.4: Func never latches; double-tap = universal escape.
-                // Cancels latches and any active Euclidean modal.
+                // Cancels latches and any active overlay (Euclid / sticky modes).
                 {
                     const double now = juce::Time::getMillisecondCounterHiRes();
                     if (doubleTap_.recordAndCheck(1000 + static_cast<int>(CB::Func), now))
                     {
                         if (uiState_.latch.any() || processor_.editContext().hasAnyLatchedStep())
                             escapeAllLatches();
-                        if (uiState_.euclidHeld)
+
+                        // Route through the overlay reducer.  Guard: sticky modes
+                        // require no latches (they shouldn't be co-active, but
+                        // double-tap can arrive mid-gesture).  Euclid always exits.
+                        const Overlay prevOv = activeOverlay(uiState_);
+                        const bool canEscape = (prevOv == Overlay::Euclid)
+                            || (!uiState_.latch.any()
+                                && !processor_.editContext().hasAnyLatchedStep());
+                        if (canEscape)
                         {
-                            auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(euclidTrack_)];
-                            for (int si = 0; si < euclidStashLen_; ++si)
-                                wt.steps[static_cast<std::size_t>(si)] =
-                                    euclidStash_[static_cast<std::size_t>(si)];
-                            uiState_.resetEuclid();
-                            euclidTrack_ = -1;
-                            euclidStashLen_ = 0;
-                            refreshMetaBand();
-                            repaint();
-                        }
-                        else if (!uiState_.latch.any()
-                                 && !processor_.editContext().hasAnyLatchedStep()
-                                 && (uiState_.densityStickyMode || uiState_.velStickyMode
-                                     || uiState_.timeStickyMode))
-                        {
-                            // Func double-tap = universal escape; also clears any active
-                            // sticky overlay (density / vel / TIME) when no modifier or
-                            // step latches are present.
-                            escapeDensitySticky();
-                            escapeVelSticky();
-                            escapeTimeSticky(uiState_);
-                            refreshMetaBand();
-                            repaint();
+                            const auto r = handleOverlayEvent(uiState_,
+                                { ModeEventKind::DoubleTapFunc });
+                            if (r == OverlayResult::Exited)
+                            {
+                                // Euclid stash restore is editor-owned state.
+                                if (prevOv == Overlay::Euclid && euclidTrack_ >= 0)
+                                {
+                                    auto& wt = processor_.sequence().tracks[
+                                        static_cast<std::size_t>(euclidTrack_)];
+                                    for (int si = 0; si < euclidStashLen_; ++si)
+                                        wt.steps[static_cast<std::size_t>(si)] =
+                                            euclidStash_[static_cast<std::size_t>(si)];
+                                    euclidTrack_ = -1;
+                                    euclidStashLen_ = 0;
+                                }
+                                refreshMetaBand();
+                                repaint();
+                            }
                         }
                     }
                 }
@@ -2162,35 +2125,22 @@ namespace lockstep
                     return true;
                 }
 
-                if (consumeDensityStickyKey(CB::Section, ev.index)) return true;
-                // Sections 0-4 exit density sticky; FX/nav are consumed above.
-                if (sectionSelectClearsDensitySticky(uiState_, ev.index))
-                {
-                    escapeDensitySticky();
-                    refreshMetaBand();
-                }
-
-                if (consumeVelStickyKey(CB::Section, ev.index)) return true;
-                // Sections other than AMP (3) exit vel sticky.
-                if (sectionSelectClearsVelSticky(uiState_, ev.index))
-                {
-                    escapeVelSticky();
-                    refreshMetaBand();
-                }
-
-                // Sections other than TRIG (0) exit TIME sticky; TRIG re-press toggles
-                // it via the scope-specific isTimeEntryChord path below.
-                if (sectionSelectClearsTimeSticky(uiState_, ev.index))
-                {
-                    escapeTimeSticky(uiState_);
-                    refreshMetaBand();
-                }
+                // Route through the overlay reducer.  Handles:
+                //   • Consumed: internal section (MOD/AMP) → cycles subpage; return true.
+                //   • Exited: any other section → exits the overlay; fall through.
+                //   • NotConsumed: no overlay active, or TIME+TRIG (pass-through to
+                //     isTimeEntryChord below).
                 // NOTE: sticky-mode *entry* (Func+MOD density, Func+AMP vel) is handled
                 // in the MetaSection case below, not here. ButtonLayers remaps Section→
-                // MetaSection whenever Func is held (kLayerRemaps), so a Func+section press
-                // never reaches this Section case. The bare re-press *toggle* and exit are
-                // handled above (consume*StickyKey / sectionSelectClears*), which do arrive
-                // here because the toggle key is pressed without Func.
+                // MetaSection whenever Func is held (kLayerRemaps), so a Func+section
+                // press never reaches this Section case.
+                {
+                    const ScopeCtx octx { velAnyEnabled() };
+                    const auto r = handleOverlayEvent(uiState_,
+                        { ModeEventKind::SectionPress, ev.index }, octx);
+                    if (r == OverlayResult::Consumed) { refreshMetaBand(); repaint(); return true; }
+                    if (r == OverlayResult::Exited)   refreshMetaBand();
+                }
 
                 if (sectionScope != PS::None)
                 {

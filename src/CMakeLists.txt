@@ -133,7 +133,8 @@ target_sources(Lockstep
         ui/ManipulationZone.cpp
         ui/SamplePoolOverlay.cpp
         ui/SoundBankOverlay.cpp
-        ui/StandaloneFileBar.cpp)
+        ui/StandaloneFileBar.cpp
+        ui/mode/ModeReducer.cpp)
 
 target_link_libraries(Lockstep
     PRIVATE

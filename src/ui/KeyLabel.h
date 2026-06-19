@@ -3,6 +3,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "ScopedSectionMatrix.h"
 #include "UITheme.h"
+#include "mode/ModeReducer.h"
 #include "../io/EditMode.h"
 #include "../io/EditContext.h"
 #include "../state/UiState.h"
@@ -118,32 +119,15 @@ namespace lockstep
         // --- Section keys (TRIG / SRC / FILTER / AMP / MOD / FX) ----------
         if (def.role == KeyRole::SectionKey)
         {
-            // In density sticky mode the MOD key (index 4) acts as sub-page cycle.
-            // Label shows the next destination so the user knows what one press will do.
-            if (def.sectionIdx == 4 && ui.densityStickyMode)
+            // Overlay-internal section keys get a dynamic label from the descriptor
+            // (e.g. Density MOD → next subpage name, Vel AMP → next subpage, Time TRIG → "TIME").
+            // Centralised in ModeReducer so adding a new overlay can't miss this relabel.
+            if (def.sectionIdx >= 0)
             {
-                using SP = UiState::DensitySubPage;
-                const char* nextLabel =
-                    ui.densitySubPage == SP::Amount     ? "MUSIC" :
-                    ui.densitySubPage == SP::Musicality ? "SELECT" :
-                    /* Selection */                       "AMOUNT";
-                return { juce::String(nextLabel), {}, false };
+                const char* overlayLabel = overlayInternalSectionLabel(ui, def.sectionIdx);
+                if (overlayLabel != nullptr)
+                    return { juce::String(overlayLabel), {}, false };
             }
-            // In velocity sticky mode the AMP key (index 3) acts as sub-page cycle.
-            if (def.sectionIdx == 3 && ui.velStickyMode)
-            {
-                using VP = UiState::VelSubPage;
-                const char* nextLabel =
-                    ui.velSubPage == VP::Depth  ? "CENTER" :
-                    ui.velSubPage == VP::Center ? "MODE"   :
-                    ui.velSubPage == VP::Mode   ? "BLEND"  :
-                    /* Blend */                   "DEPTH";
-                return { juce::String(nextLabel), {}, false };
-            }
-            // TIME sticky mode relabels the TRIG key (index 0) to signal the active band.
-            // This mirrors the density/vel pattern above.
-            if (def.sectionIdx == 0 && ui.timeStickyMode)
-                return { "TIME", {}, false };
             if (!isScopedMode)
             {
                 // Normal mode: machine availability drives disabled state.

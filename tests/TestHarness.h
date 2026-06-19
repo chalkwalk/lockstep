@@ -67,4 +67,6 @@ namespace lockstep
     void runAccentTests();
     // §39 MetricSelect tier+Euclid deterministic Scrub selector
     void runMetricSelectTests();
+    // Stage 1: overlay reducer CUJ event-sequence tests
+    void runModeReducerTests();
 }

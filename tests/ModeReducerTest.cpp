@@ -1,0 +1,553 @@
+// ModeReducerTest — CUJ event-sequence tests for the overlay reducer.
+//
+// Tests drive the same reduce() path the editor uses, so exit-wire gaps that
+// used to ship silently (e.g. the TIME "too sticky" Stage-0 bug) are caught
+// here before they reach a build.
+//
+// Each test is a critical-user-journey (CUJ) sequence:
+//   enter overlay → apply event → assert result + UiState.
+
+#include "TestHarness.h"
+#include "../src/ui/mode/ModeReducer.h"
+#include "../src/state/UiState.h"
+
+namespace lockstep
+{
+    // =========================================================================
+    // Helpers
+    // =========================================================================
+
+    // Arm a specific overlay via the UiState fields (simulating the editor's
+    // entry path, which is not yet through the reducer).
+    static void enterDensity(UiState& ui)
+    {
+        ui.densityStickyMode = true;
+        ui.densityBank = 0;
+        ui.densitySubPage = UiState::DensitySubPage::Amount;
+    }
+
+    static void enterVel(UiState& ui)
+    {
+        ui.velStickyMode = true;
+        ui.velBank = 0;
+        ui.velSubPage = UiState::VelSubPage::Depth;
+    }
+
+    static void enterTime(UiState& ui)
+    {
+        ui.timeStickyMode = true;
+        ui.timeEntryScope = 2;
+        ui.swingDismissed = false;
+    }
+
+    static void enterEuclid(UiState& ui)
+    {
+        ui.euclidHeld = true;
+        ui.euclidPulses = 4;
+        ui.euclidOffset = 0;
+        ui.euclidAccents = 0;
+    }
+
+    // =========================================================================
+    // activeOverlay
+    // =========================================================================
+
+    static void testActiveOverlayPriority()
+    {
+        UiState ui;
+        CHECK(activeOverlay(ui) == Overlay::None, "default → None");
+
+        ui.densityStickyMode = true;
+        CHECK(activeOverlay(ui) == Overlay::Density, "density active");
+
+        ui.velStickyMode = true;
+        CHECK(activeOverlay(ui) == Overlay::Density, "density outranks vel when both set");
+        ui.velStickyMode = false;
+
+        ui.timeStickyMode = true;
+        CHECK(activeOverlay(ui) == Overlay::Time, "time outranks density");
+
+        ui.euclidHeld = true;
+        CHECK(activeOverlay(ui) == Overlay::Euclid, "euclid outranks everything");
+
+        ui.euclidHeld = false;
+        ui.timeStickyMode = false;
+        ui.densityStickyMode = false;
+    }
+
+    // =========================================================================
+    // escapeOverlay
+    // =========================================================================
+
+    static void testEscapeOverlayClearsDensity()
+    {
+        UiState ui;
+        enterDensity(ui);
+        ui.densitySubPage = UiState::DensitySubPage::Musicality;
+        ui.densityBank = 1;
+
+        escapeOverlay(ui, Overlay::Density);
+
+        CHECK(!ui.densityStickyMode, "density cleared");
+        CHECK(ui.densityBank == 0, "bank reset");
+        CHECK(ui.densitySubPage == UiState::DensitySubPage::Amount, "subpage reset");
+        CHECK(activeOverlay(ui) == Overlay::None, "no overlay after escape");
+    }
+
+    static void testEscapeOverlayClearsVel()
+    {
+        UiState ui;
+        enterVel(ui);
+        ui.velSubPage = UiState::VelSubPage::Blend;
+        ui.velBank = 1;
+
+        escapeOverlay(ui, Overlay::Vel);
+
+        CHECK(!ui.velStickyMode, "vel cleared");
+        CHECK(ui.velBank == 0, "bank reset");
+        CHECK(ui.velSubPage == UiState::VelSubPage::Depth, "subpage reset");
+    }
+
+    static void testEscapeOverlayClearsTime()
+    {
+        UiState ui;
+        enterTime(ui);
+
+        escapeOverlay(ui, Overlay::Time);
+
+        CHECK(!ui.timeStickyMode, "time cleared");
+        CHECK(ui.swingDismissed, "swingDismissed set (guards against swing re-trigger)");
+    }
+
+    static void testEscapeOverlayClearsEuclid()
+    {
+        UiState ui;
+        enterEuclid(ui);
+        ui.euclidPulses = 8;
+        ui.euclidOffset = 2;
+        ui.euclidAccents = 1;
+
+        escapeOverlay(ui, Overlay::Euclid);
+
+        CHECK(!ui.euclidHeld, "euclidHeld cleared");
+        CHECK(ui.euclidPulses == 4, "pulses reset");
+        CHECK(ui.euclidOffset == 0, "offset reset");
+        CHECK(ui.euclidAccents == 0, "accents reset");
+    }
+
+    // =========================================================================
+    // handleOverlayEvent — SectionPress
+    // =========================================================================
+
+    // Density: MOD (index 4) is internal → Consumed; any other exits.
+    static void testDensitySectionPressInternalConsumed()
+    {
+        UiState ui;
+        enterDensity(ui);
+
+        const auto r = handleOverlayEvent(ui, { ModeEventKind::SectionPress, 4 });
+
+        CHECK(r == OverlayResult::Consumed, "MOD → Consumed");
+        CHECK(ui.densityStickyMode, "density still active after subpage cycle");
+        CHECK(ui.densitySubPage == UiState::DensitySubPage::Musicality,
+              "Amount → Musicality on first press");
+    }
+
+    static void testDensitySectionPressInternalCyclesFull()
+    {
+        UiState ui;
+        enterDensity(ui);
+
+        auto r = handleOverlayEvent(ui, { ModeEventKind::SectionPress, 4 });
+        CHECK(r == OverlayResult::Consumed, "cycle 1 → Consumed");
+        CHECK(ui.densitySubPage == UiState::DensitySubPage::Musicality, "→ Musicality");
+        r = handleOverlayEvent(ui, { ModeEventKind::SectionPress, 4 });
+        CHECK(r == OverlayResult::Consumed, "cycle 2 → Consumed");
+        CHECK(ui.densitySubPage == UiState::DensitySubPage::Selection,  "→ Selection");
+        r = handleOverlayEvent(ui, { ModeEventKind::SectionPress, 4 });
+        CHECK(r == OverlayResult::Consumed, "cycle 3 → Consumed");
+        CHECK(ui.densitySubPage == UiState::DensitySubPage::Amount,     "→ Amount (wrap)");
+    }
+
+    static void testDensitySectionPressForeignExits()
+    {
+        for (int sec = 0; sec < 6; ++sec)
+        {
+            if (sec == 4) continue;  // internal section; skip
+            UiState ui;
+            enterDensity(ui);
+
+            const auto r = handleOverlayEvent(ui, { ModeEventKind::SectionPress, sec });
+
+            CHECK(r == OverlayResult::Exited,
+                  "density foreign sec " + juce::String(sec) + " → Exited");
+            CHECK(!ui.densityStickyMode,
+                  "density cleared for sec " + juce::String(sec));
+        }
+    }
+
+    // Vel: AMP (index 3) is internal → Consumed; any other exits.
+    static void testVelSectionPressInternalConsumed()
+    {
+        UiState ui;
+        enterVel(ui);
+        const ScopeCtx ctx { /*velAnyEnabled=*/true };
+
+        const auto r = handleOverlayEvent(ui, { ModeEventKind::SectionPress, 3 }, ctx);
+
+        CHECK(r == OverlayResult::Consumed, "AMP → Consumed");
+        CHECK(ui.velStickyMode, "vel still active");
+        CHECK(ui.velSubPage == UiState::VelSubPage::Center,
+              "Depth → Center on first press");
+    }
+
+    static void testVelSectionPressInternalCyclesFull()
+    {
+        UiState ui;
+        enterVel(ui);
+        const ScopeCtx ctx { true };
+
+        auto r = handleOverlayEvent(ui, { ModeEventKind::SectionPress, 3 }, ctx);
+        CHECK(r == OverlayResult::Consumed, "vel cycle 1 → Consumed");
+        CHECK(ui.velSubPage == UiState::VelSubPage::Center, "→ Center");
+        r = handleOverlayEvent(ui, { ModeEventKind::SectionPress, 3 }, ctx);
+        CHECK(r == OverlayResult::Consumed, "vel cycle 2 → Consumed");
+        CHECK(ui.velSubPage == UiState::VelSubPage::Mode, "→ Mode");
+        r = handleOverlayEvent(ui, { ModeEventKind::SectionPress, 3 }, ctx);
+        CHECK(r == OverlayResult::Consumed, "vel cycle 3 → Consumed");
+        CHECK(ui.velSubPage == UiState::VelSubPage::Blend, "→ Blend");
+        r = handleOverlayEvent(ui, { ModeEventKind::SectionPress, 3 }, ctx);
+        CHECK(r == OverlayResult::Consumed, "vel cycle 4 → Consumed");
+        CHECK(ui.velSubPage == UiState::VelSubPage::Depth, "→ Depth (wrap)");
+    }
+
+    static void testVelSectionPressInternalSkipsDisabled()
+    {
+        UiState ui;
+        enterVel(ui);
+        const ScopeCtx ctx { /*velAnyEnabled=*/false };
+
+        // When all tracks are Off, every internal-section press should land on Mode.
+        auto r = handleOverlayEvent(ui, { ModeEventKind::SectionPress, 3 }, ctx);
+        CHECK(r == OverlayResult::Consumed, "disabled → Consumed");
+        CHECK(ui.velSubPage == UiState::VelSubPage::Mode, "disabled → Mode");
+        r = handleOverlayEvent(ui, { ModeEventKind::SectionPress, 3 }, ctx);
+        CHECK(r == OverlayResult::Consumed, "disabled again → Consumed");
+        CHECK(ui.velSubPage == UiState::VelSubPage::Mode, "stays Mode");
+    }
+
+    static void testVelSectionPressForeignExits()
+    {
+        for (int sec = 0; sec < 6; ++sec)
+        {
+            if (sec == 3) continue;  // internal section; skip
+            UiState ui;
+            enterVel(ui);
+
+            const auto r = handleOverlayEvent(ui, { ModeEventKind::SectionPress, sec });
+
+            CHECK(r == OverlayResult::Exited,
+                  "vel foreign sec " + juce::String(sec) + " → Exited");
+            CHECK(!ui.velStickyMode,
+                  "vel cleared for sec " + juce::String(sec));
+        }
+    }
+
+    // Time: TRIG (index 0) is internal → NotConsumed (pass-through to isTimeEntryChord).
+    static void testTimeSectionPressTrigPassthrough()
+    {
+        UiState ui;
+        enterTime(ui);
+
+        const auto r = handleOverlayEvent(ui, { ModeEventKind::SectionPress, 0 });
+
+        CHECK(r == OverlayResult::NotConsumed, "TRIG → NotConsumed (pass-through)");
+        CHECK(ui.timeStickyMode, "TIME still active — toggle handled by isTimeEntryChord");
+    }
+
+    static void testTimeSectionPressForeignExits()
+    {
+        for (int sec = 1; sec < 6; ++sec)  // TRIG (0) is internal; 1-5 are foreign
+        {
+            UiState ui;
+            enterTime(ui);
+
+            const auto r = handleOverlayEvent(ui, { ModeEventKind::SectionPress, sec });
+
+            CHECK(r == OverlayResult::Exited,
+                  "TIME foreign sec " + juce::String(sec) + " → Exited");
+            CHECK(!ui.timeStickyMode,
+                  "TIME cleared for sec " + juce::String(sec));
+        }
+    }
+
+    // Euclid: no section exits (sections aren't in the euclid surface).
+    static void testEuclidSectionPressNotConsumed()
+    {
+        for (int sec = 0; sec < 6; ++sec)
+        {
+            UiState ui;
+            enterEuclid(ui);
+
+            const auto r = handleOverlayEvent(ui, { ModeEventKind::SectionPress, sec });
+
+            const juce::String secStr { sec };
+            CHECK(r == OverlayResult::NotConsumed,
+                  "euclid sec " + secStr + " → NotConsumed");
+            CHECK(ui.euclidHeld,
+                  "euclid still active for sec " + secStr);
+        }
+    }
+
+    // =========================================================================
+    // handleOverlayEvent — ScopePress (foreign scope exits, own scope passes)
+    // =========================================================================
+
+    static void testDensityScopePressOwnScopes()
+    {
+        // Song is "own" for density (master write target); pressing it does NOT exit.
+        UiState ui;
+        enterDensity(ui);
+        const auto r = handleOverlayEvent(ui,
+            { ModeEventKind::ScopePress, -1, ControllerButton::SongScope });
+        CHECK(r == OverlayResult::NotConsumed, "Song is own → NotConsumed");
+        CHECK(ui.densityStickyMode, "density still active");
+    }
+
+    static void testDensityScopePressAllForeignScopes()
+    {
+        using CB = ControllerButton;
+        const CB foreignScopes[] = {
+            CB::TrackScope, CB::PhraseScope, CB::SceneScope,
+            CB::MorphScope, CB::MuteScope,   CB::FillScope,
+        };
+        for (const auto scope : foreignScopes)
+        {
+            UiState ui;
+            enterDensity(ui);
+            const auto r = handleOverlayEvent(ui, { ModeEventKind::ScopePress, -1, scope });
+            CHECK(r == OverlayResult::Exited, "density exits on foreign scope");
+            CHECK(!ui.densityStickyMode, "density cleared");
+        }
+    }
+
+    static void testTimeScopePressOwnScopes()
+    {
+        // Song and Scene are "own" for TIME (they retarget timeScopeFor).
+        UiState ui;
+        enterTime(ui);
+        auto r = handleOverlayEvent(ui,
+            { ModeEventKind::ScopePress, -1, ControllerButton::SongScope });
+        CHECK(r == OverlayResult::NotConsumed, "TIME: Song is own");
+        CHECK(ui.timeStickyMode, "TIME still active after Song press");
+
+        r = handleOverlayEvent(ui,
+            { ModeEventKind::ScopePress, -1, ControllerButton::SceneScope });
+        CHECK(r == OverlayResult::NotConsumed, "TIME: Scene is own");
+        CHECK(ui.timeStickyMode, "TIME still active after Scene press");
+    }
+
+    static void testTimeScopePressAllForeignScopes()
+    {
+        using CB = ControllerButton;
+        const CB foreignScopes[] = {
+            CB::TrackScope, CB::PhraseScope,
+            CB::MorphScope, CB::MuteScope, CB::FillScope,
+        };
+        for (const auto scope : foreignScopes)
+        {
+            UiState ui;
+            enterTime(ui);
+            const auto r = handleOverlayEvent(ui, { ModeEventKind::ScopePress, -1, scope });
+            CHECK(r == OverlayResult::Exited, "TIME exits on foreign scope");
+            CHECK(!ui.timeStickyMode, "TIME cleared");
+        }
+    }
+
+    // =========================================================================
+    // handleOverlayEvent — DoubleTapFunc
+    // =========================================================================
+
+    static void testDoubleTapFuncExitsAllStickies()
+    {
+        // Density
+        {
+            UiState ui;
+            enterDensity(ui);
+            const auto r = handleOverlayEvent(ui, { ModeEventKind::DoubleTapFunc });
+            CHECK(r == OverlayResult::Exited, "Func dbl-tap exits density");
+            CHECK(!ui.densityStickyMode, "density cleared");
+        }
+        // Vel
+        {
+            UiState ui;
+            enterVel(ui);
+            const auto r = handleOverlayEvent(ui, { ModeEventKind::DoubleTapFunc });
+            CHECK(r == OverlayResult::Exited, "Func dbl-tap exits vel");
+            CHECK(!ui.velStickyMode, "vel cleared");
+        }
+        // TIME
+        {
+            UiState ui;
+            enterTime(ui);
+            const auto r = handleOverlayEvent(ui, { ModeEventKind::DoubleTapFunc });
+            CHECK(r == OverlayResult::Exited, "Func dbl-tap exits TIME");
+            CHECK(!ui.timeStickyMode, "TIME cleared");
+            CHECK(ui.swingDismissed, "swingDismissed set on TIME exit");
+        }
+        // Euclid
+        {
+            UiState ui;
+            enterEuclid(ui);
+            const auto r = handleOverlayEvent(ui, { ModeEventKind::DoubleTapFunc });
+            CHECK(r == OverlayResult::Exited, "Func dbl-tap exits euclid");
+            CHECK(!ui.euclidHeld, "euclidHeld cleared");
+        }
+    }
+
+    static void testDoubleTapFuncNoOverlayIsNotConsumed()
+    {
+        UiState ui;
+        const auto r = handleOverlayEvent(ui, { ModeEventKind::DoubleTapFunc });
+        CHECK(r == OverlayResult::NotConsumed, "no overlay → NotConsumed");
+    }
+
+    // =========================================================================
+    // Mutual exclusion — entering one overlay while another is active
+    // =========================================================================
+
+    static void testMutualExclusionViaEscapeOverlay()
+    {
+        // Density entry escapes any prior sticky overlay (as applyTimeEntry does).
+        UiState ui;
+        enterTime(ui);
+        CHECK(activeOverlay(ui) == Overlay::Time, "TIME active before density entry");
+
+        // Simulating the entry guard that applyTimeEntry already does:
+        escapeOverlay(ui, Overlay::Time);
+        enterDensity(ui);
+
+        CHECK(activeOverlay(ui) == Overlay::Density, "only Density after transition");
+        CHECK(!ui.timeStickyMode, "TIME cleared");
+    }
+
+    // =========================================================================
+    // overlayInternalSectionLabel (presentation)
+    // =========================================================================
+
+    static void testInternalSectionLabelDensity()
+    {
+        UiState ui;
+        enterDensity(ui);
+
+        // internalSection is 4; non-4 should return nullptr.
+        CHECK(overlayInternalSectionLabel(ui, 0) == nullptr, "non-internal → nullptr");
+        CHECK(overlayInternalSectionLabel(ui, 4) != nullptr, "internal → non-null");
+
+        // Cycle through subpages and verify labels are correct next-subpage names.
+        ui.densitySubPage = UiState::DensitySubPage::Amount;
+        CHECK(juce::String(overlayInternalSectionLabel(ui, 4)) == "MUSIC",
+              "Amount → MUSIC (next)");
+
+        ui.densitySubPage = UiState::DensitySubPage::Musicality;
+        CHECK(juce::String(overlayInternalSectionLabel(ui, 4)) == "SELECT",
+              "Musicality → SELECT (next)");
+
+        ui.densitySubPage = UiState::DensitySubPage::Selection;
+        CHECK(juce::String(overlayInternalSectionLabel(ui, 4)) == "AMOUNT",
+              "Selection → AMOUNT (wrap)");
+    }
+
+    static void testInternalSectionLabelVel()
+    {
+        UiState ui;
+        enterVel(ui);
+
+        CHECK(overlayInternalSectionLabel(ui, 3) != nullptr, "vel internal (3) → non-null");
+
+        ui.velSubPage = UiState::VelSubPage::Depth;
+        CHECK(juce::String(overlayInternalSectionLabel(ui, 3)) == "CENTER", "Depth → CENTER");
+
+        ui.velSubPage = UiState::VelSubPage::Center;
+        CHECK(juce::String(overlayInternalSectionLabel(ui, 3)) == "MODE", "Center → MODE");
+
+        ui.velSubPage = UiState::VelSubPage::Mode;
+        CHECK(juce::String(overlayInternalSectionLabel(ui, 3)) == "BLEND", "Mode → BLEND");
+
+        ui.velSubPage = UiState::VelSubPage::Blend;
+        CHECK(juce::String(overlayInternalSectionLabel(ui, 3)) == "DEPTH", "Blend → DEPTH");
+    }
+
+    static void testInternalSectionLabelTime()
+    {
+        UiState ui;
+        enterTime(ui);
+
+        CHECK(overlayInternalSectionLabel(ui, 0) != nullptr, "TIME internal (0) → non-null");
+        CHECK(juce::String(overlayInternalSectionLabel(ui, 0)) == "TIME", "TIME → \"TIME\"");
+        CHECK(overlayInternalSectionLabel(ui, 1) == nullptr, "non-internal → nullptr");
+    }
+
+    static void testInternalSectionLabelNoneWhenNoOverlay()
+    {
+        UiState ui;
+        for (int sec = 0; sec < 6; ++sec)
+        {
+            CHECK(overlayInternalSectionLabel(ui, sec) == nullptr,
+                  "no overlay → nullptr for sec " + juce::String(sec));
+        }
+    }
+
+    // =========================================================================
+    // Registration
+    // =========================================================================
+
+    void runModeReducerTests()
+    {
+        // activeOverlay priority
+        testActiveOverlayPriority();
+
+        // escapeOverlay correctness
+        testEscapeOverlayClearsDensity();
+        testEscapeOverlayClearsVel();
+        testEscapeOverlayClearsTime();
+        testEscapeOverlayClearsEuclid();
+
+        // SectionPress — Density
+        testDensitySectionPressInternalConsumed();
+        testDensitySectionPressInternalCyclesFull();
+        testDensitySectionPressForeignExits();
+
+        // SectionPress — Vel
+        testVelSectionPressInternalConsumed();
+        testVelSectionPressInternalCyclesFull();
+        testVelSectionPressInternalSkipsDisabled();
+        testVelSectionPressForeignExits();
+
+        // SectionPress — Time
+        testTimeSectionPressTrigPassthrough();
+        testTimeSectionPressForeignExits();
+
+        // SectionPress — Euclid
+        testEuclidSectionPressNotConsumed();
+
+        // ScopePress — foreign vs own
+        testDensityScopePressOwnScopes();
+        testDensityScopePressAllForeignScopes();
+        testTimeScopePressOwnScopes();
+        testTimeScopePressAllForeignScopes();
+
+        // DoubleTapFunc
+        testDoubleTapFuncExitsAllStickies();
+        testDoubleTapFuncNoOverlayIsNotConsumed();
+
+        // Mutual exclusion
+        testMutualExclusionViaEscapeOverlay();
+
+        // Presentation (overlayInternalSectionLabel)
+        testInternalSectionLabelDensity();
+        testInternalSectionLabelVel();
+        testInternalSectionLabelTime();
+        testInternalSectionLabelNoneWhenNoOverlay();
+    }
+}

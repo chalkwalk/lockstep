@@ -45,6 +45,8 @@ int main()
     lockstep::runAccentTests();
     // §39 MetricSelect tier+Euclid deterministic Scrub
     lockstep::runMetricSelectTests();
+    // Stage 1: overlay reducer CUJs + presentation label goldens
+    lockstep::runModeReducerTests();
 
     // Also drive the JUCE UnitTests registered in lockstep_core (the serializer
     // upgrade chain, "PluginState" category) so they run headlessly in CI rather
