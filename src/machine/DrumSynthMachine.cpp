@@ -103,10 +103,10 @@ namespace lockstep
         {
             switch (dsType(f))
             {
-                case 1: return "—";        // SNARE: Snap replaces punch
-                case 2: return "—";        // HAT: no click
-                case 4: return "—";        // CLAP: no click
-                case 6: return "—";        // CYMBAL: no click
+                case 1: return juce::String(juce::CharPointer_UTF8("\xe2\x80\x94"));        // SNARE: Snap replaces punch
+                case 2: return juce::String(juce::CharPointer_UTF8("\xe2\x80\x94"));        // HAT: no click
+                case 4: return juce::String(juce::CharPointer_UTF8("\xe2\x80\x94"));        // CLAP: no click
+                case 6: return juce::String(juce::CharPointer_UTF8("\xe2\x80\x94"));        // CYMBAL: no click
                 default: return "Punch";
             }
         }
@@ -135,10 +135,10 @@ namespace lockstep
         {
             switch (dsType(f))
             {
-                case 0: return "—";         // KICK: unused
+                case 0: return juce::String(juce::CharPointer_UTF8("\xe2\x80\x94"));         // KICK: unused
                 case 1: return "Tone Mix";  // SNARE: body(sine)/noise balance
                 case 2: return "HP Cut";    // HAT: highpass cutoff (4–18 kHz via Tune; Body unused)
-                case 3: return "—";         // TOM: unused
+                case 3: return juce::String(juce::CharPointer_UTF8("\xe2\x80\x94"));         // TOM: unused
                 case 4: return "Tail";      // CLAP: tail decay length (20–180 ms)
                 case 5: return "BP Ctr";    // COWBELL: bandpass centre (1.5×–3.5× upper osc)
                 case 6: return "HP Cut";    // CYMBAL: highpass cutoff (300–3000 Hz)
@@ -154,7 +154,7 @@ namespace lockstep
             {
                 case 1: return "Snap";      // SNARE: click/snap transient level
                 case 6: return "Sizzle";    // CYMBAL: noise sizzle amount
-                default: return "—";        // unused for other types
+                default: return juce::String(juce::CharPointer_UTF8("\xe2\x80\x94"));        // unused for other types
             }
         }
     }

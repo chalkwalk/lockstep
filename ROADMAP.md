@@ -1673,8 +1673,10 @@ See DESIGN §6.10.
       SwpDec/NoiseDec slots (7 type-dependent slots × 8 types).
 - [x] **D2 — Sampler/Slicer.** `contextLabel` for LpStart/LpLen annotating active/auto/free
       loop mode.
-- [ ] **Tests.** Unit test: `contextLabel` returns expected string for representative
-      TYPE/loop-mode values.
+- [x] **Tests.** Unit test: `contextLabel` returns expected string for representative
+      TYPE/loop-mode values. Also fixed latent bug: DrumSynth `punchLabel`/`bodyLabel`/
+      `snapLabel` used `return "—"` which asserts on JUCE's `const char*` path;
+      replaced with `juce::CharPointer_UTF8("\xe2\x80\x94")`. *(Stage 7c)*
 
 ### 9.7 — Hierarchical time signature  *[shipped]*
 Make time signature a first-class, grammar-editable, hierarchical value.
@@ -1737,7 +1739,7 @@ See DESIGN §4.8 and §13.
       INHERIT on each control clears its override; time-sigs in bar-length order;
       entering density/vel exits TIME; swing not triggered while TIME open). DAW
       (v21 round-trip; v20 project compat).
-- [ ] **Remaining open:** contextLabel unit test (D2).
+- [x] **Remaining open items resolved.** 9.5 C fully closed; 9.6 D2 done. *(Stage 7)*
 
 ### Future (structural)
 - [x] **Collapse `timeStickyMode` / `densityStickyMode` / `velStickyMode` into a
