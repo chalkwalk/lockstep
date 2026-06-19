@@ -1380,7 +1380,10 @@ namespace lockstep
             }
             wasSilent_[i] = silent;
 
-            const double divPpq = subdivisionPpqFromIndex(trackSubdiv);
+            const double divPpqMusical = subdivisionPpqFromIndex(trackSubdiv);
+            // DESIGN §4.9: scale step grid by the Song × Scene tempo ratio.
+            const double tempoRatio = effectiveTempoRatio();
+            const double divPpq = (tempoRatio > 0.0) ? (divPpqMusical / tempoRatio) : divPpqMusical;
 
             if (divPpq <= 0.0 || samplesPerPpq <= 0.0 || trackLen <= 0 || silent)
                 continue;
@@ -1510,10 +1513,11 @@ namespace lockstep
                     double velPpqInBar = 0.0;
                     if (velBarPpq > 0.0)
                     {
+                        // Convert host PPQ → musical PPQ for bar-position computations.
                         if (velKit.velMode == VelMode::Bar)
-                            velPpqInBar = std::fmod(nextTriggerPpq_[i], velBarPpq);
-                        else // Phrase: anchor bar grid to phrase start to avoid drift
-                            velPpqInBar = std::fmod(static_cast<double>(stepIdx) * divPpq, velBarPpq);
+                            velPpqInBar = std::fmod(nextTriggerPpq_[i] * tempoRatio, velBarPpq);
+                        else // Phrase: use musical step size (before tempo scaling)
+                            velPpqInBar = std::fmod(static_cast<double>(stepIdx) * divPpqMusical, velBarPpq);
                     }
                     const float w = MetricGrid::metricWeight(
                         velPpqInBar, velBarPpq,
@@ -1672,16 +1676,19 @@ namespace lockstep
                             const float master = masterDensity_.load(std::memory_order_relaxed);
                             const auto densCt = effectiveTimeSig();
                             const double barPpq = densCt.barPpq();
-                            const double ppqInBar = std::fmod(nextTriggerPpq_[i], barPpq);
+                            // Convert host PPQ → musical PPQ for bar-position math.
+                            const double musicalPpq = nextTriggerPpq_[i] * tempoRatio;
+                            const double ppqInBar = std::fmod(musicalPpq, barPpq);
                             const auto& kit = song().tracks[i].kit;
                             const int qLevel = static_cast<int>(
                                 std::round(std::clamp(perTrack + master, 0.01f, 1.0f) * 100.0f));
                             // Reroll cadence: Uniform = per-step hash, Musical/Metric = per-bar hash.
-                            const auto stepsPerBar = (barPpq > 0.0 && divPpq > 0.0)
-                                ? std::max(std::int64_t{ 1 }, static_cast<std::int64_t>(std::round(barPpq / divPpq)))
+                            // stepsPerBar uses musical step size (barPpq / divPpqMusical).
+                            const auto stepsPerBar = (barPpq > 0.0 && divPpqMusical > 0.0)
+                                ? std::max(std::int64_t{ 1 }, static_cast<std::int64_t>(std::round(barPpq / divPpqMusical)))
                                 : std::int64_t{ 1 };
                             const auto barIndex  = (barPpq > 0.0)
-                                ? static_cast<std::int64_t>(nextTriggerPpq_[i] / barPpq) : std::int64_t{ 0 };
+                                ? static_cast<std::int64_t>(musicalPpq / barPpq) : std::int64_t{ 0 };
                             const auto stepInBar = stepNum % stepsPerBar;
                             const float rerollR =
                                 (kit.densityMusicality == Density::Musicality::Uniform)
@@ -1826,15 +1833,17 @@ namespace lockstep
                             const float master = masterDensity_.load(std::memory_order_relaxed);
                             const auto densCt2 = effectiveTimeSig();
                             const double barPpq = densCt2.barPpq();
-                            const double ppqInBar = std::fmod(nextGridPpq, barPpq);
+                            // Convert host PPQ → musical PPQ for bar-position math.
+                            const double musicalGridPpq = nextGridPpq * tempoRatio;
+                            const double ppqInBar = std::fmod(musicalGridPpq, barPpq);
                             const auto& kit = song().tracks[i].kit;
                             const int qLevel = static_cast<int>(
                                 std::round(std::clamp(perTrack + master, 0.01f, 1.0f) * 100.0f));
-                            const auto stepsPerBar = (barPpq > 0.0 && divPpq > 0.0)
-                                ? std::max(std::int64_t{ 1 }, static_cast<std::int64_t>(std::round(barPpq / divPpq)))
+                            const auto stepsPerBar = (barPpq > 0.0 && divPpqMusical > 0.0)
+                                ? std::max(std::int64_t{ 1 }, static_cast<std::int64_t>(std::round(barPpq / divPpqMusical)))
                                 : std::int64_t{ 1 };
                             const auto barIndex  = (barPpq > 0.0)
-                                ? static_cast<std::int64_t>(nextGridPpq / barPpq) : std::int64_t{ 0 };
+                                ? static_cast<std::int64_t>(musicalGridPpq / barPpq) : std::int64_t{ 0 };
                             const auto stepInBar = stepNum % stepsPerBar;
                             const float rerollR =
                                 (kit.densityMusicality == Density::Musicality::Uniform)

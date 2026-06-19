@@ -35,6 +35,12 @@ namespace lockstep
         // When false the song inherits from Project::defaultTimeSig.
         bool hasTimeSig = false;
         TimeSig timeSig{};
+
+        // Optional Song-level tempo override (DESIGN §4.9).
+        // Stored as a ratio vs the global root (localBpm or host BPM).
+        // When false, the song plays at the global tempo (ratio = 1.0).
+        bool hasTempo = false;
+        double tempoRatio = 1.0;
         // 6.5 master FX: 2 post-sum insert slots, processed after all track outputs are summed.
         std::array<TrackKit::InsertSlot, 2> masterInserts{};
         // 8.26 send returns: 2 post-track-sum send buses, each with a return effect.

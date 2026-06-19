@@ -34,6 +34,12 @@ namespace lockstep
         // Song::SongTrack::swing) to form the full effective swing for this section.
         float swing = 0.0f;
 
+        // Optional Scene-level tempo override (DESIGN §4.9).
+        // Stored as a ratio vs the resolved Song tempo (which is itself vs global root).
+        // When false, the scene plays at the Song/global tempo (ratio = 1.0).
+        bool hasTempo = false;
+        double tempoRatio = 1.0;
+
         // True once explicitly initialised.
         bool initialised = false;
 

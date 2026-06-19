@@ -538,6 +538,12 @@ namespace lockstep::PluginState
                 songNode.setProperty(keys::kSongTsN, song.timeSig.numerator, nullptr);
                 songNode.setProperty(keys::kSongTsD, song.timeSig.denominator, nullptr);
             }
+            // v21: optional Song-level tempo ratio.
+            if (song.hasTempo)
+            {
+                songNode.setProperty(keys::kHasTempo, 1, nullptr);
+                songNode.setProperty(keys::kTempoRatio, song.tempoRatio, nullptr);
+            }
 
             for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
             {
@@ -591,6 +597,12 @@ namespace lockstep::PluginState
                     sceneNode.setProperty(keys::kHasTs, 1, nullptr);
                     sceneNode.setProperty(keys::kCtN, sec.coreTime.numerator, nullptr);
                     sceneNode.setProperty(keys::kCtD, sec.coreTime.denominator, nullptr);
+                }
+                // v21: optional Scene-level tempo ratio.
+                if (sec.hasTempo)
+                {
+                    sceneNode.setProperty(keys::kHasTempo, 1, nullptr);
+                    sceneNode.setProperty(keys::kTempoRatio, sec.tempoRatio, nullptr);
                 }
                 if (floatNe(sec.swing, 0.0f))
                     sceneNode.setProperty(keys::kSwing, static_cast<double>(sec.swing), nullptr);
@@ -726,6 +738,12 @@ namespace lockstep::PluginState
                 song.timeSig.numerator = static_cast<int>(songNode.getProperty(keys::kSongTsN, 4));
                 song.timeSig.denominator = static_cast<int>(songNode.getProperty(keys::kSongTsD, 4));
             }
+            // v21: optional Song-level tempo ratio.
+            if (static_cast<int>(songNode.getProperty(keys::kHasTempo, 0)) != 0)
+            {
+                song.hasTempo = true;
+                song.tempoRatio = static_cast<double>(songNode.getProperty(keys::kTempoRatio, 1.0));
+            }
 
             // Collect legacy globalPhrase values (v10 and earlier stored a movable home
             // row; absent "gp" defaults to si = no migration needed for new saves).
@@ -836,6 +854,12 @@ namespace lockstep::PluginState
                         sec.hasTimeSig = true;
                         sec.coreTime.numerator = static_cast<int>(child.getProperty(keys::kCtN, 4));
                         sec.coreTime.denominator = static_cast<int>(child.getProperty(keys::kCtD, 4));
+                    }
+                    // v21: optional Scene-level tempo ratio.
+                    if (static_cast<int>(child.getProperty(keys::kHasTempo, 0)) != 0)
+                    {
+                        sec.hasTempo = true;
+                        sec.tempoRatio = static_cast<double>(child.getProperty(keys::kTempoRatio, 1.0));
                     }
                     legacyGp[static_cast<std::size_t>(si)] = static_cast<int>(child.getProperty(keys::kGp, si));
                     sec.swing = getFloat(child, keys::kSwing, 0.0f);

@@ -120,6 +120,22 @@ namespace lockstep
             return project_.defaultTimeSig;
         }
 
+        // Resolved tempo ratio: globalRoot × songRatio × sceneRatio (DESIGN §4.9).
+        // Returns 1.0 when no overrides are active.
+        [[nodiscard]] double effectiveTempoRatio() const
+        {
+            const auto& sg = song();
+            const auto& sc = section();
+            return (sg.hasTempo ? sg.tempoRatio : 1.0)
+                   * (sc.hasTempo ? sc.tempoRatio : 1.0);
+        }
+
+        // Effective BPM: global root × effectiveTempoRatio.
+        [[nodiscard]] double effectiveBpm() const
+        {
+            return clock_.bpm() * effectiveTempoRatio();
+        }
+
         // ── Working buffer = arrangement_.working (the resolver reads this) ───
         Sequence& sequence() { return arrangement_.working; }
         const Sequence& sequence() const { return arrangement_.working; }
