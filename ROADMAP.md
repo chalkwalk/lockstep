@@ -1713,20 +1713,21 @@ See DESIGN §4.8 and §13.
 
 - [x] **Docs.** DESIGN §4.8/§4.9 merged; §13 grammar updated; README TIME row
       collapsed; CLAUDE.md single-sticky invariant noted.
-- [ ] **Collapse model.** `UiState`: `timeStickyMode` + `timeEntryScope` replace four
+- [x] **Collapse model.** `UiState`: `timeStickyMode` + `timeEntryScope` replace four
       fields. `MetaBand::Time` replaces `Tempo` + `TimeSig`. `timeScopeFor` unifies
       the two scope fns. `ScopedSectionMatrix` kSong[0] "TEMPO"→"TIME". `KeyLabel`
       single relabel.
-- [ ] **Pure transition layer.** `applyTimeEntry` / `escapeTimeSticky` /
+- [x] **Pure transition layer.** `applyTimeEntry` / `escapeTimeSticky` /
       `isTimeEntryChord` as pure fns. PluginEditor wired; VerbClear Tempo+TimeSig
       blocks deleted; Swing block kept.
-- [ ] **Single TIME band builder + writer.** `buildTimeBand` (Tempo field + Sig field);
-      `kTimeSigs` ascending bar length; `writeMetaField` `case MetaBand::Time`.
-- [ ] **CUJ + unit tests.** Sequence tests; build/write round-trips; bar-length-order
-      assert; SurfaceModelTest label update.
+- [x] **Single TIME band builder + writer.** Two fields (Tempo + Sig); `kTimeSigs`
+      ascending bar length; `writeMetaField` `case MetaBand::Time`; INHERIT floor.
+- [x] **CUJ + unit tests.** 7 sequence tests; INHERIT floor round-trip; bar-length
+      order assert; SurfaceModelTest label update. All tests pass.
 
 ### 9.9 — README + verification  *[active]*
 - [x] **G — README.** TIME page grammar (single row), gesture tree updated.
+- [x] **9.8a cleanup.** Unified TIME page shipped; all tests pass (5 staged commits).
 - [ ] **End-to-end verification.** Build; run tests; standalone smoke (TIME page shows
       two controls; Song+TRIG and Scene+TRIG both open it; scope retarget works;
       INHERIT on each control clears its override; time-sigs in bar-length order;
