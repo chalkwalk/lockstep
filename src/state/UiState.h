@@ -195,10 +195,16 @@ namespace lockstep
         // Time-sig sticky mode (DESIGN §4.8): Scene+TRIG enters this; scope is chosen
         // by held modifier (Func+Song=Set, Song=Song, Scene or bare=Scene).
         bool timeSigStickyMode = false;
+        // Entry scope for time-sig band: set to the resolved scope at toggle-on time
+        // so that bare (no modifier held) writes land on the intended level, not scope 0.
+        int timeSigEntryScope = 3;  // default: Scene
 
         // Tempo sticky mode (DESIGN §4.9): Song+TRIG enters this; scope is chosen
         // by held modifier (Func+Song=global, Song=Song, Scene=Scene).
         bool tempoStickyMode = false;
+        // Entry scope for tempo band: set to the resolved scope at toggle-on time
+        // so that bare (no modifier held) writes land on the intended level, not scope 0.
+        int tempoEntryScope = 2;    // default: Song
 
         // 5.5 Euclidean generator: Phrase+Fill chord enters generator mode on focused track.
         // Parameters: Pulses/Offset/Accent shown in MZ via MetaBand::Euclidean.

@@ -2208,6 +2208,8 @@ namespace lockstep
                     {
                         // Song+TRIG: toggle tempo sticky mode (DESIGN §4.9).
                         uiState_.tempoStickyMode = !uiState_.tempoStickyMode;
+                        if (uiState_.tempoStickyMode)
+                            uiState_.tempoEntryScope = tempoScopeFor(uiState_);
                         refreshMetaBand();
                         return true;
                     }
@@ -2215,6 +2217,8 @@ namespace lockstep
                     {
                         // Scene+TRIG: toggle time-signature sticky mode (DESIGN §4.8).
                         uiState_.timeSigStickyMode = !uiState_.timeSigStickyMode;
+                        if (uiState_.timeSigStickyMode)
+                            uiState_.timeSigEntryScope = timeSigScopeFor(uiState_);
                         refreshMetaBand();
                         return true;
                     }

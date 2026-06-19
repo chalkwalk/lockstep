@@ -61,7 +61,7 @@ namespace lockstep
         } };
 
         static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kScene = { {
-            { N::kCanonicalSectionNames[0], true },   // TRIG templates (MC)
+            { "TIME", true },    // Scene+TRIG: time-signature sticky (§4.8)
             { nullptr, true },   // SRC — picker lives on Func+Part (MHZ.3.5)
             { N::kCanonicalSectionNames[2], true },   // FILTER
             { N::kCanonicalSectionNames[3], true },   // AMP
@@ -79,7 +79,7 @@ namespace lockstep
         } };
 
         static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kSong = { {
-            { nullptr, false },          // dim — no content planned
+            { "TEMPO", true },           // Song+TRIG: tempo sticky (§4.9)
             { nullptr, false },          // dim — no content planned
             { nullptr, false },          // FLTR — master FLTR (MV, not yet implemented)
             { nullptr, false },          // AMP — master gain + sends (MV, not yet implemented)

@@ -85,7 +85,7 @@ namespace lockstep
         if (ui.funcHeld && ui.songHeld) return 1;  // Set level
         if (ui.songHeld) return 2;                 // Song level
         if (ui.sceneHeld) return 3;                // Scene level
-        return 0;
+        return ui.timeSigEntryScope;               // entry scope — never silently target Scene
     }
 
     int tempoScopeFor(const UiState& ui)
@@ -93,7 +93,7 @@ namespace lockstep
         if (ui.funcHeld && ui.songHeld) return 1;  // global/Set level
         if (ui.songHeld) return 2;                 // Song level
         if (ui.sceneHeld) return 3;                // Scene level
-        return 0;
+        return ui.tempoEntryScope;                 // entry scope — never silently target Song
     }
 
     bool densityEditsMaster(const UiState& ui) noexcept

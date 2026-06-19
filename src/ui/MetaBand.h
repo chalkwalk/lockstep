@@ -69,10 +69,10 @@ namespace lockstep
     // swingScopeFor — 0=none, 1=song-all, 2=scene-all delta, 3=song-track delta.
     int swingScopeFor(const UiState& ui);
 
-    // timeSigScopeFor — 0=none, 1=Set (Func+Song), 2=Song, 3=Scene.
+    // timeSigScopeFor — 1=Set (Func+Song), 2=Song, 3=Scene, else entry scope (never 0).
     int timeSigScopeFor(const UiState& ui);
 
-    // tempoScopeFor — 0=none, 1=global (Func+Song), 2=Song, 3=Scene.
+    // tempoScopeFor — 1=global (Func+Song), 2=Song, 3=Scene, else entry scope (never 0).
     int tempoScopeFor(const UiState& ui);
 
     // densityEditsMaster — true when a density-band edit should target the global
