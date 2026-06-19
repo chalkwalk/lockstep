@@ -3,6 +3,7 @@
 #include <array>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "SurfaceModel.h"  // RingMode
+#include "../io/EditMode.h"  // EditMode::PrimaryScope (for isTimeEntryChord)
 
 namespace lockstep
 {
@@ -70,6 +71,22 @@ namespace lockstep
 
     // timeScopeFor — 1=Set (Func+Song), 2=Song, 3=Scene, else timeEntryScope (never 0).
     int timeScopeFor(const UiState& ui);
+
+    // -------------------------------------------------------------------------
+    // Pure TIME-mode transition functions (DESIGN §4.8 + CLAUDE.md single-sticky invariant).
+    // All side effects on UiState live here; PluginEditor just calls these.
+
+    // isTimeEntryChord — true when the held scope and section index open the TIME page.
+    bool isTimeEntryChord(EditMode::PrimaryScope scope, int sectionIndex) noexcept;
+
+    // applyTimeEntry — toggle timeStickyMode; on turn-on set timeEntryScope and
+    // swingDismissed=true, and clear density/vel sticky.
+    // Returns true if TIME mode is now active (false = just exited it).
+    bool applyTimeEntry(UiState& ui) noexcept;
+
+    // escapeTimeSticky — clear timeStickyMode + set swingDismissed so releasing
+    // back out to a bare modifier doesn't accidentally re-trigger Swing.
+    void escapeTimeSticky(UiState& ui) noexcept;
 
     // densityEditsMaster — true when a density-band edit should target the global
     // master offset rather than the per-track knob.  Single predicate consulted by

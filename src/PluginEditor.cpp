@@ -1633,7 +1633,7 @@ namespace lockstep
         const auto prevLatch = uiState_.latch;
         uiState_.latch = {};  // clear all latches before calling dispatchUp so guards pass
         escapeDensitySticky();
-        uiState_.timeStickyMode = false;
+        escapeTimeSticky(uiState_);
 
         // For each latched modifier that isn't physically held, do a full release.
         // dispatchUp now checks !uiState_.latch.xxx (already false), so it runs completely.
@@ -2203,17 +2203,10 @@ namespace lockstep
                         refreshMetaBand();
                         return true;
                     }
-                    if ((sectionScope == PS::Song || sectionScope == PS::Scene) && ev.index == 0)
+                    if (isTimeEntryChord(sectionScope, ev.index))
                     {
                         // Song+TRIG or Scene+TRIG: toggle TIME sticky mode (DESIGN §4.8).
-                        uiState_.timeStickyMode = !uiState_.timeStickyMode;
-                        if (uiState_.timeStickyMode)
-                        {
-                            uiState_.timeEntryScope = timeScopeFor(uiState_);
-                            uiState_.swingDismissed = true;
-                            escapeDensitySticky();
-                            escapeVelSticky();
-                        }
+                        applyTimeEntry(uiState_);
                         refreshMetaBand();
                         return true;
                     }
@@ -2278,7 +2271,7 @@ namespace lockstep
                     {
                         uiState_.densityStickyMode = true;
                         escapeVelSticky();
-                        uiState_.timeStickyMode = false;
+                        escapeTimeSticky(uiState_);
                         refreshMetaBand();
                         repaint();
                     }
@@ -2294,7 +2287,7 @@ namespace lockstep
                     uiState_.velSubPage = velAnyEnabled()
                         ? UiState::VelSubPage::Depth : UiState::VelSubPage::Mode;
                     escapeDensitySticky();
-                    uiState_.timeStickyMode = false;
+                    escapeTimeSticky(uiState_);
                     refreshMetaBand();
                     repaint();
                     return true;

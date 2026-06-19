@@ -85,6 +85,31 @@ namespace lockstep
         return ui.timeEntryScope;                  // entry scope — never silently target scope 0
     }
 
+    bool isTimeEntryChord(EditMode::PrimaryScope scope, int sectionIndex) noexcept
+    {
+        using PS = EditMode::PrimaryScope;
+        return sectionIndex == 0 && (scope == PS::Song || scope == PS::Scene);
+    }
+
+    bool applyTimeEntry(UiState& ui) noexcept
+    {
+        ui.timeStickyMode = !ui.timeStickyMode;
+        if (ui.timeStickyMode)
+        {
+            ui.timeEntryScope = timeScopeFor(ui);
+            ui.swingDismissed = true;
+            ui.densityStickyMode = false;
+            ui.velStickyMode = false;
+        }
+        return ui.timeStickyMode;
+    }
+
+    void escapeTimeSticky(UiState& ui) noexcept
+    {
+        ui.timeStickyMode = false;
+        ui.swingDismissed = true;
+    }
+
     bool densityEditsMaster(const UiState& ui) noexcept
     {
         return ui.songHeld;
@@ -439,14 +464,23 @@ namespace lockstep
         return result;
     }
 
-    // Curated time-signature list (DESIGN §4.8).
-    // Each entry is {numerator, denominator, display label}.
+    // Curated time-signature list (DESIGN §4.8), ordered by ascending bar length
+    // (num/den as a fraction of a 4/4 bar; ties broken by smaller denominator).
+    // 4/4 sits at index 6 and remains the resolved default for Set scope.
     struct TsEntry { int num; int den; const char* label; };
     static constexpr TsEntry kTimeSigs[] = {
-        { 4,  4, "4/4" }, { 3, 4, "3/4" }, { 2, 4, "2/4" },
-        { 6,  8, "6/8" }, { 7, 8, "7/8" }, { 5, 4, "5/4" },
-        { 5,  8, "5/8" }, {12, 8,"12/8" }, { 9, 8, "9/8" },
-        { 3,  8, "3/8" }, { 7, 4, "7/4" }, {11, 8,"11/8" },
+        {  3, 8,  "3/8" },  // 0.375 bars
+        {  2, 4,  "2/4" },  // 0.5
+        {  5, 8,  "5/8" },  // 0.625
+        {  3, 4,  "3/4" },  // 0.75
+        {  6, 8,  "6/8" },  // 0.75 (same bar PPQ as 3/4; differs in accent density)
+        {  7, 8,  "7/8" },  // 0.875
+        {  4, 4,  "4/4" },  // 1.0   — Set default
+        {  9, 8,  "9/8" },  // 1.125
+        {  5, 4,  "5/4" },  // 1.25
+        { 11, 8, "11/8" },  // 1.375
+        { 12, 8, "12/8" },  // 1.5
+        {  7, 4,  "7/4" },  // 1.75
     };
     static constexpr int kNumTimeSigs = static_cast<int>(std::size(kTimeSigs));
 
@@ -545,8 +579,8 @@ namespace lockstep
     {
         std::array<MetaFieldView, 8> result{};
 
-        // BPM range used throughout.
-        constexpr float kMinBpm = 20.0f;
+        // BPM range constants.
+        constexpr float kMinBpm = 20.0f;  // minimum real BPM value (above INHERIT floor)
         constexpr float kMaxBpm = 300.0f;
 
         // Global root BPM (standalone localBpm or host bpm when host-synced).
@@ -578,11 +612,17 @@ namespace lockstep
             return false; // global always owns its value
         }();
 
-        // INHERIT is available at Song and Scene scopes.
+        // INHERIT floor: Song/Scene scopes expose an extra "floor" position below kMinBpm.
+        // The range becomes [0, kMaxBpm]: 0 = INHERIT (clears override), kMinBpm..kMaxBpm = BPM.
+        // Dial to 0 → label shows "INHERIT (<parent bpm>)", clears hasTempo on write.
+        // Set/global scope uses the normal [kMinBpm, kMaxBpm] range (no parent to inherit from).
         const bool hasInherit = (tpScope == 2 || tpScope == 3);
+        const float rangeMin = hasInherit ? 0.0f : kMinBpm;
 
-        // Display value: either parentBpm (INHERIT) or the override BPM.
-        const float displayBpm = static_cast<float>(hasInherit && !hasOverride ? parentBpm : overrideBpm);
+        // Display value: 0 = INHERIT floor (no override), else the override BPM.
+        const float displayBpm = hasInherit && !hasOverride
+            ? 0.0f
+            : std::clamp(static_cast<float>(overrideBpm), kMinBpm, kMaxBpm);
 
         const float scopeColourF = (tpScope == 3)
             ? static_cast<float>(theme::kScopeScene)
@@ -593,15 +633,15 @@ namespace lockstep
         auto& f = result[0];
         f.active = true;
         f.label = scopeLabel;
-        f.minValue = kMinBpm;
+        f.minValue = rangeMin;
         f.maxValue = kMaxBpm;
-        f.value = std::clamp(displayBpm, kMinBpm, kMaxBpm);
+        f.value = displayBpm;
         f.stepped = false;
         f.writable = true;
         f.hasOverride = hasOverride;
         f.ringMode = RingMode::UnipolarFill;
 
-        // Value text: INHERIT or absolute BPM.
+        // Value text: INHERIT (floor) or absolute BPM.
         if (hasInherit && !hasOverride)
         {
             f.valueText = juce::String("INHERIT (")
@@ -612,7 +652,7 @@ namespace lockstep
             f.valueText = juce::String(static_cast<int>(std::round(displayBpm))) + " BPM";
         }
 
-        // Reference mark: parent BPM position (scope-coloured).
+        // Reference mark: parent BPM position (scope-coloured) in the BPM range.
         if (hasInherit)
         {
             const float parentNorm = (kMaxBpm > kMinBpm)
@@ -1280,30 +1320,48 @@ namespace lockstep
                 {
                     constexpr float kMinBpm = 20.0f;
                     constexpr float kMaxBpm = 300.0f;
-                    const double bpmVal = static_cast<double>(std::clamp(value, kMinBpm, kMaxBpm));
+                    // Values at or below the INHERIT floor (0) clear the override.
+                    const bool atInheritFloor = (value < kMinBpm);
                     const double globalBpm = proc.clock().bpm();
                     const auto& sg = proc.song();
                     const double songBpm = globalBpm * (sg.hasTempo ? sg.tempoRatio : 1.0);
 
-                    if (scope == 1)  // global level
+                    if (scope == 1)  // global/Set level — no INHERIT floor
                     {
+                        const double bpmVal = static_cast<double>(
+                            std::clamp(value, kMinBpm, kMaxBpm));
                         proc.clock().setLocalBpm(bpmVal);
                     }
                     else if (scope == 2)  // Song level
                     {
-                        if (globalBpm > 0.0)
+                        if (atInheritFloor)
                         {
+                            proc.song().hasTempo = false;
+                        }
+                        else if (globalBpm > 0.0)
+                        {
+                            const double bpmVal = static_cast<double>(
+                                std::clamp(value, kMinBpm, kMaxBpm));
                             proc.song().hasTempo = true;
                             proc.song().tempoRatio = bpmVal / globalBpm;
                         }
                     }
                     else  // Scene level (scope == 3)
                     {
-                        const double parentBpm = songBpm;
-                        if (parentBpm > 0.0)
+                        if (atInheritFloor)
                         {
-                            proc.section().hasTempo = true;
-                            proc.section().tempoRatio = bpmVal / parentBpm;
+                            proc.section().hasTempo = false;
+                        }
+                        else
+                        {
+                            const double parentBpm = songBpm;
+                            if (parentBpm > 0.0)
+                            {
+                                const double bpmVal = static_cast<double>(
+                                    std::clamp(value, kMinBpm, kMaxBpm));
+                                proc.section().hasTempo = true;
+                                proc.section().tempoRatio = bpmVal / parentBpm;
+                            }
                         }
                     }
                 }
