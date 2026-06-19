@@ -254,7 +254,9 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Send A / Send B** | Per-track post-insert level tap into shared send buses (AMP page 2, slots 8–9). Each send bus has a return effect before the master inserts. |
 | **Animate** | The momentary insert punch-in: hold `FX` + step to bypass (or enable) an insert for exactly the hold duration. Performance-only — never written to the pattern. Under Song+FX focus the step grid targets the four master units: steps 0-3 = master FX1, 4-7 = FX2, 8-11 = Send A, 12-15 = Send B. |
 | **Density** | Live, subtractive trig-thinning overlay. `Func`-held → transient per-track Density band. **`Func+MOD`** → sticky DENSITY mode; nav keys page between tracks 1-8 and 9-16; `Song`-held (encoder or on-screen drag) → master offset (visible as arc baseline shift); MOD key cycles Amount/Mode sub-page (Musicality + Selection). `Song`-alone = swing (unchanged). Only silences would-fire trigs. Ephemeral amounts; durable Musicality + Selection per track. Selection has three detents: **Scrub** (deterministic), **Re-roll** (stochastic), **Exempt** (track bypasses density entirely — amount and Musicality cells greyed). |
-| **Velocity overlay** | Per-track live velocity modulation computed at emit time, not baked. **Func+AMP** → sticky VEL OVERLAY mode; AMP re-press cycles sub-pages (Depth → Center → Mode → Blend); press any other section key to exit; nav keys page between tracks 1-8 and 9-16. Mode: Off (no overlay) / Bar (metric weight against coreTime bar). Blend: Replace (overlay supersedes authored velocity) / Mix (overlay delta added on top; Euclidean-baked accents stay active). Durable per-track, serialized (v20). |
+| **Velocity overlay** | Per-track live velocity modulation computed at emit time, not baked. **Func+AMP** → sticky VEL OVERLAY mode; AMP re-press cycles sub-pages (Depth → Center → Mode → Blend); press any other section key to exit; nav keys page between tracks 1-8 and 9-16. Mode: **Off** (no overlay) / **Bar** (metric weight against the effective time-sig bar) / **Phrase** (bar grid anchored to phrase start — accents follow phrase length, not global bar position). Blend: Replace (overlay supersedes authored velocity) / Mix (overlay delta added on top of authored velocity, or centred on `velCenter` for steps with no authored velocity — converges with Replace on flat material). Durable per-track, serialized (v20). |
+| **Time signature** | Hierarchical: **Set** default (`4/4`) → **Song** override → **Scene** override (the `coreTime` field). Drives launch-quantize, metronome downbeat, and velocity overlay's metric weight. Edit via **`Scene+TRIG`** → sticky TIME SIG mode; `Song`/`Func+Song`/`Scene` held selects scope (Func+Song = Set default, Song = Song override, Scene = Scene override). INHERIT (idx 0 at Song/Scene scope) clears the override. Serialized as v21. |
+| **Tempo** | Hierarchical: global root (standalone `localBpm`, or host BPM in DAW) → **Song** ratio → **Scene** ratio. Edit via **`Song+TRIG`** sticky TEMPO mode; Song/Func+Song/Scene held selects scope. Set in absolute BPM; stored as a ratio vs the resolved parent. INHERIT clears the override. Effective BPM shown read-only in field 1. Header readout shows scope-coloured effective BPM + time-sig (Scene-coloured if the scene owns an override, Song-coloured if song owns it, grey = global). Serialized as v21 extensions. |
 | **Retrig / ratchet** | Per-step re-triggering at a musical rate (`/4 … /32T`). `Fill+TRIG` opens the rate picker: press a rate for a live stutter on the focused track, or hold a step first to bake the rate as a per-step P-Lock. Slicer tracks show a slice picker instead. |
 | **Euclidean generator** | `Phrase+Fill` held: encoders shape `PULSE / OFSET / ACCNT` against the phrase length, audible live; the mode is latched until **P** (commit) or **Func+P** (cancel). Y is inert in this mode. |
 | **Control-All** | Holding `Track` with no track selected broadcasts the next parameter edit to every track that has a matching control. |
@@ -267,7 +269,7 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Sound Pool** | A project-scope library of saved per-track sounds (machine + base params + sample refs). `Fill+SRC` re-skins the step grid to the pool for live-swap audition; with a step held the swap bakes as a `sound_id` P-Lock (5.7). |
 | **Scope colour grammar** *(3.3)* | A canonical palette per scope (`step` = light grey, plus distinct hues for `track / phrase / scene / machine / morph / song`) used by key tints, the step-grid scope re-skin, and any badge that needs to say "which scope is held". In-scope keys (the section keys and verbs the scope rebinds) light fill+border in the scope colour; ambient keys stay neutral; reserved keys dim. |
 | **Scope re-skin** | When a scope modifier maps to a 1-of-16 selector (Track / Phrase / Scene; `Func+Track` = machine/Kit picker), the 16 step keys become a non-paginated index for that scope. Unavailable indices dim. Cells tint in the scope's colour. |
-| **Top-bar dashboard** *(3.4)* | The top of the editor splits into a persistent performance dashboard (BPM, Song/Scene/Phrase, transport position, pending Scene, checkpoint depth) on the left, and a live held-context preview on the right. |
+| **Top-bar dashboard** *(3.4)* | The top of the editor shows a scope-coloured BPM + time-sig readout (colour = the scope that owns the current override: Scene, Song, or grey for global/default). The readout updates every 30 Hz and reflects effective (resolved) values. |
 | **Value-label table** *(3.4)* | A `ParamSpec` field carrying textual names for stepped/enum positions (`LP24 / LP12 / HP / BP`, `MONO / PARA`, …). The MZ renders the textual name in place of a number when present. |
 | **Step-hold capture window** | The canonical chord-edit path: hold a step → play MIDI → each note-on snapshots all currently-held notes; release commits velocity (highest) and gate. Empty capture = no change. Independent of record-arm and transport. Multi-step: all held steps receive the same chord. |
 | **Note-count badge** | 1–4 stacked tick marks on the left edge of each step cell showing `trigOverride.noteCount` — immediately visible without entering any edit mode. |
@@ -671,9 +673,9 @@ row always shows which secondaries are actually reachable.
 |---|---|---|---|
 | `Track` | Kit **subdivision** (labelled `DIV`; two fields: note value + flavour Straight/Dotted/Triplet) | Post-machine (foundation) FILTER | Track inserts |
 | `Phrase` | Phrase **length** (labelled `LEN`, per active phrase) | (dim) | (dim) |
-| `Scene` | Trig templates | Scene-assign FILTER | Scene-assign FX |
+| `Scene` | **TIME SIG** sticky mode (Scene+TRIG toggle): time-signature hierarchy editor | Scene-assign FILTER | Scene-assign FX |
 | `Morph` | (dim — Morph never affects trigs) | Morph-assign FLTR | Morph-assign FX |
-| `Song` | (dim) | (dim — master FILTER reserved) | **Master FX 1+2 + Send A/B** (4 units, cycled by re-press) |
+| `Song` | **TEMPO** sticky mode (Song+TRIG toggle): hierarchical tempo editor (absolute BPM → stored as ratio vs parent) | (dim — master FILTER reserved) | **Master FX 1+2 + Send A/B** (4 units, cycled by re-press) |
 | `Func` (over any of the above) | The secondary variant of the cell (e.g. `Func+Scene+FILTER` = the other scene's filter assignments). |
 
 Each scope's `TRIG` cell opens the parameter owned by that hierarchy level.
@@ -740,7 +742,7 @@ apply across the whole mix. MIDI-out tracks have no sends.
 | `BUS` | Bus Compressor | Thresh, Ratio, Atk, Rel (Auto), SC HPF, Mkup, Mix |
 | `UTL` | Master Utility | Tilt, Width (M/S), Trim (dB) |
 
-State round-trips in serializer v18 (v19 when Density ships).
+State round-trips in serializer v21 (hierarchical time-sig + tempo).
 
 **Density overlay.** While `Func` is held, the Manipulation Zone shows a transient
 **Density** band: 8 rotaries for the 8 tracks in the current bank (bank follows

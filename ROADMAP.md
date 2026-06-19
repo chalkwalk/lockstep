@@ -18,20 +18,15 @@ expressible within those principles and within the existing scope+verb grammar
 Open verification sweeps: `3.10` standalone, `7.8` VST3/CLAP v18 round-trip,
 `7.9e` vocabulary rename, `8.24` standalone visual smoke
 (picker → named confirm → YES/NO live colour).
-**Last completed:** `9.2` standalone quit guard. **Serializer v20** shipped:
-musical subdivision picker (1/64–4/1 straight/dotted/triplet; two-field DIV band);
-density Exempt detent; live velocity overlay (Func+AMP entry, Replace/Mix blend,
-v20 fields in TrackKit; Func+Fill accent baker removed).
-**v20 follow-up shipped:** subdivision single-source-of-truth (new project +
-copy/scene-switch desync fixed); meta-band precedence (euclid/density/vel
-transients now outrank latched DIV/LEN page); vel-overlay entry changed from
-double-tap AMP → Func+AMP (section-key paging collision); sampler Vel>Amp param
-(opt-in, default off); VA machine pan removed (pan is a track CHANNEL operation;
-double-pan / level-jump on panning fixed).
-**Active:** `9.5`–`9.8` velocity polish + hierarchical time-sig/tempo + contextual
-param aliasing (Plan: there-are-three-things-harmonic-lynx). **Serializer v21** target:
-time-sig hierarchy (§4.8), tempo hierarchy (§4.9), velocity Phrase mode.
-**Next:** `A3` gain-staging audit; `6.7` Machine Module ABI; Phase 9+ backlog.
+**Last completed:** `9.8` (F1-F3) hierarchical tempo + tempo bar retirement.
+**Serializer v21 shipped:** time-sig hierarchy (§4.8) + tempo hierarchy (§4.9);
+velocity Phrase mode (B2); contextual param-name aliasing (D1/D2). Mix baseline
+centred on velCenter for un-authored steps (B1). Song+TRIG enters TEMPO sticky mode;
+Scene+TRIG enters TIME SIG sticky mode. StandaloneTempoBar retired; replaced by
+scope-coloured BPM + time-sig header readout. Density lookahead barIndex corrected.
+**Active:** `9.9` README + end-to-end verification; `9.5 C` skip-disabled sub-pages +
+inert affordance (velocity + density); contextLabel unit test (9.6); tempo resolution
+tests (9.8). **Next:** `A3` gain-staging audit; `6.7` Machine Module ABI.
 
 Phases 1–3 took Lockstep from an empty plugin to a frozen, playable performance
 surface; Phase 4 fills the machine catalogue; Phases 5–6 are the depth and
@@ -1644,11 +1639,11 @@ restore-label display); design session decides A/B/C model. Output lands in
 Polish pass on the live velocity overlay (§39.10): Mix baseline fix, Phrase
 mode, and enable UX improvements. Serializer v21.
 
-- [ ] **B1 — Mix baseline.** Mix blend swings around `velCenter` for steps with
+- [x] **B1 — Mix baseline.** Mix blend swings around `velCenter` for steps with
       no authored velocity (baseline = velCenter when `!trig.hasVelocity &&
       !trig.hasNoteVelocities`). Mix ≡ Replace on flat material; diverges only
       where steps carry authored velocities. See DESIGN §39.10.
-- [ ] **B2 — Phrase velocity mode.** Extend `VelMode` to `{Off, Bar, Phrase}`;
+- [x] **B2 — Phrase velocity mode.** Extend `VelMode` to `{Off, Bar, Phrase}`;
       Phrase anchors the coreTime bar grid to the phrase start
       (`fmod(stepIdx * divPpq, barPpq)`) so accents don't drift against
       bar-co-prime phrase lengths. MetaBand Mode labels: `OFF / BAR / PHRASE`.
@@ -1667,12 +1662,12 @@ mode, and enable UX improvements. Serializer v21.
 `ParamSpec` hook for mode-dependent labels; applied to DrumSynth + Sampler/Slicer.
 See DESIGN §6.10.
 
-- [ ] **D1 — Mechanism.** Add `juce::String (*contextLabel)(const ParamFrame&) = nullptr`
+- [x] **D1 — Mechanism.** Add `juce::String (*contextLabel)(const ParamFrame&) = nullptr`
       to `ParamSpec` (`IMachine.h`). Render hook in `ManipulationZone.cpp` at the
       label-draw site: call `spec.contextLabel(frame)` when non-null.
-- [ ] **D2 — DrumSynth.** Per-TYPE `contextLabel` for Tone/Body/Snap/Punch/Sweep/
+- [x] **D2 — DrumSynth.** Per-TYPE `contextLabel` for Tone/Body/Snap/Punch/Sweep/
       SwpDec/NoiseDec slots (7 type-dependent slots × 8 types).
-- [ ] **D2 — Sampler/Slicer.** `contextLabel` for LpStart/LpLen annotating active/auto/free
+- [x] **D2 — Sampler/Slicer.** `contextLabel` for LpStart/LpLen annotating active/auto/free
       loop mode.
 - [ ] **Tests.** Unit test: `contextLabel` returns expected string for representative
       TYPE/loop-mode values.
@@ -1681,44 +1676,47 @@ See DESIGN §6.10.
 Make time signature a first-class, grammar-editable, hierarchical value.
 See DESIGN §4.8. Serializer v21.
 
-- [ ] **E1 — Data model.** `Project.defaultTimeSig`; `Song.hasTimeSig`/`Song.timeSig`;
+- [x] **E1 — Data model.** `Project.defaultTimeSig`; `Song.hasTimeSig`/`Song.timeSig`;
       `Scene.hasTimeSig` alongside existing `coreTime`. `effectiveTimeSig()` accessor
       replaces direct `section().coreTime` reads in all consumers
       (launch-quantize, metronome, velocity, density, phrase seeding). `sceneHasContent()`
       updated. Serializer v21: Set default + Song/Scene presence flags. v20→v21 upgrade stamp.
-- [ ] **E2 — Grammar editing UI.** `buildTimeSigBand` / `writeMetaField` in MetaBand.
+- [x] **E2 — Grammar editing UI.** `buildTimeSigBand` / `writeMetaField` in MetaBand.
       Curated stepped list (4/4 → 3/4 → 6/8 → 7/8 → 5/4 → 5/8 → 12/8 → 2/4 →
       2/2 → 8/8) + INHERIT at Song/Scene levels. Scope selection via held-scope
       flags (Func+Song = Set; Song = Song; Scene = Scene). Scene+TRIG claims the
       unused dispatch slot (ScopedSectionMatrix.h line ~63; PluginEditor.cpp line ~2125).
       Inherited value as scope-coloured reference (swing tick idiom).
-- [ ] **Tests.** Round-trip each level; resolution precedence; 4/4 default when absent.
+- [x] **Tests.** Round-trip each level; resolution precedence; 4/4 default when absent.
 
 ### 9.8 — Hierarchical tempo + top-display rework  *[active]*
 Make tempo a hierarchical peer of time signature; retire the mouse-driven
 standalone tempo bar. See DESIGN §4.9. Serializer v21.
 
-- [ ] **F1 — Data model (highest risk).** `Song.hasTempo`/`Song.tempoRatio`;
-      `Scene.hasTempo`/`Scene.tempoRatio`. `effectiveTempo()` accessor feeding Clock
-      at Song/Scene boundaries. DAW host BPM as root in plugin mode. Serialize
-      ratios under v21.
-- [ ] **F2 — Grammar editing.** `buildTempoBand`/`writeMetaField` in MetaBand.
-      Scope selection: Func+Song (global, DAW = read-only), Song, Scene. Absolute
-      BPM entered; ratio stored implicitly. Inherited reference in scope colour.
-- [ ] **F3 — Remove tempo bar + top readout.** Delete `StandaloneTempoBar.*`;
-      remove include/member/layout in PluginEditor. Add effective BPM + time-sig
-      scope-coloured readout to §6.8 header (§4.8/§4.9 display).
+- [x] **F1 — Data model (highest risk).** `Song.hasTempo`/`Song.tempoRatio`;
+      `Scene.hasTempo`/`Scene.tempoRatio`. `effectiveTempoRatio()` multiplies song ×
+      scene ratios; feeds density/velocity metric math. DAW host BPM as root.
+      Serialize ratios under v21 (kHasTempo/kTempoRatio for Song and Scene nodes).
+      Density lookahead barIndex fixed to use musicalGridPpq.
+- [x] **F2 — Grammar editing.** `buildTempoBand`/`writeMetaField` in MetaBand.
+      Song+TRIG toggles tempoStickyMode; scope: Func+Song=global, Song=Song, Scene=Scene.
+      Absolute BPM entered; ratio stored implicitly. Inherited reference in scope colour.
+- [x] **F3 — Remove tempo bar + top readout.** `StandaloneTempoBar.*` deleted;
+      PluginEditor replaced with `juce::Label tempoReadout_` showing scope-coloured
+      effective BPM + time-sig (Scene colour if scene owns override, Song if song, grey=global).
 - [ ] **Tests.** Resolution math; boundary tempo change keeps phase sane; DAW host
       as root; v21 serializer round-trip; v20 projects load cleanly.
 
 ### 9.9 — README + verification  *[active]*
-- [ ] **G — README.** Move time-sig/tempo grammar, velocity Phrase/Mix, contextual
-      labels, and inert affordance into the implemented working set; verify the
-      shortcut table.
+- [x] **G — README.** Time-sig/tempo grammar, velocity Phrase/Mix/Phrase mode,
+      contextual labels, and top-bar readout moved into the implemented working set;
+      shortcut table updated (Scene+TRIG, Song+TRIG, Func+AMP vel modes).
 - [ ] **End-to-end verification.** Build; run tests; standalone smoke (tempo bar
       gone, readout recolours, scope edits work, INHERIT clears overrides, vel
       skip-pages, Mix/Phrase musical, DrumSynth labels change with TYPE, Sampler
       loop labels annotate per mode). DAW (v21 round-trip; v20 project compat).
+- [ ] **Remaining open:** C (skip-disabled vel sub-pages + inert affordance),
+      contextLabel unit test (D2), tempo resolution tests (F1).
 
 ---
 
