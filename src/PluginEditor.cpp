@@ -1609,6 +1609,7 @@ namespace lockstep
         const auto prevLatch = uiState_.latch;
         uiState_.latch = {};  // clear all latches before calling dispatchUp so guards pass
         escapeDensitySticky();
+        uiState_.timeSigStickyMode = false;
 
         // For each latched modifier that isn't physically held, do a full release.
         // dispatchUp now checks !uiState_.latch.xxx (already false), so it runs completely.
@@ -2175,6 +2176,13 @@ namespace lockstep
                         else
                             uiState_.masterFxInsertSlot = firstLoadedMasterUnit();
                         keyboardArea_.selectMetaSection(5, /*toggle=*/false);
+                        refreshMetaBand();
+                        return true;
+                    }
+                    if (sectionScope == PS::Scene && ev.index == 0)
+                    {
+                        // Scene+TRIG: toggle time-signature sticky mode (DESIGN §4.8).
+                        uiState_.timeSigStickyMode = !uiState_.timeSigStickyMode;
                         refreshMetaBand();
                         return true;
                     }

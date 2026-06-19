@@ -192,6 +192,10 @@ namespace lockstep
         enum class VelSubPage { Depth, Center, Mode, Blend };
         VelSubPage velSubPage = VelSubPage::Depth;
 
+        // Time-sig sticky mode (DESIGN §4.8): Scene+TRIG enters this; scope is chosen
+        // by held modifier (Func+Song=Set, Song=Song, Scene or bare=Scene).
+        bool timeSigStickyMode = false;
+
         // 5.5 Euclidean generator: Phrase+Fill chord enters generator mode on focused track.
         // Parameters: Pulses/Offset/Accent shown in MZ via MetaBand::Euclidean.
         bool euclidHeld = false;

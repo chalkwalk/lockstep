@@ -31,7 +31,8 @@ namespace lockstep
         Vel,        // velocity overlay depth sub-page (per-track, paginated)
         VelCenter,  // velocity overlay center sub-page
         VelMode,    // velocity overlay mode sub-page (Off / Bar)
-        VelBlend    // velocity overlay blend sub-page (Replace / Mix)
+        VelBlend,   // velocity overlay blend sub-page (Replace / Mix)
+        TimeSig     // hierarchical time-signature editor (DESIGN §4.8)
     };
 
     // -------------------------------------------------------------------------
@@ -66,6 +67,9 @@ namespace lockstep
 
     // swingScopeFor — 0=none, 1=song-all, 2=scene-all delta, 3=song-track delta.
     int swingScopeFor(const UiState& ui);
+
+    // timeSigScopeFor — 0=none, 1=Set (Func+Song), 2=Song, 3=Scene.
+    int timeSigScopeFor(const UiState& ui);
 
     // densityEditsMaster — true when a density-band edit should target the global
     // master offset rather than the per-track knob.  Single predicate consulted by

@@ -25,6 +25,9 @@ namespace lockstep
         // Euclidean modal outranks everything else.
         if (ui.euclidHeld)
             return MetaBand::Euclidean;
+        // Sticky time-sig mode (entered via Scene+TRIG; Func double-tap escapes it).
+        if (ui.timeSigStickyMode)
+            return MetaBand::TimeSig;
         // Sticky density mode (entered via Func+MOD; Func double-tap escapes it).
         if (ui.densityStickyMode)
         {
@@ -71,6 +74,14 @@ namespace lockstep
         if (ui.songHeld) return 1;
         if (ui.sceneHeld) return 2;
         if (ui.trackHeld) return 3;
+        return 0;
+    }
+
+    int timeSigScopeFor(const UiState& ui)
+    {
+        if (ui.funcHeld && ui.songHeld) return 1;  // Set level
+        if (ui.songHeld) return 2;                 // Song level
+        if (ui.sceneHeld) return 3;                // Scene level
         return 0;
     }
 
@@ -428,6 +439,117 @@ namespace lockstep
         return result;
     }
 
+    // Curated time-signature list (DESIGN §4.8).
+    // Each entry is {numerator, denominator, display label}.
+    struct TsEntry { int num; int den; const char* label; };
+    static constexpr TsEntry kTimeSigs[] = {
+        { 4,  4, "4/4" }, { 3, 4, "3/4" }, { 2, 4, "2/4" },
+        { 6,  8, "6/8" }, { 7, 8, "7/8" }, { 5, 4, "5/4" },
+        { 5,  8, "5/8" }, {12, 8,"12/8" }, { 9, 8, "9/8" },
+        { 3,  8, "3/8" }, { 7, 4, "7/4" }, {11, 8,"11/8" },
+    };
+    static constexpr int kNumTimeSigs = static_cast<int>(std::size(kTimeSigs));
+
+    // Returns the index into kTimeSigs for the given time signature, or 0 (4/4) if not found.
+    static int timeSigIndex(const TimeSig& ts)
+    {
+        for (int i = 0; i < kNumTimeSigs; ++i)
+            if (kTimeSigs[i].num == ts.numerator && kTimeSigs[i].den == ts.denominator)
+                return i;
+        return 0;
+    }
+
+    // Band shows one stepped selector: the curated time-sig list.
+    // For Song/Scene scopes, index 0 is "INHERIT" (clears the override).
+    static std::array<MetaFieldView, 8> buildTimeSigBand(int tsScope, LockstepProcessor& proc)
+    {
+        std::array<MetaFieldView, 8> result{};
+
+        // Compute the effective value at the current scope.
+        const auto effectiveTs = proc.effectiveTimeSig();
+        // Resolve the parent (what the current level inherits from).
+        const auto& song = proc.song();
+        const auto& scene = proc.section();
+        const TimeSig parentTs = [&]() -> TimeSig {
+            if (tsScope == 3) // Scene inherits from Song or Set
+                return song.hasTimeSig ? song.timeSig : proc.project().defaultTimeSig;
+            if (tsScope == 2) // Song inherits from Set
+                return proc.project().defaultTimeSig;
+            return proc.project().defaultTimeSig; // Set: no parent
+        }();
+
+        // Determine the override value at the current scope (for display).
+        const TimeSig overrideTs = [&]() -> TimeSig {
+            if (tsScope == 3 && scene.hasTimeSig) return scene.coreTime;
+            if (tsScope == 2 && song.hasTimeSig)  return song.timeSig;
+            return proc.project().defaultTimeSig;  // Set scope
+        }();
+
+        const bool hasOverride = [&]() -> bool {
+            if (tsScope == 3) return scene.hasTimeSig;
+            if (tsScope == 2) return song.hasTimeSig;
+            return false; // Set always "owns" its value
+        }();
+
+        // INHERIT is index 0 for Song/Scene scopes; for Set scope the list starts at 0.
+        const bool hasInherit = (tsScope == 2 || tsScope == 3);
+        // Effective displayed index: 0 = INHERIT (when applicable), 1..N = curated entries.
+        auto tsToIdx = [&](const TimeSig& ts, bool inherit) -> int {
+            if (hasInherit && inherit) return 0;
+            const int idx = timeSigIndex(ts);
+            return hasInherit ? idx + 1 : idx;
+        };
+
+        const int displayIdx = tsToIdx(overrideTs, !hasOverride && hasInherit);
+        const int maxIdx = kNumTimeSigs - 1 + (hasInherit ? 1 : 0);
+        const float scopeColour = (tsScope == 1)
+            ? static_cast<float>(theme::kScopeSong)
+            : (tsScope == 3 ? static_cast<float>(theme::kScopeScene) : static_cast<float>(theme::kScopeSong));
+
+        auto& f = result[0];
+        f.active = true;
+        f.label = "TimeSig";
+        f.minValue = 0.0f;
+        f.maxValue = static_cast<float>(maxIdx);
+        f.value = static_cast<float>(displayIdx);
+        f.stepped = true;
+        f.writable = true;
+        f.hasOverride = hasOverride;
+        f.ringMode = RingMode::Dot;
+
+        // Show the label: INHERIT or the curated name.
+        if (hasInherit && displayIdx == 0)
+            f.valueText = juce::String("INHERIT (")
+                          + juce::String(parentTs.numerator) + "/"
+                          + juce::String(parentTs.denominator) + ")";
+        else
+        {
+            const int listIdx = displayIdx - (hasInherit ? 1 : 0);
+            const int safeIdx = std::clamp(listIdx, 0, kNumTimeSigs - 1);
+            f.valueText = juce::String(kTimeSigs[safeIdx].label);
+        }
+
+        // Reference mark: parent value (scope-coloured), shown when editing Song/Scene.
+        if (hasInherit)
+        {
+            const int parentIdx = timeSigIndex(parentTs) + 1;  // +1 for INHERIT at 0
+            const float parentNorm = (maxIdx > 0)
+                ? static_cast<float>(parentIdx) / static_cast<float>(maxIdx) : 0.0f;
+            f.marks[0] = ReferenceMark{ true, parentNorm, static_cast<juce::uint32>(scopeColour), 1.0f };
+        }
+
+        // Field 1: show effective (resolved) time-sig as a read-only label.
+        auto& ef = result[1];
+        ef.active = true;
+        ef.label = "Effct";
+        ef.valueText = juce::String(effectiveTs.numerator) + "/"
+                       + juce::String(effectiveTs.denominator);
+        ef.writable = false;
+
+        (void)scopeColour;
+        return result;
+    }
+
     static std::array<MetaFieldView, 8> buildSwingBand(int swingScope, LockstepProcessor& proc,
                                                        int track)
     {
@@ -769,6 +891,8 @@ namespace lockstep
             return buildVelModeBand(proc, ui, track);
         if (band == MetaBand::VelBlend)
             return buildVelBlendBand(proc, ui, track);
+        if (band == MetaBand::TimeSig)
+            return buildTimeSigBand(timeSigScopeFor(ui), proc);
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return {};
 
@@ -1065,6 +1189,51 @@ namespace lockstep
                 break;
             }
 
+            case MetaBand::TimeSig: {
+                if (field != 0) break;  // only field 0 is writable
+                const int tsScope = timeSigScopeFor(ui);
+                const bool hasInherit = (tsScope == 2 || tsScope == 3);
+                const int maxIdx = kNumTimeSigs - 1 + (hasInherit ? 1 : 0);
+                const int idx = std::clamp(juce::roundToInt(value), 0, maxIdx);
+
+                if (tsScope == 1)  // Set level
+                {
+                    const int i = std::clamp(idx, 0, kNumTimeSigs - 1);
+                    proc.project().defaultTimeSig.numerator = kTimeSigs[i].num;
+                    proc.project().defaultTimeSig.denominator = kTimeSigs[i].den;
+                }
+                else if (tsScope == 2)  // Song level
+                {
+                    if (idx == 0)
+                    {
+                        proc.song().hasTimeSig = false;
+                    }
+                    else
+                    {
+                        const int i = std::clamp(idx - 1, 0, kNumTimeSigs - 1);
+                        proc.song().hasTimeSig = true;
+                        proc.song().timeSig.numerator = kTimeSigs[i].num;
+                        proc.song().timeSig.denominator = kTimeSigs[i].den;
+                    }
+                }
+                else  // Scene level (tsScope == 3 or any other)
+                {
+                    auto& scene = proc.section();
+                    if (idx == 0)
+                    {
+                        scene.hasTimeSig = false;
+                    }
+                    else
+                    {
+                        const int i = std::clamp(idx - 1, 0, kNumTimeSigs - 1);
+                        scene.hasTimeSig = true;
+                        scene.coreTime.numerator = kTimeSigs[i].num;
+                        scene.coreTime.denominator = kTimeSigs[i].den;
+                    }
+                }
+                break;
+            }
+
             default: break;
         }
     }
@@ -1090,6 +1259,7 @@ namespace lockstep
             case MetaBand::VelCenter:      return "VEL / CENTER";
             case MetaBand::VelMode:        return "VEL / MODE";
             case MetaBand::VelBlend:       return "VEL / BLEND";
+            case MetaBand::TimeSig:        return "TIME SIG";
             default:                       return {};
         }
     }
