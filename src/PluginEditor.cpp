@@ -3302,6 +3302,49 @@ namespace lockstep
 
             case ControllerButton::VerbClear: {
                 using PS = EditMode::PrimaryScope;
+                // Hold scope + Clear reverts that scope's hierarchical override to inherit
+                // (§13 hold-scope+Clear convention). Intercept before cancel-queued-scene
+                // and PANIC so that Clear is contextual while a band is open.
+                {
+                    const MetaBand activeBand = resolveMetaBand(uiState_);
+                    if (activeBand == MetaBand::Tempo)
+                    {
+                        const int tpScope = tempoScopeFor(uiState_);
+                        if (tpScope == 2)
+                            processor_.song().hasTempo = false;
+                        else if (tpScope == 3)
+                            processor_.section().hasTempo = false;
+                        // tpScope==1 (global): no parent — no-op.
+                        refreshMetaBand();
+                        repaint();
+                        return true;
+                    }
+                    if (activeBand == MetaBand::TimeSig)
+                    {
+                        const int tsScope = timeSigScopeFor(uiState_);
+                        if (tsScope == 2)
+                            processor_.song().hasTimeSig = false;
+                        else if (tsScope == 3)
+                            processor_.section().hasTimeSig = false;
+                        // tsScope==1 (Set): no parent — no-op.
+                        refreshMetaBand();
+                        repaint();
+                        return true;
+                    }
+                    if (activeBand == MetaBand::Swing)
+                    {
+                        const int swScope = swingScopeFor(uiState_);
+                        if (swScope == 1)
+                            processor_.setSwingSongAll(0.0f);
+                        else if (swScope == 2)
+                            processor_.setSwingSceneAll(0.0f);
+                        else if (swScope == 3)
+                            processor_.setSwingSongTrack(uiState_.activeTrack, 0.0f);
+                        refreshMetaBand();
+                        repaint();
+                        return true;
+                    }
+                }
                 // Scene scope held → cancel queued scene.
                 if (uiState_.sceneHeld)
                 {
