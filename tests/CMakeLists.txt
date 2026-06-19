@@ -34,11 +34,13 @@ add_executable(lockstep_tests
     GestureRecognizerTest.cpp
     LayerBannerTest.cpp
     FuncReskinTest.cpp
+    LatchOpsTest.cpp
     # UI modules needed by MetaBandTest + ModeReducerTest (live only in the plugin target otherwise)
     ../src/ui/MetaBand.cpp
     ../src/ui/MetaRotary.cpp
     ../src/ui/mode/ModeReducer.cpp
-    ../src/ui/mode/FuncReskin.cpp)
+    ../src/ui/mode/FuncReskin.cpp
+    ../src/ui/mode/LatchOps.cpp)
 
 target_link_libraries(lockstep_tests PRIVATE
     lockstep_engine

@@ -135,7 +135,8 @@ target_sources(Lockstep
         ui/SoundBankOverlay.cpp
         ui/StandaloneFileBar.cpp
         ui/mode/ModeReducer.cpp
-        ui/mode/FuncReskin.cpp)
+        ui/mode/FuncReskin.cpp
+        ui/mode/LatchOps.cpp)
 
 target_link_libraries(Lockstep
     PRIVATE

@@ -75,4 +75,6 @@ namespace lockstep
     void runLayerBannerTests();
     // Stage 4: FuncReskin enter/exit/cancel CUJs
     void runFuncReskinTests();
+    // Stage 5: LatchOps column membership + clearLatchColumnExcept invariants
+    void runLatchOpsTests();
 }

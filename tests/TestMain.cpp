@@ -53,6 +53,8 @@ int main()
     lockstep::runLayerBannerTests();
     // Stage 4: FuncReskin enter/exit/cancel CUJs
     lockstep::runFuncReskinTests();
+    // Stage 5: LatchOps column membership + clearLatchColumnExcept invariants
+    lockstep::runLatchOpsTests();
 
     // Also drive the JUCE UnitTests registered in lockstep_core (the serializer
     // upgrade chain, "PluginState" category) so they run headlessly in CI rather
