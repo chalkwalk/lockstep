@@ -887,7 +887,6 @@ namespace lockstep
             const int trackIdx = pageOffset + i;
             if (trackIdx >= static_cast<int>(kNumTracks)) { break; }
             const auto& kit = proc.kit(trackIdx);
-            const bool off = (kit.velMode == VelMode::Off);
             auto& v = result[static_cast<std::size_t>(i)];
             v.active      = true;
             v.label       = "Trk " + juce::String(trackIdx + 1);
@@ -895,9 +894,9 @@ namespace lockstep
             v.maxValue    = 100.0f;
             v.value       = kit.velDepth * 100.0f;
             v.stepped     = false;
-            v.writable    = !off;
-            v.hasOverride = !off && (kit.velDepth != 0.6f);
-            v.valueText   = off ? "OFF" : juce::String(juce::roundToInt(kit.velDepth * 100.0f));
+            v.writable    = true;
+            v.hasOverride = (kit.velDepth != 0.6f);
+            v.valueText   = juce::String(juce::roundToInt(kit.velDepth * 100.0f));
             v.ringMode    = RingMode::UnipolarFill;
         }
         return result;
@@ -914,7 +913,6 @@ namespace lockstep
             const int trackIdx = pageOffset + i;
             if (trackIdx >= static_cast<int>(kNumTracks)) { break; }
             const auto& kit = proc.kit(trackIdx);
-            const bool off = (kit.velMode == VelMode::Off);
             auto& v = result[static_cast<std::size_t>(i)];
             v.active      = true;
             v.label       = "Trk " + juce::String(trackIdx + 1);
@@ -922,9 +920,9 @@ namespace lockstep
             v.maxValue    = 127.0f;
             v.value       = static_cast<float>(kit.velCenter);
             v.stepped     = false;
-            v.writable    = !off;
-            v.hasOverride = !off && (kit.velCenter != 90);
-            v.valueText   = off ? "OFF" : juce::String(kit.velCenter);
+            v.writable    = true;
+            v.hasOverride = (kit.velCenter != 90);
+            v.valueText   = juce::String(kit.velCenter);
             v.ringMode    = RingMode::UnipolarFill;
         }
         return result;
@@ -971,7 +969,6 @@ namespace lockstep
             if (trackIdx >= static_cast<int>(kNumTracks)) { break; }
             const auto& kit = proc.kit(trackIdx);
             const int blendVal = static_cast<int>(kit.velBlend);
-            const bool off = (kit.velMode == VelMode::Off);
             auto& v = result[static_cast<std::size_t>(i)];
             v.active      = true;
             v.label       = "Trk " + juce::String(trackIdx + 1);
@@ -979,9 +976,9 @@ namespace lockstep
             v.maxValue    = 1.0f;
             v.value       = static_cast<float>(blendVal);
             v.stepped     = true;
-            v.writable    = !off;
-            v.hasOverride = !off && (kit.velBlend != VelBlend::Replace);
-            v.valueText   = off ? "OFF" : juce::String(blendLabels[blendVal]);
+            v.writable    = true;
+            v.hasOverride = (kit.velBlend != VelBlend::Replace);
+            v.valueText   = juce::String(blendLabels[blendVal]);
             v.ringMode    = RingMode::Dot;
         }
         return result;

@@ -1654,9 +1654,9 @@ mode, and enable UX improvements. Serializer v21.
       reachable. Landing = Mode when none enabled, else Depth. `velAnyEnabled()` /
       `nextVelSubPage()` in PluginEditor; `ScopeCtx.velAnyEnabled` wired to
       `handleOverlayEvent`. *(716ed55)*
-      Remaining: per-cell `writable=false` greying removed from vel band builders
+      Per-cell `writable=false` greying removed from vel band builders
       (Depth/Center/Blend); pages absent from cycle makes per-cell greying redundant.
-      *(Stage 7 follow-up commit)*
+      *(Stage 7b)*
 - [x] **C — "Available-but-inert" affordance.** `Func+AMP` key uses `ModalEntryInert`
       CellState (dim amber, §35.8.6) when all tracks have velMode==Off. *(716ed55)*
       `Func+MOD` (density): assessed n/a — density amounts are ephemeral (reset on
@@ -1737,8 +1737,7 @@ See DESIGN §4.8 and §13.
       INHERIT on each control clears its override; time-sigs in bar-length order;
       entering density/vel exits TIME; swing not triggered while TIME open). DAW
       (v21 round-trip; v20 project compat).
-- [ ] **Remaining open:** vel band per-cell greying removal (C follow-up),
-      contextLabel unit test (D2).
+- [ ] **Remaining open:** contextLabel unit test (D2).
 
 ### Future (structural)
 - [x] **Collapse `timeStickyMode` / `densityStickyMode` / `velStickyMode` into a
