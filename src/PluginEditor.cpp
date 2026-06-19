@@ -3649,7 +3649,9 @@ namespace lockstep
                 deferredPatternMutes_.clear();
                 uiState_.pendingPatternMuteToggle.fill(false);
                 uiState_.funcHeld = false;
-                // NoteEdit: Func release commits staged note removals, then exits mode.
+                // Commit staged edits before exiting (these call processor_ and cannot
+                // live inside the pure exitFuncReskin helper).
+                // NoteEdit: apply staged note removals.
                 if (uiState_.noteEditMode)
                 {
                     const int activeTrack = keyboardArea_.getActiveTrack();
@@ -3668,13 +3670,8 @@ namespace lockstep
                         for (int n = 0; n < newCount; ++n)
                             s.trigOverride.notes[static_cast<std::size_t>(n)] = kept[static_cast<std::size_t>(n)];
                     }
-                    uiState_.resetNoteEdit();  // clears mode + funcSrcHeld + steps + staged
                 }
-                else
-                {
-                    uiState_.funcSrcHeld = false;
-                }
-                // MHZ.3.4: Func release commits staged P-Lock clears, then exits mode.
+                // PLockClear: apply staged P-Lock slot removals.
                 if (uiState_.pLockClearMode)
                 {
                     for (const int slot : uiState_.pLockClearStaged)
@@ -3688,9 +3685,10 @@ namespace lockstep
                                                   uiState_.pLockClearStep, slot);
                     }
                 }
-                uiState_.resetPLockClear();  // clears mode + track + step + staged
-                // MHZ.3.5 + 6.5: Func release exits machine picker and FX pickers.
-                uiState_.resetFxPickers();   // clears funcTrackHeld + funcFxHeld + masterFxPickerOpen
+                // Stage 4: unified exit for all Func-layer modes (NoteEdit, PLockClear,
+                // MachinePicker, TrackFxPicker, MasterFxPicker). Each reset is safe
+                // when its mode is not active so a single call covers all cases.
+                exitFuncReskin(uiState_);
                 refreshMetaBand();  // 1c: Func released → restore normal MZ band
                 editMode_.onScopeEvent({ T::ButtonUp, CB::Func });
                 updateFillActivation();

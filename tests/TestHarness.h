@@ -73,4 +73,6 @@ namespace lockstep
     void runGestureRecognizerTests();
     // Stage 3: layerBanner() golden tests
     void runLayerBannerTests();
+    // Stage 4: FuncReskin enter/exit/cancel CUJs
+    void runFuncReskinTests();
 }

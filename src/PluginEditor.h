@@ -18,6 +18,7 @@
 #include "io/Clipboard.h"
 #include "io/ControllerEvent.h"
 #include "io/ControllerPortManager.h"
+#include "ui/mode/FuncReskin.h"
 #include "ui/mode/GestureRecognizer.h"
 #include "io/EditMode.h"
 #include "io/PressTracker.h"
