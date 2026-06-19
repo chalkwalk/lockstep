@@ -695,8 +695,8 @@ Elektron users reach for, without a new key:
 
 ### 4.8 Core time and launch quantize
 
-**Core time** is a per-Scene `TimeSig { int numerator; int denominator; }`
-(default `{4, 4}`). It serves three roles:
+**Core time** is a `TimeSig { int numerator; int denominator; }` (default `{4,
+4}`) that drives three roles across all consumers:
 
 1. **Launch-quantize grid.** The global `launchQuantizeBars` setting
    (Set-level; default 1) measures in core-time bars. A bar =
@@ -717,15 +717,92 @@ Elektron users reach for, without a new key:
    phrase length is freely editable afterward and never constrained by
    core time.
 
+**Hierarchy.** Core time is resolved via a three-level hierarchy (finest
+explicit override wins; same OEB logic as §4.1):
+
+```
+effectiveTimeSig = Scene.timeSig       (if Scene.hasTimeSig)
+               ?? Song.timeSig         (if Song.hasTimeSig)
+               ?? Project.defaultTimeSig   (always present; default 4/4)
+```
+
+All consumers (`PluginProcessor` launch-quantize, metronome, velocity-weight,
+density-weight, phrase-length seeding) call the `effectiveTimeSig` accessor
+rather than reading `Scene.coreTime` directly. The resolved value is displayed
+at the top of the UI in **scope colour** — Song-gold when the Song override is
+active, Scene-green when a Scene override applies, neutral when the Set default
+rules.
+
+Note: 8/8 and 4/4 are *different* time signatures for Lockstep's purposes —
+numerator drives the `MetricGrid::metricWeight` pulse tree, so 8/8 produces
+eight weight-graded ticks per bar while 4/4 produces four. Both have the same
+`barPpq`; they differ in accent density.
+
+**Grammar editing** — `Func+Song` → Set-level default; bare `Song` → Song
+override; bare `Scene` → Scene override. The Manipulation Zone opens a
+`TimeSig` stepped-value band (curated list: 4/4 → 3/4 → 6/8 → 7/8 → 5/4 →
+5/8 → 12/8 → 2/4 → 2/2 → 8/8; INHERIT at the Song/Scene levels clears the
+override). The inherited value is shown as a scope-coloured reference marker
+(same idiom as swing, §19.2). `Scene + TRIG` is the dedicated gesture for
+editing the active Scene's time signature from the trig meta slot (§6.2
+table; that slot is otherwise unused at the Scene scope).
+
 **Per-track phrase-end override.** Each track has a `launchMode` flag
 (`GlobalBar` default | `PhraseEnd`). Tracks set to `PhraseEnd` switch to
 a new Scene assignment at the *end of their current phrase cycle*
-rather than at the shared core-time boundary. This is the per-musician
-flexibility layer on top of the global grid — a musician may finish their
-phrase before snapping to the new Scene's assignment.
+rather than at the shared core-time boundary.
 
-`Clock.h` has no time-signature state today. Core time is new state held
-in the Scene and consumed by the launch engine in `PluginProcessor`.
+**Serializer v21** fields: `Project.defaultTimeSig` (numerator/denominator),
+`Song.hasTimeSig`/`Song.timeSig`, `Scene.hasTimeSig` alongside the existing
+`coreTime` fields. Legacy v20 projects read as Set-default 4/4 (no Song/Scene
+overrides — the pre-hierarchy behaviour is fully preserved). See §4.9 for the
+parallel tempo hierarchy.
+
+### 4.9 Tempo hierarchy
+
+Tempo is a **peer of core time** in the hierarchy (§4.8). The global tempo
+root is:
+- **Standalone**: the internal `Clock::localBpm_` (editable via grammar).
+- **Plugin with DAW transport**: the host's BPM (read-only at the global level;
+  Lockstep never writes to the host clock — PRINCIPLES §3).
+
+Per-Song and per-Scene overrides are stored as **ratios vs the parent** and
+*entered* in absolute BPM; the ratio is implicit:
+
+```
+effectiveTempo(song, scene) =
+    globalRoot
+    × (Song.hasTempo ? Song.tempoRatio : 1.0)
+    × (Scene.hasTempo ? Scene.tempoRatio : 1.0)
+```
+
+Setting a Song tempo of 90 BPM while the global root is 120 stores `ratio =
+0.75`; displaying it back shows 90 BPM. Clearing the override (INHERIT)
+restores the parent value. The ratios survive a change to the global root —
+a Scene at 0.5× always runs at half the global tempo regardless of what that
+root is.
+
+The Clock is fed the `effectiveTempo` at every Song/Scene boundary (and in
+real time when tempo is edited in the grammar); a rate change is applied at
+the next sub-block boundary for phase continuity.
+
+In DAW mode the global row in the tempo band is **read-only** (shows host BPM,
+cannot be edited). Song/Scene overrides remain editable. The top-bar readout
+shows the *effective* tempo in scope colour (Song-gold if a Song ratio is
+active, Scene-green if a Scene ratio is active, neutral for the bare global
+root).
+
+**Grammar editing** — `Func+Song` → global (standalone: editable; DAW:
+read-only); bare `Song` → Song override; bare `Scene` → Scene override. The
+Manipulation Zone opens a `Tempo` encoder band. Inherited value shown as a
+scope-coloured reference. `Func+Song+Morph` (three-key) opens the meta-band
+with global scope pre-selected (rung 4; the global edit is rare enough to
+earn the extra key).
+
+**Serializer v21** fields: `Song.hasTempo`/`Song.tempoRatio`,
+`Scene.hasTempo`/`Scene.tempoRatio`. `Clock.localBpm_` continues to serialize
+for standalone. Legacy v20 projects carry neither field; they load with all
+ratios = 1.0 (no deviation from root).
 
 ## 5. Input Layer
 
@@ -1311,9 +1388,11 @@ The pre-Phase 3 "mode chips" row duplicated information already encoded
 in the held cluster keys. 3.4 replaces it with two zones reading a
 single view-model:
 
-- **Left dashboard.** Persistent performance state: BPM,
-  Song / Scene identity, transport position,
-  checkpoint depth (`CK:N`).
+- **Left dashboard.** Persistent performance state: effective **BPM** and
+  **time signature** (both scope-coloured — Song-gold when a Song override
+  is active, Scene-green when a Scene override applies, neutral for the Set
+  default), Song / Scene identity, transport position, checkpoint depth
+  (`CK:N`).
 - **Right held-context preview.** Derived from currently-held
   modifiers — e.g. `TRACK 3 + …`, `FUNC + PART → machine picker`.
   Acts as a live cheat sheet without being authoritative: the
@@ -1322,6 +1401,10 @@ single view-model:
 
 Both zones read the same view-model so what the bar says and what
 the next verb does cannot drift.
+
+The standalone-only `StandaloneTempoBar` mouse-drag widget is **retired**.
+Tempo is set entirely through the grammar (§4.9) and reflected in the left
+dashboard readout. The freed vertical space is reclaimed by the header.
 
 ### 6.9 Naming-clarity policy — param labels and value labels
 
@@ -1368,6 +1451,39 @@ Exceptions — short forms that are genuinely idiomatic and self-evident:
 
 The test: **a new user encountering the label for the first time should be
 able to infer its meaning without a manual**. If they can't, spell it out.
+
+### 6.10 Contextual parameter-name aliasing
+
+Some parameters take on a different *meaning* — and warrant a different label —
+depending on the value of another parameter on the same machine. The two acute
+cases:
+
+- **DrumSynth TYPE.** Eight synthesis slots (Tone, Body, Snap, Punch, Sweep,
+  SwpDec, NoiseDec, Tune) are *repurposed* by the TYPE param: a KICK maps them
+  to drive/body/click/punch/sweep/decay/noise decay/tune; a SNARE maps them to
+  band-pass frequency, resonance, etc. The raw slot name ("Tone") is actively
+  misleading when TYPE = SNARE.
+- **Sampler/Slicer loop-mode-dependent slots.** LpStart and LpLen mean
+  different things in auto vs free vs active loop mode; a contextual label
+  annotating the mode (`LpStart (auto)` vs `LpStart`) aids recall.
+
+**Mechanism.** `ParamSpec` gains an optional per-slot hook:
+```cpp
+juce::String (*contextLabel)(const ParamFrame&) = nullptr;
+```
+`nullptr` means "use the static `label` field." When set, `ManipulationZone`
+calls it with the track's current base `ParamFrame` to derive the displayed
+label. The function pointer keeps the field POD-compatible for the future
+Machine ABI (§36); when that ABI lands the hook maps behind a capability flag
+(the ABI is add-only — CLAUDE.md gotcha). Context labels are **first-party
+C++ only** for now; third-party modules declare their static label and opt into
+dynamic labels via the capability bit once the ABI supports it.
+
+The contextual label renders where the static label renders today (the name
+strip above the MZ rotary, §26). Value labels (`valueLabels`) are not aliased
+by this mechanism — they are chosen per `ParamSpec` at machine-declaration
+time. The `valueLabels` array covers the mode-dependent *value text*; `contextLabel`
+covers the mode-dependent *name*.
 
 ## 7. Host Serialization
 
@@ -5380,47 +5496,80 @@ the same `MetricGrid::metricWeight` primitive as Dmetric. Unlike the removed
 bake/print generator, it never writes into phrase steps — it is computed live on
 every trig fire, so phrase-length co-primes with the bar never produce drift.
 
-**State (TrackKit, serialized v20):**
+**State (TrackKit, serialized v21):**
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `velMode` | `VelMode` (Off / Bar) | Off | Metric frame; Bar = coreTime |
-| `velBlend` | `VelBlend` (Replace / Mix) | Replace | Replace overwrites authored vel; Mix adds delta |
-| `velDepth` | float [0,1] | 0.6 | Swing swing depth |
-| `velCenter` | int [1,127] | 90 | Velocity at bar downbeat |
+| `velMode` | `VelMode` (Off / Bar / Phrase) | Off | Metric frame |
+| `velBlend` | `VelBlend` (Replace / Mix) | Replace | Replace overwrites authored vel; Mix swings around baseline |
+| `velDepth` | float [0,1] | 0.6 | Depth of velocity swing |
+| `velCenter` | int [1,127] | 90 | Velocity at the metric peak (weight = 1) |
 
-**Engine formula (emitTrig lambda, Bar mode):**
+**Engine formula (emitTrig lambda):**
+
+*Bar mode:*
 ```
-ppqInBar = fmod(gridPpq, barPpq)
+ppqInBar = fmod(nextTriggerPpq, barPpq)          // position within the coreTime bar
 w        = MetricGrid::metricWeight(ppqInBar, barPpq, num, den)   // [0,1]
-maxSwing = min(velCenter−1, 127−velCenter)
-// Replace:  vel = round(clamp(velCenter + velDepth * maxSwing * (2w−1), 1, 127))
-// Mix:      vel = clamp(authoredVel + round(velDepth * maxSwing * (2w−1)), 1, 127)
 ```
-Replace supersedes authored (incl. Euclidean-baked) velocity; Mix adds a metric
-bump on top of it. The Euclidean generator's baked accent is authored content —
-it survives unchanged and can be combined with the overlay via Mix.
+
+*Phrase mode:*
+```
+ppqInBar = fmod(stepIdx * divPpq, barPpq)         // bar grid anchored to phrase start
+w        = MetricGrid::metricWeight(ppqInBar, barPpq, num, den)   // same weight function
+```
+Phrase mode avoids drift when the phrase length is co-prime with the bar: the bar
+grid is measured from phrase step 0 rather than from the global playhead. The
+accent cycles within the phrase regardless of where in the song the phrase sits.
+
+*Blend:*
+```
+maxSwing = min(velCenter−1, 127−velCenter)
+delta    = round(velDepth * maxSwing * (2w − 1))
+
+// Replace: vel = clamp(velCenter + delta, 1, 127)
+// Mix:     baseline = (step has authored velocity) ? authoredVel : velCenter
+//          vel = clamp(baseline + delta, 1, 127)
+```
+**Replace** supersedes all authored velocity. **Mix** swings around `velCenter`
+when the step has no authored velocity, so Mix ≡ Replace on flat material; it
+diverges only where steps carry explicitly authored velocities — the delta is
+added on top of the authored value in that case. The Euclidean generator's
+baked accent is authored content and is treated accordingly.
 
 **Entry:** `Func + AMP` section key (index 3), dispatched from the `MetaSection`
 case (ButtonLayers remaps `Section`→`MetaSection` under `Func`, so the entry
 cannot live in the `Section` case). (Section keys never take a double-tap
-gesture — PRINCIPLES §17; new section-key gestures use `Func +
-section` or long-press.) AMP re-press while vel-sticky is active cycles
-sub-pages: Depth → Center → Mode → Blend (and wraps). Nav keys page between
-bank 1-8 / 9-16. Foreign cluster scope keys (Track / Phrase / Scene / Morph /
-Mute / Fill) exit vel sticky, parallel to density sticky's §39.8 invariant.
-Density sticky and vel sticky are mutually exclusive; entering one exits the
-other.
+gesture — PRINCIPLES §17; new section-key gestures use `Func + section` or
+long-press.) AMP re-press while vel-sticky is active cycles sub-pages;
+disabled sub-pages are **skipped** (see below). Nav keys page between bank 1-8 /
+9-16. Foreign cluster scope keys (Track / Phrase / Scene / Morph / Mute / Fill)
+exit vel sticky, parallel to density sticky's §39.8 invariant. Density sticky
+and vel sticky are mutually exclusive; entering one exits the other.
 
 **MetaBand sub-pages (8 per-track rotaries, paginated like density):**
 
-| Sub-page | Controls | Range |
-|---|---|---|
-| Depth | velDepth per track | 0–100 % |
-| Center | velCenter per track | 1–127 |
-| Mode | velMode per track | Off / Bar (stepped) |
-| Blend | velBlend per track | Replace / Mix (stepped) |
+| Sub-page | Controls | Range | Enabled when |
+|---|---|---|---|
+| Depth | velDepth per track | 0–100 % | any track in scope has velMode ≠ Off |
+| Center | velCenter per track | 1–127 | any track in scope has velMode ≠ Off |
+| Mode | velMode per track | Off / Bar / Phrase (stepped) | always |
+| Blend | velBlend per track | Replace / Mix (stepped) | any track in scope has velMode ≠ Off |
 
-Depth and Center cells are greyed (writable=false) when velMode==Off.
+**Skip-disabled sub-pages (general rule).** Sub-pages whose content is not
+applicable are skipped during the AMP re-press cycle and on entry. When all
+tracks are Off, entry lands directly on the Mode page. When at least one track
+is enabled, entry lands on Depth. This rule is general — future modal bands
+with conditional pages follow the same skip behaviour. Pages are never greyed
+and still visible; they simply do not appear in the navigation cycle while
+inapplicable.
+
+**"Available-but-inert" modal-entry affordance.** The `Func+AMP` key uses a
+distinct third visual state (between normal and active) when the band exists
+but every track in scope has velMode == Off. This signals "the overlay is
+configurable here but has nothing active yet" — a reserved `CellState` token
+(`ModalEntryInert`) differentiates it from the normal idle state. The same
+affordance applies to `Func+MOD` (density) and future scope-qualified
+modal-entry keys.
 
 **Func+Fill is freed** — the old bake/print accent generator gesture is removed.

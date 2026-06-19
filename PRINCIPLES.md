@@ -99,6 +99,16 @@ project state serialisation) exists so that a performer can carry their
 stage flow into *either* host and produce stems for editing — not so that
 the tool can pretend to be a DAW.
 
+**DAW host as the global tempo root.** Per-Song and per-Scene tempo
+deviations are stored as **ratios vs the parent** (`songRatio × sceneRatio`)
+and are *set* in absolute terms — because when running in a DAW the host
+clock is the absolute root (Lockstep never fights the host BPM). The ratios
+are implicit, computed as `enteredBPM ÷ resolvedParentBPM`. Time-signature
+overrides (per-Song / per-Scene) affect only Lockstep's internal bar sense
+(launch-quantize grid, metronome accent, velocity weight) and do not
+rewrite the host's time signature; they are a bounded, intentional deviation,
+not a conflict with the host. DESIGN §4.8 / §4.9.
+
 There is no "design mode" vs "performance mode": the gestures that let a
 performer manipulate pre-authored material **are** the gestures that let
 them improvise new material from a blank pool. The Chain, copy/paste,
