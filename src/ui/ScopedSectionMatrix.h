@@ -79,7 +79,7 @@ namespace lockstep
         } };
 
         static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kSong = { {
-            { "TEMPO", true },           // Song+TRIG: tempo sticky (§4.9)
+            { "TIME", true },            // Song+TRIG: TIME sticky (§4.8)
             { nullptr, false },          // dim — no content planned
             { nullptr, false },          // FLTR — master FLTR (MV, not yet implemented)
             { nullptr, false },          // AMP — master gain + sends (MV, not yet implemented)

@@ -357,11 +357,11 @@ namespace lockstep
         CHECK(juce::String(scopedCell(PS::Morph, 2).label) == "FLTR",
               "Morph+FILTER override is FLTR (abbreviated)");
 
-        // Song scope: index 0 is "TEMPO" (tempo sticky); index 5 is "FX" (master-bus FX).
+        // Song scope: index 0 is "TIME" (unified TIME sticky); index 5 is "FX" (master-bus FX).
         CHECK(juce::String(scopedCell(PS::Song, 5).label) == "FX",
               "Song+FX override is FX");
-        CHECK(juce::String(scopedCell(PS::Song, 0).label) == "TEMPO",
-              "Song+TRIG override is TEMPO (tempo sticky)");
+        CHECK(juce::String(scopedCell(PS::Song, 0).label) == "TIME",
+              "Song+TRIG override is TIME (TIME page sticky)");
     }
 
     // -------------------------------------------------------------------------

@@ -1633,8 +1633,7 @@ namespace lockstep
         const auto prevLatch = uiState_.latch;
         uiState_.latch = {};  // clear all latches before calling dispatchUp so guards pass
         escapeDensitySticky();
-        uiState_.timeSigStickyMode = false;
-        uiState_.tempoStickyMode = false;
+        uiState_.timeStickyMode = false;
 
         // For each latched modifier that isn't physically held, do a full release.
         // dispatchUp now checks !uiState_.latch.xxx (already false), so it runs completely.
@@ -2204,21 +2203,17 @@ namespace lockstep
                         refreshMetaBand();
                         return true;
                     }
-                    if (sectionScope == PS::Song && ev.index == 0)
+                    if ((sectionScope == PS::Song || sectionScope == PS::Scene) && ev.index == 0)
                     {
-                        // Song+TRIG: toggle tempo sticky mode (DESIGN §4.9).
-                        uiState_.tempoStickyMode = !uiState_.tempoStickyMode;
-                        if (uiState_.tempoStickyMode)
-                            uiState_.tempoEntryScope = tempoScopeFor(uiState_);
-                        refreshMetaBand();
-                        return true;
-                    }
-                    if (sectionScope == PS::Scene && ev.index == 0)
-                    {
-                        // Scene+TRIG: toggle time-signature sticky mode (DESIGN §4.8).
-                        uiState_.timeSigStickyMode = !uiState_.timeSigStickyMode;
-                        if (uiState_.timeSigStickyMode)
-                            uiState_.timeSigEntryScope = timeSigScopeFor(uiState_);
+                        // Song+TRIG or Scene+TRIG: toggle TIME sticky mode (DESIGN §4.8).
+                        uiState_.timeStickyMode = !uiState_.timeStickyMode;
+                        if (uiState_.timeStickyMode)
+                        {
+                            uiState_.timeEntryScope = timeScopeFor(uiState_);
+                            uiState_.swingDismissed = true;
+                            escapeDensitySticky();
+                            escapeVelSticky();
+                        }
                         refreshMetaBand();
                         return true;
                     }
@@ -2283,6 +2278,7 @@ namespace lockstep
                     {
                         uiState_.densityStickyMode = true;
                         escapeVelSticky();
+                        uiState_.timeStickyMode = false;
                         refreshMetaBand();
                         repaint();
                     }
@@ -2298,6 +2294,7 @@ namespace lockstep
                     uiState_.velSubPage = velAnyEnabled()
                         ? UiState::VelSubPage::Depth : UiState::VelSubPage::Mode;
                     escapeDensitySticky();
+                    uiState_.timeStickyMode = false;
                     refreshMetaBand();
                     repaint();
                     return true;
@@ -3306,31 +3303,9 @@ namespace lockstep
                 // (§13 hold-scope+Clear convention). Intercept before cancel-queued-scene
                 // and PANIC so that Clear is contextual while a band is open.
                 {
+                    // Swing: hold-scope + Clear zeros the swing delta at the held scope.
+                    // TIME page: revert is per-control (dial to floor); no Clear chord needed.
                     const MetaBand activeBand = resolveMetaBand(uiState_);
-                    if (activeBand == MetaBand::Tempo)
-                    {
-                        const int tpScope = tempoScopeFor(uiState_);
-                        if (tpScope == 2)
-                            processor_.song().hasTempo = false;
-                        else if (tpScope == 3)
-                            processor_.section().hasTempo = false;
-                        // tpScope==1 (global): no parent — no-op.
-                        refreshMetaBand();
-                        repaint();
-                        return true;
-                    }
-                    if (activeBand == MetaBand::TimeSig)
-                    {
-                        const int tsScope = timeSigScopeFor(uiState_);
-                        if (tsScope == 2)
-                            processor_.song().hasTimeSig = false;
-                        else if (tsScope == 3)
-                            processor_.section().hasTimeSig = false;
-                        // tsScope==1 (Set): no parent — no-op.
-                        refreshMetaBand();
-                        repaint();
-                        return true;
-                    }
                     if (activeBand == MetaBand::Swing)
                     {
                         const int swScope = swingScopeFor(uiState_);

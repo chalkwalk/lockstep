@@ -25,12 +25,9 @@ namespace lockstep
         // Euclidean modal outranks everything else.
         if (ui.euclidHeld)
             return MetaBand::Euclidean;
-        // Sticky time-sig mode (entered via Scene+TRIG; Func double-tap escapes it).
-        if (ui.timeSigStickyMode)
-            return MetaBand::TimeSig;
-        // Sticky tempo mode (entered via Song+TRIG; Func double-tap escapes it).
-        if (ui.tempoStickyMode)
-            return MetaBand::Tempo;
+        // TIME sticky mode (entered via Song+TRIG or Scene+TRIG; Func double-tap escapes it).
+        if (ui.timeStickyMode)
+            return MetaBand::Time;
         // Sticky density mode (entered via Func+MOD; Func double-tap escapes it).
         if (ui.densityStickyMode)
         {
@@ -80,20 +77,12 @@ namespace lockstep
         return 0;
     }
 
-    int timeSigScopeFor(const UiState& ui)
+    int timeScopeFor(const UiState& ui)
     {
-        if (ui.funcHeld && ui.songHeld) return 1;  // Set level
+        if (ui.funcHeld && ui.songHeld) return 1;  // Set/global level
         if (ui.songHeld) return 2;                 // Song level
         if (ui.sceneHeld) return 3;                // Scene level
-        return ui.timeSigEntryScope;               // entry scope — never silently target Scene
-    }
-
-    int tempoScopeFor(const UiState& ui)
-    {
-        if (ui.funcHeld && ui.songHeld) return 1;  // global/Set level
-        if (ui.songHeld) return 2;                 // Song level
-        if (ui.sceneHeld) return 3;                // Scene level
-        return ui.tempoEntryScope;                 // entry scope — never silently target Song
+        return ui.timeEntryScope;                  // entry scope — never silently target scope 0
     }
 
     bool densityEditsMaster(const UiState& ui) noexcept
@@ -977,10 +966,17 @@ namespace lockstep
             return buildVelModeBand(proc, ui, track);
         if (band == MetaBand::VelBlend)
             return buildVelBlendBand(proc, ui, track);
-        if (band == MetaBand::TimeSig)
-            return buildTimeSigBand(timeSigScopeFor(ui), proc);
-        if (band == MetaBand::Tempo)
-            return buildTempoBand(tempoScopeFor(ui), proc);
+        if (band == MetaBand::Time)
+        {
+            // Stage 4 will merge these into a single buildTimeBand(); for now,
+            // tempo sits at field 0 and time-sig at field 1 via two separate calls.
+            const int scope = timeScopeFor(ui);
+            auto result = buildTempoBand(scope, proc);
+            const auto tsResult = buildTimeSigBand(scope, proc);
+            result[1] = tsResult[0];  // copy the time-sig field into slot 1
+            result[1].label = "Sig";  // distinguish from the tempo field label
+            return result;
+        }
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return {};
 
@@ -1277,80 +1273,80 @@ namespace lockstep
                 break;
             }
 
-            case MetaBand::TimeSig: {
-                if (field != 0) break;  // only field 0 is writable
-                const int tsScope = timeSigScopeFor(ui);
-                const bool hasInherit = (tsScope == 2 || tsScope == 3);
-                const int maxIdx = kNumTimeSigs - 1 + (hasInherit ? 1 : 0);
-                const int idx = std::clamp(juce::roundToInt(value), 0, maxIdx);
+            case MetaBand::Time: {
+                const int scope = timeScopeFor(ui);
 
-                if (tsScope == 1)  // Set level
+                if (field == 0)  // Tempo
                 {
-                    const int i = std::clamp(idx, 0, kNumTimeSigs - 1);
-                    proc.project().defaultTimeSig.numerator = kTimeSigs[i].num;
-                    proc.project().defaultTimeSig.denominator = kTimeSigs[i].den;
-                }
-                else if (tsScope == 2)  // Song level
-                {
-                    if (idx == 0)
-                    {
-                        proc.song().hasTimeSig = false;
-                    }
-                    else
-                    {
-                        const int i = std::clamp(idx - 1, 0, kNumTimeSigs - 1);
-                        proc.song().hasTimeSig = true;
-                        proc.song().timeSig.numerator = kTimeSigs[i].num;
-                        proc.song().timeSig.denominator = kTimeSigs[i].den;
-                    }
-                }
-                else  // Scene level (tsScope == 3 or any other)
-                {
-                    auto& scene = proc.section();
-                    if (idx == 0)
-                    {
-                        scene.hasTimeSig = false;
-                    }
-                    else
-                    {
-                        const int i = std::clamp(idx - 1, 0, kNumTimeSigs - 1);
-                        scene.hasTimeSig = true;
-                        scene.coreTime.numerator = kTimeSigs[i].num;
-                        scene.coreTime.denominator = kTimeSigs[i].den;
-                    }
-                }
-                break;
-            }
+                    constexpr float kMinBpm = 20.0f;
+                    constexpr float kMaxBpm = 300.0f;
+                    const double bpmVal = static_cast<double>(std::clamp(value, kMinBpm, kMaxBpm));
+                    const double globalBpm = proc.clock().bpm();
+                    const auto& sg = proc.song();
+                    const double songBpm = globalBpm * (sg.hasTempo ? sg.tempoRatio : 1.0);
 
-            case MetaBand::Tempo: {
-                if (field != 0) break;  // only field 0 is writable
-                constexpr float kMinBpm = 20.0f;
-                constexpr float kMaxBpm = 300.0f;
-                const double bpmVal = static_cast<double>(std::clamp(value, kMinBpm, kMaxBpm));
-                const int tpScope = tempoScopeFor(ui);
-                const double globalBpm = proc.clock().bpm();
-                const auto& sg = proc.song();
-                const double songBpm = globalBpm * (sg.hasTempo ? sg.tempoRatio : 1.0);
-
-                if (tpScope == 1)  // global level
-                {
-                    proc.clock().setLocalBpm(bpmVal);
-                }
-                else if (tpScope == 2)  // Song level
-                {
-                    if (globalBpm > 0.0)
+                    if (scope == 1)  // global level
                     {
-                        proc.song().hasTempo = true;
-                        proc.song().tempoRatio = bpmVal / globalBpm;
+                        proc.clock().setLocalBpm(bpmVal);
+                    }
+                    else if (scope == 2)  // Song level
+                    {
+                        if (globalBpm > 0.0)
+                        {
+                            proc.song().hasTempo = true;
+                            proc.song().tempoRatio = bpmVal / globalBpm;
+                        }
+                    }
+                    else  // Scene level (scope == 3)
+                    {
+                        const double parentBpm = songBpm;
+                        if (parentBpm > 0.0)
+                        {
+                            proc.section().hasTempo = true;
+                            proc.section().tempoRatio = bpmVal / parentBpm;
+                        }
                     }
                 }
-                else  // Scene level (tpScope == 3)
+                else if (field == 1)  // Time Sig
                 {
-                    const double parentBpm = songBpm;
-                    if (parentBpm > 0.0)
+                    const bool hasInherit = (scope == 2 || scope == 3);
+                    const int maxIdx = kNumTimeSigs - 1 + (hasInherit ? 1 : 0);
+                    const int idx = std::clamp(juce::roundToInt(value), 0, maxIdx);
+
+                    if (scope == 1)  // Set level
                     {
-                        proc.section().hasTempo = true;
-                        proc.section().tempoRatio = bpmVal / parentBpm;
+                        const int i = std::clamp(idx, 0, kNumTimeSigs - 1);
+                        proc.project().defaultTimeSig.numerator = kTimeSigs[i].num;
+                        proc.project().defaultTimeSig.denominator = kTimeSigs[i].den;
+                    }
+                    else if (scope == 2)  // Song level
+                    {
+                        if (idx == 0)
+                        {
+                            proc.song().hasTimeSig = false;
+                        }
+                        else
+                        {
+                            const int i = std::clamp(idx - 1, 0, kNumTimeSigs - 1);
+                            proc.song().hasTimeSig = true;
+                            proc.song().timeSig.numerator = kTimeSigs[i].num;
+                            proc.song().timeSig.denominator = kTimeSigs[i].den;
+                        }
+                    }
+                    else  // Scene level (scope == 3 or any other)
+                    {
+                        auto& scene = proc.section();
+                        if (idx == 0)
+                        {
+                            scene.hasTimeSig = false;
+                        }
+                        else
+                        {
+                            const int i = std::clamp(idx - 1, 0, kNumTimeSigs - 1);
+                            scene.hasTimeSig = true;
+                            scene.coreTime.numerator = kTimeSigs[i].num;
+                            scene.coreTime.denominator = kTimeSigs[i].den;
+                        }
                     }
                 }
                 break;
@@ -1381,8 +1377,7 @@ namespace lockstep
             case MetaBand::VelCenter:      return "VEL / CENTER";
             case MetaBand::VelMode:        return "VEL / MODE";
             case MetaBand::VelBlend:       return "VEL / BLEND";
-            case MetaBand::TimeSig:        return "TIME SIG";
-            case MetaBand::Tempo:          return "TEMPO";
+            case MetaBand::Time:           return "TIME";
             default:                       return {};
         }
     }
