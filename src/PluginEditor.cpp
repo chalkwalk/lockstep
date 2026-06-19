@@ -1634,7 +1634,7 @@ namespace lockstep
         const auto prevLatch = uiState_.latch;
         uiState_.latch = {};  // clear all latches before calling dispatchUp so guards pass
         escapeDensitySticky();
-        escapeTimeSticky(uiState_);
+        escapeOverlay(uiState_, Overlay::Time);
 
         // For each latched modifier that isn't physically held, do a full release.
         // dispatchUp now checks !uiState_.latch.xxx (already false), so it runs completely.
@@ -1839,11 +1839,11 @@ namespace lockstep
     void LockstepEditor::handleModifierTap(ControllerButton cb, bool currentlyLatched)
     {
         const double now = juce::Time::getMillisecondCounterHiRes();
-        const bool dbl = doubleTap_.recordAndCheck(1000 + static_cast<int>(cb), now);
+        const bool dbl = gesture_.doubleTap(1000 + static_cast<int>(cb), now);
         if (currentlyLatched && !dbl)
         {
             setModifierLatch(cb, false);
-            doubleTap_.invalidate();  // prevent follow-up read as re-latch
+            gesture_.invalidate();  // prevent follow-up read as re-latch
         }
         else if (dbl)
         {
@@ -1944,7 +1944,7 @@ namespace lockstep
                 // Cancels latches and any active overlay (Euclid / sticky modes).
                 {
                     const double now = juce::Time::getMillisecondCounterHiRes();
-                    if (doubleTap_.recordAndCheck(1000 + static_cast<int>(CB::Func), now))
+                    if (gesture_.doubleTap(1000 + static_cast<int>(CB::Func), now))
                     {
                         if (uiState_.latch.any() || processor_.editContext().hasAnyLatchedStep())
                             escapeAllLatches();
@@ -2243,7 +2243,7 @@ namespace lockstep
                     {
                         uiState_.densityStickyMode = true;
                         escapeVelSticky();
-                        escapeTimeSticky(uiState_);
+                        escapeOverlay(uiState_, Overlay::Time);
                         refreshMetaBand();
                         repaint();
                     }
@@ -2259,7 +2259,7 @@ namespace lockstep
                     uiState_.velSubPage = velAnyEnabled()
                         ? UiState::VelSubPage::Depth : UiState::VelSubPage::Mode;
                     escapeDensitySticky();
-                    escapeTimeSticky(uiState_);
+                    escapeOverlay(uiState_, Overlay::Time);
                     refreshMetaBand();
                     repaint();
                     return true;
@@ -2954,7 +2954,7 @@ namespace lockstep
                 {
                     const int absStep = keyboardArea_.currentPage() * KeyboardArea::kPageSteps + ev.index;
                     const double now = juce::Time::getMillisecondCounterHiRes();
-                    const bool isDouble = doubleTap_.recordAndCheck(absStep, now);
+                    const bool isDouble = gesture_.doubleTap(absStep, now);
 
                     // MHZ.9.5: double-tap on a step = virtual-hold (latch operand).
                     // On the 2nd key-down, re-hold the step and mark it latched; also
@@ -3182,7 +3182,7 @@ namespace lockstep
                 if (keyboardArea_.currentPage() >= keyboardArea_.numPages() - 1)
                 {
                     const double now = juce::Time::getMillisecondCounterHiRes();
-                    if (doubleTap_.recordAndCheck(4000, now))
+                    if (gesture_.doubleTap(GestureRecognizer::kNavRightUnlock, now))
                         keyboardArea_.unlockScrollPastEnd();
                 }
                 keyboardArea_.nextPage();
@@ -3244,8 +3244,7 @@ namespace lockstep
                 playKeyHeld_ = true;
 
                 const double now = juce::Time::getMillisecondCounterHiRes();
-                const bool isDouble = (now - lastPlayPressTime_) < kDoublePressMsThreshold;
-                lastPlayPressTime_ = now;
+                const bool isDouble = gesture_.playDoubleTap(now);
 
                 if (isDouble)
                 {
@@ -3369,7 +3368,7 @@ namespace lockstep
                 // Double-tap = overdub record; single tap = plain (overwrite) record.
                 {
                     const double now = juce::Time::getMillisecondCounterHiRes();
-                    const bool isDouble = doubleTap_.recordAndCheck(
+                    const bool isDouble = gesture_.doubleTap(
                         1000 + static_cast<int>(ControllerButton::VerbRecord), now);
                     if (isDouble)
                     {
@@ -3538,8 +3537,8 @@ namespace lockstep
             case ControllerButton::Restore:
                 // Func+Y = Restore. Resolve on key-up (tap = pop one, hold = jump to floor).
                 if (sectionSuiteScopeHeld(uiState_)) return true;
-                restoreActive_ = true;
-                restoreKeyDownMs_ = juce::Time::getMillisecondCounterHiRes();
+                gesture_.armLongPress(kRestoreLongPressToken,
+                                      juce::Time::getMillisecondCounterHiRes());
                 return true;
 
             // ControllerButton::PlayStop — migrated to CommandCore::handleDown (8.4h)
@@ -3556,7 +3555,7 @@ namespace lockstep
                 return true;
             case ControllerButton::RecordArm: {
                 const double now = juce::Time::getMillisecondCounterHiRes();
-                const bool isDouble = doubleTap_.recordAndCheck(
+                const bool isDouble = gesture_.doubleTap(
                     1000 + static_cast<int>(ControllerButton::RecordArm), now);
                 if (isDouble)
                 {
@@ -3958,16 +3957,16 @@ namespace lockstep
                 break;  // Y = Snapshot; no held-state to clear.
 
             case CB::Restore: {
-                if (!restoreActive_) break;
-                const double held = juce::Time::getMillisecondCounterHiRes() - restoreKeyDownMs_;
-                restoreActive_ = false;
+                const double now = juce::Time::getMillisecondCounterHiRes();
                 int ckTrk = 0;
                 const CheckpointScope scp = ckScope(ckTrk);
-                if (held >= kHoldRestoreMs)
-                    processor_.restoreToFloor(scp, ckTrk);
-                else
-                    processor_.restoreOne(scp, ckTrk);
-                repaint();
+                using LPR = GestureRecognizer::LongPressResult;
+                switch (gesture_.checkLongPress(kRestoreLongPressToken, now))
+                {
+                    case LPR::LongHold:  processor_.restoreToFloor(scp, ckTrk); repaint(); break;
+                    case LPR::ShortHold: processor_.restoreOne(scp, ckTrk);     repaint(); break;
+                    case LPR::NotArmed:  break;
+                }
                 break;
             }
 

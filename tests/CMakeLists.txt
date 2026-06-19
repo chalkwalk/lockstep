@@ -31,6 +31,7 @@ add_executable(lockstep_tests
     AccentTest.cpp
     MetricSelectTest.cpp
     ModeReducerTest.cpp
+    GestureRecognizerTest.cpp
     # UI modules needed by MetaBandTest + ModeReducerTest (live only in the plugin target otherwise)
     ../src/ui/MetaBand.cpp
     ../src/ui/MetaRotary.cpp

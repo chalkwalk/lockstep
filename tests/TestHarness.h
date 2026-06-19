@@ -69,4 +69,6 @@ namespace lockstep
     void runMetricSelectTests();
     // Stage 1: overlay reducer CUJ event-sequence tests
     void runModeReducerTests();
+    // Stage 2: GestureRecognizer unit tests
+    void runGestureRecognizerTests();
 }

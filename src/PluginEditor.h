@@ -18,7 +18,7 @@
 #include "io/Clipboard.h"
 #include "io/ControllerEvent.h"
 #include "io/ControllerPortManager.h"
-#include "io/DoubleTapDetector.h"
+#include "ui/mode/GestureRecognizer.h"
 #include "io/EditMode.h"
 #include "io/PressTracker.h"
 #include "io/QwertyOverlay.h"
@@ -88,18 +88,10 @@ namespace lockstep
         // Key codes currently held down — used to suppress OS key-repeat in keyPressed().
         std::set<int> heldKeys_;
 
-        // Double-press detection for Play: two presses within threshold = stop+reset.
-        double lastPlayPressTime_ = 0.0;
         bool playKeyHeld_ = false;
-        static constexpr double kDoublePressMsThreshold = 350.0;
 
-        // Restore hold detection: tap (< kHoldRestoreMs) = pop one; hold = jump to floor.
-        bool restoreActive_ = false;
-        double restoreKeyDownMs_ = 0.0;
-        static constexpr double kHoldRestoreMs = 350.0;
-
-        // MHZ.9.2: unified double-tap detector (modifiers + steps).
-        DoubleTapDetector doubleTap_;
+        // Stage 2: single home for all input-timing state (double-tap + long-press).
+        GestureRecognizer gesture_;
 
         // MHZ.9.5: track the last step trig-toggle so latch double-tap can revert it.
         // Set on key-up trig toggle; cleared on next dispatchDown step press.
