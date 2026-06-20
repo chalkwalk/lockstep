@@ -1632,8 +1632,11 @@ vs J2 performance scratch) and produce shippable CUJ docs and restore-semantics
 spec. Seeded by the study brief in the plan that shipped 9.3.
 
 Prerequisites: 9.3 B2 shipped (MZ header provides the feedback surface for
-restore-label display); design session decides A/B/C model. Output lands in
-`README.md` (workflow) and `DESIGN.md` §13.6 (rationale + UX).
+restore-label display). **Intent decided (9.x usability pass): _both_ — Snapshot
+is a safety-net *and* a performance scratchpad (DESIGN §13.6).** The session no
+longer chooses among A/B/C *purposes*; it specs restore-semantics + CUJ docs for
+the "both" model. Output lands in `README.md` (workflow) and `DESIGN.md` §13.6
+(rationale + UX).
 
 ### 9.5 — Velocity overlay polish  *[active]*
 Polish pass on the live velocity overlay (§39.10): Mix baseline fix, Phrase
@@ -1740,6 +1743,38 @@ See DESIGN §4.8 and §13.
       entering density/vel exits TIME; swing not triggered while TIME open). DAW
       (v21 round-trip; v20 project compat).
 - [x] **Remaining open items resolved.** 9.5 C fully closed; 9.6 D2 done. *(Stage 7)*
+
+### 9.10 — Grammar-allocation pass  *[planned]*
+Follow-on to the 9.x usability deep-dive (`USABILITY-REVIEW.md`). The
+goal-sharpening shipped in PRINCIPLES (North-Star preamble + §2 orthogonality
+clause + §4/§10 single-purpose reconcile + §15 frequency × stakes + new §19
+visual grammar) and NON-GOALS (fence #11 retrig ruling; generator-family note).
+The deep-dive *reclaimed* a large block of surface; this pass re-allocates it
+under the sharpened rules. Each binding move carries the CLAUDE.md modality-test
+triad (resolution + scope-routing + round-trip); any moved overlay gets a
+`kOverlays` descriptor test; `layerBanner` stays exhaustive under `-Werror`.
+
+- [ ] **Generator hub on `3`.** `3` held → enter the deterministic-generator
+      family (Euclid / Density / Vel + future); `3` tapped → tap-tempo (retained).
+      Retires the scattered entries `Phrase+Fill` (Euclid), `Func+MOD` (Density),
+      `Func+AMP` (Vel), and the bare-`Func`-hold Density band. "The hold is the
+      mode" (PRINCIPLES §5); transient (Euclid: latch-until-commit) vs sticky
+      (Density / Vel: durable `Overlay`) behaviour preserved via existing
+      machinery (§18). Watch the MZ slider-state leak when switching bands.
+- [ ] **Metronome → TIME overlay.** Move metronome toggle off `Func+3` into the
+      TIME page (transport-adjacent); `Func+3` freed.
+- [ ] **Retrig split (NON-GOALS fence #11 ruling).** Promote the per-step ratchet
+      to an ordinary TRIG-section, P-lockable parameter; **cut** the free-running
+      live stutter. `Fill+TRIG` freed. (USABILITY-REVIEW §7.)
+- [ ] **Reclaimed-slot re-allocation.** With `Func+3`, `Func+MOD`, `Func+AMP`,
+      `Phrase+Fill`, `Func+Fill`, bare-`Func`-hold, and `Fill+TRIG` all free,
+      decide each one's next use (or leave reserved) under §15 (frequency ×
+      stakes) and §2 (orthogonality). Bind or formally retire `CueScope`.
+- [ ] **Home-key orientation cues (PRINCIPLES §19).** F/J-style "bumps" on the
+      home-row anchor keys — on screen now, in the eventual hardware spec.
+- [ ] **Visual-grammar token audit (PRINCIPLES §19).** Per-`CellState` pass (with
+      `CellStates.def`, 8.6): confirm every performable state has a
+      colour/brightness/blink proxy; flag text-only states as hardware bugs.
 
 ### Future (structural)
 - [x] **Collapse `timeStickyMode` / `densityStickyMode` / `velStickyMode` into a

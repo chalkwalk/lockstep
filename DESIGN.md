@@ -1294,7 +1294,10 @@ labels now use up to 6 characters where they benefit: `FILTER` (was
 The scope identity that a held modifier puts on the surface is
 **visible**, not just functional. Each modality owns **one hue** used at
 three brightness levels (resting / active / accent), so a modifier
-always wears its own colour — no generic violet borrowed when unlit.
+always wears its own colour — no generic violet borrowed when unlit. This colour
+grammar is the backbone of PRINCIPLES §19 (*visual grammar is token-first and
+dual-target*): the same hue + brightness drives the on-screen cell and the
+hardware RGB-LED alike, so the surface stays "read by colour" without a screen.
 
 **Role-neighbourhood hue map** (UITheme.h):
 
@@ -2108,6 +2111,13 @@ that same scope's stack back down. With **no scope held, the scope is the
 Song** — the default working unit. (The `Y` key owns both halves —
 snapshot and restore; `P` is the confirm/cancel key and plays no part in
 checkpoints.)
+
+**Intent (9.x ruling): both safety-net _and_ scratchpad.** The dual purpose is
+deliberate, not a tension to collapse. Snapshot is a live-undo **safety net**
+(capture a known-good state; restore if a live edit goes wrong) *and* a
+performance **scratchpad** (stash the current state, try a variation live, walk
+back to the floor). The same scope-respecting LIFO serves both; restore semantics
+for the "both" model are specced in ROADMAP 9.4. Neither reading is privileged.
 
 | Held scope | `Y` (SNAP) snapshots | `Func+Y` (RESTORE) restores |
 |---|---|---|
@@ -4586,7 +4596,11 @@ grows; old controllers keep working.
 #### 35.8.7 Cell appearance table (8.6)
 
 Every `CellState` token maps to a row in a single compile-time appearance
-table. This closes the three-way divergence where `KeyButton.cpp`,
+table. This dual-target table is exactly what PRINCIPLES §19 requires: one token
+resolves to *both* a screen appearance (`screenFill` / `screenAccent`) and a
+hardware LED appearance (`pushPad` / `xtouchVel`), so a meaningful state is never
+expressible on one target but not the other. It closes the three-way divergence
+where `KeyButton.cpp`,
 `Push1Surface.cpp`, and `XTouchMiniSurface.cpp` each maintained a
 separate switch over `CellState`. The table lives in two files:
 

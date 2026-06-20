@@ -24,6 +24,20 @@
 > `NON-GOALS §N`, and `fence #N` reference in the docs **and** `src/` in the
 > same change.
 
+## North Star
+
+Lockstep is a performance-first step sequencer you *play*, not configure: one
+small **scope + verb** grammar, learned by hand and read by colour, that turns
+practice into live expression. Every key earns its place in that grammar —
+nothing is a single-purpose button — and the gestures that edit are the gestures
+that perform. It is efficient, opinionated, grammatically *and visually*
+consistent, and it is equally at home as a standalone instrument and a DAW
+plugin.
+
+The principles below serve that sentence. Where two of them are in tension, the
+North Star is the tie-breaker: the reading that lets a practised performer do
+more, live, with less looking, wins.
+
 ## How to use this document
 
 Run a feature proposal through this gate **before** it reaches `DESIGN.md`. Each
@@ -84,6 +98,14 @@ grammar is paid once, by us; the cost of *not* doing so is paid every
 time a user has to remember a one-off rule. `Func` is the universal
 qualifier — it composes with any other scope to reach a "secondary
 variant" — but it never invents a meaning that doesn't compose.
+
+**Orthogonality — predictable composition.** The grammar is learnable because it
+is *orthogonal*: knowing a scope and knowing a verb is enough to predict their
+compound. A scope + verb with no defined meaning is **reserved** — it renders
+dim/inert (§10) and does nothing; it is never quietly repurposed into a
+surprising action. This is the half of "no exceptions" that faces the learner: a
+user who has learned the pieces can derive the whole, and is never punished for a
+reasonable guess. Surprise is the tax orthogonality refuses to charge.
 
 ## 3. Performance is the goal; standalone and DAW are equal homes
 
@@ -147,7 +169,14 @@ mostly needn't.
 **Consequence.** Single-purpose buttons are forbidden — both in software
 (they violate the grammar) and in hardware (they bloat the surface).
 Every key earns its placement by participating in the same scope+verb
-system everywhere it appears.
+system everywhere it appears. The only keys that sit outside a held-scope
+chord are *ambient utilities*, and those earn their place by being
+**multi-purpose and always-available** (the navigation keys page, shift octaves,
+set length, and unlock out-of-range content depending on context) — never by
+being a lone fixed function. A key that would otherwise be single-purpose is
+given a real grammatical role instead: the `3` key is the **generator-hub**
+modifier on hold (§5 — "the hold is the mode") and tap-tempo on tap, so even the
+transport tap participates in the grammar rather than squatting a prime slot.
 
 This also fences off whole input paradigms before they reach DESIGN. Any
 feature that needs a control axis the planned hardware cannot honestly
@@ -278,7 +307,7 @@ be **announced loudly** in chrome. No silent modes.
 **A held scope recolours the keys it rebinds.** When a scope is held,
 every key whose meaning it changes lights in that scope's colour; keys
 it does not bind stay neutral. An unbound key is either an *ambient*
-utility (navigation, tap / metronome — it keeps its normal action) or
+utility (the navigation keys — multi-purpose, always-available; they keep their context action) or
 *reserved* (dimmed, inert). Verbs and operands never silently pass
 through into a different scope's meaning: an op that would read as
 scope-qualified but isn't — snapshot is the bare `Snapshot` (Y) verb,
@@ -447,6 +476,14 @@ is.
 the mute layer, is one logical operand, not eight keys. Batch selection
 is free; *qualification* is what you pay for.
 
+**Cost tracks frequency *and* stakes.** Frequency sets most of the budget, but
+not all of it: a rare action with high *stakes* — one whose mistiming or absence
+hurts a live set — earns a cheap rung anyway. **Panic** (kill all voices) and the
+**`Func` double-tap escape** are rare yet sit low precisely because the moment you
+need them, you need them instantly. The rule is *cost tracks frequency × stakes*,
+with a **cheapness floor for safety-critical actions**: a recovery or escape
+gesture may never be buried, however seldom it fires.
+
 **Consequence.** Before a gesture reaches `DESIGN.md`, name its rung and
 its expected frequency. A common live action on an expensive rung, or a
 rare set-and-forget action on a cheap one, is a design smell — rebind
@@ -573,6 +610,39 @@ small closed set; each uses a typed field so the compiler rejects combinations
 that the grammar forbids. See `src/ui/mode/` for all current modal
 sub-systems. See *"One grammar, no exceptions"* §2 for the general principle;
 §17 for gesture-family enforcement. DESIGN §13 for the scope+verb grammar.
+
+## 19. Visual grammar is token-first and dual-target
+
+The surface is **read by colour**, not only by text. Lockstep runs on a screen
+today and on dedicated hardware (mechanical keys + RGB LEDs) tomorrow, and the
+visual language must serve **both** targets from one source of truth:
+
+- **Screen** carries the *full* detail: text, hint-text, scope colour, and
+  chrome (§10).
+- **Hardware** carries colour + brightness + blink **only** — no text.
+
+Every meaningful state is therefore a **`CellState` token** (the single-source
+appearance table, DESIGN §35.8.7) that resolves to *both* a screen appearance and
+a hardware LED appearance. The scope-colour grammar (DESIGN §6.6 — one hue per
+modality at three brightness levels) is the backbone: a held scope recolours the
+keys it rebinds, identically on screen and on LEDs.
+
+**Graceful degradation, not parity.** Colour cannot carry every detail, and we do
+not pretend it can. The commitment is narrower and honest: the *performable
+subset* — what a fluent player needs to act **without looking** — must survive on
+**colour + brightness + blink + muscle memory** alone. Exact values (a BPM, a
+P-Lock number, an entity name in a confirm prompt) are legitimately screen-only;
+but *which mode you are in*, *which scope is held*, *what is armed / latched /
+muted*, and *which cell is the live target* must each have a colour or blink
+proxy. A state whose only expression is text is a hardware bug, not a feature.
+
+**Consequence.** A new state ships its `CellState` token — screen *and* LED
+mapping — in the same change, exactly as a new modifier ships its chrome (§10).
+And because the instrument is *learned by hand*, the home-row anchor keys carry a
+persistent **orientation cue** (the F/J-style "bumps") on screen and as literal
+nibs on hardware, so a player moving between a normal typing keyboard and
+Lockstep keeps their hands placed. This is the visual half of the North Star's
+"learned by hand and read by colour."
 
 ---
 

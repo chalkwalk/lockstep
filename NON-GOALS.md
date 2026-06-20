@@ -70,17 +70,20 @@ One fence is narrower than it first reads, and the boundary is worth stating:
   gesture comes to *require* an axis a typing keyboard can't stand in for. Use
   the fader a performer already has; never make the grammar depend on it.
 
-One shipped feature sits **knowingly close to a fence** and is flagged as a
-live tension, not blessed:
+One shipped feature was **resolved against fence #11** in the 9.x usability pass:
 
-- **Retrig / ratchet live stutter (#11)** — the shipped `Fill+TRIG` overlay
-  (5.7) live-stutters the focused track while a rate cell is pressed.
-  Fence #11 names "Sonicware stutter" among its prompts. The shipped form has
-  the mitigating properties — momentary (the hold is the mode), deterministic,
-  and it bakes to ordinary per-step P-Locks — but whether a held live stutter
-  is grammar or a performance-FX move in disguise is **under review**: the
-  retrig model redesign is an explicitly deferred item in ROADMAP 5.9. Do not
-  cite the current stutter as precedent for further punch-in-style features.
+- **Retrig / ratchet (#11) — split; live stutter cut.** The `Fill+TRIG` overlay
+  bundled two jobs: an **authored per-step ratchet** (a step fires N times within
+  its slot — ordinary, deterministic, hand-editable trig data) and a
+  **free-running live stutter** (hold a rate, the whole focused track stutters
+  while held). The audit ruled them apart (USABILITY-REVIEW §7). The authored
+  ratchet is core step-sequencer vocabulary and **stays** — but as an ordinary
+  TRIG-section, P-lockable parameter, not a bespoke mode. The free-running live
+  stutter is the part that tripped fence #11 (Sonicware stutter, MC-707 Scatter),
+  and its live-variation value overlapped Fill / Density / Mute — where the
+  "active-step" performance idea already lives — so it is **cut**. Fence #11 is
+  no longer a live tension. → ROADMAP grammar-allocation pass (retrig split;
+  `Fill+TRIG` freed).
 
 And three desires were *granted* in a reshaped form rather than fenced — they
 are **not** non-goals, listed here only to forestall confusion:
@@ -99,6 +102,14 @@ are **not** non-goals, listed here only to forestall confusion:
   probability-scaling Chance band is retired.
 - **Granular synthesis** (Roland Aira P-6, and our own Tonverk lineage) is
   **in**, as a machine module (DESIGN §29), not catalogue bloat.
+
+**One home for the generators.** Euclidean, Density, and the live velocity
+overlay are all *deterministic generators* (PRINCIPLES §11), and the 9.x
+usability pass gave them a single, consistent entry — the **generator hub** on the
+`3` key (held) — replacing their scattered per-gesture entries (`Phrase+Fill`,
+`Func+MOD`, `Func+AMP`). The hub is the agreed direction; the re-allocation lands
+in the ROADMAP grammar-allocation pass. The principle that matters here: a
+blessed generator is reached through one named family, not a bespoke chord each.
 
 When in doubt, the question is never "do other boxes have it?" — it is "does
 it reward practice, and can a performer reach it inside scope + verb?"
