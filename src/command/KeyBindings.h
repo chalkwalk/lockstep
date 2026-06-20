@@ -19,6 +19,12 @@ namespace lockstep
     struct UiState;
 
     // -------------------------------------------------------------------------
+    // Gesture — the physical gesture that produces an action.
+    // Used as a filter axis in resolveBinding() and as a primary-promotion hint.
+    // -------------------------------------------------------------------------
+    enum class Gesture : uint8_t { Tap, Hold, DoubleTap };
+
+    // -------------------------------------------------------------------------
     // ActionId — one value per distinct action reachable from a key.
     // Named after the dispatch block it represents. A4 will wire these
     // to the actual dispatch handlers.
@@ -92,6 +98,26 @@ namespace lockstep
         QuantizeHeld,
         // Capture
         ToggleCapture,       // Func+Song+Record: arm/disarm WAV capture
+
+        // 9.12: Gesture-axis actions (appended; do not reorder above values)
+        FuncEscape,          // Func double-tap: escape active overlay
+        LatchTrackScope,     // TrackScope double-tap: latch scope on
+        LatchPhraseScope,    // PhraseScope double-tap
+        LatchSceneScope,     // SceneScope double-tap
+        LatchMorphScope,     // MorphScope double-tap
+        LatchSongScope,      // SongScope double-tap
+        LatchMuteScope,      // MuteScope double-tap
+        LatchFillScope,      // FillScope double-tap
+        PlayStopReset,       // VerbPlay double-tap: stop + rewind
+        RecordArmToggle,     // RecordArm tap: arm / disarm record
+        RecordArmOverdub,    // RecordArm double-tap: enable overdub
+        RestoreFloor,        // Func+VerbSnapshot hold: restore to floor
+        NavPageUnlock,       // NavRight double-tap: unlock page navigation
+        StepLatch,           // Step double-tap: latch step hold
+        OpenGeneratorHub,    // TapTempo hold: open generator hub picker
+        OpenRetrigPicker,    // step-grid: open retrig/ratchet picker
+        OpenSoundPool,       // step-grid: open sound-pool picker
+        PlayStopToggle,      // PlayStop (key 0) tap: play/stop toggle
     };
 
     // -------------------------------------------------------------------------
@@ -125,6 +151,9 @@ namespace lockstep
         const char8_t* primary = u8"";    // main label (UTF-8, ≤8 visible chars)
         const char8_t* hint = u8"";    // Func-hint / bottom strip ("" = none)
         CellState state = CellState::Resting;
+        // 9.12: gesture axis — appended at end so positional-init rows are unchanged.
+        Gesture gesture = Gesture::Tap;
+        bool promoted = false;   // explicit primary-promotion override
     };
 
     // The canonical table. Most-specific rows (higher requiredMods popcount)
@@ -135,9 +164,17 @@ namespace lockstep
     // Derive the held-modifier bitmask from UiState.
     uint16_t heldModsFromUiState(const UiState& ui) noexcept;
 
-    // Resolve the best-matching row for (button, index, layer, heldMods).
+    // Resolve the best-matching row for (button, index, layer, heldMods, gesture).
     // Returns a row with ActionId::None if nothing matches.
+    // The gesture parameter defaults to Tap so all existing callers are unchanged.
     const KeyBinding& resolveBinding(ControllerButton b, int idx,
                                      uint16_t heldMods,
-                                     SurfaceLayer layer) noexcept;
+                                     SurfaceLayer layer,
+                                     Gesture g = Gesture::Tap) noexcept;
+
+    // Return which gesture is promoted to the primary display slot for a key.
+    // Priority: explicit promoted row > any Hold row > Tap.
+    Gesture promotedGesture(ControllerButton b, int idx,
+                            uint16_t heldMods,
+                            SurfaceLayer layer) noexcept;
 }

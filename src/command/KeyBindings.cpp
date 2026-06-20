@@ -164,6 +164,84 @@ namespace lockstep
         { CB::Section, 3, kModNone, SL::Base, AId::SelectSection, u8"", u8"", CS::Resting },
         { CB::Section, 4, kModNone, SL::Base, AId::SelectSection, u8"", u8"", CS::Resting },
         { CB::Section, 5, kModNone, SL::Base, AId::SelectSection, u8"", u8"", CS::Resting },
+
+        // ── 9.12: Gesture-axis rows ─────────────────────────────────────────────
+        // These rows carry explicit gesture + promoted fields (last two columns).
+        // Tap rows already exist above (defaulting to Gesture::Tap, promoted=false).
+
+        // Func (key 1): no bare tap action; hold = FUNC LAYER; dbl-tap = ESCAPE.
+        { CB::Func, -1, kModNone, SL::Base, AId::HoldFuncScope, u8"FUNC LAYER", u8"", CS::Resting,
+          Gesture::Hold, false },
+        { CB::Func, -1, kModNone, SL::Base, AId::FuncEscape, u8"ESCAPE", u8"", CS::Resting,
+          Gesture::DoubleTap, false },
+
+        // TrackScope (key 2): hold = TRACK SCOPE (primary); dbl-tap = LATCH.
+        { CB::TrackScope, -1, kModNone, SL::Base, AId::HoldTrackScope, u8"TRACK SCOPE", u8"", CS::Resting,
+          Gesture::Hold, true },
+        { CB::TrackScope, -1, kModNone, SL::Base, AId::LatchTrackScope, u8"LATCH", u8"", CS::Resting,
+          Gesture::DoubleTap, false },
+
+        // PhraseScope (key Q): hold = PHRASE SCOPE (primary); dbl-tap = LATCH.
+        { CB::PhraseScope, -1, kModNone, SL::Base, AId::HoldPhraseScope, u8"PHRASE SCOPE", u8"", CS::Resting,
+          Gesture::Hold, true },
+        { CB::PhraseScope, -1, kModNone, SL::Base, AId::LatchPhraseScope, u8"LATCH", u8"", CS::Resting,
+          Gesture::DoubleTap, false },
+
+        // SceneScope (key W): hold = SCENE SCOPE (primary); dbl-tap = LATCH.
+        { CB::SceneScope, -1, kModNone, SL::Base, AId::HoldSceneScope, u8"SCENE SCOPE", u8"", CS::Resting,
+          Gesture::Hold, true },
+        { CB::SceneScope, -1, kModNone, SL::Base, AId::LatchSceneScope, u8"LATCH", u8"", CS::Resting,
+          Gesture::DoubleTap, false },
+
+        // MorphScope (key A): hold = MORPH SCOPE (primary); dbl-tap = LATCH.
+        { CB::MorphScope, -1, kModNone, SL::Base, AId::HoldMorphScope, u8"MORPH SCOPE", u8"", CS::Resting,
+          Gesture::Hold, true },
+        { CB::MorphScope, -1, kModNone, SL::Base, AId::LatchMorphScope, u8"LATCH", u8"", CS::Resting,
+          Gesture::DoubleTap, false },
+
+        // SongScope (key S): hold = SONG SCOPE (primary); dbl-tap = LATCH.
+        { CB::SongScope, -1, kModNone, SL::Base, AId::HoldSongScope, u8"SONG SCOPE", u8"", CS::Resting,
+          Gesture::Hold, true },
+        { CB::SongScope, -1, kModNone, SL::Base, AId::LatchSongScope, u8"LATCH", u8"", CS::Resting,
+          Gesture::DoubleTap, false },
+
+        // MuteScope (key Z): hold = MUTE VIEW (primary); dbl-tap = LATCH.
+        { CB::MuteScope, -1, kModNone, SL::Base, AId::HoldMuteScope, u8"MUTE VIEW", u8"", CS::Resting,
+          Gesture::Hold, true },
+        { CB::MuteScope, -1, kModNone, SL::Base, AId::LatchMuteScope, u8"LATCH", u8"", CS::Resting,
+          Gesture::DoubleTap, false },
+
+        // FillScope (key X): hold = FILL SCOPE (primary); dbl-tap = LATCH.
+        { CB::FillScope, -1, kModNone, SL::Base, AId::HoldFillScope, u8"FILL SCOPE", u8"", CS::Resting,
+          Gesture::Hold, true },
+        { CB::FillScope, -1, kModNone, SL::Base, AId::LatchFillScope, u8"LATCH", u8"", CS::Resting,
+          Gesture::DoubleTap, false },
+
+        // TapTempo (key 3): hold = GEN HUB (primary); tap = TAP TEMPO (existing row).
+        { CB::TapTempo, -1, kModNone, SL::Base, AId::OpenGeneratorHub, u8"GEN HUB", u8"", CS::Resting,
+          Gesture::Hold, true },
+
+        // VerbPlay (key I): dbl-tap = STOP.
+        { CB::VerbPlay, -1, kModNone, SL::Base, AId::PlayStopReset, u8"STOP", u8"", CS::Resting,
+          Gesture::DoubleTap, false },
+
+        // VerbSnapshot Func+Y (RESTORE): hold = RESTORE → FLOOR.
+        { CB::VerbSnapshot, -1, kModFunc, SL::Base, AId::RestoreFloor, u8"→ FLOOR", u8"", CS::Resting,
+          Gesture::Hold, false },
+
+        // NavRight (key T): dbl-tap = UNLOCK page navigation.
+        { CB::NavRight, -1, kModNone, SL::Base, AId::NavPageUnlock, u8"UNLOCK", u8"", CS::Resting,
+          Gesture::DoubleTap, false },
+
+        // RecordArm (key 9): tap = REC ARM; dbl-tap = OVERDUB.
+        { CB::RecordArm, -1, kModNone, SL::Base, AId::RecordArmToggle, u8"REC ARM", u8"", CS::Resting,
+          Gesture::Tap, false },
+        { CB::RecordArm, -1, kModNone, SL::Base, AId::RecordArmOverdub, u8"OVERDUB", u8"", CS::Resting,
+          Gesture::DoubleTap, false },
+
+        // PlayStop (key 0): tap = PLAY/STOP toggle.
+        { CB::PlayStop, -1, kModNone, SL::Base, AId::PlayStopToggle, u8"PLY/STOP", u8"", CS::Resting,
+          Gesture::Tap, false },
     };
     // NOLINTEND(cppcoreguidelines-avoid-c-arrays)
 
@@ -195,7 +273,8 @@ namespace lockstep
 
     const KeyBinding& resolveBinding(ControllerButton b, int idx,
                                      uint16_t heldMods,
-                                     SurfaceLayer layer) noexcept
+                                     SurfaceLayer layer,
+                                     Gesture g) noexcept
     {
         const KeyBinding* best = nullptr;
         int score = -1;
@@ -204,6 +283,7 @@ namespace lockstep
         {
             if (row.button != b) continue;
             if (row.layer != layer) continue;
+            if (row.gesture != g) continue;
             // index -1 in the table matches any idx; a specific index must match exactly.
             if (row.index != -1 && row.index != idx) continue;
             // All required modifiers must be held.
@@ -244,6 +324,33 @@ namespace lockstep
         }
 
         return best ? *best : kNoBinding;
+    }
+
+    // =========================================================================
+    // promotedGesture
+    // =========================================================================
+
+    Gesture promotedGesture(ControllerButton b, int idx,
+                            uint16_t heldMods,
+                            SurfaceLayer layer) noexcept
+    {
+        // Pass 1: explicit promoted override wins.
+        for (const auto& row : kKeyBindings)
+        {
+            if (row.button != b || row.layer != layer) continue;
+            if (row.index != -1 && row.index != idx) continue;
+            if ((heldMods & row.requiredMods) != row.requiredMods) continue;
+            if (row.promoted) return row.gesture;
+        }
+        // Pass 2: Hold present → promoted to primary.
+        for (const auto& row : kKeyBindings)
+        {
+            if (row.button != b || row.layer != layer) continue;
+            if (row.index != -1 && row.index != idx) continue;
+            if ((heldMods & row.requiredMods) != row.requiredMods) continue;
+            if (row.gesture == Gesture::Hold) return Gesture::Hold;
+        }
+        return Gesture::Tap;
     }
 
 } // namespace lockstep

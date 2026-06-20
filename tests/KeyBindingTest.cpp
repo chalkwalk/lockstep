@@ -179,12 +179,14 @@ namespace lockstep
     // hint == Func-variant primary when the action differs; otherwise hint is empty.
     // Section rows are skipped (labels live in ScopedSectionMatrix).
     // Rows with Func already in requiredMods are skipped (adding Func is a no-op).
+    // Non-Tap rows are skipped: hold/double-tap gestures can't simultaneously add Func.
     static void testHintRule()
     {
         for (const auto& row : kKeyBindings)
         {
             if (row.button == CB::Section) continue;
             if (row.requiredMods & kModFunc) continue;  // Func-held rows: no hint expected
+            if (row.gesture != Gesture::Tap) continue;  // Hold/DoubleTap rows: hint n/a
 
             const auto& fv = resolveBinding(row.button, row.index,
                                             row.requiredMods | kModFunc,
@@ -206,7 +208,8 @@ namespace lockstep
 
     // ── Label-length invariants ───────────────────────────────────────────────
     // Count UTF-8 code points (not bytes). Continuation bytes (10xxxxxx) are skipped.
-    // ≤6 code points preferred for 15 pt primaries; 8 is the hard limit.
+    // Tap rows land in the large primary slot (15pt): hard limit = 8 code points.
+    // Hold/DoubleTap rows land in secondary rail slots (smaller font): limit = 12.
     static std::size_t utf8Length(const char8_t* s) noexcept
     {
         if (s == nullptr) return 0;
@@ -230,7 +233,10 @@ namespace lockstep
             const std::size_t pLen = utf8Length(row.primary);
             const std::size_t hLen = utf8Length(row.hint);
 
-            CHECK(pLen <= 8, "primary label ≤8 code points");
+            // Tap rows render at 15pt (large slot): hard limit 8.
+            // Hold/DoubleTap rows render in secondary rail (smaller font): limit 12.
+            const std::size_t pLimit = (row.gesture == Gesture::Tap) ? 8u : 12u;
+            CHECK(pLen <= pLimit, "primary label within slot limit");
             CHECK(hLen <= 8, "hint label ≤8 code points");
         }
     }
@@ -245,15 +251,17 @@ namespace lockstep
             CHECK(row.hint != nullptr, "hint non-null");
         }
 
-        // 2. No two rows for the same (button, index, layer) have identical requiredMods.
+        // 2. No two rows for the same (button, index, layer, gesture) have identical requiredMods.
         for (std::size_t i = 0; i < kKeyBindings.size(); ++i)
         {
             const auto& a = kKeyBindings[i];
             for (std::size_t j = i + 1; j < kKeyBindings.size(); ++j)
             {
                 const auto& b = kKeyBindings[j];
-                if (a.button == b.button && a.index == b.index && a.layer == b.layer)
-                    CHECK(a.requiredMods != b.requiredMods, "no duplicate (btn,idx,layer,mods) rows");
+                if (a.button == b.button && a.index == b.index
+                    && a.layer == b.layer && a.gesture == b.gesture)
+                    CHECK(a.requiredMods != b.requiredMods,
+                          "no duplicate (btn,idx,layer,gesture,mods) rows");
             }
         }
 
@@ -273,6 +281,72 @@ namespace lockstep
               "Song+Func: Func+Song row wins via popcount 2");
     }
 
+    // ── Gesture axis (9.12) ──────────────────────────────────────────────────
+    static AId resolveG(CB btn, uint16_t mods, Gesture g, int idx = -1)
+    {
+        return resolveBinding(btn, idx, mods, SL::Base, g).action;
+    }
+
+    static void testGestureResolution()
+    {
+        // TapTempo: tap = TAP TEMPO; hold = GEN HUB.
+        CHECK(resolveG(CB::TapTempo, kModNone, Gesture::Tap)  == AId::TapTempo,      "TAP tap");
+        CHECK(resolveG(CB::TapTempo, kModNone, Gesture::Hold) == AId::OpenGeneratorHub, "TAP hold = GEN HUB");
+        CHECK(resolveG(CB::TapTempo, kModNone, Gesture::DoubleTap) == AId::None,     "TAP dbl = none");
+
+        // Func: legacy Tap row = HoldFuncScope (backwards compat); hold = FUNC LAYER; dbl = ESCAPE.
+        // (The Tap row exists so display code before Stage 2 still finds FUNC label.)
+        CHECK(resolveG(CB::Func, kModNone, Gesture::Tap)       == AId::HoldFuncScope,"Func tap = legacy scope row");
+        CHECK(resolveG(CB::Func, kModNone, Gesture::Hold)      == AId::HoldFuncScope,"Func hold");
+        CHECK(resolveG(CB::Func, kModNone, Gesture::DoubleTap) == AId::FuncEscape,   "Func dbl = ESCAPE");
+
+        // TrackScope: hold (primary); dbl = LATCH.
+        CHECK(resolveG(CB::TrackScope, kModNone, Gesture::Hold)      == AId::HoldTrackScope,  "Track hold");
+        CHECK(resolveG(CB::TrackScope, kModNone, Gesture::DoubleTap) == AId::LatchTrackScope, "Track dbl = LATCH");
+
+        // PhraseScope dbl = LATCH.
+        CHECK(resolveG(CB::PhraseScope, kModNone, Gesture::DoubleTap) == AId::LatchPhraseScope, "Phrase dbl");
+
+        // VerbPlay dbl = STOP.
+        CHECK(resolveG(CB::VerbPlay, kModNone, Gesture::DoubleTap) == AId::PlayStopReset, "Play dbl = STOP");
+
+        // NavRight dbl = UNLOCK.
+        CHECK(resolveG(CB::NavRight, kModNone, Gesture::DoubleTap) == AId::NavPageUnlock, "NavRight dbl = UNLOCK");
+
+        // VerbSnapshot Func+hold = RESTORE → FLOOR.
+        CHECK(resolveG(CB::VerbSnapshot, kModFunc, Gesture::Hold) == AId::RestoreFloor, "Func+Y hold = FLOOR");
+
+        // RecordArm: tap = REC ARM; dbl = OVERDUB.
+        CHECK(resolveG(CB::RecordArm, kModNone, Gesture::Tap)       == AId::RecordArmToggle,  "RecordArm tap");
+        CHECK(resolveG(CB::RecordArm, kModNone, Gesture::DoubleTap) == AId::RecordArmOverdub, "RecordArm dbl");
+
+        // PlayStop: tap = PLAY/STOP.
+        CHECK(resolveG(CB::PlayStop, kModNone, Gesture::Tap) == AId::PlayStopToggle, "PlayStop tap");
+    }
+
+    static void testPromotedGesture()
+    {
+        // TapTempo: explicit promoted Hold row → Hold promoted.
+        CHECK(promotedGesture(CB::TapTempo, -1, kModNone, SL::Base) == Gesture::Hold,
+              "TapTempo: hold promoted (explicit)");
+
+        // TrackScope: explicit promoted Hold row → Hold.
+        CHECK(promotedGesture(CB::TrackScope, -1, kModNone, SL::Base) == Gesture::Hold,
+              "TrackScope: hold promoted");
+
+        // Func: Hold row present but not promoted → Hold still wins (pass 2).
+        CHECK(promotedGesture(CB::Func, -1, kModNone, SL::Base) == Gesture::Hold,
+              "Func: hold wins via pass-2");
+
+        // VerbPlay: only tap + dbl-tap rows, no hold → Tap promoted.
+        CHECK(promotedGesture(CB::VerbPlay, -1, kModNone, SL::Base) == Gesture::Tap,
+              "VerbPlay: tap promoted (no hold row)");
+
+        // NavRight bare: only tap + dbl-tap → Tap promoted.
+        CHECK(promotedGesture(CB::NavRight, -1, kModNone, SL::Base) == Gesture::Tap,
+              "NavRight: tap promoted");
+    }
+
     void runKeyBindingTests()
     {
         testHeldMods();
@@ -287,5 +361,7 @@ namespace lockstep
         testMostSpecificWins();
         testHintRule();
         testLabelLengths();
+        testGestureResolution();
+        testPromotedGesture();
     }
 }
