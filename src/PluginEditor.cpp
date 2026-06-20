@@ -4085,12 +4085,23 @@ namespace lockstep
         poolBtn_.setBounds(header.removeFromRight(80).reduced(4));
         soundBankBtn_.setBounds(header.removeFromRight(60).reduced(4));
 
-        // Tempo readout + Manipulation Zone are anchored to the top at fixed heights;
-        // the key rows below fill the remaining space, so growing the window makes
-        // the (QWERTY-emulating) buttons taller/squarer while the MZ stays put.
-        tempoReadout_.setBounds(bounds.removeFromTop(28).reduced(8, 2));
-        if (fileBar_)
-            fileBar_->setBounds(bounds.removeFromTop(24).reduced(8, 1));
+        // 9.11: consolidated info row — tempo/time-sig + project file bar on one line.
+        // Frees the ~26px that used to be the separate fileBar row for the inspector.
+        {
+            auto infoRow = bounds.removeFromTop(28);
+            // Standalone fileBar sits on the right side of the row; tempo fills left.
+            if (fileBar_)
+            {
+                fileBar_->setBounds(infoRow.removeFromRight(210).reduced(2, 1));
+                tempoReadout_.setBounds(infoRow.reduced(8, 2));
+            }
+            else
+            {
+                tempoReadout_.setBounds(infoRow.reduced(8, 2));
+            }
+        }
+        // Inspector bar row — populated by Stage 7; reserved here.
+        inspectorRow_ = bounds.removeFromTop(26);
         bounds.removeFromTop(2);
 
         // MHX.5: encoder band (MZ 4x2) + vertical crossfader to its right.

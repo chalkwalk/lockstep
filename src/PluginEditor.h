@@ -174,6 +174,8 @@ namespace lockstep
         InPluginTransport transport_;
         juce::Label tempoReadout_;           // scope-coloured BPM + time-sig display
         std::unique_ptr<StandaloneFileBar> fileBar_;
+        // 9.11: reserved row for inspector bar (Stage 7); stored in resized().
+        juce::Rectangle<int> inspectorRow_;
         int trackPage_ = 0;  // 0 = tracks 1-8 visible, 1 = tracks 9-16 visible
         juce::TextButton trackPageBtn_{ "1-8" };
         std::array<juce::TextButton, kNumTracks> trackBtns_;
