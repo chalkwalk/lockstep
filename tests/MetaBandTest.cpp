@@ -791,6 +791,61 @@ namespace lockstep
         CHECK(allNonDecreasing, "time-sig list ordered by non-decreasing bar length");
     }
 
+    // =========================================================================
+    // 9.10: TRIG band field 5 — RTG authored ratchet rate
+    // =========================================================================
+
+    static void testTrigBandRtgField()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        UiState ui;
+        ui.masterSection = 1;  // TRIG band
+        EditContext ctx;
+
+        // Without a held step: RTG field is inactive.
+        {
+            const auto fields = buildMetaBand(MetaBand::Trig, 0, proc, 0, ctx, ui);
+            CHECK(!fields[5].active,  "RTG inactive when no step held");
+            CHECK(!fields[5].writable, "RTG not writable when no step held");
+        }
+
+        // Hold step 3 on track 0.
+        ctx.hold(0, 3);
+        auto& step = proc.sequence().tracks[0].steps[3];
+
+        // Default: hasRetrig = false → RTG value = 0 (OFF).
+        {
+            const auto fields = buildMetaBand(MetaBand::Trig, 0, proc, 0, ctx, ui);
+            CHECK(fields[5].active,   "RTG active with step held");
+            CHECK(fields[5].writable, "RTG writable with step held");
+            CHECK(fields[5].stepped,  "RTG is stepped");
+            CHECK(feq(fields[5].value, 0.0f), "RTG value = 0 when hasRetrig=false");
+            CHECK(!fields[5].hasOverride, "RTG no override when off");
+        }
+
+        // Write value 5 (/16 = index 4 = retrigRate 0.25).
+        writeMetaField(MetaBand::Trig, 0, 5, 5.0f, proc, 0, ctx, ui);
+        CHECK(step.trigOverride.hasRetrig,       "write 5 → hasRetrig=true");
+        CHECK(feq(static_cast<float>(step.trigOverride.retrigRate), 0.25f), "write 5 → retrigRate=/16");
+
+        // Read back via buildMetaBand.
+        {
+            const auto fields = buildMetaBand(MetaBand::Trig, 0, proc, 0, ctx, ui);
+            CHECK(feq(fields[5].value, 5.0f), "RTG reads back 5 (/16)");
+            CHECK(fields[5].hasOverride, "RTG hasOverride=true after write");
+        }
+
+        // Write value 0 → off.
+        writeMetaField(MetaBand::Trig, 0, 5, 0.0f, proc, 0, ctx, ui);
+        CHECK(!step.trigOverride.hasRetrig, "write 0 → hasRetrig=false");
+        {
+            const auto fields = buildMetaBand(MetaBand::Trig, 0, proc, 0, ctx, ui);
+            CHECK(feq(fields[5].value, 0.0f), "RTG reads back 0 (OFF)");
+            CHECK(!fields[5].hasOverride, "RTG hasOverride=false after clear");
+        }
+    }
+
     // -------------------------------------------------------------------------
 
     void runMetaBandTests()
@@ -835,6 +890,9 @@ namespace lockstep
 
         // Bar-length order assertion on kTimeSigs (via buildMetaBand field 1 order)
         testTimeSigsBarLengthOrder();
+
+        // 9.10: TRIG band RTG field — authored ratchet rate round-trip
+        testTrigBandRtgField();
 
         testDensityEditsMaster();
 

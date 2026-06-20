@@ -2135,12 +2135,19 @@ namespace lockstep
                 using PS = EditMode::PrimaryScope;
                 const PS sectionScope = firstHeldSectionSuiteScope(uiState_);
 
-                // 5.7: Fill+TRIG → Retrig overlay; Fill+SRC → SoundPool overlay.
-                // These are momentary: the overlay clears when Fill releases.
+                // 9.10: Fill+TRIG → RetrigPicker only for slicer tracks (slice-point picker).
+                // Non-slicer live stutter removed (NON-GOALS fence #11). Freed slot reserved/inert.
+                // Fill+SRC → SoundPool (retained).
                 if (uiState_.fillHeld && ev.index == 0)
                 {
-                    uiState_.trigGridMode = TrigGridMode::Retrig;
-                    repaint();
+                    const int slAt = keyboardArea_.getActiveTrack();
+                    const auto* slMach = (slAt >= 0) ? processor_.machineForTrack(slAt) : nullptr;
+                    const auto* slSliceable = slMach ? dynamic_cast<const ISliceable*>(slMach) : nullptr;
+                    if (slSliceable && slSliceable->hasSlices())
+                    {
+                        uiState_.trigGridMode = TrigGridMode::Retrig;
+                        repaint();
+                    }
                     return true;
                 }
                 if (uiState_.fillHeld && ev.index == 1)
@@ -2266,11 +2273,8 @@ namespace lockstep
                 return true;
 
             case ControllerButton::Step: {
-                // ----------------------------------------------------------------
-                // 5.7: Retrig overlay (Fill+TRIG held)
-                // ----------------------------------------------------------------
-                // PPQ per repetition for each grid cell. 8 rates (cells 0-7),
-                // cells 8-15 are dark/ignored.
+                // 9.10: kRetrigRates used only by slicer preview (live stutter removed).
+                // Kept as default-rate lookup; index 4 = /16 default.
                 static constexpr std::array<double, 8> kRetrigRates = { {
                     1.0,          // /4   (quarter-note)
                     2.0 / 3.0,    // /4T  (quarter triplet)
@@ -2349,44 +2353,10 @@ namespace lockstep
                             return true;
                         }
 
-                        if (ev.index >= static_cast<int>(kRetrigRates.size())) return true;
-                        const double rate = kRetrigRates[static_cast<std::size_t>(ev.index)];
-
-                        int retrigNote = uiState_.lastPlayedNote[static_cast<std::size_t>(at)];
-                        if (retrigNote <= 0)
-                        {
-                            const auto& trk = processor_.sequence()
-                                                  .tracks[static_cast<std::size_t>(at)];
-                            const auto& ctx = processor_.editContext();
-                            if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == at && !ctx.heldSteps().empty())
-                            {
-                                const int si = ctx.heldSteps().front();
-                                if (si >= 0 && si < kMaxStepsPerTrack)
-                                {
-                                    const auto& ov = trk.steps[static_cast<std::size_t>(si)]
-                                                         .trigOverride;
-                                    retrigNote = (ov.noteCount > 0) ? ov.notes[0] : 60;
-                                }
-                            }
-                            if (retrigNote <= 0) retrigNote = 60;
-                        }
-                        processor_.setRetrigActive(at, true, rate, retrigNote);
-                        {
-                            auto& ctx = processor_.editContext();
-                            if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == at)
-                            {
-                                auto& trk = processor_.sequence()
-                                                .tracks[static_cast<std::size_t>(at)];
-                                for (int heldIdx : ctx.heldSteps())
-                                {
-                                    if (heldIdx < 0 || heldIdx >= kMaxStepsPerTrack) continue;
-                                    auto& s = trk.steps[static_cast<std::size_t>(heldIdx)];
-                                    s.trigOverride.hasRetrig = true;
-                                    s.trigOverride.retrigRate = rate;
-                                }
-                                ctx.markParamWritten();
-                            }
-                        }
+                        // 9.10: Non-slicer live stutter removed (fence #11).
+                        // Authored ratchet is now set via TRIG meta-band RTG field (slot 5).
+                        // RetrigPicker entry is gated to slicer tracks only, so this branch
+                        // is only reachable for slicer-less machines (defensive return).
                         return true;
                     }
 

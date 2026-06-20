@@ -16,6 +16,32 @@
 
 namespace lockstep
 {
+    // Ratchet rates for per-step RTG authored field (9.10).
+    // Matches the kRetrigRates table in PluginEditor.cpp; duplicated here to
+    // avoid exposing PluginEditor internals to MetaBand.
+    static constexpr std::array<double, 8> kRetrigRates = { {
+        1.0,          // /4
+        2.0 / 3.0,    // /4T
+        0.5,          // /8
+        1.0 / 3.0,    // /8T
+        0.25,         // /16  (default)
+        1.0 / 6.0,    // /16T
+        0.125,        // /32
+        1.0 / 12.0,   // /32T
+    } };
+
+    static constexpr const char* kRetrigRateLabels[9] = {
+        "OFF", "/4", "/4T", "/8", "/8T", "/16", "/16T", "/32", "/32T"
+    };
+
+    static int retrigRateToIndex(double rate) noexcept
+    {
+        for (int i = 0; i < static_cast<int>(kRetrigRates.size()); ++i)
+            if (std::abs(kRetrigRates[static_cast<std::size_t>(i)] - rate) < 1e-9)
+                return i;
+        return 4;  // default: /16
+    }
+
     MetaBand resolveMetaBand(const UiState& ui)
     {
         // Transient overlays outrank the latched masterSection page so that
@@ -235,6 +261,13 @@ namespace lockstep
         const float noteSel = static_cast<float>(
             t.noteSelection == NoteSelection::BottomBias ? 1 : 0);
 
+        // RTG field (slot 5): per-step authored ratchet rate (9.10).
+        // 0 = off (hasRetrig=false); 1..8 = rate index 0..7.
+        const int rtgIdx = (stepValid && trig && trig->hasRetrig)
+                               ? retrigRateToIndex(trig->retrigRate) + 1
+                               : 0;
+        const float rtgVal = static_cast<float>(rtgIdx);
+
         struct TrigDef
         {
             const char* label;
@@ -248,7 +281,7 @@ namespace lockstep
             { "Gate", 0.0f, static_cast<float>(kMusicalGateCount - 1), true, true },
             { "Bias", 0.0f, 1.0f, true, true },
             { "Micro", -0.5f, 0.5f, false, stepValid },
-            { "", 0.0f, 1.0f, false, false },
+            { "RTG",  0.0f, 8.0f, true, stepValid },   // 9.10: authored ratchet
             { "", 0.0f, 1.0f, false, false },
             { "", 0.0f, 1.0f, false, false },
         } };
@@ -258,10 +291,10 @@ namespace lockstep
             static_cast<float>(static_cast<uint8_t>(gateVal)),
             noteSel,
             microVal,
-            0.0f, 0.0f, 0.0f
+            rtgVal, 0.0f, 0.0f
         };
         const std::array<bool, 8> locks = { false, hasVel, hasGate, false,
-                                            stepValid, false, false, false };
+                                            stepValid, stepValid && rtgIdx > 0, false, false };
         static constexpr const char* kBiasLabels[] = { "TOP", "BOT" };
 
         std::array<MetaFieldView, 8> result{};
@@ -296,6 +329,11 @@ namespace lockstep
             {
                 const int pct = static_cast<int>(std::round(vals[si] * 100.0f));
                 f.valueText = (pct >= 0 ? "+" : "") + juce::String(pct) + "%";
+            }
+            else if (i == 5)
+            {
+                const int ri = std::clamp(static_cast<int>(vals[si]), 0, 8);
+                f.valueText = juce::String(kRetrigRateLabels[ri]);
             }
             else
             {
@@ -1136,6 +1174,19 @@ namespace lockstep
                                 std::clamp(static_cast<int>(value), 0, kMusicalGateCount - 1));
                             break;
                         case 4:  stepRef.microOffset = std::clamp(value, -0.5f, 0.5f); break;
+                        case 5: {  // RTG — authored ratchet rate (9.10)
+                            const int ri = std::clamp(static_cast<int>(value), 0, 8);
+                            if (ri == 0)
+                            {
+                                trig.hasRetrig = false;
+                            }
+                            else
+                            {
+                                trig.hasRetrig = true;
+                                trig.retrigRate = kRetrigRates[static_cast<std::size_t>(ri - 1)];
+                            }
+                            break;
+                        }
                         default: break;
                     }
                     ctx.markParamWritten();
