@@ -55,6 +55,8 @@ int main()
     lockstep::runFuncReskinTests();
     // Stage 5: LatchOps column membership + clearLatchColumnExcept invariants
     lockstep::runLatchOpsTests();
+    // 9.11: KeyAffordances SSOT + buildSurfaceModel affordance injection
+    lockstep::runKeyAffordanceTests();
 
     // Also drive the JUCE UnitTests registered in lockstep_core (the serializer
     // upgrade chain, "PluginState" category) so they run headlessly in CI rather

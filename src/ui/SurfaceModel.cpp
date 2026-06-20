@@ -5,6 +5,7 @@
 #include "KeyLabel.h"
 #include "../command/SurfaceLayer.h"
 #include "../command/KeyBindings.h"
+#include "../command/KeyAffordances.h"
 #include "ParamFormat.h"
 #include "ScopedSectionMatrix.h"
 #include "../state/UiState.h"
@@ -1953,6 +1954,43 @@ namespace lockstep
         // Step indices 1 (F) and 4 (J) are the keyboard home-row anchors.
         model.step[1].homeKey = true;
         model.step[4].homeKey = true;
+
+        // 9.11 gesture-affordance pass: at rest (no modifier held), populate the
+        // tap/hold/doubleTap affordance slots on every control cell so the 4-slot
+        // layout can render them. Skipped when any modifier is held so the cell's
+        // context-sensitive primary/funcHint stay undisturbed.
+        if (heldMods == kModNone)
+        {
+            // Helper: apply one affordance entry to a SurfaceCell.
+            auto applyAffordance = [](SurfaceCell& c) {
+                const KeyAffordance* aff = findAffordance(c.button);
+                if (!aff) return;
+                if (aff->tapLabel)
+                    c.tapLabel = juce::String(aff->tapLabel);
+                if (aff->holdLabel)
+                    c.holdLabel = juce::String(aff->holdLabel);
+                if (aff->doubleTapLabel)
+                    c.doubleTapLabel = juce::String(aff->doubleTapLabel);
+                c.primaryIsHold = aff->primaryIsHold;
+                // When primaryIsHold: swap so primary shows the hold action and
+                // tapLabel carries the tap action (the secondary "access" slot).
+                if (aff->primaryIsHold && aff->holdLabel)
+                {
+                    c.primary = juce::String(aff->holdLabel);
+                    if (aff->tapLabel)
+                        c.tapLabel = juce::String(aff->tapLabel);
+                }
+            };
+
+            for (auto& c : model.modifiers)
+                applyAffordance(c);
+            applyAffordance(model.tap);
+            applyAffordance(model.navUp);
+            for (auto& c : model.section)
+                applyAffordance(c);
+            for (auto& c : model.functionRow)
+                applyAffordance(c);
+        }
 
         return model;
     }

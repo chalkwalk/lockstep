@@ -171,6 +171,15 @@ namespace lockstep
         // screen renders fill+border in this colour, brighter, so the surface shows
         // exactly which keys the scope rewrites. 0 = not in scope (normal tint).
         uint32_t scopeTint = 0;
+
+        // --- Gesture-affordance slots (9.11 / DESIGN §19) ---
+        // Populated at rest (no modifier held) from KeyAffordances; "" = gesture absent.
+        // `primaryIsHold` = true when the primary action fires on hold (e.g. GEN key).
+        // Controllers may display these in a secondary zone; screen shows the 4-slot layout.
+        juce::String tapLabel;
+        juce::String holdLabel;
+        juce::String doubleTapLabel;
+        bool primaryIsHold = false;
     };
 
     // Returns a fallback ARGB colour for any CellState token.

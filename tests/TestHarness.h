@@ -77,4 +77,6 @@ namespace lockstep
     void runFuncReskinTests();
     // Stage 5: LatchOps column membership + clearLatchColumnExcept invariants
     void runLatchOpsTests();
+    // 9.11: KeyAffordances SSOT + buildSurfaceModel affordance injection
+    void runKeyAffordanceTests();
 }
