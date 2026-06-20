@@ -64,4 +64,21 @@ namespace lockstep
     // builder sets inconsistently for non-step cells). Not for step-grid cells —
     // those are painted directly from cell.baseColour.
     uint32_t cellFillColour(const SurfaceCell& c) noexcept;
+
+    // ── Compact grid-cell helpers (9.12 / DESIGN §19) ────────────────────────
+    // Grid cells use a two-phase draw so mode-specific borders can be inserted
+    // between the fill (bg) and the press + text (fg) in the right visual order:
+    //   paintGridCellFill → [border inline] → paintGridCellText → [key-hint inline]
+
+    // Phase 1: fill with sc.baseColour (rounded rect, radius 4).
+    void paintGridCellFill(juce::Graphics& g,
+                           juce::Rectangle<int> cell,
+                           const SurfaceCell& c) noexcept;
+
+    // Phase 2: press feedback + sc.primary text at normalized 9 pt.
+    // textAlpha >= 0 overrides the state-derived default (0.90 active, 0.65 others).
+    void paintGridCellText(juce::Graphics& g,
+                           juce::Rectangle<int> cell,
+                           const SurfaceCell& c,
+                           float textAlpha = -1.0f) noexcept;
 }

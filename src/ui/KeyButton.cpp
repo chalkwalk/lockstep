@@ -425,4 +425,35 @@ namespace lockstep
         // identical fill for the on-screen key and the controller's LED.
         return resolveFill(groupForCell(c), stateOf(c)).getARGB();
     }
+
+    void paintGridCellFill(juce::Graphics& g, juce::Rectangle<int> cell,
+                           const SurfaceCell& c) noexcept
+    {
+        g.setColour(juce::Colour(c.baseColour));
+        g.fillRoundedRectangle(cell.toFloat(), 4.0f);
+    }
+
+    void paintGridCellText(juce::Graphics& g, juce::Rectangle<int> cell,
+                           const SurfaceCell& c, float textAlpha) noexcept
+    {
+        // Press feedback (standardized).
+        if (c.pressed)
+        {
+            g.setColour(juce::Colours::white.withAlpha(0.65f));
+            g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
+        }
+
+        // Primary text from model, normalized to 9 pt.
+        if (c.primary.isNotEmpty())
+        {
+            const float alpha = (textAlpha >= 0.0f) ? textAlpha
+                : ((c.base == CellState::MachineCurrent
+                 || c.base == CellState::EffectLoaded
+                 || c.base == CellState::SelectorCurrent
+                 || c.base == CellState::MorphPoleActive) ? 0.90f : 0.65f);
+            g.setColour(juce::Colours::white.withAlpha(alpha));
+            g.setFont(juce::Font(juce::FontOptions(9.0f)));
+            g.drawText(c.primary, cell.reduced(2), juce::Justification::centred, true);
+        }
+    }
 }

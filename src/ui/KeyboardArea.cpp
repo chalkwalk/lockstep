@@ -998,8 +998,7 @@ namespace lockstep
                     const int y = rowY(row);
                     const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
-                    g.setColour(juce::Colour(sc.baseColour));
-                    g.fillRoundedRectangle(cell.toFloat(), 4.0f);
+                    paintGridCellFill(g, cell, sc);
 
                     if (avail && isCurrent)
                     {
@@ -1012,20 +1011,7 @@ namespace lockstep
                         g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
                     }
 
-                    // Press feedback
-                    if (sc.pressed && avail)
-                    {
-                        g.setColour(juce::Colours::white.withAlpha(0.65f));
-                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
-                    }
-
-                    if (avail && sc.primary.isNotEmpty())
-                    {
-                        g.setColour(juce::Colours::white.withAlpha(isCurrent ? 0.90f : 0.65f));
-                        g.setFont(juce::Font(juce::FontOptions(8.5f)));
-                        g.drawText(sc.primary, cell.reduced(2), juce::Justification::centred, true);
-                    }
-
+                    if (avail) paintGridCellText(g, cell, sc);
                     if (showKeyLetters)
                         paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(idx)],
                                          avail ? 1.0f : 0.45f);
@@ -1060,8 +1046,7 @@ namespace lockstep
                     const int y = rowY(row);
                     const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
-                    g.setColour(juce::Colour(sc.baseColour));
-                    g.fillRoundedRectangle(cell.toFloat(), 4.0f);
+                    paintGridCellFill(g, cell, sc);
 
                     if (avail && isCurrent)
                     {
@@ -1079,22 +1064,14 @@ namespace lockstep
                         g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
                     }
 
-                    if (sc.pressed && avail)
-                    {
-                        g.setColour(juce::Colours::white.withAlpha(0.65f));
-                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
-                    }
-
-                    if (avail && sc.primary.isNotEmpty())
+                    if (avail)
                     {
                         // 8.26: masterOnly effects are dimmed in the track insert picker.
                         const bool trackVisible = !processor_.availableEffectInfo(idx).masterOnly;
-                        g.setColour(juce::Colours::white.withAlpha(
-                            trackVisible ? (isCurrent ? 0.90f : (isOther ? 0.55f : 0.65f)) : 0.20f));
-                        g.setFont(juce::Font(juce::FontOptions(8.5f)));
-                        g.drawText(sc.primary, cell.reduced(2), juce::Justification::centred, true);
+                        const float ta = trackVisible
+                            ? (isCurrent ? 0.90f : (isOther ? 0.55f : 0.65f)) : 0.20f;
+                        paintGridCellText(g, cell, sc, ta);
                     }
-
                     if (showKeyLetters)
                         paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(idx)],
                                          avail ? 1.0f : 0.45f);
@@ -1129,8 +1106,7 @@ namespace lockstep
                     const int y = rowY(row);
                     const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
-                    g.setColour(juce::Colour(sc.baseColour));
-                    g.fillRoundedRectangle(cell.toFloat(), 4.0f);
+                    paintGridCellFill(g, cell, sc);
 
                     if (avail && isCurrent)
                     {
@@ -1148,19 +1124,9 @@ namespace lockstep
                         g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
                     }
 
-                    if (sc.pressed && avail)
-                    {
-                        g.setColour(juce::Colours::white.withAlpha(0.65f));
-                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
-                    }
-
                     if (avail && idx < numEffects)
-                    {
-                        g.setColour(juce::Colours::white.withAlpha(isCurrent ? 0.90f : (isOther ? 0.55f : 0.65f)));
-                        g.setFont(juce::Font(juce::FontOptions(8.5f)));
-                        g.drawText(sc.primary, cell.reduced(2), juce::Justification::centred, true);
-                    }
-
+                        paintGridCellText(g, cell, sc,
+                                          isCurrent ? 0.90f : (isOther ? 0.55f : 0.65f));
                     if (showKeyLetters)
                         paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(idx)],
                                          avail ? 1.0f : 0.45f);
@@ -1192,22 +1158,8 @@ namespace lockstep
                     const int y = rowY(row);
                     const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
-                    g.setColour(juce::Colour(sc.baseColour));
-                    g.fillRoundedRectangle(cell.toFloat(), 4.0f);
-
-                    if (sc.pressed)
-                    {
-                        g.setColour(juce::Colours::white.withAlpha(0.65f));
-                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
-                    }
-
-                    if (sc.primary.isNotEmpty())
-                    {
-                        g.setColour(juce::Colours::white.withAlpha(0.90f));
-                        g.setFont(juce::Font(juce::FontOptions(9.0f)));
-                        g.drawText(sc.primary, cell.reduced(2), juce::Justification::centred, false);
-                    }
-
+                    paintGridCellFill(g, cell, sc);
+                    paintGridCellText(g, cell, sc, 0.90f);
                     if (showKeyLetters && idx < 3)
                         paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(idx)], 1.0f);
                 }
@@ -1727,24 +1679,12 @@ namespace lockstep
                     const int y = rowY(row);
                     const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
 
-                    g.setColour(juce::Colour(sc.baseColour));
-                    g.fillRoundedRectangle(cell.toFloat(), 4.0f);
-
-                    if (sc.pressed)
+                    paintGridCellFill(g, cell, sc);
+                    if (sc.base != CellState::MorphPoleDark)
                     {
-                        g.setColour(juce::Colours::white.withAlpha(0.65f));
-                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
+                        const float ta = (sc.base == CellState::MorphPoleActive) ? 0.90f : 0.50f;
+                        paintGridCellText(g, cell, sc, ta);
                     }
-
-                    // Param label (screen-only residual from model.primary)
-                    if (sc.base != CellState::MorphPoleDark && sc.primary.isNotEmpty())
-                    {
-                        const float alpha = (sc.base == CellState::MorphPoleActive) ? 0.90f : 0.50f;
-                        g.setColour(juce::Colours::white.withAlpha(alpha));
-                        g.setFont(juce::Font(juce::FontOptions(8.0f)));
-                        g.drawText(sc.primary, cell.reduced(2), juce::Justification::centred, true);
-                    }
-
                     if (showKeyLetters && sc.base != CellState::MorphPoleDark)
                         paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(localIdx)], 0.6f);
                 }
