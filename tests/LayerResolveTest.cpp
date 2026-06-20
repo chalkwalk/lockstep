@@ -111,8 +111,8 @@ namespace lockstep
         checkKey("O-func", code('O'), true, false, false, B::VerbDelete, -1);
         checkKey("P-func", code('P'), true, false, false, B::VerbConfirm, -1);
 
-        // key 3: TapTempo plain, MetronomeToggle under func
-        checkKey("key3-func", code('3'), true, false, false, B::MetronomeToggle, -1);
+        // 9.10: Func+3 remap to MetronomeToggle removed; metronome moved to TIME band field 2.
+        checkKey("key3-func", code('3'), true, false, false, B::TapTempo, -1);
     }
 
     // ── Step grid row 1: D-;, indices 0-7 ────────────────────────────────

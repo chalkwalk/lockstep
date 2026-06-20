@@ -379,6 +379,37 @@ namespace lockstep
         CHECK(fields[1].active,   "Time band: field 1 (Sig) is active");
         CHECK(fields[1].writable, "Time band: field 1 (Sig) is writable");
         CHECK(fields[1].stepped,  "Time band: field 1 (Sig) is stepped");
+        // 9.10: field 2 = CLICK (metronome toggle)
+        CHECK(fields[2].active,   "Time band: field 2 (CLICK) is active");
+        CHECK(fields[2].writable, "Time band: field 2 (CLICK) is writable");
+        CHECK(fields[2].stepped,  "Time band: field 2 (CLICK) is stepped");
+    }
+
+    static void testTimeBandClickRoundTrip()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        UiState ui;
+        ui.overlay = Overlay::Time;
+        ui.timeEntryScope = 2;
+        EditContext ctx;
+
+        // Default: metronome off.
+        CHECK(!proc.clock().isMetronomeEnabled(), "metronome starts off");
+        auto fields = buildMetaBand(MetaBand::Time, 0, proc, 0, ctx, ui);
+        CHECK(feq(fields[2].value, 0.0f), "CLICK field starts at 0 (off)");
+
+        // Write 1.0 (on) via writeMetaField.
+        writeMetaField(MetaBand::Time, 0, 2, 1.0f, proc, 0, ctx, ui);
+        CHECK(proc.clock().isMetronomeEnabled(), "write 1.0 → metronome on");
+        fields = buildMetaBand(MetaBand::Time, 0, proc, 0, ctx, ui);
+        CHECK(feq(fields[2].value, 1.0f), "CLICK field reads 1.0 after enable");
+
+        // Write 0.0 (off).
+        writeMetaField(MetaBand::Time, 0, 2, 0.0f, proc, 0, ctx, ui);
+        CHECK(!proc.clock().isMetronomeEnabled(), "write 0.0 → metronome off");
+        fields = buildMetaBand(MetaBand::Time, 0, proc, 0, ctx, ui);
+        CHECK(feq(fields[2].value, 0.0f), "CLICK field reads 0.0 after disable");
     }
 
     // -------------------------------------------------------------------------
@@ -777,8 +808,9 @@ namespace lockstep
         testResolveMetaBandTime();
         testTimeScopeFor();
 
-        // TIME band: two active fields (tempo + time-sig)
+        // TIME band: three active fields (tempo + time-sig + click)
         testTimeBandFields();
+        testTimeBandClickRoundTrip();
 
         // Write round-trips + entry-scope correctness
         testWriteMetaFieldTempoSongScope();

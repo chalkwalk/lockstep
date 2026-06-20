@@ -48,7 +48,7 @@ namespace lockstep
         { ControllerButton::Step, LayerRemap::Layer::Mute, ControllerButton::ToggleMute },
         // Func layer (priority 3):
         { ControllerButton::Section, LayerRemap::Layer::Func, ControllerButton::MetaSection },
-        { ControllerButton::TapTempo, LayerRemap::Layer::Func, ControllerButton::MetronomeToggle },
+        // Func+3 → MetronomeToggle remap removed (9.10): metronome moved to TIME band field 2.
         { ControllerButton::VerbSnapshot, LayerRemap::Layer::Func, ControllerButton::Restore },
         { ControllerButton::VerbClear, LayerRemap::Layer::Func, ControllerButton::VerbDelete },
     };

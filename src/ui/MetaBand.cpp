@@ -1005,13 +1005,24 @@ namespace lockstep
             return buildVelBlendBand(proc, ui, track);
         if (band == MetaBand::Time)
         {
-            // Stage 4 will merge these into a single buildTimeBand(); for now,
-            // tempo sits at field 0 and time-sig at field 1 via two separate calls.
+            // Field 0 = Tempo, Field 1 = Time Sig, Field 2 = CLICK (metronome, 9.10).
             const int scope = timeScopeFor(ui);
             auto result = buildTempoBand(scope, proc);
             const auto tsResult = buildTimeSigBand(scope, proc);
             result[1] = tsResult[0];  // copy the time-sig field into slot 1
             result[1].label = "Sig";  // distinguish from the tempo field label
+            // CLICK field — metronome on/off toggle.
+            auto& click = result[2];
+            click.active = true;
+            click.label = "CLICK";
+            click.minValue = 0.0f;
+            click.maxValue = 1.0f;
+            click.stepped = true;
+            click.writable = true;
+            click.ringMode = RingMode::Dot;
+            const bool metOn = proc.clock().isMetronomeEnabled();
+            click.value = metOn ? 1.0f : 0.0f;
+            click.valueText = metOn ? juce::String("ON") : juce::String("OFF");
             return result;
         }
         if (track < 0 || track >= static_cast<int>(kNumTracks))
@@ -1403,6 +1414,10 @@ namespace lockstep
                             scene.coreTime.denominator = kTimeSigs[i].den;
                         }
                     }
+                }
+                else if (field == 2)  // CLICK — metronome on/off (9.10)
+                {
+                    proc.clock().setMetronomeEnabled(value >= 0.5f);
                 }
                 break;
             }
