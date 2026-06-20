@@ -1470,30 +1470,40 @@ covers the mode-dependent *name*.
 
 #### 6.11.1 In-cell gesture affordances
 
-Each key cell displays a **five-slot fixed frame** (vertical, top→bottom):
+Each key cell uses a **fixed uniform band layout** (vertical, top→bottom). The
+five grammar pieces (letter hint, double-tap, the non-primary gesture, PRIMARY,
+func variant) pack into **four bands** so the layout fits the shortest cell while
+the PRIMARY stays at one vertical position on every key:
 
 ```
-[ double-tap ]   ← faint, small — blank space reserved even when absent
-[ tap        ]   ← faint, small — blank space reserved even when absent
-[ PRIMARY    ]   ← large, bright centre (access glyph beside it)
-[ hold       ]   ← faint, small — blank space reserved even when absent
-[ func-hint  ]   ← amber chip + text; blank space reserved even when absent
+[ hint  ........  double-tap ]   ← letter (left) + dbl chip in the dead space
+[ PRIMARY                    ]   ← large, bright, locked band (access glyph beside)
+[ secondary rail             ]   ← the non-primary of tap/hold; blank for most keys
+[ func-variant               ]   ← amber chip + text; blank when absent
 ```
 
-**Fixed-reserved layout.** All four rail rows always reserve their vertical
-space so the PRIMARY locks to the same centre band on every key, regardless of
-which rails are populated. Blank space is held when a slot has no content; no
-glyph is drawn on an empty rail. Cells never jump.
+**Why four, not five.** A key's primary is either its tap or its hold, so only
+*one* of {tap, hold} can be a non-primary secondary — they collapse into a single
+secondary rail beneath the PRIMARY. The double-tap chip moves onto the letter-hint
+row (the otherwise-dead space beside the QWERTY hint), reclaiming a whole band.
+This is what fixed the 9.11 overflow, where a reserved five-row stack pushed the
+func rail (e.g. Song's `GLOBAL`) off the bottom of the shorter cells (~48 px).
 
-**Strongest-wins primary (promotion).** The centre slot shows the
-`promotedGesture()` winner: (1) explicit `promoted = true` row; (2) any Hold row;
-(3) else Tap. The primary's own rail is suppressed (never shown twice); the access
-glyph beside the primary identifies which gesture reaches it.
+**Fixed-uniform layout.** Every key reserves the same bands so the PRIMARY locks
+to one position; blank space is held when a band has no content (cells never jump).
+
+**Strongest-wins primary (promotion).** The PRIMARY shows the `promotedGesture()`
+winner: (1) explicit `promoted = true` row; (2) any Hold row; (3) else Tap. The
+primary's own rail is suppressed (never shown twice), as is any secondary whose
+action *duplicates* the primary — so a scope modifier (one `HoldXScope` action for
+both press and hold) has **no phantom tap rail**: it reads as a bare name (`TRACK`,
+`MORPH`, `MUTE`) + hold ring + `LATCH` double-tap.
 
 **Painted vector glyphs.** Each populated slot renders a small glyph inline with
 its label text: tap = one dot, double-tap = two dots, hold = hollow ring, func =
-filled amber chip (`theme::kFuncAccent`). A **faint access glyph** beside the
-PRIMARY names the gesture a player must use to reach it.
+filled amber chip (`theme::kFuncAccent`). The **access glyph** beside the PRIMARY
+(hold ring vs tap dot) is the **tap / no-tap signal** — modifiers ring, tap keys
+dot.
 
 **Single grammar SSOT (9.12).** Display derives entirely from
 `resolveBinding(button, idx, heldMods, layer, Gesture)` — the same function that
@@ -1535,7 +1545,7 @@ focusedIndex) → InspectorModel` is a side-effect-free function, unit-testable,
 reusable for controller displays (dual-target per PRINCIPLES §19).
 
 **KEY uses grammar SSOT.** The KEY region description is derived from the same
-`resolveBinding(..., Gesture)` calls the 5-slot renderer uses — gesture
+`resolveBinding(..., Gesture)` calls the in-cell affordance renderer uses — gesture
 descriptions are never duplicated.
 
 **Not a crutch.** States whose only expression is the inspector text are hardware

@@ -644,17 +644,22 @@ nibs on hardware, so a player moving between a normal typing keyboard and
 Lockstep keeps their hands placed. This is the visual half of the North Star's
 "learned by hand and read by colour."
 
-**In-cell gesture affordances (9.12).** Every key in the grid carries a
-**five-slot fixed frame** (top→bottom: double-tap · tap · PRIMARY · hold ·
-func hint). All five slot rows always reserve their vertical space — the primary
-locks to the same centre band on every key so the eye learns positions. Absent
-content renders blank; no glyph is drawn on an empty rail. Each populated slot
-carries a **painted vector glyph** (tap = dot, double-tap = two dots, hold =
-hollow ring, func = filled amber chip) so the grammar is legible without reading
-text. The centre PRIMARY is always the *strongest* action (Hold promoted over Tap;
-explicit `promoted` flag allows per-context overrides); a **faint access glyph**
-beside the primary names the gesture required to reach it. Key 3 (TapTempo)
-exemplifies: PRIMARY = GEN HUB (hold ring), tap slot above = TAP TEMPO (dot).
+**In-cell gesture affordances (9.12).** Every key carries the same **fixed
+uniform band layout**, so the PRIMARY locks to one vertical position on every key
+and the eye learns it once. The five grammar pieces (letter hint, double-tap, the
+non-primary gesture, PRIMARY, func variant) pack into four bands: the **double-tap
+chip shares the letter-hint row** (using the dead space beside the QWERTY hint);
+the **PRIMARY** sits in the locked centre band; a **single secondary rail** below
+it shows whichever of tap/hold is *not* the primary (blank for most keys); the
+**func variant** is the bottom strip. Each populated slot carries a **painted
+vector glyph** (tap = dot, double-tap = two dots, hold = hollow ring, func =
+filled amber chip). The PRIMARY is the *strongest* action (Hold promoted over Tap;
+explicit `promoted` flag allows per-context overrides), and its **access glyph**
+(hold ring vs tap dot) is the **tap / no-tap signal**: scope modifiers are
+hold-to-engage keys with no distinct tap, so they show a bare name (`TRACK`,
+`MORPH`, `MUTE`) + hold ring and a `LATCH` double-tap — never a phantom tap rail.
+Key 3 (TapTempo) is the dual-gesture case: PRIMARY = GEN HUB (hold ring), secondary
+rail = TAP TEMPO (tap dot).
 
 **Single source of truth: the grammar.** Display derives entirely from
 `resolveBinding(button, idx, heldMods, layer, Gesture)` — the same function that
