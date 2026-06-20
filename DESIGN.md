@@ -1466,6 +1466,78 @@ by this mechanism — they are chosen per `ParamSpec` at machine-declaration
 time. The `valueLabels` array covers the mode-dependent *value text*; `contextLabel`
 covers the mode-dependent *name*.
 
+### 6.11 Gesture-affordance visual language and context inspector (9.11) ✓
+
+#### 6.11.1 In-cell gesture affordances
+
+Each key cell displays a **four-slot layout** (vertical, top→bottom):
+
+```
+[ double-tap ]   ← faint, small
+[ tap        ]   ← faint, small
+[ PRIMARY    ]   ← large, bright centre (access glyph beside it)
+[ hold       ]   ← faint, small
+[ func-hint  ]   ← already present; here clarified as the bottom slot
+```
+
+**Strongest-wins primary.** The centre slot is the *most-significant* gesture
+action: hold beats tap when the hold action is the feature (e.g. key 3: PRIMARY =
+GEN HUB, tap slot = TAP TEMPO). `KeyAffordance::primaryIsHold` signals this.
+
+**Painted vector glyphs.** Each slot renders a small glyph inline with its label
+text to name the gesture required: tap = one dot, double-tap = two dots, hold =
+hollow ring, func = amber chip. A **faint access glyph** beside the PRIMARY names
+the gesture a player must use to reach it (avoids ambiguity when primary=hold).
+
+**Empty slots collapse.** A key with only a tap action (no hold, no dbl-tap, no
+func) renders exactly as before — the four-slot path fast-exits to the normal
+paint path.
+
+**SSOT.** Affordance data lives in `src/command/KeyAffordances.{h,cpp}`. The
+`buildSurfaceModel` pass injects `tapLabel`, `holdLabel`, `doubleTapLabel`, and
+`primaryIsHold` into `SurfaceCell` (screen-text extension zone — after the `pip`
+boundary, safe to add fields) **only at rest** (`heldMods == kModNone`), so
+context-sensitive primary/funcHint from a held modifier take priority.
+
+Adding a gesture to a key: add an entry in `KeyAffordances.cpp`; no paint-path
+change required.
+
+#### 6.11.2 Top-chrome consolidation (9.11)
+
+The two separate chrome rows (tempoReadout 28px + fileBar 24px) were merged into
+**one 28px row** — tempo/time-sig on the left, fileBar controls on the right
+(standalone only). This freed 26px for the inspector strip placed directly below.
+
+#### 6.11.3 Context inspector — 4-region strip
+
+A slim always-on full-width strip placed between the info row and the MZ:
+
+```
+[ KEY: 3 — tap TEMPO / hold GEN HUB ][ HELD: SCENE — verbs→scene, dbl=LATCH ]
+[ OVERLAY: GENERATOR HUB — pick cell ][ EDIT: step 5  vel 110               ]
+```
+
+**Four fixed regions**, each always populated (idle fallbacks are never blank):
+
+| Region | Active content | Idle fallback |
+|---|---|---|
+| KEY | last-touched key: name + gesture list from `KeyAffordances` | `--` |
+| HELD | held modifier scope name + grammar note (LATCH, verbs, etc.) | track N + machineId |
+| OVERLAY | active picker/overlay purpose + cancel gesture | scene N |
+| EDIT | held-step overrides (vel, gate, P-lock slot value) | `--` |
+
+**Pure builder.** `buildInspectorModel(UiState, EditContext, proc, focusedButton,
+focusedIndex) → InspectorModel` is a side-effect-free function, unit-testable,
+reusable for controller displays (dual-target per PRINCIPLES §19).
+
+**KEY uses `KeyAffordances` SSOT.** The KEY region description is derived from the
+same `findAffordance(button)` call the 4-slot renderer uses — gesture descriptions
+are never duplicated.
+
+**Not a crutch.** States whose only expression is the inspector text are hardware
+bugs (see PRINCIPLES §19). The inspector enriches; `CellState` colours and glyphs
+must still carry the performable subset on their own.
+
 ## 7. Host Serialization
 
 Plugin state carries:

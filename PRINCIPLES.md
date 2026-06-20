@@ -644,6 +644,31 @@ nibs on hardware, so a player moving between a normal typing keyboard and
 Lockstep keeps their hands placed. This is the visual half of the North Star's
 "learned by hand and read by colour."
 
+**In-cell gesture affordances (9.11).** Every key in the grid carries a
+**four-slot layout** (top→bottom: double-tap · tap · PRIMARY · hold · func hint)
+revealing its full gesture set without a tooltip or overlay. Slots that are empty
+collapse silently; a key with only a tap action looks unchanged. Each populated
+slot carries a **painted vector glyph** (tap = dot, double-tap = two dots, hold =
+ring, func = amber chip) so the grammar is legible without reading text. The
+centre PRIMARY is always the *strongest* action (hold wins over tap when the hold
+action is more powerful); a **faint access glyph** beside the primary names the
+gesture required to reach it. Key 3 (TapTempo) exemplifies: PRIMARY = GEN HUB
+(hold ring), tap slot above = TAP TEMPO (dot). Affordance data lives in
+`KeyAffordances.{h,cpp}` — a single source of truth consumed by `SurfaceModel`
+for the screen and accessible to controller displays. Adding a new gesture:
+add an entry in `KeyAffordances.cpp`; `SurfaceModel` injects it at rest (no
+modifier held).
+
+**Context inspector (9.11).** A slim always-on full-width strip (4 captioned
+columns: KEY · HELD · OVERLAY · EDIT) narrates the current state in plain text —
+the complement to the at-a-glance cell affordances. Each column always has
+content (idle fallbacks supply "where am I" information when nothing is active).
+Built by the pure function `buildInspectorModel(UiState, EditContext, proc,
+focusedButton)`, making it unit-testable and reusable for controller displays
+(dual-target). KEY re-uses `KeyAffordances` as its SSOT so gesture descriptions
+are never duplicated. A state whose only expression is the inspector is still
+a hardware bug: the inspector is enrichment, not a crutch.
+
 ---
 
 ## Non-Goals — what Lockstep refuses to become

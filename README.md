@@ -1234,6 +1234,8 @@ shipped behaviour and the design intent. To avoid confusion:
 - **Master FX bus** (2 post-sum slots, `Func+Song+FX` picker, MZ params under `Song+FX`, serializer v14).
 - **Density overlay** (entered via generator hub, `3` held → DENSITY cell; sticky DENSITY mode: nav = bank 1-8/9-16; `Song`-held = master offset (encoder or drag); MOD key = Amount/Mode/Selection sub-page; any non-MOD section key or foreign scope = exit sticky mode; `Song`-alone = swing).
 - **Generator hub** (`3` held ≥350 ms → momentary picker EUCLID / DENSITY / VEL; short tap = tap tempo retained).
+- **In-cell gesture affordances** (9.11): each key cell shows its full gesture set in a 4-slot layout (double-tap · tap · PRIMARY · hold · func hint) with painted vector glyphs (dot = tap, two dots = double-tap, ring = hold, amber chip = func). PRIMARY is the strongest action; a faint access glyph names which gesture to use. Empty slots collapse — single-action keys look unchanged. `3` shows PRIMARY = GEN HUB (ring), tap slot above = TAP TEMPO. Affordance data lives in `KeyAffordances.{h,cpp}` (dual-target SSOT).
+- **Context inspector** (9.11): always-on 4-region strip below the top info row. Regions: KEY (focused key + gesture list), HELD (active modifier scope + grammar note), OVERLAY (active picker or mode name + cancel hint), EDIT (held-step overrides). Each region has an idle fallback; built by `buildInspectorModel()` — unit-tested and dual-target.
 
 **Planned** — the rest of the
 machine catalogue (`4.5` Static, `4.6` Percussion, `4.7` Digital); **Phase 5**

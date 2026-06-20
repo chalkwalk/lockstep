@@ -1786,6 +1786,44 @@ triad (resolution + scope-routing + round-trip); any moved overlay gets a
       colour/brightness/blink proxy; flag text-only states as hardware bugs.
       *(deferred — needs separate review)*
 
+### 9.11 — Gesture-affordance visual language + context inspector  *[shipped]*
+
+Closes the gap between the gesture grammar and the visual language; folds in two
+concrete bugs. Ships PRINCIPLES §19 affordance/inspector clauses, DESIGN §6.11,
+README affordances + inspector.
+
+- [x] **Bug A: stale Func+3 "MET" binding.** `KeyBindings.cpp` `Func+3 →
+      MetronomeToggle` row removed; bare TapTempo hint cleared. `KeyBindingTest`
+      updated. *(Stage 1 — ddb96eb)*
+- [x] **Bug B: generator hub cells had no paint block.** `paintStepRows` had no
+      early-return for `generatorHubHeld` — fell through to step-number renderer.
+      Added dedicated block consuming `model.step[].primary`. Model-driven text
+      also adopted for machine picker, TrackFxPicker, MasterFxPicker.
+      `SurfaceModelTest` covers `testGeneratorHubPrimary` + `testMachinePickerPrimary`.
+      *(Stage 2 — 7b7204a)*
+- [x] **Affordance data model.** `SurfaceCell` extended with `tapLabel`,
+      `holdLabel`, `doubleTapLabel`, `primaryIsHold`. New `KeyAffordances.{h,cpp}`
+      (14-entry seed table). `SurfaceModel` injects at rest only. `KeyAffordanceTest`.
+      *(Stage 3 — 8c56659)*
+- [x] **4-slot KeyButton rendering.** `paintCell` gains a 5-zone affordance path
+      (dbl-tap / tap / primary / hold / func); painted vector glyphs; faint access
+      glyph; fast-path for single-action keys. *(Stage 4 — 9a965f3)*
+- [x] **Full affordance table.** `KeyAffordances` extended to 22 entries: all 8
+      modifiers (hold=scope, dbl=LATCH; Func dbl=ESCAPE), verb keys (VerbPlay
+      dbl=STOP), nav keys (TRACK UP/DOWN, PAGE LEFT/RIGHT), RecordArm, PlayStop.
+      *(Stage 5 — b88ee51)*
+- [x] **Top-chrome consolidation.** `tempoReadout_` (28px) + `fileBar_` (24px)
+      merged onto one 28px row; 26px freed; `inspectorRow_` reserved.
+      *(Stage 6 — 82f4edd)*
+- [x] **Context inspector.** `InspectorModel.{h,cpp}` pure builder (KEY / HELD /
+      OVERLAY / EDIT, idle fallbacks, KEY reuses `KeyAffordances`). `InspectorBar.{h,cpp}`
+      slim JUCE component 4 columns. Wired into `PluginEditor` resized + 30Hz tick.
+      `InspectorModelTest` (5 tests). *(Stage 7 — 54c45c2)*
+- [x] **Docs.** PRINCIPLES §19 + in-cell affordance + inspector clauses. DESIGN §6.11
+      (§6.11.1 slots/glyphs, §6.11.2 chrome consolidation, §6.11.3 inspector regions).
+      README affordances + inspector in implemented list; shortcut map already correct.
+      *(Stage 8 — this commit)*
+
 ### Future (structural)
 - [x] **Collapse `timeStickyMode` / `densityStickyMode` / `velStickyMode` into a
   single `Overlay overlay` field** in `UiState` so that coexistence is unrepresentable
