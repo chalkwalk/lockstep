@@ -697,6 +697,17 @@ namespace lockstep
 
     void LockstepEditor::timerCallback()
     {
+        // Generator hub (9.10): promote a held 3-key to the hub picker after 350 ms.
+        if (tapTempoPhysHeld_ && !uiState_.generatorHubHeld)
+        {
+            const double nowMs = juce::Time::getMillisecondCounterHiRes();
+            if (nowMs - tapTempoArmMs_ >= GestureRecognizer::kLongPressMs)
+            {
+                uiState_.generatorHubHeld = true;
+                repaint();
+            }
+        }
+
         // Peak meters: fast attack, slow ballistic decay. Activity blinks: a
         // pulse from the audio thread snaps to 1.0, then decays each tick.
         // Only repaint if any value actually changed; floor tiny values to zero
@@ -1606,6 +1617,51 @@ namespace lockstep
         }
     }
 
+    // ── Generator hub entry helpers (9.10) ───────────────────────────────────────
+    // Called from the hub Step dispatch (cells 0-2). Each helper is the body that
+    // used to live in the legacy Phrase+Fill / Func+MOD / Func+AMP entry blocks.
+
+    void LockstepEditor::enterEuclid(int track)
+    {
+        if (track < 0) track = 0;
+        if (activeTrackContentLocked()) return;
+        const auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(track)];
+        int onsets = 0;
+        for (int si = 0; si < wt.length; ++si)
+            if (wt.steps[static_cast<std::size_t>(si)].trig) ++onsets;
+        uiState_.euclidPulses = onsets > 0 ? onsets : 4;
+        uiState_.euclidOffset = 0;
+        uiState_.euclidAccents = 0;
+        uiState_.euclidHeld = true;
+        uiState_.masterSection = -1;
+        euclidTrack_ = track;
+        euclidStashLen_ = wt.length;
+        for (int si = 0; si < euclidStashLen_; ++si)
+            euclidStash_[static_cast<std::size_t>(si)] = wt.steps[static_cast<std::size_t>(si)];
+        applyEuclidLive(track);
+        refreshMetaBand();
+    }
+
+    void LockstepEditor::enterDensitySticky()
+    {
+        if (uiState_.overlay == Overlay::Density) return;
+        uiState_.overlay = Overlay::Density;
+        escapeVelSticky();
+        escapeOverlay(uiState_, Overlay::Time);
+        refreshMetaBand();
+    }
+
+    void LockstepEditor::enterVelSticky()
+    {
+        if (uiState_.overlay == Overlay::Vel) return;
+        uiState_.overlay = Overlay::Vel;
+        uiState_.velSubPage = velAnyEnabled()
+            ? UiState::VelSubPage::Depth : UiState::VelSubPage::Mode;
+        escapeDensitySticky();
+        escapeOverlay(uiState_, Overlay::Time);
+        refreshMetaBand();
+    }
+
     void LockstepEditor::updateFillActivation()
     {
         const bool fillHeld = uiState_.fillHeld;
@@ -1897,6 +1953,15 @@ namespace lockstep
     {
         using CB = ControllerButton;
 
+        // Generator hub (9.10): intercept bare TapTempo (3-key) before CommandCore.
+        // handleTapTempo() is deferred to key-up; a long hold opens the hub instead.
+        if (ev.button == CB::TapTempo)
+        {
+            tapTempoPhysHeld_ = true;
+            tapTempoArmMs_ = juce::Time::getMillisecondCounterHiRes();
+            return true;
+        }
+
         // Phase 8.4 command core: try the migrated handlers first; fall through
         // to legacy dispatch for everything that hasn't migrated yet.
         {
@@ -1998,27 +2063,7 @@ namespace lockstep
                 uiState_.phraseScopeHeld = true;
                 uiState_.phraseScopeUsed = false;
                 editMode_.onScopeEvent(ev);
-                // 5.5: Fill+Phrase chord → enter Euclidean tap-to-arm modal.
-                if (uiState_.fillHeld && !uiState_.euclidHeld && !activeTrackContentLocked())
-                {
-                    const int at = keyboardArea_.getActiveTrack();
-                    euclidTrack_ = at < 0 ? 0 : at;
-                    const auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(euclidTrack_)];
-                    int onsets = 0;
-                    for (int si = 0; si < wt.length; ++si)
-                        if (wt.steps[static_cast<std::size_t>(si)].trig) ++onsets;
-                    uiState_.euclidPulses = onsets > 0 ? onsets : 4;
-                    uiState_.euclidOffset = 0;
-                    uiState_.euclidAccents = 0;
-                    uiState_.euclidHeld = true;
-                    uiState_.masterSection = -1;  // dismiss any latched DIV/LEN page
-                    // Stash working-buffer steps for cancel/escape restore.
-                    euclidStashLen_ = wt.length;
-                    for (int si = 0; si < euclidStashLen_; ++si)
-                        euclidStash_[static_cast<std::size_t>(si)] = wt.steps[static_cast<std::size_t>(si)];
-                    applyEuclidLive(euclidTrack_);
-                    refreshMetaBand();
-                }
+                // Euclid entry moved to generator hub (9.10): Phrase+Fill no longer enters it.
                 handleModifierTap(CB::PhraseScope, uiState_.latch.phrase);
                 repaint();
                 return true;
@@ -2035,27 +2080,7 @@ namespace lockstep
                 physHeld_.fill = true;
                 uiState_.fillHeld = true;
                 editMode_.onScopeEvent(ev);
-                // 5.5: Phrase+Fill chord → enter Euclidean tap-to-arm modal.
-                if (uiState_.phraseScopeHeld && !uiState_.euclidHeld && !activeTrackContentLocked())
-                {
-                    const int at = keyboardArea_.getActiveTrack();
-                    euclidTrack_ = at < 0 ? 0 : at;
-                    const auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(euclidTrack_)];
-                    int onsets = 0;
-                    for (int si = 0; si < wt.length; ++si)
-                        if (wt.steps[static_cast<std::size_t>(si)].trig) ++onsets;
-                    uiState_.euclidPulses = onsets > 0 ? onsets : 4;
-                    uiState_.euclidOffset = 0;
-                    uiState_.euclidAccents = 0;
-                    uiState_.euclidHeld = true;
-                    uiState_.masterSection = -1;  // dismiss any latched DIV/LEN page
-                    // Stash working-buffer steps for cancel/escape restore.
-                    euclidStashLen_ = wt.length;
-                    for (int si = 0; si < euclidStashLen_; ++si)
-                        euclidStash_[static_cast<std::size_t>(si)] = wt.steps[static_cast<std::size_t>(si)];
-                    applyEuclidLive(euclidTrack_);
-                    refreshMetaBand();
-                }
+                // Euclid entry moved to generator hub (9.10): Phrase+Fill no longer enters it.
                 updateFillActivation();
                 handleModifierTap(CB::FillScope, uiState_.latch.fill);
                 repaint();
@@ -2228,42 +2253,7 @@ namespace lockstep
                     repaint();
                     return true;
                 }
-                // §39.5: Func+MOD enters sticky DENSITY mode. Func+Song+MOD enters it
-                // with master writes already engaged (Song held → densityEditsMaster).
-                // Lives here, not in the Section case, because ButtonLayers remaps
-                // Section→MetaSection while Func is held. The bare MOD re-press toggle
-                // and exit are handled in the Section case (consumeDensityStickyKey).
-                if (uiState_.funcHeld && ev.index == processor_.kDensitySecIdx
-                    && !(uiState_.overlay == Overlay::Density))
-                {
-                    // Entry guard: don't enter if a foreign cluster scope is physically
-                    // held (Song is intentionally allowed — it selects the master page).
-                    if (!physHeld_.track && !physHeld_.phrase && !physHeld_.scene
-                        && !physHeld_.morph && !physHeld_.mute && !physHeld_.fill)
-                    {
-                        uiState_.overlay = Overlay::Density;
-                        escapeVelSticky();
-                        escapeOverlay(uiState_, Overlay::Time);
-                        refreshMetaBand();
-                        repaint();
-                    }
-                    return true;
-                }
-                // §39.10: Func+AMP enters sticky VELOCITY mode (symmetric with density).
-                if (uiState_.funcHeld && ev.index == processor_.kVelSecIdx
-                    && !(uiState_.overlay == Overlay::Vel))
-                {
-                    uiState_.overlay = Overlay::Vel;
-                    // Land on Mode when all tracks are Off (skip-disabled rule);
-                    // otherwise land on Depth.
-                    uiState_.velSubPage = velAnyEnabled()
-                        ? UiState::VelSubPage::Depth : UiState::VelSubPage::Mode;
-                    escapeDensitySticky();
-                    escapeOverlay(uiState_, Overlay::Time);
-                    refreshMetaBand();
-                    repaint();
-                    return true;
-                }
+                // Density (Func+MOD) and Vel (Func+AMP) entry moved to generator hub (9.10).
                 // Func-row secondaries are COND (TRIG) and NOTE (SRC) only; other
                 // sections have no Func secondary (FILTER/FX metas relocated to
                 // Track+TRIG / Song+FX). Those cells dim under Func — ignore the
@@ -2303,6 +2293,25 @@ namespace lockstep
                     const LayerFacts stepFacts{ layerMode, layerAt };
                     const SurfaceLayer layer = resolveActiveLayer(
                         uiState_, processor_.editContext(), stepFacts);
+
+                    // --------------------------------------------------------
+                    // 9.10: Generator hub (3-key held ≥350 ms)
+                    // --------------------------------------------------------
+                    if (layer == SurfaceLayer::GeneratorHub)
+                    {
+                        if (ev.index >= 0 && ev.index <= 2)
+                        {
+                            switch (ev.index)
+                            {
+                                case 0: enterEuclid(layerAt < 0 ? 0 : layerAt); break;
+                                case 1: enterDensitySticky(); break;
+                                case 2: enterVelSticky(); break;
+                                default: break;
+                            }
+                        }
+                        repaint();
+                        return true;
+                    }
 
                     // --------------------------------------------------------
                     // 5.7: Retrig overlay (Fill+TRIG held)
@@ -3988,6 +3997,14 @@ namespace lockstep
             case CB::ForkPart:
             case CB::RecordArm:
             case CB::TapTempo:
+                tapTempoPhysHeld_ = false;
+                if (uiState_.generatorHubHeld)
+                    uiState_.resetGeneratorHub();
+                else
+                    handleTapTempo();
+                repaint();
+                break;
+
             case CB::MetronomeToggle:
             case CB::PlayStop:
             case CB::StopReset:

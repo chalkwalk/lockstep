@@ -216,7 +216,11 @@ namespace lockstep
         // bare (no modifier held) writes land on the intended level, not scope 0.
         int  timeEntryScope = 2;  // default: Song
 
-        // 5.5 Euclidean generator: Phrase+Fill chord enters generator mode on focused track.
+        // Generator hub (9.10): true while the 3-key has been held ≥350 ms,
+        // showing the Euclid / Density / Vel picker. Closes on key-up.
+        bool generatorHubHeld = false;
+
+        // 5.5 Euclidean generator: entered via generator hub (9.10) or legacy Phrase+Fill chord.
         // Parameters: Pulses/Offset/Accent shown in MZ via MetaBand::Euclidean.
         bool euclidHeld = false;
         int euclidPulses = 4;    // number of onsets
@@ -268,6 +272,9 @@ namespace lockstep
             masterFxPickerOpen = false;
             masterFxInsertSlot = 0;
         }
+
+        // Clears the generator hub picker (closes the 3-key hold picker).
+        void resetGeneratorHub() noexcept { generatorHubHeld = false; }
 
         // Clears the Euclidean generator state (held flag and working params).
         // Call on Fill/Phrase release when euclid was active.

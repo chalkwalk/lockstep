@@ -23,6 +23,7 @@ namespace lockstep
         if (ui.masterFxPickerOpen) { return SurfaceLayer::MasterFxPicker; }
         if (ui.funcFxHeld) { return SurfaceLayer::TrackFxPicker; }
         if (ui.funcTrackHeld) { return SurfaceLayer::MachinePicker; }
+        if (ui.generatorHubHeld) { return SurfaceLayer::GeneratorHub; }
 
         if (ui.noteEditMode && !ui.noteEditSteps.empty()) { return SurfaceLayer::NoteEdit; }
 
@@ -75,6 +76,9 @@ namespace lockstep
 
             case SurfaceLayer::MachinePicker:
                 return "SELECT MACHINE";
+
+            case SurfaceLayer::GeneratorHub:
+                return "SELECT GENERATOR";
 
             case SurfaceLayer::ScopeSelector: {
                 const PS scope = firstHeldSectionSuiteScope(ui);

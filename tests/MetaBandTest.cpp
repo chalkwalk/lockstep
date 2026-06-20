@@ -44,12 +44,13 @@ namespace lockstep
                   "density sticky outranks latched masterSection");
         }
         {
+            // 9.10: Func+Song density peek removed; falls through to Swing (Song held).
             UiState ui;
             ui.masterSection = 4;        // latched PhraseLen page
             ui.funcHeld = true;
             ui.songHeld = true;
-            CHECK(resolveMetaBand(ui) == MetaBand::Density,
-                  "Func+Song outranks latched masterSection");
+            CHECK(resolveMetaBand(ui) == MetaBand::Swing,
+                  "Func+Song outranks latched masterSection (via Swing now, 9.10)");
         }
         {
             // With nothing transient active, the latched page still resolves.
@@ -81,10 +82,11 @@ namespace lockstep
 
     static void testResolveMetaBandFuncSong()
     {
+        // 9.10: Func+Song transient density peek removed; falls through to Swing.
         UiState ui;
         ui.funcHeld = true;
         ui.songHeld = true;
-        CHECK(resolveMetaBand(ui) == MetaBand::Density, "Func+Song → Density");
+        CHECK(resolveMetaBand(ui) == MetaBand::Swing, "Func+Song → Swing (density peek removed 9.10)");
     }
 
     static void testResolveMetaBandSwing()
@@ -100,9 +102,10 @@ namespace lockstep
 
     static void testResolveMetaBandFuncAlone()
     {
+        // 9.10: Func-alone transient density peek removed; Func alone → None.
         UiState ui;
         ui.funcHeld = true;
-        CHECK(resolveMetaBand(ui) == MetaBand::Density, "Func alone → Density");
+        CHECK(resolveMetaBand(ui) == MetaBand::None, "Func alone → None (density peek removed 9.10)");
     }
 
     static void testResolveMetaBandNone()

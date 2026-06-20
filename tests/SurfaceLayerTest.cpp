@@ -213,6 +213,33 @@ namespace lockstep
         }
     }
 
+    static void testGeneratorHub()
+    {
+        {
+            UiState ui;
+            ui.generatorHubHeld = true;
+            CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::GeneratorHub,
+                  "generatorHubHeld → GeneratorHub");
+        }
+        {
+            // GeneratorHub outranks NoteEdit (MachinePicker priority > GeneratorHub > NoteEdit)
+            UiState ui;
+            ui.generatorHubHeld = true;
+            ui.noteEditMode = true;
+            ui.noteEditSteps.insert(0);
+            CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::GeneratorHub,
+                  "GeneratorHub beats NoteEdit");
+        }
+        {
+            // MachinePicker still beats GeneratorHub
+            UiState ui;
+            ui.funcTrackHeld = true;
+            ui.generatorHubHeld = true;
+            CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::MachinePicker,
+                  "MachinePicker beats GeneratorHub");
+        }
+    }
+
     static void testMachinePickerBeatsNoteEdit()
     {
         UiState ui;
@@ -345,6 +372,7 @@ namespace lockstep
         testSingleConditions();
         testSoundPoolBeatsOthers();
         testMasterFxPickerBeatsOthers();
+        testGeneratorHub();
         testMachinePickerBeatsNoteEdit();
         testNoteEditBeatsPLockClear();
         testNoteEditBeatsChromaticAndLevels();

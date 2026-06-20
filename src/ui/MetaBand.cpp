@@ -45,15 +45,11 @@ namespace lockstep
             if (ui.velSubPage == VP::Blend)  { return MetaBand::VelBlend; }
             return MetaBand::Vel;
         }
-        // Transient Func+Song → master density overlay (order-independent).
-        if (ui.funcHeld && ui.songHeld)
-            return MetaBand::Density;
-        // Song (or Scene/Track) alone → swing. Guards after the Func+Song check above.
+        // Song (or Scene/Track) alone → swing.
         if (swingScopeFor(ui) != 0 && !ui.swingDismissed)
             return MetaBand::Swing;
-        // Func alone → transient per-track density peek.
-        if (ui.funcHeld)
-            return MetaBand::Density;
+        // Density/Vel transient peeks (Func+Song and Func alone) removed in 9.10:
+        // generators are entered exclusively via the generator hub on the 3 key.
 
         // Latched meta pages (set by scope+section chords; survive modifier release).
         switch (ui.masterSection)

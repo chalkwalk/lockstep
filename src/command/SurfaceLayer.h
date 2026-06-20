@@ -19,6 +19,7 @@ namespace lockstep
         MasterFxPicker,   // ui.masterFxPickerOpen (Task B wiring)
         TrackFxPicker,    // ui.funcFxHeld
         MachinePicker,    // ui.funcTrackHeld
+        GeneratorHub,     // ui.generatorHubHeld — momentary Euclid/Density/Vel picker
         NoteEdit,         // ui.noteEditMode && !noteEditSteps.empty()
         PLockClear,       // ui.pLockClearMode && track matches && step >= 0
         ChromaticInput,   // active track input mode == Chromatic

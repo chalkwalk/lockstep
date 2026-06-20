@@ -129,6 +129,17 @@ namespace lockstep
         std::array<double, kTapMaxCount> tapTimes_{};
         int tapCount_ = 0;
 
+        // Generator hub (9.10): true while the 3-key is physically held.
+        // If held ≥350 ms the hub picker opens; on release either closes the hub or
+        // calls handleTapTempo() (short tap). Checked in timerCallback.
+        bool tapTempoPhysHeld_ = false;
+        double tapTempoArmMs_ = 0.0;
+
+        // Generator hub entry helpers (extracted from legacy Phrase+Fill / Func+MOD / Func+AMP).
+        void enterEuclid(int track);
+        void enterDensitySticky();
+        void enterVelSticky();
+
         Clipboard clipboard_;
 
         // Per-track fill latch: captured on the transition into Func+Fill held,

@@ -38,6 +38,13 @@ namespace lockstep
               "MachinePicker banner must be 'SELECT MACHINE'");
     }
 
+    static void testGeneratorHubBanner()
+    {
+        UiState ui;
+        CHECK(bannerEq(layerBanner(SL::GeneratorHub, ui), "SELECT GENERATOR"),
+              "GeneratorHub banner must be 'SELECT GENERATOR'");
+    }
+
     // ── DeletePicker: dynamic on deletePicker.scope ────────────────────────────
 
     static void testDeletePickerBanners()
@@ -121,6 +128,7 @@ namespace lockstep
         CHECK(layerBanner(SL::LengthEdit,    ui) == nullptr, "LengthEdit → nullptr");
         CHECK(layerBanner(SL::MorphStepView, ui) == nullptr, "MorphStepView → nullptr");
         CHECK(layerBanner(SL::Base,          ui) == nullptr, "Base → nullptr");
+        // GeneratorHub DOES have a banner ("SELECT GENERATOR") — verified in testGeneratorHubBanner.
     }
 
     // ── Priority: Track beats Song when both held ──────────────────────────────
@@ -140,6 +148,7 @@ namespace lockstep
     {
         testPendingConfirmBanner();
         testMachinePickerBanner();
+        testGeneratorHubBanner();
         testDeletePickerBanners();
         testScopeSelectorBanners();
         testNoBannerLayers();

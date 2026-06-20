@@ -108,6 +108,12 @@ namespace lockstep
         // Confirm overlay (8.24): P key in PendingConfirm layer shows CONFIRM/CANCEL.
         ConfirmYes = 150,  // P without Func — green affirm state
         ConfirmNo = 151,  // P with Func held — red cancel state
+
+        // Generator hub (9.10): momentary picker for the deterministic generator family.
+        // Each token is a distinct hue on hardware (PRINCIPLES §19 dual-target).
+        GeneratorEuclid = 160,
+        GeneratorDensity = 161,
+        GeneratorVel = 162,
     };
 
     // Pure mapping for the §34.4 length-edit re-skin: classify an absolute step

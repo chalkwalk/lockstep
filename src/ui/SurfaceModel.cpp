@@ -82,6 +82,9 @@ namespace lockstep
             case CellState::EffectAvailable:    return 0xFF30A030u;  // lime-green — available effect slot
             case CellState::EffectLoaded:       return 0xFFFFFFFFu;  // white — loaded/selected effect
             case CellState::EffectLoadedOther:  return 0xFF6E8E6Eu;  // muted green — cross-slot hint
+            case CellState::GeneratorEuclid:    return 0xFF7050C8u;  // purple — Euclidean
+            case CellState::GeneratorDensity:   return 0xFF50B478u;  // green — Density
+            case CellState::GeneratorVel:       return 0xFF8898A8u;  // slate — Velocity
             default:                            return fallback;
         }
     }
@@ -1017,6 +1020,35 @@ namespace lockstep
                         c.baseColour = isCur
                                            ? juce::Colours::white.withAlpha(0.18f).getARGB()
                                            : machineTint.withAlpha(0.12f).getARGB();
+                    }
+                }
+            }
+            else if (activeLayer == SurfaceLayer::GeneratorHub)
+            {
+                // Generator hub (9.10): cells 0-2 = Euclid / Density / Vel; rest dark.
+                static constexpr const char* kHubLabels[3] = { "EUCLID", "DENSITY", "VEL" };
+                static constexpr CellState kHubStates[3] = {
+                    CellState::GeneratorEuclid,
+                    CellState::GeneratorDensity,
+                    CellState::GeneratorVel,
+                };
+                for (int i = 0; i < 16; ++i)
+                {
+                    SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                    c.button = ControllerButton::Step;
+                    c.index = i;
+                    c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                    c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+                    if (i < 3)
+                    {
+                        c.base = kHubStates[i];
+                        c.baseColour = compatColour(kHubStates[i]);
+                        c.primary = juce::String(kHubLabels[i]);
+                    }
+                    else
+                    {
+                        c.base = CellState::StepEmpty;
+                        c.baseColour = kStepOutRange;
                     }
                 }
             }
