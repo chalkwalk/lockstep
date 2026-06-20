@@ -31,7 +31,13 @@ namespace lockstep
 
     static void testLatchColumnNotLatchable()
     {
-        CHECK(latchColumn(CB::Func)        == -1, "Func not latchable");
+        // Column exclusivity applies to the scope-modifier LATCH system only.
+        // Func is a chord qualifier, not a latchable scope: it can be held
+        // simultaneously with any scope modifier (including Track, its physical
+        // column partner) — we favour avoiding same-column chords but do NOT
+        // forbid Func+modifier-in-same-column. latchColumn returning -1 for Func
+        // simply means it has no latch column; it says nothing about chord legality.
+        CHECK(latchColumn(CB::Func)        == -1, "Func: no latch column (chord qualifier, not scope latch)");
         CHECK(latchColumn(CB::CueScope)    == -1, "CueScope not latchable");
         CHECK(latchColumn(CB::NavUp)       == -1, "NavUp not latchable");
         CHECK(latchColumn(CB::VerbConfirm) == -1, "VerbConfirm not latchable");
@@ -173,7 +179,11 @@ namespace lockstep
         LatchState s;
         s.phrase = true; s.track = true;
 
-        clearLatchColumnExcept(s, CB::Func);    // not latchable
+        // Func and non-latchable buttons must not trigger column clearing.
+        // This also confirms that Func's use as a chord qualifier (e.g. Func+Track)
+        // does not evict the Track latch — the column-exclusivity rule is only
+        // enforced when a *latchable* scope modifier wins the latch.
+        clearLatchColumnExcept(s, CB::Func);    // chord qualifier, no latch column
         clearLatchColumnExcept(s, CB::NavUp);   // not latchable
         clearLatchColumnExcept(s, CB::None);    // not latchable
 
