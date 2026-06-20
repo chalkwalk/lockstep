@@ -1491,7 +1491,8 @@ namespace lockstep::PluginState
                 }
             }
 
-            DBG("PluginState: v9→v10: migrated swing (global=" + juce::String(legacyGlobal) + ") into Song[0]");
+            DBG(juce::String(u8"PluginState: v9→v10: migrated swing (global=")
+                + juce::String(legacyGlobal) + ") into Song[0]");
         }
 
         return v10;

@@ -16,6 +16,7 @@
 #include "../core/TrackInputMode.h"
 #include "../machine/ISliceable.h"
 #include <algorithm>
+#include <bit>
 #include <set>
 
 namespace lockstep
@@ -1958,6 +1959,11 @@ namespace lockstep
         // the primary-promotion token for every control cell from the grammar (SSOT).
         // Applied regardless of heldMods so context-sensitive slots are always current.
         {
+            // Specificity of a resolved row = popcount(requiredMods); -1 if no match.
+            auto spec = [](const KeyBinding& b) {
+                return (b.action == ActionId::None) ? -1
+                       : static_cast<int>(std::popcount(b.requiredMods));
+            };
             auto deriveSlots = [&](SurfaceCell& c) {
                 const auto tap  = resolveBinding(c.button, c.index, heldMods,
                                                  SurfaceLayer::Base, Gesture::Tap);
@@ -1965,35 +1971,49 @@ namespace lockstep
                                                  SurfaceLayer::Base, Gesture::Hold);
                 const auto dbl  = resolveBinding(c.button, c.index, heldMods,
                                                  SurfaceLayer::Base, Gesture::DoubleTap);
-                const Gesture prom = promotedGesture(c.button, c.index, heldMods,
-                                                     SurfaceLayer::Base);
-                c.primaryGesture = prom;
 
-                // Primary slot: show the promoted gesture's label.
-                const auto& promRow = (prom == Gesture::Hold) ? hold : tap;
-                if (promRow.action != ActionId::None && promRow.primary[0] != u8'\0')
-                    c.primary = juce::String(promRow.primary);
+                // Primary = the most-specific of {tap, hold} for the CURRENT heldMods,
+                // so a held modifier promotes its context action into the large slot
+                // (e.g. Func+Song = GLOBAL, not the bare at-rest SONG). On a tie prefer
+                // an explicit promoted row, else Hold (press-to-engage modifiers).
+                const int ts = spec(tap), hs = spec(hold);
+                const KeyBinding* prim = &tap;
+                if (hs > ts)            prim = &hold;
+                else if (ts > hs)       prim = &tap;
+                else if (hold.promoted) prim = &hold;
+                else if (tap.promoted)  prim = &tap;
+                else if (hs >= 0)       prim = &hold;
+                const int primSpec = spec(*prim);
 
-                // Secondary slots: omit the promoted gesture (shown as primary) AND
-                // omit any gesture whose action duplicates the primary's — a modifier's
-                // "tap" and "hold" are the same scope action, so it has no real tap rail.
-                c.tapLabel = (prom == Gesture::Tap || tap.action == ActionId::None
-                              || tap.action == promRow.action)
-                             ? juce::String()
-                             : juce::String(tap.primary);
-                c.holdLabel = (prom == Gesture::Hold || hold.action == ActionId::None
-                               || hold.action == promRow.action)
-                              ? juce::String()
-                              : juce::String(hold.primary);
-                c.doubleTapLabel = (dbl.action == ActionId::None)
-                                   ? juce::String()
-                                   : juce::String(dbl.primary);
+                c.primaryGesture = prim->gesture;
+                if (prim->action != ActionId::None && prim->primary[0] != u8'\0')
+                    c.primary = juce::String(prim->primary);
 
-                // funcHint: show Func-context tap label when it differs from tap action.
+                // A secondary rail shows a gesture only when it carries a DISTINCT
+                // action that is at least as specific as the primary — this drops the
+                // duplicate-action phantom (a modifier's tap == its hold scope action)
+                // and stops bare at-rest actions leaking into a held-modifier context.
+                auto secVisible = [&](const KeyBinding& b) {
+                    return b.action != ActionId::None
+                        && b.action != prim->action
+                        && spec(b) >= primSpec;
+                };
+                c.tapLabel  = (prim->gesture != Gesture::Tap  && secVisible(tap))
+                              ? juce::String(tap.primary)  : juce::String();
+                c.holdLabel = (prim->gesture != Gesture::Hold && secVisible(hold))
+                              ? juce::String(hold.primary) : juce::String();
+                c.doubleTapLabel = secVisible(dbl) ? juce::String(dbl.primary) : juce::String();
+
+                // Func-variant preview (bottom chip) — at rest only; when Func is held
+                // the variant is already promoted to the primary slot above.
                 if (heldMods == kModNone) {
                     const auto fn = resolveBinding(c.button, c.index, kModFunc,
                                                    SurfaceLayer::Base, Gesture::Tap);
-                    if (fn.action != ActionId::None && fn.action != tap.action)
+                    // Only override when the Func row carries a real label. Section
+                    // rows are action-only (empty primary) with the label supplied by
+                    // the builder/ScopedSectionMatrix — don't blank it.
+                    if (fn.action != ActionId::None && fn.action != tap.action
+                        && fn.primary[0] != u8'\0')
                         c.funcHint = juce::String(fn.primary);
                 }
             };

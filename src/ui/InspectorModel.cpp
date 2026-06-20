@@ -53,23 +53,26 @@ namespace lockstep
     static juce::String buildHeldRegion(const UiState& ui,
                                         const LockstepProcessor& proc) noexcept
     {
-        // Modifier held → scope description.
+        // Modifier held → scope description. (u8 literals: the em-dash is non-ASCII,
+        // so juce::String must bind to the char8_t* overload — a plain char* literal
+        // trips the JUCE ASCII assertion in juce_String.cpp.)
         if (ui.funcHeld)
-            return "FUNC — secondary functions active";
+            return u8"FUNC — secondary functions active";
         if (ui.trackHeld)
-            return "TRACK — verbs write to track  dbl=LATCH";
+            return u8"TRACK — verbs write to track  dbl=LATCH";
         if (ui.phraseScopeHeld)
-            return "PHRASE — phrase select  dbl=LATCH";
+            return u8"PHRASE — phrase select  dbl=LATCH";
         if (ui.sceneHeld)
-            return "SCENE — scene launch/commit  dbl=LATCH";
+            return u8"SCENE — scene launch/commit  dbl=LATCH";
         if (ui.morphHeld)
-            return "MORPH — A/B pole edit  dbl=LATCH";
+            return u8"MORPH — A/B pole edit  dbl=LATCH";
         if (ui.songHeld)
-            return "SONG — master/global scope  dbl=LATCH";
+            return u8"SONG — master/global scope  dbl=LATCH";
         if (ui.muteHeld)
-            return ui.funcHeld ? "MUTE (SCENE) — pattern mute view" : "MUTE — global mute view";
+            return ui.funcHeld ? juce::String(u8"MUTE (SCENE) — pattern mute view")
+                               : juce::String(u8"MUTE — global mute view");
         if (ui.fillHeld)
-            return "FILL — fill conditions active  dbl=LATCH";
+            return u8"FILL — fill conditions active  dbl=LATCH";
 
         // Idle: show active track + machine summary.
         const int t = ui.activeTrack;
@@ -85,17 +88,17 @@ namespace lockstep
     static juce::String buildOverlayRegion(const UiState& ui,
                                            const LockstepProcessor& proc) noexcept
     {
-        // Active picker / overlay.
+        // Active picker / overlay. (u8 literals — non-ASCII em-dash, see above.)
         if (ui.generatorHubHeld)
-            return "GENERATOR HUB — pick cell  esc=release";
+            return u8"GENERATOR HUB — pick cell  esc=release";
         if (ui.euclidHeld)
-            return "EUCLID — configuring  esc=release";
+            return u8"EUCLID — configuring  esc=release";
         if (ui.funcTrackHeld)
-            return "MACHINE PICKER — select machine  esc=release Func";
+            return u8"MACHINE PICKER — select machine  esc=release Func";
         if (ui.funcFxHeld)
-            return "FX INSERT — select effect  esc=release Func";
+            return u8"FX INSERT — select effect  esc=release Func";
         if (ui.masterFxPickerOpen)
-            return "MASTER FX — select effect  esc=release Func+Song+FX";
+            return u8"MASTER FX — select effect  esc=release Func+Song+FX";
         if (ui.noteEditMode)
             return "NOTE EDIT  oct " + juce::String(ui.noteEditOctave)
                    + "  nav=oct shift  esc=release Func";
@@ -108,13 +111,13 @@ namespace lockstep
         {
             case Overlay::None: break;
             case Overlay::Euclid:
-                return "EUCLID — generator overlay  esc=dbl-tap Func";
+                return u8"EUCLID — generator overlay  esc=dbl-tap Func";
             case Overlay::Density:
-                return "DENSITY — trig-thinning overlay  esc=dbl-tap Func";
+                return u8"DENSITY — trig-thinning overlay  esc=dbl-tap Func";
             case Overlay::Vel:
-                return "VEL STICKY — velocity band  esc=dbl-tap Func";
+                return u8"VEL STICKY — velocity band  esc=dbl-tap Func";
             case Overlay::Time:
-                return "TIME — time-sig/click band  esc=dbl-tap Func";
+                return u8"TIME — time-sig/click band  esc=dbl-tap Func";
         }
 
         // Idle: current scene.

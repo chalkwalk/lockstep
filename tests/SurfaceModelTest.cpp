@@ -579,6 +579,23 @@ namespace lockstep
             CHECK(c.funcHint == juce::String(u8"KIT"), "Track: funcHint=KIT");
         }
 
+        // Held-modifier context promotion: with Func held, a key's primary must show
+        // the most-specific action for that context, not the bare at-rest label.
+        // Func+Song = GLOBAL (the func variant), promoted into the large slot.
+        {
+            UiState fui;
+            fui.funcHeld = true;
+            const SurfaceModel fm = buildSurfaceModel(
+                fui, ec, nullptr, proc, 0, 0, GridDisplayMode::Ortholinear);
+            const auto& c = fm.modifiers[5];  // Song
+            const auto fn = resolveBinding(CB::SongScope, -1, kModFunc, SL::Base, Gesture::Tap);
+            CHECK(c.primary == juce::String(fn.primary), "Func+Song: primary=GLOBAL (func variant)");
+            CHECK(c.primaryGesture == Gesture::Tap, "Func+Song: primaryGesture=Tap");
+            // Bare SONG hold + LATCH must NOT leak into the func context.
+            CHECK(c.holdLabel.isEmpty(), "Func+Song: bare SONG hold suppressed");
+            CHECK(c.doubleTapLabel.isEmpty(), "Func+Song: bare LATCH suppressed");
+        }
+
         // VerbPlay (functionRow[7]): promoted=Tap, tap=PLAY, dbl=STOP.
         {
             const auto& c = model.functionRow[7];  // VerbPlay
