@@ -2,55 +2,49 @@
 #include "../state/UiState.h"
 #include "../io/EditContext.h"
 #include "../PluginProcessor.h"
-#include "../command/KeyAffordances.h"
+#include "../command/KeyBindings.h"
 #include "../core/MusicalGate.h"
 
 namespace lockstep
 {
     // ── KEY region ────────────────────────────────────────────────────────────
     // Describes the last-touched / focused key with its gesture set.
+    // Now derived entirely from the grammar (SSOT) rather than KeyAffordances.
 
-    static juce::String buildKeyRegion(ControllerButton btn, int index,
-                                       const KeyAffordance* aff) noexcept
+    static juce::String buildKeyRegion(ControllerButton btn, int index) noexcept
     {
-        if (btn == ControllerButton::None || btn == ControllerButton::Step)
-        {
-            if (btn == ControllerButton::Step && index >= 0)
-                return "step " + juce::String(index + 1);
+        if (btn == ControllerButton::None)
             return u8"--";
-        }
+        if (btn == ControllerButton::Step)
+            return (index >= 0) ? ("step " + juce::String(index + 1)) : juce::String(u8"--");
 
-        // Base label from affordance (tap label = natural action name).
-        juce::String name;
-        if (aff)
-        {
-            if (aff->primaryIsHold && aff->holdLabel)
-                name = juce::String(aff->holdLabel);
-            else if (aff->tapLabel)
-                name = juce::String(aff->tapLabel);
-        }
-        if (name.isEmpty())
-            return u8"--";
+        const auto tap  = resolveBinding(btn, index, kModNone, SurfaceLayer::Base, Gesture::Tap);
+        const auto hold = resolveBinding(btn, index, kModNone, SurfaceLayer::Base, Gesture::Hold);
+        const auto dbl  = resolveBinding(btn, index, kModNone, SurfaceLayer::Base, Gesture::DoubleTap);
+        const Gesture prom = promotedGesture(btn, index, kModNone, SurfaceLayer::Base);
 
-        // Append gesture summary: tap / hold / dbl-tap where distinct.
+        const auto& promRow = (prom == Gesture::Hold) ? hold : tap;
+        if (promRow.action == ActionId::None) return u8"--";
+
+        const juce::String name(promRow.primary);
+        if (name.isEmpty()) return u8"--";
+
+        // Append gesture summary: show non-primary gestures where distinct.
         juce::String gestures;
-        if (aff)
+        if (prom == Gesture::Hold)
         {
-            if (aff->primaryIsHold)
-            {
-                if (aff->tapLabel)
-                    gestures += juce::String(u8" tap=") + juce::String(aff->tapLabel);
-                gestures += juce::String(u8" hold=") + name;
-            }
-            else
-            {
-                gestures += juce::String(u8" tap=") + name;
-                if (aff->holdLabel)
-                    gestures += juce::String(u8" hold=") + juce::String(aff->holdLabel);
-            }
-            if (aff->doubleTapLabel)
-                gestures += juce::String(u8" dbl=") + juce::String(aff->doubleTapLabel);
+            if (tap.action != ActionId::None && tap.action != hold.action)
+                gestures += juce::String(u8" tap=") + juce::String(tap.primary);
+            gestures += juce::String(u8" hold=") + name;
         }
+        else
+        {
+            gestures += juce::String(u8" tap=") + name;
+            if (hold.action != ActionId::None)
+                gestures += juce::String(u8" hold=") + juce::String(hold.primary);
+        }
+        if (dbl.action != ActionId::None)
+            gestures += juce::String(u8" dbl=") + juce::String(dbl.primary);
 
         return name + gestures;
     }
@@ -169,10 +163,8 @@ namespace lockstep
                                        ControllerButton focusedButton,
                                        int focusedIndex) noexcept
     {
-        const KeyAffordance* aff = findAffordance(focusedButton);
-
         InspectorModel m;
-        m.key     = buildKeyRegion(focusedButton, focusedIndex, aff);
+        m.key     = buildKeyRegion(focusedButton, focusedIndex);
         m.held    = buildHeldRegion(ui, proc);
         m.overlay = buildOverlayRegion(ui, proc);
         m.edit    = buildEditRegion(ui, ec, proc);

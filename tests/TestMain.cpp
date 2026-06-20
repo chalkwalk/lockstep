@@ -55,9 +55,7 @@ int main()
     lockstep::runFuncReskinTests();
     // Stage 5: LatchOps column membership + clearLatchColumnExcept invariants
     lockstep::runLatchOpsTests();
-    // 9.11: KeyAffordances SSOT + buildSurfaceModel affordance injection
-    lockstep::runKeyAffordanceTests();
-    // 9.11: InspectorModel context-region builder
+    // 9.12: InspectorModel context-region builder (grammar-derived)
     lockstep::runInspectorModelTests();
 
     // Also drive the JUCE UnitTests registered in lockstep_core (the serializer

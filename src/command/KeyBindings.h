@@ -12,17 +12,12 @@
 #include <span>
 #include "../io/ControllerEvent.h"
 #include "SurfaceLayer.h"
+#include "Gesture.h"
 #include "../ui/SurfaceModel.h"  // CellState enum
 
 namespace lockstep
 {
     struct UiState;
-
-    // -------------------------------------------------------------------------
-    // Gesture — the physical gesture that produces an action.
-    // Used as a filter axis in resolveBinding() and as a primary-promotion hint.
-    // -------------------------------------------------------------------------
-    enum class Gesture : uint8_t { Tap, Hold, DoubleTap };
 
     // -------------------------------------------------------------------------
     // ActionId — one value per distinct action reachable from a key.

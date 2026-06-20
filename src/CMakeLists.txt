@@ -11,7 +11,6 @@ add_library(lockstep_core STATIC
     Parameters.cpp
     command/ButtonLayers.cpp
     command/CommandCore.cpp
-    command/KeyAffordances.cpp
     command/ScopePriority.cpp
     command/SurfaceLayer.cpp
     command/KeyBindings.cpp

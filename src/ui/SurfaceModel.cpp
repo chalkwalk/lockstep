@@ -5,7 +5,6 @@
 #include "KeyLabel.h"
 #include "../command/SurfaceLayer.h"
 #include "../command/KeyBindings.h"
-#include "../command/KeyAffordances.h"
 #include "ParamFormat.h"
 #include "ScopedSectionMatrix.h"
 #include "../state/UiState.h"
@@ -1955,41 +1954,56 @@ namespace lockstep
         model.step[1].homeKey = true;
         model.step[4].homeKey = true;
 
-        // 9.11 gesture-affordance pass: at rest (no modifier held), populate the
-        // tap/hold/doubleTap affordance slots on every control cell so the 4-slot
-        // layout can render them. Skipped when any modifier is held so the cell's
-        // context-sensitive primary/funcHint stay undisturbed.
-        if (heldMods == kModNone)
+        // 9.12 gesture-affordance pass: derive tap/hold/doubleTap affordance slots and
+        // the primary-promotion token for every control cell from the grammar (SSOT).
+        // Applied regardless of heldMods so context-sensitive slots are always current.
         {
-            // Helper: apply one affordance entry to a SurfaceCell.
-            auto applyAffordance = [](SurfaceCell& c) {
-                const KeyAffordance* aff = findAffordance(c.button);
-                if (!aff) return;
-                if (aff->tapLabel)
-                    c.tapLabel = juce::String(aff->tapLabel);
-                if (aff->holdLabel)
-                    c.holdLabel = juce::String(aff->holdLabel);
-                if (aff->doubleTapLabel)
-                    c.doubleTapLabel = juce::String(aff->doubleTapLabel);
-                c.primaryIsHold = aff->primaryIsHold;
-                // When primaryIsHold: swap so primary shows the hold action and
-                // tapLabel carries the tap action (the secondary "access" slot).
-                if (aff->primaryIsHold && aff->holdLabel)
-                {
-                    c.primary = juce::String(aff->holdLabel);
-                    if (aff->tapLabel)
-                        c.tapLabel = juce::String(aff->tapLabel);
+            auto deriveSlots = [&](SurfaceCell& c) {
+                const auto tap  = resolveBinding(c.button, c.index, heldMods,
+                                                 SurfaceLayer::Base, Gesture::Tap);
+                const auto hold = resolveBinding(c.button, c.index, heldMods,
+                                                 SurfaceLayer::Base, Gesture::Hold);
+                const auto dbl  = resolveBinding(c.button, c.index, heldMods,
+                                                 SurfaceLayer::Base, Gesture::DoubleTap);
+                const Gesture prom = promotedGesture(c.button, c.index, heldMods,
+                                                     SurfaceLayer::Base);
+                c.primaryGesture = prom;
+
+                // Primary slot: show the promoted gesture's label.
+                const auto& promRow = (prom == Gesture::Hold) ? hold : tap;
+                if (promRow.action != ActionId::None && promRow.primary[0] != u8'\0')
+                    c.primary = juce::String(promRow.primary);
+
+                // Secondary slots: omit the promoted gesture (shown as primary).
+                c.tapLabel = (prom == Gesture::Tap || tap.action == ActionId::None)
+                             ? juce::String()
+                             : juce::String(tap.primary);
+                c.holdLabel = (prom == Gesture::Hold || hold.action == ActionId::None)
+                              ? juce::String()
+                              : juce::String(hold.primary);
+                c.doubleTapLabel = (dbl.action == ActionId::None)
+                                   ? juce::String()
+                                   : juce::String(dbl.primary);
+
+                // funcHint: show Func-context tap label when it differs from tap action.
+                if (heldMods == kModNone) {
+                    const auto fn = resolveBinding(c.button, c.index, kModFunc,
+                                                   SurfaceLayer::Base, Gesture::Tap);
+                    if (fn.action != ActionId::None && fn.action != tap.action)
+                        c.funcHint = juce::String(fn.primary);
                 }
             };
 
             for (auto& c : model.modifiers)
-                applyAffordance(c);
-            applyAffordance(model.tap);
-            applyAffordance(model.navUp);
+                deriveSlots(c);
+            deriveSlots(model.tap);
+            deriveSlots(model.navUp);
             for (auto& c : model.section)
-                applyAffordance(c);
+                deriveSlots(c);
             for (auto& c : model.functionRow)
-                applyAffordance(c);
+                deriveSlots(c);
+            for (auto& c : model.step)
+                deriveSlots(c);
         }
 
         return model;

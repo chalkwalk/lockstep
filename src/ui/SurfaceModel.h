@@ -7,6 +7,7 @@
 #include "../core/Sequence.h"   // kNumTracks
 #include "../machine/IMachine.h"  // kMaxSections
 #include "GridDisplayMode.h"
+#include "../command/Gesture.h"
 
 namespace lockstep
 {
@@ -172,14 +173,14 @@ namespace lockstep
         // exactly which keys the scope rewrites. 0 = not in scope (normal tint).
         uint32_t scopeTint = 0;
 
-        // --- Gesture-affordance slots (9.11 / DESIGN §19) ---
-        // Populated at rest (no modifier held) from KeyAffordances; "" = gesture absent.
-        // `primaryIsHold` = true when the primary action fires on hold (e.g. GEN key).
-        // Controllers may display these in a secondary zone; screen shows the 4-slot layout.
+        // --- Gesture-affordance slots (9.12 / DESIGN §19) ---
+        // Populated from the grammar (resolveBinding per gesture); "" = gesture absent.
+        // `primaryGesture` indicates which gesture owns the large primary slot.
+        // Controllers may display these in a secondary zone; screen shows the 5-slot layout.
         juce::String tapLabel;
         juce::String holdLabel;
         juce::String doubleTapLabel;
-        bool primaryIsHold = false;
+        Gesture primaryGesture = Gesture::Tap;
     };
 
     // Returns a fallback ARGB colour for any CellState token.

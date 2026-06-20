@@ -55,10 +55,10 @@ namespace lockstep
         UiState ui{};
         EditContext ec{};
 
-        // TapTempo: primaryIsHold=true → key region shows "GEN HUB" (primary).
-        const auto tap = build(ui, ec, proc, ControllerButton::TapTempo, -1);
-        CHECK(tap.key.containsIgnoreCase("GEN HUB"), "TapTempo key region shows GEN HUB");
-        CHECK(tap.key.containsIgnoreCase("TAP TEMPO"), "TapTempo key region shows TAP TEMPO gesture");
+        // TapTempo: primaryGesture=Hold → key region shows "GEN HUB" (primary) + tap="TAP".
+        const auto tapKey = build(ui, ec, proc, ControllerButton::TapTempo, -1);
+        CHECK(tapKey.key.containsIgnoreCase("GEN HUB"), "TapTempo key region shows GEN HUB");
+        CHECK(tapKey.key.containsIgnoreCase("TAP"), "TapTempo key region shows TAP gesture");
 
         // VerbPlay: tap label = PLAY, dbl-tap = STOP.
         const auto play = build(ui, ec, proc, ControllerButton::VerbPlay, -1);

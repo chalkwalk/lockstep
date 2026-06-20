@@ -317,8 +317,8 @@ namespace lockstep
 
         // Determine which affordance slots are populated.
         const bool hasDblTap = c.doubleTapLabel.isNotEmpty();
-        const bool hasTapSlot = c.primaryIsHold && c.tapLabel.isNotEmpty();
-        const bool hasHoldSlot = !c.primaryIsHold && c.holdLabel.isNotEmpty();
+        const bool hasTapSlot = (c.primaryGesture != Gesture::Tap) && c.tapLabel.isNotEmpty();
+        const bool hasHoldSlot = (c.primaryGesture != Gesture::Hold) && c.holdLabel.isNotEmpty();
         const bool hasAffordances = hasDblTap || hasTapSlot || hasHoldSlot;
 
         if (!hasAffordances)
@@ -379,8 +379,8 @@ namespace lockstep
                 g.setColour(juce::Colour(0xFF8EA4B8u).withAlpha(0.30f));
                 const int gx = primArea.getRight() - 8;
                 const int gy = primArea.getCentreY() - 2;
-                if (c.primaryIsHold) paintHoldGlyph(g, gx, gy);
-                else                  paintTapGlyph(g, gx, gy);
+                if (c.primaryGesture == Gesture::Hold) paintHoldGlyph(g, gx, gy);
+                else                                   paintTapGlyph(g, gx, gy);
             }
         }
 

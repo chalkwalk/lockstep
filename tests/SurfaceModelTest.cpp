@@ -524,6 +524,56 @@ namespace lockstep
         }
     }
 
+    // ── 9.12 anti-drift oracle: slot strings must equal grammar resolution ────────
+    // Ensures deriveSlots() is consistent with resolveBinding() per gesture.
+    static void testDeriveSlotEqualsGrammar()
+    {
+        using CB = ControllerButton;
+        using SL = SurfaceLayer;
+        EngineHarness h;
+        auto& proc = h.processor();
+        UiState ui;
+        EditContext ec;
+        const SurfaceModel model = buildSurfaceModel(
+            ui, ec, nullptr, proc, 0, 0, GridDisplayMode::Ortholinear);
+
+        // TapTempo (model.tap): promoted=Hold, hold=GEN HUB, dbl=none.
+        {
+            const auto& c = model.tap;
+            const auto tap  = resolveBinding(CB::TapTempo, -1, kModNone, SL::Base, Gesture::Tap);
+            const auto hold = resolveBinding(CB::TapTempo, -1, kModNone, SL::Base, Gesture::Hold);
+            const auto dbl  = resolveBinding(CB::TapTempo, -1, kModNone, SL::Base, Gesture::DoubleTap);
+            CHECK(c.primaryGesture == Gesture::Hold, "TapTempo: primaryGesture=Hold");
+            CHECK(c.primary == juce::String(hold.primary), "TapTempo: primary=GEN HUB");
+            // tapLabel present (secondary, since primary is hold)
+            CHECK(c.tapLabel == juce::String(tap.primary), "TapTempo: tapLabel=TAP");
+            CHECK(c.holdLabel.isEmpty(), "TapTempo: holdLabel empty (hold is primary)");
+            CHECK(c.doubleTapLabel.isEmpty() == (dbl.action == ActionId::None),
+                  "TapTempo: doubleTapLabel consistent with grammar");
+        }
+
+        // Func (modifiers[0]): promoted=Hold, tapLabel=FUNC (legacy Tap row), dbl=ESCAPE.
+        {
+            const auto& c = model.modifiers[0];
+            const auto hold = resolveBinding(CB::Func, -1, kModNone, SL::Base, Gesture::Hold);
+            const auto dbl  = resolveBinding(CB::Func, -1, kModNone, SL::Base, Gesture::DoubleTap);
+            CHECK(c.primaryGesture == Gesture::Hold, "Func: primaryGesture=Hold");
+            CHECK(c.primary == juce::String(hold.primary), "Func: primary=FUNC LAYER");
+            CHECK(c.doubleTapLabel == juce::String(dbl.primary), "Func: doubleTapLabel=ESCAPE");
+        }
+
+        // VerbPlay (functionRow[7]): promoted=Tap, tap=PLAY, dbl=STOP.
+        {
+            const auto& c = model.functionRow[7];  // VerbPlay
+            CHECK(c.primaryGesture == Gesture::Tap, "VerbPlay: primaryGesture=Tap");
+            const auto tap = resolveBinding(CB::VerbPlay, -1, kModNone, SL::Base, Gesture::Tap);
+            const auto dbl = resolveBinding(CB::VerbPlay, -1, kModNone, SL::Base, Gesture::DoubleTap);
+            CHECK(c.primary == juce::String(tap.primary), "VerbPlay: primary=PLAY");
+            CHECK(c.tapLabel.isEmpty(), "VerbPlay: tapLabel empty (tap is primary)");
+            CHECK(c.doubleTapLabel == juce::String(dbl.primary), "VerbPlay: doubleTapLabel=STOP");
+        }
+    }
+
     void runSurfaceModelTests()
     {
         testPanicKeyLabel();
@@ -539,6 +589,7 @@ namespace lockstep
         testHomeKeyAnchors();
         testGeneratorHubPrimary();
         testMachinePickerPrimary();
+        testDeriveSlotEqualsGrammar();
     }
 
 } // namespace lockstep
