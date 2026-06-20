@@ -1974,11 +1974,15 @@ namespace lockstep
                 if (promRow.action != ActionId::None && promRow.primary[0] != u8'\0')
                     c.primary = juce::String(promRow.primary);
 
-                // Secondary slots: omit the promoted gesture (shown as primary).
-                c.tapLabel = (prom == Gesture::Tap || tap.action == ActionId::None)
+                // Secondary slots: omit the promoted gesture (shown as primary) AND
+                // omit any gesture whose action duplicates the primary's — a modifier's
+                // "tap" and "hold" are the same scope action, so it has no real tap rail.
+                c.tapLabel = (prom == Gesture::Tap || tap.action == ActionId::None
+                              || tap.action == promRow.action)
                              ? juce::String()
                              : juce::String(tap.primary);
-                c.holdLabel = (prom == Gesture::Hold || hold.action == ActionId::None)
+                c.holdLabel = (prom == Gesture::Hold || hold.action == ActionId::None
+                               || hold.action == promRow.action)
                               ? juce::String()
                               : juce::String(hold.primary);
                 c.doubleTapLabel = (dbl.action == ActionId::None)

@@ -324,45 +324,57 @@ namespace lockstep
                                           ? juce::Colour(c.pip.colour)
                                           : juce::Colours::transparentBlack;
 
-        const bool hasDblTap  = c.doubleTapLabel.isNotEmpty();
-        const bool hasTapSlot = (c.primaryGesture != Gesture::Tap)  && c.tapLabel.isNotEmpty();
-        const bool hasHoldSlot= (c.primaryGesture != Gesture::Hold) && c.holdLabel.isNotEmpty();
-        const bool hasFuncSlot= c.funcHint.isNotEmpty();
-        const bool hasAnySlot = hasDblTap || hasTapSlot || hasHoldSlot || hasFuncSlot;
-
-        if (!hasAnySlot)
+        // Disabled cells keep the legacy ghosted primary/secondary look — no
+        // affordance bands are drawn for an inert key.
+        if (st == KeyButtonState::Disabled)
         {
-            // Fast path: no affordances — render exactly as before.
             paintKeyButton(g, cell, c.keyHint, c.primary, c.funcHint,
                            grp, st, showKeyHint, compound, latchCol);
             return;
         }
 
-        // Affordance path: paint structure (background, border, keyHint, strips, pip)
-        // via paintKeyButton with empty primary/secondary so it handles structure only;
-        // then render primary + all 5 slots with fixed-reserved layout.
+        // Structure first (background, border, keyHint letter, compound strip, pip)
+        // via paintKeyButton with empty primary/secondary; the fixed-uniform band
+        // layout below draws the primary + affordances. Every key uses the same
+        // bands so the primary locks to one vertical position across the surface.
         paintKeyButton(g, cell, c.keyHint, {}, {},
                        grp, st, showKeyHint, compound, latchCol);
 
-        if (st == KeyButtonState::Disabled) return;
+        if (c.primary.isEmpty() && c.doubleTapLabel.isEmpty()
+            && c.tapLabel.isEmpty() && c.holdLabel.isEmpty() && c.funcHint.isEmpty())
+            return;  // nothing to render
 
         const auto inner = cell.reduced(1, 1);
         const bool isPressed  = (st == KeyButtonState::Pressed);
         const bool isFuncHeld = (st == KeyButtonState::FuncHeld);
 
-        // Fixed-reserved heights (9.12): ALL slots always allocated.
-        // Primary locks to the same centre band across all keys in this family.
-        static constexpr int kSlotH = 11;
-        static constexpr int kFuncH = 14;
+        // ── Fixed uniform band layout (9.12 / DESIGN §19) ─────────────────────────
+        //   row 0: letter hint (left) + double-tap chip (right of the letter)
+        //   row 1: PRIMARY (large, locked band) + access glyph (hold ring / tap dot)
+        //   row 2: secondary gesture rail — tap when primary is hold, else hold
+        //   row 3: func-variant rail (bottom strip)
+        // Compact heights keep all four bands inside the shortest cell (~48 px) so
+        // the func rail never spills off the bottom (the 9.11 overflow bug).
+        static constexpr int kHintH = 14;  // matches the letter band in paintCellKeyHint
+        static constexpr int kSecH  = 10;
+        static constexpr int kFuncH = 11;
 
-        const int keyHintH   = showKeyHint ? 14 : 0;
-        const int overheadTop = keyHintH + kSlotH + kSlotH; // dbl + tap (always reserved)
-        const int overheadBot = kSlotH + kFuncH;            // hold + func (always reserved)
-        const int primY = inner.getY() + overheadTop;
-        const int primH = juce::jmax(10, inner.getHeight() - overheadTop - overheadBot);
+        const int hintH = showKeyHint ? kHintH : 2;
+        const int primY = inner.getY() + hintH;
+        const int primH = juce::jmax(14, inner.getHeight() - hintH - kSecH - kFuncH);
         const auto primArea = juce::Rectangle<int>(inner.getX(), primY, inner.getWidth(), primH);
 
-        // Primary label
+        // Double-tap chip: shares the hint row, just right of the letter glyph
+        // (uses the otherwise-dead space beside the QWERTY hint).
+        if (c.doubleTapLabel.isNotEmpty())
+        {
+            const int dblX = inner.getX() + (showKeyHint ? 15 : 2);
+            const auto area = juce::Rectangle<int>(dblX, inner.getY(),
+                                                   inner.getRight() - dblX - 2, hintH);
+            paintAffordanceSlot(g, area, c.doubleTapLabel, 1, 0.62f);
+        }
+
+        // Primary label + access glyph.
         if (c.primary.isNotEmpty())
         {
             const float alpha = isFuncHeld && !isPressed ? 0.35f : 1.0f;
@@ -376,46 +388,36 @@ namespace lockstep
             g.setColour(primCol);
             g.drawText(c.primary, primArea, juce::Justification::centred, false);
 
-            // Access glyph beside primary (indicates which gesture owns this slot).
+            // Access glyph: hold ring = "hold to engage" (modifiers), tap dot = tap
+            // key (verbs/nav). This contrast is the tap / no-tap signal.
             if (!isPressed)
             {
-                g.setColour(juce::Colour(0xFF8EA4B8u).withAlpha(0.30f));
-                const int gx = primArea.getRight() - 8;
+                g.setColour(juce::Colour(0xFF8EA4B8u).withAlpha(0.60f));
+                const int gx = primArea.getRight() - 9;
                 const int gy = primArea.getCentreY() - 2;
                 if (c.primaryGesture == Gesture::Hold) paintHoldGlyph(g, gx, gy);
                 else                                   paintTapGlyph(g, gx, gy);
             }
         }
 
-        const float slotAlpha = 0.60f;
-
-        // Double-tap slot: top (below keyHint). Blank space reserved even when empty.
+        // Secondary gesture rail: the non-primary of tap/hold (blank for most keys).
         {
-            const int y = inner.getY() + keyHintH;
-            const auto area = juce::Rectangle<int>(inner.getX() + 2, y, inner.getWidth() - 4, kSlotH);
-            if (hasDblTap) paintAffordanceSlot(g, area, c.doubleTapLabel, 1, slotAlpha);
-        }
-
-        // Tap slot: below dbl, above primary. Blank when tap is the primary gesture.
-        {
-            const int y = inner.getY() + keyHintH + kSlotH;
-            const auto area = juce::Rectangle<int>(inner.getX() + 2, y, inner.getWidth() - 4, kSlotH);
-            if (hasTapSlot) paintAffordanceSlot(g, area, c.tapLabel, 0, slotAlpha);
-        }
-
-        // Hold slot: below primary. Blank when hold is the primary gesture.
-        {
+            const bool primIsHold = (c.primaryGesture == Gesture::Hold);
+            const juce::String secLabel = primIsHold ? c.tapLabel : c.holdLabel;
+            const int secGlyph = primIsHold ? 0 /*tap*/ : 2 /*hold*/;
             const int y = primY + primH;
-            const auto area = juce::Rectangle<int>(inner.getX() + 2, y, inner.getWidth() - 4, kSlotH);
-            if (hasHoldSlot) paintAffordanceSlot(g, area, c.holdLabel, 2, slotAlpha);
+            const auto area = juce::Rectangle<int>(inner.getX() + 2, y, inner.getWidth() - 4, kSecH);
+            if (secLabel.isNotEmpty())
+                paintAffordanceSlot(g, area, secLabel, secGlyph, 0.60f);
         }
 
-        // Func slot: bottom strip. Amber glyph + funcHint text.
+        // Func-variant rail: bottom strip, amber chip.
         {
-            const int y = primY + primH + kSlotH;
+            const int y = primY + primH + kSecH;
             const auto area = juce::Rectangle<int>(inner.getX() + 2, y, inner.getWidth() - 4, kFuncH);
-            const float alpha = isFuncHeld ? 1.0f : 0.5f;
-            if (hasFuncSlot) paintAffordanceSlot(g, area, c.funcHint, 3, alpha);
+            const float alpha = isFuncHeld ? 1.0f : 0.55f;
+            if (c.funcHint.isNotEmpty())
+                paintAffordanceSlot(g, area, c.funcHint, 3, alpha);
         }
     }
 

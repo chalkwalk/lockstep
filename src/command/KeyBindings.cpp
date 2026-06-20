@@ -169,50 +169,57 @@ namespace lockstep
         // These rows carry explicit gesture + promoted fields (last two columns).
         // Tap rows already exist above (defaulting to Gesture::Tap, promoted=false).
 
-        // Func (key 1): no bare tap action; hold = FUNC LAYER; dbl-tap = ESCAPE.
-        { CB::Func, -1, kModNone, SL::Base, AId::HoldFuncScope, u8"FUNC LAYER", u8"", CS::Resting,
-          Gesture::Hold, false },
+        // Modifier scope keys are HOLD-to-scope: pressing/holding engages the scope,
+        // double-tap latches it. There is NO distinct tap action, so the primary
+        // label is the bare scope name (the verbose "X SCOPE"/"X VIEW" wording was
+        // redundant with the key's identity and only shrank the font). The access
+        // glyph (hold ring) on the primary signals "hold to engage"; deriveSlots
+        // suppresses the duplicate tap rail since tap and hold share one action.
+
+        // Func (key 1): hold = FUNC (qualifier layer); dbl-tap = ESCAPE.
+        { CB::Func, -1, kModNone, SL::Base, AId::HoldFuncScope, u8"FUNC", u8"", CS::Resting,
+          Gesture::Hold, true },
         { CB::Func, -1, kModNone, SL::Base, AId::FuncEscape, u8"ESCAPE", u8"", CS::Resting,
           Gesture::DoubleTap, false },
 
-        // TrackScope (key 2): hold = TRACK SCOPE (primary); dbl-tap = LATCH.
-        { CB::TrackScope, -1, kModNone, SL::Base, AId::HoldTrackScope, u8"TRACK SCOPE", u8"", CS::Resting,
+        // TrackScope (key 2): hold = TRACK (primary scope); dbl-tap = LATCH.
+        { CB::TrackScope, -1, kModNone, SL::Base, AId::HoldTrackScope, u8"TRACK", u8"", CS::Resting,
           Gesture::Hold, true },
         { CB::TrackScope, -1, kModNone, SL::Base, AId::LatchTrackScope, u8"LATCH", u8"", CS::Resting,
           Gesture::DoubleTap, false },
 
-        // PhraseScope (key Q): hold = PHRASE SCOPE (primary); dbl-tap = LATCH.
-        { CB::PhraseScope, -1, kModNone, SL::Base, AId::HoldPhraseScope, u8"PHRASE SCOPE", u8"", CS::Resting,
+        // PhraseScope (key Q): hold = PHRASE (primary scope); dbl-tap = LATCH.
+        { CB::PhraseScope, -1, kModNone, SL::Base, AId::HoldPhraseScope, u8"PHRASE", u8"", CS::Resting,
           Gesture::Hold, true },
         { CB::PhraseScope, -1, kModNone, SL::Base, AId::LatchPhraseScope, u8"LATCH", u8"", CS::Resting,
           Gesture::DoubleTap, false },
 
-        // SceneScope (key W): hold = SCENE SCOPE (primary); dbl-tap = LATCH.
-        { CB::SceneScope, -1, kModNone, SL::Base, AId::HoldSceneScope, u8"SCENE SCOPE", u8"", CS::Resting,
+        // SceneScope (key W): hold = SCENE (primary scope); dbl-tap = LATCH.
+        { CB::SceneScope, -1, kModNone, SL::Base, AId::HoldSceneScope, u8"SCENE", u8"", CS::Resting,
           Gesture::Hold, true },
         { CB::SceneScope, -1, kModNone, SL::Base, AId::LatchSceneScope, u8"LATCH", u8"", CS::Resting,
           Gesture::DoubleTap, false },
 
-        // MorphScope (key A): hold = MORPH SCOPE (primary); dbl-tap = LATCH.
-        { CB::MorphScope, -1, kModNone, SL::Base, AId::HoldMorphScope, u8"MORPH SCOPE", u8"", CS::Resting,
+        // MorphScope (key A): hold = MORPH (primary scope); dbl-tap = LATCH.
+        { CB::MorphScope, -1, kModNone, SL::Base, AId::HoldMorphScope, u8"MORPH", u8"", CS::Resting,
           Gesture::Hold, true },
         { CB::MorphScope, -1, kModNone, SL::Base, AId::LatchMorphScope, u8"LATCH", u8"", CS::Resting,
           Gesture::DoubleTap, false },
 
-        // SongScope (key S): hold = SONG SCOPE (primary); dbl-tap = LATCH.
-        { CB::SongScope, -1, kModNone, SL::Base, AId::HoldSongScope, u8"SONG SCOPE", u8"", CS::Resting,
+        // SongScope (key S): hold = SONG (primary scope); dbl-tap = LATCH.
+        { CB::SongScope, -1, kModNone, SL::Base, AId::HoldSongScope, u8"SONG", u8"", CS::Resting,
           Gesture::Hold, true },
         { CB::SongScope, -1, kModNone, SL::Base, AId::LatchSongScope, u8"LATCH", u8"", CS::Resting,
           Gesture::DoubleTap, false },
 
-        // MuteScope (key Z): hold = MUTE VIEW (primary); dbl-tap = LATCH.
-        { CB::MuteScope, -1, kModNone, SL::Base, AId::HoldMuteScope, u8"MUTE VIEW", u8"", CS::Resting,
+        // MuteScope (key Z): hold = MUTE (primary scope); dbl-tap = LATCH.
+        { CB::MuteScope, -1, kModNone, SL::Base, AId::HoldMuteScope, u8"MUTE", u8"", CS::Resting,
           Gesture::Hold, true },
         { CB::MuteScope, -1, kModNone, SL::Base, AId::LatchMuteScope, u8"LATCH", u8"", CS::Resting,
           Gesture::DoubleTap, false },
 
-        // FillScope (key X): hold = FILL SCOPE (primary); dbl-tap = LATCH.
-        { CB::FillScope, -1, kModNone, SL::Base, AId::HoldFillScope, u8"FILL SCOPE", u8"", CS::Resting,
+        // FillScope (key X): hold = FILL (primary scope); dbl-tap = LATCH.
+        { CB::FillScope, -1, kModNone, SL::Base, AId::HoldFillScope, u8"FILL", u8"", CS::Resting,
           Gesture::Hold, true },
         { CB::FillScope, -1, kModNone, SL::Base, AId::LatchFillScope, u8"LATCH", u8"", CS::Resting,
           Gesture::DoubleTap, false },

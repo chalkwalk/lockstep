@@ -552,14 +552,31 @@ namespace lockstep
                   "TapTempo: doubleTapLabel consistent with grammar");
         }
 
-        // Func (modifiers[0]): promoted=Hold, tapLabel=FUNC (legacy Tap row), dbl=ESCAPE.
+        // Func (modifiers[0]): promoted=Hold, primary=FUNC, dbl=ESCAPE. The legacy
+        // Tap row shares the HoldFuncScope action, so the tap rail is suppressed.
         {
             const auto& c = model.modifiers[0];
             const auto hold = resolveBinding(CB::Func, -1, kModNone, SL::Base, Gesture::Hold);
             const auto dbl  = resolveBinding(CB::Func, -1, kModNone, SL::Base, Gesture::DoubleTap);
             CHECK(c.primaryGesture == Gesture::Hold, "Func: primaryGesture=Hold");
-            CHECK(c.primary == juce::String(hold.primary), "Func: primary=FUNC LAYER");
+            CHECK(c.primary == juce::String(hold.primary), "Func: primary=FUNC");
+            CHECK(c.tapLabel.isEmpty(), "Func: tapLabel empty (tap duplicates hold action)");
             CHECK(c.doubleTapLabel == juce::String(dbl.primary), "Func: doubleTapLabel=ESCAPE");
+        }
+
+        // Modifier scope key (Track, modifiers[1]): hold-to-scope, no phantom tap.
+        // primary = bare "TRACK"; tap rail suppressed (tap/hold share HoldTrackScope);
+        // dbl = LATCH; func variant = KIT.
+        {
+            const auto& c = model.modifiers[1];
+            const auto hold = resolveBinding(CB::TrackScope, -1, kModNone, SL::Base, Gesture::Hold);
+            const auto dbl  = resolveBinding(CB::TrackScope, -1, kModNone, SL::Base, Gesture::DoubleTap);
+            CHECK(c.primaryGesture == Gesture::Hold, "Track: primaryGesture=Hold");
+            CHECK(c.primary == juce::String(hold.primary), "Track: primary=TRACK (bare)");
+            CHECK(c.tapLabel.isEmpty(), "Track: tapLabel empty (no phantom tap action)");
+            CHECK(c.holdLabel.isEmpty(), "Track: holdLabel empty (hold is primary)");
+            CHECK(c.doubleTapLabel == juce::String(dbl.primary), "Track: doubleTapLabel=LATCH");
+            CHECK(c.funcHint == juce::String(u8"KIT"), "Track: funcHint=KIT");
         }
 
         // VerbPlay (functionRow[7]): promoted=Tap, tap=PLAY, dbl=STOP.

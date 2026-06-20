@@ -29,18 +29,17 @@ namespace lockstep
         const juce::String name(promRow.primary);
         if (name.isEmpty()) return u8"--";
 
-        // Append gesture summary: show non-primary gestures where distinct.
+        // Append gesture summary: the primary name is already shown, so list only
+        // the OTHER gestures where they carry a distinct action.
         juce::String gestures;
         if (prom == Gesture::Hold)
         {
             if (tap.action != ActionId::None && tap.action != hold.action)
                 gestures += juce::String(u8" tap=") + juce::String(tap.primary);
-            gestures += juce::String(u8" hold=") + name;
         }
         else
         {
-            gestures += juce::String(u8" tap=") + name;
-            if (hold.action != ActionId::None)
+            if (hold.action != ActionId::None && hold.action != tap.action)
                 gestures += juce::String(u8" hold=") + juce::String(hold.primary);
         }
         if (dbl.action != ActionId::None)
