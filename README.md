@@ -253,11 +253,11 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Master FX** | Four Song-scope FX units on the master bus: 2 inserts (post-sum) + 2 send returns (post send-bus). Loaded via `Func+Song+FX`; cycle units with repeated press. |
 | **Send A / Send B** | Per-track post-insert level tap into shared send buses (AMP page 2, slots 8–9). Each send bus has a return effect before the master inserts. |
 | **Animate** | The momentary insert punch-in: hold `FX` + step to bypass (or enable) an insert for exactly the hold duration. Performance-only — never written to the pattern. Under Song+FX focus the step grid targets the four master units: steps 0-3 = master FX1, 4-7 = FX2, 8-11 = Send A, 12-15 = Send B. |
-| **Density** | Live, subtractive trig-thinning overlay. `Func`-held → transient per-track Density band. **`Func+MOD`** → sticky DENSITY mode; nav keys page between tracks 1-8 and 9-16; `Song`-held (encoder or on-screen drag) → master offset (visible as arc baseline shift); MOD key cycles Amount/Mode sub-page (Musicality + Selection). `Song`-alone = swing (unchanged). Only silences would-fire trigs. Ephemeral amounts; durable Musicality + Selection per track. Selection has three detents: **Scrub** (deterministic), **Re-roll** (stochastic), **Exempt** (track bypasses density entirely — amount and Musicality cells greyed). |
-| **Velocity overlay** | Per-track live velocity modulation computed at emit time, not baked. **Func+AMP** → sticky VEL OVERLAY mode; AMP re-press cycles sub-pages (Depth → Center → Mode → Blend); press any other section key to exit; nav keys page between tracks 1-8 and 9-16. Mode: **Off** (no overlay) / **Bar** (metric weight against the effective time-sig bar) / **Phrase** (bar grid anchored to phrase start — accents follow phrase length, not global bar position). Blend: Replace (overlay supersedes authored velocity) / Mix (overlay delta added on top of authored velocity, or centred on `velCenter` for steps with no authored velocity — converges with Replace on flat material). Durable per-track, serialized (v20). |
-| **TIME page** | Tempo and time-sig share an identical scope ladder (Set → Song → Scene) and are edited on one page. **`Song+TRIG`** or **`Scene+TRIG`** opens the TIME sticky band (TRIG relabels to "TIME"); the held modifier at entry becomes the **entry scope** (the scope edits target when no modifier is held). Inside: `Func+Song` = Set, `Song` = Song, `Scene` = Scene. Two controls: **Tempo** — continuous knob, resolved BPM at current scope, scope-coloured parent arc tick, back-solved ratio on edit; dial to floor shows `INHERIT (<parent bpm>)` and clears the override. **Sig** — stepped knob, time-sig list ordered by ascending bar length (`3/8 → 2/4 → 5/8 → 3/4 → 6/8 → 7/8 → 4/4 → 9/8 → 5/4 → 11/8 → 12/8 → 7/4`), index 0 = `INHERIT`. 4/4 is the Set default. Controls revert independently — no chord needed. Global (standalone) tempo is editable; DAW global is read-only (host BPM). Header readout shows scope-coloured effective BPM + time-sig. Serialized as v21. |
-| **Retrig / ratchet** | Per-step re-triggering at a musical rate (`/4 … /32T`). `Fill+TRIG` opens the rate picker: press a rate for a live stutter on the focused track, or hold a step first to bake the rate as a per-step P-Lock. Slicer tracks show a slice picker instead. |
-| **Euclidean generator** | `Phrase+Fill` held: encoders shape `PULSE / OFSET / ACCNT` against the phrase length, audible live; the mode is latched until **P** (commit) or **Func+P** (cancel). Y is inert in this mode. |
+| **Density** | Live, subtractive trig-thinning overlay. Enter via the **generator hub** (`3` held → DENSITY cell). Sticky DENSITY mode: nav keys page between tracks 1-8 and 9-16; `Song`-held (encoder or on-screen drag) → master offset (visible as arc baseline shift); MOD key cycles Amount/Mode sub-page (Musicality + Selection). `Song`-alone = swing (unchanged). Only silences would-fire trigs. Ephemeral amounts; durable Musicality + Selection per track. Selection has three detents: **Scrub** (deterministic), **Re-roll** (stochastic), **Exempt** (track bypasses density entirely — amount and Musicality cells greyed). |
+| **Velocity overlay** | Per-track live velocity modulation computed at emit time, not baked. Enter via the **generator hub** (`3` held → VEL cell). Sticky VEL OVERLAY mode: AMP re-press cycles sub-pages (Depth → Center → Mode → Blend); press any other section key to exit; nav keys page between tracks 1-8 and 9-16. Mode: **Off** (no overlay) / **Bar** (metric weight against the effective time-sig bar) / **Phrase** (bar grid anchored to phrase start — accents follow phrase length, not global bar position). Blend: Replace (overlay supersedes authored velocity) / Mix (overlay delta added on top of authored velocity, or centred on `velCenter` for steps with no authored velocity — converges with Replace on flat material). Durable per-track, serialized (v20). |
+| **TIME page** | Tempo and time-sig share an identical scope ladder (Set → Song → Scene) and are edited on one page. **`Song+TRIG`** or **`Scene+TRIG`** opens the TIME sticky band (TRIG relabels to "TIME"); the held modifier at entry becomes the **entry scope** (the scope edits target when no modifier is held). Inside: `Func+Song` = Set, `Song` = Song, `Scene` = Scene. Three controls: **Tempo** — continuous knob, resolved BPM at current scope, scope-coloured parent arc tick, back-solved ratio on edit; dial to floor shows `INHERIT (<parent bpm>)` and clears the override. **Sig** — stepped knob, time-sig list ordered by ascending bar length (`3/8 → 2/4 → 5/8 → 3/4 → 6/8 → 7/8 → 4/4 → 9/8 → 5/4 → 11/8 → 12/8 → 7/4`), index 0 = `INHERIT`. 4/4 is the Set default. **CLICK** — stepped ON/OFF; toggles the metronome click. Controls revert independently — no chord needed. Global (standalone) tempo is editable; DAW global is read-only (host BPM). Header readout shows scope-coloured effective BPM + time-sig. Serialized as v21. |
+| **Retrig / ratchet** | Per-step re-triggering at a musical rate (`/4 … /32T`). Authored as a P-lockable parameter in the TRIG meta-band field 5 "RTG": hold a step and turn the RTG encoder to set the rate (0 = off; /4 … /32T). Slicer tracks: `Fill+TRIG` shows the slice-point picker (unchanged). |
+| **Euclidean generator** | Enter via the **generator hub** (`3` held → EUCLID cell). Encoders shape `PULSE / OFSET / ACCNT` against the phrase length, audible live; the mode is latched until **P** (commit) or **Func+P** (cancel). Y is inert in this mode. |
 | **Control-All** | Holding `Track` with no track selected broadcasts the next parameter edit to every track that has a matching control. |
 | **Mute** | Suppresses a track's trigs non-destructively. `Mute+step` = global mute (survives scene/song changes); `Scene+Mute+step` = per-scene mute (the scene's active-mask). |
 | **Fill** | A momentary modifier: while held, fill-conditioned steps fire. Used for live variation. |
@@ -520,7 +520,7 @@ Transport and record-arm ride the verb row (no scope held — see §5.1):
 | `O` (Clear) | Clear active P-Lock slot (no scope held); `Func + O` = delete entity (opens deletion picker). |
 | `U` (Rec) | Toggle record-arm (overwrite). Double-tap = overdub (append); `Func + U` = **omni copy** (captures scene + active track + pattern in one grab; badge `CPY:ALL`). |
 | `Func + Song + U` | **Capture** — arm or disarm WAV capture of the master output (see §5.20). |
-| `3` | Tap tempo; `Func + 3` = toggle metronome. |
+| `3` | Tap tempo (short tap). **Hold ≥350 ms** = generator hub: step cells show EUCLID / DENSITY / VEL; press one to enter that generator with its own lifetime; release `3` closes the picker. |
 | `4` | Navigate up (inverted-T above `E R T`). |
 | `E` / `R` / `T` | Navigate left / down / right. |
 
@@ -1074,16 +1074,16 @@ The step grid can be re-skinned into non-step roles. Three paths exist:
   the 16 step cells become a one-octave keyboard (NavUp/Down shift the
   octave) — this is the shipped form of the old "keyboard mode." In
   **LEVELS** the cells become quantised velocity buckets.
-- **Retrig / ratchet overlay (shipped, 5.7).** `Fill + TRIG` re-skins the
-  step grid to an 8-rate ratchet picker (`/4`, `/4T`, `/8`, `/8T`, `/16`,
-  `/16T`, `/32`, `/32T`). While the overlay is open (Fill held), pressing a
-  rate cell starts a live stutter on the focused track at that rate. If a
-  step is held while you press a rate, the rate is **baked** as a per-step
-  P-Lock (`hasRetrig`/`retrigRate`) that fires automatically during playback.
-  On slicer tracks `Fill+TRIG` shows the slice-point picker instead: each
-  cell addresses a slice; pressing one auditions that slice and bakes
-  the `note = sliceIdx` override onto any held steps. The TRIG key glows in
-  Fill colour while Fill is held to announce the overlay.
+- **Retrig / ratchet (9.10).** Authored as field 5 "RTG" in the TRIG
+  meta-band: hold a step and turn the RTG encoder. Values: 0 = off, 1 = /4,
+  2 = /4T, 3 = /8, 4 = /8T, 5 = /16, 6 = /16T, 7 = /32, 8 = /32T. The rate
+  is a normal P-Lock on `hasRetrig`/`retrigRate` — fires automatically during
+  playback. **Live stutter removed** (NON-GOALS fence #11). `Fill+TRIG` is
+  now a slicer-only binding:
+  on slicer tracks `Fill+TRIG` shows the slice-point picker — each cell
+  addresses a slice; pressing one auditions that slice and bakes the
+  `note = sliceIdx` override onto any held steps. The TRIG key glows in Fill
+  colour while Fill is held to announce the slicer overlay.
 - **Sound Pool overlay (shipped, 5.7 / 5.7c).** `Fill + SRC` re-skins the step
   grid to the project's Sound Pool (up to 16 saved sounds). Pressing a cell
   live-swaps the focused track to that sound for audition. If a step is held
@@ -1104,8 +1104,7 @@ The step grid can be re-skinned into non-step roles. Three paths exist:
     a clash exists.
   - The Sound Pool is now **fully serialized** (v16). Saved sounds survive save/reload
     and DAW session round-trips. (Prior to v16, the pool was ephemeral.)
-- **Euclidean generator (shipped, 5.9).** `Phrase + Fill` held together
-  enters Euclidean generator mode on the **focused track**. The Manipulation
+- **Euclidean generator (shipped, 5.9; entry rerouted 9.10).** **`3` held** → generator hub → **EUCLID** cell enters Euclidean generator mode on the **focused track** (`Phrase + Fill` entry retired). The Manipulation
   Zone switches to three encoders:
   - **PULSE** — number of onsets (0 … phrase length).
   - **OFSET** — rotation in steps (signed, shifts the pattern forward/back).
@@ -1124,10 +1123,10 @@ The step grid can be re-skinned into non-step roles. Three paths exist:
   in this mode. Output is ordinary hand-editable trig data.
 
 - **Live velocity "feel" — see the Velocity overlay (§5.8, §39.10).** Per-track
-  metric-weighted velocity is a *live, non-destructive* overlay reached with
-  `Func + AMP`, computed at emit time. The earlier bake/print **Accent velocity
-  generator** (`Func + Fill`) has been **retired** — its function was folded into
-  the live overlay (v20), so `Func + Fill` is currently **unbound**.
+  metric-weighted velocity is a *live, non-destructive* overlay reached via the
+  **generator hub** (`3` held → VEL cell), computed at emit time. The earlier
+  `Func + AMP` entry and `Func + Fill` bake/print **Accent velocity generator**
+  have both been **retired** — the live overlay (v20) supersedes them.
 
 ### 5.19 Standalone project files *(shipped — Phase 9)*
 
@@ -1222,7 +1221,7 @@ shipped behaviour and the design intent. To avoid confusion:
   `Quantize` verb (`scope + Yes` zeros microOffset — see §5.3); amber/cyan step-grid nudge ticks;
   TRACK band effective-swing readout.
 
-- **Retrig / ratchet overlay** (`Fill+TRIG` rate picker + per-step bake) and
+- **Retrig / ratchet** (authored RTG field in TRIG band, per-step P-lock; live stutter removed 9.10) and
   **Sound Pool overlay** (`Fill+SRC` live-swap + `sound_id` P-Lock bake), plus
   the **Slice-point picker** on slicer tracks (`Fill+TRIG`).
 - **Sound Bank** (5.7c): the Sound Bank overlay provides full management of the
@@ -1233,7 +1232,8 @@ shipped behaviour and the design intent. To avoid confusion:
   upgrade chain, New/Open/Save/Save As with dirty guard, last-project auto-open.
 - **Per-track FX inserts** (2 slots, `Func+FX` picker, `FX+step` animate-bypass).
 - **Master FX bus** (2 post-sum slots, `Func+Song+FX` picker, MZ params under `Song+FX`, serializer v14).
-- **Density overlay** (`Func`-held → transient per-track Density band; `Func+MOD` = sticky DENSITY mode; nav = bank 1-8/9-16; `Song`-held = master offset (encoder or drag); MOD key = Amount/Mode/Selection sub-page; any non-MOD section key or foreign scope = exit sticky mode; `Song`-alone = swing).
+- **Density overlay** (entered via generator hub, `3` held → DENSITY cell; sticky DENSITY mode: nav = bank 1-8/9-16; `Song`-held = master offset (encoder or drag); MOD key = Amount/Mode/Selection sub-page; any non-MOD section key or foreign scope = exit sticky mode; `Song`-alone = swing).
+- **Generator hub** (`3` held ≥350 ms → momentary picker EUCLID / DENSITY / VEL; short tap = tap tempo retained).
 
 **Planned** — the rest of the
 machine catalogue (`4.5` Static, `4.6` Percussion, `4.7` Digital); **Phase 5**
@@ -1310,7 +1310,8 @@ Legends in parentheses are the on-screen key labels (see
 ├─ I (PLAY)          → play / stop transport; double-tap = stop-to-top — §5.4
 ├─ O (CLEAR)         → clear the active P-Lock slot — §5.4
 ├─ P (CONFIRM)       → confirm a pending prompt — §5.3
-├─ 3 (TAP)           → tap tempo — §5.4
+├─ 3 (TAP)           → tap tempo (short tap) — §5.4
+│   └─ 3 (hold ≥350ms) → generator hub: step cells = EUCLID / DENSITY / VEL; press to enter; release closes picker — §5.4
 └─ 4 / E / R / T     → navigate up / left / down / right (track + step page) — §5.4
 ```
 
@@ -1333,16 +1334,15 @@ Func (1)
 ├─ Func + I           → unqualified paste (stamp the one captured layer) — §5.4
 ├─ Func + O           → deletion picker (bare Func+O: inert; needs a scope) — §5.4a
 ├─ Func + P           → cancel a pending prompt — §5.3
-├─ Func + 3           → toggle the metronome — §5.4
+├─ Func + 3           → reserved/inert (metronome moved to TIME band CLICK field) — §5.4
 ├─ Func + 5…0         → secondary section page (machine deep params; COND/NOTE meta; Func+7 = transport globals) — §5.8
 │   ├─ Func + FX (0)          → effect picker: step grid re-skins to effect catalogue; press step to load; re-pick active = toggle bypass — §5.8
 │   └─ Func + Song + FX (0)  → master FX picker (same catalogue; loads into Song-scope master unit; re-press to cycle all 4 slots; re-pick active = toggle bypass) — §5.8
 ├─ Func + ← / →       → rotate the focused track's steps −1 / +1 — §5.17
 ├─ Func + ↑ / ↓       → double / halve the focused track length — §5.17
 ├─ Func + step        → P-Lock clear mode (cells show set P-Locks; stage removals, release to commit) — §5.17
-├─ Func (hold)        → transient Density band (8 tracks, bank follows focus); Song-held = master offset (encoder or drag) — §39
-├─ Func + MOD (9)     → sticky DENSITY mode: nav = bank 1-8/9-16; Song-held = master (encoder or drag); MOD key = Amount/Mode — §39
-├─ Func + AMP (8)     → sticky VELOCITY mode: nav = bank; AMP key = Depth/Center/Mode/Blend sub-page — §39
+├─ Func + MOD (9)     → reserved/inert (Density entry moved to generator hub) — §39
+├─ Func + AMP (8)     → reserved/inert (Vel entry moved to generator hub) — §39
 └─ Func double-tap    → universal escape (clears latches, Euclid, density/vel sticky) — §39
 ```
 
@@ -1501,9 +1501,8 @@ Links: [§5.11](#511-mutes)
 Fill (X)
 ├─ (hold)            → while held, fill-conditioned steps fire; TRIG and SRC keys glow — §5.12
 ├─ + step            → mark that step fill-only — §5.12
-├─ + TRIG (5)        → Retrig overlay: step grid → ratchet-rate picker (/4…/32T) — §5.18
-│   └─ press rate    → start live stutter at that rate; hold a step first to bake per-step P-Lock
 ├─ + TRIG (5) on slicer track → Slice-point picker: step cells = slice indices — §5.18
+├─ + TRIG (5) on other tracks → reserved/inert (live stutter removed 9.10; use TRIG RTG band field)
 ├─ + SRC (6)         → Sound Pool overlay: step grid → saved-sound selector — §5.18
 │   └─ press sound   → live-swap track to that sound; hold a step first to bake sound_id P-Lock
 └─ Func + Fill       → (unbound — the old Accent generator was folded into the Velocity overlay, §5.8 / §39.10)

@@ -1744,7 +1744,7 @@ See DESIGN §4.8 and §13.
       (v21 round-trip; v20 project compat).
 - [x] **Remaining open items resolved.** 9.5 C fully closed; 9.6 D2 done. *(Stage 7)*
 
-### 9.10 — Grammar-allocation pass  *[planned]*
+### 9.10 — Grammar-allocation pass  *[shipped]*
 Follow-on to the 9.x usability deep-dive (`USABILITY-REVIEW.md`). The
 goal-sharpening shipped in PRINCIPLES (North-Star preamble + §2 orthogonality
 clause + §4/§10 single-purpose reconcile + §15 frequency × stakes + new §19
@@ -1754,27 +1754,37 @@ under the sharpened rules. Each binding move carries the CLAUDE.md modality-test
 triad (resolution + scope-routing + round-trip); any moved overlay gets a
 `kOverlays` descriptor test; `layerBanner` stays exhaustive under `-Werror`.
 
-- [ ] **Generator hub on `3`.** `3` held → enter the deterministic-generator
-      family (Euclid / Density / Vel + future); `3` tapped → tap-tempo (retained).
-      Retires the scattered entries `Phrase+Fill` (Euclid), `Func+MOD` (Density),
-      `Func+AMP` (Vel), and the bare-`Func`-hold Density band. "The hold is the
-      mode" (PRINCIPLES §5); transient (Euclid: latch-until-commit) vs sticky
-      (Density / Vel: durable `Overlay`) behaviour preserved via existing
-      machinery (§18). Watch the MZ slider-state leak when switching bands.
-- [ ] **Metronome → TIME overlay.** Move metronome toggle off `Func+3` into the
-      TIME page (transport-adjacent); `Func+3` freed.
-- [ ] **Retrig split (NON-GOALS fence #11 ruling).** Promote the per-step ratchet
-      to an ordinary TRIG-section, P-lockable parameter; **cut** the free-running
-      live stutter. `Fill+TRIG` freed. (USABILITY-REVIEW §7.)
-- [ ] **Reclaimed-slot re-allocation.** With `Func+3`, `Func+MOD`, `Func+AMP`,
-      `Phrase+Fill`, `Func+Fill`, bare-`Func`-hold, and `Fill+TRIG` all free,
-      decide each one's next use (or leave reserved) under §15 (frequency ×
-      stakes) and §2 (orthogonality). Bind or formally retire `CueScope`.
-- [ ] **Home-key orientation cues (PRINCIPLES §19).** F/J-style "bumps" on the
-      home-row anchor keys — on screen now, in the eventual hardware spec.
+- [x] **Generator hub on `3`.** `3` held ≥350 ms → momentary picker for the
+      deterministic-generator family (Euclid / Density / Vel); pick a cell →
+      that generator activates with its own existing lifetime; `3` tapped →
+      tap-tempo (retained). Retires scattered entries: `Phrase+Fill` (Euclid),
+      `Func+MOD` (Density), `Func+AMP` (Vel), bare-`Func`-hold / `Func+Song`
+      Density band peeks. New `SurfaceLayer::GeneratorHub` + banner +
+      `CellState::GeneratorEuclid/Density/Vel` tokens (distinct hues per §19).
+      *(Stage 9.10c — 7c45af6)*
+- [x] **Metronome → TIME overlay.** `Func+3 → MetronomeToggle` remap removed;
+      `Func+3` freed/reserved. TIME band gains field 2 "CLICK" (stepped 0/1)
+      reading/writing `Clock::isMetronomeEnabled()`.
+      *(Stage 9.10d — f766987)*
+- [x] **Retrig split (NON-GOALS fence #11 ruling).** Per-step authored ratchet
+      promoted to TRIG-band field 5 "RTG" (stepped 0..8; 0=off, 1-8=/4.."/32T";
+      P-lockable via hold-step + encoder). Free-running live stutter
+      (`setRetrigActive` on non-slicer tracks) removed. `Fill+TRIG` now
+      slicer-only (slice-point picker preserved intact).
+      *(Stage 9.10e — 815df00)*
+- [x] **Reclaimed slots left reserved/inert.** `Func+3`, `Func+MOD`, `Func+AMP`,
+      `Phrase+Fill`, `Fill+TRIG` (non-slicer) are freed and currently
+      reserved/inert — correct §2 default until next design input. `CueScope`
+      binding deferred. Full visual-token audit deferred (separate item below).
+- [x] **Home-key orientation cues (PRINCIPLES §19).** `SurfaceCell::homeKey` bool
+      set for step indices 1 (F) and 4 (J) in every layer — pure orientation cue,
+      screen renderer and controller render can mark these cells.
+      Hardware spec: literal nibs at the same positions.
+      *(Stage 9.10f — 435f012)*
 - [ ] **Visual-grammar token audit (PRINCIPLES §19).** Per-`CellState` pass (with
       `CellStates.def`, 8.6): confirm every performable state has a
       colour/brightness/blink proxy; flag text-only states as hardware bugs.
+      *(deferred — needs separate review)*
 
 ### Future (structural)
 - [x] **Collapse `timeStickyMode` / `densityStickyMode` / `velStickyMode` into a
