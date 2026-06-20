@@ -13,14 +13,15 @@ namespace lockstep
     // Keep entries grouped by key family (utility / modifiers / verbs / nav).
     // =========================================================================
 
-    static constexpr std::array<KeyAffordance, 14> kAffordances = {{
+    static constexpr std::array<KeyAffordance, 22> kAffordances = {{
         // ── Utility ─────────────────────────────────────────────────────────────
-        // key 3 (TapTempo): primary = GEN (hold hub); tap = TAP TEMPO
+        // key 3 (TapTempo): primary = GEN HUB (hold); tap = TAP TEMPO
         { ControllerButton::TapTempo,
           u8"TAP TEMPO", u8"GEN HUB", nullptr, /*primaryIsHold=*/true },
 
         // ── Modifiers (8 keys) ───────────────────────────────────────────────────
         // Modifiers fire their scope action on hold; double-tap latches.
+        // Func double-tap escapes the active overlay.
         { ControllerButton::Func,
           nullptr, u8"FUNC LAYER", u8"ESCAPE", false },
         { ControllerButton::TrackScope,
@@ -39,8 +40,10 @@ namespace lockstep
           nullptr, u8"FILL SCOPE", u8"LATCH", false },
 
         // ── Verb keys ────────────────────────────────────────────────────────────
+        // Play: tap = PLAY; double-tap = STOP (stop + rewind).
         { ControllerButton::VerbPlay,
           u8"PLAY", nullptr, u8"STOP", false },
+        // Snapshot: tap = SNAPSHOT; hold Func+Y for RESTORE.
         { ControllerButton::VerbSnapshot,
           u8"SNAPSHOT", nullptr, nullptr, false },
         { ControllerButton::VerbRecord,
@@ -49,6 +52,25 @@ namespace lockstep
           u8"CLEAR", nullptr, nullptr, false },
         { ControllerButton::VerbConfirm,
           u8"CONFIRM", nullptr, nullptr, false },
+
+        // ── Nav keys ─────────────────────────────────────────────────────────────
+        // NavUp (key 4): bare = track up / func = ×2 length.
+        { ControllerButton::NavUp,
+          u8"TRACK UP", nullptr, nullptr, false },
+        { ControllerButton::NavLeft,
+          u8"PAGE LEFT", nullptr, nullptr, false },
+        { ControllerButton::NavDown,
+          u8"TRACK DOWN", nullptr, nullptr, false },
+        { ControllerButton::NavRight,
+          u8"PAGE RIGHT", nullptr, nullptr, false },
+
+        // ── Transport utility ─────────────────────────────────────────────────────
+        // RecordArm (key 9): tap = arm record.
+        { ControllerButton::RecordArm,
+          u8"REC ARM", nullptr, nullptr, false },
+        // PlayStop (key 0): tap = play/stop toggle.
+        { ControllerButton::PlayStop,
+          u8"PLAY/STOP", nullptr, nullptr, false },
     }};
 
     const KeyAffordance* findAffordance(ControllerButton button) noexcept
