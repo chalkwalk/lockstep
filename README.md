@@ -1123,23 +1123,11 @@ The step grid can be re-skinned into non-step roles. Three paths exist:
   place. **Cancel (Func+P):** restores the original phrase. **Y is inert**
   in this mode. Output is ordinary hand-editable trig data.
 
-- **Accent velocity generator (shipped, §39.10).** `Func + Fill` held together
-  enters accent-print mode on the **focused track**. The Manipulation Zone
-  switches to two encoders:
-  - **DEPTH** — swing depth (0–100 %). At 0 every trig gets exactly Center.
-  - **CENTR** — center velocity (1–127; default 90).
-
-  Velocities are computed as:
-  `vel = Center + Depth × range × (2w − 1)`, where `w` is the Lerdahl–Jackendoff
-  metric weight [0,1] of the step's position in the bar (`w=1` = downbeat,
-  `w=0` = finest offbeat). Works correctly in any time signature.
-  Only trig steps are written; rest steps are untouched.
-
-  Live preview fires on every encoder change. The status bar reads
-  **ACCENT  depth / center  |  P = commit  Func+P = cancel**.
-
-  **Commit (bare P):** checkpoint then bakes velocities. **Cancel (Func+P or
-  Func double-tap):** restores the original phrase.
+- **Live velocity "feel" — see the Velocity overlay (§5.8, §39.10).** Per-track
+  metric-weighted velocity is a *live, non-destructive* overlay reached with
+  `Func + AMP`, computed at emit time. The earlier bake/print **Accent velocity
+  generator** (`Func + Fill`) has been **retired** — its function was folded into
+  the live overlay (v20), so `Func + Fill` is currently **unbound**.
 
 ### 5.19 Standalone project files *(shipped — Phase 9)*
 
@@ -1518,8 +1506,7 @@ Fill (X)
 ├─ + TRIG (5) on slicer track → Slice-point picker: step cells = slice indices — §5.18
 ├─ + SRC (6)         → Sound Pool overlay: step grid → saved-sound selector — §5.18
 │   └─ press sound   → live-swap track to that sound; hold a step first to bake sound_id P-Lock
-└─ Func + Fill       → Accent velocity generator on the focused track (§39.10):
-                       encoders = DEPTH (0-100%) / CENTR (1-127); live preview; P = commit, Func+P = cancel
+└─ Func + Fill       → (unbound — the old Accent generator was folded into the Velocity overlay, §5.8 / §39.10)
 ```
 
 Links: [§5.12](#512-fills)
