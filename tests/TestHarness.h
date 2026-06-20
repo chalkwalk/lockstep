@@ -79,4 +79,6 @@ namespace lockstep
     void runLatchOpsTests();
     // 9.11: KeyAffordances SSOT + buildSurfaceModel affordance injection
     void runKeyAffordanceTests();
+    // 9.11: InspectorModel context-region builder
+    void runInspectorModelTests();
 }

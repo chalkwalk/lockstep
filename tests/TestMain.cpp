@@ -57,6 +57,8 @@ int main()
     lockstep::runLatchOpsTests();
     // 9.11: KeyAffordances SSOT + buildSurfaceModel affordance injection
     lockstep::runKeyAffordanceTests();
+    // 9.11: InspectorModel context-region builder
+    lockstep::runInspectorModelTests();
 
     // Also drive the JUCE UnitTests registered in lockstep_core (the serializer
     // upgrade chain, "PluginState" category) so they run headlessly in CI rather

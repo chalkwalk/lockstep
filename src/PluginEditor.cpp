@@ -376,6 +376,7 @@ namespace lockstep
         tempoReadout_.setJustificationType(juce::Justification::centredLeft);
         tempoReadout_.setInterceptsMouseClicks(false, false);
         addAndMakeVisible(tempoReadout_);
+        addAndMakeVisible(inspectorBar_);
 
         if (juce::PluginHostType::getPluginLoadedAs() == juce::AudioProcessor::wrapperType_Standalone)
         {
@@ -805,6 +806,11 @@ namespace lockstep
             tempoReadout_.setColour(juce::Label::textColourId, readoutColour);
             tempoReadout_.setText(readout, juce::dontSendNotification);
         }
+
+        // 9.11: refresh inspector bar with current context.
+        inspectorBar_.setModel(buildInspectorModel(
+            uiState_, processor_.editContext(), processor_,
+            lastFocusedButton_, lastFocusedIndex_));
 
         // Controller: drain MIDI FIFO → surface.onInput(), then render feedback LEDs.
         // drain() is called unconditionally every tick (never gated on dirty) because:
@@ -4100,8 +4106,9 @@ namespace lockstep
                 tempoReadout_.setBounds(infoRow.reduced(8, 2));
             }
         }
-        // Inspector bar row — populated by Stage 7; reserved here.
+        // Inspector bar row — always-on 4-region context strip.
         inspectorRow_ = bounds.removeFromTop(26);
+        inspectorBar_.setBounds(inspectorRow_);
         bounds.removeFromTop(2);
 
         // MHX.5: encoder band (MZ 4x2) + vertical crossfader to its right.

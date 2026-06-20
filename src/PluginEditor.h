@@ -26,6 +26,8 @@
 #include "state/UiState.h"
 #include "ui/GridDisplayMode.h"
 #include "ui/InPluginTransport.h"
+#include "ui/InspectorBar.h"
+#include "ui/InspectorModel.h"
 #include "ui/KeyboardArea.h"
 #include "ui/ManipulationZone.h"
 #include "ui/SamplePoolOverlay.h"
@@ -174,7 +176,11 @@ namespace lockstep
         InPluginTransport transport_;
         juce::Label tempoReadout_;           // scope-coloured BPM + time-sig display
         std::unique_ptr<StandaloneFileBar> fileBar_;
-        // 9.11: reserved row for inspector bar (Stage 7); stored in resized().
+        // 9.11: inspector bar — always-on 4-region context strip.
+        InspectorBar inspectorBar_;
+        ControllerButton lastFocusedButton_ = ControllerButton::None;
+        int lastFocusedIndex_ = -1;
+        // 9.11: row bounds stored during resized() for dynamic re-use if needed.
         juce::Rectangle<int> inspectorRow_;
         int trackPage_ = 0;  // 0 = tracks 1-8 visible, 1 = tracks 9-16 visible
         juce::TextButton trackPageBtn_{ "1-8" };
