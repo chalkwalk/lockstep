@@ -69,13 +69,13 @@ namespace lockstep
     static void testTap()
     {
         CHECK(resolve(CB::TapTempo, kModNone) == AId::TapTempo, "TAP bare");
-        CHECK(resolve(CB::TapTempo, kModFunc) == AId::MetronomeToggle, "Func+TAP = MET");
+        // Func+3 is reserved (metronome was here pre-9.10; now in TIME band).
+        // No binding row → resolves to bare row (lowest popcount wins).
+        CHECK(resolve(CB::TapTempo, kModFunc) == AId::TapTempo, "Func+TAP = bare fallback");
 
-        // Labels
+        // Labels — no MET hint post-9.11
         CHECK(juce::String(resolveBinding(CB::TapTempo, -1, kModNone, SL::Base).primary) == "TAP", "TAP primary");
-        CHECK(juce::String(resolveBinding(CB::TapTempo, -1, kModNone, SL::Base).hint) == "MET", "TAP hint=MET");
-        CHECK(juce::String(resolveBinding(CB::TapTempo, -1, kModFunc, SL::Base).primary) == "MET", "MET primary");
-        CHECK(juce::String(resolveBinding(CB::TapTempo, -1, kModFunc, SL::Base).hint).isEmpty(), "MET hint empty");
+        CHECK(juce::String(resolveBinding(CB::TapTempo, -1, kModNone, SL::Base).hint).isEmpty(), "TAP hint empty");
     }
 
     // ── NavUp / ^ ─────────────────────────────────────────────────────────────

@@ -60,8 +60,8 @@ namespace lockstep
         { CB::FillScope, -1, kModNone, SL::Base, AId::HoldFillScope, u8"FILL", u8"", CS::Resting },
 
         // ── TAP (key 3) ──────────────────────────────────────────────────────
-        { CB::TapTempo, -1, kModFunc, SL::Base, AId::MetronomeToggle, u8"MET", u8"", CS::Resting },
-        { CB::TapTempo, -1, kModNone, SL::Base, AId::TapTempo, u8"TAP", u8"MET", CS::Resting },
+        // Func+3 reserved (was MetronomeToggle pre-9.10 — metronome now in TIME band).
+        { CB::TapTempo, -1, kModNone, SL::Base, AId::TapTempo, u8"TAP", u8"", CS::Resting },
 
         // ── NavUp / ↑ (key 4) ─────────────────────────────────────────────────
         // Func+Track (popcount 2) = cycle input mode. Explicit row beats any tie.
