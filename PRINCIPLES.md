@@ -644,20 +644,26 @@ nibs on hardware, so a player moving between a normal typing keyboard and
 Lockstep keeps their hands placed. This is the visual half of the North Star's
 "learned by hand and read by colour."
 
-**In-cell gesture affordances (9.11).** Every key in the grid carries a
-**four-slot layout** (top→bottom: double-tap · tap · PRIMARY · hold · func hint)
-revealing its full gesture set without a tooltip or overlay. Slots that are empty
-collapse silently; a key with only a tap action looks unchanged. Each populated
-slot carries a **painted vector glyph** (tap = dot, double-tap = two dots, hold =
-ring, func = amber chip) so the grammar is legible without reading text. The
-centre PRIMARY is always the *strongest* action (hold wins over tap when the hold
-action is more powerful); a **faint access glyph** beside the primary names the
-gesture required to reach it. Key 3 (TapTempo) exemplifies: PRIMARY = GEN HUB
-(hold ring), tap slot above = TAP TEMPO (dot). Affordance data lives in
-`KeyAffordances.{h,cpp}` — a single source of truth consumed by `SurfaceModel`
-for the screen and accessible to controller displays. Adding a new gesture:
-add an entry in `KeyAffordances.cpp`; `SurfaceModel` injects it at rest (no
-modifier held).
+**In-cell gesture affordances (9.12).** Every key in the grid carries a
+**five-slot fixed frame** (top→bottom: double-tap · tap · PRIMARY · hold ·
+func hint). All five slot rows always reserve their vertical space — the primary
+locks to the same centre band on every key so the eye learns positions. Absent
+content renders blank; no glyph is drawn on an empty rail. Each populated slot
+carries a **painted vector glyph** (tap = dot, double-tap = two dots, hold =
+hollow ring, func = filled amber chip) so the grammar is legible without reading
+text. The centre PRIMARY is always the *strongest* action (Hold promoted over Tap;
+explicit `promoted` flag allows per-context overrides); a **faint access glyph**
+beside the primary names the gesture required to reach it. Key 3 (TapTempo)
+exemplifies: PRIMARY = GEN HUB (hold ring), tap slot above = TAP TEMPO (dot).
+
+**Single source of truth: the grammar.** Display derives entirely from
+`resolveBinding(button, idx, heldMods, layer, Gesture)` — the same function that
+dispatches behaviour. Slots are filled by querying Tap / Hold / DoubleTap /
+Func-context rows; the primary is the `promotedGesture()` winner. Because display
+and dispatch resolve from the same table, they cannot silently diverge.
+`KeyAffordances.{h,cpp}` has been deleted. Adding a gesture: add a row to
+`kKeyBindingsData` with the appropriate `Gesture` field; `SurfaceModel` derives
+all slot labels automatically.
 
 **Context inspector (9.11).** A slim always-on full-width strip (4 captioned
 columns: KEY · HELD · OVERLAY · EDIT) narrates the current state in plain text —
@@ -665,8 +671,8 @@ the complement to the at-a-glance cell affordances. Each column always has
 content (idle fallbacks supply "where am I" information when nothing is active).
 Built by the pure function `buildInspectorModel(UiState, EditContext, proc,
 focusedButton)`, making it unit-testable and reusable for controller displays
-(dual-target). KEY re-uses `KeyAffordances` as its SSOT so gesture descriptions
-are never duplicated. A state whose only expression is the inspector is still
+(dual-target). KEY region is also grammar-derived (calls `resolveBinding` per
+gesture, same SSOT). A state whose only expression is the inspector is still
 a hardware bug: the inspector is enrichment, not a crutch.
 
 ---

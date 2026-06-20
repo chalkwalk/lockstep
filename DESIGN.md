@@ -1466,41 +1466,45 @@ by this mechanism — they are chosen per `ParamSpec` at machine-declaration
 time. The `valueLabels` array covers the mode-dependent *value text*; `contextLabel`
 covers the mode-dependent *name*.
 
-### 6.11 Gesture-affordance visual language and context inspector (9.11) ✓
+### 6.11 Gesture-affordance visual language and context inspector (9.11/9.12) ✓
 
 #### 6.11.1 In-cell gesture affordances
 
-Each key cell displays a **four-slot layout** (vertical, top→bottom):
+Each key cell displays a **five-slot fixed frame** (vertical, top→bottom):
 
 ```
-[ double-tap ]   ← faint, small
-[ tap        ]   ← faint, small
+[ double-tap ]   ← faint, small — blank space reserved even when absent
+[ tap        ]   ← faint, small — blank space reserved even when absent
 [ PRIMARY    ]   ← large, bright centre (access glyph beside it)
-[ hold       ]   ← faint, small
-[ func-hint  ]   ← already present; here clarified as the bottom slot
+[ hold       ]   ← faint, small — blank space reserved even when absent
+[ func-hint  ]   ← amber chip + text; blank space reserved even when absent
 ```
 
-**Strongest-wins primary.** The centre slot is the *most-significant* gesture
-action: hold beats tap when the hold action is the feature (e.g. key 3: PRIMARY =
-GEN HUB, tap slot = TAP TEMPO). `KeyAffordance::primaryIsHold` signals this.
+**Fixed-reserved layout.** All four rail rows always reserve their vertical
+space so the PRIMARY locks to the same centre band on every key, regardless of
+which rails are populated. Blank space is held when a slot has no content; no
+glyph is drawn on an empty rail. Cells never jump.
 
-**Painted vector glyphs.** Each slot renders a small glyph inline with its label
-text to name the gesture required: tap = one dot, double-tap = two dots, hold =
-hollow ring, func = amber chip. A **faint access glyph** beside the PRIMARY names
-the gesture a player must use to reach it (avoids ambiguity when primary=hold).
+**Strongest-wins primary (promotion).** The centre slot shows the
+`promotedGesture()` winner: (1) explicit `promoted = true` row; (2) any Hold row;
+(3) else Tap. The primary's own rail is suppressed (never shown twice); the access
+glyph beside the primary identifies which gesture reaches it.
 
-**Empty slots collapse.** A key with only a tap action (no hold, no dbl-tap, no
-func) renders exactly as before — the four-slot path fast-exits to the normal
-paint path.
+**Painted vector glyphs.** Each populated slot renders a small glyph inline with
+its label text: tap = one dot, double-tap = two dots, hold = hollow ring, func =
+filled amber chip (`theme::kFuncAccent`). A **faint access glyph** beside the
+PRIMARY names the gesture a player must use to reach it.
 
-**SSOT.** Affordance data lives in `src/command/KeyAffordances.{h,cpp}`. The
-`buildSurfaceModel` pass injects `tapLabel`, `holdLabel`, `doubleTapLabel`, and
-`primaryIsHold` into `SurfaceCell` (screen-text extension zone — after the `pip`
-boundary, safe to add fields) **only at rest** (`heldMods == kModNone`), so
-context-sensitive primary/funcHint from a held modifier take priority.
+**Single grammar SSOT (9.12).** Display derives entirely from
+`resolveBinding(button, idx, heldMods, layer, Gesture)` — the same function that
+dispatches behaviour. `buildSurfaceModel` fills `tapLabel`, `holdLabel`,
+`doubleTapLabel`, `primaryGesture`, and `funcHint` from grammar queries on every
+cell (QWERTY + grid, at rest and with modifiers held).
+`KeyAffordances.{h,cpp}` has been deleted.
 
-Adding a gesture to a key: add an entry in `KeyAffordances.cpp`; no paint-path
-change required.
+Adding a gesture to a key: add a row to `kKeyBindingsData` with the appropriate
+`Gesture` field; `SurfaceModel` derives all slot labels automatically via
+`deriveSlots`. No paint-path change required.
 
 #### 6.11.2 Top-chrome consolidation (9.11)
 
@@ -1521,7 +1525,7 @@ A slim always-on full-width strip placed between the info row and the MZ:
 
 | Region | Active content | Idle fallback |
 |---|---|---|
-| KEY | last-touched key: name + gesture list from `KeyAffordances` | `--` |
+| KEY | last-touched key: name + gesture list from grammar (`resolveBinding`) | `--` |
 | HELD | held modifier scope name + grammar note (LATCH, verbs, etc.) | track N + machineId |
 | OVERLAY | active picker/overlay purpose + cancel gesture | scene N |
 | EDIT | held-step overrides (vel, gate, P-lock slot value) | `--` |
@@ -1530,9 +1534,9 @@ A slim always-on full-width strip placed between the info row and the MZ:
 focusedIndex) → InspectorModel` is a side-effect-free function, unit-testable,
 reusable for controller displays (dual-target per PRINCIPLES §19).
 
-**KEY uses `KeyAffordances` SSOT.** The KEY region description is derived from the
-same `findAffordance(button)` call the 4-slot renderer uses — gesture descriptions
-are never duplicated.
+**KEY uses grammar SSOT.** The KEY region description is derived from the same
+`resolveBinding(..., Gesture)` calls the 5-slot renderer uses — gesture
+descriptions are never duplicated.
 
 **Not a crutch.** States whose only expression is the inspector text are hardware
 bugs (see PRINCIPLES §19). The inspector enriches; `CellState` colours and glyphs

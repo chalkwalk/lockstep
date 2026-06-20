@@ -1824,6 +1824,54 @@ README affordances + inspector.
       README affordances + inspector in implemented list; shortcut map already correct.
       *(Stage 8 — this commit)*
 
+### 9.12 — Unified Gesture Grammar (table-driven dispatch + derived affordance display)  *[active]*
+
+Closes the display–dispatch drift: every key's visual frame (five fixed
+slots, top→bottom: dbl-tap · tap · **PRIMARY** · hold · func) is derived from the
+same `resolveBinding(..., Gesture)` query that will dispatch behaviour, so
+they cannot silently disagree. `KeyAffordances` deleted; `Gesture` axis added to
+the grammar; grid picker cells share a common `paintGridCell*` renderer.
+
+- [x] **Stage 1 — Gesture axis in grammar.** `Gesture` enum (Tap / Hold /
+      DoubleTap) extracted to `src/command/Gesture.h` (breaks circular
+      dependency). `KeyBinding` grows `gesture` + `promoted` fields (appended,
+      positional rows unaffected). `resolveBinding` filtered by gesture;
+      `promotedGesture()` added. New Hold / DoubleTap / promoted rows for
+      modifiers, verbs, nav, TapTempo hub. `KeyBindingTest` extended.
+      *(Stage 1 — c394b1b)*
+- [x] **Stage 2 — Display derives from grammar; `KeyAffordances` deleted.**
+      `buildSurfaceModel` replaces `findAffordance` with a `deriveSlots` lambda
+      that queries `resolveBinding` per gesture for every cell. `SurfaceCell`
+      `primaryIsHold` → `primaryGesture`. `KeyAffordances.{h,cpp}` +
+      `KeyAffordanceTest.cpp` deleted; `InspectorModel` rebuilt from grammar.
+      Anti-drift test in `SurfaceModelTest`. *(Stage 2 — 8a01d8e)*
+- [x] **Stage 3 — Fixed-reserved 5-slot rendering.** `paintCell` always
+      reserves all four rail rows (dbl + tap + hold + func) so the primary locks
+      to the same centre band on every key. Blank space held when a slot is empty;
+      rail glyph + text drawn only when non-empty. `paintAffordanceSlot` gains
+      glyphType 3 (amber func chip via `theme::kFuncAccent`). *(Stage 3 — 3b1c0d4)*
+- [x] **Stage 4 — Shared grid-cell renderer; picker blocks migrated.**
+      `paintGridCellFill` / `paintGridCellText` (KeyButton.h/cpp) normalise
+      fill + press + primary text to 9 pt across grid cells. Five picker/hub
+      blocks in `paintStepRows` migrated (machine, FX insert [preserves masterOnly
+      dimming], master FX, generator hub, morph step). Complex modes with
+      screen-residual text left as-is (§35.8.1). *(Stage 4 — 7e75fd8)*
+- [ ] **Stage 5 — Behavioural golden-test net.** `RecordingEffects`-driven
+      `tests/DispatchGoldenTest.cpp` captures current `dispatchDown`/`dispatchUp`
+      output across all families before any dispatch rewrite.
+- [ ] **Stage 6 — New ActionIds + handlers.** Append-only ActionIds for latch,
+      escape, restore pop/floor, rec-arm overdub, play-stop, step latch, nav
+      unlock, overlay-entry opens. `CommandEffects` methods. Guard test.
+- [ ] **Stage 7 — Dispatch migration.** Family-by-family (7a modifiers → 7f
+      steps); each sub-step routes via `resolve(..., gesture).action →
+      handleAction`, deletes the imperative branch, and keeps goldens green.
+- [ ] **Stage 8 — Exhaustiveness guard + cleanup.** `handleAction` switch
+      exhaustive (`-Werror=switch`, no `default:`); test that every ActionId is
+      handled; remove `KeyBinding::hint` field.
+
+> **Natural ship point:** Stages 1–4 are landed. Stages 5–8 are the
+> dispatch rewrite — larger scope, separate branch if warranted.
+
 ### Future (structural)
 - [x] **Collapse `timeStickyMode` / `densityStickyMode` / `velStickyMode` into a
   single `Overlay overlay` field** in `UiState` so that coexistence is unrepresentable
