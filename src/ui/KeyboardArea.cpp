@@ -1019,15 +1019,11 @@ namespace lockstep
                         g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
                     }
 
-                    // Screen residual: machine name
-                    if (avail)
+                    if (avail && sc.primary.isNotEmpty())
                     {
-                        const juce::String name{
-                            processor_.availableMachineInfo(idx).displayName
-                        };
                         g.setColour(juce::Colours::white.withAlpha(isCurrent ? 0.90f : 0.65f));
                         g.setFont(juce::Font(juce::FontOptions(8.5f)));
-                        g.drawText(name, cell.reduced(2), juce::Justification::centred, true);
+                        g.drawText(sc.primary, cell.reduced(2), juce::Justification::centred, true);
                     }
 
                     if (showKeyLetters)
@@ -1049,7 +1045,6 @@ namespace lockstep
         {
             const juce::Colour fxTint = col(compatColour(CellState::EffectAvailable));
             const juce::Colour otherTint = col(compatColour(CellState::EffectLoadedOther));
-            const int numEffects = processor_.numAvailableEffects();
 
             for (int row = 0; row < kRows; ++row)
             {
@@ -1090,16 +1085,14 @@ namespace lockstep
                         g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
                     }
 
-                    if (avail && idx < numEffects)
+                    if (avail && sc.primary.isNotEmpty())
                     {
-                        const auto& fxInfo = processor_.availableEffectInfo(idx);
-                        // 8.26: masterOnly effects are hidden from the track insert picker.
-                        const bool trackVisible = !fxInfo.masterOnly;
-                        const juce::String name{ fxInfo.name.c_str() };
+                        // 8.26: masterOnly effects are dimmed in the track insert picker.
+                        const bool trackVisible = !processor_.availableEffectInfo(idx).masterOnly;
                         g.setColour(juce::Colours::white.withAlpha(
                             trackVisible ? (isCurrent ? 0.90f : (isOther ? 0.55f : 0.65f)) : 0.20f));
                         g.setFont(juce::Font(juce::FontOptions(8.5f)));
-                        g.drawText(name, cell.reduced(2), juce::Justification::centred, true);
+                        g.drawText(sc.primary, cell.reduced(2), juce::Justification::centred, true);
                     }
 
                     if (showKeyLetters)
@@ -1163,10 +1156,9 @@ namespace lockstep
 
                     if (avail && idx < numEffects)
                     {
-                        const juce::String name{ processor_.availableEffectInfo(idx).name.c_str() };
                         g.setColour(juce::Colours::white.withAlpha(isCurrent ? 0.90f : (isOther ? 0.55f : 0.65f)));
                         g.setFont(juce::Font(juce::FontOptions(8.5f)));
-                        g.drawText(name, cell.reduced(2), juce::Justification::centred, true);
+                        g.drawText(sc.primary, cell.reduced(2), juce::Justification::centred, true);
                     }
 
                     if (showKeyLetters)
@@ -1183,6 +1175,47 @@ namespace lockstep
             g.setColour(juce::Colour::fromRGB(80, 95, 115));
             g.setFont(juce::Font(juce::FontOptions(10.0f)));
             g.drawText(slotLabel, navArea, juce::Justification::centred);
+            return;
+        }
+
+        // Generator hub (9.10 / Bug B fix): cells driven fully from model.
+        // model.step[0-2] = EUCLID/DENSITY/VEL with c.primary set; rest are dark.
+        if (uiState_.generatorHubHeld)
+        {
+            for (int row = 0; row < kRows; ++row)
+            {
+                for (int col2 = 0; col2 < kCols; ++col2)
+                {
+                    const int idx = row * kCols + col2;
+                    const SurfaceCell& sc = model.step[static_cast<std::size_t>(idx)];
+                    const int x = colX(row, col2 + 2);
+                    const int y = rowY(row);
+                    const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+
+                    g.setColour(juce::Colour(sc.baseColour));
+                    g.fillRoundedRectangle(cell.toFloat(), 4.0f);
+
+                    if (sc.pressed)
+                    {
+                        g.setColour(juce::Colours::white.withAlpha(0.65f));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
+                    }
+
+                    if (sc.primary.isNotEmpty())
+                    {
+                        g.setColour(juce::Colours::white.withAlpha(0.90f));
+                        g.setFont(juce::Font(juce::FontOptions(9.0f)));
+                        g.drawText(sc.primary, cell.reduced(2), juce::Justification::centred, false);
+                    }
+
+                    if (showKeyLetters && idx < 3)
+                        paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(idx)], 1.0f);
+                }
+            }
+            g.setColour(juce::Colour::fromRGB(80, 95, 115));
+            g.setFont(juce::Font(juce::FontOptions(10.0f)));
+            g.drawText("GENERATOR HUB  --  select generator type",
+                       navArea, juce::Justification::centred);
             return;
         }
 

@@ -1020,6 +1020,7 @@ namespace lockstep
                         c.baseColour = isCur
                                            ? juce::Colours::white.withAlpha(0.18f).getARGB()
                                            : machineTint.withAlpha(0.12f).getARGB();
+                        c.primary = juce::String(proc.availableMachineInfo(i).displayName);
                     }
                 }
             }

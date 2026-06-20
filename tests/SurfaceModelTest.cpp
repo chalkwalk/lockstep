@@ -472,6 +472,58 @@ namespace lockstep
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Test: generator hub model populates c.primary (Bug B regression guard).
+    // When euclidHeld=true the model must carry EUCLID/DENSITY/VEL primary text
+    // so the generic hub renderer can draw it without a screen-only residual.
+    // -------------------------------------------------------------------------
+    static void testGeneratorHubPrimary()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        UiState ui;
+        ui.generatorHubHeld = true;
+        EditContext ec;
+
+        const SurfaceModel model = buildSurfaceModel(
+            ui, ec, nullptr, proc, 0, 0, GridDisplayMode::Ortholinear);
+
+        CHECK(model.step[0].primary == "EUCLID",  "hub cell 0 primary = EUCLID");
+        CHECK(model.step[1].primary == "DENSITY", "hub cell 1 primary = DENSITY");
+        CHECK(model.step[2].primary == "VEL",     "hub cell 2 primary = VEL");
+        // Cells 3-15 must not carry text (they are dark/inactive).
+        for (int i = 3; i < 16; ++i)
+            CHECK(model.step[static_cast<std::size_t>(i)].primary.isEmpty(),
+                  juce::String("hub cell ") + juce::String(i) + " primary empty");
+    }
+
+    // -------------------------------------------------------------------------
+    // Test: machine picker model populates c.primary (model-driven label SSOT).
+    // -------------------------------------------------------------------------
+    static void testMachinePickerPrimary()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        UiState ui;
+        ui.funcTrackHeld = true;
+        EditContext ec;
+
+        const SurfaceModel model = buildSurfaceModel(
+            ui, ec, nullptr, proc, 0, 0, GridDisplayMode::Ortholinear);
+
+        const int numMachines = proc.numAvailableMachines();
+        for (int i = 0; i < 16; ++i)
+        {
+            const auto& c = model.step[static_cast<std::size_t>(i)];
+            if (i < numMachines)
+                CHECK(c.primary.isNotEmpty(),
+                      juce::String("machine picker cell ") + juce::String(i) + " primary non-empty");
+            else
+                CHECK(c.primary.isEmpty(),
+                      juce::String("machine picker out-of-range cell ") + juce::String(i) + " primary empty");
+        }
+    }
+
     void runSurfaceModelTests()
     {
         testPanicKeyLabel();
@@ -485,6 +537,8 @@ namespace lockstep
         testScopeTintBindings();
         testDensityStickyFuncInvariant();
         testHomeKeyAnchors();
+        testGeneratorHubPrimary();
+        testMachinePickerPrimary();
     }
 
 } // namespace lockstep
