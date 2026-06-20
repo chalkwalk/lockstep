@@ -162,6 +162,9 @@ namespace lockstep
         juce::String keyHint;    // physical QWERTY legend ("D", "5", "Q" etc.)
         bool pressed = false;   // physical OR mouse press, every modality
         bool disabled = false;   // dead key — base label visibly dimmed
+        // 9.10 §19: F/J home-row index-finger anchor (step indices 1 and 4).
+        // Present in every layer — pure orientation cue, never encodes state.
+        bool homeKey = false;
 
         // Scope-glow tint (MHZ.1.x, DESIGN §6.6): non-zero ARGB when this cell is
         // *in scope* under a held modifier — i.e. the held scope rebinds it. The

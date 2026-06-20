@@ -4,11 +4,13 @@
 // Run via: lockstep_tests (exit 0 = pass, exit 1 = fail).
 
 #include "TestHarness.h"
+#include "EngineHarness.h"
 #include "../src/ui/KeyLabel.h"
 #include "../src/ui/SurfaceModel.h"
 #include "../src/ui/PageNav.h"
 #include "../src/ui/CellAppearance.h"
 #include "../src/ui/ScopedSectionMatrix.h"
+#include "../src/ui/GridDisplayMode.h"
 #include "../src/machine/IMachine.h"
 #include "../src/command/KeyBindings.h"
 
@@ -443,6 +445,33 @@ namespace lockstep
         }
     }
 
+    // =========================================================================
+    // 9.10 §19: F/J home-key anchor markers present in every layer
+    // =========================================================================
+
+    static void testHomeKeyAnchors()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        UiState ui;
+        EditContext ec;
+
+        const SurfaceModel model = buildSurfaceModel(
+            ui, ec, nullptr, proc, 0, 0, GridDisplayMode::Ortholinear);
+
+        // F (index 1) and J (index 4) must have homeKey=true in Base layer.
+        CHECK(model.step[1].homeKey, "step[1] (F) homeKey=true in Base layer");
+        CHECK(model.step[4].homeKey, "step[4] (J) homeKey=true in Base layer");
+
+        // All other step cells must have homeKey=false.
+        for (int i = 0; i < 16; ++i)
+        {
+            if (i == 1 || i == 4) continue;
+            CHECK(!model.step[static_cast<std::size_t>(i)].homeKey,
+                  juce::String("step[") + juce::String(i) + "] homeKey=false");
+        }
+    }
+
     void runSurfaceModelTests()
     {
         testPanicKeyLabel();
@@ -455,6 +484,7 @@ namespace lockstep
         testPendingConfirmBindings();
         testScopeTintBindings();
         testDensityStickyFuncInvariant();
+        testHomeKeyAnchors();
     }
 
 } // namespace lockstep

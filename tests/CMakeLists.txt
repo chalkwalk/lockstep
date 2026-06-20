@@ -35,9 +35,11 @@ add_executable(lockstep_tests
     LayerBannerTest.cpp
     FuncReskinTest.cpp
     LatchOpsTest.cpp
-    # UI modules needed by MetaBandTest + ModeReducerTest (live only in the plugin target otherwise)
+    # UI modules needed by MetaBandTest + ModeReducerTest + SurfaceModelTest
+    # (live only in the plugin target otherwise)
     ../src/ui/MetaBand.cpp
     ../src/ui/MetaRotary.cpp
+    ../src/ui/SurfaceModel.cpp
     ../src/ui/mode/ModeReducer.cpp
     ../src/ui/mode/FuncReskin.cpp
     ../src/ui/mode/LatchOps.cpp)

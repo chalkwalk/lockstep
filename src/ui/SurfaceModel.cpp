@@ -1948,6 +1948,11 @@ namespace lockstep
             }
         }
 
+        // 9.10 §19: F/J home-row anchor markers — present in every layer.
+        // Step indices 1 (F) and 4 (J) are the keyboard home-row anchors.
+        model.step[1].homeKey = true;
+        model.step[4].homeKey = true;
+
         return model;
     }
 
