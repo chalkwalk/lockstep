@@ -65,9 +65,11 @@ namespace lockstep
         CHECK(play.key.containsIgnoreCase("PLAY"), "VerbPlay key region shows PLAY");
         CHECK(play.key.containsIgnoreCase("STOP"), "VerbPlay key region shows STOP (dbl)");
 
-        // Step button: no affordance entry → "step N".
+        // Step button: index + shared gesture summary (no per-cell label on the grid).
         const auto step = build(ui, ec, proc, ControllerButton::Step, 4);
         CHECK(step.key.containsIgnoreCase("step 5"), "step index 4 shows 'step 5'");
+        CHECK(step.key.containsIgnoreCase("hold=P-LOCK"), "step region narrates hold=P-LOCK");
+        CHECK(step.key.containsIgnoreCase("dbl=LATCH"), "step region narrates dbl=LATCH");
 
         // No focused button → "--".
         const auto none = build(ui, ec, proc, ControllerButton::None, -1);

@@ -16,7 +16,13 @@ namespace lockstep
         if (btn == ControllerButton::None)
             return u8"--";
         if (btn == ControllerButton::Step)
-            return (index >= 0) ? ("step " + juce::String(index + 1)) : juce::String(u8"--");
+        {
+            if (index < 0) return u8"--";
+            // Steps share one gesture set; narrate it here rather than repeating a
+            // label on all 16 cells (the grid carries only a subtle hold-hint glyph).
+            return "step " + juce::String(index + 1)
+                 + "  tap=TRIG  hold=P-LOCK  dbl=LATCH";
+        }
 
         const auto tap  = resolveBinding(btn, index, kModNone, SurfaceLayer::Base, Gesture::Tap);
         const auto hold = resolveBinding(btn, index, kModNone, SurfaceLayer::Base, Gesture::Hold);

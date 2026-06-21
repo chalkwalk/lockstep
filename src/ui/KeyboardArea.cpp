@@ -1809,6 +1809,20 @@ namespace lockstep
 
                 // --- Screen-only residuals (controllers ignore) ---
 
+                // Hold-affordance hint: a faint hollow ring on every in-range step
+                // signals "press & hold to edit / P-lock" (ring = hold in the gesture
+                // glyph vocab). Subtle and on the free right-middle edge so it clears
+                // the key letter, P-lock dot, note ticks, micro-offset tick and pip.
+                // The exact gesture set is spelled out in the inspector KEY region.
+                if (inRange && sc.base != CellState::StepOutOfRange)
+                {
+                    constexpr float kHintR = 5.0f;
+                    const float hx = static_cast<float>(cell.getRight()) - kHintR - 2.0f;
+                    const float hy = static_cast<float>(cell.getCentreY()) - kHintR * 0.5f;
+                    g.setColour(juce::Colours::white.withAlpha(0.16f));
+                    g.drawEllipse(hx, hy, kHintR, kHintR, 1.0f);
+                }
+
                 // Note-count badge: stacked tick marks on the left edge, one per note.
                 if (inRange)
                 {
