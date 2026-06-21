@@ -74,7 +74,7 @@ namespace lockstep
         CHECK(resolve(CB::TapTempo, kModFunc) == AId::TapTempo, "Func+TAP = bare fallback");
 
         // Labels — no MET hint post-9.11
-        CHECK(juce::String(resolveBinding(CB::TapTempo, -1, kModNone, SL::Base).primary) == "TAP", "TAP primary");
+        CHECK(juce::String(resolveBinding(CB::TapTempo, -1, kModNone, SL::Base).primary) == "TAP TEMPO", "TAP TEMPO primary");
         CHECK(juce::String(resolveBinding(CB::TapTempo, -1, kModNone, SL::Base).hint).isEmpty(), "TAP hint empty");
     }
 
@@ -233,9 +233,13 @@ namespace lockstep
             const std::size_t pLen = utf8Length(row.primary);
             const std::size_t hLen = utf8Length(row.hint);
 
-            // Tap rows render at 15pt (large slot): hard limit 8.
-            // Hold/DoubleTap rows render in secondary rail (smaller font): limit 12.
-            const std::size_t pLimit = (row.gesture == Gesture::Tap) ? 8u : 12u;
+            // A row renders in the large 15pt PRIMARY slot only when its gesture is
+            // the promoted one for its context (limit 8). Otherwise it lands in a
+            // small secondary rail (limit 12) — e.g. TapTempo's Tap "TAP TEMPO" is
+            // demoted because the Hold "GEN HUB" row is promoted to primary.
+            const Gesture prom = promotedGesture(row.button, row.index,
+                                                 row.requiredMods, row.layer);
+            const std::size_t pLimit = (row.gesture == prom) ? 8u : 12u;
             CHECK(pLen <= pLimit, "primary label within slot limit");
             CHECK(hLen <= 8, "hint label ≤8 code points");
         }

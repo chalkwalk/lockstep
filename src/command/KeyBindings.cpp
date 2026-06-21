@@ -61,7 +61,7 @@ namespace lockstep
 
         // ── TAP (key 3) ──────────────────────────────────────────────────────
         // Func+3 reserved (was MetronomeToggle pre-9.10 — metronome now in TIME band).
-        { CB::TapTempo, -1, kModNone, SL::Base, AId::TapTempo, u8"TAP", u8"", CS::Resting },
+        { CB::TapTempo, -1, kModNone, SL::Base, AId::TapTempo, u8"TAP TEMPO", u8"", CS::Resting },
 
         // ── NavUp / ↑ (key 4) ─────────────────────────────────────────────────
         // Func+Track (popcount 2) = cycle input mode. Explicit row beats any tie.
