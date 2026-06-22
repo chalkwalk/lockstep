@@ -693,6 +693,35 @@ Elektron users reach for, without a new key:
 > recallable unit reached through `Func+Track`, not a selectable per-Scene
 > object.
 
+### 4.7a State-ownership invariants (working copies vs authoritative stores)
+
+Several values exist in two places by necessity — a real-time/working copy and an
+authoritative store — and must be kept consistent. Per PRINCIPLES §20 each such
+pair has **one named sync point**; nothing else may write across the boundary.
+
+- **Track length.** Working `Track.length` (read by UI/generators) vs the APVTS
+  `trackLength` param (read by the audio thread). All edits go through
+  `LockstepProcessor::setTrackLength` (writes both); scene/song switches project
+  via `projectPhraseToTrack` then mirror to the param via
+  `syncTrackParamsFromActiveKit` (called from `reinstallMachinesFromActiveKit`).
+  Bypassing the setter is what once desynced the Euclid generator from playback.
+
+- **Density.** `Arrangement::liveDensity[]` / `liveMasterDensity` (message-thread
+  working copy, serialised) mirror the processor's `trackDensity_[]` /
+  `masterDensity_` atomics (audio-thread live). The working copy is the
+  authority; it is re-projected on song/scene switch (`syncWorkingFromActive`),
+  and floor/song boundaries reset both sides together (`setActiveSong` /
+  `setActiveSceneToFloor` wipe the atomics; `Arrangement` resets `liveDensity`).
+
+- **Working sequence vs active phrase/scene.** `arrangement_.working` is a
+  projection of the active phrases + kit. `syncWorkingFromActive()` builds it;
+  `applyTrackEditsToPhrase` writes live edits back before any scene/phrase switch.
+  Switch order is always write-back → switch → re-project, so live edits survive.
+
+- **Master-FX unit focus.** `UiState::masterFxInsertSlot` (0–3) may point at an
+  *unloaded* unit; readers must check loadedness — use `firstLoadedMasterUnit` /
+  `nextLoadedMasterUnit` to land on a real unit rather than trusting the slot.
+
 ### 4.8 TIME page — tempo and time signature
 
 Tempo and time-sig share an identical scope ladder (Set → Song → Scene) and
