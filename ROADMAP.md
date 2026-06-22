@@ -1872,6 +1872,31 @@ the grammar; grid picker cells share a common `paintGridCell*` renderer.
 > **Natural ship point:** Stages 1–4 are landed. Stages 5–8 are the
 > dispatch rewrite — larger scope, separate branch if warranted.
 
+### 9.13 — Redundancy / SSOT consolidation + switch hygiene  *[active]*
+
+Eliminate the implicit "two things meant to stay in sync" defects (a class that
+caused several recent bugs) and make silent `switch` fall-through a compile error.
+
+- [x] **Stage 1 — Switch fall-through hygiene.** `-Wimplicit-fallthrough` on all
+      targets; PRINCIPLES §20 (no default-case mandate; exhaustive-enum carve-out).
+- [x] **Stage 2 — `refreshSurface()`** collapses the 20 hand-paired
+      `repaint()` + `keyboardArea_.repaint()` call sites.
+- [x] **Stage 3 — Track-length single writer.** All edits route through
+      `setTrackLength`; ownership comments on `Track.length` ↔ APVTS param.
+- [x] **Stage 4 — Euclid state moves as a unit** (restoreEuclidStash /
+      forgetEuclidEditorState; one teardown path).
+- [x] **Stage 5 — Remove dead mirrors** (`latch.anySteps`); document SurfaceModel
+      label authority.
+- [x] **Stage 6 — Document state-ownership invariants** (DESIGN §4.7a).
+- [x] **Stage 7/8 — Unified modal read SSOT.** Editor-dispatch harness proved
+      unviable headless (component-teardown segfault); pivoted to a pure seam.
+      `activeModal(ui)` (`src/ui/mode/ModalState.h`) is the one modal-priority
+      query; inspector funnels through it; a drift test locks it to
+      `resolveActiveLayer`. **Finding:** held-chords coexist with entered modes,
+      so a single mutually-exclusive storage field is impossible — storage stays
+      multi-field, the *read* is single (PRINCIPLES §18 caveat, §20). Also fixed:
+      editor async self-refs now use `Component::SafePointer`.
+
 ### Future (structural)
 - [x] **Collapse `timeStickyMode` / `densityStickyMode` / `velStickyMode` into a
   single `Overlay overlay` field** in `UiState` so that coexistence is unrepresentable

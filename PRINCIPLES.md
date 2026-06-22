@@ -611,6 +611,19 @@ that the grammar forbids. See `src/ui/mode/` for all current modal
 sub-systems. See *"One grammar, no exceptions"* §2 for the general principle;
 §17 for gesture-family enforcement. DESIGN §13 for the scope+verb grammar.
 
+**Caveat — one *read* SSOT, not always one field.** Some modals genuinely
+**coexist**: a *held-chord* (the 3-key generator hub, `Func+Track` machine
+picker) layers over an *entered* mode (an armed Euclid, a sticky overlay) and
+wins the display only while held, reverting on release. That is precisely why
+`resolveActiveLayer` is a **priority cascade**, not a switch on one field — a
+single mutually-exclusive enum cannot represent two-active-at-once. The unifying
+move there is one **read** SSOT, not one storage field: `activeModal(ui)`
+(`src/ui/mode/ModalState.h`) composes the coexisting state with the authoritative
+priority, and every reader (inspector, and — guarded by a drift test — the layer
+cascade) resolves through it so they cannot disagree. Storage stays multi-field
+by necessity; the *query* is single. See *"Invariants are the compiler's job"*
+§20 (single owner / no implicit sync).
+
 ## 19. Visual grammar is token-first and dual-target
 
 The surface is **read by colour**, not only by text. Lockstep runs on a screen
