@@ -685,7 +685,9 @@ namespace lockstep
     {
         if (paramID == ParamIDs::syncMode)
         {
-            juce::MessageManager::callAsync([this] { updateTransportGhosting(); });
+            juce::MessageManager::callAsync(
+                [safe = juce::Component::SafePointer<LockstepEditor>(this)]
+                { if (safe != nullptr) safe->updateTransportGhosting(); });
             return;
         }
         // Mute or solo changed (via track-bar buttons, host automation, or MIDI
@@ -694,7 +696,9 @@ namespace lockstep
         {
             if (paramID == juce::String(ParamIDs::trackMute(i)) || paramID == juce::String(ParamIDs::trackSolo(i)))
             {
-                juce::MessageManager::callAsync([this] { repaint(); });
+                juce::MessageManager::callAsync(
+                    [safe = juce::Component::SafePointer<LockstepEditor>(this)]
+                    { if (safe != nullptr) safe->repaint(); });
                 return;
             }
         }
