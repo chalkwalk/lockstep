@@ -79,4 +79,6 @@ namespace lockstep
     void runLatchOpsTests();
     // 9.12: InspectorModel context-region builder (grammar-derived)
     void runInspectorModelTests();
+    // 9.13: unified Modal accessor (reducer foundation)
+    void runModalStateTests();
 }

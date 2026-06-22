@@ -138,6 +138,7 @@ target_sources(Lockstep
         ui/StandaloneFileBar.cpp
         ui/mode/ModeReducer.cpp
         ui/mode/FuncReskin.cpp
+        ui/mode/ModalState.cpp
         ui/mode/LatchOps.cpp)
 
 target_link_libraries(Lockstep

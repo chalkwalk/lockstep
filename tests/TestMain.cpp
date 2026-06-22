@@ -57,6 +57,8 @@ int main()
     lockstep::runLatchOpsTests();
     // 9.12: InspectorModel context-region builder (grammar-derived)
     lockstep::runInspectorModelTests();
+    // 9.13: unified Modal accessor (reducer foundation)
+    lockstep::runModalStateTests();
 
     // Also drive the JUCE UnitTests registered in lockstep_core (the serializer
     // upgrade chain, "PluginState" category) so they run headlessly in CI rather

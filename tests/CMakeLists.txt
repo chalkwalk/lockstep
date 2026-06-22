@@ -36,6 +36,7 @@ add_executable(lockstep_tests
     FuncReskinTest.cpp
     LatchOpsTest.cpp
     InspectorModelTest.cpp
+    ModalStateTest.cpp
     # UI modules needed by MetaBandTest + ModeReducerTest + SurfaceModelTest
     # (live only in the plugin target otherwise)
     ../src/ui/MetaBand.cpp
@@ -44,6 +45,7 @@ add_executable(lockstep_tests
     ../src/ui/InspectorModel.cpp
     ../src/ui/mode/ModeReducer.cpp
     ../src/ui/mode/FuncReskin.cpp
+    ../src/ui/mode/ModalState.cpp
     ../src/ui/mode/LatchOps.cpp)
 
 target_link_libraries(lockstep_tests PRIVATE
