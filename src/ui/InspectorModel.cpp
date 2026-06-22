@@ -59,6 +59,14 @@ namespace lockstep
     static juce::String buildHeldRegion(const UiState& ui,
                                         const LockstepProcessor& proc) noexcept
     {
+        // Phrase-length authoring (Func + Phrase, or Func + Morph for all tracks):
+        // the grid re-skins to in-run / boundary / out-run and a step press sets the
+        // length. Checked before the generic Func case so the hint is specific.
+        if (ui.funcHeld && !ui.funcTrackHeld && (ui.phraseScopeHeld || ui.morphHeld))
+            return ui.morphHeld
+                ? juce::String(u8"LENGTH (all tracks) — tap a step to set length")
+                : juce::String(u8"LENGTH — tap a step to set phrase length");
+
         // Modifier held → scope description. (u8 literals: the em-dash is non-ASCII,
         // so juce::String must bind to the char8_t* overload — a plain char* literal
         // trips the JUCE ASCII assertion in juce_String.cpp.)

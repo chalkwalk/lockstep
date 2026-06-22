@@ -75,6 +75,13 @@ namespace lockstep::status
         return "Length " + juce::String(steps) + " (all tracks)";
     }
 
+    // Shown when NavRight double-tap reveals an empty page past the end — tells
+    // the player how to actually commit the longer length.
+    inline juce::String scrolledPastEnd()
+    {
+        return "Past end - hold Func+Phrase + tap a step to set length";
+    }
+
     // ---- morph / bake -------------------------------------------------------
 
     inline juce::String morphBaked() { return "Morph baked"; }

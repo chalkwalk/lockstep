@@ -108,6 +108,26 @@ namespace lockstep
             CHECK(m.held.containsIgnoreCase("TRACK"), "trackHeld → TRACK in held region");
             CHECK(m.held.containsIgnoreCase("LATCH"), "trackHeld → LATCH hint present");
         }
+
+        // Func + Phrase → length-edit hint (must win over the generic FUNC text).
+        {
+            UiState ui{};
+            ui.funcHeld = true;
+            ui.phraseScopeHeld = true;
+            const auto m = build(ui, ec, proc);
+            CHECK(m.held.containsIgnoreCase("LENGTH"), "Func+Phrase → LENGTH hint");
+            CHECK(m.held.containsIgnoreCase("set"), "Func+Phrase → 'set length' guidance");
+        }
+
+        // Func + Morph → all-tracks length-edit hint.
+        {
+            UiState ui{};
+            ui.funcHeld = true;
+            ui.morphHeld = true;
+            const auto m = build(ui, ec, proc);
+            CHECK(m.held.containsIgnoreCase("LENGTH"), "Func+Morph → LENGTH hint");
+            CHECK(m.held.containsIgnoreCase("all tracks"), "Func+Morph → all-tracks hint");
+        }
     }
 
     // ─── OVERLAY region reflects active picker / sticky overlay ───────────────

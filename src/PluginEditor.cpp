@@ -3168,7 +3168,10 @@ namespace lockstep
                 {
                     const double now = juce::Time::getMillisecondCounterHiRes();
                     if (gesture_.doubleTap(GestureRecognizer::kNavRightUnlock, now))
+                    {
                         keyboardArea_.unlockScrollPastEnd();
+                        setStatus(status::scrolledPastEnd());
+                    }
                 }
                 keyboardArea_.nextPage();
                 return true;
