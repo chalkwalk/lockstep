@@ -3994,6 +3994,10 @@ namespace lockstep
                 manipulationZone_.setMorphHeld(uiState_.morphHeld);
                 break;
 
+            // These buttons act on key-down; their key-up is a no-op. They must NOT
+            // fall through into the TapTempo body below — doing so made releasing any
+            // of them (notably SelectTrack) register a tap-tempo tap, so changing
+            // tracks set the BPM from the inter-change interval.
             case CB::VerbRecord:
             case CB::VerbStopLegacy:
             case CB::VerbClear:
@@ -4006,6 +4010,8 @@ namespace lockstep
             case CB::ToggleMute:
             case CB::ForkPart:
             case CB::RecordArm:
+                break;
+
             case CB::TapTempo:
                 tapTempoPhysHeld_ = false;
                 if (uiState_.generatorHubHeld)
