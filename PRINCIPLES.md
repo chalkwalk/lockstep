@@ -680,6 +680,35 @@ focusedButton)`, making it unit-testable and reusable for controller displays
 gesture, same SSOT). A state whose only expression is the inspector is still
 a hardware bug: the inspector is enrichment, not a crutch.
 
+## 20. Invariants are the compiler's job, not the coder's memory
+
+When correctness depends on a human *remembering* to do two things together, it
+will eventually be done as one. Make the requirement structural.
+
+**Single owner for shared state.** Any value with more than one reader or writer
+has exactly **one owning setter**; nothing edits the underlying fields directly.
+Two stores that are "meant to stay in sync" are a bug waiting to happen — track
+length lived as both an APVTS param and a working `Track.length`, and every
+writer that bypassed `setTrackLength` (which updates both) silently desynced the
+Euclid generator from playback. The fix is never "remember to update both"; it is
+"route all writes through the one setter, and the redundancy disappears." The
+same rule retired the `repaint()` + `keyboardArea_.repaint()` hand-pairing
+(one `refreshSurface()`), and is why modal state is one enum (§18), not a bag of
+booleans. Prefer one source; where a mirror is genuinely required, give it a
+single named sync point and document it (DESIGN state-ownership).
+
+**Explicit switch control flow.** Every `case` that carries code terminates
+explicitly — `break` / `return` / `throw` / `[[fallthrough]]`. Silent
+fall-through is a defect (a `dispatchUp` fall-through once made releasing twelve
+unrelated buttons fire tap-tempo, so changing tracks set the BPM); it is now a
+compile error under `-Wimplicit-fallthrough -Werror`. **Intentional** fall-through
+is allowed but must be marked with `[[fallthrough]];` *and* a comment naming where
+it falls to. There is **no blanket "always add a `default:`" rule** — switches
+that are exhaustive over a closed enum deliberately omit `default:` so `-Wswitch`
+turns a new unhandled enum value into a compile error (`layerBanner`,
+`Arrangement`'s `CheckpointScope`, `setModifierLatch`, `groupForCell`). Adding a
+`default:` to those would *defeat* that check, so leave them as they are.
+
 ---
 
 ## Non-Goals — what Lockstep refuses to become

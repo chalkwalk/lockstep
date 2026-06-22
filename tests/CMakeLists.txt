@@ -56,7 +56,7 @@ target_link_libraries(lockstep_tests PRIVATE
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_options(lockstep_tests PRIVATE
         -Wall -Wextra -Wpedantic
-        -Wsign-conversion -Wfloat-conversion -Wshadow
+        -Wsign-conversion -Wfloat-conversion -Wshadow -Wimplicit-fallthrough
         -Werror
         ${LOCKSTEP_SANITIZE_FLAGS})
     target_link_options(lockstep_tests PRIVATE ${LOCKSTEP_SANITIZE_FLAGS})

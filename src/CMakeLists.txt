@@ -70,7 +70,7 @@ target_compile_definitions(lockstep_core
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_options(lockstep_core PRIVATE
         -Wall -Wextra -Wpedantic
-        -Wsign-conversion -Wfloat-conversion -Wshadow
+        -Wsign-conversion -Wfloat-conversion -Wshadow -Wimplicit-fallthrough
         -Werror
         ${LOCKSTEP_SANITIZE_FLAGS})
     target_link_options(lockstep_core PUBLIC ${LOCKSTEP_SANITIZE_FLAGS})
@@ -94,7 +94,7 @@ target_link_libraries(lockstep_engine
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_options(lockstep_engine PRIVATE
         -Wall -Wextra -Wpedantic
-        -Wsign-conversion -Wfloat-conversion -Wshadow
+        -Wsign-conversion -Wfloat-conversion -Wshadow -Wimplicit-fallthrough
         -Werror
         ${LOCKSTEP_SANITIZE_FLAGS})
     target_link_options(lockstep_engine PUBLIC ${LOCKSTEP_SANITIZE_FLAGS})
@@ -151,7 +151,7 @@ target_link_libraries(Lockstep
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_options(Lockstep PRIVATE
         -Wall -Wextra -Wpedantic
-        -Wsign-conversion -Wfloat-conversion -Wshadow
+        -Wsign-conversion -Wfloat-conversion -Wshadow -Wimplicit-fallthrough
         -Werror)
 else()
     target_link_libraries(Lockstep PUBLIC juce::juce_recommended_warning_flags)
