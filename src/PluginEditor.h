@@ -148,6 +148,12 @@ namespace lockstep
         // Exit Euclid mode without committing: revert the live preview to the
         // stashed pre-Euclid phrase and clear the armed state. No-op when inactive.
         void cancelEuclid();
+        // Euclid modal state is four fields that must move together (PRINCIPLES §20):
+        // uiState_.euclidHeld (+params), euclidTrack_, euclidStash_, euclidStashLen_.
+        // restoreEuclidStash() reverts the live preview; forgetEuclidEditorState()
+        // clears the editor-owned fields. resetEuclid() clears the UiState half.
+        void restoreEuclidStash();
+        void forgetEuclidEditorState() { euclidTrack_ = -1; euclidStashLen_ = 0; }
         void enterDensitySticky();
         void enterVelSticky();
 

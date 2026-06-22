@@ -1652,19 +1652,21 @@ namespace lockstep
         refreshMetaBand();
     }
 
+    void LockstepEditor::restoreEuclidStash()
+    {
+        if (euclidTrack_ < 0) return;
+        auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(euclidTrack_)];
+        for (int si = 0; si < euclidStashLen_; ++si)
+            wt.steps[static_cast<std::size_t>(si)] =
+                euclidStash_[static_cast<std::size_t>(si)];
+    }
+
     void LockstepEditor::cancelEuclid()
     {
         if (!uiState_.euclidHeld) return;
-        if (euclidTrack_ >= 0)
-        {
-            auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(euclidTrack_)];
-            for (int si = 0; si < euclidStashLen_; ++si)
-                wt.steps[static_cast<std::size_t>(si)] =
-                    euclidStash_[static_cast<std::size_t>(si)];
-        }
+        restoreEuclidStash();
         uiState_.resetEuclid();
-        euclidTrack_ = -1;
-        euclidStashLen_ = 0;
+        forgetEuclidEditorState();
         refreshMetaBand();
     }
 
@@ -2050,16 +2052,12 @@ namespace lockstep
                                 { ModeEventKind::DoubleTapFunc });
                             if (r == OverlayResult::Exited)
                             {
-                                // Euclid stash restore is editor-owned state.
+                                // Euclid stash restore is editor-owned state (the
+                                // reducer reset euclidHeld via escapeOverlay).
                                 if (prevOv == Overlay::Euclid && euclidTrack_ >= 0)
                                 {
-                                    auto& wt = processor_.sequence().tracks[
-                                        static_cast<std::size_t>(euclidTrack_)];
-                                    for (int si = 0; si < euclidStashLen_; ++si)
-                                        wt.steps[static_cast<std::size_t>(si)] =
-                                            euclidStash_[static_cast<std::size_t>(si)];
-                                    euclidTrack_ = -1;
-                                    euclidStashLen_ = 0;
+                                    restoreEuclidStash();
+                                    forgetEuclidEditorState();
                                 }
                                 refreshMetaBand();
                                 repaint();
@@ -3422,29 +3420,19 @@ namespace lockstep
                 // 5.5: Euclid modal armed → bare P = commit; Func+P = cancel.
                 if (uiState_.euclidHeld)
                 {
-                    auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(euclidTrack_)];
+                    // Both paths revert the live preview first; commit then snapshots
+                    // the (pre-Euclid) phrase and re-applies the pattern over it.
+                    restoreEuclidStash();
                     if (!funcHeld)
                     {
-                        // Commit: restore stash first (snapshot captures pre-Euclid state),
-                        // then apply the Euclid pattern.
-                        for (int si = 0; si < euclidStashLen_; ++si)
-                            wt.steps[static_cast<std::size_t>(si)] =
-                                euclidStash_[static_cast<std::size_t>(si)];
+                        const auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(euclidTrack_)];
                         if (wt.length > 0)
                             processor_.snapshot(CheckpointScope::Phrase, euclidTrack_);
                         applyEuclidToTrack(euclidTrack_);
                         setStatus("EUCLID committed");
                     }
-                    else
-                    {
-                        // Cancel: restore stashed phrase.
-                        for (int si = 0; si < euclidStashLen_; ++si)
-                            wt.steps[static_cast<std::size_t>(si)] =
-                                euclidStash_[static_cast<std::size_t>(si)];
-                    }
                     uiState_.resetEuclid();
-                    euclidTrack_ = -1;
-                    euclidStashLen_ = 0;
+                    forgetEuclidEditorState();
                     refreshMetaBand();
                     repaint();
                     return true;
