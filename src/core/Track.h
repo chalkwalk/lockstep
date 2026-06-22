@@ -34,7 +34,12 @@ namespace lockstep
     // (one per IMachine slot), and the steps themselves.
     struct Track
     {
-        int length = 16;       // 1..kMaxStepsPerTrack
+        // 1..kMaxStepsPerTrack. SSOT note (PRINCIPLES §20): this working copy and the
+        // APVTS `trackLength` param (which the audio thread reads) must agree. UI edits
+        // go through LockstepProcessor::setTrackLength (writes both); scene/song switches
+        // set this via projectPhraseToTrack then mirror it to the param via
+        // syncTrackParamsFromActiveKit. Never write this raw from a UI/edit path.
+        int length = 16;
         int subdivIndex = kSubdivDefault; // musical subdivision combined index (0-26)
         ParamFrame baseParams{}; // track-level "default" values
         TrigCondition baseCond{};  // track-level condition; step condition overrides if non-trivial

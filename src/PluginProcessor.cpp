@@ -2882,6 +2882,10 @@ namespace lockstep
                         trk.steps.begin() + len);
     }
 
+    // The single UI/edit-path setter for track length (PRINCIPLES §20): updates the
+    // working Track.length AND the APVTS trackLength param (read by the audio thread)
+    // together, so they can never diverge. All length editors (PHRASELEN band,
+    // timeline drag, Func+Phrase+step, double/halve) route through here.
     void LockstepProcessor::setTrackLength(int track, int newLen)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
