@@ -10,6 +10,8 @@
 #include "../src/ui/mode/ModalState.h"
 #include "../src/ui/mode/ModeReducer.h"
 #include "../src/ui/mode/FuncReskin.h"
+#include "../src/command/SurfaceLayer.h"
+#include "../src/io/EditContext.h"
 
 namespace lockstep
 {
@@ -60,10 +62,40 @@ namespace lockstep
           CHECK(activeFuncReskin(u) == FuncReskin::MasterFxPicker && activeModal(u) == Modal::MasterFxPicker, "masterFx agrees"); }
     }
 
+    // Drift guard: activeModal()'s grid-modal priority must agree with
+    // resolveActiveLayer()'s cascade (the user-visible truth). This locks the two
+    // parallel priority encodings together so they cannot silently diverge — the
+    // whole point of having one read SSOT.
+    static void testActiveModalMatchesResolveLayer()
+    {
+        EditContext ec;
+        const LayerFacts f{ TrackInputMode::Play, 0 };
+
+        { UiState u; u.masterFxPickerOpen = true;
+          CHECK(activeModal(u) == Modal::MasterFxPicker
+                && resolveActiveLayer(u, ec, f) == SurfaceLayer::MasterFxPicker, "masterFx layer"); }
+        { UiState u; u.funcFxHeld = true;
+          CHECK(activeModal(u) == Modal::TrackFxPicker
+                && resolveActiveLayer(u, ec, f) == SurfaceLayer::TrackFxPicker, "trackFx layer"); }
+        { UiState u; u.funcTrackHeld = true;
+          CHECK(activeModal(u) == Modal::MachinePicker
+                && resolveActiveLayer(u, ec, f) == SurfaceLayer::MachinePicker, "machine layer"); }
+        { UiState u; u.generatorHubHeld = true;
+          CHECK(activeModal(u) == Modal::GeneratorHub
+                && resolveActiveLayer(u, ec, f) == SurfaceLayer::GeneratorHub, "genHub layer"); }
+        { UiState u; u.noteEditMode = true; u.noteEditSteps.insert(0);
+          CHECK(activeModal(u) == Modal::NoteEdit
+                && resolveActiveLayer(u, ec, f) == SurfaceLayer::NoteEdit, "noteEdit layer"); }
+        { UiState u; u.pLockClearMode = true; u.pLockClearTrack = 0; u.pLockClearStep = 0;
+          CHECK(activeModal(u) == Modal::PLockClear
+                && resolveActiveLayer(u, ec, f) == SurfaceLayer::PLockClear, "pLockClear layer"); }
+    }
+
     void runModalStateTests()
     {
         testActiveModalSingles();
         testActiveModalPriority();
         testActiveModalMatchesLegacy();
+        testActiveModalMatchesResolveLayer();
     }
 }

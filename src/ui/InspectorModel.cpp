@@ -4,6 +4,7 @@
 #include "../PluginProcessor.h"
 #include "../command/KeyBindings.h"
 #include "../core/MusicalGate.h"
+#include "mode/ModalState.h"
 
 namespace lockstep
 {
@@ -102,36 +103,27 @@ namespace lockstep
     static juce::String buildOverlayRegion(const UiState& ui,
                                            const LockstepProcessor& proc) noexcept
     {
-        // Active picker / overlay. (u8 literals — non-ASCII em-dash, see above.)
-        if (ui.generatorHubHeld)
-            return u8"GENERATOR HUB — pick cell  esc=release";
-        if (ui.euclidHeld)
-            return u8"EUCLID — configuring  esc=release";
-        if (ui.funcTrackHeld)
-            return u8"MACHINE PICKER — select machine  esc=release Func";
-        if (ui.funcFxHeld)
-            return u8"FX INSERT — select effect  esc=release Func";
-        if (ui.masterFxPickerOpen)
-            return u8"MASTER FX — select effect  esc=release Func+Song+FX";
-        if (ui.noteEditMode)
-            return "NOTE EDIT  oct " + juce::String(ui.noteEditOctave)
-                   + "  nav=oct shift  esc=release Func";
-        if (ui.pLockClearStep >= 0)
-            return "CLEAR P-LOCK  step " + juce::String(ui.pLockClearStep + 1)
-                   + "  esc=release Func";
-
-        // Overlay from sticky field.
-        switch (ui.overlay)
+        // One cascade: narrate the active modal via the read SSOT (activeModal),
+        // so the inspector text always agrees with what the grid/MZ shows. The
+        // switch is exhaustive over Modal (no default) — adding a modal without an
+        // inspector line is a -Wswitch compile error. (u8 literals: non-ASCII dash.)
+        switch (activeModal(ui))
         {
-            case Overlay::None: break;
-            case Overlay::Euclid:
-                return u8"EUCLID — generator overlay  esc=dbl-tap Func";
-            case Overlay::Density:
-                return u8"DENSITY — trig-thinning overlay  esc=dbl-tap Func";
-            case Overlay::Vel:
-                return u8"VEL STICKY — velocity band  esc=dbl-tap Func";
-            case Overlay::Time:
-                return u8"TIME — time-sig/click band  esc=dbl-tap Func";
+            case Modal::MasterFxPicker: return u8"MASTER FX — select effect  esc=release Func+Song+FX";
+            case Modal::TrackFxPicker:  return u8"FX INSERT — select effect  esc=release Func";
+            case Modal::MachinePicker:  return u8"MACHINE PICKER — select machine  esc=release Func";
+            case Modal::GeneratorHub:   return u8"GENERATOR HUB — pick cell  esc=release";
+            case Modal::NoteEdit:
+                return "NOTE EDIT  oct " + juce::String(ui.noteEditOctave)
+                       + "  nav=oct shift  esc=release Func";
+            case Modal::PLockClear:
+                return "CLEAR P-LOCK  step " + juce::String(ui.pLockClearStep + 1)
+                       + "  esc=release Func";
+            case Modal::Euclid:  return u8"EUCLID — configuring  esc=dbl-tap Func";
+            case Modal::Density: return u8"DENSITY — trig-thinning overlay  esc=dbl-tap Func";
+            case Modal::Vel:     return u8"VEL STICKY — velocity band  esc=dbl-tap Func";
+            case Modal::Time:    return u8"TIME — time-sig/click band  esc=dbl-tap Func";
+            case Modal::None:    break;
         }
 
         // Idle: current scene.
