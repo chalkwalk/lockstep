@@ -627,6 +627,10 @@ namespace lockstep
             {
                 applyEuclidLive(euclidTrack_);
                 repaint();
+                // Explicitly repaint the grid: the KeyboardArea timer only repaints
+                // on playhead movement, so when stopped the editor repaint() alone
+                // left the live rhythm invisible until transport started.
+                keyboardArea_.repaint();
             }
         };
         // Wire mouse button events from KeyboardArea through the unified dispatch.
@@ -1649,6 +1653,22 @@ namespace lockstep
         refreshMetaBand();
     }
 
+    void LockstepEditor::cancelEuclid()
+    {
+        if (!uiState_.euclidHeld) return;
+        if (euclidTrack_ >= 0)
+        {
+            auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(euclidTrack_)];
+            for (int si = 0; si < euclidStashLen_; ++si)
+                wt.steps[static_cast<std::size_t>(si)] =
+                    euclidStash_[static_cast<std::size_t>(si)];
+        }
+        uiState_.resetEuclid();
+        euclidTrack_ = -1;
+        euclidStashLen_ = 0;
+        refreshMetaBand();
+    }
+
     void LockstepEditor::enterDensitySticky()
     {
         if (uiState_.overlay == Overlay::Density) return;
@@ -2137,6 +2157,16 @@ namespace lockstep
                 return true;
 
             case ControllerButton::Section: {
+                // Euclid is a focused modal generator; selecting a section exits it,
+                // reverting the live preview (commit is the explicit P press). Without
+                // this the mode lingered after navigating away and a later Confirm
+                // would still write the pattern.
+                if (uiState_.euclidHeld)
+                {
+                    cancelEuclid();
+                    keyboardArea_.repaint();
+                }
+
                 // Determine whether a section-suite scope modifier is held.
                 // Use the canonical kScopePriority ordering (ScopePriority.h SSOT).
                 using PS = EditMode::PrimaryScope;
@@ -4391,7 +4421,13 @@ namespace lockstep
                 writeMetaField(band, swScope, mzSlot, newVal,
                                processor_, track, processor_.editContext(), uiState_);
                 if (band == MetaBand::Euclidean && uiState_.euclidHeld && euclidTrack_ >= 0)
+                {
                     applyEuclidLive(euclidTrack_);
+                    // Repaint the grid so the live rhythm shows when stopped too — the
+                    // KeyboardArea timer only repaints on playhead movement, so without
+                    // this the pattern only appeared while transport was running.
+                    keyboardArea_.repaint();
+                }
                 return;
             }
 

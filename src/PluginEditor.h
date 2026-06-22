@@ -139,6 +139,9 @@ namespace lockstep
 
         // Generator hub entry helpers (extracted from legacy Phrase+Fill / Func+MOD / Func+AMP).
         void enterEuclid(int track);
+        // Exit Euclid mode without committing: revert the live preview to the
+        // stashed pre-Euclid phrase and clear the armed state. No-op when inactive.
+        void cancelEuclid();
         void enterDensitySticky();
         void enterVelSticky();
 
