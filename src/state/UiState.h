@@ -90,9 +90,8 @@ namespace lockstep
             return phrase || morph || mute || track || scene || song || fill;
         }
 
-        // Returns true if any step latch is engaged (via EditContext — checked externally).
-        // Placed here for structural symmetry with modifier latches.
-        bool anySteps = false;  // mirror kept in sync by PluginEditor
+        // (Step latches live in EditContext; query hasAnyLatchedStep() directly —
+        // there is no mirror here. A former `anySteps` bool was write-only dead state.)
     };
 
     // UI-local selection state. Not persisted. Not accessed from the audio thread.

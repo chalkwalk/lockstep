@@ -1761,7 +1761,6 @@ namespace lockstep
             editMode_.setTrigHeld(false);
         }
 
-        uiState_.latch.anySteps = ctx.hasAnyLatchedStep();
         refreshSurface();
     }
 
@@ -2966,7 +2965,6 @@ namespace lockstep
                         auto& ctx = processor_.editContext();
                         ctx.hold(keyboardArea_.getActiveTrack(), absStep);
                         ctx.setLatched(absStep);
-                        uiState_.latch.anySteps = ctx.hasAnyLatchedStep();
                         heldStepKeys_.push_back({ rawCode, absStep });
                         uiState_.stepHeld = true;
                         editMode_.setTrigHeld(true);

@@ -1958,6 +1958,14 @@ namespace lockstep
         // 9.12 gesture-affordance pass: derive tap/hold/doubleTap affordance slots and
         // the primary-promotion token for every control cell from the grammar (SSOT).
         // Applied regardless of heldMods so context-sensitive slots are always current.
+        //
+        // Label authority (PRINCIPLES §20): for cells whose grammar row carries a
+        // non-empty primary (modifiers, tap, nav, verbs), THIS pass is the source of
+        // truth for c.primary/funcHint — the per-cell assignments earlier in this
+        // function are a pre-fill it supersedes. Section cells are the exception: their
+        // grammar rows have an empty primary (labels come from KeyLabel/
+        // ScopedSectionMatrix in the builder), so deriveSlots leaves their c.primary
+        // untouched. Do not "dedupe" by deleting the builder section labels.
         {
             // Specificity of a resolved row = popcount(requiredMods); -1 if no match.
             auto spec = [](const KeyBinding& b) {
