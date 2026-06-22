@@ -458,9 +458,10 @@ namespace lockstep
         keyboardArea_.onMiniSeqSetLength = [this](int absStep) {
             const int track = keyboardArea_.getActiveTrack();
             if (track < 0) return;
-            auto* p = processor_.apvts().getParameter(ParamIDs::trackLength(track));
-            if (p)
-                p->setValueNotifyingHost(static_cast<float>(absStep) / 63.0f);
+            // Route through setTrackLength so the working Track.length and the APVTS
+            // param stay in sync (see setTrackLength). Writing the param alone left
+            // tracks[].length stale for readers like the Euclid generator.
+            processor_.setTrackLength(track, absStep + 1);
         };
 
         keyboardArea_.onMetaSectionChanged = [this](int metaSection) {

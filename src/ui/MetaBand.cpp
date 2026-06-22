@@ -1236,8 +1236,12 @@ namespace lockstep
                 if (field != 0) return;
                 if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == track)
                     ctx.markParamWritten();
-                auto* p = proc.apvts().getParameter(ParamIDs::trackLength(track));
-                if (p) p->setValueNotifyingHost(std::clamp((value - 1.0f) / 63.0f, 0.0f, 1.0f));
+                // Route through setTrackLength so the working Track.length and the
+                // APVTS param stay in sync. Writing the param alone left
+                // tracks[].length stale, so the Euclid generator (which reads the
+                // working struct) capped pulses at the old 16-step length while
+                // playback used the real, longer param length.
+                proc.setTrackLength(track, static_cast<int>(std::round(value)));
                 break;
             }
 

@@ -246,6 +246,32 @@ namespace lockstep
     }
 
     // -------------------------------------------------------------------------
+    // Regression: a PHRASELEN write must update the working Track.length, not just
+    // the APVTS param. The Euclid generator reads the working struct, so a
+    // param-only write left it capping pulses at the stale length (16).
+
+    static void testWriteMetaFieldPhraseLenSyncsWorkingLength()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        UiState ui;
+        EditContext ctx;
+        const int track = 0;
+
+        // Set the phrase length to 32 via the PHRASELEN band (LEN section).
+        writeMetaField(MetaBand::PhraseLen, 0, 0, 32.0f, proc, track, ctx, ui);
+
+        // Working struct (what the Euclid generator reads) must reflect 32.
+        CHECK(proc.sequence().tracks[static_cast<std::size_t>(track)].length == 32,
+              "PHRASELEN write syncs working Track.length");
+
+        // And the Euclid band's PULSE field max must follow the new length.
+        const auto euclid = buildMetaBand(MetaBand::Euclidean, 0, proc, track, ctx, ui);
+        CHECK(static_cast<int>(euclid[0].maxValue) == 32,
+              "Euclid PULSE max follows extended phrase length (not capped at 16)");
+    }
+
+    // -------------------------------------------------------------------------
     // MetaRotary::applyView totality — guards the bf20ac3 leak class
 
     static void testMetaRotaryApplyViewTotality()
@@ -893,6 +919,8 @@ namespace lockstep
 
         // 9.10: TRIG band RTG field — authored ratchet rate round-trip
         testTrigBandRtgField();
+
+        testWriteMetaFieldPhraseLenSyncsWorkingLength();
 
         testDensityEditsMaster();
 
