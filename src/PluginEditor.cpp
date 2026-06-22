@@ -315,8 +315,7 @@ namespace lockstep
                     ed.setStatus(status::deletedPart());
                 }
             }
-            ed.repaint();
-            ed.keyboardArea_.repaint();
+            ed.refreshSurface();
         }
     };
 
@@ -1761,8 +1760,7 @@ namespace lockstep
         }
 
         uiState_.latch.anySteps = ctx.hasAnyLatchedStep();
-        keyboardArea_.repaint();
-        repaint();
+        refreshSurface();
     }
 
     // -------------------------------------------------------------------------
@@ -1959,8 +1957,7 @@ namespace lockstep
         if (!latched) return;
         setModifierLatch(cb, false);
         if (!phys) dispatchUp({ T::ButtonUp, cb });
-        keyboardArea_.repaint();
-        repaint();
+        refreshSurface();
     }
 
     // -------------------------------------------------------------------------
@@ -2030,8 +2027,7 @@ namespace lockstep
                 editMode_.onScopeEvent(ev);
                 updateFillActivation();
                 refreshMetaBand();  // 1c: Func held → show Chance band in MZ
-                keyboardArea_.repaint();
-                repaint();
+                refreshSurface();
                 // MHZ.9.4: Func never latches; double-tap = universal escape.
                 // Cancels latches and any active overlay (Euclid / sticky modes).
                 {
@@ -2144,16 +2140,14 @@ namespace lockstep
                 if (uiState_.trackHeld)
                 {
                     processor_.resyncTrackToScene(processor_.focusTrack());
-                    keyboardArea_.repaint();
-                    repaint();
+                    refreshSurface();
                     return true;
                 }
                 uiState_.sceneHeld = true;
                 editMode_.onScopeEvent(ev);
                 handleModifierTap(CB::SceneScope, uiState_.latch.scene);
                 clearSwingDismissed();
-                keyboardArea_.repaint();
-                repaint();
+                refreshSurface();
                 return true;
 
             case ControllerButton::Section: {
@@ -2660,8 +2654,7 @@ namespace lockstep
                 {
                     if (ev.index >= 0 && ev.index < kNumSongs)
                         processor_.setActiveSong(ev.index);
-                    repaint();
-                    keyboardArea_.repaint();
+                    refreshSurface();
                     return true;
                 }
 
@@ -2687,8 +2680,7 @@ namespace lockstep
                         processor_.setTrackLength(keyboardArea_.getActiveTrack(), newLen);
                         setStatus(status::length(newLen));
                     }
-                    keyboardArea_.repaint();
-                    repaint();
+                    refreshSurface();
                     return true;
                 }
 
@@ -2699,8 +2691,7 @@ namespace lockstep
                     if (ev.index >= 0 && ev.index < kPhrasesPerTrack)
                         processor_.deviateAllToPhrase(ev.index);
                     uiState_.phraseScopeUsed = true;
-                    repaint();
-                    keyboardArea_.repaint();
+                    refreshSurface();
                     return true;
                 }
 
@@ -2711,8 +2702,7 @@ namespace lockstep
                     if (ev.index >= 0 && ev.index < kPhrasesPerTrack)
                         processor_.swapPhraseForTrack(keyboardArea_.getActiveTrack(), ev.index);
                     uiState_.phraseScopeUsed = true;
-                    repaint();
-                    keyboardArea_.repaint();
+                    refreshSurface();
                     return true;
                 }
 
@@ -2790,8 +2780,7 @@ namespace lockstep
                             setStatus(status::sceneBlank(ev.index + 1));
                         }
                     }
-                    repaint();
-                    keyboardArea_.repaint();
+                    refreshSurface();
                     return true;
                 }
 
@@ -2923,8 +2912,7 @@ namespace lockstep
                     keyboardArea_.setMorphViewState(buildMorphViewState(),
                                                     manipulationZone_.slotOffset(),
                                                     1.0f - processor_.morphFader());
-                    keyboardArea_.repaint();
-                    repaint();
+                    refreshSurface();
                     return true;
                 }
 
@@ -2948,8 +2936,7 @@ namespace lockstep
                 if (processor_.editContext().hasAnyLatchedStep())
                 {
                     escapeAllLatches();
-                    keyboardArea_.repaint();
-                    repaint();
+                    refreshSurface();
                     return true;
                 }
 
@@ -3040,8 +3027,7 @@ namespace lockstep
                     if (ev.index >= 0 && ev.index < kPhrasesPerTrack)
                         processor_.swapPhraseForTrack(keyboardArea_.getActiveTrack(), ev.index);
                     uiState_.phraseScopeUsed = true;
-                    repaint();
-                    keyboardArea_.repaint();
+                    refreshSurface();
                     return true;
                 }
                 // (Track + No delete gesture removed; use Track + Func+O to delete.)
@@ -3052,8 +3038,7 @@ namespace lockstep
                     processor_.copyKitTrack(keyboardArea_.getActiveTrack(), ev.index);
                     keyboardArea_.setActiveTrack(ev.index);
                     releaseTransientLatch(CB::TrackScope);
-                    repaint();
-                    keyboardArea_.repaint();
+                    refreshSurface();
                     return true;
                 }
                 keyboardArea_.setActiveTrack(ev.index);
@@ -3095,8 +3080,7 @@ namespace lockstep
                         default:                        break;
                     }
                     escapeAllLatches();  // entering new modality exits current latch
-                    keyboardArea_.repaint();
-                    repaint();
+                    refreshSurface();
                     return true;
                 }
                 // Normal: next higher track number.
@@ -3138,8 +3122,7 @@ namespace lockstep
                         default:                        break;
                     }
                     escapeAllLatches();  // entering new modality exits current latch
-                    keyboardArea_.repaint();
-                    repaint();
+                    refreshSurface();
                     return true;
                 }
                 // Normal: previous (lower) track number.
@@ -3412,8 +3395,7 @@ namespace lockstep
                 if (uiState_.sceneHeld)
                 {
                     processor_.resyncAllToScene();
-                    repaint();
-                    keyboardArea_.repaint();
+                    refreshSurface();
                     return true;
                 }
                 // Non-trivial scope → scope-specific snapshot.
@@ -3711,8 +3693,7 @@ namespace lockstep
                 refreshMetaBand();  // 1c: Func released → restore normal MZ band
                 editMode_.onScopeEvent({ T::ButtonUp, CB::Func });
                 updateFillActivation();
-                keyboardArea_.repaint();
-                repaint();
+                refreshSurface();
                 break;
 
             // Scope modifier releases: CommandCore::handleUp clears xxxHeld and fires
@@ -3882,8 +3863,7 @@ namespace lockstep
                     uiState_.masterSection = -1;
                     refreshMetaBand();
 
-                    keyboardArea_.repaint();
-                    repaint();
+                    refreshSurface();
                     break;
                 }
 

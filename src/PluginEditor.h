@@ -137,6 +137,12 @@ namespace lockstep
         bool tapTempoPhysHeld_ = false;
         double tapTempoArmMs_ = 0.0;
 
+        // Refresh the whole visible surface (chrome + the step/section grid). The
+        // grid is a child component that does not always redraw on the editor's own
+        // repaint(), so a full refresh needs both; call this instead of pairing
+        // repaint() + keyboardArea_.repaint() by hand (PRINCIPLES §20).
+        void refreshSurface() { repaint(); keyboardArea_.repaint(); }
+
         // Generator hub entry helpers (extracted from legacy Phrase+Fill / Func+MOD / Func+AMP).
         void enterEuclid(int track);
         // Exit Euclid mode without committing: revert the live preview to the
