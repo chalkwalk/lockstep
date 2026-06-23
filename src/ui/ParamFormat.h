@@ -23,12 +23,15 @@ namespace lockstep
         if (spec.isStepped)
             return juce::String(static_cast<int>(std::round(v)));
 
-        // Floor label (e.g. "Auto"): the value stays the canonical float; this only
-        // names the bottom of the range. Use a small epsilon so a value resting at
-        // (or a hair above) the floor still reads as the label; the DSP uses the same
-        // kAutoEps threshold so display and behaviour agree.
-        if (spec.zeroLabel != nullptr && v <= spec.minValue + 1.0e-3f)
-            return juce::String(spec.zeroLabel);
+        // Floor / ceiling labels (e.g. "Auto" / "Off" / "Full"): the value stays the
+        // canonical float; these only name the extremes. A small epsilon lets a value
+        // resting a hair from the extreme still read as the label (the DSP uses the
+        // same threshold so the readout and behaviour agree).
+        constexpr float kEdgeEps = 1.0e-3f;
+        if (spec.minLabel != nullptr && v <= spec.minValue + kEdgeEps)
+            return juce::String(spec.minLabel);
+        if (spec.maxLabel != nullptr && v >= spec.maxValue - kEdgeEps)
+            return juce::String(spec.maxLabel);
 
         switch (spec.unit)
         {

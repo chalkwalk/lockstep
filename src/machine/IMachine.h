@@ -99,11 +99,14 @@ namespace lockstep
         // Machine ABI (§36) — the hook's identity is baked into the function itself.
         juce::String (*contextLabel)(const ParamFrame&) = nullptr;
 
-        // Optional label rendered (by formatParamValue) when the value is at the
-        // floor (<= minValue, i.e. ~0 for a 0-based range). Presentation only — the
-        // stored/processed value stays the canonical float; this just names the
-        // floor (e.g. "Auto" for a 0=auto attack/release). nullptr = numeric.
-        const char* zeroLabel = nullptr;
+        // Optional labels rendered (by formatParamValue) when the value rests at the
+        // floor / ceiling of the range. Presentation only — the stored/processed
+        // value stays the canonical float; these just name the extremes (e.g. "Auto"
+        // at min for a 0=auto attack/release, "Off"/"Full"/"Inf" at either end).
+        // nullptr = numeric. Each uses a small epsilon so values resting a hair from
+        // the extreme still read as the label.
+        const char* minLabel = nullptr;
+        const char* maxLabel = nullptr;
     };
 
     // Returned by LockstepProcessor::section() after augmenting the machine's

@@ -59,7 +59,7 @@ namespace lockstep
                                         : 1.0f;
 
             // 0 (the floor) selects Auto; small epsilon matches formatParamValue's
-            // zeroLabel threshold so the readout ("Auto") and behaviour agree.
+            // minLabel threshold so the readout ("Auto") and behaviour agree.
             const bool autoAtk = (attackMs  <= 1.0e-3f);
             const bool autoRel = (releaseMs <= 1.0e-3f);
             auto coefMs = [&](double ms) {
@@ -162,14 +162,14 @@ namespace lockstep
                     p.label = "Atk";
                     // Continuous ms; 0 = Auto. skew biases resolution to short times.
                     p.minValue = 0.0f; p.maxValue = 30.0f; p.defaultValue = 5.0f;
-                    p.skew = 0.4f; p.unit = ParamSpec::Unit::Ms; p.zeroLabel = "Auto";
+                    p.skew = 0.4f; p.unit = ParamSpec::Unit::Ms; p.minLabel = "Auto";
                     break;
                 case 3:
                     p.id = "lockstep.buscomp.release";
                     p.label = "Rel";
                     // Continuous ms; 0 = Auto (program-dependent release).
                     p.minValue = 0.0f; p.maxValue = 1200.0f; p.defaultValue = 250.0f;
-                    p.skew = 0.4f; p.unit = ParamSpec::Unit::Ms; p.zeroLabel = "Auto";
+                    p.skew = 0.4f; p.unit = ParamSpec::Unit::Ms; p.minLabel = "Auto";
                     break;
                 case 4:
                     p.id = "lockstep.buscomp.schpf";

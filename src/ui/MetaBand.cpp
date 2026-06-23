@@ -439,7 +439,7 @@ namespace lockstep
             v.stepped = spec.isStepped;
             v.writable = true;
             v.hasOverride = false;
-            // Route through the value-text SSOT so units, enum labels and zeroLabel
+            // Route through the value-text SSOT so units, enum labels and min/maxLabel
             // ("Auto") render here exactly as they do for machine params.
             v.valueText = formatParamValue(val, spec);
             v.ringMode = RingMode::UnipolarFill;

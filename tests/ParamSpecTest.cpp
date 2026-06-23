@@ -461,21 +461,29 @@ namespace lockstep
 
     // -------------------------------------------------------------------------
 
-    // formatParamValue: zeroLabel renders at the floor, numeric above it.
-    static void testZeroLabelFormatting()
+    // formatParamValue: min/maxLabel render at the extremes, numeric between.
+    static void testEdgeLabelFormatting()
     {
         ParamSpec p;
         p.minValue = 0.0f; p.maxValue = 30.0f; p.unit = ParamSpec::Unit::Ms;
-        p.zeroLabel = "Auto";
-        CHECK(formatParamValue(0.0f, p) == "Auto", "value at floor -> Auto");
-        CHECK(formatParamValue(0.0005f, p) == "Auto", "near-zero (float dust) -> Auto");
+        p.minLabel = "Auto";
+        CHECK(formatParamValue(0.0f, p) == "Auto", "value at floor -> minLabel");
+        CHECK(formatParamValue(0.0005f, p) == "Auto", "near-floor (float dust) -> minLabel");
         CHECK(formatParamValue(5.0f, p) == "5.0 ms", "value above floor -> numeric ms");
         CHECK(formatParamValue(0.5f, p) == "0.5 ms", "0.5 ms is a real value, not Auto");
 
-        // Without zeroLabel, the floor is numeric (no behaviour change for others).
+        // maxLabel at the ceiling.
+        ParamSpec m;
+        m.minValue = 0.0f; m.maxValue = 1.0f; m.unit = ParamSpec::Unit::Percent;
+        m.maxLabel = "Full";
+        CHECK(formatParamValue(1.0f, m) == "Full", "value at ceiling -> maxLabel");
+        CHECK(formatParamValue(0.9999f, m) == "Full", "near-ceiling -> maxLabel");
+        CHECK(formatParamValue(0.5f, m) == "50%", "mid value -> numeric percent");
+
+        // Without labels, both extremes are numeric (no behaviour change for others).
         ParamSpec q;
         q.minValue = 0.0f; q.maxValue = 30.0f; q.unit = ParamSpec::Unit::Ms;
-        CHECK(formatParamValue(0.0f, q) == "0.0 ms", "no zeroLabel -> numeric floor");
+        CHECK(formatParamValue(0.0f, q) == "0.0 ms", "no minLabel -> numeric floor");
     }
 
     void runParamSpecTests()
@@ -487,7 +495,7 @@ namespace lockstep
         testMidiOutMachineParams();
         testSlicerMachineParams();
         testContextLabels();
-        testZeroLabelFormatting();
+        testEdgeLabelFormatting();
     }
 
 } // namespace lockstep
