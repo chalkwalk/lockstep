@@ -881,6 +881,50 @@ namespace lockstep
                 }
             }
 
+            // tilt EQ direction: positive tilt must BRIGHTEN (boost highs, cut lows).
+            // Regression guard for the inverted-tilt bug.
+            {
+                auto fx = makeEffectForId("lockstep.tilteq.v1");
+                if (fx)
+                {
+                    constexpr double sr = 44100.0;
+                    constexpr int N = 4096;
+                    // out/in RMS ratio for a pure tone at `freq` with tilt=+1.
+                    auto ratio = [&](double freq) {
+                        fx->prepare(sr, N);  // reset filter + smoothing state
+                        juce::AudioBuffer<float> buf(2, N);
+                        for (int n = 0; n < N; ++n)
+                        {
+                            const float s = static_cast<float>(
+                                std::sin(2.0 * juce::MathConstants<double>::pi * freq
+                                         * static_cast<double>(n) / sr));
+                            buf.setSample(0, n, s);
+                            buf.setSample(1, n, s);
+                        }
+                        ParamFrame frame = { 1.0f, 0.0f };  // tilt=+1, gain=0 dB
+                        fx->process(buf, N, frame);
+                        // Measure over the second half (after the 5 ms smoothing settles).
+                        double outSq = 0.0, inSq = 0.0;
+                        for (int n = N / 2; n < N; ++n)
+                        {
+                            const double in = std::sin(2.0 * juce::MathConstants<double>::pi * freq
+                                                       * static_cast<double>(n) / sr);
+                            outSq += static_cast<double>(buf.getSample(0, n))
+                                     * static_cast<double>(buf.getSample(0, n));
+                            inSq += in * in;
+                        }
+                        return std::sqrt(outSq / inSq);
+                    };
+                    const double lowRatio  = ratio(100.0);
+                    const double highRatio = ratio(6000.0);
+                    CHECK(highRatio > 1.05, "tilt=+1 boosts highs (ratio "
+                          + juce::String(highRatio, 3) + " > 1)");
+                    CHECK(lowRatio < 0.95, "tilt=+1 cuts lows (ratio "
+                          + juce::String(lowRatio, 3) + " < 1)");
+                    CHECK(highRatio > lowRatio, "tilt=+1: highs louder than lows");
+                }
+            }
+
             // Compressor: thresh=0 dBFS → compressor never fires (our sine is ~-9 dBFS);
             // makeup=0 → unity gain; effectively passthrough.
             // Note: kRatios[] = {2:1, 4:1, 8:1, 20:1} — no 1:1 option; use thresh to

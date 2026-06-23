@@ -58,8 +58,10 @@ namespace lockstep
                     lz += alpha * (d[n] - lz);   // one-pole LP
                     const float hp = d[n] - lz;   // HP = input - LP
 
-                    const float lowGain  = juce::Decibels::decibelsToGain( tz * 6.0f);
-                    const float highGain = juce::Decibels::decibelsToGain(-tz * 6.0f);
+                    // Positive tilt brightens: cut lows, boost highs (matches the
+                    // header contract and user expectation that "up" = more treble).
+                    const float lowGain  = juce::Decibels::decibelsToGain(-tz * 6.0f);
+                    const float highGain = juce::Decibels::decibelsToGain( tz * 6.0f);
                     d[n] = (lz * lowGain + hp * highGain) * gz;
                 }
             }

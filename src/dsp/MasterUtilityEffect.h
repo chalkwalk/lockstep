@@ -67,8 +67,8 @@ namespace lockstep
                 {
                     lowZ_[0] += alpha * (dL[n] - lowZ_[0]);
                     const float hp = dL[n] - lowZ_[0];
-                    const float lg = juce::Decibels::decibelsToGain( tilt * 6.0f);
-                    const float hg = juce::Decibels::decibelsToGain(-tilt * 6.0f);
+                    const float lg = juce::Decibels::decibelsToGain(-tilt * 6.0f);
+                    const float hg = juce::Decibels::decibelsToGain( tilt * 6.0f);
                     dL[n] = (lowZ_[0] * lg + hp * hg) * trim;
                 }
 
@@ -76,8 +76,8 @@ namespace lockstep
                 {
                     lowZ_[1] += alpha * (dR[n] - lowZ_[1]);
                     const float hp = dR[n] - lowZ_[1];
-                    const float lg = juce::Decibels::decibelsToGain( tilt * 6.0f);
-                    const float hg = juce::Decibels::decibelsToGain(-tilt * 6.0f);
+                    const float lg = juce::Decibels::decibelsToGain(-tilt * 6.0f);
+                    const float hg = juce::Decibels::decibelsToGain( tilt * 6.0f);
                     dR[n] = (lowZ_[1] * lg + hp * hg) * trim;
                 }
 
