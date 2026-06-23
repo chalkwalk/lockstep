@@ -20,6 +20,7 @@
 #include "../src/machine/SlicerMachine.h"
 #include "../src/machine/MidiOutMachine.h"
 #include "../src/machine/SamplePool.h"
+#include "../src/ui/ParamFormat.h"
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -460,15 +461,31 @@ namespace lockstep
 
     // -------------------------------------------------------------------------
 
+    // formatParamValue: zeroLabel renders at the floor, numeric above it.
+    static void testZeroLabelFormatting()
+    {
+        ParamSpec p;
+        p.minValue = 0.0f; p.maxValue = 30.0f; p.unit = ParamSpec::Unit::Ms;
+        p.zeroLabel = "Auto";
+        CHECK(formatParamValue(0.0f, p) == "Auto", "value at floor -> Auto");
+        CHECK(formatParamValue(5.0f, p) == "5.0 ms", "value above floor -> numeric ms");
+
+        // Without zeroLabel, the floor is numeric (no behaviour change for others).
+        ParamSpec q;
+        q.minValue = 0.0f; q.maxValue = 30.0f; q.unit = ParamSpec::Unit::Ms;
+        CHECK(formatParamValue(0.0f, q) == "0.0 ms", "no zeroLabel -> numeric floor");
+    }
+
     void runParamSpecTests()
     {
         testVAMachineParams();
         testFMMachineParams();
         testDrumSynthMachineParams();
         testSamplerMachineParams();
-        testSlicerMachineParams();
         testMidiOutMachineParams();
+        testSlicerMachineParams();
         testContextLabels();
+        testZeroLabelFormatting();
     }
 
 } // namespace lockstep

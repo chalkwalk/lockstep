@@ -23,6 +23,11 @@ namespace lockstep
         if (spec.isStepped)
             return juce::String(static_cast<int>(std::round(v)));
 
+        // Floor label (e.g. "Auto"): the value stays the canonical float; this only
+        // names the bottom of the range. Matches the DSP's `<= 0` auto test.
+        if (spec.zeroLabel != nullptr && v <= spec.minValue)
+            return juce::String(spec.zeroLabel);
+
         switch (spec.unit)
         {
             case ParamSpec::Unit::Ms:

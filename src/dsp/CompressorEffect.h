@@ -115,14 +115,14 @@ namespace lockstep
                     p.label = "Atk";
                     // Continuous ms; 0 = Auto.
                     p.minValue = 0.0f; p.maxValue = 100.0f; p.defaultValue = 5.0f;
-                    p.skew = 0.3f; p.unit = ParamSpec::Unit::Ms;
+                    p.skew = 0.3f; p.unit = ParamSpec::Unit::Ms; p.zeroLabel = "Auto";
                     break;
                 case 3:
                     p.id = "lockstep.comp.release";
                     p.label = "Rel";
                     // Continuous ms; 0 = Auto (program-dependent release).
                     p.minValue = 0.0f; p.maxValue = 1000.0f; p.defaultValue = 120.0f;
-                    p.skew = 0.3f; p.unit = ParamSpec::Unit::Ms;
+                    p.skew = 0.3f; p.unit = ParamSpec::Unit::Ms; p.zeroLabel = "Auto";
                     break;
                 default:
                     p.id = "lockstep.comp.makeup";

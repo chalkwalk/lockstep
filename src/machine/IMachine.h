@@ -98,6 +98,12 @@ namespace lockstep
         // Use a function pointer so the struct stays POD-friendly for the future
         // Machine ABI (§36) — the hook's identity is baked into the function itself.
         juce::String (*contextLabel)(const ParamFrame&) = nullptr;
+
+        // Optional label rendered (by formatParamValue) when the value is at the
+        // floor (<= minValue, i.e. ~0 for a 0-based range). Presentation only — the
+        // stored/processed value stays the canonical float; this just names the
+        // floor (e.g. "Auto" for a 0=auto attack/release). nullptr = numeric.
+        const char* zeroLabel = nullptr;
     };
 
     // Returned by LockstepProcessor::section() after augmenting the machine's

@@ -160,14 +160,14 @@ namespace lockstep
                     p.label = "Atk";
                     // Continuous ms; 0 = Auto. skew biases resolution to short times.
                     p.minValue = 0.0f; p.maxValue = 30.0f; p.defaultValue = 5.0f;
-                    p.skew = 0.4f; p.unit = ParamSpec::Unit::Ms;
+                    p.skew = 0.4f; p.unit = ParamSpec::Unit::Ms; p.zeroLabel = "Auto";
                     break;
                 case 3:
                     p.id = "lockstep.buscomp.release";
                     p.label = "Rel";
                     // Continuous ms; 0 = Auto (program-dependent release).
                     p.minValue = 0.0f; p.maxValue = 1200.0f; p.defaultValue = 250.0f;
-                    p.skew = 0.4f; p.unit = ParamSpec::Unit::Ms;
+                    p.skew = 0.4f; p.unit = ParamSpec::Unit::Ms; p.zeroLabel = "Auto";
                     break;
                 case 4:
                     p.id = "lockstep.buscomp.schpf";
