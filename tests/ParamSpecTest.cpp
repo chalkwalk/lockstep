@@ -468,7 +468,9 @@ namespace lockstep
         p.minValue = 0.0f; p.maxValue = 30.0f; p.unit = ParamSpec::Unit::Ms;
         p.zeroLabel = "Auto";
         CHECK(formatParamValue(0.0f, p) == "Auto", "value at floor -> Auto");
+        CHECK(formatParamValue(0.0005f, p) == "Auto", "near-zero (float dust) -> Auto");
         CHECK(formatParamValue(5.0f, p) == "5.0 ms", "value above floor -> numeric ms");
+        CHECK(formatParamValue(0.5f, p) == "0.5 ms", "0.5 ms is a real value, not Auto");
 
         // Without zeroLabel, the floor is numeric (no behaviour change for others).
         ParamSpec q;

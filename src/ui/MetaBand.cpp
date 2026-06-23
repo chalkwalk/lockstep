@@ -1,5 +1,6 @@
 #include "MetaBand.h"
 #include "UITheme.h"
+#include "ParamFormat.h"
 #include "../PluginProcessor.h"
 #include "../ParameterIDs.h"
 #include "../core/AccentVel.h"
@@ -438,7 +439,9 @@ namespace lockstep
             v.stepped = spec.isStepped;
             v.writable = true;
             v.hasOverride = false;
-            v.valueText = juce::String(val, 2);
+            // Route through the value-text SSOT so units, enum labels and zeroLabel
+            // ("Auto") render here exactly as they do for machine params.
+            v.valueText = formatParamValue(val, spec);
             v.ringMode = RingMode::UnipolarFill;
         }
         return result;

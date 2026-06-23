@@ -24,8 +24,10 @@ namespace lockstep
             return juce::String(static_cast<int>(std::round(v)));
 
         // Floor label (e.g. "Auto"): the value stays the canonical float; this only
-        // names the bottom of the range. Matches the DSP's `<= 0` auto test.
-        if (spec.zeroLabel != nullptr && v <= spec.minValue)
+        // names the bottom of the range. Use a small epsilon so a value resting at
+        // (or a hair above) the floor still reads as the label; the DSP uses the same
+        // kAutoEps threshold so display and behaviour agree.
+        if (spec.zeroLabel != nullptr && v <= spec.minValue + 1.0e-3f)
             return juce::String(spec.zeroLabel);
 
         switch (spec.unit)

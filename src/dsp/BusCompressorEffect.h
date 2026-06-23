@@ -58,8 +58,10 @@ namespace lockstep
                                         ? juce::jlimit(0.0f, 1.0f, params[6])
                                         : 1.0f;
 
-            const bool autoAtk = (attackMs  <= 0.0f);
-            const bool autoRel = (releaseMs <= 0.0f);
+            // 0 (the floor) selects Auto; small epsilon matches formatParamValue's
+            // zeroLabel threshold so the readout ("Auto") and behaviour agree.
+            const bool autoAtk = (attackMs  <= 1.0e-3f);
+            const bool autoRel = (releaseMs <= 1.0e-3f);
             auto coefMs = [&](double ms) {
                 return 1.0f - std::exp(-1.0f / static_cast<float>(0.001 * ms * sr_));
             };
