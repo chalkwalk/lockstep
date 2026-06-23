@@ -426,6 +426,9 @@ namespace lockstep
         int trackSliceCount(int track) const;
         void setTrackEqualSlices(int track, int count);
         void clearTrackSlices(int track);
+        // Blanks trig + condition + P-locks on every phrase slot for one track.
+        // The working sequence is re-projected from the model afterward.
+        void clearTrackAllPhrases(int track);
 
         // MG.5: Sound Pool live-swap — message thread only.
         // liveSwapTrackSound temporarily applies a pool entry's baseParams to the

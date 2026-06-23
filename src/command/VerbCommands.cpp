@@ -145,15 +145,19 @@ namespace lockstep::verbs
         }
         if (verb == CB::VerbClear)
         {
-            for (auto& s : trk.steps)
+            // Confirm gate — blast radius differs by whether Song is also held.
+            // State captured at arm time; action fires in executeConfirm even if
+            // the scope is released before the user presses CONFIRM.
+            if (ctx.uiState.songHeld)
             {
-                s.trig = false;
-                s.condition = TrigCondition{};
-                s.overrides = PLock{};
-                s.trigOverride = TrigOverride{};
+                ctx.uiState.confirm = { ConfirmKind::ClearTrackAll, at };
+                fx.status(status::confirmClearTrackAll(at));
             }
-            fx.status(status::clearedTrack(at));
-            fx.releaseLatch(CB::TrackScope);
+            else
+            {
+                ctx.uiState.confirm = { ConfirmKind::ClearTrack, at };
+                fx.status(status::confirmClearTrack(at));
+            }
             return true;
         }
         return false;
@@ -178,11 +182,18 @@ namespace lockstep::verbs
             fx.status(status::pastedPhrase());
             return true;
         }
-        if (verb == CB::VerbClear || verb == CB::VerbDelete)
+        if (verb == CB::VerbClear)
         {
-            if (verb == CB::VerbDelete)
-                ctx.arrangement.snapshot(CheckpointScope::Song, 0);
-
+            // Arm a confirm prompt; the actual clear runs in executeConfirm.
+            ctx.uiState.confirm = { ConfirmKind::ClearPhrase, -1 };
+            fx.status(status::confirmClearPhrase());
+            return true;
+        }
+        if (verb == CB::VerbDelete)
+        {
+            // VerbDelete reaches verbs::phrase() only as a fallback — normal flow
+            // routes Phrase+Delete through CommandCore::handleDown (DeletePicker).
+            ctx.arrangement.snapshot(CheckpointScope::Song, 0);
             for (auto& trk : ctx.sequence.tracks)
             {
                 for (auto& s : trk.steps)

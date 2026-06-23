@@ -29,6 +29,26 @@ namespace lockstep::status
         return "Cleared Track " + juce::String(track + 1);
     }
 
+    inline juce::String clearedTrackAll(int track)
+    {
+        return "Cleared Track " + juce::String(track + 1) + " (all phrases)";
+    }
+
+    inline juce::String confirmClearTrack(int track)
+    {
+        return "Clear track " + juce::String(track + 1) + " -- this phrase?  P=CONFIRM  Func+P=CANCEL";
+    }
+
+    inline juce::String confirmClearTrackAll(int track)
+    {
+        return "Clear track " + juce::String(track + 1) + " -- ALL phrases?  P=CONFIRM  Func+P=CANCEL";
+    }
+
+    inline juce::String confirmClearPhrase()
+    {
+        return "Clear this phrase?  P=CONFIRM  Func+P=CANCEL";
+    }
+
     inline juce::String deletedTrack(int track)
     {
         return "Deleted Track " + juce::String(track + 1);

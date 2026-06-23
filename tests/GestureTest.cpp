@@ -144,10 +144,13 @@ namespace lockstep
         CHECK(f.track(1).steps[4].condition.probabilityPercent == 60, "condition preserved");
     }
 
-    // Scenario 8: PS::Track / VerbClear clears steps
+    // Scenario 8: PS::Track / VerbClear arms confirm (does NOT clear immediately).
+    // The actual clear executes in PluginEditor::executeConfirm after the user
+    // presses CONFIRM (P).  Track+Song+Clear arms the all-phrases variant.
 
     static void scenario_trackClear()
     {
+        // Bare Track+Clear → confirm-tier arm (this phrase only).
         GestureFixture f;
         f.uiState.activeTrack = 2;
         f.track(2).steps[0].trig = true;
@@ -155,8 +158,21 @@ namespace lockstep
 
         const bool handled = f.verb(PS::Track, CB::VerbClear);
         CHECK(handled, "Track+Clear handled");
-        CHECK(!f.track(2).steps[0].trig, "step 0 cleared");
-        CHECK(!f.track(2).steps[1].trig, "step 1 cleared");
+        CHECK(f.uiState.confirm.pending(), "confirm armed");
+        CHECK(f.uiState.confirm.kind == ConfirmKind::ClearTrack, "kind = ClearTrack");
+        CHECK(f.uiState.confirm.target == 2, "target = active track");
+        CHECK(f.track(2).steps[0].trig, "steps NOT yet cleared (wait for confirm)");
+
+        // Track+Song+Clear → confirm-tier arm (all phrases).
+        GestureFixture f2;
+        f2.uiState.activeTrack = 3;
+        f2.uiState.songHeld = true;
+        f2.track(3).steps[0].trig = true;
+        const bool handled2 = f2.verb(PS::Track, CB::VerbClear);
+        CHECK(handled2, "Track+Song+Clear handled");
+        CHECK(f2.uiState.confirm.kind == ConfirmKind::ClearTrackAll, "kind = ClearTrackAll");
+        CHECK(f2.uiState.confirm.target == 3, "target = active track");
+        CHECK(f2.track(3).steps[0].trig, "steps NOT yet cleared (wait for confirm)");
     }
 
     // Scenario 9: PS::Phrase / VerbRecord and VerbPlay round-trip

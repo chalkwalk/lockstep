@@ -3602,6 +3602,26 @@ namespace lockstep
         if (s != nullptr) s->clearSlices();
     }
 
+    void LockstepProcessor::clearTrackAllPhrases(int track)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        auto& st = song().tracks[static_cast<std::size_t>(track)];
+        for (auto& phrase : st.phrases)
+        {
+            for (auto& s : phrase.steps)
+            {
+                s.trig = false;
+                s.condition = TrigCondition{};
+                s.overrides = PLock{};
+                s.trigOverride = TrigOverride{};
+                s.fillTrigState = FillTrigState::Inherit;
+                s.fillOverrides = PLock{};
+                s.fillTrigOverride = TrigOverride{};
+            }
+        }
+        refreshWorkingFromModel();
+    }
+
     void LockstepProcessor::recomputeSlicesIfNeeded(int track,
                                                     int slot,
                                                     const ParamFrame& baseParams)

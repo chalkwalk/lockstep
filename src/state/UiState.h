@@ -37,6 +37,9 @@ namespace lockstep
         CreateScene,          // target = dest phrase slot
         CreateBaselineScene,  // target = dest phrase slot
         PasteScene,           // target = dest phrase slot
+        ClearTrack,           // target = track index — blanks steps in current phrase only
+        ClearTrackAll,        // target = track index — blanks steps in every phrase
+        ClearPhrase,          // target = -1 — blanks all tracks in current phrase
     };
 
     struct ConfirmState

@@ -315,6 +315,52 @@ namespace lockstep
                     ed.setStatus(status::deletedPart());
                 }
             }
+            else if (kind == ConfirmKind::ClearTrack)
+            {
+                if (target >= 0 && target < static_cast<int>(kNumTracks))
+                {
+                    ed.processor_.snapshot(CheckpointScope::Track, target);
+                    auto& trk = ed.processor_.sequence().tracks[static_cast<std::size_t>(target)];
+                    for (auto& s : trk.steps)
+                    {
+                        s.trig = false;
+                        s.condition = TrigCondition{};
+                        s.overrides = PLock{};
+                        s.trigOverride = TrigOverride{};
+                    }
+                    ed.releaseTransientLatch(ControllerButton::TrackScope);
+                    ed.setStatus(status::clearedTrack(target));
+                }
+            }
+            else if (kind == ConfirmKind::ClearTrackAll)
+            {
+                if (target >= 0 && target < static_cast<int>(kNumTracks))
+                {
+                    ed.processor_.snapshot(CheckpointScope::Song, target);
+                    ed.processor_.clearTrackAllPhrases(target);
+                    ed.releaseTransientLatch(ControllerButton::TrackScope);
+                    ed.setStatus(status::clearedTrackAll(target));
+                }
+            }
+            else if (kind == ConfirmKind::ClearPhrase)
+            {
+                int ckTrk = 0;
+                ed.processor_.snapshot(ed.ckScope(ckTrk), ckTrk);
+                for (auto& trk : ed.processor_.sequence().tracks)
+                {
+                    for (auto& s : trk.steps)
+                    {
+                        s.trig = false;
+                        s.condition = TrigCondition{};
+                        s.overrides = PLock{};
+                        s.trigOverride = TrigOverride{};
+                        s.fillTrigState = FillTrigState::Inherit;
+                        s.fillOverrides = PLock{};
+                        s.fillTrigOverride = TrigOverride{};
+                    }
+                }
+                ed.setStatus(status::clearedPhrase());
+            }
             ed.refreshSurface();
         }
     };
