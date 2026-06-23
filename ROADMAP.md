@@ -1904,6 +1904,47 @@ caused several recent bugs) and make silent `switch` fall-through a compile erro
   is a shim. `activeOverlay()` returns `ui.overlay`; `escapeOverlay()` guards each
   arm. *(Stage 6 — 5259b6a)*
 
+### 9.14 — Grammar-consistency pass: Clear/Delete, FX picker, per-step inspector, move-step  *[active]*
+
+One coherent **orchestra paradigm** (PRINCIPLES §21) makes destructive verbs
+predictable, puts the FX picker under its section, brings per-step note/P-Lock
+surgery to the surface, and adds a move-step primitive — all inside the
+existing scope+verb grammar. Organizing principle: **hold = reveal & edit;
+tap = navigate/toggle** (PRINCIPLES §5). Docs-first.
+
+- [x] **Stage 0 — Docs.** PRINCIPLES §21 (orchestra paradigm; Clear blanks /
+      Delete removes; actor = scope, stage = current phrase; `+Song` widens via
+      a legal cross-column compound — *no exception needed*; confirmation
+      scales by blast radius). §5 revised: section *tap* = params, section
+      *hold* = picker (grid re-skin, §17 long-press); held step reveals its
+      inspector. DESIGN §13.2 (Clear/Delete table + `Track+Song` all-phrases +
+      confirm tiers), §13.8 (held-step inspector), §19.1 (move-step +
+      Step-Position panel), §32.2/§32.3 (hold-FX picker; `Func+FX` freed).
+- [ ] **Stage 1 — Clear/Delete consistency + confirm + preview.** Immediate vs
+      confirm tiers (immediate auto-snapshots; confirm via `PendingConfirm`).
+      `Track+Song+Clear` all-phrases (`kModTrack|kModSong` row +
+      `clearTrackAllPhrases`). Armed-preview banner names target + reach.
+- [ ] **Stage 2 — Hold = picker.** `Gesture::Hold` on Section idx5 →
+      `OpenTrackFxPicker`; tap → params; `Song`+hold-FX → master picker;
+      retire `Func+FX` row.
+- [ ] **Stage 3 — Held-step inspector.** `StepInspector` layer; MZ lock badges
+      + tap-to-clear (absorbs `Func+step` PLockClear); tap SRC → note editor
+      (absorbs `Func+Src+step`).
+- [ ] **Stage 4 — Move-step + Step-Position panel.** `swapSteps` (full Step
+      travels); hold step + `←/→` bubble-swap; hold step + `Func+←/→`
+      microOffset; MZ flips to position panel (encoders = move + micro-time);
+      `QUANT` zeroes offset.
+- [ ] **Stage 5 — Copy/paste discoverability.** Armed banners/preview for
+      Record/Play; no clipboard-model change.
+- [ ] **Stage 6 — Tests + README.** Confirm-tier resolution; `Track+Song+Clear`
+      round-trip; move-step carries overrides round-trip; inspector lock-clear
+      + note edit; hold-FX picker entry. README shortcut table; remove retired
+      `Func+Src+step` / `Func+FX`.
+
+> **Retired/relocated gestures (this item):** `Func+Src+step` (note edit) →
+> hold-step inspector + SRC; `Func+step` (P-Lock clear mode) → inspector tap-to-clear;
+> `Func+FX` / `Func+Song+FX` (effect pickers) → hold-FX / `Song`+hold-FX.
+
 ---
 
 ## Appendix — Legacy code → new id

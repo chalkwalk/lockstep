@@ -190,10 +190,14 @@ keyboard cannot stand in for.
 
 When a workflow reaches a "pick one of N" decision — machine type, P-lock
 target slot, track, pattern, part — the answer is a **step-key press**,
-not a floating menu or a mouse click. Section keys navigate the
-Manipulation Zone to a parameter page; they never launch a picker. Any
-feature that requires a popup widget or mouse interaction as its primary
-mechanism has the wrong design and must be re-expressed as a
+not a floating menu or a mouse click. **Tapping** a section key navigates
+the Manipulation Zone to a parameter page; a section *tap* never launches a
+picker. Where a section genuinely owns a "pick one of N" choice — FX (which
+insert slot, which effect) is the canonical case — **holding** that section
+key reveals the picker, and the picker is itself a **step-grid re-skin**, not
+a popup: the long-press affordance sanctioned by §17, still obeying "the grid
+is the menu." Any feature that requires a popup widget or mouse interaction as
+its primary mechanism has the wrong design and must be re-expressed as a
 scope-change that re-skins the step grid.
 
 **The modifier hold is the mode.** There are no sticky modes. Two
@@ -205,7 +209,11 @@ patterns:
 - *Step-driven edit* (e.g. P-lock slot edit, step note edit): hold
   non-step modifier(s) + press the target step → step cells re-skin to
   show editable items → interact with step keys → release the
-  modifier(s) → mode exits automatically.
+  modifier(s) → mode exits automatically. **Holding a step on its own**
+  reveals that step's **inspector** — its notes, its P-Locks (each editable
+  and clearable in place), and its position/micro-timing — the visible face
+  of the edit context the hold already enters. The reveal lasts exactly as
+  long as the hold.
 
 In both patterns "what you hold determines what mode you're in." Nothing
 is ever left armed after you let go. (Latch — DESIGN §13.7 — is the one
@@ -721,6 +729,58 @@ that are exhaustive over a closed enum deliberately omit `default:` so `-Wswitch
 turns a new unhandled enum value into a compile error (`layerBanner`,
 `Arrangement`'s `CheckpointScope`, `setModifierLatch`, `groupForCell`). Adding a
 `default:` to those would *defeat* that check, so leave them as they are.
+
+## 21. Clear blanks, Delete removes — the actor is the scope, the stage is the phrase
+
+Lockstep names destructive actions by an **orchestra metaphor**, and the
+metaphor is load-bearing, not decorative: a **phrase** is the sheet music on
+the stand, a **track** is the musician, a **machine** is their instrument, and
+a track's **FX** are that musician's own signal chain. A **scene** is the
+setup for one part of the show; the **song** is the whole piece (every sheet).
+
+Two destructive verbs, one meaning each, on every scope:
+
+- **Clear** = *blank what it is doing; it stays present.* Clearing a track
+  empties the musician's part, but the musician, their instrument, and their
+  pedals remain.
+- **Delete** = *remove the entity and its belongings entirely.* Deleting a
+  track is the musician leaving — track, machine, and FX go with them.
+
+**The actor is the scope; the stage is the current phrase.** A bare destructive
+verb acts at the *finest* live context: `Track + Clear` empties the musician's
+part **on the current sheet** (this phrase), not everywhere — consistent with
+*More specific scope wins* (§13). This is not a missing feature; it is the
+safe, predictable default, and it is why "clear a track" clears this phrase's
+steps rather than silently reaching across the whole song.
+
+**Widening is explicit and legal, never implicit.** To act across every sheet,
+add the wider scope: `Track + Song + Clear` clears that track in **all**
+phrases. This is an ordinary **cross-column compound** (§2) at rung 5 (§15) —
+Track (column 1) + Song (column 3) needs no exception — and the rung-5 cost is
+earned by the wider blast radius (cost tracks stakes, §15). The rule
+generalises: *adding a higher scope to a destructive verb widens its blast
+radius, and the surface always says how far.*
+
+**Confirmation scales by blast radius.** §16 requires select-then-confirm for
+persistent slots; this grades the rest:
+
+- *Immediate* (no prompt, but auto-snapshots a checkpoint so `Func+Y` Restore
+  is the undo): a single step, a single P-Lock or note, a `Section + Clear` on
+  one track in the current phrase.
+- *Confirm* (a sticky prompt naming the target, §16): any `Track` / `Phrase` /
+  `Scene` clear, anything widened with `+Song`, and **every Delete**.
+
+The armed gesture announces its exact target and reach **before** it commits
+(§10, §16) — "CLEAR track 3 · this phrase" vs "CLEAR track 3 · ALL phrases" vs
+"DELETE track 3 + machine + FX" — so the performer is never surprised by how
+far a clear reached.
+
+**Consequence.** Clear and Delete are no longer guessed. The verb says *blank
+vs remove*; the scope says *which actor*; the presence of a wider scope says
+*how far*; and the chrome says all three back before the commit. The
+fine-grained reveal-and-edit cases (one P-Lock, one note, one step's position)
+live in the held-step inspector (§5 — "the hold is the mode"); this principle
+governs what the destructive verbs *mean* once fired.
 
 ---
 

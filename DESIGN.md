@@ -1998,12 +1998,32 @@ The role-fallback half is what makes Control-All useful across
 heterogeneous machines (Sampler + FM synth + MIDI-out): only the
 `role`-tagged slots participate. A machine author opts in by tagging.
 
-### 13.2 Copy / Paste / Clear
+### 13.2 Copy / Paste / Clear / Delete
 
 A single uniform grammar: **hold scope, press verb**. **Copy is always a
 deep clone** — all content is duplicated independently. There is no
 shallow (structure-only) copy path; machine-only track copies are
 done via the Kit picker (`Func+Track`) instead.
+
+**Clear vs Delete (the orchestra paradigm, PRINCIPLES §21).** A **phrase** is
+the sheet music, a **track** is the musician, its **machine** the instrument,
+its **FX** the musician's own signal chain. **Clear** *blanks what a thing is
+doing while it stays present*; **Delete** *removes the entity and its
+belongings*. A bare destructive verb acts at the **finest live context** — so
+`Track + Clear` empties the musician's part **on the current phrase only**
+(the actor is the scope; the stage is the current phrase). Widening is explicit:
+**`Track + Song + Clear`** clears that track across **all** phrases — an
+ordinary cross-column compound (rung 5), earned by the wider reach.
+
+**Confirmation scales by blast radius.** Single-step / single-lock / single-note
+clears and `Section + Clear` (one track, current phrase) commit **immediately**
+but auto-push a checkpoint (so `Func + Y` Restore is the undo). `Track` /
+`Phrase` / `Scene` clears, anything widened with `+ Song`, and **every Delete**
+arm a **sticky confirm prompt** that names the target and its reach
+(§16) — "CLEAR track 3 · this phrase" / "CLEAR track 3 · ALL phrases" /
+"DELETE track 3 + machine + FX" — before committing. **Delete** (`scope +
+Func + Clear`) routes through the deletion picker (§16); it removes the slot
+*and its belongings* (a track deletes with its machine + FX).
 
 | Gesture | Effect |
 |---|---|
@@ -2013,16 +2033,17 @@ done via the Kit picker (`Func+Track`) instead.
 | `Trig` + `Func + Clear` | Clear **all** P-Locks on the held step(s), leaving the trig itself intact. The `Func` qualifier narrows `Clear`'s scope from "clear the step" to "clear locks only". |
 | `Trig` + `(MZ slot)` + Clear | Clear **only that slot's** P-Lock on the held step. Targeted by the held slot (the same slot the MZ would write). |
 | `Trig` + `(section key)` + Clear | **Domain-scoped clear** on the held step(s): wipe every override owned by the held section, leaving other sections, the trig, and the condition intact. **SRC** owns the note payload, so `Trig + SRC + Clear` clears the **note / velocity / gate** overrides (and keeps P-Locks). Same "hold the thing, press Clear" idiom as the MZ-slot row, one level coarser. (This is the home of "clear notes" — it replaced the old `Func + P` overload, which is now purely Cancel everywhere.) |
-| `Func` + step (P-Lock clear mode) | Hold Func then press a step → step cells re-skin orange: bright for P-locked slots, dim for empty. Press any step cell to clear that slot's P-Lock on the target step. Release Func to exit. Slots 0-15 are shown; each cell maps to one machine slot by index. |
+| hold step (held-step inspector) | Holding a step reveals its **inspector** (§13.8): its P-Locks show as bright (locked) / dim (empty) cells — tap a locked cell to clear that slot's P-Lock; the MZ shows the section's params with lock badges (twist still writes a lock). This is the discoverable home of single-lock surgery; it absorbs the former `Func + step` P-Lock-clear mode. |
 | `Section` key + Record | Copy all of that section's params (base + P-Locks across all steps). |
 | `Section` key + Play | Paste section onto current track. |
-| `Section` key + Clear | Reset section to default (clears that section's P-Locks across the track). **SRC** additionally clears the note / velocity / gate overrides track-wide — the whole-track mirror of `Trig + SRC + Clear`. |
+| `Section` key + Clear | Reset section to default (clears that section's P-Locks across the track). **SRC** additionally clears the note / velocity / gate overrides track-wide — the whole-track mirror of `Trig + SRC + Clear`. *Immediate tier* (auto-snapshots). |
 | `Track` (specific track) + Record | Copy the whole track within the Song. |
 | `Track` + Play | Paste track. |
-| `Track` + Clear | Clear track. |
+| `Track` + Clear | Clear the track's part **on the current phrase only** (steps, conditions, overrides). Machine / FX / length stay. *Confirm tier* — names "track N · this phrase". |
+| `Track` + `Song` + Clear | Clear the track across **all** phrases in the song. *Confirm tier* — names "track N · ALL phrases". |
 | `Phrase` + Record | Copy the focused track's phrase. |
 | `Phrase` + Play | Paste phrase. |
-| `Phrase` + Clear | Clear phrase (back to empty). |
+| `Phrase` + Clear | Clear phrase (all tracks' steps in it) back to empty. *Confirm tier.* |
 | `Func` + `Scene` + Record | Copy the active Scene to the typed clipboard. The grab is the full **effective** layout (floor + live deviations as content), losslessly. **No move** (cf. the create-and-move `Scene + step`). Baked-vs-floor is chosen at *paste* (§23.3). Type tag = `Scene`; badge = `CPY:SCN`. |
 | `Func` + `Scene` + Play | Paste the Scene clipboard onto the active Scene — lays down the **baked** layout. Conflict-gated (§23.3). |
 | `Mute` + `Func` + `Scene` + Play | Paste **floor only** (deviations stripped). `Mute` = the "floor-only / strip the overlay" qualifier; distinct from verbless scene-mute by the `Play` verb (§23.3). |
@@ -2361,6 +2382,35 @@ principle, not a silent exception here.
 | Double-tap a latched step | Remove that operand |
 | Double-tap `Func` | Universal escape — clear all latches |
 | Double-press a verb | Amplified action (e.g. Play = stop + reset) |
+
+### 13.8 Held-step inspector (planned, 9.x)
+
+Holding a step on its own reveals that step's **inspector** — the visible face
+of the edit context the hold already enters (PRINCIPLES §5, §21). It is the
+single discoverable home for per-step surgery that today is buried behind
+deep modal chords (the old `Func + Src + step` note edit and `Func + step`
+P-Lock-clear mode are **absorbed** into it). The reveal lasts exactly as long
+as the hold.
+
+While a step is held:
+
+- **MZ = the step's params, with lock state.** The Manipulation Zone shows the
+  current section's params as usual, but each slot carries a **lock badge** for
+  this step. Twisting a slot still *writes* a P-Lock (the cheap-creation path is
+  preserved); a held-step inspector adds the *read* and the *delete* that were
+  missing.
+- **Step grid = lock overview / clear.** The step grid re-skins to show the
+  step's P-locked slots (bright = locked, dim = empty); **tap a locked cell to
+  clear that one lock** — single-lock surgery in 2–3 gestures, replacing the
+  old 4-gesture `Func + step` mode.
+- **Tap SRC → chromatic note editor** for the held step (the former
+  `Func + Src + step` surface), edits landing on that step.
+- **Move / micro-time → the Step-Position panel.** Pressing `←/→` (move) or
+  `Func + ←/→` (micro-time) flips the MZ to a **Step-Position panel** and acts
+  on the step; see §19.1.
+
+Everything an inspector edits is per-step override data resolved by
+Override-ELSE-Base (§7); nothing here is a new resolution layer.
 
 ## 14. Signal Path and Post-Machine FILTER / CHANNEL / ENVELOPE
 
@@ -2796,6 +2846,24 @@ step with the residual delta stored as the offset. It is also
 P-lockable per step via the usual EditContext gestures (held step +
 encoder turn on the appropriate slot — the TRIG meta section gains
 a `MicroTime` column when extended).
+
+**Move-step and the Step-Position panel (planned, 9.x).** While a step is held
+(the inspector, §13.8), two key gestures act on it, and both flip the MZ to a
+**Step-Position panel** that *follows the moved step*:
+
+- **hold step + `←/→`** = **move** by a sticky bubble-swap: the held step swaps
+  content with its neighbour and **keeps focus**, so a repeat swaps it onward —
+  sequential swaps that read as a move/insert. The whole `Step` travels
+  (notes, P-Locks, condition, `microOffset`).
+- **hold step + `Func + ←/→`** = nudge the step's `microOffset` (the same field
+  above). (`Func + ←/→` with **no** step held keeps its existing whole-track
+  rotate role; `Func + ↑/↓` stays length ×2/÷2.)
+
+Once flipped, the Step-Position panel's encoders do both jobs continuously —
+encoder 0 = position (drives the swaps), encoder 1 = `microOffset` — and
+**`QUANT`** (`Scope + P`, §19.3) remains the reset that zeroes the offset. The
+panel is the §13.8 inspector's move/timing face; it does not introduce a new
+data model — both axes are existing `Step` fields.
 
 ### 19.2 Swing (Song / Scene / per-track, additive)
 
@@ -3884,11 +3952,16 @@ Two **insert** slots per track, **fixed**, positioned **post-AMP**:
 one `IEffect`. Insert state — effect identity, base params, and the
 per-step P-Locks (which live with the Phrase) — belongs to the
 **Kit** (per-track), consistent with where FILTER/AMP state lives
-(§4.7). The FX section paginates across the two slots' pages via the
-canonical extension-section mechanism (repeated key-8 press cycles
-slot-1 pages, then slot-2 pages). Assigning an effect to a slot from
-the catalogue is a load gesture analogous to assigning a machine
-(exact gesture TBD at the FX milestone).
+(§4.7).
+
+**Tap navigates params; hold opens the picker (planned, 9.x).** *Tapping* the
+FX section key paginates across the two slots' pages via the canonical
+extension-section mechanism (repeated tap cycles slot-1 pages, then slot-2
+pages) — a tap never pops a menu. **Holding** the FX section key opens the
+**track-FX picker** as a step-grid re-skin (choose insert slot + effect), the
+long-press affordance sanctioned by PRINCIPLES §5/§17. This replaces the
+former scope-less `Func + FX` picker (which is freed). Assigning an effect is
+then a step-key press in the picker, analogous to the Kit machine picker.
 
 A **FX-section copy** (FX scope + Record) copies effect *identity*
 plus params, so "copy the whole effect chain to another track" works;
@@ -3936,19 +4009,17 @@ are always patchable via P-Lock or Morph. When both sends are zero the send
 buses are not processed. The AMP section key (key 8) cycles pages to expose
 all four CHANNEL params (level, pan, sendA, sendB).
 
-**Song+FX focus cycles loaded units:** `Song+FX` re-press walks master
+**Song+FX focus cycles loaded units:** `Song+FX` *tap*-re-press walks master
 FX1 → FX2 → Send A return → Send B return, skipping empty units; the FX
 section key shows `"FX"` (not "GLBL") under Song scope — the Song modifier
 already disambiguates it as the master copy. A dim **"PICK FX"** secondary
-hint appears on the FX key in both track and Song scope; `Func` promotes it
-to the primary label. `Func+Song+FX` opens the effect picker for the focused
+hint (the hold affordance, §32.2) appears on the FX key in both track and Song
+scope. **`Song` + hold FX** opens the master effect picker for the focused
 unit (cycles all four slots so you can load into empties; re-pick the active
 effect to toggle bypass; other units' loaded effects show a dim cross-slot
-hint). The picker shows the full catalogue (including masterOnly effects) for
-master slots, and hides masterOnly effects for track slots. A scoped section
-cell that carries a `funcLabel` field has `Func` promote it to primary — this
-is the grammar extension enabling Song+Func+FX → "PICK FX" under any scope
-that wires a `funcLabel`.
+hint), replacing the former `Func+Song+FX`. The picker shows the full
+catalogue (including masterOnly effects) for master slots, and hides
+masterOnly effects for track slots.
 
 **Smoothing policy (§32.1 addendum):** Machines read params block-rate
 (acceptable for ≤512-sample blocks). Effects must per-sample-smooth any param
