@@ -37,9 +37,10 @@ namespace lockstep
             const float threshDb  = params.size() > 0
                                         ? juce::jlimit(-36.0f, 0.0f, params[0])
                                         : -18.0f;
-            const int ratioIdx    = params.size() > 1
-                                        ? juce::jlimit(0, 3, static_cast<int>(params[1]))
-                                        : 1;
+            // Ratio: continuous (log-scaled in the UI via paramSpec.skew).
+            const float ratio     = params.size() > 1
+                                        ? juce::jlimit(1.0f, 20.0f, params[1])
+                                        : 2.0f;
             const float attackMs  = params.size() > 2
                                         ? juce::jlimit(0.1f, 30.0f, params[2])
                                         : 5.0f;
@@ -56,10 +57,8 @@ namespace lockstep
                                         ? juce::jlimit(0.0f, 1.0f, params[6])
                                         : 1.0f;
 
-            static constexpr float kRatios[]   = { 1.5f, 2.0f, 4.0f, 10.0f };
             static constexpr float kRelease[]  = { 0.1f, 0.3f, 0.6f, -1.0f }; // -1=auto
 
-            const float ratio   = kRatios[static_cast<std::size_t>(ratioIdx)];
             const float relMs   = kRelease[static_cast<std::size_t>(releaseIdx)];
             const bool autoRel  = (relMs < 0.0f);
 
@@ -140,7 +139,6 @@ namespace lockstep
 
         [[nodiscard]] ParamSpec paramSpec(int index) const override
         {
-            static const char* const kRatioLabels[]   = { "1.5:1", "2:1", "4:1", "10:1" };
             static const char* const kReleaseLabels[] = { "0.1s", "0.3s", "0.6s", "Auto" };
             ParamSpec p;
             p.sectionIndex = kFxSec;
@@ -154,8 +152,9 @@ namespace lockstep
                 case 1:
                     p.id = "lockstep.buscomp.ratio";
                     p.label = "Ratio";
-                    p.maxValue = 3.0f; p.defaultValue = 1.0f; p.isStepped = true;
-                    p.valueLabels = { kRatioLabels, 4 };
+                    // Continuous, log-scaled: fine resolution near 1:1, coarser up high.
+                    p.minValue = 1.0f; p.maxValue = 20.0f; p.defaultValue = 2.0f;
+                    p.skew = 0.3f;
                     break;
                 case 2:
                     p.id = "lockstep.buscomp.attack";

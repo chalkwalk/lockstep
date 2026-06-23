@@ -33,9 +33,10 @@ namespace lockstep
             const float threshDb  = params.size() > 0
                                         ? juce::jlimit(-48.0f, 0.0f, params[0])
                                         : -18.0f;
-            const int ratioIdx    = params.size() > 1
-                                        ? juce::jlimit(0, 3, static_cast<int>(params[1]))
-                                        : 1;
+            // Ratio: continuous (log-scaled in the UI via paramSpec.skew).
+            const float ratio     = params.size() > 1
+                                        ? juce::jlimit(1.0f, 20.0f, params[1])
+                                        : 4.0f;
             const float attackMs  = params.size() > 2
                                         ? juce::jlimit(0.1f, 100.0f, params[2])
                                         : 5.0f;
@@ -46,8 +47,6 @@ namespace lockstep
                                         ? juce::jlimit(0.0f, 24.0f, params[4])
                                         : 0.0f;
 
-            static constexpr float kRatios[] = { 2.0f, 4.0f, 8.0f, 20.0f };
-            const float ratio       = kRatios[static_cast<std::size_t>(ratioIdx)];
             const float threshLin   = juce::Decibels::decibelsToGain(threshDb);
             const float makeupLin   = juce::Decibels::decibelsToGain(makeupDb);
             const float attCoef     = 1.0f - std::exp(
@@ -86,7 +85,6 @@ namespace lockstep
 
         [[nodiscard]] ParamSpec paramSpec(int index) const override
         {
-            static const char* const kRatioLabels[] = { "2:1", "4:1", "8:1", "20:1" };
             ParamSpec p;
             p.sectionIndex = kFxSec;
             switch (index)
@@ -99,8 +97,9 @@ namespace lockstep
                 case 1:
                     p.id = "lockstep.comp.ratio";
                     p.label = "Ratio";
-                    p.maxValue = 3.0f; p.defaultValue = 1.0f; p.isStepped = true;
-                    p.valueLabels = { kRatioLabels, 4 };
+                    // Continuous, log-scaled: fine resolution near 1:1, coarser up high.
+                    p.minValue = 1.0f; p.maxValue = 20.0f; p.defaultValue = 4.0f;
+                    p.skew = 0.3f;
                     break;
                 case 2:
                     p.id = "lockstep.comp.attack";
