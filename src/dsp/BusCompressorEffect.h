@@ -41,12 +41,13 @@ namespace lockstep
             const float ratio     = params.size() > 1
                                         ? juce::jlimit(1.0f, 20.0f, params[1])
                                         : 2.0f;
+            // Attack/release are continuous times in ms; 0 = Auto (program-dependent).
             const float attackMs  = params.size() > 2
-                                        ? juce::jlimit(0.1f, 30.0f, params[2])
+                                        ? juce::jlimit(0.0f, 30.0f, params[2])
                                         : 5.0f;
-            const int releaseIdx  = params.size() > 3
-                                        ? juce::jlimit(0, 3, static_cast<int>(params[3]))
-                                        : 2;
+            const float releaseMs = params.size() > 3
+                                        ? juce::jlimit(0.0f, 1200.0f, params[3])
+                                        : 250.0f;
             const float schpfHz   = params.size() > 4
                                         ? juce::jlimit(20.0f, 300.0f, params[4])
                                         : 60.0f;
@@ -57,19 +58,18 @@ namespace lockstep
                                         ? juce::jlimit(0.0f, 1.0f, params[6])
                                         : 1.0f;
 
-            static constexpr float kRelease[]  = { 0.1f, 0.3f, 0.6f, -1.0f }; // -1=auto
-
-            const float relMs   = kRelease[static_cast<std::size_t>(releaseIdx)];
-            const bool autoRel  = (relMs < 0.0f);
+            const bool autoAtk = (attackMs  <= 0.0f);
+            const bool autoRel = (releaseMs <= 0.0f);
+            auto coefMs = [&](double ms) {
+                return 1.0f - std::exp(-1.0f / static_cast<float>(0.001 * ms * sr_));
+            };
 
             const float threshLin   = juce::Decibels::decibelsToGain(threshDb);
             const float makeupLin   = juce::Decibels::decibelsToGain(makeupDb);
-            const float attCoef     = 1.0f - std::exp(
-                -1.0f / static_cast<float>(0.001 * attackMs * sr_));
-            const float relCoefBase = autoRel
-                ? 1.0f - std::exp(-1.0f / static_cast<float>(0.001 * 600.0 * sr_))
-                : 1.0f - std::exp(-1.0f / static_cast<float>(0.001 * relMs * sr_));
-            const float gainSmooth  = 1.0f - std::exp(-1.0f / static_cast<float>(0.003 * sr_));
+            // Auto attack = a quick program-independent default; auto release = a
+            // medium base that speeds up below threshold (applied per-sample below).
+            const float attCoef     = autoAtk ? coefMs(5.0)   : coefMs(attackMs);
+            const float relCoefBase = autoRel ? coefMs(400.0) : coefMs(releaseMs);
             const float kneeDbHalf  = 3.0f;   // 6dB soft knee half-width
 
             // Sidechain HPF coefficient.
@@ -96,12 +96,10 @@ namespace lockstep
                 rmsZ_ += rmsCoef * (sc * sc - rmsZ_);
                 const float rmsVal = std::sqrt(std::max(rmsZ_, 1e-12f));
 
-                // Program-dependent auto-release: faster when peak is short.
+                // Auto-release: faster recovery when the signal sits below threshold.
                 float relCoef = relCoefBase;
                 if (autoRel && rmsVal < threshLin)
-                    relCoef *= 4.0f;   // faster release when below threshold
-
-                const float envCoef = (rmsVal > threshLin) ? attCoef : relCoef;
+                    relCoef *= 4.0f;
                 rmsZ_ = std::max(rmsZ_, 0.0f);  // denormal guard
 
                 // Soft-knee gain computation.
@@ -119,9 +117,11 @@ namespace lockstep
                         gr = juce::Decibels::decibelsToGain(-effectiveOver * (1.0f - 1.0f / ratio));
                     }
                 }
-                (void)envCoef;   // rmsZ_ update already handles dynamics above
-
-                gainZ_ += gainSmooth * (gr - gainZ_);
+                // Attack while clamping to a lower gain, release while recovering —
+                // this is what makes Attack/Release actually do something (the gain
+                // envelope previously used a fixed smoothing and ignored both params).
+                const float envCoef = (gr < gainZ_) ? attCoef : relCoef;
+                gainZ_ += envCoef * (gr - gainZ_);
                 const float g = gainZ_ * makeupLin;
                 const float dry0 = numCh > 0 ? buffer.getReadPointer(0)[n] : 0.0f;
                 const float dry1 = numCh > 1 ? buffer.getReadPointer(1)[n] : dry0;
@@ -139,7 +139,6 @@ namespace lockstep
 
         [[nodiscard]] ParamSpec paramSpec(int index) const override
         {
-            static const char* const kReleaseLabels[] = { "0.1s", "0.3s", "0.6s", "Auto" };
             ParamSpec p;
             p.sectionIndex = kFxSec;
             switch (index)
@@ -159,14 +158,16 @@ namespace lockstep
                 case 2:
                     p.id = "lockstep.buscomp.attack";
                     p.label = "Atk";
-                    p.minValue = 0.1f; p.maxValue = 30.0f; p.defaultValue = 5.0f;
-                    p.skew = 0.4f;
+                    // Continuous ms; 0 = Auto. skew biases resolution to short times.
+                    p.minValue = 0.0f; p.maxValue = 30.0f; p.defaultValue = 5.0f;
+                    p.skew = 0.4f; p.unit = ParamSpec::Unit::Ms;
                     break;
                 case 3:
                     p.id = "lockstep.buscomp.release";
                     p.label = "Rel";
-                    p.maxValue = 3.0f; p.defaultValue = 2.0f; p.isStepped = true;
-                    p.valueLabels = { kReleaseLabels, 4 };
+                    // Continuous ms; 0 = Auto (program-dependent release).
+                    p.minValue = 0.0f; p.maxValue = 1200.0f; p.defaultValue = 250.0f;
+                    p.skew = 0.4f; p.unit = ParamSpec::Unit::Ms;
                     break;
                 case 4:
                     p.id = "lockstep.buscomp.schpf";

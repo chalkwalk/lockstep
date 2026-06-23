@@ -37,22 +37,27 @@ namespace lockstep
             const float ratio     = params.size() > 1
                                         ? juce::jlimit(1.0f, 20.0f, params[1])
                                         : 4.0f;
+            // Attack/release are continuous times in ms; 0 = Auto (program-dependent).
             const float attackMs  = params.size() > 2
-                                        ? juce::jlimit(0.1f, 100.0f, params[2])
+                                        ? juce::jlimit(0.0f, 100.0f, params[2])
                                         : 5.0f;
             const float releaseMs = params.size() > 3
-                                        ? juce::jlimit(10.0f, 1000.0f, params[3])
+                                        ? juce::jlimit(0.0f, 1000.0f, params[3])
                                         : 120.0f;
             const float makeupDb  = params.size() > 4
                                         ? juce::jlimit(0.0f, 24.0f, params[4])
                                         : 0.0f;
 
+            const bool autoAtk = (attackMs  <= 0.0f);
+            const bool autoRel = (releaseMs <= 0.0f);
+            auto coefMs = [&](double ms) {
+                return 1.0f - std::exp(-1.0f / static_cast<float>(0.001 * ms * sampleRate_));
+            };
+
             const float threshLin   = juce::Decibels::decibelsToGain(threshDb);
             const float makeupLin   = juce::Decibels::decibelsToGain(makeupDb);
-            const float attCoef     = 1.0f - std::exp(
-                -1.0f / static_cast<float>(0.001 * attackMs  * sampleRate_));
-            const float relCoef     = 1.0f - std::exp(
-                -1.0f / static_cast<float>(0.001 * releaseMs * sampleRate_));
+            const float attCoef     = autoAtk ? coefMs(5.0)   : coefMs(attackMs);
+            const float relCoefBase = autoRel ? coefMs(200.0) : coefMs(releaseMs);
             const float gainSmooth  = 1.0f - std::exp(
                 -1.0f / static_cast<float>(0.002 * sampleRate_));
 
@@ -63,6 +68,10 @@ namespace lockstep
                 for (int c = 0; c < numCh; ++c)
                     peak = std::max(peak, std::abs(buffer.getReadPointer(c)[n]));
 
+                // Auto-release speeds up while the signal sits below threshold.
+                float relCoef = relCoefBase;
+                if (autoRel && envZ_ < threshLin)
+                    relCoef *= 4.0f;
                 const float coef = (peak > envZ_) ? attCoef : relCoef;
                 envZ_ += coef * (peak - envZ_);
 
@@ -104,14 +113,16 @@ namespace lockstep
                 case 2:
                     p.id = "lockstep.comp.attack";
                     p.label = "Atk";
-                    p.minValue = 0.1f; p.maxValue = 100.0f; p.defaultValue = 5.0f;
-                    p.skew = 0.3f;
+                    // Continuous ms; 0 = Auto.
+                    p.minValue = 0.0f; p.maxValue = 100.0f; p.defaultValue = 5.0f;
+                    p.skew = 0.3f; p.unit = ParamSpec::Unit::Ms;
                     break;
                 case 3:
                     p.id = "lockstep.comp.release";
                     p.label = "Rel";
-                    p.minValue = 10.0f; p.maxValue = 1000.0f; p.defaultValue = 120.0f;
-                    p.skew = 0.3f;
+                    // Continuous ms; 0 = Auto (program-dependent release).
+                    p.minValue = 0.0f; p.maxValue = 1000.0f; p.defaultValue = 120.0f;
+                    p.skew = 0.3f; p.unit = ParamSpec::Unit::Ms;
                     break;
                 default:
                     p.id = "lockstep.comp.makeup";

@@ -925,6 +925,42 @@ namespace lockstep
                 }
             }
 
+            // Bus comp: gain reduction is wired (attack/release envelope functional).
+            // A loud tone above threshold must come out quieter; a quiet tone passes.
+            // Guards against the envelope-ignored-its-params regression.
+            {
+                auto fx = makeEffectForId("lockstep.buscomp.v1");
+                if (fx)
+                {
+                    constexpr double sr = 44100.0;
+                    constexpr int N = 8192;
+                    // thresh,ratio,atk,rel,schpf,makeup,mix
+                    auto outRms = [&](float amp) {
+                        fx->prepare(sr, N);
+                        juce::AudioBuffer<float> buf(2, N);
+                        for (int n = 0; n < N; ++n)
+                        {
+                            const float s = amp * static_cast<float>(
+                                std::sin(2.0 * juce::MathConstants<double>::pi * 220.0
+                                         * static_cast<double>(n) / sr));
+                            buf.setSample(0, n, s);
+                            buf.setSample(1, n, s);
+                        }
+                        ParamFrame frame = { -30.0f, 8.0f, 1.0f, 80.0f, 20.0f, 0.0f, 1.0f };
+                        fx->process(buf, N, frame);
+                        double sq = 0.0;
+                        for (int n = N / 2; n < N; ++n)
+                            sq += static_cast<double>(buf.getSample(0, n))
+                                  * static_cast<double>(buf.getSample(0, n));
+                        return std::sqrt(sq / (N / 2));
+                    };
+                    const double loudIn  = 0.5 / std::sqrt(2.0);   // ~-9 dBFS RMS, above -30 thresh
+                    const double loudOut = outRms(0.5f);
+                    CHECK(loudOut < loudIn * 0.9, "bus comp reduces gain on loud input ("
+                          + juce::String(loudOut, 4) + " < " + juce::String(loudIn, 4) + ")");
+                }
+            }
+
             // Compressor: thresh=0 dBFS → compressor never fires (our sine is ~-9 dBFS);
             // makeup=0 → unity gain; effectively passthrough.
             // Note: kRatios[] = {2:1, 4:1, 8:1, 20:1} — no 1:1 option; use thresh to
