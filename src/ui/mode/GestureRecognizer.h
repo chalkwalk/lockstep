@@ -76,4 +76,7 @@ namespace lockstep
     // at 1000+btn, step indices 0..63, or GestureRecognizer::kNavRightUnlock).
     static constexpr int kRestoreLongPressToken = 5000;
 
+    // Token for the FX-section long-press (tap = navigate, hold = open picker).
+    static constexpr int kFxSectionLongPressToken = 6000;
+
 } // namespace lockstep

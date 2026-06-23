@@ -2252,6 +2252,28 @@ namespace lockstep
                     if (r == OverlayResult::Exited)   refreshMetaBand();
                 }
 
+                // Hold-gating for FX section (section 5 = canonical FX):
+                //   tap  → navigate to FX params (resolved on key-up, ShortHold)
+                //   hold → open track FX picker (resolved on key-up, LongHold)
+                //   Song + tap  → navigate to master FX params
+                //   Song + hold → open master FX picker
+                // Arm before the sectionScope dispatch so Song+hold-FX fires master picker.
+                // Only intercept when there is actually content (bare or Song), not dim cells.
+                if (ev.index == LockstepProcessor::kFxSecIdx
+                    && (sectionScope == PS::None || sectionScope == PS::Song))
+                {
+                    gesture_.armLongPress(kFxSectionLongPressToken,
+                                          juce::Time::getMillisecondCounterHiRes());
+                    fxSectionPickerWantsMaster_ = (sectionScope == PS::Song);
+                    if (heldSectionRawCode_ < 0)
+                    {
+                        heldSectionRawCode_ = rawCode;
+                        heldSectionIndex_ = ev.index;
+                        editMode_.setSectionHeld(true);
+                    }
+                    return true;  // action deferred to key-up
+                }
+
                 if (sectionScope != PS::None)
                 {
                     // Dim under this scope — no content, block entirely.
@@ -2268,21 +2290,6 @@ namespace lockstep
                     {
                         // Track+DIV: kit divider (DIV meta, index 3).
                         keyboardArea_.selectMetaSection(3);
-                        return true;
-                    }
-                    if (sectionScope == PS::Song && ev.index == 5)
-                    {
-                        // Song+FX: master insert / send params.
-                        // Re-press while already at section 5 cycles through loaded units
-                        // (skips empty); entering for the first time lands on the first
-                        // loaded unit (or Insert1 if none). Never toggles out of master mode.
-                        if (uiState_.masterSection == 5)
-                            uiState_.masterFxInsertSlot = nextLoadedMasterUnit(
-                                uiState_.masterFxInsertSlot);
-                        else
-                            uiState_.masterFxInsertSlot = firstLoadedMasterUnit();
-                        keyboardArea_.selectMetaSection(5, /*toggle=*/false);
-                        refreshMetaBand();
                         return true;
                     }
                     if (isTimeEntryChord(sectionScope, ev.index))
@@ -2309,35 +2316,11 @@ namespace lockstep
             }
 
             case ControllerButton::MetaSection:
-                // 6.5: Func+Song+FX → open master FX picker on the step grid.
-                // Also navigates to Song+FX meta section so MZ shows master insert params.
-                // Re-pressing while picker is open cycles all 4 slots (to load into empties too).
-                if (uiState_.funcHeld && uiState_.songHeld && ev.index == processor_.kFxSecIdx)
-                {
-                    if (uiState_.masterFxPickerOpen)
-                        uiState_.masterFxInsertSlot = (uiState_.masterFxInsertSlot + 1) % 4;
-                    else
-                        uiState_.masterFxInsertSlot = 0;
-                    uiState_.masterFxPickerOpen = true;
-                    // Navigate to Song+FX meta section so MZ shows master FX params.
-                    keyboardArea_.selectMetaSection(processor_.kFxSecIdx, /*toggle=*/false);
-                    refreshMetaBand();
-                    repaint();
-                    return true;
-                }
-                // 6.5: Func+FX → enter effect picker (step grid re-skins to catalogue).
-                // Re-pressing FX while picker is active cycles the targeted insert slot.
-                // (Func+section routes to MetaSection via QwertyOverlay kFunc table.)
-                if (uiState_.funcHeld && ev.index == processor_.kFxSecIdx)
-                {
-                    if (uiState_.funcFxHeld)
-                        uiState_.funcFxInsertSlot = 1 - uiState_.funcFxInsertSlot;  // cycle 0↔1
-                    else
-                        uiState_.funcFxInsertSlot = 0;
-                    uiState_.funcFxHeld = true;
-                    repaint();
-                    return true;
-                }
+                // Func+FX (MetaSection idx 5): picker entry retired in 9.14 Stage 2.
+                // Picker is now opened by hold-FX (Section 5 long-press, no Func).
+                // Song+hold-FX → master picker; bare hold-FX → track picker.
+                // Func+FX and Func+Song+FX fall through to isReservedMeta → swallowed.
+
                 // Density (Func+MOD) and Vel (Func+AMP) entry moved to generator hub (9.10).
                 // Func-row secondaries are COND (TRIG) and NOTE (SRC) only; other
                 // sections have no Func secondary (FILTER/FX metas relocated to
@@ -3817,17 +3800,68 @@ namespace lockstep
                 break;
 
             case CB::Section:
-            case CB::MetaSection:
+            case CB::MetaSection: {
+                // Resolve FX-section tap-vs-hold (armed on key-down for section 5).
+                bool suppressFxPickerClose = false;
+                if (heldSectionIndex_ == LockstepProcessor::kFxSecIdx)
+                {
+                    using LPR = GestureRecognizer::LongPressResult;
+                    const double now = juce::Time::getMillisecondCounterHiRes();
+                    switch (gesture_.checkLongPress(kFxSectionLongPressToken, now))
+                    {
+                        case LPR::ShortHold:
+                            // Tap: navigate to FX params (track or master).
+                            if (fxSectionPickerWantsMaster_)
+                            {
+                                if (uiState_.masterSection == 5)
+                                    uiState_.masterFxInsertSlot =
+                                        nextLoadedMasterUnit(uiState_.masterFxInsertSlot);
+                                else
+                                    uiState_.masterFxInsertSlot = firstLoadedMasterUnit();
+                                keyboardArea_.selectMetaSection(5, /*toggle=*/false);
+                                refreshMetaBand();
+                            }
+                            else
+                            {
+                                keyboardArea_.selectSection(LockstepProcessor::kFxSecIdx);
+                            }
+                            break;
+                        case LPR::LongHold:
+                            // Hold: open FX picker (track or master).
+                            if (fxSectionPickerWantsMaster_)
+                            {
+                                if (uiState_.masterFxPickerOpen)
+                                    uiState_.masterFxInsertSlot = (uiState_.masterFxInsertSlot + 1) % 4;
+                                else
+                                    uiState_.masterFxInsertSlot = 0;
+                                uiState_.masterFxPickerOpen = true;
+                                keyboardArea_.selectMetaSection(LockstepProcessor::kFxSecIdx,
+                                                                /*toggle=*/false);
+                                refreshMetaBand();
+                            }
+                            else
+                            {
+                                uiState_.funcFxInsertSlot = uiState_.funcFxHeld
+                                    ? 1 - uiState_.funcFxInsertSlot : 0;
+                                suppressFxPickerClose = true;  // set funcFxHeld below
+                            }
+                            repaint();
+                            break;
+                        case LPR::NotArmed:
+                            break;
+                    }
+                }
                 heldSectionRawCode_ = -1;
                 heldSectionIndex_ = -1;
                 uiState_.funcSrcHeld = false;
-                // 6.5: keep FX picker alive while Func is still held so the user
-                // can re-press FX to cycle the insert slot without losing the overlay.
-                // funcFxHeld is cleared on Func release (line ~2888).
                 if (!uiState_.funcHeld)
                     uiState_.funcFxHeld = false;
                 editMode_.setSectionHeld(false);
+                // Set after cleanup so the cleanup's funcFxHeld=false doesn't undo it.
+                if (suppressFxPickerClose)
+                    uiState_.funcFxHeld = true;
                 break;
+            }
 
             case CB::VerbPlay:
                 playKeyHeld_ = false;

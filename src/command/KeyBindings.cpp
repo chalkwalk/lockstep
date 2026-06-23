@@ -157,13 +157,20 @@ namespace lockstep
         { CB::Section, 2, kModFunc, SL::Base, AId::SelectMetaSection, u8"", u8"", CS::Resting },
         { CB::Section, 3, kModFunc, SL::Base, AId::SelectMetaSection, u8"", u8"", CS::Resting },
         { CB::Section, 4, kModFunc, SL::Base, AId::SelectMetaSection, u8"", u8"", CS::Resting },
-        { CB::Section, 5, kModFunc, SL::Base, AId::OpenTrackFxPicker, u8"", u8"", CS::Resting },
+        // FX (section 5): Func+FX retired as picker entry (9.14 Stage 2 — freed).
+        { CB::Section, 5, kModFunc, SL::Base, AId::SelectMetaSection, u8"", u8"", CS::Resting },
         { CB::Section, 0, kModNone, SL::Base, AId::SelectSection, u8"", u8"", CS::Resting },
         { CB::Section, 1, kModNone, SL::Base, AId::SelectSection, u8"", u8"", CS::Resting },
         { CB::Section, 2, kModNone, SL::Base, AId::SelectSection, u8"", u8"", CS::Resting },
         { CB::Section, 3, kModNone, SL::Base, AId::SelectSection, u8"", u8"", CS::Resting },
         { CB::Section, 4, kModNone, SL::Base, AId::SelectSection, u8"", u8"", CS::Resting },
         { CB::Section, 5, kModNone, SL::Base, AId::SelectSection, u8"", u8"", CS::Resting },
+
+        // FX hold-gesture rows (9.14 Stage 2): tap = navigate, hold = picker.
+        { CB::Section, 5, kModNone, SL::Base, AId::OpenTrackFxPicker, u8"PICK FX", u8"", CS::Resting,
+          Gesture::Hold, false },
+        { CB::Section, 5, kModSong, SL::Base, AId::OpenMasterFxPicker, u8"PICK MASTER FX", u8"", CS::Resting,
+          Gesture::Hold, false },
 
         // ── 9.12: Gesture-axis rows ─────────────────────────────────────────────
         // These rows carry explicit gesture + promoted fields (last two columns).

@@ -170,6 +170,7 @@ namespace lockstep
         std::vector<int> deferredPatternMutes_;
         int heldSectionRawCode_ = -1;
         int heldSectionIndex_ = -1;  // section index (0-5) while key held; -1 = none
+        bool fxSectionPickerWantsMaster_ = false; // captured at Section-5 key-down
         // 6.5 Animate bypass: track/slot bypassed by FX-held + step; restored on step-up.
         int animateBypassTrack_ = -1;
         int animateBypassSlot_ = -1;

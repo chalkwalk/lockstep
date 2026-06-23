@@ -18,6 +18,11 @@ namespace lockstep
         return resolveBinding(btn, idx, mods, SL::Base).action;
     }
 
+    static AId resolveHold(CB btn, uint16_t mods, int idx = -1)
+    {
+        return resolveBinding(btn, idx, mods, SL::Base, Gesture::Hold).action;
+    }
+
     // ── heldModsFromUiState ───────────────────────────────────────────────────
     static void testHeldMods()
     {
@@ -170,9 +175,11 @@ namespace lockstep
             CHECK(resolve(CB::Section, kModNone, s) == AId::SelectSection, "Section bare");
             CHECK(resolve(CB::Section, kModFunc, s) == AId::SelectMetaSection, "Func+Section");
         }
-        // Section 5 (FX): Func = FX picker
-        CHECK(resolve(CB::Section, kModFunc, 5) == AId::OpenTrackFxPicker, "Func+FX = picker");
+        // Section 5 (FX): tap = navigate; hold = picker (Func+FX retired in 9.14 Stage 2).
+        CHECK(resolve(CB::Section, kModFunc, 5) == AId::SelectMetaSection, "Func+FX = meta-nav (picker freed)");
         CHECK(resolve(CB::Section, kModNone, 5) == AId::SelectSection, "FX bare = section select");
+        CHECK(resolveHold(CB::Section, kModNone, 5) == AId::OpenTrackFxPicker, "hold FX = track picker");
+        CHECK(resolveHold(CB::Section, kModSong, 5) == AId::OpenMasterFxPicker, "Song+hold-FX = master picker");
     }
 
     // ── Universal hint rule ───────────────────────────────────────────────────
