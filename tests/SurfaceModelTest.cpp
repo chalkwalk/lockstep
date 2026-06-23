@@ -608,6 +608,51 @@ namespace lockstep
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Test: section-row Func-layer secondaries must match what dispatch honors.
+    //
+    // Regression guard for the "label promises a panel that never opens" class:
+    // 9.10 relocated the velocity / density generators to the generator hub on
+    // `3`, freeing Func+AMP / Func+MOD. Dispatch (PluginEditor MetaSection case)
+    // ignores those presses via isReservedMeta — but the SurfaceModel display
+    // map kept advertising "VEL" on AMP and "DENS" on MOD, so the section row
+    // showed velocity/density hints that brought up nothing in the MZ.
+    //
+    // Every non-empty Func secondary on the section row must correspond to a
+    // dispatchable Func+section action:
+    //   TRIG → COND, SRC → NOTE  (routed via selectMetaSection)
+    //   FX   → PICK FX           (special-cased: Func+FX opens the insert picker)
+    //   FILTER / AMP / MOD       (no Func action → must dim, hint empty)
+    // -------------------------------------------------------------------------
+    static void testSectionFuncHintsMatchDispatch()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        UiState ui;          // resting state: no modifier held
+        EditContext ec;
+
+        const SurfaceModel model = buildSurfaceModel(
+            ui, ec, nullptr, proc, 0, 0, GridDisplayMode::Ortholinear);
+
+        const char* expected[IMachine::kMaxSections] = {
+            "COND", "NOTE", "", "", "", "PICK FX"
+        };
+        for (int s = 0; s < IMachine::kMaxSections; ++s)
+        {
+            const auto& c = model.section[static_cast<std::size_t>(s)];
+            CHECK(c.funcHint == juce::String(expected[s]),
+                  juce::String("section ") + juce::String(s)
+                      + " Func secondary must match dispatch (got '" + c.funcHint + "')");
+        }
+
+        // The specific regression: AMP/MOD must not re-advertise the relocated
+        // velocity/density generators (now on the hub key `3`).
+        CHECK(model.section[3].funcHint != "VEL",
+              "AMP must not advertise VEL — generator moved to hub on 3 (9.10)");
+        CHECK(model.section[4].funcHint != "DENS",
+              "MOD must not advertise DENS — generator moved to hub on 3 (9.10)");
+    }
+
     void runSurfaceModelTests()
     {
         testPanicKeyLabel();
@@ -624,6 +669,7 @@ namespace lockstep
         testGeneratorHubPrimary();
         testMachinePickerPrimary();
         testDeriveSlotEqualsGrammar();
+        testSectionFuncHintsMatchDispatch();
     }
 
 } // namespace lockstep
