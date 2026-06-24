@@ -2300,15 +2300,15 @@ namespace lockstep
                     if (r == OverlayResult::Exited)   refreshMetaBand();
                 }
 
-                // Hold-gating for FX section (section 5 = canonical FX):
-                //   tap  → navigate to FX params (resolved on key-up, ShortHold)
-                //   hold → open track FX picker (resolved on key-up, LongHold)
-                //   Song + tap  → navigate to master FX params
-                //   Song + hold → open master FX picker
-                // Arm before the sectionScope dispatch so Song+hold-FX fires master picker.
-                // Only intercept when there is actually content (bare or Song), not dim cells.
+                // Hold-gating for FX section (section 5 = canonical FX). The picker
+                // is scope-gated (9.14): FX inserts are track-scoped, master FX is
+                // Song-scoped, so the picker only arms under those scopes:
+                //   Track + tap  → track FX params;  Track + hold → track FX picker
+                //   Song  + tap  → master FX params; Song  + hold → master FX picker
+                //   (bare FX = plain params nav; Scene/Phrase = dim, no FX)
+                // Arm before the sectionScope dispatch so the held scope picks target.
                 if (ev.index == LockstepProcessor::kFxSecIdx
-                    && (sectionScope == PS::None || sectionScope == PS::Song))
+                    && (sectionScope == PS::Track || sectionScope == PS::Song))
                 {
                     gesture_.armLongPress(kFxSectionLongPressToken,
                                           juce::Time::getMillisecondCounterHiRes());

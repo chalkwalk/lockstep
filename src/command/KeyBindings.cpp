@@ -166,8 +166,10 @@ namespace lockstep
         { CB::Section, 4, kModNone, SL::Base, AId::SelectSection, u8"", u8"", CS::Resting },
         { CB::Section, 5, kModNone, SL::Base, AId::SelectSection, u8"", u8"", CS::Resting },
 
-        // FX hold-gesture rows (9.14 Stage 2): tap = navigate, hold = picker.
-        { CB::Section, 5, kModNone, SL::Base, AId::OpenTrackFxPicker, u8"PICK FX", u8"", CS::Resting,
+        // FX hold-gesture rows (9.14): tap = navigate, hold = picker. The picker is
+        // scope-gated (Track = track inserts, Song = master) so the hold-rail label
+        // only appears under the scope where the picker actually fires.
+        { CB::Section, 5, kModTrack, SL::Base, AId::OpenTrackFxPicker, u8"PICK FX", u8"", CS::Resting,
           Gesture::Hold, false },
         { CB::Section, 5, kModSong, SL::Base, AId::OpenMasterFxPicker, u8"PICK MASTER FX", u8"", CS::Resting,
           Gesture::Hold, false },

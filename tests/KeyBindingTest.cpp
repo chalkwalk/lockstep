@@ -175,11 +175,14 @@ namespace lockstep
             CHECK(resolve(CB::Section, kModNone, s) == AId::SelectSection, "Section bare");
             CHECK(resolve(CB::Section, kModFunc, s) == AId::SelectMetaSection, "Func+Section");
         }
-        // Section 5 (FX): tap = navigate; hold = picker (Func+FX retired in 9.14 Stage 2).
+        // Section 5 (FX): tap = navigate; hold = picker, scope-gated (9.14).
+        // Func+FX retired (picker freed). Track+hold = track picker, Song+hold =
+        // master picker; bare hold advertises no picker.
         CHECK(resolve(CB::Section, kModFunc, 5) == AId::SelectMetaSection, "Func+FX = meta-nav (picker freed)");
         CHECK(resolve(CB::Section, kModNone, 5) == AId::SelectSection, "FX bare = section select");
-        CHECK(resolveHold(CB::Section, kModNone, 5) == AId::OpenTrackFxPicker, "hold FX = track picker");
+        CHECK(resolveHold(CB::Section, kModTrack, 5) == AId::OpenTrackFxPicker, "Track+hold FX = track picker");
         CHECK(resolveHold(CB::Section, kModSong, 5) == AId::OpenMasterFxPicker, "Song+hold-FX = master picker");
+        CHECK(resolveHold(CB::Section, kModNone, 5) == AId::None, "bare hold FX = no picker (scope-gated)");
     }
 
     // ── Universal hint rule ───────────────────────────────────────────────────

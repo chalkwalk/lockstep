@@ -66,7 +66,7 @@ namespace lockstep
             { N::kCanonicalSectionNames[2], true },   // FILTER
             { N::kCanonicalSectionNames[3], true },   // AMP
             { N::kCanonicalSectionNames[4], true },   // MOD
-            { N::kCanonicalSectionNames[5], true },   // FX
+            { nullptr, false },   // FX — not scene-scoped (track FX = Track scope, 9.14)
         } };
 
         static constexpr std::array<ScopedCellInfo, IMachine::kMaxSections> kMorph = { {
@@ -84,7 +84,7 @@ namespace lockstep
             { nullptr, false },          // FLTR — master FLTR (MV, not yet implemented)
             { nullptr, false },          // AMP — master gain + sends (MV, not yet implemented)
             { nullptr, false },          // dim — no content planned
-            { "FX", true, "PICK FX" },   // master FX inserts/sends; Func+Song+FX = picker
+            { "FX", true },              // master FX inserts/sends; Song+hold FX = picker (9.14)
         } };
 
         if (section < 0 || section >= IMachine::kMaxSections)

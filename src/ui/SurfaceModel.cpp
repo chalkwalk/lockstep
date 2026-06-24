@@ -2048,17 +2048,20 @@ namespace lockstep
                 // an explicit promoted row, else Hold (press-to-engage modifiers).
                 const int ts = spec(tap), hs = spec(hold);
                 const KeyBinding* prim = &tap;
-                if (hs > ts)            prim = &hold;
+                // Section keys carry a real tap action with an EMPTY primary — the
+                // label is owned by the builder/ScopedSectionMatrix. A label-bearing
+                // hold/dbl row (e.g. FX "PICK FX" / "PICK MASTER FX") must NEVER win
+                // the primary slot, even when it is more specific (a held scope);
+                // otherwise the section name is clobbered. Force prim=tap so the
+                // builder primary survives and the hold label flows to c.holdLabel.
+                const bool builderOwnsPrimary =
+                    (tap.action != ActionId::None && tap.primary[0] == u8'\0');
+                if (builderOwnsPrimary) prim = &tap;
+                else if (hs > ts)       prim = &hold;
                 else if (ts > hs)       prim = &tap;
                 else if (hold.promoted) prim = &hold;
                 else if (tap.promoted)  prim = &tap;
-                // On a same-specificity tie, hold wins ONLY when tap carries its
-                // own label. Section keys have an empty-primary tap row (the label
-                // comes from the builder/ScopedSectionMatrix); letting a label-
-                // bearing hold row (e.g. FX "PICK FX") win would clobber that
-                // builder label. Keeping prim=tap leaves c.primary untouched and
-                // routes the hold label into c.holdLabel below.
-                else if (hs >= 0 && tap.primary[0] != u8'\0') prim = &hold;
+                else if (hs >= 0)       prim = &hold;
                 const int primSpec = spec(*prim);
 
                 c.primaryGesture = prim->gesture;

@@ -349,7 +349,8 @@ namespace lockstep
         CHECK(scopedCell(PS::Scene, 2).label == can[2], "Scene+FILTER matches canonical");
         CHECK(scopedCell(PS::Scene, 3).label == can[3], "Scene+AMP matches canonical");
         CHECK(scopedCell(PS::Scene, 4).label == can[4], "Scene+MOD matches canonical");
-        CHECK(scopedCell(PS::Scene, 5).label == can[5], "Scene+FX matches canonical");
+        // Scene+FX is dim — FX is not scene-scoped (track FX = Track scope, 9.14).
+        CHECK(!scopedCell(PS::Scene, 5).hasContent, "Scene+FX is dim (no FX content)");
 
         // Morph scope: SRC and AMP/MOD/FX match canonical; FLTR is a genuine abbreviation.
         CHECK(scopedCell(PS::Morph, 1).label == can[1], "Morph+SRC matches canonical");
@@ -655,24 +656,51 @@ namespace lockstep
     }
 
     // -------------------------------------------------------------------------
-    // 9.14 fix 1: the FX section key keeps its builder identity "FX" as the
-    // primary; the Stage-2 hold picker label "PICK FX" rides the hold rail, not
-    // the primary slot. Regression guard for the deriveSlots tie-break that
-    // (before the fix) let the label-bearing hold row clobber the builder label.
+    // 9.14: the FX section key always keeps its builder identity ("FX") as the
+    // primary; the picker is scope-gated, so the "PICK FX"/"PICK MASTER FX" hold
+    // label only appears under the scope where the picker actually fires (Track =
+    // track inserts, Song = master). Bare FX advertises no picker.
     // -------------------------------------------------------------------------
     static void testFxSectionPrimaryNotPicker()
     {
         EngineHarness h;
         auto& proc = h.processor();
-        UiState ui;
         EditContext ec;
-        const SurfaceModel model = buildSurfaceModel(
-            ui, ec, nullptr, proc, 0, 0, GridDisplayMode::Ortholinear);
 
-        const auto& fx = model.section[5];
-        CHECK(fx.primary == "FX", "FX section primary stays 'FX' (not 'PICK FX')");
-        CHECK(fx.holdLabel == "PICK FX", "FX picker surfaces as the hold-rail label");
-        CHECK(fx.funcHint.isEmpty(), "FX has no stale Func secondary (Func+FX retired)");
+        // Bare (no scope): primary "FX", no picker advertised on any rail.
+        {
+            UiState ui;
+            const SurfaceModel m = buildSurfaceModel(
+                ui, ec, nullptr, proc, 0, 0, GridDisplayMode::Ortholinear);
+            const auto& fx = m.section[5];
+            CHECK(fx.primary == "FX", "bare FX primary is 'FX'");
+            CHECK(fx.holdLabel.isEmpty(), "bare FX advertises no picker (scope-gated)");
+            CHECK(fx.funcHint.isEmpty(), "bare FX has no Func secondary");
+        }
+
+        // Track held: primary stays "FX", track picker on the hold rail.
+        {
+            UiState ui;
+            ui.trackHeld = true;
+            const SurfaceModel m = buildSurfaceModel(
+                ui, ec, nullptr, proc, 0, 0, GridDisplayMode::Ortholinear);
+            const auto& fx = m.section[5];
+            CHECK(fx.primary == "FX", "Track+FX primary stays 'FX' (not 'PICK FX')");
+            CHECK(fx.holdLabel == "PICK FX", "Track+hold FX = track picker (hold rail)");
+        }
+
+        // Song held: primary stays "FX" (not the promoted "PICK MASTER FX"),
+        // master picker on the hold rail.
+        {
+            UiState ui;
+            ui.songHeld = true;
+            const SurfaceModel m = buildSurfaceModel(
+                ui, ec, nullptr, proc, 0, 0, GridDisplayMode::Ortholinear);
+            const auto& fx = m.section[5];
+            CHECK(fx.primary == "FX", "Song+FX primary stays 'FX' (not 'PICK MASTER FX')");
+            CHECK(fx.holdLabel == "PICK MASTER FX", "Song+hold FX = master picker (hold rail)");
+            CHECK(fx.funcHint.isEmpty(), "Song+FX has no stale Func secondary");
+        }
 
         // Guard the tie-break the other way: VerbSnapshot under Func must still
         // promote the label-bearing hold row (→ FLOOR), since its tap row carries
