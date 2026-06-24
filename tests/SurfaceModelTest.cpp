@@ -702,6 +702,19 @@ namespace lockstep
             CHECK(fx.funcHint.isEmpty(), "Song+FX has no stale Func secondary");
         }
 
+        // Song+Func: the picker is a non-Func gesture (Func remaps Section→
+        // MetaSection and never reaches the picker arming), so no picker rail is
+        // advertised — the label must not promise something that won't fire.
+        {
+            UiState ui;
+            ui.songHeld = true;
+            ui.funcHeld = true;
+            const SurfaceModel m = buildSurfaceModel(
+                ui, ec, nullptr, proc, 0, 0, GridDisplayMode::Ortholinear);
+            CHECK(m.section[5].holdLabel.isEmpty(),
+                  "Song+Func FX advertises no picker (Func is not a picker gesture)");
+        }
+
         // Guard the tie-break the other way: VerbSnapshot under Func must still
         // promote the label-bearing hold row (→ FLOOR), since its tap row carries
         // its own primary (RESTORE).

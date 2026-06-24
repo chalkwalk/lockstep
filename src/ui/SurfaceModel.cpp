@@ -2083,6 +2083,18 @@ namespace lockstep
                               ? juce::String(hold.primary) : juce::String();
                 c.doubleTapLabel = secVisible(dbl) ? juce::String(dbl.primary) : juce::String();
 
+                // Under Func, section keys are remapped to the meta-section layer
+                // (ButtonLayers), so a Func+section never reaches the FX picker
+                // arming in the Section dispatch. Suppress the section hold/tap rails
+                // so the FX cell can't promise a picker (e.g. Song+Func showing
+                // "PICK MASTER FX") that the Func path won't fire. The picker is a
+                // non-Func gesture: Track+hold / Song+hold.
+                if ((heldMods & kModFunc) != 0 && c.button == ControllerButton::Section)
+                {
+                    c.holdLabel = juce::String();
+                    c.tapLabel  = juce::String();
+                }
+
                 // Func-variant preview (bottom chip) — at rest only; when Func is held
                 // the variant is already promoted to the primary slot above.
                 if (heldMods == kModNone) {

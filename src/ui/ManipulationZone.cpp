@@ -68,12 +68,12 @@ namespace lockstep
                     if (band_ == MetaBand::Euclidean && onEuclidParamChanged)
                         onEuclidParamChanged();
                     // Step-Position: the visible effect (the step hopping) is on the
-                    // grid, which the meta-write path doesn't otherwise touch. Repaint
-                    // it so the move previews in realtime. Do NOT refreshSliders here —
-                    // setting the dragged slider's value mid-drag resets JUCE's drag
-                    // reference, which stalls the encoder until release.
-                    if (band_ == MetaBand::StepPosition)
-                        area_.repaint();
+                    // grid, not the MZ. Run the editor's canonical surface refresh so
+                    // it previews in realtime exactly like the nav ←/→ keys. Do NOT
+                    // refreshSliders here — setting the dragged slider's value mid-drag
+                    // resets JUCE's drag reference and stalls the encoder until release.
+                    if (band_ == MetaBand::StepPosition && onStepPositionChanged)
+                        onStepPositionChanged();
                     return;
                 }
                 // Machine-param path.

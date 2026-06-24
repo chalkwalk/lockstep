@@ -60,6 +60,11 @@ namespace lockstep
         // re-apply the live euclid pattern to the armed track.
         std::function<void()> onEuclidParamChanged;
 
+        // 9.14: Called after a Step-Position encoder write so the editor can run its
+        // canonical full surface refresh (grid + step preview), matching the realtime
+        // feedback the nav ←/→ keys give.
+        std::function<void()> onStepPositionChanged;
+
 
     public:
         // MHX §26.2: 8 encoders in a 4x2 staggered band.  Single constant so the

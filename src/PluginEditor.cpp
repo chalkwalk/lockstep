@@ -678,6 +678,9 @@ namespace lockstep
                 keyboardArea_.repaint();
             }
         };
+        // 9.14: Step-Position encoder write → canonical surface refresh so the moved
+        // step previews in realtime (same feedback the nav ←/→ keys give).
+        manipulationZone_.onStepPositionChanged = [this] { refreshSurface(); };
         // Wire mouse button events from KeyboardArea through the unified dispatch.
         keyboardArea_.onButtonDown = [this](ControllerEvent ev) {
             pressTracker_.press(PressTracker::kMouseSource, ev.button, ev.index);
