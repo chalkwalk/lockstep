@@ -3173,6 +3173,10 @@ namespace lockstep
                     refreshSurface();
                     return true;
                 }
+                // Don't change track while a step is held: the inspector / move
+                // targets one track, and crossing tracks made the move "drag" onto a
+                // different track (9.14 follow-up). Consume and no-op.
+                if (processor_.editContext().heldStepIndex() >= 0) return true;
                 // Normal: next higher track number.
                 keyboardArea_.setActiveTrack(
                     std::min(static_cast<int>(kNumTracks) - 1, t + 1));
@@ -3215,6 +3219,8 @@ namespace lockstep
                     refreshSurface();
                     return true;
                 }
+                // Don't change track while a step is held (see NavUp).
+                if (processor_.editContext().heldStepIndex() >= 0) return true;
                 // Normal: previous (lower) track number.
                 keyboardArea_.setActiveTrack(std::max(0, t - 1));
                 return true;

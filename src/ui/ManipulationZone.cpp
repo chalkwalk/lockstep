@@ -69,12 +69,11 @@ namespace lockstep
                         onEuclidParamChanged();
                     // Step-Position: the visible effect (the step hopping) is on the
                     // grid, which the meta-write path doesn't otherwise touch. Repaint
-                    // it and re-sync the sliders to the (possibly clamped) new slot.
+                    // it so the move previews in realtime. Do NOT refreshSliders here —
+                    // setting the dragged slider's value mid-drag resets JUCE's drag
+                    // reference, which stalls the encoder until release.
                     if (band_ == MetaBand::StepPosition)
-                    {
-                        refreshSliders();
                         area_.repaint();
-                    }
                     return;
                 }
                 // Machine-param path.
