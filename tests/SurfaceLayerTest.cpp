@@ -366,6 +366,59 @@ namespace lockstep
         }
     }
 
+    // ── StepInspector (9.14 Stage 3) ─────────────────────────────────────────
+
+    static EditContext& ecWithStep(int track, int step)
+    {
+        static EditContext kCtx;
+        kCtx.release();
+        kCtx.hold(track, step);
+        return kCtx;
+    }
+
+    static void testStepInspectorLayer()
+    {
+        // Holding a step → StepInspector (outranks PLockClear).
+        {
+            UiState ui;
+            ui.pLockClearMode = true;
+            ui.pLockClearTrack = 0;
+            ui.pLockClearStep = 3;
+            CHECK(resolveActiveLayer(ui, ecWithStep(0, 3), facts()) == SL::StepInspector,
+                  "heldStepIndex >= 0 → StepInspector (beats PLockClear)");
+        }
+        // No step held + pLockClearMode → PLockClear (unchanged).
+        {
+            UiState ui;
+            ui.pLockClearMode = true;
+            ui.pLockClearTrack = 0;
+            ui.pLockClearStep = 3;
+            CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::PLockClear,
+                  "no held step + pLockClearMode → PLockClear");
+        }
+        // NoteEdit beats StepInspector.
+        {
+            UiState ui;
+            ui.noteEditMode = true;
+            ui.noteEditSteps.insert(5);
+            CHECK(resolveActiveLayer(ui, ecWithStep(0, 5), facts()) == SL::NoteEdit,
+                  "NoteEdit beats StepInspector");
+        }
+        // MachinePicker beats StepInspector.
+        {
+            UiState ui;
+            ui.funcTrackHeld = true;
+            CHECK(resolveActiveLayer(ui, ecWithStep(0, 2), facts()) == SL::MachinePicker,
+                  "MachinePicker beats StepInspector");
+        }
+        // StepInspector released → falls through to Base.
+        {
+            UiState ui;
+            CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::Base,
+                  "no held step + empty UiState → Base");
+        }
+    }
+
     void runSurfaceLayerTests()
     {
         testBaseLayer();
@@ -382,5 +435,6 @@ namespace lockstep
         testFuncTrackHeldBlocksLengthEdit();
         testPendingConfirmLayer();
         testDeletePickerLayer();
+        testStepInspectorLayer();
     }
 }

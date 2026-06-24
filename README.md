@@ -194,7 +194,7 @@ Phrase ──trigs──▶ Machine ──▶ Foundation (FILTER → AMP) ──
   still lives behind the canonical FILTER key — the foundation filter
   is in addition, downstream.
 - **Inserts** — two per-track `IEffect` slots after the foundation.
-  Loaded via the `Func+FX` picker, edited on the FX section,
+  Loaded via the `hold FX` picker (or `Song + hold FX` for master), edited on the FX section,
   momentarily bypassed with the Animate gesture (`FX` + step).
   MIDI-out tracks have none (no audio).
 - **Send buses** — post-insert taps from each track. Set Send A / B
@@ -249,7 +249,7 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Edit context** | The held-step state that routes edits to a step override vs. the track base. |
 | **Choke** | A 1–2 ms micro-fade applied before retriggering a monophonic voice, to avoid clicks. |
 | **Foundation** | The post-machine FILTER + AMP blocks the *sequencer* owns on every track, identical regardless of machine. Reached via `Track + section` (the track-foundation row). See §2.5. |
-| **Insert (FX)** | One of a track's two post-foundation `IEffect` slots. Loaded via the `Func+FX` picker, edited on the FX section, momentarily bypassed via Animate (`FX` + step). MIDI-out tracks have none. |
+| **Insert (FX)** | One of a track's two post-foundation `IEffect` slots. Loaded via the `hold FX` picker (or `Song + hold FX` for master), edited on the FX section, momentarily bypassed via Animate (`FX` + step). MIDI-out tracks have none. |
 | **Master FX** | Four Song-scope FX units on the master bus: 2 inserts (post-sum) + 2 send returns (post send-bus). Loaded via `Func+Song+FX`; cycle units with repeated press. |
 | **Send A / Send B** | Per-track post-insert level tap into shared send buses (AMP page 2, slots 8–9). Each send bus has a return effect before the master inserts. |
 | **Animate** | The momentary insert punch-in: hold `FX` + step to bypass (or enable) an insert for exactly the hold duration. Performance-only — never written to the pattern. Under Song+FX focus the step grid targets the four master units: steps 0-3 = master FX1, 4-7 = FX2, 8-11 = Send A, 12-15 = Send B. |
@@ -272,8 +272,9 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Value-label table** *(3.4)* | A `ParamSpec` field carrying textual names for stepped/enum positions (`LP24 / LP12 / HP / BP`, `MONO / PARA`, …). The MZ renders the textual name in place of a number when present. |
 | **Step-hold capture window** | The canonical chord-edit path: hold a step → play MIDI → each note-on snapshots all currently-held notes; release commits velocity (highest) and gate. Empty capture = no change. Independent of record-arm and transport. Multi-step: all held steps receive the same chord. |
 | **Note-count badge** | 1–4 stacked tick marks on the left edge of each step cell showing `trigOverride.noteCount` — immediately visible without entering any edit mode. |
-| **Note-edit mode** | `Func + Src + step` (the SRC key relabels NOTE; release the step while Func+Src held) enters a 1-octave chromatic keyboard on the step grid: cells 0–11 = C through B, 12–15 unused. Press a cell to toggle that pitch in the current view octave. Cross-octave instances show small octave-number badges. NavUp/NavDown shift the octave. Staged removals commit on Func release. |
-| **P-Lock clear gestures** | `Trig + Func + Clear` (`Trig + 1 + O`) clears every P-Lock on the held step(s), leaving trig and condition intact. `Trig + (active MZ slot) + Clear` clears only that one slot. `Func + step` enters P-Lock clear mode: cells re-skin orange showing only the *set* P-Locks (packed, not by raw slot index); press a cell to stage it for removal, press again to cancel; release Func to commit. `Trig + (section key) + Clear` clears just that section's overrides on the held step(s); since **SRC** owns the note payload, `Trig + SRC + Clear` clears note / velocity / gate overrides only, leaving trig and P-Locks intact. The hint band shows these gestures automatically when a step with P-Locks or note overrides is held. |
+| **Note-edit mode** | **Hold a step, then tap SRC** — the inspector opens; SRC key relabels to NOTE. This enters a 1-octave chromatic keyboard on the step grid: cells 0–11 = C through B, 12–15 unused. Press a cell to toggle that pitch in the current view octave. Cross-octave instances show small octave-number badges. NavUp/NavDown shift the octave. Staged removals commit on step release. (Legacy `Func+Src+step` retired.) |
+| **Step inspector** | **Hold a step** — the grid re-skins showing the step's P-Locks (packed, orange cells = set slots). Tap a cell to stage it for removal; tap again to cancel; release the held step to commit. Tap **SRC** while holding to enter note-edit for that step. `←`/`→` while holding **bubble-swaps** the step with its neighbour (the held focus follows, so repeated presses keep moving it). `Func+←`/`Func+→` while holding **nudges micro-time** ±5% of step length. Release all to commit; the trig toggle is suppressed when any edit occurred. |
+| **P-Lock clear gestures** | `Trig + Func + Clear` (`Trig + 1 + O`) clears every P-Lock on the held step(s), leaving trig and condition intact. `Trig + (active MZ slot) + Clear` clears only that one slot. `Trig + (section key) + Clear` clears just that section's overrides on the held step(s); since **SRC** owns the note payload, `Trig + SRC + Clear` clears note / velocity / gate overrides only, leaving trig and P-Locks intact. The hint band shows these gestures automatically when a step with P-Locks or note overrides is held. |
 | **NoteSelection bias** | Per-track bias for chord-note spread when the machine voice count is smaller than the step's note count. `TopBias` (default) includes top + bottom and fills from the top; `BottomBias` fills from the bottom. Set in the TRIG meta-section, slot 3 (Bias = TOP / BOT). |
 | **Func+Track machine/Kit picker** | Hold Func (1) + Track (2) — the Track key relabels to KIT; step cells show available machine names. Press a step to assign that machine to the focused track. |
 
@@ -686,17 +687,17 @@ transport globals sat under `Song+FX`; that cell now carries the master
 insert parameters.)
 
 **FX inserts and the effect picker.** Each track has two insert slots (slot
-0 / slot 1). The `FX` key shows a dim **"PICK FX"** secondary hint at rest; holding
-`Func` promotes it to the primary label. `Func+FX` opens the effect picker — the
-step grid re-skins to the available effects catalogue; press a step to load that
-effect into the focused slot (the other slot's loaded effect shows a dim cross-slot
-hint). Re-press the active effect to toggle bypass. Re-press `Func+FX` while the
-picker is open to cycle the targeted insert slot (0 → 1 → 0). Press `FX` (alone)
-to navigate the insert's params in the MZ; hold `FX + step` momentarily to
+0 / slot 1). **Tap `FX`** to navigate the insert's params in the MZ. **Hold `FX`**
+(long-press) to open the effect picker — the step grid re-skins to the available
+effects catalogue; press a step to load that effect into the focused slot (the
+other slot's loaded effect shows a dim cross-slot hint). Re-press the active
+effect to toggle bypass. Re-press `FX` (hold again) while the picker is open to
+cycle the targeted insert slot (0 → 1 → 0). Hold `FX + step` momentarily to
 **animate bypass** (bypass on press, restore on release). MIDI-out tracks show no
-inserts. Under **Song+FX focus**, the same gesture targets the master units —
-steps 0-3 bypass FX1, 4-7 bypass FX2, 8-11 bypass Send A, 12-15 bypass Send B —
-and is suppressed when the master picker is open.
+inserts. `Func+FX` navigates FX as a meta-section (same as other meta-sections).
+Under **Song+FX focus**, hold `FX` targets the master units — steps 0-3 bypass
+FX1, 4-7 bypass FX2, 8-11 bypass Send A, 12-15 bypass Send B — and is suppressed
+when the master picker is open.
 
 **Master bus: 2 inserts + 2 send returns.** The master bus has four FX units at
 Song scope (DESIGN §32.3):
@@ -709,11 +710,11 @@ Song scope (DESIGN §32.3):
 | Send B | `Song+FX` (cycle 4) | Send return | accumulated send bus B → return FX → sum |
 
 Sends are post-fader, post-insert taps from each track. Set **Send A** / **Send B**
-on **AMP page 2** (hold `AMP`, repeat to page-turn). `Func+Song+FX` opens the
+on **AMP page 2** (hold `AMP`, repeat to page-turn). **`Song` + hold `FX`** opens the
 master picker for the currently focused unit (re-press to cycle all four slots
 regardless of whether they are loaded; re-pick the active effect to toggle bypass;
-the other units' loaded effects show a dim cross-slot hint). `Song+FX` re-press
-cycles through **loaded** units only, skipping empty ones (falls back to Insert 1 if
+the other units' loaded effects show a dim cross-slot hint). `Song+FX` tap cycles
+through **loaded** units only, skipping empty ones (falls back to Insert 1 if
 none are loaded); exit back to track params by pressing any bare section key.
 Send return effects are typically loaded with Mix=1.0 (wet-only); insert effects
 apply across the whole mix. MIDI-out tracks have no sends.
@@ -756,8 +757,8 @@ Pressing **Track, Phrase, Scene, Morph, Mute, or Fill** while sticky exits the m
 before the scope's normal handler runs — so holding Track to pick a track then
 releasing returns to Base, not back into Density. `Song` (master offset), nav keys
 (bank flip), and the MOD section key (Amount/Mode sub-page) remain density's own
-controls and do not exit sticky mode. (`FX` stays the effect picker — `Func+FX`
-loads a track insert, `Func+Song+FX` the master FX.)
+controls and do not exit sticky mode. (`FX` stays the effect picker — `hold FX`
+loads a track insert, `Song + hold FX` the master FX.)
 
 Inside sticky DENSITY mode, press the **MOD** section key to toggle between:
 - **Amount** sub-page: per-track rotaries; Song-held (encoder or drag) = master offset.
@@ -1230,8 +1231,8 @@ shipped behaviour and the design intent. To avoid confusion:
   at v16 and survives save/reload.
 - **Standalone project files** (9.1): `.lockstep` XML files, shared serializer +
   upgrade chain, New/Open/Save/Save As with dirty guard, last-project auto-open.
-- **Per-track FX inserts** (2 slots, `Func+FX` picker, `FX+step` animate-bypass).
-- **Master FX bus** (2 post-sum slots, `Func+Song+FX` picker, MZ params under `Song+FX`, serializer v14).
+- **Per-track FX inserts** (2 slots, `hold FX` picker, `FX+step` animate-bypass).
+- **Master FX bus** (2 post-sum slots, `Song + hold FX` picker, MZ params under `Song+FX`, serializer v14).
 - **Density overlay** (entered via generator hub, `3` held → DENSITY cell; sticky DENSITY mode: nav = bank 1-8/9-16; `Song`-held = master offset (encoder or drag); MOD key = Amount/Mode/Selection sub-page; any non-MOD section key or foreign scope = exit sticky mode; `Song`-alone = swing).
 - **Generator hub** (`3` held ≥350 ms → momentary picker EUCLID / DENSITY / VEL; short tap = tap tempo retained).
 - **In-cell gesture affordances** (9.11): each key cell shows its full gesture set in a 4-slot layout (double-tap · tap · PRIMARY · hold · func hint) with painted vector glyphs (dot = tap, two dots = double-tap, ring = hold, amber chip = func). PRIMARY is the strongest action; a faint access glyph names which gesture to use. Empty slots collapse — single-action keys look unchanged. `3` shows PRIMARY = GEN HUB (ring), tap slot above = TAP TEMPO. Affordance data lives in `KeyAffordances.{h,cpp}` (dual-target SSOT).
@@ -1356,7 +1357,10 @@ Links: [§5.15](#515-checkpoints-live-undo) ·
 ### Trig — one or more held steps
 
 ```
-step(s) held
+step(s) held  (opens inspector: grid shows the step's P-Locks; tap a slot to clear it)
+├─ + SRC             → note-edit mode for the held step (1-octave chromatic overlay) — §5.17
+├─ + ← / →          → bubble-swap the held step with its neighbour (step follows; repeat to keep moving) — §5.1
+├─ + Func + ← / →   → nudge micro-time ±5% of step length on the held step — §5.1
 ├─ + U               → copy held step(s) (trigs + conditions + P-Locks) — §5.9
 ├─ + I               → paste clipboard onto held step(s) — §5.9
 ├─ + O               → clear held step(s) (full: trig + condition + P-Locks) — §5.9
@@ -1379,11 +1383,12 @@ section (5–0)
 ├─ + U               → copy that section's params (all steps) — §5.9
 ├─ + I               → paste that section onto the current track — §5.9
 ├─ + O               → reset that section to default — §5.9
-├─ + step            → animate bypass (FX section only: bypasses insert slot 0–7/8–15; restores on release) — §5.8
+├─ + step            → animate bypass (FX section only: bypasses insert slot; restores on release) — §5.8
 ├─ Track + section   → track-foundation row (post-machine FILTER/AMP, inserts) — §5.8
 ├─ Func + section    → the machine's secondary page / meta layer — §5.8
-├─ Func + FX (0)     → effect picker (step grid re-skins to catalogue; press step to load) — §5.8
-└─ Func + SRC + step → note-edit mode (1-octave chromatic overlay on the step grid) — §5.17
+├─ hold FX (0)       → track effect picker (step grid re-skins to catalogue; press step to load) — §5.8
+├─ Song + hold FX    → master effect picker — §5.8
+└─ hold step + SRC   → note-edit mode for that step (1-octave chromatic overlay; retire Func+Src+step) — §5.17
 ```
 
 (Section contents vary by machine — see the catalogue and value tables in
@@ -1401,7 +1406,8 @@ Track (2)
 ├─ + param edit (no track selected) → Control-All: broadcast the edit to every matching track — §5.10
 ├─ + ↑ / ↓ (no track selected) → cycle the focused track's input mode PLAY ↔ CHROMATIC ↔ LEVELS — §5.17
 ├─ + track-key + Nav → set the input mode on that specific track — §5.18
-├─ + U / I / O       → copy / paste / clear the whole track — §5.9
+├─ + U / I / O       → copy / paste (P=COPY hint when held) / clear the current phrase — §5.9 (confirm-gated)
+├─ + Song + O        → clear the whole track across every phrase — §5.9 (confirm-gated, wider blast radius)
 ├─ + Func + O        → deletion picker: step grid shows tracks; tap to choose → named confirm (P=CONFIRM, Func+P=CANCEL) — §5.4a
 ├─ + P (QUANT)       → Quantize: zero microOffset on every step of the track — §5.1
 ├─ + Scene           → re-sync the focused track to the active scene — §5.14

@@ -973,6 +973,49 @@ namespace lockstep
     }
 
     // -----------------------------------------------------------------------
+    // 9.14 Stage 4: swapSteps carries full Step data (trig/condition/pLocks/
+    // microOffset/notes) between two step indices.
+    static void testSwapStepsCarriesData()
+    {
+        EngineHarness h;
+        auto& p = h.processor();
+
+        // Precondition: track 0 length >= 8.
+        CHECK(p.sequence().tracks[0].length >= 8, "testSwapSteps: track too short");
+
+        const int aIdx = 2;
+        const int bIdx = 5;
+
+        // Set up distinct Step data at aIdx.
+        auto& trk = p.sequence().tracks[0];
+        trk.steps[aIdx].trig = true;
+        trk.steps[aIdx].condition.probabilityPercent = 75;
+        trk.steps[aIdx].microOffset = 0.2f;
+        trk.steps[aIdx].overrides.set(1, 0.77f);
+        trk.steps[bIdx].trig = false;
+        trk.steps[bIdx].condition.probabilityPercent = 100;
+        trk.steps[bIdx].microOffset = -0.1f;
+
+        p.swapSteps(0, aIdx, bIdx);
+
+        CHECK(trk.steps[bIdx].trig, "swapSteps: trig moved from a to b");
+        CHECK(trk.steps[bIdx].condition.probabilityPercent == 75,
+              "swapSteps: condition moved from a to b");
+        CHECK(trk.steps[bIdx].microOffset == 0.2f,
+              "swapSteps: microOffset moved from a to b");
+        CHECK(trk.steps[bIdx].overrides.get(1, -1.0f) == 0.77f,
+              "swapSteps: P-lock moved from a to b");
+        CHECK(!trk.steps[aIdx].trig, "swapSteps: original a now false");
+        CHECK(trk.steps[aIdx].microOffset == -0.1f,
+              "swapSteps: b's microOffset moved to a");
+
+        // Out-of-range guards: no crash or change.
+        p.swapSteps(0, aIdx, 99);
+        p.swapSteps(-1, 0, 1);
+        p.swapSteps(0, aIdx, aIdx);
+    }
+
+    // -----------------------------------------------------------------------
 
     void runEngineTests()
     {
@@ -996,5 +1039,6 @@ namespace lockstep
         testChannelLevelPLockOnVA();
         testTrackFilterLPOnVA();
         testTrackPanLaw();
+        testSwapStepsCarriesData();
     }
 }
