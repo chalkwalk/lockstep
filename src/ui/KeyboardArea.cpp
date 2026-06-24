@@ -1329,7 +1329,13 @@ namespace lockstep
         // MHZ.3.4: P-Lock clear mode — packed display of only the set P-locks.
         // Fill and press from model; label text (slot name) is a screen residual that
         // still needs lockedSlots for the label text and nav message count.
-        if (uiState_.pLockClearMode && uiState_.pLockClearTrack == uiState_.activeTrack && uiState_.pLockClearStep >= 0)
+        // Gated on !stepMoveActive: while moving a held step the layer flips to Base
+        // (sequencer view), so model.step holds Base cells, not the packed P-lock
+        // cells this branch indexes — rendering it here would read lockedSlots past
+        // its end. resolveActiveLayer is the SSOT; this mirrors its StepInspector/
+        // PLockClear gate (which also yields to stepMoveActive).
+        if (uiState_.pLockClearMode && !uiState_.stepMoveActive
+            && uiState_.pLockClearTrack == uiState_.activeTrack && uiState_.pLockClearStep >= 0)
         {
             const juce::Colour clearTint = col(kScopePLock);
             const int targetStep = uiState_.pLockClearStep;
