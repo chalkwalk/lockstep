@@ -490,6 +490,8 @@ namespace lockstep
         // rotateTrackSteps: rotate steps in [0, trackLen) one place, wrapping. dir>0 shifts
         //   content right (toward higher index); dir<0 shifts left (toward lower index).
         void rotateTrackSteps(int track, int dir);
+        // swapSteps: exchange the full Step structs at indices a and b on the given track.
+        void swapSteps(int track, int a, int b);
         // setTrackLength: set the working track length, clamped to
         //   [1, kMaxStepsPerTrack]. The single write path for phrase-length
         //   authoring (DESIGN §34.4: Phrase+Func+step, Scene+Func+step, the LEN

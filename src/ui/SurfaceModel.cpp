@@ -1234,9 +1234,10 @@ namespace lockstep
             else if (activeLayer == SurfaceLayer::StepInspector)
             {
                 // StepInspector overlay: same P-lock slot view as PLockClear but
-                // entered by bare step-hold (no Func). Reads the target step from ec.
+                // entered by bare step-hold (no Func). Uses pLockClearStep (not
+                // ec.heldStepIndex) so the view follows the step after a bubble-swap.
                 const juce::Colour clearTint{ kScopePLock };
-                const int targetStep = ec.heldStepIndex();
+                const int targetStep = ui.pLockClearStep;
                 const auto& stepData = proc.sequence()
                                            .tracks[static_cast<std::size_t>(activeTrack)]
                                            .steps[static_cast<std::size_t>(targetStep)];

@@ -3174,6 +3174,36 @@ namespace lockstep
                 // Note-edit mode and CHROMATIC mode both use NavLeft/Right for octave shift.
                 const int tl = keyboardArea_.getActiveTrack();
                 const bool chromL = tl >= 0 && tl < static_cast<int>(kNumTracks) && uiState_.trackInputMode[static_cast<std::size_t>(tl)] == TrackInputMode::Chromatic;
+
+                // 9.14 Stage 4: hold-step + Func+← = microOffset nudge backward.
+                if (uiState_.funcHeld && uiState_.pLockClearMode
+                    && uiState_.pLockClearStep >= 0 && tl >= 0)
+                {
+                    auto& s = processor_.sequence()
+                                  .tracks[static_cast<std::size_t>(tl)]
+                                  .steps[static_cast<std::size_t>(uiState_.pLockClearStep)];
+                    s.microOffset = std::max(-0.5f, s.microOffset - 0.05f);
+                    processor_.editContext().markParamWritten();
+                    setStatus("step " + juce::String(uiState_.pLockClearStep + 1)
+                              + "  micro: " + juce::String(s.microOffset, 2));
+                    keyboardArea_.repaint();
+                    return true;
+                }
+
+                // 9.14 Stage 4: hold-step + ← = bubble-swap toward lower index.
+                if (!uiState_.funcHeld && uiState_.pLockClearMode
+                    && uiState_.pLockClearStep > 0 && tl >= 0)
+                {
+                    const int from = uiState_.pLockClearStep;
+                    const int to = from - 1;
+                    processor_.swapSteps(tl, from, to);
+                    uiState_.pLockClearStep = to;  // follow the moved step
+                    processor_.editContext().markParamWritten();
+                    setStatus("step moved to position " + juce::String(to + 1));
+                    keyboardArea_.repaint();
+                    return true;
+                }
+
                 // Func+← = rotate the focused track's sequence one step left.
                 // In note-edit or Chromatic mode, Func+← keeps its octave-shift role.
                 if (uiState_.funcHeld && !uiState_.noteEditMode && !chromL)
@@ -3198,6 +3228,41 @@ namespace lockstep
                 if (consumeVelStickyKey(CB::NavRight)) return true;
                 const int tr = keyboardArea_.getActiveTrack();
                 const bool chromR = tr >= 0 && tr < static_cast<int>(kNumTracks) && uiState_.trackInputMode[static_cast<std::size_t>(tr)] == TrackInputMode::Chromatic;
+
+                // 9.14 Stage 4: hold-step + Func+→ = microOffset nudge forward.
+                if (uiState_.funcHeld && uiState_.pLockClearMode
+                    && uiState_.pLockClearStep >= 0 && tr >= 0)
+                {
+                    auto& s = processor_.sequence()
+                                  .tracks[static_cast<std::size_t>(tr)]
+                                  .steps[static_cast<std::size_t>(uiState_.pLockClearStep)];
+                    s.microOffset = std::min(0.5f, s.microOffset + 0.05f);
+                    processor_.editContext().markParamWritten();
+                    setStatus("step " + juce::String(uiState_.pLockClearStep + 1)
+                              + "  micro: " + juce::String(s.microOffset, 2));
+                    keyboardArea_.repaint();
+                    return true;
+                }
+
+                // 9.14 Stage 4: hold-step + → = bubble-swap toward higher index.
+                if (!uiState_.funcHeld && uiState_.pLockClearMode
+                    && uiState_.pLockClearStep >= 0 && tr >= 0)
+                {
+                    const int from = uiState_.pLockClearStep;
+                    const int len = processor_.sequence()
+                                        .tracks[static_cast<std::size_t>(tr)].length;
+                    if (from < len - 1)
+                    {
+                        const int to = from + 1;
+                        processor_.swapSteps(tr, from, to);
+                        uiState_.pLockClearStep = to;  // follow the moved step
+                        processor_.editContext().markParamWritten();
+                        setStatus("step moved to position " + juce::String(to + 1));
+                    }
+                    keyboardArea_.repaint();
+                    return true;
+                }
+
                 // Func+→ = rotate the focused track's sequence one step right.
                 // In note-edit or Chromatic mode, Func+→ keeps its octave-shift role.
                 if (uiState_.funcHeld && !uiState_.noteEditMode && !chromR)

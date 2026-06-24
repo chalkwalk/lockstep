@@ -2882,6 +2882,15 @@ namespace lockstep
                         trk.steps.begin() + len);
     }
 
+    void LockstepProcessor::swapSteps(int track, int a, int b)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        auto& trk = sequence().tracks[static_cast<std::size_t>(track)];
+        const int len = trk.length;
+        if (a < 0 || a >= len || b < 0 || b >= len || a == b) return;
+        std::swap(trk.steps[static_cast<std::size_t>(a)], trk.steps[static_cast<std::size_t>(b)]);
+    }
+
     // The single UI/edit-path setter for track length (PRINCIPLES §20): updates the
     // working Track.length AND the APVTS trackLength param (read by the audio thread)
     // together, so they can never diverge. All length editors (PHRASELEN band,
