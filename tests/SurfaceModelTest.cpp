@@ -621,7 +621,8 @@ namespace lockstep
     // Every non-empty Func secondary on the section row must correspond to a
     // dispatchable Func+section action:
     //   TRIG → COND, SRC → NOTE  (routed via selectMetaSection)
-    //   FX   → PICK FX           (special-cased: Func+FX opens the insert picker)
+    //   FX                       (no Func action — picker moved to hold gesture,
+    //                             9.14 Stage 2; "PICK FX" is the hold rail, not Func)
     //   FILTER / AMP / MOD       (no Func action → must dim, hint empty)
     // -------------------------------------------------------------------------
     static void testSectionFuncHintsMatchDispatch()
@@ -635,7 +636,7 @@ namespace lockstep
             ui, ec, nullptr, proc, 0, 0, GridDisplayMode::Ortholinear);
 
         const char* expected[IMachine::kMaxSections] = {
-            "COND", "NOTE", "", "", "", "PICK FX"
+            "COND", "NOTE", "", "", "", ""
         };
         for (int s = 0; s < IMachine::kMaxSections; ++s)
         {
@@ -651,6 +652,70 @@ namespace lockstep
               "AMP must not advertise VEL — generator moved to hub on 3 (9.10)");
         CHECK(model.section[4].funcHint != "DENS",
               "MOD must not advertise DENS — generator moved to hub on 3 (9.10)");
+    }
+
+    // -------------------------------------------------------------------------
+    // 9.14 fix 1: the FX section key keeps its builder identity "FX" as the
+    // primary; the Stage-2 hold picker label "PICK FX" rides the hold rail, not
+    // the primary slot. Regression guard for the deriveSlots tie-break that
+    // (before the fix) let the label-bearing hold row clobber the builder label.
+    // -------------------------------------------------------------------------
+    static void testFxSectionPrimaryNotPicker()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        UiState ui;
+        EditContext ec;
+        const SurfaceModel model = buildSurfaceModel(
+            ui, ec, nullptr, proc, 0, 0, GridDisplayMode::Ortholinear);
+
+        const auto& fx = model.section[5];
+        CHECK(fx.primary == "FX", "FX section primary stays 'FX' (not 'PICK FX')");
+        CHECK(fx.holdLabel == "PICK FX", "FX picker surfaces as the hold-rail label");
+        CHECK(fx.funcHint.isEmpty(), "FX has no stale Func secondary (Func+FX retired)");
+
+        // Guard the tie-break the other way: VerbSnapshot under Func must still
+        // promote the label-bearing hold row (→ FLOOR), since its tap row carries
+        // its own primary (RESTORE).
+        UiState fui;
+        fui.funcHeld = true;
+        const SurfaceModel fm = buildSurfaceModel(
+            fui, ec, nullptr, proc, 0, 0, GridDisplayMode::Ortholinear);
+        const auto hold = resolveBinding(ControllerButton::VerbSnapshot, -1, kModFunc,
+                                         SurfaceLayer::Base, Gesture::Hold);
+        CHECK(fm.functionRow[5].primary == juce::String(hold.primary),
+              "VerbSnapshot+Func still promotes hold label (tie-break unbroken)");
+    }
+
+    // -------------------------------------------------------------------------
+    // 9.14 fix 3: with a step held (StepInspector), SRC announces the note editor
+    // as its primary ("NOTE") with no Func hint — it must not advertise the
+    // retired Func+SRC access path. At rest it reads "SRC".
+    // -------------------------------------------------------------------------
+    static void testSrcAnnouncesNoteEditWhenStepHeld()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        EditContext ec;
+
+        {
+            UiState ui;  // at rest
+            const SurfaceModel model = buildSurfaceModel(
+                ui, ec, nullptr, proc, 0, 0, GridDisplayMode::Ortholinear);
+            CHECK(model.section[1].primary == "SRC", "SRC reads 'SRC' at rest");
+        }
+        {
+            UiState ui;  // step held → inspector
+            ui.pLockClearMode = true;
+            ui.pLockClearTrack = 0;
+            ui.pLockClearStep = 2;
+            const SurfaceModel model = buildSurfaceModel(
+                ui, ec, nullptr, proc, 0, 0, GridDisplayMode::Ortholinear);
+            CHECK(model.section[1].primary == "NOTE",
+                  "SRC announces 'NOTE' when a step is held");
+            CHECK(model.section[1].funcHint.isEmpty(),
+                  "SRC drops the Func hint in the inspector (no 'hold Func' path)");
+        }
     }
 
     void runSurfaceModelTests()
@@ -670,6 +735,8 @@ namespace lockstep
         testMachinePickerPrimary();
         testDeriveSlotEqualsGrammar();
         testSectionFuncHintsMatchDispatch();
+        testFxSectionPrimaryNotPicker();
+        testSrcAnnouncesNoteEditWhenStepHeld();
     }
 
 } // namespace lockstep

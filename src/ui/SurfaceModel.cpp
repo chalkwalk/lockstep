@@ -442,16 +442,16 @@ namespace lockstep
         // Func-row secondary labels (the Func-held section row). Empty = no
         // secondary on that key → it dims under Func (DESIGN §6.1 rule 3).
         // TRACK (length/divider) relocated to Track+TRIG; GLOBAL (gain/sync/clock)
-        // relocated to Song+FX. COND/NOTE remain Func secondaries (§6.2); FX
-        // gains "PICK FX" to announce the insert picker (special-cased in
-        // dispatch, PluginEditor MetaSection case — not routed through
-        // selectMetaSection). AMP/MOD carry NO Func secondary: the velocity /
-        // density generators moved to the generator hub on `3` in 9.10, freeing
-        // Func+AMP / Func+MOD. A label here must correspond to a dispatchable
-        // Func+section action or the row promises a panel that never opens —
-        // guarded by testSectionFuncHintsMatchDispatch.
+        // relocated to Song+FX. COND/NOTE remain Func secondaries (§6.2). FX has
+        // NO Func secondary: the insert picker moved to the *hold* gesture on FX
+        // (9.14 Stage 2 — "PICK FX" is surfaced as the hold-rail label via the
+        // grammar row, not a Func secondary), freeing Func+FX. AMP/MOD also carry
+        // no Func secondary: the velocity / density generators moved to the
+        // generator hub on `3` in 9.10, freeing Func+AMP / Func+MOD. A label here
+        // must correspond to a dispatchable Func+section action or the row promises
+        // a panel that never opens — guarded by testSectionFuncHintsMatchDispatch.
         static constexpr std::array<const char*, IMachine::kMaxSections> kMetaLabels = {
-            "COND", "NOTE", "", "", "", "PICK FX"
+            "COND", "NOTE", "", "", "", ""
         };
         auto isReservedMeta = [](int s) -> bool {
             return s < 0 || s >= IMachine::kMaxSections || kMetaLabels[static_cast<std::size_t>(s)][0] == '\0';
@@ -524,6 +524,15 @@ namespace lockstep
             // SRC glows when StepInspector is active — "tap to edit notes for this step".
             // (Previously lit for Func+Src; that gesture was retired in 9.14 Stage 3.)
             const bool isSrcNoteEdit = (!isScopedMode && ui.pLockClearMode && s == 1);
+            // The key must also *say* it is the note editor in this context — not
+            // advertise the retired Func access path. Relabel primary → "NOTE" and
+            // drop the dim Func hint. deriveSlots leaves both untouched (SRC's tap
+            // row has an empty primary; its Func row carries no label).
+            if (isSrcNoteEdit)
+            {
+                c.primary = "NOTE";
+                c.funcHint = {};
+            }
             const bool isMasterActive = !isScopedMode && (ui.masterSection == s);
             const bool isTrackActive = !isScopedMode && (ui.masterSection == -1 && ui.trackSection[static_cast<std::size_t>(activeTrack)] == s);
 
@@ -2038,7 +2047,13 @@ namespace lockstep
                 else if (ts > hs)       prim = &tap;
                 else if (hold.promoted) prim = &hold;
                 else if (tap.promoted)  prim = &tap;
-                else if (hs >= 0)       prim = &hold;
+                // On a same-specificity tie, hold wins ONLY when tap carries its
+                // own label. Section keys have an empty-primary tap row (the label
+                // comes from the builder/ScopedSectionMatrix); letting a label-
+                // bearing hold row (e.g. FX "PICK FX") win would clobber that
+                // builder label. Keeping prim=tap leaves c.primary untouched and
+                // routes the hold label into c.holdLabel below.
+                else if (hs >= 0 && tap.primary[0] != u8'\0') prim = &hold;
                 const int primSpec = spec(*prim);
 
                 c.primaryGesture = prim->gesture;
