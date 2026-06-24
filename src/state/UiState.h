@@ -159,6 +159,11 @@ namespace lockstep
         // Step-Position panel. The moved step's current slot is pLockClearStep.
         // Cleared on step release via resetPLockClear().
         bool stepMoveActive = false;
+        // Home slot of the moved step for the current hold session. Moves are
+        // swap-with-destination relative to this anchor (restore-then-swap), so
+        // cells the step passes stay put and nothing is lost. Set on step-hold,
+        // cleared by resetPLockClear.
+        int stepMoveAnchor = -1;
 
         // MHZ.3.5: true while Func+Part are both held (machine picker mode).
         // Step cells re-skin to show available machine names; pressing a cell assigns
@@ -270,6 +275,7 @@ namespace lockstep
             pLockClearStep = -1;
             pLockClearStaged.clear();
             stepMoveActive = false;
+            stepMoveAnchor = -1;
         }
 
         // Clears the Func-layer overlay pickers (machine picker, FX picker, master

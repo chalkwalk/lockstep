@@ -2891,6 +2891,16 @@ namespace lockstep
         std::swap(trk.steps[static_cast<std::size_t>(a)], trk.steps[static_cast<std::size_t>(b)]);
     }
 
+    void LockstepProcessor::relocateStepSwap(int track, int anchor, int fromPos, int toPos)
+    {
+        if (anchor < 0) return;  // no active move session
+        // Undo the current placement (step back to its anchor), then swap the
+        // anchor with the new destination. Net effect: a single swap(anchor, toPos)
+        // relative to the original layout, so cells in between are never disturbed.
+        if (fromPos != anchor) swapSteps(track, anchor, fromPos);
+        if (toPos != anchor)   swapSteps(track, anchor, toPos);
+    }
+
     // The single UI/edit-path setter for track length (PRINCIPLES §20): updates the
     // working Track.length AND the APVTS trackLength param (read by the audio thread)
     // together, so they can never diverge. All length editors (PHRASELEN band,

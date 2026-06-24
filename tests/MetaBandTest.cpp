@@ -895,17 +895,23 @@ namespace lockstep
         auto& trk = proc.sequence().tracks[0];
         const int len = trk.length;
         const int start = 2;
+        const int between = start + 1;   // a cell the step passes — must stay put
         const int target = start + 3;
         CHECK(target < len, "test precondition: target within track length");
 
-        // Mark a distinct trig at the start slot to follow across the move.
+        // Distinct markers: trig at the start slot (the moved step), a different
+        // probability at the in-between slot, and an occupied destination so we can
+        // verify swap-with-destination (dest content trades back to the anchor).
         trk.steps[static_cast<std::size_t>(start)].trig = true;
         trk.steps[static_cast<std::size_t>(start)].microOffset = 0.0f;
+        trk.steps[static_cast<std::size_t>(between)].condition.probabilityPercent = 42;
+        trk.steps[static_cast<std::size_t>(target)].microOffset = 0.25f;  // dest marker
 
         UiState ui;
         ui.stepMoveActive = true;
         ui.pLockClearTrack = 0;
         ui.pLockClearStep = start;
+        ui.stepMoveAnchor = start;   // home for swap-with-destination
         EditContext ctx;
 
         // buildMetaBand: field 0 = position (1-based), field 1 = micro-time.
@@ -920,14 +926,20 @@ namespace lockstep
             CHECK(feq(fields[1].value, 0.0f), "micro field reads 0");
         }
 
-        // Field 0 write → bubble-swap the trig to the target slot.
+        // Field 0 write → swap-with-destination: step lands at target, the cell
+        // that was at target trades back to the anchor, cells in between untouched.
         writeMetaField(MetaBand::StepPosition, 0, 0,
                        static_cast<float>(target + 1), proc, 0, ctx, ui);
+        const auto& steps = proc.sequence().tracks[0].steps;
         CHECK(ui.pLockClearStep == target, "pLockClearStep follows the moved step");
-        CHECK(proc.sequence().tracks[0].steps[static_cast<std::size_t>(target)].trig,
+        CHECK(steps[static_cast<std::size_t>(target)].trig,
               "trig moved to target slot");
-        CHECK(!proc.sequence().tracks[0].steps[static_cast<std::size_t>(start)].trig,
-              "original slot no longer carries the trig");
+        CHECK(feq(steps[static_cast<std::size_t>(start)].microOffset, 0.25f),
+              "destination content traded back to the anchor (swap)");
+        CHECK(!steps[static_cast<std::size_t>(start)].trig,
+              "anchor no longer carries the moved trig");
+        CHECK(steps[static_cast<std::size_t>(between)].condition.probabilityPercent == 42,
+              "in-between cell stays on the beat (not shifted)");
 
         // Field 1 write → micro-time on the moved step.
         writeMetaField(MetaBand::StepPosition, 0, 1, 0.3f, proc, 0, ctx, ui);

@@ -1181,10 +1181,11 @@ namespace lockstep
             {
                 const int target = std::clamp(
                     static_cast<int>(std::round(value)) - 1, 0, len - 1);
-                int cur = ui.pLockClearStep;
-                while (cur < target) { proc.swapSteps(mt, cur, cur + 1); ++cur; }
-                while (cur > target) { proc.swapSteps(mt, cur, cur - 1); --cur; }
-                ui.pLockClearStep = cur;
+                // Swap-with-destination from the move anchor: the step lands at the
+                // target and only the destination cell trades back — cells in between
+                // stay on the beat (DESIGN; chosen over sequential reorder / overwrite).
+                proc.relocateStepSwap(mt, ui.stepMoveAnchor, ui.pLockClearStep, target);
+                ui.pLockClearStep = target;
             }
             else if (field == 1)
             {

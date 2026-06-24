@@ -3081,6 +3081,7 @@ namespace lockstep
                     uiState_.pLockClearMode = true;
                     uiState_.pLockClearTrack = keyboardArea_.getActiveTrack();
                     uiState_.pLockClearStep = absStep;
+                    uiState_.stepMoveAnchor = absStep;  // home for swap-with-destination moves
                     // Fresh hold starts in the inspector, never the move panel — clear
                     // any leftover move state and re-resolve the MZ band so a prior
                     // Step-Position panel can't linger into this hold.
@@ -3250,13 +3251,13 @@ namespace lockstep
                     return true;
                 }
 
-                // 9.14 Stage 4: hold-step + ← = bubble-swap toward lower index.
+                // 9.14: hold-step + ← = swap-with-destination toward lower index.
                 if (!uiState_.funcHeld && uiState_.pLockClearMode
                     && uiState_.pLockClearStep > 0 && tl >= 0)
                 {
                     const int from = uiState_.pLockClearStep;
                     const int to = from - 1;
-                    processor_.swapSteps(tl, from, to);
+                    processor_.relocateStepSwap(tl, uiState_.stepMoveAnchor, from, to);
                     uiState_.pLockClearStep = to;  // follow the moved step
                     processor_.editContext().markParamWritten();
                     uiState_.stepMoveActive = true;  // flip grid → sequencer, MZ → Step-Position
@@ -3308,7 +3309,7 @@ namespace lockstep
                     return true;
                 }
 
-                // 9.14 Stage 4: hold-step + → = bubble-swap toward higher index.
+                // 9.14: hold-step + → = swap-with-destination toward higher index.
                 if (!uiState_.funcHeld && uiState_.pLockClearMode
                     && uiState_.pLockClearStep >= 0 && tr >= 0)
                 {
@@ -3318,7 +3319,7 @@ namespace lockstep
                     if (from < len - 1)
                     {
                         const int to = from + 1;
-                        processor_.swapSteps(tr, from, to);
+                        processor_.relocateStepSwap(tr, uiState_.stepMoveAnchor, from, to);
                         uiState_.pLockClearStep = to;  // follow the moved step
                         processor_.editContext().markParamWritten();
                         setStatus("step moved to position " + juce::String(to + 1));

@@ -492,6 +492,11 @@ namespace lockstep
         void rotateTrackSteps(int track, int dir);
         // swapSteps: exchange the full Step structs at indices a and b on the given track.
         void swapSteps(int track, int a, int b);
+        // relocateStepSwap: swap-with-destination move of a held step (9.14). The
+        //   step's home is `anchor`; it currently sits at `fromPos`. Restore it to
+        //   anchor, then swap anchor<->toPos so the step lands at toPos and only the
+        //   destination cell trades back to anchor — every cell in between stays put.
+        void relocateStepSwap(int track, int anchor, int fromPos, int toPos);
         // setTrackLength: set the working track length, clamped to
         //   [1, kMaxStepsPerTrack]. The single write path for phrase-length
         //   authoring (DESIGN §34.4: Phrase+Func+step, Scene+Func+step, the LEN
