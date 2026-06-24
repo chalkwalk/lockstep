@@ -873,6 +873,70 @@ namespace lockstep
     }
 
     // -------------------------------------------------------------------------
+    // 9.14 fix 2: held-step move surfaces the Step-Position panel; its encoders
+    // move the step (field 0, sequential bubble-swap) and nudge micro-time
+    // (field 1). resolveMetaBand routes to it whenever stepMoveActive is set.
+    static void testStepPositionBand()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+
+        // resolveMetaBand: stepMoveActive outranks every other transient.
+        {
+            UiState ui;
+            ui.stepMoveActive = true;
+            CHECK(resolveMetaBand(ui) == MetaBand::StepPosition,
+                  "stepMoveActive → StepPosition");
+            ui.euclidHeld = true;
+            CHECK(resolveMetaBand(ui) == MetaBand::StepPosition,
+                  "stepMoveActive outranks euclid");
+        }
+
+        auto& trk = proc.sequence().tracks[0];
+        const int len = trk.length;
+        const int start = 2;
+        const int target = start + 3;
+        CHECK(target < len, "test precondition: target within track length");
+
+        // Mark a distinct trig at the start slot to follow across the move.
+        trk.steps[static_cast<std::size_t>(start)].trig = true;
+        trk.steps[static_cast<std::size_t>(start)].microOffset = 0.0f;
+
+        UiState ui;
+        ui.stepMoveActive = true;
+        ui.pLockClearTrack = 0;
+        ui.pLockClearStep = start;
+        EditContext ctx;
+
+        // buildMetaBand: field 0 = position (1-based), field 1 = micro-time.
+        {
+            const auto fields = buildMetaBand(MetaBand::StepPosition, 0, proc, 0, ctx, ui);
+            CHECK(fields[0].active && fields[1].active,
+                  "StepPosition exposes position + micro fields");
+            CHECK(feq(fields[0].value, static_cast<float>(start + 1)),
+                  "position field reads step+1");
+            CHECK(feq(fields[0].maxValue, static_cast<float>(len)),
+                  "position max = track length");
+            CHECK(feq(fields[1].value, 0.0f), "micro field reads 0");
+        }
+
+        // Field 0 write → bubble-swap the trig to the target slot.
+        writeMetaField(MetaBand::StepPosition, 0, 0,
+                       static_cast<float>(target + 1), proc, 0, ctx, ui);
+        CHECK(ui.pLockClearStep == target, "pLockClearStep follows the moved step");
+        CHECK(proc.sequence().tracks[0].steps[static_cast<std::size_t>(target)].trig,
+              "trig moved to target slot");
+        CHECK(!proc.sequence().tracks[0].steps[static_cast<std::size_t>(start)].trig,
+              "original slot no longer carries the trig");
+
+        // Field 1 write → micro-time on the moved step.
+        writeMetaField(MetaBand::StepPosition, 0, 1, 0.3f, proc, 0, ctx, ui);
+        CHECK(feq(proc.sequence().tracks[0].steps[static_cast<std::size_t>(target)].microOffset,
+                  0.3f),
+              "micro-time set on the moved step");
+    }
+
+    // -------------------------------------------------------------------------
 
     void runMetaBandTests()
     {
@@ -935,5 +999,7 @@ namespace lockstep
         testWriteMetaFieldDensityMasterIsGuardedNoOp();
 
         testMetaRotaryApplyViewTotality();
+
+        testStepPositionBand();
     }
 }

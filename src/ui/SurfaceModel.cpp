@@ -1773,7 +1773,12 @@ namespace lockstep
 
                     const auto& stepRef = trk.steps[static_cast<std::size_t>(absIdx)];
                     const bool hasTrig = stepRef.trig;
-                    const bool isHeld = ctx.heldTrackIndex() == activeTrack && std::find(heldSteps.begin(), heldSteps.end(), absIdx) != heldSteps.end();
+                    // While moving, the physical key (in heldSteps) no longer holds the
+                    // moved content after a swap — follow pLockClearStep so the moved
+                    // step stays highlighted at its current slot as it hops.
+                    const bool isHeld = ui.stepMoveActive
+                        ? (activeTrack == ui.pLockClearTrack && absIdx == ui.pLockClearStep)
+                        : (ctx.heldTrackIndex() == activeTrack && std::find(heldSteps.begin(), heldSteps.end(), absIdx) != heldSteps.end());
                     const bool hasLock = !stepRef.overrides.empty();
                     const bool hasFillLock = !stepRef.fillOverrides.empty();
                     const bool isHead = (absIdx == playheadAbs);

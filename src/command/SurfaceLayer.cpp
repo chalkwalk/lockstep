@@ -27,6 +27,13 @@ namespace lockstep
 
         if (ui.noteEditMode && !ui.noteEditSteps.empty()) { return SurfaceLayer::NoteEdit; }
 
+        // While moving/micro-nudging a held step, drop back to the sequencer view
+        // so the step is visible hopping across the grid (the MZ flips to the
+        // Step-Position panel via resolveMetaBand). Outranks the StepInspector
+        // re-skin below. stepMoveActive is only set while a step is held and is
+        // cleared on release.
+        if (ui.stepMoveActive) { return SurfaceLayer::Base; }
+
         if (ec.heldStepIndex() >= 0) { return SurfaceLayer::StepInspector; }
 
         if (ui.pLockClearMode && ui.pLockClearTrack == f.activeTrack && ui.pLockClearStep >= 0)

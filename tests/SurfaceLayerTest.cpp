@@ -417,6 +417,14 @@ namespace lockstep
             CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::Base,
                   "no held step + empty UiState → Base");
         }
+        // 9.14 fix 2: while moving a held step, drop back to the sequencer view
+        // (Base) so the step is visible hopping — outranks StepInspector.
+        {
+            UiState ui;
+            ui.stepMoveActive = true;
+            CHECK(resolveActiveLayer(ui, ecWithStep(0, 4), facts()) == SL::Base,
+                  "stepMoveActive → Base (sequencer view) even with a step held");
+        }
     }
 
     void runSurfaceLayerTests()

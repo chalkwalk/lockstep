@@ -153,6 +153,13 @@ namespace lockstep
         int pLockClearStep = -1;
         std::set<int> pLockClearStaged;  // slot indices pending permanent removal
 
+        // 9.14: true while a held step is being moved/micro-nudged (hold step + ←/→
+        // or Func+←/→). Drops the grid out of the StepInspector re-skin back to the
+        // sequencer view (so the moved step is visible) and flips the MZ to the
+        // Step-Position panel. The moved step's current slot is pLockClearStep.
+        // Cleared on step release via resetPLockClear().
+        bool stepMoveActive = false;
+
         // MHZ.3.5: true while Func+Part are both held (machine picker mode).
         // Step cells re-skin to show available machine names; pressing a cell assigns
         // the machine for the active track.
@@ -262,6 +269,7 @@ namespace lockstep
             pLockClearTrack = -1;
             pLockClearStep = -1;
             pLockClearStaged.clear();
+            stepMoveActive = false;
         }
 
         // Clears the Func-layer overlay pickers (machine picker, FX picker, master

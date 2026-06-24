@@ -49,6 +49,10 @@ namespace lockstep
         // arming euclid, entering density/vel sticky, or holding swing while a
         // DIV/LEN page is latched immediately shows the relevant band.
 
+        // Held-step move outranks everything: it is a transient interaction only
+        // active while a step is held and being moved/micro-nudged (9.14).
+        if (ui.stepMoveActive)
+            return MetaBand::StepPosition;
         // Euclidean modal outranks everything else.
         if (ui.euclidHeld)
             return MetaBand::Euclidean;
@@ -407,6 +411,47 @@ namespace lockstep
         f0.writable = true;
         f0.valueText = juce::String(static_cast<int>(length));
         f0.ringMode = RingMode::Dot;
+        return result;
+    }
+
+    // buildStepPositionBand: held-step move panel (9.14).
+    // Field 0 = position (1..trackLen), field 1 = micro-time offset (±50% step).
+    // Reads the moved step from ui.pLockClearTrack / ui.pLockClearStep.
+    static std::array<MetaFieldView, 8> buildStepPositionBand(LockstepProcessor& proc,
+                                                              const UiState& ui)
+    {
+        std::array<MetaFieldView, 8> result{};
+        const int track = ui.pLockClearTrack;
+        const int step = ui.pLockClearStep;
+        if (track < 0 || track >= static_cast<int>(kNumTracks) || step < 0)
+            return result;
+
+        const auto& trk = proc.sequence().tracks[static_cast<std::size_t>(track)];
+        const int trackLen = std::max(1, trk.length);
+        const float micro = trk.steps[static_cast<std::size_t>(step)].microOffset;
+
+        auto& f0 = result[0];
+        f0.active    = true;
+        f0.label     = "Pos";
+        f0.minValue  = 1.0f;
+        f0.maxValue  = static_cast<float>(trackLen);
+        f0.value     = static_cast<float>(step + 1);
+        f0.stepped   = true;
+        f0.writable  = true;
+        f0.valueText = juce::String(step + 1);
+        f0.ringMode  = RingMode::Dot;
+
+        auto& f1 = result[1];
+        f1.active    = true;
+        f1.label     = "Micro";
+        f1.minValue  = -0.5f;
+        f1.maxValue  = 0.5f;
+        f1.value     = micro;
+        f1.stepped   = false;
+        f1.writable  = true;
+        f1.valueText = juce::String(micro, 2);
+        f1.ringMode  = RingMode::BipolarFromCentre;
+
         return result;
     }
 
@@ -1066,6 +1111,8 @@ namespace lockstep
             click.valueText = metOn ? juce::String("ON") : juce::String("OFF");
             return result;
         }
+        if (band == MetaBand::StepPosition)
+            return buildStepPositionBand(proc, ui);
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return {};
 
@@ -1116,6 +1163,35 @@ namespace lockstep
                     break;
                 default: break;
             }
+            return;
+        }
+
+        // 9.14: Step-Position move panel — field 0 = position (sequential bubble-
+        // swap, mirroring the hold-step + ←/→ key gesture), field 1 = micro-time.
+        // Operates on the moved step (ui.pLockClearTrack / pLockClearStep), updating
+        // pLockClearStep so the panel + highlight follow it.
+        if (band == MetaBand::StepPosition)
+        {
+            const int mt = ui.pLockClearTrack;
+            if (mt < 0 || mt >= static_cast<int>(kNumTracks) || ui.pLockClearStep < 0)
+                return;
+            auto& trk = proc.sequence().tracks[static_cast<std::size_t>(mt)];
+            const int len = std::max(1, trk.length);
+            if (field == 0)
+            {
+                const int target = std::clamp(
+                    static_cast<int>(std::round(value)) - 1, 0, len - 1);
+                int cur = ui.pLockClearStep;
+                while (cur < target) { proc.swapSteps(mt, cur, cur + 1); ++cur; }
+                while (cur > target) { proc.swapSteps(mt, cur, cur - 1); --cur; }
+                ui.pLockClearStep = cur;
+            }
+            else if (field == 1)
+            {
+                trk.steps[static_cast<std::size_t>(ui.pLockClearStep)].microOffset =
+                    std::clamp(value, -0.5f, 0.5f);
+            }
+            ctx.markParamWritten();
             return;
         }
 
@@ -1506,6 +1582,7 @@ namespace lockstep
             case MetaBand::VelMode:        return "VEL / MODE";
             case MetaBand::VelBlend:       return "VEL / BLEND";
             case MetaBand::Time:           return "TIME";
+            case MetaBand::StepPosition:   return "MOVE";
             default:                       return {};
         }
     }

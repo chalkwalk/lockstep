@@ -3196,6 +3196,8 @@ namespace lockstep
                                   .steps[static_cast<std::size_t>(uiState_.pLockClearStep)];
                     s.microOffset = std::max(-0.5f, s.microOffset - 0.05f);
                     processor_.editContext().markParamWritten();
+                    uiState_.stepMoveActive = true;  // flip grid → sequencer, MZ → Step-Position
+                    refreshMetaBand();
                     setStatus("step " + juce::String(uiState_.pLockClearStep + 1)
                               + "  micro: " + juce::String(s.microOffset, 2));
                     keyboardArea_.repaint();
@@ -3211,6 +3213,8 @@ namespace lockstep
                     processor_.swapSteps(tl, from, to);
                     uiState_.pLockClearStep = to;  // follow the moved step
                     processor_.editContext().markParamWritten();
+                    uiState_.stepMoveActive = true;  // flip grid → sequencer, MZ → Step-Position
+                    refreshMetaBand();
                     setStatus("step moved to position " + juce::String(to + 1));
                     keyboardArea_.repaint();
                     return true;
@@ -3250,6 +3254,8 @@ namespace lockstep
                                   .steps[static_cast<std::size_t>(uiState_.pLockClearStep)];
                     s.microOffset = std::min(0.5f, s.microOffset + 0.05f);
                     processor_.editContext().markParamWritten();
+                    uiState_.stepMoveActive = true;  // flip grid → sequencer, MZ → Step-Position
+                    refreshMetaBand();
                     setStatus("step " + juce::String(uiState_.pLockClearStep + 1)
                               + "  micro: " + juce::String(s.microOffset, 2));
                     keyboardArea_.repaint();
@@ -3271,6 +3277,8 @@ namespace lockstep
                         processor_.editContext().markParamWritten();
                         setStatus("step moved to position " + juce::String(to + 1));
                     }
+                    uiState_.stepMoveActive = true;  // flip grid → sequencer, MZ → Step-Position
+                    refreshMetaBand();
                     keyboardArea_.repaint();
                     return true;
                 }

@@ -33,7 +33,8 @@ namespace lockstep
         VelCenter,  // velocity overlay center sub-page
         VelMode,    // velocity overlay mode sub-page (Off / Bar)
         VelBlend,   // velocity overlay blend sub-page (Replace / Mix)
-        Time        // unified TIME page: tempo (field 0) + time-sig (field 1) (DESIGN §4.8)
+        Time,       // unified TIME page: tempo (field 0) + time-sig (field 1) (DESIGN §4.8)
+        StepPosition // 9.14: held-step move panel — pos (field 0) + micro-time (field 1)
     };
 
     // -------------------------------------------------------------------------
