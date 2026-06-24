@@ -3081,6 +3081,11 @@ namespace lockstep
                     uiState_.pLockClearMode = true;
                     uiState_.pLockClearTrack = keyboardArea_.getActiveTrack();
                     uiState_.pLockClearStep = absStep;
+                    // Fresh hold starts in the inspector, never the move panel — clear
+                    // any leftover move state and re-resolve the MZ band so a prior
+                    // Step-Position panel can't linger into this hold.
+                    uiState_.stepMoveActive = false;
+                    refreshMetaBand();
 
                     repaint();
                 }
@@ -4140,7 +4145,8 @@ namespace lockstep
                             }
                             ctx.markParamWritten();  // suppress trig toggle
                         }
-                        uiState_.resetPLockClear();
+                        uiState_.resetPLockClear();  // also clears stepMoveActive
+                        refreshMetaBand();  // drop the Step-Position panel on release
 
                         const bool paramWrote = ctx.wasParamWritten();
                         ctx.release(stepIdx);

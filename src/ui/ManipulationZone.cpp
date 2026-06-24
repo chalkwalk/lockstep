@@ -67,6 +67,14 @@ namespace lockstep
                                    uiState_ ? *uiState_ : kEmptyUiState);
                     if (band_ == MetaBand::Euclidean && onEuclidParamChanged)
                         onEuclidParamChanged();
+                    // Step-Position: the visible effect (the step hopping) is on the
+                    // grid, which the meta-write path doesn't otherwise touch. Repaint
+                    // it and re-sync the sliders to the (possibly clamped) new slot.
+                    if (band_ == MetaBand::StepPosition)
+                    {
+                        refreshSliders();
+                        area_.repaint();
+                    }
                     return;
                 }
                 // Machine-param path.
