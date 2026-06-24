@@ -139,7 +139,7 @@ namespace lockstep::verbs
             if (ctx.clipboard.type != ClipboardType::Track && ctx.clipboard.type != ClipboardType::All)
                 return false;
             trk = ctx.clipboard.clipTrack;
-            fx.status(status::pastedTrack(at));
+            fx.status(status::pastedTrackWithSource(at));
             fx.releaseLatch(CB::TrackScope);
             return true;
         }

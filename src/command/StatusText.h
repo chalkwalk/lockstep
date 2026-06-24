@@ -193,4 +193,27 @@ namespace lockstep::status
     // Shown at the bottom of the Sound Bank overlay as a hint strip.
     inline juce::String soundBankHint() { return "Fill+SRC: performance recall"; }
 
+    // ---- copy/paste discoverability (9.14 Stage 5) -------------------------
+
+    // Hint appended to scope-held status when there is no clipboard content.
+    inline juce::String copyHint() { return "  P=COPY"; }
+
+    // Hint appended when clipboard has a paste-compatible type for this scope.
+    inline juce::String pasteHint(const char* clipTypeName)
+    {
+        return juce::String("  P=COPY  Play=PASTE ") + clipTypeName;
+    }
+
+    inline juce::String copiedTrackWithScope(int track, bool allPhrases)
+    {
+        return allPhrases
+            ? "Copied Track " + juce::String(track + 1) + " (all phrases)"
+            : "Copied Track " + juce::String(track + 1) + " — current phrase";
+    }
+
+    inline juce::String pastedTrackWithSource(int track)
+    {
+        return "Pasted track clip -> Track " + juce::String(track + 1);
+    }
+
 } // namespace lockstep::status

@@ -1381,10 +1381,22 @@ namespace lockstep
                             if (anyOffset)
                                 ctx += "  |  P = QUANT track";
                         }
+                        // 9.14 Stage 5: copy/paste affordance hint.
+                        using CT = ClipboardType;
+                        if (clipboard_.type == CT::Track || clipboard_.type == CT::All)
+                            ctx += status::pasteHint("TRACK");
+                        else
+                            ctx += status::copyHint();
                     }
                     else if (ui.phraseScopeHeld)
                     {
                         ctx = "PHRASE";
+                        // 9.14 Stage 5: copy/paste affordance hint.
+                        using CT = ClipboardType;
+                        if (clipboard_.type == CT::Pattern || clipboard_.type == CT::All)
+                            ctx += status::pasteHint("PHRASE");
+                        else
+                            ctx += status::copyHint();
                         // QUANT granularity: Phrase scope quantizes every track.
                         bool anyOffset = false;
                         for (const auto& trk : processor_.sequence().tracks)
