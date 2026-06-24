@@ -33,6 +33,7 @@
 #include "ui/SamplePoolOverlay.h"
 #include "ui/SoundBankOverlay.h"
 #include "ui/StandaloneFileBar.h"
+#include "ui/SurfaceDispatcher.h"
 
 namespace lockstep
 {
@@ -137,11 +138,19 @@ namespace lockstep
         bool tapTempoPhysHeld_ = false;
         double tapTempoArmMs_ = 0.0;
 
-        // Refresh the whole visible surface (chrome + the step/section grid). The
-        // grid is a child component that does not always redraw on the editor's own
-        // repaint(), so a full refresh needs both; call this instead of pairing
-        // repaint() + keyboardArea_.repaint() by hand (PRINCIPLES §20).
-        void refreshSurface() { repaint(); keyboardArea_.repaint(); }
+        // Refresh the whole visible surface (chrome + the step/section grid).
+        // Routes through the single invalidation channel (PRINCIPLES §22 /
+        // DESIGN §35.9): invalidate() marks the surface dirty and the
+        // AsyncUpdater coalesces a message-loop cycle of calls into one frame.
+        // The frame repaints the chrome *and* the grid child (which does not
+        // always redraw on the editor's own repaint()); never pair repaint() +
+        // keyboardArea_.repaint() by hand (PRINCIPLES §20).
+        void refreshSurface() { surfaceDispatcher_.invalidate(); }
+
+        // The one place a frame is produced (DESIGN §35.9.1). onFrame currently
+        // repaints chrome + grid; Stage 2 folds controller rendering in here so
+        // a single buildSurfaceModel() drives every sink.
+        SurfaceDispatcher surfaceDispatcher_{ [this] { repaint(); keyboardArea_.repaint(); } };
 
         // Generator hub entry helpers (extracted from legacy Phrase+Fill / Func+MOD / Func+AMP).
         void enterEuclid(int track);

@@ -59,6 +59,8 @@ int main()
     lockstep::runInspectorModelTests();
     // 9.13: unified Modal accessor (reducer foundation)
     lockstep::runModalStateTests();
+    // 9.15: SurfaceDispatcher coalescing (one surface-invalidation channel)
+    lockstep::runSurfaceDispatcherTests();
 
     // Also drive the JUCE UnitTests registered in lockstep_core (the serializer
     // upgrade chain, "PluginState" category) so they run headlessly in CI rather

@@ -81,4 +81,6 @@ namespace lockstep
     void runInspectorModelTests();
     // 9.13: unified Modal accessor (reducer foundation)
     void runModalStateTests();
+    // 9.15: SurfaceDispatcher coalescing contract (one invalidation channel)
+    void runSurfaceDispatcherTests();
 }

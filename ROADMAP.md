@@ -1961,10 +1961,12 @@ continuous animations. Docs-first.
       and suspends when settled). DESIGN §35.9 (`SurfaceDispatcher` +
       `handleAsyncUpdate` single build → all sinks; §35.9.2 audio→UI discrete
       bridge on active-step change, not PPQ; §35.9.3 the one animation clock).
-- [ ] **Stage 1 — `SurfaceDispatcher` + on-screen path.** `AsyncUpdater`-based
-      dispatcher; `refreshSurface()` → `invalidate()`; single model build + screen
-      render in `handleAsyncUpdate()`. Coalescing unit test (N invalidate ⇒ 1
-      build). No behaviour change.
+- [x] **Stage 1 — `SurfaceDispatcher` + on-screen path.** `AsyncUpdater`-based
+      dispatcher (`ui/SurfaceDispatcher.h`); `refreshSurface()` → `invalidate()`
+      (all 22 sites repointed via the one header method); `onFrame` repaints
+      chrome + grid (controller fold-in is Stage 2). `SurfaceDispatcherTest`
+      asserts the coalescing contract (N invalidate ⇒ 1 frame; idle ⇒ 0; re-arm
+      after delivery; pending-at-teardown cancelled). No behaviour change.
 - [ ] **Stage 2 — Fold controllers in.** Render controllers from the same
       `handleAsyncUpdate()` build; delete the separate per-tick rebuild in the
       editor `timerCallback`. Controller **input** drain stays on a small tick.
