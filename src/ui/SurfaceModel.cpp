@@ -545,6 +545,12 @@ namespace lockstep
             const bool hasFuncSecondary = !isReservedMeta(s);
             if (funcLayerActive)
                 c.disabled = !hasFuncSecondary;
+            // FX carries no Func-layer action (the picker is a non-Func gesture:
+            // Track+hold / Song+hold). Under Func held it must read inert even when
+            // a scope would otherwise light it (e.g. Func+Song was showing a lit
+            // "FX" where the retired GLOBAL scope used to sit). (9.14)
+            if (ui.funcHeld && s == proc.kFxSecIdx)
+                c.disabled = true;
 
             // Fill layer: TRIG (0) and SRC (1) glow when Fill is held to announce
             // the Retrig and SoundPool overlays respectively.

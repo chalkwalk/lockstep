@@ -280,6 +280,14 @@ namespace lockstep
 
         refreshSliders();
 
+        // 9.14: while the Step-Position panel is up, drive the grid repaint from
+        // this 30 Hz tick. An encoder drag updates the moved step in onValueChange,
+        // but repaints scheduled from the slider's mouse-drag context don't always
+        // flush the grid live; the timer guarantees a realtime step preview that
+        // matches the nav ←/→ feedback.
+        if (band_ == MetaBand::StepPosition)
+            area_.repaint();
+
         // The CC-learn overlay pulses at ~3 Hz; repaint to drive that animation.
         // Outside of learn mode the child sliders/labels repaint themselves when
         // their values change, so no explicit repaint() is needed here.

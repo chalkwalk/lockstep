@@ -713,6 +713,8 @@ namespace lockstep
                 ui, ec, nullptr, proc, 0, 0, GridDisplayMode::Ortholinear);
             CHECK(m.section[5].holdLabel.isEmpty(),
                   "Song+Func FX advertises no picker (Func is not a picker gesture)");
+            CHECK(m.section[5].disabled,
+                  "Song+Func FX is inert (no Func-layer FX action; was the old GLOBAL slot)");
         }
 
         // Guard the tie-break the other way: VerbSnapshot under Func must still
