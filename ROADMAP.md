@@ -1945,6 +1945,39 @@ tap = navigate/toggle** (PRINCIPLES §5). Docs-first.
 > hold-step inspector + SRC; `Func+step` (P-Lock clear mode) → inspector tap-to-clear;
 > `Func+FX` / `Func+Song+FX` (effect pickers) → hold-FX / `Song`+hold-FX.
 
+### 9.15 — Unified surface invalidation (events redraw, the clock only animates)  *[active]*
+
+Recent draw fixes papered over missing redraws with per-mode "repaint every
+tick" timers (e.g. the MZ `StepPosition` `area_.repaint()`, `4817f57`). The
+cause: there is **no single "the surface may have changed" signal** — ~50
+synchronous `refreshSurface()` sites, several polling timers, and the
+controllers' brute-force 30 Hz rebuild all coexist. This item unifies *when* the
+surface redraws (the §35.8 model already unifies *what*): one coalescing
+invalidation channel for discrete events, one self-suspending clock for
+continuous animations. Docs-first.
+
+- [x] **Stage 0 — Docs.** PRINCIPLES §22 (one invalidation channel; discrete =
+      events, never polled; the lone animation clock owns only continuous decays
+      and suspends when settled). DESIGN §35.9 (`SurfaceDispatcher` +
+      `handleAsyncUpdate` single build → all sinks; §35.9.2 audio→UI discrete
+      bridge on active-step change, not PPQ; §35.9.3 the one animation clock).
+- [ ] **Stage 1 — `SurfaceDispatcher` + on-screen path.** `AsyncUpdater`-based
+      dispatcher; `refreshSurface()` → `invalidate()`; single model build + screen
+      render in `handleAsyncUpdate()`. Coalescing unit test (N invalidate ⇒ 1
+      build). No behaviour change.
+- [ ] **Stage 2 — Fold controllers in.** Render controllers from the same
+      `handleAsyncUpdate()` build; delete the separate per-tick rebuild in the
+      editor `timerCallback`. Controller **input** drain stays on a small tick.
+- [ ] **Stage 3 — Audio→UI discrete bridge.** `lastActiveStep_[]` +
+      `surfaceDirtyFromAudio_` in the processor; `invalidate()` on discrete
+      step-index change + CC write. Delete `KeyboardArea` PPQ/length poll.
+      Step-cross + CC-write redraw tests (`setRateAndBufferSizeDetails` first).
+- [ ] **Stage 4 — Isolate the clock + kill the hacks.** Single self-suspending
+      animation timer (decays + timed gesture promotions only); remove MZ
+      `StepPosition` per-tick repaint; retire `InPluginTransport` /
+      `SamplePoolOverlay` pollers onto the channel. Idle-repaint counter confirms
+      zero repaints when idle.
+
 ---
 
 ## Appendix — Legacy code → new id

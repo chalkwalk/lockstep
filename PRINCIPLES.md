@@ -782,6 +782,41 @@ fine-grained reveal-and-edit cases (one P-Lock, one note, one step's position)
 live in the held-step inspector (§5 — "the hold is the mode"); this principle
 governs what the destructive verbs *mean* once fired.
 
+## 22. One surface-invalidation channel; events redraw, the clock only animates
+
+§19 made *what* is drawn a single source of truth — one `buildSurfaceModel`,
+rendered identically to screen and LEDs. This principle does the same for *when*
+it redraws. Correctness here is the same shape as §20's single-owner rule: when
+a redraw depends on a human remembering to call `refreshSurface()` at every
+mutation site, one will eventually be forgotten and the surface goes stale — and
+the recovery has historically been worse than the disease (a per-mode "repaint
+every tick" timer that papers over the missing signal). Both halves are defects.
+
+**Discrete changes are events, never polled.** A step toggles, a scope is held,
+a CC moves a parameter, the playhead crosses into a new step — each *marks the
+surface dirty* through exactly one channel, which coalesces a message-loop cycle
+of marks into **one** model build that renders every sink (screen + controllers)
+together. There is one "the surface may have changed" signal, so a renderer
+cannot be left out and two paths cannot diverge. Polling an atomic on a timer to
+*notice* a discrete change — the old playhead-PPQ poll, the controllers'
+brute-force 30 Hz rebuild — is the smell this forbids: convert it to an event.
+
+**The animation clock owns only what genuinely has no event.** A decaying VU
+meter, a blink fade, a smoothing crossfader has no discrete event per frame; it
+is honestly continuous, and pretending otherwise (snapping the meter, or posting
+a message per audio block) is worse. Exactly **one** timer is permitted to drive
+a repaint, it owns *only* those continuous values, and it **suspends itself when
+they settle** — an idle surface issues zero repaints. A new continuously-varying
+readout joins that clock; anything discrete does not get a timer.
+
+**Consequence.** No component schedules its own `repaint()` for state it does not
+exclusively own, and "draw it every tick to be safe" is not a fix — it is the bug
+report. `refreshSurface()` is the one entry point (it feeds the channel); the
+audio thread reaches the UI by flagging the dirty signal on a discrete change,
+not by being polled. Adding a redraw source means answering one question — *is
+this a discrete event or a continuous animation?* — and wiring it to the matching
+half. (DESIGN §35.9.)
+
 ---
 
 ## Non-Goals — what Lockstep refuses to become

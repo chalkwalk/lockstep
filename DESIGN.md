@@ -4811,6 +4811,74 @@ and `pageDots` fields are added to `SurfaceModel` and populated by
 `buildSurfaceModel()`, making banners and page indicators
 controller-visible for free (see §37.4).
 
+### 35.9 The invalidation channel — *when* the surface redraws
+
+§35.8 made *what* is drawn a single source of truth. This section does the
+same for *when* it redraws, satisfying PRINCIPLES §22. The model build
+(§35.8.1) is the shared computation; this is the shared **trigger** for it.
+
+**Problem.** Three uncoordinated mechanisms decide when to redraw: ~50
+synchronous `refreshSurface()` call sites (each easy to forget → stale
+surface); polling timers that diff atomics to *notice* a change
+(`KeyboardArea::timerCallback` on `cumulativePpq()` + track length; the editor
+on meters/transport/morph); and per-mode "repaint every tick" workarounds (the
+ManipulationZone `StepPosition` case). The controllers sidestep the lot by
+re-rendering every 30 Hz tick — the emitter comment itself records that "dirty
+is not a reliable signal," which is exactly the defect: there is **no single
+'the surface may have changed' signal.**
+
+**Two redraw kinds, one each.** Redraws split cleanly, and conflating them is
+what produced the timer hacks:
+
+- **Discrete** — a step toggles, a scope is held, a CC moves a parameter, the
+  playhead crosses into a new *step index*. These are events.
+- **Continuous** — a VU meter's ballistic decay, a blink fade, a smoothing
+  crossfader. These have no discrete event per frame; they are animations.
+
+#### 35.9.1 `SurfaceDispatcher` — the one discrete channel
+
+A message-thread `SurfaceDispatcher` (a `juce::AsyncUpdater`) owned by
+`LockstepEditor`:
+
+- `invalidate()` — marks dirty and `triggerAsyncUpdate()`. JUCE coalesces:
+  any number of `invalidate()` calls within one message-loop cycle collapse to
+  a single `handleAsyncUpdate()`.
+- `handleAsyncUpdate()` — the **one** place a frame is produced. It calls
+  `buildSurfaceModel()` once and renders **every** sink from that single
+  instance: the screen (`KeyboardArea`) and each open controller
+  (`controllerPorts_`, `push1Ports_`). This replaces both `refreshSurface()`'s
+  `repaint(); keyboardArea_.repaint();` body and the separate per-tick
+  controller rebuild in the editor `timerCallback`.
+
+`refreshSurface()` survives as a thin alias for `invalidate()`, so the existing
+call sites keep compiling and now feed the one channel. No component schedules
+its own `repaint()` for shared state.
+
+#### 35.9.2 Audio → UI bridge (discrete)
+
+The sequencer advances on the audio thread. To make the playhead an *event*,
+the processor tracks `lastActiveStep_[track]` and sets a `surfaceDirtyFromAudio_`
+atomic flag when **(a)** a CC write lands, or **(b)** any track's discrete
+active-step index changes — derived processor-side from PPQ + length/divider,
+**not** the continuous `cumulativePpq()`. The editor consumes the flag and calls
+`invalidate()`. Between step boundaries there are zero repaints, unlike today's
+30 Hz PPQ poll. (A smoothly *sweeping* sub-step playhead bar, if ever wanted, is
+an animation per §35.9.3 — not this path.)
+
+#### 35.9.3 The single animation clock
+
+Exactly one timer is permitted to drive a repaint. It owns only continuous
+decays (meters, activity blinks, crossfader smoothing) plus timed gesture
+promotions (generator-hub / FX-section long-press — timed *events* that fire
+once then `invalidate()`). Each tick advances the decays and `invalidate()`s
+while any is unsettled; when all settle (the existing meter floor-to-zero rule),
+it `stopTimer()`s — an idle surface issues zero repaints. A fresh audio-thread
+pulse (meter/blink) re-arms it. Controller **input** drain stays on a small
+tick (input ≠ render); the redundant pollers
+(`KeyboardArea` PPQ/length, `InPluginTransport`, `SamplePoolOverlay`) are retired
+onto the channel. `ControllerPortManager`'s 1 Hz device-presence poll is
+hardware hotplug detection, not a render path, and is unaffected.
+
 ## 36. The Machine Module ABI (6.7)
 
 §2 introduced the machine boundary as "one authoring model, two link
