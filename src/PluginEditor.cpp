@@ -763,6 +763,18 @@ namespace lockstep
             }
         }
 
+        // 9.14: FX-section picker opens mid-hold (not on key-up) so it appears
+        // while held and stays open. Mirrors the generator-hub promotion above.
+        if (heldSectionIndex_ == LockstepProcessor::kFxSecIdx && !fxPickerFiredMidHold_)
+        {
+            const double nowMs = juce::Time::getMillisecondCounterHiRes();
+            if (gesture_.longPressElapsed(kFxSectionLongPressToken, nowMs))
+            {
+                fxPickerFiredMidHold_ = true;
+                openFxSectionPicker(fxSectionPickerWantsMaster_);
+            }
+        }
+
         // Peak meters: fast attack, slow ballistic decay. Activity blinks: a
         // pulse from the audio thread snaps to 1.0, then decays each tick.
         // Only repaint if any value actually changed; floor tiny values to zero
@@ -1586,6 +1598,29 @@ namespace lockstep
     void LockstepEditor::refreshMetaBand()
     {
         manipulationZone_.setBand(resolveMetaBand(uiState_), swingScopeFor(uiState_));
+    }
+
+    void LockstepEditor::openFxSectionPicker(bool master)
+    {
+        if (master)
+        {
+            // Re-holding while open cycles to the next master unit (0-3).
+            if (uiState_.masterFxPickerOpen)
+                uiState_.masterFxInsertSlot = (uiState_.masterFxInsertSlot + 1) % 4;
+            else
+                uiState_.masterFxInsertSlot = 0;
+            uiState_.masterFxPickerOpen = true;
+            keyboardArea_.selectMetaSection(LockstepProcessor::kFxSecIdx, /*toggle=*/false);
+            refreshMetaBand();
+        }
+        else
+        {
+            // Re-holding while open toggles between the two track insert slots.
+            uiState_.funcFxInsertSlot = uiState_.funcFxHeld
+                ? 1 - uiState_.funcFxInsertSlot : 0;
+            uiState_.funcFxHeld = true;
+        }
+        refreshSurface();
     }
 
     bool LockstepEditor::activeTrackContentLocked() const
@@ -3901,7 +3936,18 @@ namespace lockstep
                 {
                     using LPR = GestureRecognizer::LongPressResult;
                     const double now = juce::Time::getMillisecondCounterHiRes();
-                    switch (gesture_.checkLongPress(kFxSectionLongPressToken, now))
+                    if (fxPickerFiredMidHold_)
+                    {
+                        // Picker already opened during the hold (timer path). Consume
+                        // the arm and keep it open; the track picker (funcFxHeld) must
+                        // survive the funcFxHeld=false cleanup below. Only preserve it
+                        // if still open — selecting an effect while holding closes it,
+                        // and releasing must not re-open it.
+                        gesture_.cancelLongPress();
+                        if (!fxSectionPickerWantsMaster_ && uiState_.funcFxHeld)
+                            suppressFxPickerClose = true;
+                    }
+                    else switch (gesture_.checkLongPress(kFxSectionLongPressToken, now))
                     {
                         case LPR::ShortHold:
                             // Tap: navigate to FX params (track or master).
@@ -3921,25 +3967,11 @@ namespace lockstep
                             }
                             break;
                         case LPR::LongHold:
-                            // Hold: open FX picker (track or master).
-                            if (fxSectionPickerWantsMaster_)
-                            {
-                                if (uiState_.masterFxPickerOpen)
-                                    uiState_.masterFxInsertSlot = (uiState_.masterFxInsertSlot + 1) % 4;
-                                else
-                                    uiState_.masterFxInsertSlot = 0;
-                                uiState_.masterFxPickerOpen = true;
-                                keyboardArea_.selectMetaSection(LockstepProcessor::kFxSecIdx,
-                                                                /*toggle=*/false);
-                                refreshMetaBand();
-                            }
-                            else
-                            {
-                                uiState_.funcFxInsertSlot = uiState_.funcFxHeld
-                                    ? 1 - uiState_.funcFxInsertSlot : 0;
-                                suppressFxPickerClose = true;  // set funcFxHeld below
-                            }
-                            repaint();
+                            // Fallback: released just past threshold before the timer
+                            // ticked. Open the picker now (same as the mid-hold path).
+                            openFxSectionPicker(fxSectionPickerWantsMaster_);
+                            if (!fxSectionPickerWantsMaster_)
+                                suppressFxPickerClose = true;  // keep funcFxHeld past cleanup
                             break;
                         case LPR::NotArmed:
                             break;
@@ -3947,6 +3979,7 @@ namespace lockstep
                 }
                 heldSectionRawCode_ = -1;
                 heldSectionIndex_ = -1;
+                fxPickerFiredMidHold_ = false;
                 uiState_.funcSrcHeld = false;
                 if (!uiState_.funcHeld)
                     uiState_.funcFxHeld = false;

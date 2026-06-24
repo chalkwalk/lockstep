@@ -171,6 +171,7 @@ namespace lockstep
         int heldSectionRawCode_ = -1;
         int heldSectionIndex_ = -1;  // section index (0-5) while key held; -1 = none
         bool fxSectionPickerWantsMaster_ = false; // captured at Section-5 key-down
+        bool fxPickerFiredMidHold_ = false;       // picker opened during the hold (not on key-up)
         // 6.5 Animate bypass: track/slot bypassed by FX-held + step; restored on step-up.
         int animateBypassTrack_ = -1;
         int animateBypassSlot_ = -1;
@@ -216,6 +217,11 @@ namespace lockstep
         // Called on any state change that may affect the band (scope press/release,
         // meta-section change, track change).
         void refreshMetaBand();
+
+        // 9.14: open the FX-section picker (master or track) — shared by the
+        // mid-hold timer path and the key-up long-hold fallback. Sets the durable
+        // picker state and refreshes the surface so it appears while held.
+        void openFxSectionPicker(bool master);
 
         // Returns true when the active track is a stub/empty track — content edits
         // are blocked and only machine-pick is allowed.

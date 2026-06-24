@@ -55,6 +55,16 @@ namespace lockstep
         }
         void cancelLongPress() noexcept { longPressActive_ = false; }
 
+        // Non-consuming check: true once the armed token has been held past the
+        // threshold. Lets a timer poll fire a long-press mid-hold (picker appears
+        // while held) without disturbing the arm state; key-up still calls
+        // checkLongPress for the tap/short-hold path.
+        bool longPressElapsed(int token, double nowMs) const noexcept
+        {
+            return longPressActive_ && longPressToken_ == token
+                && (nowMs - longPressStartMs_) >= kLongPressMs;
+        }
+
         LongPressResult checkLongPress(int token, double nowMs) noexcept
         {
             if (!longPressActive_ || longPressToken_ != token)
