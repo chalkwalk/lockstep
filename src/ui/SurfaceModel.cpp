@@ -521,19 +521,19 @@ namespace lockstep
             else
                 c.funcHint = kl.hint;   // dim secondary when Func not held
 
-            const bool isSrcNoteEdit = (!isScopedMode && ui.funcHeld && s == 1);  // SRC = note-edit anchor
+            // SRC glows when StepInspector is active — "tap to edit notes for this step".
+            // (Previously lit for Func+Src; that gesture was retired in 9.14 Stage 3.)
+            const bool isSrcNoteEdit = (!isScopedMode && ui.pLockClearMode && s == 1);
             const bool isMasterActive = !isScopedMode && (ui.masterSection == s);
             const bool isTrackActive = !isScopedMode && (ui.masterSection == -1 && ui.trackSection[static_cast<std::size_t>(activeTrack)] == s);
 
             // Func layer (bare Func, no scope): the section row must announce its
             // secondary layer in colour, not just text (DESIGN §6.1 rule 3, §6.2).
-            // Cells with a wired secondary (COND/NOTE/FX-picker) glow in the Func hue
-            // and are always available; cells with none dim to Disabled.
+            // Cells with a wired secondary (COND/NOTE) glow in the Func hue;
+            // cells with none dim to Disabled.
+            // Func+FX picker retired (9.14 Stage 2) — FX now dims under Func.
             const bool funcLayerActive = (ui.funcHeld && !isScopedMode);
-            // FX is normally reserved (no meta label) but Func+FX opens the insert
-            // picker — treat it as having a func secondary so it illuminates, not dims.
-            const bool isFxPickerArmed = (funcLayerActive && s == proc.kFxSecIdx);
-            const bool hasFuncSecondary = !isReservedMeta(s) || isFxPickerArmed;
+            const bool hasFuncSecondary = !isReservedMeta(s);
             if (funcLayerActive)
                 c.disabled = !hasFuncSecondary;
 
@@ -557,7 +557,7 @@ namespace lockstep
                 c.base = CellState::Disabled;
             else if (isVelInert)
                 c.base = CellState::ModalEntryInert;
-            else if (isTrackActive || isMasterActive || isFxPickerArmed || isFillArmed)
+            else if (isTrackActive || isMasterActive || isFillArmed)
                 c.base = CellState::ModeActive;
             else
                 c.base = CellState::Resting;
@@ -1228,6 +1228,51 @@ namespace lockstep
                     {
                         c.base = CellState::NoteEditResting;
                         c.baseColour = juce::Colour(isBlack ? 0xff202830u : 0xff2c3540u).getARGB();
+                    }
+                }
+            }
+            else if (activeLayer == SurfaceLayer::StepInspector)
+            {
+                // StepInspector overlay: same P-lock slot view as PLockClear but
+                // entered by bare step-hold (no Func). Reads the target step from ec.
+                const juce::Colour clearTint{ kScopePLock };
+                const int targetStep = ec.heldStepIndex();
+                const auto& stepData = proc.sequence()
+                                           .tracks[static_cast<std::size_t>(activeTrack)]
+                                           .steps[static_cast<std::size_t>(targetStep)];
+                const int numSlots = proc.numParams(activeTrack);
+
+                std::vector<int> lockedSlots;
+                const auto& tov = stepData.trigOverride;
+                if (tov.hasVelocity) lockedSlots.push_back(-2);
+                if (tov.hasGate) lockedSlots.push_back(-3);
+                for (int s = 0; s < numSlots; ++s)
+                    if (stepData.overrides.has(s))
+                        lockedSlots.push_back(s);
+
+                for (int i = 0; i < 16; ++i)
+                {
+                    SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                    c.button = ControllerButton::Step;
+                    c.index = i;
+                    c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                    c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+
+                    const bool hasPacked = i < static_cast<int>(lockedSlots.size());
+                    if (!hasPacked)
+                    {
+                        c.base = CellState::SelectorOutRange;
+                        c.baseColour = kStepOutRange;
+                    }
+                    else
+                    {
+                        const int slotIdx = lockedSlots[static_cast<std::size_t>(i)];
+                        const bool isStaged = ui.pLockClearStaged.count(slotIdx) > 0;
+                        c.base = isStaged ? CellState::SelectorEmpty
+                                          : CellState::SelectorOccupied;
+                        c.baseColour = isStaged
+                                           ? clearTint.withAlpha(0.10f).getARGB()
+                                           : clearTint.withAlpha(0.45f).getARGB();
                     }
                 }
             }

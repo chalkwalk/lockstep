@@ -1286,7 +1286,8 @@ namespace lockstep
                 // MHZ.3.4: P-lock clear mode.
                 else if (ui.pLockClearMode)
                 {
-                    ctx = "FUNC + STEP " + juce::String(ui.pLockClearStep + 1) + "  |  press cell to clear P-Lock slot";
+                    ctx = "STEP " + juce::String(ui.pLockClearStep + 1)
+                          + "  —  tap cell to clear P-lock slot  |  tap SRC = note edit";
                 }
                 // Sticky DENSITY mode context.
                 else if ((ui.overlay == Overlay::Density))
@@ -2303,6 +2304,29 @@ namespace lockstep
                     // section (e.g. Track+FLTR → section 2 = post-machine FLTR block).
                 }
 
+                // 9.14 Stage 3: SRC (section 1) tap while StepInspector is active
+                // → enter NoteEdit for the held step (dismisses P-lock view).
+                if (ev.index == 1 && uiState_.pLockClearMode
+                    && processor_.editContext().heldStepIndex() >= 0)
+                {
+                    const int heldStep = processor_.editContext().heldStepIndex();
+                    const int track = processor_.editContext().heldTrackIndex();
+                    uiState_.noteEditSteps = { heldStep };
+                    uiState_.noteEditStaged.clear();
+                    if (track >= 0 && heldStep >= 0)
+                    {
+                        const auto& s = processor_.sequence()
+                                            .tracks[static_cast<std::size_t>(track)]
+                                            .steps[static_cast<std::size_t>(heldStep)];
+                        if (s.trigOverride.noteCount > 0)
+                            uiState_.noteEditOctave = s.trigOverride.notes[0] / 12 - 1;
+                    }
+                    uiState_.noteEditMode = true;
+                    uiState_.resetPLockClear();  // dismiss P-lock view; NoteEdit takes priority
+                    refreshSurface();
+                    return true;
+                }
+
                 // KeyboardArea gates on machine slot availability.
                 keyboardArea_.selectSection(ev.index);
                 // Track section key hold for Section-scope verb dispatch (MD.3).
@@ -2328,8 +2352,6 @@ namespace lockstep
                 // press so Func doesn't silently open a meta the row hides.
                 if (KeyboardArea::isReservedMeta(ev.index))
                     return true;
-                if (uiState_.funcHeld && ev.index == 1)
-                    uiState_.funcSrcHeld = true;  // Func+Src(NOTE) — enables note-edit gesture
                 keyboardArea_.selectMetaSection(ev.index);
                 return true;
 
@@ -2852,17 +2874,7 @@ namespace lockstep
                     return true;
                 }
 
-                // Func+Src+step: tentative note-edit entry.
-                // Suppress pLockClearMode; NoteEdit mode activates on step key release.
-                if (uiState_.funcSrcHeld && !uiState_.noteEditMode)
-                {
-                    const int absStep = keyboardArea_.currentPage() * KeyboardArea::kPageSteps + ev.index;
-                    uiState_.noteEditSteps = { absStep };
-                    keyboardArea_.repaint();
-                    return true;
-                }
-
-                // MHZ.3.4: P-Lock clear mode — a second step press stages/un-stages a slot.
+                // 9.14 Stage 3: StepInspector — a second step press stages/un-stages a P-lock slot.
                 // Cell index maps into a packed list of the step's P-locked slots (not by
                 // raw slot index). Staged removals are committed on Func release.
                 if (uiState_.pLockClearMode)
@@ -2946,19 +2958,6 @@ namespace lockstep
                     return true;
                 }
 
-                // MHZ.3.4: Func + step (no existing step held) → enter P-Lock clear mode.
-                // MHZ.9.5: use ctx.heldSteps().empty() so latched steps keep the edit context alive.
-                if (uiState_.funcHeld && processor_.editContext().heldSteps().empty())
-                {
-                    const int absStep = keyboardArea_.currentPage() * KeyboardArea::kPageSteps + ev.index;
-                    uiState_.pLockClearStaged.clear();  // fresh session
-                    uiState_.pLockClearMode = true;
-                    uiState_.pLockClearTrack = keyboardArea_.getActiveTrack();
-                    uiState_.pLockClearStep = absStep;
-                    keyboardArea_.repaint();
-                    return true;
-                }
-
                 // MHZ.9.5: any plain step press while a P-lock latch is active exits
                 // the latch (consumed — no trig toggle, no new hold), so you no longer
                 // need Func+Func. Checked before the key-repeat guard below so it also
@@ -3026,6 +3025,16 @@ namespace lockstep
                     lastTrigToggleApplied_ = false;
                     lastTrigToggleStep_ = -1;
                     lastTrigToggleTrack_ = -1;
+
+                    // 9.14 Stage 3: StepInspector entry — bare step-hold opens P-lock
+                    // overview. pLockClearMode drives KeyboardArea label rendering.
+                    // A second step tap (slot tap) is intercepted by the PLockClear
+                    // dispatch above. Func is NOT required.
+                    uiState_.pLockClearStaged.clear();
+                    uiState_.pLockClearMode = true;
+                    uiState_.pLockClearTrack = keyboardArea_.getActiveTrack();
+                    uiState_.pLockClearStep = absStep;
+
                     repaint();
                 }
                 return true;
@@ -3902,46 +3911,69 @@ namespace lockstep
                     animateBypassMasterUnit_ = -1;
                 }
 
-                // Func+Src+step: step release while funcSrcHeld → enter NoteEdit mode.
-                if (uiState_.funcSrcHeld && !uiState_.noteEditMode && !uiState_.noteEditSteps.empty())
+                // 9.14 Stage 3: NoteEdit entered via inspector (SRC tap while step held).
+                // On step release, check if this is the original held step — if so,
+                // commit the staged notes and exit NoteEdit. Chromatic key releases
+                // (notes being released) are not in heldStepKeys_ and fall through.
+                if (uiState_.noteEditMode)
                 {
-                    uiState_.noteEditMode = true;
-                    uiState_.noteEditStaged.clear();
-
-                    // Auto-set the view octave to match the step's existing notes so
-                    // cells are immediately live without needing a NavUp/Down first.
-                    if (!uiState_.noteEditSteps.empty())
+                    bool isOriginalStep = false;
+                    for (const auto& [code, _] : heldStepKeys_)
                     {
-                        const int firstStep = *uiState_.noteEditSteps.begin();
-                        const int track = processor_.editContext().heldTrackIndex();
-                        if (track >= 0 && firstStep >= 0)
+                        if (code == rawCode) { isOriginalStep = true; break; }
+                    }
+                    if (!isOriginalStep)
+                    {
+                        keyboardArea_.repaint();
+                        break;
+                    }
+                    // Original step releasing — commit staged notes.
+                    for (auto& [stepIdx, staged] : uiState_.noteEditStaged)
+                    {
+                        if (stepIdx < 0 || stepIdx >= kMaxStepsPerTrack) continue;
+                        const int tk = processor_.editContext().heldTrackIndex();
+                        if (tk < 0) continue;
+                        auto& s = processor_.sequence()
+                                      .tracks[static_cast<std::size_t>(tk)]
+                                      .steps[static_cast<std::size_t>(stepIdx)];
+                        for (const int note : staged)
                         {
-                            const auto& s = processor_.sequence()
-                                                .tracks[static_cast<std::size_t>(track)]
-                                                .steps[static_cast<std::size_t>(firstStep)];
-                            if (s.trigOverride.noteCount > 0)
+                            bool found = false;
+                            for (int n = 0; n < s.trigOverride.noteCount; ++n)
                             {
-                                // Use the octave of the first note on the step.
-                                const int noteVal = s.trigOverride.notes[0];
-                                uiState_.noteEditOctave = noteVal / 12 - 1;
+                                if (s.trigOverride.notes[static_cast<std::size_t>(n)] == note)
+                                    { found = true; break; }
+                            }
+                            if (found)
+                            {
+                                // Remove the note.
+                                int nc = s.trigOverride.noteCount;
+                                for (int n = 0; n < nc; ++n)
+                                {
+                                    if (s.trigOverride.notes[static_cast<std::size_t>(n)] == note)
+                                    {
+                                        s.trigOverride.notes[static_cast<std::size_t>(n)] =
+                                            s.trigOverride.notes[static_cast<std::size_t>(nc - 1)];
+                                        s.trigOverride.noteCount = nc - 1;
+                                        break;
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                // Add the note.
+                                if (s.trigOverride.noteCount < static_cast<int>(
+                                        std::size(s.trigOverride.notes)))
+                                {
+                                    s.trigOverride.notes[static_cast<std::size_t>(
+                                        s.trigOverride.noteCount++)] = note;
+                                }
                             }
                         }
                     }
-
-                    // Restore MZ to machine params — dismiss the TRIG meta section
-                    // that Func+Trig brought up, so the user returns to where they were.
-                    uiState_.masterSection = -1;
-                    refreshMetaBand();
-
-                    refreshSurface();
-                    break;
-                }
-
-                // NoteEdit mode: key-up on a chromatic cell; no further processing needed.
-                if (uiState_.noteEditMode)
-                {
-                    keyboardArea_.repaint();
-                    break;
+                    uiState_.resetNoteEdit();
+                    processor_.editContext().markParamWritten();  // suppress trig toggle
+                    // Fall through to normal step release logic (with paramWrote set).
                 }
 
                 // CHROMATIC/LEVELS mode: key-up clears the pressed highlight.
@@ -3975,6 +4007,23 @@ namespace lockstep
                         }
 
                         const int track = ctx.heldTrackIndex();
+
+                        // 9.14 Stage 3: commit StepInspector staged P-lock removals on step release.
+                        if (uiState_.pLockClearMode && uiState_.pLockClearStep == stepIdx
+                            && uiState_.pLockClearTrack == track
+                            && !uiState_.pLockClearStaged.empty())
+                        {
+                            for (const int slot : uiState_.pLockClearStaged)
+                            {
+                                if (slot < 0)
+                                    processor_.clearTrigOverrideField(track, stepIdx, slot);
+                                else
+                                    processor_.clearParam(track, stepIdx, slot);
+                            }
+                            ctx.markParamWritten();  // suppress trig toggle
+                        }
+                        uiState_.resetPLockClear();
+
                         const bool paramWrote = ctx.wasParamWritten();
                         ctx.release(stepIdx);
                         // MHZ.3.1: next press starts a fresh chord capture.

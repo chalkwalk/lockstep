@@ -21,7 +21,8 @@ namespace lockstep
         MachinePicker,    // ui.funcTrackHeld
         GeneratorHub,     // ui.generatorHubHeld — momentary Euclid/Density/Vel picker
         NoteEdit,         // ui.noteEditMode && !noteEditSteps.empty()
-        PLockClear,       // ui.pLockClearMode && track matches && step >= 0
+        StepInspector,    // ec.heldStepIndex() >= 0 — held step shows P-lock overview
+        PLockClear,       // ui.pLockClearMode && track matches && step >= 0 (retained for compat)
         ChromaticInput,   // active track input mode == Chromatic
         LevelsInput,      // active track input mode == Levels
         MorphMuteView,    // ui.morphHeld && ui.muteHeld

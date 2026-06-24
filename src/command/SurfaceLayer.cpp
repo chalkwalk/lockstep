@@ -7,7 +7,7 @@
 namespace lockstep
 {
     SurfaceLayer resolveActiveLayer(const UiState& ui,
-                                    const EditContext& /*ec*/,
+                                    const EditContext& ec,
                                     const LayerFacts& f) noexcept
     {
     // Priority is top-to-bottom — first matching condition wins.
@@ -26,6 +26,8 @@ namespace lockstep
         if (ui.generatorHubHeld) { return SurfaceLayer::GeneratorHub; }
 
         if (ui.noteEditMode && !ui.noteEditSteps.empty()) { return SurfaceLayer::NoteEdit; }
+
+        if (ec.heldStepIndex() >= 0) { return SurfaceLayer::StepInspector; }
 
         if (ui.pLockClearMode && ui.pLockClearTrack == f.activeTrack && ui.pLockClearStep >= 0)
         {
@@ -93,6 +95,7 @@ namespace lockstep
             case SurfaceLayer::MasterFxPicker:
             case SurfaceLayer::TrackFxPicker:
             case SurfaceLayer::NoteEdit:
+            case SurfaceLayer::StepInspector:
             case SurfaceLayer::PLockClear:
             case SurfaceLayer::ChromaticInput:
             case SurfaceLayer::LevelsInput:
