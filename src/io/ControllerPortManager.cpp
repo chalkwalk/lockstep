@@ -30,17 +30,9 @@ namespace lockstep
         fifo_.finishedWrite((n1 > 0 || n2 > 0) ? 1 : 0);
     }
 
-    void ControllerPortManager::drain(IControllerSurface& surface,
-                                      ControllerEventSink& sink,
-                                      const SurfaceModel& model)
+    void ControllerPortManager::drainInput(IControllerSurface& surface,
+                                           ControllerEventSink& sink)
     {
-        // Fire onConnect once per successful open (and on each hotplug reconnect).
-        if (justOpened_ && midiOut_)
-        {
-            justOpened_ = false;
-            surface.onConnect(*midiOut_);
-        }
-
         int s1, n1, s2, n2;
         fifo_.prepareToRead(fifo_.getNumReady(), s1, n1, s2, n2);
 
@@ -50,9 +42,23 @@ namespace lockstep
             surface.onInput(msgBuf_[static_cast<std::size_t>(s2 + i)], sink);
 
         fifo_.finishedRead(n1 + n2);
+    }
 
-        if (midiOut_)
-            surface.render(model, *midiOut_);
+    void ControllerPortManager::renderSurface(IControllerSurface& surface,
+                                              const SurfaceModel& model)
+    {
+        if (!midiOut_)
+            return;
+
+        // Fire onConnect once per successful open (and on each hotplug reconnect)
+        // before the first feedback render.
+        if (justOpened_)
+        {
+            justOpened_ = false;
+            surface.onConnect(*midiOut_);
+        }
+
+        surface.render(model, *midiOut_);
     }
 
     // Message thread — hotplug rescan at ~1 Hz.

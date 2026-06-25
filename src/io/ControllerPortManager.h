@@ -16,10 +16,12 @@ namespace lockstep
     // case-insensitive display-name substring (e.g. "X-TOUCH MINI").
     //
     // The MIDI callback (MIDI thread) pushes raw messages into a lock-free FIFO.
-    // drain() is called on the message thread (~30 Hz timer in the editor) and
-    // routes buffered messages to IControllerSurface::onInput, then calls render().
-    // A 1 Hz timer handles hotplug: reopens the device if it disappears and
-    // reappears.
+    // Input and feedback are split across two seams (DESIGN §35.9.3 — input ≠
+    // render): drainInput() runs on the editor's ~30 Hz tick (encoders/buttons
+    // must be serviced even when nothing is redrawing); renderSurface() runs from
+    // the single invalidation channel's onFrame, so feedback LEDs update on
+    // events, not on an unconditional poll. A 1 Hz timer handles hotplug: reopens
+    // the device if it disappears and reappears.
     class ControllerPortManager : private juce::MidiInputCallback,
                                   private juce::Timer
     {
@@ -31,11 +33,15 @@ namespace lockstep
                                        juce::String fallbackSubstring = {});
         ~ControllerPortManager() override;
 
-        // Call on the message thread. Drains the FIFO into surface.onInput(),
-        // then calls surface.render(model, *midiOut_) if output is open.
-        void drain(IControllerSurface& surface,
-                   ControllerEventSink& sink,
-                   const SurfaceModel& model);
+        // Message thread, every tick: drain the input FIFO into surface.onInput().
+        // No model, no output needed — encoders/buttons are serviced even when the
+        // surface is idle.
+        void drainInput(IControllerSurface& surface, ControllerEventSink& sink);
+
+        // Message thread, from onFrame: render feedback LEDs for the current model.
+        // No-op when output is closed; fires surface.onConnect() once per open
+        // before the first render.
+        void renderSurface(IControllerSurface& surface, const SurfaceModel& model);
 
         [[nodiscard]] bool isOpen() const noexcept { return midiIn_ != nullptr; }
 

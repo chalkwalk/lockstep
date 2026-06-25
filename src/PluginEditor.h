@@ -147,10 +147,14 @@ namespace lockstep
         // keyboardArea_.repaint() by hand (PRINCIPLES §20).
         void refreshSurface() { surfaceDispatcher_.invalidate(); }
 
-        // The one place a frame is produced (DESIGN §35.9.1). onFrame currently
-        // repaints chrome + grid; Stage 2 folds controller rendering in here so
-        // a single buildSurfaceModel() drives every sink.
-        SurfaceDispatcher surfaceDispatcher_{ [this] { repaint(); keyboardArea_.repaint(); } };
+        // The one place a frame is produced (DESIGN §35.9.1): repaint chrome +
+        // grid, then render every open controller from a single buildSurfaceModel().
+        SurfaceDispatcher surfaceDispatcher_{ [this] { renderSurfaceFrame(); } };
+        void renderSurfaceFrame();
+        // Build the surface model once and push it to each open controller
+        // (DESIGN §35.9.1). Same function the screen paint path calls, so they
+        // cannot diverge. No-op when no controller is connected.
+        void renderControllers();
 
         // Generator hub entry helpers (extracted from legacy Phrase+Fill / Func+MOD / Func+AMP).
         void enterEuclid(int track);
@@ -290,6 +294,11 @@ namespace lockstep
         // Last-seen morphFader value: used to detect on-screen fader moves and
         // mark the surface model dirty so controller surfaces update.
         float lastMorphFader_ = -1.0f;
+
+        // Last-seen playhead PPQ (interim, Stage 2): the editor tick invalidates
+        // on change so controllers track the playhead during playback. Stage 3
+        // replaces this poll with the audio-thread discrete bridge.
+        double lastEditorPpq_ = -1.0;
 
         // Transient status line — shows CPC operation result for ~1.5s.
         juce::String statusMessage_;

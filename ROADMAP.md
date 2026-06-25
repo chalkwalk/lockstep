@@ -1967,9 +1967,18 @@ continuous animations. Docs-first.
       chrome + grid (controller fold-in is Stage 2). `SurfaceDispatcherTest`
       asserts the coalescing contract (N invalidate ⇒ 1 frame; idle ⇒ 0; re-arm
       after delivery; pending-at-teardown cancelled). No behaviour change.
-- [ ] **Stage 2 — Fold controllers in.** Render controllers from the same
-      `handleAsyncUpdate()` build; delete the separate per-tick rebuild in the
-      editor `timerCallback`. Controller **input** drain stays on a small tick.
+- [x] **Stage 2 — Fold controllers in.** `ControllerPortManager::drain` split
+      into `drainInput()` (FIFO→onInput, every tick) + `renderSurface()`
+      (onConnect-once + LED render). `onFrame` → `renderSurfaceFrame()` repaints
+      chrome + grid then `renderControllers()` (one `buildSurfaceModel`, both
+      surfaces); the unconditional per-tick rebuild is gone. The editor tick now
+      `refreshSurface()`s on transport/morph/playhead change (interim ppq poll;
+      Stage 3 moves it to the audio bridge). **Discipline sweep:** every bare
+      `keyboardArea_.repaint()` and the `EditorEffects` `ed.repaint()` callbacks
+      (mutes, machine-assign, capture, generic `requestRepaint`) now route through
+      `refreshSurface()`, so a grid change can never leave a controller stale —
+      the §35.8 no-divergence invariant. The only direct paint left is inside
+      `renderSurfaceFrame`. Connect/disconnect triggers an initial render.
 - [ ] **Stage 3 — Audio→UI discrete bridge.** `lastActiveStep_[]` +
       `surfaceDirtyFromAudio_` in the processor; `invalidate()` on discrete
       step-index change + CC write. Delete `KeyboardArea` PPQ/length poll.

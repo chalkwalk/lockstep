@@ -34,7 +34,7 @@ namespace lockstep
         explicit EditorEffects(LockstepEditor& e) : ed(e) {}
 
         void status(const juce::String& msg) override { ed.setStatus(msg); }
-        void requestRepaint() override { ed.repaint(); }
+        void requestRepaint() override { ed.refreshSurface(); }
         void transport(TransportAction a) override
         {
             using A = TransportAction;
@@ -71,7 +71,7 @@ namespace lockstep
         void machineAssign(int track, const char* id) override
         {
             ed.processor_.setTrackMachine(track, id);
-            ed.repaint();
+            ed.refreshSurface();
         }
         void openOverlay(OverlayId id, int param) override
         {
@@ -85,7 +85,7 @@ namespace lockstep
                     break;
                 case OverlayId::MachinePicker:
                     ed.uiState_.funcTrackHeld = (param != 0);
-                    ed.repaint();
+                    ed.refreshSurface();
                     break;
             }
         }
@@ -110,17 +110,17 @@ namespace lockstep
         void globalMuteToggle(int track) override
         {
             ed.processor_.toggleGlobalMute(track);
-            ed.repaint();
+            ed.refreshSurface();
         }
         void soloToggle(int track) override
         {
             ed.processor_.toggleSolo(track);
-            ed.repaint();
+            ed.refreshSurface();
         }
         void sceneMuteToggle(int track) override
         {
             ed.processor_.togglePatternMute(track);
-            ed.repaint();
+            ed.refreshSurface();
         }
         void fluidMuteToggle(int track) override
         {
@@ -139,7 +139,7 @@ namespace lockstep
                 ed.processor_.fluidMuteTrack(track, ed.processor_.morphFader());
                 ed.setStatus(status::morphMuteSet());
             }
-            ed.repaint();
+            ed.refreshSurface();
         }
         void toggleCapture() override
         {
@@ -164,7 +164,7 @@ namespace lockstep
                     ed.setStatus(status::captureFailed());
                 }
             }
-            ed.repaint();
+            ed.refreshSurface();
         }
 
         void sceneFloorPaste() override
@@ -675,7 +675,7 @@ namespace lockstep
                 // Explicitly repaint the grid: the KeyboardArea timer only repaints
                 // on playhead movement, so when stopped the editor repaint() alone
                 // left the live rhythm invisible until transport started.
-                keyboardArea_.repaint();
+                refreshSurface();
             }
         };
         // 9.14: Step-Position encoder write → canonical surface refresh so the moved
@@ -685,12 +685,12 @@ namespace lockstep
         keyboardArea_.onButtonDown = [this](ControllerEvent ev) {
             pressTracker_.press(PressTracker::kMouseSource, ev.button, ev.index);
             dispatchDown(ev, PressTracker::kMouseSource);
-            keyboardArea_.repaint();
+            refreshSurface();
         };
         keyboardArea_.onButtonUp = [this](ControllerEvent ev) {
             pressTracker_.release(PressTracker::kMouseSource);
             dispatchUp(ev, PressTracker::kMouseSource);
-            keyboardArea_.repaint();
+            refreshSurface();
         };
 
         // Give KeyboardArea a pointer to the shared PressTracker so its paint
@@ -708,11 +708,15 @@ namespace lockstep
         controllerPorts_.onStateChange = [this](bool open) {
             setStatus(open ? "Controller: X-Touch Mini connected"
                            : "Controller: X-Touch Mini disconnected");
+            // Connect/disconnect is an event: render a frame so a freshly-opened
+            // surface gets its initial LED state (renderSurface fires onConnect).
+            refreshSurface();
         };
 
         push1Ports_.onStateChange = [this](bool open) {
             setStatus(open ? "Controller: Ableton Push 1 connected"
                            : "Controller: Ableton Push 1 disconnected");
+            refreshSurface();
         };
 
         startTimerHz(30);  // diagnostic VU meters / activity blinks
@@ -740,17 +744,53 @@ namespace lockstep
             return;
         }
         // Mute or solo changed (via track-bar buttons, host automation, or MIDI
-        // learn): repaint so the VU meter colour updates immediately.
+        // learn): refresh the surface so the VU meter colour and the track-cell
+        // mute state update on screen and on controllers.
         for (int i = 0; i < static_cast<int>(kNumTracks); ++i)
         {
             if (paramID == juce::String(ParamIDs::trackMute(i)) || paramID == juce::String(ParamIDs::trackSolo(i)))
             {
                 juce::MessageManager::callAsync(
                     [safe = juce::Component::SafePointer<LockstepEditor>(this)]
-                    { if (safe != nullptr) safe->repaint(); });
+                    { if (safe != nullptr) safe->refreshSurface(); });
                 return;
             }
         }
+    }
+
+    void LockstepEditor::renderControllers()
+    {
+        const bool xtOpen = (xTouchSurface_ && controllerPorts_.isOpen());
+        const bool p1Open = (push1Surface_ && push1Ports_.isOpen());
+        if (!xtOpen && !p1Open)
+            return;
+
+        // Single build — the same buildSurfaceModel() the screen paint path calls,
+        // so screen and controllers cannot diverge (DESIGN §35.8.1 / §35.9.1).
+        const auto model = buildSurfaceModel(uiState_,
+                                             processor_.editContext(),
+                                             &pressTracker_,
+                                             processor_,
+                                             keyboardArea_.getActiveTrack(),
+                                             keyboardArea_.currentPage(),
+                                             gridMode_,
+                                             manipulationZone_.slotOffset(),
+                                             1.0f - processor_.morphFader(),
+                                             buildMorphViewState());
+        if (xtOpen)
+            controllerPorts_.renderSurface(*xTouchSurface_, model);
+        if (p1Open)
+            push1Ports_.renderSurface(*push1Surface_, model);
+    }
+
+    void LockstepEditor::renderSurfaceFrame()
+    {
+        // The single frame producer (DESIGN §35.9.1): chrome + grid + controllers.
+        // These three are the *only* direct paint calls; everywhere else routes
+        // through refreshSurface() so screen and controllers move together.
+        repaint();
+        keyboardArea_.repaint();
+        renderControllers();
     }
 
     void LockstepEditor::timerCallback()
@@ -831,12 +871,20 @@ namespace lockstep
             dirty = true;
         }
 
-        // Transport state change: repaint so the PLAY/PAUSE label updates promptly.
+        // `dirty` above is chrome-only animation (meters/blinks) → a cheap chrome
+        // repaint. `modelDirty` is a change to the surface *model* — it must drive
+        // the whole frame (grid + controllers), so it routes through the
+        // invalidation channel (DESIGN §35.9). Stage 4 moves the meter decay onto
+        // a dedicated animation clock; Stage 3 replaces these polls with the
+        // audio-thread discrete bridge.
+        bool modelDirty = false;
+
+        // Transport state change: PLAY/PAUSE label + controller transport.
         const bool nowPlaying = processor_.clock().inPluginPlaying();
         if (nowPlaying != lastPlayingState_)
         {
             lastPlayingState_ = nowPlaying;
-            dirty = true;
+            modelDirty = true;
         }
 
         // Morph fader: detect on-screen crossfader moves so controller surfaces update.
@@ -844,7 +892,17 @@ namespace lockstep
         if (curMorphFader != lastMorphFader_)
         {
             lastMorphFader_ = curMorphFader;
-            dirty = true;
+            modelDirty = true;
+        }
+
+        // Playhead advance: step cells + playhead phase move. Interim poll so
+        // controllers stay live during playback — the grid's own poll still
+        // repaints the screen until Stage 3 unifies both onto the audio bridge.
+        const double ppq = processor_.clock().cumulativePpq();
+        if (ppq != lastEditorPpq_)
+        {
+            lastEditorPpq_ = ppq;
+            modelDirty = true;
         }
 
         // Push the morph view state to KeyboardArea so its paint() gets current slot states.
@@ -852,7 +910,10 @@ namespace lockstep
                                         manipulationZone_.slotOffset(),
                                         1.0f - processor_.morphFader());
 
-        if (dirty) repaint();
+        if (modelDirty)
+            refreshSurface();   // one channel → renderSurfaceFrame: chrome + grid + controllers
+        else if (dirty)
+            repaint();          // chrome-only animation
 
         // Update the scope-coloured tempo + time-sig readout.
         {
@@ -881,33 +942,17 @@ namespace lockstep
             uiState_, processor_.editContext(), processor_,
             lastFocusedButton_, lastFocusedIndex_));
 
-        // Controller: drain MIDI FIFO → surface.onInput(), then render feedback LEDs.
-        // drain() is called unconditionally every tick (never gated on dirty) because:
-        //   1. Input (encoder turns, button presses) must be processed even when the
-        //      software is idle — gating on dirty breaks encoders when nothing else
-        //      is changing.
-        //   2. render() diffs against a shadow cache and emits MIDI only for changed
-        //      cells, so calling it every 30 Hz is safe and was the design intent.
-        //   3. Mode transitions (holding Track, switching sections, etc.) call repaint()
-        //      directly without touching the dirty flag here, so dirty is not a reliable
-        //      signal for "controller state may have changed".
+        // Controller *input* only — drain encoder/button MIDI every tick, since
+        // input must be serviced even when nothing is redrawing (DESIGN §35.9.3:
+        // input ≠ render). Feedback LEDs are rendered from renderSurfaceFrame()
+        // (the invalidation channel's onFrame), not polled here.
         if ((xTouchSurface_ && controllerPorts_.isOpen()) || (push1Surface_ && push1Ports_.isOpen()))
         {
             auto sink = buildControllerSink();
-            const auto model = buildSurfaceModel(uiState_,
-                                                 processor_.editContext(),
-                                                 &pressTracker_,
-                                                 processor_,
-                                                 keyboardArea_.getActiveTrack(),
-                                                 keyboardArea_.currentPage(),
-                                                 gridMode_,
-                                                 manipulationZone_.slotOffset(),
-                                                 1.0f - processor_.morphFader(),
-                                                 buildMorphViewState());
             if (xTouchSurface_ && controllerPorts_.isOpen())
-                controllerPorts_.drain(*xTouchSurface_, sink, model);
+                controllerPorts_.drainInput(*xTouchSurface_, sink);
             if (push1Surface_ && push1Ports_.isOpen())
-                push1Ports_.drain(*push1Surface_, sink, model);
+                push1Ports_.drainInput(*push1Surface_, sink);
         }
 
         // Reconcile: release any keyboard press whose key is no longer physically
@@ -1055,7 +1100,7 @@ namespace lockstep
             pressTracker_.release(PressTracker::kMouseSource);
             dispatchUp({ ControllerEvent::Type::ButtonUp, entry->button, entry->index, 0 },
                        PressTracker::kMouseSource);
-            keyboardArea_.repaint();
+            refreshSurface();
         }
     }
 
@@ -2256,7 +2301,7 @@ namespace lockstep
                 if (uiState_.euclidHeld)
                 {
                     cancelEuclid();
-                    keyboardArea_.repaint();
+                    refreshSurface();
                 }
 
                 // Determine whether a section-suite scope modifier is held.
@@ -2609,7 +2654,7 @@ namespace lockstep
                             keyboardArea_.syncToActiveTrack();
                             releaseTransientLatch(CB::TrackScope);
                         }
-                        keyboardArea_.repaint();
+                        refreshSurface();
                         return true;
                     }
                 }
@@ -2746,7 +2791,7 @@ namespace lockstep
                             processor_.triggerNote(at, note, 350, vel);
                         }
 
-                        keyboardArea_.repaint();
+                        refreshSurface();
                         return true;
                     }
                 }
@@ -2920,7 +2965,7 @@ namespace lockstep
                             }
                         }
                     }
-                    keyboardArea_.repaint();
+                    refreshSurface();
                     return true;
                 }
 
@@ -2956,7 +3001,7 @@ namespace lockstep
                                 uiState_.pLockClearStaged.insert(slotIdx); // stage
                         }
                     }
-                    keyboardArea_.repaint();
+                    refreshSurface();
                     return true;
                 }
 
@@ -3111,7 +3156,7 @@ namespace lockstep
                                                    std::string(processor_.availableMachineInfo(ev.index).id));
                         keyboardArea_.syncToActiveTrack();
                     }
-                    keyboardArea_.repaint();
+                    refreshSurface();
                     return true;
                 }
                 // Track+Phrase+step = sticky per-track deviation for the focused
@@ -3159,7 +3204,7 @@ namespace lockstep
                 {
                     if (t >= 0 && t < static_cast<int>(kNumTracks))
                         processor_.doubleTrackLength(t);
-                    keyboardArea_.repaint();
+                    refreshSurface();
                     return true;
                 }
                 // MHZ.9.7: Track (no specific track selected) + NavUp → cycle input mode upward.
@@ -3205,7 +3250,7 @@ namespace lockstep
                 {
                     if (t >= 0 && t < static_cast<int>(kNumTracks))
                         processor_.halveTrackLength(t);
-                    keyboardArea_.repaint();
+                    refreshSurface();
                     return true;
                 }
                 // MHZ.9.7: Track (no specific track selected) + NavDown → cycle input mode downward.
@@ -3250,7 +3295,7 @@ namespace lockstep
                     refreshMetaBand();
                     setStatus("step " + juce::String(uiState_.pLockClearStep + 1)
                               + "  micro: " + juce::String(s.microOffset, 2));
-                    keyboardArea_.repaint();
+                    refreshSurface();
                     return true;
                 }
 
@@ -3266,7 +3311,7 @@ namespace lockstep
                     uiState_.stepMoveActive = true;  // flip grid → sequencer, MZ → Step-Position
                     refreshMetaBand();
                     setStatus("step moved to position " + juce::String(to + 1));
-                    keyboardArea_.repaint();
+                    refreshSurface();
                     return true;
                 }
 
@@ -3276,13 +3321,13 @@ namespace lockstep
                 {
                     if (tl >= 0 && tl < static_cast<int>(kNumTracks))
                         processor_.rotateTrackSteps(tl, -1);
-                    keyboardArea_.repaint();
+                    refreshSurface();
                     return true;
                 }
                 if (uiState_.noteEditMode || chromL)
                 {
                     uiState_.noteEditOctave = std::max(uiState_.noteEditOctave - 1, 0);
-                    keyboardArea_.repaint();
+                    refreshSurface();
                     return true;
                 }
                 keyboardArea_.prevPage();
@@ -3308,7 +3353,7 @@ namespace lockstep
                     refreshMetaBand();
                     setStatus("step " + juce::String(uiState_.pLockClearStep + 1)
                               + "  micro: " + juce::String(s.microOffset, 2));
-                    keyboardArea_.repaint();
+                    refreshSurface();
                     return true;
                 }
 
@@ -3329,7 +3374,7 @@ namespace lockstep
                     }
                     uiState_.stepMoveActive = true;  // flip grid → sequencer, MZ → Step-Position
                     refreshMetaBand();
-                    keyboardArea_.repaint();
+                    refreshSurface();
                     return true;
                 }
 
@@ -3339,13 +3384,13 @@ namespace lockstep
                 {
                     if (tr >= 0 && tr < static_cast<int>(kNumTracks))
                         processor_.rotateTrackSteps(tr, +1);
-                    keyboardArea_.repaint();
+                    refreshSurface();
                     return true;
                 }
                 if (uiState_.noteEditMode || chromR)
                 {
                     uiState_.noteEditOctave = std::min(uiState_.noteEditOctave + 1, 8);
-                    keyboardArea_.repaint();
+                    refreshSurface();
                     return true;
                 }
                 // DESIGN §34.4 / PRINCIPLES §17 (nav reveal/unlock family): at the last
@@ -3639,7 +3684,7 @@ namespace lockstep
                                 if (si >= 0 && si < kMaxStepsPerTrack)
                                     trk.steps[static_cast<std::size_t>(si)].microOffset = 0.0f;
                             setStatus(status::quantized());
-                            keyboardArea_.repaint();
+                            refreshSurface();
                             return true;
                         }
                     }
@@ -3652,7 +3697,7 @@ namespace lockstep
                             for (auto& s : processor_.sequence().tracks[static_cast<std::size_t>(t)].steps)
                                 s.microOffset = 0.0f;
                             setStatus(status::quantized());
-                            keyboardArea_.repaint();
+                            refreshSurface();
                             return true;
                         }
                     }
@@ -3664,12 +3709,12 @@ namespace lockstep
                             for (auto& s : trk.steps)
                                 s.microOffset = 0.0f;
                         setStatus(status::quantized());
-                        keyboardArea_.repaint();
+                        refreshSurface();
                         return true;
                     }
 
                     // Bare No (no scope held): snapshot/confirm verb.
-                    keyboardArea_.repaint();
+                    refreshSurface();
                     {
                         auto ctx = commandContext();
                         (void)commandCore_.handleVerb(editMode_.primaryScope(), ev.button, ctx, *editorEffects_);
@@ -3710,7 +3755,7 @@ namespace lockstep
                 if (uiState_.noteEditMode)  // Func+E = NavLeft: octave down
                 {
                     uiState_.noteEditOctave = std::max(uiState_.noteEditOctave - 1, 0);
-                    keyboardArea_.repaint();
+                    refreshSurface();
                     return true;
                 }
                 processor_.clock().setInPluginPlaying(false);
@@ -4057,7 +4102,7 @@ namespace lockstep
                     }
                     if (!isOriginalStep)
                     {
-                        keyboardArea_.repaint();
+                        refreshSurface();
                         break;
                     }
                     // Original step releasing — commit staged notes.
@@ -4117,7 +4162,7 @@ namespace lockstep
                         const auto m = uiState_.trackInputMode[static_cast<std::size_t>(at)];
                         if (m == TrackInputMode::Chromatic || m == TrackInputMode::Levels)
                         {
-                            keyboardArea_.repaint();
+                            refreshSurface();
                             break;
                         }
                     }
@@ -4295,7 +4340,7 @@ namespace lockstep
         // path reads live physical state, so this is order-independent with
         // keyPressed. (Orientation aid: PRINCIPLES §8 — no silent keys.)
         juce::ignoreUnused(isKeyDown);
-        keyboardArea_.repaint();
+        refreshSurface();
 
         return handled;
     }
@@ -4602,7 +4647,7 @@ namespace lockstep
             // Mirror the mouse/keyboard paths: repaint so a controller press/release
             // updates the on-screen highlight immediately (else a released key's
             // highlight lingers until the next unrelated repaint).
-            keyboardArea_.repaint();
+            refreshSurface();
         };
 
         sink.applyParamDelta = [this](int mzSlot, int rawDelta) {
@@ -4665,7 +4710,7 @@ namespace lockstep
                     // Repaint the grid so the live rhythm shows when stopped too — the
                     // KeyboardArea timer only repaints on playhead movement, so without
                     // this the pattern only appeared while transport was running.
-                    keyboardArea_.repaint();
+                    refreshSurface();
                 }
                 return;
             }
