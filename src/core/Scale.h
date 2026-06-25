@@ -92,10 +92,12 @@ namespace lockstep
         Melodic        = 1,   // raise b6->6, b7->7
         DoubleHarmonic = 2,   // raise b3->3, b7->7 (home Phrygian)
         HarmonicMajor  = 3,   // lower 6->b6      (home Ionian)
-        Blues          = 4,   // add the blue note (one fifths-anchored Add):
-                              //   b3 Ionian / b2 Dorian / b1 Phrygian /
-                              //   b6 Mixolydian / b5 Aeolian. Pentatonic-rooted,
-                              //   so not offered in Lydian or Locrian.
+        Blues          = 4,   // add the blue note (one fifths-anchored Add) —
+                              //   b7 Lydian / b3 Ionian / b6 Mixolydian /
+                              //   b2 Dorian / b5 Aeolian / b1 Phrygian / b4
+                              //   Locrian. Valid in all 7 modes of the full
+                              //   scale; pentatonic/triad cores narrow it
+                              //   (blueNoteFitsCore), a generator-time concern.
         Neapolitan     = 5,   // lower 2->b2      (home major)
     };
 
@@ -276,12 +278,11 @@ namespace lockstep
             switch (op.kind)
             {
                 case ModOp::Kind::Add:
-                    // Added "blue" notes are a pentatonic phenomenon: they apply
-                    // only when the tonic is itself a pentatonic-core tone — the
-                    // five modes Ionian..Phrygian — and not at the bright/dark
-                    // extremes (Lydian / Locrian), whose roots are the two notes
-                    // the pentatonic omits (the outer edge of the fifths window).
-                    if (k.brightness > kIonian || k.brightness < kPhrygian) return false;
+                    // The blue note sits outside the 7-note window, so it is a
+                    // valid Add in every mode of the full scale (Lydian b7 ..
+                    // Locrian b4). The pentatonic/triad restriction is a
+                    // CORE-SIZE property, not a key property — see
+                    // blueNoteFitsCore(), applied at generator time.
                     if (maskHas(mask, pc)) return false;      // redundant add
                     mask = setPc(mask, pc);
                     break;
@@ -321,6 +322,20 @@ namespace lockstep
             }
         }
         return 2;   // modifier-added / shifted-out note
+    }
+
+    // Whether an added blue/colour note belongs at a given core size: the tonic
+    // must be a member of that core. coreSize 7 = the full scale (always true);
+    // 5 = pentatonic (root tier <= 1, excludes Lydian/Locrian); 3 = triad (root
+    // tier 0, additionally excludes Ionian/Phrygian -> only Mixolydian, Dorian,
+    // Aeolian). Generators gate the blue note by the core they work in (DESIGN
+    // §39.11); the key editor always edits the full scale, so it does not.
+    [[nodiscard]] inline bool blueNoteFitsCore(const KeySig& k, int coreSize)
+    {
+        const int t = coreTier(k, k.root);
+        if (coreSize <= 3) return t == 0;
+        if (coreSize <= 5) return t <= 1;
+        return true;
     }
 
     // ---- Quantize ----------------------------------------------------------

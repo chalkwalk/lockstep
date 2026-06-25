@@ -168,26 +168,53 @@ namespace lockstep
     static void testBluesAcrossModes()
     {
         // The blue note is one fifths-anchored Add that reads as a different
-        // degree per mode. It is a pentatonic phenomenon: it applies in the five
-        // modes whose root is a pentatonic-core tone, and NOT in Lydian/Locrian.
-        struct Case { int brightness; bool ok; const char* degree; };
-        const Case cases[] = {
-            { kLydian,     false, "" },     // root not in pentatonic core
-            { kIonian,     true,  "b3" },
-            { kMixolydian, true,  "b6" },
-            { kDorian,     true,  "b2" },
-            { kAeolian,    true,  "b5" },
-            { kPhrygian,   true,  "b1" },
-            { kLocrian,    false, "" },     // root not in pentatonic core
-        };
+        // degree per mode. As a full-scale (7-note) modifier it applies in ALL
+        // seven modes, including Lydian (b7) and Locrian (b4).
+        struct Case { int brightness; const char* degree; };
+        const std::array<Case, 7> cases = {{
+            { kLydian,     "b7" },
+            { kIonian,     "b3" },
+            { kMixolydian, "b6" },
+            { kDorian,     "b2" },
+            { kAeolian,    "b5" },
+            { kPhrygian,   "b1" },
+            { kLocrian,    "b4" },
+        }};
         for (const auto& c : cases)
         {
             const KeySig k { 0, static_cast<int8_t>(c.brightness), {}, Symmetric::None };
-            CHECK(isCompatible(k, NamedModifier::Blues) == c.ok,
-                  juce::String("Blues compatibility in ") + modeName(c.brightness));
-            if (c.ok)
-                CHECK(degreeNameOf(k, NamedModifier::Blues) == c.degree,
-                      juce::String("Blues degree in ") + modeName(c.brightness) + " = " + c.degree);
+            CHECK(isCompatible(k, NamedModifier::Blues),
+                  juce::String("Blues applies in ") + modeName(c.brightness));
+            CHECK(degreeNameOf(k, NamedModifier::Blues) == c.degree,
+                  juce::String("Blues degree in ") + modeName(c.brightness) + " = " + c.degree);
+        }
+    }
+
+    static void testBlueNoteCoreGating()
+    {
+        // The pentatonic/triad restriction is a CORE-SIZE property: the blue note
+        // fits a core only when the tonic is a member of that core.
+        //   7 (full)      → all 7 modes
+        //   5 (pentatonic)→ excludes Lydian, Locrian
+        //   3 (triad)     → only Mixolydian, Dorian, Aeolian
+        struct Case { int brightness; bool penta; bool triad; };
+        const std::array<Case, 7> cases = {{
+            { kLydian,     false, false },
+            { kIonian,     true,  false },
+            { kMixolydian, true,  true  },
+            { kDorian,     true,  true  },
+            { kAeolian,    true,  true  },
+            { kPhrygian,   true,  false },
+            { kLocrian,    false, false },
+        }};
+        for (const auto& c : cases)
+        {
+            const KeySig k { 0, static_cast<int8_t>(c.brightness), {}, Symmetric::None };
+            CHECK(blueNoteFitsCore(k, 7), juce::String("7-note blue note in ") + modeName(c.brightness));
+            CHECK(blueNoteFitsCore(k, 5) == c.penta,
+                  juce::String("pentatonic blue note in ") + modeName(c.brightness));
+            CHECK(blueNoteFitsCore(k, 3) == c.triad,
+                  juce::String("triad blue note in ") + modeName(c.brightness));
         }
     }
 
@@ -208,6 +235,7 @@ namespace lockstep
     {
         testBrightnessModes();
         testBluesAcrossModes();
+        testBlueNoteCoreGating();
         testModifierPacking();
         testModifierPortability();
         testAddVsAlter();
