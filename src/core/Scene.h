@@ -5,6 +5,7 @@
 #include <utility>
 #include "Sequence.h"   // kNumTracks
 #include "TimeSig.h"
+#include "Scale.h"
 
 namespace lockstep
 {
@@ -23,6 +24,11 @@ namespace lockstep
         // When hasTimeSig is false the scene inherits from Song or Set (DESIGN §4.8).
         bool hasTimeSig = false;
         TimeSig coreTime{};
+
+        // Optional Scene-level key-signature override (DESIGN §4.10).
+        // When false the scene inherits from Song or Set.
+        bool hasKeySig = false;
+        KeySig coreKeySig{};
 
         // Scene A/B parameter snapshots (Phase 7.7 / DESIGN §17).
         // Full crossfader implementation: ROADMAP 5.2.
@@ -58,6 +64,7 @@ namespace lockstep
         for (const bool m : s.activeMask)
             if (!m) return true;
         if (s.hasTimeSig) return true;
+        if (s.hasKeySig) return true;
         if (s.swing != 0.0f) return true;
         return !s.morphA.empty() || !s.morphB.empty();
     }

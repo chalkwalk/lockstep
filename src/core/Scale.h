@@ -146,6 +146,26 @@ namespace lockstep
         }
     };
 
+    // Serialization helpers: the modifier list is a set of named modifiers, so
+    // a 6-bit mask round-trips it (compatibility forbids duplicates, and valid
+    // combinations are order-independent). NamedModifier ids are add-only.
+    [[nodiscard]] inline uint8_t packModifiers(const std::vector<NamedModifier>& mods) noexcept
+    {
+        uint8_t bits = 0;
+        for (NamedModifier m : mods)
+            bits = static_cast<uint8_t>(bits | (1u << static_cast<uint8_t>(m)));
+        return bits;
+    }
+
+    [[nodiscard]] inline std::vector<NamedModifier> unpackModifiers(uint8_t bits)
+    {
+        std::vector<NamedModifier> out;
+        for (uint8_t i = 0; i < 6; ++i)
+            if (bits & (1u << i))
+                out.push_back(static_cast<NamedModifier>(i));
+        return out;
+    }
+
     // ---- Derivation: pitch-class mask -------------------------------------
 
     [[nodiscard]] inline bool maskHas(uint16_t mask, int pc) noexcept

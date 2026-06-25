@@ -120,6 +120,16 @@ namespace lockstep
             return project_.defaultTimeSig;
         }
 
+        // Resolved key signature: Scene → Song → Set (DESIGN §4.10).
+        [[nodiscard]] KeySig effectiveKeySig() const
+        {
+            const auto& sc = section();
+            if (sc.hasKeySig) return sc.coreKeySig;
+            const auto& sg = song();
+            if (sg.hasKeySig) return sg.keySig;
+            return project_.defaultKeySig;
+        }
+
         // Resolved tempo ratio: globalRoot × songRatio × sceneRatio (DESIGN §4.9).
         // Returns 1.0 when no overrides are active.
         [[nodiscard]] double effectiveTempoRatio() const

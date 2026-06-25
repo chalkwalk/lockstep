@@ -52,7 +52,11 @@ namespace lockstep
         //      Missing time-sig fields → 4/4 default; trivial stamp upgrade from v20.
         //      Song::hasTempo + Song::tempoRatio; Scene::hasTempo + Scene::tempoRatio.
         //      Missing tempo fields → ratio 1.0 (no override); backward-compat transparent.
-        inline constexpr int kCurrentVersion = 21;
+        // v22: Hierarchical key signature (DESIGN §4.10). Project::defaultKeySig
+        //      (Set-level), Song::hasKeySig+keySig, Scene::hasKeySig+coreKeySig.
+        //      KeySig stored as root/brightness/mods-bitmask/symmetric. Missing
+        //      fields → C Ionian, no overrides; trivial stamp upgrade from v21.
+        inline constexpr int kCurrentVersion = 22;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);

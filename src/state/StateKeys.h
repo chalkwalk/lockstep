@@ -41,6 +41,22 @@ namespace lockstep::keys
     inline constexpr const char* kSetTsD = "set_ct_d";    // v21: Set-level defaultTimeSig denominator
     inline constexpr const char* kHasTempo = "hasTp";     // v21: Song/Scene hasTempo flag
     inline constexpr const char* kTempoRatio = "tpRat";   // v21: Song/Scene tempoRatio (double)
+    // v22: key signature (DESIGN §4.10). root(0-11)/brightness(int8)/mods(6-bit
+    // mask)/symmetric(0-2). Set-level on the NewHierarchy root; Song/Scene as
+    // optional overrides. kHasKs gates the Song/Scene override.
+    inline constexpr const char* kHasKs = "hasKs";
+    inline constexpr const char* kSetKsRoot = "set_ks_r";
+    inline constexpr const char* kSetKsBri  = "set_ks_b";
+    inline constexpr const char* kSetKsMod  = "set_ks_m";
+    inline constexpr const char* kSetKsSym  = "set_ks_s";
+    inline constexpr const char* kSongKsRoot = "song_ks_r";
+    inline constexpr const char* kSongKsBri  = "song_ks_b";
+    inline constexpr const char* kSongKsMod  = "song_ks_m";
+    inline constexpr const char* kSongKsSym  = "song_ks_s";
+    inline constexpr const char* kScKsRoot = "sc_ks_r";
+    inline constexpr const char* kScKsBri  = "sc_ks_b";
+    inline constexpr const char* kScKsMod  = "sc_ks_m";
+    inline constexpr const char* kScKsSym  = "sc_ks_s";
     inline constexpr const char* kMutesMask = "mutesMask";
 
   // ── Morph snapshot maps ─────────────────────────────────────────────────────

@@ -33,6 +33,27 @@ namespace lockstep::PluginState
             static_cast<double>(v.getProperty(name, static_cast<double>(def))));
     }
 
+    // v22: key signature (DESIGN §4.10). Four scoped properties; see StateKeys.
+    static void writeKeySig(juce::ValueTree& node, const KeySig& k,
+                            const char* rk, const char* bk, const char* mk, const char* sk)
+    {
+        node.setProperty(rk, static_cast<int>(k.root), nullptr);
+        node.setProperty(bk, static_cast<int>(k.brightness), nullptr);
+        node.setProperty(mk, static_cast<int>(packModifiers(k.modifiers)), nullptr);
+        node.setProperty(sk, static_cast<int>(static_cast<uint8_t>(k.symmetric)), nullptr);
+    }
+
+    static KeySig readKeySig(const juce::ValueTree& node,
+                             const char* rk, const char* bk, const char* mk, const char* sk)
+    {
+        KeySig k;
+        k.root       = static_cast<uint8_t>(static_cast<int>(node.getProperty(rk, 0)));
+        k.brightness = static_cast<int8_t>(static_cast<int>(node.getProperty(bk, static_cast<int>(kIonian))));
+        k.modifiers  = unpackModifiers(static_cast<uint8_t>(static_cast<int>(node.getProperty(mk, 0))));
+        k.symmetric  = static_cast<Symmetric>(static_cast<uint8_t>(static_cast<int>(node.getProperty(sk, 0))));
+        return k;
+    }
+
     static juce::ValueTree condToTree(const juce::Identifier& type,
                                       const TrigCondition& c)
     {
@@ -521,6 +542,10 @@ namespace lockstep::PluginState
             nhNode.setProperty(keys::kSetTsN, setTs.numerator, nullptr);
             nhNode.setProperty(keys::kSetTsD, setTs.denominator, nullptr);
         }
+        // v22: Set-level default key signature (only write if non-default C Ionian).
+        if (!(proc.project().defaultKeySig == KeySig{}))
+            writeKeySig(nhNode, proc.project().defaultKeySig,
+                        keys::kSetKsRoot, keys::kSetKsBri, keys::kSetKsMod, keys::kSetKsSym);
 
         for (int pi = 0; pi < kNumSongs; ++pi)
         {
@@ -537,6 +562,13 @@ namespace lockstep::PluginState
                 songNode.setProperty(keys::kHasTs, 1, nullptr);
                 songNode.setProperty(keys::kSongTsN, song.timeSig.numerator, nullptr);
                 songNode.setProperty(keys::kSongTsD, song.timeSig.denominator, nullptr);
+            }
+            // v22: optional Song-level key-signature override.
+            if (song.hasKeySig)
+            {
+                songNode.setProperty(keys::kHasKs, 1, nullptr);
+                writeKeySig(songNode, song.keySig,
+                            keys::kSongKsRoot, keys::kSongKsBri, keys::kSongKsMod, keys::kSongKsSym);
             }
             // v21: optional Song-level tempo ratio.
             if (song.hasTempo)
@@ -597,6 +629,13 @@ namespace lockstep::PluginState
                     sceneNode.setProperty(keys::kHasTs, 1, nullptr);
                     sceneNode.setProperty(keys::kCtN, sec.coreTime.numerator, nullptr);
                     sceneNode.setProperty(keys::kCtD, sec.coreTime.denominator, nullptr);
+                }
+                // v22: optional Scene-level key-signature override.
+                if (sec.hasKeySig)
+                {
+                    sceneNode.setProperty(keys::kHasKs, 1, nullptr);
+                    writeKeySig(sceneNode, sec.coreKeySig,
+                                keys::kScKsRoot, keys::kScKsBri, keys::kScKsMod, keys::kScKsSym);
                 }
                 // v21: optional Scene-level tempo ratio.
                 if (sec.hasTempo)
@@ -723,6 +762,10 @@ namespace lockstep::PluginState
             proc.project().defaultTimeSig.denominator =
                 static_cast<int>(nhNode.getProperty(keys::kSetTsD, 4));
         }
+        // v22: Set-level default key signature.
+        if (nhNode.hasProperty(keys::kSetKsRoot))
+            proc.project().defaultKeySig = readKeySig(nhNode,
+                keys::kSetKsRoot, keys::kSetKsBri, keys::kSetKsMod, keys::kSetKsSym);
 
         for (auto songNode : nhNode)
         {
@@ -737,6 +780,13 @@ namespace lockstep::PluginState
                 song.hasTimeSig = true;
                 song.timeSig.numerator = static_cast<int>(songNode.getProperty(keys::kSongTsN, 4));
                 song.timeSig.denominator = static_cast<int>(songNode.getProperty(keys::kSongTsD, 4));
+            }
+            // v22: optional Song-level key-signature override.
+            if (songNode.hasProperty(keys::kSongKsRoot))
+            {
+                song.hasKeySig = true;
+                song.keySig = readKeySig(songNode,
+                    keys::kSongKsRoot, keys::kSongKsBri, keys::kSongKsMod, keys::kSongKsSym);
             }
             // v21: optional Song-level tempo ratio.
             if (static_cast<int>(songNode.getProperty(keys::kHasTempo, 0)) != 0)
@@ -854,6 +904,13 @@ namespace lockstep::PluginState
                         sec.hasTimeSig = true;
                         sec.coreTime.numerator = static_cast<int>(child.getProperty(keys::kCtN, 4));
                         sec.coreTime.denominator = static_cast<int>(child.getProperty(keys::kCtD, 4));
+                    }
+                    // v22: optional Scene-level key-signature override.
+                    if (child.hasProperty(keys::kScKsRoot))
+                    {
+                        sec.hasKeySig = true;
+                        sec.coreKeySig = readKeySig(child,
+                            keys::kScKsRoot, keys::kScKsBri, keys::kScKsMod, keys::kScKsSym);
                     }
                     // v21: optional Scene-level tempo ratio.
                     if (static_cast<int>(child.getProperty(keys::kHasTempo, 0)) != 0)
@@ -1628,6 +1685,16 @@ namespace lockstep::PluginState
         return v21;
     }
 
+    static juce::ValueTree upgrade_v21_to_v22(const juce::ValueTree& v21)
+    {
+        // v22: hierarchical key signature added. No data migration needed —
+        // absent key-sig fields read as C Ionian with no overrides. Trivial
+        // stamp bump.
+        juce::ValueTree v22 = v21.createCopy();
+        v22.setProperty(keys::kVersion, 22, nullptr);
+        return v22;
+    }
+
     juce::ValueTree applyUpgrades(juce::ValueTree tree)
     {
         // Determine the version. v0 has root type "Lockstep" and no version attribute.
@@ -1657,6 +1724,7 @@ namespace lockstep::PluginState
         if (version < 19) tree = upgrade_v18_to_v19(tree);
         if (version < 20) tree = upgrade_v19_to_v20(tree);
         if (version < 21) tree = upgrade_v20_to_v21(tree);
+        if (version < 22) tree = upgrade_v21_to_v22(tree);
 
         return tree;
     }
@@ -2040,6 +2108,42 @@ namespace
                              3, "v21: kSongTsN round-trips as 3");
                 expectEquals(static_cast<int>(songResult.getProperty(keys::kSongTsD, 4)),
                              4, "v21: kSongTsD round-trips as 4");
+            }
+
+            beginTest("v22: key signature round-trips through ValueTree properties");
+            {
+                // A v22 tree with a Set-level default key and a Song override.
+                juce::ValueTree v22(keys::kLockstepState);
+                v22.setProperty(keys::kVersion, 22, nullptr);
+                auto nh = juce::ValueTree(keys::kNewHierarchy);
+                nh.setProperty(keys::kSetKsRoot, 7, nullptr);   // G
+                nh.setProperty(keys::kSetKsBri, -1, nullptr);   // Ionian
+                nh.setProperty(keys::kSetKsMod, 0, nullptr);
+                nh.setProperty(keys::kSetKsSym, 0, nullptr);
+                auto song = juce::ValueTree(keys::kSong);
+                song.setProperty(keys::kHasKs, 1, nullptr);
+                song.setProperty(keys::kSongKsRoot, 9, nullptr);          // A
+                song.setProperty(keys::kSongKsBri, -4, nullptr);          // Aeolian
+                song.setProperty(keys::kSongKsMod, 1, nullptr);           // Harmonic (bit 0)
+                song.setProperty(keys::kSongKsSym, 0, nullptr);
+                nh.appendChild(song, nullptr);
+                v22.appendChild(nh, nullptr);
+                v22.appendChild(juce::ValueTree(keys::kLockstep), nullptr);
+                v22.appendChild(juce::ValueTree(keys::kSamplePool), nullptr);
+                v22.appendChild(juce::ValueTree(keys::kMisc), nullptr);
+
+                const auto result = lockstep::PluginState::applyUpgrades(v22);
+                const auto nhResult = result.getChildWithName(keys::kNewHierarchy);
+                const auto songResult = nhResult.getChildWithName(keys::kSong);
+
+                expectEquals(static_cast<int>(nhResult.getProperty(keys::kSetKsRoot, -1)),
+                             7, "v22: Set key root round-trips as G(7)");
+                expectEquals(static_cast<int>(songResult.getProperty(keys::kHasKs, 0)),
+                             1, "v22: Song kHasKs round-trips as 1");
+                expectEquals(static_cast<int>(songResult.getProperty(keys::kSongKsBri, 0)),
+                             -4, "v22: Song key brightness round-trips as Aeolian(-4)");
+                expectEquals(static_cast<int>(songResult.getProperty(keys::kSongKsMod, 0)),
+                             1, "v22: Song key modifier bitmask round-trips as 1 (Harmonic)");
             }
 
             beginTest("future version: valid tree returned without crash");

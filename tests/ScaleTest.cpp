@@ -165,9 +165,23 @@ namespace lockstep
         CHECK(classicalName(exotic).empty(), "unnamed exotic scale -> empty");
     }
 
+    static void testModifierPacking()
+    {
+        // The modifier list round-trips through the 6-bit serialization mask.
+        std::vector<NamedModifier> mods = { NamedModifier::Harmonic, NamedModifier::Blues };
+        const uint8_t bits = packModifiers(mods);
+        CHECK(bits == ((1u << 0) | (1u << 4)), "Harmonic+Blues pack to bits 0 and 4");
+        const auto back = unpackModifiers(bits);
+        CHECK((back == std::vector<NamedModifier>{ NamedModifier::Harmonic, NamedModifier::Blues }),
+              "modifier set round-trips (ascending id order)");
+        CHECK(packModifiers({}) == 0, "empty modifier set packs to 0");
+        CHECK(unpackModifiers(0).empty(), "0 unpacks to empty set");
+    }
+
     void runScaleTests()
     {
         testBrightnessModes();
+        testModifierPacking();
         testModifierPortability();
         testAddVsAlter();
         testCompatibility();

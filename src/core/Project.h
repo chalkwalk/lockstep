@@ -2,6 +2,7 @@
 
 #include "SoundPool.h"
 #include "TimeSig.h"
+#include "Scale.h"
 
 namespace lockstep
 {
@@ -19,6 +20,11 @@ namespace lockstep
         // Set-level default time signature (DESIGN §4.8 hierarchy: Set → Song → Scene).
         // Song/Scene overrides inherit from this when their hasTimeSig flag is false.
         TimeSig defaultTimeSig{};
+
+        // Set-level default key signature (DESIGN §4.10 hierarchy: Set → Song → Scene).
+        // Song/Scene overrides inherit from this when their hasKeySig flag is false.
+        // Default = C Ionian.
+        KeySig defaultKeySig{};
 
         SoundPool soundPool{};  // project-scope sound library
     };

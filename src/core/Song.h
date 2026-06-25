@@ -4,6 +4,7 @@
 #include "Phrase.h"
 #include "Scene.h"
 #include "TimeSig.h"
+#include "Scale.h"
 #include "TrackKit.h"
 #include "Sequence.h"   // kNumTracks
 
@@ -35,6 +36,11 @@ namespace lockstep
         // When false the song inherits from Project::defaultTimeSig.
         bool hasTimeSig = false;
         TimeSig timeSig{};
+
+        // Optional Song-level key-signature override (DESIGN §4.10).
+        // When false the song inherits from Project::defaultKeySig.
+        bool hasKeySig = false;
+        KeySig keySig{};
 
         // Optional Song-level tempo override (DESIGN §4.9).
         // Stored as a ratio vs the global root (localBpm or host BPM).
