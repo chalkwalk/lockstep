@@ -33,7 +33,11 @@ namespace lockstep
         return "DEPTH";
     }
 
-    static const char* timeLabel(const UiState& /*ui*/) noexcept { return "TIME"; }
+    // The signatures band relabels its TRIG key TIME <-> KEY as the page cycles.
+    static const char* timeLabel(const UiState& ui) noexcept
+    {
+        return ui.sigPage == UiState::SigPage::Key ? "KEY" : "TIME";
+    }
 
     // =========================================================================
     // Overlay descriptor table.
@@ -84,7 +88,7 @@ namespace lockstep
         {
             .id                      = Overlay::Time,
             .internalSection         = 0,
-            .internalSectionConsumed = false,  // pass through → isTimeEntryChord toggle
+            .internalSectionConsumed = true,   // re-press TRIG cycles TIME <-> KEY
             .internalSectionRelabelFn = timeLabel,
             .exitOnSectionPressOther  = true,
             .trackScopeForeign  = true,
@@ -172,6 +176,12 @@ namespace lockstep
                 }
                 break;
             }
+            case Overlay::Time:
+                // The signatures band: re-press TRIG cycles TIME <-> KEY.
+                ui.sigPage = (ui.sigPage == UiState::SigPage::Time)
+                                 ? UiState::SigPage::Key
+                                 : UiState::SigPage::Time;
+                break;
             default:
                 break;
         }
@@ -211,6 +221,7 @@ namespace lockstep
                 if (ui.overlay == Overlay::Time)
                 {
                     ui.overlay = Overlay::None;
+                    ui.sigPage = UiState::SigPage::Time;
                     ui.swingDismissed = true;
                 }
                 break;

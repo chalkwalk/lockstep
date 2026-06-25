@@ -56,9 +56,10 @@ namespace lockstep
         // Euclidean modal outranks everything else.
         if (ui.euclidHeld)
             return MetaBand::Euclidean;
-        // TIME sticky mode (entered via Song+TRIG or Scene+TRIG; Func double-tap escapes it).
+        // TIME/KEY signatures band (entered via Song+TRIG or Scene+TRIG; re-press
+        // TRIG cycles TIME <-> KEY; Func double-tap escapes it).
         if (ui.overlay == Overlay::Time)
-            return MetaBand::Time;
+            return ui.sigPage == UiState::SigPage::Key ? MetaBand::Key : MetaBand::Time;
         // Sticky density mode (entered via Func+MOD; Func double-tap escapes it).
         if (ui.overlay == Overlay::Density)
         {
@@ -125,6 +126,7 @@ namespace lockstep
         if (entering)
         {
             ui.timeEntryScope = timeScopeFor(ui);
+            ui.sigPage = UiState::SigPage::Time;  // always open on the TIME page
             ui.swingDismissed = true;
         }
         return entering;
@@ -661,6 +663,110 @@ namespace lockstep
         return result;
     }
 
+    // ── KEY band (DESIGN §4.10) ──────────────────────────────────────────────
+    // 8 slots: Root, Brightness (mode), then the six functional modifiers as
+    // compatibility-gated on/off toggles. The KEY band shares the TIME band's
+    // scope ladder (Set / Song / Scene) and entry; re-pressing TRIG cycles to it.
+    struct KeyModEntry { NamedModifier mod; const char* label; };
+    static constexpr KeyModEntry kKeyMods[] = {
+        { NamedModifier::Harmonic,       "HARM" },
+        { NamedModifier::Melodic,        "MEL"  },
+        { NamedModifier::DoubleHarmonic, "DBLH" },
+        { NamedModifier::HarmonicMajor,  "HMAJ" },
+        { NamedModifier::Blues,          "BLUE" },
+        { NamedModifier::Neapolitan,     "NEAP" },
+    };
+
+    static bool keyHasModifier(const KeySig& k, NamedModifier m)
+    {
+        for (NamedModifier x : k.modifiers)
+            if (x == m) return true;
+        return false;
+    }
+
+    static std::array<MetaFieldView, 8> buildKeyBand(int scope, LockstepProcessor& proc)
+    {
+        std::array<MetaFieldView, 8> result{};
+        const bool hasInherit = (scope == 2 || scope == 3);
+        const auto& song = proc.song();
+        const auto& scene = proc.section();
+        const bool hasOverride = (scope == 3) ? scene.hasKeySig
+                               : (scope == 2) ? song.hasKeySig : false;
+        // The key shown/edited: the scope's own override if present, otherwise
+        // the inherited effective key (also the seed when an override is started).
+        const KeySig shown = hasOverride
+            ? ((scope == 3) ? scene.coreKeySig : song.keySig)
+            : proc.effectiveKeySig();
+        const KeySig parent = (scope == 3 && song.hasKeySig) ? song.keySig
+                                                             : proc.project().defaultKeySig;
+
+        const float scopeColour = (scope == 3) ? static_cast<float>(theme::kScopeScene)
+                                               : static_cast<float>(theme::kScopeSong);
+
+        // Field 0 — Root (INHERIT at index 0 for Song/Scene, like the time-sig band).
+        {
+            auto& f = result[0];
+            f.active = true; f.label = "Root"; f.stepped = true; f.writable = true;
+            f.ringMode = RingMode::Dot; f.hasOverride = hasOverride;
+            if (hasInherit)
+            {
+                f.minValue = 0.0f; f.maxValue = 12.0f;
+                if (hasOverride)
+                {
+                    f.value = static_cast<float>(shown.root + 1);
+                    f.valueText = pitchClassName(shown.root);
+                }
+                else
+                {
+                    f.value = 0.0f;
+                    f.valueText = juce::String("INHERIT (") + pitchClassName(parent.root) + ")";
+                    const int parentIdx = parent.root + 1;
+                    f.marks[0] = ReferenceMark{ true, static_cast<float>(parentIdx) / 12.0f,
+                                                static_cast<juce::uint32>(scopeColour), 1.0f };
+                }
+            }
+            else
+            {
+                f.minValue = 0.0f; f.maxValue = 11.0f;
+                f.value = static_cast<float>(shown.root);
+                f.valueText = pitchClassName(shown.root);
+            }
+        }
+
+        // Field 1 — Brightness (mode). Dial ascends Locrian -> Lydian (darker->brighter).
+        {
+            auto& f = result[1];
+            f.active = true; f.label = "Bright"; f.stepped = true; f.writable = true;
+            f.ringMode = RingMode::Dot; f.hasOverride = hasOverride;
+            f.minValue = 0.0f; f.maxValue = 6.0f;
+            f.value = static_cast<float>(shown.brightness + 6);   // -6..0 -> 0..6
+            f.valueText = modeName(shown.brightness);
+        }
+
+        // Fields 2..7 — the functional modifiers as compatibility-gated toggles.
+        for (int i = 0; i < 6; ++i)
+        {
+            auto& f = result[static_cast<std::size_t>(2 + i)];
+            const NamedModifier m = kKeyMods[i].mod;
+            const bool on = keyHasModifier(shown, m);
+            const bool compat = on || isCompatible(shown, m);
+            f.active = true;
+            f.label = kKeyMods[i].label;
+            f.stepped = true;
+            f.writable = compat;          // incompatible modifiers can't be turned on
+            f.hasOverride = on;
+            f.ringMode = RingMode::Dot;
+            f.minValue = 0.0f; f.maxValue = 1.0f;
+            f.value = on ? 1.0f : 0.0f;
+            if (on)
+                f.valueText = juce::String(degreeNameOf(shown, m));   // e.g. "7", "#5", "b5"
+            else
+                f.valueText = compat ? juce::String("--") : juce::String("n/a");
+        }
+
+        return result;
+    }
+
     static std::array<MetaFieldView, 8> buildTempoBand(int tpScope, LockstepProcessor& proc)
     {
         std::array<MetaFieldView, 8> result{};
@@ -1089,6 +1195,8 @@ namespace lockstep
             return buildVelModeBand(proc, ui, track);
         if (band == MetaBand::VelBlend)
             return buildVelBlendBand(proc, ui, track);
+        if (band == MetaBand::Key)
+            return buildKeyBand(timeScopeFor(ui), proc);
         if (band == MetaBand::Time)
         {
             // Field 0 = Tempo, Field 1 = Time Sig, Field 2 = CLICK (metronome, 9.10).
@@ -1557,6 +1665,69 @@ namespace lockstep
                 break;
             }
 
+            case MetaBand::Key: {
+                const int scope = timeScopeFor(ui);
+
+                // Resolve a writable KeySig at the scope. Editing at Song/Scene
+                // enables the override (seeded from the inherited key); dialing
+                // Root to the INHERIT floor (index 0) clears it.
+                auto seedAndGet = [&]() -> KeySig& {
+                    if (scope == 3)
+                    {
+                        auto& sc = proc.section();
+                        if (!sc.hasKeySig) { sc.coreKeySig = proc.effectiveKeySig(); sc.hasKeySig = true; }
+                        return sc.coreKeySig;
+                    }
+                    if (scope == 2)
+                    {
+                        auto& sg = proc.song();
+                        if (!sg.hasKeySig) { sg.keySig = proc.effectiveKeySig(); sg.hasKeySig = true; }
+                        return sg.keySig;
+                    }
+                    return proc.project().defaultKeySig;
+                };
+
+                if (field == 0)  // Root (INHERIT floor at 0 for Song/Scene)
+                {
+                    const bool hasInherit = (scope == 2 || scope == 3);
+                    if (hasInherit && juce::roundToInt(value) <= 0)
+                    {
+                        if (scope == 3) proc.section().hasKeySig = false;
+                        else            proc.song().hasKeySig = false;
+                    }
+                    else
+                    {
+                        const int pc = hasInherit ? (juce::roundToInt(value) - 1)
+                                                  : juce::roundToInt(value);
+                        seedAndGet().root = static_cast<uint8_t>(std::clamp(pc, 0, 11));
+                    }
+                }
+                else if (field == 1)  // Brightness (0..6 -> -6..0)
+                {
+                    const int b = std::clamp(juce::roundToInt(value), 0, 6) - 6;
+                    seedAndGet().brightness = static_cast<int8_t>(b);
+                }
+                else if (field >= 2 && field <= 7)  // modifier toggles
+                {
+                    const NamedModifier m = kKeyMods[field - 2].mod;
+                    const bool turnOn = value >= 0.5f;
+                    KeySig& k = seedAndGet();
+                    const bool isOn = keyHasModifier(k, m);
+                    if (turnOn && !isOn)
+                    {
+                        if (isCompatible(k, m)) k.modifiers.push_back(m);
+                    }
+                    else if (!turnOn && isOn)
+                    {
+                        std::vector<NamedModifier> kept;
+                        for (NamedModifier x : k.modifiers)
+                            if (x != m) kept.push_back(x);
+                        k.modifiers = kept;
+                    }
+                }
+                break;
+            }
+
             default: break;
         }
     }
@@ -1583,6 +1754,7 @@ namespace lockstep
             case MetaBand::VelMode:        return "VEL / MODE";
             case MetaBand::VelBlend:       return "VEL / BLEND";
             case MetaBand::Time:           return "TIME";
+            case MetaBand::Key:            return "KEY";
             case MetaBand::StepPosition:   return "MOVE";
             default:                       return {};
         }

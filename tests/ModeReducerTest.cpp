@@ -254,16 +254,21 @@ namespace lockstep
         }
     }
 
-    // Time: TRIG (index 0) is internal → NotConsumed (pass-through to isTimeEntryChord).
-    static void testTimeSectionPressTrigPassthrough()
+    // Time: TRIG (index 0) is internal → Consumed, cycling the TIME <-> KEY page.
+    static void testTimeSectionPressTrigCyclesPage()
     {
         UiState ui;
         enterTime(ui);
+        CHECK(ui.sigPage == UiState::SigPage::Time, "TIME band opens on the TIME page");
 
-        const auto r = handleOverlayEvent(ui, { ModeEventKind::SectionPress, 0 });
+        const auto r0 = handleOverlayEvent(ui, { ModeEventKind::SectionPress, 0 });
+        CHECK(r0 == OverlayResult::Consumed, "TRIG → Consumed (page cycle)");
+        CHECK((ui.overlay == Overlay::Time), "TIME band still active after cycle");
+        CHECK(ui.sigPage == UiState::SigPage::Key, "first TRIG re-press → KEY page");
 
-        CHECK(r == OverlayResult::NotConsumed, "TRIG → NotConsumed (pass-through)");
-        CHECK((ui.overlay == Overlay::Time), "TIME still active — toggle handled by isTimeEntryChord");
+        const auto r1 = handleOverlayEvent(ui, { ModeEventKind::SectionPress, 0 });
+        CHECK(r1 == OverlayResult::Consumed, "TRIG → Consumed (page cycle back)");
+        CHECK(ui.sigPage == UiState::SigPage::Time, "second TRIG re-press → back to TIME page");
     }
 
     static void testTimeSectionPressForeignExits()
@@ -526,7 +531,7 @@ namespace lockstep
         testVelSectionPressForeignExits();
 
         // SectionPress — Time
-        testTimeSectionPressTrigPassthrough();
+        testTimeSectionPressTrigCyclesPage();
         testTimeSectionPressForeignExits();
 
         // SectionPress — Euclid

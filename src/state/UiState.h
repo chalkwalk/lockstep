@@ -225,10 +225,15 @@ namespace lockstep
         enum class VelSubPage { Depth, Center, Mode, Blend };
         VelSubPage velSubPage = VelSubPage::Depth;
 
-        // ── Time ──
+        // ── Time / Key (the signatures band; DESIGN §4.8 / §4.10) ──
         // timeEntryScope: set to the resolved scope at toggle-on time so that
         // bare (no modifier held) writes land on the intended level, not scope 0.
         int  timeEntryScope = 2;  // default: Song
+
+        // The TIME band and KEY band are a family on the TRIG section key:
+        // re-pressing TRIG while the band is open cycles TIME <-> KEY.
+        enum class SigPage { Time, Key };
+        SigPage sigPage = SigPage::Time;
 
         // Generator hub (9.10): true while the 3-key has been held ≥350 ms,
         // showing the Euclid / Density / Vel picker. Closes on key-up.

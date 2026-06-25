@@ -950,8 +950,92 @@ namespace lockstep
 
     // -------------------------------------------------------------------------
 
+    // -------------------------------------------------------------------------
+    // KEY band (DESIGN §4.10)
+
+    static void testKeyBandResolveAndFields()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        UiState ui;
+        ui.overlay = Overlay::Time;
+        ui.timeEntryScope = 2;
+        EditContext ctx;
+
+        // The KEY page resolves only when sigPage == Key.
+        ui.sigPage = UiState::SigPage::Time;
+        CHECK(resolveMetaBand(ui) == MetaBand::Time, "sigPage Time → Time band");
+        ui.sigPage = UiState::SigPage::Key;
+        CHECK(resolveMetaBand(ui) == MetaBand::Key, "sigPage Key → Key band");
+
+        // Set scope (Func+Song): root + brightness + 6 modifier toggles.
+        ui.funcHeld = true; ui.songHeld = true;
+        const auto f = buildMetaBand(MetaBand::Key, 0, proc, 0, ctx, ui);
+        CHECK(f[0].active && f[0].writable && f[0].stepped, "Key: Root field");
+        CHECK(f[1].active && f[1].writable && f[1].stepped, "Key: Brightness field");
+        for (int i = 2; i < 8; ++i)
+            CHECK(f[static_cast<std::size_t>(i)].active && f[static_cast<std::size_t>(i)].stepped,
+                  "Key: modifier slot active+stepped");
+        // Default C Ionian: root reads C, brightness reads Ionian.
+        CHECK(f[0].valueText == "C", "Key: default root C");
+        CHECK(f[1].valueText == "Ionian", "Key: default brightness Ionian");
+    }
+
+    static void testKeyBandWriteRoundTripSetScope()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        UiState ui;
+        ui.overlay = Overlay::Time;
+        ui.sigPage = UiState::SigPage::Key;
+        ui.funcHeld = true; ui.songHeld = true;   // Set scope (timeScopeFor → 1)
+        EditContext ctx;
+
+        // Root → A(9), brightness → Aeolian(-4 → dial 2).
+        writeMetaField(MetaBand::Key, 0, 0, 9.0f, proc, 0, ctx, ui);
+        writeMetaField(MetaBand::Key, 0, 1, 2.0f, proc, 0, ctx, ui);
+        CHECK(proc.project().defaultKeySig.root == 9, "Set root written A");
+        CHECK(proc.project().defaultKeySig.brightness == kAeolian, "Set brightness Aeolian");
+
+        // Toggle Harmonic on (field 2) → A harmonic minor; reads degree "7".
+        writeMetaField(MetaBand::Key, 0, 2, 1.0f, proc, 0, ctx, ui);
+        CHECK(proc.project().defaultKeySig.modifiers.size() == 1, "Harmonic added");
+        CHECK(proc.effectiveKeySig() == proc.project().defaultKeySig, "Set key is effective (no overrides)");
+        auto f = buildMetaBand(MetaBand::Key, 0, proc, 0, ctx, ui);
+        CHECK(feq(f[2].value, 1.0f), "Harmonic slot reads on");
+        CHECK(f[2].valueText == "7", "Harmonic reads as '7' (leading tone) in minor");
+
+        // Toggle Harmonic off again.
+        writeMetaField(MetaBand::Key, 0, 2, 0.0f, proc, 0, ctx, ui);
+        CHECK(proc.project().defaultKeySig.modifiers.empty(), "Harmonic removed");
+    }
+
+    static void testKeyBandSongOverrideAndInherit()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        UiState ui;
+        ui.overlay = Overlay::Time;
+        ui.sigPage = UiState::SigPage::Key;
+        ui.songHeld = true;   // Song scope (timeScopeFor → 2)
+        EditContext ctx;
+
+        CHECK(!proc.song().hasKeySig, "song starts inheriting");
+        // Editing brightness enables the override (seeded from effective).
+        writeMetaField(MetaBand::Key, 0, 1, 2.0f, proc, 0, ctx, ui);   // Aeolian
+        CHECK(proc.song().hasKeySig, "editing enables the Song override");
+        CHECK(proc.song().keySig.brightness == kAeolian, "Song override brightness set");
+
+        // Root dialed to the INHERIT floor (0) clears the override.
+        writeMetaField(MetaBand::Key, 0, 0, 0.0f, proc, 0, ctx, ui);
+        CHECK(!proc.song().hasKeySig, "Root → INHERIT clears the Song override");
+    }
+
     void runMetaBandTests()
     {
+        testKeyBandResolveAndFields();
+        testKeyBandWriteRoundTripSetScope();
+        testKeyBandSongOverrideAndInherit();
         testResolveMetaBandMasterSection();
         testResolveMetaBandTransientOutranksMasterSection();
         testResolveMetaBandEuclid();

@@ -893,10 +893,14 @@ effectiveKeySig = Scene.coreKeySig          (if Scene.hasKeySig)
               ?? Project.defaultKeySig      (always present; default C Ionian)
 ```
 
-**Editor grammar.** Key shares the TIME page's scope ladder, reached as a **KEY
-sub-page** of the scoped TRIG band (Nav-right toggles TIME↔KEY, the density
-sub-page idiom). Scope works as on TIME: `Func+Song` → Set, bare `Song` → Song,
-bare `Scene` → Scene, no modifier → entry scope. Controls:
+**Editor grammar.** Key shares the TIME page's scope ladder and entry: the
+signatures band opens via `Song+TRIG` / `Scene+TRIG`, and **re-pressing TRIG
+cycles TIME ↔ KEY** as a family on the same key (the TRIG label relabels). Scope
+works as on TIME: `Func+Song` → Set, bare `Song` → Song, bare `Scene` → Scene,
+no modifier → entry scope. Controls (8 slots): **Root**, **Brightness**, then the
+six functional modifiers as compatibility-gated on/off toggles, each showing its
+degree-name (e.g. `7`, `#5`, `b5`) for the current root. At Song/Scene scope the
+Root field's index-0 is **INHERIT** (clears the override), mirroring TIME.
 
 - **Brightness** (stepped, primary) — Lydian…Locrian; the resolved classical
   name shows as a label, "" when a modifier set has no common name.
