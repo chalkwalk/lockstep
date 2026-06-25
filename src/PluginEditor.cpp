@@ -950,12 +950,21 @@ namespace lockstep
                                         manipulationZone_.slotOffset(),
                                         1.0f - processor_.morphFader());
 
+        // modelDirty covers everything (chrome + grid + controllers). Otherwise
+        // the controller playhead (ppqMoved) and the chrome meter/blink decay
+        // (dirty) are independent — both may need to fire on the same tick, so
+        // they are NOT mutually exclusive.
         if (modelDirty)
-            refreshSurface();       // chrome + grid + controllers (covers the playhead)
-        else if (ppqMoved)
-            renderControllers();    // controller playhead only — screen is on the vblank
-        else if (dirty)
-            repaint();              // chrome-only animation
+        {
+            refreshSurface();           // chrome + grid + controllers
+        }
+        else
+        {
+            if (ppqMoved)
+                renderControllers();    // controller playhead — screen is on the vblank
+            if (dirty)
+                repaint();              // chrome meter / blink decay
+        }
 
         // Update the scope-coloured tempo + time-sig readout.
         {
@@ -1608,10 +1617,11 @@ namespace lockstep
             const float levelR = juce::jlimit(0.0f, 1.0f, masterMeterR_);
             const int wL = juce::roundToInt(static_cast<float>(fullW) * levelL);
             const int wR = juce::roundToInt(static_cast<float>(fullW) * levelR);
+            const int barH = kMasterMeterH / 2;
             g.setColour(juce::Colour::fromRGB(30, 34, 40));
-            g.fillRect(0, 0, fullW, 6);
-            if (wL > 0) { g.setColour(meterColour(levelL)); g.fillRect(0, 0, wL, 3); }
-            if (wR > 0) { g.setColour(meterColour(levelR)); g.fillRect(0, 3, wR, 3); }
+            g.fillRect(0, 0, fullW, kMasterMeterH);
+            if (wL > 0) { g.setColour(meterColour(levelL)); g.fillRect(0, 0, wL, barH); }
+            if (wR > 0) { g.setColour(meterColour(levelR)); g.fillRect(0, barH, wR, barH); }
         }
         // Per-track trig (left, cyan) + MIDI-in (right, magenta) activity dots.
         for (std::size_t i = 0; i < kNumTracks; ++i)
@@ -4448,6 +4458,10 @@ namespace lockstep
     void LockstepEditor::resized()
     {
         auto bounds = getLocalBounds();
+
+        // Reserve the top edge for the master VU strip (painted in
+        // paintOverChildren) so the header row below does not sit under it.
+        bounds.removeFromTop(kMasterMeterH);
 
         // Header row: transport | sync mode box | channel mode | display mode | pool button
         auto header = bounds.removeFromTop(36);

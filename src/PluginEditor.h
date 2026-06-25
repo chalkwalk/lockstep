@@ -291,6 +291,12 @@ namespace lockstep
         float masterMeterR_ = 0.0f;
         void paintMeters(juce::Graphics& g);
 
+        // Master VU strip height (px), drawn at the very top edge in
+        // paintOverChildren as two stacked bars (L, R). resized() reserves this
+        // many pixels at the top so the header row sits below it — single source
+        // so the layout and the paint cannot drift (PRINCIPLES §20).
+        static constexpr int kMasterMeterH = 6;
+
         // Last-seen morphFader value: used to detect on-screen fader moves and
         // mark the surface model dirty so controller surfaces update.
         float lastMorphFader_ = -1.0f;
