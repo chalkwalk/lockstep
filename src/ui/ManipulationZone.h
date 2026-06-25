@@ -52,6 +52,14 @@ namespace lockstep
         // When set, mouse-drag writes the morph overlay at fader split (matches encoder).
         void setMorphHeld(bool b) { morphHeld_ = b; }
 
+        // Rebuild the slider/label view from current param state. Frame-driven
+        // (9.15): the editor calls this from its surface-frame so the MZ tracks
+        // external param changes (controller turns, audio-thread writes) through
+        // the invalidation channel instead of a perpetual 30 Hz poll. Safe to call
+        // mid-drag — it runs outside onValueChange and the rotaries ignore
+        // setValue() while dragging.
+        void refreshSliders();
+
 
         // Called when the user clicks "Manage pool..." from the sample picker menu.
         std::function<void()> onOpenPoolManager;
@@ -76,7 +84,6 @@ namespace lockstep
     private:
         static constexpr int kNumSlots = kMZSlots;
 
-        void refreshSliders();
         void showMappingMenu(int slotIndex);
         void showSamplePicker(int absoluteSlot);
 

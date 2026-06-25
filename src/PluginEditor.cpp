@@ -809,6 +809,10 @@ namespace lockstep
         repaint();
         keyboardArea_.repaint();
         renderControllers();
+        // 9.15: the ManipulationZone tracks param state from the surface frame
+        // instead of its own perpetual 30 Hz poll. Safe mid-drag (runs outside
+        // onValueChange; rotaries ignore setValue while dragging).
+        manipulationZone_.refreshSliders();
     }
 
     void LockstepEditor::onPlayheadVBlank()

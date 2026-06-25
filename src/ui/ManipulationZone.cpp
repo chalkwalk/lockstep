@@ -150,7 +150,9 @@ namespace lockstep
         addChildComponent(samplePickerBtn_);
 
         processor_.setMZSlots(slotOffset_);
-        startTimerHz(30);
+        // No perpetual timer (9.15): the slider view is refreshed from the
+        // editor's surface frame (refreshSliders), and the timer runs only while
+        // a CC-learn is pending — see showMappingMenu / timerCallback.
     }
 
     ManipulationZone::~ManipulationZone()
@@ -268,31 +270,28 @@ namespace lockstep
                     if (result == 3) scope = CCScope::Contextual;
                     processor_.startLearn(scope, track, slot, slotIndex);
                     learningSlotIndex_ = slotIndex;
+                    // Drive the learn pulse + completion detection. Self-suspends
+                    // when learn ends (timerCallback stops it), so the MZ has no
+                    // perpetual poll.
+                    startTimerHz(30);
                 }
             });
     }
 
     void ManipulationZone::timerCallback()
     {
-        // Detect when a pending learn completes (audio thread cleared the flag).
+        // Runs only while a CC-learn is pending (started in showMappingMenu).
+        // Detect completion (audio thread cleared the flag), pulse the overlay
+        // (~3 Hz), then self-suspend so the MZ has no perpetual timer (9.15).
+        // The step-position grid preview and external param sync are now handled
+        // by the surface-invalidation channel, not a per-tick poll here.
         if (learningSlotIndex_ >= 0 && !processor_.isLearning())
             learningSlotIndex_ = -1;
 
-        refreshSliders();
-
-        // 9.14: while the Step-Position panel is up, drive the grid repaint from
-        // this 30 Hz tick. An encoder drag updates the moved step in onValueChange,
-        // but repaints scheduled from the slider's mouse-drag context don't always
-        // flush the grid live; the timer guarantees a realtime step preview that
-        // matches the nav ←/→ feedback.
-        if (band_ == MetaBand::StepPosition)
-            area_.repaint();
-
-        // The CC-learn overlay pulses at ~3 Hz; repaint to drive that animation.
-        // Outside of learn mode the child sliders/labels repaint themselves when
-        // their values change, so no explicit repaint() is needed here.
         if (learningSlotIndex_ >= 0)
             repaint();
+        else
+            stopTimer();
     }
 
     void ManipulationZone::refreshSliders()
