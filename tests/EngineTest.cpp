@@ -409,6 +409,35 @@ namespace lockstep
     }
 
     // -----------------------------------------------------------------------
+    // 9.15: the audio loop publishes the focused track's current playhead step
+    // (focusStepUi), so the editor repaints the grid exactly when it advances.
+    static void testFocusStepAdvances()
+    {
+        EngineHarness h;
+        installMachine(h.processor(), 0, DrumSynthMachine::kMachineId);
+        h.processor().setFocusTrack(0);
+
+        h.renderBlocks(1);
+        const int s0 = h.processor().focusStepUi();
+        CHECK(s0 >= 0, "focusStepUi: valid step for the focused track while playing");
+
+        // Advance until the step crosses a boundary (generous cap covers any
+        // reasonable divider).
+        int s1 = s0;
+        for (int i = 0; i < 300 && s1 == s0; ++i)
+        {
+            h.renderBlocks(1);
+            s1 = h.processor().focusStepUi();
+        }
+        CHECK(s1 != s0, "focusStepUi: step must advance as the playhead moves");
+
+        // No focus track → -1.
+        h.processor().setFocusTrack(-1);
+        h.renderBlocks(1);
+        CHECK(h.processor().focusStepUi() == -1, "focusStepUi: -1 when no focus track");
+    }
+
+    // -----------------------------------------------------------------------
     // A0 regression: master insert chain must process audio while the playhead
     // is playing. Before the A0 fix, the master chain was only invoked on the
     // non-playing (preview) path; this test pins the playing path.
@@ -1062,6 +1091,7 @@ namespace lockstep
         testEngineCmdAppliedAfterBlock();
         testEngineCmdQueueFullDrop();
         testSurfaceDirtyOnParamApply();
+        testFocusStepAdvances();
         testMasterInsertRunsWhilePlaying();
         testV17StateRoundTrip();
         testV16UpgradeToV17();

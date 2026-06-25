@@ -813,22 +813,19 @@ namespace lockstep
 
     void LockstepEditor::onPlayheadVBlank()
     {
-        // Display-synced playhead (9.15): recompute the step position from the
-        // live PPQ each vblank, so the highlight advances on the clock instead of
-        // the coarse 30 Hz tick grid. Only acts when it actually moved — when the
-        // transport is stopped the PPQ is static, so this issues no repaints.
-        const double ppq = processor_.clock().cumulativePpq();
-        if (ppq == lastEditorPpq_)
+        // The on-screen sequencer playhead is driven by the audio loop: the
+        // processor publishes the focused track's current step each block
+        // (focusStepUi), and we repaint the grid here — display-synced — only
+        // when it advances. So the highlight moves on the same clock that fires
+        // the notes, the grid rebuilds once per step (not once per vblank), and a
+        // stopped transport (static step) issues no repaints. Grid only: the
+        // controller playhead is on the always-on timer so it survives the vblank
+        // pausing when the display sleeps or the window is hidden.
+        const int step = processor_.focusStepUi();
+        if (step == lastScreenStep_)
             return;
-        lastEditorPpq_ = ppq;
-
-        // This is the playhead's animation clock (DESIGN §35.9.3), so it drives
-        // only what moves — the grid and the controllers — not the editor chrome
-        // (meters animate on the 30 Hz timer) and not the coalescing channel
-        // (that is for discrete events). Controllers diff against a shadow cache,
-        // so MIDI traffic is bounded by actual cell changes, not the vblank rate.
+        lastScreenStep_ = step;
         keyboardArea_.repaint();
-        renderControllers();
     }
 
     void LockstepEditor::timerCallback()
@@ -933,9 +930,14 @@ namespace lockstep
             modelDirty = true;
         }
 
-        // The playhead is driven by the display vblank (onPlayheadVBlank), not
-        // this timer — sampling the PPQ clock at 30 Hz quantises the step advance
-        // into a visible "fast, fast, slow" stutter.
+        // The SCREEN playhead is driven by the display vblank (onPlayheadVBlank).
+        // The CONTROLLER playhead must keep moving even when the vblank is paused
+        // (screen asleep, window hidden) — the performer reads the hardware, not
+        // the screen (§19) — so it is driven here, on the always-on timer, from
+        // the same audio clock. Timer-limited (there is no vblank for MIDI LEDs).
+        const double ppq = processor_.clock().cumulativePpq();
+        const bool ppqMoved = (ppq != lastCtrlPpq_);
+        lastCtrlPpq_ = ppq;
 
         // 9.15 Stage 3: the audio thread applied a queued param change (CC /
         // encoder / P-Lock write). It is async, so this is the discrete event
@@ -949,9 +951,11 @@ namespace lockstep
                                         1.0f - processor_.morphFader());
 
         if (modelDirty)
-            refreshSurface();   // one channel → renderSurfaceFrame: chrome + grid + controllers
+            refreshSurface();       // chrome + grid + controllers (covers the playhead)
+        else if (ppqMoved)
+            renderControllers();    // controller playhead only — screen is on the vblank
         else if (dirty)
-            repaint();          // chrome-only animation
+            repaint();              // chrome-only animation
 
         // Update the scope-coloured tempo + time-sig readout.
         {

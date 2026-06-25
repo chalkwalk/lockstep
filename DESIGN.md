@@ -4859,19 +4859,23 @@ its own `repaint()` for shared state.
 Two distinct things happen on the audio thread, and they are *not* the same
 kind of redraw:
 
-- **The playhead is animation, not a discrete event.** The step highlight is a
-  step function of the PPQ clock; the controllers additionally render a *sub-step
-  phase envelope* (`SurfaceModel::playheadPhase`, e.g. the X-Touch playhead LED
-  fades off→on→off within each step). Both must be sampled finely or the advance
-  visibly stutters: at a 30 Hz timer a 16th-note (~125 ms at 120 BPM) spans 4 or
-  3 ticks, so the highlight jumps unevenly ("fast, fast, slow"). The playhead is
-  therefore driven by the **display vblank** (`juce::VBlankAttachment`), which
-  recomputes the position from the live clock at the monitor's refresh rate and
-  repaints only the grid + controllers (not the chrome, not the coalescing
-  channel — this is the animation clock, §35.9.3). It acts only when the PPQ
-  actually moved, so a stopped transport issues no repaints. Treating the
-  playhead as a discrete per-step event would both freeze the phase envelope
-  between steps and re-introduce the sampling stutter.
+- **The playhead is driven by the loop that fires the notes.** The step
+  highlight is a step function of the PPQ clock; sampling it on a 30 Hz UI timer
+  quantises the advance to the tick grid (a 16th-note ~125 ms at 120 BPM spans 4
+  or 3 ticks → visible "fast, fast, slow"). So the source of truth is the audio
+  loop itself: `processBlock` computes the **focused track's current step** and
+  publishes it (`focusStepUi_`, atomic). The on-screen grid is repainted when
+  that step advances, consumed on the **display vblank** (`VBlankAttachment`) so
+  the repaint is display-synced and the grid rebuilds *once per step*, not once
+  per vblank. The step is computed with the same musical step grid
+  `buildSurfaceModel` renders, so the published step and the drawn step agree.
+  The **controllers** are a separate consumer: they additionally render a
+  *sub-step phase envelope* (`SurfaceModel::playheadPhase`, e.g. the X-Touch
+  playhead LED fades off→on→off within a step), which needs sub-step updates, and
+  they must keep moving when the **vblank is paused** (display asleep, window
+  hidden) — the performer reads the hardware, not the screen (§19). So the
+  controller playhead rides the always-on ~30 Hz timer, not the vblank. Two
+  consumers, one published source.
 - **Param mutations are discrete events.** Machine-param writes (CC, encoder,
   P-Lock) are *asynchronous*: `writeParam` enqueues an `EngineCmd`, and the
   audio thread applies it in `drainEngineCmds`. The UI value is only correct
@@ -4891,11 +4895,13 @@ message from the audio thread is not real-time-safe.
 
 #### 35.9.3 The single animation clock
 
-Animation has two natural cadences. The **playhead** moves fast and must look
-smooth, so it rides the **display vblank** (§35.9.2): a `VBlankAttachment`
-recomputes the step position from the live clock at the monitor refresh rate and
-repaints the grid + controllers, but only when the PPQ actually advanced (a
-stopped transport repaints nothing). The **slow decays** — meter / activity
+Animation has two natural cadences. The **screen playhead** moves fast and must
+look smooth, so it rides the **display vblank** (§35.9.2): a `VBlankAttachment`
+repaints the grid when the audio-published focused-track step
+(`focusStepUi_`) advances — display-synced, once per step, nothing when stopped.
+(The controller playhead is a separate, always-on-timer consumer of the same
+source, since the vblank pauses when the display sleeps.) The **slow decays** —
+meter / activity
 blinks, crossfader smoothing — plus timed gesture promotions (generator-hub /
 FX-section long-press, timed *events* that fire once then `invalidate()`) ride a
 ~30 Hz timer; a VU envelope does not need display-rate updates. That timer

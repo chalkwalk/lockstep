@@ -629,6 +629,15 @@ namespace lockstep
             return surfaceDirtyFromAudio_.exchange(false, std::memory_order_relaxed);
         }
 
+        // 9.15: the focused track's current playhead step, published every
+        // processBlock so the editor can repaint the sequencer grid exactly when
+        // the playhead advances — driven by the same loop that fires the notes,
+        // not a separately-sampled approximation. -1 when there is no focus track.
+        [[nodiscard]] int focusStepUi() const noexcept
+        {
+            return focusStepUi_.load(std::memory_order_relaxed);
+        }
+
         using juce::AudioProcessor::processBlock;
 
         // Reinstall machines from the current Song's kit (public so tests can
@@ -944,6 +953,11 @@ namespace lockstep
         // change (drainEngineCmds); read-and-cleared by the editor to refresh the
         // surface. See takeSurfaceDirty().
         std::atomic<bool> surfaceDirtyFromAudio_{ false };
+
+        // [ATOMIC] 9.15 — focused track's current playhead step, published each
+        // processBlock; the editor repaints the grid when it advances. See
+        // focusStepUi().
+        std::atomic<int> focusStepUi_{ -1 };
 
         // 8.26 C1: WAV performance capture.
         CaptureRecorder captureRecorder_;

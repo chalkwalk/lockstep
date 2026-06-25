@@ -427,6 +427,31 @@ namespace lockstep
         }
         wasInPluginPlaying_ = clock_.inPluginPlaying();
 
+        // 9.15: publish the focused track's current playhead step so the editor
+        // repaints the sequencer grid exactly when it advances — driven by this
+        // loop, the same one that fires the notes. Computed with the display's
+        // musical step grid (subdivisionPpqFromIndex) and raw cumulative PPQ, so
+        // the published step matches the one buildSurfaceModel renders.
+        {
+            const int ft = focusTrack_;
+            int focusStep = -1;
+            if (ft >= 0 && ft < static_cast<int>(kNumTracks))
+            {
+                const auto fi = static_cast<std::size_t>(ft);
+                const int len = std::max(1, static_cast<int>(trackLengthParams_[fi]->load()));
+                const int divIdx = std::clamp(static_cast<int>(trackDividerParams_[fi]->load()),
+                                              kSubdivMin, kSubdivMax);
+                const double divPpq = subdivisionPpqFromIndex(divIdx);
+                if (divPpq > 0.0)
+                {
+                    const double cumPpq = clock_.cumulativePpq();
+                    focusStep = static_cast<int>(
+                        static_cast<std::int64_t>(cumPpq / divPpq) % len);
+                }
+            }
+            focusStepUi_.store(focusStep, std::memory_order_relaxed);
+        }
+
         // MF.6: on transport stop (falling edge), send All-Notes-Off +
         // Reset-All-Controllers on every MIDI-out track to prevent stuck notes.
         // Also mark pending audio note-offs for immediate dispatch so audio voices

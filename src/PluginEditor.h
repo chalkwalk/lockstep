@@ -295,10 +295,18 @@ namespace lockstep
         // mark the surface model dirty so controller surfaces update.
         float lastMorphFader_ = -1.0f;
 
-        // Last-seen playhead PPQ (interim, Stage 2): the editor tick invalidates
-        // on change so controllers track the playhead during playback. Stage 3
-        // replaces this poll with the audio-thread discrete bridge.
-        double lastEditorPpq_ = -1.0;
+        // Playhead tracking, split per render target (9.15):
+        //  - lastScreenStep_: the focused track's step the on-screen grid last
+        //    showed. The audio loop publishes the focused track's current step
+        //    (LockstepProcessor::focusStepUi); the display vblank repaints the
+        //    grid only when it advances — so the sequencer area is dirtied by the
+        //    same loop that fires the notes, at the precise step boundary, and
+        //    the grid rebuilds once per step rather than once per vblank.
+        //  - lastCtrlPpq_: the PPQ the controller surface last rendered, on the
+        //    always-on 30 Hz timer (survives screen-sleep; carries the sub-step
+        //    phase envelope the X-Touch playhead LED needs).
+        int lastScreenStep_ = -1;
+        double lastCtrlPpq_  = -1.0;
 
         // Transient status line — shows CPC operation result for ~1.5s.
         juce::String statusMessage_;
