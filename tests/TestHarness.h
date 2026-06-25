@@ -37,6 +37,8 @@ namespace lockstep
     void runSerializerTests();
     void runAmpDspTests();
     void runEuclideanTests();
+    // Phase 10.2: tonal core (KeySig, brightness, modifiers, quantize)
+    void runScaleTests();
     // Phase 8 characterisation tests
     void runEditModeTests();
     void runLayerResolveTests();

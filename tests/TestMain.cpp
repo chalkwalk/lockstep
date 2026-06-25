@@ -17,6 +17,7 @@ int main()
     lockstep::runSerializerTests();
     lockstep::runAmpDspTests();
     lockstep::runEuclideanTests();
+    lockstep::runScaleTests();
     // Phase 8 characterisation tests
     lockstep::runEditModeTests();
     lockstep::runLayerResolveTests();
