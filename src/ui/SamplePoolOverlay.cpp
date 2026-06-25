@@ -96,13 +96,29 @@ namespace lockstep
             if (onClose) onClose();
         };
         addAndMakeVisible(closeBtn_);
-
-        startTimerHz(10);
+        // No always-on timer (9.15): the pool poll runs only while the overlay is
+        // visible — see visibilityChanged().
     }
 
     SamplePoolOverlay::~SamplePoolOverlay()
     {
         stopTimer();
+    }
+
+    void SamplePoolOverlay::visibilityChanged()
+    {
+        if (isVisible())
+        {
+            // Sync immediately on open, then poll at 10 Hz to catch external pool
+            // changes (e.g. drag-drop additions) while the manager is up.
+            list_.updateContent();
+            updateButtonStates();
+            startTimerHz(10);
+        }
+        else
+        {
+            stopTimer();
+        }
     }
 
     void SamplePoolOverlay::timerCallback()

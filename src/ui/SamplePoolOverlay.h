@@ -26,6 +26,9 @@ namespace lockstep
         void paint(juce::Graphics& g) override;
         void resized() override;
         void timerCallback() override;
+        // Self-suspend the pool poll: only run while the overlay is on screen
+        // (9.15). When hidden — the common case — there is no timer.
+        void visibilityChanged() override;
 
         // ListBoxModel
         int getNumRows() override;

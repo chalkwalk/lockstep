@@ -29,8 +29,7 @@ namespace lockstep
             refresh(buildTransportModel(clock_));
         };
         addAndMakeVisible(metroBtn_);
-
-        startTimerHz(15);
+        // No own timer (9.15): the editor's always-on tick calls pollState().
     }
 
     void InPluginTransport::setGhosted(bool ghosted)
@@ -77,11 +76,6 @@ namespace lockstep
         }
 
         shadow_ = m;
-    }
-
-    void InPluginTransport::timerCallback()
-    {
-        refresh(buildTransportModel(clock_));
     }
 
     void InPluginTransport::onPlayClick()

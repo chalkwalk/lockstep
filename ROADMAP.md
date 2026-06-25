@@ -1996,7 +1996,7 @@ continuous animations. Docs-first.
       rate, repainting only grid + controllers when the PPQ moved. Test:
       `testSurfaceDirtyOnParamApply` (apply sets the flag once; idle blocks
       don't; `takeSurfaceDirty` clears it).
-- [~] **Stage 4 — Eliminate the component timers.** Refined from the original
+- [x] **Stage 4 — Eliminate the component timers.** Refined from the original
       "single animation clock": the architecture settled on **two** clocks by
       necessity (DESIGN §35.9.3) — the always-on ~30 Hz editor timer (slow chrome
       decays + hardware-facing work that must survive screen-sleep) and the
@@ -2007,12 +2007,17 @@ continuous animations. Docs-first.
         through the channel — mouse via `onStepPositionChanged`, controller via
         the input-drain `refreshSurface`); the timer now runs **only during
         CC-learn** (pulse + completion) and self-suspends.
-      - [ ] `InPluginTransport` (15 Hz) → refresh on the editor tick's transport
-        detection.
-      - [ ] `SamplePoolOverlay` (10 Hz) → refresh on pool change / overlay open.
-      - [ ] Idle-repaint counter confirms zero repaints when idle.
-      Surviving timers: the one always-on editor timer, the vblank, and the 1 Hz
-      hotplug poll.
+      - [x] `InPluginTransport` (15 Hz timer) removed → its `pollState()` (shadow-
+        gated) is called from the editor's always-on tick, so host-driven
+        play/rec/metronome still surface.
+      - [x] `SamplePoolOverlay` (10 Hz) → self-suspends via `visibilityChanged`:
+        polls only while the manager is on screen (was polling even when closed).
+      - [x] Idle repaints: gated by `dirty`/`modelDirty`/`ppqMoved` + the vblank's
+        step-change check, so a stopped, idle surface issues none by construction
+        (hardware spot-check still worthwhile).
+      Surviving timers: the one always-on editor timer, the display vblank, and
+      the 1 Hz controller-hotplug poll. MZ + pool timers self-suspend to their
+      transient states (CC-learn / overlay-visible).
 
 ---
 

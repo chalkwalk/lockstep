@@ -28,8 +28,7 @@ namespace lockstep
     // Play/Pause toggle + Reset button in the editor header.
     // Always present in both standalone and hosted builds.
     // Buttons honour syncMode ghosting (Stage 3); for Stage 2 they're active.
-    class InPluginTransport : public juce::Component,
-                              private juce::Timer
+    class InPluginTransport : public juce::Component
     {
     public:
         explicit InPluginTransport(Clock& clock);
@@ -43,9 +42,14 @@ namespace lockstep
         void setGhosted(bool ghosted);
 
         // Immediate update of all button labels/colours from a TransportModel.
-        // Call this after any transport action so the UI is always in sync,
-        // without waiting for the 15 Hz timer tick.
+        // Call this after any transport action so the UI is always in sync.
         void refresh(const TransportModel& m);
+
+        // Re-read transport state from the clock and update the buttons
+        // (shadow-gated, so it's a no-op when nothing changed). Driven by the
+        // editor's always-on tick (9.15) instead of an own timer, so host-driven
+        // transport changes still surface.
+        void pollState() { refresh(buildTransportModel(clock_)); }
 
     private:
         Clock& clock_;
@@ -59,7 +63,6 @@ namespace lockstep
         juce::TextButton recBtn_{ "Rec" };
         juce::TextButton metroBtn_{ "Click" };
 
-        void timerCallback() override;
         void onPlayClick();
         void onResetClick();
 

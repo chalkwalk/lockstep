@@ -926,6 +926,11 @@ namespace lockstep
             modelDirty = true;
         }
 
+        // 9.15: the transport widget reads its state from this always-on tick
+        // (shadow-gated, no-op when unchanged) instead of its own timer — so
+        // host-driven play/rec/metronome changes still surface.
+        transport_.pollState();
+
         // Morph fader: detect on-screen crossfader moves so controller surfaces update.
         const float curMorphFader = processor_.morphFader();
         if (curMorphFader != lastMorphFader_)
