@@ -324,18 +324,20 @@ namespace lockstep
         return 2;   // modifier-added / shifted-out note
     }
 
-    // Whether an added blue/colour note belongs at a given core size: the tonic
-    // must be a member of that core. coreSize 7 = the full scale (always true);
-    // 5 = pentatonic (root tier <= 1, excludes Lydian/Locrian); 3 = triad (root
-    // tier 0, additionally excludes Ionian/Phrygian -> only Mixolydian, Dorian,
-    // Aeolian). Generators gate the blue note by the core they work in (DESIGN
-    // §39.11); the key editor always edits the full scale, so it does not.
+    // Whether an added blue/colour note belongs at a given core size — pure
+    // circle-of-fifths, no scale or mode names. The size-N core is the central N
+    // fifths of the 7-note window, so its flat edge sits (7-N)/2 fifths sharp of
+    // the full-scale flat edge (which is at `brightness`). The blue note belongs
+    // to that core exactly when the tonic — fifths offset 0 — lies inside it.
+    // The exclusions are inferred, not enumerated: 7 = always; 5 drops the two
+    // window-edge roots (the "Lydian/Locrian" cases); 3 drops the next pair too.
+    // Generators gate by the core they work in (DESIGN §39.11); the key editor
+    // edits the full scale, so it never restricts.
     [[nodiscard]] inline bool blueNoteFitsCore(const KeySig& k, int coreSize)
     {
-        const int t = coreTier(k, k.root);
-        if (coreSize <= 3) return t == 0;
-        if (coreSize <= 5) return t <= 1;
-        return true;
+        if (k.symmetric != Symmetric::None) return false;   // no fifths window
+        const int flat = k.brightness + (7 - coreSize) / 2;  // core flat edge, in fifths
+        return flat <= 0 && 0 <= flat + coreSize - 1;        // tonic inside the core
     }
 
     // ---- Quantize ----------------------------------------------------------
