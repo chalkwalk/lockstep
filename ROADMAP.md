@@ -1981,13 +1981,22 @@ continuous animations. Docs-first.
       `renderSurfaceFrame`. Connect/disconnect triggers an initial render.
 - [ ] **Stage 3 — Audio→UI discrete bridge.** `lastActiveStep_[]` +
       `surfaceDirtyFromAudio_` in the processor; `invalidate()` on discrete
-      step-index change + CC write. Delete `KeyboardArea` PPQ/length poll.
-      Step-cross + CC-write redraw tests (`setRateAndBufferSizeDetails` first).
-- [ ] **Stage 4 — Isolate the clock + kill the hacks.** Single self-suspending
-      animation timer (decays + timed gesture promotions only); remove MZ
-      `StepPosition` per-tick repaint; retire `InPluginTransport` /
-      `SamplePoolOverlay` pollers onto the channel. Idle-repaint counter confirms
-      zero repaints when idle.
+      step-index change + **every** audio-thread param mutation (CC writes,
+      automation, morph) — the bridge must be comprehensive, since it is what lets
+      the MZ slider poll become frame-driven in Stage 4. Delete `KeyboardArea`
+      PPQ/length poll + the editor's interim ppq poll. Step-cross + CC-write
+      redraw tests (`setRateAndBufferSizeDetails` first).
+- [ ] **Stage 4 — Isolate the clock + eliminate the component timers.** Single
+      self-suspending animation timer (decays + timed gesture promotions only).
+      **Remove the `ManipulationZone` timer entirely** (its four jobs at
+      `ManipulationZone.cpp:275`): `refreshSliders()` becomes frame-driven (called
+      from `renderSurfaceFrame`, enabled by the Stage 3 bridge); the
+      `StepPosition` per-tick `area_.repaint()` hack is deleted (encoder write
+      already routes through the channel); CC-learn completion rides the Stage 3
+      audio flag; the CC-learn pulse moves to the single animation clock. Retire
+      `InPluginTransport` / `SamplePoolOverlay` pollers onto the channel; only the
+      one animation clock + the 1 Hz hotplug poll survive. Idle-repaint counter
+      confirms zero repaints when idle.
 
 ---
 
