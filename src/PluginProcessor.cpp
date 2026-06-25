@@ -3540,6 +3540,14 @@ namespace lockstep
         for (int i = 0; i < n1; ++i) apply(engineCmdQueue_[static_cast<std::size_t>(s1 + i)]);
         for (int i = 0; i < n2; ++i) apply(engineCmdQueue_[static_cast<std::size_t>(s2 + i)]);
         engineCmdFifo_.finishedRead(n1 + n2);
+
+        // 9.15 Stage 3: applying a queued param change is the discrete event that
+        // settles the surface (the write is async, so a UI frame is only correct
+        // once it lands here). Mark dirty so the editor refreshes — covers CC
+        // writes, encoder writes (final value after the user stops turning), and
+        // P-Lock writes without any per-tick poll.
+        if ((n1 + n2) > 0)
+            surfaceDirtyFromAudio_.store(true, std::memory_order_relaxed);
     }
 
     void LockstepProcessor::pushKbdCmd(const KbdNoteCmd& c) noexcept

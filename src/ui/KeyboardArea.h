@@ -20,7 +20,7 @@ namespace lockstep
     // Merged keyboard-area component: renders all four QWERTY button rows
     // (section bar, function bar, and the two step-grid rows) plus the nav row,
     // previously spread across SectionBar, FunctionBar, and StepGrid.
-    class KeyboardArea : public juce::Component, public juce::Timer
+    class KeyboardArea : public juce::Component
     {
     public:
         KeyboardArea(LockstepProcessor& processor, UiState& uiState);
@@ -98,7 +98,6 @@ namespace lockstep
 
         void paint(juce::Graphics& g) override;
         void resized() override;
-        void timerCallback() override;
         void mouseDown(const juce::MouseEvent& e) override;
         void mouseUp(const juce::MouseEvent& e) override;
 
@@ -184,8 +183,6 @@ namespace lockstep
         GridDisplayMode displayMode_ = GridDisplayMode::Ortholinear;
         int mouseHeldStep_ = -1;
         ControllerEvent mouseHeldButton_{};  // non-step button held via mouse
-        double lastPpq_ = -1.0;
-        int lastTrackLen_ = -1;
 
         static constexpr int kNavRowH = 34;
         static constexpr int kVertMargin = 4;  // top/bottom margin of the key area

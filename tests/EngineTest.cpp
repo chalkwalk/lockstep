@@ -377,6 +377,38 @@ namespace lockstep
     }
 
     // -----------------------------------------------------------------------
+    // 9.15 Stage 3: applying a queued param change sets the audio→UI dirty flag
+    // (takeSurfaceDirty), so the editor refreshes the surface and CC / encoder
+    // writes settle on screen and on controllers. Idle blocks leave it clear.
+    static void testSurfaceDirtyOnParamApply()
+    {
+        EngineHarness h;
+        installMachine(h.processor(), 0, DrumSynthMachine::kMachineId);
+
+        // Flush startup, then clear the flag to a known baseline.
+        h.renderBlocks(2);
+        (void)h.processor().takeSurfaceDirty();
+
+        // A block with no queued command must not mark the surface dirty.
+        h.renderBlocks(1);
+        CHECK(!h.processor().takeSurfaceDirty(),
+              "surfaceDirty: an idle block must not mark the surface dirty");
+
+        // Enqueue a param write; the block that drains it sets the flag once.
+        constexpr int slot = 12;  // kSlotLevel
+        const float before = h.processor().baseParamValue(0, slot);
+        h.processor().writeParam(0, slot, (before > 0.5f) ? 0.1f : 0.9f);
+        h.renderBlocks(1);
+        CHECK(h.processor().takeSurfaceDirty(),
+              "surfaceDirty: applying a queued param write must mark the surface dirty");
+
+        // takeSurfaceDirty cleared it; a subsequent idle block stays clean.
+        h.renderBlocks(1);
+        CHECK(!h.processor().takeSurfaceDirty(),
+              "surfaceDirty: flag must clear after being taken");
+    }
+
+    // -----------------------------------------------------------------------
     // A0 regression: master insert chain must process audio while the playhead
     // is playing. Before the A0 fix, the master chain was only invoked on the
     // non-playing (preview) path; this test pins the playing path.
@@ -1029,6 +1061,7 @@ namespace lockstep
         testSceneSwitchAtBoundary();
         testEngineCmdAppliedAfterBlock();
         testEngineCmdQueueFullDrop();
+        testSurfaceDirtyOnParamApply();
         testMasterInsertRunsWhilePlaying();
         testV17StateRoundTrip();
         testV16UpgradeToV17();

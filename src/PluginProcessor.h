@@ -619,6 +619,16 @@ namespace lockstep
             return midiPulse_[static_cast<std::size_t>(track)].exchange(0.0f, std::memory_order_relaxed);
         }
 
+        // 9.15 Stage 3 — audio→UI discrete bridge (DESIGN §35.9.2). The audio
+        // thread sets this when it applies a queued param change (drainEngineCmds:
+        // CC writes, encoder writes, P-Lock writes — all async via the engine
+        // FIFO). The editor reads-and-clears it to refresh the surface, so a
+        // param settles on screen and on controllers without a per-tick poll.
+        [[nodiscard]] bool takeSurfaceDirty() noexcept
+        {
+            return surfaceDirtyFromAudio_.exchange(false, std::memory_order_relaxed);
+        }
+
         using juce::AudioProcessor::processBlock;
 
         // Reinstall machines from the current Song's kit (public so tests can
@@ -929,6 +939,11 @@ namespace lockstep
         std::array<std::atomic<float>, kNumTracks> midiPulse_{};
         std::atomic<float> masterPeak_{ 0.0f };
         std::atomic<float> masterPeakR_{ 0.0f };
+
+        // [ATOMIC] 9.15 Stage 3 — set when the audio thread applies a queued param
+        // change (drainEngineCmds); read-and-cleared by the editor to refresh the
+        // surface. See takeSurfaceDirty().
+        std::atomic<bool> surfaceDirtyFromAudio_{ false };
 
         // 8.26 C1: WAV performance capture.
         CaptureRecorder captureRecorder_;

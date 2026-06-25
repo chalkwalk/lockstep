@@ -468,6 +468,12 @@ namespace lockstep
         {
             proc.apvts().addParameterListener(ParamIDs::trackMute(i), this);
             proc.apvts().addParameterListener(ParamIDs::trackSolo(i), this);
+            // 9.15 Stage 3: length/divider change the grid layout. KeyboardArea no
+            // longer polls them, so the APVTS listener refreshes the surface
+            // however they change (step-grid slider attachment, nav keys, Euclid,
+            // host automation).
+            proc.apvts().addParameterListener(ParamIDs::trackLength(i), this);
+            proc.apvts().addParameterListener(ParamIDs::trackDivider(i), this);
         }
         updateTransportGhosting();
 
@@ -729,6 +735,8 @@ namespace lockstep
         {
             processor_.apvts().removeParameterListener(ParamIDs::trackMute(i), this);
             processor_.apvts().removeParameterListener(ParamIDs::trackSolo(i), this);
+            processor_.apvts().removeParameterListener(ParamIDs::trackLength(i), this);
+            processor_.apvts().removeParameterListener(ParamIDs::trackDivider(i), this);
         }
         if (keyListenerTarget_ != nullptr)
             keyListenerTarget_->removeKeyListener(this);
@@ -743,12 +751,16 @@ namespace lockstep
                 { if (safe != nullptr) safe->updateTransportGhosting(); });
             return;
         }
-        // Mute or solo changed (via track-bar buttons, host automation, or MIDI
-        // learn): refresh the surface so the VU meter colour and the track-cell
-        // mute state update on screen and on controllers.
+        // Mute/solo (VU colour + track-cell mute state) or length/divider (grid
+        // layout) changed — via track-bar buttons, step-grid slider attachment,
+        // host automation, or MIDI learn. Refresh the surface so screen and
+        // controllers update; this is what replaced KeyboardArea's length poll.
         for (int i = 0; i < static_cast<int>(kNumTracks); ++i)
         {
-            if (paramID == juce::String(ParamIDs::trackMute(i)) || paramID == juce::String(ParamIDs::trackSolo(i)))
+            if (paramID == juce::String(ParamIDs::trackMute(i))
+                || paramID == juce::String(ParamIDs::trackSolo(i))
+                || paramID == juce::String(ParamIDs::trackLength(i))
+                || paramID == juce::String(ParamIDs::trackDivider(i)))
             {
                 juce::MessageManager::callAsync(
                     [safe = juce::Component::SafePointer<LockstepEditor>(this)]
@@ -895,15 +907,22 @@ namespace lockstep
             modelDirty = true;
         }
 
-        // Playhead advance: step cells + playhead phase move. Interim poll so
-        // controllers stay live during playback — the grid's own poll still
-        // repaints the screen until Stage 3 unifies both onto the audio bridge.
+        // Playhead advance: step cells + playhead phase move. This is animation —
+        // the playhead (and the controllers' sub-step phase envelope) moves
+        // continuously while playing, so it stays a per-tick frame; Stage 4 folds
+        // it into the single self-suspending animation clock.
         const double ppq = processor_.clock().cumulativePpq();
         if (ppq != lastEditorPpq_)
         {
             lastEditorPpq_ = ppq;
             modelDirty = true;
         }
+
+        // 9.15 Stage 3: the audio thread applied a queued param change (CC /
+        // encoder / P-Lock write). It is async, so this is the discrete event
+        // that settles the value on screen and on controllers — no per-tick poll.
+        if (processor_.takeSurfaceDirty())
+            modelDirty = true;
 
         // Push the morph view state to KeyboardArea so its paint() gets current slot states.
         keyboardArea_.setMorphViewState(buildMorphViewState(),

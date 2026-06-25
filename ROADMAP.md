@@ -1979,13 +1979,21 @@ continuous animations. Docs-first.
       `refreshSurface()`, so a grid change can never leave a controller stale —
       the §35.8 no-divergence invariant. The only direct paint left is inside
       `renderSurfaceFrame`. Connect/disconnect triggers an initial render.
-- [ ] **Stage 3 — Audio→UI discrete bridge.** `lastActiveStep_[]` +
-      `surfaceDirtyFromAudio_` in the processor; `invalidate()` on discrete
-      step-index change + **every** audio-thread param mutation (CC writes,
-      automation, morph) — the bridge must be comprehensive, since it is what lets
-      the MZ slider poll become frame-driven in Stage 4. Delete `KeyboardArea`
-      PPQ/length poll + the editor's interim ppq poll. Step-cross + CC-write
-      redraw tests (`setRateAndBufferSizeDetails` first).
+- [x] **Stage 3 — Audio→UI discrete bridge.** `surfaceDirtyFromAudio_` set in
+      `drainEngineCmds` whenever the audio thread applies a queued param change
+      (CC / encoder / P-Lock writes — all async via the engine FIFO); the editor
+      reads-and-clears it (`takeSurfaceDirty()`) on its tick → `refreshSurface()`,
+      which *settles* the value on screen + controllers (incl. the final value
+      after the user stops turning). `KeyboardArea`'s PPQ/length poll **removed**
+      (no timer at all now); length/divider routed through the editor's APVTS
+      listener. **Refinement vs the original sketch:** no `lastActiveStep_[]` /
+      discrete-step computation — the playhead's sub-step phase
+      (`playheadPhase`, the X-Touch envelope) is *animation*, so playback frames
+      stay continuous (editor tick now, the clock in Stage 4); discrete-step-only
+      would freeze that envelope. The editor ppq poll is kept as the playback
+      animation driver (folds into the clock in Stage 4). Test:
+      `testSurfaceDirtyOnParamApply` (apply sets the flag once; idle blocks
+      don't; `takeSurfaceDirty` clears it).
 - [ ] **Stage 4 — Isolate the clock + eliminate the component timers.** Single
       self-suspending animation timer (decays + timed gesture promotions only).
       **Remove the `ManipulationZone` timer entirely** (its four jobs at

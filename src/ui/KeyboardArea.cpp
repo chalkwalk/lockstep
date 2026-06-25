@@ -34,7 +34,10 @@ namespace lockstep
         : processor_(processor), uiState_(uiState)
     {
         processor_.setFocusTrack(uiState_.activeTrack);
-        startTimerHz(30);
+        // No timer: the grid repaints through the surface-invalidation channel
+        // (9.15). Playback frames come from the editor tick's playhead detection;
+        // length/divider changes route through the editor's APVTS listener; param
+        // changes settle via the audio→UI dirty flag. (PRINCIPLES §22.)
     }
 
     KeyboardArea::~KeyboardArea() = default;
@@ -152,28 +155,6 @@ namespace lockstep
         displayMode_ = mode;
         resized();  // nav row button positions may shift
         repaint();
-    }
-
-    void KeyboardArea::timerCallback()
-    {
-        bool dirty = false;
-
-        const double ppq = processor_.clock().cumulativePpq();
-        if (ppq != lastPpq_)
-        {
-            lastPpq_ = ppq;
-            dirty = true;
-        }
-
-        const int len = trackLength();
-        if (len != lastTrackLen_)
-        {
-            lastTrackLen_ = len;
-            dirty = true;
-        }
-
-        if (dirty)
-            repaint();
     }
 
     // -------------------------------------------------------------------------

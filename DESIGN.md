@@ -4856,28 +4856,51 @@ its own `repaint()` for shared state.
 
 #### 35.9.2 Audio → UI bridge (discrete)
 
-The sequencer advances on the audio thread. To make the playhead an *event*,
-the processor tracks `lastActiveStep_[track]` and sets a `surfaceDirtyFromAudio_`
-atomic flag when **(a)** a CC write lands, or **(b)** any track's discrete
-active-step index changes — derived processor-side from PPQ + length/divider,
-**not** the continuous `cumulativePpq()`. The editor consumes the flag and calls
-`invalidate()`. Between step boundaries there are zero repaints, unlike today's
-30 Hz PPQ poll. (A smoothly *sweeping* sub-step playhead bar, if ever wanted, is
-an animation per §35.9.3 — not this path.)
+Two distinct things happen on the audio thread, and they are *not* the same
+kind of redraw:
+
+- **The playhead is animation, not a discrete event.** The on-screen grid
+  highlights the discrete current step, but the controllers render a *sub-step
+  phase envelope* (`SurfaceModel::playheadPhase`, e.g. the X-Touch playhead LED
+  fades off→on→off within each step). That envelope is continuously varying, so
+  the playhead belongs on the animation clock (§35.9.3), which emits frames at
+  ~30 Hz **while the transport is playing** — not on a per-step event. Treating
+  the playhead as discrete-only would freeze the phase envelope between steps.
+- **Param mutations are discrete events.** Machine-param writes (CC, encoder,
+  P-Lock) are *asynchronous*: `writeParam` enqueues an `EngineCmd`, and the
+  audio thread applies it in `drainEngineCmds`. The UI value is only correct
+  once it lands there, so that is the event. `drainEngineCmds` sets the
+  `surfaceDirtyFromAudio_` atomic flag whenever it applies any command; the
+  editor reads-and-clears it (`takeSurfaceDirty()`) on its tick and
+  `refreshSurface()`s. This is what *settles* a CC/encoder write — including the
+  final value after the user stops turning, which an immediate post-input frame
+  would miss because the write had not yet been applied.
+
+APVTS params (track length / divider / mute / solo) are not on this path; they
+change through their own value tree and are caught by the editor's APVTS
+`parameterChanged` listener → `refreshSurface()`. That listener is what replaced
+`KeyboardArea`'s length poll. The atomic-flag-plus-tick pattern (rather than the
+audio thread calling `triggerAsyncUpdate()` directly) is deliberate: posting a
+message from the audio thread is not real-time-safe.
 
 #### 35.9.3 The single animation clock
 
-Exactly one timer is permitted to drive a repaint. It owns only continuous
-decays (meters, activity blinks, crossfader smoothing) plus timed gesture
+Exactly one timer is permitted to drive a repaint. It owns the continuously
+varying things: meter / activity-blink decays, crossfader smoothing, the
+**playhead phase while the transport plays** (§35.9.2), plus timed gesture
 promotions (generator-hub / FX-section long-press — timed *events* that fire
-once then `invalidate()`). Each tick advances the decays and `invalidate()`s
-while any is unsettled; when all settle (the existing meter floor-to-zero rule),
-it `stopTimer()`s — an idle surface issues zero repaints. A fresh audio-thread
-pulse (meter/blink) re-arms it. Controller **input** drain stays on a small
-tick (input ≠ render); the redundant pollers
-(`KeyboardArea` PPQ/length, `InPluginTransport`, `SamplePoolOverlay`) are retired
-onto the channel. `ControllerPortManager`'s 1 Hz device-presence poll is
-hardware hotplug detection, not a render path, and is unaffected.
+once then `invalidate()`). Each tick advances them and `invalidate()`s while any
+is live; it stays awake while **playing OR any decay is unsettled**, and
+`stopTimer()`s once the transport is stopped and the decays settle (the existing
+meter floor-to-zero rule) — an idle, stopped surface issues zero repaints. A
+fresh audio-thread pulse (meter/blink), the audio dirty flag, or transport-start
+re-arms it. Controller **input** drain stays on a small tick (input ≠ render).
+The redundant render pollers are retired onto the channel: `KeyboardArea`'s
+PPQ/length poll is **gone** (Stage 3 — playback frames come from the editor
+tick, length/divider from the APVTS listener), and `InPluginTransport` /
+`SamplePoolOverlay` follow in Stage 4. `ControllerPortManager`'s 1 Hz
+device-presence poll is hardware hotplug detection, not a render path, and is
+unaffected.
 
 ## 36. The Machine Module ABI (6.7)
 
