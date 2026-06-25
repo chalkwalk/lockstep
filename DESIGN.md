@@ -811,6 +811,125 @@ at the shared core-time boundary.
 continues to serialize for standalone. Legacy v20 projects load with Set-default
 4/4 and all ratios = 1.0 (no deviation from root).
 
+### 4.10 KEY — key signature and the brightness model
+
+(§4.9 is reserved for the anticipated tempo split; tempo currently lives in §4.8.)
+
+Lockstep's tonal model is **opinionated but flexible** (PRINCIPLES §23): the
+primary way to think about key is the **circle of fifths as a single bright→dark
+line**, not classical mode names. Classical names remain as labels; the
+chromatic path is always available. Key signature shares the TIME page's scope
+ladder (Set → Song → Scene) and is edited with the same grammar.
+
+**The brightness line.** Lay the fifths on a line with the root at 0:
+
+```
+   …  Db  Ab  Eb  Bb   F  | C |  G   D   A   E   B   F#  …
+ (flat / dark side)      root      (sharp / bright side)
+```
+
+A scale is a contiguous **window** on that line:
+
+- **Brightness** = window *position*. For a 7-note window there are exactly 7
+  placements that contain the root; they are the modes in brightness order:
+  Lydian (brightest, `[0…+6]`) → Ionian → Mixolydian → Dorian → Aeolian →
+  Phrygian → Locrian (darkest, `[-6…0]`). One integer selects the mode; sliding
+  it sharp brightens, flat darkens.
+- **Richness / core** = window *size*: 7 notes, the central 5 (pentatonic core),
+  the central 3 (triad core). The cores are the inner fifths of the same window
+  — which is why dropping major's two outer fifths yields the major pentatonic.
+  Cores are derived; they belong to the generators (§39.11), not to the key.
+- **Color / exotic = functional modifiers** (below).
+
+**Representation (`src/core/Scale.h`).**
+
+```cpp
+struct KeySig {
+  uint8_t  root = 0;          // 0–11 pitch class of tonic
+  int8_t   brightness = -1;   // 7-note window offset: -1 Ionian, 0 Lydian, -4 Aeolian, -6 Locrian
+  std::vector<Modifier> modifiers;
+  uint8_t  symmetric = 0;     // 0 diatonic system; 1 whole-tone; 2 diminished (overrides the above)
+};
+struct Modifier {             // the invariant authoring atom
+  enum class Op : uint8_t { Add, Raise, Lower };
+  uint8_t homeMode;           // mode the op is defined in (Aeolian for harmonic, …)
+  uint8_t homeDegree;         // degree within that mode the op targets (7 for harmonic, …)
+  Op      op;
+};
+```
+
+Everything else is **derived, never stored**: `pcMask()` (12-bit pitch-class
+set), `degrees()`, `coreTier(degree)`, `quantize(note)`, `classicalName()`,
+`degreeNameOf(modifier)`. This keeps the serialized field tiny and
+transposition/mode-portable.
+
+**Functional modifiers — Add vs Alter, anchored to the collection.** A modifier
+is either an **Add** (augment, +1 note — e.g. the blues ♭5) or an **Alter**
+(Raise/Lower an existing pool note, same count — e.g. harmonic minor's ♭7→7).
+Each is *defined in a natural home mode* (harmonic/melodic/blues on minor,
+Neapolitan on major, double-harmonic on Phrygian) but resolves to an **absolute
+note change anchored to the shared note-pool (the fifths window)**. Because
+relative modes share that pool, the same change applies across them and only its
+*degree-name* changes: A-minor's ♭5-add and C-major's ♭3-add are the *same*
+operation (both add E♭). A modifier is **offered only where compatible** — its
+target note must be present and not already in the target state, so blues ♭5
+won't apply to Phrygian/Locrian, which already hold it (`isCompatible`).
+
+v1 named modifiers: **Harmonic** (raise ♭7→7) · **Melodic** (raise ♭6→6 & ♭7→7)
+· **Double-harmonic** (raise ♭3→3 & ♭7→7) · **Harmonic-major** (lower 6→♭6) ·
+**Blues** (add ♭5) · **Neapolitan** (lower 2→♭2). Whole-tone and diminished are
+the two **symmetric** scales — deliberately outside the brightness/modifier
+system, selected via `symmetric` for completeness.
+
+**Cascade and resolution.** `KeySig` lives at three levels exactly like
+`TimeSig`: `Project.defaultKeySig` → `Song.keySig`/`hasKeySig` →
+`Scene.coreKeySig`/`hasKeySig`. A new `effectiveKeySig()` resolves
+Scene → Song → Set, mirroring `effectiveTimeSig()`; all consumers (quantize,
+generators, scale-highlight) call it.
+
+```
+effectiveKeySig = Scene.coreKeySig          (if Scene.hasKeySig)
+              ?? Song.keySig                (if Song.hasKeySig)
+              ?? Project.defaultKeySig      (always present; default C Ionian)
+```
+
+**Editor grammar.** Key shares the TIME page's scope ladder, reached as a **KEY
+sub-page** of the scoped TRIG band (Nav-right toggles TIME↔KEY, the density
+sub-page idiom). Scope works as on TIME: `Func+Song` → Set, bare `Song` → Song,
+bare `Scene` → Scene, no modifier → entry scope. Controls:
+
+- **Brightness** (stepped, primary) — Lydian…Locrian; the resolved classical
+  name shows as a label, "" when a modifier set has no common name.
+- **Root** (stepped, 12 pitch classes).
+- **Modifiers** — compatibility-gated Add/Alter toggles, each shown with its
+  degree-name relative to the current root.
+
+INHERIT floor at Song/Scene scope clears the override, exactly like TIME.
+
+**Scale-aware authoring (guides, never constrains — PRINCIPLES §23).**
+
+- **In-scale highlighting** — the NoteEdit grid and play-in keyboard highlight
+  in-scale notes with the root emphasized (display only). An optional
+  **root-anchored** keyboard layout shifts so the root sits left with balanced
+  sides.
+- **Diatonic navigation** — holding a note in NoteEdit, `Nav` moves the pitch
+  **diatonically**, `Func+Nav` moves **chromatically**, move-mode `Up/Down`
+  shifts by octave. Transpose defaults to by-scale-degree, chromatic under
+  `Func`.
+- **Scale-quantize as a per-track MIDI-effect transform** — an opt-in,
+  **default-off** per-track stage at the note-emit boundary that snaps emitted
+  *and* live-played notes to `effectiveKeySig().quantize()`. Non-destructive:
+  authored step pitches are untouched; only the live stream is snapped (the
+  Squarp-Pyramid "quantize as a MIDI effect" model). It is a deliberate tool the
+  performer *chooses*, not an always-on "no wrong notes" safety net — which is
+  precisely why it does not cross NON-GOALS §13 (PRINCIPLES §14, §23).
+
+**Serializer.** New version one past the current head: `Project.defaultKeySig`,
+`Song.hasKeySig`/`keySig`, `Scene.hasKeySig`/`coreKeySig`, plus the per-track
+quantize flag. Stored as the semantic axes (root/brightness/modifiers), not a
+baked mask. Legacy projects load with default C Ionian, no overrides, quantize
+off.
+
 ## 5. Input Layer
 
 All parameter writes travel through the **EditContext** before
@@ -5930,3 +6049,61 @@ affordance applies to `Func+MOD` (density) and future scope-qualified
 modal-entry keys.
 
 **Func+Fill is freed** — the old bake/print accent generator gesture is removed.
+
+### 39.11 Melodic generator (Generator Hub)
+
+The melodic generator is a **deterministic print** tool — the Euclid model
+(§5.5): turning encoders previews live, commit (`Y`) bakes ordinary
+hand-editable steps, cancel (`P`) restores the stash. It is **not** a stochastic
+engine (NON-GOALS §2); a `seed` parameter makes variation *reproducible*, so the
+same seed+params always yield the same notes (PRINCIPLES §11, §14).
+
+Entry: the Generator Hub (`3` held ≥350 ms, ROADMAP 9.10) gains a **Melodic**
+cell. It consumes `effectiveKeySig()` (§4.10) and writes a monophonic line
+(`step.trig` + `trigOverride.notes[0]`). Encoder parameters:
+
+- **Range / octaves** — span of the line.
+- **Core bias** — triad core ↔ pentatonic core ↔ full scale, weighting note
+  choice by `coreTier` (brightness-window centrality). Low = arpeggio-like on the
+  triad core; high = uses passing tones.
+- **Contour** — ascending / descending / arch / random-walk *shape*
+  (deterministic from the seed).
+- **Density** — which steps fire (may reuse the Euclidean generator, §5.5).
+- **Step-vs-leap** — stepwise-within-scale vs leaps to chord tones.
+- **Seed** — deterministic variation.
+
+Output is indistinguishable from hand entry and fully editable afterward.
+`src/core/MelodyGen.h` is pure and unit-tested (determinism, in-`pcMask`,
+core-bias histogram).
+
+### 39.12 Harmonic voice-mover (Generator Hub, sticky)
+
+A hands-on **authoring convenience**, not a chord/progression picker. There is
+no chord-quality menu, no progression template, no library, no auto-voicing
+engine: you **move voices and listen**, with the scale keeping you in key and an
+audition letting the ear lead. (A preset-style "simpler" chord generator, if ever
+built, is a *separate* thing.) This stays clear of NON-GOALS §2/§13 — it is
+manual and deterministic, and the scale constraint is a chosen tool, not
+auto-correction.
+
+Entry: a **Harmonic** Generator Hub cell → sticky `Overlay::Harmony`. The model
+is a **progression of K chord slots**, each ≤4 diatonic voices (the
+`kMaxNotesPerStep` ceiling — triads and 7ths). The 8 encoders:
+
+- **Left 4 = the voices.** Each scrubs Voice 1 (bass)…Voice 4 (top)
+  **diatonically** through `effectiveKeySig().degrees()` across octaves; an
+  off-detent removes the voice; `Func+`encoder = chromatic nudge for a borrowed
+  tone.
+- **Right 4 = structure + collective moves.** Length (K slots) · Cursor (select
+  active chord) · Transpose the selected chord by scale-degree (all voices,
+  in-key) · Octave-shift the selected chord.
+
+A new slot (on Length increase) **clones the previous chord**, so motion starts
+at zero and any voice-leading emerges from your own moves. **Audition:** turning
+a voice encoder sounds the selected chord immediately; going idle loops the
+progression around in context (transport-synced, one chord per beat, through the
+real machine — the Euclid live-preview-into-steps pattern). **Placement:** commit
+prints the K chords to evenly-spaced steps (default one per beat — the 1/4-note
+workflow) as ordinary ≤4-note steps; reposition afterward with step-move and
+hand-edit freely. `src/core/HarmonyGen.h` carries no chord theory — it is a
+scale-constrained multi-voice step buffer.

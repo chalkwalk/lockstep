@@ -819,6 +819,32 @@ half. (DESIGN §35.9.)
 
 ---
 
+## 23. Tonality is a lens, not a cage
+
+Lockstep has an opinion about key: the **circle of fifths as a single bright→dark
+line** is the primary way to think about tonality, ahead of the classical mode
+names (which remain as labels). Brightness is one axis — slide toward the sharp
+side and the scale brightens, toward the flat side it darkens — and "exotic"
+colour is a small set of **functional modifiers** anchored to the shared
+note-pool, so the same move (e.g. the blues ♭5) carries its character across
+every relative mode. That is the opinionated half, and it is load-bearing: new
+tonal UI is designed in brightness/modifier terms first, names second.
+
+The flexible half is load-bearing too: the framework **guides, it never
+constrains.** In-scale notes are highlighted and navigation defaults to diatonic,
+but the chromatic note is always one `Func` qualifier away; scale quantize exists
+but is an **opt-in, per-track, default-off** transform the performer *chooses*,
+never an always-on "no wrong notes" autopilot. That distinction is what keeps
+this clear of *Reward mastery* (§14) and NON-GOALS §13 (note auto-correct): the
+tool sharpens intent, it does not remove the possibility of being wrong.
+Generators **print deterministically** and the harmonic voice-mover is
+**manual**, so neither crosses NON-GOALS §2 (stochastic engines) — they are the
+Euclid model (a deterministic print you then edit), not a dice roll.
+
+(DESIGN §4.10, §39.11–39.12.)
+
+---
+
 ## Non-Goals — what Lockstep refuses to become
 
 The standing refusals. `NON-GOALS.md` is the **authoritative catalogue** — it

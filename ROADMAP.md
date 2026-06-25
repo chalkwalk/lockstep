@@ -2021,6 +2021,49 @@ continuous animations. Docs-first.
 
 ---
 
+## Phase 10 — Melodic & Harmonic Authoring  *[active]*
+
+The tonal layer: a key-signature system built on the **circle-of-fifths
+brightness line**, scale-aware manual authoring, and two supportive
+(deterministic / manual — never ongoing-generative) tools. Full design in
+PRINCIPLES §23, DESIGN §4.10 + §39.11–39.12; execution plan in
+`~/.claude/plans/i-would-like-you-validated-bear.md`. Committed per phase.
+
+### 10.1 — Docs  *[active]*
+PRINCIPLES §23, DESIGN §4.10 + §39.11–12, this phase block, README stubs.
+
+### 10.2 — Scale core *(src/core/Scale.h)*
+`KeySig` + `Modifier`; brightness-window math; functional Add/Alter algebra
+(collection-anchored, compatibility-gated); derived `pcMask`/`degrees`/
+`coreTier`/`quantize`/`classicalName`; whole-tone + diminished. Pure, unit-tested.
+
+### 10.3 — KeySig hierarchy + persistence
+Project/Song/Scene fields; `effectiveKeySig()` cascade; serializer bump (one past
+head); round-trip test at all three levels.
+
+### 10.4 — KeySig editor
+`Overlay::Key` + `kOverlays` row; `buildKeyBand()` (brightness / root / modifiers
+/ name); KEY sub-page off the TIME band; scope routing test.
+
+### 10.5 — Scale-aware authoring
+In-scale highlighting; root-anchored keyboard layout; diatonic nav gestures
+(`Nav` diatonic / `Func+Nav` chromatic / move-mode octave); diatonic transpose.
+
+### 10.6 — Per-track scale-quantize
+Opt-in, default-off transform at note-emit + live play-in; serializer flag;
+audio-path test.
+
+### 10.7 — Melodic generator
+Generator Hub cell; `src/core/MelodyGen.h` (deterministic/seeded); range /
+core-bias / contour / density / step-leap / seed; prints mono line.
+
+### 10.8 — Harmonic voice-mover
+Generator Hub cell → `Overlay::Harmony`; 8-encoder voice mover; clone-on-add;
+audition + idle loop; prints ≤4-note chord steps; `src/core/HarmonyGen.h` (no
+chord theory).
+
+---
+
 ## Appendix — Legacy code → new id
 
 For tracing historical commit messages and notes against the renumbered scheme.

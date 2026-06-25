@@ -1176,6 +1176,32 @@ the master output to a 32-bit-float WAV file.
 
 ---
 
+### 5.21 Key signatures & the brightness model *(planned — Phase 10)*
+
+Lockstep will gain a **key signature** set at the same granularity as the time
+signature (Set → Song → Scene), built on an opinionated idea: the **circle of
+fifths as a bright→dark line**. Instead of picking "Dorian," you set a **root**
+and a **brightness** (Lydian = brightest … Locrian = darkest); "exotic" colour
+comes from a small set of **functional modifiers** (Harmonic, Melodic,
+Double-harmonic, Harmonic-major, Blues, Neapolitan) that carry their character
+across relative modes. Classical names show as labels; chromatic is always
+available.
+
+On top of the key:
+
+- **Scale-aware editing** — in-scale notes highlighted (root emphasized);
+  holding a note in the note editor, the nav keys move **diatonically** and
+  `Func+`nav moves **chromatically**.
+- **Per-track scale-quantize** — an opt-in, default-off "quantize as a MIDI
+  effect" that snaps played/sequenced notes into the key without rewriting your
+  authored steps.
+- **Melodic generator** — a deterministic, seeded line generator (Generator Hub)
+  that *prints* editable steps in the key, focused on the triad/pentatonic core.
+- **Harmonic voice-mover** — a sticky overlay where you **move chord voices by
+  ear** within the key and audition them, then print the progression to steps.
+
+Design: PRINCIPLES §23, DESIGN §4.10 + §39.11–39.12.
+
 <a name="6-implemented-vs-planned"></a>
 ## 6. Implemented vs. planned
 
