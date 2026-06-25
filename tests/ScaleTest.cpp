@@ -165,6 +165,32 @@ namespace lockstep
         CHECK(classicalName(exotic).empty(), "unnamed exotic scale -> empty");
     }
 
+    static void testBluesAcrossModes()
+    {
+        // The blue note is one fifths-anchored Add that reads as a different
+        // degree per mode. It is a pentatonic phenomenon: it applies in the five
+        // modes whose root is a pentatonic-core tone, and NOT in Lydian/Locrian.
+        struct Case { int brightness; bool ok; const char* degree; };
+        const Case cases[] = {
+            { kLydian,     false, "" },     // root not in pentatonic core
+            { kIonian,     true,  "b3" },
+            { kMixolydian, true,  "b6" },
+            { kDorian,     true,  "b2" },
+            { kAeolian,    true,  "b5" },
+            { kPhrygian,   true,  "b1" },
+            { kLocrian,    false, "" },     // root not in pentatonic core
+        };
+        for (const auto& c : cases)
+        {
+            const KeySig k { 0, static_cast<int8_t>(c.brightness), {}, Symmetric::None };
+            CHECK(isCompatible(k, NamedModifier::Blues) == c.ok,
+                  juce::String("Blues compatibility in ") + modeName(c.brightness));
+            if (c.ok)
+                CHECK(degreeNameOf(k, NamedModifier::Blues) == c.degree,
+                      juce::String("Blues degree in ") + modeName(c.brightness) + " = " + c.degree);
+        }
+    }
+
     static void testModifierPacking()
     {
         // The modifier list round-trips through the 6-bit serialization mask.
@@ -181,6 +207,7 @@ namespace lockstep
     void runScaleTests()
     {
         testBrightnessModes();
+        testBluesAcrossModes();
         testModifierPacking();
         testModifierPortability();
         testAddVsAlter();

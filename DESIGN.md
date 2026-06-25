@@ -877,7 +877,10 @@ won't apply to Phrygian/Locrian, which already hold it (`isCompatible`).
 
 v1 named modifiers: **Harmonic** (raise ♭7→7) · **Melodic** (raise ♭6→6 & ♭7→7)
 · **Double-harmonic** (raise ♭3→3 & ♭7→7) · **Harmonic-major** (lower 6→♭6) ·
-**Blues** (add ♭5) · **Neapolitan** (lower 2→♭2). Whole-tone and diminished are
+**Blues** (add the blue note — one fifths-anchored Add that reads ♭3 Ionian / ♭2
+Dorian / ♭1 Phrygian / ♭6 Mixolydian / ♭5 Aeolian; it is pentatonic-rooted, so
+it is *not* offered in Lydian or Locrian, whose roots are the two notes the
+pentatonic omits) · **Neapolitan** (lower 2→♭2). Whole-tone and diminished are
 the two **symmetric** scales — deliberately outside the brightness/modifier
 system, selected via `symmetric` for completeness.
 

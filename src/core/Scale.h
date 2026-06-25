@@ -92,7 +92,10 @@ namespace lockstep
         Melodic        = 1,   // raise b6->6, b7->7
         DoubleHarmonic = 2,   // raise b3->3, b7->7 (home Phrygian)
         HarmonicMajor  = 3,   // lower 6->b6      (home Ionian)
-        Blues          = 4,   // add b5 (== b3 of the relative major)
+        Blues          = 4,   // add the blue note (one fifths-anchored Add):
+                              //   b3 Ionian / b2 Dorian / b1 Phrygian /
+                              //   b6 Mixolydian / b5 Aeolian. Pentatonic-rooted,
+                              //   so not offered in Lydian or Locrian.
         Neapolitan     = 5,   // lower 2->b2      (home major)
     };
 
@@ -273,6 +276,12 @@ namespace lockstep
             switch (op.kind)
             {
                 case ModOp::Kind::Add:
+                    // Added "blue" notes are a pentatonic phenomenon: they apply
+                    // only when the tonic is itself a pentatonic-core tone — the
+                    // five modes Ionian..Phrygian — and not at the bright/dark
+                    // extremes (Lydian / Locrian), whose roots are the two notes
+                    // the pentatonic omits (the outer edge of the fifths window).
+                    if (k.brightness > kIonian || k.brightness < kPhrygian) return false;
                     if (maskHas(mask, pc)) return false;      // redundant add
                     mask = setPc(mask, pc);
                     break;
@@ -382,7 +391,11 @@ namespace lockstep
         switch (op.kind)
         {
             case ModOp::Kind::Add:
-                return intervalDegreeName(((basePc - k.root) % 12 + 12) % 12);
+                // An added "blue" note is named as the flat of the degree a
+                // semitone ABOVE it, so the same fifths-anchored operation reads
+                // b3 in Ionian, b2 in Dorian, b1 in Phrygian, b6 in Mixolydian,
+                // b5 in Aeolian — one operation, mode-specific name.
+                return "b" + std::to_string(degreeNumber((baseInt + 1) % 12));
             case ModOp::Kind::Raise:
                 // raising a flat degree restores it to natural; raising a
                 // natural degree sharpens it.
