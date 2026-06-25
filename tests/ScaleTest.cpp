@@ -218,6 +218,35 @@ namespace lockstep
         }
     }
 
+    static void testModifierCompatibilityMatrix()
+    {
+        // Cross-mode availability of every modifier is INFERRED from the fifths
+        // geometry, not enumerated by mode. A modifier is unavailable in a mode
+        // for exactly one reason: one of its Raise/Lower ops would move the tonic
+        // (target at fifths offset 0, i.e. brightness == -edgeOffset). Add (Blues)
+        // never moves an existing note, so it is always available. This matrix is
+        // what isCompatible derives; it is here to lock that the geometry — not a
+        // table — is the source of truth. Order: Lydian..Locrian.
+        const std::array<int, 7> brights =
+            { kLydian, kIonian, kMixolydian, kDorian, kAeolian, kPhrygian, kLocrian };
+        struct Row { NamedModifier mod; std::array<bool, 7> ok; };
+        const std::array<Row, 6> rows = {{
+            { NamedModifier::Harmonic,       {{ true,  true,  false, true,  true,  true,  true  }} },
+            { NamedModifier::Melodic,        {{ false, true,  false, true,  true,  true,  true  }} },
+            { NamedModifier::DoubleHarmonic, {{ true,  true,  false, false, true,  true,  true  }} },
+            { NamedModifier::HarmonicMajor,  {{ true,  true,  true,  true,  false, true,  true  }} },
+            { NamedModifier::Neapolitan,     {{ true,  true,  true,  false, true,  true,  true  }} },
+            { NamedModifier::Blues,          {{ true,  true,  true,  true,  true,  true,  true  }} },
+        }};
+        for (const auto& r : rows)
+            for (std::size_t i = 0; i < brights.size(); ++i)
+            {
+                const KeySig k { 0, static_cast<int8_t>(brights[i]), {}, Symmetric::None };
+                CHECK(isCompatible(k, r.mod) == r.ok[i],
+                      juce::String(modifierName(r.mod)) + " in " + modeName(brights[i]));
+            }
+    }
+
     static void testModifierPacking()
     {
         // The modifier list round-trips through the 6-bit serialization mask.
@@ -236,6 +265,7 @@ namespace lockstep
         testBrightnessModes();
         testBluesAcrossModes();
         testBlueNoteCoreGating();
+        testModifierCompatibilityMatrix();
         testModifierPacking();
         testModifierPortability();
         testAddVsAlter();

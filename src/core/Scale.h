@@ -83,9 +83,12 @@ namespace lockstep
     };
 
     // The v1 named, curated modifiers (add-only ids — never renumber/reorder;
-    // serialized by value). Each expands to one or more ModOps. Edge offsets
-    // are derived in the modifier's natural home mode (see DESIGN §4.10) so the
-    // name reads correctly there; the op is brightness-portable from there.
+    // serialized by value). A modifier IS its list of fifths-offset ops; that is
+    // the whole definition. The common names ("harmonic", "blues") and the
+    // "reads as ... in <mode>" notes are only there to bridge to how musicians
+    // talk — no logic anywhere consults a mode. Brightness slides the window, the
+    // op rides along, and its cross-mode behaviour (degree + availability) is
+    // inferred from the geometry, never tabulated.
     enum class NamedModifier : uint8_t
     {
         Harmonic       = 0,   // raise b7->7      (home Aeolian)
@@ -258,9 +261,12 @@ namespace lockstep
 
     // A named modifier is compatible with the current key iff every one of its
     // ops makes a real change: an Add must introduce a new pitch class (not
-    // already present); a Raise/Lower must target a present note and land on a
-    // pitch class not already in the set (no collision). Evaluated against the
-    // base + already-applied modifiers, so a second modifier sees the first.
+    // already present); a Raise/Lower must target a present note, not the tonic,
+    // and land on a pitch class not already in the set (no collision). Evaluated
+    // against the base + already-applied modifiers, so a second modifier sees the
+    // first. For the v1 modifiers the tonic guard is the only thing that bars a
+    // modifier from a mode (a Raise/Lower at edge offset e hits the root when
+    // brightness == -e) — so availability is purely a fifths fact, not a table.
     [[nodiscard]] inline bool isCompatible(const KeySig& k, NamedModifier candidate)
     {
         if (k.symmetric != Symmetric::None)
