@@ -1250,6 +1250,42 @@ namespace lockstep
         // (incl. the unmodified resting state). The held-context preview below
         // early-returns when nothing is held, so these have to precede it.
 
+        // ---- Diagnostic meters drawn over children (persistent — must precede
+        // the held-context early return, else they vanish at rest) ----
+        // Stereo master output meter: two stacked bars (L top, R below).
+        {
+            const int fullW = getWidth();
+            const float levelL = juce::jlimit(0.0f, 1.0f, masterMeter_);
+            const float levelR = juce::jlimit(0.0f, 1.0f, masterMeterR_);
+            const int wL = juce::roundToInt(static_cast<float>(fullW) * levelL);
+            const int wR = juce::roundToInt(static_cast<float>(fullW) * levelR);
+            const int barH = kMasterMeterH / 2;
+            g.setColour(juce::Colour::fromRGB(30, 34, 40));
+            g.fillRect(0, 0, fullW, kMasterMeterH);
+            if (wL > 0) { g.setColour(meterColour(levelL)); g.fillRect(0, 0, wL, barH); }
+            if (wR > 0) { g.setColour(meterColour(levelR)); g.fillRect(0, barH, wR, barH); }
+        }
+        // Per-track trig (left, cyan) + MIDI-in (right, magenta) activity dots.
+        for (std::size_t i = 0; i < kNumTracks; ++i)
+        {
+            const auto r = trackBtns_[i].getBounds();
+            if (r.isEmpty()) continue;
+            constexpr int d = 5;
+            if (trigBlink_[i] > 0.02f)
+            {
+                // White: high contrast against the green/yellow/red VU bar.
+                g.setColour(juce::Colours::white.withAlpha(trigBlink_[i]));
+                g.fillEllipse(static_cast<float>(r.getX() + 2),
+                              static_cast<float>(r.getY() + 2), d, d);
+            }
+            if (midiBlink_[i] > 0.02f)
+            {
+                g.setColour(juce::Colour::fromRGB(230, 80, 220).withAlpha(midiBlink_[i]));
+                g.fillEllipse(static_cast<float>(r.getRight() - 2 - d),
+                              static_cast<float>(r.getY() + 2), d, d);
+            }
+        }
+
         // ---- Crossfader A/B endpoint labels: inset 25% from each end toward
         // the centre so they sit inside the slider and don't clip adjacent UI.
         {
@@ -1609,40 +1645,8 @@ namespace lockstep
             }
         }
 
-        // ---- Diagnostic meters drawn over children ----
-        // Stereo master output meter: two stacked 3px bars (L top, R below).
-        {
-            const int fullW = getWidth();
-            const float levelL = juce::jlimit(0.0f, 1.0f, masterMeter_);
-            const float levelR = juce::jlimit(0.0f, 1.0f, masterMeterR_);
-            const int wL = juce::roundToInt(static_cast<float>(fullW) * levelL);
-            const int wR = juce::roundToInt(static_cast<float>(fullW) * levelR);
-            const int barH = kMasterMeterH / 2;
-            g.setColour(juce::Colour::fromRGB(30, 34, 40));
-            g.fillRect(0, 0, fullW, kMasterMeterH);
-            if (wL > 0) { g.setColour(meterColour(levelL)); g.fillRect(0, 0, wL, barH); }
-            if (wR > 0) { g.setColour(meterColour(levelR)); g.fillRect(0, barH, wR, barH); }
-        }
-        // Per-track trig (left, cyan) + MIDI-in (right, magenta) activity dots.
-        for (std::size_t i = 0; i < kNumTracks; ++i)
-        {
-            const auto r = trackBtns_[i].getBounds();
-            if (r.isEmpty()) continue;
-            constexpr int d = 5;
-            if (trigBlink_[i] > 0.02f)
-            {
-                // White: high contrast against the green/yellow/red VU bar.
-                g.setColour(juce::Colours::white.withAlpha(trigBlink_[i]));
-                g.fillEllipse(static_cast<float>(r.getX() + 2),
-                              static_cast<float>(r.getY() + 2), d, d);
-            }
-            if (midiBlink_[i] > 0.02f)
-            {
-                g.setColour(juce::Colour::fromRGB(230, 80, 220).withAlpha(midiBlink_[i]));
-                g.fillEllipse(static_cast<float>(r.getRight() - 2 - d),
-                              static_cast<float>(r.getY() + 2), d, d);
-            }
-        }
+        // (Diagnostic meters + activity dots are drawn near the top of this
+        // method, in the persistent section — they must precede the early return.)
 
         if (!isDraggingFiles_)
             return;
