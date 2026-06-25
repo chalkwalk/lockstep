@@ -1989,9 +1989,11 @@ continuous animations. Docs-first.
       listener. **Refinement vs the original sketch:** no `lastActiveStep_[]` /
       discrete-step computation — the playhead's sub-step phase
       (`playheadPhase`, the X-Touch envelope) is *animation*, so playback frames
-      stay continuous (editor tick now, the clock in Stage 4); discrete-step-only
-      would freeze that envelope. The editor ppq poll is kept as the playback
-      animation driver (folds into the clock in Stage 4). Test:
+      stay continuous; discrete-step-only would freeze that envelope. **Playhead
+      moved to the display vblank** (`juce::VBlankAttachment`): the 30 Hz tick
+      sampled the PPQ clock too coarsely (a 16th spans 4/3 ticks → visible "fast,
+      fast, slow"), so the playhead now recomputes from the live clock at refresh
+      rate, repainting only grid + controllers when the PPQ moved. Test:
       `testSurfaceDirtyOnParamApply` (apply sets the flag once; idle blocks
       don't; `takeSurfaceDirty` clears it).
 - [ ] **Stage 4 — Isolate the clock + eliminate the component timers.** Single

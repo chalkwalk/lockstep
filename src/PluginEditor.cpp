@@ -726,10 +726,16 @@ namespace lockstep
         };
 
         startTimerHz(30);  // diagnostic VU meters / activity blinks
+
+        // Display-synced playhead (9.15). Attaches when the editor gets a peer.
+        playheadVBlank_ = std::make_unique<juce::VBlankAttachment>(
+            this, [this] { onPlayheadVBlank(); });
     }
 
     LockstepEditor::~LockstepEditor()
     {
+        // Stop vblank callbacks before any members it touches are destroyed.
+        playheadVBlank_.reset();
         processor_.apvts().removeParameterListener(ParamIDs::syncMode, this);
         for (int i = 0; i < static_cast<int>(kNumTracks); ++i)
         {
@@ -801,6 +807,26 @@ namespace lockstep
         // These three are the *only* direct paint calls; everywhere else routes
         // through refreshSurface() so screen and controllers move together.
         repaint();
+        keyboardArea_.repaint();
+        renderControllers();
+    }
+
+    void LockstepEditor::onPlayheadVBlank()
+    {
+        // Display-synced playhead (9.15): recompute the step position from the
+        // live PPQ each vblank, so the highlight advances on the clock instead of
+        // the coarse 30 Hz tick grid. Only acts when it actually moved — when the
+        // transport is stopped the PPQ is static, so this issues no repaints.
+        const double ppq = processor_.clock().cumulativePpq();
+        if (ppq == lastEditorPpq_)
+            return;
+        lastEditorPpq_ = ppq;
+
+        // This is the playhead's animation clock (DESIGN §35.9.3), so it drives
+        // only what moves — the grid and the controllers — not the editor chrome
+        // (meters animate on the 30 Hz timer) and not the coalescing channel
+        // (that is for discrete events). Controllers diff against a shadow cache,
+        // so MIDI traffic is bounded by actual cell changes, not the vblank rate.
         keyboardArea_.repaint();
         renderControllers();
     }
@@ -907,16 +933,9 @@ namespace lockstep
             modelDirty = true;
         }
 
-        // Playhead advance: step cells + playhead phase move. This is animation —
-        // the playhead (and the controllers' sub-step phase envelope) moves
-        // continuously while playing, so it stays a per-tick frame; Stage 4 folds
-        // it into the single self-suspending animation clock.
-        const double ppq = processor_.clock().cumulativePpq();
-        if (ppq != lastEditorPpq_)
-        {
-            lastEditorPpq_ = ppq;
-            modelDirty = true;
-        }
+        // The playhead is driven by the display vblank (onPlayheadVBlank), not
+        // this timer — sampling the PPQ clock at 30 Hz quantises the step advance
+        // into a visible "fast, fast, slow" stutter.
 
         // 9.15 Stage 3: the audio thread applied a queued param change (CC /
         // encoder / P-Lock write). It is async, so this is the discrete event

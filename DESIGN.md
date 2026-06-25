@@ -4859,13 +4859,19 @@ its own `repaint()` for shared state.
 Two distinct things happen on the audio thread, and they are *not* the same
 kind of redraw:
 
-- **The playhead is animation, not a discrete event.** The on-screen grid
-  highlights the discrete current step, but the controllers render a *sub-step
+- **The playhead is animation, not a discrete event.** The step highlight is a
+  step function of the PPQ clock; the controllers additionally render a *sub-step
   phase envelope* (`SurfaceModel::playheadPhase`, e.g. the X-Touch playhead LED
-  fades off→on→off within each step). That envelope is continuously varying, so
-  the playhead belongs on the animation clock (§35.9.3), which emits frames at
-  ~30 Hz **while the transport is playing** — not on a per-step event. Treating
-  the playhead as discrete-only would freeze the phase envelope between steps.
+  fades off→on→off within each step). Both must be sampled finely or the advance
+  visibly stutters: at a 30 Hz timer a 16th-note (~125 ms at 120 BPM) spans 4 or
+  3 ticks, so the highlight jumps unevenly ("fast, fast, slow"). The playhead is
+  therefore driven by the **display vblank** (`juce::VBlankAttachment`), which
+  recomputes the position from the live clock at the monitor's refresh rate and
+  repaints only the grid + controllers (not the chrome, not the coalescing
+  channel — this is the animation clock, §35.9.3). It acts only when the PPQ
+  actually moved, so a stopped transport issues no repaints. Treating the
+  playhead as a discrete per-step event would both freeze the phase envelope
+  between steps and re-introduce the sampling stutter.
 - **Param mutations are discrete events.** Machine-param writes (CC, encoder,
   P-Lock) are *asynchronous*: `writeParam` enqueues an `EngineCmd`, and the
   audio thread applies it in `drainEngineCmds`. The UI value is only correct
@@ -4885,16 +4891,19 @@ message from the audio thread is not real-time-safe.
 
 #### 35.9.3 The single animation clock
 
-Exactly one timer is permitted to drive a repaint. It owns the continuously
-varying things: meter / activity-blink decays, crossfader smoothing, the
-**playhead phase while the transport plays** (§35.9.2), plus timed gesture
-promotions (generator-hub / FX-section long-press — timed *events* that fire
-once then `invalidate()`). Each tick advances them and `invalidate()`s while any
-is live; it stays awake while **playing OR any decay is unsettled**, and
-`stopTimer()`s once the transport is stopped and the decays settle (the existing
-meter floor-to-zero rule) — an idle, stopped surface issues zero repaints. A
-fresh audio-thread pulse (meter/blink), the audio dirty flag, or transport-start
-re-arms it. Controller **input** drain stays on a small tick (input ≠ render).
+Animation has two natural cadences. The **playhead** moves fast and must look
+smooth, so it rides the **display vblank** (§35.9.2): a `VBlankAttachment`
+recomputes the step position from the live clock at the monitor refresh rate and
+repaints the grid + controllers, but only when the PPQ actually advanced (a
+stopped transport repaints nothing). The **slow decays** — meter / activity
+blinks, crossfader smoothing — plus timed gesture promotions (generator-hub /
+FX-section long-press, timed *events* that fire once then `invalidate()`) ride a
+~30 Hz timer; a VU envelope does not need display-rate updates. That timer
+advances the decays and repaints while any is live, and self-suspends once they
+settle (the meter floor-to-zero rule) so an idle surface issues zero repaints; a
+fresh audio-thread pulse re-arms it. (Stage 4 consolidates the remaining
+component timers onto these two; whether the slow-decay timer also folds onto
+the vblank is an open simplification.) Controller **input** drain stays on a small tick (input ≠ render).
 The redundant render pollers are retired onto the channel: `KeyboardArea`'s
 PPQ/length poll is **gone** (Stage 3 — playback frames come from the editor
 tick, length/divider from the APVTS listener), and `InPluginTransport` /

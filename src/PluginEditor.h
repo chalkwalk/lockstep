@@ -367,6 +367,15 @@ namespace lockstep
         std::unique_ptr<Push1Surface> push1Surface_;
         ControllerEventSink buildControllerSink();
 
+        // 9.15: display-synced playhead. The step highlight is a step function of
+        // the PPQ clock; sampling it on the 30 Hz timer quantises the advance to
+        // the tick grid (visible "fast, fast, slow" since a step spans N or N+1
+        // ticks). Driving it from the display vblank recomputes the position from
+        // the live clock at refresh rate, so the highlight advances on the clock.
+        // Refreshes only when the playhead actually moved (idle ⇒ no repaint).
+        std::unique_ptr<juce::VBlankAttachment> playheadVBlank_;
+        void onPlayheadVBlank();
+
         void updateTransportGhosting();
 
         // MHZ.9.4: release all modifier latches and latched steps in one gesture.
