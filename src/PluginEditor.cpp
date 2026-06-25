@@ -945,14 +945,21 @@ namespace lockstep
         // Controller *input* only — drain encoder/button MIDI every tick, since
         // input must be serviced even when nothing is redrawing (DESIGN §35.9.3:
         // input ≠ render). Feedback LEDs are rendered from renderSurfaceFrame()
-        // (the invalidation channel's onFrame), not polled here.
+        // (the invalidation channel's onFrame), not polled here. Controller input
+        // is itself an event: if anything was drained it may have moved a param,
+        // so mark the surface dirty once so the device's LED rings re-render the
+        // new value. Writes are message-thread-synchronous (encoder deltas must
+        // accumulate), so a frame after the drain reads the settled value.
         if ((xTouchSurface_ && controllerPorts_.isOpen()) || (push1Surface_ && push1Ports_.isOpen()))
         {
             auto sink = buildControllerSink();
+            bool drainedInput = false;
             if (xTouchSurface_ && controllerPorts_.isOpen())
-                controllerPorts_.drainInput(*xTouchSurface_, sink);
+                drainedInput |= controllerPorts_.drainInput(*xTouchSurface_, sink);
             if (push1Surface_ && push1Ports_.isOpen())
-                push1Ports_.drainInput(*push1Surface_, sink);
+                drainedInput |= push1Ports_.drainInput(*push1Surface_, sink);
+            if (drainedInput)
+                refreshSurface();
         }
 
         // Reconcile: release any keyboard press whose key is no longer physically

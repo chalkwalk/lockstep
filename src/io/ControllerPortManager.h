@@ -35,8 +35,10 @@ namespace lockstep
 
         // Message thread, every tick: drain the input FIFO into surface.onInput().
         // No model, no output needed — encoders/buttons are serviced even when the
-        // surface is idle.
-        void drainInput(IControllerSurface& surface, ControllerEventSink& sink);
+        // surface is idle. Returns true if any message was processed, so the caller
+        // can mark the surface dirty (input may have moved a param → LED rings must
+        // re-render through the invalidation channel).
+        bool drainInput(IControllerSurface& surface, ControllerEventSink& sink);
 
         // Message thread, from onFrame: render feedback LEDs for the current model.
         // No-op when output is closed; fires surface.onConnect() once per open

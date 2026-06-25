@@ -30,7 +30,7 @@ namespace lockstep
         fifo_.finishedWrite((n1 > 0 || n2 > 0) ? 1 : 0);
     }
 
-    void ControllerPortManager::drainInput(IControllerSurface& surface,
+    bool ControllerPortManager::drainInput(IControllerSurface& surface,
                                            ControllerEventSink& sink)
     {
         int s1, n1, s2, n2;
@@ -42,6 +42,7 @@ namespace lockstep
             surface.onInput(msgBuf_[static_cast<std::size_t>(s2 + i)], sink);
 
         fifo_.finishedRead(n1 + n2);
+        return (n1 + n2) > 0;
     }
 
     void ControllerPortManager::renderSurface(IControllerSurface& surface,
