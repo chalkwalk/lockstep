@@ -502,11 +502,13 @@ namespace lockstep
     }
 
     // Func+7 (masterSection==2): output gain / sync / channel mode.
-    static std::array<MetaFieldView, 8> buildTransportBand(LockstepProcessor& proc)
+    static std::array<MetaFieldView, 8> buildTransportBand(LockstepProcessor& proc, int track)
     {
         const float gain = proc.apvts().getRawParameterValue(ParamIDs::outputGain)->load();
         const float sync = proc.apvts().getRawParameterValue(ParamIDs::syncMode)->load();
         const float chan = proc.apvts().getRawParameterValue(ParamIDs::channelMode)->load();
+        // Per-track Scale stage (DESIGN §4.10) — Off/Snap/Filter for the focused track.
+        const float scl = static_cast<float>(static_cast<int>(proc.kit(track).scaleMode));
 
         struct GlobalDef
         {
@@ -519,13 +521,13 @@ namespace lockstep
             { "Gain", -60.0f, 6.0f, false, true },
             { "Sync", 0.0f, 1.0f, true, true },
             { "Chan", 0.0f, 1.0f, true, true },
-            { "", 0.0f, 1.0f, false, false },
+            { "Scale", 0.0f, 2.0f, true, true },
             { "", 0.0f, 1.0f, false, false },
             { "", 0.0f, 1.0f, false, false },
             { "", 0.0f, 1.0f, false, false },
             { "", 0.0f, 1.0f, false, false },
         } };
-        const std::array<float, 8> vals = { gain, sync, chan, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+        const std::array<float, 8> vals = { gain, sync, chan, scl, 0.0f, 0.0f, 0.0f, 0.0f };
 
         std::array<MetaFieldView, 8> result{};
         for (int i = 0; i < 8; ++i)
@@ -548,6 +550,8 @@ namespace lockstep
                 f.valueText = (static_cast<int>(vals[si]) == 0) ? "Locked" : "Auto";
             else if (i == 2)
                 f.valueText = (static_cast<int>(vals[si]) == 0) ? "Omni" : "Per-Trk";
+            else if (i == 3)
+                f.valueText = scaleModeName(static_cast<ScaleMode>(static_cast<int>(vals[si])));
         }
         return result;
     }
@@ -1298,7 +1302,7 @@ namespace lockstep
             case MetaBand::Divider:   return buildDivBand(proc, track);
             case MetaBand::PhraseLen: return buildPhraseLenBand(proc, track);
             case MetaBand::Global:    return buildGlobalBand(proc, ui);
-            case MetaBand::Transport: return buildTransportBand(proc);
+            case MetaBand::Transport: return buildTransportBand(proc, track);
             case MetaBand::Swing:     return buildSwingBand(swingScope, proc, track);
             default:                  return {};
         }
@@ -1521,6 +1525,11 @@ namespace lockstep
                     case 0:  writeApvts(ParamIDs::outputGain, value, -60.0f, 6.0f); break;
                     case 1:  writeApvts(ParamIDs::syncMode, value, 0.0f, 1.0f); break;
                     case 2:  writeApvts(ParamIDs::channelMode, value, 0.0f, 1.0f); break;
+                    case 3:  // per-track Scale stage: Off/Snap/Filter
+                        if (track >= 0)
+                            proc.kit(track).scaleMode = static_cast<ScaleMode>(
+                                std::clamp(juce::roundToInt(value), 0, 2));
+                        break;
                     default: break;
                 }
                 break;

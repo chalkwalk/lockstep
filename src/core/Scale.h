@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -655,6 +656,36 @@ namespace lockstep
         for (int i = 0; i < 12; ++i)
             if (rootPcAtFifthsIndex(i) == p) return i;
         return 6;   // D
+    }
+
+    // ---- Per-track Scale stage (pitch conform; DESIGN §4.10) --------------
+
+    // A per-track output stage that conforms notes to the effective key. "Scale"
+    // (not "quantize", which is time). Off = passthrough; Snap = move to the
+    // nearest in-key note; Filter = drop out-of-key notes.
+    enum class ScaleMode : uint8_t { Off = 0, Snap = 1, Filter = 2 };
+
+    [[nodiscard]] inline const char* scaleModeName(ScaleMode m) noexcept
+    {
+        switch (m)
+        {
+            case ScaleMode::Off:    return "Off";
+            case ScaleMode::Snap:   return "Snap";
+            case ScaleMode::Filter: return "Filter";
+        }
+        return "Off";
+    }
+
+    // Apply the Scale stage to one note for the given key. Returns the output note,
+    // or nullopt when Filter drops an out-of-key note. Deterministic, so a note-on
+    // and its matching note-off transform identically.
+    [[nodiscard]] inline std::optional<int> applyScaleMode(const KeySig& k, ScaleMode mode, int midiNote)
+    {
+        if (mode == ScaleMode::Off) return midiNote;
+        const bool inKey = maskHas(pcMask(k), ((midiNote % 12) + 12) % 12);
+        if (mode == ScaleMode::Filter)
+            return inKey ? std::optional<int>(midiNote) : std::nullopt;
+        return quantize(k, midiNote);   // Snap
     }
 
     // Pitch-class name (sharp-spelled, ASCII) for display of the root.

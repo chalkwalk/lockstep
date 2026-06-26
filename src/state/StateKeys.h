@@ -128,6 +128,7 @@ namespace lockstep::keys
     inline constexpr const char* kVelBlend = "vBl";  // VelBlend (uint8): Replace/Mix
     inline constexpr const char* kVelDepth = "vDp";  // float [0,1]
     inline constexpr const char* kVelCenter = "vCt"; // int [1,127]
+    inline constexpr const char* kScaleMode = "scMd"; // v23: ScaleMode (uint8): Off/Snap/Filter
 
   // ── Base params container (BP) ───────────────────────────────────────────────
     inline constexpr const char* kBaseParams = "BP";

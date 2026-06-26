@@ -378,6 +378,28 @@ namespace lockstep
         CHECK(seen.size() == 6u, "all six modifiers present in the order, no duplicates");
     }
 
+    static void testScaleStage()
+    {
+        // Per-track Scale stage: Off passes through; Filter drops out-of-key;
+        // Snap conforms out-of-key to an in-key pitch and leaves in-key notes.
+        const KeySig dDorian{ 2, kDorian, {}, ScaleType::Diatonic };
+        const uint16_t mask = pcMask(dDorian);
+
+        CHECK(applyScaleMode(dDorian, ScaleMode::Off, 61) == std::optional<int>(61),
+              "Off passes through");
+
+        CHECK(applyScaleMode(dDorian, ScaleMode::Filter, 62) == std::optional<int>(62),
+              "Filter keeps in-key D");
+        CHECK(applyScaleMode(dDorian, ScaleMode::Filter, 61) == std::nullopt,
+              "Filter drops out-of-key C#");
+
+        const auto snapped = applyScaleMode(dDorian, ScaleMode::Snap, 61);
+        CHECK(snapped.has_value() && maskHas(mask, ((*snapped % 12) + 12) % 12),
+              "Snap conforms C# into the key");
+        CHECK(applyScaleMode(dDorian, ScaleMode::Snap, 62) == std::optional<int>(62),
+              "Snap leaves an in-key note unchanged");
+    }
+
     static void testModifierPacking()
     {
         // The modifier list round-trips through the 6-bit serialization mask.
@@ -404,6 +426,7 @@ namespace lockstep
         testCumulativeAvailability();
         testTonalityRangeByNoteCount();
         testModifierOrderSSOT();
+        testScaleStage();
         testFifthsRootOrder();
         testModifierPacking();
         testModifierPortability();

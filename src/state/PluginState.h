@@ -56,7 +56,9 @@ namespace lockstep
         //      (Set-level), Song::hasKeySig+keySig, Scene::hasKeySig+coreKeySig.
         //      KeySig stored as root/brightness/mods-bitmask/symmetric. Missing
         //      fields → D Dorian, no overrides; trivial stamp upgrade from v21.
-        inline constexpr int kCurrentVersion = 22;
+        // v23: per-track Scale stage (DESIGN §4.10) — TrackKit::scaleMode
+        //      (Off/Snap/Filter) in the Kit node. Missing → Off; trivial upgrade.
+        inline constexpr int kCurrentVersion = 23;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);

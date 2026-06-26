@@ -944,29 +944,40 @@ namespace lockstep
             auto handle = [&](const KbdNoteCmd& c) {
                 const int track = juce::jlimit(0, static_cast<int>(kNumTracks) - 1,
                                                static_cast<int>(c.track));
-                // Release any voice already holding this (track, note) — both for a
-                // note-off and to retrigger a repeated note-on cleanly.
+                // Per-track Scale stage (DESIGN §4.10): conform live play-in to the
+                // key. applyScaleMode is deterministic, so a note-off recomputes the
+                // same conformed pitch and matches the held voice. Filter → nullopt
+                // drops the live note (no voice). bypassEditorial notes are raw.
+                const ScaleMode sm = song().tracks[static_cast<std::size_t>(track)].kit.scaleMode;
+                const auto conformed = (sm == ScaleMode::Off || c.bypassEditorial)
+                    ? std::optional<int>(static_cast<int>(c.note))
+                    : applyScaleMode(effectiveKeySig(), sm, static_cast<int>(c.note));
+                const int playNote = conformed.value_or(static_cast<int>(c.note));
+                // Release any voice already holding this (track, conformed note) —
+                // both for a note-off and to retrigger a repeated note-on cleanly.
                 for (auto& v : liveVoices_)
-                    if (v.active && v.track == track && v.note == c.note)
+                    if (v.active && v.track == track && v.note == playNote)
                     {
                         emitVoiceOff(v, 0);
                         v.active = false;
                     }
                 if (c.noteOff)
                     return;
+                if (!conformed)
+                    return;   // Filter dropped this live note — nothing to play.
 
                 const int vel = c.velocity > 0 ? c.velocity : 100;
                 if (c.bypassEditorial)
                     trackMidi[static_cast<std::size_t>(track)].addEvent(
-                        juce::MidiMessage::noteOn(1, static_cast<juce::uint8>(c.note),
+                        juce::MidiMessage::noteOn(1, static_cast<juce::uint8>(playNote),
                                                   static_cast<juce::uint8>(vel)),
                         0);
                 else
-                    ccCtx.onNoteOn(track, 0, c.note, vel);
+                    ccCtx.onNoteOn(track, 0, playNote, vel);
 
                 LiveVoice& v = allocVoice();
                 v.track = track;
-                v.note = c.note;
+                v.note = playNote;
                 v.bypass = c.bypassEditorial;
                 // Gate notes (durationMs == 0) ring until note-off, but get a
                 // generous safety cap so a lost note-off (focus change, dropped
@@ -1581,6 +1592,26 @@ namespace lockstep
                                 std::clamp(baseline + roundedDelta, 1, 127));
                         }
                     }
+                }
+                // Per-track Scale stage (DESIGN §4.10): conform the sequenced output
+                // to the effective key — Snap moves out-of-key notes to the nearest
+                // in-key note, Filter drops them. Compacts notes + velocities in
+                // lockstep; the note-off loop below reuses emitNotes[0..notesToEmit).
+                if (velKit.scaleMode != ScaleMode::Off)
+                {
+                    const auto scaleKey = effectiveKeySig();
+                    int w = 0;
+                    for (int n = 0; n < notesToEmit; ++n)
+                    {
+                        const auto ni = static_cast<std::size_t>(n);
+                        if (auto out = applyScaleMode(scaleKey, velKit.scaleMode, emitNotes[ni]))
+                        {
+                            emitNotes[static_cast<std::size_t>(w)] = *out;
+                            finalVels[static_cast<std::size_t>(w)] = finalVels[ni];
+                            ++w;
+                        }
+                    }
+                    notesToEmit = w;
                 }
                 for (int n = 0; n < notesToEmit; ++n)
                 {

@@ -369,6 +369,8 @@ namespace lockstep::PluginState
             node.setProperty(keys::kVelDepth, static_cast<double>(kit.velDepth), nullptr);
         if (kit.velCenter != 90)
             node.setProperty(keys::kVelCenter, kit.velCenter, nullptr);
+        if (kit.scaleMode != ScaleMode::Off)
+            node.setProperty(keys::kScaleMode, static_cast<int>(kit.scaleMode), nullptr);
 
         // Base params + post-machine FLTR/AMP via temp machine to get correct
         // slot IDs. The slot range covers machine params, then the foundation
@@ -462,6 +464,8 @@ namespace lockstep::PluginState
         kit.velDepth  = static_cast<float>(
             static_cast<double>(node.getProperty(keys::kVelDepth, 0.6)));
         kit.velCenter = static_cast<int>(node.getProperty(keys::kVelCenter, 90));
+        kit.scaleMode = static_cast<ScaleMode>(
+            static_cast<int>(node.getProperty(keys::kScaleMode, static_cast<int>(ScaleMode::Off))));
 
         auto tempMachine = proc.createMachineForId(kit.machineId);
         const int machinNp = tempMachine->numParams();
@@ -1695,6 +1699,15 @@ namespace lockstep::PluginState
         return v22;
     }
 
+    static juce::ValueTree upgrade_v22_to_v23(const juce::ValueTree& v22)
+    {
+        // v23: per-track Scale stage added. Absent scaleMode reads as Off. Trivial
+        // stamp bump.
+        juce::ValueTree v23 = v22.createCopy();
+        v23.setProperty(keys::kVersion, 23, nullptr);
+        return v23;
+    }
+
     juce::ValueTree applyUpgrades(juce::ValueTree tree)
     {
         // Determine the version. v0 has root type "Lockstep" and no version attribute.
@@ -1725,6 +1738,7 @@ namespace lockstep::PluginState
         if (version < 20) tree = upgrade_v19_to_v20(tree);
         if (version < 21) tree = upgrade_v20_to_v21(tree);
         if (version < 22) tree = upgrade_v21_to_v22(tree);
+        if (version < 23) tree = upgrade_v22_to_v23(tree);
 
         return tree;
     }
