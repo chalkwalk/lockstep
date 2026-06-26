@@ -991,10 +991,14 @@ namespace lockstep
         ui.funcHeld = true; ui.songHeld = true;   // Set scope (timeScopeFor → 1)
         EditContext ctx;
 
-        // Root → A(9), brightness → Aeolian(-4 → dial 2).
-        writeMetaField(MetaBand::Key, 0, 0, 9.0f, proc, 0, ctx, ui);
-        writeMetaField(MetaBand::Key, 0, 1, 2.0f, proc, 0, ctx, ui);
-        CHECK(proc.project().defaultKeySig.root == 9, "Set root written A");
+        // Root is dialed in circle-of-fifths order: default D (index 6) reads back
+        // as the fifths index, and writing the fifths index of A sets root A(9).
+        const auto def = buildMetaBand(MetaBand::Key, 0, proc, 0, ctx, ui);
+        CHECK(feq(def[0].value, static_cast<float>(fifthsIndexOfRootPc(2))), "Root reads default D's fifths index");
+        CHECK(def[0].valueText == "D", "Root reads 'D' by default");
+        writeMetaField(MetaBand::Key, 0, 0, static_cast<float>(fifthsIndexOfRootPc(9)), proc, 0, ctx, ui);  // A
+        writeMetaField(MetaBand::Key, 0, 1, 2.0f, proc, 0, ctx, ui);  // brightness Aeolian
+        CHECK(proc.project().defaultKeySig.root == 9, "Set root written A via fifths index");
         CHECK(proc.project().defaultKeySig.brightness == kAeolian, "Set brightness Aeolian");
 
         // Toggle Harmonic on (field 2) → A harmonic minor; reads degree "7".

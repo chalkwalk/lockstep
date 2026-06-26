@@ -703,7 +703,9 @@ namespace lockstep
         const float scopeColour = (scope == 3) ? static_cast<float>(theme::kScopeScene)
                                                : static_cast<float>(theme::kScopeSong);
 
-        // Field 0 — Root (INHERIT at index 0 for Song/Scene, like the time-sig band).
+        // Field 0 — Root, stepped in circle-of-fifths order centred on D (index
+        // 6). INHERIT sits at index 0 for Song/Scene, like the time-sig band; the
+        // fifths order then occupies 1..12.
         {
             auto& f = result[0];
             f.active = true; f.label = "Root"; f.stepped = true; f.writable = true;
@@ -713,14 +715,14 @@ namespace lockstep
                 f.minValue = 0.0f; f.maxValue = 12.0f;
                 if (hasOverride)
                 {
-                    f.value = static_cast<float>(shown.root + 1);
+                    f.value = static_cast<float>(fifthsIndexOfRootPc(shown.root) + 1);
                     f.valueText = pitchClassName(shown.root);
                 }
                 else
                 {
                     f.value = 0.0f;
                     f.valueText = juce::String("INHERIT (") + pitchClassName(parent.root) + ")";
-                    const int parentIdx = parent.root + 1;
+                    const int parentIdx = fifthsIndexOfRootPc(parent.root) + 1;
                     f.marks[0] = ReferenceMark{ true, static_cast<float>(parentIdx) / 12.0f,
                                                 static_cast<juce::uint32>(scopeColour), 1.0f };
                 }
@@ -728,7 +730,7 @@ namespace lockstep
             else
             {
                 f.minValue = 0.0f; f.maxValue = 11.0f;
-                f.value = static_cast<float>(shown.root);
+                f.value = static_cast<float>(fifthsIndexOfRootPc(shown.root));
                 f.valueText = pitchClassName(shown.root);
             }
         }
@@ -1697,9 +1699,10 @@ namespace lockstep
                     }
                     else
                     {
-                        const int pc = hasInherit ? (juce::roundToInt(value) - 1)
-                                                  : juce::roundToInt(value);
-                        seedAndGet().root = static_cast<uint8_t>(std::clamp(pc, 0, 11));
+                        const int idx = hasInherit ? (juce::roundToInt(value) - 1)
+                                                   : juce::roundToInt(value);
+                        seedAndGet().root = static_cast<uint8_t>(
+                            rootPcAtFifthsIndex(std::clamp(idx, 0, 11)));
                     }
                 }
                 else if (field == 1)  // Brightness (0..6 -> -6..0)

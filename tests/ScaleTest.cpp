@@ -294,6 +294,20 @@ namespace lockstep
               "Lydian pentatonic + blues = 5 (blue note dormant)");
     }
 
+    static void testFifthsRootOrder()
+    {
+        // D is the centre (index 6); each step is a fifth.
+        CHECK(rootPcAtFifthsIndex(6) == 2, "fifths index 6 = D (centre)");
+        CHECK(rootPcAtFifthsIndex(7) == 9, "one sharp-ward = A");
+        CHECK(rootPcAtFifthsIndex(5) == 7, "one flat-ward = G");
+        CHECK(rootPcAtFifthsIndex(11) == 1, "sharp end = C#");
+        CHECK(rootPcAtFifthsIndex(0) == 8, "flat end = Ab");
+        // Round-trip every pitch class.
+        for (int pc = 0; pc < 12; ++pc)
+            CHECK(rootPcAtFifthsIndex(fifthsIndexOfRootPc(pc)) == pc,
+                  juce::String("fifths-root round-trips pc ") + juce::String(pc));
+    }
+
     static void testModifierPacking()
     {
         // The modifier list round-trips through the 6-bit serialization mask.
@@ -316,6 +330,7 @@ namespace lockstep
         testDefaultKeyIsDorianD();
         testDormantModifierDoesNotCorrupt();
         testScaleSizes();
+        testFifthsRootOrder();
         testModifierPacking();
         testModifierPortability();
         testAddVsAlter();

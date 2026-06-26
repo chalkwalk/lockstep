@@ -526,6 +526,23 @@ namespace lockstep
         return {};   // a valid exotic scale with no common name
     }
 
+    // The root selector steps through pitch classes in circle-of-fifths order,
+    // centred on D (index 6), so Root and Brightness both move along the fifths
+    // line: turning sharp-ward goes D A E B F# C#, flat-ward D G C F Bb Eb Ab.
+    [[nodiscard]] inline int rootPcAtFifthsIndex(int idx) noexcept
+    {
+        static constexpr std::array<int, 12> kOrder =
+            { 8, 3, 10, 5, 0, 7, 2, 9, 4, 11, 6, 1 };   // Ab Eb Bb F C G D A E B F# C#
+        return kOrder[static_cast<size_t>(((idx % 12) + 12) % 12)];
+    }
+    [[nodiscard]] inline int fifthsIndexOfRootPc(int pc) noexcept
+    {
+        const int p = ((pc % 12) + 12) % 12;
+        for (int i = 0; i < 12; ++i)
+            if (rootPcAtFifthsIndex(i) == p) return i;
+        return 6;   // D
+    }
+
     // Pitch-class name (sharp-spelled, ASCII) for display of the root.
     [[nodiscard]] inline const char* pitchClassName(int pc) noexcept
     {
