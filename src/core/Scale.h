@@ -110,22 +110,25 @@ namespace lockstep
     // fixed order regardless of selection order, so any chosen set is
     // order-independent. Lower rank applies first. Conflicts (a later op whose
     // target was already moved) leave the later modifier dormant.
-    // Order: single-note alterations (by commonality) first, then two-note
-    // alterations, then the Blues add last. Lower rank applies first, so in a
-    // (force-selected) conflict the simpler/more-fundamental change survives and
-    // the larger one goes dormant — and the decorative blue note yields to the
-    // structural alterations rather than blocking them.
+    // THE single source of truth for modifier order: this list is both the
+    // canonical apply precedence (lower index applies first) AND the left-to-right
+    // order of the editor's modifier buttons, so the two can never diverge.
+    // Single-note alterations (by commonality) first, then two-note, then the
+    // Blues add last — so in a (force-selected) conflict the simpler change
+    // survives and the decorative blue note yields to the structural alterations.
+    inline constexpr std::array<NamedModifier, 6> kModifierOrder = {
+        NamedModifier::Harmonic,        // 1 note
+        NamedModifier::Neapolitan,      // 1 note
+        NamedModifier::HarmonicMajor,   // 1 note
+        NamedModifier::Melodic,         // 2 notes
+        NamedModifier::DoubleHarmonic,  // 2 notes
+        NamedModifier::Blues,           // the add, last
+    };
+
     [[nodiscard]] inline int modifierRank(NamedModifier m) noexcept
     {
-        switch (m)
-        {
-            case NamedModifier::Harmonic:       return 0;   // 1 note
-            case NamedModifier::Neapolitan:     return 1;   // 1 note
-            case NamedModifier::HarmonicMajor:  return 2;   // 1 note
-            case NamedModifier::Melodic:        return 3;   // 2 notes
-            case NamedModifier::DoubleHarmonic: return 4;   // 2 notes
-            case NamedModifier::Blues:          return 5;   // the add layers last
-        }
+        for (int i = 0; i < static_cast<int>(kModifierOrder.size()); ++i)
+            if (kModifierOrder[static_cast<size_t>(i)] == m) return i;
         return 0;
     }
 

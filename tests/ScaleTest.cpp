@@ -364,6 +364,20 @@ namespace lockstep
         CHECK(clampBrightness(ScaleType::Triad, kLocrian) == kAeolian, "Locrian clamps to Aeolian for triad");
     }
 
+    static void testModifierOrderSSOT()
+    {
+        // kModifierOrder is the single source shared by the apply precedence and
+        // the editor button order: rank == index, every modifier appears once.
+        std::set<int> seen;
+        for (int i = 0; i < static_cast<int>(kModifierOrder.size()); ++i)
+        {
+            CHECK(modifierRank(kModifierOrder[static_cast<std::size_t>(i)]) == i,
+                  "modifierRank matches kModifierOrder index");
+            seen.insert(static_cast<int>(kModifierOrder[static_cast<std::size_t>(i)]));
+        }
+        CHECK(seen.size() == 6u, "all six modifiers present in the order, no duplicates");
+    }
+
     static void testModifierPacking()
     {
         // The modifier list round-trips through the 6-bit serialization mask.
@@ -389,6 +403,7 @@ namespace lockstep
         testAtomicModifiers();
         testCumulativeAvailability();
         testTonalityRangeByNoteCount();
+        testModifierOrderSSOT();
         testFifthsRootOrder();
         testModifierPacking();
         testModifierPortability();

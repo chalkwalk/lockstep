@@ -667,22 +667,29 @@ namespace lockstep
     // 8 slots: Root, Brightness (mode), then the six functional modifiers as
     // compatibility-gated on/off toggles. The KEY band shares the TIME band's
     // scope ladder (Set / Song / Scene) and entry; re-pressing TRIG cycles to it.
-    struct KeyModEntry { NamedModifier mod; const char* label; };
-    static constexpr KeyModEntry kKeyMods[] = {
-        { NamedModifier::Harmonic,       "HARM" },
-        { NamedModifier::Melodic,        "MEL"  },
-        { NamedModifier::DoubleHarmonic, "DBLH" },
-        { NamedModifier::HarmonicMajor,  "HMAJ" },
-        { NamedModifier::Blues,          "BLUE" },
-        { NamedModifier::Neapolitan,     "NEAP" },
-    };
+    // Short UI label per modifier (keyed by the modifier, not by position, so it
+    // cannot affect order). The cell ORDER comes solely from Scale.h's
+    // kModifierOrder — the single source shared with the apply precedence.
+    static const char* keyModShortLabel(NamedModifier m) noexcept
+    {
+        switch (m)
+        {
+            case NamedModifier::Harmonic:       return "HARM";
+            case NamedModifier::Neapolitan:     return "NEAP";
+            case NamedModifier::HarmonicMajor:  return "HMAJ";
+            case NamedModifier::Melodic:        return "MEL";
+            case NamedModifier::DoubleHarmonic: return "DBLH";
+            case NamedModifier::Blues:          return "BLUE";
+        }
+        return "";
+    }
 
     // ── KEY editor shared helpers (DESIGN §4.10) ─────────────────────────────
     // The modifier catalogue + the scope-resolved key are shared by the MZ band
     // and the step-grid KeyPanel so they never diverge.
-    int keyModifierCount() noexcept { return static_cast<int>(std::size(kKeyMods)); }
-    NamedModifier keyModifierAt(int i) noexcept { return kKeyMods[static_cast<std::size_t>(i)].mod; }
-    const char* keyModifierLabel(int i) noexcept { return kKeyMods[static_cast<std::size_t>(i)].label; }
+    int keyModifierCount() noexcept { return static_cast<int>(kModifierOrder.size()); }
+    NamedModifier keyModifierAt(int i) noexcept { return kModifierOrder[static_cast<std::size_t>(i)]; }
+    const char* keyModifierLabel(int i) noexcept { return keyModShortLabel(keyModifierAt(i)); }
 
     KeySig keyEditorShownKey(const UiState& ui, LockstepProcessor& proc)
     {
