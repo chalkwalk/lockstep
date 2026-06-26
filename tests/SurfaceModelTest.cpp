@@ -622,9 +622,11 @@ namespace lockstep
     // Every non-empty Func secondary on the section row must correspond to a
     // dispatchable Func+section action:
     //   TRIG → COND, SRC → NOTE  (routed via selectMetaSection)
+    //   FILTER → TRSP            (Func+7 = transport globals + per-track Scale,
+    //                             README §5.8 — selectMetaSection(2) → Transport)
     //   FX                       (no Func action — picker moved to hold gesture,
     //                             9.14 Stage 2; "PICK FX" is the hold rail, not Func)
-    //   FILTER / AMP / MOD       (no Func action → must dim, hint empty)
+    //   AMP / MOD                (no Func action → must dim, hint empty)
     // -------------------------------------------------------------------------
     static void testSectionFuncHintsMatchDispatch()
     {
@@ -637,7 +639,7 @@ namespace lockstep
             ui, ec, nullptr, proc, 0, 0, GridDisplayMode::Ortholinear);
 
         const char* expected[IMachine::kMaxSections] = {
-            "COND", "NOTE", "", "", "", ""
+            "COND", "NOTE", "TRSP", "", "", ""
         };
         for (int s = 0; s < IMachine::kMaxSections; ++s)
         {

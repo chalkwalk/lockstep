@@ -682,7 +682,8 @@ Each scope's `TRIG` cell opens the parameter owned by that hierarchy level.
 Three metas sit on `Func`: **COND** (probability, m:n, prev-dep) on
 `Func+TRIG`, **NOTE** (explicit note / velocity / gate step entry) on
 `Func+SRC`, and the **transport globals** (output gain, sync mode, channel
-mode) on `Func+7`. Trig defaults remain on bare `TRIG`. (Pre-6.5 the
+mode, plus the focused track's **Scale** stage — Off/Snap/Filter pitch
+conform to the key, §4.10) on `Func+7`. Trig defaults remain on bare `TRIG`. (Pre-6.5 the
 transport globals sat under `Song+FX`; that cell now carries the master
 insert parameters.)
 

@@ -195,10 +195,11 @@ namespace lockstep
             kFixedSectionCells + IMachine::kMaxSections + kTailSectionCells; // 10
 
         // Func-row secondary labels (Func-held section row); empty = dims under
-        // Func. TRACK→Track+TRIG, GLOBAL→Song+FX relocated. The meta CONTENT
-        // groups still wired in the MZ are a superset — see metaContentExists().
+        // Func. TRACK→Track+TRIG, GLOBAL→Song+FX relocated. FILTER (idx 2) =
+        // transport globals + per-track Scale (Func+7, README §5.8). The meta
+        // CONTENT groups wired in the MZ are a superset — see metaContentExists().
         static constexpr std::array<const char*, IMachine::kMaxSections> kMetaLabels = {
-            "COND", "NOTE", "", "", "", ""
+            "COND", "NOTE", "TRSP", "", "", ""
         };
 
         // Colours (from SectionBar)

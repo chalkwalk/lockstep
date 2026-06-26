@@ -460,7 +460,7 @@ namespace lockstep
         // must correspond to a dispatchable Func+section action or the row promises
         // a panel that never opens — guarded by testSectionFuncHintsMatchDispatch.
         static constexpr std::array<const char*, IMachine::kMaxSections> kMetaLabels = {
-            "COND", "NOTE", "", "", "", ""
+            "COND", "NOTE", "TRSP", "", "", ""
         };
         auto isReservedMeta = [](int s) -> bool {
             return s < 0 || s >= IMachine::kMaxSections || kMetaLabels[static_cast<std::size_t>(s)][0] == '\0';
