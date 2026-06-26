@@ -61,6 +61,8 @@ namespace lockstep
             case CellState::NoteEditStaged:     return 0xFFDC643Cu;
             case CellState::NoteEditOther:      return 0xFF16486Eu;  // dimmed azure — note in other octave only, distinct from active
             case CellState::NoteEditResting:    return kStepOutRange;
+            case CellState::NoteEditScaleNote:  return 0xFF34414Eu;  // lifted: in the active key
+            case CellState::NoteEditScaleRoot:  return 0xFF46627Au;  // tonic emphasis
             case CellState::KeyModActive:       return 0xFF50B478u;  // bright green: set + applies
             case CellState::KeyModAvailable:    return 0xFF2E5E46u;  // dim green: would apply
             case CellState::KeyModDormant:      return 0xFF6A5A2Eu;  // muted amber: set but dormant
@@ -1248,6 +1250,11 @@ namespace lockstep
                 const juce::Colour stageTint = juce::Colour::fromRGB(220, 100, 60);
                 const int octave = ui.noteEditOctave;
                 const int trackIdx = activeTrack;
+                // Scale-aware highlighting (DESIGN §4.10): in-key semitones lift,
+                // the tonic is emphasized. Computed once for the active key.
+                const auto noteEditKey = proc.effectiveKeySig();
+                const uint16_t noteEditScaleMask = pcMask(noteEditKey);
+                const int noteEditRootPc = noteEditKey.root % 12;
 
                 for (int i = 0; i < 16; ++i)
                 {
@@ -1309,10 +1316,20 @@ namespace lockstep
                         c.base = CellState::NoteEditOther;
                         c.baseColour = noteTint.withAlpha(0.12f).getARGB();
                     }
+                    else if (semitone == noteEditRootPc)
+                    {
+                        c.base = CellState::NoteEditScaleRoot;
+                        c.baseColour = 0xff46627au;   // tonic emphasis
+                    }
+                    else if (maskHas(noteEditScaleMask, semitone))
+                    {
+                        c.base = CellState::NoteEditScaleNote;
+                        c.baseColour = juce::Colour(isBlack ? 0xff28323eu : 0xff34414eu).getARGB();
+                    }
                     else
                     {
                         c.base = CellState::NoteEditResting;
-                        c.baseColour = juce::Colour(isBlack ? 0xff202830u : 0xff2c3540u).getARGB();
+                        c.baseColour = juce::Colour(isBlack ? 0xff181c22u : 0xff222831u).getARGB();
                     }
                 }
             }

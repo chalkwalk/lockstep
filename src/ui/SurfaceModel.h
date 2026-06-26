@@ -60,7 +60,9 @@ namespace lockstep
         NoteEditActive = 60,
         NoteEditStaged = 61,  // note active and staged for removal
         NoteEditOther = 62,  // present in other octave(s) only
-        NoteEditResting = 63,  // no note on this semitone
+        NoteEditResting = 63,  // no note on this semitone, out of the active key
+        NoteEditScaleNote = 64,  // no note, but the semitone is in the active key
+        NoteEditScaleRoot = 65,  // no note; the tonic of the active key (emphasis)
 
         // Chromatic keyboard family
         ChromaticWhite = 70,
