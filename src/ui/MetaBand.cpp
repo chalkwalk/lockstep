@@ -732,6 +732,8 @@ namespace lockstep
     {
         KeySig& k = keyEditableAtScope(ui, proc);
         k.scaleType = (k.scaleType == sym) ? ScaleType::Diatonic : sym;
+        if (hasFifthsWindow(k.scaleType))
+            k.brightness = static_cast<int8_t>(clampBrightness(k.scaleType, k.brightness));
     }
 
     static std::array<MetaFieldView, 8> buildKeyBand(int scope, LockstepProcessor& proc)
@@ -790,15 +792,20 @@ namespace lockstep
         // KEY panel, SurfaceLayer::KeyPanel), not on the MZ.
         const bool symmetric = !hasFifthsWindow(shown.scaleType);
 
-        // Field 1 — Tonality (brightness). Dial ascends Locrian -> Lydian.
+        // Field 1 — Tonality (brightness). Dial ascends dark -> bright; the throw
+        // spans only the modes valid for the note count (5 drops Lydian/Locrian,
+        // 3 keeps only Mixolydian/Dorian/Aeolian).
         {
             auto& f = result[1];
             f.active = true; f.label = "Tonality"; f.stepped = true;
             f.writable = !symmetric;
             f.ringMode = RingMode::Dot; f.hasOverride = hasOverride;
-            f.minValue = 0.0f; f.maxValue = 6.0f;
-            f.value = static_cast<float>(shown.brightness + 6);   // -6..0 -> 0..6
-            f.valueText = symmetric ? juce::String("--") : juce::String(modeName(shown.brightness));
+            const auto [bLo, bHi] = brightnessRange(shown.scaleType);
+            const int b = std::clamp(static_cast<int>(shown.brightness), bLo, bHi);
+            f.minValue = 0.0f;
+            f.maxValue = static_cast<float>(bHi - bLo);   // N-1 modes
+            f.value = static_cast<float>(b - bLo);
+            f.valueText = symmetric ? juce::String("--") : juce::String(modeName(b));
         }
 
         // Field 2 — Note-count: the functional scale sizes Triad(3)/Penta(5)/
@@ -1742,23 +1749,27 @@ namespace lockstep
                             rootPcAtFifthsIndex(std::clamp(idx, 0, 11)));
                     }
                 }
-                else if (field == 1)  // Tonality / brightness (0..6 -> -6..0)
+                else if (field == 1)  // Tonality / brightness (range = N modes)
                 {
-                    if (!isSymmetric(seedAndGet().scaleType))
+                    KeySig& k = seedAndGet();
+                    if (hasFifthsWindow(k.scaleType))
                     {
-                        const int b = std::clamp(juce::roundToInt(value), 0, 6) - 6;
-                        seedAndGet().brightness = static_cast<int8_t>(b);
+                        const auto [bLo, bHi] = brightnessRange(k.scaleType);
+                        const int b = bLo + std::clamp(juce::roundToInt(value), 0, bHi - bLo);
+                        k.brightness = static_cast<int8_t>(b);
                     }
                 }
                 else if (field == 2)  // Note-count: Triad(0)/Penta(1)/Diatonic(2)
                 {
                     KeySig& k = seedAndGet();
-                    if (!isSymmetric(k.scaleType))
+                    if (hasFifthsWindow(k.scaleType))
                     {
                         const int idx = std::clamp(juce::roundToInt(value), 0, 2);
                         k.scaleType = (idx == 0) ? ScaleType::Triad
                                     : (idx == 1) ? ScaleType::Pentatonic
                                                  : ScaleType::Diatonic;
+                        // Fewer notes may drop the current mode — clamp into range.
+                        k.brightness = static_cast<int8_t>(clampBrightness(k.scaleType, k.brightness));
                     }
                 }
                 // Modifiers + symmetric scales are toggled on the step grid

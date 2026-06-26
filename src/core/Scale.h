@@ -29,6 +29,7 @@
 #include <array>
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace lockstep
@@ -104,6 +105,24 @@ namespace lockstep
                               //   (blueNoteFitsCore), a generator-time concern.
         Neapolitan     = 5,   // lower 2->b2      (home major)
     };
+
+    // Canonical apply order (DESIGN §4.10): modifiers are always applied in this
+    // fixed order regardless of selection order, so any chosen set is
+    // order-independent. Lower rank applies first. Conflicts (a later op whose
+    // target was already moved) leave the later modifier dormant.
+    [[nodiscard]] inline int modifierRank(NamedModifier m) noexcept
+    {
+        switch (m)
+        {
+            case NamedModifier::Harmonic:       return 0;
+            case NamedModifier::Melodic:        return 1;
+            case NamedModifier::DoubleHarmonic: return 2;
+            case NamedModifier::Neapolitan:     return 3;
+            case NamedModifier::HarmonicMajor:  return 4;
+            case NamedModifier::Blues:          return 5;   // the add layers last
+        }
+        return 0;
+    }
 
     // Expand a named modifier into its primitive ops.
     [[nodiscard]] inline std::vector<ModOp> expandModifier(NamedModifier m)
@@ -319,27 +338,53 @@ namespace lockstep
 
     [[nodiscard]] inline bool blueNoteFitsCore(const KeySig& k, int coreSize);
 
-    // The effective pitch-class set. Symmetric types ignore brightness/modifiers;
-    // the fifths types (Triad/Penta/Diatonic) take the central-N window and apply
-    // modifiers, each going dormant where it does not fit the size (a Raise/Lower
-    // whose target was dropped is skipped by applyModOp; an Add — the blue note —
-    // is gated by blueNoteFitsCore).
-    [[nodiscard]] inline uint16_t pcMask(const KeySig& k)
+    // Apply ALL of a modifier's ops atomically. Returns the new mask and `true`
+    // only when every op makes a valid change against the running mask; otherwise
+    // the mask is unchanged and `false` (the whole modifier is dormant). This is
+    // why a multi-note modifier is all-or-nothing — half-applying corrupted both
+    // the scale and the editor highlighting.
+    [[nodiscard]] inline std::pair<uint16_t, bool>
+    tryApplyModifier(uint16_t mask, const KeySig& k, NamedModifier m, int size)
+    {
+        uint16_t work = mask;
+        for (ModOp op : expandModifier(m))
+        {
+            if (op.kind == ModOp::Kind::Add && !blueNoteFitsCore(k, size))
+                return { mask, false };
+            const uint16_t next = applyModOp(work, k.root, k.brightness, op);
+            if (next == work)
+                return { mask, false };   // an op had no valid effect → reject all
+            work = next;
+        }
+        return { work, true };
+    }
+
+    // The base scale (no modifiers) for the central-N window, or the symmetric /
+    // chromatic set. Modifiers are layered on by pcMask.
+    [[nodiscard]] inline uint16_t baseMask(const KeySig& k)
     {
         if (k.scaleType == ScaleType::Chromatic)
-            return 0x0FFFu;   // all 12 notes — no constraint
+            return 0x0FFFu;   // all 12 notes
         if (isSymmetric(k.scaleType))
             return symmetricMask(k.root, k.scaleType);
+        return coreWindowMask(k.root, k.brightness, noteCountOf(k.scaleType));
+    }
+
+    // The effective pitch-class set. Symmetric/chromatic ignore modifiers; the
+    // fifths types apply modifiers in the canonical order (modifierRank), each
+    // atomically — a modifier that does not fully apply in context is dormant.
+    [[nodiscard]] inline uint16_t pcMask(const KeySig& k)
+    {
+        uint16_t mask = baseMask(k);
+        if (!hasFifthsWindow(k.scaleType))
+            return mask;
 
         const int size = noteCountOf(k.scaleType);
-        uint16_t mask = coreWindowMask(k.root, k.brightness, size);
-        for (NamedModifier m : k.modifiers)
-            for (ModOp op : expandModifier(m))
-            {
-                if (op.kind == ModOp::Kind::Add && !blueNoteFitsCore(k, size))
-                    continue;
-                mask = applyModOp(mask, k.root, k.brightness, op);
-            }
+        std::vector<NamedModifier> ordered = k.modifiers;
+        std::sort(ordered.begin(), ordered.end(),
+                  [](NamedModifier a, NamedModifier b) { return modifierRank(a) < modifierRank(b); });
+        for (NamedModifier m : ordered)
+            mask = tryApplyModifier(mask, k, m, size).first;
         return mask;
     }
 
@@ -367,26 +412,25 @@ namespace lockstep
     // first. For the v1 modifiers the tonic guard is the only thing that bars a
     // modifier from a mode (a Raise/Lower at edge offset e hits the root when
     // brightness == -e) — so availability is purely a fifths fact, not a table.
+    // Whether `candidate` can be added on top of the key's already-selected
+    // modifiers (cumulative): apply the current set in canonical order, then test
+    // whether the candidate applies atomically. So once a conflicting modifier is
+    // selected, the candidate correctly reports unavailable.
     [[nodiscard]] inline bool isCompatible(const KeySig& k, NamedModifier candidate)
     {
         if (!hasFifthsWindow(k.scaleType))
             return false;   // symmetric / chromatic scales take no modifiers
 
-        uint16_t mask = baseWindowMask(k.root, k.brightness);
-        for (NamedModifier m : k.modifiers)
-            for (ModOp op : expandModifier(m))
-                mask = applyModOp(mask, k.root, k.brightness, op);
-
-        // Compatible iff every op of the candidate makes a real change. applyModOp
-        // already encodes the validity rules (no redundant add, no tonic move, no
-        // collision), so "the mask actually changed" is the single source of truth.
-        for (ModOp op : expandModifier(candidate))
-        {
-            const uint16_t next = applyModOp(mask, k.root, k.brightness, op);
-            if (next == mask) return false;
-            mask = next;
-        }
-        return true;
+        const int size = noteCountOf(k.scaleType);
+        uint16_t mask = baseMask(k);
+        std::vector<NamedModifier> ordered = k.modifiers;
+        std::sort(ordered.begin(), ordered.end(),
+                  [](NamedModifier a, NamedModifier b) { return modifierRank(a) < modifierRank(b); });
+        for (NamedModifier m : ordered)
+            mask = tryApplyModifier(mask, k, m, size).first;
+        // If the candidate is already applied above, re-testing it yields no
+        // effect (false) — a present modifier is not "available to add".
+        return tryApplyModifier(mask, k, candidate, size).second;
     }
 
     // ---- Core tiers (melodic-generator weighting) -------------------------
@@ -488,11 +532,8 @@ namespace lockstep
     // Harmonic is "7" in minor but "#5" in the relative major; Blues is "b5"
     // in minor but "b3" in the relative major. Multi-op modifiers report their
     // first op.
-    [[nodiscard]] inline std::string degreeNameOf(const KeySig& k, NamedModifier m)
+    [[nodiscard]] inline std::string degreeNameOfOp(const KeySig& k, ModOp op)
     {
-        const auto ops = expandModifier(m);
-        if (ops.empty()) return {};
-        const ModOp op = ops.front();
         const int basePc = pcAtEdge(k.root, k.brightness, op.edgeOffset);
         const int baseInt = ((basePc - k.root) % 12 + 12) % 12;
         const int num = degreeNumber(baseInt);
@@ -513,6 +554,38 @@ namespace lockstep
                 return "b" + std::to_string(num);
         }
         return {};
+    }
+
+    // The degree name(s) a named modifier reads as, per the current root —
+    // reflecting op direction (Harmonic "7" in minor / "#5" in the relative
+    // major; Blues "b5"/"b3"). Multi-note modifiers list every altered degree
+    // (e.g. Melodic "6 7", Double-harmonic "3 7").
+    [[nodiscard]] inline std::string degreeNameOf(const KeySig& k, NamedModifier m)
+    {
+        std::string out;
+        for (ModOp op : expandModifier(m))
+        {
+            if (!out.empty()) out += " ";
+            out += degreeNameOfOp(k, op);
+        }
+        return out;
+    }
+
+    // The valid brightness range for a scale type. The fifths scales of size N
+    // only span the N modes whose root stays inside the central-N window: 7 ->
+    // all (Lydian..Locrian), 5 -> drops Lydian/Locrian, 3 -> Mixolydian/Dorian/
+    // Aeolian. Symmetric/chromatic have no brightness.
+    [[nodiscard]] inline std::pair<int, int> brightnessRange(ScaleType t) noexcept
+    {
+        if (!hasFifthsWindow(t)) return { kDorian, kDorian };
+        const int n = noteCountOf(t);
+        const int bMax = -(7 - n) / 2;
+        return { bMax - (n - 1), bMax };
+    }
+    [[nodiscard]] inline int clampBrightness(ScaleType t, int b) noexcept
+    {
+        const auto [lo, hi] = brightnessRange(t);
+        return std::clamp(b, lo, hi);
     }
 
     // Classical scale name, "" when none recognised. Plain modes resolve to

@@ -313,6 +313,57 @@ namespace lockstep
                   juce::String("fifths-root round-trips pc ") + juce::String(pc));
     }
 
+    static void testAtomicModifiers()
+    {
+        // Multi-op modifiers are all-or-nothing. At Mixolydian, Melodic's
+        // raise-edge2 hits the tonic, so the WHOLE modifier is dormant — it must
+        // not half-apply (the old bug showed it bright-green "7").
+        const KeySig cMixo { 0, kMixolydian, {}, ScaleType::Diatonic };
+        CHECK(!isCompatible(cMixo, NamedModifier::Melodic), "Melodic unavailable at Mixolydian");
+        CHECK(!isCompatible(cMixo, NamedModifier::DoubleHarmonic), "Double-harmonic unavailable at Mixolydian");
+
+        KeySig mixoMel = cMixo; mixoMel.modifiers = { NamedModifier::Melodic };
+        CHECK(!modifierApplies(mixoMel, NamedModifier::Melodic), "Melodic is dormant at Mixolydian");
+        CHECK(pcMask(mixoMel) == baseMask(cMixo), "dormant Melodic leaves the plain mode (no partial apply)");
+
+        // Multi-op modifiers name every altered degree.
+        const KeySig aMel { 9, kAeolian, { NamedModifier::Melodic }, ScaleType::Diatonic };
+        CHECK(degreeNameOf(aMel, NamedModifier::Melodic) == "6 7", "Melodic reads '6 7'");
+        const KeySig pDbl { 0, kPhrygian, { NamedModifier::DoubleHarmonic }, ScaleType::Diatonic };
+        CHECK(degreeNameOf(pDbl, NamedModifier::DoubleHarmonic) == "3 7", "Double-harmonic reads '3 7'");
+    }
+
+    static void testCumulativeAvailability()
+    {
+        // Selecting Harmonic raises edge2, so the other edge2-raisers
+        // (Melodic, Double-harmonic) become unavailable cumulatively.
+        const KeySig cAeolian { 0, kAeolian, {}, ScaleType::Diatonic };
+        CHECK(isCompatible(cAeolian, NamedModifier::Melodic), "Melodic available before Harmonic");
+        KeySig withHarm = cAeolian; withHarm.modifiers = { NamedModifier::Harmonic };
+        CHECK(!isCompatible(withHarm, NamedModifier::Melodic), "Melodic unavailable after Harmonic");
+        CHECK(!isCompatible(withHarm, NamedModifier::DoubleHarmonic), "Double-harmonic unavailable after Harmonic");
+        // Non-conflicting modifier (different edge) stays available.
+        CHECK(isCompatible(withHarm, NamedModifier::Neapolitan), "Neapolitan still available with Harmonic");
+
+        // Order independence: {Harmonic, Neapolitan} gives the same scale either way.
+        KeySig ab { 0, kAeolian, { NamedModifier::Harmonic, NamedModifier::Neapolitan }, ScaleType::Diatonic };
+        KeySig ba { 0, kAeolian, { NamedModifier::Neapolitan, NamedModifier::Harmonic }, ScaleType::Diatonic };
+        CHECK(pcMask(ab) == pcMask(ba), "modifier set is order-independent");
+    }
+
+    static void testTonalityRangeByNoteCount()
+    {
+        auto [d0, d1] = brightnessRange(ScaleType::Diatonic);
+        CHECK(d0 == kLocrian && d1 == kLydian, "diatonic spans all 7 modes");
+        auto [p0, p1] = brightnessRange(ScaleType::Pentatonic);
+        CHECK(p0 == kPhrygian && p1 == kIonian, "pentatonic drops Lydian/Locrian");
+        auto [t0, t1] = brightnessRange(ScaleType::Triad);
+        CHECK(t0 == kAeolian && t1 == kMixolydian, "triad keeps Mixo/Dorian/Aeolian");
+        // Reducing notes clamps an out-of-range mode.
+        CHECK(clampBrightness(ScaleType::Pentatonic, kLydian) == kIonian, "Lydian clamps to Ionian for penta");
+        CHECK(clampBrightness(ScaleType::Triad, kLocrian) == kAeolian, "Locrian clamps to Aeolian for triad");
+    }
+
     static void testModifierPacking()
     {
         // The modifier list round-trips through the 6-bit serialization mask.
@@ -335,6 +386,9 @@ namespace lockstep
         testDefaultKeyIsDorianD();
         testDormantModifierDoesNotCorrupt();
         testScaleSizes();
+        testAtomicModifiers();
+        testCumulativeAvailability();
+        testTonalityRangeByNoteCount();
         testFifthsRootOrder();
         testModifierPacking();
         testModifierPortability();
