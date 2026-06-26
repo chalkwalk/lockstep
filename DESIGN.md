@@ -898,12 +898,30 @@ effectiveKeySig = Scene.coreKeySig          (if Scene.hasKeySig)
 
 **Editor grammar.** Key shares the TIME page's scope ladder and entry: the
 signatures band opens via `Song+TRIG` / `Scene+TRIG`, and **re-pressing TRIG
-cycles TIME ↔ KEY** as a family on the same key (the TRIG label relabels). Scope
-works as on TIME: `Func+Song` → Set, bare `Song` → Song, bare `Scene` → Scene,
-no modifier → entry scope. Controls (8 slots): **Root**, **Brightness**, then the
-six functional modifiers as compatibility-gated on/off toggles, each showing its
-degree-name (e.g. `7`, `#5`, `b5`) for the current root. At Song/Scene scope the
-Root field's index-0 is **INHERIT** (clears the override), mirroring TIME.
+cycles TIME ↔ KEY** as a family on the same key. The TRIG section key shows the
+**destination** of the next press (reads "KEY" on the TIME page, "TIME" on the
+KEY page); the MZ header shows where you are. Scope works as on TIME: `Func+Song`
+→ Set, bare `Song` → Song, bare `Scene` → Scene, no modifier → entry scope.
+
+The KEY surface splits across the MZ encoders and the step grid (the "grid is the
+menu" pattern, §6):
+
+- **MZ encoders — the scalars:** **Root** (fifths-ordered, D-centred — each
+  detent moves by a fifth), **Tonality** (brightness, Lydian…Locrian), and
+  **Note-count** (the functional `ScaleType`: Triad 3 / Pentatonic 5 /
+  Diatonic 7). At Song/Scene scope, Root index-0 is **INHERIT** (clears the
+  override), mirroring TIME.
+- **Step grid — the toggles:** row 1 holds the **functional modifiers** as
+  checkbox cells (4 states: enabled/disabled × active/inactive — bright = applies
+  in this tonality, grey = dormant, mark = on; always toggleable, the mark
+  persists when a modifier goes dormant). Row 2, right-aligned, holds the two
+  **symmetric scales** (whole-tone, diminished) as a radio pair. Selecting a
+  symmetric cell overrides into symmetric mode and **greys** the Tonality and
+  Note-count encoders and the modifier cells — they have no meaning there.
+
+Default key is **D Dorian** — the symmetric centre (D centres the circle of
+fifths, Dorian centres the bright/dark axis; its interval pattern is a
+palindrome), so the default leans neither sharp nor flat.
 
 - **Brightness** (stepped, primary) — Lydian…Locrian; the resolved classical
   name shows as a label, "" when a modifier set has no common name.
