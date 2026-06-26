@@ -801,38 +801,84 @@ namespace lockstep
         // The functional fifths-scales use Tonality + Note-count; symmetric and
         // chromatic scales grey both out. Modifiers live on the step grid (the
         // KEY panel, SurfaceLayer::KeyPanel), not on the MZ.
-        const bool symmetric = !hasFifthsWindow(shown.scaleType);
+        //
+        // INHERIT parity (matches the time-sig band): every facet — not just Root
+        // — can inherit at Song/Scene. When the scope has no override, all three
+        // dials sit on the INHERIT floor (index 0) showing the parent's facet;
+        // turning any one starts the whole-key override, and dialing any back to 0
+        // returns the whole key to inherited.
+        const KeySig disp = hasOverride ? shown : parent;
+        const bool symmetric = !hasFifthsWindow(disp.scaleType);
 
         // Field 1 — Tonality (brightness). Dial ascends dark -> bright; the throw
         // spans only the modes valid for the note count (5 drops Lydian/Locrian,
-        // 3 keeps only Mixolydian/Dorian/Aeolian).
+        // 3 keeps only Mixolydian/Dorian/Aeolian). INHERIT at index 0 for Song/Scene.
         {
             auto& f = result[1];
             f.active = true; f.label = "Tonality"; f.stepped = true;
             f.writable = !symmetric;
             f.ringMode = RingMode::Dot; f.hasOverride = hasOverride;
-            const auto [bLo, bHi] = brightnessRange(shown.scaleType);
-            const int b = std::clamp(static_cast<int>(shown.brightness), bLo, bHi);
-            f.minValue = 0.0f;
-            f.maxValue = static_cast<float>(bHi - bLo);   // N-1 modes
-            f.value = static_cast<float>(b - bLo);
-            f.valueText = symmetric ? juce::String("--") : juce::String(modeName(b));
+            const auto [bLo, bHi] = brightnessRange(disp.scaleType);
+            const int b = std::clamp(static_cast<int>(disp.brightness), bLo, bHi);
+            const int span = bHi - bLo;   // N-1 modes
+            if (hasInherit)
+            {
+                f.minValue = 0.0f; f.maxValue = static_cast<float>(span + 1);
+                if (hasOverride)
+                {
+                    f.value = static_cast<float>(b - bLo + 1);
+                    f.valueText = symmetric ? juce::String("--") : juce::String(modeName(b));
+                }
+                else
+                {
+                    f.value = 0.0f;
+                    f.valueText = symmetric ? juce::String("INHERIT")
+                                            : juce::String("INHERIT (") + modeName(b) + ")";
+                    f.marks[0] = ReferenceMark{ true, static_cast<float>(b - bLo + 1)
+                                                          / static_cast<float>(span + 1),
+                                                static_cast<juce::uint32>(scopeColour), 1.0f };
+                }
+            }
+            else
+            {
+                f.minValue = 0.0f; f.maxValue = static_cast<float>(span);
+                f.value = static_cast<float>(b - bLo);
+                f.valueText = symmetric ? juce::String("--") : juce::String(modeName(b));
+            }
         }
 
         // Field 2 — Note-count: the functional scale sizes Triad(3)/Penta(5)/
-        // Diatonic(7). Stepped 0..2. (Symmetric scales are selected on the grid.)
+        // Diatonic(7). (Symmetric scales are selected on the grid.) INHERIT at 0.
         {
             auto& f = result[2];
             f.active = true; f.label = "Notes"; f.stepped = true;
             f.writable = !symmetric;
             f.ringMode = RingMode::Dot; f.hasOverride = hasOverride;
-            f.minValue = 0.0f; f.maxValue = 2.0f;
             // 0 = Triad, 1 = Penta, 2 = Diatonic (ascending size).
-            const int idx = (shown.scaleType == ScaleType::Triad) ? 0
-                          : (shown.scaleType == ScaleType::Pentatonic) ? 1 : 2;
-            f.value = static_cast<float>(idx);
-            f.valueText = symmetric ? juce::String(scaleTypeName(shown.scaleType))
-                                    : juce::String(scaleTypeName(shown.scaleType));
+            const int idx = (disp.scaleType == ScaleType::Triad) ? 0
+                          : (disp.scaleType == ScaleType::Pentatonic) ? 1 : 2;
+            if (hasInherit)
+            {
+                f.minValue = 0.0f; f.maxValue = 3.0f;
+                if (hasOverride)
+                {
+                    f.value = static_cast<float>(idx + 1);
+                    f.valueText = juce::String(scaleTypeName(disp.scaleType));
+                }
+                else
+                {
+                    f.value = 0.0f;
+                    f.valueText = juce::String("INHERIT (") + scaleTypeName(disp.scaleType) + ")";
+                    f.marks[0] = ReferenceMark{ true, static_cast<float>(idx + 1) / 3.0f,
+                                                static_cast<juce::uint32>(scopeColour), 1.0f };
+                }
+            }
+            else
+            {
+                f.minValue = 0.0f; f.maxValue = 2.0f;
+                f.value = static_cast<float>(idx);
+                f.valueText = juce::String(scaleTypeName(disp.scaleType));
+            }
         }
 
         return result;
@@ -1765,27 +1811,46 @@ namespace lockstep
                             rootPcAtFifthsIndex(std::clamp(idx, 0, 11)));
                     }
                 }
-                else if (field == 1)  // Tonality / brightness (range = N modes)
+                else if (field == 1)  // Tonality / brightness (INHERIT floor at 0)
                 {
-                    KeySig& k = seedAndGet();
-                    if (hasFifthsWindow(k.scaleType))
+                    const bool hasInherit = (scope == 2 || scope == 3);
+                    if (hasInherit && juce::roundToInt(value) <= 0)
                     {
-                        const auto [bLo, bHi] = brightnessRange(k.scaleType);
-                        const int b = bLo + std::clamp(juce::roundToInt(value), 0, bHi - bLo);
-                        k.brightness = static_cast<int8_t>(b);
+                        if (scope == 3) proc.section().hasKeySig = false;
+                        else            proc.song().hasKeySig = false;
+                    }
+                    else
+                    {
+                        KeySig& k = seedAndGet();
+                        if (hasFifthsWindow(k.scaleType))
+                        {
+                            const auto [bLo, bHi] = brightnessRange(k.scaleType);
+                            const int raw = juce::roundToInt(value) - (hasInherit ? 1 : 0);
+                            k.brightness = static_cast<int8_t>(bLo + std::clamp(raw, 0, bHi - bLo));
+                        }
                     }
                 }
-                else if (field == 2)  // Note-count: Triad(0)/Penta(1)/Diatonic(2)
+                else if (field == 2)  // Note-count (INHERIT floor at 0)
                 {
-                    KeySig& k = seedAndGet();
-                    if (hasFifthsWindow(k.scaleType))
+                    const bool hasInherit = (scope == 2 || scope == 3);
+                    if (hasInherit && juce::roundToInt(value) <= 0)
                     {
-                        const int idx = std::clamp(juce::roundToInt(value), 0, 2);
-                        k.scaleType = (idx == 0) ? ScaleType::Triad
-                                    : (idx == 1) ? ScaleType::Pentatonic
-                                                 : ScaleType::Diatonic;
-                        // Fewer notes may drop the current mode — clamp into range.
-                        k.brightness = static_cast<int8_t>(clampBrightness(k.scaleType, k.brightness));
+                        if (scope == 3) proc.section().hasKeySig = false;
+                        else            proc.song().hasKeySig = false;
+                    }
+                    else
+                    {
+                        KeySig& k = seedAndGet();
+                        if (hasFifthsWindow(k.scaleType))
+                        {
+                            const int idx = std::clamp(
+                                juce::roundToInt(value) - (hasInherit ? 1 : 0), 0, 2);
+                            k.scaleType = (idx == 0) ? ScaleType::Triad
+                                        : (idx == 1) ? ScaleType::Pentatonic
+                                                     : ScaleType::Diatonic;
+                            // Fewer notes may drop the current mode — clamp into range.
+                            k.brightness = static_cast<int8_t>(clampBrightness(k.scaleType, k.brightness));
+                        }
                     }
                 }
                 // Modifiers + symmetric scales are toggled on the step grid

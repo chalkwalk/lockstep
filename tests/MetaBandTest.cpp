@@ -1034,12 +1034,27 @@ namespace lockstep
         EditContext ctx;
 
         CHECK(!proc.song().hasKeySig, "song starts inheriting");
-        // Editing brightness enables the override (seeded from effective).
-        writeMetaField(MetaBand::Key, 0, 1, 2.0f, proc, 0, ctx, ui);   // Aeolian
-        CHECK(proc.song().hasKeySig, "editing enables the Song override");
+        // Editing brightness enables the override (seeded from effective). At
+        // Song/Scene index 0 = INHERIT, so the real modes start at 1: value 3 =
+        // Locrian(1)+2 = Aeolian.
+        writeMetaField(MetaBand::Key, 0, 1, 3.0f, proc, 0, ctx, ui);   // Aeolian
+        CHECK(proc.song().hasKeySig, "editing brightness enables the Song override");
         CHECK(proc.song().keySig.brightness == kAeolian, "Song override brightness set");
 
-        // Root dialed to the INHERIT floor (0) clears the override.
+        // INHERIT parity: every facet can clear the override, not just Root.
+        writeMetaField(MetaBand::Key, 0, 1, 0.0f, proc, 0, ctx, ui);   // Tonality → INHERIT
+        CHECK(!proc.song().hasKeySig, "Tonality → INHERIT clears the Song override");
+
+        // Note-count enables, then its INHERIT floor clears too.
+        writeMetaField(MetaBand::Key, 0, 2, 2.0f, proc, 0, ctx, ui);   // Pentatonic (idx 1 + offset)
+        CHECK(proc.song().hasKeySig, "editing note-count enables the Song override");
+        CHECK(proc.song().keySig.scaleType == ScaleType::Pentatonic, "Song override note-count set");
+        writeMetaField(MetaBand::Key, 0, 2, 0.0f, proc, 0, ctx, ui);   // Notes → INHERIT
+        CHECK(!proc.song().hasKeySig, "Notes → INHERIT clears the Song override");
+
+        // Root still clears it too.
+        writeMetaField(MetaBand::Key, 0, 1, 3.0f, proc, 0, ctx, ui);   // re-establish override
+        CHECK(proc.song().hasKeySig, "override re-established");
         writeMetaField(MetaBand::Key, 0, 0, 0.0f, proc, 0, ctx, ui);
         CHECK(!proc.song().hasKeySig, "Root → INHERIT clears the Song override");
     }
