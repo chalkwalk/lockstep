@@ -1426,8 +1426,11 @@ namespace lockstep
             else if (activeLayer == SurfaceLayer::ChromaticInput)
             {
                 // Chromatic piano overlay: 8 white keys (bottom row) + 5 black + 3 dead (top).
-                const juce::Colour whiteKey = juce::Colour(kScopeTrack).withAlpha(0.38f);
-                const juce::Colour blackKey = juce::Colour(kScopeTrack).withAlpha(0.16f);
+                // Scale-aware (DESIGN §4.10): in-key keys lift, out-of-key recede,
+                // the tonic is emphasized. The keyboard is C-aligned, so pc = offset%12.
+                const auto chromKey = proc.effectiveKeySig();
+                const uint16_t chromScaleMask = pcMask(chromKey);
+                const int chromRootPc = chromKey.root % 12;
 
                 for (int i = 0; i < 16; ++i)
                 {
@@ -1446,10 +1449,17 @@ namespace lockstep
                     else
                     {
                         const bool isBlack = (i < 8);  // top row (0-7) = black keys
+                        const int pc = semitone % 12;
+                        const bool isRoot = (pc == chromRootPc);
+                        const bool inScale = maskHas(chromScaleMask, pc);
                         c.base = isBlack ? CellState::ChromaticBlack : CellState::ChromaticWhite;
+                        const float a = c.pressed ? 0.70f
+                                      : isRoot     ? 0.62f
+                                      : inScale    ? (isBlack ? 0.34f : 0.48f)
+                                                   : (isBlack ? 0.07f : 0.14f);
                         c.baseColour = c.pressed
-                                           ? juce::Colours::white.withAlpha(0.70f).getARGB()
-                                           : (isBlack ? blackKey : whiteKey).getARGB();
+                            ? juce::Colours::white.withAlpha(a).getARGB()
+                            : juce::Colour(kScopeTrack).withAlpha(a).getARGB();
                     }
                 }
             }
