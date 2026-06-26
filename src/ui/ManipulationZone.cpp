@@ -65,6 +65,10 @@ namespace lockstep
                     writeMetaField(band_, swingScope_, i, v, processor_,
                                    area_.getActiveTrack(), processor_.editContext(),
                                    uiState_ ? *uiState_ : kEmptyUiState);
+                    // Update the value-text labels live (stepped meta bands like
+                    // KEY/TIME carry enum labels that don't follow the slider on
+                    // their own). Text-only — does not reset the active drag.
+                    refreshMetaValueText();
                     if (band_ == MetaBand::Euclidean && onEuclidParamChanged)
                         onEuclidParamChanged();
                     // Step-Position: the visible effect (the step hopping) is on the
@@ -292,6 +296,24 @@ namespace lockstep
             repaint();
         else
             stopTimer();
+    }
+
+    void ManipulationZone::refreshMetaValueText()
+    {
+        if (band_ == MetaBand::None) return;
+        const int track = area_.getActiveTrack();
+        static const UiState kEmptyUiState{};
+        const auto views = buildMetaBand(band_, swingScope_, processor_, track,
+                                         processor_.editContext(),
+                                         uiState_ ? *uiState_ : kEmptyUiState);
+        for (int i = 0; i < kNumSlots; ++i)
+        {
+            const auto si = static_cast<std::size_t>(i);
+            labels_[si].setText(views[si].label, juce::dontSendNotification);
+            valueLabels_[si].setText(views[si].valueText, juce::dontSendNotification);
+            clearBtns_[si].setEnabled(views[si].hasOverride);
+            clearBtns_[si].setAlpha(views[si].hasOverride ? 1.0f : 0.3f);
+        }
     }
 
     void ManipulationZone::refreshSliders()

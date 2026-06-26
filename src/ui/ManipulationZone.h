@@ -59,6 +59,11 @@ namespace lockstep
         // mid-drag — it runs outside onValueChange and the rotaries ignore
         // setValue() while dragging.
         void refreshSliders();
+        // Update only the meta-band value-text labels (not slider values) — safe
+        // mid-drag, unlike refreshSliders which re-applies values and resets
+        // JUCE's drag reference. Lets a mouse drag on a stepped meta band
+        // (KEY / TIME) update its label live.
+        void refreshMetaValueText();
 
 
         // Called when the user clicks "Manage pool..." from the sample picker menu.
