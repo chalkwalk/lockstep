@@ -110,15 +110,20 @@ namespace lockstep
     // fixed order regardless of selection order, so any chosen set is
     // order-independent. Lower rank applies first. Conflicts (a later op whose
     // target was already moved) leave the later modifier dormant.
+    // Order: single-note alterations (by commonality) first, then two-note
+    // alterations, then the Blues add last. Lower rank applies first, so in a
+    // (force-selected) conflict the simpler/more-fundamental change survives and
+    // the larger one goes dormant — and the decorative blue note yields to the
+    // structural alterations rather than blocking them.
     [[nodiscard]] inline int modifierRank(NamedModifier m) noexcept
     {
         switch (m)
         {
-            case NamedModifier::Harmonic:       return 0;
-            case NamedModifier::Melodic:        return 1;
-            case NamedModifier::DoubleHarmonic: return 2;
-            case NamedModifier::Neapolitan:     return 3;
-            case NamedModifier::HarmonicMajor:  return 4;
+            case NamedModifier::Harmonic:       return 0;   // 1 note
+            case NamedModifier::Neapolitan:     return 1;   // 1 note
+            case NamedModifier::HarmonicMajor:  return 2;   // 1 note
+            case NamedModifier::Melodic:        return 3;   // 2 notes
+            case NamedModifier::DoubleHarmonic: return 4;   // 2 notes
             case NamedModifier::Blues:          return 5;   // the add layers last
         }
         return 0;
