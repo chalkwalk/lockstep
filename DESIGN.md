@@ -893,7 +893,7 @@ generators, scale-highlight) call it.
 ```
 effectiveKeySig = Scene.coreKeySig          (if Scene.hasKeySig)
               ?? Song.keySig                (if Song.hasKeySig)
-              ?? Project.defaultKeySig      (always present; default C Ionian)
+              ?? Project.defaultKeySig      (always present; default D Dorian)
 ```
 
 **Editor grammar.** Key shares the TIME page's scope ladder and entry: the
@@ -934,7 +934,7 @@ INHERIT floor at Song/Scene scope clears the override, exactly like TIME.
 **Serializer.** New version one past the current head: `Project.defaultKeySig`,
 `Song.hasKeySig`/`keySig`, `Scene.hasKeySig`/`coreKeySig`, plus the per-track
 quantize flag. Stored as the semantic axes (root/brightness/modifiers), not a
-baked mask. Legacy projects load with default C Ionian, no overrides, quantize
+baked mask. Legacy projects load with default D Dorian, no overrides, quantize
 off.
 
 ## 5. Input Layer

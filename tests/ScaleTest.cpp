@@ -247,6 +247,30 @@ namespace lockstep
             }
     }
 
+    static void testDefaultKeyIsDorianD()
+    {
+        const KeySig def;
+        CHECK(def.root == 2, "default root is D");
+        CHECK(def.brightness == kDorian, "default brightness is Dorian (symmetric centre)");
+        // D Dorian = the white keys D E F G A B C.
+        CHECK((pcsOf(def) == std::set<int>{ 2, 4, 5, 7, 9, 11, 0 }), "D Dorian = white keys");
+    }
+
+    static void testDormantModifierDoesNotCorrupt()
+    {
+        // Harmonic set in Aeolian, then the brightness moved to Mixolydian (where
+        // Harmonic's op would hit the tonic): the modifier stays in the list but
+        // is dormant — the scale is the plain mode, tonic intact.
+        KeySig k { 0, kAeolian, { NamedModifier::Harmonic }, Symmetric::None };
+        CHECK(isCompatible(KeySig{ 0, kAeolian, {}, Symmetric::None }, NamedModifier::Harmonic),
+              "Harmonic applies in Aeolian");
+        k.brightness = kMixolydian;   // now incompatible
+        CHECK(maskHas(pcMask(k), 0), "dormant modifier keeps the tonic");
+        CHECK(pcMask(k) == baseWindowMask(0, kMixolydian),
+              "dormant modifier leaves the scale unaltered (plain Mixolydian)");
+        CHECK(k.modifiers.size() == 1, "dormant modifier is retained in the list");
+    }
+
     static void testModifierPacking()
     {
         // The modifier list round-trips through the 6-bit serialization mask.
@@ -266,6 +290,8 @@ namespace lockstep
         testBluesAcrossModes();
         testBlueNoteCoreGating();
         testModifierCompatibilityMatrix();
+        testDefaultKeyIsDorianD();
+        testDormantModifierDoesNotCorrupt();
         testModifierPacking();
         testModifierPortability();
         testAddVsAlter();

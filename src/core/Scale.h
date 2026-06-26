@@ -139,11 +139,14 @@ namespace lockstep
     enum class Symmetric : uint8_t { None = 0, WholeTone = 1, Diminished = 2 };
 
     // The stored key signature: semantic axes only. Everything else (mask,
-    // degrees, cores, quantize, names) is derived. Default = C Ionian.
+    // degrees, cores, quantize, names) is derived. Default = D Dorian — the
+    // symmetric centre of the system: D is the centre of the circle of fifths
+    // and Dorian is the centre of the bright/dark axis (its interval pattern is
+    // a palindrome), so the default leans neither sharp nor flat.
     struct KeySig
     {
-        uint8_t   root = 0;                 // 0..11 pitch class of the tonic
-        int8_t    brightness = kIonian;     // window flat-edge offset (mode)
+        uint8_t   root = 2;                 // D — centre of the circle of fifths
+        int8_t    brightness = kDorian;     // Dorian — centre of the bright/dark axis
         std::vector<NamedModifier> modifiers;
         Symmetric symmetric = Symmetric::None;   // overrides brightness/modifiers when set
 
@@ -217,17 +220,21 @@ namespace lockstep
         return mask;
     }
 
-    // Apply one primitive op to a mask for the given root/brightness.
+    // Apply one primitive op to a mask, but ONLY when it makes a valid change.
+    // An Add of a note already present, or a Raise/Lower that would move the
+    // tonic, collide with an existing note, or has nothing to move, is a no-op.
+    // This makes pcMask robust to *dormant* modifiers: a modifier set in one
+    // tonality stays in the list but simply does nothing where it does not apply
+    // (it greys out in the editor instead of corrupting the scale).
     [[nodiscard]] inline uint16_t applyModOp(uint16_t mask, int root, int brightness, ModOp op) noexcept
     {
         const int pc = pcAtEdge(root, brightness, op.edgeOffset);
-        switch (op.kind)
-        {
-            case ModOp::Kind::Add:   return setPc(mask, pc);
-            case ModOp::Kind::Raise: return setPc(clearPc(mask, pc), pc + 1);
-            case ModOp::Kind::Lower: return setPc(clearPc(mask, pc), pc - 1);
-        }
-        return mask;
+        if (op.kind == ModOp::Kind::Add)
+            return maskHas(mask, pc) ? mask : setPc(mask, pc);
+        const int res = (op.kind == ModOp::Kind::Lower ? pc - 1 : pc + 1);
+        if (pc == static_cast<int>(root) || !maskHas(mask, pc) || maskHas(mask, res))
+            return mask;
+        return setPc(clearPc(mask, pc), res);
     }
 
     // The effective pitch-class set (after modifiers / symmetric override).
@@ -277,29 +284,14 @@ namespace lockstep
             for (ModOp op : expandModifier(m))
                 mask = applyModOp(mask, k.root, k.brightness, op);
 
+        // Compatible iff every op of the candidate makes a real change. applyModOp
+        // already encodes the validity rules (no redundant add, no tonic move, no
+        // collision), so "the mask actually changed" is the single source of truth.
         for (ModOp op : expandModifier(candidate))
         {
-            const int pc  = pcAtEdge(k.root, k.brightness, op.edgeOffset);
-            const int res = (((op.kind == ModOp::Kind::Lower ? pc - 1 : pc + 1) % 12) + 12) % 12;
-            switch (op.kind)
-            {
-                case ModOp::Kind::Add:
-                    // The blue note sits outside the 7-note window, so it is a
-                    // valid Add in every mode of the full scale (Lydian b7 ..
-                    // Locrian b4). The pentatonic/triad restriction is a
-                    // CORE-SIZE property, not a key property — see
-                    // blueNoteFitsCore(), applied at generator time.
-                    if (maskHas(mask, pc)) return false;      // redundant add
-                    mask = setPc(mask, pc);
-                    break;
-                case ModOp::Kind::Raise:
-                case ModOp::Kind::Lower:
-                    if (pc == k.root) return false;           // never alter the tonic
-                    if (!maskHas(mask, pc)) return false;     // nothing to move
-                    if (maskHas(mask, res)) return false;     // collision
-                    mask = setPc(clearPc(mask, pc), res);
-                    break;
-            }
+            const uint16_t next = applyModOp(mask, k.root, k.brightness, op);
+            if (next == mask) return false;
+            mask = next;
         }
         return true;
     }

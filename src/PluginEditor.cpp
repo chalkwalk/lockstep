@@ -2416,7 +2416,7 @@ namespace lockstep
                     const ScopeCtx octx { velAnyEnabled() };
                     const auto r = handleOverlayEvent(uiState_,
                         { ModeEventKind::SectionPress, ev.index }, octx);
-                    if (r == OverlayResult::Consumed) { refreshMetaBand(); repaint(); return true; }
+                    if (r == OverlayResult::Consumed) { refreshMetaBand(); refreshSurface(); return true; }
                     if (r == OverlayResult::Exited)   refreshMetaBand();
                 }
 

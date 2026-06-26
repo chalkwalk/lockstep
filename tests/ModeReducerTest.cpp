@@ -489,8 +489,12 @@ namespace lockstep
         UiState ui;
         enterTime(ui);
 
+        // The label shows the DESTINATION of the next press: on the TIME page the
+        // TRIG key reads "KEY", and on the KEY page it reads "TIME".
         CHECK(overlayInternalSectionLabel(ui, 0) != nullptr, "TIME internal (0) → non-null");
-        CHECK(juce::String(overlayInternalSectionLabel(ui, 0)) == "TIME", "TIME → \"TIME\"");
+        CHECK(juce::String(overlayInternalSectionLabel(ui, 0)) == "KEY", "TIME page → next is \"KEY\"");
+        ui.sigPage = UiState::SigPage::Key;
+        CHECK(juce::String(overlayInternalSectionLabel(ui, 0)) == "TIME", "KEY page → next is \"TIME\"");
         CHECK(overlayInternalSectionLabel(ui, 1) == nullptr, "non-internal → nullptr");
     }
 

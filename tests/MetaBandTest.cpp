@@ -976,9 +976,9 @@ namespace lockstep
         for (int i = 2; i < 8; ++i)
             CHECK(f[static_cast<std::size_t>(i)].active && f[static_cast<std::size_t>(i)].stepped,
                   "Key: modifier slot active+stepped");
-        // Default C Ionian: root reads C, brightness reads Ionian.
-        CHECK(f[0].valueText == "C", "Key: default root C");
-        CHECK(f[1].valueText == "Ionian", "Key: default brightness Ionian");
+        // Default D Dorian (the symmetric centre): root reads D, brightness Dorian.
+        CHECK(f[0].valueText == "D", "Key: default root D");
+        CHECK(f[1].valueText == "Dorian", "Key: default brightness Dorian");
     }
 
     static void testKeyBandWriteRoundTripSetScope()

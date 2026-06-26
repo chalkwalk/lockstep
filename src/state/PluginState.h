@@ -55,7 +55,7 @@ namespace lockstep
         // v22: Hierarchical key signature (DESIGN §4.10). Project::defaultKeySig
         //      (Set-level), Song::hasKeySig+keySig, Scene::hasKeySig+coreKeySig.
         //      KeySig stored as root/brightness/mods-bitmask/symmetric. Missing
-        //      fields → C Ionian, no overrides; trivial stamp upgrade from v21.
+        //      fields → D Dorian, no overrides; trivial stamp upgrade from v21.
         inline constexpr int kCurrentVersion = 22;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);

@@ -33,10 +33,13 @@ namespace lockstep
         return "DEPTH";
     }
 
-    // The signatures band relabels its TRIG key TIME <-> KEY as the page cycles.
+    // The signatures band's TRIG key shows the DESTINATION of the next press —
+    // on the TIME page it reads "KEY", on the KEY page it reads "TIME" — so the
+    // affordance tells you where pressing again goes (the MZ header shows where
+    // you currently are).
     static const char* timeLabel(const UiState& ui) noexcept
     {
-        return ui.sigPage == UiState::SigPage::Key ? "KEY" : "TIME";
+        return ui.sigPage == UiState::SigPage::Key ? "TIME" : "KEY";
     }
 
     // =========================================================================
