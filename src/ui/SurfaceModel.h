@@ -63,6 +63,7 @@ namespace lockstep
         NoteEditResting = 63,  // no note on this semitone, out of the active key
         NoteEditScaleNote = 64,  // no note, but the semitone is in the active key
         NoteEditScaleRoot = 65,  // no note; the tonic of the active key (emphasis)
+        NoteEditActiveOff = 66,  // a chord note that is OUT of the active key (flag)
 
         // Chromatic keyboard family
         ChromaticWhite = 70,

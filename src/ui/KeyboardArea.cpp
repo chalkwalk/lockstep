@@ -1226,7 +1226,8 @@ namespace lockstep
 
                     const int semitone = cellIdx;
                     const bool isStaged = sc.base == CellState::NoteEditStaged;
-                    const bool isActive = sc.base == CellState::NoteEditActive || isStaged;
+                    const bool isActive = sc.base == CellState::NoteEditActive
+                                       || sc.base == CellState::NoteEditActiveOff || isStaged;
                     const bool isCrossOct = sc.base == CellState::NoteEditOther;
 
                     // Outline (screen residual)

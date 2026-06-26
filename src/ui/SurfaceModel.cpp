@@ -63,6 +63,7 @@ namespace lockstep
             case CellState::NoteEditResting:    return kStepOutRange;
             case CellState::NoteEditScaleNote:  return 0xFF34414Eu;  // lifted: in the active key
             case CellState::NoteEditScaleRoot:  return 0xFF46627Au;  // tonic emphasis
+            case CellState::NoteEditActiveOff:  return 0xFFD0683Cu;  // chord note out of key (amber flag)
             case CellState::KeyModActive:       return 0xFF50B478u;  // bright green: set + applies
             case CellState::KeyModAvailable:    return 0xFF2E5E46u;  // dim green: would apply
             case CellState::KeyModDormant:      return 0xFF6A5A2Eu;  // muted amber: set but dormant
@@ -1306,6 +1307,12 @@ namespace lockstep
                         c.base = CellState::NoteEditStaged;
                         c.baseColour = stageTint.withAlpha(0.12f).getARGB();
                     }
+                    else if (curActive && !maskHas(noteEditScaleMask, semitone))
+                    {
+                        // A chord note outside the active key — flag it distinctly.
+                        c.base = CellState::NoteEditActiveOff;
+                        c.baseColour = 0xFFD0683Cu;
+                    }
                     else if (curActive)
                     {
                         c.base = CellState::NoteEditActive;
@@ -1339,7 +1346,13 @@ namespace lockstep
                 // entered by bare step-hold (no Func). Uses pLockClearStep (not
                 // ec.heldStepIndex) so the view follows the step after a bubble-swap.
                 const juce::Colour clearTint{ kScopePLock };
-                const int targetStep = ui.pLockClearStep;
+                // Guard the index: pLockClearStep may be unset (-1) for a held step
+                // that did not arm the inspector (e.g. a double-tap latch). Fall back
+                // to the held step, then clamp, so steps[] is never out of range.
+                int targetStep = ui.pLockClearStep;
+                if (targetStep < 0 || targetStep >= static_cast<int>(kMaxStepsPerTrack))
+                    targetStep = proc.editContext().heldStepIndex();
+                targetStep = juce::jlimit(0, static_cast<int>(kMaxStepsPerTrack) - 1, targetStep);
                 const auto& stepData = proc.sequence()
                                            .tracks[static_cast<std::size_t>(activeTrack)]
                                            .steps[static_cast<std::size_t>(targetStep)];
@@ -1383,7 +1396,13 @@ namespace lockstep
             {
                 // P-Lock clear overlay: cells map to packed P-locked slot list.
                 const juce::Colour clearTint{ kScopePLock };
-                const int targetStep = ui.pLockClearStep;
+                // Guard the index: pLockClearStep may be unset (-1) for a held step
+                // that did not arm the inspector (e.g. a double-tap latch). Fall back
+                // to the held step, then clamp, so steps[] is never out of range.
+                int targetStep = ui.pLockClearStep;
+                if (targetStep < 0 || targetStep >= static_cast<int>(kMaxStepsPerTrack))
+                    targetStep = proc.editContext().heldStepIndex();
+                targetStep = juce::jlimit(0, static_cast<int>(kMaxStepsPerTrack) - 1, targetStep);
                 const auto& stepData = proc.sequence()
                                            .tracks[static_cast<std::size_t>(activeTrack)]
                                            .steps[static_cast<std::size_t>(targetStep)];

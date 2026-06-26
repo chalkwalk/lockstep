@@ -3172,6 +3172,10 @@ namespace lockstep
 
                 {
                     const int absStep = keyboardArea_.currentPage() * KeyboardArea::kPageSteps + ev.index;
+                    // Never hold/toggle a cell outside the step array (e.g. a high
+                    // page / scrolled-past-end position) — that indexes steps[] OOB.
+                    if (absStep < 0 || absStep >= static_cast<int>(kMaxStepsPerTrack))
+                        return true;
                     const double now = juce::Time::getMillisecondCounterHiRes();
                     const bool isDouble = gesture_.doubleTap(absStep, now);
 
@@ -3187,6 +3191,15 @@ namespace lockstep
                         heldStepKeys_.push_back({ rawCode, absStep });
                         uiState_.stepHeld = true;
                         editMode_.setTrigHeld(true);
+                        // Arm the inspector for the latched step (a plain hold sets
+                        // this; the latch path must too, or StepInspector renders an
+                        // unset step index).
+                        uiState_.pLockClearStaged.clear();
+                        uiState_.pLockClearMode = true;
+                        uiState_.pLockClearTrack = ctx.heldTrackIndex();
+                        uiState_.pLockClearStep = absStep;
+                        uiState_.stepMoveAnchor = absStep;
+                        uiState_.stepMoveActive = false;
 
                         // Revert the first key-up trig flip if it happened on this step.
                         if (lastTrigToggleApplied_ && lastTrigToggleStep_ == absStep && lastTrigToggleTrack_ == ctx.heldTrackIndex())
