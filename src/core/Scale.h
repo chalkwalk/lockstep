@@ -148,6 +148,7 @@ namespace lockstep
         Triad      = 2,   // 3 notes (central 3 fifths)
         WholeTone  = 3,   // 6 notes, symmetric
         Diminished = 4,   // 8 notes, symmetric (whole-half)
+        Chromatic  = 5,   // all 12 notes — deliberate "no scale" (no quantize)
     };
 
     [[nodiscard]] inline int noteCountOf(ScaleType t) noexcept
@@ -159,12 +160,19 @@ namespace lockstep
             case ScaleType::WholeTone:  return 6;
             case ScaleType::Diatonic:   return 7;
             case ScaleType::Diminished: return 8;
+            case ScaleType::Chromatic:  return 12;
         }
         return 7;
     }
     [[nodiscard]] inline bool isSymmetric(ScaleType t) noexcept
     {
         return t == ScaleType::WholeTone || t == ScaleType::Diminished;
+    }
+    // The fifths scales (Triad/Penta/Diatonic) are the only ones that use the
+    // brightness window + modifiers; symmetric and chromatic do not.
+    [[nodiscard]] inline bool hasFifthsWindow(ScaleType t) noexcept
+    {
+        return t == ScaleType::Triad || t == ScaleType::Pentatonic || t == ScaleType::Diatonic;
     }
     [[nodiscard]] inline const char* scaleTypeName(ScaleType t) noexcept
     {
@@ -175,6 +183,7 @@ namespace lockstep
             case ScaleType::Diatonic:   return "Diatonic";
             case ScaleType::WholeTone:  return "Whole-tone";
             case ScaleType::Diminished: return "Dimin";
+            case ScaleType::Chromatic:  return "Chromatic";
         }
         return "Diatonic";
     }
@@ -317,6 +326,8 @@ namespace lockstep
     // is gated by blueNoteFitsCore).
     [[nodiscard]] inline uint16_t pcMask(const KeySig& k)
     {
+        if (k.scaleType == ScaleType::Chromatic)
+            return 0x0FFFu;   // all 12 notes — no constraint
         if (isSymmetric(k.scaleType))
             return symmetricMask(k.root, k.scaleType);
 
@@ -358,8 +369,8 @@ namespace lockstep
     // brightness == -e) — so availability is purely a fifths fact, not a table.
     [[nodiscard]] inline bool isCompatible(const KeySig& k, NamedModifier candidate)
     {
-        if (isSymmetric(k.scaleType))
-            return false;   // symmetric scales sit outside the modifier system
+        if (!hasFifthsWindow(k.scaleType))
+            return false;   // symmetric / chromatic scales take no modifiers
 
         uint16_t mask = baseWindowMask(k.root, k.brightness);
         for (NamedModifier m : k.modifiers)
@@ -390,8 +401,8 @@ namespace lockstep
         const int pc = (((pitchClass % 12) + 12) % 12);
         if (!maskHas(pcMask(k), pc))
             return 3;
-        if (isSymmetric(k.scaleType))
-            return 1;
+        if (!hasFifthsWindow(k.scaleType))
+            return 1;   // symmetric / chromatic — no fifths nesting
         for (int e = 0; e <= 6; ++e)
         {
             if (pcAtEdge(k.root, k.brightness, e) == pc)
@@ -415,7 +426,7 @@ namespace lockstep
     // edits the full scale, so it never restricts.
     [[nodiscard]] inline bool blueNoteFitsCore(const KeySig& k, int coreSize)
     {
-        if (isSymmetric(k.scaleType)) return false;   // no fifths window
+        if (!hasFifthsWindow(k.scaleType)) return false;   // no fifths window
         const int flat = k.brightness + (7 - coreSize) / 2;  // core flat edge, in fifths
         return flat <= 0 && 0 <= flat + coreSize - 1;        // tonic inside the core
     }

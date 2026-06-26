@@ -283,6 +283,11 @@ namespace lockstep
               "Triad = central 3 fifths (D G A)");
         CHECK(pcsOf({ 0, kIonian, {}, ScaleType::WholeTone }).size() == 6u, "Whole-tone = 6 notes");
         CHECK(pcsOf({ 0, kIonian, {}, ScaleType::Diminished }).size() == 8u, "Diminished = 8 notes");
+        CHECK(pcsOf({ 0, kIonian, {}, ScaleType::Chromatic }).size() == 12u, "Chromatic = all 12 notes");
+        // Chromatic is the deliberate "no scale" — no modifiers, identity quantize.
+        CHECK(!isCompatible({ 0, kIonian, {}, ScaleType::Chromatic }, NamedModifier::Harmonic),
+              "no modifiers on Chromatic");
+        CHECK(quantize({ 0, kIonian, {}, ScaleType::Chromatic }, 61) == 61, "Chromatic quantize is identity");
         CHECK(noteCountOf(ScaleType::Triad) == 3 && noteCountOf(ScaleType::Diminished) == 8,
               "note-count helper");
 

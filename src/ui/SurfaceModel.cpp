@@ -1220,13 +1220,16 @@ namespace lockstep
                         if (on && applies)
                             c.primary += " " + juce::String(degreeNameOf(shown, m));
                     }
-                    else if (i == 14 || i == 15)
+                    else if (i == 13 || i == 14 || i == 15)
                     {
-                        const ScaleType sym = (i == 14) ? ScaleType::WholeTone : ScaleType::Diminished;
+                        // Bottom-right: the three non-fifths scale types.
+                        const ScaleType sym = (i == 13) ? ScaleType::Chromatic
+                                            : (i == 14) ? ScaleType::WholeTone
+                                                        : ScaleType::Diminished;
                         const bool on = (shown.scaleType == sym);
                         c.base = on ? CellState::KeySymOn : CellState::KeySymOff;
                         c.baseColour = stateColour(c.base);
-                        c.primary = (i == 14) ? "WHOLE" : "DIM";
+                        c.primary = (i == 13) ? "CHROM" : (i == 14) ? "WHOLE" : "DIM";
                     }
                     else
                     {

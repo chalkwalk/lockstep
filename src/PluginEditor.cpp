@@ -2576,6 +2576,8 @@ namespace lockstep
                         const int modCount = keyModifierCount();
                         if (ev.index >= 0 && ev.index < modCount)
                             keyToggleModifier(uiState_, processor_, ev.index);
+                        else if (ev.index == 13)
+                            keyToggleSymmetric(uiState_, processor_, ScaleType::Chromatic);
                         else if (ev.index == 14)
                             keyToggleSymmetric(uiState_, processor_, ScaleType::WholeTone);
                         else if (ev.index == 15)
@@ -4799,13 +4801,13 @@ namespace lockstep
                 writeMetaField(band, swScope, mzSlot, newVal,
                                processor_, track, processor_.editContext(), uiState_);
                 if (band == MetaBand::Euclidean && uiState_.euclidHeld && euclidTrack_ >= 0)
-                {
                     applyEuclidLive(euclidTrack_);
-                    // Repaint the grid so the live rhythm shows when stopped too — the
-                    // KeyboardArea timer only repaints on playhead movement, so without
-                    // this the pattern only appeared while transport was running.
-                    refreshSurface();
-                }
+                // Rebuild the band so stepped value-text (mode name, scale type,
+                // root) reflects the new value, and repaint the grid (KEY panel
+                // cells track the edited key). The KeyboardArea timer only
+                // repaints on playhead movement otherwise.
+                refreshMetaBand();
+                refreshSurface();
                 return;
             }
 

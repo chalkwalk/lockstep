@@ -960,6 +960,48 @@ namespace lockstep
             }
         }
 
+        // KEY panel (DESIGN §4.10): modifier checkboxes (top row) + symmetric
+        // scales (bottom-right). Names + the "on" check border are screen
+        // residuals over the model.step[] cells (KeyMod*/KeySym* states).
+        if (uiState_.overlay == Overlay::Time && uiState_.sigPage == UiState::SigPage::Key)
+        {
+            for (int row = 0; row < kRows; ++row)
+            {
+                for (int col = 0; col < kCols; ++col)
+                {
+                    const int idx = row * kCols + col;
+                    const SurfaceCell& sc = model.step[static_cast<std::size_t>(idx)];
+                    const int x = colX(row, col + 2);
+                    const int y = rowY(row);
+                    const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+
+                    const bool live = sc.base != CellState::StepOutOfRange;
+                    paintGridCellFill(g, cell, sc);
+
+                    const bool marked = (sc.base == CellState::KeyModActive
+                                      || sc.base == CellState::KeyModDormant
+                                      || sc.base == CellState::KeySymOn);
+                    if (marked)
+                    {
+                        g.setColour(juce::Colours::white.withAlpha(0.75f));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
+                    }
+
+                    if (live) paintGridCellText(g, cell, sc);
+                    if (showKeyLetters)
+                        paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(idx)],
+                                         live ? 1.0f : 0.4f);
+                }
+            }
+            if (model.gridBanner)
+            {
+                g.setColour(juce::Colour::fromRGB(80, 95, 115));
+                g.setFont(juce::Font(juce::FontOptions(10.0f)));
+                g.drawText(model.gridBanner, navArea, juce::Justification::centred);
+            }
+            return;
+        }
+
         // MHZ.3.5: Func+Part machine picker — step cells show available machine names.
         // Fill and press come from model; machine name text is a screen residual.
         if (uiState_.funcTrackHeld)

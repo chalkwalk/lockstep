@@ -785,10 +785,10 @@ namespace lockstep
             }
         }
 
-        // The functional fifths-scales use Tonality + Note-count; symmetric scales
-        // (whole-tone / diminished) grey both out. Modifiers live on the step grid
-        // (the KEY panel, SurfaceLayer::KeyPanel), not on the MZ.
-        const bool symmetric = isSymmetric(shown.scaleType);
+        // The functional fifths-scales use Tonality + Note-count; symmetric and
+        // chromatic scales grey both out. Modifiers live on the step grid (the
+        // KEY panel, SurfaceLayer::KeyPanel), not on the MZ.
+        const bool symmetric = !hasFifthsWindow(shown.scaleType);
 
         // Field 1 — Tonality (brightness). Dial ascends Locrian -> Lydian.
         {
