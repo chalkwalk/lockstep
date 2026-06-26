@@ -677,11 +677,61 @@ namespace lockstep
         { NamedModifier::Neapolitan,     "NEAP" },
     };
 
-    static bool keyHasModifier(const KeySig& k, NamedModifier m)
+    // ── KEY editor shared helpers (DESIGN §4.10) ─────────────────────────────
+    // The modifier catalogue + the scope-resolved key are shared by the MZ band
+    // and the step-grid KeyPanel so they never diverge.
+    int keyModifierCount() noexcept { return static_cast<int>(std::size(kKeyMods)); }
+    NamedModifier keyModifierAt(int i) noexcept { return kKeyMods[static_cast<std::size_t>(i)].mod; }
+    const char* keyModifierLabel(int i) noexcept { return kKeyMods[static_cast<std::size_t>(i)].label; }
+
+    KeySig keyEditorShownKey(const UiState& ui, LockstepProcessor& proc)
     {
-        for (NamedModifier x : k.modifiers)
-            if (x == m) return true;
-        return false;
+        const int scope = timeScopeFor(ui);
+        const auto& song = proc.song();
+        const auto& scene = proc.section();
+        const bool hasOv = (scope == 3) ? scene.hasKeySig : (scope == 2) ? song.hasKeySig : false;
+        if (hasOv) return (scope == 3) ? scene.coreKeySig : song.keySig;
+        return proc.effectiveKeySig();
+    }
+
+    // A writable reference to the key at the current scope; enabling the override
+    // (seeded from the effective key) at Song/Scene the first time it is touched.
+    static KeySig& keyEditableAtScope(const UiState& ui, LockstepProcessor& proc)
+    {
+        const int scope = timeScopeFor(ui);
+        if (scope == 3)
+        {
+            auto& sc = proc.section();
+            if (!sc.hasKeySig) { sc.coreKeySig = proc.effectiveKeySig(); sc.hasKeySig = true; }
+            return sc.coreKeySig;
+        }
+        if (scope == 2)
+        {
+            auto& sg = proc.song();
+            if (!sg.hasKeySig) { sg.keySig = proc.effectiveKeySig(); sg.hasKeySig = true; }
+            return sg.keySig;
+        }
+        return proc.project().defaultKeySig;
+    }
+
+    void keyToggleModifier(const UiState& ui, LockstepProcessor& proc, int modIndex)
+    {
+        if (modIndex < 0 || modIndex >= keyModifierCount()) return;
+        KeySig& k = keyEditableAtScope(ui, proc);
+        if (isSymmetric(k.scaleType)) return;   // no modifiers on symmetric scales
+        const NamedModifier m = keyModifierAt(modIndex);
+        if (hasModifier(k, m))
+            k.modifiers.erase(std::remove(k.modifiers.begin(), k.modifiers.end(), m), k.modifiers.end());
+        else
+            k.modifiers.push_back(m);   // always toggleable; dormant if it does not apply
+    }
+
+    // Selecting a symmetric scale overrides into symmetric mode; selecting the
+    // active one returns to the functional Diatonic scale.
+    void keyToggleSymmetric(const UiState& ui, LockstepProcessor& proc, ScaleType sym)
+    {
+        KeySig& k = keyEditableAtScope(ui, proc);
+        k.scaleType = (k.scaleType == sym) ? ScaleType::Diatonic : sym;
     }
 
     static std::array<MetaFieldView, 8> buildKeyBand(int scope, LockstepProcessor& proc)
@@ -735,35 +785,36 @@ namespace lockstep
             }
         }
 
-        // Field 1 — Brightness (mode). Dial ascends Locrian -> Lydian (darker->brighter).
+        // The functional fifths-scales use Tonality + Note-count; symmetric scales
+        // (whole-tone / diminished) grey both out. Modifiers live on the step grid
+        // (the KEY panel, SurfaceLayer::KeyPanel), not on the MZ.
+        const bool symmetric = isSymmetric(shown.scaleType);
+
+        // Field 1 — Tonality (brightness). Dial ascends Locrian -> Lydian.
         {
             auto& f = result[1];
-            f.active = true; f.label = "Bright"; f.stepped = true; f.writable = true;
+            f.active = true; f.label = "Tonality"; f.stepped = true;
+            f.writable = !symmetric;
             f.ringMode = RingMode::Dot; f.hasOverride = hasOverride;
             f.minValue = 0.0f; f.maxValue = 6.0f;
             f.value = static_cast<float>(shown.brightness + 6);   // -6..0 -> 0..6
-            f.valueText = modeName(shown.brightness);
+            f.valueText = symmetric ? juce::String("--") : juce::String(modeName(shown.brightness));
         }
 
-        // Fields 2..7 — the functional modifiers as compatibility-gated toggles.
-        for (int i = 0; i < 6; ++i)
+        // Field 2 — Note-count: the functional scale sizes Triad(3)/Penta(5)/
+        // Diatonic(7). Stepped 0..2. (Symmetric scales are selected on the grid.)
         {
-            auto& f = result[static_cast<std::size_t>(2 + i)];
-            const NamedModifier m = kKeyMods[i].mod;
-            const bool on = keyHasModifier(shown, m);
-            const bool compat = on || isCompatible(shown, m);
-            f.active = true;
-            f.label = kKeyMods[i].label;
-            f.stepped = true;
-            f.writable = compat;          // incompatible modifiers can't be turned on
-            f.hasOverride = on;
-            f.ringMode = RingMode::Dot;
-            f.minValue = 0.0f; f.maxValue = 1.0f;
-            f.value = on ? 1.0f : 0.0f;
-            if (on)
-                f.valueText = juce::String(degreeNameOf(shown, m));   // e.g. "7", "#5", "b5"
-            else
-                f.valueText = compat ? juce::String("--") : juce::String("n/a");
+            auto& f = result[2];
+            f.active = true; f.label = "Notes"; f.stepped = true;
+            f.writable = !symmetric;
+            f.ringMode = RingMode::Dot; f.hasOverride = hasOverride;
+            f.minValue = 0.0f; f.maxValue = 2.0f;
+            // 0 = Triad, 1 = Penta, 2 = Diatonic (ascending size).
+            const int idx = (shown.scaleType == ScaleType::Triad) ? 0
+                          : (shown.scaleType == ScaleType::Pentatonic) ? 1 : 2;
+            f.value = static_cast<float>(idx);
+            f.valueText = symmetric ? juce::String(scaleTypeName(shown.scaleType))
+                                    : juce::String(scaleTypeName(shown.scaleType));
         }
 
         return result;
@@ -1673,21 +1724,7 @@ namespace lockstep
                 // Resolve a writable KeySig at the scope. Editing at Song/Scene
                 // enables the override (seeded from the inherited key); dialing
                 // Root to the INHERIT floor (index 0) clears it.
-                auto seedAndGet = [&]() -> KeySig& {
-                    if (scope == 3)
-                    {
-                        auto& sc = proc.section();
-                        if (!sc.hasKeySig) { sc.coreKeySig = proc.effectiveKeySig(); sc.hasKeySig = true; }
-                        return sc.coreKeySig;
-                    }
-                    if (scope == 2)
-                    {
-                        auto& sg = proc.song();
-                        if (!sg.hasKeySig) { sg.keySig = proc.effectiveKeySig(); sg.hasKeySig = true; }
-                        return sg.keySig;
-                    }
-                    return proc.project().defaultKeySig;
-                };
+                auto seedAndGet = [&]() -> KeySig& { return keyEditableAtScope(ui, proc); };
 
                 if (field == 0)  // Root (INHERIT floor at 0 for Song/Scene)
                 {
@@ -1705,29 +1742,27 @@ namespace lockstep
                             rootPcAtFifthsIndex(std::clamp(idx, 0, 11)));
                     }
                 }
-                else if (field == 1)  // Brightness (0..6 -> -6..0)
+                else if (field == 1)  // Tonality / brightness (0..6 -> -6..0)
                 {
-                    const int b = std::clamp(juce::roundToInt(value), 0, 6) - 6;
-                    seedAndGet().brightness = static_cast<int8_t>(b);
+                    if (!isSymmetric(seedAndGet().scaleType))
+                    {
+                        const int b = std::clamp(juce::roundToInt(value), 0, 6) - 6;
+                        seedAndGet().brightness = static_cast<int8_t>(b);
+                    }
                 }
-                else if (field >= 2 && field <= 7)  // modifier toggles
+                else if (field == 2)  // Note-count: Triad(0)/Penta(1)/Diatonic(2)
                 {
-                    const NamedModifier m = kKeyMods[field - 2].mod;
-                    const bool turnOn = value >= 0.5f;
                     KeySig& k = seedAndGet();
-                    const bool isOn = keyHasModifier(k, m);
-                    if (turnOn && !isOn)
+                    if (!isSymmetric(k.scaleType))
                     {
-                        if (isCompatible(k, m)) k.modifiers.push_back(m);
-                    }
-                    else if (!turnOn && isOn)
-                    {
-                        std::vector<NamedModifier> kept;
-                        for (NamedModifier x : k.modifiers)
-                            if (x != m) kept.push_back(x);
-                        k.modifiers = kept;
+                        const int idx = std::clamp(juce::roundToInt(value), 0, 2);
+                        k.scaleType = (idx == 0) ? ScaleType::Triad
+                                    : (idx == 1) ? ScaleType::Pentatonic
+                                                 : ScaleType::Diatonic;
                     }
                 }
+                // Modifiers + symmetric scales are toggled on the step grid
+                // (KeyPanel), not via writeMetaField.
                 break;
             }
 

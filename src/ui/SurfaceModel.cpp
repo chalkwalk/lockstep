@@ -61,6 +61,12 @@ namespace lockstep
             case CellState::NoteEditStaged:     return 0xFFDC643Cu;
             case CellState::NoteEditOther:      return 0xFF16486Eu;  // dimmed azure — note in other octave only, distinct from active
             case CellState::NoteEditResting:    return kStepOutRange;
+            case CellState::KeyModActive:       return 0xFF50B478u;  // bright green: set + applies
+            case CellState::KeyModAvailable:    return 0xFF2E5E46u;  // dim green: would apply
+            case CellState::KeyModDormant:      return 0xFF6A5A2Eu;  // muted amber: set but dormant
+            case CellState::KeyModUnavail:      return 0xFF262C30u;  // near-off: unavailable
+            case CellState::KeySymOn:           return 0xFF7050C8u;  // violet: symmetric selected
+            case CellState::KeySymOff:          return 0xFF332C50u;  // dim violet: symmetric available
             case CellState::ChromaticWhite:     return kScopeTrack;
             case CellState::ChromaticBlack:     return kScopeTrack;
             case CellState::LevelsCell:         return 0xFF204060u;
@@ -1165,6 +1171,67 @@ namespace lockstep
                         c.baseColour = isCur   ? juce::Colours::white.withAlpha(0.20f).getARGB()
                                      : isOther ? otherTint.withAlpha(0.14f).getARGB()
                                                : fxTint.withAlpha(0.12f).getARGB();
+                    }
+                }
+            }
+            else if (activeLayer == SurfaceLayer::KeyPanel)
+            {
+                // KEY panel (DESIGN §4.10): row 0 cells 0..5 are the functional
+                // modifier checkboxes; row 1 right (cells 14/15) are the two
+                // symmetric scales. Brightness of a cell = whether it applies in
+                // the current tonality; mark = whether it is set.
+                const KeySig shown = keyEditorShownKey(ui, proc);
+                const bool symmetric = isSymmetric(shown.scaleType);
+
+                auto stateColour = [](CellState st) -> uint32_t {
+                    switch (st)
+                    {
+                        case CellState::KeyModActive:    return 0xFF50B478u;
+                        case CellState::KeyModAvailable: return 0xFF2E5E46u;
+                        case CellState::KeyModDormant:   return 0xFF6A5A2Eu;
+                        case CellState::KeySymOn:         return 0xFF7050C8u;
+                        case CellState::KeySymOff:        return 0xFF332C50u;
+                        default:                          return 0xFF262C30u;  // KeyModUnavail
+                    }
+                };
+
+                for (int i = 0; i < 16; ++i)
+                {
+                    SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                    c.button = ControllerButton::Step;
+                    c.index = i;
+                    c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                    c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+
+                    const int modCount = keyModifierCount();
+                    if (i < modCount)
+                    {
+                        const NamedModifier m = keyModifierAt(i);
+                        const bool on = hasModifier(shown, m);
+                        const bool applies = on ? modifierApplies(shown, m)
+                                                : (!symmetric && isCompatible(shown, m));
+                        c.base = symmetric          ? CellState::KeyModUnavail
+                               : (on && applies)    ? CellState::KeyModActive
+                               : on                 ? CellState::KeyModDormant
+                               : applies            ? CellState::KeyModAvailable
+                                                    : CellState::KeyModUnavail;
+                        c.baseColour = stateColour(c.base);
+                        c.primary = juce::String(keyModifierLabel(i));
+                        if (on && applies)
+                            c.primary += " " + juce::String(degreeNameOf(shown, m));
+                    }
+                    else if (i == 14 || i == 15)
+                    {
+                        const ScaleType sym = (i == 14) ? ScaleType::WholeTone : ScaleType::Diminished;
+                        const bool on = (shown.scaleType == sym);
+                        c.base = on ? CellState::KeySymOn : CellState::KeySymOff;
+                        c.baseColour = stateColour(c.base);
+                        c.primary = (i == 14) ? "WHOLE" : "DIM";
+                    }
+                    else
+                    {
+                        c.base = CellState::StepOutOfRange;
+                        c.baseColour = kStepOutRange;
                     }
                 }
             }

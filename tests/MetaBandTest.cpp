@@ -968,17 +968,17 @@ namespace lockstep
         ui.sigPage = UiState::SigPage::Key;
         CHECK(resolveMetaBand(ui) == MetaBand::Key, "sigPage Key → Key band");
 
-        // Set scope (Func+Song): root + brightness + 6 modifier toggles.
+        // Set scope (Func+Song): MZ holds Root, Tonality, Note-count (modifiers
+        // moved to the step-grid KeyPanel).
         ui.funcHeld = true; ui.songHeld = true;
         const auto f = buildMetaBand(MetaBand::Key, 0, proc, 0, ctx, ui);
         CHECK(f[0].active && f[0].writable && f[0].stepped, "Key: Root field");
-        CHECK(f[1].active && f[1].writable && f[1].stepped, "Key: Brightness field");
-        for (int i = 2; i < 8; ++i)
-            CHECK(f[static_cast<std::size_t>(i)].active && f[static_cast<std::size_t>(i)].stepped,
-                  "Key: modifier slot active+stepped");
-        // Default D Dorian (the symmetric centre): root reads D, brightness Dorian.
+        CHECK(f[1].active && f[1].writable && f[1].stepped, "Key: Tonality field");
+        CHECK(f[2].active && f[2].writable && f[2].stepped, "Key: Note-count field");
+        // Default D Dorian (the symmetric centre): root D, tonality Dorian, 7-note.
         CHECK(f[0].valueText == "D", "Key: default root D");
-        CHECK(f[1].valueText == "Dorian", "Key: default brightness Dorian");
+        CHECK(f[1].valueText == "Dorian", "Key: default tonality Dorian");
+        CHECK(f[2].valueText == "Diatonic", "Key: default note-count Diatonic");
     }
 
     static void testKeyBandWriteRoundTripSetScope()
@@ -1001,17 +1001,26 @@ namespace lockstep
         CHECK(proc.project().defaultKeySig.root == 9, "Set root written A via fifths index");
         CHECK(proc.project().defaultKeySig.brightness == kAeolian, "Set brightness Aeolian");
 
-        // Toggle Harmonic on (field 2) → A harmonic minor; reads degree "7".
+        // Note-count: set Pentatonic (index 1) then back to Diatonic (2).
         writeMetaField(MetaBand::Key, 0, 2, 1.0f, proc, 0, ctx, ui);
-        CHECK(proc.project().defaultKeySig.modifiers.size() == 1, "Harmonic added");
-        CHECK(proc.effectiveKeySig() == proc.project().defaultKeySig, "Set key is effective (no overrides)");
-        auto f = buildMetaBand(MetaBand::Key, 0, proc, 0, ctx, ui);
-        CHECK(feq(f[2].value, 1.0f), "Harmonic slot reads on");
-        CHECK(f[2].valueText == "7", "Harmonic reads as '7' (leading tone) in minor");
+        CHECK(proc.project().defaultKeySig.scaleType == ScaleType::Pentatonic, "Note-count -> Pentatonic");
+        writeMetaField(MetaBand::Key, 0, 2, 2.0f, proc, 0, ctx, ui);
+        CHECK(proc.project().defaultKeySig.scaleType == ScaleType::Diatonic, "Note-count -> Diatonic");
 
-        // Toggle Harmonic off again.
-        writeMetaField(MetaBand::Key, 0, 2, 0.0f, proc, 0, ctx, ui);
-        CHECK(proc.project().defaultKeySig.modifiers.empty(), "Harmonic removed");
+        // Modifiers toggle via the grid helper (Harmonic 0 is the first cell).
+        keyToggleModifier(ui, proc, 0);
+        CHECK(proc.project().defaultKeySig.modifiers.size() == 1, "Harmonic added via grid");
+        CHECK(proc.effectiveKeySig() == proc.project().defaultKeySig, "Set key is effective (no overrides)");
+
+        // Toggle Harmonic off again (grid).
+        keyToggleModifier(ui, proc, 0);
+        CHECK(proc.project().defaultKeySig.modifiers.empty(), "Harmonic removed via grid");
+
+        // Selecting a symmetric scale overrides; selecting it again returns to Diatonic.
+        keyToggleSymmetric(ui, proc, ScaleType::WholeTone);
+        CHECK(proc.project().defaultKeySig.scaleType == ScaleType::WholeTone, "Whole-tone selected");
+        keyToggleSymmetric(ui, proc, ScaleType::WholeTone);
+        CHECK(proc.project().defaultKeySig.scaleType == ScaleType::Diatonic, "Whole-tone deselect -> Diatonic");
     }
 
     static void testKeyBandSongOverrideAndInherit()

@@ -25,6 +25,7 @@
 // This header is JUCE-free and pure: everything is derived from a KeySig at
 // call time; only the semantic axes (root/brightness/modifiers) are stored.
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <string>
@@ -196,6 +197,27 @@ namespace lockstep
                 && scaleType == o.scaleType && modifiers == o.modifiers;
         }
     };
+
+    [[nodiscard]] inline bool hasModifier(const KeySig& k, NamedModifier m) noexcept
+    {
+        for (NamedModifier x : k.modifiers)
+            if (x == m) return true;
+        return false;
+    }
+
+    [[nodiscard]] inline uint16_t pcMask(const KeySig& k);   // defined below
+
+    // Whether a set modifier currently has an effect (bright) vs is dormant
+    // (grey): removing it changes the scale iff it is applying right now.
+    [[nodiscard]] inline bool modifierApplies(const KeySig& k, NamedModifier m)
+    {
+        if (!hasModifier(k, m)) return false;
+        KeySig without = k;
+        without.modifiers.erase(
+            std::remove(without.modifiers.begin(), without.modifiers.end(), m),
+            without.modifiers.end());
+        return pcMask(k) != pcMask(without);
+    }
 
     // Serialization helpers: the modifier list is a set of named modifiers, so
     // a 6-bit mask round-trips it (compatibility forbids duplicates, and valid

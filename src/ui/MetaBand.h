@@ -4,12 +4,24 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "SurfaceModel.h"  // RingMode
 #include "../io/EditMode.h"  // EditMode::PrimaryScope (for isTimeEntryChord)
+#include "../core/Scale.h"   // KeySig / NamedModifier / ScaleType (KEY editor)
 
 namespace lockstep
 {
     class LockstepProcessor;
     class EditContext;
     struct UiState;
+
+    // -------------------------------------------------------------------------
+    // KEY editor shared helpers (DESIGN §4.10). The MZ band (Root/Tonality/Notes)
+    // and the step-grid KeyPanel (modifier checkboxes + symmetric cells) both go
+    // through these, so the catalogue and the scope-resolved key never diverge.
+    int keyModifierCount() noexcept;
+    NamedModifier keyModifierAt(int i) noexcept;
+    const char* keyModifierLabel(int i) noexcept;
+    KeySig keyEditorShownKey(const UiState& ui, LockstepProcessor& proc);
+    void keyToggleModifier(const UiState& ui, LockstepProcessor& proc, int modIndex);
+    void keyToggleSymmetric(const UiState& ui, LockstepProcessor& proc, ScaleType sym);
 
     // -------------------------------------------------------------------------
     // MetaBand — which manipulation-zone surface is currently shown.

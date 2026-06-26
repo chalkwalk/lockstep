@@ -20,6 +20,7 @@ namespace lockstep
         TrackFxPicker,    // ui.funcFxHeld
         MachinePicker,    // ui.funcTrackHeld
         GeneratorHub,     // ui.generatorHubHeld — momentary Euclid/Density/Vel picker
+        KeyPanel,         // overlay==Time && sigPage==Key — modifier/symmetric grid panel
         NoteEdit,         // ui.noteEditMode && !noteEditSteps.empty()
         StepInspector,    // ec.heldStepIndex() >= 0 — held step shows P-lock overview
         PLockClear,       // ui.pLockClearMode && track matches && step >= 0 (retained for compat)

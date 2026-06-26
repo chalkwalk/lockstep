@@ -25,6 +25,13 @@ namespace lockstep
         if (ui.funcTrackHeld) { return SurfaceLayer::MachinePicker; }
         if (ui.generatorHubHeld) { return SurfaceLayer::GeneratorHub; }
 
+        // KEY page of the signatures band: the grid hosts the modifier/symmetric
+        // panel (DESIGN §4.10). The TIME page leaves the grid as the sequencer.
+        if (ui.overlay == Overlay::Time && ui.sigPage == UiState::SigPage::Key)
+        {
+            return SurfaceLayer::KeyPanel;
+        }
+
         if (ui.noteEditMode && !ui.noteEditSteps.empty()) { return SurfaceLayer::NoteEdit; }
 
         // While moving/micro-nudging a held step, drop back to the sequencer view
@@ -88,6 +95,9 @@ namespace lockstep
 
             case SurfaceLayer::GeneratorHub:
                 return "SELECT GENERATOR";
+
+            case SurfaceLayer::KeyPanel:
+                return "KEY MODIFIERS";
 
             case SurfaceLayer::ScopeSelector: {
                 const PS scope = firstHeldSectionSuiteScope(ui);

@@ -115,6 +115,16 @@ namespace lockstep
         GeneratorEuclid = 160,
         GeneratorDensity = 161,
         GeneratorVel = 162,
+
+        // KEY panel (DESIGN §4.10): the step grid hosts the modifier checkboxes
+        // (4 states) and the two symmetric-scale radio cells. Brightness = whether
+        // the modifier applies in the current tonality; mark = whether it is set.
+        KeyModActive = 170,   // set AND applies (bright, marked)
+        KeyModAvailable = 171,  // not set but would apply (bright, unmarked)
+        KeyModDormant = 172,  // set but does not apply here (grey, marked)
+        KeyModUnavail = 173,  // not set and would not apply (grey, unmarked)
+        KeySymOn = 174,  // a symmetric scale, selected
+        KeySymOff = 175,  // a symmetric scale, available
     };
 
     // Pure mapping for the §34.4 length-edit re-skin: classify an absolute step

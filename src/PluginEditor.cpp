@@ -2568,6 +2568,24 @@ namespace lockstep
                     }
 
                     // --------------------------------------------------------
+                    // KEY panel (DESIGN §4.10): grid hosts the modifier checkboxes
+                    // (cells 0..N-1) and the two symmetric scales (cells 14/15).
+                    // --------------------------------------------------------
+                    if (layer == SurfaceLayer::KeyPanel)
+                    {
+                        const int modCount = keyModifierCount();
+                        if (ev.index >= 0 && ev.index < modCount)
+                            keyToggleModifier(uiState_, processor_, ev.index);
+                        else if (ev.index == 14)
+                            keyToggleSymmetric(uiState_, processor_, ScaleType::WholeTone);
+                        else if (ev.index == 15)
+                            keyToggleSymmetric(uiState_, processor_, ScaleType::Diminished);
+                        refreshMetaBand();
+                        refreshSurface();
+                        return true;
+                    }
+
+                    // --------------------------------------------------------
                     // 5.7: Retrig overlay (Fill+TRIG held)
                     // --------------------------------------------------------
                     if (layer == SurfaceLayer::RetrigPicker)
