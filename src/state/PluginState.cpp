@@ -40,7 +40,7 @@ namespace lockstep::PluginState
         node.setProperty(rk, static_cast<int>(k.root), nullptr);
         node.setProperty(bk, static_cast<int>(k.brightness), nullptr);
         node.setProperty(mk, static_cast<int>(packModifiers(k.modifiers)), nullptr);
-        node.setProperty(sk, static_cast<int>(static_cast<uint8_t>(k.symmetric)), nullptr);
+        node.setProperty(sk, static_cast<int>(static_cast<uint8_t>(k.scaleType)), nullptr);
     }
 
     static KeySig readKeySig(const juce::ValueTree& node,
@@ -50,7 +50,7 @@ namespace lockstep::PluginState
         k.root       = static_cast<uint8_t>(static_cast<int>(node.getProperty(rk, 0)));
         k.brightness = static_cast<int8_t>(static_cast<int>(node.getProperty(bk, static_cast<int>(kIonian))));
         k.modifiers  = unpackModifiers(static_cast<uint8_t>(static_cast<int>(node.getProperty(mk, 0))));
-        k.symmetric  = static_cast<Symmetric>(static_cast<uint8_t>(static_cast<int>(node.getProperty(sk, 0))));
+        k.scaleType  = static_cast<ScaleType>(static_cast<uint8_t>(static_cast<int>(node.getProperty(sk, 0))));
         return k;
     }
 

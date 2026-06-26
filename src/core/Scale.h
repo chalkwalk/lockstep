@@ -136,7 +136,47 @@ namespace lockstep
 
     // ---- KeySig -----------------------------------------------------------
 
-    enum class Symmetric : uint8_t { None = 0, WholeTone = 1, Diminished = 2 };
+    // The scale type IS the note count: Triad(3) / Pentatonic(5) / Diatonic(7)
+    // are the central-N fifths of the brightness window (they use brightness +
+    // modifiers); WholeTone(6) / Diminished(8) are symmetric (brightness and
+    // modifiers do not apply). Add-only ids — never renumber. Default Diatonic.
+    enum class ScaleType : uint8_t
+    {
+        Diatonic   = 0,   // 7 notes
+        Pentatonic = 1,   // 5 notes (central 5 fifths)
+        Triad      = 2,   // 3 notes (central 3 fifths)
+        WholeTone  = 3,   // 6 notes, symmetric
+        Diminished = 4,   // 8 notes, symmetric (whole-half)
+    };
+
+    [[nodiscard]] inline int noteCountOf(ScaleType t) noexcept
+    {
+        switch (t)
+        {
+            case ScaleType::Triad:      return 3;
+            case ScaleType::Pentatonic: return 5;
+            case ScaleType::WholeTone:  return 6;
+            case ScaleType::Diatonic:   return 7;
+            case ScaleType::Diminished: return 8;
+        }
+        return 7;
+    }
+    [[nodiscard]] inline bool isSymmetric(ScaleType t) noexcept
+    {
+        return t == ScaleType::WholeTone || t == ScaleType::Diminished;
+    }
+    [[nodiscard]] inline const char* scaleTypeName(ScaleType t) noexcept
+    {
+        switch (t)
+        {
+            case ScaleType::Triad:      return "Triad";
+            case ScaleType::Pentatonic: return "Penta";
+            case ScaleType::Diatonic:   return "Diatonic";
+            case ScaleType::WholeTone:  return "Whole-tone";
+            case ScaleType::Diminished: return "Dimin";
+        }
+        return "Diatonic";
+    }
 
     // The stored key signature: semantic axes only. Everything else (mask,
     // degrees, cores, quantize, names) is derived. Default = D Dorian — the
@@ -148,12 +188,12 @@ namespace lockstep
         uint8_t   root = 2;                 // D — centre of the circle of fifths
         int8_t    brightness = kDorian;     // Dorian — centre of the bright/dark axis
         std::vector<NamedModifier> modifiers;
-        Symmetric symmetric = Symmetric::None;   // overrides brightness/modifiers when set
+        ScaleType scaleType = ScaleType::Diatonic;   // note count / family
 
         bool operator==(const KeySig& o) const
         {
             return root == o.root && brightness == o.brightness
-                && symmetric == o.symmetric && modifiers == o.modifiers;
+                && scaleType == o.scaleType && modifiers == o.modifiers;
         }
     };
 
@@ -201,21 +241,30 @@ namespace lockstep
         return ((root + fifthInterval(brightness + e)) % 12 + 12) % 12;
     }
 
-    // The 7-note base diatonic window mask (no modifiers, no symmetric set).
-    [[nodiscard]] inline uint16_t baseWindowMask(int root, int brightness) noexcept
+    // The central `size` fifths of the brightness window (size 3/5/7). For 7 it
+    // is the full diatonic window; for 5 it is the pentatonic, for 3 the triad
+    // core — the same nesting used everywhere else.
+    [[nodiscard]] inline uint16_t coreWindowMask(int root, int brightness, int size) noexcept
     {
         uint16_t mask = 0;
-        for (int e = 0; e <= 6; ++e)
+        const int pad = (7 - size) / 2;
+        for (int e = pad; e < pad + size; ++e)
             mask = setPc(mask, pcAtEdge(root, brightness, e));
         return mask;
     }
 
-    [[nodiscard]] inline uint16_t symmetricMask(int root, Symmetric s) noexcept
+    // The 7-note base diatonic window mask (no modifiers).
+    [[nodiscard]] inline uint16_t baseWindowMask(int root, int brightness) noexcept
+    {
+        return coreWindowMask(root, brightness, 7);
+    }
+
+    [[nodiscard]] inline uint16_t symmetricMask(int root, ScaleType s) noexcept
     {
         uint16_t mask = 0;
-        if (s == Symmetric::WholeTone)
+        if (s == ScaleType::WholeTone)
             for (int i : { 0, 2, 4, 6, 8, 10 }) mask = setPc(mask, root + i);
-        else if (s == Symmetric::Diminished)   // whole-half
+        else if (s == ScaleType::Diminished)   // whole-half
             for (int i : { 0, 2, 3, 5, 6, 8, 9, 11 }) mask = setPc(mask, root + i);
         return mask;
     }
@@ -237,16 +286,27 @@ namespace lockstep
         return setPc(clearPc(mask, pc), res);
     }
 
-    // The effective pitch-class set (after modifiers / symmetric override).
+    [[nodiscard]] inline bool blueNoteFitsCore(const KeySig& k, int coreSize);
+
+    // The effective pitch-class set. Symmetric types ignore brightness/modifiers;
+    // the fifths types (Triad/Penta/Diatonic) take the central-N window and apply
+    // modifiers, each going dormant where it does not fit the size (a Raise/Lower
+    // whose target was dropped is skipped by applyModOp; an Add — the blue note —
+    // is gated by blueNoteFitsCore).
     [[nodiscard]] inline uint16_t pcMask(const KeySig& k)
     {
-        if (k.symmetric != Symmetric::None)
-            return symmetricMask(k.root, k.symmetric);
+        if (isSymmetric(k.scaleType))
+            return symmetricMask(k.root, k.scaleType);
 
-        uint16_t mask = baseWindowMask(k.root, k.brightness);
+        const int size = noteCountOf(k.scaleType);
+        uint16_t mask = coreWindowMask(k.root, k.brightness, size);
         for (NamedModifier m : k.modifiers)
             for (ModOp op : expandModifier(m))
+            {
+                if (op.kind == ModOp::Kind::Add && !blueNoteFitsCore(k, size))
+                    continue;
                 mask = applyModOp(mask, k.root, k.brightness, op);
+            }
         return mask;
     }
 
@@ -276,7 +336,7 @@ namespace lockstep
     // brightness == -e) — so availability is purely a fifths fact, not a table.
     [[nodiscard]] inline bool isCompatible(const KeySig& k, NamedModifier candidate)
     {
-        if (k.symmetric != Symmetric::None)
+        if (isSymmetric(k.scaleType))
             return false;   // symmetric scales sit outside the modifier system
 
         uint16_t mask = baseWindowMask(k.root, k.brightness);
@@ -308,7 +368,7 @@ namespace lockstep
         const int pc = (((pitchClass % 12) + 12) % 12);
         if (!maskHas(pcMask(k), pc))
             return 3;
-        if (k.symmetric != Symmetric::None)
+        if (isSymmetric(k.scaleType))
             return 1;
         for (int e = 0; e <= 6; ++e)
         {
@@ -333,7 +393,7 @@ namespace lockstep
     // edits the full scale, so it never restricts.
     [[nodiscard]] inline bool blueNoteFitsCore(const KeySig& k, int coreSize)
     {
-        if (k.symmetric != Symmetric::None) return false;   // no fifths window
+        if (isSymmetric(k.scaleType)) return false;   // no fifths window
         const int flat = k.brightness + (7 - coreSize) / 2;  // core flat edge, in fifths
         return flat <= 0 && 0 <= flat + coreSize - 1;        // tonic inside the core
     }
@@ -427,8 +487,13 @@ namespace lockstep
     // single-modifier combinations get their textbook names.
     [[nodiscard]] inline std::string classicalName(const KeySig& k)
     {
-        if (k.symmetric == Symmetric::WholeTone)  return "Whole-tone";
-        if (k.symmetric == Symmetric::Diminished) return "Diminished";
+        if (k.scaleType == ScaleType::WholeTone)  return "Whole-tone";
+        if (k.scaleType == ScaleType::Diminished) return "Diminished";
+        // Reduced-size scales read as "<mode> penta/triad".
+        if (k.scaleType == ScaleType::Pentatonic)
+            return std::string(modeName(k.brightness)) + " penta";
+        if (k.scaleType == ScaleType::Triad)
+            return std::string(modeName(k.brightness)) + " triad";
 
         if (k.modifiers.empty())
             return modeName(k.brightness);

@@ -26,21 +26,21 @@ namespace lockstep
         const std::set<int> aeolian  { 0, 2, 3, 5, 7, 8, 10 };   // natural minor
         const std::set<int> locrian  { 0, 1, 3, 5, 6, 8, 10 };   // darkest
 
-        CHECK(pcsOf({ 0, kIonian,  {}, Symmetric::None }) == ionian,  "C Ionian pcs");
-        CHECK(pcsOf({ 0, kLydian,  {}, Symmetric::None }) == lydian,  "C Lydian pcs");
-        CHECK(pcsOf({ 0, kAeolian, {}, Symmetric::None }) == aeolian, "C Aeolian pcs");
-        CHECK(pcsOf({ 0, kLocrian, {}, Symmetric::None }) == locrian, "C Locrian pcs");
+        CHECK(pcsOf({ 0, kIonian,  {}, ScaleType::Diatonic }) == ionian,  "C Ionian pcs");
+        CHECK(pcsOf({ 0, kLydian,  {}, ScaleType::Diatonic }) == lydian,  "C Lydian pcs");
+        CHECK(pcsOf({ 0, kAeolian, {}, ScaleType::Diatonic }) == aeolian, "C Aeolian pcs");
+        CHECK(pcsOf({ 0, kLocrian, {}, ScaleType::Diatonic }) == locrian, "C Locrian pcs");
 
         // degrees() returns intervals from root, first entry 0, ascending.
-        const auto d = degrees({ 0, kIonian, {}, Symmetric::None });
+        const auto d = degrees({ 0, kIonian, {}, ScaleType::Diatonic });
         CHECK((d == std::vector<int>{ 0, 2, 4, 5, 7, 9, 11 }), "C Ionian degrees");
     }
 
     static void testModifierPortability()
     {
         // A Aeolian and C Ionian are relative modes — same note pool.
-        const KeySig aMinor { 9, kAeolian, {}, Symmetric::None };
-        const KeySig cMajor { 0, kIonian,  {}, Symmetric::None };
+        const KeySig aMinor { 9, kAeolian, {}, ScaleType::Diatonic };
+        const KeySig cMajor { 0, kIonian,  {}, ScaleType::Diatonic };
         CHECK(pcMask(aMinor) == pcMask(cMajor), "relative modes share the pool");
 
         // The Harmonic modifier (raise b7->7) is the SAME absolute operation on
@@ -61,7 +61,7 @@ namespace lockstep
 
     static void testAddVsAlter()
     {
-        const KeySig cMajor { 0, kIonian, {}, Symmetric::None };
+        const KeySig cMajor { 0, kIonian, {}, ScaleType::Diatonic };
         CHECK(degrees(cMajor).size() == 7u, "diatonic has 7 notes");
 
         KeySig cBlues = cMajor; cBlues.modifiers = { NamedModifier::Blues };
@@ -82,7 +82,7 @@ namespace lockstep
     {
         // Plain diatonic: all the alterations apply at their home, and Blues
         // (an add of a note outside the pool) always applies.
-        const KeySig cAeolian { 0, kAeolian, {}, Symmetric::None };
+        const KeySig cAeolian { 0, kAeolian, {}, ScaleType::Diatonic };
         CHECK(isCompatible(cAeolian, NamedModifier::Harmonic), "Harmonic ok in minor");
         CHECK(isCompatible(cAeolian, NamedModifier::Melodic),  "Melodic ok in minor");
         CHECK(isCompatible(cAeolian, NamedModifier::Blues),    "Blues ok in minor");
@@ -92,17 +92,17 @@ namespace lockstep
         CHECK(!isCompatible(cBlues, NamedModifier::Blues), "duplicate Blues add rejected");
 
         // At Mixolydian the Harmonic edge-target lands on the tonic — guarded.
-        const KeySig cMixo { 0, kMixolydian, {}, Symmetric::None };
+        const KeySig cMixo { 0, kMixolydian, {}, ScaleType::Diatonic };
         CHECK(!isCompatible(cMixo, NamedModifier::Harmonic), "Harmonic rejected when it hits the root");
 
         // Harmonic at Phrygian yields Phrygian-dominant (raise b3->3): valid.
-        const KeySig cPhryg { 0, kPhrygian, {}, Symmetric::None };
+        const KeySig cPhryg { 0, kPhrygian, {}, ScaleType::Diatonic };
         CHECK(isCompatible(cPhryg, NamedModifier::Harmonic), "Harmonic ok in Phrygian");
         KeySig cPhrygDom = cPhryg; cPhrygDom.modifiers = { NamedModifier::Harmonic };
         CHECK((pcsOf(cPhrygDom) == std::set<int>{ 0, 1, 4, 5, 7, 8, 10 }), "Phrygian dominant set");
 
         // Symmetric scales sit outside the modifier system.
-        const KeySig wt { 0, kIonian, {}, Symmetric::WholeTone };
+        const KeySig wt { 0, kIonian, {}, ScaleType::WholeTone };
         CHECK(!isCompatible(wt, NamedModifier::Harmonic), "no modifiers on symmetric scales");
     }
 
@@ -111,7 +111,7 @@ namespace lockstep
         // The contiguous-fifths nesting of C major: pentatonic core (central 5)
         // = C D E G A; triad core (central 3) is a fifths arc, not the tonic
         // triad (DESIGN §39.11 note).
-        const KeySig cMajor { 0, kIonian, {}, Symmetric::None };
+        const KeySig cMajor { 0, kIonian, {}, ScaleType::Diatonic };
 
         std::set<int> tier0, tier1;
         for (int pc = 0; pc < 12; ++pc)
@@ -133,7 +133,7 @@ namespace lockstep
 
     static void testQuantize()
     {
-        const KeySig cMajor { 0, kIonian, {}, Symmetric::None };
+        const KeySig cMajor { 0, kIonian, {}, ScaleType::Diatonic };
         CHECK(quantize(cMajor, 60) == 60, "C4 in scale unchanged");
         CHECK(quantize(cMajor, 59) == 59, "B3 in scale unchanged");
         // In a gapless major every chromatic note is equidistant -> tie down.
@@ -142,26 +142,26 @@ namespace lockstep
         CHECK(quantize(cMajor, 70) == 69, "Bb4 ties down to A4");
 
         // Harmonic minor has a 3-semitone gap (F .. G#); G sits nearer G#.
-        const KeySig aHarm { 9, kAeolian, { NamedModifier::Harmonic }, Symmetric::None };
+        const KeySig aHarm { 9, kAeolian, { NamedModifier::Harmonic }, ScaleType::Diatonic };
         CHECK(quantize(aHarm, 67) == 68, "G4 snaps up to G#4 (nearer above) in A harmonic minor");
         CHECK(quantize(aHarm, 65) == 65, "F4 in scale unchanged");
     }
 
     static void testNames()
     {
-        CHECK(classicalName({ 0, kIonian,  {}, Symmetric::None }) == "Ionian",  "plain mode name");
-        CHECK(classicalName({ 9, kAeolian, {}, Symmetric::None }) == "Aeolian", "minor mode name");
+        CHECK(classicalName({ 0, kIonian,  {}, ScaleType::Diatonic }) == "Ionian",  "plain mode name");
+        CHECK(classicalName({ 9, kAeolian, {}, ScaleType::Diatonic }) == "Aeolian", "minor mode name");
 
-        KeySig aHarm { 9, kAeolian, { NamedModifier::Harmonic }, Symmetric::None };
+        KeySig aHarm { 9, kAeolian, { NamedModifier::Harmonic }, ScaleType::Diatonic };
         CHECK(classicalName(aHarm) == "Harmonic minor", "Aeolian + Harmonic = Harmonic minor");
 
-        KeySig aMel { 9, kAeolian, { NamedModifier::Melodic }, Symmetric::None };
+        KeySig aMel { 9, kAeolian, { NamedModifier::Melodic }, ScaleType::Diatonic };
         CHECK(classicalName(aMel) == "Melodic minor", "Aeolian + Melodic = Melodic minor");
 
-        CHECK(classicalName({ 0, kIonian, {}, Symmetric::WholeTone }) == "Whole-tone", "whole-tone name");
+        CHECK(classicalName({ 0, kIonian, {}, ScaleType::WholeTone }) == "Whole-tone", "whole-tone name");
 
         // An exotic combination with no textbook name returns empty.
-        KeySig exotic { 0, kLydian, { NamedModifier::Harmonic }, Symmetric::None };
+        KeySig exotic { 0, kLydian, { NamedModifier::Harmonic }, ScaleType::Diatonic };
         CHECK(classicalName(exotic).empty(), "unnamed exotic scale -> empty");
     }
 
@@ -182,7 +182,7 @@ namespace lockstep
         }};
         for (const auto& c : cases)
         {
-            const KeySig k { 0, static_cast<int8_t>(c.brightness), {}, Symmetric::None };
+            const KeySig k { 0, static_cast<int8_t>(c.brightness), {}, ScaleType::Diatonic };
             CHECK(isCompatible(k, NamedModifier::Blues),
                   juce::String("Blues applies in ") + modeName(c.brightness));
             CHECK(degreeNameOf(k, NamedModifier::Blues) == c.degree,
@@ -209,7 +209,7 @@ namespace lockstep
         }};
         for (const auto& c : cases)
         {
-            const KeySig k { 0, static_cast<int8_t>(c.brightness), {}, Symmetric::None };
+            const KeySig k { 0, static_cast<int8_t>(c.brightness), {}, ScaleType::Diatonic };
             CHECK(blueNoteFitsCore(k, 7), juce::String("7-note blue note in ") + modeName(c.brightness));
             CHECK(blueNoteFitsCore(k, 5) == c.penta,
                   juce::String("pentatonic blue note in ") + modeName(c.brightness));
@@ -241,7 +241,7 @@ namespace lockstep
         for (const auto& r : rows)
             for (std::size_t i = 0; i < brights.size(); ++i)
             {
-                const KeySig k { 0, static_cast<int8_t>(brights[i]), {}, Symmetric::None };
+                const KeySig k { 0, static_cast<int8_t>(brights[i]), {}, ScaleType::Diatonic };
                 CHECK(isCompatible(k, r.mod) == r.ok[i],
                       juce::String(modifierName(r.mod)) + " in " + modeName(brights[i]));
             }
@@ -261,14 +261,37 @@ namespace lockstep
         // Harmonic set in Aeolian, then the brightness moved to Mixolydian (where
         // Harmonic's op would hit the tonic): the modifier stays in the list but
         // is dormant — the scale is the plain mode, tonic intact.
-        KeySig k { 0, kAeolian, { NamedModifier::Harmonic }, Symmetric::None };
-        CHECK(isCompatible(KeySig{ 0, kAeolian, {}, Symmetric::None }, NamedModifier::Harmonic),
+        KeySig k { 0, kAeolian, { NamedModifier::Harmonic }, ScaleType::Diatonic };
+        CHECK(isCompatible(KeySig{ 0, kAeolian, {}, ScaleType::Diatonic }, NamedModifier::Harmonic),
               "Harmonic applies in Aeolian");
         k.brightness = kMixolydian;   // now incompatible
         CHECK(maskHas(pcMask(k), 0), "dormant modifier keeps the tonic");
         CHECK(pcMask(k) == baseWindowMask(0, kMixolydian),
               "dormant modifier leaves the scale unaltered (plain Mixolydian)");
         CHECK(k.modifiers.size() == 1, "dormant modifier is retained in the list");
+    }
+
+    static void testScaleSizes()
+    {
+        // The scale type IS the note count: central-N fifths for 3/5/7, the two
+        // symmetric scales at 6/8.
+        CHECK((pcsOf({ 0, kIonian, {}, ScaleType::Diatonic }) == std::set<int>{ 0, 2, 4, 5, 7, 9, 11 }),
+              "Diatonic = 7 notes");
+        CHECK((pcsOf({ 0, kIonian, {}, ScaleType::Pentatonic }) == std::set<int>{ 0, 2, 4, 7, 9 }),
+              "Pentatonic = central 5 = C D E G A");
+        CHECK((pcsOf({ 0, kIonian, {}, ScaleType::Triad }) == std::set<int>{ 2, 7, 9 }),
+              "Triad = central 3 fifths (D G A)");
+        CHECK(pcsOf({ 0, kIonian, {}, ScaleType::WholeTone }).size() == 6u, "Whole-tone = 6 notes");
+        CHECK(pcsOf({ 0, kIonian, {}, ScaleType::Diminished }).size() == 8u, "Diminished = 8 notes");
+        CHECK(noteCountOf(ScaleType::Triad) == 3 && noteCountOf(ScaleType::Diminished) == 8,
+              "note-count helper");
+
+        // The blue note follows the chosen size: it fits C-Ionian pentatonic
+        // (root in the pentatonic) but goes dormant in Lydian pentatonic.
+        CHECK(pcsOf({ 0, kIonian, { NamedModifier::Blues }, ScaleType::Pentatonic }).size() == 6u,
+              "pentatonic + blues = 6 (blue note fits)");
+        CHECK(pcsOf({ 0, kLydian, { NamedModifier::Blues }, ScaleType::Pentatonic }).size() == 5u,
+              "Lydian pentatonic + blues = 5 (blue note dormant)");
     }
 
     static void testModifierPacking()
@@ -292,6 +315,7 @@ namespace lockstep
         testModifierCompatibilityMatrix();
         testDefaultKeyIsDorianD();
         testDormantModifierDoesNotCorrupt();
+        testScaleSizes();
         testModifierPacking();
         testModifierPortability();
         testAddVsAlter();
