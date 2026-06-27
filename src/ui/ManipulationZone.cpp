@@ -61,6 +61,26 @@ namespace lockstep
                         return;
                     }
 
+                    // Harmony + Func held over a voice cell: a chromatic (borrowed-
+                    // tone) nudge. Use an incremental delta off the slider's own last
+                    // position (it doesn't map to the rung axis), like density-master.
+                    if (band_ == MetaBand::Harmony && uiState_ && uiState_->funcHeld
+                        && i < kHarmonyVoices)
+                    {
+                        if (lastSlotValid_)
+                        {
+                            const int semis = static_cast<int>(
+                                std::lround(v - lastSlotValue_[static_cast<std::size_t>(i)]));
+                            if (semis != 0)
+                                nudgeHarmonyChroma(processor_, *uiState_, i, semis);
+                        }
+                        lastSlotValue_[static_cast<std::size_t>(i)] = v;
+                        lastSlotValid_ = true;
+                        refreshMetaValueText();
+                        if (onHarmonyParamChanged) onHarmonyParamChanged();
+                        return;
+                    }
+
                     static UiState kEmptyUiState{};
                     writeMetaField(band_, swingScope_, i, v, processor_,
                                    area_.getActiveTrack(), processor_.editContext(),
@@ -351,6 +371,13 @@ namespace lockstep
                 mv.densityCell = v.densityCell;
                 mv.densityMasterOffset = v.densityMasterOffset;
                 mv.densityEffective = v.densityEffective;
+                mv.harmonyVoiceCell = v.harmonyVoiceCell;
+                mv.harmonyKnobTop = v.harmonyKnobTop;
+                mv.harmonyVoiceOff = v.harmonyVoiceOff;
+                mv.harmonyChromatic = v.harmonyChromatic;
+                mv.reelPrev = v.reelPrev;
+                mv.reelNow = v.reelNow;
+                mv.reelNext = v.reelNext;
                 // skew defaults to 1.0; doubleClickEnabled defaults to false.
                 sliders_[si].applyView(mv);
                 labels_[si].setText(v.label, juce::dontSendNotification);

@@ -1123,29 +1123,56 @@ namespace lockstep
         };
 
         static const char* kVoiceLabels[kHarmonyVoices] = { "V1", "V2", "V3", "V4" };
+        const bool chromatic = ui.funcHeld;     // Func held → chromatic neighbours
+        auto nameOf = [&](int midi) { return harmonyNoteLabel(midi); };
         for (int v = 0; v < kHarmonyVoices; ++v)
         {
+            // Half-knob tucks to the top edge for V1/V3, the bottom for V2/V4 —
+            // so the four voices read straight across without the knobs crowding.
+            const bool knobTop = (v % 2 == 0);
+
             // Range extends one below 0 so an off-detent (-1) removes the voice.
             if (v < vc)
             {
-                const int idx = std::clamp(ch.voice[static_cast<std::size_t>(v)], 0, ladderMax);
-                result[static_cast<std::size_t>(v)] =
-                    makeField(kVoiceLabels[v], -1.0f, static_cast<float>(ladderMax),
-                              static_cast<float>(idx), harmonyNoteLabel(ladder.empty() ? 0 : ladder[static_cast<std::size_t>(idx)]),
-                              true);
+                const int rung = std::clamp(ch.voice[static_cast<std::size_t>(v)], 0, ladderMax);
+                const int chroma = ch.chroma[static_cast<std::size_t>(v)];
+                const int nowMidi = resolveVoice(ladder, rung, chroma);
+
+                auto& f = result[static_cast<std::size_t>(v)];
+                f = makeField(kVoiceLabels[v], -1.0f, static_cast<float>(ladderMax),
+                              static_cast<float>(rung), {}, true);
+                f.harmonyVoiceCell = true;
+                f.harmonyKnobTop = knobTop;
+                f.harmonyChromatic = chromatic;
+                f.reelNow = nameOf(nowMidi);
+                if (chromatic)
+                {
+                    f.reelPrev = nameOf(std::clamp(nowMidi - 1, 0, 127));
+                    f.reelNext = nameOf(std::clamp(nowMidi + 1, 0, 127));
+                }
+                else
+                {
+                    // Diatonic neighbours — where a bare turn lands (on a rung).
+                    f.reelPrev = (rung > 0)         ? nameOf(resolveVoice(ladder, rung - 1, 0)) : juce::String();
+                    f.reelNext = (rung < ladderMax) ? nameOf(resolveVoice(ladder, rung + 1, 0)) : juce::String();
+                }
             }
             else if (v == vc && vc < kHarmonyVoices)
             {
-                result[static_cast<std::size_t>(v)] =
-                    makeField(kVoiceLabels[v], -1.0f, static_cast<float>(ladderMax),
-                              -1.0f, "OFF", true);
+                // The first empty slot is the "add" slot: a blank reel; turning it
+                // up adds a voice.
+                auto& f = result[static_cast<std::size_t>(v)];
+                f = makeField(kVoiceLabels[v], -1.0f, static_cast<float>(ladderMax),
+                              -1.0f, {}, true);
+                f.harmonyVoiceCell = true;
+                f.harmonyKnobTop = knobTop;
+                f.harmonyVoiceOff = true;
             }
             else
             {
                 MetaFieldView dim;
                 dim.active = false;
                 dim.label = kVoiceLabels[v];
-                dim.valueText = "OFF";
                 result[static_cast<std::size_t>(v)] = dim;
             }
         }
@@ -1506,6 +1533,25 @@ namespace lockstep
         }
     }
 
+    void nudgeHarmonyChroma(LockstepProcessor& proc, UiState& ui, int vi, int semis)
+    {
+        if (semis == 0 || vi < 0 || vi >= kHarmonyVoices) return;
+        auto& prog = ui.harmonyProg;
+        const int K = std::clamp(prog.length, 1, kMaxHarmonyChords);
+        const int cur = std::clamp(prog.cursor, 0, K - 1);
+        auto& ch = prog.chords[static_cast<std::size_t>(cur)];
+        if (vi >= ch.voiceCount) return;
+
+        const KeySig key = proc.effectiveKeySig();
+        const auto ladder = harmonyLadder(key, kHarmonyRootBase + key.root, kHarmonyOctaves);
+        int rung = ch.voice[static_cast<std::size_t>(vi)];
+        int chroma = ch.chroma[static_cast<std::size_t>(vi)] + semis;
+        canonicalizeVoice(ladder, rung, chroma);
+        ch.voice[static_cast<std::size_t>(vi)] = rung;
+        ch.chroma[static_cast<std::size_t>(vi)] =
+            static_cast<std::int8_t>(std::clamp(chroma, -120, 120));
+    }
+
     // =========================================================================
     // writeMetaField
     // =========================================================================
@@ -1594,12 +1640,18 @@ namespace lockstep
                     }
                     else
                     {
+                        // A bare (diatonic) turn lands on a rung — clear any
+                        // borrowed-tone offset so the voice is back in-scale.
                         const int idx = std::clamp(v, 0, ladderMax);
                         if (vi < ch.voiceCount)
+                        {
                             ch.voice[static_cast<std::size_t>(vi)] = idx;
+                            ch.chroma[static_cast<std::size_t>(vi)] = 0;
+                        }
                         else if (vi == ch.voiceCount && ch.voiceCount < kHarmonyVoices)
                         {
                             ch.voice[static_cast<std::size_t>(vi)] = idx;
+                            ch.chroma[static_cast<std::size_t>(vi)] = 0;
                             ch.voiceCount = vi + 1;
                         }
                     }

@@ -126,7 +126,7 @@ namespace lockstep
         CHECK(f[0].active && juce::String(f[0].label) == "V1", "field 0 = V1");
         CHECK(f[1].active && juce::String(f[1].label) == "V2", "field 1 = V2");
         CHECK(f[2].active && juce::String(f[2].label) == "V3", "field 2 = V3");
-        CHECK(juce::String(f[3].valueText) == "OFF", "V4 add-slot shows OFF (3-voice default)");
+        CHECK(f[3].harmonyVoiceOff, "V4 add-slot is the blank add slot (3-voice default)");
         CHECK(f[4].active && juce::String(f[4].label) == "LEN", "field 4 = LEN");
         CHECK(juce::String(f[4].valueText) == "1", "LEN default = 1 (progression starts narrow)");
         CHECK(f[5].active && juce::String(f[5].label) == "CUR", "field 5 = CUR");
@@ -190,6 +190,45 @@ namespace lockstep
             if (ui.harmonyProg.chords[2].voice[static_cast<std::size_t>(v)]
                 != slot2[static_cast<std::size_t>(v)]) restored = false;
         CHECK(restored, "re-grow restores the previously-authored chord (lossless)");
+    }
+
+    static void testHarmonyReelAndChroma()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        EditContext ctx;
+        UiState ui;
+        ui.harmonyHeld = true;
+        ui.harmonyProg = HarmonyProgression{};   // one default triad, 3 voices
+
+        // Voice cells render as reels with alternating half-knobs; the 4th slot
+        // (past the 3 default voices) is the blank "add" slot.
+        auto f = buildMetaBand(MetaBand::Harmony, 0, proc, 0, ctx, ui);
+        CHECK(f[0].harmonyVoiceCell && f[0].harmonyKnobTop, "V1 = reel cell, knob on top");
+        CHECK(f[1].harmonyVoiceCell && !f[1].harmonyKnobTop, "V2 = reel cell, knob on bottom");
+        CHECK(!f[0].reelNow.isEmpty(), "voice reel shows its current note name");
+        CHECK(f[3].harmonyVoiceCell && f[3].harmonyVoiceOff, "V4 = blank add slot");
+        CHECK(!f[0].harmonyChromatic, "bare band shows diatonic neighbours");
+
+        // Func held flips the voice cells to chromatic neighbours.
+        ui.funcHeld = true;
+        f = buildMetaBand(MetaBand::Harmony, 0, proc, 0, ctx, ui);
+        CHECK(f[0].harmonyChromatic, "Func held → voice reel shows chromatic neighbours");
+
+        // Func+voice chromatic nudge moves the pitch one semitone (borrowed tone).
+        const KeySig key = proc.effectiveKeySig();
+        const auto ladder = harmonyLadder(key, kHarmonyRootBase + key.root, kHarmonyOctaves);
+        auto& ch0 = ui.harmonyProg.chords[0];
+        const int before = resolveVoice(ladder, ch0.voice[0], ch0.chroma[0]);
+        nudgeHarmonyChroma(proc, ui, 0, 1);
+        const int after = resolveVoice(ladder, ch0.voice[0], ch0.chroma[0]);
+        CHECK(after == before + 1, "Func+voice nudges the pitch one semitone");
+
+        // A bare (diatonic) write lands on a rung and clears the borrowed offset.
+        ch0.chroma[0] = 2;
+        writeMetaField(MetaBand::Harmony, 0, 0, 2.0f, proc, 0, ctx, ui);
+        CHECK(ui.harmonyProg.chords[0].voice[0] == 2 && ui.harmonyProg.chords[0].chroma[0] == 0,
+              "a bare diatonic write sets the rung and clears the offset");
     }
 
     static void testResolveMetaBandDensitySticky()
@@ -1194,6 +1233,7 @@ namespace lockstep
         testMelodicBand();
         testHarmonyBand();
         testHarmonyLosslessGrow();
+        testHarmonyReelAndChroma();
         testResolveMetaBandDensitySticky();
         testResolveMetaBandFuncSong();
         testResolveMetaBandSwing();

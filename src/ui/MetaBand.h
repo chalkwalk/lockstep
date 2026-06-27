@@ -74,6 +74,16 @@ namespace lockstep
         bool densityCell = false;
         float densityMasterOffset = 0.0f;   // master offset in [-1, 1]
         float densityEffective = 1.0f;      // clamp(per+master, 0.01, 1.0) normalised [0,1]
+
+        // Harmony-voice metadata (only meaningful when band == Harmony, slots 0-3).
+        // The cell renders as a note-name reel + a half-knob tucked to one edge,
+        // not a ring. reelPrev/Now/Next are the scale-degree (or chromatic, when
+        // harmonyChromatic) neighbours; harmonyVoiceOff = an absent "add" slot.
+        bool harmonyVoiceCell = false;
+        bool harmonyKnobTop = false;        // half-knob at top edge (else bottom)
+        bool harmonyVoiceOff = false;       // absent voice → blank "+" reel
+        bool harmonyChromatic = false;      // Func held → chromatic neighbours + tint
+        juce::String reelPrev, reelNow, reelNext;
     };
 
     // -------------------------------------------------------------------------
@@ -152,4 +162,12 @@ namespace lockstep
                         int track,
                         EditContext& ctx,
                         UiState& ui);
+
+    // nudgeHarmonyChroma — Func+voice chromatic adjustment for the harmonic
+    // voice-mover. Shifts the cursor chord's voice `vi` by `semis` semitones
+    // (a borrowed tone), canonicalizing against the effective key's ladder so an
+    // offset that lands back in-scale snaps to a rung. Routed from the MZ as an
+    // incremental delta (it does not go through writeMetaField, which owns the
+    // diatonic rung write).
+    void nudgeHarmonyChroma(LockstepProcessor& proc, UiState& ui, int vi, int semis);
 }

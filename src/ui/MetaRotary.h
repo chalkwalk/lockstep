@@ -36,6 +36,11 @@ namespace lockstep
             bool densityCell = false;
             float densityMasterOffset = 0.0f;
             float densityEffective = 1.0f;
+            bool harmonyVoiceCell = false;
+            bool harmonyKnobTop = false;
+            bool harmonyVoiceOff = false;
+            bool harmonyChromatic = false;
+            juce::String reelPrev, reelNow, reelNext;
         };
 
         void applyView(const View& v);
@@ -46,6 +51,7 @@ namespace lockstep
         [[nodiscard]] bool isDensityCell() const noexcept { return densityCell; }
         [[nodiscard]] float getDensityMasterOffset() const noexcept { return densityMasterOffset; }
         [[nodiscard]] float getDensityEffective() const noexcept { return densityEffective; }
+        [[nodiscard]] bool isHarmonyVoiceCell() const noexcept { return harmonyVoiceCell; }
 
     private:
         friend class MetaRotaryLookAndFeel;
@@ -60,6 +66,14 @@ namespace lockstep
         bool densityCell = false;
         float densityMasterOffset = 0.0f;
         float densityEffective = 1.0f;
+
+        // Harmony voice reel (10.10): a note-name reel + half-knob instead of a
+        // ring. See MetaFieldView's harmony fields for the semantics.
+        bool harmonyVoiceCell = false;
+        bool harmonyKnobTop = false;
+        bool harmonyVoiceOff = false;
+        bool harmonyChromatic = false;
+        juce::String reelPrev, reelNow, reelNext;
     };
 
     // MetaRotaryLookAndFeel — custom rotary renderer.
