@@ -1183,10 +1183,13 @@ decisive, long-press = deliberate** — so there is no mode to learn.
   active playback, so a long musical rest cannot chop a take. A drone or
   self-oscillating patch that never goes quiet is ended with a **double-tap
   hard cut**.
-- **Always visible.** A capture strip under the master meter shows
-  `ARMED ▸ starts on Play`, `● REC m:ss`, `◐ STOPPING — waiting for
-  silence`, then `✓ saved → …/Captures/…wav (hold REC to discard)` — the
-  destination is on screen from the moment you arm.
+- **Always visible.** A compact banner floats at the right of the master
+  section: `● REC m:ss` during the take, `◐ STOPPING — waiting for silence`
+  while it rings out, then `✓ SAVED → ~/…/Captures/…wav`. The filename fades
+  in only at arm and record-start (so it never covers the meter mid-take) and
+  the **folder path persists while just-saved**, so you always learn where it
+  went. The master section is a **dB VU meter** (−48…0 dBFS) with a peak
+  high-water mark and a clip pip.
 - **File location:** `Captures/capture-YYYYMMDD-HHMMSS.wav` next to the
   current project (standalone) or `~/Music/Lockstep/Captures/` (plugin / no
   project). Written **directly** to the destination, so a crash still leaves

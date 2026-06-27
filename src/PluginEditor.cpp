@@ -927,8 +927,65 @@ namespace lockstep
             });
     }
 
-    // Persistent capture feedback strip: drawn under the master meter from arm
-    // onward so it is always obvious what is being captured, where, and when.
+    static juce::Colour meterColour(float level);  // fwd decl (defined below)
+
+    // Master section background + DAW-style stereo dB VU meter (left ~ width -
+    // kCaptureBannerW), with peak high-water mark, a clip pip, and faint dB
+    // labels. Persistent — always present so levels read at a glance.
+    void LockstepEditor::paintMasterMeter(juce::Graphics& g)
+    {
+        const int fullW = getWidth();
+        const auto strip = juce::Rectangle<int>(0, 0, fullW, kMasterStripH);
+        g.setColour(juce::Colour::fromRGB(24, 27, 33));
+        g.fillRect(strip);
+
+        // Meter occupies the left; the capture banner floats in the right margin.
+        const int meterW = std::max(120, fullW - kCaptureBannerW);
+
+        // dB mapping: -kMeterFloorDb..0 dBFS across meterW.
+        auto dbToX = [meterW](float lin) {
+            const float db = lin > 1.0e-5f ? 20.0f * std::log10(lin) : -120.0f;
+            const float n = juce::jlimit(0.0f, 1.0f, (db + kMeterFloorDb) / kMeterFloorDb);
+            return juce::roundToInt(n * static_cast<float>(meterW));
+        };
+
+        // Faint dB gridlines + labels along the top of the strip.
+        static constexpr int kTicks[] = { -24, -12, -6, 0 };
+        g.setFont(juce::Font(juce::FontOptions(8.0f)));
+        for (const int db : kTicks)
+        {
+            const int tx = dbToX(std::pow(10.0f, static_cast<float>(db) / 20.0f));
+            g.setColour(juce::Colour::fromRGBA(120, 130, 145, 70));
+            g.fillRect(tx, 0, 1, kMasterStripH - 1);
+            g.setColour(juce::Colour::fromRGBA(150, 160, 175, 150));
+            g.drawText(juce::String(db), tx - 18, 0, 16, 8, juce::Justification::centredRight);
+        }
+
+        const int barTop = 9;
+        const int barH   = 5;
+        const int gap    = 1;
+        const float levelL = juce::jlimit(0.0f, 1.5f, masterMeter_);
+        const float levelR = juce::jlimit(0.0f, 1.5f, masterMeterR_);
+
+        auto drawBar = [&](int y, float level, float hold, bool clip) {
+            g.setColour(juce::Colour::fromRGB(15, 17, 21));
+            g.fillRect(0, y, meterW, barH);
+            const int w = dbToX(level);
+            if (w > 0) { g.setColour(meterColour(juce::jlimit(0.0f, 1.0f, level))); g.fillRect(0, y, w, barH); }
+            // Peak high-water mark.
+            const int hx = dbToX(hold);
+            if (hx > 1) { g.setColour(juce::Colours::white.withAlpha(0.85f)); g.fillRect(hx - 1, y, 2, barH); }
+            // Clip pip at the far right.
+            if (clip) { g.setColour(juce::Colours::red); g.fillRect(meterW - 3, y, 3, barH); }
+        };
+        drawBar(barTop, levelL, masterPeakHoldL_, masterClipL_);
+        drawBar(barTop + barH + gap, levelR, masterPeakHoldR_, masterClipR_);
+    }
+
+    // Compact capture banner, floating in the right margin of the master strip.
+    // Persistent part is small (REC + elapsed); the filename/path fades in only
+    // at arm / record-start (captureDetailUntilMs_) and persists while just-saved,
+    // so it never occludes the meter during the performance.
     void LockstepEditor::paintCaptureStrip(juce::Graphics& g)
     {
         using Phase = CaptureController::Phase;
@@ -937,74 +994,78 @@ namespace lockstep
 
         const double now = juce::Time::getMillisecondCounterHiRes();
         const float pulse = 0.5f + 0.5f * std::sin(static_cast<float>(now) * 0.006f);
+        const bool showDetail = (now < captureDetailUntilMs_) || ph == Phase::JustSaved;
 
-        juce::String label, tail;
+        juce::String label, elapsed, detail;
         juce::Colour dot;
-        bool showElapsed = false;
         switch (ph)
         {
             case Phase::Armed:
-                label = "ARMED";
-                dot   = juce::Colours::red.withAlpha(0.35f + 0.5f * pulse);
-                tail  = "starts on Play  ->  "
-                      + chooseCaptureFile(processor_.currentProjectFile())
-                            .getParentDirectory().getFileName();
+                label  = "ARMED";
+                dot    = juce::Colours::red.withAlpha(0.35f + 0.5f * pulse);
+                detail = "starts on Play";
                 break;
             case Phase::Recording:
-                showElapsed = true;
+            {
+                const int sec = static_cast<int>((now - captureStartMs_) / 1000.0);
+                elapsed = juce::String(sec / 60) + ":" + juce::String(sec % 60).paddedLeft('0', 2);
                 if (captureController_.windingDown())
                 {
-                    label = "STOPPING";
-                    dot   = juce::Colour(0xFFFFB020u);
-                    tail  = "waiting for silence";
+                    label  = "STOPPING";
+                    dot    = juce::Colour(0xFFFFB020u);
+                    detail = "waiting for silence";
                 }
                 else
                 {
-                    label = "REC";
-                    dot   = juce::Colours::red;
-                    tail  = captureLastFile_.getFileName();
+                    label  = "REC";
+                    dot    = juce::Colours::red;
+                    detail = captureLastFile_.getFileName();
                 }
                 break;
+            }
             case Phase::JustSaved:
-                label = "SAVED";
-                dot   = juce::Colour(0xFF40C060u);
-                tail  = captureLastFile_.getFileName() + "   (hold REC to discard)";
+                label  = "SAVED";
+                dot    = juce::Colour(0xFF40C060u);
+                detail = captureFolderDisplayPath();
                 break;
             case Phase::Idle:
                 return;
         }
 
-        const int stripH = 15;
-        const auto r = juce::Rectangle<int>(0, kMasterMeterH, getWidth(), stripH);
-        g.setColour(juce::Colour::fromRGBA(20, 22, 28, 220));
-        g.fillRect(r);
+        // Compose the right-floating text: "<label> <elapsed>" always; append the
+        // detail (filename / folder path) only while the detail window is open.
+        juce::String head = label;
+        if (elapsed.isNotEmpty()) head += "  " + elapsed;
+        const juce::String text = (showDetail && detail.isNotEmpty())
+                                      ? head + "   " + detail : head;
 
-        int x = 6;
-        const float cy = static_cast<float>(r.getCentreY());
-        g.setColour(dot);
-        g.fillEllipse(static_cast<float>(x), cy - 4.0f, 8.0f, 8.0f);
-        x += 14;
-
-        constexpr int kLabelW = 64;
         g.setFont(juce::Font(juce::FontOptions(11.0f)).boldened());
+        // Width: long detail (path) may overflow leftward over the meter — that is
+        // the accepted brief occlusion; compact REC stays in the right margin.
+        const int textW = showDetail ? (getWidth() - 30) : (kCaptureBannerW - 18);
+        const int x0 = getWidth() - textW - 4;
+
+        const float cy = static_cast<float>(kMasterStripH) * 0.5f;
+        g.setColour(dot);
+        g.fillEllipse(static_cast<float>(x0), cy - 4.0f, 8.0f, 8.0f);
+
         g.setColour(juce::Colours::white);
-        g.drawText(label, x, r.getY(), kLabelW, stripH, juce::Justification::centredLeft);
-        x += kLabelW;
-
-        if (showElapsed)
-        {
-            const int sec = static_cast<int>((now - captureStartMs_) / 1000.0);
-            const juce::String elapsed = juce::String(sec / 60) + ":"
-                + juce::String(sec % 60).paddedLeft('0', 2);
-            g.setColour(juce::Colours::white);
-            g.drawText(elapsed, x, r.getY(), 44, stripH, juce::Justification::centredLeft);
-            x += 50;
-        }
-
-        g.setFont(juce::Font(juce::FontOptions(10.0f)));
-        g.setColour(juce::Colours::lightgrey);
-        g.drawText(tail, x, r.getY(), getWidth() - x - 4, stripH,
+        g.drawText(text, x0 + 12, 0, textW - 12, kMasterStripH,
                    juce::Justification::centredLeft);
+    }
+
+    // Folder path for the SAVED banner: project-relative when a project is open,
+    // else the ~/Music/Lockstep/Captures home. Filename appended.
+    juce::String LockstepEditor::captureFolderDisplayPath() const
+    {
+        const juce::File f = captureLastFile_.existsAsFile()
+            ? captureLastFile_
+            : chooseCaptureFile(processor_.currentProjectFile());
+        const juce::String home = juce::File::getSpecialLocation(
+                                      juce::File::userHomeDirectory).getFullPathName();
+        juce::String p = f.getFullPathName();
+        if (p.startsWith(home)) p = "~" + p.substring(home.length());
+        return p;
     }
 
     void LockstepEditor::timerCallback()
@@ -1049,8 +1110,18 @@ namespace lockstep
             const auto capOut = captureController_.tick(nowMs, capPeak, capPlaying);
             if (capOut.start || capOut.finalize)
                 runCaptureOut(capOut);
+            // Detail-window: the filename/path fades in on entering Armed /
+            // Recording, then the banner is compact for the take.
+            const auto ph = captureController_.phase();
+            if (ph != lastCapturePhase_)
+            {
+                if (ph == CaptureController::Phase::Armed
+                    || ph == CaptureController::Phase::Recording)
+                    captureDetailUntilMs_ = nowMs + 3000.0;
+                lastCapturePhase_ = ph;
+            }
             // Keep the feedback strip live (elapsed timer / state changes).
-            if (captureController_.phase() != CaptureController::Phase::Idle
+            if (ph != CaptureController::Phase::Idle
                 || prevPhase != CaptureController::Phase::Idle)
                 repaint();
         }
@@ -1106,6 +1177,25 @@ namespace lockstep
             masterMeter_  = flooredL;
             masterMeterR_ = flooredR;
             dirty = true;
+        }
+
+        // Master peak high-water mark: jump to a new peak, hold ~1.5 s, then decay.
+        // Clip latch: trips at 0 dBFS, auto-clears ~2.5 s after the last clip.
+        {
+            const double nowMs = juce::Time::getMillisecondCounterHiRes();
+            auto trackHold = [&](float raw, float& hold, double& holdMs,
+                                 bool& clip, double& clipMs) {
+                if (raw >= hold)        { hold = raw; holdMs = nowMs; dirty = true; }
+                else if (nowMs - holdMs > 1500.0)
+                {
+                    const float decayed = hold * 0.90f;
+                    if (decayed != hold) { hold = (decayed < kMeterFloor) ? 0.0f : decayed; dirty = true; }
+                }
+                if (raw >= 0.999f)      { clip = true; clipMs = nowMs; dirty = true; }
+                else if (clip && nowMs - clipMs > 2500.0) { clip = false; dirty = true; }
+            };
+            trackHold(processor_.masterPeak(),  masterPeakHoldL_, peakHoldMsL_, masterClipL_, clipMsL_);
+            trackHold(processor_.masterPeakR(), masterPeakHoldR_, peakHoldMsR_, masterClipR_, clipMsR_);
         }
 
         // `dirty` above is chrome-only animation (meters/blinks) → a cheap chrome
@@ -1462,22 +1552,9 @@ namespace lockstep
         // (incl. the unmodified resting state). The held-context preview below
         // early-returns when nothing is held, so these have to precede it.
 
-        // ---- Diagnostic meters drawn over children (persistent — must precede
-        // the held-context early return, else they vanish at rest) ----
-        // Stereo master output meter: two stacked bars (L top, R below).
-        {
-            const int fullW = getWidth();
-            const float levelL = juce::jlimit(0.0f, 1.0f, masterMeter_);
-            const float levelR = juce::jlimit(0.0f, 1.0f, masterMeterR_);
-            const int wL = juce::roundToInt(static_cast<float>(fullW) * levelL);
-            const int wR = juce::roundToInt(static_cast<float>(fullW) * levelR);
-            const int barH = kMasterMeterH / 2;
-            g.setColour(juce::Colour::fromRGB(30, 34, 40));
-            g.fillRect(0, 0, fullW, kMasterMeterH);
-            if (wL > 0) { g.setColour(meterColour(levelL)); g.fillRect(0, 0, wL, barH); }
-            if (wR > 0) { g.setColour(meterColour(levelR)); g.fillRect(0, barH, wR, barH); }
-        }
-        // Capture feedback strip (under the master meter) — present from arm onward.
+        // ---- Master section (persistent — must precede the held-context early
+        // return, else it vanishes at rest): dB VU meter + capture banner ----
+        paintMasterMeter(g);
         paintCaptureStrip(g);
         // Per-track trig (left, cyan) + MIDI-in (right, magenta) activity dots.
         for (std::size_t i = 0; i < kNumTracks; ++i)
@@ -5023,9 +5100,9 @@ namespace lockstep
     {
         auto bounds = getLocalBounds();
 
-        // Reserve the top edge for the master VU strip (painted in
-        // paintOverChildren) so the header row below does not sit under it.
-        bounds.removeFromTop(kMasterMeterH);
+        // Reserve the top edge for the master section (dB VU meter + capture
+        // banner, painted in paintOverChildren) so the header row sits below it.
+        bounds.removeFromTop(kMasterStripH);
 
         // Header row: transport | sync mode box | channel mode | display mode | pool button
         auto header = bounds.removeFromTop(36);

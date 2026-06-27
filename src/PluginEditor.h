@@ -218,6 +218,17 @@ namespace lockstep
         juce::File captureLastFile_;            // last/active take, for discard + reveal
         void runCaptureOut(const CaptureController::Out& out);  // execute a controller decision
         void paintCaptureStrip(juce::Graphics& g);
+        void paintMasterMeter(juce::Graphics& g);   // dB VU meter (peak-hold + clip + labels)
+        [[nodiscard]] juce::String captureFolderDisplayPath() const;  // ~-relative path for SAVED
+        // Banner transient-detail window: the filename/path fades in at arm /
+        // record-start, then the banner is compact for the performance.
+        CaptureController::Phase lastCapturePhase_ = CaptureController::Phase::Idle;
+        double captureDetailUntilMs_ = 0.0;
+        // dB-meter ballistics: peak high-water mark (hold then decay) + clip latch.
+        float  masterPeakHoldL_ = 0.0f, masterPeakHoldR_ = 0.0f;
+        double peakHoldMsL_ = 0.0,  peakHoldMsR_ = 0.0;
+        bool   masterClipL_ = false, masterClipR_ = false;
+        double clipMsL_ = 0.0, clipMsR_ = 0.0;
         // Chain the capture-exit dialog (if recording) ahead of `next` (the
         // dirty-project save guard). Armed-but-not-rolling disarms silently.
         void captureExitGuard(std::function<void()> next);
@@ -343,7 +354,11 @@ namespace lockstep
         // paintOverChildren as two stacked bars (L, R). resized() reserves this
         // many pixels at the top so the header row sits below it — single source
         // so the layout and the paint cannot drift (PRINCIPLES §20).
-        static constexpr int kMasterMeterH = 6;
+        // kMasterStripH is the reserved top zone (dB VU meter + capture banner);
+        // resized() removes exactly this many pixels before the header row.
+        static constexpr int kMasterStripH = 22;
+        static constexpr int kCaptureBannerW = 150;  // right margin reserved for the REC banner
+        static constexpr float kMeterFloorDb = 48.0f;  // meter spans -48..0 dBFS
 
         // Last-seen morphFader value: used to detect on-screen fader moves and
         // mark the surface model dirty so controller surfaces update.
