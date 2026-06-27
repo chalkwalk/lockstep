@@ -36,7 +36,8 @@ namespace lockstep
         const uint16_t mask = pcMask(k);
         const auto ladder = harmonyLadder(k, rootMidi(), kHarmonyOctaves);
 
-        HarmonyProgression prog;  // 4 default triads
+        HarmonyProgression prog;
+        prog.length = 4;          // four default triads
         const auto steps = printHarmony(prog, ladder, 16);
         int chords = 0;
         for (const auto& s : steps)
@@ -62,8 +63,9 @@ namespace lockstep
         // 4 chords over a 16-step bar land on the quarter-note beats 0/4/8/12.
         const KeySig k = dDorian();
         const auto ladder = harmonyLadder(k, rootMidi(), kHarmonyOctaves);
-        HarmonyProgression prog;  // length 4
-        const auto steps = printHarmony(prog, ladder, 16);
+        HarmonyProgression prog;
+        prog.length = 4;
+        const auto steps = printHarmony(prog, ladder, 16);  // no stepsPerBar => even
         std::array<bool, 16> onset{};
         for (int i = 0; i < 16; ++i) onset[static_cast<std::size_t>(i)] = steps[static_cast<std::size_t>(i)].trig;
         CHECK(onset[0] && onset[4] && onset[8] && onset[12], "chords on the quarter beats");
@@ -159,11 +161,77 @@ namespace lockstep
         CHECK(fired > 0, "chromatic key still prints chords");
     }
 
+    static void testBarAlignedPlacement()
+    {
+        const KeySig k = dDorian();
+        const auto ladder = harmonyLadder(k, rootMidi(), kHarmonyOctaves);
+
+        // 4 chords over a 4-bar phrase (64 steps @ 1/16, stepsPerBar = 16) land
+        // one per bar: bar downbeats 0/16/32/48.
+        HarmonyProgression prog;
+        prog.length = 4;
+        const auto bars = printHarmony(prog, ladder, 64, 16);
+        CHECK(bars[0].trig && bars[16].trig && bars[32].trig && bars[48].trig,
+              "one chord per bar on the downbeats");
+        int total = 0;
+        for (const auto& s : bars) if (s.trig) ++total;
+        CHECK(total == 4, "exactly four chord onsets, one per bar");
+        CHECK(bars[0].gate == MusicalGate::G1_2d,
+              "a full-bar chord sustains the whole bar (16-step gap)");
+
+        // More chords than bars => even-spacing fallback (floor(k*len/K)).
+        prog.length = 6;
+        const auto fb = printHarmony(prog, ladder, 64, 16);  // bars=4 < K=6
+        CHECK(fb[0].trig && fb[10].trig && fb[21].trig && fb[32].trig,
+              "K>bars falls back to even spacing");
+        int fbTotal = 0;
+        for (const auto& s : fb) if (s.trig) ++fbTotal;
+        CHECK(fbTotal == 6, "all six chords still print under the fallback");
+    }
+
+    static void testBorrowedToneResolvesAndCanonicalizes()
+    {
+        const KeySig k = dDorian();
+        const uint16_t mask = pcMask(k);
+        const auto ladder = harmonyLadder(k, rootMidi(), kHarmonyOctaves);
+
+        // +1 semitone off rung 0 (D) = D# — a borrowed tone (out of D Dorian,
+        // since D->E is a whole tone). It resolves to the chromatic pitch.
+        CHECK(resolveVoice(ladder, 0, 1) == ladder[0] + 1, "borrowed tone = rung + 1 semitone");
+        CHECK(!maskHas(mask, resolveVoice(ladder, 0, 1) % 12), "borrowed tone is out of scale");
+
+        // Canonicalize keeps a genuine borrowed tone's offset...
+        int rung = 0, chroma = 1;
+        canonicalizeVoice(ladder, rung, chroma);
+        CHECK(rung == 0 && chroma == 1, "borrowed tone keeps its rung + offset");
+
+        // ...but an offset that lands exactly on the next in-scale rung snaps in.
+        int rung2 = 0, chroma2 = ladder[1] - ladder[0];  // whole tone up = E (a rung)
+        canonicalizeVoice(ladder, rung2, chroma2);
+        CHECK(rung2 == 1 && chroma2 == 0, "an offset that lands on a rung snaps to in-scale");
+
+        // A borrowed tone slides by the diatonic interval under a MOVE (rung+1).
+        const int before = resolveVoice(ladder, 0, 1);
+        const int after  = resolveVoice(ladder, 1, 1);
+        CHECK(after - before == ladder[1] - ladder[0],
+              "borrowed tone slides with the chord under diatonic MOVE");
+
+        // A printed borrowed tone reaches the step as its chromatic pitch.
+        HarmonyProgression prog;
+        prog.length = 1;
+        prog.chords[0] = HarmonyChord{ 1, { { 0, 0, 0, 0 } }, { { 1, 0, 0, 0 } } };
+        const auto steps = printHarmony(prog, ladder, 16);
+        CHECK(steps[0].trig && steps[0].notes[0] == ladder[0] + 1,
+              "a borrowed voice prints its chromatic pitch");
+    }
+
     void runHarmonyGenTests()
     {
         testLadderInScale();
         testDefaultProgressionInScale();
         testEvenPlacement();
+        testBarAlignedPlacement();
+        testBorrowedToneResolvesAndCanonicalizes();
         testVoiceCountAndRemoval();
         testDistinctSlotsPrintDistinctChords();
         testVoiceMovesStayInScale();

@@ -118,7 +118,7 @@ namespace lockstep
 
         // Resolution: harmonyHeld → Harmony.
         ui.harmonyHeld = true;
-        ui.harmonyProg = HarmonyProgression{};   // 4 default triads
+        ui.harmonyProg = HarmonyProgression{};   // one default triad (length starts at 1)
         CHECK(resolveMetaBand(ui) == MetaBand::Harmony, "harmonyHeld → Harmony");
 
         // Field layout: V1..V3 active voices, V4 = OFF add-slot, then LEN/CUR/MOVE/OCT.
@@ -128,7 +128,7 @@ namespace lockstep
         CHECK(f[2].active && juce::String(f[2].label) == "V3", "field 2 = V3");
         CHECK(juce::String(f[3].valueText) == "OFF", "V4 add-slot shows OFF (3-voice default)");
         CHECK(f[4].active && juce::String(f[4].label) == "LEN", "field 4 = LEN");
-        CHECK(juce::String(f[4].valueText) == "4", "LEN default = 4");
+        CHECK(juce::String(f[4].valueText) == "1", "LEN default = 1 (progression starts narrow)");
         CHECK(f[5].active && juce::String(f[5].label) == "CUR", "field 5 = CUR");
         CHECK(juce::String(f[5].valueText) == "1", "CUR default = 1 (1-based)");
         CHECK(f[6].active && juce::String(f[6].label) == "MOVE", "field 6 = MOVE");

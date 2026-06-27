@@ -27,19 +27,23 @@ namespace lockstep
     inline constexpr int kHarmonyRootBase  = 48;            // C3 — ladder octave floor
     inline constexpr int kHarmonyOctaves   = 3;             // ladder span in octaves
 
-    // One chord slot: a contiguous stack of `voiceCount` voices (bass..top), each
-    // an index into the diatonic ladder. Removing a voice trims the stack from the
-    // top; the collective transpose / octave encoders simply nudge every voice
-    // index together, so a chord never needs a separate offset accumulator.
+    // One chord slot: a contiguous stack of `voiceCount` voices (bass..top). Each
+    // voice is a diatonic ladder rung (`voice[]`) plus a signed semitone
+    // `chroma[]` offset for a borrowed (out-of-scale) tone — resolved MIDI is
+    // `ladder[rung] + chroma`. In-scale voices always carry `chroma == 0` (the
+    // write path canonicalizes), so the collective transpose / octave encoders
+    // can keep nudging the rungs and a borrowed tone simply slides along with the
+    // chord. Removing a voice trims the stack from the top.
     struct HarmonyChord
     {
         int voiceCount = 3;
-        std::array<int, kHarmonyVoices> voice { { 0, 2, 4, 0 } };  // ladder indices
+        std::array<int, kHarmonyVoices> voice { { 0, 2, 4, 0 } };  // ladder rungs
+        std::array<std::int8_t, kHarmonyVoices> chroma { };        // +/- semitone offsets
     };
 
     struct HarmonyProgression
     {
-        int length = 4;   // active chord slots (1..kMaxHarmonyChords)
+        int length = 1;   // active chord slots (1..kMaxHarmonyChords) — start narrow
         int cursor = 0;   // selected slot (0..length-1)
         std::array<HarmonyChord, kMaxHarmonyChords> chords {};
     };
@@ -86,6 +90,42 @@ namespace lockstep
         return ladder;
     }
 
+    // Resolve a voice (ladder rung + semitone offset) to an absolute MIDI note.
+    [[nodiscard]] inline int
+    resolveVoice(const std::vector<int>& ladder, int rung, int chroma) noexcept
+    {
+        if (ladder.empty()) return 0;
+        const int ladderMax = static_cast<int>(ladder.size()) - 1;
+        const int idx = std::clamp(rung, 0, ladderMax);
+        return std::clamp(ladder[static_cast<std::size_t>(idx)] + chroma, 0, 127);
+    }
+
+    // After a chromatic nudge, fold an offset that lands back on an in-scale rung
+    // into (rung, chroma=0) so in-scale tones never carry a residual offset. A
+    // borrowed tone (no matching rung) keeps its rung + offset and slides under
+    // diatonic MOVE/OCT. Mutates rung/chroma in place.
+    inline void
+    canonicalizeVoice(const std::vector<int>& ladder, int& rung, int& chroma) noexcept
+    {
+        if (ladder.empty()) { chroma = 0; return; }
+        const int ladderMax = static_cast<int>(ladder.size()) - 1;
+        const int target = resolveVoice(ladder, rung, chroma);
+        for (int i = 0; i <= ladderMax; ++i)
+            if (ladder[static_cast<std::size_t>(i)] == target)
+            {
+                rung = i;
+                chroma = 0;
+                return;
+            }
+        // Borrowed tone: anchor to the nearest rung at or below target, keep the
+        // residual as the offset, so MOVE/OCT (rung nudges) carry it along.
+        int anchor = std::clamp(rung, 0, ladderMax);
+        while (anchor > 0 && ladder[static_cast<std::size_t>(anchor)] > target) --anchor;
+        while (anchor < ladderMax && ladder[static_cast<std::size_t>(anchor + 1)] <= target) ++anchor;
+        rung = anchor;
+        chroma = target - ladder[static_cast<std::size_t>(anchor)];
+    }
+
     // Map a chord's sustain in steps (a step = a 1/16th) to a MusicalGate. Chords
     // hold until the next chord's onset, so this is the gap between slots.
     [[nodiscard]] inline MusicalGate harmonyGate(int steps) noexcept
@@ -104,24 +144,30 @@ namespace lockstep
         }
     }
 
-    // Print the progression onto `length` steps. Chord k lands on the evenly
-    // spaced onset floor(k * length / K) and sustains until chord k+1 (or the
-    // phrase end). Voices map through the ladder; duplicate pitches after clamping
-    // collapse, and notes come out ascending. Empty ladder / length => no steps.
+    // Print the progression onto `length` steps. Placement is BAR-ALIGNED when the
+    // phrase has at least K bars: chord k lands on bar k's downbeat (k * stepsPerBar).
+    // When there are fewer bars than chords — or stepsPerBar <= 0 (caller opted out,
+    // the test default) — it falls back to even spacing floor(k * length / K). Each
+    // chord sustains until the next onset (or the phrase end). Voices resolve through
+    // the ladder + chroma offset; duplicate pitches collapse and notes come out
+    // ascending. Empty ladder / length => no steps.
     [[nodiscard]] inline std::vector<HarmonyStep>
     printHarmony(const HarmonyProgression& prog, const std::vector<int>& ladder,
-                 int length)
+                 int length, int stepsPerBar = 0)
     {
         std::vector<HarmonyStep> out(static_cast<std::size_t>(std::max(0, length)));
         if (length <= 0 || ladder.empty())
             return out;
 
         const int K = std::clamp(prog.length, 1, kMaxHarmonyChords);
-        const int ladderMax = static_cast<int>(ladder.size()) - 1;
+        const int bars = (stepsPerBar > 0) ? std::max(1, length / stepsPerBar) : 0;
+        const bool barAligned = (stepsPerBar > 0 && K <= bars);
 
         std::array<int, kMaxHarmonyChords> onset {};
         for (int k = 0; k < K; ++k)
-            onset[static_cast<std::size_t>(k)] = std::clamp((k * length) / K, 0, length - 1);
+            onset[static_cast<std::size_t>(k)] = barAligned
+                ? std::clamp(k * stepsPerBar, 0, length - 1)
+                : std::clamp((k * length) / K, 0, length - 1);
 
         for (int k = 0; k < K; ++k)
         {
@@ -133,10 +179,9 @@ namespace lockstep
             std::vector<int> notes;
             const int vc = std::clamp(ch.voiceCount, 0, kHarmonyVoices);
             for (int v = 0; v < vc; ++v)
-            {
-                const int idx = std::clamp(ch.voice[static_cast<std::size_t>(v)], 0, ladderMax);
-                notes.push_back(ladder[static_cast<std::size_t>(idx)]);
-            }
+                notes.push_back(resolveVoice(ladder,
+                                             ch.voice[static_cast<std::size_t>(v)],
+                                             ch.chroma[static_cast<std::size_t>(v)]));
             std::sort(notes.begin(), notes.end());
             notes.erase(std::unique(notes.begin(), notes.end()), notes.end());
 

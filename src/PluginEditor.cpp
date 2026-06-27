@@ -2286,7 +2286,16 @@ namespace lockstep
         const KeySig key = processor_.effectiveKeySig();
         const int rootMidi = kHarmonyRootBase + key.root;
         const auto ladder = harmonyLadder(key, rootMidi, kHarmonyOctaves);
-        const auto steps = printHarmony(uiState_.harmonyProg, ladder, len);
+
+        // Bar-aligned placement: one chord per bar of the in-scope time signature
+        // (chord k -> bar k downbeat) when the phrase has enough bars; printHarmony
+        // falls back to even spacing otherwise. stepsPerBar = round(barPpq / stepPpq).
+        const double barPpq = processor_.effectiveTimeSig().barPpq();
+        const double stepPpq = subdivisionPpqFromIndex(ph.subdivIndex);
+        const int stepsPerBar = (barPpq > 0.0 && stepPpq > 0.0)
+            ? std::max(1, static_cast<int>(std::lround(barPpq / stepPpq)))
+            : 0;
+        const auto steps = printHarmony(uiState_.harmonyProg, ladder, len, stepsPerBar);
 
         for (int si = 0; si < len; ++si)
         {
