@@ -1916,10 +1916,25 @@ namespace lockstep
         p.octaves  = uiState_.melodyOctaves;
         p.stepLeap = uiState_.melodyStepLeap;
         p.seed     = static_cast<uint32_t>(uiState_.melodySeed);
+        p.source   = uiState_.melodySource;
+
+        // KeepRhythm: lock onsets to the pre-entry trigs (the stash, so the live
+        // preview overwriting the track doesn't feed back into the onset set).
+        std::vector<bool> fixed;
+        const std::vector<bool>* fixedPtr = nullptr;
+        if (p.source == static_cast<int>(MelodySource::KeepRhythm) && melodicTrack_ == track)
+        {
+            fixed.assign(static_cast<std::size_t>(len), false);
+            const int n = std::min(len, melodyStashLen_);
+            for (int si = 0; si < n; ++si)
+                fixed[static_cast<std::size_t>(si)] =
+                    melodyStash_[static_cast<std::size_t>(si)].trig;
+            fixedPtr = &fixed;
+        }
 
         const KeySig key = processor_.effectiveKeySig();
         const int rootMidi = 48 + key.root;   // root pitch class around C3..B3
-        const auto notes = generateMelody(key, len, rootMidi, p);
+        const auto notes = generateMelody(key, len, rootMidi, p, fixedPtr);
 
         for (int si = 0; si < len; ++si)
         {

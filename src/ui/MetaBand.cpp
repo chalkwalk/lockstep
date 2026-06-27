@@ -1118,6 +1118,9 @@ namespace lockstep
         result[5] = makeField("SEED", 1.0f, 999.0f,
                               static_cast<float>(ui.melodySeed),
                               juce::String(ui.melodySeed).toRawUTF8(), true);
+        result[6] = makeField("SRC", 0.0f, 1.0f,
+                              static_cast<float>(ui.melodySource),
+                              melodySourceName(ui.melodySource), true);
         return result;
     }
 
@@ -1462,6 +1465,7 @@ namespace lockstep
                 case 3:  ui.melodyOctaves  = std::clamp(v, 1, 4);      break;
                 case 4:  ui.melodyStepLeap = std::clamp(v, 0, 100);    break;
                 case 5:  ui.melodySeed     = std::clamp(v, 1, 999);    break;
+                case 6:  ui.melodySource   = std::clamp(v, 0, 1);      break;
                 default: break;
             }
             return;

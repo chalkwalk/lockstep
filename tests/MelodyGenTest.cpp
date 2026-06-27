@@ -154,6 +154,39 @@ namespace lockstep
         CHECK(fired > 0, "chromatic + triad bias still generates notes");
     }
 
+    static void testKeepRhythmLocksOnsets()
+    {
+        // KeepRhythm: onsets come from the supplied trig set, the density param is
+        // ignored, and pitches still land in the scale.
+        const KeySig k = dDorian();
+        const uint16_t mask = pcMask(k);
+
+        std::vector<bool> onsets(16, false);
+        onsets[0] = onsets[3] = onsets[7] = onsets[11] = true;  // an off-grid groove
+
+        MelodyParams p;
+        p.density = 16;            // would fill every step in Generate mode...
+        p.coreBias = 2; p.contour = 0; p.octaves = 2; p.stepLeap = 40; p.seed = 7u;
+        p.source = static_cast<int>(MelodySource::KeepRhythm);
+
+        const auto m = generateMelody(k, 16, kRootMidi, p, &onsets);
+        for (int i = 0; i < 16; ++i)
+        {
+            const bool want = onsets[static_cast<std::size_t>(i)];
+            CHECK(m[static_cast<std::size_t>(i)].trig == want,
+                  "KeepRhythm: onset set matches the supplied trigs exactly");
+            if (want)
+                CHECK(maskHas(mask, m[static_cast<std::size_t>(i)].note % 12),
+                      "KeepRhythm: pitched note is in the scale");
+        }
+
+        // Without the fixed set, KeepRhythm falls back to Generate (no crash).
+        const auto fallback = generateMelody(k, 16, kRootMidi, p, nullptr);
+        int fired = 0;
+        for (const auto& s : fallback) if (s.trig) ++fired;
+        CHECK(fired > 0, "KeepRhythm with no onset set falls back to Generate");
+    }
+
     void runMelodyGenTests()
     {
         testDeterminism();
@@ -163,6 +196,7 @@ namespace lockstep
         testStrongBeatsLastLonger();
         testRestsBridgeToStrongBeats();
         testOnsetsPreferStrongBeats();
+        testKeepRhythmLocksOnsets();
         testEmptyAndDegenerate();
     }
 }

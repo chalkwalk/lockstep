@@ -88,7 +88,9 @@ namespace lockstep
         CHECK(f[3].active && juce::String(f[3].label) == "OCTS",  "field 3 = OCTS");
         CHECK(f[4].active && juce::String(f[4].label) == "LEAP",  "field 4 = LEAP");
         CHECK(f[5].active && juce::String(f[5].label) == "SEED",  "field 5 = SEED");
-        CHECK(!f[6].active && !f[7].active, "fields 6/7 inactive");
+        CHECK(f[6].active && juce::String(f[6].label) == "SRC",   "field 6 = SRC");
+        CHECK(!f[7].active, "field 7 inactive");
+        CHECK(juce::String(f[6].valueText) == "Gen", "SRC default value-text = Gen");
 
         // CORE value-text tracks the stepped enum (penta default).
         CHECK(juce::String(f[1].valueText) == "Penta", "CORE default value-text = Penta");
@@ -102,6 +104,8 @@ namespace lockstep
         CHECK(ui.melodyOctaves == 4, "writeMetaField OCTS clamps to 4");
         writeMetaField(MetaBand::Melodic, 0, 5, 42.0f, proc, 0, ctx, ui); // SEED
         CHECK(ui.melodySeed == 42, "writeMetaField SEED sets melodySeed");
+        writeMetaField(MetaBand::Melodic, 0, 6, 1.0f, proc, 0, ctx, ui);  // SRC → Keep
+        CHECK(ui.melodySource == 1, "writeMetaField SRC sets melodySource");
     }
 
     static void testResolveMetaBandDensitySticky()

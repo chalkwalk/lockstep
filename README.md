@@ -1205,7 +1205,9 @@ On top of the key:
   the spine: onsets land on the strongest beats first, strong beats get strong
   (triad-core) notes held longer, weak beats get colour notes held short, and the
   rest a short note leaves bridges into the next stronger beat. Encoders: density,
-  core (triad/penta/full), contour (rise/fall/arch/walk), octaves, leap, seed.
+  core (triad/penta/full), contour (rise/fall/arch/walk), octaves, leap, seed,
+  and **SRC** (*Gen* generates the rhythm too; *Keep* locks onto the track's
+  existing trigs and only writes pitch onto them — "fit a line to my groove").
   **P** prints, **Func+P** / escape cancels.
 - **Harmonic voice-mover** — a sticky overlay where you **move chord voices by
   ear** within the key and audition them, then print the progression to steps.

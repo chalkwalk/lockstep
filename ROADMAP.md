@@ -2063,6 +2063,9 @@ preview → P prints / Func+P (or escape) reverts. `MetaBand::Melodic`,
 `Overlay::Melodic` / `Modal::Melodic`, `CellState::GeneratorMelodic`.
 Tests: `tests/MelodyGenTest.cpp` (determinism, in-`pcMask`, core-bias narrowing,
 strong-beat→strong-note/longer, rest-bridge) + `MetaBandTest` band round-trip.
+**SRC field** (lock-one-dimension transform): *Gen* generates the rhythm too;
+*Keep* locks onsets to the track's existing trigs and generates pitch only
+(`generateMelody` `fixedOnsets`; onset set read from the pre-entry stash).
 
 ### 10.8 — Harmonic voice-mover
 Generator Hub cell → `Overlay::Harmony`; 8-encoder voice mover; clone-on-add;

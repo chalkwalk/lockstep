@@ -60,6 +60,16 @@ namespace lockstep
         return "Penta";
     }
 
+    // Onset source: GENERATE places onsets on the strongest `density` beats;
+    // KEEP locks the rhythm to a caller-supplied onset set (the track's existing
+    // trigs) and only generates pitch over it (DESIGN §39.11 — lock one dimension).
+    enum class MelodySource : uint8_t { Generate = 0, KeepRhythm = 1 };
+
+    [[nodiscard]] inline const char* melodySourceName(int s) noexcept
+    {
+        return s == static_cast<int>(MelodySource::KeepRhythm) ? "Keep" : "Gen";
+    }
+
     struct MelodyParams
     {
         int density  = 8;   // number of onsets (placed strongest-beat-first)
@@ -68,6 +78,7 @@ namespace lockstep
         int octaves  = 2;   // pitch span in octaves above the root (1..4)
         int stepLeap = 30;  // 0..100: deviation from the contour, in pool steps
         uint32_t seed = 1;  // deterministic seed
+        int source   = 0;   // MelodySource: Generate (density) vs KeepRhythm (fixed)
     };
 
     // One generated step: trig + the mono note + its gate (valid only when trig).
@@ -193,8 +204,14 @@ namespace lockstep
     // first (up to `density`), each pitched on the contour and snapped to the core
     // tier its beat strength allows, sustained for a strength-scaled gate capped to
     // the next onset. Empty pool => no notes.
+    //
+    // When `fixedOnsets` is non-null (and sized to `length`) the rhythm is LOCKED:
+    // those steps are the onsets (the `density` param is ignored) and only pitch is
+    // generated over them — the lock-rhythm transform. Beat strength still drives
+    // note tier + duration, so the existing groove keeps its strong/weak shape.
     [[nodiscard]] inline std::vector<MelodyStep>
-    generateMelody(const KeySig& key, int length, int rootMidi, const MelodyParams& p)
+    generateMelody(const KeySig& key, int length, int rootMidi, const MelodyParams& p,
+                   const std::vector<bool>* fixedOnsets = nullptr)
     {
         std::vector<MelodyStep> out(static_cast<std::size_t>(std::max(0, length)));
         if (length <= 0)
@@ -210,23 +227,34 @@ namespace lockstep
             ranks[static_cast<std::size_t>(i)] =
                 noteStrengthRank(key, cand[static_cast<std::size_t>(i)] % 12);
 
-        const int density = std::clamp(p.density, 0, length);
-        if (density == 0)
+        // Onset placement. KeepRhythm: lock onsets to the supplied trig set, in
+        // time order. Generate: rank steps by (strength desc, position asc) and
+        // take the strongest `density`; equal-strength positions are already evenly
+        // spaced (multiples of one power of two), so they fill in musically.
+        std::vector<int> onsets;
+        if (p.source == static_cast<int>(MelodySource::KeepRhythm) && fixedOnsets != nullptr
+            && static_cast<int>(fixedOnsets->size()) == length)
+        {
+            for (int i = 0; i < length; ++i)
+                if ((*fixedOnsets)[static_cast<std::size_t>(i)])
+                    onsets.push_back(i);
+        }
+        else
+        {
+            const int density = std::clamp(p.density, 0, length);
+            std::vector<int> order(static_cast<std::size_t>(length));
+            for (int i = 0; i < length; ++i)
+                order[static_cast<std::size_t>(i)] = i;
+            std::sort(order.begin(), order.end(), [&](int a, int b) {
+                const int sa = metricStrength(a, length), sb = metricStrength(b, length);
+                if (sa != sb) return sa > sb;
+                return a < b;
+            });
+            onsets.assign(order.begin(), order.begin() + density);
+            std::sort(onsets.begin(), onsets.end());   // back into time order
+        }
+        if (onsets.empty())
             return out;
-
-        // Onset placement: rank steps by (strength desc, position asc) and take the
-        // strongest `density`. Equal-strength positions are already evenly spaced
-        // (multiples of one power of two), so they fill in musically.
-        std::vector<int> order(static_cast<std::size_t>(length));
-        for (int i = 0; i < length; ++i)
-            order[static_cast<std::size_t>(i)] = i;
-        std::sort(order.begin(), order.end(), [&](int a, int b) {
-            const int sa = metricStrength(a, length), sb = metricStrength(b, length);
-            if (sa != sb) return sa > sb;
-            return a < b;
-        });
-        std::vector<int> onsets(order.begin(), order.begin() + density);
-        std::sort(onsets.begin(), onsets.end());   // back into time order
 
         uint32_t s = p.seed ? p.seed : 1u;
         const int leapSpan = 1 + (std::clamp(p.stepLeap, 0, 100) * (N - 1)) / 100;

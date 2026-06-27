@@ -259,6 +259,7 @@ namespace lockstep
         int melodyOctaves = 2;     // pitch span (1..4)
         int melodyStepLeap = 30;   // 0..100 deviation from the contour
         int melodySeed    = 1;     // deterministic seed (re-roll bumps it)
+        int melodySource  = 0;     // MelodySource: 0 = Generate, 1 = Keep rhythm
 
         // MHZ.7.4: last note played per-track, used as LEVELS record-arm pitch.
         // Updated whenever a note is triggered (keyboard overlay or CHROMATIC mode).
@@ -332,6 +333,7 @@ namespace lockstep
             melodyContour = 0;
             melodyOctaves = 2;
             melodyStepLeap = 30;
+            melodySource = 0;
         }
 
         // Returns the first slot index for the currently active page on the given track.
