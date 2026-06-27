@@ -6147,23 +6147,38 @@ manual and deterministic, and the scale constraint is a chosen tool, not
 auto-correction.
 
 Entry: a **Harmonic** Generator Hub cell → sticky `Overlay::Harmony`. The model
-is a **progression of K chord slots**, each ≤4 diatonic voices (the
-`kMaxNotesPerStep` ceiling — triads and 7ths). The 8 encoders:
+is a **progression of K chord slots**, each ≤4 voices (the `kMaxNotesPerStep`
+ceiling — triads and 7ths). The 8 encoders:
 
-- **Left 4 = the voices.** Each scrubs Voice 1 (bass)…Voice 4 (top)
-  **diatonically** through `effectiveKeySig().degrees()` across octaves; an
-  off-detent removes the voice; `Func+`encoder = chromatic nudge for a borrowed
-  tone.
+- **Left 4 = the voices.** Each scrubs Voice 1 (bass)…Voice 4 (top). The cell is
+  **not a ring** but a **note-name reel** (prev / current / next, bright centre =
+  the chord) with a half-knob tucked to the top edge (V1/V3) or bottom (V2/V4),
+  so the four voices read straight across — the reel, not an absolute dot, is the
+  readout. A bare turn steps **diatonically** through the in-key ladder; an
+  off-detent removes the voice and the first empty slot adds one; **`Func`+turn =
+  a chromatic borrowed tone** (a per-voice semitone offset that slides with the
+  chord under the collective moves; the reel shows the chromatic neighbours and a
+  tint). A voice that lands back in-scale snaps to a rung (offset cleared).
 - **Right 4 = structure + collective moves.** Length (K slots) · Cursor (select
   active chord) · Transpose the selected chord by scale-degree (all voices,
   in-key) · Octave-shift the selected chord.
 
-A new slot (on Length increase) **clones the previous chord**, so motion starts
-at zero and any voice-leading emerges from your own moves. **Audition:** turning
-a voice encoder sounds the selected chord immediately; going idle loops the
-progression around in context (transport-synced, one chord per beat, through the
-real machine — the Euclid live-preview-into-steps pattern). **Placement:** commit
-prints the K chords to evenly-spaced steps (default one per beat — the 1/4-note
-workflow) as ordinary ≤4-note steps; reposition afterward with step-move and
-hand-edit freely. `src/core/HarmonyGen.h` carries no chord theory — it is a
-scale-constrained multi-voice step buffer.
+The progression **starts at length 1** and grows from there. Growing **clones
+the previous chord** into a genuinely-new slot (so motion starts at zero), and
+shrinking is **lossless** — a slot re-grown within the high-water reach is
+restored as authored rather than re-cloned. **Audition:** any cursor-chord change
+(a voice edit, a collective move, or a cursor move) **immediately re-strikes**
+the chord through the live-note engine, so slow-turning an encoder previews each
+landing. (There is no separate idle context loop — the live preview printed onto
+the steps carries the musical context when the transport runs.) **Placement:**
+commit prints the K chords **one per bar** of the in-scope time signature (chord
+*k* → bar *k* downbeat), falling back to even spacing across the steps when the
+phrase has fewer bars than chords; the result is ordinary ≤4-note steps you
+reposition with step-move and hand-edit freely. `src/core/HarmonyGen.h` carries
+no chord theory — it is a scale-constrained multi-voice step buffer (ladder rung
++ semitone offset per voice).
+
+*Planned follow-on (existing-rhythm placement):* a mode that keeps the track's
+existing trigs where they are and assigns each the chord of the bar it falls in
+(harmony follows the bars, rhythm preserved) — the harmonic twin of the melodic
+SRC "Keep" transform.

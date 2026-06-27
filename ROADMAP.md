@@ -2112,9 +2112,9 @@ live preview (chords printed onto evenly-spaced steps, auditioned via transport)
 `tests/HarmonyGenTest.cpp` (ladder in-scale, per-slot print, even placement,
 voice-count/removal, clamp-stays-in-scale, dedup, degenerate) + `MetaBandTest`
 band round-trip (voice add/remove, LEN-clone, CUR, MOVE).
-**Deferred:** per-voice chromatic nudge (Func+voice), immediate re-strike
-audition, and an idle context loop — voices are diatonic-only for now (the
-in-key safe default), auditioned through the transport like the other generators.
+**Refined in 10.10:** per-voice chromatic nudge (Func+voice) and immediate
+re-strike audition shipped; the idle context loop was dropped (the live preview
+carries context). See 10.10 for the reel visual + bar placement + lossless grow.
 
 ### 10.9 — Phrase transpose ✅
 `Phrase + ↑/↓` transposes the focused track's phrase ±octave; `Func+Phrase+↑/↓`
@@ -2122,6 +2122,39 @@ in-key safe default), auditioned through the transport like the other generators
 note + both trig layers' authored notes, clamped to 0–127, snapshot-undoable.
 Octave-default/Func=semitone per user (scale-degree transpose deferred). Test:
 `EngineTest::testTransposeTrack`.
+
+### 10.10 — Harmonic voice-mover refinement ✅
+A UX pass on 10.8 across four axes:
+- **Voice reel + half-knobs.** The `V1`–`V4` cells drop the confusing absolute
+  ring for a **note-name reel** (prev/now/next, bright centre) with a half-knob
+  alternating top (V1/V3) / bottom (V2/V4) so the chord reads straight across.
+  Same gesture — bare turn = diatonic rung step; **`Func`+turn = a chromatic
+  borrowed tone** (`HarmonyChord::chroma` per-voice semitone offset; resolved MIDI
+  = `ladder[rung] + chroma`; `canonicalizeVoice` snaps an in-scale landing back to
+  a rung). New `MetaFieldView`/`MetaRotary::View` reel metadata + a
+  `MetaRotaryLookAndFeel` branch (mirrors `densityCell`); `nudgeHarmonyChroma`
+  routes Func+voice as an incremental delta.
+- **Bar-aligned placement.** `printHarmony(…, stepsPerBar)` prints one chord per
+  bar of the in-scope time sig (chord *k* → bar *k*), even-spacing fallback when
+  bars < K. `applyHarmonyLive` computes `stepsPerBar = round(barPpq / stepPpq)`.
+- **Lossless clone-previous grow.** Progression `length` starts at 1; growing
+  clones the **previous** chord into a genuinely-new slot (past `reach`),
+  shrinking never overwrites so shrink→grow restores.
+- **Immediate re-strike audition.** Any cursor-chord change re-strikes through
+  the live-note engine (`auditionHarmonyCursorChord` / `liveNoteOn`/`Off`);
+  released at the single exit chokepoint `forgetHarmonyEditorState`.
+
+Tests: `HarmonyGenTest` (bar onsets + even fallback, borrowed-tone
+resolve/canonicalize, MOVE-slides-offset), `MetaBandTest` (reel cells + knob
+parity + add slot, Func→chromatic reel, Func+voice semitone nudge, bare-write
+clears offset, lossless shrink/grow). No serializer bump — `harmonyProg` is
+ephemeral and printed steps are already absolute MIDI.
+
+### 10.11 — Harmonic existing-rhythm placement — planned
+A placement mode that keeps the track's existing trigs in place and assigns each
+the chord of the bar it falls in (harmony follows bars, rhythm preserved) — the
+harmonic twin of the melodic SRC "Keep" transform (`fixedOnsets`). Needs a
+placement selector (Nav-right sub-page or a repurposed slot — settle at build).
 
 ---
 
