@@ -43,6 +43,8 @@ namespace lockstep
     void runMelodyGenTests();
     // Phase 10.8: harmonic voice-mover (scale-constrained chord buffer)
     void runHarmonyGenTests();
+    // Performance capture: tape-deck state machine (CaptureController)
+    void runCaptureControllerTests();
     // Phase 8 characterisation tests
     void runEditModeTests();
     void runLayerResolveTests();

@@ -17,6 +17,7 @@ add_executable(lockstep_tests
     ScaleTest.cpp
     MelodyGenTest.cpp
     HarmonyGenTest.cpp
+    CaptureControllerTest.cpp
     EditModeTest.cpp
     LayerResolveTest.cpp
     SurfaceLayerTest.cpp
