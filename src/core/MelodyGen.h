@@ -102,14 +102,17 @@ namespace lockstep
         return z;                           // 8->3, 4->2, 2->1, odd->0
     }
 
-    // The widest core tier a note on a beat of the given strength may use: strong
-    // beats are pinned to the triad core, mid beats to the pentatonic core, weak
-    // beats may reach the full scale (further narrowed by the user's coreBias).
-    [[nodiscard]] inline int tierCapForStrength(int strength) noexcept
+    // The weakest note (highest fifths-distance rank, noteStrengthRank) a beat of
+    // the given strength may use: strong beats are pinned near the root (the
+    // central fifths arc), mid beats may reach the pentatonic arc, weak beats take
+    // any colour note in the pool. Ranks: root 0, dominant/subdominant 1-2, the
+    // next fifths pair 3-4, on outward — so this is the continuous, lean-aware
+    // form of the old triad/penta/full tiering.
+    [[nodiscard]] inline int rankCeilForStrength(int strength) noexcept
     {
-        if (strength >= 3) return 0;   // downbeat / half-bar — triad core
-        if (strength == 2) return 1;   // quarter — pentatonic core
-        return 2;                      // eighth / off-beat — full scale
+        if (strength >= 3) return 2;    // downbeat / half-bar — root + nearest fifths
+        if (strength == 2) return 4;    // quarter — out to the pentatonic arc
+        return 1000;                    // eighth / off-beat — any colour note
     }
 
     // Desired sustain (in steps) for a note on a beat of the given strength.
@@ -171,17 +174,17 @@ namespace lockstep
     }
 
     // Nearest candidate index (outward from idx0, ties resolving downward/flatter)
-    // whose tier is at or below `cap`. Falls back to idx0 if none qualifies (e.g.
-    // a symmetric key where every note shares one tier).
+    // whose strength rank is at or below `ceil`. Falls back to idx0 if none
+    // qualifies (e.g. a symmetric key where rank distinctions collapse).
     [[nodiscard]] inline int
-    snapToTier(const std::vector<int>& cand, const std::vector<int>& tiers, int idx0, int cap)
+    snapToRank(const std::vector<int>& cand, const std::vector<int>& ranks, int idx0, int ceil)
     {
         const int n = static_cast<int>(cand.size());
         for (int d = 0; d < n; ++d)
         {
             const int lo = idx0 - d, hi = idx0 + d;
-            if (lo >= 0 && tiers[static_cast<std::size_t>(lo)] <= cap) return lo;
-            if (hi < n && tiers[static_cast<std::size_t>(hi)] <= cap) return hi;
+            if (lo >= 0 && ranks[static_cast<std::size_t>(lo)] <= ceil) return lo;
+            if (hi < n && ranks[static_cast<std::size_t>(hi)] <= ceil) return hi;
         }
         return idx0;
     }
@@ -202,9 +205,10 @@ namespace lockstep
         if (N == 0)
             return out;
 
-        std::vector<int> tiers(static_cast<std::size_t>(N));
+        std::vector<int> ranks(static_cast<std::size_t>(N));
         for (int i = 0; i < N; ++i)
-            tiers[static_cast<std::size_t>(i)] = coreTier(key, cand[static_cast<std::size_t>(i)] % 12);
+            ranks[static_cast<std::size_t>(i)] =
+                noteStrengthRank(key, cand[static_cast<std::size_t>(i)] % 12);
 
         const int density = std::clamp(p.density, 0, length);
         if (density == 0)
@@ -263,10 +267,11 @@ namespace lockstep
                          - leapSpan;
             const int idx0 = std::clamp(target + jitter, 0, N - 1);
 
-            // Couple note strength to beat strength: pin to the tier the beat
-            // (further narrowed by coreBias) allows.
-            const int cap = std::min(coreBias, tierCapForStrength(strength));
-            idx = snapToTier(cand, tiers, idx0, cap);
+            // Couple note strength to beat strength: pin to the strength rank the
+            // beat allows (root/nearest-fifths on strong beats, colour notes on
+            // weak ones). The pool is already coreBias-narrowed.
+            (void) coreBias;
+            idx = snapToRank(cand, ranks, idx0, rankCeilForStrength(strength));
 
             // Duration: strength-scaled sustain, capped to the next onset so a weak
             // short note leaves a rest that bridges into the next (stronger) onset.

@@ -484,6 +484,43 @@ namespace lockstep
         return flat <= 0 && 0 <= flat + coreSize - 1;        // tonic inside the core
     }
 
+    // ---- Note strength (fifths-distance from the root) --------------------
+
+    // Signed fifths-offset of a pitch class from the root, folded to [-5, 6]:
+    // how many fifths sharp (+) or flat (-) the note sits on the circle. 7 is the
+    // inverse of 7 mod 12, so multiplying the semitone distance by 7 inverts the
+    // "fifth = 7 semitones" map back to a fifths count.
+    [[nodiscard]] inline int fifthsOffsetOf(int root, int pc) noexcept
+    {
+        int f = ((((pc - root) * 7) % 12) + 12) % 12;   // 0..11 in fifths
+        if (f > 6) f -= 12;                              // fold to -5..6
+        return f;
+    }
+
+    // Note strength rank from the root on the circle of fifths: LOWER = stronger.
+    // The primary axis is fifths-distance |offset| — the root is strongest, then
+    // the dominant/subdominant pair, on outward; colour/modifier notes sit far and
+    // out-of-scale notes furthest, so "further in fifths = weaker" falls straight
+    // out of the geometry (answering where modifiers land in the strength order).
+    // At EQUAL distance the note on the scale's brightness lean wins: a sharp-
+    // leaning scale (brightness brighter than Dorian) favours the +offset (5ths-
+    // direction) note, a flat-leaning scale the -offset (4ths-direction) note.
+    // Scale by 2 so the one-step lean tie-break never crosses a distance boundary.
+    [[nodiscard]] inline int noteStrengthRank(const KeySig& k, int pc) noexcept
+    {
+        const int off = fifthsOffsetOf(k.root, (((pc % 12) + 12) % 12));
+        int rank = 2 * std::abs(off);
+        if (off != 0 && hasFifthsWindow(k.scaleType))
+        {
+            const int lean = k.brightness + 3;                 // signed window centre
+            const int leanSign = (lean > 0) - (lean < 0);
+            const int dir = (off > 0) - (off < 0);
+            if (leanSign != 0 && dir == leanSign)
+                rank -= 1;                                     // favoured side ranks earlier
+        }
+        return rank;
+    }
+
     // ---- Quantize ----------------------------------------------------------
 
     // Snap a MIDI note to the nearest pitch in the scale, preserving octave

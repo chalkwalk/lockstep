@@ -413,8 +413,39 @@ namespace lockstep
         CHECK(unpackModifiers(0).empty(), "0 unpacks to empty set");
     }
 
+    static void testNoteStrengthRank()
+    {
+        // Fifths-offset inverts the "fifth = 7 semitones" map. Root C (0):
+        CHECK(fifthsOffsetOf(0, 0) == 0,  "C is 0 fifths from C");
+        CHECK(fifthsOffsetOf(0, 7) == 1,  "G is +1 fifth from C");
+        CHECK(fifthsOffsetOf(0, 5) == -1, "F is -1 fifth from C");
+        CHECK(fifthsOffsetOf(0, 2) == 2,  "D is +2 fifths from C");
+        CHECK(fifthsOffsetOf(0, 4) == 4,  "E is +4 fifths from C (the major 3rd is far)");
+
+        // Strength: root strongest, then the nearest fifths, colour notes weakest.
+        const KeySig dorian{ 2, kDorian, {}, ScaleType::Diatonic };  // balanced lean
+        CHECK(noteStrengthRank(dorian, 2) == 0, "root is rank 0");
+        CHECK(noteStrengthRank(dorian, 9) < noteStrengthRank(dorian, 4),
+              "the fifth outranks a far (4-fifths) note");
+        // The major 3rd sits 4 fifths out — weaker than the 4th/5th, the quartal
+        // grain the whole system already uses (coreTier's central-3 = fifths arc).
+        CHECK(noteStrengthRank({ 0, kIonian, {}, ScaleType::Diatonic }, 4)
+                > noteStrengthRank({ 0, kIonian, {}, ScaleType::Diatonic }, 7),
+              "in C Ionian the 3rd (E) ranks weaker than the 5th (G)");
+
+        // Directional lean tie-break: a sharp-leaning scale favours the +offset
+        // note over the equidistant -offset note.
+        const KeySig sharp{ 0, kLydian, {}, ScaleType::Diatonic };  // lean = +3
+        CHECK(noteStrengthRank(sharp, 7) < noteStrengthRank(sharp, 5),
+              "sharp lean: +1 (G) beats -1 (F) at equal distance");
+        const KeySig flat{ 0, kLocrian, {}, ScaleType::Diatonic };  // lean = -3
+        CHECK(noteStrengthRank(flat, 5) < noteStrengthRank(flat, 7),
+              "flat lean: -1 (F) beats +1 (G) at equal distance");
+    }
+
     void runScaleTests()
     {
+        testNoteStrengthRank();
         testBrightnessModes();
         testBluesAcrossModes();
         testBlueNoteCoreGating();
