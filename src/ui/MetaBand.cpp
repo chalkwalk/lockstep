@@ -1605,16 +1605,14 @@ namespace lockstep
                     }
                     break;
                 }
-                case 4:  // LEN — growing clones the last live chord into the new slots.
-                {
+                case 4:  // LEN — lossless grow. A genuinely-new slot (beyond the
+                {        // high-water `reach`) clones the previous chord to nudge
+                         // from; a slot re-grown within `reach` is restored as-is.
                     const int newLen = std::clamp(v, 1, kMaxHarmonyChords);
-                    if (newLen > prog.length)
-                    {
-                        const int src = std::clamp(prog.length - 1, 0, kMaxHarmonyChords - 1);
-                        for (int k = prog.length; k < newLen; ++k)
-                            prog.chords[static_cast<std::size_t>(k)] =
-                                prog.chords[static_cast<std::size_t>(src)];
-                    }
+                    for (int k = prog.reach; k < newLen; ++k)
+                        prog.chords[static_cast<std::size_t>(k)] =
+                            prog.chords[static_cast<std::size_t>(std::max(0, k - 1))];
+                    prog.reach  = std::max(prog.reach, newLen);
                     prog.length = newLen;
                     prog.cursor = std::clamp(prog.cursor, 0, newLen - 1);
                     break;

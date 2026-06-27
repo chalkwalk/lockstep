@@ -158,6 +158,40 @@ namespace lockstep
         CHECK(shifted, "MOVE shifts every voice of the cursor chord by one degree");
     }
 
+    static void testHarmonyLosslessGrow()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        EditContext ctx;
+        UiState ui;
+        ui.harmonyHeld = true;
+        ui.harmonyProg = HarmonyProgression{};   // length 1, reach 1
+
+        // Grow 1 -> 3: brand-new slots clone the previous chord.
+        writeMetaField(MetaBand::Harmony, 0, 4, 3.0f, proc, 0, ctx, ui);
+        CHECK(ui.harmonyProg.length == 3 && ui.harmonyProg.reach == 3, "grow advances length + reach");
+
+        // Author slot 2 (cursor -> 3, MOVE +1) so it differs from the clone seed.
+        writeMetaField(MetaBand::Harmony, 0, 5, 3.0f, proc, 0, ctx, ui);   // CUR -> 3 (idx 2)
+        const auto authored = ui.harmonyProg.chords[2].voice;
+        writeMetaField(MetaBand::Harmony, 0, 6, 1.0f, proc, 0, ctx, ui);   // MOVE +1
+        bool moved = (ui.harmonyProg.chords[2].voice[0] == authored[0] + 1);
+        CHECK(moved, "slot 2 authored away from its clone seed");
+        const auto slot2 = ui.harmonyProg.chords[2].voice;
+
+        // Shrink 3 -> 1 must NOT destroy slots 1/2 (reach stays 3).
+        writeMetaField(MetaBand::Harmony, 0, 4, 1.0f, proc, 0, ctx, ui);
+        CHECK(ui.harmonyProg.length == 1 && ui.harmonyProg.reach == 3, "shrink keeps reach (lossless)");
+
+        // Grow 1 -> 3 again restores the authored slot 2 rather than re-cloning.
+        writeMetaField(MetaBand::Harmony, 0, 4, 3.0f, proc, 0, ctx, ui);
+        bool restored = true;
+        for (int v = 0; v < kHarmonyVoices; ++v)
+            if (ui.harmonyProg.chords[2].voice[static_cast<std::size_t>(v)]
+                != slot2[static_cast<std::size_t>(v)]) restored = false;
+        CHECK(restored, "re-grow restores the previously-authored chord (lossless)");
+    }
+
     static void testResolveMetaBandDensitySticky()
     {
         UiState ui;
@@ -1159,6 +1193,7 @@ namespace lockstep
         testResolveMetaBandEuclid();
         testMelodicBand();
         testHarmonyBand();
+        testHarmonyLosslessGrow();
         testResolveMetaBandDensitySticky();
         testResolveMetaBandFuncSong();
         testResolveMetaBandSwing();

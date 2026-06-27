@@ -45,6 +45,8 @@ namespace lockstep
     {
         int length = 1;   // active chord slots (1..kMaxHarmonyChords) — start narrow
         int cursor = 0;   // selected slot (0..length-1)
+        int reach  = 1;   // high-water mark: slots [0,reach) hold authored chords,
+                          // so shrink->grow restores rather than re-clones (lossless).
         std::array<HarmonyChord, kMaxHarmonyChords> chords {};
     };
 
