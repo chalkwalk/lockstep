@@ -132,6 +132,29 @@ namespace lockstep
         CHECK(count == 1, "density 1 => exactly one onset");
     }
 
+    static void testPartialClassSpreadsAcrossBars()
+    {
+        // A density that fills the strong classes plus PART of the off-beat class
+        // must Euclidean-spread the partial class across the whole phrase, not clump
+        // it into the first bar (the left-to-right bug). 64 steps = 4 bars of 16.
+        const KeySig k = dDorian();
+        MelodyParams p;
+        p.density = 24; p.coreBias = 2; p.contour = 0; p.octaves = 2;
+        p.stepLeap = 0; p.seed = 1u;
+        const auto m = generateMelody(k, 64, kRootMidi, p);
+
+        int total = 0, perBar[4] = { 0, 0, 0, 0 };
+        for (int i = 0; i < 64; ++i)
+            if (m[static_cast<std::size_t>(i)].trig) { ++total; ++perBar[i / 16]; }
+
+        CHECK(total == 24, "density honoured across the whole phrase");
+        // Every bar must carry onsets — left-to-right would have starved bars 3-4.
+        for (int b = 0; b < 4; ++b)
+            CHECK(perBar[b] > 0, "every bar receives onsets (no first-bar clump)");
+        // The last bar should be within a reasonable band of the first (not 1 vs many).
+        CHECK(perBar[3] >= perBar[0] - 1, "last bar onset count is comparable to the first");
+    }
+
     static void testEmptyAndDegenerate()
     {
         const KeySig k = dDorian();
@@ -197,6 +220,7 @@ namespace lockstep
         testRestsBridgeToStrongBeats();
         testOnsetsPreferStrongBeats();
         testKeepRhythmLocksOnsets();
+        testPartialClassSpreadsAcrossBars();
         testEmptyAndDegenerate();
     }
 }

@@ -20,6 +20,7 @@
 // onsets follows a contour (rise/fall/arch/walk) with seed-driven deviation
 // bounded by the step/leap parameter. Output is ordinary, hand-editable steps.
 
+#include "Euclidean.h"
 #include "MusicalGate.h"
 #include "Scale.h"
 #include "Step.h"
@@ -242,6 +243,13 @@ namespace lockstep
         else
         {
             const int density = std::clamp(p.density, 0, length);
+            // Order steps by strength desc, position asc, then fill class by class:
+            // each equal-strength class (downbeats, then half-bars, then quarters,
+            // ...) is turned fully on before the next. When the density budget runs
+            // out partway through a class, distribute the remaining onsets across
+            // THAT class's steps with a Euclidean spread rather than taking them
+            // left-to-right — otherwise a partial off-beat class clumps every onset
+            // into the first bar instead of spreading them over the whole phrase.
             std::vector<int> order(static_cast<std::size_t>(length));
             for (int i = 0; i < length; ++i)
                 order[static_cast<std::size_t>(i)] = i;
@@ -250,7 +258,34 @@ namespace lockstep
                 if (sa != sb) return sa > sb;
                 return a < b;
             });
-            onsets.assign(order.begin(), order.begin() + density);
+
+            int remaining = density;
+            std::size_t i = 0;
+            while (i < order.size() && remaining > 0)
+            {
+                const int s = metricStrength(order[i], length);
+                std::size_t j = i;
+                while (j < order.size() && metricStrength(order[j], length) == s)
+                    ++j;
+                const int classSize = static_cast<int>(j - i);
+                if (remaining >= classSize)
+                {
+                    for (std::size_t k = i; k < j; ++k)
+                        onsets.push_back(order[k]);
+                    remaining -= classSize;
+                }
+                else
+                {
+                    // Euclidean-select `remaining` of the classSize members, which
+                    // are already in ascending position order across [i, j).
+                    const auto hits = bjorklund(classSize, remaining, 0);
+                    for (int m = 0; m < classSize; ++m)
+                        if (hits[static_cast<std::size_t>(m)])
+                            onsets.push_back(order[i + static_cast<std::size_t>(m)]);
+                    remaining = 0;
+                }
+                i = j;
+            }
             std::sort(onsets.begin(), onsets.end());   // back into time order
         }
         if (onsets.empty())
