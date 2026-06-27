@@ -4210,14 +4210,46 @@ The step is silently ignored if the targeted unit has no effect loaded, or if th
 picker is open (steps mean "choose effect" there). Release restores the bypass state.
 Track Animate remains available when Song+FX is not focused.
 
-### 32.6 Performance capture (8.26)
+### 32.6 Performance capture — the tape deck (8.26, UX 9.16)
 
-`Func+Song+Record` arms or disarms a live recording of the master output
-to a timestamped 32-bit-float WAV file (`capture-YYYYMMDD-HHMMSS.wav`).
-The tap point is the very end of the audio thread's `processBlock`, after
-master gain, DC blocker, and soft-clip — exactly what appears at the main
-outputs. Capture runs continuously across transport stop and start, so a
-performance file is a single uninterrupted stream.
+`Func+Song+Record` is the **CAPTURE** cell: a *separate recording device*
+for the master output (a tape deck), not a DAW timeline export. The tap
+point is the very end of the audio thread's `processBlock`, after master
+gain, DC blocker, and soft-clip — exactly what appears at the main outputs.
+
+**State machine (9.16, `src/io/CaptureController.h`, pure/tested).** Phases
+Idle → Armed → Recording → JustSaved, driven by one cell's gesture timeline
+(`tap` = gentle, `double-tap` = decisive, `long-press` = deliberate):
+
+| State | tap | double-tap | long-press |
+|---|---|---|---|
+| Idle | arm (record on Play; or now if already playing) | roll now (tape) | reveal folder |
+| Armed | disarm | roll now | — |
+| Recording | stop (let tails ring) | hard cut (close now) | — |
+| JustSaved (~6 s) | arm next | roll now | discard the take |
+
+**Emergent-tail finalize rule — there is no mode.** The only automatic stop
+is the silence tail: while *winding down* (armed by a transport stop *edge*
+or a tap-stop, cancelled by a play edge), the file finalises after the
+master stays below `kSilenceThreshold` for `kTailMs`. Silence **never**
+finalises during active playback, so a long musical rest cannot chop a take;
+stopping the transport ends a take for free (it goes quiet). A drone that
+never falls silent is ended with the `double-tap` hard cut. This deliberately
+replaces the earlier auto-finalize "mode" idea — the gesture set carries no
+TAKE/TAPE toggle.
+
+**Feedback strip** (`paintCaptureStrip`, under the master meter, present from
+arm onward): `ARMED ▸ starts on Play` → `● REC m:ss` → `◐ STOPPING — waiting
+for silence` → `✓ saved → …/Captures/…wav (hold REC to discard)`. The
+destination is visible the whole time.
+
+**Exit while recording** (`captureExitGuard`) chains a dialog — *Stop & exit*
+(finalise) / *Discard & exit* (drop partial) / *Cancel* — ahead of the 9.2
+dirty-project save guard. Armed-but-not-rolling disarms silently.
+
+Capture runs across transport stop and start, so a performance file is a
+single uninterrupted stream; the file is written **directly** to its
+destination, so a crash leaves a real partial file.
 
 **File location:** next to the current project file in a `Captures/`
 subdirectory when a project is open; otherwise in

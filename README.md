@@ -522,7 +522,7 @@ Transport and record-arm ride the verb row (no scope held — see §5.1):
 | `I` (Play) | Play / Stop transport (no scope held); `Func + I` = **unqualified paste** (stamps the single captured layer by type; rejects omni grab with "Paste: pick a scope"). |
 | `O` (Clear) | Clear active P-Lock slot (no scope held); `Func + O` = delete entity (opens deletion picker). |
 | `U` (Rec) | Toggle record-arm (overwrite). Double-tap = overdub (append); `Func + U` = **omni copy** (captures scene + active track + pattern in one grab; badge `CPY:ALL`). |
-| `Func + Song + U` | **Capture** — arm or disarm WAV capture of the master output (see §5.20). |
+| `Func + Song + U` | **CAPTURE** — the tape deck. tap = arm (rolls on Play) · double-tap = roll now · while recording tap = stop / double-tap = hard cut · long-press in the just-saved window = discard (see §5.20). |
 | `3` | Tap tempo (short tap). **Hold ≥350 ms** = generator hub: step cells show EUCLID / DENSITY / VEL / MELODY / CHORD; press one to enter that generator with its own lifetime; release `3` closes the picker. |
 | `4` | Navigate up (inverted-T above `E R T`). |
 | `E` / `R` / `T` | Navigate left / down / right. |
@@ -1162,24 +1162,41 @@ buttons: **New**, **Open**, **Save**, and **Save As…**
   data is lost across a clean restart. A dedicated quit-confirmation dialog
   (requiring a custom standalone app) is deferred to a future phase.
 
-### 5.20 Performance capture *(shipped — Phase 8.26)*
+### 5.20 Performance capture — the tape deck *(shipped)*
 
-`Func + Song + U` (Func + Song + Rec) arms or disarms a live recording of
-the master output to a 32-bit-float WAV file.
+`Func + Song + U` (Func + Song + Rec) is the **CAPTURE** cell: a separate
+recording device for the master output, not a DAW timeline export. All of
+its gestures live on that one cell's timeline — **tap = gentle, double-tap =
+decisive, long-press = deliberate** — so there is no mode to learn.
 
-- **Tap point:** post master gain, DC blocker, and soft-clip — exactly
-  what appears at the physical outputs. Capture runs continuously across
-  transport stop and start; a performance recording has no gaps.
+| State | tap | double-tap | long-press |
+|---|---|---|---|
+| **Idle** | Arm (record on Play; or now if already playing) | Roll immediately (tape) | Reveal Captures folder |
+| **Armed** | Disarm | Roll immediately | — |
+| **Recording** | Stop (let tails ring out) | Hard cut (close now) | — |
+| **Just-saved** (~6 s) | Arm next take | Roll immediately again | **Discard the take** |
+
+- **Emergent stop — no mode.** The only automatic stop is the **silence
+  tail**: once you are *winding down* (you stopped/paused the transport, or
+  tapped stop), the file closes after the master stays quiet for ~3 s, so
+  reverb/delay tails are never clipped. Silence **never** finalises during
+  active playback, so a long musical rest cannot chop a take. A drone or
+  self-oscillating patch that never goes quiet is ended with a **double-tap
+  hard cut**.
+- **Always visible.** A capture strip under the master meter shows
+  `ARMED ▸ starts on Play`, `● REC m:ss`, `◐ STOPPING — waiting for
+  silence`, then `✓ saved → …/Captures/…wav (hold REC to discard)` — the
+  destination is on screen from the moment you arm.
 - **File location:** `Captures/capture-YYYYMMDD-HHMMSS.wav` next to the
-  current project file (standalone) or in `~/Music/Lockstep/Captures/`
-  (plugin / no project open). The directory is created automatically.
-- **Status:** arm → `REC capture-….wav`; disarm → `Captured m:ss ->
-  filename`. A failed arm (unwritable directory) shows an error in the
-  status band — the audio thread never panics.
-- **Format:** 32-bit float WAV, stereo, device sample rate. Open in any
-  audio editor; Reaper/Audacity/DAWs read 32-bit float WAV natively.
-- **Stem export** is not yet available (one file per track + master); the
-  recorder is architecturally N-stream-shaped for a future milestone.
+  current project (standalone) or `~/Music/Lockstep/Captures/` (plugin / no
+  project). Written **directly** to the destination, so a crash still leaves
+  a real partial file. 32-bit float WAV, stereo, device sample rate.
+- **Tap point:** post master gain, DC blocker and soft-clip — exactly what
+  reaches the physical outputs.
+- **Exit while recording** asks first: *Stop recording & exit* (finalise) /
+  *Discard recording & exit* / *Cancel*, ahead of the usual save prompt.
+- **Stem export** (one WAV per track) is *planned*; the recorder is already
+  N-stream-shaped for it.
 
 ---
 

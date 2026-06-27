@@ -2019,6 +2019,35 @@ continuous animations. Docs-first.
       the 1 Hz controller-hotplug poll. MZ + pool timers self-suspend to their
       transient states (CC-learn / overlay-visible).
 
+### 9.16 — Performance capture: the tape deck  *[shipped]*
+The 8.26 blind WAV toggle became a visible, transport-aware "separate
+recording device" (key standalone workflow). Mental model: a tape deck, not a
+DAW export.
+- [x] **`CaptureController`** (`src/io/CaptureController.h`, pure/JUCE-free,
+      unit-tested) — the emergent-tail state machine: Idle / Armed / Recording /
+      JustSaved. The single finalize rule: silence finalises only while *winding
+      down* (transport stop edge or tap-stop), never during active playback, so a
+      musical rest can't chop a take. `double-tap = hard cut` is the reliable
+      stop (drone/noise-floor). No auto-finalize "mode", no long-press toggle.
+- [x] **Gesture grammar on one cell** (`Func+Song+Record`): tap = arm (rolls on
+      Play; or now if already playing) / stop · double-tap = roll-now / hard-cut ·
+      long-press = reveal folder (idle) / discard (just-saved window). Routed via
+      `GestureRecognizer::kCaptureToken`, resolved on key-up + mid-hold timer.
+- [x] **Feedback strip** under the master meter (`paintCaptureStrip`): ARMED ▸
+      starts on Play / ● REC m:ss / ◐ STOPPING — waiting for silence / ✓ saved →
+      path (hold REC to discard). Destination visible from arm onward.
+- [x] **Exit-while-recording** dialog (`captureExitGuard`) chained ahead of the
+      9.2 dirty-project guard: Stop & exit (finalise) / Discard & exit / Cancel.
+- [x] Writes **directly** to the destination (crash ⇒ real partial file).
+- [ ] **Per-track stems** *(planned)* — the recorder is N-stream-shaped. Needs a
+      per-track capture-arm surface; one multichannel WAV or one file per armed
+      track in `Captures/<timestamp>/`; same arm/level/tail lifecycle.
+- [ ] **Crash-partial header refresh** *(deferred)* — a partial WAV's RIFF size
+      fields are patched only on clean close; periodic header refresh would make
+      a crash-partial fully playable.
+- *Deferred:* metronome count-in (double-click immediate-roll is the pre-roll);
+  configurable silence threshold / tail (constants in `CaptureController`).
+
 ---
 
 ## Phase 10 — Melodic & Harmonic Authoring  *[active]*
