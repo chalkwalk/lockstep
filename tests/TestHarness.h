@@ -39,6 +39,8 @@ namespace lockstep
     void runEuclideanTests();
     // Phase 10.2: tonal core (KeySig, brightness, modifiers, quantize)
     void runScaleTests();
+    // Phase 10.7: melodic generator (deterministic print model)
+    void runMelodyGenTests();
     // Phase 8 characterisation tests
     void runEditModeTests();
     void runLayerResolveTests();

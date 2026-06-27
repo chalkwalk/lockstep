@@ -95,6 +95,7 @@ namespace lockstep
             case CellState::GeneratorEuclid:    return 0xFF7050C8u;  // purple — Euclidean
             case CellState::GeneratorDensity:   return 0xFF50B478u;  // green — Density
             case CellState::GeneratorVel:       return 0xFF8898A8u;  // slate — Velocity
+            case CellState::GeneratorMelodic:   return 0xFFC89048u;  // amber — Melody
             default:                            return fallback;
         }
     }
@@ -1053,12 +1054,15 @@ namespace lockstep
             }
             else if (activeLayer == SurfaceLayer::GeneratorHub)
             {
-                // Generator hub (9.10): cells 0-2 = Euclid / Density / Vel; rest dark.
-                static constexpr const char* kHubLabels[3] = { "EUCLID", "DENSITY", "VEL" };
-                static constexpr CellState kHubStates[3] = {
+                // Generator hub (9.10): cells 0-3 = Euclid / Density / Vel / Melody; rest dark.
+                static constexpr int kHubCount = 4;
+                static constexpr const char* kHubLabels[kHubCount] =
+                    { "EUCLID", "DENSITY", "VEL", "MELODY" };
+                static constexpr CellState kHubStates[kHubCount] = {
                     CellState::GeneratorEuclid,
                     CellState::GeneratorDensity,
                     CellState::GeneratorVel,
+                    CellState::GeneratorMelodic,
                 };
                 for (int i = 0; i < 16; ++i)
                 {
@@ -1067,7 +1071,7 @@ namespace lockstep
                     c.index = i;
                     c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
                     c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
-                    if (i < 3)
+                    if (i < kHubCount)
                     {
                         c.base = kHubStates[i];
                         c.baseColour = compatColour(kHubStates[i]);

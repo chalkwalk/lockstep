@@ -170,6 +170,16 @@ namespace lockstep
         void enterDensitySticky();
         void enterVelSticky();
 
+        // 10.7 Melodic generator — same print-model lifecycle as Euclid: enter
+        // stashes the phrase + shows a live preview; the MZ band re-rolls the
+        // preview; P commits (snapshot + print), Func+P / escape reverts the stash.
+        void enterMelodic(int track);
+        void cancelMelodic();
+        void applyMelodyLive(int track);
+        void applyMelodyToTrack(int track);
+        void restoreMelodyStash();
+        void forgetMelodyEditorState() { melodicTrack_ = -1; melodyStashLen_ = 0; }
+
         Clipboard clipboard_;
 
         // Per-track fill latch: captured on the transition into Func+Fill held,
@@ -257,6 +267,12 @@ namespace lockstep
         std::array<Step, kMaxStepsPerTrack> euclidStash_{};
         int euclidStashLen_ = 0;
         int euclidTrack_ = -1;
+
+        // 10.7: stash of phrase steps captured at melodic-arm time; restored on
+        // No/escape. Mirrors the Euclid editor-owned modal triple.
+        std::array<Step, kMaxStepsPerTrack> melodyStash_{};
+        int melodyStashLen_ = 0;
+        int melodicTrack_ = -1;
 
         // Song+FX unit-cycle helpers. Return a unit index 0-3 (0-1=inserts, 2-3=sends).
         // Skip empty units; fall back to 0 if none loaded.

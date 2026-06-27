@@ -33,8 +33,9 @@ namespace lockstep
         GeneratorHub,     // 3-key long-hold  (held-chord)
         NoteEdit,         // Func+Src+step    (entered)
         PLockClear,       // Func+step        (entered)
-        // Armed generator (step grid shows trigs; commit/cancel/escape):
+        // Armed generators (step grid shows trigs; commit/cancel/escape):
         Euclid,
+        Melodic,
         // Sticky MZ-band overlays (escape to exit):
         Time,
         Density,

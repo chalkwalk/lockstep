@@ -68,6 +68,42 @@ namespace lockstep
         CHECK(resolveMetaBand(ui) == MetaBand::Euclidean, "euclidHeld → Euclidean");
     }
 
+    // 10.7: Melodic generator band — resolution, field layout, write round-trip.
+    static void testMelodicBand()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        EditContext ctx;
+        UiState ui;
+
+        // Resolution: melodicHeld → Melodic.
+        ui.melodicHeld = true;
+        CHECK(resolveMetaBand(ui) == MetaBand::Melodic, "melodicHeld → Melodic");
+
+        // Six active fields with the expected stepped labels.
+        const auto f = buildMetaBand(MetaBand::Melodic, 0, proc, 0, ctx, ui);
+        CHECK(f[0].active && juce::String(f[0].label) == "DENSE", "field 0 = DENSE");
+        CHECK(f[1].active && juce::String(f[1].label) == "CORE",  "field 1 = CORE");
+        CHECK(f[2].active && juce::String(f[2].label) == "CNTR",  "field 2 = CNTR");
+        CHECK(f[3].active && juce::String(f[3].label) == "OCTS",  "field 3 = OCTS");
+        CHECK(f[4].active && juce::String(f[4].label) == "LEAP",  "field 4 = LEAP");
+        CHECK(f[5].active && juce::String(f[5].label) == "SEED",  "field 5 = SEED");
+        CHECK(!f[6].active && !f[7].active, "fields 6/7 inactive");
+
+        // CORE value-text tracks the stepped enum (penta default).
+        CHECK(juce::String(f[1].valueText) == "Penta", "CORE default value-text = Penta");
+
+        // Write round-trip into the UiState staging area, with clamping.
+        writeMetaField(MetaBand::Melodic, 0, 1, 2.0f, proc, 0, ctx, ui);  // CORE → Full
+        CHECK(ui.melodyCore == 2, "writeMetaField CORE sets melodyCore");
+        writeMetaField(MetaBand::Melodic, 0, 2, 3.0f, proc, 0, ctx, ui);  // CNTR → Walk
+        CHECK(ui.melodyContour == 3, "writeMetaField CNTR sets melodyContour");
+        writeMetaField(MetaBand::Melodic, 0, 3, 9.0f, proc, 0, ctx, ui);  // OCTS clamps to 4
+        CHECK(ui.melodyOctaves == 4, "writeMetaField OCTS clamps to 4");
+        writeMetaField(MetaBand::Melodic, 0, 5, 42.0f, proc, 0, ctx, ui); // SEED
+        CHECK(ui.melodySeed == 42, "writeMetaField SEED sets melodySeed");
+    }
+
     static void testResolveMetaBandDensitySticky()
     {
         UiState ui;
@@ -1067,6 +1103,7 @@ namespace lockstep
         testResolveMetaBandMasterSection();
         testResolveMetaBandTransientOutranksMasterSection();
         testResolveMetaBandEuclid();
+        testMelodicBand();
         testResolveMetaBandDensitySticky();
         testResolveMetaBandFuncSong();
         testResolveMetaBandSwing();

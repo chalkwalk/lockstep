@@ -3,6 +3,7 @@
 #include "command/ScopePriority.h"
 #include "command/StatusText.h"
 #include "core/Euclidean.h"
+#include "core/MelodyGen.h"
 #include "core/MetricGrid.h"
 #include "core/TrackInputMode.h"
 #include "io/TrigGridMode.h"
@@ -681,6 +682,14 @@ namespace lockstep
                 // Explicitly repaint the grid: the KeyboardArea timer only repaints
                 // on playhead movement, so when stopped the editor repaint() alone
                 // left the live rhythm invisible until transport started.
+                refreshSurface();
+            }
+        };
+        manipulationZone_.onMelodyParamChanged = [this] {
+            if (uiState_.melodicHeld && melodicTrack_ >= 0)
+            {
+                applyMelodyLive(melodicTrack_);
+                repaint();
                 refreshSurface();
             }
         };
@@ -1888,6 +1897,90 @@ namespace lockstep
         refreshMetaBand();
     }
 
+    // ── Melodic generator (10.7) ────────────────────────────────────────────────
+    // The print-model twin of the Euclid helpers above: generate a deterministic
+    // mono melody from the effective KeySig + the MZ params, write it over the live
+    // phrase as ordinary steps, and keep a stash so cancel/escape reverts cleanly.
+
+    void LockstepEditor::applyMelodyLive(int track)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        auto& ph = processor_.sequence().tracks[static_cast<std::size_t>(track)];
+        const int len = ph.length;
+        if (len <= 0) return;
+
+        MelodyParams p;
+        p.density  = uiState_.melodyDensity;
+        p.coreBias = uiState_.melodyCore;
+        p.contour  = uiState_.melodyContour;
+        p.octaves  = uiState_.melodyOctaves;
+        p.stepLeap = uiState_.melodyStepLeap;
+        p.seed     = static_cast<uint32_t>(uiState_.melodySeed);
+
+        const KeySig key = processor_.effectiveKeySig();
+        const int rootMidi = 48 + key.root;   // root pitch class around C3..B3
+        const auto notes = generateMelody(key, len, rootMidi, p);
+
+        for (int si = 0; si < len; ++si)
+        {
+            auto& s = ph.steps[static_cast<std::size_t>(si)];
+            const auto& m = notes[static_cast<std::size_t>(si)];
+            s.trig = m.trig;
+            if (m.trig)
+            {
+                s.trigOverride.noteCount = 1;
+                s.trigOverride.notes[0] = m.note;
+                s.trigOverride.hasGate = (m.gate != MusicalGate::None);
+                s.trigOverride.gateValue = m.gate;
+            }
+            else
+            {
+                s.trigOverride.noteCount = 0;
+                s.trigOverride.hasGate = false;
+            }
+        }
+    }
+
+    void LockstepEditor::applyMelodyToTrack(int track)
+    {
+        // No structural difference from the live preview — the commit snapshot is
+        // taken at the call site (VerbConfirm) before this re-prints over it.
+        applyMelodyLive(track);
+    }
+
+    void LockstepEditor::enterMelodic(int track)
+    {
+        if (track < 0) track = 0;
+        if (activeTrackContentLocked()) return;
+        const auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(track)];
+        uiState_.melodicHeld = true;
+        uiState_.masterSection = -1;
+        melodicTrack_ = track;
+        melodyStashLen_ = wt.length;
+        for (int si = 0; si < melodyStashLen_; ++si)
+            melodyStash_[static_cast<std::size_t>(si)] = wt.steps[static_cast<std::size_t>(si)];
+        applyMelodyLive(track);
+        refreshMetaBand();
+    }
+
+    void LockstepEditor::restoreMelodyStash()
+    {
+        if (melodicTrack_ < 0) return;
+        auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(melodicTrack_)];
+        for (int si = 0; si < melodyStashLen_; ++si)
+            wt.steps[static_cast<std::size_t>(si)] =
+                melodyStash_[static_cast<std::size_t>(si)];
+    }
+
+    void LockstepEditor::cancelMelodic()
+    {
+        if (!uiState_.melodicHeld) return;
+        restoreMelodyStash();
+        uiState_.resetMelodic();
+        forgetMelodyEditorState();
+        refreshMetaBand();
+    }
+
     void LockstepEditor::enterDensitySticky()
     {
         if (uiState_.overlay == Overlay::Density) return;
@@ -2261,6 +2354,7 @@ namespace lockstep
                         // double-tap can arrive mid-gesture).  Euclid always exits.
                         const Overlay prevOv = activeOverlay(uiState_);
                         const bool canEscape = (prevOv == Overlay::Euclid)
+                            || (prevOv == Overlay::Melodic)
                             || (!uiState_.latch.any()
                                 && !processor_.editContext().hasAnyLatchedStep());
                         if (canEscape)
@@ -2269,12 +2363,17 @@ namespace lockstep
                                 { ModeEventKind::DoubleTapFunc });
                             if (r == OverlayResult::Exited)
                             {
-                                // Euclid stash restore is editor-owned state (the
-                                // reducer reset euclidHeld via escapeOverlay).
+                                // Euclid/Melodic stash restore is editor-owned state
+                                // (the reducer reset the held flag via escapeOverlay).
                                 if (prevOv == Overlay::Euclid && euclidTrack_ >= 0)
                                 {
                                     restoreEuclidStash();
                                     forgetEuclidEditorState();
+                                }
+                                if (prevOv == Overlay::Melodic && melodicTrack_ >= 0)
+                                {
+                                    restoreMelodyStash();
+                                    forgetMelodyEditorState();
                                 }
                                 refreshMetaBand();
                                 repaint();
@@ -2373,6 +2472,11 @@ namespace lockstep
                 if (uiState_.euclidHeld)
                 {
                     cancelEuclid();
+                    refreshSurface();
+                }
+                if (uiState_.melodicHeld)
+                {
+                    cancelMelodic();
                     refreshSurface();
                 }
 
@@ -2553,13 +2657,14 @@ namespace lockstep
                     // --------------------------------------------------------
                     if (layer == SurfaceLayer::GeneratorHub)
                     {
-                        if (ev.index >= 0 && ev.index <= 2)
+                        if (ev.index >= 0 && ev.index <= 3)
                         {
                             switch (ev.index)
                             {
                                 case 0: enterEuclid(layerAt < 0 ? 0 : layerAt); break;
                                 case 1: enterDensitySticky(); break;
                                 case 2: enterVelSticky(); break;
+                                case 3: enterMelodic(layerAt < 0 ? 0 : layerAt); break;
                                 default: break;
                             }
                         }
@@ -3763,6 +3868,25 @@ namespace lockstep
                     return true;
                 }
 
+                // 10.7: Melodic generator armed → bare P = print; Func+P = cancel.
+                if (uiState_.melodicHeld)
+                {
+                    restoreMelodyStash();
+                    if (!funcHeld)
+                    {
+                        const auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(melodicTrack_)];
+                        if (wt.length > 0)
+                            processor_.snapshot(CheckpointScope::Phrase, melodicTrack_);
+                        applyMelodyToTrack(melodicTrack_);
+                        setStatus("MELODY printed");
+                    }
+                    uiState_.resetMelodic();
+                    forgetMelodyEditorState();
+                    refreshMetaBand();
+                    repaint();
+                    return true;
+                }
+
                 // Both primary P (Yes/confirm) and Func+P (No/cancel) arrive here as VerbConfirm.
                 // Distinguish by whether Func is held.
                 // Note: when confirm is pending, CommandCore::handleDown intercepts VerbConfirm
@@ -4815,6 +4939,8 @@ namespace lockstep
                                processor_, track, processor_.editContext(), uiState_);
                 if (band == MetaBand::Euclidean && uiState_.euclidHeld && euclidTrack_ >= 0)
                     applyEuclidLive(euclidTrack_);
+                if (band == MetaBand::Melodic && uiState_.melodicHeld && melodicTrack_ >= 0)
+                    applyMelodyLive(melodicTrack_);
                 // Rebuild the band so stepped value-text (mode name, scale type,
                 // root) reflects the new value, and repaint the grid (KEY panel
                 // cells track the edited key). The KeyboardArea timer only

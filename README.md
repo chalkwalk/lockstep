@@ -1196,8 +1196,13 @@ On top of the key:
 - **Per-track scale-quantize** — an opt-in, default-off "quantize as a MIDI
   effect" that snaps played/sequenced notes into the key without rewriting your
   authored steps.
-- **Melodic generator** — a deterministic, seeded line generator (Generator Hub)
-  that *prints* editable steps in the key, focused on the triad/pentatonic core.
+- **Melodic generator** — a deterministic, seeded line generator (Generator Hub
+  cell 4, **MELODY**) that *prints* editable steps in the key. Metric strength is
+  the spine: onsets land on the strongest beats first, strong beats get strong
+  (triad-core) notes held longer, weak beats get colour notes held short, and the
+  rest a short note leaves bridges into the next stronger beat. Encoders: density,
+  core (triad/penta/full), contour (rise/fall/arch/walk), octaves, leap, seed.
+  **P** prints, **Func+P** / escape cancels.
 - **Harmonic voice-mover** — a sticky overlay where you **move chord voices by
   ear** within the key and audition them, then print the progression to steps.
 

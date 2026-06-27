@@ -20,6 +20,7 @@ namespace lockstep
     {
         None,     // no sticky overlay active
         Euclid,   // Euclidean generator (Phrase+Fill chord — stored in euclidHeld, not here)
+        Melodic,  // melodic generator (generator hub cell 3 — stored in melodicHeld, not here)
         Time,     // tempo + time-sig (Song/Scene+TRIG entry chord)
         Density,  // density editor (Func+MOD entry chord)
         Vel,      // velocity overlay (Func+AMP entry chord)
@@ -246,6 +247,19 @@ namespace lockstep
         int euclidOffset = 0;    // rotation (signed)
         int euclidAccents = 0;    // accented onsets (velocity 100 vs 64)
 
+        // 10.7 Melodic generator: entered via generator hub (cell 3). A *print*
+        // tool like Euclid; parameters shown in MZ via MetaBand::Melodic and fed
+        // to generateMelody() against the effective KeySig. Held flag is the SSOT
+        // (activeOverlay maps it to Overlay::Melodic); the live preview + stash
+        // mirror the Euclid editor-owned pattern (see PluginEditor).
+        bool melodicHeld = false;
+        int melodyDensity = 8;     // onsets (placed strongest-beat first)
+        int melodyCore    = 1;     // 0 = triad, 1 = penta, 2 = full
+        int melodyContour = 0;     // MelodyContour
+        int melodyOctaves = 2;     // pitch span (1..4)
+        int melodyStepLeap = 30;   // 0..100 deviation from the contour
+        int melodySeed    = 1;     // deterministic seed (re-roll bumps it)
+
         // MHZ.7.4: last note played per-track, used as LEVELS record-arm pitch.
         // Updated whenever a note is triggered (keyboard overlay or CHROMATIC mode).
         std::array<int, kNumTracks> lastPlayedNote{};  // default 60 (C4)
@@ -305,6 +319,19 @@ namespace lockstep
             euclidPulses = 4;
             euclidOffset = 0;
             euclidAccents = 0;
+        }
+
+        // Clears the melodic generator state (held flag and working params).
+        // Seed is preserved deliberately so a re-entry reproduces the last melody;
+        // only an explicit re-roll bumps it.
+        void resetMelodic() noexcept
+        {
+            melodicHeld = false;
+            melodyDensity = 8;
+            melodyCore = 1;
+            melodyContour = 0;
+            melodyOctaves = 2;
+            melodyStepLeap = 30;
         }
 
         // Returns the first slot index for the currently active page on the given track.

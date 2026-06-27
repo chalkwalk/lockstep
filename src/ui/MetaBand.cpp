@@ -7,6 +7,7 @@
 #include "../core/Density.h"
 #include "../core/Subdivision.h"
 #include "../core/Euclidean.h"
+#include "../core/MelodyGen.h"
 #include "../core/TrigCondition.h"
 #include "../core/Track.h"
 #include "../core/MusicalGate.h"
@@ -56,6 +57,9 @@ namespace lockstep
         // Euclidean modal outranks everything else.
         if (ui.euclidHeld)
             return MetaBand::Euclidean;
+        // Melodic generator modal (generator hub cell 3).
+        if (ui.melodicHeld)
+            return MetaBand::Melodic;
         // TIME/KEY signatures band (entered via Song+TRIG or Scene+TRIG; re-press
         // TRIG cycles TIME <-> KEY; Func double-tap escapes it).
         if (ui.overlay == Overlay::Time)
@@ -1067,6 +1071,56 @@ namespace lockstep
         return result;
     }
 
+    // 10.7 Melodic generator band — deterministic print model (DESIGN §39.11).
+    // Six fields drive generateMelody() against the effective KeySig: density
+    // (onsets, strongest-beat first), core (note-pool width), contour (pitch
+    // shape), octave span, step/leap (deviation), and the seed (re-roll source).
+    static std::array<MetaFieldView, 8> buildMelodyBand(LockstepProcessor& proc,
+                                                        int track,
+                                                        const UiState& ui)
+    {
+        std::array<MetaFieldView, 8> result{};
+
+        const int safeTrack = (track >= 0 && track < static_cast<int>(kNumTracks)) ? track : 0;
+        const int phraseLen = proc.sequence().tracks[static_cast<std::size_t>(safeTrack)].length;
+        const int maxLen = phraseLen > 0 ? phraseLen : 16;
+
+        auto makeField = [](const char* lbl, float lo, float hi, float val,
+                            const char* txt, bool stepped) -> MetaFieldView {
+            MetaFieldView v;
+            v.active = true;
+            v.label = lbl;
+            v.minValue = lo;
+            v.maxValue = hi;
+            v.value = val;
+            v.stepped = stepped;
+            v.writable = true;
+            v.valueText = txt;
+            v.ringMode = RingMode::Dot;
+            return v;
+        };
+
+        result[0] = makeField("DENSE", 0.0f, static_cast<float>(maxLen),
+                              static_cast<float>(ui.melodyDensity),
+                              juce::String(ui.melodyDensity).toRawUTF8(), true);
+        result[1] = makeField("CORE", 0.0f, 2.0f,
+                              static_cast<float>(ui.melodyCore),
+                              melodyCoreName(ui.melodyCore), true);
+        result[2] = makeField("CNTR", 0.0f, 3.0f,
+                              static_cast<float>(ui.melodyContour),
+                              melodyContourName(ui.melodyContour), true);
+        result[3] = makeField("OCTS", 1.0f, 4.0f,
+                              static_cast<float>(ui.melodyOctaves),
+                              juce::String(ui.melodyOctaves).toRawUTF8(), true);
+        result[4] = makeField("LEAP", 0.0f, 100.0f,
+                              static_cast<float>(ui.melodyStepLeap),
+                              juce::String(ui.melodyStepLeap).toRawUTF8(), true);
+        result[5] = makeField("SEED", 1.0f, 999.0f,
+                              static_cast<float>(ui.melodySeed),
+                              juce::String(ui.melodySeed).toRawUTF8(), true);
+        return result;
+    }
+
     // §39 Density band — 16 tracks paginated (8 per page), arc/tick visual.
     // Page is derived from the focused track so the band always shows the bank
     // containing the active track (tracks 0-7 → page 0, 8-15 → page 1).
@@ -1304,6 +1358,8 @@ namespace lockstep
             return buildDensitySelectionBand(proc, ui, track);
         if (band == MetaBand::Euclidean)
             return buildEuclidBand(proc, track, ui);
+        if (band == MetaBand::Melodic)
+            return buildMelodyBand(proc, track, ui);
         if (band == MetaBand::Vel)
             return buildVelBand(proc, ui, track);
         if (band == MetaBand::VelCenter)
@@ -1386,6 +1442,26 @@ namespace lockstep
                 case 2:  // Accents
                     ui.euclidAccents = std::clamp(static_cast<int>(std::round(value)), 0, ui.euclidPulses);
                     break;
+                default: break;
+            }
+            return;
+        }
+
+        // 10.7: Melodic generator params — update UiState staging area.
+        if (band == MetaBand::Melodic)
+        {
+            const int safeTrack = (track >= 0 && track < static_cast<int>(kNumTracks)) ? track : 0;
+            const int phraseLen = proc.sequence().tracks[static_cast<std::size_t>(safeTrack)].length;
+            const int maxLen = phraseLen > 0 ? phraseLen : 16;
+            const int v = static_cast<int>(std::round(value));
+            switch (field)
+            {
+                case 0:  ui.melodyDensity  = std::clamp(v, 0, maxLen); break;
+                case 1:  ui.melodyCore     = std::clamp(v, 0, 2);      break;
+                case 2:  ui.melodyContour  = std::clamp(v, 0, 3);      break;
+                case 3:  ui.melodyOctaves  = std::clamp(v, 1, 4);      break;
+                case 4:  ui.melodyStepLeap = std::clamp(v, 0, 100);    break;
+                case 5:  ui.melodySeed     = std::clamp(v, 1, 999);    break;
                 default: break;
             }
             return;
@@ -1878,6 +1954,7 @@ namespace lockstep
             case MetaBand::DensitySelection: return "DENSITY / SEL";
             case MetaBand::MasterFx:       return "MASTER FX";
             case MetaBand::Euclidean:      return "EUCLID";
+            case MetaBand::Melodic:        return "MELODY";
             case MetaBand::Transport:      return "TRANSPORT";
             case MetaBand::Vel:            return "VEL";
             case MetaBand::VelCenter:      return "VEL / CENTER";

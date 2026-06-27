@@ -15,6 +15,7 @@ add_executable(lockstep_tests
     AmpDspTest.cpp
     EuclideanTest.cpp
     ScaleTest.cpp
+    MelodyGenTest.cpp
     EditModeTest.cpp
     LayerResolveTest.cpp
     SurfaceLayerTest.cpp

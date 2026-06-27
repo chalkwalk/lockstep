@@ -2053,9 +2053,16 @@ In-scale highlighting; root-anchored keyboard layout; diatonic nav gestures
 Opt-in, default-off transform at note-emit + live play-in; serializer flag;
 audio-path test.
 
-### 10.7 — Melodic generator
-Generator Hub cell; `src/core/MelodyGen.h` (deterministic/seeded); range /
-core-bias / contour / density / step-leap / seed; prints mono line.
+### 10.7 — Melodic generator ✅
+Generator Hub cell 3 (MELODY); `src/core/MelodyGen.h` (deterministic/seeded);
+density / core-bias / contour / octaves / step-leap / seed; prints mono line.
+Metric strength is the spine: onsets land strongest-beat first, strong beats get
+strong (low-tier) notes and longer durations, and a short weak note leaves the
+rest that bridges into the next stronger onset. Euclid-style stash → live
+preview → P prints / Func+P (or escape) reverts. `MetaBand::Melodic`,
+`Overlay::Melodic` / `Modal::Melodic`, `CellState::GeneratorMelodic`.
+Tests: `tests/MelodyGenTest.cpp` (determinism, in-`pcMask`, core-bias narrowing,
+strong-beat→strong-note/longer, rest-bridge) + `MetaBandTest` band round-trip.
 
 ### 10.8 — Harmonic voice-mover
 Generator Hub cell → `Overlay::Harmony`; 8-encoder voice mover; clone-on-add;

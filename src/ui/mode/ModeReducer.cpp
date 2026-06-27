@@ -197,6 +197,7 @@ namespace lockstep
     Overlay activeOverlay(const UiState& ui) noexcept
     {
         if (ui.euclidHeld) { return Overlay::Euclid; }
+        if (ui.melodicHeld) { return Overlay::Melodic; }
         return ui.overlay;
     }
 
@@ -230,6 +231,9 @@ namespace lockstep
                 break;
             case Overlay::Euclid:
                 ui.resetEuclid();
+                break;
+            case Overlay::Melodic:
+                ui.resetMelodic();
                 break;
             case Overlay::None:
                 break;
