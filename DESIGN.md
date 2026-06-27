@@ -6150,15 +6150,17 @@ Entry: a **Harmonic** Generator Hub cell → sticky `Overlay::Harmony`. The mode
 is a **progression of K chord slots**, each ≤4 voices (the `kMaxNotesPerStep`
 ceiling — triads and 7ths). The 8 encoders:
 
-- **Left 4 = the voices.** Each scrubs Voice 1 (bass)…Voice 4 (top). The cell is
-  **not a ring** but a **note-name reel** (prev / current / next, bright centre =
-  the chord) with a half-knob tucked to the top edge (V1/V3) or bottom (V2/V4),
-  so the four voices read straight across — the reel, not an absolute dot, is the
-  readout. A bare turn steps **diatonically** through the in-key ladder; an
-  off-detent removes the voice and the first empty slot adds one; **`Func`+turn =
-  a chromatic borrowed tone** (a per-voice semitone offset that slides with the
-  chord under the collective moves; the reel shows the chromatic neighbours and a
-  tint). A voice that lands back in-scale snaps to a rung (offset cleared).
+- **Left 4 = the voices.** The four voice slots are re-laid as **one display
+  spanning four columns**, each column a voice (V1 bass … V4 top). The three rows
+  are the **previous / current / next chord** of the progression, so a column
+  reads that voice's motion across the progression and `CUR` scrolls the chords
+  so the current one stays in the bright middle row. Each voice's **knob is
+  centred on the current row** (the arc reads above and below the chord view); a
+  bare turn steps that voice **diatonically** through the in-key ladder, an
+  off-detent removes the voice and the first empty column adds one, and
+  **`Func`+turn = a chromatic borrowed tone** (a per-voice semitone offset that
+  slides with the chord under the collective moves; the current row tints). A
+  voice that lands back in-scale snaps to a rung (offset cleared).
 - **Right 4 = structure + collective moves.** Length (K slots) · Cursor (select
   active chord) · Transpose the selected chord by scale-degree (all voices,
   in-key) · Octave-shift the selected chord.
