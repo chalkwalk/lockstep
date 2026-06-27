@@ -217,8 +217,10 @@ namespace lockstep
         double captureStartMs_ = 0.0;           // for the REC elapsed timer
         juce::File captureLastFile_;            // last/active take, for discard + reveal
         void runCaptureOut(const CaptureController::Out& out);  // execute a controller decision
-        void captureTickAndPaint();             // per-timer tick + feedback repaint
         void paintCaptureStrip(juce::Graphics& g);
+        // Chain the capture-exit dialog (if recording) ahead of `next` (the
+        // dirty-project save guard). Armed-but-not-rolling disarms silently.
+        void captureExitGuard(std::function<void()> next);
         // 6.5 Animate bypass: track/slot bypassed by FX-held + step; restored on step-up.
         int animateBypassTrack_ = -1;
         int animateBypassSlot_ = -1;

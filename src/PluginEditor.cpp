@@ -884,6 +884,49 @@ namespace lockstep
         refreshSurface();
     }
 
+    void LockstepEditor::captureExitGuard(std::function<void()> next)
+    {
+        using Phase = CaptureController::Phase;
+        const Phase ph = captureController_.phase();
+        if (ph == Phase::Armed)
+        {
+            runCaptureOut(captureController_.onTap(false));  // disarm silently
+            next();
+            return;
+        }
+        if (ph != Phase::Recording)
+        {
+            next();
+            return;
+        }
+        // A take is rolling — confirm before quitting, ahead of the project guard.
+        juce::AlertWindow::showAsync(
+            juce::MessageBoxOptions()
+                .withIconType(juce::MessageBoxIconType::WarningIcon)
+                .withTitle("Recording in progress")
+                .withMessage("A performance capture is still recording.")
+                .withButton("Stop recording & exit")
+                .withButton("Discard recording & exit")
+                .withButton("Cancel"),
+            [this, next = std::move(next)](int result) mutable {
+                if (result == 1)        // Stop & exit — finalise the take
+                {
+                    runCaptureOut(captureController_.onDoubleTap());
+                    next();
+                }
+                else if (result == 2)   // Discard & exit — drop the partial file
+                {
+                    processor_.stopCapture();
+                    if (captureLastFile_.existsAsFile())
+                        captureLastFile_.deleteFile();
+                    captureController_.onFinalized(
+                        juce::Time::getMillisecondCounterHiRes());
+                    next();
+                }
+                // result 3 / 0 = Cancel — stay open, keep recording.
+            });
+    }
+
     // Persistent capture feedback strip: drawn under the master meter from arm
     // onward so it is always obvious what is being captured, where, and when.
     void LockstepEditor::paintCaptureStrip(juce::Graphics& g)
@@ -1304,9 +1347,14 @@ namespace lockstep
             {
                 // Capture fileBar_ by raw pointer (editor outlives the window).
                 auto* fb = fileBar_.get();
-                w->onCloseRequested = [fb](std::function<void()> doQuit)
+                w->onCloseRequested = [this, fb](std::function<void()> doQuit)
                 {
-                    fb->withDirtyGuard(std::move(doQuit));
+                    // Capture-exit dialog first (if recording), then the project
+                    // dirty-save guard.
+                    captureExitGuard([fb, dq = std::move(doQuit)]() mutable
+                    {
+                        fb->withDirtyGuard(std::move(dq));
+                    });
                 };
             }
         }
