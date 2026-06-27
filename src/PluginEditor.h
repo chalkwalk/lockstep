@@ -190,7 +190,11 @@ namespace lockstep
         void applyHarmonyLive(int track);
         void applyHarmonyToTrack(int track);
         void restoreHarmonyStash();
-        void forgetHarmonyEditorState() { harmonyTrack_ = -1; harmonyStashLen_ = 0; }
+        void forgetHarmonyEditorState();
+        // 10.10: re-strike the cursor chord through the live-note engine on every
+        // edit so the ear leads; stopHarmonyAudition releases the sounding voices.
+        void auditionHarmonyCursorChord();
+        void stopHarmonyAudition();
 
         Clipboard clipboard_;
 
@@ -316,6 +320,7 @@ namespace lockstep
         std::array<Step, kMaxStepsPerTrack> harmonyStash_{};
         int harmonyStashLen_ = 0;
         int harmonyTrack_ = -1;
+        std::vector<int> harmonyAuditionNotes_;  // currently-sounding audition voices
 
         // Song+FX unit-cycle helpers. Return a unit index 0-3 (0-1=inserts, 2-3=sends).
         // Skip empty units; fall back to 0 if none loaded.

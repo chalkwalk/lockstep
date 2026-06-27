@@ -682,6 +682,7 @@ namespace lockstep
             if (uiState_.harmonyHeld && harmonyTrack_ >= 0)
             {
                 applyHarmonyLive(harmonyTrack_);
+                auditionHarmonyCursorChord();   // re-strike on any edit (voice/MOVE/OCT/CUR)
                 repaint();
                 refreshSurface();
             }
@@ -2359,6 +2360,51 @@ namespace lockstep
         uiState_.resetHarmony();
         forgetHarmonyEditorState();
         refreshMetaBand();
+    }
+
+    void LockstepEditor::forgetHarmonyEditorState()
+    {
+        stopHarmonyAudition();
+        harmonyTrack_ = -1;
+        harmonyStashLen_ = 0;
+    }
+
+    void LockstepEditor::stopHarmonyAudition()
+    {
+        if (harmonyTrack_ >= 0)
+            for (int note : harmonyAuditionNotes_)
+                processor_.liveNoteOff(harmonyTrack_, note);
+        harmonyAuditionNotes_.clear();
+    }
+
+    // 10.10: re-strike the cursor chord immediately on any edit so the ear can
+    // lead (preview by slow-turning an encoder). Releases the previous audition
+    // voices and sounds the cursor chord through the live-note engine.
+    void LockstepEditor::auditionHarmonyCursorChord()
+    {
+        if (!uiState_.harmonyHeld || harmonyTrack_ < 0) return;
+        stopHarmonyAudition();
+
+        const KeySig key = processor_.effectiveKeySig();
+        const auto ladder = harmonyLadder(key, kHarmonyRootBase + key.root, kHarmonyOctaves);
+        if (ladder.empty()) return;
+
+        const auto& prog = uiState_.harmonyProg;
+        const int K = std::clamp(prog.length, 1, kMaxHarmonyChords);
+        const int cur = std::clamp(prog.cursor, 0, K - 1);
+        const auto& ch = prog.chords[static_cast<std::size_t>(cur)];
+        const int vc = std::clamp(ch.voiceCount, 0, kHarmonyVoices);
+        for (int v = 0; v < vc; ++v)
+        {
+            const int note = resolveVoice(ladder, ch.voice[static_cast<std::size_t>(v)],
+                                          ch.chroma[static_cast<std::size_t>(v)]);
+            if (std::find(harmonyAuditionNotes_.begin(), harmonyAuditionNotes_.end(), note)
+                == harmonyAuditionNotes_.end())
+            {
+                processor_.liveNoteOn(harmonyTrack_, note, 100);
+                harmonyAuditionNotes_.push_back(note);
+            }
+        }
     }
 
     void LockstepEditor::enterDensitySticky()
