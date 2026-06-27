@@ -5470,7 +5470,10 @@ namespace lockstep
                 if (band == MetaBand::Melodic && uiState_.melodicHeld && melodicTrack_ >= 0)
                     applyMelodyLive(melodicTrack_);
                 if (band == MetaBand::Harmony && uiState_.harmonyHeld && harmonyTrack_ >= 0)
+                {
                     applyHarmonyLive(harmonyTrack_);
+                    auditionHarmonyCursorChord();
+                }
                 // Rebuild the band so stepped value-text (mode name, scale type,
                 // root) reflects the new value, and repaint the grid (KEY panel
                 // cells track the edited key). The KeyboardArea timer only
