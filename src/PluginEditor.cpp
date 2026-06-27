@@ -1625,7 +1625,9 @@ namespace lockstep
             static constexpr int kGap = 3;
             static constexpr int kDashStartX = 420;   // right edge of left controls
             static constexpr int kSplitX = 640;   // right boundary of the state dashboard
-            const int by = (36 - kBadgeH) / 2;
+            // Vertically centre in the 36px header row, which sits below the
+            // master section (kMasterStripH) — not at the very top of the window.
+            const int by = kMasterStripH + (36 - kBadgeH) / 2;
 
             g.setFont(juce::Font(juce::FontOptions(10.0f)));
 
