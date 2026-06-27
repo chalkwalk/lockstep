@@ -104,6 +104,9 @@ namespace lockstep
         // resized(), paintOverChildren() (CC badges, learn overlay, morph chips).
         [[nodiscard]] juce::Rectangle<int> slotCellBounds(int i) const;
         [[nodiscard]] juce::Rectangle<int> slotKnobBounds(int i) const;
+        // 10.10: harmony CHORD view re-lays voice slots 0-3 as four full-height
+        // columns across the left region (the chord reel spans them).
+        [[nodiscard]] juce::Rectangle<int> harmonyVoiceColBounds(int v) const;
 
         LockstepProcessor& processor_;
         KeyboardArea& area_;

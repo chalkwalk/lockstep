@@ -1123,50 +1123,47 @@ namespace lockstep
         };
 
         static const char* kVoiceLabels[kHarmonyVoices] = { "V1", "V2", "V3", "V4" };
-        const bool chromatic = ui.funcHeld;     // Func held → chromatic neighbours
+        const bool chromatic = ui.funcHeld;     // Func held → chromatic adjust
         auto nameOf = [&](int midi) { return harmonyNoteLabel(midi); };
+
+        // Each voice column reads the SAME voice across the prev / current / next
+        // chord of the progression — the reel rows are chords, not note neighbours,
+        // so a column shows that voice's motion (and CUR scrolls the chords).
+        auto chordVoiceName = [&](int chordIdx, int voice) -> juce::String {
+            if (chordIdx < 0 || chordIdx >= K) return {};
+            const auto& c = prog.chords[static_cast<std::size_t>(chordIdx)];
+            if (voice >= c.voiceCount) return {};
+            return nameOf(resolveVoice(ladder, c.voice[static_cast<std::size_t>(voice)],
+                                       c.chroma[static_cast<std::size_t>(voice)]));
+        };
+
         for (int v = 0; v < kHarmonyVoices; ++v)
         {
-            // Half-knob tucks to the top edge for V1/V3, the bottom for V2/V4 —
-            // so the four voices read straight across without the knobs crowding.
-            const bool knobTop = (v % 2 == 0);
-
             // Range extends one below 0 so an off-detent (-1) removes the voice.
             if (v < vc)
             {
                 const int rung = std::clamp(ch.voice[static_cast<std::size_t>(v)], 0, ladderMax);
-                const int chroma = ch.chroma[static_cast<std::size_t>(v)];
-                const int nowMidi = resolveVoice(ladder, rung, chroma);
 
                 auto& f = result[static_cast<std::size_t>(v)];
                 f = makeField(kVoiceLabels[v], -1.0f, static_cast<float>(ladderMax),
                               static_cast<float>(rung), {}, true);
                 f.harmonyVoiceCell = true;
-                f.harmonyKnobTop = knobTop;
                 f.harmonyChromatic = chromatic;
-                f.reelNow = nameOf(nowMidi);
-                if (chromatic)
-                {
-                    f.reelPrev = nameOf(std::clamp(nowMidi - 1, 0, 127));
-                    f.reelNext = nameOf(std::clamp(nowMidi + 1, 0, 127));
-                }
-                else
-                {
-                    // Diatonic neighbours — where a bare turn lands (on a rung).
-                    f.reelPrev = (rung > 0)         ? nameOf(resolveVoice(ladder, rung - 1, 0)) : juce::String();
-                    f.reelNext = (rung < ladderMax) ? nameOf(resolveVoice(ladder, rung + 1, 0)) : juce::String();
-                }
+                f.reelPrev = chordVoiceName(cur - 1, v);
+                f.reelNow  = chordVoiceName(cur, v);
+                f.reelNext = chordVoiceName(cur + 1, v);
             }
             else if (v == vc && vc < kHarmonyVoices)
             {
-                // The first empty slot is the "add" slot: a blank reel; turning it
-                // up adds a voice.
+                // The first empty slot is the "add" slot: blank current note, but
+                // still show the neighbouring chords' voice for context.
                 auto& f = result[static_cast<std::size_t>(v)];
                 f = makeField(kVoiceLabels[v], -1.0f, static_cast<float>(ladderMax),
                               -1.0f, {}, true);
                 f.harmonyVoiceCell = true;
-                f.harmonyKnobTop = knobTop;
                 f.harmonyVoiceOff = true;
+                f.reelPrev = chordVoiceName(cur - 1, v);
+                f.reelNext = chordVoiceName(cur + 1, v);
             }
             else
             {

@@ -36,8 +36,19 @@ namespace lockstep
             sliders_[si].onDragStart = [this, i] {
                 if (band_ == MetaBand::None)
                     processor_.editContext().setActiveSlot(slotOffset_ + i);
-                lastSlotValid_ = false;  // start each drag with a clean reference point
-                juce::ignoreUnused(i);
+                // Harmony voice slots use an incremental Func-chromatic delta, so
+                // seed the reference to the start value — otherwise the first detent
+                // (the whole gesture, for a stepped encoder) is swallowed.
+                if (band_ == MetaBand::Harmony && i < kHarmonyVoices)
+                {
+                    lastSlotValue_[static_cast<std::size_t>(i)] =
+                        static_cast<float>(sliders_[static_cast<std::size_t>(i)].getValue());
+                    lastSlotValid_ = true;
+                }
+                else
+                {
+                    lastSlotValid_ = false;  // start each drag with a clean reference point
+                }
             };
             sliders_[si].onValueChange = [this, i] {
                 if (updatingFromTimer_) return;
@@ -223,6 +234,7 @@ namespace lockstep
             labels_[i].setVisible(true);
         }
 
+        resized();   // the harmony CHORD view re-lays voice slots 0-3 as columns
         repaint();
     }
 
@@ -587,6 +599,20 @@ namespace lockstep
         return juce::Rectangle<int>(x, y, narrowW, rowH).reduced(2, 2);
     }
 
+    juce::Rectangle<int> ManipulationZone::harmonyVoiceColBounds(int v) const
+    {
+        // The four voice slots span the left two of the four columns; lay them out
+        // as four equal full-height columns there (the chord reel reads across).
+        static constexpr int kCols = kMZSlots / 2;
+        const auto bounds = getLocalBounds().reduced(4).withTrimmedTop(kHeaderH);
+        const int baseW = bounds.getWidth() / kCols;
+        const int narrowW = baseW * 7 / 8;
+        const int regionW = 2 * narrowW;                 // columns 0-1
+        const int colW = regionW / kHarmonyVoices;
+        const int x = bounds.getX() + std::clamp(v, 0, kHarmonyVoices - 1) * colW;
+        return juce::Rectangle<int>(x, bounds.getY(), colW, bounds.getHeight()).reduced(2, 2);
+    }
+
     juce::Rectangle<int> ManipulationZone::slotKnobBounds(int i) const
     {
         const auto cell = slotCellBounds(i);
@@ -789,6 +815,20 @@ namespace lockstep
         for (int i = 0; i < kMZSlots; ++i)
         {
             const auto si = static_cast<std::size_t>(i);
+
+            // Harmony CHORD view: voice slots 0-3 become four full-height columns
+            // (the slider fills the column so its reel + centred knob span it); the
+            // header label sits at the top, the value strip and clear button hide.
+            if (band_ == MetaBand::Harmony && i < kHarmonyVoices)
+            {
+                const auto col = harmonyVoiceColBounds(i);
+                labels_[si].setBounds(col.withHeight(kCellNameH));
+                valueLabels_[si].setBounds({});
+                sliders_[si].setBounds(col.withTrimmedTop(kCellNameH));
+                clearBtns_[si].setBounds({});
+                continue;
+            }
+
             const auto cell = slotCellBounds(i);
             const auto knob = slotKnobBounds(i);
 

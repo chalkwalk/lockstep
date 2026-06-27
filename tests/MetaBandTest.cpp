@@ -201,19 +201,29 @@ namespace lockstep
         ui.harmonyHeld = true;
         ui.harmonyProg = HarmonyProgression{};   // one default triad, 3 voices
 
-        // Voice cells render as reels with alternating half-knobs; the 4th slot
-        // (past the 3 default voices) is the blank "add" slot.
+        // Voice cells render as chord-reel columns; the 4th slot (past the 3
+        // default voices) is the blank "add" slot.
         auto f = buildMetaBand(MetaBand::Harmony, 0, proc, 0, ctx, ui);
-        CHECK(f[0].harmonyVoiceCell && f[0].harmonyKnobTop, "V1 = reel cell, knob on top");
-        CHECK(f[1].harmonyVoiceCell && !f[1].harmonyKnobTop, "V2 = reel cell, knob on bottom");
-        CHECK(!f[0].reelNow.isEmpty(), "voice reel shows its current note name");
+        CHECK(f[0].harmonyVoiceCell && f[1].harmonyVoiceCell, "V1/V2 = reel columns");
+        CHECK(!f[0].reelNow.isEmpty(), "voice column shows its current-chord note");
         CHECK(f[3].harmonyVoiceCell && f[3].harmonyVoiceOff, "V4 = blank add slot");
-        CHECK(!f[0].harmonyChromatic, "bare band shows diatonic neighbours");
+        CHECK(!f[0].harmonyChromatic, "bare band is diatonic");
 
-        // Func held flips the voice cells to chromatic neighbours.
+        // The reel rows are the prev/current/next CHORD: with one chord there are
+        // no neighbours, so prev/next are blank.
+        CHECK(f[0].reelPrev.isEmpty() && f[0].reelNext.isEmpty(), "single chord has no neighbours");
+        ui.harmonyProg.length = 2;
+        ui.harmonyProg.reach = 2;
+        ui.harmonyProg.chords[1] = ui.harmonyProg.chords[0];
+        ui.harmonyProg.cursor = 1;                       // current = chord 1
+        f = buildMetaBand(MetaBand::Harmony, 0, proc, 0, ctx, ui);
+        CHECK(!f[0].reelPrev.isEmpty(), "cursor on chord 2 shows chord 1 as the prev row");
+        ui.harmonyProg = HarmonyProgression{};           // reset
+
+        // Func held flips the voice cells to chromatic adjust.
         ui.funcHeld = true;
         f = buildMetaBand(MetaBand::Harmony, 0, proc, 0, ctx, ui);
-        CHECK(f[0].harmonyChromatic, "Func held → voice reel shows chromatic neighbours");
+        CHECK(f[0].harmonyChromatic, "Func held → chromatic voice adjust");
 
         // Func+voice chromatic nudge moves the pitch one semitone (borrowed tone).
         const KeySig key = proc.effectiveKeySig();

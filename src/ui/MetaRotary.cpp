@@ -34,55 +34,54 @@ namespace lockstep
     {
         auto* mr = dynamic_cast<MetaRotary*>(&slider);
 
-        // --- Harmony voice reel (10.10): a note-name reel + half-knob, not a ring.
+        // --- Harmony CHORD view (10.10): one voice column = 3 chord rows
+        // (prev / current / next) with a knob ring centred on the current row, so
+        // the arc reads above and below the chord view. Func tints the current row.
         if (mr && mr->harmonyVoiceCell)
         {
             const auto full = juce::Rectangle<int>(x, y, width, height).toFloat();
             const auto dim = slider.findColour(juce::Slider::rotarySliderOutlineColourId)
-                                 .withAlpha(0.55f);
+                                 .withAlpha(0.6f);
             const auto bright = slider.findColour(juce::Slider::thumbColourId)
                                     .withAlpha(slider.isEnabled() ? 1.0f : 0.4f);
             const auto accent = juce::Colour(0xffe0a040);  // borrowed-tone tint
+            const auto nowCol = mr->harmonyChromatic ? accent : bright;
 
-            // Half-knob arc hugging the top or bottom edge.
-            const float arcR = juce::jmin(full.getWidth(), full.getHeight()) * 0.30f;
-            const float arcCX = full.getCentreX();
-            const float arcCY = mr->harmonyKnobTop ? full.getY() + 1.0f
-                                                   : full.getBottom() - 1.0f;
-            {
-                const float a0 = mr->harmonyKnobTop ? 0.0f : juce::MathConstants<float>::pi;
-                juce::Path arc;
-                arc.addCentredArc(arcCX, arcCY, arcR, arcR, 0.0f, a0,
-                                  a0 + juce::MathConstants<float>::pi, true);
-                g.setColour((mr->harmonyChromatic ? accent : bright).withAlpha(0.5f));
-                g.strokePath(arc, juce::PathStrokeType(juce::jmax(1.5f, arcR * 0.14f)));
-            }
-
-            if (mr->harmonyVoiceOff)
-            {
-                g.setColour(dim);
-                g.setFont(juce::Font(juce::FontOptions(13.0f)));
-                g.drawText("+", full.toNearestInt(), juce::Justification::centred);
-                return;
-            }
-
-            // Three-row reel: prev (dim) / now (bright) / next (dim), nudged a
-            // little away from the knob edge so the half-knob has room.
             const float rowH = full.getHeight() / 3.0f;
-            const float yOff = mr->harmonyKnobTop ? rowH * 0.30f : -rowH * 0.30f;
             auto rowRect = [&](int row) {
-                return juce::Rectangle<float>(
-                           full.getX(),
-                           full.getY() + yOff + rowH * static_cast<float>(row),
-                           full.getWidth(), rowH).toNearestInt();
+                return juce::Rectangle<float>(full.getX(),
+                                              full.getY() + rowH * static_cast<float>(row),
+                                              full.getWidth(), rowH).toNearestInt();
             };
+
+            // Knob ring centred on the current (middle) row; the note sits over it.
+            {
+                const float cx = full.getCentreX();
+                const float cy = full.getY() + rowH * 1.5f;
+                const float r = juce::jmin(full.getWidth(), rowH) * 0.44f;
+                juce::Path ring;
+                ring.addCentredArc(cx, cy, r, r, 0.0f, 0.0f,
+                                   juce::MathConstants<float>::twoPi, true);
+                g.setColour(nowCol.withAlpha(0.4f));
+                g.strokePath(ring, juce::PathStrokeType(juce::jmax(1.5f, r * 0.13f)));
+            }
+
             g.setFont(juce::Font(juce::FontOptions(9.0f)));
             g.setColour(dim);
             g.drawText(mr->reelPrev, rowRect(0), juce::Justification::centred);
             g.drawText(mr->reelNext, rowRect(2), juce::Justification::centred);
-            g.setColour(mr->harmonyChromatic ? accent : bright);
+
             g.setFont(juce::Font(juce::FontOptions(12.0f)).boldened());
-            g.drawText(mr->reelNow, rowRect(1), juce::Justification::centred);
+            if (mr->harmonyVoiceOff)
+            {
+                g.setColour(dim);
+                g.drawText("+", rowRect(1), juce::Justification::centred);
+            }
+            else
+            {
+                g.setColour(nowCol);
+                g.drawText(mr->reelNow, rowRect(1), juce::Justification::centred);
+            }
             return;
         }
 
