@@ -127,6 +127,12 @@ namespace lockstep::status
 
     inline juce::String captureFailed() { return "Capture: could not open file"; }
 
+    inline juce::String captureArmedWaiting() { return "ARMED - capture starts on Play"; }
+
+    inline juce::String captureDisarmedIdle() { return "Capture disarmed"; }
+
+    inline juce::String captureDiscarded() { return "Take discarded"; }
+
     // ---- transport / meta ---------------------------------------------------
 
     inline juce::String panic() { return "Panic"; }

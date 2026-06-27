@@ -89,4 +89,9 @@ namespace lockstep
     // Token for the FX-section long-press (tap = navigate, hold = open picker).
     static constexpr int kFxSectionLongPressToken = 6000;
 
+    // Token for the CAPTURE cell (tape deck): tap / double-tap / long-press all
+    // resolve on this one token (double-tap and long-press use independent state
+    // in GestureRecognizer, so sharing the token is safe).
+    static constexpr int kCaptureToken = 7000;
+
 } // namespace lockstep

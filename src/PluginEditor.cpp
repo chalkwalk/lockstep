@@ -145,28 +145,12 @@ namespace lockstep
         }
         void toggleCapture() override
         {
-            if (ed.processor_.isCapturing())
-            {
-                const juce::RelativeTime dur = ed.processor_.stopCapture();
-                const juce::File f = ed.processor_.captureFile();
-                const int totalSec = static_cast<int>(dur.inSeconds());
-                const juce::String durStr = juce::String(totalSec / 60)
-                    + ":" + juce::String(totalSec % 60).paddedLeft('0', 2);
-                ed.setStatus(status::captureDisarmed(durStr, f.getFileName()));
-            }
-            else
-            {
-                if (ed.processor_.startCapture())
-                {
-                    ed.setStatus(status::captureArmed(
-                        ed.processor_.captureFile().getFileName()));
-                }
-                else
-                {
-                    ed.setStatus(status::captureFailed());
-                }
-            }
-            ed.refreshSurface();
+            // Single owner: the CAPTURE cell is intercepted in the editor's
+            // VerbRecord dispatch and routed through captureController_ with full
+            // tap / double-tap / long-press semantics, so this CommandCore path is
+            // normally unreachable. Kept as a sane fallback: a plain tap.
+            ed.runCaptureOut(
+                ed.captureController_.onTap(ed.processor_.clock().inPluginPlaying()));
         }
 
         void sceneFloorPaste() override
@@ -850,6 +834,136 @@ namespace lockstep
         keyboardArea_.repaint();
     }
 
+    // ── Performance capture (tape deck) ───────────────────────────────────────
+    // Execute a CaptureController decision: the controller is pure, so all IO
+    // (arming the WAV writer, flushing, deleting files, revealing folders) and
+    // the lifecycle callbacks happen here.
+    void LockstepEditor::runCaptureOut(const CaptureController::Out& out)
+    {
+        const double now = juce::Time::getMillisecondCounterHiRes();
+
+        if (out.start)
+        {
+            if (processor_.startCapture())
+            {
+                captureController_.onStarted(now);
+                captureLastFile_ = processor_.captureFile();
+                captureStartMs_  = now;
+                setStatus(status::captureArmed(captureLastFile_.getFileName()));
+            }
+            else
+            {
+                captureController_.onStartFailed();
+                setStatus(status::captureFailed());
+            }
+        }
+        if (out.finalize)
+        {
+            const juce::RelativeTime dur = processor_.stopCapture();
+            captureController_.onFinalized(now);
+            const int totalSec = static_cast<int>(dur.inSeconds());
+            const juce::String durStr = juce::String(totalSec / 60)
+                + ":" + juce::String(totalSec % 60).paddedLeft('0', 2);
+            setStatus(status::captureDisarmed(durStr, captureLastFile_.getFileName()));
+        }
+        if (out.discard)
+        {
+            if (captureLastFile_.existsAsFile())
+                captureLastFile_.deleteFile();
+            captureLastFile_ = juce::File();
+            setStatus(status::captureDiscarded());
+        }
+        if (out.reveal)
+        {
+            const juce::File dir = captureLastFile_.existsAsFile()
+                ? captureLastFile_.getParentDirectory()
+                : chooseCaptureFile(processor_.currentProjectFile()).getParentDirectory();
+            dir.createDirectory();
+            dir.revealToUser();
+        }
+        refreshSurface();
+    }
+
+    // Persistent capture feedback strip: drawn under the master meter from arm
+    // onward so it is always obvious what is being captured, where, and when.
+    void LockstepEditor::paintCaptureStrip(juce::Graphics& g)
+    {
+        using Phase = CaptureController::Phase;
+        const Phase ph = captureController_.phase();
+        if (ph == Phase::Idle) return;
+
+        const double now = juce::Time::getMillisecondCounterHiRes();
+        const float pulse = 0.5f + 0.5f * std::sin(static_cast<float>(now) * 0.006f);
+
+        juce::String label, tail;
+        juce::Colour dot;
+        bool showElapsed = false;
+        switch (ph)
+        {
+            case Phase::Armed:
+                label = "ARMED";
+                dot   = juce::Colours::red.withAlpha(0.35f + 0.5f * pulse);
+                tail  = "starts on Play  ->  "
+                      + chooseCaptureFile(processor_.currentProjectFile())
+                            .getParentDirectory().getFileName();
+                break;
+            case Phase::Recording:
+                showElapsed = true;
+                if (captureController_.windingDown())
+                {
+                    label = "STOPPING";
+                    dot   = juce::Colour(0xFFFFB020u);
+                    tail  = "waiting for silence";
+                }
+                else
+                {
+                    label = "REC";
+                    dot   = juce::Colours::red;
+                    tail  = captureLastFile_.getFileName();
+                }
+                break;
+            case Phase::JustSaved:
+                label = "SAVED";
+                dot   = juce::Colour(0xFF40C060u);
+                tail  = captureLastFile_.getFileName() + "   (hold REC to discard)";
+                break;
+            case Phase::Idle:
+                return;
+        }
+
+        const int stripH = 15;
+        const auto r = juce::Rectangle<int>(0, kMasterMeterH, getWidth(), stripH);
+        g.setColour(juce::Colour::fromRGBA(20, 22, 28, 220));
+        g.fillRect(r);
+
+        int x = 6;
+        const float cy = static_cast<float>(r.getCentreY());
+        g.setColour(dot);
+        g.fillEllipse(static_cast<float>(x), cy - 4.0f, 8.0f, 8.0f);
+        x += 14;
+
+        constexpr int kLabelW = 64;
+        g.setFont(juce::Font(juce::FontOptions(11.0f)).boldened());
+        g.setColour(juce::Colours::white);
+        g.drawText(label, x, r.getY(), kLabelW, stripH, juce::Justification::centredLeft);
+        x += kLabelW;
+
+        if (showElapsed)
+        {
+            const int sec = static_cast<int>((now - captureStartMs_) / 1000.0);
+            const juce::String elapsed = juce::String(sec / 60) + ":"
+                + juce::String(sec % 60).paddedLeft('0', 2);
+            g.setColour(juce::Colours::white);
+            g.drawText(elapsed, x, r.getY(), 44, stripH, juce::Justification::centredLeft);
+            x += 50;
+        }
+
+        g.setFont(juce::Font(juce::FontOptions(10.0f)));
+        g.setColour(juce::Colours::lightgrey);
+        g.drawText(tail, x, r.getY(), getWidth() - x - 4, stripH,
+                   juce::Justification::centredLeft);
+    }
+
     void LockstepEditor::timerCallback()
     {
         // Generator hub (9.10): promote a held 3-key to the hub picker after 350 ms.
@@ -873,6 +987,29 @@ namespace lockstep
                 fxPickerFiredMidHold_ = true;
                 openFxSectionPicker(fxSectionPickerWantsMaster_);
             }
+        }
+
+        // ── Performance capture ───────────────────────────────────────────────
+        // CAPTURE long-press fires mid-hold (discard in the just-saved window /
+        // reveal folder when idle), then the per-tick finalize rule runs.
+        {
+            const double nowMs = juce::Time::getMillisecondCounterHiRes();
+            if (captureCellHeld_ && !captureLongPressFired_
+                && gesture_.longPressElapsed(kCaptureToken, nowMs))
+            {
+                captureLongPressFired_ = true;
+                runCaptureOut(captureController_.onLongPress());
+            }
+            const float capPeak = std::max(processor_.masterPeak(), processor_.masterPeakR());
+            const bool capPlaying = processor_.clock().inPluginPlaying();
+            const auto prevPhase = captureController_.phase();
+            const auto capOut = captureController_.tick(nowMs, capPeak, capPlaying);
+            if (capOut.start || capOut.finalize)
+                runCaptureOut(capOut);
+            // Keep the feedback strip live (elapsed timer / state changes).
+            if (captureController_.phase() != CaptureController::Phase::Idle
+                || prevPhase != CaptureController::Phase::Idle)
+                repaint();
         }
 
         // Peak meters: fast attack, slow ballistic decay. Activity blinks: a
@@ -1292,6 +1429,8 @@ namespace lockstep
             if (wL > 0) { g.setColour(meterColour(levelL)); g.fillRect(0, 0, wL, barH); }
             if (wR > 0) { g.setColour(meterColour(levelR)); g.fillRect(0, barH, wR, barH); }
         }
+        // Capture feedback strip (under the master meter) — present from arm onward.
+        paintCaptureStrip(g);
         // Per-track trig (left, cyan) + MIDI-in (right, magenta) activity dots.
         for (std::size_t i = 0; i < kNumTracks; ++i)
         {
@@ -3905,6 +4044,18 @@ namespace lockstep
 
             case ControllerButton::VerbRecord: {
                 using PS = EditMode::PrimaryScope;
+                // Func+Song+Record = CAPTURE (the tape-deck cell, global scope).
+                // All capture gestures live on this cell's own timeline: arm the
+                // long-press and defer tap/double-tap/long-press resolution to
+                // key-up (mid-hold long-press fires from the timer).
+                if (editMode_.scopeState().func && uiState_.songHeld)
+                {
+                    gesture_.armLongPress(kCaptureToken,
+                                          juce::Time::getMillisecondCounterHiRes());
+                    captureCellHeld_ = true;
+                    captureLongPressFired_ = false;
+                    return true;  // action deferred to key-up
+                }
                 // Scene + Record: bake live deviations into home-row phrase content.
                 // Destructive — requires Yes/No confirmation.
                 // Func+Scene+Record is "copy scene" — falls through to handleVerb.
@@ -4669,11 +4820,38 @@ namespace lockstep
                 manipulationZone_.setMorphHeld(uiState_.morphHeld);
                 break;
 
+            case CB::VerbRecord: {
+                // CAPTURE cell resolution (tape deck). Other VerbRecord uses act on
+                // key-down and no-op here.
+                if (!captureCellHeld_) break;
+                captureCellHeld_ = false;
+                const double now = juce::Time::getMillisecondCounterHiRes();
+                using LPR = GestureRecognizer::LongPressResult;
+                const LPR lp = gesture_.checkLongPress(kCaptureToken, now);
+                if (captureLongPressFired_)
+                {
+                    // Long-press already serviced mid-hold (timer path). Consume.
+                    captureLongPressFired_ = false;
+                }
+                else if (lp == LPR::LongHold)
+                {
+                    // Released just past the threshold before the timer ticked.
+                    runCaptureOut(captureController_.onLongPress());
+                }
+                else  // ShortHold / NotArmed → a tap; double-tap refines it.
+                {
+                    const bool dbl = gesture_.doubleTap(kCaptureToken, now);
+                    const bool playing = processor_.clock().inPluginPlaying();
+                    runCaptureOut(dbl ? captureController_.onDoubleTap()
+                                      : captureController_.onTap(playing));
+                }
+                break;
+            }
+
             // These buttons act on key-down; their key-up is a no-op. They must NOT
             // fall through into the TapTempo body below — doing so made releasing any
             // of them (notably SelectTrack) register a tap-tempo tap, so changing
             // tracks set the BPM from the inter-change interval.
-            case CB::VerbRecord:
             case CB::VerbStopLegacy:
             case CB::VerbClear:
             case CB::VerbDelete:

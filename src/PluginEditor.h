@@ -15,6 +15,7 @@
 #include "controller/IControllerSurface.h"
 #include "controller/XTouchMiniSurface.h"
 #include "controller/Push1Surface.h"
+#include "io/CaptureController.h"
 #include "io/Clipboard.h"
 #include "io/ControllerEvent.h"
 #include "io/ControllerPortManager.h"
@@ -206,6 +207,18 @@ namespace lockstep
         int heldSectionIndex_ = -1;  // section index (0-5) while key held; -1 = none
         bool fxSectionPickerWantsMaster_ = false; // captured at Section-5 key-down
         bool fxPickerFiredMidHold_ = false;       // picker opened during the hold (not on key-up)
+
+        // ── Performance capture (tape deck) ──────────────────────────────────
+        // CaptureController is the pure state machine; the editor owns the IO
+        // (arming the WAV writer, finalising, deleting files, revealing folders).
+        CaptureController captureController_;
+        bool   captureCellHeld_ = false;        // CAPTURE cell physically down
+        bool   captureLongPressFired_ = false;  // long-press already serviced this hold
+        double captureStartMs_ = 0.0;           // for the REC elapsed timer
+        juce::File captureLastFile_;            // last/active take, for discard + reveal
+        void runCaptureOut(const CaptureController::Out& out);  // execute a controller decision
+        void captureTickAndPaint();             // per-timer tick + feedback repaint
+        void paintCaptureStrip(juce::Graphics& g);
         // 6.5 Animate bypass: track/slot bypassed by FX-held + step; restored on step-up.
         int animateBypassTrack_ = -1;
         int animateBypassSlot_ = -1;
