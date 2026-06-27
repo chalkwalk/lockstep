@@ -6,6 +6,7 @@
 #include <set>
 #include "../core/Sequence.h"        // kNumTracks
 #include "../core/TrackInputMode.h"
+#include "../core/HarmonyGen.h"      // HarmonyProgression (harmony overlay buffer)
 #include "../io/TrigGridMode.h"
 #include "../machine/IMachine.h"    // kMaxSections
 
@@ -21,6 +22,7 @@ namespace lockstep
         None,     // no sticky overlay active
         Euclid,   // Euclidean generator (Phrase+Fill chord — stored in euclidHeld, not here)
         Melodic,  // melodic generator (generator hub cell 3 — stored in melodicHeld, not here)
+        Harmony,  // harmonic voice-mover (generator hub cell 4 — stored in harmonyHeld, not here)
         Time,     // tempo + time-sig (Song/Scene+TRIG entry chord)
         Density,  // density editor (Func+MOD entry chord)
         Vel,      // velocity overlay (Func+AMP entry chord)
@@ -261,6 +263,16 @@ namespace lockstep
         int melodySeed    = 1;     // deterministic seed (re-roll bumps it)
         int melodySource  = 0;     // MelodySource: 0 = Generate, 1 = Keep rhythm
 
+        // 10.8 Harmonic voice-mover: entered via generator hub (cell 4). A sticky
+        // *print* sculptor (Overlay::Harmony) — not a chord picker. The MZ shows the
+        // cursor chord's four voices + structure (length/cursor/transpose/octave)
+        // via MetaBand::Harmony; voices are ladder indices into the effective
+        // KeySig, so they stay in-key. harmonyHeld is the SSOT (activeOverlay maps
+        // it to Overlay::Harmony); the progression buffer lives here so the band can
+        // read it. The live preview + stash mirror the Euclid/Melodic editor pattern.
+        bool harmonyHeld = false;
+        HarmonyProgression harmonyProg{};
+
         // MHZ.7.4: last note played per-track, used as LEVELS record-arm pitch.
         // Updated whenever a note is triggered (keyboard overlay or CHROMATIC mode).
         std::array<int, kNumTracks> lastPlayedNote{};  // default 60 (C4)
@@ -334,6 +346,14 @@ namespace lockstep
             melodyOctaves = 2;
             melodyStepLeap = 30;
             melodySource = 0;
+        }
+
+        // Clears the harmonic voice-mover state (held flag + progression buffer).
+        // The buffer is re-seeded on every entry, so a full reset here is safe.
+        void resetHarmony() noexcept
+        {
+            harmonyHeld = false;
+            harmonyProg = HarmonyProgression{};
         }
 
         // Returns the first slot index for the currently active page on the given track.

@@ -41,6 +41,7 @@ namespace lockstep
         MasterFx,
         Euclidean,
         Melodic,    // melodic generator: density/core/contour/octaves/leap/seed (10.7)
+        Harmony,    // harmonic voice-mover: 4 voices + length/cursor/transpose/octave (10.8)
         Transport,
         Vel,        // velocity overlay depth sub-page (per-track, paginated)
         VelCenter,  // velocity overlay center sub-page

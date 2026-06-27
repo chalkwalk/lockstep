@@ -18,6 +18,7 @@ namespace lockstep
         // shows trigs while the MZ shows the Euclid band).
         if (ui.euclidHeld)                            return Modal::Euclid;
         if (ui.melodicHeld)                           return Modal::Melodic;
+        if (ui.harmonyHeld)                           return Modal::Harmony;
 
         // Sticky MZ-band overlays.
         switch (ui.overlay)
@@ -27,6 +28,7 @@ namespace lockstep
             case Overlay::Vel:     return Modal::Vel;
             case Overlay::Euclid:  return Modal::Euclid;   // defensive; euclidHeld is the real store
             case Overlay::Melodic: return Modal::Melodic;  // defensive; melodicHeld is the real store
+            case Overlay::Harmony: return Modal::Harmony;  // defensive; harmonyHeld is the real store
             case Overlay::None:    break;
         }
         return Modal::None;
@@ -45,6 +47,7 @@ namespace lockstep
             case Modal::PLockClear:     return "PLockClear";
             case Modal::Euclid:         return "Euclid";
             case Modal::Melodic:        return "Melodic";
+            case Modal::Harmony:        return "Harmony";
             case Modal::Time:           return "Time";
             case Modal::Density:        return "Density";
             case Modal::Vel:            return "Vel";

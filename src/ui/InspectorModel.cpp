@@ -121,6 +121,7 @@ namespace lockstep
                        + "  esc=release Func";
             case Modal::Euclid:  return u8"EUCLID — configuring  esc=dbl-tap Func";
             case Modal::Melodic: return u8"MELODY — generating  P=print  Func+P=cancel";
+            case Modal::Harmony: return u8"CHORD — voice-mover  P=print  Func+P=cancel";
             case Modal::Density: return u8"DENSITY — trig-thinning overlay  esc=dbl-tap Func";
             case Modal::Vel:     return u8"VEL STICKY — velocity band  esc=dbl-tap Func";
             case Modal::Time:    return u8"TIME — time-sig/click band  esc=dbl-tap Func";

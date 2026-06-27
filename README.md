@@ -258,6 +258,8 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **TIME page** | Tempo and time-sig share an identical scope ladder (Set → Song → Scene) and are edited on one page. **`Song+TRIG`** or **`Scene+TRIG`** opens the TIME sticky band (TRIG relabels to "TIME"); the held modifier at entry becomes the **entry scope** (the scope edits target when no modifier is held). Inside: `Func+Song` = Set, `Song` = Song, `Scene` = Scene. Three controls: **Tempo** — continuous knob, resolved BPM at current scope, scope-coloured parent arc tick, back-solved ratio on edit; dial to floor shows `INHERIT (<parent bpm>)` and clears the override. **Sig** — stepped knob, time-sig list ordered by ascending bar length (`3/8 → 2/4 → 5/8 → 3/4 → 6/8 → 7/8 → 4/4 → 9/8 → 5/4 → 11/8 → 12/8 → 7/4`), index 0 = `INHERIT`. 4/4 is the Set default. **CLICK** — stepped ON/OFF; toggles the metronome click. Controls revert independently — no chord needed. Global (standalone) tempo is editable; DAW global is read-only (host BPM). Header readout shows scope-coloured effective BPM + time-sig. Serialized as v21. |
 | **Retrig / ratchet** | Per-step re-triggering at a musical rate (`/4 … /32T`). Authored as a P-lockable parameter in the TRIG meta-band field 5 "RTG": hold a step and turn the RTG encoder to set the rate (0 = off; /4 … /32T). Slicer tracks: `Fill+TRIG` shows the slice-point picker (unchanged). |
 | **Euclidean generator** | Enter via the **generator hub** (`3` held → EUCLID cell). Encoders shape `PULSE / OFSET / ACCNT` against the phrase length, audible live; the mode is latched until **P** (commit) or **Func+P** (cancel). Y is inert in this mode. |
+| **Melodic generator** | Enter via the **generator hub** (`3` held → MELODY cell). Deterministic, seeded line generator against the effective key; encoders `DENSE / CORE / CNTR / OCTS / LEAP / SEED / SRC`. Metric strength is the spine (strong beats → strong notes, longer; weak beats → colour notes, shorter; rests bridge into stronger beats). `SRC` = *Gen* (generate rhythm too) or *Keep* (lock to existing trigs, write pitch only). Live preview; **P** prints editable steps, **Func+P** / escape reverts. |
+| **Harmonic voice-mover** | Enter via the **generator hub** (`3` held → CHORD cell). A sticky in-key chord sculptor with no chord theory — voices are rungs on the diatonic ladder. Encoders: four voices (`V1`–`V4`; off-detent drops the top voice, first empty slot adds one), `LEN` (chord count — growing **clones** the last chord), `CUR` (cursor), `MOVE` (slide the chord one scale degree) and `OCT` (octave-shift). Prints to evenly-spaced steps, auditioned via the transport loop; **P** prints, **Func+P** / escape reverts. |
 | **Control-All** | Holding `Track` with no track selected broadcasts the next parameter edit to every track that has a matching control. |
 | **Mute** | Suppresses a track's trigs non-destructively. `Mute+step` = global mute (survives scene/song changes); `Scene+Mute+step` = per-scene mute (the scene's active-mask). |
 | **Fill** | A momentary modifier: while held, fill-conditioned steps fire. Used for live variation. |
@@ -521,7 +523,7 @@ Transport and record-arm ride the verb row (no scope held — see §5.1):
 | `O` (Clear) | Clear active P-Lock slot (no scope held); `Func + O` = delete entity (opens deletion picker). |
 | `U` (Rec) | Toggle record-arm (overwrite). Double-tap = overdub (append); `Func + U` = **omni copy** (captures scene + active track + pattern in one grab; badge `CPY:ALL`). |
 | `Func + Song + U` | **Capture** — arm or disarm WAV capture of the master output (see §5.20). |
-| `3` | Tap tempo (short tap). **Hold ≥350 ms** = generator hub: step cells show EUCLID / DENSITY / VEL; press one to enter that generator with its own lifetime; release `3` closes the picker. |
+| `3` | Tap tempo (short tap). **Hold ≥350 ms** = generator hub: step cells show EUCLID / DENSITY / VEL / MELODY / CHORD; press one to enter that generator with its own lifetime; release `3` closes the picker. |
 | `4` | Navigate up (inverted-T above `E R T`). |
 | `E` / `R` / `T` | Navigate left / down / right. |
 
@@ -1209,8 +1211,18 @@ On top of the key:
   and **SRC** (*Gen* generates the rhythm too; *Keep* locks onto the track's
   existing trigs and only writes pitch onto them — "fit a line to my groove").
   **P** prints, **Func+P** / escape cancels.
-- **Harmonic voice-mover** — a sticky overlay where you **move chord voices by
-  ear** within the key and audition them, then print the progression to steps.
+- **Harmonic voice-mover** — a sticky overlay (Generator Hub cell 5, **CHORD**)
+  where you **move chord voices by ear** within the key and audition them, then
+  print the progression to steps. It carries no chord theory: a chord is just up
+  to four voices, each a rung on the diatonic ladder, so every voice stays in the
+  key. The encoders are the four voices (`V1` bass … `V4` top; turn a voice below
+  its floor to drop it, turn the first empty slot up to add one) plus `LEN` (how
+  many chords — growing one **clones** the last so motion starts from rest),
+  `CUR` (which chord you're shaping), `MOVE` (slide the whole chord one scale
+  degree) and `OCT` (octave-shift it). The progression prints to evenly-spaced
+  steps (one per beat by default) and auditions as the transport loops. **P**
+  prints, **Func+P** / escape cancels. *Per-voice chromatic nudges are planned;
+  for now voices are diatonic-only.*
 
 Design: PRINCIPLES §23, DESIGN §4.10 + §39.11–39.12.
 

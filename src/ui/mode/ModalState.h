@@ -36,6 +36,7 @@ namespace lockstep
         // Armed generators (step grid shows trigs; commit/cancel/escape):
         Euclid,
         Melodic,
+        Harmony,
         // Sticky MZ-band overlays (escape to exit):
         Time,
         Density,

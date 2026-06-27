@@ -41,6 +41,8 @@ namespace lockstep
     void runScaleTests();
     // Phase 10.7: melodic generator (deterministic print model)
     void runMelodyGenTests();
+    // Phase 10.8: harmonic voice-mover (scale-constrained chord buffer)
+    void runHarmonyGenTests();
     // Phase 8 characterisation tests
     void runEditModeTests();
     void runLayerResolveTests();

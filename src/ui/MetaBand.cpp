@@ -60,6 +60,9 @@ namespace lockstep
         // Melodic generator modal (generator hub cell 3).
         if (ui.melodicHeld)
             return MetaBand::Melodic;
+        // Harmonic voice-mover modal (generator hub cell 4).
+        if (ui.harmonyHeld)
+            return MetaBand::Harmony;
         // TIME/KEY signatures band (entered via Song+TRIG or Scene+TRIG; re-press
         // TRIG cycles TIME <-> KEY; Func double-tap escapes it).
         if (ui.overlay == Overlay::Time)
@@ -1071,6 +1074,93 @@ namespace lockstep
         return result;
     }
 
+    // ASCII note label for an absolute MIDI note (e.g. 60 -> "C4"). Sharps only;
+    // octave numbering puts middle-C (60) at C4. Used by the harmony voice fields.
+    static juce::String harmonyNoteLabel(int midi)
+    {
+        static const char* kPc[12] =
+            { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+        const int pc = ((midi % 12) + 12) % 12;
+        const int oct = midi / 12 - 1;
+        return juce::String(kPc[pc]) + juce::String(oct);
+    }
+
+    // 10.8 Harmonic voice-mover band — sticky multi-voice sculptor (DESIGN §39.12).
+    // Eight fields drive printHarmony() against the effective KeySig: four voices
+    // of the cursor chord (V1 bass .. V4 top; "OFF" = absent), then LEN (chord
+    // count), CUR (selected chord), MOVE (transpose the chord by a scale degree)
+    // and OCT (octave-shift the chord). MOVE/OCT are relative nudgers: they show a
+    // neutral 0 and each detent shifts every voice of the cursor chord together.
+    static std::array<MetaFieldView, 8> buildHarmonyBand(LockstepProcessor& proc,
+                                                         const UiState& ui)
+    {
+        std::array<MetaFieldView, 8> result{};
+
+        const KeySig key = proc.effectiveKeySig();
+        const int rootMidi = kHarmonyRootBase + key.root;
+        const auto ladder = harmonyLadder(key, rootMidi, kHarmonyOctaves);
+        const int ladderMax = std::max(0, static_cast<int>(ladder.size()) - 1);
+
+        const auto& prog = ui.harmonyProg;
+        const int K = std::clamp(prog.length, 1, kMaxHarmonyChords);
+        const int cur = std::clamp(prog.cursor, 0, K - 1);
+        const auto& ch = prog.chords[static_cast<std::size_t>(cur)];
+        const int vc = std::clamp(ch.voiceCount, 0, kHarmonyVoices);
+
+        auto makeField = [](const char* lbl, float lo, float hi, float val,
+                            juce::String txt, bool stepped) -> MetaFieldView {
+            MetaFieldView v;
+            v.active = true;
+            v.label = lbl;
+            v.minValue = lo;
+            v.maxValue = hi;
+            v.value = val;
+            v.stepped = stepped;
+            v.writable = true;
+            v.valueText = std::move(txt);
+            v.ringMode = RingMode::Dot;
+            return v;
+        };
+
+        static const char* kVoiceLabels[kHarmonyVoices] = { "V1", "V2", "V3", "V4" };
+        for (int v = 0; v < kHarmonyVoices; ++v)
+        {
+            // Range extends one below 0 so an off-detent (-1) removes the voice.
+            if (v < vc)
+            {
+                const int idx = std::clamp(ch.voice[static_cast<std::size_t>(v)], 0, ladderMax);
+                result[static_cast<std::size_t>(v)] =
+                    makeField(kVoiceLabels[v], -1.0f, static_cast<float>(ladderMax),
+                              static_cast<float>(idx), harmonyNoteLabel(ladder.empty() ? 0 : ladder[static_cast<std::size_t>(idx)]),
+                              true);
+            }
+            else if (v == vc && vc < kHarmonyVoices)
+            {
+                result[static_cast<std::size_t>(v)] =
+                    makeField(kVoiceLabels[v], -1.0f, static_cast<float>(ladderMax),
+                              -1.0f, "OFF", true);
+            }
+            else
+            {
+                MetaFieldView dim;
+                dim.active = false;
+                dim.label = kVoiceLabels[v];
+                dim.valueText = "OFF";
+                result[static_cast<std::size_t>(v)] = dim;
+            }
+        }
+
+        result[4] = makeField("LEN", 1.0f, static_cast<float>(kMaxHarmonyChords),
+                              static_cast<float>(K), juce::String(K), true);
+        result[5] = makeField("CUR", 1.0f, static_cast<float>(K),
+                              static_cast<float>(cur + 1), juce::String(cur + 1), true);
+        // MOVE / OCT are relative: neutral 0, signed range; each detent nudges.
+        result[6] = makeField("MOVE", -static_cast<float>(ladderMax) - 1.0f,
+                              static_cast<float>(ladderMax) + 1.0f, 0.0f, juce::String("0"), true);
+        result[7] = makeField("OCT", -4.0f, 4.0f, 0.0f, juce::String("0"), true);
+        return result;
+    }
+
     // 10.7 Melodic generator band — deterministic print model (DESIGN §39.11).
     // Six fields drive generateMelody() against the effective KeySig: density
     // (onsets, strongest-beat first), core (note-pool width), contour (pitch
@@ -1363,6 +1453,9 @@ namespace lockstep
             return buildEuclidBand(proc, track, ui);
         if (band == MetaBand::Melodic)
             return buildMelodyBand(proc, track, ui);
+
+        if (band == MetaBand::Harmony)
+            return buildHarmonyBand(proc, ui);
         if (band == MetaBand::Vel)
             return buildVelBand(proc, ui, track);
         if (band == MetaBand::VelCenter)
@@ -1466,6 +1559,82 @@ namespace lockstep
                 case 4:  ui.melodyStepLeap = std::clamp(v, 0, 100);    break;
                 case 5:  ui.melodySeed     = std::clamp(v, 1, 999);    break;
                 case 6:  ui.melodySource   = std::clamp(v, 0, 1);      break;
+                default: break;
+            }
+            return;
+        }
+
+        // 10.8: Harmonic voice-mover — mutate the cursor chord / progression in
+        // UiState. Voices are ladder indices; MOVE/OCT are relative nudgers (the
+        // band rebuilds them back to a neutral 0 each time).
+        if (band == MetaBand::Harmony)
+        {
+            auto& prog = ui.harmonyProg;
+            const int K = std::clamp(prog.length, 1, kMaxHarmonyChords);
+            const int cur = std::clamp(prog.cursor, 0, K - 1);
+
+            const KeySig key = proc.effectiveKeySig();
+            const int rootMidi = kHarmonyRootBase + key.root;
+            const auto ladder = harmonyLadder(key, rootMidi, kHarmonyOctaves);
+            const int ladderMax = std::max(0, static_cast<int>(ladder.size()) - 1);
+            const int scaleSize = harmonyScaleSize(key);
+
+            auto& ch = prog.chords[static_cast<std::size_t>(cur)];
+            const int v = static_cast<int>(std::round(value));
+
+            switch (field)
+            {
+                case 0: case 1: case 2: case 3:
+                {
+                    const int vi = field;
+                    if (v < 0)
+                    {
+                        // Off-detent removes this voice and any above it (keep >= 1).
+                        if (vi < ch.voiceCount) ch.voiceCount = std::max(1, vi);
+                    }
+                    else
+                    {
+                        const int idx = std::clamp(v, 0, ladderMax);
+                        if (vi < ch.voiceCount)
+                            ch.voice[static_cast<std::size_t>(vi)] = idx;
+                        else if (vi == ch.voiceCount && ch.voiceCount < kHarmonyVoices)
+                        {
+                            ch.voice[static_cast<std::size_t>(vi)] = idx;
+                            ch.voiceCount = vi + 1;
+                        }
+                    }
+                    break;
+                }
+                case 4:  // LEN — growing clones the last live chord into the new slots.
+                {
+                    const int newLen = std::clamp(v, 1, kMaxHarmonyChords);
+                    if (newLen > prog.length)
+                    {
+                        const int src = std::clamp(prog.length - 1, 0, kMaxHarmonyChords - 1);
+                        for (int k = prog.length; k < newLen; ++k)
+                            prog.chords[static_cast<std::size_t>(k)] =
+                                prog.chords[static_cast<std::size_t>(src)];
+                    }
+                    prog.length = newLen;
+                    prog.cursor = std::clamp(prog.cursor, 0, newLen - 1);
+                    break;
+                }
+                case 5:  // CUR — display is 1-based.
+                    prog.cursor = std::clamp(v - 1, 0, K - 1);
+                    break;
+                case 6:  // MOVE — shift every voice by v scale degrees (ladder steps).
+                    if (v != 0)
+                        for (int i = 0; i < ch.voiceCount; ++i)
+                            ch.voice[static_cast<std::size_t>(i)] =
+                                std::clamp(ch.voice[static_cast<std::size_t>(i)] + v, 0, ladderMax);
+                    break;
+                case 7:  // OCT — shift every voice by v octaves (v * scaleSize steps).
+                    if (v != 0)
+                        for (int i = 0; i < ch.voiceCount; ++i)
+                            ch.voice[static_cast<std::size_t>(i)] =
+                                std::clamp(ch.voice[static_cast<std::size_t>(i)] + v * scaleSize,
+                                           0, ladderMax);
+                    break;
                 default: break;
             }
             return;
@@ -1959,6 +2128,7 @@ namespace lockstep
             case MetaBand::MasterFx:       return "MASTER FX";
             case MetaBand::Euclidean:      return "EUCLID";
             case MetaBand::Melodic:        return "MELODY";
+            case MetaBand::Harmony:        return "CHORD";
             case MetaBand::Transport:      return "TRANSPORT";
             case MetaBand::Vel:            return "VEL";
             case MetaBand::VelCenter:      return "VEL / CENTER";

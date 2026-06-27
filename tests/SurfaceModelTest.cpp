@@ -493,8 +493,9 @@ namespace lockstep
         CHECK(model.step[1].primary == "DENSITY", "hub cell 1 primary = DENSITY");
         CHECK(model.step[2].primary == "VEL",     "hub cell 2 primary = VEL");
         CHECK(model.step[3].primary == "MELODY",  "hub cell 3 primary = MELODY");
-        // Cells 4-15 must not carry text (they are dark/inactive).
-        for (int i = 4; i < 16; ++i)
+        CHECK(model.step[4].primary == "CHORD",   "hub cell 4 primary = CHORD");
+        // Cells 5-15 must not carry text (they are dark/inactive).
+        for (int i = 5; i < 16; ++i)
             CHECK(model.step[static_cast<std::size_t>(i)].primary.isEmpty(),
                   juce::String("hub cell ") + juce::String(i) + " primary empty");
     }

@@ -180,6 +180,17 @@ namespace lockstep
         void restoreMelodyStash();
         void forgetMelodyEditorState() { melodicTrack_ = -1; melodyStashLen_ = 0; }
 
+        // 10.8 Harmonic voice-mover — the sticky multi-voice twin of the melodic
+        // print model: enter stashes the phrase + seeds a default progression and
+        // shows a live preview; the MZ band scrubs voices / structure and re-prints;
+        // P commits (snapshot + print), Func+P / escape reverts the stash.
+        void enterHarmony(int track);
+        void cancelHarmony();
+        void applyHarmonyLive(int track);
+        void applyHarmonyToTrack(int track);
+        void restoreHarmonyStash();
+        void forgetHarmonyEditorState() { harmonyTrack_ = -1; harmonyStashLen_ = 0; }
+
         Clipboard clipboard_;
 
         // Per-track fill latch: captured on the transition into Func+Fill held,
@@ -273,6 +284,12 @@ namespace lockstep
         std::array<Step, kMaxStepsPerTrack> melodyStash_{};
         int melodyStashLen_ = 0;
         int melodicTrack_ = -1;
+
+        // 10.8: stash of phrase steps captured at harmony-arm time; restored on
+        // No/escape. Mirrors the Euclid/Melodic editor-owned modal triple.
+        std::array<Step, kMaxStepsPerTrack> harmonyStash_{};
+        int harmonyStashLen_ = 0;
+        int harmonyTrack_ = -1;
 
         // Song+FX unit-cycle helpers. Return a unit index 0-3 (0-1=inserts, 2-3=sends).
         // Skip empty units; fall back to 0 if none loaded.

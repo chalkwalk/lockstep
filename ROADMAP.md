@@ -2067,10 +2067,25 @@ strong-beat→strong-note/longer, rest-bridge) + `MetaBandTest` band round-trip.
 *Keep* locks onsets to the track's existing trigs and generates pitch only
 (`generateMelody` `fixedOnsets`; onset set read from the pre-entry stash).
 
-### 10.8 — Harmonic voice-mover
-Generator Hub cell → `Overlay::Harmony`; 8-encoder voice mover; clone-on-add;
-audition + idle loop; prints ≤4-note chord steps; `src/core/HarmonyGen.h` (no
-chord theory).
+### 10.8 — Harmonic voice-mover ✅
+Generator Hub cell 4 (**CHORD**) → sticky `Overlay::Harmony`; `src/core/HarmonyGen.h`
+(no chord theory — a scale-constrained multi-voice buffer). Operates on a
+progression of up to 8 chord slots, each ≤4 voices. Voices are indices into the
+diatonic **ladder** (the scale across octaves), so every voice stays in-key. The
+8-field MZ band shows the cursor chord's four voices (`V1` bass … `V4` top; off-
+detent removes the top voice, the first empty slot adds one) plus structure:
+`LEN` (chord count, **growing clones the last chord**), `CUR` (cursor), `MOVE`
+(shift the whole chord one scale degree) and `OCT` (octave-shift the chord) —
+the last two are relative nudgers that rebuild to neutral. Euclid-style stash →
+live preview (chords printed onto evenly-spaced steps, auditioned via transport)
+→ **P** prints / **Func+P** (or escape / section press) reverts. `MetaBand::Harmony`,
+`Overlay::Harmony` / `Modal::Harmony`, `CellState::GeneratorHarmonic`. Tests:
+`tests/HarmonyGenTest.cpp` (ladder in-scale, per-slot print, even placement,
+voice-count/removal, clamp-stays-in-scale, dedup, degenerate) + `MetaBandTest`
+band round-trip (voice add/remove, LEN-clone, CUR, MOVE).
+**Deferred:** per-voice chromatic nudge (Func+voice), immediate re-strike
+audition, and an idle context loop — voices are diatonic-only for now (the
+in-key safe default), auditioned through the transport like the other generators.
 
 ### 10.9 — Phrase transpose ✅
 `Phrase + ↑/↓` transposes the focused track's phrase ±octave; `Func+Phrase+↑/↓`

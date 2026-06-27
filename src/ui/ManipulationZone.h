@@ -77,6 +77,10 @@ namespace lockstep
         // re-generate the live melodic preview on the armed track.
         std::function<void()> onMelodyParamChanged;
 
+        // 10.8: Called after a Harmony meta-band encoder write so the editor can
+        // re-print the live chord progression on the armed track.
+        std::function<void()> onHarmonyParamChanged;
+
         // 9.14: Called after a Step-Position encoder write so the editor can run its
         // canonical full surface refresh (grid + step preview), matching the realtime
         // feedback the nav ←/→ keys give.

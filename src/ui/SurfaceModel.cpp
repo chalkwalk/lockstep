@@ -96,6 +96,7 @@ namespace lockstep
             case CellState::GeneratorDensity:   return 0xFF50B478u;  // green — Density
             case CellState::GeneratorVel:       return 0xFF8898A8u;  // slate — Velocity
             case CellState::GeneratorMelodic:   return 0xFFC89048u;  // amber — Melody
+            case CellState::GeneratorHarmonic:  return 0xFF40A0A0u;  // teal — Chord/Harmony
             default:                            return fallback;
         }
     }
@@ -1054,15 +1055,17 @@ namespace lockstep
             }
             else if (activeLayer == SurfaceLayer::GeneratorHub)
             {
-                // Generator hub (9.10): cells 0-3 = Euclid / Density / Vel / Melody; rest dark.
-                static constexpr int kHubCount = 4;
+                // Generator hub (9.10): cells 0-4 = Euclid / Density / Vel / Melody /
+                // Chord; rest dark.
+                static constexpr int kHubCount = 5;
                 static constexpr const char* kHubLabels[kHubCount] =
-                    { "EUCLID", "DENSITY", "VEL", "MELODY" };
+                    { "EUCLID", "DENSITY", "VEL", "MELODY", "CHORD" };
                 static constexpr CellState kHubStates[kHubCount] = {
                     CellState::GeneratorEuclid,
                     CellState::GeneratorDensity,
                     CellState::GeneratorVel,
                     CellState::GeneratorMelodic,
+                    CellState::GeneratorHarmonic,
                 };
                 for (int i = 0; i < 16; ++i)
                 {

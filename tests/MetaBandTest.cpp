@@ -108,6 +108,56 @@ namespace lockstep
         CHECK(ui.melodySource == 1, "writeMetaField SRC sets melodySource");
     }
 
+    // 10.8: Harmonic voice-mover band — resolution, field layout, write round-trip.
+    static void testHarmonyBand()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        EditContext ctx;
+        UiState ui;
+
+        // Resolution: harmonyHeld → Harmony.
+        ui.harmonyHeld = true;
+        ui.harmonyProg = HarmonyProgression{};   // 4 default triads
+        CHECK(resolveMetaBand(ui) == MetaBand::Harmony, "harmonyHeld → Harmony");
+
+        // Field layout: V1..V3 active voices, V4 = OFF add-slot, then LEN/CUR/MOVE/OCT.
+        const auto f = buildMetaBand(MetaBand::Harmony, 0, proc, 0, ctx, ui);
+        CHECK(f[0].active && juce::String(f[0].label) == "V1", "field 0 = V1");
+        CHECK(f[1].active && juce::String(f[1].label) == "V2", "field 1 = V2");
+        CHECK(f[2].active && juce::String(f[2].label) == "V3", "field 2 = V3");
+        CHECK(juce::String(f[3].valueText) == "OFF", "V4 add-slot shows OFF (3-voice default)");
+        CHECK(f[4].active && juce::String(f[4].label) == "LEN", "field 4 = LEN");
+        CHECK(juce::String(f[4].valueText) == "4", "LEN default = 4");
+        CHECK(f[5].active && juce::String(f[5].label) == "CUR", "field 5 = CUR");
+        CHECK(juce::String(f[5].valueText) == "1", "CUR default = 1 (1-based)");
+        CHECK(f[6].active && juce::String(f[6].label) == "MOVE", "field 6 = MOVE");
+        CHECK(f[7].active && juce::String(f[7].label) == "OCT",  "field 7 = OCT");
+
+        // Add a 4th voice via the OFF slot (V4 := ladder index 6).
+        writeMetaField(MetaBand::Harmony, 0, 3, 6.0f, proc, 0, ctx, ui);
+        CHECK(ui.harmonyProg.chords[0].voiceCount == 4, "writing the OFF slot adds a voice");
+        CHECK(ui.harmonyProg.chords[0].voice[3] == 6, "added voice takes the written index");
+
+        // Off-detent removes the top voice again.
+        writeMetaField(MetaBand::Harmony, 0, 3, -1.0f, proc, 0, ctx, ui);
+        CHECK(ui.harmonyProg.chords[0].voiceCount == 3, "off-detent removes the top voice");
+
+        // LEN grow clones the last chord; CUR selects; MOVE shifts all voices.
+        writeMetaField(MetaBand::Harmony, 0, 4, 6.0f, proc, 0, ctx, ui);   // LEN → 6
+        CHECK(ui.harmonyProg.length == 6, "LEN write grows the progression");
+        writeMetaField(MetaBand::Harmony, 0, 5, 3.0f, proc, 0, ctx, ui);   // CUR → 3 (idx 2)
+        CHECK(ui.harmonyProg.cursor == 2, "CUR write selects the chord (0-based store)");
+
+        const auto before = ui.harmonyProg.chords[2].voice;
+        writeMetaField(MetaBand::Harmony, 0, 6, 1.0f, proc, 0, ctx, ui);   // MOVE +1 degree
+        bool shifted = true;
+        for (int v = 0; v < ui.harmonyProg.chords[2].voiceCount; ++v)
+            if (ui.harmonyProg.chords[2].voice[static_cast<std::size_t>(v)]
+                != before[static_cast<std::size_t>(v)] + 1) shifted = false;
+        CHECK(shifted, "MOVE shifts every voice of the cursor chord by one degree");
+    }
+
     static void testResolveMetaBandDensitySticky()
     {
         UiState ui;
@@ -1108,6 +1158,7 @@ namespace lockstep
         testResolveMetaBandTransientOutranksMasterSection();
         testResolveMetaBandEuclid();
         testMelodicBand();
+        testHarmonyBand();
         testResolveMetaBandDensitySticky();
         testResolveMetaBandFuncSong();
         testResolveMetaBandSwing();

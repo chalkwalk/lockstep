@@ -73,6 +73,8 @@ namespace lockstep
                         onEuclidParamChanged();
                     if (band_ == MetaBand::Melodic && onMelodyParamChanged)
                         onMelodyParamChanged();
+                    if (band_ == MetaBand::Harmony && onHarmonyParamChanged)
+                        onHarmonyParamChanged();
                     // Step-Position: the visible effect (the step hopping) is on the
                     // grid, not the MZ. Run the editor's canonical surface refresh so
                     // it previews in realtime exactly like the nav ←/→ keys. Do NOT

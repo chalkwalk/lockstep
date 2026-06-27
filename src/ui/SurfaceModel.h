@@ -119,6 +119,7 @@ namespace lockstep
         GeneratorDensity = 161,
         GeneratorVel = 162,
         GeneratorMelodic = 163,  // melodic generator (10.7)
+        GeneratorHarmonic = 164,  // harmonic voice-mover (10.8)
 
         // KEY panel (DESIGN §4.10): the step grid hosts the modifier checkboxes
         // (4 states) and the two symmetric-scale radio cells. Brightness = whether

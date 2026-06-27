@@ -19,6 +19,7 @@ int main()
     lockstep::runEuclideanTests();
     lockstep::runScaleTests();
     lockstep::runMelodyGenTests();
+    lockstep::runHarmonyGenTests();
     // Phase 8 characterisation tests
     lockstep::runEditModeTests();
     lockstep::runLayerResolveTests();

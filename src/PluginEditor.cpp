@@ -4,6 +4,7 @@
 #include "command/StatusText.h"
 #include "core/Euclidean.h"
 #include "core/MelodyGen.h"
+#include "core/HarmonyGen.h"
 #include "core/MetricGrid.h"
 #include "core/TrackInputMode.h"
 #include "io/TrigGridMode.h"
@@ -689,6 +690,14 @@ namespace lockstep
             if (uiState_.melodicHeld && melodicTrack_ >= 0)
             {
                 applyMelodyLive(melodicTrack_);
+                repaint();
+                refreshSurface();
+            }
+        };
+        manipulationZone_.onHarmonyParamChanged = [this] {
+            if (uiState_.harmonyHeld && harmonyTrack_ >= 0)
+            {
+                applyHarmonyLive(harmonyTrack_);
                 repaint();
                 refreshSurface();
             }
@@ -1996,6 +2005,87 @@ namespace lockstep
         refreshMetaBand();
     }
 
+    // ── Harmonic voice-mover (10.8) ─────────────────────────────────────────────
+    // The sticky multi-voice twin of the melodic helpers: print the cursor-driven
+    // chord progression from the effective KeySig over the live phrase as ordinary
+    // chord steps, keeping a stash so cancel/escape reverts cleanly.
+
+    void LockstepEditor::applyHarmonyLive(int track)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        auto& ph = processor_.sequence().tracks[static_cast<std::size_t>(track)];
+        const int len = ph.length;
+        if (len <= 0) return;
+
+        const KeySig key = processor_.effectiveKeySig();
+        const int rootMidi = kHarmonyRootBase + key.root;
+        const auto ladder = harmonyLadder(key, rootMidi, kHarmonyOctaves);
+        const auto steps = printHarmony(uiState_.harmonyProg, ladder, len);
+
+        for (int si = 0; si < len; ++si)
+        {
+            auto& s = ph.steps[static_cast<std::size_t>(si)];
+            const auto& h = steps[static_cast<std::size_t>(si)];
+            s.trig = h.trig;
+            if (h.trig)
+            {
+                s.trigOverride.noteCount = h.noteCount;
+                for (int n = 0; n < h.noteCount && n < kMaxNotesPerStep; ++n)
+                    s.trigOverride.notes[static_cast<std::size_t>(n)] =
+                        h.notes[static_cast<std::size_t>(n)];
+                s.trigOverride.hasGate = (h.gate != MusicalGate::None);
+                s.trigOverride.gateValue = h.gate;
+            }
+            else
+            {
+                s.trigOverride.noteCount = 0;
+                s.trigOverride.hasGate = false;
+            }
+        }
+    }
+
+    void LockstepEditor::applyHarmonyToTrack(int track)
+    {
+        // No structural difference from the live preview — the commit snapshot is
+        // taken at the call site (VerbConfirm) before this re-prints over it.
+        applyHarmonyLive(track);
+    }
+
+    void LockstepEditor::enterHarmony(int track)
+    {
+        if (track < 0) track = 0;
+        if (activeTrackContentLocked()) return;
+        const auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(track)];
+        uiState_.harmonyHeld = true;
+        uiState_.masterSection = -1;
+        // Seed a fresh progression — four identical in-key triads to nudge from.
+        uiState_.harmonyProg = HarmonyProgression{};
+        harmonyTrack_ = track;
+        harmonyStashLen_ = wt.length;
+        for (int si = 0; si < harmonyStashLen_; ++si)
+            harmonyStash_[static_cast<std::size_t>(si)] = wt.steps[static_cast<std::size_t>(si)];
+        applyHarmonyLive(track);
+        refreshMetaBand();
+    }
+
+    void LockstepEditor::restoreHarmonyStash()
+    {
+        if (harmonyTrack_ < 0) return;
+        auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(harmonyTrack_)];
+        for (int si = 0; si < harmonyStashLen_; ++si)
+            wt.steps[static_cast<std::size_t>(si)] =
+                harmonyStash_[static_cast<std::size_t>(si)];
+    }
+
+    void LockstepEditor::cancelHarmony()
+    {
+        if (!uiState_.harmonyHeld) return;
+        restoreHarmonyStash();
+        uiState_.resetHarmony();
+        forgetHarmonyEditorState();
+        refreshMetaBand();
+    }
+
     void LockstepEditor::enterDensitySticky()
     {
         if (uiState_.overlay == Overlay::Density) return;
@@ -2370,6 +2460,7 @@ namespace lockstep
                         const Overlay prevOv = activeOverlay(uiState_);
                         const bool canEscape = (prevOv == Overlay::Euclid)
                             || (prevOv == Overlay::Melodic)
+                            || (prevOv == Overlay::Harmony)
                             || (!uiState_.latch.any()
                                 && !processor_.editContext().hasAnyLatchedStep());
                         if (canEscape)
@@ -2389,6 +2480,11 @@ namespace lockstep
                                 {
                                     restoreMelodyStash();
                                     forgetMelodyEditorState();
+                                }
+                                if (prevOv == Overlay::Harmony && harmonyTrack_ >= 0)
+                                {
+                                    restoreHarmonyStash();
+                                    forgetHarmonyEditorState();
                                 }
                                 refreshMetaBand();
                                 repaint();
@@ -2492,6 +2588,11 @@ namespace lockstep
                 if (uiState_.melodicHeld)
                 {
                     cancelMelodic();
+                    refreshSurface();
+                }
+                if (uiState_.harmonyHeld)
+                {
+                    cancelHarmony();
                     refreshSurface();
                 }
 
@@ -2672,7 +2773,7 @@ namespace lockstep
                     // --------------------------------------------------------
                     if (layer == SurfaceLayer::GeneratorHub)
                     {
-                        if (ev.index >= 0 && ev.index <= 3)
+                        if (ev.index >= 0 && ev.index <= 4)
                         {
                             switch (ev.index)
                             {
@@ -2680,6 +2781,7 @@ namespace lockstep
                                 case 1: enterDensitySticky(); break;
                                 case 2: enterVelSticky(); break;
                                 case 3: enterMelodic(layerAt < 0 ? 0 : layerAt); break;
+                                case 4: enterHarmony(layerAt < 0 ? 0 : layerAt); break;
                                 default: break;
                             }
                         }
@@ -3934,6 +4036,25 @@ namespace lockstep
                     return true;
                 }
 
+                // 10.8: Harmonic voice-mover armed → bare P = print; Func+P = cancel.
+                if (uiState_.harmonyHeld)
+                {
+                    restoreHarmonyStash();
+                    if (!funcHeld)
+                    {
+                        const auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(harmonyTrack_)];
+                        if (wt.length > 0)
+                            processor_.snapshot(CheckpointScope::Phrase, harmonyTrack_);
+                        applyHarmonyToTrack(harmonyTrack_);
+                        setStatus("CHORD printed");
+                    }
+                    uiState_.resetHarmony();
+                    forgetHarmonyEditorState();
+                    refreshMetaBand();
+                    repaint();
+                    return true;
+                }
+
                 // Both primary P (Yes/confirm) and Func+P (No/cancel) arrive here as VerbConfirm.
                 // Distinguish by whether Func is held.
                 // Note: when confirm is pending, CommandCore::handleDown intercepts VerbConfirm
@@ -4988,6 +5109,8 @@ namespace lockstep
                     applyEuclidLive(euclidTrack_);
                 if (band == MetaBand::Melodic && uiState_.melodicHeld && melodicTrack_ >= 0)
                     applyMelodyLive(melodicTrack_);
+                if (band == MetaBand::Harmony && uiState_.harmonyHeld && harmonyTrack_ >= 0)
+                    applyHarmonyLive(harmonyTrack_);
                 // Rebuild the band so stepped value-text (mode name, scale type,
                 // root) reflects the new value, and repaint the grid (KEY panel
                 // cells track the edited key). The KeyboardArea timer only

@@ -51,7 +51,7 @@ namespace lockstep
     // impossible.
     // =========================================================================
     // NOLINTNEXTLINE(cert-err58-cpp)
-    static const std::array<OverlayDescriptor, 4> kOverlays = {{
+    static const std::array<OverlayDescriptor, 5> kOverlays = {{
         // ── Density ─────────────────────────────────────────────────────────
         // MOD (index 4) cycles sub-pages; Song is "own" (master write path).
         {
@@ -101,6 +101,24 @@ namespace lockstep
             .muteScopeForeign   = true,
             .fillScopeForeign   = true,
             .songScopeForeign   = false,  // Song retargets TIME scope (Func+Song=Set, Song=Song)
+            .exitOnDoubleTapFunc = true,
+        },
+        // ── Harmony ─────────────────────────────────────────────────────────
+        // Sticky voice-mover: like Euclid it uses the step grid (not sections),
+        // so only Func double-tap exits; entry/stash restore is editor-owned.
+        {
+            .id                      = Overlay::Harmony,
+            .internalSection         = -1,
+            .internalSectionConsumed = false,
+            .internalSectionRelabelFn = nullptr,
+            .exitOnSectionPressOther  = false,
+            .trackScopeForeign  = false,
+            .phraseScopeForeign = false,
+            .sceneScopeForeign  = false,
+            .morphScopeForeign  = false,
+            .muteScopeForeign   = false,
+            .fillScopeForeign   = false,
+            .songScopeForeign   = false,
             .exitOnDoubleTapFunc = true,
         },
         // ── Euclid ──────────────────────────────────────────────────────────
@@ -198,6 +216,7 @@ namespace lockstep
     {
         if (ui.euclidHeld) { return Overlay::Euclid; }
         if (ui.melodicHeld) { return Overlay::Melodic; }
+        if (ui.harmonyHeld) { return Overlay::Harmony; }
         return ui.overlay;
     }
 
@@ -234,6 +253,9 @@ namespace lockstep
                 break;
             case Overlay::Melodic:
                 ui.resetMelodic();
+                break;
+            case Overlay::Harmony:
+                ui.resetHarmony();
                 break;
             case Overlay::None:
                 break;
