@@ -3409,6 +3409,22 @@ namespace lockstep
                     repaint();
                     return true;
                 }
+                // Phrase+↑ = transpose the focused track's phrase up. Bare = an
+                // octave; Func+ = one semitone. Guarded before the Func+↑ length
+                // binding so Func+Phrase+↑ transposes rather than doubling length.
+                if (uiState_.phraseScopeHeld)
+                {
+                    if (t >= 0 && t < static_cast<int>(kNumTracks))
+                    {
+                        const int semis = uiState_.funcHeld ? 1 : 12;
+                        processor_.snapshot(CheckpointScope::Phrase, t);
+                        processor_.transposeTrack(t, semis);
+                        setStatus(uiState_.funcHeld ? "TRANSPOSE +1" : "TRANSPOSE +oct");
+                    }
+                    uiState_.phraseScopeUsed = true;
+                    refreshSurface();
+                    return true;
+                }
                 // Func+↑ = double the focused track's pattern length.
                 if (uiState_.funcHeld && !uiState_.trackHeld)
                 {
@@ -3453,6 +3469,22 @@ namespace lockstep
                     manipulationZone_.setMorphQualifier(2);
                     manipulationZone_.setMorphHeld(uiState_.morphHeld);
                     repaint();
+                    return true;
+                }
+                // Phrase+↓ = transpose the focused track's phrase down. Bare = an
+                // octave; Func+ = one semitone. Guarded before the Func+↓ length
+                // binding so Func+Phrase+↓ transposes rather than halving length.
+                if (uiState_.phraseScopeHeld)
+                {
+                    if (t >= 0 && t < static_cast<int>(kNumTracks))
+                    {
+                        const int semis = uiState_.funcHeld ? -1 : -12;
+                        processor_.snapshot(CheckpointScope::Phrase, t);
+                        processor_.transposeTrack(t, semis);
+                        setStatus(uiState_.funcHeld ? "TRANSPOSE -1" : "TRANSPOSE -oct");
+                    }
+                    uiState_.phraseScopeUsed = true;
+                    refreshSurface();
                     return true;
                 }
                 // Func+↓ = halve the focused track's pattern length.

@@ -2069,6 +2069,13 @@ Generator Hub cell → `Overlay::Harmony`; 8-encoder voice mover; clone-on-add;
 audition + idle loop; prints ≤4-note chord steps; `src/core/HarmonyGen.h` (no
 chord theory).
 
+### 10.9 — Phrase transpose ✅
+`Phrase + ↑/↓` transposes the focused track's phrase ±octave; `Func+Phrase+↑/↓`
+±semitone. `LockstepProcessor::transposeTrack(track, semitones)` shifts the base
+note + both trig layers' authored notes, clamped to 0–127, snapshot-undoable.
+Octave-default/Func=semitone per user (scale-degree transpose deferred). Test:
+`EngineTest::testTransposeTrack`.
+
 ---
 
 ## Appendix — Legacy code → new id

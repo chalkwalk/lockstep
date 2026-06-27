@@ -2938,6 +2938,31 @@ namespace lockstep
                         trk.steps.begin() + len);
     }
 
+    void LockstepProcessor::transposeTrack(int track, int semitones)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        if (semitones == 0) return;
+        auto& trk = sequence().tracks[static_cast<std::size_t>(track)];
+
+        const auto shift = [semitones](int n) { return std::clamp(n + semitones, 0, 127); };
+
+        // Track base (mono OEB default) note.
+        trk.trigDefaults.note = shift(trk.trigDefaults.note);
+
+        // Every authored note across the whole step array (not just [0,len)) so a
+        // later length increase never reveals an un-transposed tail. Steps with no
+        // note override (noteCount 0) are untouched. Both trig layers move together.
+        for (auto& s : trk.steps)
+        {
+            for (int n = 0; n < s.trigOverride.noteCount && n < kMaxNotesPerStep; ++n)
+                s.trigOverride.notes[static_cast<std::size_t>(n)] =
+                    shift(s.trigOverride.notes[static_cast<std::size_t>(n)]);
+            for (int n = 0; n < s.fillTrigOverride.noteCount && n < kMaxNotesPerStep; ++n)
+                s.fillTrigOverride.notes[static_cast<std::size_t>(n)] =
+                    shift(s.fillTrigOverride.notes[static_cast<std::size_t>(n)]);
+        }
+    }
+
     void LockstepProcessor::swapSteps(int track, int a, int b)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;

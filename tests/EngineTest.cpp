@@ -1078,8 +1078,52 @@ namespace lockstep
 
     // -----------------------------------------------------------------------
 
+    // -----------------------------------------------------------------------
+    // transposeTrack shifts the base note + all authored notes, clamps, and is
+    // octave/semitone exact (10.7 follow-up — phrase transpose, Phrase+Nav).
+    static void testTransposeTrack()
+    {
+        EngineHarness h;
+        auto& p = h.processor();
+        auto& trk = p.sequence().tracks[0];
+
+        trk.trigDefaults.note = 60;
+        trk.steps[0].trig = true;
+        trk.steps[0].trigOverride.noteCount = 2;
+        trk.steps[0].trigOverride.notes[0] = 48;
+        trk.steps[0].trigOverride.notes[1] = 52;
+        trk.steps[1].fillTrigOverride.noteCount = 1;
+        trk.steps[1].fillTrigOverride.notes[0] = 100;
+
+        // Octave up: base 60->72, notes 48->60 / 52->64, fill 100->112.
+        p.transposeTrack(0, 12);
+        CHECK(trk.trigDefaults.note == 72, "transpose +oct: base note");
+        CHECK(trk.steps[0].trigOverride.notes[0] == 60, "transpose +oct: note 0");
+        CHECK(trk.steps[0].trigOverride.notes[1] == 64, "transpose +oct: note 1");
+        CHECK(trk.steps[1].fillTrigOverride.notes[0] == 112, "transpose +oct: fill note");
+
+        // Semitone down returns the chord toward start; base 72->71.
+        p.transposeTrack(0, -1);
+        CHECK(trk.trigDefaults.note == 71, "transpose -1: base note");
+        CHECK(trk.steps[0].trigOverride.notes[0] == 59, "transpose -1: note 0");
+
+        // Clamp at the ceiling: a high note saturates at 127, never wraps.
+        trk.steps[2].trigOverride.noteCount = 1;
+        trk.steps[2].trigOverride.notes[0] = 120;
+        p.transposeTrack(0, 12);
+        CHECK(trk.steps[2].trigOverride.notes[0] == 127, "transpose clamps at 127");
+
+        // Guards: zero shift + out-of-range track are no-ops (no crash).
+        const int before = trk.trigDefaults.note;
+        p.transposeTrack(0, 0);
+        p.transposeTrack(-1, 5);
+        p.transposeTrack(99, 5);
+        CHECK(trk.trigDefaults.note == before, "transpose: zero/OOB are no-ops");
+    }
+
     void runEngineTests()
     {
+        testTransposeTrack();
         testDrumDirectNaN();
         testNaNFreeDefaultState();
         testClockAdvances();

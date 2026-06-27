@@ -500,6 +500,10 @@ namespace lockstep
         // rotateTrackSteps: rotate steps in [0, trackLen) one place, wrapping. dir>0 shifts
         //   content right (toward higher index); dir<0 shifts left (toward lower index).
         void rotateTrackSteps(int track, int dir);
+        // transposeTrack: shift every authored note in the track's phrase (the track
+        // base/default note + each step's main & fill trig-override notes) by
+        // `semitones`, clamped to [0,127]. +12/-12 = octave; +/-1 = chromatic.
+        void transposeTrack(int track, int semitones);
         // swapSteps: exchange the full Step structs at indices a and b on the given track.
         void swapSteps(int track, int a, int b);
         // relocateStepSwap: swap-with-destination move of a held step (9.14). The

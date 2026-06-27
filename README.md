@@ -1029,6 +1029,10 @@ Stage E / 7.5 and has shipped — see *Phrase-length authoring* below.)
   `LengthBoundary`, beyond-length cells `LengthOutRun`.
 - **Double/halve.** `Func + ↑` doubles the focused track's length (duplicating the
   step data into the new tail); `Func + ↓` halves it.
+- **Transpose a phrase.** `Phrase + ↑ / ↓` shifts every authored note in the
+  focused track's phrase up / down an **octave**; `Func + Phrase + ↑ / ↓` shifts by
+  a **semitone**. Moves the track's base note and both trig layers together,
+  clamped to 0–127; snapshots first, so it's undoable.
 - **The `LEN` encoder** in the `Track+TRIG` meta-layer writes the same underlying
   per-track length — no divergence.
 - **Scroll past the end.** At the last in-length page a single `NavRight` is a
@@ -1375,6 +1379,7 @@ Func (1)
 │   └─ Func + Song + FX (0)  → master FX picker (same catalogue; loads into Song-scope master unit; re-press to cycle all 4 slots; re-pick active = toggle bypass) — §5.8
 ├─ Func + ← / →       → rotate the focused track's steps −1 / +1 — §5.17
 ├─ Func + ↑ / ↓       → double / halve the focused track length — §5.17
+├─ Phrase + ↑ / ↓     → transpose the focused track's phrase ±octave (Func+ = ±semitone) — §5.17
 ├─ Func + step        → P-Lock clear mode (cells show set P-Locks; stage removals, release to commit) — §5.17
 ├─ Func + MOD (9)     → reserved/inert (Density entry moved to generator hub) — §39
 ├─ Func + AMP (8)     → reserved/inert (Vel entry moved to generator hub) — §39
