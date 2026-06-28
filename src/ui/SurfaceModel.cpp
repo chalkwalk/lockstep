@@ -41,6 +41,7 @@ namespace lockstep
             case CellState::StepTrigCertain:    return kStepActive;
             case CellState::StepTrigProbable:   return kStepActive;
             case CellState::StepTrigSuppressed: return 0xFF3E6B50u;  // lifted desaturated green — separate from empty slate
+            case CellState::StepLockOnly:       return 0xFF7A5AC8u;  // 5.6 lock-only — violet, distinct from trig green
             case CellState::StepFillAdd:        return kStepFillAdd;
             case CellState::StepFillSuppress:   return kStepFillSuppress;
             case CellState::StepOutOfRange:     return kStepOutRange;
@@ -1951,6 +1952,8 @@ namespace lockstep
                         c.base = CellState::StepTrigProbable;
                     else if (hasTrig)
                         c.base = CellState::StepTrigCertain;
+                    else if (stepRef.lockOnly)
+                        c.base = CellState::StepLockOnly;  // 5.6 trigless / lock-only
                     else if (fts == FillTrigState::On)
                         c.base = CellState::StepFillAdd;
                     else

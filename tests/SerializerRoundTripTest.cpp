@@ -102,6 +102,8 @@ namespace lockstep
         juce::ValueTree node("S");
         node.setProperty("i", idx, nullptr);
         node.setProperty("t", step.trig ? 1 : 0, nullptr);
+        if (step.lockOnly)
+            node.setProperty("lo", 1, nullptr);  // 5.6 trigless / lock-only
         if (std::abs(step.microOffset) > 1e-7f)
             node.setProperty("mo", static_cast<double>(step.microOffset), nullptr);
         if (!step.condition.isTrivial())
@@ -157,6 +159,7 @@ namespace lockstep
     {
         Step step;
         step.trig = (static_cast<int>(node.getProperty("t", 0)) != 0);
+        step.lockOnly = (static_cast<int>(node.getProperty("lo", 0)) != 0);  // 5.6
         step.microOffset = static_cast<float>(static_cast<double>(
             node.getProperty("mo", 0.0)));
         const auto cNode = node.getChildWithName("C");
@@ -216,6 +219,20 @@ namespace lockstep
             const auto back = parseStepNode(tree);
             CHECK(back.trig, "step trig round-trips");
             CHECK(feq(back.microOffset, 0.125f), "step microOffset round-trips");
+        }
+
+        // 5.6 lock-only (trigless) round-trip.
+        {
+            Step s;
+            s.trig = false;
+            s.lockOnly = true;
+            s.overrides.set(2, 0.4f);  // a P-Lock to ride onto the voice
+            const auto tree = buildStepNode(6, s);
+            CHECK(static_cast<int>(tree.getProperty("lo")) == 1, "step lock-only written");
+            const auto back = parseStepNode(tree);
+            CHECK(back.lockOnly, "step lock-only round-trips");
+            CHECK(!back.trig, "lock-only step keeps trig off");
+            CHECK(feq(back.overrides.get(2, -1.0f), 0.4f), "lock-only P-Lock round-trips");
         }
 
         // Condition on step.

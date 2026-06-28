@@ -36,6 +36,7 @@ LS_CELLSTATE(StepFillSuppress,  15,  0xFF3060A0u, 0x00000000u,  46,   0)
 LS_CELLSTATE(StepOutOfRange,    16,  0xFF12151Au, 0x00000000u,   0,   0)
 LS_CELLSTATE(StepPlayhead,      17,  0xFFFFCC44u, 0x00000000u,   9,   0)
 LS_CELLSTATE(StepHeld,          18,  0xFFFFFFFFu, 0x00000000u, 119,   1)
+LS_CELLSTATE(StepLockOnly,     165,  0xFF7A5AC8u, 0x00000000u,  49,   1)
 
 // ---- selector / re-skin family ----------------------------------------
 LS_CELLSTATE(SelectorCurrent,   30,  0xFFFFFFFFu, 0x00000000u, 119,   1)

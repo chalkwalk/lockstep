@@ -1223,6 +1223,33 @@ namespace lockstep
         h.processor().liveNoteOff(0, 60);
     }
 
+    // -----------------------------------------------------------------------
+    // 5.6: a lock-only (trigless) step applies its P-Locks to the running voice
+    // as the playhead crosses it, with no note emitted. A Thru track makes this
+    // observable with no notes at all: a lock-only step that overrides
+    // input_source = None must silence the continuous pass-through.
+    static void testLockOnlyRidesOverrideOntoVoice()
+    {
+        EngineHarness h;
+        installThru(h.processor(), 0,
+                    static_cast<float>(static_cast<int>(InputSourceKind::External)));
+        // Step 4 = lock-only; override Thru slot 0 (input_source) to None.
+        auto& trk = h.processor().sequence().tracks[0];
+        trk.steps[4].lockOnly = true;
+        trk.steps[4].overrides.set(0, static_cast<float>(static_cast<int>(InputSourceKind::None)));
+
+        float early = 0.0f, late = 0.0f;
+        for (int b = 0; b < 120; ++b)
+        {
+            const float rms = renderBlockWithInput(h, 0.5f);
+            if (b < 3)   early = std::max(early, rms);
+            if (b >= 100) late = std::max(late, rms);
+        }
+        CHECK(early > 0.05f, "lock-only: Thru passes input before the lock-only step");
+        CHECK(late < 1e-3f,
+              "lock-only: crossing the step rides input_source=None onto the voice");
+    }
+
     void runEngineTests()
     {
         testTransposeTrack();
@@ -1252,5 +1279,6 @@ namespace lockstep
         testThruPassesExternalInput();
         testThruMasterTap();
         testAuditionLiveNote();
+        testLockOnlyRidesOverrideOntoVoice();
     }
 }

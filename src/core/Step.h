@@ -43,6 +43,12 @@ namespace lockstep
     struct Step
     {
         bool trig = false;
+        // 5.6 trigless / lock-only (DESIGN §30). When true (and trig is false),
+        // the step applies its P-Locks/overrides to the already-sounding voice as
+        // the playhead crosses it, without emitting a note-on — a parameter sweep
+        // riding a sustained note. The tri-state is off → note → lock-only.
+        // Meaningful only when trig is false; a note trig takes precedence.
+        bool lockOnly = false;
         TrigCondition condition;
         PLock overrides;     // machine ParamFrame P-Locks
         TrigOverride trigOverride;  // sequencer-scope trig field overrides

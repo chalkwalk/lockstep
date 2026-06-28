@@ -1918,6 +1918,17 @@ namespace lockstep
                                 pendingTrigs_[i] = { true, stepIdx, stepNum, firePpq };
                             }
                         }
+                        else if (step.lockOnly)
+                        {
+                            // 5.6 trigless / lock-only (DESIGN §30): ride this step's
+                            // P-Locks/overrides onto the sustaining voice. Point the
+                            // resolver at this step (firedStepIdx_ drives the machine
+                            // frame + FLTR/CHANNEL/ENV/insert overrides), but emit no
+                            // note and never close the open gate.
+                            firedStepIdx_[i] = stepIdx;
+                            lastScheduledStepNum_[i] = stepNum;
+                            lastStepFired_[i] = false;
+                        }
                         else
                         {
                             // Step that last fired has cycled back but doesn't fire now

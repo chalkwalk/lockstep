@@ -110,11 +110,13 @@ namespace lockstep::PluginState
         for (int s = 0; s < kMaxStepsPerTrack; ++s)
         {
             const auto& step = phrase.steps[static_cast<std::size_t>(s)];
-            if (!step.trig && step.overrides.empty() && step.trigOverride.noteCount == 0 && !step.trigOverride.hasVelocity && !step.trigOverride.hasGate && !step.trigOverride.hasSoundId && !step.trigOverride.hasRetrig && step.condition.isTrivial() && !floatNe(step.microOffset, 0.0f) && step.fillTrigState == FillTrigState::Inherit && step.fillOverrides.empty() && step.fillTrigOverride.noteCount == 0) continue;
+            if (!step.trig && !step.lockOnly && step.overrides.empty() && step.trigOverride.noteCount == 0 && !step.trigOverride.hasVelocity && !step.trigOverride.hasGate && !step.trigOverride.hasSoundId && !step.trigOverride.hasRetrig && step.condition.isTrivial() && !floatNe(step.microOffset, 0.0f) && step.fillTrigState == FillTrigState::Inherit && step.fillOverrides.empty() && step.fillTrigOverride.noteCount == 0) continue;
             hasSteps = true;
             juce::ValueTree stepNode("S");
             stepNode.setProperty("i", s, nullptr);
             stepNode.setProperty("t", step.trig ? 1 : 0, nullptr);
+            if (step.lockOnly)
+                stepNode.setProperty("lo", 1, nullptr);  // 5.6 trigless / lock-only
             if (floatNe(step.microOffset, 0.0f))
                 stepNode.setProperty(keys::kMo, static_cast<double>(step.microOffset), nullptr);
             if (!step.condition.isTrivial())
@@ -246,6 +248,7 @@ namespace lockstep::PluginState
             if (s < 0 || s >= kMaxStepsPerTrack) continue;
             auto& step = phrase.steps[static_cast<std::size_t>(s)];
             step.trig = (static_cast<int>(stepNode.getProperty("t", 0)) != 0);
+            step.lockOnly = (static_cast<int>(stepNode.getProperty("lo", 0)) != 0);  // 5.6
             step.microOffset = getFloat(stepNode, keys::kMo, 0.0f);
             const auto cNode = stepNode.getChildWithName("C");
             if (cNode.isValid()) step.condition = condFromTree(cNode);
@@ -1708,6 +1711,15 @@ namespace lockstep::PluginState
         return v23;
     }
 
+    static juce::ValueTree upgrade_v23_to_v24(const juce::ValueTree& v23)
+    {
+        // v24: per-step trigless / lock-only flag added (5.6). Absent "lo" reads
+        // as false (a plain off/note step). Trivial stamp bump.
+        juce::ValueTree v24 = v23.createCopy();
+        v24.setProperty(keys::kVersion, 24, nullptr);
+        return v24;
+    }
+
     juce::ValueTree applyUpgrades(juce::ValueTree tree)
     {
         // Determine the version. v0 has root type "Lockstep" and no version attribute.
@@ -1739,6 +1751,7 @@ namespace lockstep::PluginState
         if (version < 21) tree = upgrade_v20_to_v21(tree);
         if (version < 22) tree = upgrade_v21_to_v22(tree);
         if (version < 23) tree = upgrade_v22_to_v23(tree);
+        if (version < 24) tree = upgrade_v23_to_v24(tree);
 
         return tree;
     }

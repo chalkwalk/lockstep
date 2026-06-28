@@ -42,6 +42,9 @@ namespace lockstep
         StepOutOfRange = 16,
         StepPlayhead = 17,
         StepHeld = 18,
+        // 5.6 trigless / lock-only step (rides P-Locks onto a sustaining voice).
+        // Add-only value past the existing block (never renumber tokens).
+        StepLockOnly = 165,
 
         // Selector / re-skin family (scope picker, mute viewer, machine picker)
         SelectorCurrent = 30,
