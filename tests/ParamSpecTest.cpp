@@ -117,6 +117,7 @@ namespace lockstep
             "va_lfo_target",    // 32
             "va_lfo_sync",      // 33
             "va_osc_mix",       // 34
+            "va_age",           // 35
         };
         checkGoldenIds(m, "VAMachine", golden);
         checkInvariants(m, "VAMachine");

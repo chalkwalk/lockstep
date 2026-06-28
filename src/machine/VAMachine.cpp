@@ -120,6 +120,8 @@ namespace lockstep
         { "va_lfo_sync", "LFO Sync", 0.f, 1.f, 0.f, 1.f, 1, va_u::None, va_r::None, 0, 4, 0, kVALfoSyncLabels }, // 33
         // --- SRC continued (section 1) ---
         { "va_osc_mix", "Osc Mix", 0.f, 1.f, 0.5f, 1.f, 0, va_u::None, va_r::None, 0, 1, 0, nullptr }, // 34
+        // --- MOD continued (section 4): vintage character macro ---
+        { "va_age", "Age", 0.f, 1.f, 0.2f, 1.f, 0, va_u::None, va_r::None, 0, 4, 0, nullptr }, // 35
     };
     static_assert(std::size(kVAParams) == VAMachine::kNumSlots,
                   "kVAParams row count must equal kNumSlots");
@@ -611,18 +613,44 @@ namespace lockstep
         const float lfoPWMod = (lfoTarget == 2) ? lfoOut_ * 0.2f : 0.0f;
         const float lfoAmpMod = (lfoTarget == 3) ? lfoOut_ * 0.5f : 0.0f;
 
+        // ---- "Age" vintage drift ------------------------------------------
+        // Four free-running sub-Hz drifters give analog wander on osc pitch,
+        // filter cutoff and pulse width; Age also adds a touch of glue
+        // saturation (driveGain below). Advanced once per block.
+        const float age = std::clamp(p(kSlotAge), 0.0f, 1.0f);
+        static constexpr std::array<double, 4> kDriftRatesHz{ 0.11, 0.17, 0.07, 0.23 };
+        std::array<float, 4> driftVal{};
+        for (int d = 0; d < 4; ++d)
+        {
+            driftPhase_[static_cast<std::size_t>(d)] +=
+                kDriftRatesHz[static_cast<std::size_t>(d)] / sampleRate_
+                * static_cast<double>(numSamples);
+            driftPhase_[static_cast<std::size_t>(d)] -=
+                std::floor(driftPhase_[static_cast<std::size_t>(d)]);
+            driftVal[static_cast<std::size_t>(d)] = static_cast<float>(
+                std::sin(kTwoPi * driftPhase_[static_cast<std::size_t>(d)]));
+        }
+        const float ageDetune1 = age * driftVal[0] * 7.0f;    // cents (osc1)
+        const float ageDetune2 = age * driftVal[1] * 7.0f;    // cents (osc2, independent)
+        const float ageCutoff  = age * driftVal[2] * 0.03f;   // normalised cutoff
+        const float agePW      = age * driftVal[3] * 0.04f;   // pulse width
+
         // ---- Params -------------------------------------------------------
-        const float cutoffParam = std::clamp(p(kSlotCutoff) + lfoCutoffMod, 0.0f, 1.0f);
+        const float cutoffParam = std::clamp(p(kSlotCutoff) + lfoCutoffMod + ageCutoff,
+                                             0.0f, 1.0f);
         const int filterType = static_cast<int>(p(kSlotFilterType));
-        const float driveGain = 1.0f + 4.0f * p(kSlotDrive);
+        // Always-on gentle glue saturation (baseline 1.4) so default patches
+        // have analog character without the level knob switching drive on from
+        // nothing; user Drive and Age add harmonics on top.
+        const float driveGain = 1.4f + 4.0f * p(kSlotDrive) + age * 1.5f;
         const float fEnvDepth = p(kSlotFEnvDepth);
         const float subLevel = p(kSlotSub);
         const float noiseLevel = p(kSlotNoise);
         const float portaMs = p(kSlotPorta);
         const int osc1Wave = static_cast<int>(p(kSlotOsc1Wave));
-        const float osc1PW = std::clamp(p(kSlotOsc1PW) + lfoPWMod, 0.05f, 0.95f);
+        const float osc1PW = std::clamp(p(kSlotOsc1PW) + lfoPWMod + agePW, 0.05f, 0.95f);
         const int osc2Wave = static_cast<int>(p(kSlotOsc2Wave));
-        const float osc2PW = std::clamp(p(kSlotOsc2PW) + lfoPWMod, 0.05f, 0.95f);
+        const float osc2PW = std::clamp(p(kSlotOsc2PW) + lfoPWMod - agePW, 0.05f, 0.95f);
         const float velSens = p(kSlotVelSens);
         const float velGain = 1.0f - velSens + velSens * voiceVelocity_;
         const float outputLevel = p(kSlotLevel) * (1.0f + lfoAmpMod) * velGain;
@@ -630,7 +658,7 @@ namespace lockstep
 
         const float osc2CoarseST = p(kSlotOsc2Coarse);
         const float osc2FineCent = p(kSlotOsc2Fine);
-        const double osc2FreqRatio = std::pow(2.0, static_cast<double>(osc2CoarseST) / 12.0 + static_cast<double>(osc2FineCent) / 1200.0);
+        const double osc2FreqRatio = std::pow(2.0, static_cast<double>(osc2CoarseST) / 12.0 + (static_cast<double>(osc2FineCent) + static_cast<double>(ageDetune2)) / 1200.0);
 
         // Osc mix: constant-power crossfade between osc1 (0) and osc2 (1).
         // Default 0.5 gives equal loudness; 0.0 = osc1 only, 1.0 = osc2 only.
@@ -640,7 +668,7 @@ namespace lockstep
 
         const float osc1CoarseST = p(kSlotOsc1Coarse);
         const float osc1FineCent = p(kSlotOsc1Fine);
-        const double osc1FreqMul = std::pow(2.0, static_cast<double>(osc1CoarseST) / 12.0 + static_cast<double>(osc1FineCent) / 1200.0 + static_cast<double>(lfoPitchMod) / 12.0);
+        const double osc1FreqMul = std::pow(2.0, static_cast<double>(osc1CoarseST) / 12.0 + (static_cast<double>(osc1FineCent) + static_cast<double>(ageDetune1)) / 1200.0 + static_cast<double>(lfoPitchMod) / 12.0);
 
         const double portaCoeff = (portaMs > 0.0f)
                                       ? std::exp(-1.0 / (static_cast<double>(portaMs) * 0.001 * sampleRate_))
@@ -779,6 +807,7 @@ namespace lockstep
 
             // ---- Sum oscillators ----
             float oscSum = 0.0f;
+            float voiceWeight = 0.0f;  // smooth count of sounding voices (para comp)
             for (auto& sv : subVoices_)
             {
                 if (!sv.active && !sv.ar.isActive() && !sv.keepForRelease) continue;
@@ -809,7 +838,17 @@ namespace lockstep
                     voiceGain = sv.ar.tick();
 
                 oscSum += svSample * voiceGain;
+                voiceWeight += voiceGain;
             }
+
+            // ---- Paraphonic loudness compensation ----
+            // Voices sum linearly, so a 4-note chord would be ~4x as loud and
+            // slam the drive stage. Normalising by 1/sqrt(voiceWeight) keeps a
+            // chord thicker than one note (~2x for 4) without the abrasive 4x.
+            // voiceWeight ramps smoothly with the per-voice AR gains, so this is
+            // click-free; in Mono it is ~1 and leaves the level unchanged.
+            if (voiceWeight > 1.0f)
+                oscSum /= std::sqrt(voiceWeight);
 
             // ---- Shared noise ----
             if (noiseLevel > 0.0f)
@@ -831,14 +870,12 @@ namespace lockstep
             const float combinedGain = aEnvLevel + (paraMode ? 0.0f : monoGhostGain_);
             const float preDrive = oscSum * combinedGain * outputLevel;
 
-            // ---- Drive (unity-gain bypass when drive=0) ----
-            // tanh(driveGain*x)/tanh(driveGain) normalises DC gain to 1.0 so
-            // the drive knob adds harmonics without boosting level.
-            float shaped;
-            if (driveGain > 1.0001f)
-                shaped = std::tanh(driveGain * preDrive) / std::tanh(driveGain);
-            else
-                shaped = preDrive;
+            // ---- Drive (always-on glue) ----
+            // tanh(driveGain*x)/tanh(driveGain) normalises DC gain to 1.0 so the
+            // drive/Age knobs add harmonics without boosting level. driveGain is
+            // baselined at 1.4 (see above) so there is gentle glue even at
+            // Drive=Age=0 — only audible as signals approach full scale.
+            const float shaped = std::tanh(driveGain * preDrive) / std::tanh(driveGain);
 
             // ---- Filter ----
             float filtered = filterSample(shaped, svfF, svfQ, filterType);
