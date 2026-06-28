@@ -373,6 +373,147 @@ namespace lockstep
         }
     }
 
+    // A2: render one track's full audio chain into trackBuffers_[i]. Extracted
+    // verbatim from the two transport paths so both share one implementation and
+    // can be driven in routing (topological) order. resolveStep selects the step
+    // whose FLTR/CHANNEL/ENV overrides apply; insert overrides always resolve
+    // against firedStepIdx_ (matching the prior inline behaviour).
+    void LockstepProcessor::processTrackChain(std::size_t i, const ParamFrame& frame,
+                                              int resolveStep, bool fillActive,
+                                              float faderNow, int numBlockSamples,
+                                              juce::MidiBuffer& trackMidiI)
+    {
+        auto* mi = machines_[i].get();
+
+        fillTrackInput(static_cast<int>(i), frame, numBlockSamples);
+        mi->process(trackMidiI, frame, trackBuffers_[i]);
+
+        const int mnp = mi->numParams();
+        const int fltrOff = mnp;
+        const int chanOff = mnp + kFltrSlots;
+        const int envOff  = chanOff + kChannelSlots;
+
+        // FILTER: always present on audio tracks (OFF mode = passthrough).
+        {
+            TrackFltrState fltr = kit(static_cast<int>(i)).fltrState;
+            for (int fs = 0; fs < kFltrSlots; ++fs)
+                fltr.setSlot(fs, morphBlend(section(), static_cast<int>(i),
+                                            fltrOff + fs, fltr.getSlot(fs), faderNow));
+            if (resolveStep >= 0 && resolveStep < kMaxStepsPerTrack)
+            {
+                const auto& step =
+                    sequence().tracks[i].steps[static_cast<std::size_t>(resolveStep)];
+                for (int fs = 0; fs < kFltrSlots; ++fs)
+                    if (step.overrides.has(fltrOff + fs))
+                        fltr.setSlot(fs, step.overrides.get(fltrOff + fs, 0.0f));
+                if (fillActive)
+                    for (int fs = 0; fs < kFltrSlots; ++fs)
+                        if (step.fillOverrides.has(fltrOff + fs))
+                            fltr.setSlot(fs, step.fillOverrides.get(fltrOff + fs, 0.0f));
+            }
+            trackFltrs_[i].processBlock(trackBuffers_[i], trackMidiI, fltr,
+                                        numBlockSamples);
+        }
+
+        // CHANNEL: always present; resolve sends before applying level/pan.
+        TrackChannelState ch = kit(static_cast<int>(i)).channelState;
+        for (int cs = 0; cs < kChannelSlots; ++cs)
+            ch.setSlot(cs, morphBlend(section(), static_cast<int>(i),
+                                      chanOff + cs, ch.getSlot(cs), faderNow));
+        if (resolveStep >= 0 && resolveStep < kMaxStepsPerTrack)
+        {
+            const auto& step =
+                sequence().tracks[i].steps[static_cast<std::size_t>(resolveStep)];
+            for (int cs = 0; cs < kChannelSlots; ++cs)
+                if (step.overrides.has(chanOff + cs))
+                    ch.setSlot(cs, step.overrides.get(chanOff + cs, 0.0f));
+            if (fillActive)
+                for (int cs = 0; cs < kChannelSlots; ++cs)
+                    if (step.fillOverrides.has(chanOff + cs))
+                        ch.setSlot(cs, step.fillOverrides.get(chanOff + cs, 0.0f));
+        }
+        const float trackSendA = ch.sendA;
+        const float trackSendB = ch.sendB;
+
+        // ENVELOPE: only for machines without internal amp.
+        if (!mi->hasInternalAmp())
+        {
+            TrackEnvState env = kit(static_cast<int>(i)).envState;
+            for (int es = 0; es < kEnvSlots; ++es)
+                env.setSlot(es, morphBlend(section(), static_cast<int>(i),
+                                           envOff + es, env.getSlot(es), faderNow));
+            if (resolveStep >= 0 && resolveStep < kMaxStepsPerTrack)
+            {
+                const auto& step =
+                    sequence().tracks[i].steps[static_cast<std::size_t>(resolveStep)];
+                for (int es = 0; es < kEnvSlots; ++es)
+                    if (step.overrides.has(envOff + es))
+                        env.setSlot(es, step.overrides.get(envOff + es, 0.0f));
+                if (fillActive)
+                    for (int es = 0; es < kEnvSlots; ++es)
+                        if (step.fillOverrides.has(envOff + es))
+                            env.setSlot(es, step.fillOverrides.get(envOff + es, 0.0f));
+            }
+            const bool envWasIdle = trackEnvs_[i].isIdle();
+            trackEnvs_[i].processBlock(trackBuffers_[i], trackMidiI, env,
+                                       numBlockSamples);
+            if (!envWasIdle && trackEnvs_[i].isIdle())
+                mi->reset();
+        }
+
+        // Apply CHANNEL level/pan to the post-filter/envelope signal.
+        applyChannel(trackBuffers_[i], ch, numBlockSamples);
+
+        // 6.5: post-machine insert chain — runs for all machines.
+        for (int ins = 0; ins < 2; ++ins)
+        {
+            auto* eff = trackInserts_[i][static_cast<std::size_t>(ins)].get();
+            if (!eff) continue;
+            const auto& kitIns = kit(static_cast<int>(i)).inserts[static_cast<std::size_t>(ins)];
+            if (kitIns.bypass) continue;
+            const int insOff = insertParamOffset(static_cast<int>(i), ins);
+            const int insnp = eff->numParams();
+            ParamFrame fxFrame(static_cast<std::size_t>(insnp));
+            for (int p = 0; p < insnp; ++p)
+            {
+                const float base = static_cast<std::size_t>(p) < kitIns.baseParams.size()
+                                       ? kitIns.baseParams[static_cast<std::size_t>(p)]
+                                       : eff->paramSpec(p).defaultValue;
+                float resolved = morphBlend(section(), static_cast<int>(i),
+                                            insOff + p, base, faderNow);
+                if (firedStepIdx_[i] >= 0)
+                {
+                    const auto& st = sequence().tracks[i].steps[static_cast<std::size_t>(firedStepIdx_[i])];
+                    resolved = st.overrides.get(insOff + p, resolved);
+                }
+                fxFrame[static_cast<std::size_t>(p)] = resolved;
+            }
+            eff->process(trackBuffers_[i], numBlockSamples, fxFrame);
+        }
+
+        // 8.26: post-insert, post-level send taps. MIDI-out tracks skipped by caller.
+        {
+            const int numTrCh = trackBuffers_[i].getNumChannels();
+            if (trackSendA > 0.0f)
+            {
+                const int numCh = std::min(sendBusBufs_[0].getNumChannels(), numTrCh);
+                for (int bch = 0; bch < numCh; ++bch)
+                    sendBusBufs_[0].addFrom(bch, 0, trackBuffers_[i], bch, 0,
+                                            numBlockSamples, trackSendA);
+            }
+            if (trackSendB > 0.0f)
+            {
+                const int numCh = std::min(sendBusBufs_[1].getNumChannels(), numTrCh);
+                for (int bch = 0; bch < numCh; ++bch)
+                    sendBusBufs_[1].addFrom(bch, 0, trackBuffers_[i], bch, 0,
+                                            numBlockSamples, trackSendB);
+            }
+        }
+
+        trackPeak_[i].store(trackBuffers_[i].getMagnitude(0, numBlockSamples),
+                            std::memory_order_relaxed);
+    }
+
     // 6.1: cache the final master output so a track sourcing Master reads the
     // prior block (the one sanctioned feedback-free tap, DESIGN §27).
     void LockstepProcessor::cachePrevMaster(const juce::AudioBuffer<float>& buf,
@@ -1284,133 +1425,8 @@ namespace lockstep
                 }
                 else
                 {
-                    fillTrackInput(static_cast<int>(i), frame, numBlockSamples);
-                    mi->process(trackMidi[i], frame, trackBuffers_[i]);
-
-                    const int mnp = mi->numParams();
-                    const int fltrOff = mnp;
-                    const int chanOff = mnp + kFltrSlots;
-                    const int envOff  = chanOff + kChannelSlots;
-
-                    // FILTER: always present on audio tracks (OFF mode = passthrough).
-                    {
-                        TrackFltrState fltr = kit(static_cast<int>(i)).fltrState;
-                        for (int fs = 0; fs < kFltrSlots; ++fs)
-                            fltr.setSlot(fs, morphBlend(section(), static_cast<int>(i),
-                                                        fltrOff + fs, fltr.getSlot(fs), faderNow));
-                        if (resolveStep >= 0 && resolveStep < kMaxStepsPerTrack)
-                        {
-                            const auto& step =
-                                sequence().tracks[i].steps[static_cast<std::size_t>(resolveStep)];
-                            for (int fs = 0; fs < kFltrSlots; ++fs)
-                                if (step.overrides.has(fltrOff + fs))
-                                    fltr.setSlot(fs, step.overrides.get(fltrOff + fs, 0.0f));
-                            if (fillNow)
-                                for (int fs = 0; fs < kFltrSlots; ++fs)
-                                    if (step.fillOverrides.has(fltrOff + fs))
-                                        fltr.setSlot(fs, step.fillOverrides.get(fltrOff + fs, 0.0f));
-                        }
-                        trackFltrs_[i].processBlock(trackBuffers_[i], trackMidi[i], fltr,
-                                                    numBlockSamples);
-                    }
-
-                    // CHANNEL: always present; resolve sends before applying level/pan.
-                    TrackChannelState ch = kit(static_cast<int>(i)).channelState;
-                    for (int cs = 0; cs < kChannelSlots; ++cs)
-                        ch.setSlot(cs, morphBlend(section(), static_cast<int>(i),
-                                                  chanOff + cs, ch.getSlot(cs), faderNow));
-                    if (resolveStep >= 0 && resolveStep < kMaxStepsPerTrack)
-                    {
-                        const auto& step =
-                            sequence().tracks[i].steps[static_cast<std::size_t>(resolveStep)];
-                        for (int cs = 0; cs < kChannelSlots; ++cs)
-                            if (step.overrides.has(chanOff + cs))
-                                ch.setSlot(cs, step.overrides.get(chanOff + cs, 0.0f));
-                        if (fillNow)
-                            for (int cs = 0; cs < kChannelSlots; ++cs)
-                                if (step.fillOverrides.has(chanOff + cs))
-                                    ch.setSlot(cs, step.fillOverrides.get(chanOff + cs, 0.0f));
-                    }
-                    const float trackSendA = ch.sendA;
-                    const float trackSendB = ch.sendB;
-
-                    // ENVELOPE: only for machines without internal amp.
-                    if (!mi->hasInternalAmp())
-                    {
-                        TrackEnvState env = kit(static_cast<int>(i)).envState;
-                        for (int es = 0; es < kEnvSlots; ++es)
-                            env.setSlot(es, morphBlend(section(), static_cast<int>(i),
-                                                       envOff + es, env.getSlot(es), faderNow));
-                        if (resolveStep >= 0 && resolveStep < kMaxStepsPerTrack)
-                        {
-                            const auto& step =
-                                sequence().tracks[i].steps[static_cast<std::size_t>(resolveStep)];
-                            for (int es = 0; es < kEnvSlots; ++es)
-                                if (step.overrides.has(envOff + es))
-                                    env.setSlot(es, step.overrides.get(envOff + es, 0.0f));
-                            if (fillNow)
-                                for (int es = 0; es < kEnvSlots; ++es)
-                                    if (step.fillOverrides.has(envOff + es))
-                                        env.setSlot(es, step.fillOverrides.get(envOff + es, 0.0f));
-                        }
-                        const bool envWasIdle = trackEnvs_[i].isIdle();
-                        trackEnvs_[i].processBlock(trackBuffers_[i], trackMidi[i], env,
-                                                   numBlockSamples);
-                        if (!envWasIdle && trackEnvs_[i].isIdle())
-                            mi->reset();
-                    }
-
-                    // Apply CHANNEL level/pan to the post-filter/envelope signal.
-                    applyChannel(trackBuffers_[i], ch, numBlockSamples);
-
-                    // 6.5: post-machine insert chain — runs for all machines.
-                    for (int ins = 0; ins < 2; ++ins)
-                    {
-                        auto* eff = trackInserts_[i][static_cast<std::size_t>(ins)].get();
-                        if (!eff) continue;
-                        const auto& kitIns = kit(static_cast<int>(i)).inserts[static_cast<std::size_t>(ins)];
-                        if (kitIns.bypass) continue;
-                        const int insOff = insertParamOffset(static_cast<int>(i), ins);
-                        const int insnp = eff->numParams();
-                        ParamFrame fxFrame(static_cast<std::size_t>(insnp));
-                        for (int p = 0; p < insnp; ++p)
-                        {
-                            const float base = static_cast<std::size_t>(p) < kitIns.baseParams.size()
-                                                   ? kitIns.baseParams[static_cast<std::size_t>(p)]
-                                                   : eff->paramSpec(p).defaultValue;
-                            float resolved = morphBlend(section(), static_cast<int>(i),
-                                                        insOff + p, base, faderNow);
-                            if (firedStepIdx_[i] >= 0)
-                            {
-                                const auto& st = sequence().tracks[i].steps[static_cast<std::size_t>(firedStepIdx_[i])];
-                                resolved = st.overrides.get(insOff + p, resolved);
-                            }
-                            fxFrame[static_cast<std::size_t>(p)] = resolved;
-                        }
-                        eff->process(trackBuffers_[i], numBlockSamples, fxFrame);
-                    }
-
-                    // 8.26: post-insert, post-level send taps. MIDI-out tracks skipped above.
-                    {
-                        const int numTrCh = trackBuffers_[i].getNumChannels();
-                        if (trackSendA > 0.0f)
-                        {
-                            const int numCh = std::min(sendBusBufs_[0].getNumChannels(), numTrCh);
-                            for (int bch = 0; bch < numCh; ++bch)
-                                sendBusBufs_[0].addFrom(bch, 0, trackBuffers_[i], bch, 0,
-                                                        numBlockSamples, trackSendA);
-                        }
-                        if (trackSendB > 0.0f)
-                        {
-                            const int numCh = std::min(sendBusBufs_[1].getNumChannels(), numTrCh);
-                            for (int bch = 0; bch < numCh; ++bch)
-                                sendBusBufs_[1].addFrom(bch, 0, trackBuffers_[i], bch, 0,
-                                                        numBlockSamples, trackSendB);
-                        }
-                    }
-
-                    trackPeak_[i].store(trackBuffers_[i].getMagnitude(0, numBlockSamples),
-                                        std::memory_order_relaxed);
+                    processTrackChain(i, frame, resolveStep, fillNow, faderNow,
+                                      numBlockSamples, trackMidi[i]);
                 }
             }
 
@@ -2183,131 +2199,8 @@ namespace lockstep
             }
             else
             {
-                fillTrackInput(static_cast<int>(i), frame, numBlockSamples);
-                mi->process(trackMidi[i], frame, trackBuffers_[i]);
-
-                const int mnp = mi->numParams();
-                const int fltrOff = mnp;
-                const int chanOff = mnp + kFltrSlots;
-                const int envOff  = chanOff + kChannelSlots;
-                const int fsi = firedStepIdx_[i];
-
-                // FILTER: always present on audio tracks.
-                {
-                    TrackFltrState fltr = kit(static_cast<int>(i)).fltrState;
-                    for (int fs = 0; fs < kFltrSlots; ++fs)
-                        fltr.setSlot(fs, morphBlend(section(), static_cast<int>(i),
-                                                    fltrOff + fs, fltr.getSlot(fs), faderNow));
-                    if (fsi >= 0 && fsi < kMaxStepsPerTrack)
-                    {
-                        const auto& fsiStep = sequence().tracks[i].steps[static_cast<std::size_t>(fsi)];
-                        for (int fs = 0; fs < kFltrSlots; ++fs)
-                            if (fsiStep.overrides.has(fltrOff + fs))
-                                fltr.setSlot(fs, fsiStep.overrides.get(fltrOff + fs, 0.0f));
-                        if (curFillActive)
-                            for (int fs = 0; fs < kFltrSlots; ++fs)
-                                if (fsiStep.fillOverrides.has(fltrOff + fs))
-                                    fltr.setSlot(fs, fsiStep.fillOverrides.get(fltrOff + fs, 0.0f));
-                    }
-                    trackFltrs_[i].processBlock(trackBuffers_[i], trackMidi[i], fltr,
-                                                numBlockSamples);
-                }
-
-                // CHANNEL: always present; resolve sends before applying level/pan.
-                TrackChannelState ch2 = kit(static_cast<int>(i)).channelState;
-                for (int cs = 0; cs < kChannelSlots; ++cs)
-                    ch2.setSlot(cs, morphBlend(section(), static_cast<int>(i),
-                                               chanOff + cs, ch2.getSlot(cs), faderNow));
-                if (fsi >= 0 && fsi < kMaxStepsPerTrack)
-                {
-                    const auto& fsiStep = sequence().tracks[i].steps[static_cast<std::size_t>(fsi)];
-                    for (int cs = 0; cs < kChannelSlots; ++cs)
-                        if (fsiStep.overrides.has(chanOff + cs))
-                            ch2.setSlot(cs, fsiStep.overrides.get(chanOff + cs, 0.0f));
-                    if (curFillActive)
-                        for (int cs = 0; cs < kChannelSlots; ++cs)
-                            if (fsiStep.fillOverrides.has(chanOff + cs))
-                                ch2.setSlot(cs, fsiStep.fillOverrides.get(chanOff + cs, 0.0f));
-                }
-                const float trackSendA2 = ch2.sendA;
-                const float trackSendB2 = ch2.sendB;
-
-                // ENVELOPE: only for machines without internal amp.
-                if (!mi->hasInternalAmp())
-                {
-                    TrackEnvState env = kit(static_cast<int>(i)).envState;
-                    for (int es = 0; es < kEnvSlots; ++es)
-                        env.setSlot(es, morphBlend(section(), static_cast<int>(i),
-                                                   envOff + es, env.getSlot(es), faderNow));
-                    if (fsi >= 0 && fsi < kMaxStepsPerTrack)
-                    {
-                        const auto& fsiStep = sequence().tracks[i].steps[static_cast<std::size_t>(fsi)];
-                        for (int es = 0; es < kEnvSlots; ++es)
-                            if (fsiStep.overrides.has(envOff + es))
-                                env.setSlot(es, fsiStep.overrides.get(envOff + es, 0.0f));
-                        if (curFillActive)
-                            for (int es = 0; es < kEnvSlots; ++es)
-                                if (fsiStep.fillOverrides.has(envOff + es))
-                                    env.setSlot(es, fsiStep.fillOverrides.get(envOff + es, 0.0f));
-                    }
-                    const bool envWasIdle2 = trackEnvs_[i].isIdle();
-                    trackEnvs_[i].processBlock(trackBuffers_[i], trackMidi[i], env,
-                                               numBlockSamples);
-                    if (!envWasIdle2 && trackEnvs_[i].isIdle())
-                        mi->reset();
-                }
-
-                // Apply CHANNEL level/pan.
-                applyChannel(trackBuffers_[i], ch2, numBlockSamples);
-
-                // 6.5: post-machine insert chain — runs for all machines.
-                for (int ins = 0; ins < 2; ++ins)
-                {
-                    auto* eff = trackInserts_[i][static_cast<std::size_t>(ins)].get();
-                    if (!eff) continue;
-                    const auto& kitIns = kit(static_cast<int>(i)).inserts[static_cast<std::size_t>(ins)];
-                    if (kitIns.bypass) continue;
-                    const int insOff = insertParamOffset(static_cast<int>(i), ins);
-                    const int insnp = eff->numParams();
-                    ParamFrame fxFrame2(static_cast<std::size_t>(insnp));
-                    for (int p = 0; p < insnp; ++p)
-                    {
-                        const float base = static_cast<std::size_t>(p) < kitIns.baseParams.size()
-                                               ? kitIns.baseParams[static_cast<std::size_t>(p)]
-                                               : eff->paramSpec(p).defaultValue;
-                        float resolved = morphBlend(section(), static_cast<int>(i),
-                                                    insOff + p, base, faderNow);
-                        if (firedStepIdx_[i] >= 0)
-                        {
-                            const auto& st = sequence().tracks[i].steps[static_cast<std::size_t>(firedStepIdx_[i])];
-                            resolved = st.overrides.get(insOff + p, resolved);
-                        }
-                        fxFrame2[static_cast<std::size_t>(p)] = resolved;
-                    }
-                    eff->process(trackBuffers_[i], numBlockSamples, fxFrame2);
-                }
-
-                // 8.26: post-insert, post-level send taps. MIDI-out tracks skipped above.
-                {
-                    const int numTrCh = trackBuffers_[i].getNumChannels();
-                    if (trackSendA2 > 0.0f)
-                    {
-                        const int numCh = std::min(sendBusBufs_[0].getNumChannels(), numTrCh);
-                        for (int ch = 0; ch < numCh; ++ch)
-                            sendBusBufs_[0].addFrom(ch, 0, trackBuffers_[i], ch, 0,
-                                                    numBlockSamples, trackSendA2);
-                    }
-                    if (trackSendB2 > 0.0f)
-                    {
-                        const int numCh = std::min(sendBusBufs_[1].getNumChannels(), numTrCh);
-                        for (int ch = 0; ch < numCh; ++ch)
-                            sendBusBufs_[1].addFrom(ch, 0, trackBuffers_[i], ch, 0,
-                                                    numBlockSamples, trackSendB2);
-                    }
-                }
-
-                trackPeak_[i].store(trackBuffers_[i].getMagnitude(0, numBlockSamples),
-                                    std::memory_order_relaxed);
+                processTrackChain(i, frame, firedStepIdx_[i], curFillActive, faderNow,
+                                  numBlockSamples, trackMidi[i]);
             }
         }
 
@@ -3201,8 +3094,18 @@ namespace lockstep
     // old TrackAmpState for backwards compatibility with saved projects).
     static const juce::String kChanIds[TrackChannelState::kNumSlots] = {
         "lockstep.amp.level", "lockstep.amp.pan",
-        "lockstep.amp.sendA", "lockstep.amp.sendB"
+        "lockstep.amp.sendA", "lockstep.amp.sendB",
+        "lockstep.amp.out"
     };
+    // A2 (DESIGN §27): CHANNEL "Out" stepped value labels — {Off, Master,
+    // Trk1..TrkN}. Encoding matches decodeOutputDest (0=Off, 1=Master, 2+N=Trk).
+    static const char* const kOutDestLabels[] = {
+        "Off", "Master",
+        "Trk1", "Trk2", "Trk3", "Trk4", "Trk5", "Trk6", "Trk7", "Trk8",
+        "Trk9", "Trk10", "Trk11", "Trk12", "Trk13", "Trk14", "Trk15", "Trk16"
+    };
+    static_assert(sizeof(kOutDestLabels) / sizeof(kOutDestLabels[0]) == 2 + kNumTracks,
+                  "Out-dest labels must cover Off + Master + every track");
     static const juce::String kEnvIds[TrackEnvState::kNumSlots] = {
         "lockstep.amp.gate", "lockstep.amp.att", "lockstep.amp.hld",
         "lockstep.amp.dec",  "lockstep.amp.sus", "lockstep.amp.rel"
@@ -3310,6 +3213,15 @@ namespace lockstep
                 case 3:
                     p.label = "Send B";
                     p.maxValue = 1.0f;
+                    break;
+                case 4:
+                    // A2: output destination (DESIGN §27). Stepped enum:
+                    // 0=Off, 1=Master, 2+N=Track N.
+                    p.label = "Out";
+                    p.isStepped = true;
+                    p.maxValue = static_cast<float>(1 + kNumTracks);  // Off..Trk16
+                    p.defaultValue = 1.0f;                            // Master
+                    p.valueLabels = kOutDestLabels;
                     break;
                 default: break;
             }

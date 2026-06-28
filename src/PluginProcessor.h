@@ -875,6 +875,14 @@ namespace lockstep
         // input_source before process(). No-op (leaves the cleared buffer) for
         // None and, until A2, Track-N. Called from both transport paths.
         void fillTrackInput(int track, const ParamFrame& frame, int numSamples);
+        // A2: the per-track audio chain (machine → FILTER → CHANNEL → ENV →
+        // level/pan → inserts → sends → peak), rendered into trackBuffers_[i].
+        // Shared by both transport paths and driven in routing order so a bus
+        // track's inbound audio is present before it runs. resolveStep is the
+        // step whose FLTR/CHANNEL/ENV overrides apply (-1 = base only).
+        void processTrackChain(std::size_t i, const ParamFrame& frame,
+                               int resolveStep, bool fillActive, float faderNow,
+                               int numBlockSamples, juce::MidiBuffer& trackMidiI);
         // 6.1: cache the final master output into prevMasterBuf_ (Master tap).
         void cachePrevMaster(const juce::AudioBuffer<float>& buf, int numSamples);
         std::array<VoiceChoke, kNumTracks> trackChokes_;

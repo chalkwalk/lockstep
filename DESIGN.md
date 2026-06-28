@@ -159,14 +159,17 @@ The boundary is deliberately narrow but deliberately *not* fixed-shape
 - **Optional audio input.** Most machines treat `buffer` as
   output-only — they synthesise into it. A machine may instead
   *consume* audio by declaring an `input_source` slot
-  (`{None | External bus | Track N | Master}`); when set, the
+  (`{None | External | Master}`, the outside-world tap); when set, the
   sequencer fills `buffer` with the chosen upstream signal before
   calling `process()`, and the machine reads-then-overwrites (Thru) or
-  reads-and-captures (Recorder). This is the capability behind Thru,
-  Recorder, and Looper machines and the realtime resampling chain —
-  see §27. Routing is forward-only by topological sort with cycles
-  refused; `input_source = Master` is the one sanctioned prior-block
-  tap (§27).
+  reads-and-captures (Recorder). Inter-track routing is the *other*
+  half: a track's CHANNEL "Out" slot (`{Master | Track N | Off}`)
+  directs its finished signal, and a bus track reads the sum of tracks
+  routed into it. Together these are the capability behind Thru,
+  sub-mix buses, Recorder, and Looper machines and the realtime
+  resampling chain — see §27. Ordering is forward-only by topological
+  sort with cycles refused; `input_source = Master` is the one
+  sanctioned prior-block tap (§27).
 - **Per-machine voice topology, pulled live.** A machine returns
   `currentVoices(baseParams) -> Polyphony { V0..V4 }`. The sequencer
   calls this for each fired trig (so a parameter-driven mode flip such
@@ -3795,46 +3798,64 @@ removed when any meta-band takes over the MZ.
 This is a chrome update — it ships in the same commit as the MZ header
 (PRINCIPLES §10: "every new modifier ships with its chrome update").
 
-## 27. Audio Routing and Track Input Sources
+## 27. Audio Routing: Output Destinations and Track Buses
 
 The Octatrack's defining trick is that a track can take another
 track's (or an external) output as its *input*, turning tracks into
 processing, sampling, and resampling chains. Lockstep adopts a
 deliberately bounded form of this.
 
-**The model is "explicit source-select", not free patching.** A
-machine that consumes audio declares an `input_source` slot:
+**The model is output-directed, not input-select.** Two orthogonal
+controls together describe the routing graph:
 
-| Source | Meaning |
-|---|---|
-| **None** | Default. The machine synthesises into an empty buffer (every synth/sampler). |
-| **External bus** | The plugin's audio input bus (sidechain / standalone device input). |
-| **Track N** | Track `N`'s output, post-machine and post-FILTER/AMP, pre-track-sum. |
-| **Master** | The plugin's master sum (prior block — see below). |
+1. **`input_source`** — a machine slot declaring an *outside-world*
+   audio tap. Closed enum `{None | External | Master}`:
 
-There is no implicit neighbour chaining and no patch matrix: a track
-reads from exactly one declared source. This is the smallest model
-that supports Thru, Recorder, Looper, and realtime resampling without
-turning the sequencer into a modular host.
+   | Source | Meaning |
+   |---|---|
+   | **None** | Default. The machine synthesises into an empty buffer (every synth/sampler). |
+   | **External** | The plugin's audio input bus (sidechain / standalone device input). |
+   | **Master** | The plugin's master sum (prior block — see below). |
+
+2. **Output destination** — a per-track **"Out" slot in the CHANNEL
+   block**, closed enum `{Master | Track N | Off}`, default **Master**.
+   This is where the track's *finished* signal (post machine →
+   FILTER → ENV → CHANNEL level/pan → FX) goes.
+
+   | Destination | Meaning |
+   |---|---|
+   | **Master** | Default. The track contributes to the master sum, as today. |
+   | **Track N** | The track is removed from the master sum and added into track `N`'s input buffer; `N` (a Thru/bus) reads the **sum of all tracks routed into it** and processes them as one signal. |
+   | **Off** | The track's output goes nowhere (silent at master; useful for a track whose only product is a recorder/send tap). |
+
+Routing track A → track B is expressed on A's "Out" slot, not on B's
+input. There is no patch matrix and no neighbour chaining: a track has
+exactly one output destination, and a bus track reads the sum of its
+inbound tracks plus its own outside-world `input_source` (if any).
+This is the smallest model that supports Thru, sub-mix buses, Recorder,
+Looper, and realtime resampling without turning the sequencer into a
+modular host — and, unlike an input-select model, it can *remove* a
+track from the master mix (mute can't: muting zeroes the buffer before
+the sum, which would also starve any bus the track feeds).
 
 **Ordering: topological sort per block, cycles refused.** Each block,
-the engine orders track processing so that every `Track N` source is
-computed before its consumer. This is a topological sort over the
-"track A sources track B" edges. A routing assignment that would
-create a cycle is **refused at assignment time**, with a chrome
-message — audio feedback loops are a deliberate non-feature (an
-opinion of the instrument), and refusing them up front keeps the
-block deterministic (`PRINCIPLES.md` §11). Because routing is by
-*source selection* rather than track position, the user never has to
-reorder tracks to re-route — the sort handles ordering for them.
+the engine orders track processing so that every track feeding a bus is
+computed before that bus. This is a topological sort over the "track A
+outputs to track B" edges. A routing assignment that would create a
+cycle is **refused at assignment time** (at the CHANNEL "Out" write),
+with a chrome message — audio feedback loops are a deliberate
+non-feature (an opinion of the instrument), and refusing them up front
+keeps the block deterministic (`PRINCIPLES.md` §11). Because ordering
+is derived from the edges rather than track position, the user never
+has to reorder tracks to re-route — the sort handles ordering for them.
 
-**The Master exception.** A track that sources `Master` usually also
-contributes *to* Master, which is an unavoidable cycle. The single
-sanctioned escape: `input_source = Master` reads the **prior block's**
-master sum. This is the one place a one-block tap is allowed, and it
-exists precisely because master-feedback can never be cycle-free.
-Realtime whole-mix resampling tolerates the ~one-block latency
-without audible consequence.
+**The Master exception.** A track whose machine taps `input_source =
+Master` reads the **prior block's** master sum. This is the one place a
+one-block tap is allowed, and it exists precisely because
+master-feedback can never be cycle-free. (`Out = Master` is *not* an
+edge — it is the default contribution to the sum, not a tap.) Realtime
+whole-mix resampling tolerates the ~one-block latency without audible
+consequence.
 
 **Buffer read/write is not a routing edge.** A Recorder or Looper
 that writes a buffer while another track's Flex machine reads that
@@ -3842,10 +3863,10 @@ buffer is *not* a cycle — the buffer (§28) is a decoupled resource,
 not a live audio edge. This is what lets loopers work under the
 "no feedback loops" rule.
 
-**MIDI-out tracks declare no input source** — they have no audio to
-consume — so inter-track routing is simply a capability some machines
-have, not a sequencer-wide rule that needs a MIDI-out special case
-(`PRINCIPLES.md` §6).
+**MIDI-out tracks declare no input source and route nowhere audible** —
+they have no audio to consume or contribute — so inter-track routing is
+simply a capability audio tracks have, not a sequencer-wide rule that
+needs a MIDI-out special case (`PRINCIPLES.md` §6).
 
 ## 28. Recorder Buffers and the Unified Audio-Source Pool
 
@@ -3970,11 +3991,12 @@ first is an ordinary playback engine; the latter three consume audio via
   do the work. The machine itself is nearly empty — its value is
   routing audio *into* the uniform per-track processing the sequencer
   already provides. Thru subsumes the Octatrack's separate Thru vs.
-  Neighbour split: the source is chosen by `input_source`
-  (`External bus` = classic Thru, `Track N` = neighbour-style
-  inter-track passthrough), and trig-gated vs. always-open is the
-  general AMP gate source (§14), not a machine type. Thru is the only
-  machine declaring `input_source` for now.
+  Neighbour split: `input_source = External` = classic Thru, and
+  neighbour-style inter-track passthrough is achieved by routing other
+  tracks' CHANNEL "Out" at this track (the bus reads their sum, §27).
+  Trig-gated vs. always-open is the general AMP gate source (§14), not a
+  machine type. Thru is the only machine declaring `input_source` for
+  now.
 - **Recorder.** Captures `input_source` audio into a volatile buffer
   (§28). Slots: `input_source` (what to record), `target_buffer`
   (where to write), `rec_length` (how long — see §30). Capture is
