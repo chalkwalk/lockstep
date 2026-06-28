@@ -423,6 +423,11 @@ namespace lockstep
         // arm-all performance command.
         void rearmOneShots(int track = -1);
 
+        // A2: would routing track `from`'s output to `toTrack` create a feedback
+        // cycle, given the current edges? Used to refuse the CHANNEL "Out" edit
+        // (DESIGN §27). toTrack is a 0-based track index.
+        bool wouldRoutingCycle(int from, int toTrack) const;
+
         // MG.2: start / stop retrig on the focused track.
         // ratePpq: 0.25=1/16, 0.125=1/32, 1/12.0=1/48, 1/24.0=1/96.
         // note: the MIDI note to rattle (pass -1 to keep the current track note).
@@ -864,6 +869,10 @@ namespace lockstep
 
         // [AUDIO] per-block scratch and DSP state — audio thread only.
         std::array<juce::AudioBuffer<float>, kNumTracks> trackBuffers_;
+        // A2: per-block inbound-bus accumulators (DESIGN §27). A track routed to
+        // bus N adds its post-chain output here; N reads it as extra input.
+        // Cleared each block; resized in prepareToPlay alongside trackBuffers_.
+        std::array<juce::AudioBuffer<float>, kNumTracks> busInputBufs_;
         // 8.26: per-block send buses (resized in prepareToPlay).
         std::array<juce::AudioBuffer<float>, 2> sendBusBufs_;
         // 6.1: captured plugin audio input for this block (External source), and a
@@ -882,7 +891,24 @@ namespace lockstep
         // step whose FLTR/CHANNEL/ENV overrides apply (-1 = base only).
         void processTrackChain(std::size_t i, const ParamFrame& frame,
                                int resolveStep, bool fillActive, float faderNow,
-                               int numBlockSamples, juce::MidiBuffer& trackMidiI);
+                               int numBlockSamples, juce::MidiBuffer& trackMidiI,
+                               bool softClip);
+
+        // A2: where a track's finished signal goes (DESIGN §27).
+        enum class Route { Master, Bus, Off };
+        struct TrackRoute { Route route; int busTrack; };  // busTrack valid iff Bus
+        // Validated per-track routing decision from the CHANNEL "Out" base value.
+        // An invalid bus target (out of range / self / MIDI-out) falls back to
+        // Master defensively. MIDI-out source tracks route nowhere audible.
+        TrackRoute routeForTrack(int track) const;
+        // Build the dest[] edge array (audio bus target or -1) for the block.
+        std::array<int, kNumTracks> routingEdges() const;
+        // A2: after a track's chain, deposit its output into its bus (if routed
+        // to one). Topo order guarantees the bus has not run yet.
+        void depositToBus(std::size_t track, int numBlockSamples);
+        // A2: sum every Master-routed track into the main output (the dest-aware
+        // replacement for the old "sum all tracks" combine pass).
+        void sumRoutedToMaster(juce::AudioBuffer<float>& buffer, int numBlockSamples);
         // 6.1: cache the final master output into prevMasterBuf_ (Master tap).
         void cachePrevMaster(const juce::AudioBuffer<float>& buf, int numSamples);
         std::array<VoiceChoke, kNumTracks> trackChokes_;

@@ -93,4 +93,6 @@ namespace lockstep
     void runSurfaceDispatcherTests();
     // 6.1: input_source slot decode (audio routing, DESIGN §27)
     void runInputSourceTests();
+    // A2: output-routing topological order + cycle refusal (DESIGN §27)
+    void runRoutingGraphTests();
 }

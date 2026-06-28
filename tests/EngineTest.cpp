@@ -22,6 +22,7 @@
 #include "../src/machine/StubMachine.h"
 #include "../src/machine/ThruMachine.h"
 #include "../src/machine/InputSource.h"
+#include "../src/core/OutputDest.h"
 
 namespace lockstep
 {
@@ -1309,6 +1310,52 @@ namespace lockstep
         }
     }
 
+    // -----------------------------------------------------------------------
+    // A2: output routing. A track routed to a bus is removed from the master
+    // sum; its audio only survives through the bus track's chain (DESIGN §27).
+    static void testBusRoutingRemovesFromMaster()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        installThru(proc, 0, static_cast<float>(static_cast<int>(InputSourceKind::External)));
+        installThru(proc, 1, static_cast<float>(static_cast<int>(InputSourceKind::None)));
+
+        // Baseline: feeder (track 0) routes to Master by default → audible.
+        proc.kit(0).channelState.out = encodeOutputDest(OutputDestKind::Master);
+        renderBlockWithInput(h, 0.5f);
+        const float direct = renderBlockWithInput(h, 0.5f);
+        CHECK(direct > 0.05f, "feeder routed to Master is audible");
+
+        // Route feeder → bus (track 1) and silence the bus. The feeder is no
+        // longer summed to master directly, so the output collapses to silence.
+        proc.kit(0).channelState.out = encodeOutputDest(OutputDestKind::Track, 1);
+        proc.kit(1).channelState.level = 0.0f;
+        renderBlockWithInput(h, 0.5f);
+        const float viaSilencedBus = renderBlockWithInput(h, 0.5f);
+        CHECK(viaSilencedBus < 1e-3f,
+              "feeder routed to a silenced bus is absent from the master sum");
+
+        // Re-open the bus: the feeder's audio returns through the bus chain.
+        proc.kit(1).channelState.level = 1.0f;
+        renderBlockWithInput(h, 0.5f);
+        const float viaOpenBus = renderBlockWithInput(h, 0.5f);
+        CHECK(viaOpenBus > 0.05f, "feeder reaches master through the open bus");
+    }
+
+    static void testBusCycleRefused()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        installThru(proc, 0, static_cast<float>(static_cast<int>(InputSourceKind::External)));
+        installThru(proc, 1, static_cast<float>(static_cast<int>(InputSourceKind::None)));
+
+        // Establish edge 0 → 1, then check the reverse would cycle.
+        proc.kit(0).channelState.out = encodeOutputDest(OutputDestKind::Track, 1);
+        CHECK(proc.wouldRoutingCycle(1, 0), "1->0 closes a cycle with 0->1");
+        CHECK(!proc.wouldRoutingCycle(2, 1), "2->1 (fan-in) is acyclic");
+        CHECK(proc.wouldRoutingCycle(0, 0), "self-route is a cycle");
+    }
+
     void runEngineTests()
     {
         testTransposeTrack();
@@ -1340,5 +1387,7 @@ namespace lockstep
         testAuditionLiveNote();
         testLockOnlyRidesOverrideOntoVoice();
         testOneShotFiresOnce();
+        testBusRoutingRemovesFromMaster();
+        testBusCycleRefused();
     }
 }

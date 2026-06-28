@@ -43,6 +43,7 @@ add_executable(lockstep_tests
     ModalStateTest.cpp
     SurfaceDispatcherTest.cpp
     InputSourceTest.cpp
+    RoutingGraphTest.cpp
     # UI modules needed by MetaBandTest + ModeReducerTest + SurfaceModelTest
     # (live only in the plugin target otherwise)
     ../src/ui/MetaBand.cpp

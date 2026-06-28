@@ -7,6 +7,8 @@
 #include "core/StateResolver.h"
 #include "core/Swing.h"
 #include "core/TrigEvaluator.h"
+#include "core/OutputDest.h"
+#include "core/RoutingGraph.h"
 #include "machine/InputSource.h"
 #include "machine/ThruMachine.h"
 #include "machine/MidiDevicePresets.h"
@@ -277,6 +279,8 @@ namespace lockstep
             const int numOut = getTotalNumOutputChannels();
             for (auto& tb : trackBuffers_)
                 tb.setSize(numOut, samplesPerBlock, false, true, false);
+            for (auto& bb : busInputBufs_)   // A2: inbound-bus accumulators
+                bb.setSize(numOut, samplesPerBlock, false, true, false);
             for (auto& sb : sendBusBufs_)
                 sb.setSize(numOut, samplesPerBlock, false, true, false);
             // 6.1: input capture + prior-block master tap (DESIGN §27).
@@ -367,9 +371,18 @@ namespace lockstep
                 copyInto(prevMasterBuf_);  // one-block tap (DESIGN §27)
                 break;
             case InputSourceKind::Track:
-                // Inter-track routing needs the per-block topological sort (A2).
-                // Until then the source stays silent.
-                break;
+                break;  // legacy enum value; inter-track routing is now output-directed
+        }
+
+        // A2: mix in any tracks routed to this one as a bus (DESIGN §27). Topo
+        // order guarantees those feeders have already deposited here. Silent for
+        // a track that is no one's destination, so the all-Master case is a no-op.
+        {
+            const auto& bus = busInputBufs_[t];
+            const int chans = std::min(dst.getNumChannels(), bus.getNumChannels());
+            const int n = std::min(numSamples, bus.getNumSamples());
+            for (int ch = 0; ch < chans; ++ch)
+                dst.addFrom(ch, 0, bus, ch, 0, n);
         }
     }
 
@@ -381,7 +394,8 @@ namespace lockstep
     void LockstepProcessor::processTrackChain(std::size_t i, const ParamFrame& frame,
                                               int resolveStep, bool fillActive,
                                               float faderNow, int numBlockSamples,
-                                              juce::MidiBuffer& trackMidiI)
+                                              juce::MidiBuffer& trackMidiI,
+                                              bool softClip)
     {
         auto* mi = machines_[i].get();
 
@@ -510,8 +524,86 @@ namespace lockstep
             }
         }
 
+        // Per-track soft clip (running path only) — prevents one hot track from
+        // dominating the master bus. Applied post-sends so the send taps keep
+        // their pre-clip level, and before this track's output is routed onward
+        // so a bus reads the same clipped signal master would.
+        if (softClip)
+        {
+            for (int chn = 0; chn < trackBuffers_[i].getNumChannels(); ++chn)
+            {
+                float* d = trackBuffers_[i].getWritePointer(chn);
+                for (int n = 0; n < numBlockSamples; ++n)
+                    d[n] = std::tanh(d[n]);
+            }
+        }
+
         trackPeak_[i].store(trackBuffers_[i].getMagnitude(0, numBlockSamples),
                             std::memory_order_relaxed);
+    }
+
+    // A2: validated routing decision for a track from its CHANNEL "Out" base
+    // value (DESIGN §27). Per-step P-locks of Out are intentionally ignored so
+    // the routing graph is stable across the block.
+    LockstepProcessor::TrackRoute LockstepProcessor::routeForTrack(int track) const
+    {
+        const auto t = static_cast<std::size_t>(track);
+        if (machines_[t]->isMidiOut())
+            return { Route::Off, -1 };  // no audio to route
+        const auto sel = decodeOutputDest(kit(track).channelState.out);
+        switch (sel.kind)
+        {
+            case OutputDestKind::Off:    return { Route::Off, -1 };
+            case OutputDestKind::Master: return { Route::Master, -1 };
+            case OutputDestKind::Track:
+                if (sel.track >= 0 && sel.track < static_cast<int>(kNumTracks)
+                    && sel.track != track
+                    && !machines_[static_cast<std::size_t>(sel.track)]->isMidiOut())
+                    return { Route::Bus, sel.track };
+                return { Route::Master, -1 };  // invalid target — fall back to master
+        }
+        return { Route::Master, -1 };
+    }
+
+    // A2: the block's bus-edge array for the topological sort — dest[i] is the
+    // audio track i feeds, or -1 for Master / Off.
+    std::array<int, kNumTracks> LockstepProcessor::routingEdges() const
+    {
+        std::array<int, kNumTracks> dest{};
+        for (std::size_t i = 0; i < kNumTracks; ++i)
+        {
+            const auto r = routeForTrack(static_cast<int>(i));
+            dest[i] = (r.route == Route::Bus) ? r.busTrack : -1;
+        }
+        return dest;
+    }
+
+    bool LockstepProcessor::wouldRoutingCycle(int from, int toTrack) const
+    {
+        const auto edges = routingEdges();
+        return routing::wouldCreateCycle(edges, from, toTrack);
+    }
+
+    void LockstepProcessor::depositToBus(std::size_t track, int numBlockSamples)
+    {
+        const auto r = routeForTrack(static_cast<int>(track));
+        if (r.route != Route::Bus) return;
+        auto& bus = busInputBufs_[static_cast<std::size_t>(r.busTrack)];
+        const auto& src = trackBuffers_[track];
+        const int chans = std::min(bus.getNumChannels(), src.getNumChannels());
+        for (int ch = 0; ch < chans; ++ch)
+            bus.addFrom(ch, 0, src, ch, 0, numBlockSamples);
+    }
+
+    void LockstepProcessor::sumRoutedToMaster(juce::AudioBuffer<float>& buffer,
+                                              int numBlockSamples)
+    {
+        for (std::size_t ti = 0; ti < kNumTracks; ++ti)
+        {
+            if (routeForTrack(static_cast<int>(ti)).route != Route::Master) continue;
+            for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+                buffer.addFrom(ch, 0, trackBuffers_[ti], ch, 0, numBlockSamples);
+        }
     }
 
     // 6.1: cache the final master output so a track sourcing Master reads the
@@ -577,6 +669,9 @@ namespace lockstep
         // Clear per-track scratch buffers once per block.
         for (auto& tb : trackBuffers_)
             tb.clear();
+        // A2: clear inbound-bus accumulators; tracks routed to a bus fill these.
+        for (auto& bb : busInputBufs_)
+            bb.clear();
         // 8.26: clear send buses at block start; they accumulate per-track taps below.
         for (auto& sb : sendBusBufs_)
             sb.clear();
@@ -1395,8 +1490,11 @@ namespace lockstep
         {
             // Render voice tails and any externally-triggered notes.
             // trackMidi already contains note events routed from external MIDI.
-            for (std::size_t i = 0; i < kNumTracks; ++i)
+            // A2: drive tracks in routing order so a bus's inbound audio is ready.
+            const auto routeOrderIdle = routing::computeOrder(routingEdges());
+            for (std::size_t oi = 0; oi < kNumTracks; ++oi)
             {
+                const std::size_t i = static_cast<std::size_t>(routeOrderIdle[oi]);
                 const bool muted = (trackMuteParams_[i]->load() >= 0.5f) || !section().activeMask[i];
                 const bool soloed = trackSoloParams_[i]->load() >= 0.5f;
                 if (muted || (anySoloed && !soloed)) continue;
@@ -1426,14 +1524,14 @@ namespace lockstep
                 else
                 {
                     processTrackChain(i, frame, resolveStep, fillNow, faderNow,
-                                      numBlockSamples, trackMidi[i]);
+                                      numBlockSamples, trackMidi[i], /*softClip=*/false);
+                    depositToBus(i, numBlockSamples);
                 }
             }
 
-            // Sum per-track outputs to the main bus.
-            for (std::size_t ti = 0; ti < kNumTracks; ++ti)
-                for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
-                    buffer.addFrom(ch, 0, trackBuffers_[ti], ch, 0, numBlockSamples);
+            // A2: sum only Master-routed tracks (bus-routed audio reaches master
+            // through its bus track's chain).
+            sumRoutedToMaster(buffer, numBlockSamples);
 
             // Master insert chain — shared helper used by both transport paths.
             processMasterChain(buffer, numBlockSamples);
@@ -1510,8 +1608,14 @@ namespace lockstep
         }
 
 
-        for (std::size_t i = 0; i < kNumTracks; ++i)
+        // A2: process tracks in routing (topological) order so a bus's inbound
+        // audio is deposited before the bus runs. Scheduling is per-track
+        // independent (probability/density are deterministic by track+step), so
+        // reordering does not affect trig decisions.
+        const auto routeOrderRun = routing::computeOrder(routingEdges());
+        for (std::size_t oi = 0; oi < kNumTracks; ++oi)
         {
+            const std::size_t i = static_cast<std::size_t>(routeOrderRun[oi]);
             const auto& track = sequence().tracks[i];
 
             const int trackLen = static_cast<int>(trackLengthParams_[i]->load());
@@ -2199,24 +2303,18 @@ namespace lockstep
             }
             else
             {
+                // softClip=true: each track is tanh-limited at the end of its
+                // chain (was a separate pass), so bus feeds and the master sum
+                // read the same clipped signal.
                 processTrackChain(i, frame, firedStepIdx_[i], curFillActive, faderNow,
-                                  numBlockSamples, trackMidi[i]);
+                                  numBlockSamples, trackMidi[i], /*softClip=*/true);
+                depositToBus(i, numBlockSamples);
             }
         }
 
-        // Per-track soft clip — prevents one hot track from dominating the master bus.
-        for (std::size_t ti = 0; ti < kNumTracks; ++ti)
-            for (int ch = 0; ch < trackBuffers_[ti].getNumChannels(); ++ch)
-            {
-                float* d = trackBuffers_[ti].getWritePointer(ch);
-                for (int n = 0; n < numBlockSamples; ++n)
-                    d[n] = std::tanh(d[n]);
-            }
-
-        // Sum per-track outputs to the main bus.
-        for (std::size_t ti = 0; ti < kNumTracks; ++ti)
-            for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
-                buffer.addFrom(ch, 0, trackBuffers_[ti], ch, 0, numBlockSamples);
+        // A2: sum only Master-routed tracks (bus-routed audio reaches master
+        // through its bus track's chain).
+        sumRoutedToMaster(buffer, numBlockSamples);
 
         // Master insert chain — before metronome so the click is not sent through FX.
         processMasterChain(buffer, numBlockSamples);
@@ -2292,6 +2390,15 @@ namespace lockstep
     }
     static void enqueueChanSlot(LockstepProcessor& p, int track, int chanSlot, float value)
     {
+        // A2: refuse an "Out" edit that would create a routing cycle (DESIGN §27).
+        // The value snaps back on the next surface refresh. The engine apply has a
+        // race-free guard too; this one keeps the bad command off the queue.
+        if (chanSlot == TrackChannelState::kNumSlots - 1)
+        {
+            const auto sel = decodeOutputDest(value);
+            if (sel.kind == OutputDestKind::Track && p.wouldRoutingCycle(track, sel.track))
+                return;
+        }
         EngineCmd c;
         c.op = EngineCmd::Op::SetChanSlot;
         c.track = static_cast<uint8_t>(track);
@@ -3612,7 +3719,17 @@ namespace lockstep
 
                 case EngineCmd::Op::SetChanSlot:
                     if (t < kNumTracks)
+                    {
+                        // A2: authoritative cycle refusal for the "Out" slot.
+                        if (c.slot == TrackChannelState::kNumSlots - 1)
+                        {
+                            const auto sel = decodeOutputDest(c.value);
+                            if (sel.kind == OutputDestKind::Track
+                                && wouldRoutingCycle(static_cast<int>(t), sel.track))
+                                break;
+                        }
                         kit(static_cast<int>(t)).channelState.setSlot(c.slot, c.value);
+                    }
                     break;
 
                 case EngineCmd::Op::SetEnvSlot:
