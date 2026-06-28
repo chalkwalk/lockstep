@@ -1100,10 +1100,11 @@ of which are performance specialists.
 
 Column 1 (`1 Q A Z`) and column 2 (`2 W S X`) compound only **cross-
 column** per the §13 compound-chord rule. The two specialists on row 3
-signal the semantic split: they don't take a section. `Cue` is
-reserved as a scope (DESIGN §31) but is not bound to a cluster key
-until 6.4; cue-scene functionality folds under `Func+Scene` and
-master-scope cells in the interim.
+signal the semantic split: they don't take a section. `Cue` is the
+audition scope (DESIGN §31), entered as the compound `Func+3` rather
+than a dedicated cluster key (hardware parity); the cue *bus* /
+pre-listen feature is still 6.4, and cue-scene functionality folds
+under `Func+Scene` and master-scope cells in the interim.
 
 Frequency-of-use rationale: Func and Track are the most-touched modifiers
 (row 0); Phrase and Scene hold the structural-recall slots (row 1);
@@ -1915,10 +1916,11 @@ cluster in the left two columns of the 10×4 QWERTY layout (see §5.5,
 | Section key | `5–0` | The held section's slots. | Verb, scope modifier (scope-section matrix, §6.1.2). |
 
 The cluster identities above are the 3.2 layout (frequency-of-use
-ordered, with the two performance specialists on row 3). `Cue` is
-reserved as a scope (§31) but is not bound to a cluster key until
-6.4; its functionality currently lives under `Func+Morph` (cue morph)
-and `Song`-scope cells (cue routing) — see §31.
+ordered, with the two performance specialists on row 3). `Cue` is the
+audition scope (§31), entered as the compound `Func+3` rather than a
+dedicated cluster key (hardware parity). The cue *bus* / pre-listen
+feature is still 6.4; its routing functionality currently lives under
+`Func+Morph` (cue morph) and `Song`-scope cells — see §31.
 
 **The compound-chord rule.** Modifiers may be held together to qualify a
 scope, but under hard rules so compounds never become bespoke chords and

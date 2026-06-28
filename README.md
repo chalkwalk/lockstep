@@ -85,7 +85,8 @@ Every editing and performance action is built from two halves:
   `Scene`, `Morph`, `Song`, `Mute`, `Fill` — 7.9 naming), plus a **held
   step** (`Trig`) and a **section** key. Two modifiers — one from each
   column — can be held together to combine scopes (the *compound chord*).
-  (`Cue` is reserved for the cue bus, 6.4, but not yet bound to a key.)
+  (`Cue` is the audition scope, entered as the compound `Func+3`: hold it to
+  pre-listen the focused track, `Cue+step` to audition a step — writes nothing.)
 - A **verb** key declares *what to do*. The verb set is small and
   fixed (`Y U I O P`): `Snapshot` (push checkpoint), `Record` (= copy),
   `Play` (= paste), `Clear`, `Yes` — the `Func` layer gives `Restore /
@@ -203,6 +204,22 @@ Phrase ──trigs──▶ Machine ──▶ Foundation (FILTER → AMP) ──
   over the summed output. Loaded via `Func+Song+FX`; cycle with
   repeated press (FX1→FX2→Snd A→Snd B). HQ-only effects are hidden
   from the track picker.
+- **Output routing & buses** — each track's finished signal has a
+  destination, the **Out** slot in the CHANNEL block: `Master` (default),
+  `Track N`, or `Off`. Routing a track to `Track N` removes it from the
+  master sum and feeds it into track *N*; if *N* hosts a **Thru** machine
+  it becomes an **aux/sub-bus** that reads the sum of everything routed
+  into it, processes it through its own FILTER/AMP/FX, and sends *that*
+  onward. Ordering is solved automatically (per-block topological sort);
+  a routing that would form a feedback loop is refused. This is how you
+  build drum buses, parallel chains, and resampling.
+- **Audio input** — a machine can *consume* audio instead of synthesising
+  it, via an `input_source` tap: `None`, `External` (the plugin/device
+  input), or `Master` (the prior block's master sum, for whole-mix
+  resampling). The **Thru** machine is the pure router — it adds nothing,
+  just passes its input (External, or the bus sum routed to it) through
+  the canonical FILTER/AMP/FX. A fresh Thru defaults to `None`, so it is
+  a silent sub-bus until you route audio in or pick a source.
 
 And the *state* that feeds this path is layered, finest layer winning
 (this is "more specific scope wins" applied to values):
@@ -238,7 +255,7 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Phrase** | A track's pure note content — the trig grid and per-step data. Each track has a pool of 16; Scenes reference them by index. |
 | **Scene** | A launchable cross-track row: a global phrase index (all tracks default to that row) + active-mask + core time + Morph snapshot. Per-track phrase deviations are live/RAM-only and never saved. |
 | **Song** | A self-contained song (Kits + Phrase pools + Scenes). The bank-sized unit. |
-| **Scope** | A held modifier declaring what the next verb operates on. Eight in the left cluster (`Func`, `Track`, `Phrase`, `Scene`, `Morph`, `Song`, `Mute`, `Fill`), plus a held step and a section key. `Cue` is reserved for the cue bus (6.4) but not yet bound to a key. |
+| **Scope** | A held modifier declaring what the next verb operates on. Eight in the left cluster (`Func`, `Track`, `Phrase`, `Scene`, `Morph`, `Song`, `Mute`, `Fill`), plus a held step and a section key. `Cue` is the audition scope, entered as the compound `Func+3`; the cue *bus* (pre-listen) is still 6.4. |
 | **Compound chord** | Two modifiers (one per column) held together to combine scopes. Cross-column only; never fires on its own — it just narrows the scope until a verb is pressed. `Func` composes with anything. |
 | **Verb** | The action applied to the scope. Verb row `Y U I O P` = `Snapshot / Record (=copy) / Play (=paste) / Clear / Yes`; under `Func` the same keys give `Restore / Panic / Delete / No` (7.12). |
 | **Section** | A grouping of parameters on the section bar (keys `5–0`). Canonical six: TRIG / SRC / FILTER / AMP / MOD / FX. Held scope modifiers reinterpret each key (e.g. `Track+FILTER` = post-machine filter, `Song+FX` = master FX). The Manipulation Zone shows eight parameters (4×2) of the active cell at a time. |
@@ -263,7 +280,11 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Control-All** | Holding `Track` with no track selected broadcasts the next parameter edit to every track that has a matching control. |
 | **Mute** | Suppresses a track's trigs non-destructively. `Mute+step` = global mute (survives scene/song changes); `Scene+Mute+step` = per-scene mute (the scene's active-mask). |
 | **Fill** | A momentary modifier: while held, fill-conditioned steps fire. Used for live variation. |
-| **Trig condition** | A per-step (or per-track) firing rule: probability, iteration (m:n), previous-step dependency, and fill rule. |
+| **Trig condition** | A per-step (or per-track) firing rule: probability, iteration (m:n), previous-step dependency, fill rule, and **one-shot**. |
+| **Audition (`Cue`)** | Pre-listen without writing anything. Enter the `Cue` scope with `Func+3`: holding it fires the focused track's base trig; `Cue+step` fires that step's resolved trig (note/vel/gate + P-Locks). Off-schedule, post-machine FILTER/AMP applies, pattern untouched. |
+| **Out routing** | The CHANNEL "Out" slot sets a track's destination: `Master` (default), `Track N`, or `Off`. Route into a Thru track to build an aux/sub-bus (the bus reads the sum of its feeders). Cyclic routing is refused. See §2.5. |
+| **Lock-only trig** | A step cycled `Trig+step` through `off → note → lock-only`. A lock-only step emits no note but applies its P-Locks (filter, channel, env, insert) onto the *sustaining* voice as the playhead crosses it — parameter motion without retriggering. |
+| **One-shot trig** | A trig condition (COND meta-band "1Shot") that fires once then is **spent** until re-armed. Re-arms automatically on transport (re)start and on scene switch; armed/spent is RAM-only (not saved). |
 | **Checkpoint** | A RAM-only snapshot for live undo. Bare `Y` (SNAP) pushes before a risky idea; `Func+Y` (RESTORE) tap=pop/hold=floor. The `Y` key owns both halves. **Scope-respecting:** the snapshot captures whichever scope is held (none=Song, Track, Scene, Phrase). Up to 8 deep per scope; floor = saved state. |
 | **Launch model** | Performance is launch-based, not arrangement-based: queue a **Scene** (`Scene+step`) to fire at the next core-time boundary, or switch **Songs** (`Song+step`). There is no written timeline or pattern chain. |
 | **Sample pool** | The project-wide library of samples, stored as `{path, hash}` references rather than embedded audio. |
@@ -473,10 +494,10 @@ in the scope-section matrix); two are **performance specialists**
 | step key (held) | **Trig** | The held step(s). Multi-step holds allowed. |
 | `5`–`0` | **Section** | The held section's parameters. Cell meaning depends on which scope (if any) is held alongside. |
 
-(`Cue` is reserved as a scope (for the cue bus / pre-listen feature
-landing in 6.4) but is not bound to a cluster key yet; cue-scene and
-cue-routing live under `Func+Scene` and master-scope cells in the
-interim.)
+(`Cue` is the **audition** scope, entered as the compound `Func+3` (it needs
+no dedicated cluster key — hardware parity). Holding it auditions the focused
+track's base trig; `Cue+step` auditions a step's resolved trig. Both write
+nothing. The cue *bus* / pre-listen feature is still 6.4.)
 
 **Compound chords.** Hold one modifier from each column to combine
 scopes (e.g. `Scene + Mute` = fade a track across the crossfader). The
@@ -524,6 +545,7 @@ Transport and record-arm ride the verb row (no scope held — see §5.1):
 | `U` (Rec) | Toggle record-arm (overwrite). Double-tap = overdub (append); `Func + U` = **omni copy** (captures scene + active track + pattern in one grab; badge `CPY:ALL`). |
 | `Func + Song + U` | **CAPTURE** — the tape deck. tap = arm (rolls on Play) · double-tap = roll now · while recording tap = stop / double-tap = hard cut · long-press in the just-saved window = discard (see §5.20). |
 | `3` | Tap tempo (short tap). **Hold ≥350 ms** = generator hub: step cells show EUCLID / DENSITY / VEL / MELODY / CHORD; press one to enter that generator with its own lifetime; release `3` closes the picker. |
+| `Func + 3` | **Cue** (audition) scope. Hold = pre-listen the focused track's base trig; `Cue+step` = audition that step's resolved trig. Writes nothing (see §2.5 audition / glossary). |
 | `4` | Navigate up (inverted-T above `E R T`). |
 | `E` / `R` / `T` | Navigate left / down / right. |
 
@@ -1190,16 +1212,21 @@ decisive, long-press = deliberate** — so there is no mode to learn.
   the **folder path persists while just-saved**, so you always learn where it
   went. The master section is a **dB VU meter** (−48…0 dBFS) with a peak
   high-water mark and a clip pip.
-- **File location:** `Captures/capture-YYYYMMDD-HHMMSS.wav` next to the
-  current project (standalone) or `~/Music/Lockstep/Captures/` (plugin / no
-  project). Written **directly** to the destination, so a crash still leaves
-  a real partial file. 32-bit float WAV, stereo, device sample rate.
-- **Tap point:** post master gain, DC blocker and soft-clip — exactly what
-  reaches the physical outputs.
+- **File location:** every take is its own **directory**,
+  `Captures/capture-YYYYMMDD-HHMMSS/`, holding `master.wav` plus the stems —
+  next to the current project (standalone) or under `~/Music/Lockstep/Captures/`
+  (plugin / no project). Written **directly** to the destination, so a crash
+  still leaves real partial files. 32-bit float WAV, stereo, device sample rate.
+- **Tap point:** master is post master gain, DC blocker and soft-clip — exactly
+  what reaches the physical outputs.
 - **Exit while recording** asks first: *Stop recording & exit* (finalise) /
   *Discard recording & exit* / *Cancel*, ahead of the usual save prompt.
-- **Stem export** (one WAV per track) is *planned*; the recorder is already
-  N-stream-shaped for it.
+- **Stem export is always on.** Alongside `master.wav`, each non-empty track
+  whose **Out** routes to Master is written as `track-NN.wav` (post-fader,
+  post-FX). **Routing is the stem grouping:** route tracks into a Thru bus and
+  that bus is one stem with its feeders folded in; tracks routed to a bus or to
+  Off get no separate stem. A take is a tape of a performance, so the stems are
+  saved every time — you never lose them. See §2.5 (output routing & buses).
 
 ---
 
@@ -1418,7 +1445,7 @@ Func (1)
 ├─ Func + I           → unqualified paste (stamp the one captured layer) — §5.4
 ├─ Func + O           → deletion picker (bare Func+O: inert; needs a scope) — §5.4a
 ├─ Func + P           → cancel a pending prompt — §5.3
-├─ Func + 3           → reserved/inert (metronome moved to TIME band CLICK field) — §5.4
+├─ Func + 3           → Cue (audition) scope: hold = pre-listen focused track; Cue+step = audition step — §2.5
 ├─ Func + 5…0         → secondary section page (machine deep params; COND/NOTE meta; Func+7 = transport globals) — §5.8
 │   ├─ Func + FX (0)          → effect picker: step grid re-skins to effect catalogue; press step to load; re-pick active = toggle bypass — §5.8
 │   └─ Func + Song + FX (0)  → master FX picker (same catalogue; loads into Song-scope master unit; re-press to cycle all 4 slots; re-pick active = toggle bypass) — §5.8

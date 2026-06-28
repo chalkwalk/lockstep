@@ -27,6 +27,11 @@ scope-coloured BPM + time-sig header readout. Density lookahead barIndex correct
 **Active:** `9.9` README + end-to-end verification; `9.5 C` skip-disabled sub-pages +
 inert affordance (velocity + density); contextLabel unit test (9.6); tempo resolution
 tests (9.8). **Next:** `A3` gain-staging audit; `6.7` Machine Module ABI.
+**Octatrack-parity arc shipped (6.1 + 5.5 + 5.6):** audio-input boundary,
+output-directed track buses (CHANNEL "Out", topo sort, cycle refusal), ThruMachine,
+per-take stem export; Cue-scope audition (`Func+3`); lock-only + one-shot trigs.
+Remaining from the arc: A2 topo-sort/B/C all done; 6.2 RecorderMachine (recorder
+trig) is the natural follow-on.
 
 Phases 1–3 took Lockstep from an empty plugin to a frozen, playable performance
 surface; Phase 4 fills the machine catalogue; Phases 5–6 are the depth and
@@ -898,19 +903,29 @@ DESIGN §22.
 - [ ] Resample-time stretch/pitch decision (preserve pitch / length / independent
       ratios; baked, no realtime DSP here).
 
-### 5.5 — Audition + cross-track record  *[planned]*  *(was MO)*
+### 5.5 — Audition (Cue scope) + cross-track record  *[audition shipped]*  *(was MO)*
 DESIGN §21.
-- [ ] Preview gestures (`Trig+Yes` fires a step once; `Track+Yes` fires the
-      track's base trig once), bypassing the event stream.
+- [x] Audition gestures via the **Cue** scope on the freed `Func+3` compound (no
+      new physical key — hardware parity). `Cue+step` fires that step's resolved
+      trig once; `Cue` alone fires the focused track's base trig. Both bypass the
+      event stream (reuse `liveNoteOn/Off`) and write nothing.
 - [ ] Per-track record arms in Per-Track-MIDI mode; arm-all (`Func+RecordArm`).
 - [ ] Omni-mode arming behaviour documented.
 - [ ] Step-as-keyboard live record composing with the trig-grid modes.
 
-### 5.6 — Special trig types  *[planned]*  *(was MQ)*
-DESIGN §30. (Trigless could pull earlier — no machine dependency.)
-- [ ] Trigless / lock-only trig (`off → note → lock-only` via `Func+step`).
-- [ ] One-shot trig (RAM armed/spent, auto-rearm); arm-all / disarm-all per track.
-- [ ] Step-state preview integration for lock-only / spent / armed states.
+### 5.6 — Special trig types  *[lock-only + one-shot shipped]*  *(was MQ)*
+DESIGN §30.
+- [x] Trigless / lock-only trig: `Step::lockOnly`; the running path now advances
+      `firedStepIdx_` on a lock-only crossing so its FLTR/CHANNEL/ENV/insert
+      overrides ride onto the sustaining voice with **no** note. Toggle =
+      `Trig+step` (`off → note → lock-only`). `CellState::StepLockOnly` chrome.
+      Serializer "lo" (v24).
+- [x] One-shot trig (`TrigCondition::oneShot`): fires once then spent (RAM-only),
+      auto-rearm on transport (re)start + scene apply; `rearmOneShots()` per-track
+      arm-all. COND meta-band "1Shot" field. (Manual arm-all key binding deferred.)
+- [x] Step-state preview integration for lock-only (one-shot armed/spent chrome
+      pending a follow-up).
+- [ ] Recorder trig — needs RecorderMachine (6.2).
 
 ### 5.7 — Alternate trig modes: Retrig/ratchet + Sound Pool  *[shipped]*  *(was MG remainder + MM generic-role)*
 The trig-grid modal surface beyond CHROMATIC/LEVELS (which shipped in 3.9).
@@ -1043,20 +1058,31 @@ context.)
 
 ---
 
-## Phase 6 — Routing, FX & Platform  *[planned; 6.6 in progress]*
+## Phase 6 — Routing, FX & Platform  *[6.1 + 6.5 shipped; 6.6 in progress]*
 
 The audio-input boundary and the machines it unlocks, the effects system, the cue
 bus, external controller surfaces, the machine-module ABI, and the beta polish.
 
-### 6.1 — Audio-input boundary + routing + Thru machine  *[planned]*  *(was MR)*
-DESIGN §27, §29. Gates 6.2 / 6.3.
-- [ ] Optional audio-input path at the machine boundary (sequencer fills `buffer`
-      from `input_source`).
-- [ ] `input_source` slot (`None | External | Track N | Master`).
-- [ ] Per-block topological sort; cyclic routing refused at assignment.
-- [ ] Master prior-block tap (`input_source = Master`).
-- [ ] ThruMachine (unity pass-through; canonical FLTR/AMP/FX process it).
-- [ ] MIDI-out parity (no input source; excluded from the graph).
+### 6.1 — Audio-input boundary + routing + Thru machine  *[shipped]*  *(was MR)*
+DESIGN §27, §29. Gates 6.2 / 6.3. Shipped phased: A1 outside-world sources +
+Thru, then A2 output-directed track buses.
+- [x] Optional audio-input path at the machine boundary (sequencer fills `buffer`
+      from `input_source` before `process()`).
+- [x] `input_source` slot — outside-world tap `{None | External | Master}`
+      (inter-track routing moved to the CHANNEL "Out" slot below).
+- [x] **Output-directed routing** (model revised from input-select): per-track
+      CHANNEL "Out" `{Master | Track N | Off}`. A bus reads the sum of tracks
+      routed into it. Removes a track from master (mute can't). `core/OutputDest.h`.
+- [x] Per-block topological sort (`core/RoutingGraph.h`, pure/tested); cyclic
+      routing refused at the "Out" write (best-effort + authoritative engine guard).
+- [x] Master prior-block tap (`input_source = Master`).
+- [x] ThruMachine (unity pass-through; canonical FLTR/AMP/FX process it; defaults
+      to `None` so a fresh Thru is a silent sub-bus).
+- [x] MIDI-out parity (no input source; no audible route).
+- [x] **Stem export (Workstream D):** capture is now a take directory —
+      `master.wav` + one `track-NN.wav` per non-empty Master-routed track (buses
+      fold in their feeders; routing IS the stem-grouping UI). Always-on. Reuses
+      the 9.16 tape-deck infra; tap is post-fader/post-FX in `processTrackChain`.
 
 ### 6.2 — Recorder buffers + recorder trigs  *[planned]*  *(was MS)*
 DESIGN §28, §29, §30. Depends on 6.1.
@@ -2039,9 +2065,12 @@ DAW export.
 - [x] **Exit-while-recording** dialog (`captureExitGuard`) chained ahead of the
       9.2 dirty-project guard: Stop & exit (finalise) / Discard & exit / Cancel.
 - [x] Writes **directly** to the destination (crash ⇒ real partial file).
-- [ ] **Per-track stems** *(planned)* — the recorder is N-stream-shaped. Needs a
-      per-track capture-arm surface; one multichannel WAV or one file per armed
-      track in `Captures/<timestamp>/`; same arm/level/tail lifecycle.
+- [x] **Per-track stems** *(shipped — 6.1 Workstream D)* — every take is a
+      directory `Captures/capture-<stamp>/` holding `master.wav` + one
+      `track-NN.wav` per non-empty Master-routed track. No per-track arm surface
+      needed: routing (CHANNEL "Out") *is* the stem grouping — buses fold in their
+      feeders, feeders/Off/empty-Thru-buses are skipped. Always-on; same
+      arm/level/tail lifecycle as the master. (DESIGN §27.)
 - [ ] **Crash-partial header refresh** *(deferred)* — a partial WAV's RIFF size
       fields are patched only on clean close; periodic header refresh would make
       a crash-partial fully playable.
