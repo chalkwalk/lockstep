@@ -483,6 +483,18 @@ namespace lockstep
         [[nodiscard]] bool isCapturing() const noexcept { return captureRecorder_.isCapturing(); }
         [[nodiscard]] juce::File captureFile() const { return captureRecorder_.captureFile(); }
 
+        // D (stems): per-track post-fader/post-FX capture written alongside the
+        // master take. When enabled, start/stopCapture also arm/flush a WAV per
+        // audio track (MIDI-out tracks produce no stem). DESIGN §22 / §27.
+        void setCaptureStems(bool on) noexcept { captureStems_ = on; }
+        [[nodiscard]] bool captureStems() const noexcept { return captureStems_; }
+        [[nodiscard]] bool isCapturingStems() const noexcept;
+        // Arm the master take to a specific file (and stems next to it when
+        // enabled). startCapture() routes here with a timestamped path; tests use
+        // it to target a temp directory.
+        bool startCaptureTo(const juce::File& masterFile);
+        [[nodiscard]] std::int64_t stemSamplesWritten(int track) const noexcept;
+
         // MG.4: Sound Pool CRUD (message thread only).
         // saveTrackToSoundPool: snapshots the active Part's track state + sample index.
         // Returns the new pool index, or -1 on failure.
@@ -1031,6 +1043,9 @@ namespace lockstep
 
         // 8.26 C1: WAV performance capture.
         CaptureRecorder captureRecorder_;
+        // D: per-track stem recorders (one per audio track) + arm toggle.
+        std::array<CaptureRecorder, kNumTracks> stemRecorders_;
+        bool captureStems_ = false;
 
         // Project-file state — message thread only.
         juce::MemoryBlock defaultStateBlob_;          // pristine state captured at construction

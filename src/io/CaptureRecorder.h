@@ -134,4 +134,17 @@ namespace lockstep
 
         return capturesDir.getChildFile(name);
     }
+
+    // D (stems): per-track WAV path for a stem take, in a sibling "<master>-stems"
+    // folder so all tracks of one take group together. track is 0-based; the file
+    // is 1-based ("track-01.wav") to match the surface track numbering.
+    inline juce::File stemFileFor(const juce::File& masterFile, int track)
+    {
+        const juce::File stemsDir =
+            masterFile.getParentDirectory()
+                      .getChildFile(masterFile.getFileNameWithoutExtension() + "-stems");
+        const juce::String name =
+            "track-" + juce::String(track + 1).paddedLeft('0', 2) + ".wav";
+        return stemsDir.getChildFile(name);
+    }
 }

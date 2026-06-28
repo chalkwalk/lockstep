@@ -1356,6 +1356,42 @@ namespace lockstep
         CHECK(proc.wouldRoutingCycle(0, 0), "self-route is a cycle");
     }
 
+    // -----------------------------------------------------------------------
+    // D: stem export writes one post-fader/post-FX WAV per audio track alongside
+    // the master take (DESIGN §22/§27). Uses a Thru/External source so audio is
+    // deterministic, and targets a temp dir so the test leaves no artifacts.
+    static void testStemCaptureWritesPerTrack()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        installThru(proc, 0, static_cast<float>(static_cast<int>(InputSourceKind::External)));
+
+        const juce::File tmpDir = juce::File::getSpecialLocation(juce::File::tempDirectory)
+                                      .getChildFile("lockstep_stem_test");
+        tmpDir.deleteRecursively();
+        const juce::File master = tmpDir.getChildFile("take.wav");
+
+        proc.setCaptureStems(true);
+        CHECK(proc.startCaptureTo(master), "capture arms (master + stems)");
+        CHECK(proc.isCapturingStems(), "stem recorders are capturing while armed");
+
+        for (int b = 0; b < 8; ++b)
+            renderBlockWithInput(h, 0.5f);
+
+        proc.stopCapture();
+        CHECK(!proc.isCapturingStems(), "stems are flushed/disarmed on stop");
+        CHECK(proc.stemSamplesWritten(0) > 0, "track 0 stem captured audio");
+
+        const juce::File stem0 = stemFileFor(master, 0);
+        CHECK(stem0.getFileName() == juce::String("track-01.wav"),
+              "0-based track 0 maps to 1-based track-01.wav");
+        CHECK(stem0.getFullPathName().contains("take-stems"),
+              "stems land in a sibling <master>-stems folder");
+        CHECK(stem0.existsAsFile(), "per-track stem WAV exists on disk");
+
+        tmpDir.deleteRecursively();
+    }
+
     void runEngineTests()
     {
         testTransposeTrack();
@@ -1389,5 +1425,6 @@ namespace lockstep
         testOneShotFiresOnce();
         testBusRoutingRemovesFromMaster();
         testBusCycleRefused();
+        testStemCaptureWritesPerTrack();
     }
 }

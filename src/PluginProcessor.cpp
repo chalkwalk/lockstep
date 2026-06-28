@@ -540,6 +540,10 @@ namespace lockstep
 
         trackPeak_[i].store(trackBuffers_[i].getMagnitude(0, numBlockSamples),
                             std::memory_order_relaxed);
+
+        // D: per-track stem tap — post-fader, post-FX, post-soft-clip; before the
+        // track is summed/routed onward. No-op unless this stem is armed.
+        stemRecorders_[i].writeBlock(trackBuffers_[i], numBlockSamples);
     }
 
     // A2: validated routing decision for a track from its CHANNEL "Out" base
@@ -5265,18 +5269,49 @@ namespace lockstep
     // 8.26 C1: Performance capture API (message thread only).
     bool LockstepProcessor::startCapture()
     {
+        return startCaptureTo(chooseCaptureFile(currentProjectFile_));
+    }
+
+    bool LockstepProcessor::startCaptureTo(const juce::File& masterFile)
+    {
         if (captureRecorder_.isCapturing())
             return false;   // already running
-        const juce::File dest = chooseCaptureFile(currentProjectFile_);
         const double sr = getSampleRate() > 0.0 ? getSampleRate() : 44100.0;
         const int numCh = std::max(1, getTotalNumOutputChannels());
-        return captureRecorder_.arm(dest, sr, numCh);
+        if (!captureRecorder_.arm(masterFile, sr, numCh))
+            return false;
+
+        // D: arm one stem per audio track (MIDI-out tracks produce no audio).
+        if (captureStems_)
+        {
+            for (std::size_t t = 0; t < kNumTracks; ++t)
+            {
+                if (machines_[t]->isMidiOut()) continue;
+                stemRecorders_[t].arm(stemFileFor(masterFile, static_cast<int>(t)), sr, numCh);
+            }
+        }
+        return true;
     }
 
     juce::RelativeTime LockstepProcessor::stopCapture()
     {
         const double sr = getSampleRate() > 0.0 ? getSampleRate() : 44100.0;
         const int64_t samples = captureRecorder_.disarm();
+        for (auto& sr_ : stemRecorders_)   // D: flush all stems on the same edge
+            sr_.disarm();
         return juce::RelativeTime::seconds(static_cast<double>(samples) / sr);
+    }
+
+    bool LockstepProcessor::isCapturingStems() const noexcept
+    {
+        for (const auto& s : stemRecorders_)
+            if (s.isCapturing()) return true;
+        return false;
+    }
+
+    std::int64_t LockstepProcessor::stemSamplesWritten(int track) const noexcept
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return 0;
+        return stemRecorders_[static_cast<std::size_t>(track)].samplesWritten();
     }
 }
