@@ -136,5 +136,11 @@ namespace lockstep
         // ignores setValue() mid-drag, so master writes must diff successive events.
         std::array<float, kNumSlots> lastSlotValue_{};
         bool lastSlotValid_ = false;
+
+        // WS4: which zone slot (0..kNumSlots-1) currently hosts the CHANNEL "Out"
+        // routing control, or -1. When set, that slider runs over a filtered
+        // candidate-index domain (Off / Master / valid buses) instead of the raw
+        // OutputDest encoding, so onValueChange maps the index back to an encoding.
+        int outSlotIndex_ = -1;
     };
 }

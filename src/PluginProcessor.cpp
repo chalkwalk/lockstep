@@ -592,6 +592,28 @@ namespace lockstep
         return RouteReject::None;
     }
 
+    std::vector<float> LockstepProcessor::validOutTargets(int fromTrack) const
+    {
+        std::vector<float> targets;
+        targets.push_back(encodeOutputDest(OutputDestKind::Off));
+        targets.push_back(encodeOutputDest(OutputDestKind::Master));
+        for (int k = 0; k < static_cast<int>(kNumTracks); ++k)
+        {
+            const float enc = encodeOutputDest(OutputDestKind::Track, k);
+            if (validateOutEdit(fromTrack, enc) == RouteReject::None)
+                targets.push_back(enc);
+        }
+        // Keep the current stored dest representable even if it is no longer a
+        // valid target (dormant after a machine swap).
+        if (fromTrack >= 0 && fromTrack < static_cast<int>(kNumTracks))
+        {
+            const float cur = kit(fromTrack).channelState.out;
+            if (std::find(targets.begin(), targets.end(), cur) == targets.end())
+                targets.push_back(cur);
+        }
+        return targets;
+    }
+
     // A2: the block's bus-edge array for the topological sort — dest[i] is the
     // audio track i feeds, or -1 for Master / Off.
     std::array<int, kNumTracks> LockstepProcessor::routingEdges() const

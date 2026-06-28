@@ -437,6 +437,14 @@ namespace lockstep
         // Master/Off always validate; a Track target must be an input-aware bus
         // machine (declares input_source, not MIDI-out), not self, not cyclic.
         [[nodiscard]] RouteReject validateOutEdit(int from, float value) const;
+        // WS4: the ordered set of currently-valid "Out" destinations for a track,
+        // as encoded OutputDest values — {Off, Master, then every track that is a
+        // valid bus target right now}. Lets the editor present a rotary that steps
+        // only through selectable destinations (no jogging through synths /
+        // MIDI-out / cycles). If the track's current stored dest is not among
+        // them (e.g. dormant after a machine swap) it is appended so the control
+        // can still display and leave it. Message-thread query (reads working kit).
+        [[nodiscard]] std::vector<float> validOutTargets(int fromTrack) const;
         // Decoupled reject feedback: the engine bumps a sequence + reason (+ the
         // track the message names) when it refuses an Out edit or marks one
         // dormant; the editor polls this from its timer and flashes the status

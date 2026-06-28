@@ -1382,6 +1382,33 @@ namespace lockstep
         proc.toggleSolo(0);  // clear
     }
 
+    // WS4: validOutTargets exposes only selectable destinations to the editor's
+    // filtered Out rotary — {Off, Master, currently-valid buses}, never self /
+    // synths / MIDI-out.
+    static void testValidOutTargets()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        installThru(proc, 1, static_cast<float>(static_cast<int>(InputSourceKind::None)));  // bus
+        installMachine(proc, 2, VAMachine::kMachineId);                                     // synth
+
+        const auto cands = proc.validOutTargets(0);
+        CHECK(cands.size() == 3, "Off + Master + the one valid bus");
+        CHECK(std::lround(cands[0]) == 0, "Off offered first");
+        CHECK(std::lround(cands[1]) == 1, "Master offered second");
+        CHECK(decodeOutputDest(cands[2]).kind == OutputDestKind::Track
+                  && decodeOutputDest(cands[2]).track == 1,
+              "the Thru bus (Trk2) is the only track target");
+        for (const float c : cands)
+        {
+            const auto sel = decodeOutputDest(c);
+            CHECK(!(sel.kind == OutputDestKind::Track && sel.track == 0),
+                  "self is never a candidate");
+            CHECK(!(sel.kind == OutputDestKind::Track && sel.track == 2),
+                  "a synth (no audio input) is never a candidate");
+        }
+    }
+
     // A2: Out-edit validation reasons + dynamic (machine-swap) invalidation.
     static void testOutEditValidation()
     {
@@ -1519,6 +1546,7 @@ namespace lockstep
         testBusRoutingRemovesFromMaster();
         testBusCycleRefused();
         testSoloBusPlaysFeeders();
+        testValidOutTargets();
         testOutEditValidation();
         testRoutingDormantOnMachineSwap();
         testStemCaptureRouteDefined();

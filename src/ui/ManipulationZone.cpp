@@ -2,12 +2,31 @@
 #include "MetaBand.h"
 #include "ParamFormat.h"
 #include "../PluginProcessor.h"
+#include "../core/OutputDest.h"
 #include "KeyboardArea.h"
 #include <algorithm>
 #include <cmath>
 
 namespace lockstep
 {
+    // WS4: the stable id of the CHANNEL "Out" routing slot. The slot is driven
+    // by a filtered candidate-index rotary (only valid bus targets) rather than
+    // the raw 0..17 encoding — see refreshSliders / onValueChange.
+    static constexpr const char* kOutSlotId = "lockstep.amp.out";
+
+    // Label for an encoded OutputDest value (matches the kOutDestLabels scheme).
+    static juce::String outDestLabelText(float enc)
+    {
+        const auto sel = decodeOutputDest(enc);
+        switch (sel.kind)
+        {
+            case OutputDestKind::Off:    return "Off";
+            case OutputDestKind::Master: return "Master";
+            case OutputDestKind::Track:  return "Trk" + juce::String(sel.track + 1);
+        }
+        return "Master";
+    }
+
     // Fraction of the inner band height used for each row.  Two rows at this
     // fraction overlap vertically; the stagger keeps their knobs clear.
     static constexpr float kRowHeightFrac = 0.62f;
@@ -128,6 +147,24 @@ namespace lockstep
                 }
                 const int track = area_.getActiveTrack();
                 const int slot = slotOffset_ + i;
+                // WS4: the "Out" routing slot runs over a filtered candidate
+                // index — map it back to an OutputDest encoding and update the
+                // value label live (every selectable index is already valid).
+                if (i == outSlotIndex_)
+                {
+                    const auto cands = processor_.validOutTargets(track);
+                    if (!cands.empty())
+                    {
+                        const int idx = juce::jlimit(
+                            0, static_cast<int>(cands.size()) - 1,
+                            static_cast<int>(std::lround(v)));
+                        const float enc = cands[static_cast<std::size_t>(idx)];
+                        processor_.writeParam(track, slot, enc);
+                        valueLabels_[static_cast<std::size_t>(i)].setText(
+                            outDestLabelText(enc), juce::dontSendNotification);
+                    }
+                    return;
+                }
                 if (morphQualifier_ == 1)
                 {
                     processor_.writeMorphPole(track, slot, v, 0);
@@ -423,6 +460,7 @@ namespace lockstep
                                            : -1;
 
         updatingFromTimer_ = true;
+        outSlotIndex_ = -1;  // WS4: recomputed below when the Out slot is visible
         for (int i = 0; i < kNumSlots; ++i)
         {
             const auto si = static_cast<std::size_t>(i);
@@ -445,6 +483,42 @@ namespace lockstep
             }
 
             const auto meta = processor_.paramSpec(track, slot);
+
+            // WS4: the CHANNEL "Out" routing slot — a filtered candidate rotary.
+            // It steps only through {Off, Master, currently-valid buses}, so the
+            // performer never jogs through synths / MIDI-out / cycles, and the
+            // value label tracks the live selection. Routing reads the base value
+            // only (per-step Out P-locks are ignored), so drive it off base.
+            if (meta.id == kOutSlotId)
+            {
+                outSlotIndex_ = i;
+                const auto cands = processor_.validOutTargets(track);
+                const float baseEnc = processor_.baseParamValue(track, slot);
+                int curIdx = 0;
+                for (std::size_t c = 0; c < cands.size(); ++c)
+                    if (std::lround(cands[c]) == std::lround(baseEnc))
+                    {
+                        curIdx = static_cast<int>(c);
+                        break;
+                    }
+
+                MetaRotary::View ov;
+                ov.rangeLo = 0.0;
+                ov.rangeHi = std::max<double>(1.0, static_cast<double>(cands.size()) - 1.0);
+                ov.interval = 1.0;
+                ov.ringMode = RingMode::Dot;
+                ov.enabled = true;
+                ov.alpha = 1.0f;
+                ov.value = static_cast<double>(curIdx);
+                sliders_[si].applyView(ov);
+
+                labels_[si].setText(meta.label, juce::dontSendNotification);
+                valueLabels_[si].setText(outDestLabelText(baseEnc), juce::dontSendNotification);
+                clearBtns_[si].setEnabled(false);
+                clearBtns_[si].setAlpha(0.3f);
+                if (i == 0) samplePickerBtn_.setVisible(false);
+                continue;
+            }
 
             // Sample slot: replace rotary with a name button + picker popup.
             const bool isSampleSlot = (meta.id == "sample_id" || meta.id == "slicer_sample_id");
