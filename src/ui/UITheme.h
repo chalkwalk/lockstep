@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include <cstdint>
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -184,6 +185,22 @@ namespace lockstep::theme
     // Default / no-scope held: light grey (used by step-grid scope glow fallback)
     // -------------------------------------------------------------------------
     inline constexpr uint32_t kScopeStep = 0xFF8898A8u;
+
+    // -------------------------------------------------------------------------
+    // Routing-group hint palette (WS3 / DESIGN §27) — a bus and the tracks that
+    // route into it share one hue on the mixer-strip underline (bus full,
+    // feeders dimmed). Assigned by ascending bus track index, wrapping the
+    // palette. Collisions with the mute/solo state background are harmless: the
+    // group rides the separate, always-on underline channel.
+    // -------------------------------------------------------------------------
+    inline constexpr std::array<uint32_t, 6> kRoutingGroup = {
+        0xFF38C0C0u,  // teal
+        0xFFD060C0u,  // magenta
+        0xFFD0A020u,  // gold
+        0xFF80C040u,  // lime
+        0xFF5080E0u,  // azure
+        0xFFE07840u,  // orange
+    };
 
     // -------------------------------------------------------------------------
     // Helper: build a juce::Colour from a packed ARGB uint32

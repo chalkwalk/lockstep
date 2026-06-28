@@ -16,6 +16,7 @@
 #include "ui/MetaBand.h"
 #include "ui/ScopedSectionMatrix.h"
 #include "ui/SurfaceModel.h"
+#include "ui/UITheme.h"
 #include "ui/mode/ModeReducer.h"
 #include <algorithm>
 
@@ -1401,6 +1402,43 @@ namespace lockstep
             anySoloed = anySoloed || soloFlags[i];
         }
 
+        // Routing-group classification (WS3 / DESIGN §27). edges[i] = the bus
+        // track i feeds, or -1 (Master/Off). A track that is some other track's
+        // dest is a BUS; one whose own edge is >= 0 is a FEEDER. Each bus gets a
+        // palette colour by ascending index; feeders borrow their bus's colour
+        // dimmed. A track that is both (a chain link) shows its own bus colour.
+        const auto edges = processor_.routingEdges();
+        std::array<int, kNumTracks> busColourIdx{};
+        busColourIdx.fill(-1);
+        {
+            int next = 0;
+            for (std::size_t b = 0; b < kNumTracks; ++b)
+            {
+                bool isBus = false;
+                for (std::size_t k = 0; k < kNumTracks; ++k)
+                    if (edges[k] == static_cast<int>(b)) { isBus = true; break; }
+                if (isBus)
+                {
+                    busColourIdx[b] = next % static_cast<int>(theme::kRoutingGroup.size());
+                    ++next;
+                }
+            }
+        }
+        auto groupColourFor = [&](std::size_t i, bool& isBus) -> juce::Colour {
+            isBus = false;
+            if (busColourIdx[i] >= 0)  // i is itself a bus
+            {
+                isBus = true;
+                return juce::Colour(theme::kRoutingGroup[static_cast<std::size_t>(busColourIdx[i])]);
+            }
+            const int bus = edges[i];  // i feeds a bus → borrow its colour, dimmed
+            if (bus >= 0 && busColourIdx[static_cast<std::size_t>(bus)] >= 0)
+                return juce::Colour(theme::kRoutingGroup[
+                           static_cast<std::size_t>(busColourIdx[static_cast<std::size_t>(bus)])])
+                    .withMultipliedBrightness(0.55f);
+            return {};  // ungrouped
+        };
+
         // Per-track VU underlaid behind the (transparent) track-number buttons.
         for (std::size_t i = 0; i < kNumTracks; ++i)
         {
@@ -1413,14 +1451,22 @@ namespace lockstep
             const auto r = trackBtns_[i].getBounds();
             if (r.isEmpty()) continue;
 
+            bool isBus = false;
+            const juce::Colour groupCol = groupColourFor(i, isBus);
+            const bool hasGroup = !groupCol.isTransparent();
+
             // Distinct background per silencing source: global mute = red,
             // pattern mute = orange, solo-exclusion = purple, soloed = teal,
-            // audible = grey.
+            // audible = grey. In the plain audible state the grey is blended
+            // toward the routing-group colour so groups read at a glance; a
+            // silencing state keeps its dedicated colour (group still shows on
+            // the underline below).
             juce::Colour bg = juce::Colour::fromRGB(28, 32, 38);
             if (gMuted) bg = juce::Colour::fromRGB(70, 20, 20);
             else if (pMuted) bg = juce::Colour::fromRGB(80, 50, 16);
             else if (soloEx) bg = juce::Colour::fromRGB(50, 24, 70);
             else if (soloed) bg = juce::Colour::fromRGB(20, 70, 50);
+            else if (hasGroup) bg = bg.interpolatedWith(groupCol, 0.25f);  // default state only
             g.setColour(bg);
             g.fillRect(r);
 
@@ -1430,6 +1476,14 @@ namespace lockstep
                 const int fillW = juce::roundToInt(static_cast<float>(r.getWidth()) * level);
                 g.setColour(meterColour(level).withAlpha(0.55f));
                 g.fillRect(r.getX(), r.getY(), fillW, r.getHeight());
+            }
+
+            // Routing-group underline (always-on channel) — visible regardless
+            // of the mute/solo background so a muted feeder still shows its group.
+            if (hasGroup)
+            {
+                g.setColour(groupCol);
+                g.fillRect(r.getX(), r.getBottom() - 3, r.getWidth(), 3);
             }
 
             // Active-track outline so selection survives the transparent button.
