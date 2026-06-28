@@ -123,6 +123,7 @@ namespace lockstep
         voice.age = ++voiceCounter_;
         voice.outputLevel = p(kSlotOutputLevel);
         voice.velocity = std::clamp(velocity, 0.0f, 1.0f);
+        voice.os.reset();  // clear stale decimator tail from a prior note
 
         for (int dst = 0; dst < kNumOps; ++dst)
             for (int src = 0; src < kNumOps; ++src)
@@ -143,12 +144,15 @@ namespace lockstep
             op.phaseInc = freq / sampleRate_;
             op.output = 0.0f;
             op.prevOutput = 0.0f;
+            op.prevPrevOutput = 0.0f;
             op.mixerLevel = p(ops.mix);
 
             op.sustainLevel = std::clamp(p(ops.sus) * macroSustain, 0.0f, 1.0f);
             op.attackSamples = msToSamples(p(ops.atk) * macroAttack, sampleRate_);
             op.decaySamples = msToSamples(p(ops.dec) * macroRelease, sampleRate_);
             op.releaseSamples = msToSamples(p(ops.rel) * macroRelease, sampleRate_);
+            op.decayMul = envMul(op.decaySamples);
+            op.releaseMul = envMul(op.releaseSamples);
             op.envLevel = 0.0f;
             op.releaseStartLevel = 0.0f;
 
@@ -212,6 +216,7 @@ namespace lockstep
             op.mixerLevel = p(opSlot.mix);
             op.sustainLevel = std::clamp(p(opSlot.sus) * macroSustain, 0.0f, 1.0f);
             op.releaseSamples = msToSamples(p(opSlot.rel) * macroRelease, sampleRate_);
+            op.releaseMul = envMul(op.releaseSamples);
         }
     }
 
@@ -229,6 +234,16 @@ namespace lockstep
         }
     }
 
+    // Exponential decay/release multiplier for a stage of `samples` steps.
+    // exp(-kEnvCurve/samples): the level covers ~1-e^-kEnvCurve of the distance
+    // to its target over the stage, giving a natural fast-then-slow contour.
+    float FMMachine::envMul(int samples)
+    {
+        return (samples > 0)
+                   ? std::exp(-FMMachine::kEnvCurve / static_cast<float>(samples))
+                   : 0.0f;
+    }
+
     float FMMachine::advanceEnv(Operator& op)
     {
         const float level = op.envLevel;
@@ -236,6 +251,7 @@ namespace lockstep
         switch (op.stage)
         {
             case Stage::Attack:
+                // Attack stays a linear ramp (click-free from the current level).
                 op.envLevel += 1.0f / static_cast<float>(op.attackSamples);
                 if (--op.stageRemaining <= 0)
                 {
@@ -254,7 +270,8 @@ namespace lockstep
                 break;
 
             case Stage::Decay:
-                op.envLevel -= (1.0f - op.sustainLevel) / static_cast<float>(op.decaySamples);
+                // Exponential approach to the sustain level.
+                op.envLevel = op.sustainLevel + (op.envLevel - op.sustainLevel) * op.decayMul;
                 op.envLevel = std::max(op.envLevel, op.sustainLevel);
                 if (--op.stageRemaining <= 0)
                 {
@@ -268,8 +285,8 @@ namespace lockstep
                 break;
 
             case Stage::Release:
-                if (op.releaseSamples > 0)
-                    op.envLevel -= op.releaseStartLevel / static_cast<float>(op.releaseSamples);
+                // Exponential decay toward zero.
+                op.envLevel *= op.releaseMul;
                 op.envLevel = std::max(op.envLevel, 0.0f);
                 if (--op.stageRemaining <= 0)
                 {
@@ -327,6 +344,16 @@ namespace lockstep
 
         const int numOut = buffer.getNumChannels();
         int eventIdx = 0;
+
+        // Per-op velocity sensitivity is constant across the block.
+        std::array<float, kNumOps> velSens{};
+        for (int j = 0; j < kNumOps; ++j)
+        {
+            const int vsSlot = kSlotOp1VelSens + j;
+            velSens[static_cast<std::size_t>(j)] =
+                (params.size() > static_cast<std::size_t>(vsSlot))
+                    ? params[static_cast<std::size_t>(vsSlot)] : 0.0f;
+        }
 
         for (int i = 0; i < numBlockSamples; ++i)
         {
@@ -466,42 +493,61 @@ namespace lockstep
                     continue;
                 }
 
-        // Modulation sums from previous outputs (1-sample delay avoids algebraic loop)
-                float modSum[kNumOps] = {};
-                for (int dst = 0; dst < kNumOps; ++dst)
-                    for (int src = 0; src < kNumOps; ++src)
-                        modSum[dst] += voice.modMatrix[static_cast<std::size_t>(src)]
-                                                      [static_cast<std::size_t>(dst)] *
-                                       voice.ops[static_cast<std::size_t>(src)].prevOutput * kModScale;
-
+        // Envelopes advance once per output sample (base rate); the operator
+        // core runs at 2x to anti-alias high-index FM, then decimates.
+                std::array<float, kNumOps> env{};
                 for (int j = 0; j < kNumOps; ++j)
-                {
-                    auto& op = voice.ops[static_cast<std::size_t>(j)];
-                    const float env = advanceEnv(op);
-                    const float angle = static_cast<float>(op.phase * (2.0 * 3.14159265358979323846)) + modSum[j];
-                    op.output = std::sin(angle) * env;
-                    op.phase += op.phaseInc;
-                    if (op.phase >= 1.0) op.phase -= 1.0;
+                    env[static_cast<std::size_t>(j)] = advanceEnv(voice.ops[static_cast<std::size_t>(j)]);
 
-          // Per-op velocity scaling (affects FM modulation depth, not just output bus)
-                    const int vsSlot = kSlotOp1VelSens + j;
-                    const float velSens = (params.size() > static_cast<std::size_t>(vsSlot))
-                                              ? params[static_cast<std::size_t>(vsSlot)]
-                                              : 0.0f;
-                    op.output *= 1.0f - velSens + velSens * voice.velocity;
+                std::array<float, 2> sub{};
+                for (int s = 0; s < 2; ++s)
+                {
+            // Modulation sums from previous (sub-)sample outputs. Off-diagonal
+            // is cross-modulation; the diagonal (self-feedback) uses the
+            // averaged last two outputs to suppress the noisy limit cycle.
+                    std::array<float, kNumOps> modSum{};
+                    for (int dst = 0; dst < kNumOps; ++dst)
+                        for (int src = 0; src < kNumOps; ++src)
+                        {
+                            const float m = voice.modMatrix[static_cast<std::size_t>(src)]
+                                                           [static_cast<std::size_t>(dst)];
+                            if (m == 0.0f) continue;
+                            const auto& so = voice.ops[static_cast<std::size_t>(src)];
+                            if (src == dst)
+                                modSum[static_cast<std::size_t>(dst)] +=
+                                    m * 0.5f * (so.prevOutput + so.prevPrevOutput) * kSelfFeedbackScale;
+                            else
+                                modSum[static_cast<std::size_t>(dst)] += m * so.prevOutput * kModScale;
+                        }
+
+                    for (int j = 0; j < kNumOps; ++j)
+                    {
+                        auto& op = voice.ops[static_cast<std::size_t>(j)];
+                        const float angle = static_cast<float>(op.phase * (2.0 * 3.14159265358979323846))
+                                            + modSum[static_cast<std::size_t>(j)];
+                        float out = std::sin(angle) * env[static_cast<std::size_t>(j)];
+                        // Per-op velocity scaling (affects FM depth via prevOutput, not just bus).
+                        const float vs = velSens[static_cast<std::size_t>(j)];
+                        out *= 1.0f - vs + vs * voice.velocity;
+                        op.output = out;
+                        // Half-rate phase step: two sub-steps total one base sample.
+                        op.phase += 0.5 * op.phaseInc;
+                        op.phase -= std::floor(op.phase);
+                    }
+
+                    float smp = 0.0f;
+                    for (int j = 0; j < kNumOps; ++j)
+                    {
+                        auto& op = voice.ops[static_cast<std::size_t>(j)];
+                        smp += op.output * op.mixerLevel;
+                        op.prevPrevOutput = op.prevOutput;
+                        op.prevOutput = op.output;
+                    }
+                    sub[static_cast<std::size_t>(s)] = smp;
                 }
 
-                float sample = 0.0f;
-                for (int j = 0; j < kNumOps; ++j)
-                {
-                    const auto& op = voice.ops[static_cast<std::size_t>(j)];
-                    sample += op.output * op.mixerLevel;
-                }
-                sample *= voice.outputLevel * chokeGain;
-
-                for (auto& op : voice.ops)
-                    op.prevOutput = op.output;
-
+                const float sample = voice.os.decimate(sub[0], sub[1])
+                                     * voice.outputLevel * chokeGain;
                 mixed += sample;
             }
 

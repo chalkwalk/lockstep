@@ -3,6 +3,7 @@
 #include "IMachine.h"
 #include "VoiceChoke.h"
 #include "dsp/MonoGate.h"
+#include "../dsp/Oversampler2x.h"
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -106,6 +107,16 @@ namespace lockstep
     // Modulation depth scaling: matrix value ±1 → ±π radians (β≈3.14 at full depth)
         static constexpr float kModScale = 3.14159265358979323846f;
 
+    // Self-feedback (matrix diagonal) is scaled the same but fed the *averaged*
+    // last two operator outputs, which suppresses the noisy Nyquist-rate limit
+    // cycle so self-FM stays musical instead of turning to a near-saw/noise.
+        static constexpr float kSelfFeedbackScale = 3.14159265358979323846f;
+
+    // Exponential operator envelope curve constant: over a stage of N samples
+    // the level covers ~1-e^-kEnvCurve of the distance to its target, giving a
+    // natural fast-then-slow decay/release (vs the old linear ramp).
+        static constexpr float kEnvCurve = 4.0f;
+
     // -----------------------------------------------------------------------
     // Voice state
 
@@ -124,14 +135,17 @@ namespace lockstep
             double phaseInc = 0.0;
             float output = 0.0f;
             float prevOutput = 0.0f;
+            float prevPrevOutput = 0.0f;  // 2-sample history for smoothed self-feedback
             Stage stage = Stage::Idle;
             float envLevel = 0.0f;
             float releaseStartLevel = 0.0f;
             int stageRemaining = 0;
             int attackSamples = 0;
             int decaySamples = 0;
+            float decayMul = 0.0f;        // exponential decay multiplier (toward sustain)
             float sustainLevel = 0.0f;
             int releaseSamples = 0;
+            float releaseMul = 0.0f;      // exponential release multiplier (toward 0)
             float mixerLevel = 0.0f;
         };
 
@@ -154,6 +168,7 @@ namespace lockstep
             ParamFrame pendingParams{};
             VoiceChoke choke{};
             bool isGhost = false;  // fade-only slot; deactivates when choke ends
+            dsp::Oversampler2x os{};  // 2x anti-alias decimation of the operator core
         };
 
         int allocVoice();                // returns index in voices_
@@ -162,6 +177,7 @@ namespace lockstep
         void legatoUpdateVoice(int midiNote, const ParamFrame& params, float velocity = 1.0f);
         void releaseVoice(int voiceIdx);
         float advanceEnv(Operator& op);
+        static float envMul(int samples);
 
         static int msToSamples(float ms, double sampleRate)
         {
