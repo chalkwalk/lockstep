@@ -373,6 +373,14 @@ namespace lockstep
         float masterMeterR_ = 0.0f;
         void paintMeters(juce::Graphics& g);
 
+        // Cached chrome regions for the per-tick meter/blink decay repaint. The
+        // decay animation only touches the master strip + the track/VU row, so
+        // the 30 Hz `dirty` repaint is scoped to these instead of the whole
+        // editor (otherwise the entire grid/keyboard/MZ repaints 30×/sec — the
+        // idle-CPU / fan culprit). Recomputed in resized().
+        juce::Rectangle<int> masterChromeRegion_;
+        juce::Rectangle<int> trackRowChromeRegion_;
+
         // Master VU strip height (px), drawn at the very top edge in
         // paintOverChildren as two stacked bars (L, R). resized() reserves this
         // many pixels at the top so the header row sits below it — single source

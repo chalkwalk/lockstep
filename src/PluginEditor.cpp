@@ -1298,7 +1298,14 @@ namespace lockstep
             if (ppqMoved)
                 renderControllers();    // controller playhead — screen is on the vblank
             if (dirty)
-                repaint();              // chrome meter / blink decay
+            {
+                // Scoped repaint: the meter/blink decay only touches the master
+                // strip + the track/VU row, so invalidate just those bands rather
+                // than the whole editor (a full 30 Hz repaint of the grid /
+                // keyboard / MZ was the idle-CPU / fan culprit).
+                repaint(masterChromeRegion_);
+                repaint(trackRowChromeRegion_);
+            }
         }
 
         // Update the scope-coloured tempo + time-sig readout.
@@ -1381,14 +1388,18 @@ namespace lockstep
         // Determine which tracks are silenced (muted or solo-excluded) so the VU
         // can flag them — a silenced track's machine is skipped entirely, which
         // is a common cause of "no sound" confusion.
+        // Read each track's solo once into a local; reused for the any-soloed
+        // scan and the per-track classification below (this paints on the 30 Hz
+        // timer, so avoid the duplicate APVTS lookups).
+        std::array<bool, kNumTracks> soloFlags{};
         bool anySoloed = false;
-        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
-            if (auto* p = processor_.apvts().getRawParameterValue(ParamIDs::trackSolo(t)))
-                if (p->load() >= 0.5f)
-                {
-                    anySoloed = true;
-                    break;
-                }
+        for (std::size_t i = 0; i < kNumTracks; ++i)
+        {
+            const auto* p = processor_.apvts().getRawParameterValue(
+                ParamIDs::trackSolo(static_cast<int>(i)));
+            soloFlags[i] = p && p->load() >= 0.5f;
+            anySoloed = anySoloed || soloFlags[i];
+        }
 
         // Per-track VU underlaid behind the (transparent) track-number buttons.
         for (std::size_t i = 0; i < kNumTracks; ++i)
@@ -1396,8 +1407,7 @@ namespace lockstep
             const int t = static_cast<int>(i);
             const bool gMuted = processor_.getGlobalMute(t);
             const bool pMuted = processor_.getPatternMute(t);
-            const auto* sp = processor_.apvts().getRawParameterValue(ParamIDs::trackSolo(t));
-            const bool soloed = sp && sp->load() >= 0.5f;
+            const bool soloed = soloFlags[i];
             const bool soloEx = anySoloed && !soloed;
 
             const auto r = trackBtns_[i].getBounds();
@@ -5337,6 +5347,8 @@ namespace lockstep
         // Reserve the top edge for the master section (dB VU meter + capture
         // banner, painted in paintOverChildren) so the header row sits below it.
         bounds.removeFromTop(kMasterStripH);
+        // Cache the master-strip chrome region for the scoped meter repaint.
+        masterChromeRegion_ = { 0, 0, getWidth(), kMasterStripH };
 
         // Header row: transport | sync mode box | channel mode | display mode | pool button
         auto header = bounds.removeFromTop(36);
@@ -5382,6 +5394,9 @@ namespace lockstep
         // Remaining region, laid out top->bottom: track row, mute/solo row,
         // section bar, function bar, step grid.
         {
+            // Cache the track/VU-row chrome band (full width, un-reduced) for the
+            // scoped meter/blink repaint.
+            trackRowChromeRegion_ = { bounds.getX(), bounds.getY(), bounds.getWidth(), kTrackRowH };
             auto trackRow = bounds.removeFromTop(kTrackRowH).reduced(8, 2);
             // Page toggle sits at the left edge; the 8 visible track buttons fill the rest.
             static constexpr int kPageBtnW = 36;
