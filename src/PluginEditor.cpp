@@ -1224,7 +1224,10 @@ namespace lockstep
             const double nowMs = juce::Time::getMillisecondCounterHiRes();
             auto trackHold = [&](float raw, float& hold, double& holdMs,
                                  bool& clip, double& clipMs) {
-                if (raw >= hold)        { hold = raw; holdMs = nowMs; dirty = true; }
+                // Strict `>`: at idle raw==hold==0, so `>=` would latch a new
+                // "peak" every tick and force a 30 Hz repaint in silence. `>`
+                // only refreshes the high-water mark on a genuinely higher peak.
+                if (raw > hold)         { hold = raw; holdMs = nowMs; dirty = true; }
                 else if (nowMs - holdMs > 1500.0)
                 {
                     const float decayed = hold * 0.90f;
