@@ -21,13 +21,20 @@ namespace lockstep
         // 2 = fire only if previous step did NOT fire.
         std::uint8_t prevDependency = 0;
 
+        // 5.6 one-shot (DESIGN §30): fire once, then spent until re-armed. The
+        // armed/spent flag is RAM-only runtime state (held by the processor), so
+        // the data stays deterministic given arm state. Composes with the other
+        // condition fields and with lock-only / recorder trigs.
+        bool oneShot = false;
+
         // True when the condition imposes no restriction — equivalent to
         // the default-constructed value. Used for Override-ELSE-Base
         // fallthrough: if a step's condition is trivial, the track's
         // baseCond is used instead.
         [[nodiscard]] bool isTrivial() const
         {
-            return probabilityPercent >= 100 && iterNumerator == 1 && iterDenominator == 1 && prevDependency == 0;
+            return probabilityPercent >= 100 && iterNumerator == 1 && iterDenominator == 1
+                   && prevDependency == 0 && !oneShot;
         }
     };
 

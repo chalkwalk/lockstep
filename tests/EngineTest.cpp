@@ -1250,6 +1250,65 @@ namespace lockstep
               "lock-only: crossing the step rides input_source=None onto the voice");
     }
 
+    // -----------------------------------------------------------------------
+    // 5.6: a one-shot trig fires once, then is spent until re-armed (DESIGN §30).
+    // A length-1 DrumSynth track re-fires step 0 every loop; one-shot suppresses
+    // all but the first pass, and rearmOneShots() re-enables it.
+    static void setLen1Hat(EngineHarness& h, bool oneShot)
+    {
+        installMachine(h.processor(), 0, DrumSynthMachine::kMachineId);
+        // HAT (type slot 0 = 2): a short hit that is fully silent between the
+        // length-1 loop's re-fire points, so the late window cleanly separates a
+        // single one-shot from a re-firing trig (no long decay tail).
+        h.processor().sequence().tracks[0].baseParams[0] = 2.0f;
+        h.processor().setTrackLength(0, 1);
+        auto& s = h.processor().sequence().tracks[0].steps[0];
+        s.trig = true;
+        s.condition.oneShot = oneShot;
+        s.trigOverride.hasGate = true;
+        s.trigOverride.gateValue = MusicalGate::G1_32;
+    }
+
+    static void testOneShotFiresOnce()
+    {
+        // Control: a plain trig re-fires every loop, so the late window (well past
+        // the first hit's decay) still has fresh onsets.
+        {
+            EngineHarness h;
+            setLen1Hat(h, /*oneShot=*/false);
+            float late = 0.0f;
+            for (int b = 0; b < 120; ++b)
+            {
+                h.renderBlocks(1);
+                if (b >= 60) late = std::max(late, h.lastBufferRms());
+            }
+            CHECK(late > 1e-3f, "control: a plain trig re-fires every loop");
+        }
+        // One-shot: fires on the first pass, silent thereafter; re-arm revives it.
+        {
+            EngineHarness h;
+            setLen1Hat(h, /*oneShot=*/true);
+            float early = 0.0f, late = 0.0f;
+            for (int b = 0; b < 120; ++b)
+            {
+                h.renderBlocks(1);
+                if (b < 3)   early = std::max(early, h.lastBufferRms());
+                if (b >= 60) late  = std::max(late,  h.lastBufferRms());
+            }
+            CHECK(early > 1e-3f, "one-shot fires on the first pass");
+            CHECK(late < 1e-3f, "one-shot is spent on later passes");
+
+            h.processor().rearmOneShots(0);
+            float after = 0.0f;
+            for (int b = 0; b < 60; ++b)
+            {
+                h.renderBlocks(1);
+                after = std::max(after, h.lastBufferRms());
+            }
+            CHECK(after > 1e-3f, "rearmOneShots re-enables a spent one-shot");
+        }
+    }
+
     void runEngineTests()
     {
         testTransposeTrack();
@@ -1280,5 +1339,6 @@ namespace lockstep
         testThruMasterTap();
         testAuditionLiveNote();
         testLockOnlyRidesOverrideOntoVoice();
+        testOneShotFiresOnce();
     }
 }

@@ -204,7 +204,7 @@ namespace lockstep
             { "m Num", 1.0f, 8.0f, true },
             { "m Den", 1.0f, 8.0f, true },
             { "Prev", 0.0f, 2.0f, true },
-            { "", 0.0f, 1.0f, false },
+            { "1Shot", 0.0f, 1.0f, true },   // 5.6 one-shot (DESIGN §30)
             { "", 0.0f, 1.0f, false },
             { "", 0.0f, 1.0f, false },
             { "", 0.0f, 1.0f, false },
@@ -214,7 +214,7 @@ namespace lockstep
             static_cast<float>(display.iterNumerator),
             static_cast<float>(display.iterDenominator),
             static_cast<float>(display.prevDependency),
-            0.0f,
+            display.oneShot ? 1.0f : 0.0f,
             0.0f,
             0.0f,
             0.0f,
@@ -242,6 +242,8 @@ namespace lockstep
                 const int pd = static_cast<int>(vals[si]);
                 f.valueText = (pd == 0) ? "off" : (pd == 1 ? "fired" : "!fired");
             }
+            else if (i == 4)
+                f.valueText = (vals[si] >= 0.5f) ? "on" : "off";
             else
                 f.valueText = juce::String(static_cast<int>(vals[si]));
         }
@@ -1870,6 +1872,7 @@ namespace lockstep
                     case 1:  target.iterNumerator = u8clamp(value); break;
                     case 2:  target.iterDenominator = u8clamp(value); break;
                     case 3:  target.prevDependency = u8clamp(value); break;
+                    case 4:  target.oneShot = (value >= 0.5f); break;  // 5.6 one-shot
                     default: break;
                 }
                 break;

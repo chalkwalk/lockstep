@@ -62,6 +62,8 @@ namespace lockstep::PluginState
         v.setProperty("n", static_cast<int>(c.iterNumerator), nullptr);
         v.setProperty("d", static_cast<int>(c.iterDenominator), nullptr);
         v.setProperty(keys::kPd, static_cast<int>(c.prevDependency), nullptr);
+        if (c.oneShot)
+            v.setProperty("os", 1, nullptr);  // 5.6 one-shot
         return v;
     }
 
@@ -76,6 +78,7 @@ namespace lockstep::PluginState
             static_cast<int>(v.getProperty("d", 1)));
         c.prevDependency = static_cast<std::uint8_t>(
             static_cast<int>(v.getProperty(keys::kPd, 0)));
+        c.oneShot = (static_cast<int>(v.getProperty("os", 0)) != 0);  // 5.6
         // Legacy: "fr" was fillRule (0=Always, 1=OnlyFill, 2=NeverFill).
         // Now handled at step level as fillTrigState (see stepFromNode).
         return c;

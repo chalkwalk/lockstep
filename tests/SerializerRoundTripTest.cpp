@@ -47,6 +47,8 @@ namespace lockstep
         v.setProperty("n", static_cast<int>(c.iterNumerator), nullptr);
         v.setProperty("d", static_cast<int>(c.iterDenominator), nullptr);
         v.setProperty("pd", static_cast<int>(c.prevDependency), nullptr);
+        if (c.oneShot)
+            v.setProperty("os", 1, nullptr);  // 5.6 one-shot
         return v;
     }
 
@@ -61,6 +63,7 @@ namespace lockstep
             static_cast<int>(v.getProperty("d", 1)));
         c.prevDependency = static_cast<std::uint8_t>(
             static_cast<int>(v.getProperty("pd", 0)));
+        c.oneShot = (static_cast<int>(v.getProperty("os", 0)) != 0);  // 5.6
         return c;
     }
 
@@ -85,6 +88,13 @@ namespace lockstep
         CHECK(back.iterNumerator == 2, "cond.iterNum round-trips");
         CHECK(back.iterDenominator == 3, "cond.iterDen round-trips");
         CHECK(back.prevDependency == 1, "cond.prevDep round-trips");
+
+        // 5.6 one-shot round-trip + isTrivial participation.
+        TrigCondition os;
+        os.oneShot = true;
+        CHECK(!os.isTrivial(), "a one-shot condition is non-trivial");
+        const auto osBack = condFromTree(condToTree("OneShot", os));
+        CHECK(osBack.oneShot, "cond.oneShot round-trips");
 
         // Trivial condition round-trip.
         TrigCondition trivial;

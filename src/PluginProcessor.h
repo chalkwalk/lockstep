@@ -418,6 +418,11 @@ namespace lockstep
         void liveNoteOn(int track, int midiNote, int velocity);
         void liveNoteOff(int track, int midiNote);
 
+        // 5.6: re-arm one-shot trigs (clear spent state). track < 0 = all tracks.
+        // Auto-called on transport (re)start and scene switch; also the per-track
+        // arm-all performance command.
+        void rearmOneShots(int track = -1);
+
         // MG.2: start / stop retrig on the focused track.
         // ratePpq: 0.25=1/16, 0.125=1/32, 1/12.0=1/48, 1/24.0=1/96.
         // note: the MIDI note to rattle (pass -1 to keep the current track note).
@@ -878,6 +883,12 @@ namespace lockstep
         // Last step index that actually fired per track; -1 until first fire.
         // Used for FLTR P-Lock resolution in the sequencer path.
         std::array<int, kNumTracks> firedStepIdx_{};
+
+        // 5.6 one-shot spent state (RAM-only, DESIGN §30): true once a one-shot
+        // step has fired, suppressing it until re-armed (transport start, scene
+        // switch, or rearmOneShots()). Keeps the grammar deterministic given arm
+        // state (PRINCIPLES §11).
+        std::array<std::array<bool, kMaxStepsPerTrack>, kNumTracks> oneShotSpent_{};
 
         // [AUDIO] sequencer note-off tracking and pending-trig state.
         // Pending sequencer-scheduled note-offs that spill past the current block boundary.

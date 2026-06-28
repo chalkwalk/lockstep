@@ -385,6 +385,20 @@ namespace lockstep
             prevMasterBuf_.copyFrom(ch, 0, buf, ch, 0, n);
     }
 
+    // 5.6: clear one-shot spent state so spent steps fire again (DESIGN §30).
+    void LockstepProcessor::rearmOneShots(int track)
+    {
+        if (track < 0)
+        {
+            for (auto& t : oneShotSpent_)
+                t.fill(false);
+        }
+        else if (track < static_cast<int>(kNumTracks))
+        {
+            oneShotSpent_[static_cast<std::size_t>(track)].fill(false);
+        }
+    }
+
     bool LockstepProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
     {
         const auto& mainOut = layouts.getMainOutputChannelSet();
@@ -559,6 +573,9 @@ namespace lockstep
                 }
             }
         }
+        // 5.6: re-arm one-shot trigs on transport (re)start — DESIGN §30.
+        if (sequencerRunning && !wasSequencerRunning_)
+            rearmOneShots(-1);
         wasSequencerRunning_ = sequencerRunning;
 
         // Panic: flush voices and send All-Notes-Off without stopping the clock.
@@ -1093,6 +1110,9 @@ namespace lockstep
                     trackDensity_[t].store(stagedSwap_.density[t], std::memory_order_relaxed);
                 masterDensity_.store(stagedSwap_.masterDensity, std::memory_order_relaxed);
                 sceneSwitchApplied_.store(true, std::memory_order_release);
+                // 5.6: a scene launch is pattern (re)entry — re-arm one-shots so the
+                // arriving scene's accents fire (spent state is per stepIdx, DESIGN §30).
+                rearmOneShots(-1);
             }
 
             // Advance fixed-duration voices; emit their note-off when expired.
@@ -1894,6 +1914,15 @@ namespace lockstep
                             } // end else (not Exempt)
                         }
 
+                        // 5.6 one-shot gate (DESIGN §30): a spent one-shot is
+                        // suppressed until re-armed; the first fire marks it spent.
+                        if (fired && cond.oneShot)
+                        {
+                            auto& spent = oneShotSpent_[i][static_cast<std::size_t>(stepIdx)];
+                            if (spent) fired = false;
+                            else       spent = true;
+                        }
+
                         if (fired)
                         {
                             const bool isOdd = (stepNum % 2) == 1;
@@ -2070,14 +2099,27 @@ namespace lockstep
                             const double firePpq = nextGridPpq + static_cast<double>(shift) * divPpq;
                             if (firePpq >= blockStart && firePpq < blockEnd)
                             {
-                                const int fireAt = std::clamp(
-                                    static_cast<int>((firePpq - blockStart) * samplesPerPpq),
-                                    0, numBlockSamples - 1);
-                                firedStepIdx_[i] = stepIdx;
-                                lastScheduledStepNum_[i] = stepNum;
-                                lastStepFired_[i] = true;
-                                emitTrig(stepIdx, fireAt);
-                                // nextTriggerPpq_[i] is not advanced; dedup prevents re-fire.
+                                // 5.6 one-shot gate — applied only when the lookahead
+                                // actually emits, so a non-emitting lookahead can't
+                                // silently consume the trig (DESIGN §30).
+                                bool emit = true;
+                                if (cond.oneShot)
+                                {
+                                    auto& spent = oneShotSpent_[i][static_cast<std::size_t>(stepIdx)];
+                                    if (spent) emit = false;
+                                    else       spent = true;
+                                }
+                                if (emit)
+                                {
+                                    const int fireAt = std::clamp(
+                                        static_cast<int>((firePpq - blockStart) * samplesPerPpq),
+                                        0, numBlockSamples - 1);
+                                    firedStepIdx_[i] = stepIdx;
+                                    lastScheduledStepNum_[i] = stepNum;
+                                    lastStepFired_[i] = true;
+                                    emitTrig(stepIdx, fireAt);
+                                    // nextTriggerPpq_[i] is not advanced; dedup prevents re-fire.
+                                }
                             }
                         }
                     }
