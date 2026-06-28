@@ -428,6 +428,38 @@ namespace lockstep
         // (DESIGN §27). toTrack is a 0-based track index.
         bool wouldRoutingCycle(int from, int toTrack) const;
 
+        // A2: why a CHANNEL "Out" edit was refused, or a routing notice
+        // (DESIGN §27). None = accepted. Dormant = an inbound edge went dormant
+        // because the target's machine changed to a non-bus (a notice, not a
+        // refusal — the stored edge survives and revives if it becomes a bus again).
+        enum class RouteReject : std::uint8_t { None = 0, Cycle, NoAudioInput, Self, Dormant };
+        // Validate an Out-slot edit on track `from` to encoded destination `value`.
+        // Master/Off always validate; a Track target must be an input-aware bus
+        // machine (declares input_source, not MIDI-out), not self, not cyclic.
+        [[nodiscard]] RouteReject validateOutEdit(int from, float value) const;
+        // Decoupled reject feedback: the engine bumps a sequence + reason (+ the
+        // track the message names) when it refuses an Out edit or marks one
+        // dormant; the editor polls this from its timer and flashes the status
+        // line. (Set on the message thread; atomic for safety.)
+        [[nodiscard]] std::uint32_t routeRejectSeq() const noexcept
+        {
+            return routeRejectSeq_.load(std::memory_order_relaxed);
+        }
+        [[nodiscard]] RouteReject routeRejectReason() const noexcept
+        {
+            return static_cast<RouteReject>(routeRejectReason_.load(std::memory_order_relaxed));
+        }
+        [[nodiscard]] int routeRejectTrack() const noexcept
+        {
+            return routeRejectTrack_.load(std::memory_order_relaxed);
+        }
+        void noteRouteReject(RouteReject r, int track = -1) noexcept
+        {
+            routeRejectReason_.store(static_cast<int>(r), std::memory_order_relaxed);
+            routeRejectTrack_.store(track, std::memory_order_relaxed);
+            routeRejectSeq_.fetch_add(1, std::memory_order_relaxed);
+        }
+
         // MG.2: start / stop retrig on the focused track.
         // ratePpq: 0.25=1/16, 0.125=1/32, 1/12.0=1/48, 1/24.0=1/96.
         // note: the MIDI note to rattle (pass -1 to keep the current track note).
@@ -1049,6 +1081,10 @@ namespace lockstep
         // override, currently unbound.
         std::array<CaptureRecorder, kNumTracks> stemRecorders_;
         bool captureStems_ = true;
+        // A2: routing-rejection feedback (editor polls seq + reads reason/track).
+        std::atomic<int> routeRejectReason_{ 0 };
+        std::atomic<int> routeRejectTrack_{ -1 };
+        std::atomic<std::uint32_t> routeRejectSeq_{ 0 };
         // D: should track `t` produce a stem? Non-MIDI-out, non-stub, routed to
         // Master (feeders fold into their bus; Off goes nowhere), and — for a
         // router/Thru — not an empty bus (no outside source and no inbound feeder).

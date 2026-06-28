@@ -1078,6 +1078,36 @@ namespace lockstep
 
     void LockstepEditor::timerCallback()
     {
+        // A2: flash the status line when the engine refused / dormant-marked a
+        // routing edit (DESIGN §27). Decoupled poll: any seq bump = a new notice.
+        {
+            const auto seq = processor_.routeRejectSeq();
+            if (seq != lastRouteRejectSeq_)
+            {
+                lastRouteRejectSeq_ = seq;
+                using RR = LockstepProcessor::RouteReject;
+                const int trk = processor_.routeRejectTrack();           // 0-based
+                const juce::String trkName = "Trk" + juce::String(trk + 1);
+                switch (processor_.routeRejectReason())
+                {
+                    case RR::Cycle:
+                        setStatus("Out: would feed back — routing refused");
+                        break;
+                    case RR::NoAudioInput:
+                        setStatus("Out: " + trkName + " has no audio input — route into a Thru");
+                        break;
+                    case RR::Self:
+                        setStatus("Out: a track can't route to itself");
+                        break;
+                    case RR::Dormant:
+                        setStatus(trkName + " is no longer a bus — inbound routing is dormant");
+                        break;
+                    case RR::None:
+                        break;
+                }
+            }
+        }
+
         // Generator hub (9.10): promote a held 3-key to the hub picker after 350 ms.
         if (tapTempoPhysHeld_ && !uiState_.generatorHubHeld)
         {

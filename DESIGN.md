@@ -3859,6 +3859,26 @@ edge — it is the default contribution to the sum, not a tap.) Realtime
 whole-mix resampling tolerates the ~one-block latency without audible
 consequence.
 
+**Only input-aware machines can be a bus.** A routing target must be a
+machine that *consumes* audio (declares `input_source` — Thru today,
+Recorder/Looper later). Routing to a synth, sampler, or MIDI-out track
+is a type error, refused at the edit with a chrome reason
+(`NoAudioInput`); self-routing and cycles are likewise refused (`Self`,
+`Cycle`). A target's own `input_source` and its inbound bus sum do not
+conflict — they **mix**: the bus reads its outside-world tap (if any)
+*plus* the sum of tracks routed in. A pure sub-bus therefore uses
+`input_source = None` (the Thru default) so it hears only its feeders.
+
+**Edges validate at read time, not just at edit time.** Because the
+"Out" slot lives in the CHANNEL block (sequencer-owned foundation, like
+FILTER/ENV), it survives a machine swap — but the target's
+bus-*capability* does not. If a target's machine is later changed to a
+non-bus, inbound edges go **dormant**: each falls back to `Master`
+(audio-safe — never a black hole) and **revives** automatically if the
+target becomes a bus again. The stored "Out" value is never mutated, so
+the routing is lossless and reversible across machine swaps; the engine
+just announces the dormancy so the user is not surprised.
+
 **Buffer read/write is not a routing edge.** A Recorder or Looper
 that writes a buffer while another track's Flex machine reads that
 buffer is *not* a cycle — the buffer (§28) is a decoupled resource,

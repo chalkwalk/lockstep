@@ -560,13 +560,36 @@ namespace lockstep
             case OutputDestKind::Off:    return { Route::Off, -1 };
             case OutputDestKind::Master: return { Route::Master, -1 };
             case OutputDestKind::Track:
+                // Bus target must currently be an input-aware pass-through machine
+                // (declares input_source). If not — e.g. the target was swapped to
+                // a synth/stub after the edge was made — the edge goes DORMANT:
+                // fall back to Master (audio-safe, no black hole) and revive
+                // automatically if the target becomes a bus again. The stored Out
+                // value is left untouched.
                 if (sel.track >= 0 && sel.track < static_cast<int>(kNumTracks)
                     && sel.track != track
-                    && !machines_[static_cast<std::size_t>(sel.track)]->isMidiOut())
+                    && !machines_[static_cast<std::size_t>(sel.track)]->isMidiOut()
+                    && slotForId(sel.track, kInputSourceSlotId) >= 0)
                     return { Route::Bus, sel.track };
-                return { Route::Master, -1 };  // invalid target — fall back to master
+                return { Route::Master, -1 };
         }
         return { Route::Master, -1 };
+    }
+
+    LockstepProcessor::RouteReject
+    LockstepProcessor::validateOutEdit(int from, float value) const
+    {
+        const auto sel = decodeOutputDest(value);
+        if (sel.kind != OutputDestKind::Track) return RouteReject::None;  // Master/Off ok
+        const int to = sel.track;
+        if (to == from) return RouteReject::Self;
+        if (to < 0 || to >= static_cast<int>(kNumTracks)) return RouteReject::None;
+        // The target must be a bus-capable machine: input-aware + has audio.
+        auto* tm = machines_[static_cast<std::size_t>(to)].get();
+        if (tm == nullptr || tm->isMidiOut() || slotForId(to, kInputSourceSlotId) < 0)
+            return RouteReject::NoAudioInput;
+        if (wouldRoutingCycle(from, to)) return RouteReject::Cycle;
+        return RouteReject::None;
     }
 
     // A2: the block's bus-edge array for the topological sort — dest[i] is the
@@ -2394,14 +2417,18 @@ namespace lockstep
     }
     static void enqueueChanSlot(LockstepProcessor& p, int track, int chanSlot, float value)
     {
-        // A2: refuse an "Out" edit that would create a routing cycle (DESIGN §27).
-        // The value snaps back on the next surface refresh. The engine apply has a
-        // race-free guard too; this one keeps the bad command off the queue.
+        // A2: refuse an invalid "Out" edit (cycle / non-bus target / self,
+        // DESIGN §27). The value snaps back on the next surface refresh; the
+        // reason is recorded for the editor's status banner. The engine apply has
+        // a race-free guard too; this one keeps the bad command off the queue.
         if (chanSlot == TrackChannelState::kNumSlots - 1)
         {
-            const auto sel = decodeOutputDest(value);
-            if (sel.kind == OutputDestKind::Track && p.wouldRoutingCycle(track, sel.track))
+            const auto reason = p.validateOutEdit(track, value);
+            if (reason != LockstepProcessor::RouteReject::None)
+            {
+                p.noteRouteReject(reason, decodeOutputDest(value).track);
                 return;
+            }
         }
         EngineCmd c;
         c.op = EngineCmd::Op::SetChanSlot;
@@ -3724,14 +3751,12 @@ namespace lockstep
                 case EngineCmd::Op::SetChanSlot:
                     if (t < kNumTracks)
                     {
-                        // A2: authoritative cycle refusal for the "Out" slot.
-                        if (c.slot == TrackChannelState::kNumSlots - 1)
-                        {
-                            const auto sel = decodeOutputDest(c.value);
-                            if (sel.kind == OutputDestKind::Track
-                                && wouldRoutingCycle(static_cast<int>(t), sel.track))
-                                break;
-                        }
+                        // A2: authoritative refusal for the "Out" slot (cycle /
+                        // non-bus target / self) — the race-free backstop.
+                        if (c.slot == TrackChannelState::kNumSlots - 1
+                            && validateOutEdit(static_cast<int>(t), c.value)
+                                   != RouteReject::None)
+                            break;
                         kit(static_cast<int>(t)).channelState.setSlot(c.slot, c.value);
                     }
                     break;
@@ -5019,6 +5044,26 @@ namespace lockstep
         auto& trigDef = sequence().tracks[ti].trigDefaults;
         if (machineId == VAMachine::kMachineId && trigDef.gateValue == MusicalGate::None)
             trigDef.gateValue = MusicalGate::G1_8;
+
+        // A2: if the new machine can't be a bus, any tracks that route their Out
+        // here have gone DORMANT (they fall back to Master at read time and revive
+        // if this becomes a bus again — see routeForTrack). Notice the user.
+        // (Edges are read from the stored Out values, not routeForTrack, which
+        // already reports the dormant fallback.)
+        const bool busCapable =
+            !machines_[ti]->isMidiOut() && slotForId(track, kInputSourceSlotId) >= 0;
+        if (!busCapable)
+        {
+            for (std::size_t j = 0; j < kNumTracks; ++j)
+            {
+                const auto sel = decodeOutputDest(kit(static_cast<int>(j)).channelState.out);
+                if (sel.kind == OutputDestKind::Track && sel.track == track)
+                {
+                    noteRouteReject(RouteReject::Dormant, track);
+                    break;
+                }
+            }
+        }
     }
 
     // -------------------------------------------------------------------------

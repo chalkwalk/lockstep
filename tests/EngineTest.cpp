@@ -1356,6 +1356,60 @@ namespace lockstep
         CHECK(proc.wouldRoutingCycle(0, 0), "self-route is a cycle");
     }
 
+    // A2: Out-edit validation reasons + dynamic (machine-swap) invalidation.
+    static void testOutEditValidation()
+    {
+        using RR = LockstepProcessor::RouteReject;
+        EngineHarness h;
+        auto& proc = h.processor();
+        installThru(proc, 1, static_cast<float>(static_cast<int>(InputSourceKind::None)));   // a bus
+        installMachine(proc, 2, VAMachine::kMachineId);                                      // a synth
+
+        // Master / Off / self / non-bus / valid bus.
+        CHECK(proc.validateOutEdit(0, encodeOutputDest(OutputDestKind::Master)) == RR::None,
+              "routing to Master validates");
+        CHECK(proc.validateOutEdit(0, encodeOutputDest(OutputDestKind::Off)) == RR::None,
+              "routing to Off validates");
+        CHECK(proc.validateOutEdit(0, encodeOutputDest(OutputDestKind::Track, 0)) == RR::Self,
+              "self-route rejected");
+        CHECK(proc.validateOutEdit(0, encodeOutputDest(OutputDestKind::Track, 2)) == RR::NoAudioInput,
+              "routing to a synth (no input) rejected");
+        CHECK(proc.validateOutEdit(0, encodeOutputDest(OutputDestKind::Track, 1)) == RR::None,
+              "routing to a Thru bus validates");
+
+        // Cycle: establish 0 → 1 (both Thru), then 1 → 0 would close it.
+        installThru(proc, 0, static_cast<float>(static_cast<int>(InputSourceKind::None)));
+        proc.kit(0).channelState.out = encodeOutputDest(OutputDestKind::Track, 1);
+        CHECK(proc.validateOutEdit(1, encodeOutputDest(OutputDestKind::Track, 0)) == RR::Cycle,
+              "edit that would form a cycle rejected");
+    }
+
+    // A2: a valid edge goes dormant (falls back to Master, no black hole) when the
+    // target's machine is swapped to a non-bus, and revives when it becomes a bus
+    // again. The stored Out value is never mutated.
+    static void testRoutingDormantOnMachineSwap()
+    {
+        using Route = LockstepProcessor::Route;
+        EngineHarness h;
+        auto& proc = h.processor();
+        installThru(proc, 0, static_cast<float>(static_cast<int>(InputSourceKind::External)));
+        installThru(proc, 1, static_cast<float>(static_cast<int>(InputSourceKind::None)));
+        proc.kit(0).channelState.out = encodeOutputDest(OutputDestKind::Track, 1);
+
+        CHECK(proc.routeForTrack(0).route == Route::Bus, "edge active while target is a Thru");
+
+        // Swap the bus target to a synth — edge goes dormant (read-time fallback).
+        proc.setTrackMachine(1, VAMachine::kMachineId);
+        CHECK(proc.routeForTrack(0).route == Route::Master,
+              "edge dormant -> Master when target is no longer a bus (no black hole)");
+        CHECK(decodeOutputDest(proc.kit(0).channelState.out).track == 1,
+              "stored Out value is left intact (dormant, not erased)");
+
+        // Swap back to a Thru — the edge revives.
+        proc.setTrackMachine(1, ThruMachine::kMachineId);
+        CHECK(proc.routeForTrack(0).route == Route::Bus, "edge revives when target is a bus again");
+    }
+
     // -----------------------------------------------------------------------
     // D: stem export. A stem is written for each non-empty Master-routed track;
     // feeders fold into their bus (no own stem) and an empty/None Thru bus is
@@ -1438,6 +1492,8 @@ namespace lockstep
         testOneShotFiresOnce();
         testBusRoutingRemovesFromMaster();
         testBusCycleRefused();
+        testOutEditValidation();
+        testRoutingDormantOnMachineSwap();
         testStemCaptureRouteDefined();
     }
 }
