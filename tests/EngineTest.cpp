@@ -1357,37 +1357,50 @@ namespace lockstep
     }
 
     // -----------------------------------------------------------------------
-    // D: stem export writes one post-fader/post-FX WAV per audio track alongside
-    // the master take (DESIGN §22/§27). Uses a Thru/External source so audio is
-    // deterministic, and targets a temp dir so the test leaves no artifacts.
-    static void testStemCaptureWritesPerTrack()
+    // D: stem export. A stem is written for each non-empty Master-routed track;
+    // feeders fold into their bus (no own stem) and an empty/None Thru bus is
+    // skipped (DESIGN §27). Routing IS the stem-grouping UI. Targets a temp dir.
+    static void testStemCaptureRouteDefined()
     {
         EngineHarness h;
         auto& proc = h.processor();
+        // Track 0 = External Thru (feeder) routed into the bus on track 1.
         installThru(proc, 0, static_cast<float>(static_cast<int>(InputSourceKind::External)));
+        // Track 1 = None Thru acting as a sub-bus (Out = Master by default).
+        installThru(proc, 1, static_cast<float>(static_cast<int>(InputSourceKind::None)));
+        // Track 2 = None Thru with no feeder and no source: an empty bus.
+        installThru(proc, 2, static_cast<float>(static_cast<int>(InputSourceKind::None)));
+        proc.kit(0).channelState.out = encodeOutputDest(OutputDestKind::Track, 1);
 
         const juce::File tmpDir = juce::File::getSpecialLocation(juce::File::tempDirectory)
                                       .getChildFile("lockstep_stem_test");
         tmpDir.deleteRecursively();
-        const juce::File master = tmpDir.getChildFile("take.wav");
+        const juce::File master = tmpDir.getChildFile("master.wav");
 
-        proc.setCaptureStems(true);
+        // captureStems_ defaults true (always save stems) — no toggle call.
         CHECK(proc.startCaptureTo(master), "capture arms (master + stems)");
-        CHECK(proc.isCapturingStems(), "stem recorders are capturing while armed");
+        CHECK(proc.isCapturingStems(), "at least one stem is armed");
 
         for (int b = 0; b < 8; ++b)
             renderBlockWithInput(h, 0.5f);
 
         proc.stopCapture();
-        CHECK(!proc.isCapturingStems(), "stems are flushed/disarmed on stop");
-        CHECK(proc.stemSamplesWritten(0) > 0, "track 0 stem captured audio");
+        CHECK(!proc.isCapturingStems(), "stems flush/disarm on stop");
 
-        const juce::File stem0 = stemFileFor(master, 0);
-        CHECK(stem0.getFileName() == juce::String("track-01.wav"),
-              "0-based track 0 maps to 1-based track-01.wav");
-        CHECK(stem0.getFullPathName().contains("take-stems"),
-              "stems land in a sibling <master>-stems folder");
-        CHECK(stem0.existsAsFile(), "per-track stem WAV exists on disk");
+        // Bus (track 1) gets a stem with its feeder folded in.
+        CHECK(proc.stemSamplesWritten(1) > 0, "bus stem captured the routed feeder");
+        CHECK(stemFileFor(master, 1).existsAsFile(), "bus stem WAV exists (track-02.wav)");
+        // Feeder (track 0) routes to a bus → no own stem.
+        CHECK(proc.stemSamplesWritten(0) == 0, "feeder routed to a bus has no own stem");
+        CHECK(!stemFileFor(master, 0).existsAsFile(), "no feeder stem file written");
+        // Empty None bus (track 2) → skipped.
+        CHECK(!stemFileFor(master, 2).existsAsFile(), "empty Thru bus writes no stem");
+
+        // Naming + take-directory layout.
+        CHECK(stemFileFor(master, 1).getFileName() == juce::String("track-02.wav"),
+              "0-based track 1 maps to 1-based track-02.wav");
+        CHECK(stemFileFor(master, 1).getParentDirectory() == master.getParentDirectory(),
+              "stems live in the take directory next to master.wav");
 
         tmpDir.deleteRecursively();
     }
@@ -1425,6 +1438,6 @@ namespace lockstep
         testOneShotFiresOnce();
         testBusRoutingRemovesFromMaster();
         testBusCycleRefused();
-        testStemCaptureWritesPerTrack();
+        testStemCaptureRouteDefined();
     }
 }

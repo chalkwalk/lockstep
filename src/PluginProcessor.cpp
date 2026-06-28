@@ -5281,14 +5281,42 @@ namespace lockstep
         if (!captureRecorder_.arm(masterFile, sr, numCh))
             return false;
 
-        // D: arm one stem per audio track (MIDI-out tracks produce no audio).
+        // D: arm a stem per non-empty Master-routed track (DESIGN §27). Buses are
+        // Master-routed and capture their feeders folded in; the feeders
+        // themselves route to a bus, so they are skipped (no double-count).
         if (captureStems_)
         {
             for (std::size_t t = 0; t < kNumTracks; ++t)
-            {
-                if (machines_[t]->isMidiOut()) continue;
-                stemRecorders_[t].arm(stemFileFor(masterFile, static_cast<int>(t)), sr, numCh);
-            }
+                if (shouldStemTrack(static_cast<int>(t)))
+                    stemRecorders_[t].arm(stemFileFor(masterFile, static_cast<int>(t)), sr, numCh);
+        }
+        return true;
+    }
+
+    bool LockstepProcessor::shouldStemTrack(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
+        const auto t = static_cast<std::size_t>(track);
+        auto* m = machines_[t].get();
+        if (m == nullptr || m->isMidiOut()) return false;
+        if (std::string(m->machineId()) == StubMachine::kMachineId) return false;
+        // Only terminal (Master-routed) tracks are stems; feeders fold into their
+        // bus, Off contributes nothing.
+        if (routeForTrack(track).route != Route::Master) return false;
+        // A router (Thru) with no outside source and no inbound feeder is an empty
+        // bus — skip it rather than write a silent file.
+        const int srcSlot = slotForId(track, kInputSourceSlotId);
+        if (srcSlot >= 0)
+        {
+            const auto& bp = kit(track).baseParams;
+            const float v = (static_cast<std::size_t>(srcSlot) < bp.size())
+                                ? bp[static_cast<std::size_t>(srcSlot)] : 0.0f;
+            const bool hasSource = decodeInputSource(v).kind != InputSourceKind::None;
+            bool hasFeeder = false;
+            const auto edges = routingEdges();
+            for (std::size_t j = 0; j < kNumTracks; ++j)
+                if (edges[j] == track) { hasFeeder = true; break; }
+            if (!hasSource && !hasFeeder) return false;
         }
         return true;
     }

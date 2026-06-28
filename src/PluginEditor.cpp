@@ -851,7 +851,8 @@ namespace lockstep
                 captureController_.onStarted(now);
                 captureLastFile_ = processor_.captureFile();
                 captureStartMs_  = now;
-                setStatus(status::captureArmed(captureLastFile_.getFileName()));
+                // D: a take is a directory (master.wav + stems); show its name.
+                setStatus(status::captureArmed(captureLastFile_.getParentDirectory().getFileName()));
             }
             else
             {
@@ -866,20 +867,25 @@ namespace lockstep
             const int totalSec = static_cast<int>(dur.inSeconds());
             const juce::String durStr = juce::String(totalSec / 60)
                 + ":" + juce::String(totalSec % 60).paddedLeft('0', 2);
-            setStatus(status::captureDisarmed(durStr, captureLastFile_.getFileName()));
+            setStatus(status::captureDisarmed(durStr,
+                                              captureLastFile_.getParentDirectory().getFileName()));
         }
         if (out.discard)
         {
-            if (captureLastFile_.existsAsFile())
-                captureLastFile_.deleteFile();
+            // D: discard the whole take directory (master.wav + any stems).
+            const juce::File takeDir = captureLastFile_.getParentDirectory();
+            if (takeDir.isDirectory())
+                takeDir.deleteRecursively();
             captureLastFile_ = juce::File();
             setStatus(status::captureDiscarded());
         }
         if (out.reveal)
         {
+            // Reveal the Captures root (parent of the per-take directories).
             const juce::File dir = captureLastFile_.existsAsFile()
-                ? captureLastFile_.getParentDirectory()
-                : chooseCaptureFile(processor_.currentProjectFile()).getParentDirectory();
+                ? captureLastFile_.getParentDirectory().getParentDirectory()
+                : chooseCaptureFile(processor_.currentProjectFile())
+                      .getParentDirectory().getParentDirectory();
             dir.createDirectory();
             dir.revealToUser();
         }

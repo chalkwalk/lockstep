@@ -2,7 +2,6 @@
 
 #include "IMachine.h"
 #include "InputSource.h"
-#include "../core/Sequence.h"  // kNumTracks
 #include <array>
 
 namespace lockstep
@@ -14,9 +13,14 @@ namespace lockstep
     // the track ENVELOPE gate defaults to held-open, so a Thru track passes
     // audio continuously (the basis of continuous Thru and drones, §14).
     //
-    // Subsumes the Octatrack Thru + Neighbour split: External = classic Thru,
-    // Track N = neighbour-style. It is the only stock machine declaring
-    // input_source for now; Recorder / Looper follow at 6.2 / 6.3.
+    // Subsumes the Octatrack Thru + Neighbour split: External = classic Thru;
+    // neighbour-style inter-track routing is now output-directed (route other
+    // tracks' CHANNEL "Out" here — this track reads their sum, DESIGN §27), so
+    // input_source is just the outside-world tap {None, External, Master}. A
+    // fresh Thru defaults to None: silent until you route audio in or pick a
+    // source, which is the natural default for using it as a sub-bus. It is the
+    // only stock machine declaring input_source for now; Recorder / Looper
+    // follow at 6.2 / 6.3.
     class ThruMachine : public IMachine
     {
     public:
@@ -41,9 +45,10 @@ namespace lockstep
             s.id = kInputSourceSlotId;
             s.label = "Source";
             s.minValue = 0.0f;
-            // None, External, Master, then Track 1..kNumTracks.
-            s.maxValue = static_cast<float>(2 + kNumTracks);
-            s.defaultValue = 1.0f;  // External — a fresh Thru hears the input bus
+            // Outside-world tap only: None, External, Master (inter-track routing
+            // is output-directed via the CHANNEL "Out" slot, DESIGN §27).
+            s.maxValue = 2.0f;
+            s.defaultValue = 0.0f;  // None — silent until routed/sourced (sub-bus default)
             s.isStepped = true;
             s.sectionIndex = kSrcSecIdx;
             s.valueLabels = std::span<const char* const>(kSourceLabels.data(),
@@ -66,13 +71,10 @@ namespace lockstep
         }
 
     private:
-        // Index ↔ value: 0=None, 1=Ext, 2=Master, 3+N = Track N (matches
-        // decodeInputSource()). Keep in sync with kNumTracks.
-        static constexpr std::array<const char* const, 3 + kNumTracks> kSourceLabels = {
-            "None", "Ext", "Master",
-            "Trk1",  "Trk2",  "Trk3",  "Trk4",  "Trk5",  "Trk6",  "Trk7",  "Trk8",
-            "Trk9",  "Trk10", "Trk11", "Trk12", "Trk13", "Trk14", "Trk15", "Trk16"
+        // Index ↔ value: 0=None, 1=Ext, 2=Master (matches decodeInputSource();
+        // inter-track routing moved to the CHANNEL "Out" slot, DESIGN §27).
+        static constexpr std::array<const char* const, 3> kSourceLabels = {
+            "None", "Ext", "Master"
         };
-        static_assert(kNumTracks == 16, "kSourceLabels lists 16 tracks explicitly");
     };
 }

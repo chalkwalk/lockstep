@@ -122,29 +122,26 @@ namespace lockstep
         }
 
         const juce::Time now = juce::Time::getCurrentTime();
-        const juce::String name = "capture-"
+        const juce::String stamp = "capture-"
             + juce::String(now.getYear())
             + juce::String(now.getMonth() + 1).paddedLeft('0', 2)
             + juce::String(now.getDayOfMonth()).paddedLeft('0', 2)
             + "-"
             + juce::String(now.getHours()).paddedLeft('0', 2)
             + juce::String(now.getMinutes()).paddedLeft('0', 2)
-            + juce::String(now.getSeconds()).paddedLeft('0', 2)
-            + ".wav";
+            + juce::String(now.getSeconds()).paddedLeft('0', 2);
 
-        return capturesDir.getChildFile(name);
+        // D: every take is its own directory holding master.wav + any stems, so
+        // the master and its stems stay grouped on disk.
+        return capturesDir.getChildFile(stamp).getChildFile("master.wav");
     }
 
-    // D (stems): per-track WAV path for a stem take, in a sibling "<master>-stems"
-    // folder so all tracks of one take group together. track is 0-based; the file
-    // is 1-based ("track-01.wav") to match the surface track numbering.
+    // D (stems): per-track WAV path inside the take directory (next to master.wav).
+    // track is 0-based; the file is 1-based ("track-01.wav") to match the surface.
     inline juce::File stemFileFor(const juce::File& masterFile, int track)
     {
-        const juce::File stemsDir =
-            masterFile.getParentDirectory()
-                      .getChildFile(masterFile.getFileNameWithoutExtension() + "-stems");
         const juce::String name =
             "track-" + juce::String(track + 1).paddedLeft('0', 2) + ".wav";
-        return stemsDir.getChildFile(name);
+        return masterFile.getParentDirectory().getChildFile(name);
     }
 }

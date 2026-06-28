@@ -1043,9 +1043,16 @@ namespace lockstep
 
         // 8.26 C1: WAV performance capture.
         CaptureRecorder captureRecorder_;
-        // D: per-track stem recorders (one per audio track) + arm toggle.
+        // D: per-track stem recorders + always-on toggle. Stems are saved by
+        // default (a take is a tape of a live performance — never make a user
+        // regret only keeping the main out); the flag is a latent master-only
+        // override, currently unbound.
         std::array<CaptureRecorder, kNumTracks> stemRecorders_;
-        bool captureStems_ = false;
+        bool captureStems_ = true;
+        // D: should track `t` produce a stem? Non-MIDI-out, non-stub, routed to
+        // Master (feeders fold into their bus; Off goes nowhere), and — for a
+        // router/Thru — not an empty bus (no outside source and no inbound feeder).
+        [[nodiscard]] bool shouldStemTrack(int track) const;
 
         // Project-file state — message thread only.
         juce::MemoryBlock defaultStateBlob_;          // pristine state captured at construction
