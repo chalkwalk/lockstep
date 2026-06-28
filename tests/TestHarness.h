@@ -91,4 +91,6 @@ namespace lockstep
     void runModalStateTests();
     // 9.15: SurfaceDispatcher coalescing contract (one invalidation channel)
     void runSurfaceDispatcherTests();
+    // 6.1: input_source slot decode (audio routing, DESIGN §27)
+    void runInputSourceTests();
 }

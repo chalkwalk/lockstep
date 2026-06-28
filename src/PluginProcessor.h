@@ -861,6 +861,17 @@ namespace lockstep
         std::array<juce::AudioBuffer<float>, kNumTracks> trackBuffers_;
         // 8.26: per-block send buses (resized in prepareToPlay).
         std::array<juce::AudioBuffer<float>, 2> sendBusBufs_;
+        // 6.1: captured plugin audio input for this block (External source), and a
+        // copy of the prior block's master sum (the one sanctioned Master tap,
+        // DESIGN §27). Both resized in prepareToPlay.
+        juce::AudioBuffer<float> inputCapture_;
+        juce::AudioBuffer<float> prevMasterBuf_;
+        // 6.1: fill trackBuffers_[track] from the track machine's resolved
+        // input_source before process(). No-op (leaves the cleared buffer) for
+        // None and, until A2, Track-N. Called from both transport paths.
+        void fillTrackInput(int track, const ParamFrame& frame, int numSamples);
+        // 6.1: cache the final master output into prevMasterBuf_ (Master tap).
+        void cachePrevMaster(const juce::AudioBuffer<float>& buf, int numSamples);
         std::array<VoiceChoke, kNumTracks> trackChokes_;
         std::array<TrackFltrDsp, kNumTracks> trackFltrs_;
         std::array<TrackEnvDsp, kNumTracks> trackEnvs_;

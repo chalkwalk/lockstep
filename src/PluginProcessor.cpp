@@ -7,6 +7,7 @@
 #include "core/StateResolver.h"
 #include "core/Swing.h"
 #include "core/TrigEvaluator.h"
+#include "machine/InputSource.h"
 #include "machine/MidiDevicePresets.h"
 #include "machine/DrumSynthMachine.h"
 #include "machine/FMMachine.h"
@@ -30,7 +31,12 @@ namespace lockstep
         {
             static BusesProperties make()
             {
-                return BusesProperties().withOutput("Out", juce::AudioChannelSet::stereo(), true);
+                // 6.1: a stereo audio input on the main bus feeds the External
+                // source (Thru / resampling, DESIGN §27). In standalone JUCE wires
+                // the device input here; in a host it is the plugin's audio input.
+                return BusesProperties()
+                    .withInput("In", juce::AudioChannelSet::stereo(), true)
+                    .withOutput("Out", juce::AudioChannelSet::stereo(), true);
             }
         };
 
@@ -272,6 +278,11 @@ namespace lockstep
                 tb.setSize(numOut, samplesPerBlock, false, true, false);
             for (auto& sb : sendBusBufs_)
                 sb.setSize(numOut, samplesPerBlock, false, true, false);
+            // 6.1: input capture + prior-block master tap (DESIGN §27).
+            inputCapture_.setSize(numOut, samplesPerBlock, false, true, false);
+            inputCapture_.clear();
+            prevMasterBuf_.setSize(numOut, samplesPerBlock, false, true, false);
+            prevMasterBuf_.clear();
         }
         for (auto& choke : trackChokes_)
             choke.prepare(sampleRate, 1.5f);
@@ -321,10 +332,67 @@ namespace lockstep
         dcY1_.fill(0.0f);
     }
 
+    // 6.1: fill a track's scratch buffer from its machine's resolved input_source
+    // before process() (DESIGN §27). trackBuffers_[track] is already cleared at
+    // block start, so None — and, until A2, Track-N — simply leave it silent.
+    void LockstepProcessor::fillTrackInput(int track, const ParamFrame& frame,
+                                           int numSamples)
+    {
+        const auto t = static_cast<std::size_t>(track);
+        auto* m = machines_[t].get();
+        if (m == nullptr || m->isMidiOut()) return;  // MIDI-out has no audio input
+
+        const int slot = m->slotForId(kInputSourceSlotId);
+        if (slot < 0 || slot >= static_cast<int>(frame.size())) return;
+
+        const InputSourceSel sel = decodeInputSource(frame[static_cast<std::size_t>(slot)]);
+        auto& dst = trackBuffers_[t];
+
+        const auto copyInto = [&](const juce::AudioBuffer<float>& src) {
+            const int chans = std::min(dst.getNumChannels(), src.getNumChannels());
+            const int n = std::min(numSamples, src.getNumSamples());
+            for (int ch = 0; ch < chans; ++ch)
+                dst.copyFrom(ch, 0, src, ch, 0, n);
+        };
+
+        switch (sel.kind)
+        {
+            case InputSourceKind::None:
+                break;  // leave the cleared buffer
+            case InputSourceKind::External:
+                copyInto(inputCapture_);
+                break;
+            case InputSourceKind::Master:
+                copyInto(prevMasterBuf_);  // one-block tap (DESIGN §27)
+                break;
+            case InputSourceKind::Track:
+                // Inter-track routing needs the per-block topological sort (A2).
+                // Until then the source stays silent.
+                break;
+        }
+    }
+
+    // 6.1: cache the final master output so a track sourcing Master reads the
+    // prior block (the one sanctioned feedback-free tap, DESIGN §27).
+    void LockstepProcessor::cachePrevMaster(const juce::AudioBuffer<float>& buf,
+                                            int numSamples)
+    {
+        const int chans = std::min(prevMasterBuf_.getNumChannels(), buf.getNumChannels());
+        const int n = std::min(numSamples, prevMasterBuf_.getNumSamples());
+        prevMasterBuf_.clear();
+        for (int ch = 0; ch < chans; ++ch)
+            prevMasterBuf_.copyFrom(ch, 0, buf, ch, 0, n);
+    }
+
     bool LockstepProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
     {
         const auto& mainOut = layouts.getMainOutputChannelSet();
-        return mainOut == juce::AudioChannelSet::stereo() || mainOut == juce::AudioChannelSet::mono();
+        if (mainOut != juce::AudioChannelSet::stereo() && mainOut != juce::AudioChannelSet::mono())
+            return false;
+        // 6.1: the main input may be stereo, mono, or disabled (no input host).
+        const auto& mainIn = layouts.getMainInputChannelSet();
+        return mainIn == juce::AudioChannelSet::stereo() || mainIn == juce::AudioChannelSet::mono()
+               || mainIn == juce::AudioChannelSet::disabled();
     }
 
     void LockstepProcessor::processBlock(juce::AudioBuffer<float>& buffer,
@@ -334,6 +402,18 @@ namespace lockstep
 
         const auto totalIn = getTotalNumInputChannels();
         const auto totalOut = getTotalNumOutputChannels();
+
+        // 6.1: snapshot the plugin audio input before we overwrite the shared
+        // in/out buffer, so tracks with input_source = External can read it
+        // (DESIGN §27). Buses with no input leave inputCapture_ silent.
+        {
+            const int numSamples = buffer.getNumSamples();
+            const int capCh = std::min(inputCapture_.getNumChannels(), totalIn);
+            inputCapture_.clear();
+            for (int ch = 0; ch < capCh; ++ch)
+                inputCapture_.copyFrom(ch, 0, buffer, ch, 0, numSamples);
+        }
+
         for (int ch = totalIn; ch < totalOut; ++ch)
             buffer.clear(ch, 0, buffer.getNumSamples());
         buffer.clear();
@@ -1183,6 +1263,7 @@ namespace lockstep
                 }
                 else
                 {
+                    fillTrackInput(static_cast<int>(i), frame, numBlockSamples);
                     mi->process(trackMidi[i], frame, trackBuffers_[i]);
 
                     const int mnp = mi->numParams();
@@ -1354,6 +1435,7 @@ namespace lockstep
                                    : masterPeak_.load(std::memory_order_relaxed),
                                std::memory_order_relaxed);
             captureRecorder_.writeBlock(buffer, numBlockSamples);
+            cachePrevMaster(buffer, numBlockSamples);
             return;
         }
 
@@ -2047,6 +2129,7 @@ namespace lockstep
             }
             else
             {
+                fillTrackInput(static_cast<int>(i), frame, numBlockSamples);
                 mi->process(trackMidi[i], frame, trackBuffers_[i]);
 
                 const int mnp = mi->numParams();
@@ -2234,6 +2317,7 @@ namespace lockstep
                                : masterPeak_.load(std::memory_order_relaxed),
                            std::memory_order_relaxed);
         captureRecorder_.writeBlock(buffer, numBlockSamples);
+        cachePrevMaster(buffer, numBlockSamples);
 
         totalSamplesProcessed_ += numBlockSamples;
     }
