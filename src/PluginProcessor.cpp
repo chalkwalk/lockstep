@@ -8,6 +8,7 @@
 #include "core/Swing.h"
 #include "core/TrigEvaluator.h"
 #include "machine/InputSource.h"
+#include "machine/ThruMachine.h"
 #include "machine/MidiDevicePresets.h"
 #include "machine/DrumSynthMachine.h"
 #include "machine/FMMachine.h"
@@ -4113,6 +4114,8 @@ namespace lockstep
             return std::make_unique<VAMachine>();
         if (id == SlicerMachine::kMachineId)
             return std::make_unique<SlicerMachine>(pool);
+        if (id == ThruMachine::kMachineId)
+            return std::make_unique<ThruMachine>();
         // "lockstep.stub" is an explicitly-empty track (unknownId = "").
         // Any other unrecognised ID keeps its original id as the unknownId.
         if (id == StubMachine::kMachineId)
@@ -4129,6 +4132,7 @@ namespace lockstep
         { FMMachine::kMachineId, "FM Synth" },
         { VAMachine::kMachineId, "VA Synth" },
         { DrumSynthMachine::kMachineId, "Drum Synth" },
+        { ThruMachine::kMachineId, "Thru" },
         { MidiOutMachine::kMachineId, "MIDI Out" },
     };
 

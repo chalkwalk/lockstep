@@ -20,6 +20,8 @@
 #include "../src/machine/VAMachine.h"
 #include "../src/machine/SamplerMachine.h"
 #include "../src/machine/StubMachine.h"
+#include "../src/machine/ThruMachine.h"
+#include "../src/machine/InputSource.h"
 
 namespace lockstep
 {
@@ -1121,6 +1123,78 @@ namespace lockstep
         CHECK(trk.trigDefaults.note == before, "transpose: zero/OOB are no-ops");
     }
 
+    // -----------------------------------------------------------------------
+    // 6.1: install a ThruMachine on a track with a given input_source value.
+    static void installThru(LockstepProcessor& proc, int track, float sourceValue)
+    {
+        ThruMachine tmp;
+        const int np = tmp.numParams();
+        auto& k = proc.kit(track);
+        k.machineId = ThruMachine::kMachineId;
+        k.baseParams.resize(static_cast<std::size_t>(np));
+        for (int i = 0; i < np; ++i)
+            k.baseParams[static_cast<std::size_t>(i)] = tmp.paramSpec(i).defaultValue;
+        const int slot = tmp.slotForId(kInputSourceSlotId);
+        if (slot >= 0)
+            k.baseParams[static_cast<std::size_t>(slot)] = sourceValue;
+        proc.reinstallMachinesFromActiveKit();
+    }
+
+    // Run one block with the input bus pre-filled with an AC test tone (a
+    // sign-alternating level survives the master DC blocker, so the assertions
+    // measure genuine routing rather than a settling transient).
+    static float renderBlockWithInput(EngineHarness& h, float inputLevel)
+    {
+        juce::AudioBuffer<float> buf(2, EngineHarness::kBlockSize);
+        for (int ch = 0; ch < buf.getNumChannels(); ++ch)
+            for (int n = 0; n < buf.getNumSamples(); ++n)
+                buf.setSample(ch, n, (n % 2 == 0) ? inputLevel : -inputLevel);
+        juce::MidiBuffer midi;
+        h.processor().processBlock(buf, midi);
+        h.playHead().advance();
+        return buf.getMagnitude(0, buf.getNumSamples());
+    }
+
+    static void testThruPassesExternalInput()
+    {
+        // Every other track is a default sampler/stub with no trig, so the only
+        // audio reaching the master sum is the Thru track's passed-through input.
+        {
+            EngineHarness h;
+            installThru(h.processor(), 0,
+                        static_cast<float>(static_cast<int>(InputSourceKind::External)));
+            const float out = renderBlockWithInput(h, 0.5f);
+            CHECK(out > 0.05f, "Thru/External passes the input bus to the output");
+        }
+        // A fresh engine with None must stay silent even with input on the bus.
+        {
+            EngineHarness h;
+            installThru(h.processor(), 0,
+                        static_cast<float>(static_cast<int>(InputSourceKind::None)));
+            const float out = renderBlockWithInput(h, 0.5f);
+            CHECK(out < 1e-3f, "Thru/None synthesises silence, ignoring the input bus");
+        }
+    }
+
+    static void testThruMasterTap()
+    {
+        EngineHarness h;
+        // Track 1 brings the input in; track 0 reads the prior-block master.
+        installThru(h.processor(), 1,
+                    static_cast<float>(static_cast<int>(InputSourceKind::External)));
+        installThru(h.processor(), 0,
+                    static_cast<float>(static_cast<int>(InputSourceKind::Master)));
+
+        // Block 1: input present → master is non-silent and gets cached.
+        const float b1 = renderBlockWithInput(h, 0.5f);
+        CHECK(b1 > 0.05f, "master tap setup: block 1 produces output");
+
+        // Block 2: no input → track 1 is silent, but track 0 replays the prior
+        // block's master sum (the one sanctioned one-block tap, DESIGN §27).
+        const float b2 = renderBlockWithInput(h, 0.0f);
+        CHECK(b2 > 0.01f, "Thru/Master replays the prior block's master sum");
+    }
+
     void runEngineTests()
     {
         testTransposeTrack();
@@ -1147,5 +1221,7 @@ namespace lockstep
         testTrackFilterLPOnVA();
         testTrackPanLaw();
         testSwapStepsCarriesData();
+        testThruPassesExternalInput();
+        testThruMasterTap();
     }
 }
