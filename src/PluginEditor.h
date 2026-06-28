@@ -93,6 +93,24 @@ namespace lockstep
         // Key codes currently held down — used to suppress OS key-repeat in keyPressed().
         std::set<int> heldKeys_;
 
+        // 5.5 Audition (Cue scope, DESIGN §21). Cue is entered as the Func+3
+        // compound (no dedicated key — hardware parity); cueViaFunc_ tracks the
+        // held '3' so its release exits the scope. Audition fires resolved notes
+        // via liveNoteOn/Off and writes nothing to the pattern.
+        bool cueViaFunc_ = false;
+        int auditionBaseTrack_ = -1;   // focused-track base-trig monitor (Cue, no step)
+        int auditionBaseNote_ = -1;
+        struct StepAudition { int track = -1; int count = 0;
+                              std::array<int, kMaxNotesPerStep> notes{}; };
+        std::array<StepAudition, kMaxStepsPerTrack> stepAudition_{};
+        void enterCueScope();
+        void exitCueScope();
+        void auditionBaseTrigDown();
+        void auditionBaseTrigOff();
+        void auditionStepDown(int stepIdx);
+        void auditionStepOff(int stepIdx);
+        void auditionAllOff();
+
         bool playKeyHeld_ = false;
 
         // Stage 2: single home for all input-timing state (double-tap + long-press).

@@ -1195,6 +1195,34 @@ namespace lockstep
         CHECK(b2 > 0.01f, "Thru/Master replays the prior block's master sum");
     }
 
+    // -----------------------------------------------------------------------
+    // 5.5: audition fires a live note off-schedule (the mechanism the Cue
+    // gesture drives) and leaves the pattern untouched.
+    static void testAuditionLiveNote()
+    {
+        EngineHarness h;
+        installMachine(h.processor(), 0, DrumSynthMachine::kMachineId);
+
+        // No trigs anywhere: without audition the engine is silent.
+        h.renderBlocks(2);
+        CHECK(h.lastBufferRms() < 1e-4f, "audition: silent before any live note");
+
+        // Audition the focused track's base trig (Cue, no step).
+        h.processor().liveNoteOn(0, 60, 100);
+        float maxRms = 0.0f;
+        for (int b = 0; b < 4; ++b)
+        {
+            h.renderBlocks(1);
+            maxRms = std::max(maxRms, h.lastBufferRms());
+        }
+        CHECK(maxRms > 1e-4f, "audition: liveNoteOn produces audio off-schedule");
+
+        // The pattern is untouched — audition never writes a trig.
+        CHECK(!h.processor().sequence().tracks[0].steps[0].trig,
+              "audition: step 0 trig stays off (no pattern mutation)");
+        h.processor().liveNoteOff(0, 60);
+    }
+
     void runEngineTests()
     {
         testTransposeTrack();
@@ -1223,5 +1251,6 @@ namespace lockstep
         testSwapStepsCarriesData();
         testThruPassesExternalInput();
         testThruMasterTap();
+        testAuditionLiveNote();
     }
 }

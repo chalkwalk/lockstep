@@ -3,6 +3,7 @@
 #include "command/ScopePriority.h"
 #include "command/StatusText.h"
 #include "core/Euclidean.h"
+#include "core/StateResolver.h"
 #include "core/MelodyGen.h"
 #include "core/HarmonyGen.h"
 #include "core/MetricGrid.h"
@@ -2729,11 +2730,105 @@ namespace lockstep
         return ui.trackHeld || ui.phraseScopeHeld || ui.sceneHeld || ui.morphHeld || ui.songHeld;
     }
 
+    // ── 5.5 Audition (Cue scope, DESIGN §21) ─────────────────────────────────
+    // Cue is a monitor: it fires resolved notes via liveNoteOn/Off and never
+    // writes to the pattern. Entered as the Func+3 compound (hardware parity).
+
+    void LockstepEditor::enterCueScope()
+    {
+        using CB = ControllerButton;
+        cueViaFunc_ = true;
+        physHeld_.cue = true;
+        uiState_.cueHeld = true;
+        editMode_.onScopeEvent({ ControllerEvent::Type::ButtonDown, CB::CueScope });
+        auditionBaseTrigDown();   // "Cue held, no step" → focused track base trig
+        refreshSurface();
+    }
+
+    void LockstepEditor::exitCueScope()
+    {
+        using CB = ControllerButton;
+        auditionAllOff();
+        cueViaFunc_ = false;
+        physHeld_.cue = false;
+        uiState_.cueHeld = false;
+        editMode_.onScopeEvent({ ControllerEvent::Type::ButtonUp, CB::CueScope });
+        refreshSurface();
+    }
+
+    void LockstepEditor::auditionBaseTrigDown()
+    {
+        const int t = keyboardArea_.getActiveTrack();
+        if (t < 0 || t >= static_cast<int>(kNumTracks)) return;
+        auditionBaseTrigOff();  // never stack base monitors
+        const auto& trk = processor_.sequence().tracks[static_cast<std::size_t>(t)];
+        auditionBaseTrack_ = t;
+        auditionBaseNote_ = trk.trigDefaults.note;
+        processor_.liveNoteOn(t, auditionBaseNote_, trk.trigDefaults.velocity);
+    }
+
+    void LockstepEditor::auditionBaseTrigOff()
+    {
+        if (auditionBaseTrack_ >= 0 && auditionBaseNote_ >= 0)
+            processor_.liveNoteOff(auditionBaseTrack_, auditionBaseNote_);
+        auditionBaseTrack_ = -1;
+        auditionBaseNote_ = -1;
+    }
+
+    void LockstepEditor::auditionStepDown(int stepIdx)
+    {
+        if (stepIdx < 0 || stepIdx >= kMaxStepsPerTrack) return;
+        // A specific step was chosen — drop the bare base-trig monitor.
+        auditionBaseTrigOff();
+        const int t = keyboardArea_.getActiveTrack();
+        if (t < 0 || t >= static_cast<int>(kNumTracks)) return;
+        auditionStepOff(stepIdx);  // release any stale audition on this step
+        const auto& trk = processor_.sequence().tracks[static_cast<std::size_t>(t)];
+        const auto trig = StateResolver::resolveTrig(trk, stepIdx, false);
+        auto& sa = stepAudition_[static_cast<std::size_t>(stepIdx)];
+        sa.track = t;
+        sa.count = trig.noteCount;
+        for (int n = 0; n < trig.noteCount; ++n)
+        {
+            const auto ni = static_cast<std::size_t>(n);
+            const int note = trig.notes[ni];
+            const int vel = trig.hasNoteVelocities ? static_cast<int>(trig.velocities[ni])
+                                                   : trig.velocity;
+            sa.notes[ni] = note;
+            processor_.liveNoteOn(t, note, vel);
+        }
+    }
+
+    void LockstepEditor::auditionStepOff(int stepIdx)
+    {
+        if (stepIdx < 0 || stepIdx >= kMaxStepsPerTrack) return;
+        auto& sa = stepAudition_[static_cast<std::size_t>(stepIdx)];
+        for (int n = 0; n < sa.count; ++n)
+            processor_.liveNoteOff(sa.track, sa.notes[static_cast<std::size_t>(n)]);
+        sa = StepAudition{};
+    }
+
+    void LockstepEditor::auditionAllOff()
+    {
+        auditionBaseTrigOff();
+        for (int i = 0; i < kMaxStepsPerTrack; ++i)
+            auditionStepOff(i);
+    }
+
     // dispatchDown — source-agnostic button-down handler fed by both keyboard
     // and mouse.  rawCode is the physical key code (keyboard) or 0 (mouse).
     bool LockstepEditor::dispatchDown(ControllerEvent ev, int rawCode)
     {
         using CB = ControllerButton;
+
+        // 5.5: Func+3 enters the Cue (audition/monitor) scope — a freed compound,
+        // not a 9th key (hardware parity; DESIGN §21/§31). Held = cueHeld;
+        // releasing the '3' key exits (handled in dispatchUp via cueViaFunc_).
+        if (ev.button == CB::TapTempo && uiState_.funcHeld && !cueViaFunc_)
+        {
+            enterCueScope();
+            return true;
+        }
 
         // Generator hub (9.10): intercept bare TapTempo (3-key) before CommandCore.
         // handleTapTempo() is deferred to key-up; a long hold opens the hub instead.
@@ -2741,6 +2836,14 @@ namespace lockstep
         {
             tapTempoPhysHeld_ = true;
             tapTempoArmMs_ = juce::Time::getMillisecondCounterHiRes();
+            return true;
+        }
+
+        // 5.5: while Cue is held, a step press auditions that step's resolved trig
+        // (off-schedule, pattern untouched). Intercept before normal step dispatch.
+        if (uiState_.cueHeld && ev.button == CB::Step)
+        {
+            auditionStepDown(ev.index);
             return true;
         }
 
@@ -4591,6 +4694,15 @@ namespace lockstep
     {
         using CB = ControllerButton;
         using T = ControllerEvent::Type;
+
+        // 5.5: Cue scope (Func+3) releases. The '3' key-up exits the scope; a
+        // step-up ends that step's audition. Intercepted before any other handler
+        // so neither the command core nor legacy dispatch consumes them.
+        if (cueViaFunc_)
+        {
+            if (ev.button == CB::Step) { auditionStepOff(ev.index); return; }
+            if (ev.button == CB::TapTempo) { exitCueScope(); return; }
+        }
 
         // Phase 8.4 command core: try migrated handlers first.
         {
