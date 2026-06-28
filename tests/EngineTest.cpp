@@ -555,9 +555,12 @@ namespace lockstep
         hB.processor().setStateInformation(state.getData(),
                                             static_cast<int>(state.getSize()));
 
-        // masterSends[0] effectId, bypass, and mix param.
-        CHECK(hB.processor().songAt(0).masterSends[0].effectId == "lockstep.verbhq.v1",
-              "v17 round-trip: masterSends[0].effectId survived");
+        // masterSends[0] effectId, bypass, and mix param. The deprecated HQ-only
+        // id "lockstep.verbhq.v1" is migrated to the unified "lockstep.reverb.v1"
+        // (which auto-upgrades to the HQ face on a master slot), so the round-trip
+        // yields the canonical id.
+        CHECK(hB.processor().songAt(0).masterSends[0].effectId == "lockstep.reverb.v1",
+              "v17 round-trip: masterSends[0].effectId migrated verbhq -> reverb");
         CHECK(hB.processor().songAt(0).masterSends[0].bypass == true,
               "v17 round-trip: masterSends[0].bypass survived");
         const float loadedMix = hB.processor().masterSendParam(0, 6);

@@ -4385,10 +4385,11 @@ namespace lockstep
     {
         if (slot < 0 || slot > 1) return;
         const auto si = static_cast<std::size_t>(slot);
+        const std::string id = canonicalEffectId(effectId);
         auto& insSlot = song().masterInserts[si];
-        insSlot.effectId = effectId;
+        insSlot.effectId = id;
 
-        auto newEff = makeEffectForId(effectId);
+        auto newEff = makeEffectForId(id, EffectTier::Master);
         if (newEff)
         {
             const int np = newEff->numParams();
@@ -4527,10 +4528,11 @@ namespace lockstep
     {
         if (slot < 0 || slot > 1) return;
         const auto si = static_cast<std::size_t>(slot);
-        auto newEff = makeEffectForId(effectId);
+        const std::string id = canonicalEffectId(effectId);
+        auto newEff = makeEffectForId(id, EffectTier::Master);
         if (!newEff) return;
         newEff->prepare(preparedSampleRate_, preparedBlockSize_);
-        song().masterSends[si].effectId = effectId;
+        song().masterSends[si].effectId = id;
         const int np = newEff->numParams();
         song().masterSends[si].baseParams.assign(static_cast<std::size_t>(np), 0.0f);
         for (int p = 0; p < np; ++p)

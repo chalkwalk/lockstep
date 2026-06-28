@@ -696,7 +696,7 @@ namespace lockstep::PluginState
             {
                 const auto& mIns = song.masterInserts[static_cast<std::size_t>(s)];
                 if (mIns.effectId.empty()) continue;
-                auto tempEff = makeEffectForId(mIns.effectId);
+                auto tempEff = makeEffectForId(mIns.effectId, EffectTier::Master);
                 if (!tempEff) continue;
                 juce::ValueTree mInsNode(keys::kMasterIns);
                 mInsNode.setProperty("slot", s, nullptr);
@@ -725,7 +725,7 @@ namespace lockstep::PluginState
             {
                 const auto& mSnd = song.masterSends[static_cast<std::size_t>(s)];
                 if (mSnd.effectId.empty()) continue;
-                auto tempEff = makeEffectForId(mSnd.effectId);
+                auto tempEff = makeEffectForId(mSnd.effectId, EffectTier::Master);
                 if (!tempEff) continue;
                 juce::ValueTree mSndNode(keys::kMasterSnd);
                 mSndNode.setProperty("slot", s, nullptr);
@@ -840,12 +840,13 @@ namespace lockstep::PluginState
                     // v14: master FX insert slot.
                     const int s = static_cast<int>(child.getProperty("slot", -1));
                     if (s < 0 || s > 1) continue;
-                    const std::string effId = child.getProperty(keys::kEid, "").toString().toStdString();
+                    const std::string effId = canonicalEffectId(
+                        child.getProperty(keys::kEid, "").toString().toStdString());
                     if (effId.empty()) continue;
                     auto& mIns = song.masterInserts[static_cast<std::size_t>(s)];
                     mIns.effectId = effId;
                     mIns.bypass = (static_cast<int>(child.getProperty(keys::kBypass, 0)) != 0);
-                    auto tempEff = makeEffectForId(effId);
+                    auto tempEff = makeEffectForId(effId, EffectTier::Master);
                     if (tempEff)
                     {
                         const int np = tempEff->numParams();
@@ -872,12 +873,13 @@ namespace lockstep::PluginState
                     // v17: master send return slot.
                     const int s = static_cast<int>(child.getProperty("slot", -1));
                     if (s < 0 || s > 1) continue;
-                    const std::string effId = child.getProperty(keys::kEid, "").toString().toStdString();
+                    const std::string effId = canonicalEffectId(
+                        child.getProperty(keys::kEid, "").toString().toStdString());
                     if (effId.empty()) continue;
                     auto& mSnd = song.masterSends[static_cast<std::size_t>(s)];
                     mSnd.effectId = effId;
                     mSnd.bypass = (static_cast<int>(child.getProperty(keys::kBypass, 0)) != 0);
-                    auto tempEff = makeEffectForId(effId);
+                    auto tempEff = makeEffectForId(effId, EffectTier::Master);
                     if (tempEff)
                     {
                         const int np = tempEff->numParams();

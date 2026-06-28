@@ -30,6 +30,30 @@ namespace lockstep
         virtual juce::String badge() const = 0;
     };
 
+    // Placement-aware quality tier. Some effects (e.g. Reverb, Delay, Saturation)
+    // present two faces from a single catalogue entry: a lean LQ face on track
+    // inserts and a richer, oversampled HQ face on the master bus / sends. The
+    // tier is *structural* — it is derived from where the slot lives, never
+    // stored — so every save/load and placement site must pass the tier that
+    // matches its slot (Track for track inserts, Master for master inserts/sends).
+    // Param schemas may differ between tiers; effects are never moved across
+    // track<->master, so a given slot's tier (and thus its param set) is fixed.
+    enum class EffectTier
+    {
+        Track,   // lean LQ face (~4 params, no oversampling)
+        Master   // rich HQ face (~8 params, oversampled)
+    };
+
     // Create an effect by stable string ID. Returns nullptr for unknown IDs.
-    std::unique_ptr<IEffect> makeEffectForId(const std::string& id);
+    // `tier` selects the LQ/HQ face for tier-aware effects; non-tiered effects
+    // ignore it. Legacy HQ-only ids (verbhq/delayhq) resolve to their HQ face
+    // regardless of tier.
+    std::unique_ptr<IEffect> makeEffectForId(const std::string& id,
+                                             EffectTier tier = EffectTier::Track);
+
+    // Normalise a stored effect id: maps deprecated ids to their canonical
+    // catalogue id (e.g. the old master-only "lockstep.verbhq.v1" ->
+    // "lockstep.reverb.v1", which auto-upgrades to HQ on a master slot).
+    // Returns the id unchanged if it has no alias.
+    std::string canonicalEffectId(const std::string& id);
 }
