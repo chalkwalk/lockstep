@@ -1148,6 +1148,7 @@ namespace lockstep
                 f = makeField(kVoiceLabels[v], -1.0f, static_cast<float>(ladderMax),
                               static_cast<float>(rung), {}, true);
                 f.harmonyVoiceCell = true;
+                f.harmonyKnobTop = (v % 2 == 1);   // stagger the half-knobs behind
                 f.harmonyChromatic = chromatic;
                 f.reelPrev = chordVoiceName(cur - 1, v);
                 f.reelNow  = chordVoiceName(cur, v);
@@ -1161,6 +1162,7 @@ namespace lockstep
                 f = makeField(kVoiceLabels[v], -1.0f, static_cast<float>(ladderMax),
                               -1.0f, {}, true);
                 f.harmonyVoiceCell = true;
+                f.harmonyKnobTop = (v % 2 == 1);   // stagger the half-knobs behind
                 f.harmonyVoiceOff = true;
                 f.reelPrev = chordVoiceName(cur - 1, v);
                 f.reelNext = chordVoiceName(cur + 1, v);
@@ -1178,10 +1180,13 @@ namespace lockstep
                               static_cast<float>(K), juce::String(K), true);
         result[5] = makeField("CUR", 1.0f, static_cast<float>(K),
                               static_cast<float>(cur + 1), juce::String(cur + 1), true);
-        // MOVE / OCT are relative: neutral 0, signed range; each detent nudges.
+        // MOVE / OCT are relative: they reset to a neutral 0 each frame and each
+        // detent nudges, so a live readout is impossible — show "+/-" as a static
+        // bidirectional affordance instead of a misleading "0".
         result[6] = makeField("MOVE", -static_cast<float>(ladderMax) - 1.0f,
-                              static_cast<float>(ladderMax) + 1.0f, 0.0f, juce::String("0"), true);
-        result[7] = makeField("OCT", -4.0f, 4.0f, 0.0f, juce::String("0"), true);
+                              static_cast<float>(ladderMax) + 1.0f, 0.0f, juce::String("+/-"), true);
+        result[7] = makeField("OCT", -static_cast<float>(kHarmonyOctaves),
+                              static_cast<float>(kHarmonyOctaves), 0.0f, juce::String("+/-"), true);
         return result;
     }
 
@@ -1530,6 +1535,41 @@ namespace lockstep
         }
     }
 
+    // -- Harmony voice helpers (duplicate-pitch + range guards) ---------------
+    // The chord buffer must never carry two voices on the same pitch (repeated
+    // notes), and a whole-chord transpose must never push a voice past the
+    // ladder's MIDI extent. These pure helpers are the single home for both
+    // checks so the diatonic (writeMetaField) and chromatic (nudge*) write paths
+    // cannot disagree.
+
+    // Resolved MIDI of voice `i` in `ch`.
+    static int harmonyVoicePitch(const HarmonyChord& ch, const std::vector<int>& ladder, int i)
+    {
+        return resolveVoice(ladder, ch.voice[static_cast<std::size_t>(i)],
+                            ch.chroma[static_cast<std::size_t>(i)]);
+    }
+
+    // True if any voice other than `skip` already resolves to `pitch`.
+    static bool harmonyPitchTaken(const HarmonyChord& ch, const std::vector<int>& ladder,
+                                  int pitch, int skip)
+    {
+        for (int i = 0; i < ch.voiceCount; ++i)
+            if (i != skip && harmonyVoicePitch(ch, ladder, i) == pitch) return true;
+        return false;
+    }
+
+    // Express an absolute MIDI `pitch` as (rung, chroma) against the ladder:
+    // anchor on the nearest rung at or below, carry the residual as the offset.
+    static void harmonyRungChromaFor(const std::vector<int>& ladder, int pitch,
+                                     int& rung, int& chroma)
+    {
+        const int ladderMax = std::max(0, static_cast<int>(ladder.size()) - 1);
+        int anchor = 0;
+        while (anchor < ladderMax && ladder[static_cast<std::size_t>(anchor + 1)] <= pitch) ++anchor;
+        rung = anchor;
+        chroma = pitch - ladder[static_cast<std::size_t>(anchor)];
+    }
+
     void nudgeHarmonyChroma(LockstepProcessor& proc, UiState& ui, int vi, int semis)
     {
         if (semis == 0 || vi < 0 || vi >= kHarmonyVoices) return;
@@ -1541,12 +1581,59 @@ namespace lockstep
 
         const KeySig key = proc.effectiveKeySig();
         const auto ladder = harmonyLadder(key, kHarmonyRootBase + key.root, kHarmonyOctaves);
+        if (ladder.empty()) return;
+        const int lo = ladder.front(), hi = ladder.back();
+        const int dir = (semis > 0) ? 1 : -1;
+
         int rung = ch.voice[static_cast<std::size_t>(vi)];
         int chroma = ch.chroma[static_cast<std::size_t>(vi)] + semis;
         canonicalizeVoice(ladder, rung, chroma);
+        int pitch = resolveVoice(ladder, rung, chroma);
+        // Skip over any pitch already taken by another voice (no repeated notes),
+        // continuing in the turn direction; reject if that runs off the ladder.
+        while (harmonyPitchTaken(ch, ladder, pitch, vi))
+        {
+            pitch += dir;
+            if (pitch < lo || pitch > hi) return;  // no free pitch that way → reject
+            harmonyRungChromaFor(ladder, pitch, rung, chroma);
+        }
+        if (pitch < lo || pitch > hi) return;       // out of range → reject the move
         ch.voice[static_cast<std::size_t>(vi)] = rung;
         ch.chroma[static_cast<std::size_t>(vi)] =
             static_cast<std::int8_t>(std::clamp(chroma, -120, 120));
+    }
+
+    void nudgeHarmonyChromaAll(LockstepProcessor& proc, UiState& ui, int semis)
+    {
+        if (semis == 0) return;
+        auto& prog = ui.harmonyProg;
+        const int K = std::clamp(prog.length, 1, kMaxHarmonyChords);
+        const int cur = std::clamp(prog.cursor, 0, K - 1);
+        auto& ch = prog.chords[static_cast<std::size_t>(cur)];
+        const int vc = std::clamp(ch.voiceCount, 0, kHarmonyVoices);
+
+        const KeySig key = proc.effectiveKeySig();
+        const auto ladder = harmonyLadder(key, kHarmonyRootBase + key.root, kHarmonyOctaves);
+        if (ladder.empty()) return;
+        const int lo = ladder.front(), hi = ladder.back();
+
+        // A whole-chord chromatic slide moves every voice by the same interval,
+        // so spacing (and thus distinctness) is preserved. Disallow the whole
+        // operation if it would push ANY voice past the ladder's MIDI extent.
+        for (int vi = 0; vi < vc; ++vi)
+        {
+            const int target = harmonyVoicePitch(ch, ladder, vi) + semis;
+            if (target < lo || target > hi) return;
+        }
+        for (int vi = 0; vi < vc; ++vi)
+        {
+            const int target = harmonyVoicePitch(ch, ladder, vi) + semis;
+            int rung = 0, chroma = 0;
+            harmonyRungChromaFor(ladder, target, rung, chroma);
+            ch.voice[static_cast<std::size_t>(vi)] = rung;
+            ch.chroma[static_cast<std::size_t>(vi)] =
+                static_cast<std::int8_t>(std::clamp(chroma, -120, 120));
+        }
     }
 
     // =========================================================================
@@ -1632,25 +1719,57 @@ namespace lockstep
                     const int vi = field;
                     if (v < 0)
                     {
-                        // Off-detent removes this voice and any above it (keep >= 1).
-                        if (vi < ch.voiceCount) ch.voiceCount = std::max(1, vi);
+                        // Off-detent reverts THIS voice to off without disturbing
+                        // the others: drop voice vi and shift the voices above it
+                        // down one. Keep a floor of one voice (the last remaining
+                        // voice clamps at rung 0 rather than emptying the chord).
+                        if (vi < ch.voiceCount && ch.voiceCount > 1)
+                        {
+                            for (int j = vi; j + 1 < ch.voiceCount; ++j)
+                            {
+                                ch.voice[static_cast<std::size_t>(j)] =
+                                    ch.voice[static_cast<std::size_t>(j + 1)];
+                                ch.chroma[static_cast<std::size_t>(j)] =
+                                    ch.chroma[static_cast<std::size_t>(j + 1)];
+                            }
+                            --ch.voiceCount;
+                        }
+                        else if (vi == 0)
+                        {
+                            // Last voice: clamp at the floor instead of removing.
+                            ch.voice[0] = 0;
+                            ch.chroma[0] = 0;
+                        }
                     }
                     else
                     {
                         // A bare (diatonic) turn lands on a rung — clear any
                         // borrowed-tone offset so the voice is back in-scale.
-                        const int idx = std::clamp(v, 0, ladderMax);
-                        if (vi < ch.voiceCount)
+                        // Skip over any rung already taken by another voice (no
+                        // repeated notes), continuing toward the target; reject
+                        // if there is no free rung that way.
+                        const bool adding = (vi == ch.voiceCount && ch.voiceCount < kHarmonyVoices);
+                        if (vi >= ch.voiceCount && !adding)
+                            break;
+                        int idx = std::clamp(v, 0, ladderMax);
+                        const int from = (vi < ch.voiceCount)
+                                             ? ch.voice[static_cast<std::size_t>(vi)] : idx;
+                        const int dir = (idx >= from) ? 1 : -1;
+                        const int skip = (vi < ch.voiceCount) ? vi : -1;  // adding: collide with none of self
+                        bool ok = true;
+                        while (!ladder.empty()
+                               && harmonyPitchTaken(ch, ladder, ladder[static_cast<std::size_t>(idx)], skip))
                         {
-                            ch.voice[static_cast<std::size_t>(vi)] = idx;
-                            ch.chroma[static_cast<std::size_t>(vi)] = 0;
+                            const int nxt = idx + dir;
+                            if (nxt < 0 || nxt > ladderMax) { ok = false; break; }
+                            idx = nxt;
                         }
-                        else if (vi == ch.voiceCount && ch.voiceCount < kHarmonyVoices)
-                        {
-                            ch.voice[static_cast<std::size_t>(vi)] = idx;
-                            ch.chroma[static_cast<std::size_t>(vi)] = 0;
+                        if (!ok)
+                            break;  // no free rung → leave the chord untouched
+                        ch.voice[static_cast<std::size_t>(vi)] = idx;
+                        ch.chroma[static_cast<std::size_t>(vi)] = 0;
+                        if (adding)
                             ch.voiceCount = vi + 1;
-                        }
                     }
                     break;
                 }
@@ -1670,18 +1789,25 @@ namespace lockstep
                     prog.cursor = std::clamp(v - 1, 0, K - 1);
                     break;
                 case 6:  // MOVE — shift every voice by v scale degrees (ladder steps).
-                    if (v != 0)
+                case 7:  // OCT  — shift every voice by v octaves (v * scaleSize steps).
+                {
+                    const int delta = (field == 7) ? v * scaleSize : v;
+                    if (delta == 0)
+                        break;
+                    // Disallow the whole transpose if it would push ANY voice past
+                    // the ladder's extent — the chord moves as a rigid block or not
+                    // at all (no per-voice clamp squashing the voicing).
+                    bool inRange = true;
+                    for (int i = 0; i < ch.voiceCount; ++i)
+                    {
+                        const int nr = ch.voice[static_cast<std::size_t>(i)] + delta;
+                        if (nr < 0 || nr > ladderMax) { inRange = false; break; }
+                    }
+                    if (inRange)
                         for (int i = 0; i < ch.voiceCount; ++i)
-                            ch.voice[static_cast<std::size_t>(i)] =
-                                std::clamp(ch.voice[static_cast<std::size_t>(i)] + v, 0, ladderMax);
+                            ch.voice[static_cast<std::size_t>(i)] += delta;
                     break;
-                case 7:  // OCT — shift every voice by v octaves (v * scaleSize steps).
-                    if (v != 0)
-                        for (int i = 0; i < ch.voiceCount; ++i)
-                            ch.voice[static_cast<std::size_t>(i)] =
-                                std::clamp(ch.voice[static_cast<std::size_t>(i)] + v * scaleSize,
-                                           0, ladderMax);
-                    break;
+                }
                 default: break;
             }
             return;

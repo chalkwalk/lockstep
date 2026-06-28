@@ -234,11 +234,148 @@ namespace lockstep
         const int after = resolveVoice(ladder, ch0.voice[0], ch0.chroma[0]);
         CHECK(after == before + 1, "Func+voice nudges the pitch one semitone");
 
-        // A bare (diatonic) write lands on a rung and clears the borrowed offset.
+        // A bare (diatonic) write lands on a free rung (1; the default chord holds
+        // rungs 0/2/4) and clears the borrowed offset.
         ch0.chroma[0] = 2;
-        writeMetaField(MetaBand::Harmony, 0, 0, 2.0f, proc, 0, ctx, ui);
-        CHECK(ui.harmonyProg.chords[0].voice[0] == 2 && ui.harmonyProg.chords[0].chroma[0] == 0,
+        writeMetaField(MetaBand::Harmony, 0, 0, 1.0f, proc, 0, ctx, ui);
+        CHECK(ui.harmonyProg.chords[0].voice[0] == 1 && ui.harmonyProg.chords[0].chroma[0] == 0,
               "a bare diatonic write sets the rung and clears the offset");
+    }
+
+    static void testHarmonySingleVoiceRemoval()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        EditContext ctx;
+        UiState ui;
+        ui.harmonyHeld = true;
+        ui.harmonyProg = HarmonyProgression{};
+        auto& ch = ui.harmonyProg.chords[0];
+        ch.voiceCount = 3;
+        ch.voice = { { 1, 3, 5, 0 } };
+        ch.chroma = {};
+
+        // Turning the BASS (V1) below the floor removes ONLY that voice; the upper
+        // voices shift down and survive (the old behaviour dropped them all).
+        writeMetaField(MetaBand::Harmony, 0, 0, -1.0f, proc, 0, ctx, ui);
+        CHECK(ch.voiceCount == 2, "removing the bass leaves the other voices");
+        CHECK(ch.voice[0] == 3 && ch.voice[1] == 5, "upper voices shift down to fill");
+
+        // An inner voice off: again only that one goes.
+        ch.voiceCount = 3;
+        ch.voice = { { 1, 3, 5, 0 } };
+        writeMetaField(MetaBand::Harmony, 0, 1, -1.0f, proc, 0, ctx, ui);
+        CHECK(ch.voiceCount == 2 && ch.voice[0] == 1 && ch.voice[1] == 5,
+              "removing an inner voice keeps bass + top");
+
+        // The last remaining voice clamps at the floor rather than emptying the chord.
+        ch.voiceCount = 1;
+        ch.voice = { { 4, 0, 0, 0 } };
+        writeMetaField(MetaBand::Harmony, 0, 0, -1.0f, proc, 0, ctx, ui);
+        CHECK(ch.voiceCount == 1 && ch.voice[0] == 0,
+              "last voice clamps at floor, never empties");
+    }
+
+    static void testHarmonyChromaAll()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        UiState ui;
+        ui.harmonyHeld = true;
+        ui.harmonyProg = HarmonyProgression{};
+
+        const KeySig key = proc.effectiveKeySig();
+        const auto ladder = harmonyLadder(key, kHarmonyRootBase + key.root, kHarmonyOctaves);
+        auto& ch = ui.harmonyProg.chords[0];
+        const int vc = ch.voiceCount;
+        std::array<int, kHarmonyVoices> before{};
+        for (int v = 0; v < vc; ++v)
+            before[static_cast<std::size_t>(v)] =
+                resolveVoice(ladder, ch.voice[static_cast<std::size_t>(v)],
+                             ch.chroma[static_cast<std::size_t>(v)]);
+
+        // Func+MOVE: every voice slides one semitone (whole-chord borrowed tone).
+        nudgeHarmonyChromaAll(proc, ui, 1);
+        bool allShifted = true;
+        for (int v = 0; v < vc; ++v)
+            if (resolveVoice(ladder, ch.voice[static_cast<std::size_t>(v)],
+                             ch.chroma[static_cast<std::size_t>(v)])
+                != before[static_cast<std::size_t>(v)] + 1) allShifted = false;
+        CHECK(allShifted, "chroma-all shifts every voice one semitone");
+    }
+
+    static void testHarmonyNoRepeatedNotes()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        EditContext ctx;
+        UiState ui;
+        ui.harmonyHeld = true;
+        ui.harmonyProg = HarmonyProgression{};
+        auto& ch = ui.harmonyProg.chords[0];
+        ch.voiceCount = 3;
+        ch.voice = { { 1, 3, 5, 0 } };   // three distinct rungs
+        ch.chroma = {};
+
+        // Diatonic note edit: dragging V1 onto V2's rung (3) must NOT create a
+        // repeated note — it skips over to the next free rung (here, 4).
+        writeMetaField(MetaBand::Harmony, 0, 0, 3.0f, proc, 0, ctx, ui);
+        CHECK(ch.voice[0] != ch.voice[1] && ch.voice[0] != ch.voice[2],
+              "diatonic edit never lands on another voice's pitch");
+        CHECK(ch.voice[0] == 4, "edit skips the taken rung to the next free one");
+
+        // Chromatic nudge: V1 at rung 4 nudged up a semitone toward V2 (rung 5).
+        // If the borrowed pitch would collide it skips on; never a duplicate.
+        ch.voice = { { 4, 5, 7, 0 } };
+        ch.chroma = {};
+        const KeySig key = proc.effectiveKeySig();
+        const auto ladder = harmonyLadder(key, kHarmonyRootBase + key.root, kHarmonyOctaves);
+        for (int n = 0; n < 4; ++n)
+            nudgeHarmonyChroma(proc, ui, 0, 1);
+        const int p0 = resolveVoice(ladder, ch.voice[0], ch.chroma[0]);
+        const int p1 = resolveVoice(ladder, ch.voice[1], ch.chroma[1]);
+        const int p2 = resolveVoice(ladder, ch.voice[2], ch.chroma[2]);
+        CHECK(p0 != p1 && p0 != p2, "chromatic nudge never produces a repeated note");
+    }
+
+    static void testHarmonyTransposeRangeGuard()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        EditContext ctx;
+        UiState ui;
+        ui.harmonyHeld = true;
+        ui.harmonyProg = HarmonyProgression{};
+
+        const KeySig key = proc.effectiveKeySig();
+        const auto ladder = harmonyLadder(key, kHarmonyRootBase + key.root, kHarmonyOctaves);
+        const int ladderMax = static_cast<int>(ladder.size()) - 1;
+        auto& ch = ui.harmonyProg.chords[0];
+
+        // Top voice sits at the very top rung: a +1 diatonic MOVE would push it
+        // past the ladder, so the WHOLE transpose is disallowed (no squashing).
+        ch.voiceCount = 3;
+        ch.voice = { { ladderMax - 2, ladderMax - 1, ladderMax, 0 } };
+        ch.chroma = {};
+        const auto kept = ch.voice;
+        writeMetaField(MetaBand::Harmony, 0, 6, 1.0f, proc, 0, ctx, ui);  // MOVE +1
+        CHECK(ch.voice == kept, "out-of-range MOVE leaves the chord untouched");
+
+        // An octave shift up that would overflow is likewise rejected wholesale.
+        writeMetaField(MetaBand::Harmony, 0, 7, 1.0f, proc, 0, ctx, ui);  // OCT +1
+        CHECK(ch.voice == kept, "out-of-range OCT leaves the chord untouched");
+
+        // A whole-chord chromatic slide off the ceiling is rejected too.
+        nudgeHarmonyChromaAll(proc, ui, 1);
+        CHECK(ch.voice == kept && ch.chroma == HarmonyChord{}.chroma,
+              "out-of-range chroma-all leaves the chord untouched");
+
+        // But an in-range transpose still moves the whole block.
+        ch.voice = { { 0, 2, 4, 0 } };
+        ch.chroma = {};
+        writeMetaField(MetaBand::Harmony, 0, 6, 1.0f, proc, 0, ctx, ui);  // MOVE +1
+        CHECK(ch.voice[0] == 1 && ch.voice[1] == 3 && ch.voice[2] == 5,
+              "in-range MOVE shifts every voice as a rigid block");
     }
 
     static void testResolveMetaBandDensitySticky()
@@ -1244,6 +1381,10 @@ namespace lockstep
         testHarmonyBand();
         testHarmonyLosslessGrow();
         testHarmonyReelAndChroma();
+        testHarmonySingleVoiceRemoval();
+        testHarmonyChromaAll();
+        testHarmonyNoRepeatedNotes();
+        testHarmonyTransposeRangeGuard();
         testResolveMetaBandDensitySticky();
         testResolveMetaBandFuncSong();
         testResolveMetaBandSwing();

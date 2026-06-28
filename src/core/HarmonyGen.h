@@ -24,8 +24,8 @@ namespace lockstep
 {
     inline constexpr int kMaxHarmonyChords = 8;             // progression slots
     inline constexpr int kHarmonyVoices    = kMaxNotesPerStep;  // 4-voice ceiling
-    inline constexpr int kHarmonyRootBase  = 48;            // C3 — ladder octave floor
-    inline constexpr int kHarmonyOctaves   = 3;             // ladder span in octaves
+    inline constexpr int kHarmonyRootBase  = 36;            // C2 — ladder octave floor
+    inline constexpr int kHarmonyOctaves   = 6;             // ladder span (C2..B7)
 
     // One chord slot: a contiguous stack of `voiceCount` voices (bass..top). Each
     // voice is a diatonic ladder rung (`voice[]`) plus a signed semitone
@@ -80,7 +80,7 @@ namespace lockstep
             if (maskHas(mask, pc)) pcs.push_back(pc);
 
         std::vector<int> ladder;
-        const int oct = std::clamp(octaves, 1, 5);
+        const int oct = std::clamp(octaves, 1, 6);
         for (int o = 0; o < oct; ++o)
             for (int pc : pcs)
             {

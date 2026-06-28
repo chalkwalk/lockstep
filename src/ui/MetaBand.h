@@ -170,4 +170,8 @@ namespace lockstep
     // incremental delta (it does not go through writeMetaField, which owns the
     // diatonic rung write).
     void nudgeHarmonyChroma(LockstepProcessor& proc, UiState& ui, int vi, int semis);
+
+    // nudgeHarmonyChromaAll — Func+MOVE chromatic adjustment: shift every voice of
+    // the cursor chord by `semis` semitones (a whole-chord borrowed-tone slide).
+    void nudgeHarmonyChromaAll(LockstepProcessor& proc, UiState& ui, int semis);
 }

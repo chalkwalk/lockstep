@@ -2334,8 +2334,28 @@ namespace lockstep
         const auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(track)];
         uiState_.harmonyHeld = true;
         uiState_.masterSection = -1;
-        // Seed a fresh progression — four identical in-key triads to nudge from.
+        // Seed a fresh progression — an in-key triad to nudge from. The ladder now
+        // floors at C2, so seed the bass near C4 (rather than the lowest rung) so
+        // the default chord lands in a comfortable register. Seeding slot 0 is
+        // enough — growing the progression clones the previous chord.
         uiState_.harmonyProg = HarmonyProgression{};
+        {
+            const KeySig key = processor_.effectiveKeySig();
+            const auto ladder = harmonyLadder(key, kHarmonyRootBase + key.root, kHarmonyOctaves);
+            if (!ladder.empty())
+            {
+                const int ladderMax = static_cast<int>(ladder.size()) - 1;
+                int bass = 0;
+                for (int i = 0; i <= ladderMax; ++i)
+                    if (ladder[static_cast<std::size_t>(i)] <= 60) bass = i;
+                auto& c = uiState_.harmonyProg.chords[0];
+                c.voiceCount = 3;
+                c.voice = { std::clamp(bass, 0, ladderMax),
+                            std::clamp(bass + 2, 0, ladderMax),
+                            std::clamp(bass + 4, 0, ladderMax), 0 };
+                c.chroma = {};
+            }
+        }
         harmonyTrack_ = track;
         harmonyStashLen_ = wt.length;
         for (int si = 0; si < harmonyStashLen_; ++si)
@@ -5445,6 +5465,26 @@ namespace lockstep
                 const auto views = buildMetaBand(band, swScope, processor_, track,
                                                  processor_.editContext(), uiState_);
                 if (mzSlot < 0 || mzSlot >= 8) return;
+                // Harmony + Func held: chromatic (borrowed-tone) nudge, mirroring
+                // the mouse path so encoder and mouse agree. Per-voice on a voice
+                // cell; whole-chord on MOVE. Each detent = one semitone. Bypasses
+                // writeMetaField, which owns the diatonic rung write.
+                if (band == MetaBand::Harmony && uiState_.funcHeld
+                    && (mzSlot < kHarmonyVoices || mzSlot == 6))
+                {
+                    if (mzSlot < kHarmonyVoices)
+                        nudgeHarmonyChroma(processor_, uiState_, mzSlot, rawDelta);
+                    else
+                        nudgeHarmonyChromaAll(processor_, uiState_, rawDelta);
+                    if (uiState_.harmonyHeld && harmonyTrack_ >= 0)
+                    {
+                        applyHarmonyLive(harmonyTrack_);
+                        auditionHarmonyCursorChord();
+                    }
+                    refreshMetaBand();
+                    refreshSurface();
+                    return;
+                }
                 const auto& v = views[static_cast<std::size_t>(mzSlot)];
                 if (!v.writable) return;
                 const float range = v.maxValue - v.minValue;

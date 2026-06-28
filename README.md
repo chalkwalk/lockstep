@@ -259,7 +259,7 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Retrig / ratchet** | Per-step re-triggering at a musical rate (`/4 … /32T`). Authored as a P-lockable parameter in the TRIG meta-band field 5 "RTG": hold a step and turn the RTG encoder to set the rate (0 = off; /4 … /32T). Slicer tracks: `Fill+TRIG` shows the slice-point picker (unchanged). |
 | **Euclidean generator** | Enter via the **generator hub** (`3` held → EUCLID cell). Encoders shape `PULSE / OFSET / ACCNT` against the phrase length, audible live; the mode is latched until **P** (commit) or **Func+P** (cancel). Y is inert in this mode. |
 | **Melodic generator** | Enter via the **generator hub** (`3` held → MELODY cell). Deterministic, seeded line generator against the effective key; encoders `DENSE / CORE / CNTR / OCTS / LEAP / SEED / SRC`. Metric strength is the spine (strong beats → strong notes, longer; weak beats → colour notes, shorter; rests bridge into stronger beats). `SRC` = *Gen* (generate rhythm too) or *Keep* (lock to existing trigs, write pitch only). Live preview; **P** prints editable steps, **Func+P** / escape reverts. |
-| **Harmonic voice-mover** | Enter via the **generator hub** (`3` held → CHORD cell). A sticky in-key chord sculptor with no chord theory — voices are rungs on the diatonic ladder. The four voices are shown as **one chord view spanning four columns** (one per voice); the three rows are the **previous / current / next chord** so each column reads that voice's motion, and `CUR` scrolls the chords through the bright middle row. Each voice's knob sits on the current row: a bare turn steps that voice in-scale, **`Func`+turn** reaches a chromatic borrowed tone; off-detent drops the top voice, the first empty column adds one. Structure encoders: `LEN` (chord count — starts at **1**; growing **clones the previous chord**, shrinking is lossless), `CUR` (cursor), `MOVE` (slide the chord one scale degree) and `OCT` (octave-shift). Editing any voice / `MOVE` / `OCT` / cursor **re-strikes** the chord so you can preview by slow-turning. Commit prints **one chord per bar** of the in-scope time signature (even-spacing fallback when there are more chords than bars); **P** prints, **Func+P** / escape reverts. |
+| **Harmonic voice-mover** | Enter via the **generator hub** (`3` held → CHORD cell). A sticky in-key chord sculptor with no chord theory — voices are rungs on the diatonic ladder. The four voices are shown as **one chord view spanning four columns** (one per voice); the three rows are the **previous / current / next chord** so each column reads that voice's motion, and `CUR` scrolls the chords through the bright middle row. Each voice's knob sits on the current row: a bare turn steps that voice in-scale (across **octaves 2–7**), **`Func`+turn** (mouse *or* encoder) reaches a chromatic borrowed tone; off-detent drops **that** voice (the others shift down to fill), the first empty column adds one. **No two voices share a pitch** — an edit onto an occupied note skips to the next free one. Structure encoders: `LEN` (chord count — starts at **1**; growing **clones the previous chord**, shrinking is lossless), `CUR` (cursor), `MOVE` (slide the chord one scale degree; **`Func`+`MOVE`** slides the whole chord chromatically by a semitone) and `OCT` (octave-shift). A transpose that would push any voice past the ladder (octaves 2–7) is **refused** rather than clamped. `MOVE`/`OCT` are relative nudgers shown as **`+/-`**. Editing any voice / `MOVE` / `OCT` / cursor **re-strikes** the chord so you can preview by slow-turning. Commit prints **one chord per bar** of the in-scope time signature (even-spacing fallback when there are more chords than bars); **P** prints, **Func+P** / escape reverts. |
 | **Control-All** | Holding `Track` with no track selected broadcasts the next parameter edit to every track that has a matching control. |
 | **Mute** | Suppresses a track's trigs non-destructively. `Mute+step` = global mute (survives scene/song changes); `Scene+Mute+step` = per-scene mute (the scene's active-mask). |
 | **Fill** | A momentary modifier: while held, fill-conditioned steps fire. Used for live variation. |
@@ -1240,10 +1240,16 @@ On top of the key:
   current / next chord**, so each column reads that voice's motion and `CUR`
   scrolls the chords through the bright middle row. A bare turn steps that voice
   in-scale, **`Func`+turn** reaches a chromatic borrowed tone; turn a voice below
-  its floor to drop it, turn the first empty column up to add one. Then `LEN` (how many chords — starts at **1**; growing **clones the
-  previous chord** so motion starts from rest, shrinking is lossless), `CUR`
-  (which chord you're shaping), `MOVE` (slide the whole chord one scale degree)
-  and `OCT` (octave-shift it). Editing a voice / `MOVE` / `OCT` / cursor
+  its floor to drop it, turn the first empty column up to add one. **No two voices
+  ever share a pitch** — an edit that would land on a note already in the chord
+  skips past it to the next free one. Then `LEN` (how many chords — starts at
+  **1**; growing **clones the previous chord** so motion starts from rest,
+  shrinking is lossless), `CUR` (which chord you're shaping), `MOVE` (slide the
+  whole chord one scale degree; **`Func`+`MOVE`** slides it chromatically by a
+  semitone) and `OCT` (octave-shift it). A transpose (`MOVE`/`OCT`/`Func`+`MOVE`)
+  that would push **any** voice past the ladder's range (octaves 2–7) is
+  **refused outright** — the chord stays put rather than collapsing against the
+  ceiling. Editing a voice / `MOVE` / `OCT` / cursor
   **re-strikes** the chord, so you can preview by slow-turning. The progression
   prints **one chord per bar** of the in-scope time signature (even-spacing
   fallback when there are more chords than bars). **P** prints, **Func+P** /

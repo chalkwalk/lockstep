@@ -40,12 +40,14 @@ namespace lockstep
         if (mr && mr->harmonyVoiceCell)
         {
             const auto full = juce::Rectangle<int>(x, y, width, height).toFloat();
-            const auto dim = slider.findColour(juce::Slider::rotarySliderOutlineColourId)
-                                 .withAlpha(0.6f);
             const auto bright = slider.findColour(juce::Slider::thumbColourId)
                                     .withAlpha(slider.isEnabled() ? 1.0f : 0.4f);
             const auto accent = juce::Colour(0xffe0a040);  // borrowed-tone tint
             const auto nowCol = mr->harmonyChromatic ? accent : bright;
+            // The neighbour rows previously used rotarySliderOutlineColourId, which
+            // resolves to widgetBackground (~= the MZ body) and was invisible. Use a
+            // muted tint of the visible text colour so prev/next actually read.
+            const auto dim = bright.withAlpha(0.45f);
 
             const float rowH = full.getHeight() / 3.0f;
             auto rowRect = [&](int row) {
@@ -54,22 +56,30 @@ namespace lockstep
                                               full.getWidth(), rowH).toNearestInt();
             };
 
-            // Knob ring centred on the current (middle) row; the note sits over it.
+            // Half-knob "behind" the chord view: a faint semicircle that peeks above
+            // (harmonyKnobTop) or below the note stack, staggered across the voices.
             {
+                const float halfPi = juce::MathConstants<float>::halfPi;
                 const float cx = full.getCentreX();
-                const float cy = full.getY() + rowH * 1.5f;
-                const float r = juce::jmin(full.getWidth(), rowH) * 0.44f;
-                juce::Path ring;
-                ring.addCentredArc(cx, cy, r, r, 0.0f, 0.0f,
-                                   juce::MathConstants<float>::twoPi, true);
-                g.setColour(nowCol.withAlpha(0.4f));
-                g.strokePath(ring, juce::PathStrokeType(juce::jmax(1.5f, r * 0.13f)));
+                const float cy = full.getCentreY();
+                const float r = juce::jmin(full.getWidth(), full.getHeight()) * 0.46f;
+                juce::Path arc;
+                if (mr->harmonyKnobTop)
+                    arc.addCentredArc(cx, cy, r, r, 0.0f, -halfPi, halfPi, true);
+                else
+                    arc.addCentredArc(cx, cy, r, r, 0.0f, halfPi, 3.0f * halfPi, true);
+                g.setColour(nowCol.withAlpha(0.22f));
+                g.strokePath(arc, juce::PathStrokeType(juce::jmax(1.5f, r * 0.10f)));
             }
 
+            // prev / next neighbour chord rows (dim), with a placeholder dash when
+            // there is no neighbour so the 3-row structure is always discoverable.
             g.setFont(juce::Font(juce::FontOptions(9.0f)));
             g.setColour(dim);
-            g.drawText(mr->reelPrev, rowRect(0), juce::Justification::centred);
-            g.drawText(mr->reelNext, rowRect(2), juce::Justification::centred);
+            g.drawText(mr->reelPrev.isNotEmpty() ? mr->reelPrev : juce::String("-"),
+                       rowRect(0), juce::Justification::centred);
+            g.drawText(mr->reelNext.isNotEmpty() ? mr->reelNext : juce::String("-"),
+                       rowRect(2), juce::Justification::centred);
 
             g.setFont(juce::Font(juce::FontOptions(12.0f)).boldened());
             if (mr->harmonyVoiceOff)

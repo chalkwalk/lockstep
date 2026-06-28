@@ -6,9 +6,9 @@
 
 namespace lockstep
 {
-    // D Dorian — the system default; root D, ladder floor C3 (MIDI 48).
+    // D Dorian — the system default; root D, ladder floor C2 (MIDI 36).
     static KeySig dDorian() { return { 2, kDorian, {}, ScaleType::Diatonic }; }
-    static int rootMidi() { return kHarmonyRootBase + 2; }  // D above C3
+    static int rootMidi() { return kHarmonyRootBase + 2; }  // D above C2
 
     static void testLadderInScale()
     {
@@ -25,9 +25,13 @@ namespace lockstep
         }
         CHECK(ascending, "ladder is strictly ascending");
         CHECK(inScale, "every ladder pitch is in the scale");
-        // 7-note scale over 3 octaves = 21 ladder positions.
+        // 7-note scale over 6 octaves = 42 ladder positions.
         CHECK(harmonyScaleSize(k) == 7, "D Dorian has 7 scale degrees");
-        CHECK(static_cast<int>(ladder.size()) == 21, "3 octaves of a 7-note scale = 21 rungs");
+        CHECK(static_cast<int>(ladder.size()) == 42, "6 octaves of a 7-note scale = 42 rungs");
+        // Range spans octave 2 up into octave 7+: six octaves from the root D2 (38)
+        // run up to C8 (108). Floor is in octave 2; ceiling reaches at least octave 7.
+        CHECK(ladder.front() >= 36 && ladder.front() < 48, "ladder floor sits in octave 2");
+        CHECK(ladder.back() >= 96 && ladder.back() <= 108, "ladder ceiling reaches octave 7+");
     }
 
     static void testDefaultProgressionInScale()

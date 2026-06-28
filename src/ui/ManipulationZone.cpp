@@ -39,7 +39,7 @@ namespace lockstep
                 // Harmony voice slots use an incremental Func-chromatic delta, so
                 // seed the reference to the start value — otherwise the first detent
                 // (the whole gesture, for a stepped encoder) is swallowed.
-                if (band_ == MetaBand::Harmony && i < kHarmonyVoices)
+                if (band_ == MetaBand::Harmony && (i < kHarmonyVoices || i == 6))
                 {
                     lastSlotValue_[static_cast<std::size_t>(i)] =
                         static_cast<float>(sliders_[static_cast<std::size_t>(i)].getValue());
@@ -76,14 +76,19 @@ namespace lockstep
                     // tone) nudge. Use an incremental delta off the slider's own last
                     // position (it doesn't map to the rung axis), like density-master.
                     if (band_ == MetaBand::Harmony && uiState_ && uiState_->funcHeld
-                        && i < kHarmonyVoices)
+                        && (i < kHarmonyVoices || i == 6))
                     {
                         if (lastSlotValid_)
                         {
                             const int semis = static_cast<int>(
                                 std::lround(v - lastSlotValue_[static_cast<std::size_t>(i)]));
                             if (semis != 0)
-                                nudgeHarmonyChroma(processor_, *uiState_, i, semis);
+                            {
+                                if (i < kHarmonyVoices)
+                                    nudgeHarmonyChroma(processor_, *uiState_, i, semis);
+                                else  // i == 6 (MOVE): chromatic whole-chord slide.
+                                    nudgeHarmonyChromaAll(processor_, *uiState_, semis);
+                            }
                         }
                         lastSlotValue_[static_cast<std::size_t>(i)] = v;
                         lastSlotValid_ = true;
