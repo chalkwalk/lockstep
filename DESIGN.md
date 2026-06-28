@@ -3890,6 +3890,27 @@ they have no audio to consume or contribute — so inter-track routing is
 simply a capability audio tracks have, not a sequencer-wide rule that
 needs a MIDI-out special case (`PRINCIPLES.md` §6).
 
+**Solo and mute are routing-aware.** Silencing a track must respect the
+graph, or buses become unsoloable. Under solo a track is audible iff it
+is *connected to a soloed track through the routing graph*: either
+**upstream** — its single-out chain reaches a soloed track (so soloing a
+bus keeps its feeders running, and the performer hears what flows in) — or
+**downstream** — it lies on the chain *from* a soloed track to master (so
+soloing a feeder keeps its bus chain alive and the feeder still reaches
+the output). An explicit mute still wins over a solo-pulled-in feeder.
+The rule is a pure function of the edge array (`soloAudibleMask`), so it
+stays deterministic and per-block.
+
+**Routing is legible on the surface.** The "Out" rotary steps only
+through *currently valid* destinations — Off, Master, and live buses —
+with the target shown live as it turns; invalid targets (synth, MIDI-out,
+self, cycle) are never reachable, so the reject banner is a backstop, not
+the primary feedback. On the track/VU row a bus and the tracks routed
+into it share a colour (the bus full, its feeders dimmed) on an always-on
+underline channel, plus a background tint in the plain audible state, so
+routing groups read at a glance without competing with the mute/solo
+state colours.
+
 ## 28. Recorder Buffers and the Unified Audio-Source Pool
 
 Live sampling needs a place to put captured audio. Rather than a

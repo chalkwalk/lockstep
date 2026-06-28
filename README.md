@@ -212,7 +212,13 @@ Phrase ──trigs──▶ Machine ──▶ Foundation (FILTER → AMP) ──
   into it, processes it through its own FILTER/AMP/FX, and sends *that*
   onward. Ordering is solved automatically (per-block topological sort);
   a routing that would form a feedback loop is refused. This is how you
-  build drum buses, parallel chains, and resampling.
+  build drum buses, parallel chains, and resampling. The **Out** rotary
+  only steps through valid destinations (Off / Master / current buses) and
+  shows the target live as you turn — you never jog through unusable
+  tracks. On the track/VU row, a bus and its feeders share a colour so
+  groups read at a glance. **Solo is routing-aware:** soloing a bus keeps
+  its feeders audible (you hear what flows in), and soloing a feeder keeps
+  its downstream bus chain audible (so it still reaches master).
 - **Audio input** — a machine can *consume* audio instead of synthesising
   it, via an `input_source` tap: `None`, `External` (the plugin/device
   input), or `Master` (the prior block's master sum, for whole-mix
@@ -282,7 +288,7 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Fill** | A momentary modifier: while held, fill-conditioned steps fire. Used for live variation. |
 | **Trig condition** | A per-step (or per-track) firing rule: probability, iteration (m:n), previous-step dependency, fill rule, and **one-shot**. |
 | **Audition (`Cue`)** | Pre-listen without writing anything. Enter the `Cue` scope with `Func+3`: holding it fires the focused track's base trig; `Cue+step` fires that step's resolved trig (note/vel/gate + P-Locks). Off-schedule, post-machine FILTER/AMP applies, pattern untouched. |
-| **Out routing** | The CHANNEL "Out" slot sets a track's destination: `Master` (default), `Track N`, or `Off`. Route into a **Thru** track to build an aux/sub-bus (the bus reads the sum of its feeders, plus its own input if any). Only input-aware machines (Thru) can be bus targets; routing to a synth/MIDI-out, to itself, or in a cycle is refused with a status-line reason. If a target's machine is later swapped to a non-bus, the edge goes **dormant** (falls back to Master, no audio lost) and revives if it becomes a bus again. See §2.5. |
+| **Out routing** | The CHANNEL "Out" slot sets a track's destination: `Master` (default), `Track N`, or `Off`. Route into a **Thru** track to build an aux/sub-bus (the bus reads the sum of its feeders, plus its own input if any). The Out rotary steps only through valid destinations (Off / Master / current buses) with a live label — synths, MIDI-out, self and cycle targets never appear. If a target's machine is later swapped to a non-bus, the edge goes **dormant** (falls back to Master, no audio lost) and revives if it becomes a bus again. A bus and its feeders share a colour on the track/VU row. See §2.5. |
 | **Lock-only trig** | A step cycled `Trig+step` through `off → note → lock-only`. A lock-only step emits no note but applies its P-Locks (filter, channel, env, insert) onto the *sustaining* voice as the playhead crosses it — parameter motion without retriggering. |
 | **One-shot trig** | A trig condition (COND meta-band "1Shot") that fires once then is **spent** until re-armed. Re-arms automatically on transport (re)start and on scene switch; armed/spent is RAM-only (not saved). |
 | **Checkpoint** | A RAM-only snapshot for live undo. Bare `Y` (SNAP) pushes before a risky idea; `Func+Y` (RESTORE) tap=pop/hold=floor. The `Y` key owns both halves. **Scope-respecting:** the snapshot captures whichever scope is held (none=Song, Track, Scene, Phrase). Up to 8 deep per scope; floor = saved state. |
@@ -866,6 +872,11 @@ sweeping a filter or tightening every decay across the kit at once.
 
 Mutes are non-destructive: trigs are suppressed at the output, no
 note-offs are forced.
+
+Solo is **routing-aware** (§2.5): soloing a bus keeps the tracks routed into
+it audible (so you preview what feeds it), and soloing a feeder keeps its
+downstream bus chain audible (so it still reaches master). Other tracks are
+silenced as usual.
 
 *Planned (not yet implemented):* a deferred **atomic** multi-mute — flag
 several tracks while a qualifier is held and commit them all on release,
