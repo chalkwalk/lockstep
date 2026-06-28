@@ -5076,7 +5076,16 @@ namespace lockstep
                             auto& s = processor_.sequence()
                                           .tracks[static_cast<std::size_t>(track)]
                                           .steps[static_cast<std::size_t>(stepIdx)];
-                            if (uiState_.fillHeld)
+                            if (heldSectionIndex_ == IMachine::kTrigSecIdx)
+                            {
+                                // 5.6 Trig+step: cycle the tri-state off → note →
+                                // lock-only → off (DESIGN §30). lock-only keeps the
+                                // step's P-Locks but emits no note.
+                                if (s.trig)            { s.trig = false; s.lockOnly = true; }
+                                else if (s.lockOnly)   { s.lockOnly = false; }
+                                else                   { s.trig = true; }
+                            }
+                            else if (uiState_.fillHeld)
                             {
                                 // Cycle fill trig state: Inherit → On → Off → Inherit.
                                 using FTS = FillTrigState;
