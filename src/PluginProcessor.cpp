@@ -9,6 +9,7 @@
 #include "core/TrigEvaluator.h"
 #include "core/OutputDest.h"
 #include "core/RoutingGraph.h"
+#include "dsp/SoftClip.h"
 #include "machine/InputSource.h"
 #include "machine/ThruMachine.h"
 #include "machine/MidiDevicePresets.h"
@@ -1602,7 +1603,7 @@ namespace lockstep
                         dcY1_[static_cast<std::size_t>(ch)] = y;
                         s = y;
                     }
-                    buffer.setSample(ch, i, std::tanh(s));
+                    buffer.setSample(ch, i, dsp::softClip(s));
                 }
             }
             masterPeak_.store(buffer.getMagnitude(0, 0, numSamples),
@@ -2366,7 +2367,7 @@ namespace lockstep
                                metroCt.numerator, metroCt.denominator);
         }
 
-        // Output stage: smoothed gain → DC blocker → soft-clip
+        // Output stage: smoothed gain → DC blocker → transparent soft-knee clip
         const float targetGainDb = apvts_.getRawParameterValue(ParamIDs::outputGain)->load();
         gainSmoothed_.setTargetValue(
             juce::Decibels::decibelsToGain(targetGainDb, -60.0f));
@@ -2392,7 +2393,7 @@ namespace lockstep
                     s = y;
                 }
 
-                buffer.setSample(ch, i, std::tanh(s));
+                buffer.setSample(ch, i, dsp::softClip(s));
             }
         }
         masterPeak_.store(buffer.getMagnitude(0, 0, numSamples),
