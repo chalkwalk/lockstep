@@ -943,8 +943,7 @@ namespace lockstep
         // step whose FLTR/CHANNEL/ENV overrides apply (-1 = base only).
         void processTrackChain(std::size_t i, const ParamFrame& frame,
                                int resolveStep, bool fillActive, float faderNow,
-                               int numBlockSamples, juce::MidiBuffer& trackMidiI,
-                               bool softClip);
+                               int numBlockSamples, juce::MidiBuffer& trackMidiI);
 
         // A2: where a track's finished signal goes (DESIGN §27).
         enum class Route { Master, Bus, Off };

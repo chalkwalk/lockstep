@@ -394,8 +394,7 @@ namespace lockstep
     void LockstepProcessor::processTrackChain(std::size_t i, const ParamFrame& frame,
                                               int resolveStep, bool fillActive,
                                               float faderNow, int numBlockSamples,
-                                              juce::MidiBuffer& trackMidiI,
-                                              bool softClip)
+                                              juce::MidiBuffer& trackMidiI)
     {
         auto* mi = machines_[i].get();
 
@@ -524,24 +523,15 @@ namespace lockstep
             }
         }
 
-        // Per-track soft clip (running path only) — prevents one hot track from
-        // dominating the master bus. Applied post-sends so the send taps keep
-        // their pre-clip level, and before this track's output is routed onward
-        // so a bus reads the same clipped signal master would.
-        if (softClip)
-        {
-            for (int chn = 0; chn < trackBuffers_[i].getNumChannels(); ++chn)
-            {
-                float* d = trackBuffers_[i].getWritePointer(chn);
-                for (int n = 0; n < numBlockSamples; ++n)
-                    d[n] = std::tanh(d[n]);
-            }
-        }
+        // No per-track soft clip: the only structural clip is the master output
+        // stage (gain-staging is master-only, DESIGN). Tracks and buses stay
+        // linear with float headroom so a clean machine (e.g. FM) reaches the
+        // master uncoloured; machine-internal character saturation is unaffected.
 
         trackPeak_[i].store(trackBuffers_[i].getMagnitude(0, numBlockSamples),
                             std::memory_order_relaxed);
 
-        // D: per-track stem tap — post-fader, post-FX, post-soft-clip; before the
+        // D: per-track stem tap — post-fader, post-FX (un-clipped); before the
         // track is summed/routed onward. No-op unless this stem is armed.
         stemRecorders_[i].writeBlock(trackBuffers_[i], numBlockSamples);
     }
@@ -1576,7 +1566,7 @@ namespace lockstep
                 else
                 {
                     processTrackChain(i, frame, resolveStep, fillNow, faderNow,
-                                      numBlockSamples, trackMidi[i], /*softClip=*/false);
+                                      numBlockSamples, trackMidi[i]);
                     depositToBus(i, numBlockSamples);
                 }
             }
@@ -2354,11 +2344,10 @@ namespace lockstep
             }
             else
             {
-                // softClip=true: each track is tanh-limited at the end of its
-                // chain (was a separate pass), so bus feeds and the master sum
-                // read the same clipped signal.
+                // Tracks and buses stay linear; the only structural clip is at
+                // the master output stage (master-only gain-staging).
                 processTrackChain(i, frame, firedStepIdx_[i], curFillActive, faderNow,
-                                  numBlockSamples, trackMidi[i], /*softClip=*/true);
+                                  numBlockSamples, trackMidi[i]);
                 depositToBus(i, numBlockSamples);
             }
         }
