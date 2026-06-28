@@ -59,6 +59,50 @@ namespace lockstep::routing
         return order;
     }
 
+    // Audibility under solo, routing-aware (DESIGN §27). When any track is
+    // soloed, a track is audible iff it is connected to a soloed track through
+    // the routing graph — either UPSTREAM (a soloed bus needs the feeders that
+    // sum into it) or DOWNSTREAM (a soloed feeder needs the bus chain that
+    // carries it to master). Precisely, audible[T] iff following T's single-out
+    // chain reaches a soloed track (covers T-itself + ancestors/feeders), OR T
+    // lies on the downstream chain from some soloed track (descendants).
+    //
+    // Caller decides what to do when nothing is soloed; this returns the mask
+    // unconditionally (all-false if no track is soloed). Pure, alloc-free.
+    template <std::size_t N>
+    std::array<bool, N> soloAudibleMask(const std::array<int, N>& dest,
+                                        const std::array<bool, N>& soloed) noexcept
+    {
+        std::array<bool, N> audible{};
+
+        // Upward / self: T is audible if its out-chain reaches a soloed node.
+        for (std::size_t t = 0; t < N; ++t)
+        {
+            int cur = static_cast<int>(t);
+            for (std::size_t steps = 0; steps <= N; ++steps)
+            {
+                if (cur < 0 || cur >= static_cast<int>(N)) break;  // Master/Off
+                if (soloed[static_cast<std::size_t>(cur)]) { audible[t] = true; break; }
+                cur = dest[static_cast<std::size_t>(cur)];
+            }
+        }
+
+        // Downward: every descendant on a soloed node's out-chain is audible.
+        for (std::size_t s = 0; s < N; ++s)
+        {
+            if (!soloed[s]) continue;
+            int cur = dest[s];
+            for (std::size_t steps = 0; steps < N; ++steps)
+            {
+                if (cur < 0 || cur >= static_cast<int>(N)) break;  // reached Master/Off
+                audible[static_cast<std::size_t>(cur)] = true;
+                cur = dest[static_cast<std::size_t>(cur)];
+            }
+        }
+
+        return audible;
+    }
+
     // True if adding the edge from -> to would create a cycle, given the current
     // single-out edges. Because out-degree is <= 1, this is just walking the
     // existing chain out of `to` and checking whether it returns to `from`.

@@ -1356,6 +1356,32 @@ namespace lockstep
         CHECK(proc.wouldRoutingCycle(0, 0), "self-route is a cycle");
     }
 
+    // A2 follow-up: solo is routing-aware. Soloing a bus must keep its feeders
+    // running (so the bus has audio); soloing a feeder must keep its downstream
+    // bus chain running (so the feeder reaches master).
+    static void testSoloBusPlaysFeeders()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        installThru(proc, 0, static_cast<float>(static_cast<int>(InputSourceKind::External)));  // feeder
+        installThru(proc, 1, static_cast<float>(static_cast<int>(InputSourceKind::None)));       // bus
+        proc.kit(0).channelState.out = encodeOutputDest(OutputDestKind::Track, 1);
+
+        // Solo the bus → its feeder must stay audible so the bus carries audio.
+        proc.toggleSolo(1);
+        renderBlockWithInput(h, 0.5f);
+        const float soloBus = renderBlockWithInput(h, 0.5f);
+        CHECK(soloBus > 0.05f, "soloing a bus auditions its feeders");
+        proc.toggleSolo(1);  // clear
+
+        // Solo the feeder → its downstream bus chain must stay audible.
+        proc.toggleSolo(0);
+        renderBlockWithInput(h, 0.5f);
+        const float soloFeeder = renderBlockWithInput(h, 0.5f);
+        CHECK(soloFeeder > 0.05f, "soloing a feeder keeps its bus chain to master audible");
+        proc.toggleSolo(0);  // clear
+    }
+
     // A2: Out-edit validation reasons + dynamic (machine-swap) invalidation.
     static void testOutEditValidation()
     {
@@ -1492,6 +1518,7 @@ namespace lockstep
         testOneShotFiresOnce();
         testBusRoutingRemovesFromMaster();
         testBusCycleRefused();
+        testSoloBusPlaysFeeders();
         testOutEditValidation();
         testRoutingDormantOnMachineSwap();
         testStemCaptureRouteDefined();

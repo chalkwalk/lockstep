@@ -1469,14 +1469,18 @@ namespace lockstep
         }
 
         // Pre-compute solo state once: if any track is soloed, non-soloed tracks
-        // are silenced (even if their mute button is off).
+        // are silenced (even if their mute button is off). A2 (DESIGN §27): solo
+        // is routing-aware — soloing a bus keeps its feeders audible (so you hear
+        // what flows in), and soloing a feeder keeps its downstream bus chain
+        // audible (so it still reaches master). The audibleMask encodes both.
+        std::array<bool, kNumTracks> soloedFlags{};
         bool anySoloed = false;
         for (std::size_t i = 0; i < kNumTracks; ++i)
-            if (trackSoloParams_[i]->load() >= 0.5f)
-            {
-                anySoloed = true;
-                break;
-            }
+        {
+            soloedFlags[i] = trackSoloParams_[i]->load() >= 0.5f;
+            anySoloed = anySoloed || soloedFlags[i];
+        }
+        const auto soloAudible = routing::soloAudibleMask(routingEdges(), soloedFlags);
 
         // Advance morph fader smoother once per block (DESIGN §17.2).
         morphFaderSmoothed_.setTargetValue(
@@ -1523,8 +1527,7 @@ namespace lockstep
             {
                 const std::size_t i = static_cast<std::size_t>(routeOrderIdle[oi]);
                 const bool muted = (trackMuteParams_[i]->load() >= 0.5f) || !section().activeMask[i];
-                const bool soloed = trackSoloParams_[i]->load() >= 0.5f;
-                if (muted || (anySoloed && !soloed)) continue;
+                if (muted || (anySoloed && !soloAudible[i])) continue;
                 // Resolve against the held step so P-Locks written by the note-on
                 // are included in the frame, falling back to -1 (base only).
                 int resolveStep = -1;
@@ -1652,8 +1655,7 @@ namespace lockstep
             const bool globalMuted = trackMuteParams_[i]->load() >= 0.5f;
             const bool sectionMuted = !section().activeMask[i];
             const bool muted = globalMuted || sectionMuted;
-            const bool soloed = trackSoloParams_[i]->load() >= 0.5f;
-            const bool silent = muted || (anySoloed && !soloed);
+            const bool silent = muted || (anySoloed && !soloAudible[i]);
 
             // MF.7: mute rising edge — send All-Notes-Off on MIDI-out tracks to
             // prevent stuck notes when a track is muted mid-note.

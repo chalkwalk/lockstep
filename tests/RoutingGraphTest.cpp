@@ -9,6 +9,7 @@
 namespace lockstep
 {
     using routing::computeOrder;
+    using routing::soloAudibleMask;
     using routing::wouldCreateCycle;
 
     // Returns the position of track t in the order (0..N-1), or -1.
@@ -93,6 +94,37 @@ namespace lockstep
         CHECK(!wouldCreateCycle(dest, 3, 0), "3->0 leaves the chain acyclic");
     }
 
+    static void testSoloBusKeepsFeeders()
+    {
+        // 0 -> 2, 1 -> 2 (bus), 3 standalone. Solo the bus (2).
+        std::array<int, 4> dest{ 2, 2, -1, -1 };
+        std::array<bool, 4> solo{ false, false, true, false };
+        const auto a = soloAudibleMask(dest, solo);
+        CHECK(a[2], "soloed bus is audible");
+        CHECK(a[0] && a[1], "feeders of a soloed bus stay audible");
+        CHECK(!a[3], "unrelated track is silent under solo");
+    }
+
+    static void testSoloFeederKeepsBusChain()
+    {
+        // 0 -> 2, 1 -> 2, 2 -> 3 (chain to a second bus). Solo feeder 0.
+        std::array<int, 4> dest{ 2, 2, 3, -1 };
+        std::array<bool, 4> solo{ true, false, false, false };
+        const auto a = soloAudibleMask(dest, solo);
+        CHECK(a[0], "soloed feeder is audible");
+        CHECK(a[2] && a[3], "downstream bus chain stays audible so it reaches master");
+        CHECK(!a[1], "sibling feeder is NOT pulled in by soloing one feeder");
+    }
+
+    static void testSoloNoEdgesIsJustSoloed()
+    {
+        std::array<int, 4> dest{ -1, -1, -1, -1 };
+        std::array<bool, 4> solo{ false, true, false, false };
+        const auto a = soloAudibleMask(dest, solo);
+        CHECK(a[1], "soloed track audible");
+        CHECK(!a[0] && !a[2] && !a[3], "no routing => only the soloed track audible");
+    }
+
     void runRoutingGraphTests()
     {
         testOrderNoEdgesIsIdentity();
@@ -103,5 +135,8 @@ namespace lockstep
         testSelfLoopRefused();
         testMasterAndOffAreNotEdges();
         testLongerCycleRefused();
+        testSoloBusKeepsFeeders();
+        testSoloFeederKeepsBusChain();
+        testSoloNoEdgesIsJustSoloed();
     }
 }
