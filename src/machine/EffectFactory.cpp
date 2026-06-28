@@ -3,6 +3,7 @@
 #include "../dsp/DelayEffect.h"
 #include "../dsp/ReverbEffect.h"
 #include "../dsp/DistortionEffect.h"
+#include "../dsp/SaturationEffect.h"
 #include "../dsp/ChorusEffect.h"
 // B2: track-grade effects (8.26)
 #include "../dsp/TiltEQEffect.h"
@@ -40,6 +41,7 @@ namespace lockstep
                       : std::unique_ptr<IEffect>(std::make_unique<DelayEffect>());
 
         if (id == "lockstep.distortion.v1")  return std::make_unique<DistortionEffect>();
+        if (id == "lockstep.saturation.v1")  return std::make_unique<SaturationEffect>(tier);
         if (id == "lockstep.chorus.v1")      return std::make_unique<ChorusEffect>();
         // B2: track-grade effects
         if (id == "lockstep.tilteq.v1")      return std::make_unique<TiltEQEffect>();
@@ -64,6 +66,7 @@ namespace lockstep
         { "lockstep.delay.v1",       "Delay",      "DLY", false },
         { "lockstep.reverb.v1",      "Reverb",     "REV", false },
         { "lockstep.distortion.v1",  "Distortion", "DRV", false },
+        { "lockstep.saturation.v1",  "Saturation", "SAT", false },
         { "lockstep.chorus.v1",      "Chorus",     "CHR", false },
         { "lockstep.tilteq.v1",      "Tilt EQ",    "TLT", false },
         { "lockstep.comp.v1",        "Compressor", "CMP", false },

@@ -18,6 +18,7 @@
 #include "../src/machine/SamplePool.h"
 #include "../src/machine/IEffect.h"
 #include "../src/machine/EffectFactory.h"
+#include "../src/dsp/Oversampler2x.h"
 #include <cmath>
 
 namespace lockstep
@@ -1165,6 +1166,86 @@ namespace lockstep
                         differs = true;
                 CHECK(differs, "A0: master insert had no effect on output -- processMasterChain may be bypassed");
             }
+        }
+
+        // --- Placement-aware quality tiers ---
+        // Reverb/Delay/Saturation present a lean LQ face on track inserts and a
+        // richer HQ face on master slots; the tier is chosen at construction.
+        {
+            for (const char* id : { "lockstep.reverb.v1", "lockstep.delay.v1",
+                                    "lockstep.saturation.v1" })
+            {
+                auto lq = makeEffectForId(id, EffectTier::Track);
+                auto hqx = makeEffectForId(id, EffectTier::Master);
+                CHECK(lq != nullptr && hqx != nullptr,
+                      "tier: both faces resolve for " + juce::String(id));
+                if (lq && hqx)
+                    CHECK(hqx->numParams() >= lq->numParams(),
+                          "tier: HQ face exposes >= LQ params for " + juce::String(id));
+            }
+
+            // Saturation: explicit LQ=4 / HQ=8 contract, and the HQ oversampled
+            // path stays finite on a hot input.
+            auto satLQ = makeEffectForId("lockstep.saturation.v1", EffectTier::Track);
+            auto satHQ = makeEffectForId("lockstep.saturation.v1", EffectTier::Master);
+            CHECK(satLQ && satLQ->numParams() == 4, "saturation: LQ has 4 params");
+            CHECK(satHQ && satHQ->numParams() == 8, "saturation: HQ has 8 params");
+            if (satHQ)
+            {
+                constexpr int kBlk = 256;
+                satHQ->prepare(48000.0, kBlk);
+                satHQ->reset();
+                ParamFrame f(static_cast<std::size_t>(satHQ->numParams()));
+                for (int p = 0; p < satHQ->numParams(); ++p)
+                    f[static_cast<std::size_t>(p)] = satHQ->paramSpec(p).defaultValue;
+                f[0] = 1.0f;  // drive hot to exercise the saturator + oversampler
+                juce::AudioBuffer<float> buf(2, kBlk);
+                for (int b = 0; b < 16; ++b)
+                {
+                    for (int ch = 0; ch < 2; ++ch)
+                        for (int i = 0; i < kBlk; ++i)
+                            buf.setSample(ch, i,
+                                1.3f * std::sin(static_cast<float>(b * kBlk + i) * 0.06f));
+                    satHQ->process(buf, kBlk, f);
+                }
+                CHECK(!hasNaNOrInf(buf), "saturation HQ: NaN/Inf through oversampled path");
+                CHECK(blockRms(buf) > 1e-4f, "saturation HQ: produced output");
+            }
+
+            // Legacy HQ ids still resolve (backward-compat) and canonicalise.
+            CHECK(makeEffectForId("lockstep.verbhq.v1", EffectTier::Master) != nullptr,
+                  "tier: legacy verbhq id still resolves");
+            CHECK(canonicalEffectId("lockstep.verbhq.v1") == "lockstep.reverb.v1",
+                  "tier: verbhq canonicalises to reverb");
+            CHECK(canonicalEffectId("lockstep.delayhq.v1") == "lockstep.delay.v1",
+                  "tier: delayhq canonicalises to delay");
+        }
+
+        // --- Oversampler2x: DC gain, passband, and alias rejection ---
+        {
+            dsp::Oversampler2x os;
+            double dc = 0.0;
+            for (int n = 0; n < 2000; ++n)
+            {
+                float a, b;
+                os.upsample(1.0f, a, b);
+                const float y = os.decimate(a, b);
+                if (n > 300) dc += static_cast<double>(y);
+            }
+            CHECK(std::abs(dc / 1700.0 - 1.0) < 0.02, "oversampler: unity DC gain through up->down");
+
+            // A tone above base-Nyquist (would fold) must be strongly rejected by
+            // the decimator. f2=0.35 cyc/sample @2x is well into the stopband.
+            dsp::Oversampler2x os2;
+            double pk = 0.0;
+            for (int m = 0; m < 4000; ++m)
+            {
+                const float a = std::sin(2.0f * 3.14159265f * 0.35f * static_cast<float>(2 * m));
+                const float b = std::sin(2.0f * 3.14159265f * 0.35f * static_cast<float>(2 * m + 1));
+                const float y = os2.decimate(a, b);
+                if (m > 400) pk = std::max(pk, static_cast<double>(std::abs(y)));
+            }
+            CHECK(pk < 0.05, "oversampler: rejects above-Nyquist content (alias guard)");
         }
     }
 }

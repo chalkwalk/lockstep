@@ -182,7 +182,8 @@ namespace lockstep
                 static_cast<int>(divBeats * beatSecs * sr_));
         }
 
-        static inline const std::string kId = "lockstep.delayhq.v1";
+        // HQ face of the unified "Delay" entry (auto-selected on master slots).
+        static inline const std::string kId = "lockstep.delay.v1";
 
         double sr_ = 44100.0;
         double bpm_ = 120.0;

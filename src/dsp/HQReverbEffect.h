@@ -250,7 +250,8 @@ namespace lockstep
         [[nodiscard]] juce::String badge() const override { return "RVH"; }
 
     private:
-        static inline const std::string kId = "lockstep.verbhq.v1";
+        // HQ face of the unified "Reverb" entry (auto-selected on master slots).
+        static inline const std::string kId = "lockstep.reverb.v1";
 
         double sr_ = 44100.0;
         float smoothCoef_ = 0.01f;
