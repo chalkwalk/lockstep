@@ -142,5 +142,85 @@ namespace lockstep
             runBlock(lp, n, 0.25f, Cmd::RecordCycle);   // Playing → Overdubbing
             CHECK(p2.size() == before, "B3: overdub does not add a pool entry");
         }
+
+        // Helper: run a block with explicit params (loop_sync etc.).
+        auto runP = [](LooperMachine& m, int len, float inVal, Cmd cmd,
+                       const ParamFrame& pr, int impulseAt = -1) {
+            if (cmd != Cmd::None) m.postCommand(cmd);
+            juce::AudioBuffer<float> b(2, len);
+            for (int ch = 0; ch < 2; ++ch)
+                for (int i = 0; i < len; ++i)
+                    b.setSample(ch, i, (i == impulseAt) ? 1.0f : inVal);
+            juce::MidiBuffer midi;
+            ParamFrame params = pr;
+            m.process(midi, params, b);
+            return b;
+        };
+
+        // C4: bar-quantized record auto-closes at the bar length.
+        {
+            SamplePool p3;
+            const int idx = p3.addVolatile();
+            p3.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LooperMachine lp(p3);
+            lp.prepare(kSr, n);
+            TransportInfo tr; tr.samplesPerBar = 1024.0; tr.running = true;
+            lp.setTransport(tr);
+
+            ParamFrame fr{ 1.0f, 0.0f, 2.0f };  // input=Ext, target=0, loop_sync=1 Bar
+            runP(lp, 512, 0.5f, Cmd::RecordCycle, fr);  // start (512 recorded)
+            CHECK(lp.state() == State::Recording, "1 Bar: still recording at 512 < 1024");
+            runP(lp, 512, 0.5f, Cmd::None, fr);         // reaches 1024 → auto-close
+            CHECK(lp.state() == State::Playing, "1 Bar: auto-closes at the bar length");
+            CHECK(p3.get(idx) != nullptr && p3.get(idx)->pcm.getNumSamples() == 1024,
+                  "1 Bar: auto-closed loop length == 1 bar (1024)");
+        }
+
+        // C4: Free-Len varispeed — halving the project tempo halves the loop's
+        // playback rate, so an impulse loop wraps ~half as often.
+        auto countImpulseWraps = [&runP](double projectSpb) {
+            SamplePool p;
+            p.addVolatile();
+            p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LooperMachine lp(p);
+            lp.prepare(kSr, 512);
+            TransportInfo tr; tr.samplesPerBar = 1000.0; tr.running = false;  // free-run
+            lp.setTransport(tr);
+
+            ParamFrame fr{ 1.0f, 0.0f, 1.0f };  // Free Len
+            // Record a 1024-sample loop with a single impulse at sample 0.
+            runP(lp, 512, 0.0f, Cmd::RecordCycle, fr, /*impulseAt*/ 0);
+            runP(lp, 512, 0.0f, Cmd::None, fr);
+            runP(lp, 1, 0.0f, Cmd::RecordCycle, fr);  // close → Playing (loopLen 1024)
+
+            // Now set the project tempo and collect output, counting impulse wraps.
+            TransportInfo tp; tp.samplesPerBar = projectSpb; tp.running = false;
+            lp.setTransport(tp);
+            int wraps = 0;
+            float prev = 0.0f;
+            juce::MidiBuffer none;
+            for (int b = 0; b < 32; ++b)  // 32 * 512 = 16384 output samples
+            {
+                juce::AudioBuffer<float> buf(2, 512);
+                ParamFrame pp = fr;
+                lp.process(none, pp, buf);
+                for (int i = 0; i < 512; ++i)
+                {
+                    const float x = buf.getSample(0, i);
+                    if (x > 0.5f && prev <= 0.5f) ++wraps;
+                    prev = x;
+                }
+            }
+            return wraps;
+        };
+
+        {
+            const int wraps1x = countImpulseWraps(1000.0);  // rate 1 → period ~1024
+            const int wraps2x = countImpulseWraps(2000.0);  // rate 0.5 → period ~2048
+            CHECK(wraps1x > 0 && wraps2x > 0, "Free Len: impulse loop wraps at both tempos");
+            const double ratio = static_cast<double>(wraps1x) / std::max(1, wraps2x);
+            CHECK(ratio > 1.5 && ratio < 2.6,
+                  "Free Len: halving tempo ~halves the wrap rate (ratio=" + juce::String(ratio) + ")");
+        }
     }
 }

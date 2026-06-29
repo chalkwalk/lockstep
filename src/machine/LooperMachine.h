@@ -82,7 +82,8 @@ namespace lockstep
     private:
         static constexpr int kSlotInputSource = 0;
         static constexpr int kSlotTargetBuffer = 1;  // volatile REC slot the loop lives in
-        static constexpr int kNumSlots = 2;
+        static constexpr int kSlotLoopSync = 2;      // Free | Free Len | 1/2/4 Bar
+        static constexpr int kNumSlots = 3;
         static constexpr double kLoopMaxSeconds = 12.0;
 
         void applyCommand(Cmd c);
@@ -92,6 +93,11 @@ namespace lockstep
         // Snapshot the loop's first `loopLen_` samples for one-level overdub undo,
         // without resizing the pool buffer.
         void snapshotForUndo();
+        // Linear-interpolated read of the loop at a fractional position [0,loopLen_).
+        [[nodiscard]] float loopSample(int ch, double pos) const;
+        // Target playback duration (output samples) the loop should occupy at the
+        // current project tempo, for the active sync mode; 0 = native (no stretch).
+        [[nodiscard]] double targetOutputSamples() const;
 
         SamplePool& pool_;
         double sampleRate_ = 44100.0;
@@ -101,8 +107,11 @@ namespace lockstep
 
         State state_ = State::Idle;
         int loopLen_ = 0;
-        int playhead_ = 0;
+        double playPos_ = 0.0;    // fractional read position (varispeed, C4)
         int recPos_ = 0;
+        int recLenTarget_ = 0;    // auto-close length for bar-quantized record (0 = none)
+        int syncMode_ = 0;        // resolved loop_sync this block
+        double rate_ = 1.0;       // current (slewed) varispeed rate
         bool haveBackup_ = false;
 
         // The loop lives in pool slot `targetSlot_` (resolved each block); backup_
@@ -115,5 +124,12 @@ namespace lockstep
         std::atomic<int> stateMirror_{ 0 };
 
         TransportInfo transport_{};  // last block transport (C2)
+
+        // loop_sync: Free (native, ignores tempo) | Free Len (varispeed to the
+        // recorded musical duration, floats) | 1/2/4 Bar (varispeed + grid
+        // phase-lock). Values 2..4 are bar-quantized; bars = 1 << (value - 2).
+        static constexpr std::array<const char* const, 5> kLoopSyncLabels = {
+            "Free", "Free Len", "1 Bar", "2 Bar", "4 Bar"
+        };
     };
 }
