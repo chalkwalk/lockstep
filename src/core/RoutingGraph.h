@@ -59,6 +59,99 @@ namespace lockstep::routing
         return order;
     }
 
+    // Combined order over TWO edge classes (the tap-fork extension, DESIGN §27):
+    //   - mix edges:  i precedes dest[i]    (track i feeds bus dest[i])
+    //   - tap edges:  tapSrc[i] precedes i  (track i reads a copy of tapSrc[i])
+    // Both are "source before consumer" constraints, so a single Kahn pass over the
+    // union yields an order where every feeder AND every tapped source is processed
+    // before its consumer. Out-degree is no longer ≤ 1 (a track may be tapped by
+    // many), so this is a general DAG topo-sort; ties resolve by ascending index and
+    // a cycle (refused at assignment) still yields a full permutation. Pure,
+    // allocation-free — runs per-block on the audio thread.
+    template <std::size_t N>
+    std::array<int, N> computeOrder(const std::array<int, N>& dest,
+                                    const std::array<int, N>& tapSrc) noexcept
+    {
+        std::array<int, N> indeg{};
+        for (std::size_t i = 0; i < N; ++i)
+        {
+            const int d = dest[i];
+            if (d >= 0 && d < static_cast<int>(N) && d != static_cast<int>(i))
+                ++indeg[static_cast<std::size_t>(d)];   // i precedes dest[i]
+            const int s = tapSrc[i];
+            if (s >= 0 && s < static_cast<int>(N) && s != static_cast<int>(i))
+                ++indeg[i];                             // tapSrc[i] precedes i
+        }
+
+        std::array<int, N> order{};
+        std::array<bool, N> emitted{};
+        std::size_t head = 0;
+
+        for (std::size_t pass = 0; pass < N; ++pass)
+        {
+            int pick = -1;
+            for (std::size_t i = 0; i < N; ++i)
+                if (!emitted[i] && indeg[i] == 0) { pick = static_cast<int>(i); break; }
+
+            if (pick < 0)  // cycle (or done) — append remaining in ascending order
+                for (std::size_t i = 0; i < N; ++i)
+                    if (!emitted[i]) { pick = static_cast<int>(i); break; }
+            if (pick < 0) break;
+
+            const auto pi = static_cast<std::size_t>(pick);
+            emitted[pi] = true;
+            order[head++] = pick;
+
+            // Relax successors: the mix destination, and every track that taps pick.
+            const int d = dest[pi];
+            if (d >= 0 && d < static_cast<int>(N) && d != pick && indeg[static_cast<std::size_t>(d)] > 0)
+                --indeg[static_cast<std::size_t>(d)];
+            for (std::size_t j = 0; j < N; ++j)
+                if (!emitted[j] && tapSrc[j] == pick && indeg[j] > 0)
+                    --indeg[j];
+        }
+        return order;
+    }
+
+    // True if the union of mix edges (dest) and tap edges (tapSrc) contains a cycle.
+    // Used to refuse a tap assignment that would close a loop across either edge
+    // class. Pure Kahn: if fewer than N nodes drain cleanly, a cycle remains.
+    template <std::size_t N>
+    bool hasCycle(const std::array<int, N>& dest, const std::array<int, N>& tapSrc) noexcept
+    {
+        std::array<int, N> indeg{};
+        for (std::size_t i = 0; i < N; ++i)
+        {
+            const int d = dest[i];
+            if (d >= 0 && d < static_cast<int>(N) && d != static_cast<int>(i))
+                ++indeg[static_cast<std::size_t>(d)];
+            const int s = tapSrc[i];
+            if (s >= 0 && s < static_cast<int>(N) && s != static_cast<int>(i))
+                ++indeg[i];
+        }
+
+        std::array<bool, N> emitted{};
+        std::size_t drained = 0;
+        for (std::size_t pass = 0; pass < N; ++pass)
+        {
+            int pick = -1;
+            for (std::size_t i = 0; i < N; ++i)
+                if (!emitted[i] && indeg[i] == 0) { pick = static_cast<int>(i); break; }
+            if (pick < 0) break;  // nothing drainable — remaining nodes form a cycle
+
+            const auto pi = static_cast<std::size_t>(pick);
+            emitted[pi] = true;
+            ++drained;
+            const int d = dest[pi];
+            if (d >= 0 && d < static_cast<int>(N) && d != pick && indeg[static_cast<std::size_t>(d)] > 0)
+                --indeg[static_cast<std::size_t>(d)];
+            for (std::size_t j = 0; j < N; ++j)
+                if (!emitted[j] && tapSrc[j] == pick && indeg[j] > 0)
+                    --indeg[j];
+        }
+        return drained < N;
+    }
+
     // Audibility under solo, routing-aware (DESIGN §27). When any track is
     // soloed, a track is audible iff it is connected to a soloed track through
     // the routing graph — either UPSTREAM (a soloed bus needs the feeders that
