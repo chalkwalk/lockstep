@@ -5194,6 +5194,14 @@ namespace lockstep
         for (int s = 0; s < np; ++s)
             k.baseParams[static_cast<std::size_t>(s)] = nm->paramSpec(s).defaultValue;
 
+        // D1: a freshly-assigned capture machine (Recorder/Looper) defaults its
+        // target_buffer to the next free REC slot, so multiple capture tracks don't
+        // all pile onto slot 0. Deliberate sharing is still possible by reassigning.
+        const int tbSlot = nm->slotForId("target_buffer");
+        if (tbSlot >= 0 && tbSlot < np)
+            k.baseParams[static_cast<std::size_t>(tbSlot)] =
+                static_cast<float>(nextFreeCaptureSlot(track));
+
         withQuiescedEngine([&] {
             machines_[ti] = std::move(nm);
             sequence().tracks[ti].baseParams = k.baseParams;
@@ -5297,6 +5305,46 @@ namespace lockstep
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
         return dynamic_cast<StaticMachine*>(machines_[static_cast<std::size_t>(track)].get())
                != nullptr;
+    }
+
+    int LockstepProcessor::captureTargetSlot(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1;
+        const auto ti = static_cast<std::size_t>(track);
+        const auto* m = machines_[ti].get();
+        if (m == nullptr) return -1;
+        const int slot = m->slotForId("target_buffer");
+        if (slot < 0) return -1;
+        const auto& bp = sequence().tracks[ti].baseParams;
+        if (slot >= static_cast<int>(bp.size())) return -1;
+        return std::clamp(static_cast<int>(std::lround(bp[static_cast<std::size_t>(slot)])),
+                          0, kNumVolatileSlots - 1);
+    }
+
+    int LockstepProcessor::nextFreeCaptureSlot(int exceptTrack) const
+    {
+        std::array<bool, kNumVolatileSlots> used{};
+        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+        {
+            if (t == exceptTrack) continue;
+            const int s = captureTargetSlot(t);
+            if (s >= 0 && s < kNumVolatileSlots) used[static_cast<std::size_t>(s)] = true;
+        }
+        for (int s = 0; s < kNumVolatileSlots; ++s)
+            if (!used[static_cast<std::size_t>(s)]) return s;
+        return 0;  // all slots taken — fall back to slot 0 (deliberate sharing)
+    }
+
+    bool LockstepProcessor::captureSlotShared(int track) const
+    {
+        const int s = captureTargetSlot(track);
+        if (s < 0) return false;
+        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+        {
+            if (t == track) continue;
+            if (captureTargetSlot(t) == s) return true;
+        }
+        return false;
     }
 
     bool LockstepProcessor::setStaticFile(int track, const juce::String& path)

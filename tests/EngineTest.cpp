@@ -24,6 +24,7 @@
 #include "../src/machine/MidiOutMachine.h"
 #include "../src/machine/ThruMachine.h"
 #include "../src/machine/RecorderMachine.h"
+#include "../src/machine/LooperMachine.h"
 #include "../src/machine/InputSource.h"
 #include "../src/core/OutputDest.h"
 
@@ -2056,12 +2057,40 @@ namespace lockstep
         }
     }
 
+    // -----------------------------------------------------------------------
+    // D1 multi-capture: a freshly-assigned capture machine defaults its
+    // target_buffer to the next free REC slot; a forced collision is flagged
+    // (soft, no hard lock).
+    static void testMultiCaptureSlots()
+    {
+        EngineHarness h;
+        auto& p = h.processor();
+
+        p.setTrackMachine(0, RecorderMachine::kMachineId);
+        CHECK(p.captureTargetSlot(0) == 0, "first capture machine defaults to slot 0");
+        p.setTrackMachine(1, LooperMachine::kMachineId);
+        CHECK(p.captureTargetSlot(1) == 1, "second capture machine defaults to next free slot 1");
+        p.setTrackMachine(2, RecorderMachine::kMachineId);
+        CHECK(p.captureTargetSlot(2) == 2, "third capture machine defaults to slot 2");
+        CHECK(!p.captureSlotShared(0) && !p.captureSlotShared(1) && !p.captureSlotShared(2),
+              "distinct default slots are not flagged as shared");
+
+        // Force track 1 (looper) onto slot 0 — both now share it (soft flag, no lock).
+        p.writeParam(1, /*looper target_buffer slot*/ 1, 0.0f);
+        h.renderBlocks(2);
+        CHECK(p.captureTargetSlot(1) == 0, "collision: looper retargeted to slot 0");
+        CHECK(p.captureSlotShared(0) && p.captureSlotShared(1),
+              "collision: shared slot is flagged on both tracks");
+        CHECK(!p.captureSlotShared(2), "non-colliding track 2 is not flagged");
+    }
+
     void runEngineTests()
     {
         testTransposeTrack();
         testTapForkSameBlock();
         testTapCycleRefusal();
         testTempoSeamReachesMachine();
+        testMultiCaptureSlots();
         testTrigFiresOnGrid();
         testFMChordOnsetOnGrid();
         testFMMixerAndVoiceComp();

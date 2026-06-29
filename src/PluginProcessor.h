@@ -209,6 +209,17 @@ namespace lockstep
         [[nodiscard]] bool isStaticTrack(int track) const;
         bool setStaticFile(int track, const juce::String& path);
 
+        // D1 multi-capture: capture machines (Recorder/Looper) share the 8-slot
+        // volatile REC bank via their "target_buffer" slot. captureTargetSlot
+        // returns that 0..7 ordinal (or -1 for a non-capture track);
+        // nextFreeCaptureSlot picks the lowest slot no other capture track uses (so
+        // a freshly-assigned capture machine defaults to a distinct slot);
+        // captureSlotShared flags when >1 capture track targets one slot (the soft
+        // collision indicator — no hard lock).
+        [[nodiscard]] int captureTargetSlot(int track) const;
+        [[nodiscard]] int nextFreeCaptureSlot(int exceptTrack) const;
+        [[nodiscard]] bool captureSlotShared(int track) const;
+
         // ── Scene launch queue (Phase 7 / DESIGN §4.8, §16) ─────────────────
         // Queue a Section launch to fire at the next core-time bar boundary.
         // Safe to call from the message thread. cancelQueuedScene() clears it.
