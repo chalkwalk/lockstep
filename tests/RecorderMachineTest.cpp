@@ -164,5 +164,48 @@ namespace lockstep
             CHECK(out.getMagnitude(0, 512) > 0.01f,
                   "Sampler plays back the captured REC buffer (non-silent)");
         }
+
+        // sourceBars stamp from the transport snapshot (B1/B2) ------------------
+        {
+            SamplePool pool;
+            const int idx = pool.addVolatile();
+            pool.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            RecorderMachine rec(pool);
+            rec.prepare(kSr, 512);
+
+            TransportInfo tr;
+            tr.samplesPerBar = 24000.0;  // 1 bar = 24000 samples
+            tr.running = true;
+            rec.setTransport(tr);
+
+            auto params = recFrame(0.5f);  // 0.5 s @ 48k = 24000 samples = exactly 1 bar
+            auto buf = filledBlock(512, 0.5f);
+            rec.process(noteOnAt(0), params, buf);
+
+            CHECK(feq(static_cast<float>(pool.sourceBars(idx)), 1.0f),
+                  "recorder stamps sourceBars = capturedSamples / samplesPerBar");
+        }
+
+        // Monitor mode: On passes the input through; Off (default) is silent ----
+        {
+            SamplePool pool;
+            pool.addVolatile();
+            pool.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            RecorderMachine rec(pool);
+            rec.prepare(kSr, 512);
+
+            // 4-element frame: input_source, target_buffer, rec_length, monitor.
+            ParamFrame on{ 1.0f, 0.0f, 0.01f, 1.0f };
+            auto bufOn = filledBlock(512, 0.5f);
+            rec.process(noteOnAt(0), on, bufOn);
+            CHECK(allClose(bufOn, 0, 512, 0.5f),
+                  "monitor On: the input passes through to the output");
+
+            ParamFrame off{ 1.0f, 0.0f, 0.01f, 0.0f };
+            auto bufOff = filledBlock(512, 0.5f);
+            rec.process(noteOnAt(0), off, bufOff);
+            CHECK(allClose(bufOff, 0, 512, 0.0f),
+                  "monitor Off: the output is silent (capture-only tap)");
+        }
     }
 }

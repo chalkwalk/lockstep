@@ -75,7 +75,8 @@ namespace lockstep
         static constexpr int kSlotInputSource = 0;
         static constexpr int kSlotTargetBuffer = 1;
         static constexpr int kSlotRecLength = 2;
-        static constexpr int kNumSlots = 3;
+        static constexpr int kSlotMonitor = 3;  // Off = silent tap, On = pass input through
+        static constexpr int kNumSlots = 4;
 
         // rec_length bounds (seconds). The default project's volatile slots are
         // sized to a fixed capacity; capture truncates at the buffer length.
@@ -100,5 +101,6 @@ namespace lockstep
         static constexpr std::array<const char* const, 8> kBufferLabels = {
             "REC1", "REC2", "REC3", "REC4", "REC5", "REC6", "REC7", "REC8"
         };
+        static constexpr std::array<const char* const, 2> kMonitorLabels = { "Off", "On" };
     };
 }

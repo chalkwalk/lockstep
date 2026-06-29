@@ -41,6 +41,16 @@ namespace lockstep
                 // mislabel). Default = a short grab; loop-length default is a
                 // later refinement once the machine sees sequencer tempo context.
                 return s;
+            case kSlotMonitor:
+                s.id = "rec_monitor";
+                s.label = "Monitor";
+                s.minValue = 0.0f;
+                s.maxValue = 1.0f;
+                s.defaultValue = 0.0f;  // Off — a clean silent tap by default
+                s.isStepped = true;
+                s.valueLabels = std::span<const char* const>(kMonitorLabels.data(),
+                                                             kMonitorLabels.size());
+                return s;
             default:
                 return {};
         }
@@ -67,6 +77,11 @@ namespace lockstep
         // is clamped to it), then clear so an interrupted capture has no stale tail.
         target_->setSize(target_->getNumChannels(), recLen, false, false, true);
         target_->clear();
+
+        // Stamp the captured musical length (bars) so a tempo-tracking Player can
+        // stretch the buffer to the project tempo (B1/B2). 0 when tempo is unknown.
+        const double spb = transport_.samplesPerBar;
+        pool_.setSourceBars(poolIdx, spb > 0.0 ? static_cast<double>(recLen) / spb : 0.0);
 
         writePos_ = 0;
         samplesRemaining_ = recLen;
@@ -116,9 +131,13 @@ namespace lockstep
         }
         writeInput(buffer, pos, numSamples - pos);
 
-        // The recorder is a silent tap: it captures, it does not sound. Clearing
-        // here keeps a Master/External capture from doubling back into the mix
-        // regardless of the track's CHANNEL "Out" (typically Off, DESIGN §27).
-        buffer.clear();
+        // Output mode (DESIGN §30): Off (default) = silent tap — clear so a
+        // Master/External capture never doubles back into the mix regardless of the
+        // track's CHANNEL "Out". On = monitor — leave the input in the buffer so the
+        // performer hears the source being recorded (route CHANNEL "Out" to taste).
+        const bool monitor = (params.size() > kSlotMonitor)
+            && std::lround(params[static_cast<std::size_t>(kSlotMonitor)]) >= 1;
+        if (!monitor)
+            buffer.clear();
     }
 }
