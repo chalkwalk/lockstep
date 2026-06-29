@@ -35,6 +35,15 @@ master) and unified Delay/Reverb (HQ ids folded in + migrated); `dsp/Oversampler
 glue, `Age` drift macro); FM clean (exponential op envelopes, smoothed diagonal
 self-feedback, 2× operator oversampling). **Next:** `6.2` RecorderMachine (lands on
 this settled signal path); `6.7` Machine Module ABI.
+**Playback-correctness + gain-staging pass shipped (post-audio-quality):** metronome
+downbeat-skip fix + fresh-start trig anchor frame (trigs were on-grid; the
+"half-step-late" feel traced to a *stale Delay left on a new project*); project load
+now tears down effect instances on empty slots and reinstalls master sends (phantom
+effects fix); on-screen playhead advances with no focused track; FX picker reachable
+with Track held (no more wrong-track edits); all-machine loudness calibration (VA was
+~5× hot → matched to drum/FM); FM carrier-mixer normalization + polyphony comp; VA
+filter cutoff key-tracking (`va_keytrack`); master output level surfaced (meter VOL
+chip + `Master` band label). Mute-over-soloed-bus verified correct (regression test).
 **Octatrack-parity arc shipped (6.1 + 5.5 + 5.6):** audio-input boundary,
 output-directed track buses (CHANNEL "Out", topo sort, cycle refusal), ThruMachine,
 per-take stem export; Cue-scope audition (`Func+3`); lock-only + one-shot trigs.

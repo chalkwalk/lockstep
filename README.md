@@ -595,8 +595,8 @@ Tracks 1–8 default to `SamplerMachine` and tracks 9–16 to `MidiOutMachine` (
 |---|---|---|
 | `SamplerMachine` | SP | Monophonic sample playback. SRC section: sample, pitch, trim window (`samp_start` / `samp_length`), loop mode (OFF / SUS / S+R / ALL), loop region (`samp_loop_start` / `samp_loop_len`). All position slots snap to zero-crossings on write. AMP section: level + AHDSR. |
 | `SlicerMachine` | SL | Slice/scrub sample playback. SLICE mode: incoming MIDI note selects slice 0–15; `slicer_start` / `slicer_length` are relative to the active slice. SCRUB mode: note drives playback rate vs. root 60 (identical to Sampler semantics). `slicer_rate` P-lockable for per-step rate; negative rate = reverse playback. `slicer_slice_src` (EQUAL / TRANS) and `slicer_slice_count` auto-recompute slices on change; transient detection uses 5 ms RMS blocks with fast/slow envelope ratio and centre-weighted search. VOICE section: MONO / POLY toggle (V4). |
-| `FMMachine` | FM | 4-operator FM synthesis. Free 4×4 modulation matrix (diagonal = smoothed self-feedback). Exponential per-operator ADSR, ratio, fine-tune, mix. Macro attack/release/sustain scalars. MONO / POLY voice modes (V4 pool). Operator core is 2× oversampled for clean high-index FM. |
-| `VAMachine` | VA | Virtual-analog dual-osc synth. PolyBLEP oscillators + sub + shared noise. State-variable filter (LP24/LP12/HP/BP + drive). Filter ADSR + amp ADSR. LFO (6 shapes). Mono / Paraphonic-4 voice modes. Para topology: chord notes 1 & 3 → osc1+sub; notes 2 & 4 → osc2+sub. Always-on gentle glue saturation + paraphonic loudness compensation; **Age** (MOD) macro dials in analog drift (detune/cutoff/PW wander). |
+| `FMMachine` | FM | 4-operator FM synthesis. Free 4×4 modulation matrix (diagonal = smoothed self-feedback). Exponential per-operator ADSR, ratio, fine-tune, mix. Macro attack/release/sustain scalars. MONO / POLY voice modes (V4 pool). Operator core is 2× oversampled for clean high-index FM. Carrier mixer normalizes above unity (stacking operators won't blow up the level) and polyphony is loudness-compensated (a chord ≈ 1/√N), level-matched to the drum/VA reference. |
+| `VAMachine` | VA | Virtual-analog dual-osc synth. PolyBLEP oscillators + sub + shared noise. State-variable filter (LP24/LP12/HP/BP + drive). Filter ADSR + amp ADSR. LFO (6 shapes). Mono / Paraphonic-4 voice modes. Para topology: chord notes 1 & 3 → osc1+sub; notes 2 & 4 → osc2+sub. Always-on gentle glue saturation + paraphonic loudness compensation; **Age** (MOD) macro dials in analog drift (detune/cutoff/PW wander). Filter **Key Trk** (FILTER) tracks the cutoff to pitch (default full; audible once the cutoff is below maximum). Output level-matched to the drum/FM reference. |
 | `DrumSynthMachine` | DR | Rytm-style per-track drum synthesis. One stepped `Type` param selects the variant; each has dedicated DSP. Eight types ship: KICK, SNARE, HAT, TOM, CLAP, COWBELL, CYMBAL, RIMSHOT. |
 | `MidiOutMachine` | M | MIDI CC / note output to external gear. Configurable destination, channel, program, 16 CC slots with user-assignable numbers and labels. |
 
@@ -784,7 +784,11 @@ put the HQ face on a Thru track or the master bus for clean bus glue.
 *Gain staging is master-only:* tracks and buses stay linear (float headroom); the
 only structural clip is a transparent soft-knee clipper at the master output that
 is unity below ~−3 dBFS and only catches peaks. Machine-internal character
-saturation (VA drive, drum kick) is separate and unaffected.
+saturation (VA drive, drum kick) is separate and unaffected. Every machine is
+level-matched so a single note at internal level ~0.5 / track 1.0 sits near the
+same reference. The **master output level** is set from the `Func+7` band
+(`Master`) — there is no on-screen fader by design — and its current value shows
+as a **VOL** chip beside the master meter.
 
 State round-trips in serializer v21 (hierarchical time-sig + tempo).
 
