@@ -1515,9 +1515,91 @@ namespace lockstep
         tmpDir.deleteRecursively();
     }
 
+    // Resolve a VA slot index from its stable param id (slot constants are
+    // private; the id is the public contract).
+    static int vaSlotById(const char* id)
+    {
+        VAMachine tmp;
+        for (int i = 0; i < tmp.numParams(); ++i)
+            if (tmp.paramSpec(i).id == juce::String(id))
+                return i;
+        return -1;
+    }
+
+    // -----------------------------------------------------------------------
+    // Phase D: the new VA "Age" param must round-trip through save/load like any
+    // other id-keyed base param (no serializer version bump needed — additive).
+    static void testVAAgeRoundTrip()
+    {
+        const int ageSlot = vaSlotById("va_age");
+        CHECK(ageSlot >= 0, "VA Age round-trip: va_age slot exists");
+        if (ageSlot < 0) return;
+
+        EngineHarness hA;
+        installVA(hA.processor(), 0);
+        hA.processor().kit(0).baseParams[static_cast<std::size_t>(ageSlot)] = 0.73f;
+        hA.processor().reinstallMachinesFromActiveKit();
+
+        juce::MemoryBlock state;
+        hA.processor().getStateInformation(state);
+
+        EngineHarness hB;
+        hB.processor().setStateInformation(state.getData(), static_cast<int>(state.getSize()));
+        const float loaded = hB.processor().kit(0).baseParams[static_cast<std::size_t>(ageSlot)];
+        CHECK(feq(loaded, 0.73f),
+              "VA Age round-trip: va_age survived save/load (got=" + juce::String(loaded, 4) + ")");
+    }
+
+    // Phase D: paraphonic loudness compensation. A 4-note chord must be thicker
+    // than a single note but nowhere near 4x as loud (the old abrasive linear
+    // stacking). Drives a standalone VAMachine and compares peak magnitudes.
+    static void testVAParaLoudnessCompensation()
+    {
+        const int voiceModeSlot = vaSlotById("va_voice_mode");
+        const int sustainSlot = vaSlotById("va_amp_s");
+        const int ageSlot = vaSlotById("va_age");
+
+        auto peakForChord = [&](const std::vector<int>& notes) {
+            VAMachine m;
+            m.prepare(44100.0, 512);
+            ParamFrame frame(static_cast<std::size_t>(m.numParams()));
+            for (int i = 0; i < m.numParams(); ++i)
+                frame[static_cast<std::size_t>(i)] = m.paramSpec(i).defaultValue;
+            frame[static_cast<std::size_t>(voiceModeSlot)] = 1.0f;  // Paraphonic
+            frame[static_cast<std::size_t>(sustainSlot)] = 1.0f;    // hold the chord
+            frame[static_cast<std::size_t>(ageSlot)] = 0.0f;        // isolate the comp
+
+            juce::MidiBuffer midi;
+            for (int n : notes)
+                midi.addEvent(juce::MidiMessage::noteOn(1, n, 0.9f), 0);
+
+            juce::AudioBuffer<float> buf(2, 512);
+            float peak = 0.0f;
+            for (int b = 0; b < 16; ++b)  // let the per-voice attacks settle
+            {
+                buf.clear();
+                m.process(b == 0 ? midi : juce::MidiBuffer{}, frame, buf);
+                peak = std::max(peak, buf.getMagnitude(0, 0, 512));
+            }
+            return peak;
+        };
+
+        const float one = peakForChord({ 60 });
+        const float four = peakForChord({ 60, 64, 67, 72 });
+        CHECK(one > 1e-3f, "VA para comp: single note produced audio (precondition)");
+        CHECK(four > one * 1.1f,
+              "VA para comp: 4-note chord is thicker than one note (got chord=" +
+              juce::String(four, 4) + " single=" + juce::String(one, 4) + ")");
+        CHECK(four < one * 3.0f,
+              "VA para comp: 4-note chord is not ~4x louder (compensation working; got ratio=" +
+              juce::String(four / std::max(one, 1e-6f), 3) + ")");
+    }
+
     void runEngineTests()
     {
         testTransposeTrack();
+        testVAAgeRoundTrip();
+        testVAParaLoudnessCompensation();
         testDrumDirectNaN();
         testNaNFreeDefaultState();
         testClockAdvances();
