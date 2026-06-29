@@ -1197,20 +1197,31 @@ namespace lockstep
     static void testThruMasterTap()
     {
         EngineHarness h;
-        // Track 1 brings the input in; track 0 reads the prior-block master.
-        installThru(h.processor(), 1,
+        auto& p = h.processor();
+        // Track 1 brings the input in; track 0 taps the prior-block master.
+        installThru(p, 1,
                     static_cast<float>(static_cast<int>(InputSourceKind::External)));
-        installThru(h.processor(), 0,
+        installThru(p, 0,
                     static_cast<float>(static_cast<int>(InputSourceKind::Master)));
 
-        // Block 1: input present → master is non-silent and gets cached.
+        // #3 feedback guard: track 0 routes to Master by default, so tapping Master
+        // would close a master → tap → output → master loop. The run-time guard
+        // mutes the tap (a Master tap can NEVER legitimately reach the master sum —
+        // any path back to Master is an echo of it). Track 1's contribution still
+        // makes block 1 non-silent; block 2 (no input) must be silent, proving the
+        // tap added nothing rather than replaying the prior master.
+        CHECK(p.outputReachesMaster(0), "Master-tapping Thru also routes to Master");
         const float b1 = renderBlockWithInput(h, 0.5f);
-        CHECK(b1 > 0.05f, "master tap setup: block 1 produces output");
-
-        // Block 2: no input → track 1 is silent, but track 0 replays the prior
-        // block's master sum (the one sanctioned one-block tap, DESIGN §27).
+        CHECK(b1 > 0.05f, "input reaches master via the non-tapping track");
         const float b2 = renderBlockWithInput(h, 0.0f);
-        CHECK(b2 > 0.01f, "Thru/Master replays the prior block's master sum");
+        CHECK(b2 < 1e-3f, "Master tap is muted when the tapper feeds Master (no feedback)");
+
+        // Routing the tapper away from Master removes the feedback path, so the
+        // tap is delivered again (the prevMasterBuf_ mechanism is intact). The
+        // Off-routed tap can't reach the master meter, so verify via the guard
+        // predicate flipping rather than an output level.
+        p.kit(0).channelState.out = encodeOutputDest(OutputDestKind::Off);
+        CHECK(!p.outputReachesMaster(0), "Off-routed tapper no longer feeds Master");
     }
 
     // -----------------------------------------------------------------------
@@ -2114,6 +2125,48 @@ namespace lockstep
         }
     }
 
+    // #3 feedback guard: the input/tap rotary (validInputSources) must omit any
+    // source that would feed back, mirroring validOutTargets on the output side.
+    // The dangerous one is Master: a track whose own output reaches Master cannot
+    // also tap Master (Master → tap → output → Master is a runaway loop).
+    static void testInputSourceFeedbackGuard()
+    {
+        EngineHarness h;
+        auto& p = h.processor();
+        p.setTrackMachine(0, VAMachine::kMachineId);
+        p.setTrackMachine(1, LooperMachine::kMachineId);
+
+        const auto has = [](const std::vector<float>& v, float enc) {
+            return std::any_of(v.begin(), v.end(), [&](float x) {
+                return std::lround(x) == std::lround(enc); });
+        };
+        const float none   = encodeInputSource(InputSourceKind::None);
+        const float ext    = encodeInputSource(InputSourceKind::External);
+        const float master = encodeInputSource(InputSourceKind::Master);
+
+        // Looper defaults to CHANNEL Out = Master, so a Master tap feeds back and
+        // must be omitted; None/Ext are always offered.
+        p.kit(1).channelState.out = encodeOutputDest(OutputDestKind::Master);
+        {
+            const auto cands = p.validInputSources(1);
+            CHECK(has(cands, none), "None always offered as an input source");
+            CHECK(has(cands, ext), "External always offered as an input source");
+            CHECK(p.outputReachesMaster(1), "looper output reaches Master by default");
+            CHECK(!has(cands, master),
+                  "Master omitted while the track's output reaches Master (feedback)");
+        }
+
+        // Route the looper's output Off → it no longer reaches Master, so tapping
+        // Master is safe and becomes selectable again.
+        p.kit(1).channelState.out = encodeOutputDest(OutputDestKind::Off);
+        {
+            CHECK(!p.outputReachesMaster(1), "Off-routed looper does not reach Master");
+            const auto cands = p.validInputSources(1);
+            CHECK(has(cands, master),
+                  "Master offered once the track's output no longer reaches Master");
+        }
+    }
+
     void runEngineTests()
     {
         testTransposeTrack();
@@ -2121,6 +2174,7 @@ namespace lockstep
         testTapCycleRefusal();
         testTempoSeamReachesMachine();
         testCaptureSrcSectionReachable();
+        testInputSourceFeedbackGuard();
         testMultiCaptureSlots();
         testTrigFiresOnGrid();
         testFMChordOnsetOnGrid();

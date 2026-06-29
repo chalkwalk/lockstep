@@ -385,7 +385,13 @@ namespace lockstep
                 copyInto(inputCapture_);
                 break;
             case InputSourceKind::Master:
-                copyInto(prevMasterBuf_);  // one-block tap (DESIGN §27)
+                // #3 run-time feedback guard (second layer, mirroring routeForTrack's
+                // dormancy): even though validInputSources() omits Master from the
+                // rotary when this track's output reaches Master, a loaded/stale
+                // project could still hold that selection. Leave the buffer silent
+                // rather than close the Master → tap → output loop.
+                if (!outputReachesMaster(track))
+                    copyInto(prevMasterBuf_);  // one-block tap (DESIGN §27)
                 break;
             case InputSourceKind::Track:
             {
@@ -633,6 +639,64 @@ namespace lockstep
                 targets.push_back(cur);
         }
         return targets;
+    }
+
+    // #3 feedback guard: walk track `from`'s functional CHANNEL-Out chain and
+    // report whether it reaches the Master sum. Master and Off both collapse to
+    // -1 in routingEdges(), so we use routeForTrack() per hop to tell them apart.
+    // The chain is a single-out functional graph (out-degree ≤ 1), so a guard
+    // bound of kNumTracks hops is sufficient even if a stale cycle exists.
+    bool LockstepProcessor::outputReachesMaster(int from) const
+    {
+        int cur = from;
+        for (std::size_t guard = 0; guard <= kNumTracks; ++guard)
+        {
+            if (cur < 0 || cur >= static_cast<int>(kNumTracks)) return false;
+            const auto r = routeForTrack(cur);
+            switch (r.route)
+            {
+                case Route::Master: return true;
+                case Route::Off:    return false;
+                case Route::Bus:    cur = r.busTrack; break;
+            }
+        }
+        return false;  // cycle without reaching Master — treat as not-Master
+    }
+
+    std::vector<float> LockstepProcessor::validInputSources(int track) const
+    {
+        std::vector<float> out;
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return out;
+        // None and External never feed back (External is outside audio).
+        out.push_back(encodeInputSource(InputSourceKind::None));
+        out.push_back(encodeInputSource(InputSourceKind::External));
+        // Master tap is safe only if this track's own output does NOT reach
+        // Master — otherwise output → Master → tap → output is a feedback loop.
+        if (!outputReachesMaster(track))
+            out.push_back(encodeInputSource(InputSourceKind::Master));
+        // Track taps: any audio track but self that does not close a cycle in the
+        // mix+tap union (reuses the same hasCycle the topo-sort/refusal uses).
+        for (int k = 0; k < static_cast<int>(kNumTracks); ++k)
+        {
+            if (k == track) continue;
+            if (machines_[static_cast<std::size_t>(k)]->isMidiOut()) continue;
+            auto tap = tapEdges();
+            tap[static_cast<std::size_t>(track)] = k;
+            if (routing::hasCycle(routingEdges(), tap)) continue;
+            out.push_back(encodeInputSource(InputSourceKind::Track, k));
+        }
+        // Keep the current stored selection representable even if now unsafe
+        // (e.g. loaded from disk, or made stale by a later routing change).
+        const int slot = slotForId(track, kInputSourceSlotId);
+        if (slot >= 0)
+        {
+            const auto& bp = kit(track).baseParams;
+            const float cur = (static_cast<std::size_t>(slot) < bp.size())
+                                  ? bp[static_cast<std::size_t>(slot)] : 0.0f;
+            if (std::find(out.begin(), out.end(), cur) == out.end())
+                out.push_back(cur);
+        }
+        return out;
     }
 
     // A2: the block's bus-edge array for the topological sort — dest[i] is the

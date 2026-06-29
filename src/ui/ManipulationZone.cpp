@@ -3,6 +3,7 @@
 #include "ParamFormat.h"
 #include "../PluginProcessor.h"
 #include "../core/OutputDest.h"
+#include "../machine/InputSource.h"
 #include "KeyboardArea.h"
 #include <algorithm>
 #include <cmath>
@@ -25,6 +26,20 @@ namespace lockstep
             case OutputDestKind::Track:  return "Trk" + juce::String(sel.track + 1);
         }
         return "Master";
+    }
+
+    // Label for an encoded input_source value (matches kInputSourceLabels).
+    static juce::String inputSrcLabelText(float enc)
+    {
+        const auto sel = decodeInputSource(enc);
+        switch (sel.kind)
+        {
+            case InputSourceKind::None:     return "None";
+            case InputSourceKind::External: return "Ext";
+            case InputSourceKind::Master:   return "Master";
+            case InputSourceKind::Track:    return "T" + juce::String(sel.track + 1);
+        }
+        return "None";
     }
 
     // Fraction of the inner band height used for each row.  Two rows at this
@@ -162,6 +177,24 @@ namespace lockstep
                         processor_.writeParam(track, slot, enc);
                         valueLabels_[static_cast<std::size_t>(i)].setText(
                             outDestLabelText(enc), juce::dontSendNotification);
+                    }
+                    return;
+                }
+                // #3: input_source (tap/fork) slot runs over a filtered candidate
+                // index too — map back to an InputSource encoding (only safe,
+                // non-feedback sources are selectable) and update the live label.
+                if (i == inSrcSlotIndex_)
+                {
+                    const auto cands = processor_.validInputSources(track);
+                    if (!cands.empty())
+                    {
+                        const int idx = juce::jlimit(
+                            0, static_cast<int>(cands.size()) - 1,
+                            static_cast<int>(std::lround(v)));
+                        const float enc = cands[static_cast<std::size_t>(idx)];
+                        processor_.writeParam(track, slot, enc);
+                        valueLabels_[static_cast<std::size_t>(i)].setText(
+                            inputSrcLabelText(enc), juce::dontSendNotification);
                     }
                     return;
                 }
@@ -461,6 +494,7 @@ namespace lockstep
 
         updatingFromTimer_ = true;
         outSlotIndex_ = -1;  // WS4: recomputed below when the Out slot is visible
+        inSrcSlotIndex_ = -1;  // #3: recomputed below when input_source is visible
         for (int i = 0; i < kNumSlots; ++i)
         {
             const auto si = static_cast<std::size_t>(i);
@@ -514,6 +548,41 @@ namespace lockstep
 
                 labels_[si].setText(meta.label, juce::dontSendNotification);
                 valueLabels_[si].setText(outDestLabelText(baseEnc), juce::dontSendNotification);
+                clearBtns_[si].setEnabled(false);
+                clearBtns_[si].setAlpha(0.3f);
+                if (i == 0) samplePickerBtn_.setVisible(false);
+                continue;
+            }
+
+            // #3: the input_source (tap/fork) slot — a filtered candidate rotary,
+            // exactly like Out. It steps only through feedback-safe sources (None,
+            // Ext, Master-when-safe, non-cyclic taps), so the performer can never
+            // jog onto a source that would feed back. Drive off the base value.
+            if (meta.id == kInputSourceSlotId)
+            {
+                inSrcSlotIndex_ = i;
+                const auto cands = processor_.validInputSources(track);
+                const float baseEnc = processor_.baseParamValue(track, slot);
+                int curIdx = 0;
+                for (std::size_t c = 0; c < cands.size(); ++c)
+                    if (std::lround(cands[c]) == std::lround(baseEnc))
+                    {
+                        curIdx = static_cast<int>(c);
+                        break;
+                    }
+
+                MetaRotary::View iv;
+                iv.rangeLo = 0.0;
+                iv.rangeHi = std::max<double>(1.0, static_cast<double>(cands.size()) - 1.0);
+                iv.interval = 1.0;
+                iv.ringMode = RingMode::Dot;
+                iv.enabled = true;
+                iv.alpha = 1.0f;
+                iv.value = static_cast<double>(curIdx);
+                sliders_[si].applyView(iv);
+
+                labels_[si].setText(meta.label, juce::dontSendNotification);
+                valueLabels_[si].setText(inputSrcLabelText(baseEnc), juce::dontSendNotification);
                 clearBtns_[si].setEnabled(false);
                 clearBtns_[si].setAlpha(0.3f);
                 if (i == 0) samplePickerBtn_.setVisible(false);

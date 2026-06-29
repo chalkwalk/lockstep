@@ -62,6 +62,22 @@ namespace lockstep
         "REC1", "REC2", "REC3", "REC4", "REC5", "REC6", "REC7", "REC8"
     };
 
+    // Encode a source selection back to the stepped float (inverse of decode):
+    // 0=None, 1=External, 2=Master, 3+N = Track N. Used to build the filtered
+    // input rotary (LockstepProcessor::validInputSources), mirroring
+    // encodeOutputDest on the routing side.
+    [[nodiscard]] inline float encodeInputSource(InputSourceKind kind, int track = 0) noexcept
+    {
+        switch (kind)
+        {
+            case InputSourceKind::None:     return 0.0f;
+            case InputSourceKind::External: return 1.0f;
+            case InputSourceKind::Master:   return 2.0f;
+            case InputSourceKind::Track:    return static_cast<float>(3 + (track < 0 ? 0 : track));
+        }
+        return 0.0f;
+    }
+
     // Slot encoding (stepped float): 0=None, 1=External, 2=Master, 3+N = Track N.
     [[nodiscard]] inline InputSourceSel decodeInputSource(float value) noexcept
     {

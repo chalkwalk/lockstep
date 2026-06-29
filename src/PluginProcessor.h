@@ -491,6 +491,18 @@ namespace lockstep
         // them (e.g. dormant after a machine swap) it is appended so the control
         // can still display and leave it. Message-thread query (reads working kit).
         [[nodiscard]] std::vector<float> validOutTargets(int fromTrack) const;
+        // #3 feedback guard (input/tap side, mirror of validOutTargets): the
+        // ordered set of currently feedback-safe input_source values for a track,
+        // as encoded InputSource floats — {None, Ext, Master if safe, then every
+        // track tap that does not close a mix+tap cycle}. The editor steps the
+        // input rotary through only these, so the performer can never select a
+        // source that feeds back (Master while the track's own output reaches
+        // Master; a track that closes a loop). The current stored value is
+        // appended if it is no longer safe, so the control can still show it.
+        [[nodiscard]] std::vector<float> validInputSources(int track) const;
+        // True if track `from`'s output reaches the Master sum by following
+        // CHANNEL-Out (mix) edges — i.e. tapping Master would feed back.
+        [[nodiscard]] bool outputReachesMaster(int from) const;
         // Decoupled reject feedback: the engine bumps a sequence + reason (+ the
         // track the message names) when it refuses an Out edit or marks one
         // dormant; the editor polls this from its timer and flashes the status

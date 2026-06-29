@@ -142,5 +142,11 @@ namespace lockstep
         // candidate-index domain (Off / Master / valid buses) instead of the raw
         // OutputDest encoding, so onValueChange maps the index back to an encoding.
         int outSlotIndex_ = -1;
+
+        // #3: which zone slot currently hosts the input_source (tap/fork) control,
+        // or -1. Like outSlotIndex_, that slider runs over a filtered candidate
+        // domain (validInputSources — None / Ext / safe Master / non-cyclic taps)
+        // so the performer can never jog onto a feedback-forming source.
+        int inSrcSlotIndex_ = -1;
     };
 }
