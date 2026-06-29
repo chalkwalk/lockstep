@@ -202,6 +202,7 @@ namespace lockstep
             for (int b = 0; b < 32; ++b)  // 32 * 512 = 16384 output samples
             {
                 juce::AudioBuffer<float> buf(2, 512);
+                buf.clear();  // no live input — the engine zeroes the input buffer
                 ParamFrame pp = fr;
                 lp.process(none, pp, buf);
                 for (int i = 0; i < 512; ++i)
@@ -257,6 +258,7 @@ namespace lockstep
             for (int blk = 0; blk < 7; ++blk)
             {
                 juce::AudioBuffer<float> b(2, 512);
+                b.clear();  // no live input — measure the loop output alone
                 ParamFrame pp = fr;
                 lp.process(none, pp, b);
                 for (int i = 0; i < 512; ++i)
@@ -271,6 +273,52 @@ namespace lockstep
             // (typical correlated loop content smooths far better).
             CHECK(maxJump < 0.3f,
                   "C5: loop-wrap crossfade keeps the seam jump small (got " + juce::String(maxJump) + ")");
+        }
+
+        // #4 monitor: live-thru is governed by the monitor mode. Record a 0.5 loop,
+        // then play it back while feeding 0.3 live, under each monitor setting.
+        //   On  → output = loop + live (0.8);  Off → loop only (0.5).
+        //   Recording under Off → silent output (still captures).
+        {
+            SamplePool p;
+            p.addVolatile();
+            p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LooperMachine lp(p);
+            lp.prepare(kSr, n);
+
+            constexpr float kMonOn = 1.0f, kMonOff = 2.0f;
+            // input=Ext, target=0, loop_sync=Free, monitor=Off.
+            ParamFrame frOff{ 1.0f, 0.0f, 0.0f, kMonOff };
+            ParamFrame frOn { 1.0f, 0.0f, 0.0f, kMonOn  };
+
+            // Record one block of 0.5 with monitor Off → output silent while it
+            // still captures the input.
+            auto recOut = runP(lp, n, 0.5f, Cmd::RecordCycle, frOff);
+            CHECK(std::abs(recOut.getSample(0, 0)) < 1e-4f,
+                  "#4: monitor Off mutes the live-thru while recording");
+            runP(lp, n, 0.0f, Cmd::RecordCycle, frOff);  // close → Playing (loop=0.5)
+            CHECK(lp.state() == State::Playing, "#4: loop closed to Playing");
+
+            // Play with monitor Off, feeding 0.3 live → loop only (0.5).
+            auto offOut = runP(lp, n, 0.3f, Cmd::None, frOff);
+            CHECK(std::abs(offOut.getSample(0, 0) - 0.5f) < 1e-3f,
+                  "#4: monitor Off plays loop only (no live-thru)");
+            // Same loop, monitor On → loop + live (0.5 + 0.3).
+            auto onOut = runP(lp, n, 0.3f, Cmd::None, frOn);
+            CHECK(std::abs(onOut.getSample(0, 0) - 0.8f) < 1e-3f,
+                  "#4: monitor On passes live-thru on top of the loop");
+        }
+
+        // #4 Auto resolution: On for None/External (insert), Off for a Track/Master
+        // tap (the tapped source is already audible). Pure predicate check.
+        {
+            using K = InputSourceKind;
+            CHECK(LooperMachine::resolveMonitor(0, K::None),     "Auto: None monitors (insert)");
+            CHECK(LooperMachine::resolveMonitor(0, K::External), "Auto: External monitors");
+            CHECK(!LooperMachine::resolveMonitor(0, K::Track),   "Auto: Track tap is loop-only");
+            CHECK(!LooperMachine::resolveMonitor(0, K::Master),  "Auto: Master tap is loop-only");
+            CHECK(LooperMachine::resolveMonitor(1, K::Track),    "On overrides Auto (Track)");
+            CHECK(!LooperMachine::resolveMonitor(2, K::None),    "Off overrides Auto (None)");
         }
     }
 }

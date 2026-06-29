@@ -83,11 +83,28 @@ namespace lockstep
         }
         [[nodiscard]] static const char* stateLabel(State s) noexcept;
 
+        // Resolve whether live input passes through to the output this block, given
+        // the monitor mode and the input source (Auto = the looper monitors only
+        // when it is the source's sole path out — None/External insert use — and
+        // stays loop-only for a Track/Master tap whose source is already audible).
+        // Public + pure so the editor/controller can label it consistently.
+        [[nodiscard]] static bool resolveMonitor(int monMode, InputSourceKind src) noexcept
+        {
+            switch (monMode)
+            {
+                case 1: return true;   // On  — always pass live input through
+                case 2: return false;  // Off — loop-only output (never monitor)
+                default:               // Auto
+                    return src == InputSourceKind::None || src == InputSourceKind::External;
+            }
+        }
+
     private:
         static constexpr int kSlotInputSource = 0;
         static constexpr int kSlotTargetBuffer = 1;  // volatile REC slot the loop lives in
         static constexpr int kSlotLoopSync = 2;      // Free | Free Len | 1/2/4 Bar
-        static constexpr int kNumSlots = 3;
+        static constexpr int kSlotMonitor = 3;       // Auto | On | Off (live-thru, #4)
+        static constexpr int kNumSlots = 4;
         static constexpr double kLoopMaxSeconds = 12.0;
 
         void applyCommand(Cmd c);
@@ -135,6 +152,12 @@ namespace lockstep
         // phase-lock). Values 2..4 are bar-quantized; bars = 1 << (value - 2).
         static constexpr std::array<const char* const, 5> kLoopSyncLabels = {
             "Free", "Free Len", "1 Bar", "2 Bar", "4 Bar"
+        };
+
+        // monitor: Auto (resolveMonitor — On for None/External insert, Off for a
+        // Track/Master tap) | On (always pass live input through) | Off (loop-only).
+        static constexpr std::array<const char* const, 3> kMonitorLabels = {
+            "Auto", "On", "Off"
         };
     };
 }

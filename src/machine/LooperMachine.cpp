@@ -40,6 +40,16 @@ namespace lockstep
                 s.valueLabels = std::span<const char* const>(kLoopSyncLabels.data(),
                                                              kLoopSyncLabels.size());
                 return s;
+            case kSlotMonitor:
+                s.id = "loop_monitor";
+                s.label = "Mon";
+                s.minValue = 0.0f;
+                s.maxValue = static_cast<float>(kMonitorLabels.size() - 1);
+                s.defaultValue = 0.0f;  // Auto
+                s.isStepped = true;
+                s.valueLabels = std::span<const char* const>(kMonitorLabels.data(),
+                                                             kMonitorLabels.size());
+                return s;
             default:
                 return {};
         }
@@ -260,6 +270,15 @@ namespace lockstep
         syncMode_ = (params.size() > kSlotLoopSync)
             ? static_cast<int>(std::lround(params[kSlotLoopSync])) : 0;
 
+        // #4: resolve live-thru. Auto monitors only when the looper is the source's
+        // sole path out (None/External insert); a Track/Master tap is loop-only
+        // (the tapped source is already audible — passing it through double-monitors).
+        const int monMode = (params.size() > kSlotMonitor)
+            ? static_cast<int>(std::lround(params[kSlotMonitor])) : 0;
+        const InputSourceKind srcKind = (params.size() > kSlotInputSource)
+            ? decodeInputSource(params[kSlotInputSource]).kind : InputSourceKind::None;
+        const bool monitorOn = resolveMonitor(monMode, srcKind);
+
         const int raw = pendingCmd_.exchange(0, std::memory_order_acq_rel);
         if (raw != 0) applyCommand(static_cast<Cmd>(raw));
 
@@ -306,36 +325,45 @@ namespace lockstep
             for (int ch = 0; ch < chans; ++ch)
             {
                 const float in = inScratch_.getSample(ch, i);
-                float out = 0.0f;
                 const bool tch = ch < tchans;
+                // Loop contribution to the output (separate from the live-thru so
+                // monitor can gate the live signal without touching recording).
+                float loopOut = 0.0f;
+                bool monitorState = false;  // states where live-thru is meaningful
                 switch (state_)
                 {
                     case State::Recording:
                         if (tch && recPos_ < capacity_)
-                            target_->setSample(ch, recPos_, in);
-                        out = in;  // monitor while recording
+                            target_->setSample(ch, recPos_, in);  // record regardless of monitor
+                        monitorState = true;
                         break;
                     case State::Playing:
-                        if (tch && loopLen_ > 0) out = loopSample(ch, pos);
+                        if (tch && loopLen_ > 0) loopOut = loopSample(ch, pos);
+                        monitorState = true;
                         break;
                     case State::Overdubbing:
                         if (tch && loopLen_ > 0)
                         {
                             // Overdub at the nearest integer position (varispeed
                             // write) so the new layer sums coherently into the loop.
+                            // The write always includes `in` (it IS the overdub);
+                            // monitor only governs whether we ALSO hear it live.
                             int wi = static_cast<int>(std::llround(pos)) % loopLen_;
                             if (wi < 0) wi += loopLen_;
-                            const float mixed = target_->getSample(ch, wi) + in;
-                            target_->setSample(ch, wi, mixed);
-                            out = mixed;
+                            const float oldLoop = target_->getSample(ch, wi);
+                            target_->setSample(ch, wi, oldLoop + in);
+                            loopOut = oldLoop;
                         }
+                        monitorState = true;
                         break;
                     case State::Idle:
                     case State::Stopped:
-                        out = 0.0f;
-                        break;
+                        break;  // silent (explicit stop / not yet armed)
                 }
-                buffer.setSample(ch, i, out);
+                // #4: live input passes through only when monitoring is on AND we
+                // are in a monitoring state. Off → loop-only output (parallel tap).
+                const float live = (monitorOn && monitorState) ? in : 0.0f;
+                buffer.setSample(ch, i, loopOut + live);
             }
 
             if (state_ == State::Recording)
