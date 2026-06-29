@@ -304,6 +304,11 @@ namespace lockstep
         // mid-hold timer path and the key-up long-hold fallback. Sets the durable
         // picker state and refreshes the surface so it appears while held.
         void openFxSectionPicker(bool master);
+        // FX-picker step selection. Extracted so it can run from the Step case AND
+        // the Track-held SelectTrack case (QwertyOverlay routes step keys to the
+        // latter while Track is held, so the picker must be reachable from both).
+        bool applyMasterFxPick(int index);
+        bool applyTrackFxPick(int index);
 
         // Returns true when the active track is a stub/empty track — content edits
         // are blocked and only machine-pick is allowed.

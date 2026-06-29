@@ -2109,6 +2109,71 @@ namespace lockstep
         manipulationZone_.setBand(resolveMetaBand(uiState_), swingScopeFor(uiState_));
     }
 
+    bool LockstepEditor::applyMasterFxPick(int index)
+    {
+        if (index < 0 || index >= 16) return true;
+        if (index >= processor_.numAvailableEffects()) return true;
+        const auto info = processor_.availableEffectInfo(index);
+        // 8.26: units 0-1 = master inserts, units 2-3 = send returns.
+        const int mUnit = uiState_.masterFxInsertSlot;
+        const bool isSend = (mUnit >= 2);
+        const int mSlot = isSend ? mUnit - 2 : mUnit;
+        const std::string curId = isSend ? processor_.masterSendId(mSlot)
+                                         : processor_.masterInsertId(mSlot);
+        if (info.id == curId)
+        {
+            // Re-pick the loaded effect → toggle bypass.
+            const bool byp = isSend ? processor_.masterSendBypass(mSlot)
+                                    : processor_.masterInsertBypass(mSlot);
+            if (isSend)
+                processor_.setMasterSendBypass(mSlot, !byp);
+            else
+                processor_.setMasterInsertBypass(mSlot, !byp);
+        }
+        else
+        {
+            if (isSend)
+            {
+                processor_.setMasterSend(mSlot, info.id);
+                processor_.setMasterSendBypass(mSlot, false);
+            }
+            else
+            {
+                processor_.setMasterInsert(mSlot, info.id);
+                processor_.setMasterInsertBypass(mSlot, false);
+            }
+        }
+        uiState_.masterFxPickerOpen = false;
+        refreshMetaBand();
+        repaint();
+        return true;
+    }
+
+    bool LockstepEditor::applyTrackFxPick(int index)
+    {
+        if (index < 0 || index >= 16) return true;
+        const int at = keyboardArea_.getActiveTrack();
+        if (at < 0 || at >= static_cast<int>(kNumTracks)) return true;
+        if (index >= processor_.numAvailableEffects()) return true;
+        const auto info = processor_.availableEffectInfo(index);
+        // 8.26: masterOnly effects cannot be placed in track inserts.
+        if (info.masterOnly) return true;
+        const std::string curId = processor_.trackInsertId(at, uiState_.funcFxInsertSlot);
+        if (info.id == curId)
+        {
+            const bool byp = processor_.trackInsertBypass(at, uiState_.funcFxInsertSlot);
+            processor_.setTrackInsertBypass(at, uiState_.funcFxInsertSlot, !byp);
+        }
+        else
+        {
+            processor_.setTrackInsert(at, uiState_.funcFxInsertSlot, info.id);
+            processor_.setTrackInsertBypass(at, uiState_.funcFxInsertSlot, false);
+        }
+        uiState_.funcFxHeld = false;
+        repaint();
+        return true;
+    }
+
     void LockstepEditor::openFxSectionPicker(bool master)
     {
         if (master)
@@ -3430,75 +3495,14 @@ namespace lockstep
                     }
 
                     // --------------------------------------------------------
-                    // 6.5: Master FX picker (Func+Song+FX held)
+                    // 6.5: Master / Track FX picker step-select (also reachable
+                    // from the Track-held SelectTrack case — see applyTrackFxPick).
                     // --------------------------------------------------------
                     if (layer == SurfaceLayer::MasterFxPicker)
-                    {
-                        if (ev.index < 0 || ev.index >= 16) return true;
-                        if (ev.index >= processor_.numAvailableEffects()) return true;
-                        const auto info = processor_.availableEffectInfo(ev.index);
-                        // 8.26: units 0-1 = master inserts, units 2-3 = send returns.
-                        const int mUnit = uiState_.masterFxInsertSlot;
-                        const bool isSend = (mUnit >= 2);
-                        const int mSlot = isSend ? mUnit - 2 : mUnit;
-                        const std::string curId = isSend ? processor_.masterSendId(mSlot)
-                                                         : processor_.masterInsertId(mSlot);
-                        if (info.id == curId)
-                        {
-                            // Re-pick the loaded effect → toggle bypass.
-                            const bool byp = isSend ? processor_.masterSendBypass(mSlot)
-                                                    : processor_.masterInsertBypass(mSlot);
-                            if (isSend)
-                                processor_.setMasterSendBypass(mSlot, !byp);
-                            else
-                                processor_.setMasterInsertBypass(mSlot, !byp);
-                        }
-                        else
-                        {
-                            if (isSend)
-                            {
-                                processor_.setMasterSend(mSlot, info.id);
-                                processor_.setMasterSendBypass(mSlot, false);
-                            }
-                            else
-                            {
-                                processor_.setMasterInsert(mSlot, info.id);
-                                processor_.setMasterInsertBypass(mSlot, false);
-                            }
-                        }
-                        uiState_.masterFxPickerOpen = false;
-                        refreshMetaBand();
-                        repaint();
-                        return true;
-                    }
+                        return applyMasterFxPick(ev.index);
 
-                    // --------------------------------------------------------
-                    // 6.5: FX insert picker (Func+FX held)
-                    // --------------------------------------------------------
                     if (layer == SurfaceLayer::TrackFxPicker)
-                    {
-                        if (ev.index < 0 || ev.index >= 16) return true;
-                        const int at = keyboardArea_.getActiveTrack();
-                        if (at < 0 || at >= static_cast<int>(kNumTracks)) return true;
-                        if (ev.index >= processor_.numAvailableEffects()) return true;
-                        const auto info = processor_.availableEffectInfo(ev.index);
-                        // 8.26: masterOnly effects cannot be placed in track inserts.
-                        if (info.masterOnly) return true;
-                        const std::string curId = processor_.trackInsertId(at, uiState_.funcFxInsertSlot);
-                        if (info.id == curId)
-                        {
-                            const bool byp = processor_.trackInsertBypass(at, uiState_.funcFxInsertSlot);
-                            processor_.setTrackInsertBypass(at, uiState_.funcFxInsertSlot, !byp);
-                        }
-                        else
-                        {
-                            processor_.setTrackInsert(at, uiState_.funcFxInsertSlot, info.id);
-                            processor_.setTrackInsertBypass(at, uiState_.funcFxInsertSlot, false);
-                        }
-                        uiState_.funcFxHeld = false;
-                        repaint();
-                        return true;
-                    }
+                        return applyTrackFxPick(ev.index);
 
                     // --------------------------------------------------------
                     // Machine picker (Func+Track held; §4.7.2)
@@ -4019,6 +4023,17 @@ namespace lockstep
                 // When Track is held, QwertyOverlay routes step keys to this case
                 // (not the Step case). So the Track-compound gestures must be
                 // handled HERE, before the plain track-select fallback below.
+
+                // An open FX picker takes priority over track-select. The picker
+                // is entered with Track (track FX) or Song (master FX) held over the
+                // FX key, so a following step tap to choose the effect still arrives
+                // here while Track is held — without this it fell through to plain
+                // track-select and switched the active track instead of picking the
+                // effect (edits then landed on the wrong track).
+                if (uiState_.masterFxPickerOpen)
+                    return applyMasterFxPick(ev.index);
+                if (uiState_.funcFxHeld)
+                    return applyTrackFxPick(ev.index);
 
                 // Func+Track (machine/Kit picker) + step = assign the indexed
                 // machine to the focused track (§4.7.2).
