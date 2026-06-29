@@ -33,6 +33,7 @@ namespace lockstep
     void runSamplePoolTests();   // 6.2 volatile REC buffers (DESIGN §28)
     void runRecorderMachineTests();  // 6.2 RecorderMachine capture (DESIGN §29.2/§30)
     void runLooperMachineTests();    // 6.3 LooperMachine state machine (DESIGN §29.2)
+    void runStaticMachineTests();    // 4.5 StaticMachine disk streaming (DESIGN §29.2)
     void runStateResolverTests();
     void runHierarchyNavTests();
     void runArrangementTests();

@@ -201,6 +201,12 @@ namespace lockstep
         [[nodiscard]] bool isLooperTrack(int track) const;
         void sendLooperCommand(int track, int cmd);
         [[nodiscard]] int looperState(int track) const;
+        // True when the track's machine is a StaticMachine (disk-stream sampler).
+        // setStaticFile assigns its streamed source path (held per-Kit, streamed
+        // from disk, never decoded into the SamplePool — DESIGN §29.2); it quiesces
+        // the engine to swap the reader. Returns true if the file opened.
+        [[nodiscard]] bool isStaticTrack(int track) const;
+        bool setStaticFile(int track, const juce::String& path);
 
         // ── Scene launch queue (Phase 7 / DESIGN §4.8, §16) ─────────────────
         // Queue a Section launch to fire at the next core-time bar boundary.

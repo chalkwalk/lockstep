@@ -14,6 +14,7 @@
 #include "machine/ThruMachine.h"
 #include "machine/RecorderMachine.h"
 #include "machine/LooperMachine.h"
+#include "machine/StaticMachine.h"
 #include "machine/MidiDevicePresets.h"
 #include "machine/DrumSynthMachine.h"
 #include "machine/FMMachine.h"
@@ -4276,6 +4277,8 @@ namespace lockstep
             return std::make_unique<RecorderMachine>(pool);
         if (id == LooperMachine::kMachineId)
             return std::make_unique<LooperMachine>();
+        if (id == StaticMachine::kMachineId)
+            return std::make_unique<StaticMachine>();
         // "lockstep.stub" is an explicitly-empty track (unknownId = "").
         // Any other unrecognised ID keeps its original id as the unknownId.
         if (id == StubMachine::kMachineId)
@@ -4295,6 +4298,7 @@ namespace lockstep
         { ThruMachine::kMachineId, "Thru" },
         { RecorderMachine::kMachineId, "Recorder" },
         { LooperMachine::kMachineId, "Looper" },
+        { StaticMachine::kMachineId, "Static" },
         { MidiOutMachine::kMachineId, "MIDI Out" },
     };
 
@@ -5211,6 +5215,27 @@ namespace lockstep
         return -1;
     }
 
+    bool LockstepProcessor::isStaticTrack(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
+        return dynamic_cast<StaticMachine*>(machines_[static_cast<std::size_t>(track)].get())
+               != nullptr;
+    }
+
+    bool LockstepProcessor::setStaticFile(int track, const juce::String& path)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
+        bool ok = false;
+        withQuiescedEngine([&] {
+            auto* sm = dynamic_cast<StaticMachine*>(machines_[static_cast<std::size_t>(track)].get());
+            if (sm == nullptr) return;
+            ok = sm->setFilePath(path);
+            // Mirror the path into the Kit so it persists and survives a reload.
+            kit(track).staticPath = ok ? path.toStdString() : std::string{};
+        });
+        return ok;
+    }
+
     // -------------------------------------------------------------------------
 
     void LockstepProcessor::getStateInformation(juce::MemoryBlock& dest)
@@ -5260,6 +5285,14 @@ namespace lockstep
                 mom->clearCCNameTable();
         };
 
+        // Re-open a StaticMachine's streamed source from the Kit's saved path
+        // (held per-Kit, not in the SamplePool — DESIGN §29.2). The engine is
+        // quiesced here, so swapping the reader is safe.
+        auto pushStaticPath = [](IMachine* m, const TrackKit& k) {
+            if (auto* sm = dynamic_cast<StaticMachine*>(m))
+                sm->setFilePath(juce::String(k.staticPath));
+        };
+
         // Reinstall machines from the active Kit so that any Kit loaded from disk
         // with an unknown machine ID gets StubMachine.
         for (std::size_t t = 0; t < kNumTracks; ++t)
@@ -5269,6 +5302,7 @@ namespace lockstep
             {
                 if (machines_[t]->isMidiOut())
                     pushMidiOutConfig(static_cast<MidiOutMachine*>(machines_[t].get()), k);
+                pushStaticPath(machines_[t].get(), k);
                 continue;
             }
             machines_[t] = makeMachineForId(k.machineId, samplePool_);
@@ -5276,6 +5310,7 @@ namespace lockstep
                 pushMidiOutConfig(static_cast<MidiOutMachine*>(machines_[t].get()), k);
             if (preparedSampleRate_ > 0.0)
                 machines_[t]->prepare(preparedSampleRate_, preparedBlockSize_);
+            pushStaticPath(machines_[t].get(), k);
         }
 
         // v13: reinstall insert effects from the loaded Kit state. setTrackInsert

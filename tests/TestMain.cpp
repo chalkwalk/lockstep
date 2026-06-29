@@ -13,6 +13,7 @@ int main()
     lockstep::runSamplePoolTests();
     lockstep::runRecorderMachineTests();
     lockstep::runLooperMachineTests();
+    lockstep::runStaticMachineTests();
     lockstep::runStateResolverTests();
     lockstep::runHierarchyNavTests();
     lockstep::runArrangementTests();

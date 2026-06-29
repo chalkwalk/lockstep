@@ -2108,6 +2108,23 @@ namespace lockstep
     void LockstepEditor::filesDropped(const juce::StringArray& files, int /*x*/, int /*y*/)
     {
         isDraggingFiles_ = false;
+
+        // A drop onto a focused Static track assigns its streamed source (disk
+        // stream, no RAM decode — DESIGN §29.2) rather than loading into the pool.
+        if (processor_.isStaticTrack(processor_.focusTrack()))
+        {
+            for (const auto& path : files)
+            {
+                if (!isAudioFile(path)) continue;
+                const bool ok = processor_.setStaticFile(processor_.focusTrack(), path);
+                setStatus(ok ? juce::String("Static: ") + juce::File(path).getFileName()
+                             : juce::String("Static: could not open file"));
+                refreshSurface();
+                return;  // one source per Static track
+            }
+            return;
+        }
+
         int loaded = 0;
         for (const auto& path : files)
         {
