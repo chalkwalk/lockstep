@@ -255,7 +255,7 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **P-Lock** (parameter lock) | A per-step override of one or more of a sound engine's parameters. Hold a step, turn a control. |
 | **Trig override** | A per-step override of a sequencer field — note, velocity, gate, or condition — as opposed to an engine parameter. |
 | **Override-ELSE-Base** | The one resolution rule: effective value = step override if present, else track base. |
-| **Machine** | A sound engine. Each track hosts one. Lockstep ships seven: `SamplerMachine` (monophonic sample playback with trim, loop region, ZC-snap), `SlicerMachine` (slice/scrub dual-mode with transient detection and poly), `FMMachine` (4-op FM synthesizer, mono/poly), `VAMachine` (virtual-analog dual-osc + SVF synth, mono/para), `DrumSynthMachine` (Rytm-style drum synth — kick, snare, hat, tom via one stepped param), `MidiOutMachine` (MIDI CC/note output to external gear), and `StubMachine` (silent fallback for unknown IDs). |
+| **Machine** | A sound engine. Each track hosts one. Lockstep ships: `SamplerMachine` (monophonic sample playback with trim, loop region, ZC-snap), `SlicerMachine` (slice/scrub dual-mode with transient detection and poly), `FMMachine` (4-op FM synthesizer, mono/poly), `VAMachine` (virtual-analog dual-osc + SVF synth, mono/para), `DrumSynthMachine` (Rytm-style drum synth — eight voices via one stepped param), `ThruMachine` (audio router / sub-bus), `RecorderMachine` (live resampler into volatile REC buffers), `LooperMachine` (verb-driven overdub looper), `StaticMachine` (disk-streaming long-form sampler), `MidiOutMachine` (MIDI CC/note output to external gear), and `StubMachine` (silent fallback for unknown IDs). |
 | **Machine module** *(planned, 6.7)* | A machine shipped as a loadable native module behind Lockstep's stable C ABI, rather than compiled into the core. First-party machines are statically linked; third-party machines are authored against the SDK and installed into a per-platform folder. Bespoke contract for purpose-built machines — not a VST3/CLAP host. See DESIGN §36. |
 | **Kit** | The per-(track, Song) sound: machine identity, base parameters, post-machine FILTER/AMP, sample refs. Recalled via `Func+Track`. |
 | **Phrase** | A track's pure note content — the trig grid and per-step data. Each track has a pool of 16; Scenes reference them by index. |
@@ -598,6 +598,10 @@ Tracks 1–8 default to `SamplerMachine` and tracks 9–16 to `MidiOutMachine` (
 | `FMMachine` | FM | 4-operator FM synthesis. Free 4×4 modulation matrix (diagonal = smoothed self-feedback). Exponential per-operator ADSR, ratio, fine-tune, mix. Macro attack/release/sustain scalars. MONO / POLY voice modes (V4 pool). Operator core is 2× oversampled for clean high-index FM. Carrier mixer normalizes above unity (stacking operators won't blow up the level) and polyphony is loudness-compensated (a chord ≈ 1/√N), level-matched to the drum/VA reference. |
 | `VAMachine` | VA | Virtual-analog dual-osc synth. PolyBLEP oscillators + sub + shared noise. State-variable filter (LP24/LP12/HP/BP + drive). Filter ADSR + amp ADSR. LFO (6 shapes). Mono / Paraphonic-4 voice modes. Para topology: chord notes 1 & 3 → osc1+sub; notes 2 & 4 → osc2+sub. Always-on gentle glue saturation + paraphonic loudness compensation; **Age** (MOD) macro dials in analog drift (detune/cutoff/PW wander). Filter **Key Trk** (FILTER) tracks the cutoff to pitch (default full; audible once the cutoff is below maximum). Output level-matched to the drum/FM reference. |
 | `DrumSynthMachine` | DR | Rytm-style per-track drum synthesis. One stepped `Type` param selects the variant; each has dedicated DSP. Eight types ship: KICK, SNARE, HAT, TOM, CLAP, COWBELL, CYMBAL, RIMSHOT. |
+| `ThruMachine` | THRU | Pure audio router. `input_source` `{None / Ext / Master}` feeds audio into the track's signal path at unity; the universal FILTER/AMP/FX do the work. Use it as an FX block or sub-bus (route other tracks' CHANNEL "Out" here). |
+| `RecorderMachine` | REC | Live resampler. Captures `input_source` `{None / Ext / Master}` audio into a volatile REC buffer (`target_buffer`, 1 of 8) for `rec_length`, **overwriting** each time a trig fires. On a Recorder track a trig **is** the recorder trig — a plain trig re-captures every loop, a one-shot trig captures once (lock-only is disabled). The captured buffer is immediately playable by pointing another track's Sampler/Slicer `sample_id` at it. REC buffers are RAM-only and lost on quit (freeze-to-disk is a later milestone). |
+| `LooperMachine` | LOOP | Overdub looper (Octatrack pickup machine). A verb-driven state machine — with the looper track focused, **`Track + Record`** cycles record → overdub, **`Track + Play`** toggles play/stop, **`Track + Clear`** empties the loop. Records/overdubs `input_source` and plays the internal loop back; loop length is free-running (the span recorded before the first close). The loop is machine-internal RAM (lost on quit). |
+| `StaticMachine` | STAT | Disk-streaming sampler for long-form audio (full songs, long recordings). Streams from disk on a background thread and **never decodes into RAM** or project state — only the file path persists (per-Kit). Drop a file on a focused Static track to assign its source. A trig plays from `start`; note-off stops (the track gate governs duration). |
 | `MidiOutMachine` | M | MIDI CC / note output to external gear. Configurable destination, channel, program, 16 CC slots with user-assignable numbers and labels. |
 
 **Per-track DSP chain (universal, 8.28).** Every audio track runs the same
@@ -1347,7 +1351,11 @@ shipped behaviour and the design intent. To avoid confusion:
   `FMMachine` (4-op, free matrix, Mono/Poly), `VAMachine` (dual PolyBLEP +
   SVF + LFO, Mono/Para-4), `DrumSynthMachine` (Rytm-style, eight voices —
   KICK/SNARE/HAT/TOM/CLAP/COWBELL/CYMBAL/RIMSHOT, each with dedicated DSP),
-  plus the `StubMachine` fallback. Shared post-machine FILTER (SVF) + AMP.
+  `ThruMachine` (audio router / sub-bus), `RecorderMachine` (overwrite live
+  resampler into volatile REC buffers, contextual recorder trig), `LooperMachine`
+  (verb-driven overdub state machine, `Track + verb`), `StaticMachine` (disk-stream
+  long-form sampler), `MidiOutMachine`, plus the `StubMachine` fallback. Shared
+  post-machine FILTER (SVF) + AMP.
 - The **surface-model foundation** for external controllers (6.6.5a):
   one pure `buildSurfaceModel()` the screen renders from.
 - **Microtiming, Swing & Quantize** (`5.1`): per-step `microOffset` (±50% of step
@@ -1375,14 +1383,14 @@ shipped behaviour and the design intent. To avoid confusion:
 - **Context inspector** (9.11): always-on 4-region strip below the top info row. Regions: KEY (focused key + gesture list), HELD (active modifier scope + grammar note), OVERLAY (active picker or mode name + cancel hint), EDIT (held-step overrides). Each region has an idle fallback; built by `buildInspectorModel()` — unit-tested and dual-target.
 
 **Planned** — the rest of the
-machine catalogue (`4.5` Static, `4.6` Percussion, `4.7` Digital); **Phase 5**
+machine catalogue (`4.6` Percussion, `4.7` Digital — `4.5` Static shipped); **Phase 5**
 performance depth (scenes + crossfader `5.2`; pattern/part management
 UI `5.3`; sampling + resampling `5.4`; audition + cross-track record `5.5`;
 special trig types `5.6`; UI polish + state-colour palette `5.8`); and **Phase 6**
-routing, FX & platform (audio-input boundary + Thru `6.1`; recorder buffers `6.2`;
-looper `6.3`; cue bus `6.4`; master FX bus `6.5b`; external
-controller surfaces `6.6`, in progress; the Machine Module ABI `6.7`;
-beta polish `6.8`).
+routing, FX & platform (audio-input boundary + Thru `6.1`, recorder buffers `6.2`
+and looper `6.3` all shipped — freeze-to-disk of REC buffers deferred; cue bus `6.4`;
+master FX bus `6.5b`; external controller surfaces `6.6`, in progress; the Machine
+Module ABI `6.7`; beta polish `6.8`).
 
 See `ROADMAP.md` for the authoritative milestone breakdown and current
 status — it is the single source of truth for what ships when.

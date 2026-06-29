@@ -33,8 +33,12 @@ tiers (`EffectTier`, one catalogue entry → LQ on track / oversampled HQ on
 master) and unified Delay/Reverb (HQ ids folded in + migrated); `dsp/Oversampler2x.h`
 (polyphase halfband); VA character (paraphonic loudness compensation, always-on
 glue, `Age` drift macro); FM clean (exponential op envelopes, smoothed diagonal
-self-feedback, 2× operator oversampling). **Next:** `6.2` RecorderMachine (lands on
-this settled signal path); `6.7` Machine Module ABI.
+self-feedback, 2× operator oversampling).
+**Capture-machine catalogue shipped (`6.2` + `6.3` + `4.5`):** volatile (RAM-only)
+REC buffers in the unified pool; RecorderMachine (overwrite live-resampler, contextual
+recorder trig); LooperMachine (verb-driven overdub state machine, `Track+verb`);
+StaticMachine (disk-streaming long-form sampler, per-Kit path). Freeze-to-disk (§22)
+deferred. **Next:** `6.7` Machine Module ABI; `4.6`/`4.7` Percussion/Digital synths.
 **Playback-correctness + gain-staging pass shipped (post-audio-quality):** metronome
 downbeat-skip fix + fresh-start trig anchor frame (trigs were on-grid; the
 "half-step-late" feel traced to a *stale Delay left on a new project*); project load
@@ -47,8 +51,8 @@ chip + `Master` band label). Mute-over-soloed-bus verified correct (regression t
 **Octatrack-parity arc shipped (6.1 + 5.5 + 5.6):** audio-input boundary,
 output-directed track buses (CHANNEL "Out", topo sort, cycle refusal), ThruMachine,
 per-take stem export; Cue-scope audition (`Func+3`); lock-only + one-shot trigs.
-Remaining from the arc: A2 topo-sort/B/C all done; 6.2 RecorderMachine (recorder
-trig) is the natural follow-on.
+Remaining from the arc: A2 topo-sort/B/C all done; `6.2` RecorderMachine + `6.3`
+LooperMachine shipped (the recorder-trig follow-on).
 
 Phases 1–3 took Lockstep from an empty plugin to a frozen, playable performance
 surface; Phase 4 fills the machine catalogue; Phases 5–6 are the depth and
@@ -830,10 +834,14 @@ the Machine Module ABI (6.7), so they ship as loadable modules.
 - [x] `SlicerMachine` (SLICE / SCRUB dual mode, 16-slice cap, transient
       detection, MONO/POLY, anti-click fade, reverse at rate < 0).
 
-### 4.5 — StaticMachine (disk-stream)  *[planned]*  *(was MH.6)*
-- [ ] Disk-streaming sampler for long-form audio (DESIGN §29). Shares Flex's
-      slot vocabulary minus RAM-only manipulations; audio never decoded
-      wholesale into RAM.
+### 4.5 — StaticMachine (disk-stream)  *[shipped]*  *(was MH.6)*
+- [x] Disk-streaming sampler for long-form audio (DESIGN §29). Streams via a
+      background `BufferingAudioReader`; audio never decoded wholesale into RAM.
+      Source file path held per-Kit (`TrackKit::staticPath`, serializer key
+      `staticPath`, additive — no version bump), not a SamplePool entry; assigned
+      by dropping a file on a focused Static track. `start` slot; gated stream
+      (`hasInternalAmp`, level/pan via CHANNEL). Resampling on rate mismatch is a
+      later refinement. `StaticMachineTest` covers open/stream/stop/bad-path.
 
 ### 4.6 — PercussionMachine (physical model)  *[planned]*  *(was MH.7)*
 - [ ] Volca-Drum-style two-layer percussion: excitation osc (+FM/ring + pitch
@@ -942,7 +950,8 @@ DESIGN §30.
       arm-all. COND meta-band "1Shot" field. (Manual arm-all key binding deferred.)
 - [x] Step-state preview integration for lock-only (one-shot armed/spent chrome
       pending a follow-up).
-- [ ] Recorder trig — needs RecorderMachine (6.2).
+- [x] Recorder trig (6.2) — contextual: a trig on a RecorderMachine track is a
+      recorder trig (capture); one-shot composes; lock-only disallowed there.
 
 ### 5.7 — Alternate trig modes: Retrig/ratchet + Sound Pool  *[shipped]*  *(was MG remainder + MM generic-role)*
 The trig-grid modal surface beyond CHROMATIC/LEVELS (which shipped in 3.9).
@@ -1101,20 +1110,31 @@ Thru, then A2 output-directed track buses.
       fold in their feeders; routing IS the stem-grouping UI). Always-on. Reuses
       the 9.16 tape-deck infra; tap is post-fader/post-FX in `processTrackChain`.
 
-### 6.2 — Recorder buffers + recorder trigs  *[planned]*  *(was MS)*
+### 6.2 — Recorder buffers + recorder trigs  *[shipped, freeze-to-disk deferred]*  *(was MS)*
 DESIGN §28, §29, §30. Depends on 6.1.
-- [ ] Volatile pool entries (RAM-only, `REC`-badged, unified address space).
-- [ ] Fixed set of volatile buffer slots (~8, TBD).
-- [ ] RecorderMachine (`input_source`, `target_buffer`, `rec_length`,
-      overwrite-only).
-- [ ] Recorder trig variant; freeze-to-disk via the §22 naming flow; round-trip
-      test.
+- [x] Volatile pool entries (RAM-only, `REC`-badged, unified address space):
+      `SamplePool::addVolatile/prepareVolatile/nthVolatileIndex`; skipped on save.
+- [x] Fixed set of volatile buffer slots (8) reserved at the top of the pool,
+      re-seeded on load (`seedVolatileSlots`).
+- [x] RecorderMachine (`input_source`, `target_buffer`, `rec_length`,
+      overwrite-only); V1 note-on capture edge; captured buffer immediately
+      playable from a Sampler (live-resample round-trip test).
+- [x] Recorder trig is **contextual** (a trig on a Recorder track), not a stored
+      step field; lock-only disallowed there (`isRecorderTrack` guard).
+- [ ] Freeze-to-disk via the §22 naming flow — **deferred** to a later milestone
+      (captures are RAM-only / lost on quit, Octatrack parity).
 
-### 6.3 — Looper machine (overdub)  *[planned]*  *(was MT)*
+### 6.3 — Looper machine (overdub)  *[shipped]*  *(was MT)*
 DESIGN §29. Depends on 6.2.
-- [ ] LooperMachine state machine (empty→record→play→overdub→stop→clear).
-- [ ] Verb-driven control while focused; click-free overdub seams; transport-
-      synced loop-length option.
+- [x] LooperMachine state machine (Idle→Record→Play→Overdub + Clear + one-level
+      Undo); internal RAM loop (kept machine-internal by design — the deliberate
+      path into the volatile pool is the post-FX resample flow, not auto-capture).
+- [x] Verb-driven while focused with no new grammar: `Track+Record` cycles
+      record→overdub, `Track+Play` toggles play/stop, `Track+Clear` empties
+      (shadowing the track clipboard on Looper tracks); lock-free command mailbox;
+      `LooperMachineTest` drives the full state machine.
+- [ ] Click-free overdub seams + transport-synced loop-length option — later
+      refinement (loop length is free-running for now).
 
 ### 6.4 — Cue bus + monitoring  *[planned]*  *(was MU)*
 DESIGN §31. Adds the monitor bus + the `Cue` scope (finally bound to a key).
