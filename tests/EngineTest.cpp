@@ -436,10 +436,19 @@ namespace lockstep
         }
         CHECK(s1 != s0, "focusStepUi: step must advance as the playhead moves");
 
-        // No focus track → -1.
+        // No focus track → falls back to track 0 so the on-screen playhead still
+        // advances (a fresh project loads focusTrack = -1; A2 frozen-playhead fix).
         h.processor().setFocusTrack(-1);
         h.renderBlocks(1);
-        CHECK(h.processor().focusStepUi() == -1, "focusStepUi: -1 when no focus track");
+        const int sNoFocus = h.processor().focusStepUi();
+        CHECK(sNoFocus >= 0, "focusStepUi: valid fallback step when no focus track");
+        int s2 = sNoFocus;
+        for (int i = 0; i < 300 && s2 == sNoFocus; ++i)
+        {
+            h.renderBlocks(1);
+            s2 = h.processor().focusStepUi();
+        }
+        CHECK(s2 != sNoFocus, "focusStepUi: playhead advances even with no focus track");
     }
 
     // -----------------------------------------------------------------------

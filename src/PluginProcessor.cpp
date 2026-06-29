@@ -812,9 +812,14 @@ namespace lockstep
         // musical step grid (subdivisionPpqFromIndex) and raw cumulative PPQ, so
         // the published step matches the one buildSurfaceModel renders.
         {
-            const int ft = focusTrack_;
+            // Fall back to track 0 when no track is focused. focusStepUi drives the
+            // display vblank's playhead repaint (its only consumer); leaving it at
+            // -1 when focusTrack_ < 0 froze the on-screen playhead until the user
+            // touched a track. A new project loads focusTrack = -1 (the serialized
+            // default), so a fresh project's playhead never advanced without input.
+            const int ft = (focusTrack_ >= 0 && focusTrack_ < static_cast<int>(kNumTracks))
+                               ? focusTrack_ : 0;
             int focusStep = -1;
-            if (ft >= 0 && ft < static_cast<int>(kNumTracks))
             {
                 const auto fi = static_cast<std::size_t>(ft);
                 const int len = std::max(1, static_cast<int>(trackLengthParams_[fi]->load()));
