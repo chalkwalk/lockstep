@@ -23,6 +23,7 @@
 #include "../src/machine/StubMachine.h"
 #include "../src/machine/MidiOutMachine.h"
 #include "../src/machine/ThruMachine.h"
+#include "../src/machine/RecorderMachine.h"
 #include "../src/machine/InputSource.h"
 #include "../src/core/OutputDest.h"
 
@@ -2022,11 +2023,45 @@ namespace lockstep
               "tap-fork: self-tap is refused");
     }
 
+    // -----------------------------------------------------------------------
+    // C2 tempo seam: the processor pushes a per-block TransportInfo to ITempoAware
+    // machines before process(). Install a Recorder (tempo-aware) and verify it
+    // receives running=true and samplesPerBar = 4 beats at 120 BPM / 48 kHz.
+    static void testTempoSeamReachesMachine()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+
+        SamplePool schemaPool;
+        RecorderMachine schema(schemaPool);
+        auto& k = proc.kit(0);
+        k.machineId = RecorderMachine::kMachineId;
+        const int np = schema.numParams();
+        k.baseParams.resize(static_cast<std::size_t>(np));
+        for (int i = 0; i < np; ++i)
+            k.baseParams[static_cast<std::size_t>(i)] = schema.paramSpec(i).defaultValue;
+        proc.reinstallMachinesFromActiveKit();
+
+        h.renderBlocks(4);
+
+        const auto* rec = dynamic_cast<const RecorderMachine*>(proc.machineForTrack(0));
+        CHECK(rec != nullptr, "tempo seam: recorder installed");
+        if (rec != nullptr)
+        {
+            const auto& tr = rec->transport();
+            const double expected = (48000.0 * 60.0 / 120.0) * 4.0;  // 4 beats @120/48k
+            CHECK(tr.running, "tempo seam: transport reported running");
+            CHECK(tr.samplesPerBar > expected * 0.95 && tr.samplesPerBar < expected * 1.05,
+                  "tempo seam: samplesPerBar ~= 4 beats (got " + juce::String(tr.samplesPerBar) + ")");
+        }
+    }
+
     void runEngineTests()
     {
         testTransposeTrack();
         testTapForkSameBlock();
         testTapCycleRefusal();
+        testTempoSeamReachesMachine();
         testTrigFiresOnGrid();
         testFMChordOnsetOnGrid();
         testFMMixerAndVoiceComp();

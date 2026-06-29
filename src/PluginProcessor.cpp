@@ -426,6 +426,9 @@ namespace lockstep
         auto* mi = machines_[i].get();
 
         fillTrackInput(static_cast<int>(i), frame, numBlockSamples);
+        // C2: deliver the block transport to tempo-aware machines before process().
+        if (auto* ta = dynamic_cast<ITempoAware*>(mi))
+            ta->setTransport(blockTransport_);
         mi->process(trackMidiI, frame, trackBuffers_[i]);
 
         const int mnp = mi->numParams();
@@ -944,6 +947,15 @@ namespace lockstep
         const double blockStart = clock_.ppqAtBlockStart() - ppqOffset;
         const double blockEnd = clock_.ppqAtBlockEnd() - ppqOffset;
         const double samplesPerPpq = clock_.samplesPerPpq();
+
+        // C2: snapshot the transport for ITempoAware machines (Player/Looper/
+        // Recorder). samplesPerBar = barPpq × samplesPerPpq; phase = absolute song
+        // position in samples at block start (for looper grid phase-lock).
+        blockTransport_.bpm = clock_.bpm();
+        blockTransport_.sampleRate = getSampleRate();
+        blockTransport_.samplesPerBar = effectiveTimeSig().barPpq() * samplesPerPpq;
+        blockTransport_.transportPhaseSamples = clock_.ppqAtBlockStart() * samplesPerPpq;
+        blockTransport_.running = sequencerRunning;
 
         // If the DAW looped or the user hit Reset, snap all per-track cursors
         // to the step boundary just at/before the new block start.

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "IMachine.h"
+#include "ITempoAware.h"
 #include "InputSource.h"
 #include "SamplePool.h"
 #include <array>
@@ -22,10 +23,13 @@ namespace lockstep
     //
     // currentVoices() = V1 so the sequencer emits exactly one note-on per trig;
     // the recorder treats any incoming note-on as the capture-start edge.
-    class RecorderMachine : public IMachine
+    class RecorderMachine : public IMachine, public ITempoAware
     {
     public:
         explicit RecorderMachine(SamplePool& pool) : pool_(pool) {}
+
+        // ITempoAware — bar length for the sourceBars stamp at capture close.
+        void setTransport(const TransportInfo& t) noexcept override { transport_ = t; }
 
         static constexpr const char* kMachineId = "lockstep.recorder.v1";
 
@@ -64,6 +68,9 @@ namespace lockstep
             return Polyphony::V1;
         }
 
+        // Test/advisory: the last transport snapshot received this block.
+        [[nodiscard]] const TransportInfo& transport() const noexcept { return transport_; }
+
     private:
         static constexpr int kSlotInputSource = 0;
         static constexpr int kSlotTargetBuffer = 1;
@@ -81,6 +88,7 @@ namespace lockstep
 
         SamplePool& pool_;
         double sampleRate_ = 44100.0;
+        TransportInfo transport_{};  // last block transport (C2)
 
         // Capture state (audio-thread only).
         bool capturing_ = false;

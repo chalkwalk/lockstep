@@ -27,6 +27,7 @@
 #include "machine/IEffect.h"
 #include "machine/EffectFactory.h"
 #include "machine/IMachine.h"
+#include "machine/ITempoAware.h"
 #include "machine/SamplePool.h"
 #include "core/EngineCommand.h"
 #include "machine/TrackFltrDsp.h"
@@ -1088,6 +1089,10 @@ namespace lockstep
         std::atomic<bool> freshStartPending_{ true };
         bool wasInPluginPlaying_ = false;
         bool wasSequencerRunning_ = false;  // MF.6: falling-edge transport stop detection
+        // C2: per-block transport snapshot pushed to ITempoAware machines (Player /
+        // Looper / Recorder) before process(). Computed once per block from Clock +
+        // effectiveTimeSig(); read in processTrackChain.
+        TransportInfo blockTransport_{};
         std::array<bool, kNumTracks> wasSilent_{};  // MF.7: per-track mute rising-edge detection
 
         // [ATOMIC]* APVTS-managed parameter atomics — any thread may read.

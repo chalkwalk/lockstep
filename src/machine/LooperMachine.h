@@ -1,9 +1,9 @@
 #pragma once
 
 #include "IMachine.h"
+#include "ITempoAware.h"
 #include "InputSource.h"
 #include <atomic>
-#include <array>
 
 namespace lockstep
 {
@@ -21,7 +21,7 @@ namespace lockstep
     // which is meaningless for a looper). The loop buffer is internal RAM, lost on
     // quit. Loop length is free-running: it is the span recorded before the first
     // close.
-    class LooperMachine : public IMachine
+    class LooperMachine : public IMachine, public ITempoAware
     {
     public:
         enum class Cmd : int { None = 0, RecordCycle, PlayStop, Clear, Undo };
@@ -31,6 +31,10 @@ namespace lockstep
 
         [[nodiscard]] const char* machineId() const noexcept override { return kMachineId; }
         [[nodiscard]] const char* badge() const noexcept override { return "LOOP"; }
+
+        // ITempoAware — bar length + transport phase for varispeed sync (C4).
+        void setTransport(const TransportInfo& t) noexcept override { transport_ = t; }
+        [[nodiscard]] const TransportInfo& transport() const noexcept { return transport_; }
 
         void prepare(double sampleRate, int maxBlockSize) override;
         void reset() override;
@@ -89,5 +93,7 @@ namespace lockstep
 
         std::atomic<int> pendingCmd_{ 0 };
         std::atomic<int> stateMirror_{ 0 };
+
+        TransportInfo transport_{};  // last block transport (C2)
     };
 }
