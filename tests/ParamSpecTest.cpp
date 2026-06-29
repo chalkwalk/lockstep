@@ -118,6 +118,7 @@ namespace lockstep
             "va_lfo_sync",      // 33
             "va_osc_mix",       // 34
             "va_age",           // 35
+            "va_keytrack",      // 36
         };
         checkGoldenIds(m, "VAMachine", golden);
         checkInvariants(m, "VAMachine");

@@ -122,6 +122,8 @@ namespace lockstep
         { "va_osc_mix", "Osc Mix", 0.f, 1.f, 0.5f, 1.f, 0, va_u::None, va_r::None, 0, 1, 0, nullptr }, // 34
         // --- MOD continued (section 4): vintage character macro ---
         { "va_age", "Age", 0.f, 1.f, 0.2f, 1.f, 0, va_u::None, va_r::None, 0, 4, 0, nullptr }, // 35
+        // --- FILTER continued (section 2): cutoff key-tracking amount ---
+        { "va_keytrack", "Key Trk", 0.f, 1.f, 1.f, 1.f, 0, va_u::Pct, va_r::None, 0, 2, 0, nullptr }, // 36
     };
     static_assert(std::size(kVAParams) == VAMachine::kNumSlots,
                   "kVAParams row count must equal kNumSlots");
@@ -367,6 +369,7 @@ namespace lockstep
         sv.targetFreq = targetHz;
         sv.active = true;
         sv.midiNote = midiNote;
+        filterTrackNote_ = midiNote;  // cutoff key-tracking reference (most recent note)
 
         svf1_.reset();
         svf2_.reset();
@@ -386,6 +389,7 @@ namespace lockstep
             sv.currentFreq = targetHz;
         sv.targetFreq = targetHz;
         sv.midiNote = midiNote;
+        filterTrackNote_ = midiNote;  // cutoff key-tracking reference (most recent note)
         // Envelope continues; oscillator phases and SVF state unchanged.
     }
 
@@ -439,6 +443,7 @@ namespace lockstep
         sv.active = true;
         sv.oscType = paraChordNoteIdx_ % 2;
         sv.midiNote = midiNote;
+        filterTrackNote_ = midiNote;  // cutoff key-tracking reference (most recent note)
         sv.age = ++voiceCounter_;
         sv.osc1Phase = 0.0;
         sv.osc2Phase = 0.0;
@@ -638,6 +643,12 @@ namespace lockstep
         // ---- Params -------------------------------------------------------
         const float cutoffParam = std::clamp(p(kSlotCutoff) + lfoCutoffMod + ageCutoff,
                                              0.0f, 1.0f);
+        // Cutoff key-tracking: shift the (shared) filter cutoff by the most recent
+        // note's distance from C3. (note-60)/120 ≈ one octave of cutoff travel per
+        // octave of pitch at full amount, matching the 20*900^c cutoff map. Default
+        // amount is 1.0; only audible once the base cutoff is below maximum.
+        const float keytrackOffset = p(kSlotKeytrack)
+            * (static_cast<float>(filterTrackNote_) - 60.0f) / 120.0f;
         const int filterType = static_cast<int>(p(kSlotFilterType));
         // Always-on gentle glue saturation (baseline 1.4) so default patches
         // have analog character without the level knob switching drive on from
@@ -798,8 +809,8 @@ namespace lockstep
             }
 
             // ---- Effective cutoff ----
-            const float effectiveCutoff = std::clamp(cutoffParam + fEnvLevel * fEnvDepth,
-                                                     0.0f, 1.0f);
+            const float effectiveCutoff = std::clamp(
+                cutoffParam + fEnvLevel * fEnvDepth + keytrackOffset, 0.0f, 1.0f);
             const float cutoffHz = 20.0f * std::pow(900.0f, effectiveCutoff);
             const float svfF = std::clamp(
                 2.0f * std::sin(kPiF * cutoffHz / static_cast<float>(sampleRate_)),

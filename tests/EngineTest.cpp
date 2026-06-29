@@ -1588,6 +1588,62 @@ namespace lockstep
               "VA Age round-trip: va_age survived save/load (got=" + juce::String(loaded, 4) + ")");
     }
 
+    // D: VA filter cutoff key-tracking. With the cutoff lowered, a high note must
+    // be brighter (more energy past the filter) with key-tracking on than off,
+    // and the va_keytrack param must round-trip through save/load.
+    static void testVAFilterKeytrack()
+    {
+        const int cutoffSlot = vaSlotById("va_cutoff");
+        const int ktSlot     = vaSlotById("va_keytrack");
+        CHECK(ktSlot >= 0, "VA keytrack: va_keytrack slot exists");
+        if (ktSlot < 0 || cutoffSlot < 0) return;
+
+        // Energy of a high note (C5) through a lowered cutoff, keytrack on vs off.
+        auto highNoteRms = [&](float keytrack) {
+            VAMachine m;
+            m.prepare(48000.0, 512);
+            ParamFrame f(static_cast<std::size_t>(m.numParams()));
+            for (int i = 0; i < m.numParams(); ++i)
+                f[static_cast<std::size_t>(i)] = m.paramSpec(i).defaultValue;
+            f[static_cast<std::size_t>(cutoffSlot)] = 0.3f;   // lowered so tracking matters
+            f[static_cast<std::size_t>(ktSlot)] = keytrack;
+            juce::MidiBuffer midi;
+            midi.addEvent(juce::MidiMessage::noteOn(1, 84, 0.9f), 0);  // C5, two octaves up
+            juce::AudioBuffer<float> buf(2, 512);
+            double sum = 0.0; int n = 0;
+            for (int b = 0; b < 16; ++b)
+            {
+                buf.clear();
+                m.process(b == 0 ? midi : juce::MidiBuffer{}, f, buf);
+                for (int s = 0; s < 512; ++s)
+                {
+                    const float v = buf.getSample(0, s);
+                    sum += static_cast<double>(v) * static_cast<double>(v);
+                    ++n;
+                }
+            }
+            return static_cast<float>(std::sqrt(sum / std::max(1, n)));
+        };
+        const float ktOn  = highNoteRms(1.0f);
+        const float ktOff = highNoteRms(0.0f);
+        CHECK(ktOn > ktOff * 1.1f,
+              "VA keytrack: high note brighter with tracking on (on=" + juce::String(ktOn, 4)
+              + " off=" + juce::String(ktOff, 4) + ")");
+
+        // Round-trip (additive id-keyed param, no version bump).
+        EngineHarness hA;
+        installVA(hA.processor(), 0);
+        hA.processor().kit(0).baseParams[static_cast<std::size_t>(ktSlot)] = 0.4f;
+        hA.processor().reinstallMachinesFromActiveKit();
+        juce::MemoryBlock state;
+        hA.processor().getStateInformation(state);
+        EngineHarness hB;
+        hB.processor().setStateInformation(state.getData(), static_cast<int>(state.getSize()));
+        const float loaded = hB.processor().kit(0).baseParams[static_cast<std::size_t>(ktSlot)];
+        CHECK(feq(loaded, 0.4f),
+              "VA keytrack round-trip: va_keytrack survived save/load (got=" + juce::String(loaded, 4) + ")");
+    }
+
     // A3: trigs must fire on the step grid (no half-step late offset). Drives a
     // MIDI-out track so note-on sample positions are exact, then checks the first
     // few onsets land on their grid boundaries. At 120 BPM / 48 kHz, one PPQ =
@@ -1872,6 +1928,7 @@ namespace lockstep
         testNewProjectClearsStaleEffects();
         testMasterSendInstalledOnLoad();
         testVAAgeRoundTrip();
+        testVAFilterKeytrack();
         testVAParaLoudnessCompensation();
         testDrumDirectNaN();
         testNaNFreeDefaultState();

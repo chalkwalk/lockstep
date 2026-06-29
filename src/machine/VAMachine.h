@@ -25,7 +25,7 @@ namespace lockstep
         [[nodiscard]] const char* badge() const noexcept override { return "VA"; }
         static constexpr const char* kMachineId = "lockstep.va.v1";
 
-        static constexpr int kNumSlots = 36;
+        static constexpr int kNumSlots = 37;
 
         int numParams() const override { return kNumSlots; }
         ParamSpec paramSpec(int index) const override;
@@ -86,6 +86,8 @@ namespace lockstep
         static constexpr int kSlotOscMix = 34;  // 0=all osc1, 1=all osc2, 0.5=equal power
     // Section 4 — MOD: vintage "Age" macro (analog drift + glue saturation)
         static constexpr int kSlotAge = 35;
+    // Section 2 — FILTER: cutoff key-tracking amount (0=none, 1=full octave-per-octave)
+        static constexpr int kSlotKeytrack = 36;
 
         static constexpr int kNumSections = 5;
         static constexpr int kMaxSubVoices = 4;
@@ -183,6 +185,9 @@ namespace lockstep
     // RETRIG mode ghost crossfade: old amp level fades to 0 while new
     // voice attacks from 0.  Combined gain = ampEnv_.tick() + ghostGain_.
         float monoGhostGain_ = 0.0f;
+        // Reference note for filter cutoff key-tracking (the shared SVF tracks the
+        // most recently played note). Updated on every note-on; defaults to C3.
+        int filterTrackNote_ = 60;
         int monoGhostFade_ = 0;
 
         dsp::MonoGate monoGate_{};
