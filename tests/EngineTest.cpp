@@ -1373,6 +1373,33 @@ namespace lockstep
     // A2 follow-up: solo is routing-aware. Soloing a bus must keep its feeders
     // running (so the bus has audio); soloing a feeder must keep its downstream
     // bus chain running (so the feeder reaches master).
+    // B2: muting a feeder must silence its contribution to a soloed bus. Solo
+    // forces feeders audible (testSoloBusPlaysFeeders); an explicit mute on the
+    // feeder must override that and remove it from the bus sum.
+    static void testMuteWinsOverSoloedBus()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        installThru(proc, 0, static_cast<float>(static_cast<int>(InputSourceKind::External)));  // feeder
+        installThru(proc, 1, static_cast<float>(static_cast<int>(InputSourceKind::None)));       // bus
+        proc.kit(0).channelState.out = encodeOutputDest(OutputDestKind::Track, 1);
+
+        proc.toggleSolo(1);                       // solo the bus
+        renderBlockWithInput(h, 0.5f);
+        const float beforeMute = renderBlockWithInput(h, 0.5f);
+        CHECK(beforeMute > 0.05f, "mute/solo precondition: soloed bus carries its feeder");
+
+        proc.setGlobalMute(0, true);              // mute the feeder
+        renderBlockWithInput(h, 0.5f);
+        const float afterMute = renderBlockWithInput(h, 0.5f);
+        CHECK(afterMute < 0.01f,
+              "mute over soloed bus: muted feeder still reaches the bus (mag="
+              + juce::String(afterMute, 4) + ")");
+
+        proc.setGlobalMute(0, false);
+        proc.toggleSolo(1);
+    }
+
     static void testSoloBusPlaysFeeders()
     {
         EngineHarness h;
@@ -1784,6 +1811,7 @@ namespace lockstep
         testBusRoutingRemovesFromMaster();
         testBusCycleRefused();
         testSoloBusPlaysFeeders();
+        testMuteWinsOverSoloedBus();
         testValidOutTargets();
         testOutEditValidation();
         testRoutingDormantOnMachineSwap();
