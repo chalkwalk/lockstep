@@ -701,6 +701,14 @@ namespace lockstep
                 displayHint = {};
             }
 
+            // #1 Looper verbs: when Track scope is held on a focused Looper, U/I/O
+            // drive the loop state machine (DESIGN §29.2). The labels are applied in
+            // a post-pass after deriveSlots (the label authority, which would restore
+            // COPY/PASTE/CLEAR); here we only glow the cell whose function is live.
+            // (Looper state: 0 Idle, 1 Rec, 2 Play, 3 Overdub, 4 Stop.)
+            const bool looperVerbCell = ui.trackHeld && proc.isLooperTrack(activeTrack)
+                && (def.keyCode == 'U' || def.keyCode == 'I' || def.keyCode == 'O');
+            const int looperSt = looperVerbCell ? proc.looperState(activeTrack) : -1;
 
             c.primary = displayPrimary;
             c.funcHint = displayHint;
@@ -721,9 +729,15 @@ namespace lockstep
                 c.pip.colour = kScopeScene;
             }
 
+            // #1: glow the looper verb whose function is live (U while Rec/Overdub,
+            // I while Play/Overdub) so the loop state reads off the surface.
+            const bool looperActive = looperVerbCell
+                && ((def.keyCode == 'U' && (looperSt == 1 || looperSt == 3))
+                 || (def.keyCode == 'I' && (looperSt == 2 || looperSt == 3)));
+
             // Cell state
             if (c.pressed) c.base = CellState::Pressed;
-            else if (isModeActive) c.base = CellState::ModeActive;
+            else if (isModeActive || looperActive) c.base = CellState::ModeActive;
             else c.base = CellState::Resting;
 
             // baseColour for controller feedback and groupForCell()
@@ -2251,6 +2265,28 @@ namespace lockstep
                 deriveSlots(c);
             for (auto& c : model.step)
                 deriveSlots(c);
+
+            // #1: re-apply the Looper verb relabel AFTER deriveSlots (which would
+            // otherwise restore the grammar table's COPY/PASTE/CLEAR). With Track
+            // scope held on a focused Looper, U/I/O (functionRow 6/7/8) are loop
+            // controls, state-aware so each shows what it does next. The glow (c.base
+            // ModeActive) was set in the builder pre-pass and survives deriveSlots.
+            if (ui.trackHeld && activeTrack >= 0 && proc.isLooperTrack(activeTrack))
+            {
+                const int st = proc.looperState(activeTrack);  // 0 Idle..4 Stop
+                model.functionRow[6].primary =
+                    (st == 1) ? "END" : (st == 2 || st == 3) ? "DUB" : "REC";
+                model.functionRow[7].primary = (st == 2 || st == 3) ? "STOP" : "PLAY";
+                model.functionRow[8].primary = "ERASE";
+                for (int k : { 6, 7, 8 })
+                {
+                    auto& c = model.functionRow[static_cast<std::size_t>(k)];
+                    c.funcHint = juce::String();        // no Func variant on a loop verb
+                    c.tapLabel = juce::String();
+                    c.holdLabel = juce::String();
+                    c.doubleTapLabel = juce::String();
+                }
+            }
         }
 
         return model;

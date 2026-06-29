@@ -12,6 +12,8 @@
 #include "../src/ui/ScopedSectionMatrix.h"
 #include "../src/ui/GridDisplayMode.h"
 #include "../src/machine/IMachine.h"
+#include "../src/machine/LooperMachine.h"
+#include "../src/machine/VAMachine.h"
 #include "../src/command/KeyBindings.h"
 
 namespace lockstep
@@ -474,6 +476,51 @@ namespace lockstep
     }
 
     // -------------------------------------------------------------------------
+    // Test (#1): Track scope held on a Looper relabels the U/I/O verb cells to
+    // loop controls (REC/PLAY/ERASE), state-aware, instead of COPY/PASTE/CLEAR.
+    // A non-looper track keeps the clipboard verbs. functionRow[6]=U, [7]=I, [8]=O.
+    // -------------------------------------------------------------------------
+    static void testLooperVerbRelabel()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        EditContext ec;
+
+        // Non-looper track under Track scope: clipboard verbs survive.
+        proc.setTrackMachine(0, VAMachine::kMachineId);
+        {
+            UiState ui; ui.trackHeld = true;
+            const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                             GridDisplayMode::Ortholinear);
+            CHECK(m.functionRow[6].primary == "COPY",  "non-looper U stays COPY");
+            CHECK(m.functionRow[7].primary == "PASTE", "non-looper I stays PASTE");
+            CHECK(m.functionRow[8].primary == "CLEAR", "non-looper O stays CLEAR");
+        }
+
+        // Looper track, Idle, under Track scope: U=REC, I=PLAY, O=ERASE.
+        proc.setTrackMachine(1, LooperMachine::kMachineId);
+        proc.setFocusTrack(1);
+        {
+            UiState ui; ui.trackHeld = true;
+            const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 1, 0,
+                                             GridDisplayMode::Ortholinear);
+            CHECK(m.functionRow[6].primary == "REC",   "looper Idle: U = REC");
+            CHECK(m.functionRow[7].primary == "PLAY",  "looper Idle: I = PLAY");
+            CHECK(m.functionRow[8].primary == "ERASE", "looper Track-scope: O = ERASE");
+        }
+
+        // Without Track scope held, the relabel does not apply: O is the bare CLEAR
+        // verb, not ERASE (bare U is legitimately "REC", so O is the discriminator).
+        {
+            UiState ui;  // nothing held
+            const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 1, 0,
+                                             GridDisplayMode::Ortholinear);
+            CHECK(m.functionRow[8].primary != "ERASE",
+                  "looper relabel requires Track scope held");
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // Test: generator hub model populates c.primary (Bug B regression guard).
     // When euclidHeld=true the model must carry EUCLID/DENSITY/VEL primary text
     // so the generic hub renderer can draw it without a screen-only residual.
@@ -778,6 +825,7 @@ namespace lockstep
         testScopeTintBindings();
         testDensityStickyFuncInvariant();
         testHomeKeyAnchors();
+        testLooperVerbRelabel();
         testGeneratorHubPrimary();
         testMachinePickerPrimary();
         testDeriveSlotEqualsGrammar();
