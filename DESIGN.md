@@ -203,13 +203,25 @@ exactly three kinds of machine:
 
 - **Generators** — synths and samplers that *originate* sound from trig
   events: `SamplerMachine`, `FMMachine`, `VAMachine`, `DrumSynthMachine`,
-  `SlicerMachine`, `StaticMachine`, `PercussionMachine`, `DigitalMachine`.
+  `SlicerMachine`, `StaticMachine`, `PlayerMachine`, `PercussionMachine`,
+  `DigitalMachine`. The `SamplerMachine` is rate-based (pitch = speed, the
+  turntable); `PlayerMachine` is its **Flex** counterpart with *independent
+  pitch and tempo* — a WSOLA time-stretch voice and `timestretch=Tempo` that
+  stretches a buffer to the project tempo via its stamped bar-length.
 - **Routers** — a machine that *carries* audio from an `input_source`
   into the track's own signal path. There is exactly one: `ThruMachine`
   (§29). It is near-empty by design — the actual shaping is done by the
   canonical post-machine FILTER / AMP / FX (§14), not by the machine.
 - **Capture engines** — machines whose value is *stateful audio
   capture*: `RecorderMachine` (overwrite) and `LooperMachine` (overdub).
+  **Capture stamps, playback stretches:** a capture machine writes a
+  volatile pool slot and stamps its musical bar-length (`sourceBars`); a
+  tempo-tracking `PlayerMachine` reads that stamp to stretch to tempo. The
+  looper additionally *self-plays* its slot **varispeed** (tape: time-locked,
+  pitch glides on tempo change — chosen over stretch because varispeed's
+  linear time-map composes with in-place overdub, where WSOLA's grain map
+  does not). The same captured loop is therefore playable two ways: the
+  looper's varispeed self-play, or a Player's pitch-locked stretch.
 
 Pure timbre *processing* is **not** a machine. A filter, EQ, distortion,
 bitcrusher, reverb, delay, compressor, or any other "audio in → audio
@@ -3810,14 +3822,29 @@ deliberately bounded form of this.
 **The model is output-directed, not input-select.** Two orthogonal
 controls together describe the routing graph:
 
-1. **`input_source`** — a machine slot declaring an *outside-world*
-   audio tap. Closed enum `{None | External | Master}`:
+1. **`input_source`** — a machine slot declaring an audio tap. Closed
+   enum `{None | External | Master | Track N}`:
 
    | Source | Meaning |
    |---|---|
    | **None** | Default. The machine synthesises into an empty buffer (every synth/sampler). |
    | **External** | The plugin's audio input bus (sidechain / standalone device input). |
    | **Master** | The plugin's master sum (prior block — see below). |
+   | **Track N** | A read-only **post-chain tap** of track `N` (the *fork*, below). |
+
+   **Tap-fork.** `Track N` is a separate edge class from the output
+   destination (below): it reads a *copy* of track `N`'s finished output,
+   so `N` keeps flowing to its own destination — no out-degree > 1, no
+   duplication. The tap only constrains processing order (`N` before the
+   tapper), so the topological sort runs over the **union** of mix edges
+   (CHANNEL "Out") and tap edges, and cycles across either are refused at
+   assignment. Because the tap reads the *current* block (the source ran
+   earlier in topo order), it is **same-block / zero latency** — strictly
+   better than the `Master` tap, which is necessarily one block late. This
+   is the foundation for aux sends (a Thru tapping a track → parallel FX →
+   Master) and resample-a-single-track (a Recorder tapping one track
+   post-FX), available to every input-consuming machine (Thru / Recorder /
+   Looper).
 
 2. **Output destination** — a per-track **"Out" slot in the CHANNEL
    block**, closed enum `{Master | Track N | Off}`, default **Master**.

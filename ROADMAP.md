@@ -38,7 +38,20 @@ self-feedback, 2× operator oversampling).
 REC buffers in the unified pool; RecorderMachine (overwrite live-resampler, contextual
 recorder trig); LooperMachine (verb-driven overdub state machine, `Track+verb`);
 StaticMachine (disk-streaming long-form sampler, per-Kit path). Freeze-to-disk (§22)
-deferred. **Next:** `6.7` Machine Module ABI; `4.6`/`4.7` Percussion/Digital synths.
+deferred.
+**Flex-parity audio shipped (tap-fork + Player + time-stretch + looper unify):**
+tap-forking (revived `input_source = Track N` as a same-block read-only post-chain
+tap; topo-sort + cycle refusal extended over mix+tap edges) enables aux sends and
+resample-a-single-track; pool `sourceBars` metadata (capture stamps, playback
+stretches); `ITempoAware`/`TransportInfo` seam (no machine-boundary change);
+**PlayerMachine** (`lockstep.player.v1`, the Flex analog — WSOLA `TimeStretch` voice,
+independent pitch + tempo-tracking); Recorder opt-in `monitor`; **Looper unified into
+the volatile pool** + `loop_sync` varispeed (Free / Free Len / N-Bar phase-lock) +
+loop-wrap crossfade; multi-capture default-distinct slots + collision query. Looper
+self-play = varispeed (tape); WSOLA stretch lives only in the Player. **Deferred
+(Milestone C):** Static/streaming time-stretch; looper stop-fade; Player poly + AHDSR;
+the on-surface shared-slot indicator (query `captureSlotShared` is wired).
+**Next:** `6.7` Machine Module ABI; `4.6`/`4.7` Percussion/Digital synths.
 **Playback-correctness + gain-staging pass shipped (post-audio-quality):** metronome
 downbeat-skip fix + fresh-start trig anchor frame (trigs were on-grid; the
 "half-step-late" feel traced to a *stale Delay left on a new project*); project load
