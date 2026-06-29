@@ -26,7 +26,15 @@ Scene+TRIG enters TIME SIG sticky mode. StandaloneTempoBar retired; replaced by
 scope-coloured BPM + time-sig header readout. Density lookahead barIndex corrected.
 **Active:** `9.9` README + end-to-end verification; `9.5 C` skip-disabled sub-pages +
 inert affordance (velocity + density); contextLabel unit test (9.6); tempo resolution
-tests (9.8). **Next:** `A3` gain-staging audit; `6.7` Machine Module ABI.
+tests (9.8). **Audio-quality foundation shipped:** master-only gain staging
+(per-track soft clip removed; transparent soft-knee clipper at master,
+`dsp/SoftClip.h`); tape-style `Saturation` effect with placement-aware quality
+tiers (`EffectTier`, one catalogue entry → LQ on track / oversampled HQ on
+master) and unified Delay/Reverb (HQ ids folded in + migrated); `dsp/Oversampler2x.h`
+(polyphase halfband); VA character (paraphonic loudness compensation, always-on
+glue, `Age` drift macro); FM clean (exponential op envelopes, smoothed diagonal
+self-feedback, 2× operator oversampling). **Next:** `6.2` RecorderMachine (lands on
+this settled signal path); `6.7` Machine Module ABI.
 **Octatrack-parity arc shipped (6.1 + 5.5 + 5.6):** audio-input boundary,
 output-directed track buses (CHANNEL "Out", topo sort, cycle refusal), ThruMachine,
 per-take stem export; Cue-scope audition (`Func+3`); lock-only + one-shot trigs.

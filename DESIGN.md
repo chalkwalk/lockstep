@@ -4154,6 +4154,42 @@ A machine may *also* carry internal effects; those surface as
 extension sections, leaving the canonical FX section for the
 foundation inserts.
 
+#### 32.1a Placement-aware quality tiers
+
+Some effects warrant a heavier, oversampled treatment on the master bus
+than is worth spending on a single track insert. Rather than clutter the
+catalogue with separate "Reverb" and "HQ Reverb" entries, a single
+catalogue id presents **two faces** chosen by *placement*:
+
+- **`EffectTier::Track`** — a lean LQ face (≈4 params, no oversampling)
+  built for per-track inserts where CPU is multiplied across many tracks.
+- **`EffectTier::Master`** — a rich HQ face (≈8 params, internally 2×
+  oversampled) for the master inserts and send returns, where one
+  instance can afford to be lush.
+
+The tier is **structural, never serialised**: it is derived from where the
+slot lives, so `makeEffectForId(id, tier)` is called with `Master` at every
+master save/load/placement site and `Track` at every track site. Because an
+effect is never moved across track↔master, a given slot's tier — and thus
+its param schema — is fixed, so the two faces are free to expose *different*
+param sets without any cross-placement migration. `Reverb`, `Delay` and
+`Saturation` are the tiered entries; the former standalone `HQ Reverb` /
+`HQ Delay` ids fold into them and `canonicalEffectId()` migrates old
+projects on load. Genuinely master-only units with no LQ counterpart
+(Bus Comp, Utility) stay `masterOnly`.
+
+#### 32.1b Gain staging is master-only
+
+Tracks and buses run **linear** in 32-bit float — there is no per-stage
+clip. The only structural ceiling is at the master output: a *transparent
+soft-knee clipper* (`dsp::SoftClip.h`) that is exactly unity below ≈−3 dBFS
+and only engages above it, smoothly bounding peaks just under 0 dBFS. This
+keeps a clean machine (e.g. the oversampled FM) uncoloured all the way to
+the master and makes overall level predictable. Character saturation that
+*belongs* to a sound — VA glue/drive, drum-kick drive, the Saturation /
+Distortion inserts — is a deliberate machine/effect choice and is separate
+from this structural clip.
+
 ### 32.2 Per-track inserts
 
 Two **insert** slots per track, **fixed**, positioned **post-AMP**:

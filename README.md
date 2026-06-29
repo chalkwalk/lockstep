@@ -595,8 +595,8 @@ Tracks 1–8 default to `SamplerMachine` and tracks 9–16 to `MidiOutMachine` (
 |---|---|---|
 | `SamplerMachine` | SP | Monophonic sample playback. SRC section: sample, pitch, trim window (`samp_start` / `samp_length`), loop mode (OFF / SUS / S+R / ALL), loop region (`samp_loop_start` / `samp_loop_len`). All position slots snap to zero-crossings on write. AMP section: level + AHDSR. |
 | `SlicerMachine` | SL | Slice/scrub sample playback. SLICE mode: incoming MIDI note selects slice 0–15; `slicer_start` / `slicer_length` are relative to the active slice. SCRUB mode: note drives playback rate vs. root 60 (identical to Sampler semantics). `slicer_rate` P-lockable for per-step rate; negative rate = reverse playback. `slicer_slice_src` (EQUAL / TRANS) and `slicer_slice_count` auto-recompute slices on change; transient detection uses 5 ms RMS blocks with fast/slow envelope ratio and centre-weighted search. VOICE section: MONO / POLY toggle (V4). |
-| `FMMachine` | FM | 4-operator FM synthesis. Free 4×4 modulation matrix. Per-operator ADSR, ratio, fine-tune, mix. Macro attack/release/sustain scalars. MONO / POLY voice modes (V4 pool). |
-| `VAMachine` | VA | Virtual-analog dual-osc synth. PolyBLEP oscillators + sub + shared noise. State-variable filter (LP24/LP12/HP/BP + drive). Filter ADSR + amp ADSR. LFO (6 shapes). Mono / Paraphonic-4 voice modes. Para topology: chord notes 1 & 3 → osc1+sub; notes 2 & 4 → osc2+sub. |
+| `FMMachine` | FM | 4-operator FM synthesis. Free 4×4 modulation matrix (diagonal = smoothed self-feedback). Exponential per-operator ADSR, ratio, fine-tune, mix. Macro attack/release/sustain scalars. MONO / POLY voice modes (V4 pool). Operator core is 2× oversampled for clean high-index FM. |
+| `VAMachine` | VA | Virtual-analog dual-osc synth. PolyBLEP oscillators + sub + shared noise. State-variable filter (LP24/LP12/HP/BP + drive). Filter ADSR + amp ADSR. LFO (6 shapes). Mono / Paraphonic-4 voice modes. Para topology: chord notes 1 & 3 → osc1+sub; notes 2 & 4 → osc2+sub. Always-on gentle glue saturation + paraphonic loudness compensation; **Age** (MOD) macro dials in analog drift (detune/cutoff/PW wander). |
 | `DrumSynthMachine` | DR | Rytm-style per-track drum synthesis. One stepped `Type` param selects the variant; each has dedicated DSP. Eight types ship: KICK, SNARE, HAT, TOM, CLAP, COWBELL, CYMBAL, RIMSHOT. |
 | `MidiOutMachine` | M | MIDI CC / note output to external gear. Configurable destination, channel, program, 16 CC slots with user-assignable numbers and labels. |
 
@@ -752,12 +752,19 @@ apply across the whole mix. MIDI-out tracks have no sends.
 
 **Available effects:**
 
+Some effects are **quality-tiered**: one catalogue entry presents a lean LQ face
+on track inserts and a richer, oversampled HQ face when placed on the master bus
+or sends. The tier is chosen by *placement* — you do not pick it. So `Reverb`,
+`Delay` and `Saturation` show a single picker entry; drop them on a track for the
+4-param version, on master for the 8-param oversampled version.
+
 *Track inserts (any slot):*
 | Badge | Name | Key params |
 |---|---|---|
-| `DLY` | Delay | Time, Feedbk, Mix, LPF |
-| `REV` | Reverb | Size, Decay, Damp, Mix |
-| `DRV` | Distortion | Drive, Mix |
+| `DLY` | Delay | Time, Feedbk, Mix, LPF *(HQ on master: + Color, Width, tempo div)* |
+| `REV` | Reverb | Size, Decay, Damp, Mix *(HQ on master: + PreDly, LoCut, Mod)* |
+| `DRV` | Distortion | Drive, Tone, Mix |
+| `SAT` | Saturation | Drive, Tone, Mix, Output *(HQ on master: + Bias, Comp, Crisp, Low — 2× oversampled tape glue)* |
 | `CHR` | Chorus | Rate, Depth, Mix |
 | `TLT` | Tilt EQ | Tilt (−1..+1), Gain (dB) |
 | `CMP` | Compressor | Thresh, Ratio, Atk, Rel, Mkup |
@@ -765,13 +772,19 @@ apply across the whole mix. MIDI-out tracks have no sends.
 | `FLG` | Flanger | Rate, Depth, Feedbk, Mix |
 | `PHA` | Phaser | Rate, Depth, Centre, Feedbk, Mix |
 
+`Saturation` is the gentle, gluey tape-style cousin of the rougher `Distortion`;
+put the HQ face on a Thru track or the master bus for clean bus glue.
+
 *Master inserts + send returns only (`masterOnly`):*
 | Badge | Name | Key params |
 |---|---|---|
-| `RVH` | HQ Reverb | PreDly, Size, Decay, Damp, LoCut, Mod, Mix |
-| `DLH` | HQ Delay | Time (tempo div), Feedbk, Color, Width, Mix |
 | `BUS` | Bus Compressor | Thresh, Ratio, Atk, Rel (Auto), SC HPF, Mkup, Mix |
 | `UTL` | Master Utility | Tilt, Width (M/S), Trim (dB) |
+
+*Gain staging is master-only:* tracks and buses stay linear (float headroom); the
+only structural clip is a transparent soft-knee clipper at the master output that
+is unity below ~−3 dBFS and only catches peaks. Machine-internal character
+saturation (VA drive, drum kick) is separate and unaffected.
 
 State round-trips in serializer v21 (hierarchical time-sig + tempo).
 
