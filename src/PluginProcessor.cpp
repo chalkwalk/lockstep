@@ -793,7 +793,15 @@ namespace lockstep
             if (sequencerRunning && !wasInPluginPlaying_ && freshStartPending_.exchange(false))
             {
                 anchorPpq_ = clock_.ppqAtBlockStart();
-                nextTriggerPpq_.fill(anchorPpq_);
+                // The step-detection window below is anchor-RELATIVE in Auto mode
+                // (blockStart = ppqAtBlockStart - anchorPpq_), and the whole grid is
+                // consumed in that frame (main scan, ppqJumped re-floor). So the
+                // fresh cursors must be anchor-relative too: step 0 sits at relative
+                // PPQ 0. Filling with the absolute anchorPpq_ put the grid in the
+                // wrong frame, so a fresh start at a non-zero position (e.g. stop →
+                // replay without a phase reset) left every cursor past blockEnd and
+                // dropped trigs entirely.
+                nextTriggerPpq_.fill(0.0);
             }
         }
         wasInPluginPlaying_ = clock_.inPluginPlaying();

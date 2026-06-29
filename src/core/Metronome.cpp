@@ -62,8 +62,15 @@ namespace lockstep
         std::array<TrigPoint, 16> trigs{};
         int numTrigs = 0;
 
+        // First candidate beat index = floor(blockStart/beat). The per-sample
+        // guard below (`ppq >= blockStartPpq`) decides emission, and blockEnd is
+        // exclusive (`ppq >= blockEndPpq` breaks), so a beat landing exactly on a
+        // block boundary is emitted once by the block that *starts* on it. The old
+        // `+ 1` skipped that boundary beat entirely — dropping the click on the
+        // downbeat (PPQ 0) and making the whole click track feel a beat late
+        // against on-grid trigs.
         const auto firstBeatIdx =
-            static_cast<std::int64_t>(std::floor(blockStartPpq / beatPpq)) + 1;
+            static_cast<std::int64_t>(std::floor(blockStartPpq / beatPpq));
         for (auto beatIdx = firstBeatIdx;
              numTrigs < static_cast<int>(trigs.size()); ++beatIdx)
         {

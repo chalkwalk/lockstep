@@ -18,8 +18,10 @@
 #include "EngineHarness.h"
 #include "../src/machine/DrumSynthMachine.h"
 #include "../src/machine/VAMachine.h"
+#include "../src/machine/FMMachine.h"
 #include "../src/machine/SamplerMachine.h"
 #include "../src/machine/StubMachine.h"
+#include "../src/machine/MidiOutMachine.h"
 #include "../src/machine/ThruMachine.h"
 #include "../src/machine/InputSource.h"
 #include "../src/core/OutputDest.h"
@@ -1550,6 +1552,95 @@ namespace lockstep
               "VA Age round-trip: va_age survived save/load (got=" + juce::String(loaded, 4) + ")");
     }
 
+    // A3: trigs must fire on the step grid (no half-step late offset). Drives a
+    // MIDI-out track so note-on sample positions are exact, then checks the first
+    // few onsets land on their grid boundaries. At 120 BPM / 48 kHz, one PPQ =
+    // 24000 samples and a 1/16 step (default) = 6000 samples.
+    static void testTrigFiresOnGrid()
+    {
+        EngineHarness h;
+        installMachine(h.processor(), 0, MidiOutMachine::kMachineId);
+
+        // Trig on steps 0, 1, 2, 3 (every step), each a single note with a gate.
+        auto& trk = h.processor().sequence().tracks[0];
+        for (int si = 0; si < 4; ++si)
+        {
+            auto& s = trk.steps[static_cast<std::size_t>(si)];
+            s.trig = true;
+            s.trigOverride.noteCount = 1;
+            s.trigOverride.notes[0] = 60;
+            s.trigOverride.hasGate = true;
+            s.trigOverride.gateValue = MusicalGate::G1_16;
+        }
+
+        const double samplesPerPpq = EngineHarness::kSampleRate * 60.0 / EngineHarness::kBpm;
+        const double stepSamples = 0.25 * samplesPerPpq;  // 1/16 step
+
+        std::vector<long> onsets;
+        const int blockSize = EngineHarness::kBlockSize;
+        for (int b = 0; b < 30 && onsets.size() < 4; ++b)
+        {
+            h.renderBlocks(1);
+            for (const auto meta : h.midiOut())
+            {
+                const auto msg = meta.getMessage();
+                if (msg.isNoteOn())
+                    onsets.push_back(static_cast<long>(b) * blockSize + meta.samplePosition);
+            }
+        }
+
+        CHECK(onsets.size() >= 2,
+              "trig grid: expected >=2 note-ons, got " + juce::String((int)onsets.size()));
+        if (onsets.size() >= 2)
+        {
+            // Step 0 -> sample 0; step k -> k*stepSamples. Tolerance ~1 block.
+            const long tol = blockSize + 4;
+            for (std::size_t k = 0; k < onsets.size(); ++k)
+            {
+                const long expected = static_cast<long>(std::llround(static_cast<double>(k) * stepSamples));
+                const long err = std::labs(onsets[k] - expected);
+                CHECK(err <= tol,
+                      "trig grid: step " + juce::String((int)k) + " onset at sample "
+                      + juce::String((juce::int64)onsets[k]) + " expected ~"
+                      + juce::String((juce::int64)expected) + " (err "
+                      + juce::String((juce::int64)err) + " samples, ~"
+                      + juce::String(static_cast<double>(err) / stepSamples, 3) + " steps)");
+            }
+        }
+    }
+
+    // A3 diagnostic: an FM machine in poly (chord) mode must start audio at the
+    // note-on sample, not half a step later. Drives FMMachine directly with a
+    // 3-note chord at sample 0 and finds the first audible sample.
+    static void testFMChordOnsetOnGrid()
+    {
+        FMMachine m;
+        m.prepare(48000.0, 256);
+        ParamFrame frame(static_cast<std::size_t>(m.numParams()));
+        for (int i = 0; i < m.numParams(); ++i)
+            frame[static_cast<std::size_t>(i)] = m.paramSpec(i).defaultValue;
+        frame[static_cast<std::size_t>(FMMachine::kSlotVoiceMode)] = 1.0f;  // Poly
+
+        juce::MidiBuffer midi;
+        for (int n : { 60, 64, 67 })
+            midi.addEvent(juce::MidiMessage::noteOn(1, n, 0.9f), 0);  // all at sample 0
+
+        long firstAudio = -1;
+        juce::AudioBuffer<float> buf(2, 256);
+        for (int b = 0; b < 8 && firstAudio < 0; ++b)
+        {
+            buf.clear();
+            m.process(b == 0 ? midi : juce::MidiBuffer{}, frame, buf);
+            for (int n = 0; n < 256; ++n)
+                if (std::abs(buf.getSample(0, n)) > 1e-4f)
+                { firstAudio = static_cast<long>(b) * 256 + n; break; }
+        }
+        CHECK(firstAudio >= 0, "FM chord onset: produced no audio");
+        CHECK(firstAudio >= 0 && firstAudio < 256,
+              "FM chord onset: first audio at sample " + juce::String((juce::int64)firstAudio)
+              + " (expected within first block; >256 means a delayed onset)");
+    }
+
     // Phase D: paraphonic loudness compensation. A 4-note chord must be thicker
     // than a single note but nowhere near 4x as loud (the old abrasive linear
     // stacking). Drives a standalone VAMachine and compares peak magnitudes.
@@ -1598,6 +1689,8 @@ namespace lockstep
     void runEngineTests()
     {
         testTransposeTrack();
+        testTrigFiresOnGrid();
+        testFMChordOnsetOnGrid();
         testVAAgeRoundTrip();
         testVAParaLoudnessCompensation();
         testDrumDirectNaN();
