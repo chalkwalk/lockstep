@@ -45,14 +45,15 @@ namespace lockstep
             s.id = kInputSourceSlotId;
             s.label = "Source";
             s.minValue = 0.0f;
-            // Outside-world tap only: None, External, Master (inter-track routing
-            // is output-directed via the CHANNEL "Out" slot, DESIGN §27).
-            s.maxValue = 2.0f;
+            // None / External / Master / Track N (tap-fork, DESIGN §27). A Track
+            // value is a read-only post-chain tap of that track; cyclic/self picks
+            // are refused at write time.
+            s.maxValue = kInputSourceMaxValue;
             s.defaultValue = 0.0f;  // None — silent until routed/sourced (sub-bus default)
             s.isStepped = true;
             s.sectionIndex = kSrcSecIdx;
-            s.valueLabels = std::span<const char* const>(kSourceLabels.data(),
-                                                         kSourceLabels.size());
+            s.valueLabels = std::span<const char* const>(kInputSourceLabels.data(),
+                                                         kInputSourceLabels.size());
             return s;
         }
 
@@ -69,12 +70,5 @@ namespace lockstep
         {
             return Polyphony::V0;
         }
-
-    private:
-        // Index ↔ value: 0=None, 1=Ext, 2=Master (matches decodeInputSource();
-        // inter-track routing moved to the CHANNEL "Out" slot, DESIGN §27).
-        static constexpr std::array<const char* const, 3> kSourceLabels = {
-            "None", "Ext", "Master"
-        };
     };
 }

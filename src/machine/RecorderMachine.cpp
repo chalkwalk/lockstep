@@ -14,11 +14,11 @@ namespace lockstep
                 s.id = kInputSourceSlotId;
                 s.label = "Source";
                 s.minValue = 0.0f;
-                s.maxValue = 2.0f;  // None, External, Master (DESIGN §27)
+                s.maxValue = kInputSourceMaxValue;  // None/Ext/Master/Track N (DESIGN §27)
                 s.defaultValue = 1.0f;  // External — the common live-resample tap
                 s.isStepped = true;
-                s.valueLabels = std::span<const char* const>(kSourceLabels.data(),
-                                                             kSourceLabels.size());
+                s.valueLabels = std::span<const char* const>(kInputSourceLabels.data(),
+                                                             kInputSourceLabels.size());
                 return s;
             case kSlotTargetBuffer:
                 s.id = "target_buffer";

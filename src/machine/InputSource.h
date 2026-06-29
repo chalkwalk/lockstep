@@ -1,5 +1,8 @@
 #pragma once
 
+#include "../core/Sequence.h"  // kNumTracks
+
+#include <array>
 #include <cmath>
 #include <cstdint>
 
@@ -36,8 +39,22 @@ namespace lockstep
         int track = -1;  // 0-based track index when kind == Track; else -1.
     };
 
+    // Full label set for a tap-fork-capable input_source: None, Ext, Master,
+    // then T1..T16 (index i>=3 decodes to Track i-3). Machines that support
+    // tap-forking (Thru / Recorder / Looper) declare their input_source slot with
+    // these labels and maxValue = kInputSourceMaxValue, so the stepped param
+    // surface renders the track picker directly. Cyclic / self selections are
+    // refused at write time (LockstepProcessor::writeParam), not here.
+    static_assert(kNumTracks == 16, "kInputSourceLabels must match kNumTracks");
+    inline constexpr std::array<const char* const, 3 + kNumTracks> kInputSourceLabels = {
+        "None", "Ext", "Master",
+        "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8",
+        "T9", "T10", "T11", "T12", "T13", "T14", "T15", "T16"
+    };
+    inline constexpr float kInputSourceMaxValue =
+        static_cast<float>(kInputSourceLabels.size() - 1);
+
     // Slot encoding (stepped float): 0=None, 1=External, 2=Master, 3+N = Track N.
-    // The value labels live with the declaring machine's ParamSpec.
     [[nodiscard]] inline InputSourceSel decodeInputSource(float value) noexcept
     {
         const int iv = static_cast<int>(std::lround(value));

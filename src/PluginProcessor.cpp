@@ -2636,6 +2636,32 @@ namespace lockstep
                 value = 0.0f;
         }
 
+        // Tap-fork cycle/self refusal (DESIGN §27): an input_source set to a Track
+        // that would close a routing cycle across the mix+tap edge union (or tap
+        // itself) is rejected — keep the current stored value. The topo-sort
+        // tolerates a cycle defensively, but a clean graph keeps every tap same-block.
+        if (idForSlot(track, slot) == kInputSourceSlotId)
+        {
+            const auto sel = decodeInputSource(value);
+            if (sel.kind == InputSourceKind::Track)
+            {
+                const int to = sel.track;
+                bool bad = (to == track) || (to < 0) || (to >= static_cast<int>(kNumTracks));
+                if (!bad)
+                {
+                    auto tap = tapEdges();
+                    tap[static_cast<std::size_t>(track)] = to;  // tentative edge
+                    bad = routing::hasCycle(routingEdges(), tap);
+                }
+                if (bad)
+                {
+                    const auto& bp = sequence().tracks[static_cast<std::size_t>(track)].baseParams;
+                    value = (slot < static_cast<int>(bp.size()))
+                                ? bp[static_cast<std::size_t>(slot)] : 0.0f;
+                }
+            }
+        }
+
         // Zero-crossing snap: if the slot is marked zeroCrossingSnap and the
         // machine is a SamplePlayingMachineBase, round the position value to the
         // nearest zero-crossing in the currently-loaded sample.

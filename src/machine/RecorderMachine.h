@@ -88,9 +88,6 @@ namespace lockstep
         int samplesRemaining_ = 0;
         juce::AudioBuffer<float>* target_ = nullptr;
 
-        static constexpr std::array<const char* const, 3> kSourceLabels = {
-            "None", "Ext", "Master"
-        };
         // One label per reserved REC slot (kNumVolatileSlots = 8 in the processor).
         static constexpr std::array<const char* const, 8> kBufferLabels = {
             "REC1", "REC2", "REC3", "REC4", "REC5", "REC6", "REC7", "REC8"

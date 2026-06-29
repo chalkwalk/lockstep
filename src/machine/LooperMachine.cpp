@@ -10,12 +10,12 @@ namespace lockstep
         s.id = kInputSourceSlotId;
         s.label = "Source";
         s.minValue = 0.0f;
-        s.maxValue = 2.0f;  // None, External, Master (DESIGN §27)
+        s.maxValue = kInputSourceMaxValue;  // None/Ext/Master/Track N (DESIGN §27)
         s.defaultValue = 1.0f;  // External — record live input by default
         s.isStepped = true;
         s.sectionIndex = kSrcSecIdx;
-        s.valueLabels = std::span<const char* const>(kSourceLabels.data(),
-                                                     kSourceLabels.size());
+        s.valueLabels = std::span<const char* const>(kInputSourceLabels.data(),
+                                                     kInputSourceLabels.size());
         return s;
     }
 

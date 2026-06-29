@@ -89,9 +89,5 @@ namespace lockstep
 
         std::atomic<int> pendingCmd_{ 0 };
         std::atomic<int> stateMirror_{ 0 };
-
-        static constexpr std::array<const char* const, 3> kSourceLabels = {
-            "None", "Ext", "Master"
-        };
     };
 }

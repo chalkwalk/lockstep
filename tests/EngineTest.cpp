@@ -1973,10 +1973,60 @@ namespace lockstep
               juce::String(noneRms) + ")");
     }
 
+    // -----------------------------------------------------------------------
+    // A3 tap-fork cycle/self refusal (DESIGN §27): an input_source set to a Track
+    // that would close a routing cycle (or tap itself) is rejected at write time,
+    // keeping the prior value. writeParam queues, so render between writes so the
+    // refusal sees committed edges.
+    static void testTapCycleRefusal()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+
+        auto setThru = [&proc](int t) {
+            ThruMachine tmp;
+            auto& k = proc.kit(t);
+            k.machineId = ThruMachine::kMachineId;
+            const int np = tmp.numParams();
+            k.baseParams.resize(static_cast<std::size_t>(np));
+            for (int i = 0; i < np; ++i)
+                k.baseParams[static_cast<std::size_t>(i)] = tmp.paramSpec(i).defaultValue;
+        };
+        setThru(0); setThru(1); setThru(2);
+        proc.reinstallMachinesFromActiveKit();
+
+        ThruMachine tmp;
+        const int slot = tmp.slotForId(kInputSourceSlotId);
+        const auto trackSel = [&proc, slot](int t) {
+            return decodeInputSource(proc.sequence().tracks[static_cast<std::size_t>(t)]
+                                         .baseParams[static_cast<std::size_t>(slot)]);
+        };
+        const auto encTrack = [](int n) { return 3.0f + static_cast<float>(n); };
+
+        // Acyclic: track 0 taps track 1 — allowed.
+        proc.writeParam(0, slot, encTrack(1));
+        h.renderBlocks(2);
+        CHECK(trackSel(0).kind == InputSourceKind::Track && trackSel(0).track == 1,
+              "tap-fork: acyclic 0<-1 is allowed");
+
+        // Cyclic: track 1 taps track 0 would close 0<->1 — refused (stays Ext).
+        proc.writeParam(1, slot, encTrack(0));
+        h.renderBlocks(2);
+        CHECK(!(trackSel(1).kind == InputSourceKind::Track && trackSel(1).track == 0),
+              "tap-fork: cyclic 1<-0 (closing 0<->1) is refused");
+
+        // Self-tap: track 2 taps itself — refused.
+        proc.writeParam(2, slot, encTrack(2));
+        h.renderBlocks(2);
+        CHECK(!(trackSel(2).kind == InputSourceKind::Track && trackSel(2).track == 2),
+              "tap-fork: self-tap is refused");
+    }
+
     void runEngineTests()
     {
         testTransposeTrack();
         testTapForkSameBlock();
+        testTapCycleRefusal();
         testTrigFiresOnGrid();
         testFMChordOnsetOnGrid();
         testFMMixerAndVoiceComp();
