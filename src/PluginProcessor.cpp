@@ -4349,7 +4349,7 @@ namespace lockstep
         if (id == RecorderMachine::kMachineId)
             return std::make_unique<RecorderMachine>(pool);
         if (id == LooperMachine::kMachineId)
-            return std::make_unique<LooperMachine>();
+            return std::make_unique<LooperMachine>(pool);
         if (id == StaticMachine::kMachineId)
             return std::make_unique<StaticMachine>();
         // "lockstep.stub" is an explicitly-empty track (unknownId = "").

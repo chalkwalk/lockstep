@@ -5,6 +5,8 @@
 
 #include "TestHarness.h"
 #include "../src/machine/LooperMachine.h"
+#include "../src/machine/SamplerMachine.h"
+#include "../src/machine/SamplePool.h"
 #include <cmath>
 
 namespace lockstep
@@ -24,7 +26,7 @@ namespace lockstep
                 for (int i = 0; i < n; ++i)
                     buf.setSample(ch, i, inValue);
             juce::MidiBuffer midi;
-            ParamFrame params{ 1.0f };  // input_source = External (unused here)
+            ParamFrame params{ 1.0f, 0.0f };  // input_source=External, target_buffer=0
             m.process(midi, params, buf);
             return buf;
         }
@@ -36,7 +38,12 @@ namespace lockstep
         constexpr double kSr = 48000.0;
         constexpr int n = 512;
 
-        LooperMachine loop;
+        // The loop lives in a volatile pool slot (B3); prepare one with capacity.
+        SamplePool pool;
+        pool.addVolatile();
+        pool.prepareVolatile(kSr, 2, static_cast<int>(kSr));  // 1 s capacity
+
+        LooperMachine loop(pool);
         loop.prepare(kSr, n);
         CHECK(loop.state() == State::Idle, "starts Idle");
 
@@ -91,6 +98,49 @@ namespace lockstep
             auto out = runBlock(loop, n, 0.0f, Cmd::Clear);
             CHECK(loop.state() == State::Idle, "Clear returns to Idle");
             CHECK(feq(out.getSample(0, 0), 0.0f), "cleared output is silent");
+        }
+
+        // B3: the loop lives in the pool slot — a Sampler plays it, and an overdub
+        // sums in place (still one volatile sample). sourceBars is stamped on close.
+        {
+            SamplePool p2;
+            const int idx = p2.addVolatile();
+            p2.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LooperMachine lp(p2);
+            lp.prepare(kSr, n);
+
+            // 1 bar = 2 blocks of 512 = 1024 samples, for the stamp check.
+            TransportInfo tr; tr.samplesPerBar = 1024.0; tr.running = true;
+            lp.setTransport(tr);
+
+            runBlock(lp, n, 0.5f, Cmd::RecordCycle);   // record 512 of 0.5
+            runBlock(lp, n, 0.5f);                      // record another 512 (1024 total)
+            runBlock(lp, n, 0.0f, Cmd::RecordCycle);    // close → Playing, loopLen 1024
+
+            CHECK(p2.get(idx) != nullptr && p2.get(idx)->pcm.getNumSamples() == 1024,
+                  "B3: pool slot holds the captured loop (1024 samples)");
+            CHECK(feq(static_cast<float>(p2.sourceBars(idx)), 1.0f),
+                  "B3: sourceBars stamped = loopLen / samplesPerBar (1 bar)");
+
+            // A Sampler pointed at the same slot plays the loop back (non-silent).
+            SamplerMachine samp(p2);
+            samp.prepare(kSr, n);
+            ParamFrame sp(static_cast<std::size_t>(samp.numParams()), 0.0f);
+            for (int i = 0; i < samp.numParams(); ++i)
+                sp[static_cast<std::size_t>(i)] = samp.paramSpec(i).defaultValue;
+            sp[0] = static_cast<float>(idx);  // sample_id → the looper's slot
+            juce::AudioBuffer<float> out(2, n);
+            out.clear();
+            juce::MidiBuffer m;
+            m.addEvent(juce::MidiMessage::noteOn(1, 60, 1.0f), 0);
+            samp.process(m, sp, out);
+            CHECK(out.getMagnitude(0, n) > 0.01f,
+                  "B3: a Sampler plays the looper's pool slot (non-silent)");
+
+            // Overdub onto the playing loop sums in place; still one volatile sample.
+            const int before = p2.size();
+            runBlock(lp, n, 0.25f, Cmd::RecordCycle);   // Playing → Overdubbing
+            CHECK(p2.size() == before, "B3: overdub does not add a pool entry");
         }
     }
 }

@@ -5,18 +5,33 @@ namespace lockstep
 {
     ParamSpec LooperMachine::paramSpec(int index) const
     {
-        if (index != kSlotInputSource) return {};
         ParamSpec s;
-        s.id = kInputSourceSlotId;
-        s.label = "Source";
-        s.minValue = 0.0f;
-        s.maxValue = kInputSourceMaxValue;  // None/Ext/Master/Track N (DESIGN §27)
-        s.defaultValue = 1.0f;  // External — record live input by default
-        s.isStepped = true;
         s.sectionIndex = kSrcSecIdx;
-        s.valueLabels = std::span<const char* const>(kInputSourceLabels.data(),
-                                                     kInputSourceLabels.size());
-        return s;
+        switch (index)
+        {
+            case kSlotInputSource:
+                s.id = kInputSourceSlotId;
+                s.label = "Source";
+                s.minValue = 0.0f;
+                s.maxValue = kInputSourceMaxValue;  // None/Ext/Master/Track N (DESIGN §27)
+                s.defaultValue = 1.0f;  // External — record live input by default
+                s.isStepped = true;
+                s.valueLabels = std::span<const char* const>(kInputSourceLabels.data(),
+                                                             kInputSourceLabels.size());
+                return s;
+            case kSlotTargetBuffer:
+                s.id = "target_buffer";
+                s.label = "Buffer";
+                s.minValue = 0.0f;
+                s.maxValue = static_cast<float>(kVolatileBufferLabels.size() - 1);
+                s.defaultValue = 0.0f;
+                s.isStepped = true;
+                s.valueLabels = std::span<const char* const>(kVolatileBufferLabels.data(),
+                                                             kVolatileBufferLabels.size());
+                return s;
+            default:
+                return {};
+        }
     }
 
     const char* LooperMachine::stateLabel(State s) noexcept
@@ -35,10 +50,8 @@ namespace lockstep
     void LooperMachine::prepare(double sampleRate, int /*maxBlockSize*/)
     {
         sampleRate_ = sampleRate > 0.0 ? sampleRate : 44100.0;
-        capacity_ = static_cast<int>(sampleRate_ * kLoopMaxSeconds);
-        loop_.setSize(2, capacity_, false, true, false);
-        backup_.setSize(2, capacity_, false, true, false);
-        loop_.clear();
+        const int cap = static_cast<int>(sampleRate_ * kLoopMaxSeconds);
+        backup_.setSize(2, cap, false, true, false);
         backup_.clear();
         reset();
     }
@@ -50,8 +63,21 @@ namespace lockstep
         playhead_ = 0;
         recPos_ = 0;
         haveBackup_ = false;
-        loop_.clear();
         stateMirror_.store(static_cast<int>(state_), std::memory_order_release);
+    }
+
+    void LooperMachine::snapshotForUndo()
+    {
+        if (target_ == nullptr || loopLen_ <= 0)
+        {
+            haveBackup_ = false;
+            return;
+        }
+        const int chans = std::min(target_->getNumChannels(), backup_.getNumChannels());
+        const int n = std::min(loopLen_, backup_.getNumSamples());
+        for (int ch = 0; ch < chans; ++ch)
+            backup_.copyFrom(ch, 0, *target_, ch, 0, n);
+        haveBackup_ = true;
     }
 
     void LooperMachine::applyCommand(Cmd c)
@@ -65,25 +91,27 @@ namespace lockstep
                 {
                     case State::Idle:
                     case State::Stopped:
-                        // Start a fresh recording from zero.
-                        loop_.clear();
-                        loopLen_ = 0;
-                        recPos_ = 0;
-                        haveBackup_ = false;
-                        state_ = State::Recording;
+                        // Start a fresh recording from zero. Grow the pool buffer
+                        // back to full capacity (no realloc — pre-sized) and clear.
+                        if (target_ != nullptr && capacity_ > 0)
+                        {
+                            target_->setSize(target_->getNumChannels(), capacity_,
+                                             false, false, true);
+                            target_->clear();
+                            loopLen_ = 0;
+                            recPos_ = 0;
+                            haveBackup_ = false;
+                            state_ = State::Recording;
+                        }
                         break;
                     case State::Recording:
-                        // Close the loop and start playing.
-                        loopLen_ = std::max(0, recPos_);
-                        playhead_ = 0;
-                        state_ = (loopLen_ > 0) ? State::Playing : State::Idle;
+                        closeRecording();
                         break;
                     case State::Playing:
                         // Begin overdubbing: snapshot for one-level undo.
                         if (loopLen_ > 0)
                         {
-                            backup_.makeCopyOf(loop_, true);
-                            haveBackup_ = true;
+                            snapshotForUndo();
                             state_ = State::Overdubbing;
                         }
                         break;
@@ -97,10 +125,7 @@ namespace lockstep
                 switch (state_)
                 {
                     case State::Recording:
-                        // Play ends an in-progress recording too.
-                        loopLen_ = std::max(0, recPos_);
-                        playhead_ = 0;
-                        state_ = (loopLen_ > 0) ? State::Playing : State::Idle;
+                        closeRecording();
                         break;
                     case State::Playing:
                     case State::Overdubbing:
@@ -114,12 +139,23 @@ namespace lockstep
                 }
                 break;
             case Cmd::Clear:
+                // Empty the loop and the pool slot so a Sampler/Player reading it is
+                // silent; back to Idle.
+                if (target_ != nullptr)
+                {
+                    target_->setSize(target_->getNumChannels(), 0, false, false, true);
+                    pool_.setSourceBars(targetSlot_, 0.0);
+                }
                 reset();
                 break;
             case Cmd::Undo:
-                if (haveBackup_ && loopLen_ > 0)
+                if (haveBackup_ && loopLen_ > 0 && target_ != nullptr)
                 {
-                    loop_.makeCopyOf(backup_, true);
+                    const int chans = std::min(target_->getNumChannels(),
+                                               backup_.getNumChannels());
+                    const int n = std::min(loopLen_, backup_.getNumSamples());
+                    for (int ch = 0; ch < chans; ++ch)
+                        target_->copyFrom(ch, 0, backup_, ch, 0, n);
                     haveBackup_ = false;
                     state_ = State::Playing;
                 }
@@ -127,16 +163,52 @@ namespace lockstep
         }
     }
 
+    void LooperMachine::closeRecording()
+    {
+        loopLen_ = std::max(0, recPos_);
+        playhead_ = 0;
+        if (loopLen_ > 0 && target_ != nullptr)
+        {
+            // Shrink the reported length to the loop so a Sampler/Player reading the
+            // slot plays exactly the captured region (no realloc — within capacity).
+            target_->setSize(target_->getNumChannels(), loopLen_, true, false, true);
+            // Stamp the captured musical length (bars) for tempo-tracking playback.
+            const double spb = transport_.samplesPerBar;
+            pool_.setSourceBars(targetSlot_,
+                                spb > 0.0 ? static_cast<double>(loopLen_) / spb : 0.0);
+            state_ = State::Playing;
+        }
+        else
+        {
+            state_ = State::Idle;
+        }
+    }
+
     void LooperMachine::process(const juce::MidiBuffer& /*events*/,
-                                const ParamFrame& /*params*/,
+                                const ParamFrame& params,
                                 juce::AudioBuffer<float>& buffer)
     {
         const int numSamples = buffer.getNumSamples();
         const int chans = std::min(2, buffer.getNumChannels());
 
+        // Resolve the target volatile pool slot for this block (B3). The loop lives
+        // here so a Sampler/Player pointed at the same slot can also play it.
+        const int targetSlot = (params.size() > kSlotTargetBuffer)
+            ? static_cast<int>(std::lround(params[kSlotTargetBuffer])) : 0;
+        targetSlot_ = pool_.nthVolatileIndex(targetSlot);
+        target_ = pool_.mutableVolatilePcm(targetSlot_);
+        capacity_ = pool_.volatileCapacity(targetSlot_);
+
         // Drain one queued command (slow control rate; single-slot is enough).
         const int raw = pendingCmd_.exchange(0, std::memory_order_acq_rel);
         if (raw != 0) applyCommand(static_cast<Cmd>(raw));
+
+        // No valid slot → silence.
+        if (target_ == nullptr)
+        {
+            buffer.clear();
+            return;
+        }
 
         // `buffer` arrives holding the input_source audio (fillTrackInput). Copy it
         // out before we overwrite the buffer with loop playback.
@@ -144,27 +216,30 @@ namespace lockstep
         for (int ch = 0; ch < chans; ++ch)
             inScratch_.copyFrom(ch, 0, buffer, ch, 0, numSamples);
 
+        const int tchans = std::min(chans, target_->getNumChannels());
+
         for (int i = 0; i < numSamples; ++i)
         {
             for (int ch = 0; ch < chans; ++ch)
             {
                 const float in = inScratch_.getSample(ch, i);
                 float out = 0.0f;
+                const bool tch = ch < tchans;
                 switch (state_)
                 {
                     case State::Recording:
-                        if (recPos_ < capacity_)
-                            loop_.setSample(ch, recPos_, in);
+                        if (tch && recPos_ < capacity_)
+                            target_->setSample(ch, recPos_, in);
                         out = in;  // monitor while recording
                         break;
                     case State::Playing:
-                        if (loopLen_ > 0) out = loop_.getSample(ch, playhead_);
+                        if (tch && loopLen_ > 0) out = target_->getSample(ch, playhead_);
                         break;
                     case State::Overdubbing:
-                        if (loopLen_ > 0)
+                        if (tch && loopLen_ > 0)
                         {
-                            const float mixed = loop_.getSample(ch, playhead_) + in;
-                            loop_.setSample(ch, playhead_, mixed);
+                            const float mixed = target_->getSample(ch, playhead_) + in;
+                            target_->setSample(ch, playhead_, mixed);
                             out = mixed;
                         }
                         break;
@@ -182,9 +257,7 @@ namespace lockstep
                 if (++recPos_ >= capacity_)
                 {
                     // Hit capacity: auto-close into playback.
-                    loopLen_ = capacity_;
-                    playhead_ = 0;
-                    state_ = State::Playing;
+                    closeRecording();
                 }
             }
             else if ((state_ == State::Playing || state_ == State::Overdubbing) && loopLen_ > 0)

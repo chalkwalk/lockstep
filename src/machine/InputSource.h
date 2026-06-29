@@ -54,6 +54,14 @@ namespace lockstep
     inline constexpr float kInputSourceMaxValue =
         static_cast<float>(kInputSourceLabels.size() - 1);
 
+    // Labels for the shared volatile REC-slot bank (target_buffer on Recorder and
+    // Looper). One per reserved slot; the count matches kNumVolatileSlots in the
+    // processor. The capture machine's target_buffer is a stepped 0..N-1 ordinal
+    // into pool.nthVolatileIndex().
+    inline constexpr std::array<const char* const, 8> kVolatileBufferLabels = {
+        "REC1", "REC2", "REC3", "REC4", "REC5", "REC6", "REC7", "REC8"
+    };
+
     // Slot encoding (stepped float): 0=None, 1=External, 2=Master, 3+N = Track N.
     [[nodiscard]] inline InputSourceSel decodeInputSource(float value) noexcept
     {

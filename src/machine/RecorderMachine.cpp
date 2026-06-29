@@ -24,11 +24,11 @@ namespace lockstep
                 s.id = "target_buffer";
                 s.label = "Buffer";
                 s.minValue = 0.0f;
-                s.maxValue = static_cast<float>(kBufferLabels.size() - 1);
+                s.maxValue = static_cast<float>(kVolatileBufferLabels.size() - 1);
                 s.defaultValue = 0.0f;
                 s.isStepped = true;
-                s.valueLabels = std::span<const char* const>(kBufferLabels.data(),
-                                                             kBufferLabels.size());
+                s.valueLabels = std::span<const char* const>(kVolatileBufferLabels.data(),
+                                                             kVolatileBufferLabels.size());
                 return s;
             case kSlotRecLength:
                 s.id = "rec_length";

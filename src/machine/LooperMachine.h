@@ -3,6 +3,7 @@
 #include "IMachine.h"
 #include "ITempoAware.h"
 #include "InputSource.h"
+#include "SamplePool.h"
 #include <atomic>
 
 namespace lockstep
@@ -18,12 +19,19 @@ namespace lockstep
     // mailbox: the editor routes Track+Record / Track+Play / Track+Clear (when a
     // Looper track is focused) to postCommand(); process() drains it. No new
     // grammar, no new keys (the loop's RAM content shadows the track clipboard,
-    // which is meaningless for a looper). The loop buffer is internal RAM, lost on
-    // quit. Loop length is free-running: it is the span recorded before the first
-    // close.
+    // which is meaningless for a looper).
+    //
+    // The loop lives in a shared volatile pool slot (target_buffer, B3) — the same
+    // RAM-only REC bank the Recorder writes — so the captured loop is also playable
+    // by a Sampler/Player pointed at that slot (the OT recording-buffer model). The
+    // looper self-plays it too. Loop length is free-running here (the span recorded
+    // before the first close); transport-quantize + varispeed sync land in C4. The
+    // one-level undo backup stays machine-internal (not a playable slot).
     class LooperMachine : public IMachine, public ITempoAware
     {
     public:
+        explicit LooperMachine(SamplePool& pool) : pool_(pool) {}
+
         enum class Cmd : int { None = 0, RecordCycle, PlayStop, Clear, Undo };
         enum class State : int { Idle = 0, Recording, Playing, Overdubbing, Stopped };
 
@@ -73,13 +81,23 @@ namespace lockstep
 
     private:
         static constexpr int kSlotInputSource = 0;
-        static constexpr int kNumSlots = 1;
+        static constexpr int kSlotTargetBuffer = 1;  // volatile REC slot the loop lives in
+        static constexpr int kNumSlots = 2;
         static constexpr double kLoopMaxSeconds = 12.0;
 
         void applyCommand(Cmd c);
+        // Finalise an in-progress recording: set loopLen_, shrink the pool slot to
+        // the loop, stamp sourceBars, and enter Playing (or Idle if empty).
+        void closeRecording();
+        // Snapshot the loop's first `loopLen_` samples for one-level overdub undo,
+        // without resizing the pool buffer.
+        void snapshotForUndo();
 
+        SamplePool& pool_;
         double sampleRate_ = 44100.0;
-        int capacity_ = 0;  // loop buffer capacity in samples
+        int capacity_ = 0;        // current target buffer capacity (samples)
+        int targetSlot_ = -1;     // resolved volatile pool index for the loop
+        juce::AudioBuffer<float>* target_ = nullptr;  // pool pcm for targetSlot_ (this block)
 
         State state_ = State::Idle;
         int loopLen_ = 0;
@@ -87,9 +105,11 @@ namespace lockstep
         int recPos_ = 0;
         bool haveBackup_ = false;
 
-        juce::AudioBuffer<float> loop_;     // the loop (stereo)
-        juce::AudioBuffer<float> backup_;   // one-level undo of the last overdub
-        juce::AudioBuffer<float> inScratch_;  // input copy (read before we overwrite)
+        // The loop lives in pool slot `targetSlot_` (resolved each block); backup_
+        // is the internal one-level overdub undo; inScratch_ copies the input before
+        // we overwrite the track buffer with loop playback.
+        juce::AudioBuffer<float> backup_;
+        juce::AudioBuffer<float> inScratch_;
 
         std::atomic<int> pendingCmd_{ 0 };
         std::atomic<int> stateMirror_{ 0 };
