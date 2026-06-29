@@ -222,6 +222,16 @@ exactly three kinds of machine:
   linear time-map composes with in-place overdub, where WSOLA's grain map
   does not). The same captured loop is therefore playable two ways: the
   looper's varispeed self-play, or a Player's pitch-locked stretch.
+  **Looper monitoring** is a `monitor {Auto | On | Off}` switch governing
+  whether the live input passes through to the output (separate from
+  recording, which always captures). **Auto** resolves from the source: On
+  for `None`/`External` (the looper is the source's sole path out — insert /
+  external-input use), Off for a `Track`/`Master` tap (the tapped source is
+  already audible on its own path, so passing it through would
+  double-monitor). On/Off force it. This makes the looper "work as
+  expected" whether you feed it by routing a track's `Out` into it (it
+  passes through + layers) or by tapping a source on its SRC panel (it adds
+  the loop layer without re-monitoring the live source).
 
 Pure timbre *processing* is **not** a machine. A filter, EQ, distortion,
 bitcrusher, reverb, delay, compressor, or any other "audio in → audio
@@ -3885,6 +3895,18 @@ master-feedback can never be cycle-free. (`Out = Master` is *not* an
 edge — it is the default contribution to the sum, not a tap.) Realtime
 whole-mix resampling tolerates the ~one-block latency without audible
 consequence.
+
+**Master tap feedback guard (symmetric with `Out`).** A Master tap can
+never legitimately reach the master sum — any path back to master is an
+echo of master, so a track that taps Master *and* whose own output
+reaches master is a runaway loop. The input/tap rotary therefore omits a
+feedback-forming source exactly as the `Out` rotary omits cyclic
+destinations: `Master` is offered only when the track's output does **not**
+reach master (`outputReachesMaster`), and a `Track` tap only when it does
+not close a mix+tap cycle. A stale/loaded selection that slips through is
+muted at run time (the second layer, mirroring `Out` dormancy). Master is
+a node in this feedback check even though it is not a node in the mix
+graph's topological sort.
 
 **Only input-aware machines can be a bus.** A routing target must be a
 machine that *consumes* audio (declares `input_source` — Thru today,
