@@ -55,6 +55,24 @@ namespace lockstep
             CHECK(buf->getReadPointer(0) == before, "no reallocation on shrink");
         }
 
+        // nthVolatileIndex addresses REC slots by ordinal, robust to shifts ---
+        {
+            SamplePool pool;
+            // A non-volatile placeholder at index 0, then two REC slots above it.
+            const int file0 = pool.addMissing(SampleRef{});
+            const int r0 = pool.addVolatile();
+            const int r1 = pool.addVolatile();
+            CHECK(file0 == 0 && r0 == 1 && r1 == 2, "layout: file then two REC");
+            CHECK(pool.nthVolatileIndex(0) == 1 && pool.nthVolatileIndex(1) == 2,
+                  "nthVolatileIndex maps ordinals to absolute indices");
+            CHECK(pool.nthVolatileIndex(2) == -1, "no third REC slot");
+
+            // Removing the file below shifts the REC entries down; ordinals hold.
+            pool.remove(file0);
+            CHECK(pool.nthVolatileIndex(0) == 0 && pool.nthVolatileIndex(1) == 1,
+                  "ordinals survive a file removal that shifts absolute indices");
+        }
+
         // mutableVolatilePcm refuses non-volatile / out of range -------------
         {
             SamplePool pool;

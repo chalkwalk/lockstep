@@ -71,10 +71,20 @@ namespace lockstep
             if (!s->isVolatile) continue;
             s->sampleRate = sampleRate;
             // Capacity allocation happens here (message/prepare thread); a recorder
-            // later shrinks the reported size with avoidReallocating, never grows.
+            // later shrinks the reported size with avoidReallocating, never grows
+            // past this capacity.
             s->pcm.setSize(chans, cap, false, true, false);
             s->pcm.clear();
+            s->volatileCapacity = cap;
         }
+    }
+
+    int SamplePool::volatileCapacity(int index) const
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size()))
+            return 0;
+        const auto& s = samples_[static_cast<std::size_t>(index)];
+        return s->isVolatile ? s->volatileCapacity : 0;
     }
 
     bool SamplePool::isVolatileIndex(int index) const
@@ -82,6 +92,19 @@ namespace lockstep
         if (index < 0 || index >= static_cast<int>(samples_.size()))
             return false;
         return samples_[static_cast<std::size_t>(index)]->isVolatile;
+    }
+
+    int SamplePool::nthVolatileIndex(int n) const
+    {
+        if (n < 0) return -1;
+        int seen = 0;
+        for (int i = 0; i < static_cast<int>(samples_.size()); ++i)
+        {
+            if (!samples_[static_cast<std::size_t>(i)]->isVolatile) continue;
+            if (seen == n) return i;
+            ++seen;
+        }
+        return -1;
     }
 
     juce::AudioBuffer<float>* SamplePool::mutableVolatilePcm(int index)

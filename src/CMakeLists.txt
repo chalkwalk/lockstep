@@ -28,6 +28,7 @@ add_library(lockstep_core STATIC
     machine/EffectFactory.cpp
     machine/SamplerMachine.cpp
     machine/SlicerMachine.cpp
+    machine/RecorderMachine.cpp
     machine/SamplePool.cpp
     machine/MachineParamTable.cpp
     machine/VoiceChoke.cpp

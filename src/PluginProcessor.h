@@ -190,6 +190,10 @@ namespace lockstep
 
         // True when the installed machine on the given track is a stub (empty track).
         [[nodiscard]] bool isTrackEmpty(int track) const;
+        // True when the track's machine is a RecorderMachine. A trig on such a
+        // track is a recorder trig (capture), so the lock-only (trigless) state is
+        // disallowed — the off→note→lock-only cycle becomes off→note (DESIGN §30).
+        [[nodiscard]] bool isRecorderTrack(int track) const;
 
         // ── Scene launch queue (Phase 7 / DESIGN §4.8, §16) ─────────────────
         // Queue a Section launch to fire at the next core-time bar boundary.
@@ -214,7 +218,8 @@ namespace lockstep
         // of REC slots so recorder trigs always have somewhere to write; they live
         // at the top of the pool's index range (above file-backed samples) and are
         // re-seeded on every load. volatilePoolIndex(slot) maps a logical slot
-        // 0..kNumVolatileSlots-1 to its absolute pool index, or -1 if out of range.
+        // 0..kNumVolatileSlots-1 to its absolute pool index (the pool is the single
+        // source of truth via nthVolatileIndex), or -1 if out of range.
         static constexpr int kNumVolatileSlots = 8;
         // Per-slot capacity for the reserved REC buffers (seconds at the prepared
         // rate). A recorder captures up to this length before truncating.
@@ -222,7 +227,7 @@ namespace lockstep
         int volatilePoolIndex(int slot) const
         {
             if (slot < 0 || slot >= kNumVolatileSlots) return -1;
-            return volatileSlotIndex_[static_cast<std::size_t>(slot)];
+            return samplePool_.nthVolatileIndex(slot);
         }
 
         EditContext& editContext() { return editContext_; }
@@ -783,9 +788,6 @@ namespace lockstep
 
         juce::AudioProcessorValueTreeState apvts_;
         SamplePool samplePool_;          // [SUSPEND] structural; audio reads only
-        // Absolute pool indices of the reserved volatile REC slots (DESIGN §28),
-        // re-seeded by seedVolatileSlots() at the top of the pool on every load.
-        std::array<int, kNumVolatileSlots> volatileSlotIndex_{};
         Project project_;                // [SUSPEND] soundPool + launchQuantizeBars
         Arrangement arrangement_;        // [SUSPEND] for full load; audio owns working seq
         // Per-track launch mode: false = fire at global bar boundary,

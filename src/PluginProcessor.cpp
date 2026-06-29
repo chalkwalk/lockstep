@@ -12,6 +12,7 @@
 #include "dsp/SoftClip.h"
 #include "machine/InputSource.h"
 #include "machine/ThruMachine.h"
+#include "machine/RecorderMachine.h"
 #include "machine/MidiDevicePresets.h"
 #include "machine/DrumSynthMachine.h"
 #include "machine/FMMachine.h"
@@ -4190,11 +4191,8 @@ namespace lockstep
             }
         }
         samplePool_.remove(idx);
-
-        // Keep the reserved REC-slot indices in sync: the volatile entries sit
-        // above the file range, so a removal below them shifts each down by one.
-        for (auto& vi : volatileSlotIndex_)
-            if (vi > idx) --vi;
+        // The reserved REC slots are addressed by ordinal via nthVolatileIndex,
+        // so a file removal that shifts their absolute indices needs no fix-up.
     }
 
     void LockstepProcessor::swapSamples(int a, int b)
@@ -4244,15 +4242,8 @@ namespace lockstep
             }
         }
         samplePool_.swap(a, b);
-
-        // Mirror the swap onto the reserved REC-slot indices (defensive: the UI
-        // reorders file samples, but a swap touching a volatile entry must keep
-        // the slot map pointing at the same buffer).
-        for (auto& vi : volatileSlotIndex_)
-        {
-            if (vi == a) vi = b;
-            else if (vi == b) vi = a;
-        }
+        // REC slots are addressed by ordinal (nthVolatileIndex), so a swap of
+        // file entries needs no slot-map fix-up.
     }
 
     bool LockstepProcessor::relinkSample(int index, const juce::String& newPath)
@@ -4280,6 +4271,8 @@ namespace lockstep
             return std::make_unique<SlicerMachine>(pool);
         if (id == ThruMachine::kMachineId)
             return std::make_unique<ThruMachine>();
+        if (id == RecorderMachine::kMachineId)
+            return std::make_unique<RecorderMachine>(pool);
         // "lockstep.stub" is an explicitly-empty track (unknownId = "").
         // Any other unrecognised ID keeps its original id as the unknownId.
         if (id == StubMachine::kMachineId)
@@ -4297,6 +4290,7 @@ namespace lockstep
         { VAMachine::kMachineId, "VA Synth" },
         { DrumSynthMachine::kMachineId, "Drum Synth" },
         { ThruMachine::kMachineId, "Thru" },
+        { RecorderMachine::kMachineId, "Recorder" },
         { MidiOutMachine::kMachineId, "MIDI Out" },
     };
 
@@ -5183,6 +5177,14 @@ namespace lockstep
         return machines_[ti] && std::string(machines_[ti]->machineId()) == StubMachine::kMachineId;
     }
 
+    bool LockstepProcessor::isRecorderTrack(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
+        const auto ti = static_cast<std::size_t>(track);
+        return machines_[ti]
+               && std::string(machines_[ti]->machineId()) == RecorderMachine::kMachineId;
+    }
+
     // -------------------------------------------------------------------------
 
     void LockstepProcessor::getStateInformation(juce::MemoryBlock& dest)
@@ -5399,9 +5401,11 @@ namespace lockstep
             if (samplePool_.isVolatileIndex(i))
                 samplePool_.remove(i);
 
-        // Re-append the fixed set of REC slots above the file range.
+        // Re-append the fixed set of REC slots above the file range. Their
+        // absolute indices are resolved on demand via nthVolatileIndex (the pool
+        // is the single source of truth), so nothing is cached here.
         for (int v = 0; v < kNumVolatileSlots; ++v)
-            volatileSlotIndex_[static_cast<std::size_t>(v)] = samplePool_.addVolatile();
+            (void)samplePool_.addVolatile();
 
         // Size them if the rate is already known (prepareToPlay may run later).
         if (preparedSampleRate_ > 0.0)

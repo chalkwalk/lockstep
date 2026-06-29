@@ -5217,8 +5217,15 @@ namespace lockstep
                             {
                                 // 5.6 Trig+step: cycle the tri-state off → note →
                                 // lock-only → off (DESIGN §30). lock-only keeps the
-                                // step's P-Locks but emits no note.
-                                if (s.trig)            { s.trig = false; s.lockOnly = true; }
+                                // step's P-Locks but emits no note. On a Recorder
+                                // track a trig is a capture trigger, so lock-only is
+                                // meaningless and skipped: off → note → off.
+                                if (processor_.isRecorderTrack(track))
+                                {
+                                    s.trig = !s.trig;
+                                    s.lockOnly = false;
+                                }
+                                else if (s.trig)       { s.trig = false; s.lockOnly = true; }
                                 else if (s.lockOnly)   { s.lockOnly = false; }
                                 else                   { s.trig = true; }
                             }
