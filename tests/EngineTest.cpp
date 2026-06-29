@@ -1645,6 +1645,63 @@ namespace lockstep
         }
     }
 
+    // C3: turning up all four operator mixer levels must not multiply the output
+    // by 4 — the carrier-mixer normalization scales the sum back when it exceeds
+    // unity. And a 4-note chord must not be 4x a single note (voice compensation).
+    static void testFMMixerAndVoiceComp()
+    {
+        const int kMix1 = FMMachine::kSlotMix1, kMix2 = FMMachine::kSlotMix2;
+        const int kMix3 = FMMachine::kSlotMix3, kMix4 = FMMachine::kSlotMix4;
+        const int kVoiceMode = FMMachine::kSlotVoiceMode;
+
+        auto peak = [&](std::function<void(ParamFrame&)> tweak,
+                        const std::vector<int>& notes) {
+            FMMachine m;
+            m.prepare(48000.0, 256);
+            ParamFrame frame(static_cast<std::size_t>(m.numParams()));
+            for (int i = 0; i < m.numParams(); ++i)
+                frame[static_cast<std::size_t>(i)] = m.paramSpec(i).defaultValue;
+            tweak(frame);
+            juce::MidiBuffer midi;
+            for (int n : notes)
+                midi.addEvent(juce::MidiMessage::noteOn(1, n, 0.9f), 0);
+            juce::AudioBuffer<float> buf(2, 256);
+            float pk = 0.0f;
+            for (int b = 0; b < 24; ++b)
+            {
+                buf.clear();
+                m.process(b == 0 ? midi : juce::MidiBuffer{}, frame, buf);
+                pk = std::max(pk, buf.getMagnitude(0, 0, 256));
+            }
+            return pk;
+        };
+
+        // Mixer normalization: one carrier vs all four at full level.
+        const float oneCarrier = peak([&](ParamFrame&) {}, { 60 });
+        const float fourCarriers = peak([&](ParamFrame& f) {
+            f[static_cast<std::size_t>(kMix1)] = 1.0f;
+            f[static_cast<std::size_t>(kMix2)] = 1.0f;
+            f[static_cast<std::size_t>(kMix3)] = 1.0f;
+            f[static_cast<std::size_t>(kMix4)] = 1.0f;
+        }, { 60 });
+        CHECK(oneCarrier > 1e-3f, "FM mixer: single carrier produced audio (precondition)");
+        CHECK(fourCarriers < 2.0f * oneCarrier,
+              "FM mixer: four carriers at full not normalized (4x="
+              + juce::String(fourCarriers / std::max(oneCarrier, 1e-6f), 2) + ")");
+
+        // Voice compensation: 4-note chord vs single note in poly mode.
+        const float oneNote = peak([&](ParamFrame& f) {
+            f[static_cast<std::size_t>(kVoiceMode)] = 1.0f;
+        }, { 60 });
+        const float fourNotes = peak([&](ParamFrame& f) {
+            f[static_cast<std::size_t>(kVoiceMode)] = 1.0f;
+        }, { 60, 64, 67, 72 });
+        CHECK(oneNote > 1e-3f, "FM voice comp: single note produced audio (precondition)");
+        CHECK(fourNotes > 1.05f * oneNote && fourNotes < 3.0f * oneNote,
+              "FM voice comp: 4-note chord not in [1.05x,3x] single (ratio="
+              + juce::String(fourNotes / std::max(oneNote, 1e-6f), 2) + ")");
+    }
+
     // A1: newProject() must tear down live effect instances on every slot, not
     // just the ones the new (empty) state fills. Otherwise effects from the prior
     // project keep processing audio while the picker shows the slot empty (the
@@ -1776,6 +1833,7 @@ namespace lockstep
         testTransposeTrack();
         testTrigFiresOnGrid();
         testFMChordOnsetOnGrid();
+        testFMMixerAndVoiceComp();
         testNewProjectClearsStaleEffects();
         testMasterSendInstalledOnLoad();
         testVAAgeRoundTrip();

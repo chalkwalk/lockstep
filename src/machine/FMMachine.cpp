@@ -355,6 +355,12 @@ namespace lockstep
                     ? params[static_cast<std::size_t>(vsSlot)] : 0.0f;
         }
 
+        // Per-sample one-pole coefficient for the polyphony-compensation smoother
+        // (~15 ms time constant). Constant across the block.
+        const float voiceNormSmooth = (sampleRate_ > 0.0)
+            ? static_cast<float>(1.0 - std::exp(-1.0 / (0.015 * sampleRate_)))
+            : 1.0f;
+
         for (int i = 0; i < numBlockSamples; ++i)
         {
             while (eventIdx < noteEvents.size() && noteEvents[eventIdx].samplePos <= i)
@@ -456,6 +462,7 @@ namespace lockstep
 
       // Per-voice sample mixing.
             float mixed = 0.0f;
+            int activeVoices = 0;
             for (int vi = 0; vi < kMaxVoices; ++vi)
             {
                 auto& voice = voices_[static_cast<std::size_t>(vi)];
@@ -492,6 +499,17 @@ namespace lockstep
                     voice.active = false;
                     continue;
                 }
+                ++activeVoices;
+
+        // Carrier-mixer normalization: when the operator mixer levels sum past
+        // unity, scale the voice's output back so stacking carriers / turning up
+        // the operators does not blow up the level (proportional above 1.0; below
+        // it is unchanged). Per-voice so each voice honours its own trigger-time
+        // mixer params.
+                float vMixSum = 0.0f;
+                for (const auto& op : voice.ops)
+                    vMixSum += op.mixerLevel;
+                const float vMixNorm = (vMixSum > 1.0f) ? (1.0f / vMixSum) : 1.0f;
 
         // Envelopes advance once per output sample (base rate); the operator
         // core runs at 2x to anti-alias high-index FM, then decimates.
@@ -543,13 +561,23 @@ namespace lockstep
                         op.prevPrevOutput = op.prevOutput;
                         op.prevOutput = op.output;
                     }
-                    sub[static_cast<std::size_t>(s)] = smp;
+                    sub[static_cast<std::size_t>(s)] = smp * vMixNorm;
                 }
 
                 const float sample = voice.os.decimate(sub[0], sub[1])
                                      * voice.outputLevel * chokeGain;
                 mixed += sample;
             }
+
+            // Polyphony compensation: a chord of N voices is scaled by ~1/sqrt(N)
+            // so it thickens without N-times the level (1 vs 4 voices stay close).
+            // Smoothed toward the target so a voice starting / stopping does not
+            // step the bus gain.
+            const float vnTarget = (activeVoices > 1)
+                                       ? (1.0f / std::sqrt(static_cast<float>(activeVoices)))
+                                       : 1.0f;
+            voiceNorm_ += (vnTarget - voiceNorm_) * voiceNormSmooth;
+            mixed *= voiceNorm_;
 
             for (int ch = 0; ch < numOut; ++ch)
                 buffer.addSample(ch, i, mixed);
