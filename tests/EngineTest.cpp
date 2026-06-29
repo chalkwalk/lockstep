@@ -1918,9 +1918,65 @@ namespace lockstep
               juce::String(four / std::max(one, 1e-6f), 3) + ")");
     }
 
+    // -----------------------------------------------------------------------
+    // A1 tap-fork (DESIGN §27): track 0 = DrumSynth routed OFF (no direct path to
+    // master); track 1 = Thru tapping track 0, routed to Master. The ONLY way audio
+    // reaches master is the same-block tap, so non-silent output proves the tap
+    // copies track 0's post-chain audio this block. With no tap (input_source=None)
+    // the Off-routed source is silent — the control.
+    static void testTapForkSameBlock()
+    {
+        auto setup = [](EngineHarness& h, float track1Source) {
+            installMachine(h.processor(), 0, DrumSynthMachine::kMachineId);
+            h.processor().kit(0).channelState.out = encodeOutputDest(OutputDestKind::Off);
+
+            ThruMachine tmp;
+            auto& k1 = h.processor().kit(1);
+            k1.machineId = ThruMachine::kMachineId;
+            const int np = tmp.numParams();
+            k1.baseParams.resize(static_cast<std::size_t>(np));
+            for (int i = 0; i < np; ++i)
+                k1.baseParams[static_cast<std::size_t>(i)] = tmp.paramSpec(i).defaultValue;
+            const int slot = tmp.slotForId(kInputSourceSlotId);
+            if (slot >= 0)
+                k1.baseParams[static_cast<std::size_t>(slot)] = track1Source;
+            k1.channelState.out = encodeOutputDest(OutputDestKind::Master);
+            h.processor().reinstallMachinesFromActiveKit();
+
+            auto& s0 = h.processor().sequence().tracks[0].steps[0];
+            s0.trig = true;
+            s0.trigOverride.hasGate = true;
+            s0.trigOverride.gateValue = MusicalGate::G1_8;
+        };
+
+        // Tap ON: track 1 input_source = Track 0 (encoded 3.0).
+        float tapRms = 0.0f;
+        {
+            EngineHarness h;
+            setup(h, 3.0f);
+            for (int b = 0; b < 28; ++b) { h.renderBlocks(1); tapRms = std::max(tapRms, h.lastBufferRms()); }
+            CHECK(!h.lastBufferHasNaN(), "tap-fork: NaN in tapped output");
+        }
+        CHECK(tapRms > 1e-4f,
+              "tap-fork: tapping an Off-routed source carries its audio to master (RMS=" +
+              juce::String(tapRms) + ")");
+
+        // Control — tap OFF: input_source = None; the Off-routed source is silent.
+        float noneRms = 0.0f;
+        {
+            EngineHarness h;
+            setup(h, 0.0f);
+            for (int b = 0; b < 28; ++b) { h.renderBlocks(1); noneRms = std::max(noneRms, h.lastBufferRms()); }
+        }
+        CHECK(noneRms < 1e-4f,
+              "tap-fork: without the tap, an Off-routed source is silent at master (RMS=" +
+              juce::String(noneRms) + ")");
+    }
+
     void runEngineTests()
     {
         testTransposeTrack();
+        testTapForkSameBlock();
         testTrigFiresOnGrid();
         testFMChordOnsetOnGrid();
         testFMMixerAndVoiceComp();

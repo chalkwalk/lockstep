@@ -995,6 +995,14 @@ namespace lockstep
         TrackRoute routeForTrack(int track) const;
         // Build the dest[] edge array (audio bus target or -1) for the block.
         std::array<int, kNumTracks> routingEdges() const;
+        // The track that track `t` taps as its input_source (a read-only post-chain
+        // copy), or -1 if it taps None/External/Master / is MIDI-out / self. Read
+        // from the machine's base input_source slot.
+        int tapSourceForTrack(int track) const;
+        // Build the tapSrc[] edge array (tapped track index or -1) for the block —
+        // the second edge class fed into routing::computeOrder so a tapped source
+        // is processed before the track that taps it (same-block, zero latency).
+        std::array<int, kNumTracks> tapEdges() const;
         // A2: after a track's chain, deposit its output into its bus (if routed
         // to one). Topo order guarantees the bus has not run yet.
         void depositToBus(std::size_t track, int numBlockSamples);

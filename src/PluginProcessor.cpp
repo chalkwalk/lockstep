@@ -387,7 +387,18 @@ namespace lockstep
                 copyInto(prevMasterBuf_);  // one-block tap (DESIGN §27)
                 break;
             case InputSourceKind::Track:
-                break;  // legacy enum value; inter-track routing is now output-directed
+            {
+                // Tap-fork (DESIGN §27): a read-only copy of track N's post-chain
+                // output. computeOrder(routingEdges(), tapEdges()) guarantees N has
+                // already run this block, so this is same-block / zero-latency. The
+                // tap never sums into N's own output (no duplication). Self-tap and
+                // MIDI-out sources resolve to silence (the cleared buffer).
+                const int n = sel.track;
+                if (n >= 0 && n < static_cast<int>(kNumTracks)
+                    && n != track && !machines_[static_cast<std::size_t>(n)]->isMidiOut())
+                    copyInto(trackBuffers_[static_cast<std::size_t>(n)]);
+                break;
+            }
         }
 
         // A2: mix in any tracks routed to this one as a bus (DESIGN §27). Topo
@@ -631,6 +642,30 @@ namespace lockstep
             dest[i] = (r.route == Route::Bus) ? r.busTrack : -1;
         }
         return dest;
+    }
+
+    int LockstepProcessor::tapSourceForTrack(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1;
+        const auto* m = machines_[static_cast<std::size_t>(track)].get();
+        if (m == nullptr || m->isMidiOut()) return -1;
+        const int slot = m->slotForId(kInputSourceSlotId);
+        if (slot < 0) return -1;
+        const auto& bp = sequence().tracks[static_cast<std::size_t>(track)].baseParams;
+        if (slot >= static_cast<int>(bp.size())) return -1;
+        const InputSourceSel sel = decodeInputSource(bp[static_cast<std::size_t>(slot)]);
+        if (sel.kind != InputSourceKind::Track) return -1;
+        if (sel.track < 0 || sel.track >= static_cast<int>(kNumTracks) || sel.track == track)
+            return -1;
+        return sel.track;
+    }
+
+    std::array<int, kNumTracks> LockstepProcessor::tapEdges() const
+    {
+        std::array<int, kNumTracks> tapSrc{};
+        for (std::size_t i = 0; i < kNumTracks; ++i)
+            tapSrc[i] = tapSourceForTrack(static_cast<int>(i));
+        return tapSrc;
     }
 
     bool LockstepProcessor::wouldRoutingCycle(int from, int toTrack) const
@@ -1563,7 +1598,7 @@ namespace lockstep
             // Render voice tails and any externally-triggered notes.
             // trackMidi already contains note events routed from external MIDI.
             // A2: drive tracks in routing order so a bus's inbound audio is ready.
-            const auto routeOrderIdle = routing::computeOrder(routingEdges());
+            const auto routeOrderIdle = routing::computeOrder(routingEdges(), tapEdges());
             for (std::size_t oi = 0; oi < kNumTracks; ++oi)
             {
                 const std::size_t i = static_cast<std::size_t>(routeOrderIdle[oi]);
@@ -1683,7 +1718,7 @@ namespace lockstep
         // audio is deposited before the bus runs. Scheduling is per-track
         // independent (probability/density are deterministic by track+step), so
         // reordering does not affect trig decisions.
-        const auto routeOrderRun = routing::computeOrder(routingEdges());
+        const auto routeOrderRun = routing::computeOrder(routingEdges(), tapEdges());
         for (std::size_t oi = 0; oi < kNumTracks; ++oi)
         {
             const std::size_t i = static_cast<std::size_t>(routeOrderRun[oi]);
