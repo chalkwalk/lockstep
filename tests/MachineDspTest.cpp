@@ -308,7 +308,12 @@ namespace lockstep
             for (int i = 0; i < buf.getNumSamples(); ++i)
                 peakAfterAttack = std::max(peakAfterAttack, std::abs(buf.getSample(ch, i)));
         }
-        CHECK(peakAfterAttack > 0.3f,
+        // Threshold tracks the shared machine loudness reference (147ca30): the
+        // VA was deliberately calibrated down to sit alongside drum/FM, so a
+        // level=1.0 / vel=100 note now peaks ~0.15, not the pre-calibration ~0.3.
+        // This asserts the envelope is clearly firing (matches the FM golden's
+        // 0.1 floor below), not the old absolute level.
+        CHECK(peakAfterAttack > 0.1f,
               "VA golden: level too low after attack -- envelope may not be firing");
 
         // Render ~60ms more (45 blocks) to clear decay and settle at sustain.
