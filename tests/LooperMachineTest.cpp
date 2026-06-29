@@ -222,5 +222,55 @@ namespace lockstep
             CHECK(ratio > 1.5 && ratio < 2.6,
                   "Free Len: halving tempo ~halves the wrap rate (ratio=" + juce::String(ratio) + ")");
         }
+
+        // C5: loop-wrap crossfade removes the click at a sharp head/tail seam.
+        // Record a 0→1 ramp loop (head≈0, tail≈1: a ~1.0 discontinuity at the wrap);
+        // with the crossfade the largest sample-to-sample jump stays small.
+        {
+            SamplePool p;
+            const int L = 1024;
+            p.addVolatile();
+            p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LooperMachine lp(p);
+            lp.prepare(kSr, 512);
+
+            ParamFrame fr{ 1.0f, 0.0f, 0.0f };  // Free
+            // Record the ramp: input at record-sample k = k / L.
+            for (int blk = 0; blk < L / 512; ++blk)
+            {
+                lp.postCommand(blk == 0 ? Cmd::RecordCycle : Cmd::None);
+                juce::AudioBuffer<float> b(2, 512);
+                for (int i = 0; i < 512; ++i)
+                {
+                    const float v = static_cast<float>(blk * 512 + i) / static_cast<float>(L);
+                    b.setSample(0, i, v); b.setSample(1, i, v);
+                }
+                juce::MidiBuffer none; ParamFrame pp = fr;
+                lp.process(none, pp, b);
+            }
+            runP(lp, 1, 0.0f, Cmd::RecordCycle, fr);  // close → Playing
+
+            // Collect ~3 loops and find the largest consecutive-sample jump.
+            float maxJump = 0.0f, prev = 0.0f;
+            bool first = true;
+            juce::MidiBuffer none;
+            for (int blk = 0; blk < 7; ++blk)
+            {
+                juce::AudioBuffer<float> b(2, 512);
+                ParamFrame pp = fr;
+                lp.process(none, pp, b);
+                for (int i = 0; i < 512; ++i)
+                {
+                    const float x = b.getSample(0, i);
+                    if (!first) maxJump = std::max(maxJump, std::abs(x - prev));
+                    prev = x; first = false;
+                }
+            }
+            // The raw head/tail discontinuity here is ~1.0; the crossfade cuts it to
+            // ~0.24 (≈12 dB) — the overlap-crossfade floor for this worst-case ramp
+            // (typical correlated loop content smooths far better).
+            CHECK(maxJump < 0.3f,
+                  "C5: loop-wrap crossfade keeps the seam jump small (got " + juce::String(maxJump) + ")");
+        }
     }
 }

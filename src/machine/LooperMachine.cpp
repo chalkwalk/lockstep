@@ -98,11 +98,31 @@ namespace lockstep
         if (target_ == nullptr || loopLen_ <= 0) return 0.0f;
         double p = std::fmod(pos, static_cast<double>(loopLen_));
         if (p < 0.0) p += static_cast<double>(loopLen_);
-        const int i0 = static_cast<int>(p);
-        const int i1 = (i0 + 1) % loopLen_;
-        const float a = target_->getSample(ch, i0);
-        const float b = target_->getSample(ch, i1);
-        return a + (b - a) * static_cast<float>(p - static_cast<double>(i0));
+
+        const auto interp = [&](double x) -> float {
+            double q = std::fmod(x, static_cast<double>(loopLen_));
+            if (q < 0.0) q += static_cast<double>(loopLen_);
+            const int i0 = static_cast<int>(q);
+            const int i1 = (i0 + 1) % loopLen_;
+            const float a = target_->getSample(ch, i0);
+            const float b = target_->getSample(ch, i1);
+            return a + (b - a) * static_cast<float>(q - static_cast<double>(i0));
+        };
+
+        const float base = interp(p);
+
+        // C5: equal-power crossfade across the loop wrap. In the last xfadeLen_
+        // samples, fade the tail out and the head (position `into`) in, so loop end
+        // meets loop start without a click.
+        if (xfadeLen_ > 0 && p >= static_cast<double>(loopLen_ - xfadeLen_))
+        {
+            const double into = p - static_cast<double>(loopLen_ - xfadeLen_);
+            const float t = static_cast<float>(into / static_cast<double>(xfadeLen_));
+            const float gOut = std::cos(t * juce::MathConstants<float>::halfPi);
+            const float gIn = std::sin(t * juce::MathConstants<float>::halfPi);
+            return base * gOut + interp(into) * gIn;
+        }
+        return base;
     }
 
     double LooperMachine::targetOutputSamples() const
@@ -261,6 +281,10 @@ namespace lockstep
         const double rateTarget = (loopLen_ > 0 && tOut > 0.0)
             ? static_cast<double>(loopLen_) / tOut : 1.0;
         const double slew = 1.0 - std::exp(-1.0 / (0.02 * sampleRate_));
+
+        // C5: loop-wrap crossfade length (≤ a quarter of the loop).
+        xfadeLen_ = (loopLen_ > 0)
+            ? std::min(static_cast<int>(0.005 * sampleRate_), loopLen_ / 4) : 0;
 
         // Bar-quantized modes phase-lock the read position to the transport grid.
         const bool phaseLock = (syncMode_ >= 2) && transport_.running && tOut > 0.0;

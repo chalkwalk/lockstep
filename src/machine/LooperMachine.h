@@ -112,6 +112,7 @@ namespace lockstep
         int recLenTarget_ = 0;    // auto-close length for bar-quantized record (0 = none)
         int syncMode_ = 0;        // resolved loop_sync this block
         double rate_ = 1.0;       // current (slewed) varispeed rate
+        int xfadeLen_ = 0;        // loop-wrap crossfade length (samples), C5
         bool haveBackup_ = false;
 
         // The loop lives in pool slot `targetSlot_` (resolved each block); backup_
