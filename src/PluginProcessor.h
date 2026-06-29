@@ -194,6 +194,13 @@ namespace lockstep
         // track is a recorder trig (capture), so the lock-only (trigless) state is
         // disallowed — the off→note→lock-only cycle becomes off→note (DESIGN §30).
         [[nodiscard]] bool isRecorderTrack(int track) const;
+        // True when the track's machine is a LooperMachine. When such a track is
+        // focused, Track+Record/Play/Clear drive the looper state machine (DESIGN
+        // §29.2) instead of the track clipboard. cmd matches LooperMachine::Cmd;
+        // looperState returns LooperMachine::State (or -1 if not a looper).
+        [[nodiscard]] bool isLooperTrack(int track) const;
+        void sendLooperCommand(int track, int cmd);
+        [[nodiscard]] int looperState(int track) const;
 
         // ── Scene launch queue (Phase 7 / DESIGN §4.8, §16) ─────────────────
         // Queue a Section launch to fire at the next core-time bar boundary.

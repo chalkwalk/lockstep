@@ -7,6 +7,7 @@ add_executable(lockstep_tests
     TestEditorStub.cpp
     SamplePoolTest.cpp
     RecorderMachineTest.cpp
+    LooperMachineTest.cpp
     MetricGridTest.cpp
     SurfaceModelTest.cpp
     StateResolverTest.cpp

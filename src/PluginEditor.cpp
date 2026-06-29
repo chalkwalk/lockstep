@@ -4355,6 +4355,14 @@ namespace lockstep
 
             case ControllerButton::VerbPlay: {
                 using PS = EditMode::PrimaryScope;
+                // Track + Play on a focused Looper track drives its state machine
+                // (play / stop toggle), shadowing the track clipboard (DESIGN §29.2).
+                if (editMode_.primaryScope() == PS::Track
+                    && processor_.isLooperTrack(processor_.focusTrack()))
+                {
+                    routeLooperVerb(2 /*PlayStop*/);
+                    return true;
+                }
                 // Scope held → grammar verb (Paste).
                 if (editMode_.primaryScope() != PS::None && editMode_.primaryScope() != PS::Func)
                 {
@@ -4423,6 +4431,14 @@ namespace lockstep
 
             case ControllerButton::VerbClear: {
                 using PS = EditMode::PrimaryScope;
+                // Track + Clear on a focused Looper track empties its loop, shadowing
+                // the track clipboard clear (DESIGN §29.2).
+                if (editMode_.primaryScope() == PS::Track
+                    && processor_.isLooperTrack(processor_.focusTrack()))
+                {
+                    routeLooperVerb(3 /*Clear*/);
+                    return true;
+                }
                 // Hold scope + Clear reverts that scope's hierarchical override to inherit
                 // (§13 hold-scope+Clear convention). Intercept before cancel-queued-scene
                 // and PANIC so that Clear is contextual while a band is open.
@@ -4486,6 +4502,15 @@ namespace lockstep
 
             case ControllerButton::VerbRecord: {
                 using PS = EditMode::PrimaryScope;
+                // Track + Record on a focused Looper track cycles its state machine
+                // (Idle→Record→Play→Overdub), shadowing the track clipboard copy
+                // (DESIGN §29.2).
+                if (editMode_.primaryScope() == PS::Track
+                    && processor_.isLooperTrack(processor_.focusTrack()))
+                {
+                    routeLooperVerb(1 /*RecordCycle*/);
+                    return true;
+                }
                 // Func+Song+Record = CAPTURE (the tape-deck cell, global scope).
                 // All capture gestures live on this cell's own timeline: arm the
                 // long-press and defer tap/double-tap/long-press resolution to
@@ -5599,6 +5624,19 @@ namespace lockstep
         statusMessage_ = msg;
         statusSetMs_ = juce::Time::getMillisecondCounter();
         repaint();
+    }
+
+    void LockstepEditor::routeLooperVerb(int cmd)
+    {
+        const int track = processor_.focusTrack();
+        processor_.sendLooperCommand(track, cmd);
+        // Echo the action; the command applies on the next audio block, so the
+        // precise resolved state is shown by the surface refresh that follows.
+        const char* verb = (cmd == 1) ? "Rec/Overdub"
+                          : (cmd == 2) ? "Play/Stop"
+                          : (cmd == 3) ? "Clear" : "Undo";
+        setStatus(juce::String("Loop: ") + verb);
+        refreshSurface();
     }
 
     void LockstepEditor::paintStatus(juce::Graphics& g, juce::Rectangle<int> area)

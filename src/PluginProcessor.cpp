@@ -13,6 +13,7 @@
 #include "machine/InputSource.h"
 #include "machine/ThruMachine.h"
 #include "machine/RecorderMachine.h"
+#include "machine/LooperMachine.h"
 #include "machine/MidiDevicePresets.h"
 #include "machine/DrumSynthMachine.h"
 #include "machine/FMMachine.h"
@@ -4273,6 +4274,8 @@ namespace lockstep
             return std::make_unique<ThruMachine>();
         if (id == RecorderMachine::kMachineId)
             return std::make_unique<RecorderMachine>(pool);
+        if (id == LooperMachine::kMachineId)
+            return std::make_unique<LooperMachine>();
         // "lockstep.stub" is an explicitly-empty track (unknownId = "").
         // Any other unrecognised ID keeps its original id as the unknownId.
         if (id == StubMachine::kMachineId)
@@ -4291,6 +4294,7 @@ namespace lockstep
         { DrumSynthMachine::kMachineId, "Drum Synth" },
         { ThruMachine::kMachineId, "Thru" },
         { RecorderMachine::kMachineId, "Recorder" },
+        { LooperMachine::kMachineId, "Looper" },
         { MidiOutMachine::kMachineId, "MIDI Out" },
     };
 
@@ -5183,6 +5187,28 @@ namespace lockstep
         const auto ti = static_cast<std::size_t>(track);
         return machines_[ti]
                && std::string(machines_[ti]->machineId()) == RecorderMachine::kMachineId;
+    }
+
+    bool LockstepProcessor::isLooperTrack(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
+        return dynamic_cast<LooperMachine*>(machines_[static_cast<std::size_t>(track)].get())
+               != nullptr;
+    }
+
+    void LockstepProcessor::sendLooperCommand(int track, int cmd)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        if (auto* lm = dynamic_cast<LooperMachine*>(machines_[static_cast<std::size_t>(track)].get()))
+            lm->postCommand(static_cast<LooperMachine::Cmd>(cmd));
+    }
+
+    int LockstepProcessor::looperState(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1;
+        if (auto* lm = dynamic_cast<LooperMachine*>(machines_[static_cast<std::size_t>(track)].get()))
+            return static_cast<int>(lm->state());
+        return -1;
     }
 
     // -------------------------------------------------------------------------

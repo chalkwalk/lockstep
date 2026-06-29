@@ -29,6 +29,7 @@ add_library(lockstep_core STATIC
     machine/SamplerMachine.cpp
     machine/SlicerMachine.cpp
     machine/RecorderMachine.cpp
+    machine/LooperMachine.cpp
     machine/SamplePool.cpp
     machine/MachineParamTable.cpp
     machine/VoiceChoke.cpp
