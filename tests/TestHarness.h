@@ -30,6 +30,7 @@ namespace lockstep
     } while (false)
 
     void runSurfaceModelTests();
+    void runSamplePoolTests();   // 6.2 volatile REC buffers (DESIGN §28)
     void runStateResolverTests();
     void runHierarchyNavTests();
     void runArrangementTests();

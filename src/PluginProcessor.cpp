@@ -184,6 +184,11 @@ namespace lockstep
         // working buffer must be refreshed now that Song[0]'s kit is populated.
         arrangement_.syncWorkingFromActive();
 
+        // Reserve the volatile REC buffers (DESIGN §28). Done before capturing the
+        // default blob; writeSamplePool skips volatile entries, so the blob carries
+        // none and newProject re-seeds them via finishStateLoad.
+        seedVolatileSlots();
+
         // Capture the pristine default state so newProject() can reset to it later.
         PluginState::writeTo(defaultStateBlob_, *this);
         savedStateHash_ = stateHash();
@@ -289,6 +294,13 @@ namespace lockstep
             inputCapture_.clear();
             prevMasterBuf_.setSize(numOut, samplesPerBlock, false, true, false);
             prevMasterBuf_.clear();
+            // 6.2: pre-size the reserved volatile REC buffers to their capacity so
+            // a recorder can shrink-to-length on the audio thread without
+            // reallocating (DESIGN §28). Capacity = kVolatileMaxSeconds at the
+            // prepared rate.
+            const int volatileCap =
+                static_cast<int>(sampleRate * kVolatileMaxSeconds);
+            samplePool_.prepareVolatile(sampleRate, numOut, volatileCap);
         }
         for (auto& choke : trackChokes_)
             choke.prepare(sampleRate, 1.5f);
@@ -4178,6 +4190,11 @@ namespace lockstep
             }
         }
         samplePool_.remove(idx);
+
+        // Keep the reserved REC-slot indices in sync: the volatile entries sit
+        // above the file range, so a removal below them shifts each down by one.
+        for (auto& vi : volatileSlotIndex_)
+            if (vi > idx) --vi;
     }
 
     void LockstepProcessor::swapSamples(int a, int b)
@@ -4227,6 +4244,15 @@ namespace lockstep
             }
         }
         samplePool_.swap(a, b);
+
+        // Mirror the swap onto the reserved REC-slot indices (defensive: the UI
+        // reorders file samples, but a swap touching a volatile entry must keep
+        // the slot map pointing at the same buffer).
+        for (auto& vi : volatileSlotIndex_)
+        {
+            if (vi == a) vi = b;
+            else if (vi == b) vi = a;
+        }
     }
 
     bool LockstepProcessor::relinkSample(int index, const juce::String& newPath)
@@ -5179,6 +5205,13 @@ namespace lockstep
 
     void LockstepProcessor::finishStateLoad()
     {
+        // Re-seed the reserved volatile REC buffers above the just-loaded file
+        // samples (readSamplePool ran in readFrom). This both strips any volatile
+        // entries the constructor left at low indices — shifting the loaded files
+        // down to the absolute indices their saved sample_id refs expect — and
+        // re-appends the REC slots at the top of the pool (DESIGN §28).
+        seedVolatileSlots();
+
         // Project the freshly-loaded Songs into the working buffer. The serializer's
         // setActiveSong/Scene calls early-return when the saved active indices equal
         // the defaults (the common 0/0 case), so an explicit sync is required —
@@ -5354,6 +5387,29 @@ namespace lockstep
         // overflows the message-thread stack. Build the fresh one on the heap and
         // move it in — the move is field-wise and uses no large stack temporary.
         arrangement_ = std::move(*std::make_unique<Arrangement>());
+    }
+
+    void LockstepProcessor::seedVolatileSlots()
+    {
+        // Strip any existing volatile entries first so they never accumulate
+        // across loads. They live at the top of the pool, so removing them does
+        // not shift the file-backed indices below (which saved sample_id refs
+        // depend on). Walk top-down for safe in-place erase.
+        for (int i = samplePool_.size() - 1; i >= 0; --i)
+            if (samplePool_.isVolatileIndex(i))
+                samplePool_.remove(i);
+
+        // Re-append the fixed set of REC slots above the file range.
+        for (int v = 0; v < kNumVolatileSlots; ++v)
+            volatileSlotIndex_[static_cast<std::size_t>(v)] = samplePool_.addVolatile();
+
+        // Size them if the rate is already known (prepareToPlay may run later).
+        if (preparedSampleRate_ > 0.0)
+        {
+            const int cap = static_cast<int>(preparedSampleRate_ * kVolatileMaxSeconds);
+            samplePool_.prepareVolatile(preparedSampleRate_,
+                                        std::max(1, getTotalNumOutputChannels()), cap);
+        }
     }
 
     void LockstepProcessor::newProject()

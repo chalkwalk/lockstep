@@ -1004,6 +1004,7 @@ namespace lockstep::PluginState
         {
             const auto* s = pool.get(i);
             if (!s) continue;
+            if (s->isVolatile) continue;  // RAM-only REC buffers are not persisted (DESIGN §28)
             juce::ValueTree entry(keys::kEntry);
             entry.setProperty("i", i, nullptr);
             entry.setProperty(keys::kPath, juce::String(s->ref.path), nullptr);

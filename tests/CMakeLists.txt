@@ -5,6 +5,7 @@
 add_executable(lockstep_tests
     TestMain.cpp
     TestEditorStub.cpp
+    SamplePoolTest.cpp
     MetricGridTest.cpp
     SurfaceModelTest.cpp
     StateResolverTest.cpp

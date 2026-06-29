@@ -209,6 +209,22 @@ namespace lockstep
         // desync. Safe to call from the message thread.
         void requestFreshStart() { freshStartPending_.store(true, std::memory_order_relaxed); }
         SamplePool& samplePool() { return samplePool_; }
+
+        // Reserved volatile (RAM-only) recorder buffers (DESIGN §28). A fixed set
+        // of REC slots so recorder trigs always have somewhere to write; they live
+        // at the top of the pool's index range (above file-backed samples) and are
+        // re-seeded on every load. volatilePoolIndex(slot) maps a logical slot
+        // 0..kNumVolatileSlots-1 to its absolute pool index, or -1 if out of range.
+        static constexpr int kNumVolatileSlots = 8;
+        // Per-slot capacity for the reserved REC buffers (seconds at the prepared
+        // rate). A recorder captures up to this length before truncating.
+        static constexpr double kVolatileMaxSeconds = 12.0;
+        int volatilePoolIndex(int slot) const
+        {
+            if (slot < 0 || slot >= kNumVolatileSlots) return -1;
+            return volatileSlotIndex_[static_cast<std::size_t>(slot)];
+        }
+
         EditContext& editContext() { return editContext_; }
         CCMappingTable& ccMappingTable() { return ccMappingTable_; }
 
@@ -767,6 +783,9 @@ namespace lockstep
 
         juce::AudioProcessorValueTreeState apvts_;
         SamplePool samplePool_;          // [SUSPEND] structural; audio reads only
+        // Absolute pool indices of the reserved volatile REC slots (DESIGN §28),
+        // re-seeded by seedVolatileSlots() at the top of the pool on every load.
+        std::array<int, kNumVolatileSlots> volatileSlotIndex_{};
         Project project_;                // [SUSPEND] soundPool + launchQuantizeBars
         Arrangement arrangement_;        // [SUSPEND] for full load; audio owns working seq
         // Per-track launch mode: false = fire at global bar boundary,
@@ -1110,6 +1129,7 @@ namespace lockstep
         std::uint32_t savedStateHash_ = 0;            // hash at last new/load/save
         int quiesceDepth_ = 0;                        // withQuiescedEngine re-entrancy counter
         void finishStateLoad();                       // post-readFrom reinstall pass; must be called inside withQuiescedEngine
+        void seedVolatileSlots();                      // (re)create the reserved REC buffers at the top of the pool (DESIGN §28)
         void syncTrackParamsFromActiveKit();          // push kit subdivIndex + phrase length into APVTS params and working Track
         // Reset arrangement_ to a fresh default in place. sizeof(Arrangement) is
         // ~47 MB, so `arrangement_ = Arrangement{}` would materialize that as a

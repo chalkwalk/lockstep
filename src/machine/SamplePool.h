@@ -22,6 +22,14 @@ namespace lockstep
         double sampleRate = 0.0;
         bool missing = false;  // true when the file could not be found on load
 
+        // Volatile (RAM-only) entries hold captured audio written by recorder
+        // trigs (DESIGN §28). They have no file backing (empty ref.path), are
+        // badged "REC", and are not serialised with the project. The pcm buffer
+        // is pre-sized to a capacity in prepareVolatile(); a recorder shrinks it
+        // to the captured length via setSize(avoidReallocating) so playback reads
+        // exactly the captured region with no sampler changes.
+        bool isVolatile = false;
+
         // Cached per-block analysis for transient detection (message thread only).
         // Populated by SamplePool::load(); empty for missing entries.
         BlockAnalysis analysis;
@@ -51,6 +59,25 @@ namespace lockstep
         // Returns false if the file cannot be read.
         // Message-thread only.
         bool relink(int index, const juce::String& newPath);
+
+        // Append an empty volatile (RAM-only) entry; returns its pool index.
+        // The pcm buffer is zero-length until prepareVolatile() sizes it.
+        // Message-thread only. (DESIGN §28.)
+        int addVolatile();
+
+        // Resize every volatile entry's pcm buffer to a capacity of maxSamples
+        // (the recorder later shrinks to the captured length without reallocating).
+        // Call from prepareToPlay(); message/prepare thread only.
+        void prepareVolatile(double sampleRate, int numChannels, int maxSamples);
+
+        bool isVolatileIndex(int index) const;
+
+        // Audio-thread-safe mutable handle to a pre-sized volatile buffer, for a
+        // recorder/looper to write into. Returns nullptr for non-volatile or
+        // out-of-range indices. The capacity is fixed by prepareVolatile(); a
+        // writer may shrink via setSize(..., avoidReallocating=true) but must not
+        // grow past the capacity.
+        juce::AudioBuffer<float>* mutableVolatilePcm(int index);
 
         int size() const { return static_cast<int>(samples_.size()); }
         bool isMissing(int index) const;

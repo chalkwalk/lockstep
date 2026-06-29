@@ -52,6 +52,47 @@ namespace lockstep
         return index;
     }
 
+    int SamplePool::addVolatile()
+    {
+        auto sample = std::make_unique<Sample>();
+        sample->isVolatile = true;
+        // ref left empty (no file backing); pcm sized later by prepareVolatile().
+        const int index = static_cast<int>(samples_.size());
+        samples_.push_back(std::move(sample));
+        return index;
+    }
+
+    void SamplePool::prepareVolatile(double sampleRate, int numChannels, int maxSamples)
+    {
+        const int chans = std::max(1, numChannels);
+        const int cap = std::max(0, maxSamples);
+        for (auto& s : samples_)
+        {
+            if (!s->isVolatile) continue;
+            s->sampleRate = sampleRate;
+            // Capacity allocation happens here (message/prepare thread); a recorder
+            // later shrinks the reported size with avoidReallocating, never grows.
+            s->pcm.setSize(chans, cap, false, true, false);
+            s->pcm.clear();
+        }
+    }
+
+    bool SamplePool::isVolatileIndex(int index) const
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size()))
+            return false;
+        return samples_[static_cast<std::size_t>(index)]->isVolatile;
+    }
+
+    juce::AudioBuffer<float>* SamplePool::mutableVolatilePcm(int index)
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size()))
+            return nullptr;
+        auto& s = samples_[static_cast<std::size_t>(index)];
+        if (!s->isVolatile) return nullptr;
+        return &s->pcm;
+    }
+
     bool SamplePool::relink(int index, const juce::String& newPath)
     {
         if (index < 0 || index >= static_cast<int>(samples_.size()))
