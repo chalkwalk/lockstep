@@ -87,6 +87,23 @@ namespace lockstep
         return s->isVolatile ? s->volatileCapacity : 0;
     }
 
+    void SamplePool::setSourceBars(int index, double bars)
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size()))
+            return;
+        auto& s = samples_[static_cast<std::size_t>(index)];
+        if (s->isVolatile)
+            s->sourceBars = bars;
+    }
+
+    double SamplePool::sourceBars(int index) const
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size()))
+            return 0.0;
+        const auto& s = samples_[static_cast<std::size_t>(index)];
+        return s->isVolatile ? s->sourceBars : 0.0;
+    }
+
     bool SamplePool::isVolatileIndex(int index) const
     {
         if (index < 0 || index >= static_cast<int>(samples_.size()))

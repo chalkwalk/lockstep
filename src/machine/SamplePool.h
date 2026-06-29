@@ -33,6 +33,12 @@ namespace lockstep
         // prepareVolatile(). getNumSamples() drops to the captured length after a
         // shrink, so a writer reads the safe maximum from here instead.
         int volatileCapacity = 0;
+        // Intrinsic musical length of the captured audio, in bars, stamped by the
+        // recorder/looper at capture close (= capturedSamples / samplesPerBar at the
+        // capture tempo; fractional for free-length loops). 0 = unknown (no tempo
+        // tracking). A tempo-tracking Player reads this to stretch the buffer to the
+        // project tempo. Volatile-only; not serialised.
+        double sourceBars = 0.0;
 
         // Cached per-block analysis for transient detection (message thread only).
         // Populated by SamplePool::load(); empty for missing entries.
@@ -93,6 +99,12 @@ namespace lockstep
         // is not a prepared volatile entry. A writer must not grow the buffer past
         // this on the audio thread (would reallocate).
         int volatileCapacity(int index) const;
+
+        // Stamp / read the captured musical length (bars) of a volatile entry. The
+        // recorder/looper write this at capture close (audio thread); a tempo-
+        // tracking Player reads it. Out-of-range / non-volatile reads return 0.
+        void setSourceBars(int index, double bars);
+        double sourceBars(int index) const;
 
         int size() const { return static_cast<int>(samples_.size()); }
         bool isMissing(int index) const;

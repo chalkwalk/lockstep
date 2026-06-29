@@ -81,5 +81,25 @@ namespace lockstep
             CHECK(pool.mutableVolatilePcm(-1) == nullptr, "no handle out of range");
             CHECK(pool.mutableVolatilePcm(99) == nullptr, "no handle out of range hi");
         }
+
+        // sourceBars stamp/read on volatile entries --------------------------
+        {
+            SamplePool pool;
+            const int file0 = pool.addMissing(SampleRef{});  // non-volatile
+            const int v = pool.addVolatile();
+            CHECK(feq(static_cast<float>(pool.sourceBars(v)), 0.0f),
+                  "sourceBars defaults to 0 (unknown)");
+
+            pool.setSourceBars(v, 3.5);  // a free-length loop: 3.5 bars
+            CHECK(feq(static_cast<float>(pool.sourceBars(v)), 3.5f),
+                  "sourceBars round-trips on a volatile entry");
+
+            // Non-volatile and out-of-range writes/reads are no-ops returning 0.
+            pool.setSourceBars(file0, 2.0);
+            CHECK(feq(static_cast<float>(pool.sourceBars(file0)), 0.0f),
+                  "sourceBars is volatile-only (non-volatile stays 0)");
+            CHECK(feq(static_cast<float>(pool.sourceBars(99)), 0.0f),
+                  "sourceBars out of range returns 0");
+        }
     }
 }
