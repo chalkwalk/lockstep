@@ -989,6 +989,25 @@ namespace lockstep
         };
         drawBar(barTop, levelL, masterPeakHoldL_, masterClipL_);
         drawBar(barTop + barH + gap, levelR, masterPeakHoldR_, masterClipR_);
+
+        // Master output-level readout. There is no on-screen master fader by design
+        // (the level is set from the keyboard / encoders via the Func+7 band); this
+        // chip surfaces its current value next to the meter so it is discoverable
+        // and you can see how much headroom you are giving up.
+        const float gainDb = processor_.apvts().getRawParameterValue(ParamIDs::outputGain)->load();
+        juce::String gainStr = "VOL " + juce::String(gainDb >= 0.0f ? "+" : "")
+                               + juce::String(gainDb, 1);
+        const int chipW = 66;
+        const int chipH = barH * 2 + gap + 2;
+        const int chipX = meterW - chipW - 2;
+        const int chipY = barTop - 1;
+        g.setColour(juce::Colour::fromRGBA(10, 12, 15, 205));
+        g.fillRoundedRectangle(static_cast<float>(chipX), static_cast<float>(chipY),
+                               static_cast<float>(chipW), static_cast<float>(chipH), 2.0f);
+        g.setFont(juce::Font(juce::FontOptions(9.0f)));
+        g.setColour(gainDb > 0.01f ? juce::Colour::fromRGB(232, 200, 120)
+                                   : juce::Colour::fromRGBA(175, 185, 200, 220));
+        g.drawText(gainStr, chipX, chipY, chipW, chipH, juce::Justification::centred);
     }
 
     // Compact capture banner, floating in the right margin of the master strip.

@@ -527,7 +527,7 @@ namespace lockstep
             bool enabled;
         };
         static constexpr std::array<GlobalDef, 8> kDefs = { {
-            { "Gain", -60.0f, 6.0f, false, true },
+            { "Master", -60.0f, 6.0f, false, true },  // master output level (mirrors the meter chip)
             { "Sync", 0.0f, 1.0f, true, true },
             { "Chan", 0.0f, 1.0f, true, true },
             { "Scale", 0.0f, 2.0f, true, true },
