@@ -15,6 +15,7 @@
 #include "machine/RecorderMachine.h"
 #include "machine/LooperMachine.h"
 #include "machine/StaticMachine.h"
+#include "machine/PlayerMachine.h"
 #include "machine/MidiDevicePresets.h"
 #include "machine/DrumSynthMachine.h"
 #include "machine/FMMachine.h"
@@ -4352,6 +4353,8 @@ namespace lockstep
             return std::make_unique<LooperMachine>(pool);
         if (id == StaticMachine::kMachineId)
             return std::make_unique<StaticMachine>();
+        if (id == PlayerMachine::kMachineId)
+            return std::make_unique<PlayerMachine>(pool);
         // "lockstep.stub" is an explicitly-empty track (unknownId = "").
         // Any other unrecognised ID keeps its original id as the unknownId.
         if (id == StubMachine::kMachineId)
@@ -4372,6 +4375,7 @@ namespace lockstep
         { RecorderMachine::kMachineId, "Recorder" },
         { LooperMachine::kMachineId, "Looper" },
         { StaticMachine::kMachineId, "Static" },
+        { PlayerMachine::kMachineId, "Player" },
         { MidiOutMachine::kMachineId, "MIDI Out" },
     };
 
