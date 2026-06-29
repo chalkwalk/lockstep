@@ -25,6 +25,7 @@
 #include "../src/machine/ThruMachine.h"
 #include "../src/machine/RecorderMachine.h"
 #include "../src/machine/LooperMachine.h"
+#include "../src/machine/StaticMachine.h"
 #include "../src/machine/InputSource.h"
 #include "../src/core/OutputDest.h"
 
@@ -2084,12 +2085,42 @@ namespace lockstep
         CHECK(!p.captureSlotShared(2), "non-colliding track 2 is not flagged");
     }
 
+    // #2 regression: capture/streaming machines place every param at kSrcSecIdx,
+    // so numSections() must be kSrcSecIdx+1 (not a count of non-empty sections) or
+    // LockstepProcessor::section()'s `sectionIndex < numSections()` gate hides the
+    // whole SRC panel — the "no source panel available" looper bug. The input rotary
+    // (input_source / target_buffer / loop_sync) is then unreachable.
+    static void testCaptureSrcSectionReachable()
+    {
+        EngineHarness h;
+        auto& p = h.processor();
+        struct Case { const char* id; bool inputAware; };
+        const std::array<Case, 3> cases {{
+            { LooperMachine::kMachineId,   true  },
+            { RecorderMachine::kMachineId, true  },
+            { StaticMachine::kMachineId,   false },  // disk stream — no input_source
+        }};
+        int t = 0;
+        for (const auto& c : cases)
+        {
+            p.setTrackMachine(t, c.id);
+            const auto sec = p.section(t, IMachine::kSrcSecIdx);
+            CHECK(sec.firstSlot >= 0,
+                  "capture/static SRC section resolves to a real param slot (reachable)");
+            if (c.inputAware)
+                CHECK(p.slotForId(t, kInputSourceSlotId) >= 0,
+                      "input-aware capture machine exposes a selectable input_source");
+            ++t;
+        }
+    }
+
     void runEngineTests()
     {
         testTransposeTrack();
         testTapForkSameBlock();
         testTapCycleRefusal();
         testTempoSeamReachesMachine();
+        testCaptureSrcSectionReachable();
         testMultiCaptureSlots();
         testTrigFiresOnGrid();
         testFMChordOnsetOnGrid();

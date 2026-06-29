@@ -45,7 +45,10 @@ namespace lockstep
         [[nodiscard]] int numParams() const override { return kNumSlots; }
         [[nodiscard]] ParamSpec paramSpec(int index) const override;
 
-        [[nodiscard]] int numSections() const override { return 1; }
+        // kSrcSecIdx + 1, not a count: section() gates on `sectionIndex <
+        // numSections()`, so this must exceed the highest sectionIndex used or the
+        // SRC panel is unreachable (the looper/recorder "no source panel" bug).
+        [[nodiscard]] int numSections() const override { return kSrcSecIdx + 1; }
         [[nodiscard]] SectionInfo section(int index) const override
         {
             if (index == kSrcSecIdx) return { "SRC" };

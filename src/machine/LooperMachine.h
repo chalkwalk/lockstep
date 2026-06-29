@@ -54,7 +54,11 @@ namespace lockstep
         [[nodiscard]] int numParams() const override { return kNumSlots; }
         [[nodiscard]] ParamSpec paramSpec(int index) const override;
 
-        [[nodiscard]] int numSections() const override { return 1; }
+        // kSrcSecIdx + 1, not a count: LockstepProcessor::section() gates the
+        // machine-owned branch on `sectionIndex < numSections()`. All our params
+        // live at kSrcSecIdx (=1), so returning 1 made the SRC panel unreachable
+        // ("no source panel" bug). Thru already got this right (returns 2).
+        [[nodiscard]] int numSections() const override { return kSrcSecIdx + 1; }
         [[nodiscard]] SectionInfo section(int index) const override
         {
             if (index == kSrcSecIdx) return { "SRC" };

@@ -55,7 +55,11 @@ namespace lockstep
         [[nodiscard]] int numParams() const override { return kNumSlots; }
         [[nodiscard]] ParamSpec paramSpec(int index) const override;
 
-        [[nodiscard]] int numSections() const override { return 1; }
+        // numSections() must exceed the HIGHEST sectionIndex used, not count the
+        // non-empty ones: LockstepProcessor::section() gates the machine-owned
+        // branch on `sectionIndex < numSections()`. Our params live at kSrcSecIdx
+        // (=1), so this must be kSrcSecIdx + 1 or the SRC panel is unreachable.
+        [[nodiscard]] int numSections() const override { return kSrcSecIdx + 1; }
         [[nodiscard]] SectionInfo section(int index) const override
         {
             if (index == kSrcSecIdx) return { "SRC" };
