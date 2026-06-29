@@ -11,6 +11,7 @@ int main()
 
     lockstep::runSurfaceModelTests();
     lockstep::runSamplePoolTests();
+    lockstep::runTimeStretchTests();
     lockstep::runRecorderMachineTests();
     lockstep::runLooperMachineTests();
     lockstep::runStaticMachineTests();
