@@ -658,6 +658,13 @@ namespace lockstep
         [[nodiscard]] ParamSpec masterSendParamSpec(int slot, int param) const;
         void setMasterSendParam(int slot, int param, float value);
 
+        // Live-instance presence (distinct from the *Id() getters, which report the
+        // serialized Song/Kit slot). Used to assert the invariant "an empty slot has
+        // no live effect" after newProject() / Open — the phantom-effects guard.
+        [[nodiscard]] bool hasLiveTrackInsert(int track, int slot) const noexcept;
+        [[nodiscard]] bool hasLiveMasterInsert(int slot) const noexcept;
+        [[nodiscard]] bool hasLiveMasterSend(int slot) const noexcept;
+
         [[nodiscard]] int numAvailableEffects() const;
         [[nodiscard]] EffectInfo availableEffectInfo(int idx) const;
 

@@ -1609,6 +1609,55 @@ namespace lockstep
         }
     }
 
+    // A1: newProject() must tear down live effect instances on every slot, not
+    // just the ones the new (empty) state fills. Otherwise effects from the prior
+    // project keep processing audio while the picker shows the slot empty (the
+    // "phantom effects on a new project" bug).
+    static void testNewProjectClearsStaleEffects()
+    {
+        EngineHarness h;
+        auto& p = h.processor();
+
+        // Install one of each: track insert, master insert, master send.
+        p.setTrackInsert(0, 0, "lockstep.delay.v1");
+        p.setMasterInsert(0, "lockstep.reverb.v1");
+        p.setMasterSend(0, "lockstep.reverb.v1");
+        CHECK(p.hasLiveTrackInsert(0, 0), "stale-fx precondition: track insert installed");
+        CHECK(p.hasLiveMasterInsert(0), "stale-fx precondition: master insert installed");
+        CHECK(p.hasLiveMasterSend(0), "stale-fx precondition: master send installed");
+
+        p.newProject();
+
+        CHECK(!p.hasLiveTrackInsert(0, 0),
+              "new project: stale track-insert instance still live");
+        CHECK(!p.hasLiveMasterInsert(0),
+              "new project: stale master-insert instance still live");
+        CHECK(!p.hasLiveMasterSend(0),
+              "new project: stale master-send instance still live");
+        CHECK(p.trackInsertId(0, 0).empty() && p.masterInsertId(0).empty()
+                  && p.masterSendId(0).empty(),
+              "new project: effect slot ids not cleared");
+    }
+
+    // A1: a project saved with a master send must reinstall the LIVE send effect on
+    // load (finishStateLoad previously never built it, so loaded sends were silent).
+    static void testMasterSendInstalledOnLoad()
+    {
+        juce::MemoryBlock state;
+        {
+            EngineHarness hA;
+            hA.processor().setMasterSend(0, "lockstep.reverb.v1");
+            hA.renderBlocks(1);
+            hA.processor().getStateInformation(state);
+        }
+        EngineHarness hB;
+        hB.processor().setStateInformation(state.getData(), static_cast<int>(state.getSize()));
+        CHECK(hB.processor().masterSendId(0) == "lockstep.reverb.v1",
+              "send-on-load: send id did not round-trip");
+        CHECK(hB.processor().hasLiveMasterSend(0),
+              "send-on-load: live send effect not installed after load");
+    }
+
     // A3 diagnostic: an FM machine in poly (chord) mode must start audio at the
     // note-on sample, not half a step later. Drives FMMachine directly with a
     // 3-note chord at sample 0 and finds the first audible sample.
@@ -1691,6 +1740,8 @@ namespace lockstep
         testTransposeTrack();
         testTrigFiresOnGrid();
         testFMChordOnsetOnGrid();
+        testNewProjectClearsStaleEffects();
+        testMasterSendInstalledOnLoad();
         testVAAgeRoundTrip();
         testVAParaLoudnessCompensation();
         testDrumDirectNaN();

@@ -4537,14 +4537,26 @@ namespace lockstep
         if (slot < 0 || slot > 1) return;
         const auto si = static_cast<std::size_t>(slot);
         const std::string id = canonicalEffectId(effectId);
+        auto& sndSlot = song().masterSends[si];
+        sndSlot.effectId = id;
+
         auto newEff = makeEffectForId(id, EffectTier::Master);
-        if (!newEff) return;
-        newEff->prepare(preparedSampleRate_, preparedBlockSize_);
-        song().masterSends[si].effectId = id;
-        const int np = newEff->numParams();
-        song().masterSends[si].baseParams.assign(static_cast<std::size_t>(np), 0.0f);
-        for (int p = 0; p < np; ++p)
-            song().masterSends[si].baseParams[static_cast<std::size_t>(p)] = newEff->paramSpec(p).defaultValue;
+        if (newEff)
+        {
+            // Preserve loaded/edited params when the schema size already matches
+            // (a reload or re-pick of the same effect keeps its values); only fill
+            // defaults on a first-time / size-changed slot. Mirrors setMasterInsert
+            // so finishStateLoad can reinstall a loaded send without wiping params.
+            const int np = newEff->numParams();
+            if (static_cast<int>(sndSlot.baseParams.size()) != np)
+            {
+                sndSlot.baseParams.resize(static_cast<std::size_t>(np));
+                for (int p = 0; p < np; ++p)
+                    sndSlot.baseParams[static_cast<std::size_t>(p)] = newEff->paramSpec(p).defaultValue;
+            }
+            newEff->prepare(preparedSampleRate_, preparedBlockSize_);
+        }
+        // Empty / unknown id leaves newEff null → the move clears the live slot.
         withQuiescedEngine([&] { masterSends_[si] = std::move(newEff); });
     }
 
@@ -4566,6 +4578,25 @@ namespace lockstep
     {
         if (slot < 0 || slot > 1) return {};
         return song().masterSends[static_cast<std::size_t>(slot)].effectId;
+    }
+
+    bool LockstepProcessor::hasLiveTrackInsert(int track, int slot) const noexcept
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
+        if (slot < 0 || slot > 1) return false;
+        return trackInserts_[static_cast<std::size_t>(track)][static_cast<std::size_t>(slot)] != nullptr;
+    }
+
+    bool LockstepProcessor::hasLiveMasterInsert(int slot) const noexcept
+    {
+        if (slot < 0 || slot > 1) return false;
+        return masterInserts_[static_cast<std::size_t>(slot)] != nullptr;
+    }
+
+    bool LockstepProcessor::hasLiveMasterSend(int slot) const noexcept
+    {
+        if (slot < 0 || slot > 1) return false;
+        return masterSends_[static_cast<std::size_t>(slot)] != nullptr;
     }
 
     bool LockstepProcessor::masterSendBypass(int slot) const
@@ -5184,30 +5215,61 @@ namespace lockstep
         // v13: reinstall insert effects from the loaded Kit state. setTrackInsert
         // preserves baseParams when the size already matches the effect's schema,
         // so the loaded values survive. Bypass is applied afterwards.
+        //
+        // EMPTY slots must be torn down explicitly. finishStateLoad runs on
+        // newProject() / Open as well, and a slot the loaded state leaves empty may
+        // still hold a live effect instance from the *previous* project. Installing
+        // only the non-empty slots (the old behaviour) left those stale effects
+        // processing audio while the picker showed the slot empty — the "phantom
+        // effects on a new project" report (and the delayed-sounding notes it
+        // caused when the stale effect was a Delay).
         for (std::size_t t = 0; t < kNumTracks; ++t)
         {
-            const auto& k = kit(static_cast<int>(t));
             for (int s = 0; s < 2; ++s)
             {
-                const auto& ins = k.inserts[static_cast<std::size_t>(s)];
-                if (!ins.effectId.empty())
+                const std::string id  = kit(static_cast<int>(t)).inserts[static_cast<std::size_t>(s)].effectId;
+                const bool        byp = kit(static_cast<int>(t)).inserts[static_cast<std::size_t>(s)].bypass;
+                if (!id.empty())
                 {
-                    setTrackInsert(static_cast<int>(t), s, ins.effectId);
-                    // bypass is in kit slot; restore the live state explicitly
-                    setTrackInsertBypass(static_cast<int>(t), s, ins.bypass);
+                    setTrackInsert(static_cast<int>(t), s, id);
+                    setTrackInsertBypass(static_cast<int>(t), s, byp);
                 }
+                else
+                    clearTrackInsert(static_cast<int>(t), s);  // tear down stale live instance
             }
         }
 
-        // v14: reinstall master insert effects from the active Song's masterInserts.
+        // v14: reinstall master insert effects from the active Song's masterInserts;
+        // tear down empties (see above).
         for (int s = 0; s < 2; ++s)
         {
-            const auto& mIns = song().masterInserts[static_cast<std::size_t>(s)];
-            if (!mIns.effectId.empty())
+            const std::string id  = song().masterInserts[static_cast<std::size_t>(s)].effectId;
+            const bool        byp = song().masterInserts[static_cast<std::size_t>(s)].bypass;
+            if (!id.empty())
             {
-                setMasterInsert(s, mIns.effectId);
-                setMasterInsertBypass(s, mIns.bypass);
+                setMasterInsert(s, id);
+                setMasterInsertBypass(s, byp);
             }
+            else
+                clearMasterInsert(s);
+        }
+
+        // 8.26: reinstall master send-return effects from the active Song's
+        // masterSends. These were never reinstalled on load — the live instance was
+        // only ever built by the editor's picker — so a loaded project's sends did
+        // not actually process, and a stale send survived a newProject() / Open.
+        // Install non-empty (params preserved by setMasterSend), tear down empties.
+        for (int s = 0; s < 2; ++s)
+        {
+            const std::string id  = song().masterSends[static_cast<std::size_t>(s)].effectId;
+            const bool        byp = song().masterSends[static_cast<std::size_t>(s)].bypass;
+            if (!id.empty())
+            {
+                setMasterSend(s, id);
+                setMasterSendBypass(s, byp);
+            }
+            else
+                clearMasterSend(s);
         }
 
         // Seed a default gate for VA Machine tracks that have none, so that a
