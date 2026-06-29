@@ -1645,6 +1645,40 @@ namespace lockstep
         }
     }
 
+    // C2: every synth must sit at a shared reference level with internal level
+    // ~0.5 (default) and track 1.0, so no instrument is wildly louder than the
+    // others. Reference is the drum/FM peak (~0.5); the VA was ~2.4 (5x) before
+    // its output trim. Window keeps them within ~+/-4 dB of the 0.5 reference.
+    static void testMachineLevelCalibration()
+    {
+        auto peakOf = [](IMachine& m, int note) {
+            m.prepare(48000.0, 256);
+            ParamFrame frame(static_cast<std::size_t>(m.numParams()));
+            for (int i = 0; i < m.numParams(); ++i)
+                frame[static_cast<std::size_t>(i)] = m.paramSpec(i).defaultValue;
+            juce::MidiBuffer midi;
+            midi.addEvent(juce::MidiMessage::noteOn(1, note, 0.9f), 0);
+            juce::AudioBuffer<float> buf(2, 256);
+            float pk = 0.0f;
+            for (int b = 0; b < 40; ++b)
+            {
+                buf.clear();
+                m.process(b == 0 ? midi : juce::MidiBuffer{}, frame, buf);
+                pk = std::max(pk, buf.getMagnitude(0, 0, 256));
+            }
+            return pk;
+        };
+        constexpr float kLo = 0.32f, kHi = 0.80f;  // ~0.5 reference, +/-~4 dB
+        auto inWindow = [&](const char* name, float pk) {
+            CHECK(pk > kLo && pk < kHi,
+                  juce::String("level calibration: ") + name + " peak " + juce::String(pk, 3)
+                  + " outside [" + juce::String(kLo, 2) + "," + juce::String(kHi, 2) + "]");
+        };
+        { DrumSynthMachine m; inWindow("drum", peakOf(m, 36)); }
+        { VAMachine m;        inWindow("va",   peakOf(m, 60)); }
+        { FMMachine m;        inWindow("fm",   peakOf(m, 60)); }
+    }
+
     // C3: turning up all four operator mixer levels must not multiply the output
     // by 4 — the carrier-mixer normalization scales the sum back when it exceeds
     // unity. And a 4-note chord must not be 4x a single note (voice compensation).
@@ -1834,6 +1868,7 @@ namespace lockstep
         testTrigFiresOnGrid();
         testFMChordOnsetOnGrid();
         testFMMixerAndVoiceComp();
+        testMachineLevelCalibration();
         testNewProjectClearsStaleEffects();
         testMasterSendInstalledOnLoad();
         testVAAgeRoundTrip();

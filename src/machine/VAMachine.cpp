@@ -886,8 +886,14 @@ namespace lockstep
             dcY1_ = blocked;
 
             // ---- Output — write dual-mono; pan is owned by the track CHANNEL block ----
+            // Loudness calibration (C2): at default params a single note measured
+            // ~2.4 peak — ~5x the drum/FM reference (~0.5) and into the master
+            // clipper. kOutputTrim brings the VA in line so every machine sits at a
+            // sensible level with internal level ~0.5 / track 1.0. Applied post-drive
+            // so the glue character is unchanged — only the level is tamed.
+            constexpr float kOutputTrim = 0.21f;
             for (int ch = 0; ch < numOut; ++ch)
-                buffer.addSample(ch, i, blocked);
+                buffer.addSample(ch, i, blocked * kOutputTrim);
         }
     }
 
