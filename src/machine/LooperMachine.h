@@ -2,6 +2,7 @@
 
 #include "IMachine.h"
 #include "ITempoAware.h"
+#include "ILoopGridAware.h"
 #include "InputSource.h"
 #include "SamplePool.h"
 #include <atomic>
@@ -27,7 +28,7 @@ namespace lockstep
     // looper self-plays it too. Loop length is free-running here (the span recorded
     // before the first close); transport-quantize + varispeed sync land in C4. The
     // one-level undo backup stays machine-internal (not a playable slot).
-    class LooperMachine : public IMachine, public ITempoAware
+    class LooperMachine : public IMachine, public ITempoAware, public ILoopGridAware
     {
     public:
         explicit LooperMachine(SamplePool& pool) : pool_(pool) {}
@@ -46,6 +47,14 @@ namespace lockstep
         // ITempoAware — bar length + transport phase for varispeed sync (C4).
         void setTransport(const TransportInfo& t) noexcept override { transport_ = t; }
         [[nodiscard]] const TransportInfo& transport() const noexcept { return transport_; }
+
+        // ILoopGridAware — the focused track's grid (S1). Sync-mode loop length =
+        // lengthSteps × stepPpq quarter notes (no machine-owned div/step params).
+        void setLoopGrid(int lengthSteps, double stepPpq) noexcept override
+        {
+            loopGridSteps_ = lengthSteps > 0 ? lengthSteps : 1;
+            loopStepPpq_ = stepPpq > 0.0 ? stepPpq : 0.0;
+        }
 
         void prepare(double sampleRate, int maxBlockSize) override;
         void reset() override;
@@ -121,14 +130,14 @@ namespace lockstep
     private:
         static constexpr int kSlotInputSource = 0;
         static constexpr int kSlotTargetBuffer = 1;  // volatile REC slot the loop lives in
-        static constexpr int kSlotLoopSync = 2;      // Free | Free Len | 1/2/4 Bar
+        static constexpr int kSlotLoopSync = 2;      // Free | Free Len | Sync (S1)
         static constexpr int kSlotMonitor = 3;       // Auto | On | Off (live-thru, #1)
         static constexpr int kSlotDecay = 4;         // 0 = no decay … 1 = full (#4)
         static constexpr int kSlotDecayMode = 5;     // Overdub | Always (#4)
-        static constexpr int kSlotDiv = 6;           // clock division for Steps sync mode
-        static constexpr int kSlotSteps = 7;         // step count for Steps sync mode
-        static constexpr int kNumSlots = 8;
-        static constexpr int kSyncSteps = 5;         // loop_sync value: user-set Steps length
+        static constexpr int kNumSlots = 6;
+        // loop_sync value: Sync = grid-locked to the track's own length × divider,
+        // pushed via ILoopGridAware (S1). Any value >= this is grid-locked.
+        static constexpr int kSyncGrid = 2;
         static constexpr double kLoopMaxSeconds = 12.0;
         static constexpr int kDecayOverdub = 0;      // decay only where you overdub
         static constexpr int kDecayAlways  = 1;      // whole loop fades every iteration
@@ -175,8 +184,8 @@ namespace lockstep
         int recPos_ = 0;
         int recLenTarget_ = 0;    // auto-close length for bar-quantized record (0 = none)
         int syncMode_ = 0;        // resolved loop_sync this block
-        int loopDivStepsPerBar_ = 16;  // resolved loop_div → steps/bar (Steps mode)
-        int loopSteps_ = 16;           // resolved loop_steps (Steps mode)
+        int loopGridSteps_ = 16;  // track length (steps), pushed via ILoopGridAware (S1)
+        double loopStepPpq_ = 0.25;  // quarter-note PPQ per step, pushed via ILoopGridAware (S1)
         // Pending quantized edge (#2): 0 none / 1 start-record / 2 stop / 3 re-play.
         // Fired by firePending() when the transport phase crosses a bar-grid boundary.
         int pendingAction_ = 0;
@@ -197,21 +206,14 @@ namespace lockstep
 
         TransportInfo transport_{};  // last block transport (C2)
 
-        // loop_sync: Free (native, ignores tempo) | Free Len (varispeed to the
-        // recorded musical duration, floats) | 1/2/4 Bar (varispeed + grid
-        // phase-lock; bars = 1 << (value - 2)) | Steps (length = loop_steps ×
-        // clock-division, fully user-set; phase-locked like N Bar).
-        static constexpr std::array<const char* const, 6> kLoopSyncLabels = {
-            "Free", "Free Len", "1 Bar", "2 Bar", "4 Bar", "Steps"
+        // loop_sync (S1): Free (native, ignores tempo) | Free Len (varispeed to
+        // the recorded musical duration, floats) | Sync (varispeed + grid
+        // phase-lock to the track's own length × divider, pushed via
+        // ILoopGridAware). The old 1/2/4 Bar + Steps values collapsed into Sync
+        // (any value >= kSyncGrid is grid-locked); old projects migrate on load.
+        static constexpr std::array<const char* const, 3> kLoopSyncLabels = {
+            "Free", "Free Len", "Sync"
         };
-
-        // loop_div (Steps mode): clock division → steps per bar (4/4 assumed).
-        static constexpr std::array<const char* const, 4> kLoopDivLabels = {
-            "1/4", "1/8", "1/16", "1/32"
-        };
-        static constexpr std::array<int, 4> kDivStepsPerBar = { 4, 8, 16, 32 };
-        static constexpr int kDefaultDivIdx = 2;   // 1/16
-        static constexpr int kMaxLoopSteps = 64;
 
         // monitor: Auto (resolveMonitor — On for None/External insert, Off for a
         // Track/Master tap) | On (always pass live input through) | Off (loop-only).

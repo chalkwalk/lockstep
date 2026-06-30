@@ -13,6 +13,7 @@ namespace lockstep
         double bpm = 120.0;
         double sampleRate = 44100.0;
         double samplesPerBar = 0.0;          // 0 = unknown (no tempo context)
+        double barPpq = 4.0;                 // quarter notes per bar (time-sig; S1 loop length)
         double transportPhaseSamples = 0.0;  // song position in samples at block start
         bool running = false;                // transport advancing this block
     };

@@ -492,7 +492,15 @@ namespace lockstep::PluginState
                 const int slot = proc.slotForIdWithMachine(*tempMachine, id);
                 if (slot < 0) continue;
                 if (slot < machinNp)
-                    kit.baseParams[static_cast<std::size_t>(slot)] = val;
+                {
+                    float v = val;
+                    // S1 migration: loop_sync collapsed to Free|Free Len|Sync (0..2).
+                    // Old 1/2/4 Bar (2..4) + Steps (5) all map to Sync (2); dropped
+                    // loop_div/loop_steps ids resolve to slot<0 above and are skipped.
+                    if (kit.machineId == "lockstep.looper.v1" && id == "loop_sync" && v > 2.0f)
+                        v = 2.0f;
+                    kit.baseParams[static_cast<std::size_t>(slot)] = v;
+                }
                 else if (id.startsWith("lockstep.fltr."))
                     kit.fltrState.setSlot(slot - machinNp, val);
                 else if (id.startsWith("lockstep.amp."))

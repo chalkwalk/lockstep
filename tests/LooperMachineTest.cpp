@@ -159,23 +159,44 @@ namespace lockstep
             return b;
         };
 
-        // C4: bar-quantized record auto-closes at the bar length.
+        // S1: Sync record auto-closes at the track-grid length (length × step PPQ),
+        // pushed via ILoopGridAware. A 16-step 1/16 track (16 × 0.25 = 4 quarters =
+        // 1 bar) with a 1024-sample bar → loop length 1024.
         {
             SamplePool p3;
             const int idx = p3.addVolatile();
             p3.prepareVolatile(kSr, 2, static_cast<int>(kSr));
             LooperMachine lp(p3);
             lp.prepare(kSr, n);
-            TransportInfo tr; tr.samplesPerBar = 1024.0; tr.running = true;
+            TransportInfo tr; tr.samplesPerBar = 1024.0; tr.barPpq = 4.0; tr.running = true;
             lp.setTransport(tr);
+            lp.setLoopGrid(16, 0.25);  // 16 steps × 1/16 = 1 bar
 
-            ParamFrame fr{ 1.0f, 0.0f, 2.0f };  // input=Ext, target=0, loop_sync=1 Bar
+            ParamFrame fr{ 1.0f, 0.0f, 2.0f };  // input=Ext, target=0, loop_sync=Sync
             runP(lp, 512, 0.5f, Cmd::RecordCycle, fr);  // start (512 recorded)
-            CHECK(lp.state() == State::Recording, "1 Bar: still recording at 512 < 1024");
+            CHECK(lp.state() == State::Recording, "Sync: still recording at 512 < 1024");
             runP(lp, 512, 0.5f, Cmd::None, fr);         // reaches 1024 → auto-close
-            CHECK(lp.state() == State::Playing, "1 Bar: auto-closes at the bar length");
+            CHECK(lp.state() == State::Playing, "Sync: auto-closes at the grid length");
             CHECK(p3.get(idx) != nullptr && p3.get(idx)->pcm.getNumSamples() == 1024,
-                  "1 Bar: auto-closed loop length == 1 bar (1024)");
+                  "Sync: auto-closed loop length == track grid (1024)");
+        }
+
+        // S1: the loop length tracks the *track grid*, not a machine param — a
+        // shorter/finer track grid yields a shorter loop. 8 steps × 1/16 = 2 quarters
+        // = half a bar → 512 samples with the same 1024-sample bar.
+        {
+            SamplePool p;
+            const int idx = p.addVolatile();
+            p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LooperMachine lp(p); lp.prepare(kSr, n);
+            TransportInfo tr; tr.samplesPerBar = 1024.0; tr.barPpq = 4.0; tr.running = true;
+            lp.setTransport(tr);
+            lp.setLoopGrid(8, 0.25);  // 8 steps × 1/16 = half a bar
+            ParamFrame fr{ 1.0f, 0.0f, 2.0f };  // Sync
+            runP(lp, 512, 0.5f, Cmd::RecordCycle, fr);  // phase 0: starts at i=0, fills 512
+            CHECK(lp.state() == State::Playing, "Sync: auto-closes at the grid length");
+            CHECK(p.get(idx) != nullptr && p.get(idx)->pcm.getNumSamples() == 512,
+                  "Sync: loop length follows the track grid (8 steps = 512)");
         }
 
         // #2: a quantized Record press mid-bar ARMS — it does not start recording
@@ -184,10 +205,11 @@ namespace lockstep
             SamplePool p; p.addVolatile();
             p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
             LooperMachine lp(p); lp.prepare(kSr, n);
-            TransportInfo tr; tr.samplesPerBar = 1024.0; tr.running = true;
+            TransportInfo tr; tr.samplesPerBar = 1024.0; tr.barPpq = 4.0; tr.running = true;
             tr.transportPhaseSamples = 200.0;  // mid-bar, away from a boundary
             lp.setTransport(tr);
-            ParamFrame fr{ 1.0f, 0.0f, 2.0f };  // 1 Bar (quantized)
+            lp.setLoopGrid(16, 0.25);          // 1-bar grid
+            ParamFrame fr{ 1.0f, 0.0f, 2.0f };  // Sync (quantized)
 
             lp.postCommand(Cmd::RecordCycle);          // single tap → arm
             runP(lp, 256, 0.5f, Cmd::None, fr);        // phase 200..455: no boundary
@@ -205,30 +227,14 @@ namespace lockstep
             SamplePool p; p.addVolatile();
             p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
             LooperMachine lp(p); lp.prepare(kSr, n);
-            TransportInfo tr; tr.samplesPerBar = 1024.0; tr.running = true;
+            TransportInfo tr; tr.samplesPerBar = 1024.0; tr.barPpq = 4.0; tr.running = true;
             tr.transportPhaseSamples = 200.0; lp.setTransport(tr);
-            ParamFrame fr{ 1.0f, 0.0f, 2.0f };  // 1 Bar
+            lp.setLoopGrid(16, 0.25);
+            ParamFrame fr{ 1.0f, 0.0f, 2.0f };  // Sync
 
             lp.postCommand(Cmd::RecordCycle, /*immediate*/ true);
             runP(lp, 256, 0.5f, Cmd::None, fr);
             CHECK(lp.state() == State::Recording, "#2: double-tap Record starts immediately");
-        }
-
-        // Seq mode: loop length = loop_steps × (bar / steps-per-bar). 8 steps at the
-        // 1/16 division with a 1024-sample bar = 8 × 64 = 512 samples; the record
-        // starts on the grid (phase 0) and auto-closes at that length.
-        {
-            SamplePool p; const int idx = p.addVolatile();
-            p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
-            LooperMachine lp(p); lp.prepare(kSr, n);
-            TransportInfo tr; tr.samplesPerBar = 1024.0; tr.running = true;
-            lp.setTransport(tr);
-            // input=Ext, target=0, sync=Steps(5), mon=Auto, decay 0, mode 0, div=1/16(2), steps=8
-            ParamFrame fr{ 1.0f, 0.0f, 5.0f, 0.0f, 0.0f, 0.0f, 2.0f, 8.0f };
-            runP(lp, 512, 0.5f, Cmd::RecordCycle, fr);   // phase 0: arms+starts at i=0, fills 512
-            CHECK(lp.state() == State::Playing, "Seq: auto-closes at the step length");
-            CHECK(p.get(idx) != nullptr && p.get(idx)->pcm.getNumSamples() == 512,
-                  "Seq: loop length = 8 steps × 64 = 512 samples");
         }
 
         // C4: Free-Len varispeed — halving the project tempo halves the loop's

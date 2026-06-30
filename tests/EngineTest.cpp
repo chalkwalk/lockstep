@@ -28,6 +28,9 @@
 #include "../src/machine/StaticMachine.h"
 #include "../src/machine/InputSource.h"
 #include "../src/core/OutputDest.h"
+#include "../src/core/Subdivision.h"
+#include "../src/state/PluginState.h"
+#include <functional>
 
 namespace lockstep
 {
@@ -2167,9 +2170,101 @@ namespace lockstep
         }
     }
 
+    // S1: the Looper's Sync-mode loop length is the *track's own* grid (length ×
+    // step subdivision), pushed through ILoopGridAware by the processor — not a
+    // machine-owned param. A 4-step / 1/64 track at 120 bpm / 48k → 4 × 0.0625 ×
+    // 24000 = 6000 samples. Recording auto-closes at that grid length.
+    static void testLoopGridSeamFeedsTrackLength()
+    {
+        EngineHarness h;
+        auto& p = h.processor();
+        p.setTrackMachine(0, LooperMachine::kMachineId);
+        p.setTrackLength(0, 4);
+        p.setTrackSubdivision(0, indexFromParts(DivBase::D1_64, DivFlavour::Straight));
+        p.writeParam(0, 2 /*loop_sync*/, 2.0f);   // Sync
+
+        // Immediate record (bypass the bar-arm) so the take starts on block 0.
+        h.renderBlocks(1);
+        p.sendLooperCommand(0, static_cast<int>(LooperMachine::Cmd::RecordCycle),
+                            /*immediate*/ true);
+        // 6000 samples / 512 ≈ 12 blocks; render generously, then confirm it closed.
+        for (int b = 0; b < 30 && p.looperState(0) != static_cast<int>(LooperMachine::State::Playing); ++b)
+            h.renderBlocks(1);
+
+        CHECK(p.looperState(0) == static_cast<int>(LooperMachine::State::Playing),
+              "loop-grid seam: Sync record auto-closes (reached Playing)");
+        const int slot = p.captureTargetSlot(0);
+        const auto* s = p.samplePool().get(slot);
+        CHECK(s != nullptr, "loop-grid seam: loop landed in a pool slot");
+        if (s != nullptr)
+        {
+            const int len = s->pcm.getNumSamples();
+            CHECK(len > 6000 - 600 && len < 6000 + 600,
+                  "loop-grid seam: loop length == track grid (~6000, got " +
+                  juce::String(len) + ")");
+        }
+    }
+
+    // S1: an OLD project with loop_sync = Steps (5) / N Bar (2..4) migrates to the
+    // new collapsed Sync (2) on load — the dropped loop_div/loop_steps ids are
+    // silently ignored (slotForId returns -1). Behaviourally any value >= Sync is
+    // grid-locked, but the stored value is normalised so the stepped param stays in
+    // range and re-saves cleanly.
+    static void testLoopSyncMigration()
+    {
+        EngineHarness hA;
+        auto& pA = hA.processor();
+        pA.setTrackMachine(0, LooperMachine::kMachineId);
+        // Set loop_sync on the kit directly to a non-default value so the writer
+        // emits a loop_sync node (defaults are skipped); the forge then ages it.
+        if (pA.kit(0).baseParams.size() > 2) pA.kit(0).baseParams[2] = 2.0f;
+
+        auto tree = PluginState::buildStateTree(pA);
+
+        // Forge an old file: find the looper kit's loop_sync param node, set v = 5
+        // (legacy "Steps"); inject a stale loop_steps node the new schema drops.
+        std::function<bool(juce::ValueTree)> forge = [&](juce::ValueTree node) -> bool {
+            if (node.getType() == juce::Identifier("BP"))
+            {
+                bool sawLooperSync = false;
+                for (auto pNode : node)
+                    if (pNode.getProperty("id").toString() == "loop_sync")
+                    {
+                        pNode.setProperty("v", 5.0f, nullptr);  // legacy Steps
+                        sawLooperSync = true;
+                    }
+                if (sawLooperSync)
+                {
+                    juce::ValueTree stale("P");
+                    stale.setProperty("id", "loop_steps", nullptr);
+                    stale.setProperty("v", 32.0f, nullptr);
+                    node.appendChild(stale, nullptr);
+                    return true;
+                }
+            }
+            for (auto child : node)
+                if (forge(child)) return true;
+            return false;
+        };
+        CHECK(forge(tree), "migration: located the looper loop_sync param node to forge");
+
+        EngineHarness hB;
+        auto& pB = hB.processor();
+        PluginState::applyStateTree(tree, pB);
+
+        CHECK(pB.kit(0).machineId == LooperMachine::kMachineId,
+              "migration: looper machine restored on load");
+        const float loaded = pB.kit(0).baseParams.size() > 2 ? pB.kit(0).baseParams[2] : -1.0f;
+        CHECK(feq(loaded, 2.0f),
+              "migration: legacy loop_sync=5 clamped to Sync (2), got " +
+              juce::String(loaded));
+    }
+
     void runEngineTests()
     {
         testTransposeTrack();
+        testLoopGridSeamFeedsTrackLength();
+        testLoopSyncMigration();
         testTapForkSameBlock();
         testTapCycleRefusal();
         testTempoSeamReachesMachine();

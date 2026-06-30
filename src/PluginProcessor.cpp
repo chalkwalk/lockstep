@@ -436,6 +436,19 @@ namespace lockstep
         // C2: deliver the block transport to tempo-aware machines before process().
         if (auto* ta = dynamic_cast<ITempoAware*>(mi))
             ta->setTransport(blockTransport_);
+        // S1: deliver this track's own grid (length × step subdivision) to the
+        // Looper, whose loop length IS the track grid — not a machine-owned param.
+        if (auto* lg = dynamic_cast<ILoopGridAware*>(mi))
+        {
+            const auto* lenP = trackLengthParams_[i];
+            const auto* divP = trackDividerParams_[i];
+            const int lenSteps = lenP ? std::max(1, static_cast<int>(std::lround(lenP->load())))
+                                      : 16;
+            const int subdivIdx = divP ? std::clamp(static_cast<int>(std::lround(divP->load())),
+                                                    kSubdivMin, kSubdivMax)
+                                       : kSubdivDefault;
+            lg->setLoopGrid(lenSteps, subdivisionPpqFromIndex(subdivIdx));
+        }
         mi->process(trackMidiI, frame, trackBuffers_[i]);
 
         const int mnp = mi->numParams();
@@ -1019,6 +1032,7 @@ namespace lockstep
         blockTransport_.bpm = clock_.bpm();
         blockTransport_.sampleRate = getSampleRate();
         blockTransport_.samplesPerBar = effectiveTimeSig().barPpq() * samplesPerPpq;
+        blockTransport_.barPpq = effectiveTimeSig().barPpq();
         blockTransport_.transportPhaseSamples = clock_.ppqAtBlockStart() * samplesPerPpq;
         blockTransport_.running = sequencerRunning;
 
