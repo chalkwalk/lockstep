@@ -329,17 +329,14 @@ namespace lockstep
                 // Loop contribution to the output (separate from the live-thru so
                 // monitor can gate the live signal without touching recording).
                 float loopOut = 0.0f;
-                bool monitorState = false;  // states where live-thru is meaningful
                 switch (state_)
                 {
                     case State::Recording:
                         if (tch && recPos_ < capacity_)
                             target_->setSample(ch, recPos_, in);  // record regardless of monitor
-                        monitorState = true;
                         break;
                     case State::Playing:
                         if (tch && loopLen_ > 0) loopOut = loopSample(ch, pos);
-                        monitorState = true;
                         break;
                     case State::Overdubbing:
                         if (tch && loopLen_ > 0)
@@ -354,15 +351,16 @@ namespace lockstep
                             target_->setSample(ch, wi, oldLoop + in);
                             loopOut = oldLoop;
                         }
-                        monitorState = true;
                         break;
                     case State::Idle:
                     case State::Stopped:
-                        break;  // silent (explicit stop / not yet armed)
+                        break;  // no loop output (silent loop; live-thru still governed below)
                 }
-                // #4: live input passes through only when monitoring is on AND we
-                // are in a monitoring state. Off → loop-only output (parallel tap).
-                const float live = (monitorOn && monitorState) ? in : 0.0f;
+                // #1: live-thru is governed by monitor alone, in EVERY state — an
+                // insert looper (Auto→On) must pass input through even while Idle/
+                // Armed/Stopped (you hear what you're about to record). A parallel
+                // tap (Auto→Off) stays loop-only. Monitor never touches recording.
+                const float live = monitorOn ? in : 0.0f;
                 buffer.setSample(ch, i, loopOut + live);
             }
 

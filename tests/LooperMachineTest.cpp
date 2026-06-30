@@ -47,11 +47,13 @@ namespace lockstep
         loop.prepare(kSr, n);
         CHECK(loop.state() == State::Idle, "starts Idle");
 
-        // Idle: silent output regardless of input.
+        // #1: an idle insert looper monitors its input (default params = External
+        // source, Auto monitor → On), so live audio passes through BEFORE recording.
+        // (Pre-#1 this was silent — you couldn't hear what you were about to record.)
         {
             auto out = runBlock(loop, n, 0.5f);
-            CHECK(feq(out.getSample(0, 0), 0.0f) && feq(out.getSample(0, 256), 0.0f),
-                  "Idle output is silent");
+            CHECK(feq(out.getSample(0, 0), 0.5f) && feq(out.getSample(0, 256), 0.5f),
+                  "#1: idle insert monitors live input (no loop yet)");
         }
 
         // Record first layer (Idle → Recording): monitors input while capturing.
