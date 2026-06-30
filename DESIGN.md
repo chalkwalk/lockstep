@@ -223,15 +223,30 @@ exactly three kinds of machine:
   does not). The same captured loop is therefore playable two ways: the
   looper's varispeed self-play, or a Player's pitch-locked stretch.
   **Looper monitoring** is a `monitor {Auto | On | Off}` switch governing
-  whether the live input passes through to the output (separate from
-  recording, which always captures). **Auto** resolves from the source: On
-  for `None`/`External` (the looper is the source's sole path out — insert /
-  external-input use), Off for a `Track`/`Master` tap (the tapped source is
-  already audible on its own path, so passing it through would
-  double-monitor). On/Off force it. This makes the looper "work as
+  whether the live input passes through to the output **in every state**
+  (separate from recording, which always captures) — so an insert looper is
+  audible *before* you record, not just while running. **Auto** resolves from
+  the source: On for `None`/`External` (the looper is the source's sole path
+  out — insert / external-input use), Off for a `Track`/`Master` tap (the
+  tapped source is already audible on its own path, so passing it through
+  would double-monitor). On/Off force it. This makes the looper "work as
   expected" whether you feed it by routing a track's `Out` into it (it
   passes through + layers) or by tapping a source on its SRC panel (it adds
   the loop layer without re-monitoring the live source).
+
+  **Quantize is implied by `loop_sync`** (the Octatrack QREC/QPL analog):
+  Free records instantly; every other mode arms the record-start *and* the
+  stop / re-play edges to the bar grid, so loops phase-lock. Bar-locked modes
+  are `1 / 2 / 4 Bar` (fixed) plus **`Steps`**, whose length is fully
+  user-set as `loop_div` (clock division) × `loop_steps` (count) for
+  arbitrary musical lengths. **Double-tapping** a verb fires it instantly,
+  overriding quantize (a held-armed record shows **ARM** until the boundary).
+  **Decay** (`loop_decay` 0…1, `loop_decay_mode {Overdub | Always}`) makes
+  the loop quieter over iterations — Overdub fades the old layer only at the
+  overdub write (feedback knob), Always fades the whole loop each pass (tape
+  echo). With a looper focused the step grid is repurposed as a quantize-aware
+  **loop-phase bar** (segments = beats/steps, a playhead, cell 0 = downbeat),
+  and the `Track + Record/Play/Clear` verbs render in distinct looper colours.
 
 Pure timbre *processing* is **not** a machine. A filter, EQ, distortion,
 bitcrusher, reverb, delay, compressor, or any other "audio in → audio
