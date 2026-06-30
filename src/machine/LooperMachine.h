@@ -112,7 +112,10 @@ namespace lockstep
         static constexpr int kSlotMonitor = 3;       // Auto | On | Off (live-thru, #1)
         static constexpr int kSlotDecay = 4;         // 0 = no decay … 1 = full (#4)
         static constexpr int kSlotDecayMode = 5;     // Overdub | Always (#4)
-        static constexpr int kNumSlots = 6;
+        static constexpr int kSlotDiv = 6;           // clock division for Steps sync mode
+        static constexpr int kSlotSteps = 7;         // step count for Steps sync mode
+        static constexpr int kNumSlots = 8;
+        static constexpr int kSyncSteps = 5;         // loop_sync value: user-set Steps length
         static constexpr double kLoopMaxSeconds = 12.0;
         static constexpr int kDecayOverdub = 0;      // decay only where you overdub
         static constexpr int kDecayAlways  = 1;      // whole loop fades every iteration
@@ -142,6 +145,9 @@ namespace lockstep
         // Target playback duration (output samples) the loop should occupy at the
         // current project tempo, for the active sync mode; 0 = native (no stretch).
         [[nodiscard]] double targetOutputSamples() const;
+        // Loop length (samples) for the grid-locked modes (N Bar / Steps) at the
+        // current tempo; 0 if unknown. N Bar = N·bar; Steps = stepCount·(bar/divSteps).
+        [[nodiscard]] double syncedLengthSamples() const;
 
         SamplePool& pool_;
         double sampleRate_ = 44100.0;
@@ -156,6 +162,8 @@ namespace lockstep
         int recPos_ = 0;
         int recLenTarget_ = 0;    // auto-close length for bar-quantized record (0 = none)
         int syncMode_ = 0;        // resolved loop_sync this block
+        int loopDivStepsPerBar_ = 16;  // resolved loop_div → steps/bar (Steps mode)
+        int loopSteps_ = 16;           // resolved loop_steps (Steps mode)
         // Pending quantized edge (#2): 0 none / 1 start-record / 2 stop / 3 re-play.
         // Fired by firePending() when the transport phase crosses a bar-grid boundary.
         int pendingAction_ = 0;
@@ -176,10 +184,19 @@ namespace lockstep
 
         // loop_sync: Free (native, ignores tempo) | Free Len (varispeed to the
         // recorded musical duration, floats) | 1/2/4 Bar (varispeed + grid
-        // phase-lock). Values 2..4 are bar-quantized; bars = 1 << (value - 2).
-        static constexpr std::array<const char* const, 5> kLoopSyncLabels = {
-            "Free", "Free Len", "1 Bar", "2 Bar", "4 Bar"
+        // phase-lock; bars = 1 << (value - 2)) | Steps (length = loop_steps ×
+        // clock-division, fully user-set; phase-locked like N Bar).
+        static constexpr std::array<const char* const, 6> kLoopSyncLabels = {
+            "Free", "Free Len", "1 Bar", "2 Bar", "4 Bar", "Steps"
         };
+
+        // loop_div (Steps mode): clock division → steps per bar (4/4 assumed).
+        static constexpr std::array<const char* const, 4> kLoopDivLabels = {
+            "1/4", "1/8", "1/16", "1/32"
+        };
+        static constexpr std::array<int, 4> kDivStepsPerBar = { 4, 8, 16, 32 };
+        static constexpr int kDefaultDivIdx = 2;   // 1/16
+        static constexpr int kMaxLoopSteps = 64;
 
         // monitor: Auto (resolveMonitor — On for None/External insert, Off for a
         // Track/Master tap) | On (always pass live input through) | Off (loop-only).

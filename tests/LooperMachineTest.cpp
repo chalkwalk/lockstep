@@ -214,6 +214,23 @@ namespace lockstep
             CHECK(lp.state() == State::Recording, "#2: double-tap Record starts immediately");
         }
 
+        // Seq mode: loop length = loop_steps × (bar / steps-per-bar). 8 steps at the
+        // 1/16 division with a 1024-sample bar = 8 × 64 = 512 samples; the record
+        // starts on the grid (phase 0) and auto-closes at that length.
+        {
+            SamplePool p; const int idx = p.addVolatile();
+            p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LooperMachine lp(p); lp.prepare(kSr, n);
+            TransportInfo tr; tr.samplesPerBar = 1024.0; tr.running = true;
+            lp.setTransport(tr);
+            // input=Ext, target=0, sync=Steps(5), mon=Auto, decay 0, mode 0, div=1/16(2), steps=8
+            ParamFrame fr{ 1.0f, 0.0f, 5.0f, 0.0f, 0.0f, 0.0f, 2.0f, 8.0f };
+            runP(lp, 512, 0.5f, Cmd::RecordCycle, fr);   // phase 0: arms+starts at i=0, fills 512
+            CHECK(lp.state() == State::Playing, "Seq: auto-closes at the step length");
+            CHECK(p.get(idx) != nullptr && p.get(idx)->pcm.getNumSamples() == 512,
+                  "Seq: loop length = 8 steps × 64 = 512 samples");
+        }
+
         // C4: Free-Len varispeed — halving the project tempo halves the loop's
         // playback rate, so an impulse loop wraps ~half as often.
         auto countImpulseWraps = [&runP](double projectSpb) {

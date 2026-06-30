@@ -67,6 +67,24 @@ namespace lockstep
                 s.valueLabels = std::span<const char* const>(kDecayModeLabels.data(),
                                                              kDecayModeLabels.size());
                 return s;
+            case kSlotDiv:
+                s.id = "loop_div";
+                s.label = "Div";
+                s.minValue = 0.0f;
+                s.maxValue = static_cast<float>(kLoopDivLabels.size() - 1);
+                s.defaultValue = static_cast<float>(kDefaultDivIdx);  // 1/16
+                s.isStepped = true;
+                s.valueLabels = std::span<const char* const>(kLoopDivLabels.data(),
+                                                             kLoopDivLabels.size());
+                return s;
+            case kSlotSteps:
+                s.id = "loop_steps";
+                s.label = "Steps";
+                s.minValue = 1.0f;
+                s.maxValue = static_cast<float>(kMaxLoopSteps);
+                s.defaultValue = 16.0f;
+                s.isStepped = true;
+                return s;
             default:
                 return {};
         }
@@ -155,16 +173,27 @@ namespace lockstep
         return base;
     }
 
-    double LooperMachine::targetOutputSamples() const
+    double LooperMachine::syncedLengthSamples() const
     {
         const double spb = transport_.samplesPerBar;
-        if (syncMode_ >= 2)  // 1/2/4 Bar
+        if (spb <= 0.0) return 0.0;
+        if (syncMode_ == kSyncSteps)  // Steps — loop_steps × clock division
         {
-            const double bars = static_cast<double>(1 << (syncMode_ - 2));
-            return (spb > 0.0) ? bars * spb : 0.0;
+            const int spbar = std::max(1, loopDivStepsPerBar_);
+            return static_cast<double>(loopSteps_) * (spb / static_cast<double>(spbar));
         }
+        if (syncMode_ >= 2)  // 1/2/4 Bar
+            return static_cast<double>(1 << (syncMode_ - 2)) * spb;
+        return 0.0;
+    }
+
+    double LooperMachine::targetOutputSamples() const
+    {
+        if (syncMode_ >= 2)  // 1/2/4 Bar and Steps — grid-locked length
+            return syncedLengthSamples();
         if (syncMode_ == 1)  // Free Len — the recorded musical duration
         {
+            const double spb = transport_.samplesPerBar;
             const double bars = pool_.sourceBars(targetSlot_);
             return (spb > 0.0 && bars > 0.0) ? bars * spb : 0.0;
         }
@@ -175,7 +204,7 @@ namespace lockstep
     {
         const double spb = transport_.samplesPerBar;
         if (spb <= 0.0) return 0.0;
-        if (syncMode_ >= 2) return static_cast<double>(1 << (syncMode_ - 2)) * spb;  // N Bar
+        if (syncMode_ >= 2) return syncedLengthSamples();  // N Bar / Steps — period = loop length
         if (syncMode_ == 1) return spb;  // Free Len → quantise the start to the bar grid
         return 0.0;  // Free — no quantise
     }
@@ -200,13 +229,13 @@ namespace lockstep
         loopLen_ = 0;
         recPos_ = 0;
         haveBackup_ = false;
-        // Bar-quantized modes auto-close after N bars (at the record tempo);
-        // Free/Free-Len close on the gesture.
+        // Grid-locked modes (N Bar / Steps) auto-close after the synced length (at
+        // the record tempo); Free/Free-Len close on the gesture.
         recLenTarget_ = 0;
-        if (syncMode_ >= 2 && transport_.samplesPerBar > 0.0)
+        if (syncMode_ >= 2)
         {
-            const double bars = static_cast<double>(1 << (syncMode_ - 2));
-            recLenTarget_ = static_cast<int>(std::lround(bars * transport_.samplesPerBar));
+            const double len = syncedLengthSamples();
+            if (len > 0.0) recLenTarget_ = static_cast<int>(std::lround(len));
         }
         state_ = State::Recording;
     }
@@ -346,6 +375,14 @@ namespace lockstep
         capacity_ = pool_.volatileCapacity(targetSlot_);
         syncMode_ = (params.size() > kSlotLoopSync)
             ? static_cast<int>(std::lround(params[kSlotLoopSync])) : 0;
+        // Steps-mode length controls: clock division → steps/bar, and step count.
+        const int divIdx = (params.size() > kSlotDiv)
+            ? std::clamp(static_cast<int>(std::lround(params[kSlotDiv])), 0,
+                         static_cast<int>(kDivStepsPerBar.size()) - 1)
+            : kDefaultDivIdx;
+        loopDivStepsPerBar_ = kDivStepsPerBar[static_cast<std::size_t>(divIdx)];
+        loopSteps_ = (params.size() > kSlotSteps)
+            ? std::max(1, static_cast<int>(std::lround(params[kSlotSteps]))) : 16;
 
         // #4: resolve live-thru. Auto monitors only when the looper is the source's
         // sole path out (None/External insert); a Track/Master tap is loop-only
