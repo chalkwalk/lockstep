@@ -33,7 +33,10 @@ namespace lockstep
         explicit LooperMachine(SamplePool& pool) : pool_(pool) {}
 
         enum class Cmd : int { None = 0, RecordCycle, PlayStop, Clear, Undo };
-        enum class State : int { Idle = 0, Recording, Playing, Overdubbing, Stopped };
+        // Armed (appended) — a quantized Record press waits here for the next bar
+        // boundary (#2). It is a monitoring state (live-thru passes per the monitor
+        // mode) with no loop output yet.
+        enum class State : int { Idle = 0, Recording, Playing, Overdubbing, Stopped, Armed };
 
         static constexpr const char* kMachineId = "lockstep.looper.v1";
 
@@ -71,10 +74,13 @@ namespace lockstep
             return Polyphony::V0;
         }
 
-        // Message thread: post a control command (single-slot mailbox).
-        void postCommand(Cmd c) noexcept
+        // Message thread: post a control command (single-slot mailbox). `immediate`
+        // (double-tap, #2) forces the edge now, overriding quantize — encoded as a
+        // high bit so the mailbox stays a single atomic int.
+        void postCommand(Cmd c, bool immediate = false) noexcept
         {
-            pendingCmd_.store(static_cast<int>(c), std::memory_order_release);
+            pendingCmd_.store(static_cast<int>(c) | (immediate ? kImmediateBit : 0),
+                              std::memory_order_release);
         }
         // Message thread: current state, for chrome (advisory; updated each block).
         [[nodiscard]] State state() const noexcept
@@ -103,11 +109,22 @@ namespace lockstep
         static constexpr int kSlotInputSource = 0;
         static constexpr int kSlotTargetBuffer = 1;  // volatile REC slot the loop lives in
         static constexpr int kSlotLoopSync = 2;      // Free | Free Len | 1/2/4 Bar
-        static constexpr int kSlotMonitor = 3;       // Auto | On | Off (live-thru, #4)
+        static constexpr int kSlotMonitor = 3;       // Auto | On | Off (live-thru, #1)
         static constexpr int kNumSlots = 4;
         static constexpr double kLoopMaxSeconds = 12.0;
+        // Mailbox high bit: a posted command with this bit set is "immediate"
+        // (double-tap) — it bypasses quantize. Cmd values are small (0..4).
+        static constexpr int kImmediateBit = 0x100;
 
-        void applyCommand(Cmd c);
+        void applyCommand(Cmd c, bool immediate);
+        // Begin a fresh recording take: (re)size + clear the slot, reset positions,
+        // arm the N-bar auto-close. Shared by the immediate and boundary-fired paths.
+        void startRecording();
+        // Quantize period (samples) for a pending edge in the current sync mode:
+        // N-bar for N Bar, one bar for Free Len, 0 for Free / unknown tempo.
+        [[nodiscard]] double quantPeriodSamples() const;
+        // Apply the scheduled quantized edge (record-start / stop / re-play) and clear it.
+        void firePending();
         // Finalise an in-progress recording: set loopLen_, shrink the pool slot to
         // the loop, stamp sourceBars, and enter Playing (or Idle if empty).
         void closeRecording();
@@ -132,6 +149,9 @@ namespace lockstep
         int recPos_ = 0;
         int recLenTarget_ = 0;    // auto-close length for bar-quantized record (0 = none)
         int syncMode_ = 0;        // resolved loop_sync this block
+        // Pending quantized edge (#2): 0 none / 1 start-record / 2 stop / 3 re-play.
+        // Fired by firePending() when the transport phase crosses a bar-grid boundary.
+        int pendingAction_ = 0;
         double rate_ = 1.0;       // current (slewed) varispeed rate
         int xfadeLen_ = 0;        // loop-wrap crossfade length (samples), C5
         bool haveBackup_ = false;

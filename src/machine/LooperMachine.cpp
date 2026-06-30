@@ -64,6 +64,7 @@ namespace lockstep
             case State::Playing:     return "PLAY";
             case State::Overdubbing: return "OD";
             case State::Stopped:     return "STOP";
+            case State::Armed:       return "ARM";
         }
         return "--";
     }
@@ -84,6 +85,7 @@ namespace lockstep
         playPos_ = 0.0;
         recPos_ = 0;
         recLenTarget_ = 0;
+        pendingAction_ = 0;
         rate_ = 1.0;
         haveBackup_ = false;
         stateMirror_.store(static_cast<int>(state_), std::memory_order_release);
@@ -151,8 +153,59 @@ namespace lockstep
         return 0.0;  // Free — native
     }
 
-    void LooperMachine::applyCommand(Cmd c)
+    double LooperMachine::quantPeriodSamples() const
     {
+        const double spb = transport_.samplesPerBar;
+        if (spb <= 0.0) return 0.0;
+        if (syncMode_ >= 2) return static_cast<double>(1 << (syncMode_ - 2)) * spb;  // N Bar
+        if (syncMode_ == 1) return spb;  // Free Len → quantise the start to the bar grid
+        return 0.0;  // Free — no quantise
+    }
+
+    void LooperMachine::startRecording()
+    {
+        if (target_ == nullptr || capacity_ <= 0)
+        {
+            state_ = State::Idle;
+            return;
+        }
+        target_->setSize(target_->getNumChannels(), capacity_, false, false, true);
+        target_->clear();
+        loopLen_ = 0;
+        recPos_ = 0;
+        haveBackup_ = false;
+        // Bar-quantized modes auto-close after N bars (at the record tempo);
+        // Free/Free-Len close on the gesture.
+        recLenTarget_ = 0;
+        if (syncMode_ >= 2 && transport_.samplesPerBar > 0.0)
+        {
+            const double bars = static_cast<double>(1 << (syncMode_ - 2));
+            recLenTarget_ = static_cast<int>(std::lround(bars * transport_.samplesPerBar));
+        }
+        state_ = State::Recording;
+    }
+
+    void LooperMachine::firePending()
+    {
+        switch (pendingAction_)
+        {
+            case 1: startRecording(); break;                              // Armed → Recording
+            case 2: state_ = State::Stopped; break;                       // quantized stop
+            case 3: playPos_ = 0.0; state_ = State::Playing; break;       // quantized re-play
+            default: break;
+        }
+        pendingAction_ = 0;
+    }
+
+    void LooperMachine::applyCommand(Cmd c, bool immediate)
+    {
+        // Quantize is implied by the sync mode (#2): Free = instant; Free Len /
+        // N Bar = snap the edge to the bar grid. A double-tap (immediate) forces the
+        // edge now, overriding quantize and cancelling any pending action.
+        const double period = quantPeriodSamples();
+        const bool quantStart = !immediate && period > 0.0;                  // can arm even when stopped (fires on transport roll/boundary)
+        const bool quantPlay  = !immediate && period > 0.0 && transport_.running;
+
         switch (c)
         {
             case Cmd::None:
@@ -162,25 +215,13 @@ namespace lockstep
                 {
                     case State::Idle:
                     case State::Stopped:
-                        if (target_ != nullptr && capacity_ > 0)
-                        {
-                            target_->setSize(target_->getNumChannels(), capacity_,
-                                             false, false, true);
-                            target_->clear();
-                            loopLen_ = 0;
-                            recPos_ = 0;
-                            haveBackup_ = false;
-                            // Bar-quantized modes auto-close after N bars (at the
-                            // record tempo); Free/Free-Len close on the gesture.
-                            recLenTarget_ = 0;
-                            if (syncMode_ >= 2 && transport_.samplesPerBar > 0.0)
-                            {
-                                const double bars = static_cast<double>(1 << (syncMode_ - 2));
-                                recLenTarget_ = static_cast<int>(
-                                    std::lround(bars * transport_.samplesPerBar));
-                            }
-                            state_ = State::Recording;
-                        }
+                        if (quantStart) { state_ = State::Armed; pendingAction_ = 1; }
+                        else startRecording();
+                        break;
+                    case State::Armed:
+                        if (immediate) startRecording();                     // double-tap: start now
+                        else { state_ = (loopLen_ > 0) ? State::Stopped : State::Idle;
+                               pendingAction_ = 0; }                          // single tap: cancel arm
                         break;
                     case State::Recording:
                         closeRecording();
@@ -205,10 +246,19 @@ namespace lockstep
                         break;
                     case State::Playing:
                     case State::Overdubbing:
-                        state_ = State::Stopped;
+                        if (quantPlay) pendingAction_ = 2;                    // quantized stop on the bar
+                        else state_ = State::Stopped;
                         break;
                     case State::Stopped:
-                        if (loopLen_ > 0) { playPos_ = 0.0; state_ = State::Playing; }
+                        if (loopLen_ > 0)
+                        {
+                            if (quantPlay) pendingAction_ = 3;               // quantized re-play on the bar
+                            else { playPos_ = 0.0; state_ = State::Playing; }
+                        }
+                        break;
+                    case State::Armed:
+                        state_ = (loopLen_ > 0) ? State::Stopped : State::Idle;
+                        pendingAction_ = 0;                                   // cancel arm
                         break;
                     case State::Idle:
                         break;
@@ -280,7 +330,11 @@ namespace lockstep
         const bool monitorOn = resolveMonitor(monMode, srcKind);
 
         const int raw = pendingCmd_.exchange(0, std::memory_order_acq_rel);
-        if (raw != 0) applyCommand(static_cast<Cmd>(raw));
+        if (raw != 0)
+        {
+            const bool immediate = (raw & kImmediateBit) != 0;   // double-tap override (#2)
+            applyCommand(static_cast<Cmd>(raw & ~kImmediateBit), immediate);
+        }
 
         if (target_ == nullptr)
         {
@@ -308,9 +362,22 @@ namespace lockstep
         // Bar-quantized modes phase-lock the read position to the transport grid.
         const bool phaseLock = (syncMode_ >= 2) && transport_.running && tOut > 0.0;
 
+        // #2: quantize period for a pending edge (record-start / stop / re-play).
+        const double quantPeriod = quantPeriodSamples();
+
         for (int i = 0; i < numSamples; ++i)
         {
             rate_ += (rateTarget - rate_) * slew;
+
+            // #2: a pending quantized edge fires when the transport phase crosses a
+            // bar-grid boundary within this block (sample-accurate). N-Bar modes use
+            // an N-bar period so multiple loopers land on the same grid line.
+            if (pendingAction_ != 0 && transport_.running && quantPeriod > 0.0)
+            {
+                const double phaseI = transport_.transportPhaseSamples + static_cast<double>(i);
+                if (std::floor(phaseI / quantPeriod) != std::floor((phaseI - 1.0) / quantPeriod))
+                    firePending();
+            }
 
             double pos = playPos_;
             if (phaseLock && loopLen_ > 0
@@ -353,6 +420,7 @@ namespace lockstep
                         }
                         break;
                     case State::Idle:
+                    case State::Armed:
                     case State::Stopped:
                         break;  // no loop output (silent loop; live-thru still governed below)
                 }

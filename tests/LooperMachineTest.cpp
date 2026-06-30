@@ -147,8 +147,8 @@ namespace lockstep
 
         // Helper: run a block with explicit params (loop_sync etc.).
         auto runP = [](LooperMachine& m, int len, float inVal, Cmd cmd,
-                       const ParamFrame& pr, int impulseAt = -1) {
-            if (cmd != Cmd::None) m.postCommand(cmd);
+                       const ParamFrame& pr, int impulseAt = -1, bool immediate = false) {
+            if (cmd != Cmd::None) m.postCommand(cmd, immediate);
             juce::AudioBuffer<float> b(2, len);
             for (int ch = 0; ch < 2; ++ch)
                 for (int i = 0; i < len; ++i)
@@ -178,6 +178,42 @@ namespace lockstep
                   "1 Bar: auto-closed loop length == 1 bar (1024)");
         }
 
+        // #2: a quantized Record press mid-bar ARMS — it does not start recording
+        // until the transport phase crosses the next bar-grid boundary.
+        {
+            SamplePool p; p.addVolatile();
+            p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LooperMachine lp(p); lp.prepare(kSr, n);
+            TransportInfo tr; tr.samplesPerBar = 1024.0; tr.running = true;
+            tr.transportPhaseSamples = 200.0;  // mid-bar, away from a boundary
+            lp.setTransport(tr);
+            ParamFrame fr{ 1.0f, 0.0f, 2.0f };  // 1 Bar (quantized)
+
+            lp.postCommand(Cmd::RecordCycle);          // single tap → arm
+            runP(lp, 256, 0.5f, Cmd::None, fr);        // phase 200..455: no boundary
+            CHECK(lp.state() == State::Armed, "#2: quantized Record arms (waits for the bar)");
+
+            tr.transportPhaseSamples = 900.0;          // next block straddles 1024
+            lp.setTransport(tr);
+            runP(lp, 256, 0.5f, Cmd::None, fr);        // phase 900..1155 crosses 1024
+            CHECK(lp.state() == State::Recording, "#2: armed take starts at the bar boundary");
+        }
+
+        // #2: a double-tap (immediate) Record bypasses quantize and starts now, even
+        // mid-bar in a synced mode.
+        {
+            SamplePool p; p.addVolatile();
+            p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LooperMachine lp(p); lp.prepare(kSr, n);
+            TransportInfo tr; tr.samplesPerBar = 1024.0; tr.running = true;
+            tr.transportPhaseSamples = 200.0; lp.setTransport(tr);
+            ParamFrame fr{ 1.0f, 0.0f, 2.0f };  // 1 Bar
+
+            lp.postCommand(Cmd::RecordCycle, /*immediate*/ true);
+            runP(lp, 256, 0.5f, Cmd::None, fr);
+            CHECK(lp.state() == State::Recording, "#2: double-tap Record starts immediately");
+        }
+
         // C4: Free-Len varispeed — halving the project tempo halves the loop's
         // playback rate, so an impulse loop wraps ~half as often.
         auto countImpulseWraps = [&runP](double projectSpb) {
@@ -190,8 +226,10 @@ namespace lockstep
             lp.setTransport(tr);
 
             ParamFrame fr{ 1.0f, 0.0f, 1.0f };  // Free Len
-            // Record a 1024-sample loop with a single impulse at sample 0.
-            runP(lp, 512, 0.0f, Cmd::RecordCycle, fr, /*impulseAt*/ 0);
+            // Record a 1024-sample loop with a single impulse at sample 0. Free Len
+            // would normally arm to the bar grid; record immediately here (transport
+            // is stopped for the free-run varispeed measurement that follows).
+            runP(lp, 512, 0.0f, Cmd::RecordCycle, fr, /*impulseAt*/ 0, /*immediate*/ true);
             runP(lp, 512, 0.0f, Cmd::None, fr);
             runP(lp, 1, 0.0f, Cmd::RecordCycle, fr);  // close → Playing (loopLen 1024)
 
