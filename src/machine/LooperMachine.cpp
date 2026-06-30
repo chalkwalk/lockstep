@@ -50,6 +50,23 @@ namespace lockstep
                 s.valueLabels = std::span<const char* const>(kMonitorLabels.data(),
                                                              kMonitorLabels.size());
                 return s;
+            case kSlotDecay:
+                s.id = "loop_decay";
+                s.label = "Decay";
+                s.minValue = 0.0f;
+                s.maxValue = 1.0f;
+                s.defaultValue = 0.0f;  // no decay (loop holds indefinitely)
+                return s;
+            case kSlotDecayMode:
+                s.id = "loop_decay_mode";
+                s.label = "Decay Md";
+                s.minValue = 0.0f;
+                s.maxValue = static_cast<float>(kDecayModeLabels.size() - 1);
+                s.defaultValue = 0.0f;  // Overdub
+                s.isStepped = true;
+                s.valueLabels = std::span<const char* const>(kDecayModeLabels.data(),
+                                                             kDecayModeLabels.size());
+                return s;
             default:
                 return {};
         }
@@ -83,6 +100,7 @@ namespace lockstep
         state_ = State::Idle;
         loopLen_ = 0;
         playPos_ = 0.0;
+        lastPos_ = 0.0;
         recPos_ = 0;
         recLenTarget_ = 0;
         pendingAction_ = 0;
@@ -162,6 +180,14 @@ namespace lockstep
         return 0.0;  // Free — no quantise
     }
 
+    void LooperMachine::scaleLoop(float g)
+    {
+        if (target_ == nullptr || loopLen_ <= 0) return;
+        const int tch = std::min(2, target_->getNumChannels());
+        for (int ch = 0; ch < tch; ++ch)
+            juce::FloatVectorOperations::multiply(target_->getWritePointer(ch), g, loopLen_);
+    }
+
     void LooperMachine::startRecording()
     {
         if (target_ == nullptr || capacity_ <= 0)
@@ -191,7 +217,7 @@ namespace lockstep
         {
             case 1: startRecording(); break;                              // Armed → Recording
             case 2: state_ = State::Stopped; break;                       // quantized stop
-            case 3: playPos_ = 0.0; state_ = State::Playing; break;       // quantized re-play
+            case 3: playPos_ = 0.0; lastPos_ = 0.0; state_ = State::Playing; break;  // quantized re-play
             default: break;
         }
         pendingAction_ = 0;
@@ -253,7 +279,7 @@ namespace lockstep
                         if (loopLen_ > 0)
                         {
                             if (quantPlay) pendingAction_ = 3;               // quantized re-play on the bar
-                            else { playPos_ = 0.0; state_ = State::Playing; }
+                            else { playPos_ = 0.0; lastPos_ = 0.0; state_ = State::Playing; }
                         }
                         break;
                     case State::Armed:
@@ -291,6 +317,7 @@ namespace lockstep
     {
         loopLen_ = std::max(0, recPos_);
         playPos_ = 0.0;
+        lastPos_ = 0.0;
         if (loopLen_ > 0 && target_ != nullptr)
         {
             target_->setSize(target_->getNumChannels(), loopLen_, true, false, true);
@@ -328,6 +355,15 @@ namespace lockstep
         const InputSourceKind srcKind = (params.size() > kSlotInputSource)
             ? decodeInputSource(params[kSlotInputSource]).kind : InputSourceKind::None;
         const bool monitorOn = resolveMonitor(monMode, srcKind);
+
+        // #4: decay. `decay` 0 = hold forever … 1 = full fade. Overdub mode applies
+        // it only at the overdub write (a feedback knob); Always mode fades the whole
+        // loop once per iteration (tape echo). decayGain is the per-application gain.
+        const float decayAmt = (params.size() > kSlotDecay)
+            ? juce::jlimit(0.0f, 1.0f, params[kSlotDecay]) : 0.0f;
+        const float decayGain = 1.0f - decayAmt;
+        const int decayMode = (params.size() > kSlotDecayMode)
+            ? static_cast<int>(std::lround(params[kSlotDecayMode])) : kDecayOverdub;
 
         const int raw = pendingCmd_.exchange(0, std::memory_order_acq_rel);
         if (raw != 0)
@@ -415,7 +451,12 @@ namespace lockstep
                             int wi = static_cast<int>(std::llround(pos)) % loopLen_;
                             if (wi < 0) wi += loopLen_;
                             const float oldLoop = target_->getSample(ch, wi);
-                            target_->setSample(ch, wi, oldLoop + in);
+                            // #4 Overdub decay fades the old layer at the write (the
+                            // classic feedback knob); Always decay leaves the write
+                            // alone and fades the whole loop per iteration (below).
+                            const float kept = (decayMode == kDecayOverdub)
+                                ? oldLoop * decayGain : oldLoop;
+                            target_->setSample(ch, wi, kept + in);
                             loopOut = oldLoop;
                         }
                         break;
@@ -431,6 +472,14 @@ namespace lockstep
                 const float live = monitorOn ? in : 0.0f;
                 buffer.setSample(ch, i, loopOut + live);
             }
+
+            // #4 Always-decay: the read position wrapping (pos drops below the last)
+            // marks one completed iteration — fade the whole stored loop by decayGain.
+            if (decayMode == kDecayAlways && decayAmt > 0.0f && loopLen_ > 0
+                && (state_ == State::Playing || state_ == State::Overdubbing)
+                && pos < lastPos_)
+                scaleLoop(decayGain);
+            lastPos_ = pos;
 
             if (state_ == State::Recording)
             {

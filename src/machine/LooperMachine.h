@@ -110,8 +110,12 @@ namespace lockstep
         static constexpr int kSlotTargetBuffer = 1;  // volatile REC slot the loop lives in
         static constexpr int kSlotLoopSync = 2;      // Free | Free Len | 1/2/4 Bar
         static constexpr int kSlotMonitor = 3;       // Auto | On | Off (live-thru, #1)
-        static constexpr int kNumSlots = 4;
+        static constexpr int kSlotDecay = 4;         // 0 = no decay … 1 = full (#4)
+        static constexpr int kSlotDecayMode = 5;     // Overdub | Always (#4)
+        static constexpr int kNumSlots = 6;
         static constexpr double kLoopMaxSeconds = 12.0;
+        static constexpr int kDecayOverdub = 0;      // decay only where you overdub
+        static constexpr int kDecayAlways  = 1;      // whole loop fades every iteration
         // Mailbox high bit: a posted command with this bit set is "immediate"
         // (double-tap) — it bypasses quantize. Cmd values are small (0..4).
         static constexpr int kImmediateBit = 0x100;
@@ -123,6 +127,8 @@ namespace lockstep
         // Quantize period (samples) for a pending edge in the current sync mode:
         // N-bar for N Bar, one bar for Free Len, 0 for Free / unknown tempo.
         [[nodiscard]] double quantPeriodSamples() const;
+        // #4 Always-decay: scale the whole stored loop by `g` once per iteration.
+        void scaleLoop(float g);
         // Apply the scheduled quantized edge (record-start / stop / re-play) and clear it.
         void firePending();
         // Finalise an in-progress recording: set loopLen_, shrink the pool slot to
@@ -146,6 +152,7 @@ namespace lockstep
         State state_ = State::Idle;
         int loopLen_ = 0;
         double playPos_ = 0.0;    // fractional read position (varispeed, C4)
+        double lastPos_ = 0.0;    // previous read position, for Always-decay wrap detect (#4)
         int recPos_ = 0;
         int recLenTarget_ = 0;    // auto-close length for bar-quantized record (0 = none)
         int syncMode_ = 0;        // resolved loop_sync this block
@@ -178,6 +185,12 @@ namespace lockstep
         // Track/Master tap) | On (always pass live input through) | Off (loop-only).
         static constexpr std::array<const char* const, 3> kMonitorLabels = {
             "Auto", "On", "Off"
+        };
+
+        // decay_mode (#4): Overdub fades the old layer only where you overdub
+        // (feedback knob); Always fades the whole loop once per iteration (tape echo).
+        static constexpr std::array<const char* const, 2> kDecayModeLabels = {
+            "Overdub", "Always"
         };
     };
 }

@@ -360,5 +360,47 @@ namespace lockstep
             CHECK(LooperMachine::resolveMonitor(1, K::Track),    "On overrides Auto (Track)");
             CHECK(!LooperMachine::resolveMonitor(2, K::None),    "Off overrides Auto (None)");
         }
+
+        // #4 Overdub decay: overdubbing a full loop with decay=1 (full fade) and
+        // silent input erases the loop (kept = old*0, written = 0 + 0).
+        {
+            SamplePool p; p.addVolatile();
+            p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LooperMachine lp(p); lp.prepare(kSr, 512);
+
+            // input=Ext, target=0, sync=Free, monitor=Off, decay, decay_mode.
+            ParamFrame rec{ 1.0f, 0.0f, 0.0f, 2.0f, 0.0f, 0.0f };  // decay 0 while recording
+            runP(lp, 512, 0.5f, Cmd::RecordCycle, rec);            // record 512 of 0.5
+            runP(lp, 512, 0.0f, Cmd::RecordCycle, rec);           // close → Playing (loop 0.5)
+            CHECK(lp.state() == State::Playing, "#4: decay test loop closed");
+
+            ParamFrame od{ 1.0f, 0.0f, 0.0f, 2.0f, 1.0f, 0.0f };  // decay=1 full, Overdub mode
+            runP(lp, 512, 0.0f, Cmd::RecordCycle, od);            // Playing→Overdubbing: erases
+            auto out = runP(lp, 512, 0.0f, Cmd::RecordCycle, od); // Overdubbing→Playing
+            CHECK(out.getMagnitude(0, 512) < 1e-3f,
+                  "#4: Overdub decay=1 erases the loop (got "
+                      + juce::String(out.getMagnitude(0, 512)) + ")");
+        }
+
+        // #4 Always decay: the whole loop fades each iteration even without overdub.
+        // A 512-sample loop in a 512-sample block wraps once per block, so decay=0.5
+        // halves the stored loop every block.
+        {
+            SamplePool p; p.addVolatile();
+            p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LooperMachine lp(p); lp.prepare(kSr, 512);
+
+            ParamFrame rec{ 1.0f, 0.0f, 0.0f, 2.0f, 0.0f, 1.0f };  // Always mode, decay 0 to record
+            runP(lp, 512, 0.5f, Cmd::RecordCycle, rec);
+            runP(lp, 512, 0.0f, Cmd::RecordCycle, rec);            // close → Playing (loop 0.5)
+
+            ParamFrame al{ 1.0f, 0.0f, 0.0f, 2.0f, 0.5f, 1.0f };   // decay 0.5, Always
+            const float m1 = runP(lp, 512, 0.0f, Cmd::None, al).getMagnitude(0, 512);
+            runP(lp, 512, 0.0f, Cmd::None, al);
+            const float m3 = runP(lp, 512, 0.0f, Cmd::None, al).getMagnitude(0, 512);
+            CHECK(m1 > 0.3f && m3 < m1 * 0.5f,
+                  "#4: Always decay fades the loop each iteration (m1=" + juce::String(m1)
+                      + " m3=" + juce::String(m3) + ")");
+        }
     }
 }
