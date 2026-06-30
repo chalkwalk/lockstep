@@ -507,6 +507,14 @@ namespace lockstep
             CHECK(m.functionRow[6].primary == "REC",   "looper Idle: U = REC");
             CHECK(m.functionRow[7].primary == "PLAY",  "looper Idle: I = PLAY");
             CHECK(m.functionRow[8].primary == "ERASE", "looper Track-scope: O = ERASE");
+            // #3: the verb cells carry distinct looper CellState tokens (not the
+            // generic clipboard colours), so they read as their own family.
+            CHECK(m.functionRow[6].base == CellState::LooperRecReady,
+                  "looper Idle: U cell = LooperRecReady token");
+            CHECK(m.functionRow[7].base == CellState::LooperPlayReady,
+                  "looper Idle: I cell = LooperPlayReady token");
+            CHECK(m.functionRow[8].base == CellState::LooperErase,
+                  "looper: O cell = LooperErase token");
         }
 
         // Without Track scope held, the relabel does not apply: O is the bare CLEAR

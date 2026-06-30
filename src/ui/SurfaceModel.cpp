@@ -71,6 +71,13 @@ namespace lockstep
             case CellState::KeyModUnavail:      return 0xFF262C30u;  // near-off: unavailable
             case CellState::KeySymOn:           return 0xFF7050C8u;  // violet: symmetric selected
             case CellState::KeySymOff:          return 0xFF332C50u;  // dim violet: symmetric available
+            case CellState::LooperRecReady:     return 0xFF5A2424u;  // dim red — ready to record
+            case CellState::LooperRecArmed:     return 0xFFE0A030u;  // bright amber — armed/waiting
+            case CellState::LooperRecActive:    return 0xFFE03030u;  // bright red — recording now
+            case CellState::LooperOverdub:      return kVerbODActive;  // amber — overdubbing
+            case CellState::LooperPlayReady:    return 0xFF246B3Eu;  // dim green — ready to play
+            case CellState::LooperPlaying:      return 0xFF40C060u;  // bright green — playing
+            case CellState::LooperErase:        return 0xFF6B2A2Au;  // muted red — erase
             case CellState::ChromaticWhite:     return kScopeTrack;
             case CellState::ChromaticBlack:     return kScopeTrack;
             case CellState::LevelsCell:         return 0xFF204060u;
@@ -2266,18 +2273,31 @@ namespace lockstep
             for (auto& c : model.step)
                 deriveSlots(c);
 
-            // #1: re-apply the Looper verb relabel AFTER deriveSlots (which would
+            // #1/#3: re-apply the Looper verb relabel AFTER deriveSlots (which would
             // otherwise restore the grammar table's COPY/PASTE/CLEAR). With Track
             // scope held on a focused Looper, U/I/O (functionRow 6/7/8) are loop
-            // controls, state-aware so each shows what it does next. The glow (c.base
-            // ModeActive) was set in the builder pre-pass and survives deriveSlots.
+            // controls, state-aware so each shows what it does next, AND carry a
+            // distinct looper CellState/colour so they read as their own family.
+            // (Looper state: 0 Idle, 1 Rec, 2 Play, 3 Overdub, 4 Stop, 5 Armed.)
             if (ui.trackHeld && activeTrack >= 0 && proc.isLooperTrack(activeTrack))
             {
-                const int st = proc.looperState(activeTrack);  // 0 Idle..4 Stop
+                const int st = proc.looperState(activeTrack);
                 model.functionRow[6].primary =
-                    (st == 1) ? "END" : (st == 2 || st == 3) ? "DUB" : "REC";
+                    (st == 5) ? "ARM" : (st == 1) ? "END"
+                    : (st == 2 || st == 3) ? "DUB" : "REC";
                 model.functionRow[7].primary = (st == 2 || st == 3) ? "STOP" : "PLAY";
                 model.functionRow[8].primary = "ERASE";
+
+                // #3: distinct per-verb / per-state colour (screen + controller).
+                const CellState recTok = (st == 5) ? CellState::LooperRecArmed
+                    : (st == 1) ? CellState::LooperRecActive
+                    : (st == 3) ? CellState::LooperOverdub
+                    : CellState::LooperRecReady;
+                const CellState playTok = (st == 2 || st == 3) ? CellState::LooperPlaying
+                    : CellState::LooperPlayReady;
+                const std::array<CellState, 3> toks{ recTok, playTok, CellState::LooperErase };
+
+                int ti = 0;
                 for (int k : { 6, 7, 8 })
                 {
                     auto& c = model.functionRow[static_cast<std::size_t>(k)];
@@ -2285,6 +2305,12 @@ namespace lockstep
                     c.tapLabel = juce::String();
                     c.holdLabel = juce::String();
                     c.doubleTapLabel = juce::String();
+                    if (c.base != CellState::Pressed)   // keep physical-press feedback
+                    {
+                        c.base = toks[static_cast<std::size_t>(ti)];
+                        c.baseColour = compatColour(c.base);
+                    }
+                    ++ti;
                 }
             }
         }

@@ -133,6 +133,18 @@ namespace lockstep
         KeyModUnavail = 173,  // not set and would not apply (grey, unmarked)
         KeySymOn = 174,  // a symmetric scale, selected
         KeySymOff = 175,  // a symmetric scale, available
+
+        // Looper verb cells (Track+Record/Play/Clear on a focused looper, #3). Each
+        // is a distinct hue so the looper controls read as their own family on
+        // screen and on a controller (PRINCIPLES §19 dual-target), instead of riding
+        // the generic scope glow. State-keyed by LockstepProcessor::looperState().
+        LooperRecReady = 180,   // REC — idle/stopped, ready to record (dim red)
+        LooperRecArmed = 181,   // ARM — quantized record waiting for the bar (bright amber)
+        LooperRecActive = 182,  // END — recording now (bright red)
+        LooperOverdub = 183,    // DUB — overdubbing (amber)
+        LooperPlayReady = 184,  // PLAY — stopped/idle, ready to play (dim green)
+        LooperPlaying = 185,    // STOP — playing/overdubbing (bright green)
+        LooperErase = 186,      // ERASE — clear the loop (muted red)
     };
 
     // Pure mapping for the §34.4 length-edit re-skin: classify an absolute step
