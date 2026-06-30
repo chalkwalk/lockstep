@@ -145,6 +145,12 @@ namespace lockstep
         LooperPlayReady = 184,  // PLAY — stopped/idle, ready to play (dim green)
         LooperPlaying = 185,    // STOP — playing/overdubbing (bright green)
         LooperErase = 186,      // ERASE — clear the loop (muted red)
+
+        // Loop-phase view on the step grid (#26): a focused looper repurposes the
+        // step grid as a quantize-aware position bar (cell count = beats/steps).
+        LooperPhaseSeg = 187,   // a loop segment (not the playhead) — dim teal
+        LooperPhaseHead = 188,  // the segment the playhead is in — bright cyan
+        LooperPhaseStart = 189, // the loop-start / downbeat anchor segment
     };
 
     // Pure mapping for the §34.4 length-edit re-skin: classify an absolute step

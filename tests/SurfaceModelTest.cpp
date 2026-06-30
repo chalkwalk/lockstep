@@ -525,6 +525,13 @@ namespace lockstep
                                              GridDisplayMode::Ortholinear);
             CHECK(m.functionRow[8].primary != "ERASE",
                   "looper relabel requires Track scope held");
+            // #26: a focused looper repurposes the step grid as a loop-phase bar.
+            // No audio has run, so phase is idle (-1) and the grid is 16 segments:
+            // cell 0 = loop-start anchor, the rest = plain segments.
+            CHECK(m.step[0].base == CellState::LooperPhaseStart,
+                  "#26: looper step grid cell 0 = loop-start anchor");
+            CHECK(m.step[5].base == CellState::LooperPhaseSeg,
+                  "#26: looper step grid shows loop-phase segments");
         }
     }
 

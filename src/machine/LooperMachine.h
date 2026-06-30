@@ -89,6 +89,19 @@ namespace lockstep
         }
         [[nodiscard]] static const char* stateLabel(State s) noexcept;
 
+        // Message thread (chrome): current playback phase 0..1, or -1 when not
+        // playing. Drives the loop-phase view on the step grid (#26).
+        [[nodiscard]] float phase01() const noexcept
+        {
+            return phaseMirror_.load(std::memory_order_acquire);
+        }
+        // Message thread (chrome): number of grid cells to show for the loop, quantize
+        // aware (Steps → step count; N Bar → bars×4 beats; Free → 16 continuous), 1..16.
+        [[nodiscard]] int gridCells() const noexcept
+        {
+            return gridMirror_.load(std::memory_order_acquire);
+        }
+
         // Resolve whether live input passes through to the output this block, given
         // the monitor mode and the input source (Auto = the looper monitors only
         // when it is the source's sole path out — None/External insert use — and
@@ -179,6 +192,8 @@ namespace lockstep
 
         std::atomic<int> pendingCmd_{ 0 };
         std::atomic<int> stateMirror_{ 0 };
+        std::atomic<float> phaseMirror_{ -1.0f };  // playback phase 0..1 (-1 = not playing), #26
+        std::atomic<int> gridMirror_{ 16 };        // loop-phase grid cell count, #26
 
         TransportInfo transport_{};  // last block transport (C2)
 

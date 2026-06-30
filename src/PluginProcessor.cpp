@@ -5364,6 +5364,22 @@ namespace lockstep
         return -1;
     }
 
+    float LockstepProcessor::looperPhase(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1.0f;
+        if (auto* lm = dynamic_cast<LooperMachine*>(machines_[static_cast<std::size_t>(track)].get()))
+            return lm->phase01();
+        return -1.0f;
+    }
+
+    int LockstepProcessor::looperGridCells(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return 16;
+        if (auto* lm = dynamic_cast<LooperMachine*>(machines_[static_cast<std::size_t>(track)].get()))
+            return lm->gridCells();
+        return 16;
+    }
+
     bool LockstepProcessor::isStaticTrack(int track) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;

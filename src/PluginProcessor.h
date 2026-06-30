@@ -202,6 +202,10 @@ namespace lockstep
         [[nodiscard]] bool isLooperTrack(int track) const;
         void sendLooperCommand(int track, int cmd, bool immediate = false);
         [[nodiscard]] int looperState(int track) const;
+        // Loop-phase chrome for the step-grid view (#26): phase 0..1 (-1 = not
+        // playing) and the quantize-aware grid cell count (1..16).
+        [[nodiscard]] float looperPhase(int track) const;
+        [[nodiscard]] int looperGridCells(int track) const;
         // True when the track's machine is a StaticMachine (disk-stream sampler).
         // setStaticFile assigns its streamed source path (held per-Kit, streamed
         // from disk, never decoded into the SamplePool — DESIGN §29.2); it quiesces

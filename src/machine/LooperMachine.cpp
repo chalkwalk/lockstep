@@ -537,5 +537,21 @@ namespace lockstep
             buffer.clear(ch, 0, numSamples);
 
         stateMirror_.store(static_cast<int>(state_), std::memory_order_release);
+
+        // #26: publish loop-phase chrome for the step-grid view. Phase 0..1 while
+        // playing (-1 otherwise); grid cell count is quantize-aware (Steps → step
+        // count, N Bar → bars×4 beats, Free/Free-Len → 16 continuous segments).
+        const bool playing = (state_ == State::Playing || state_ == State::Overdubbing)
+                             && loopLen_ > 0;
+        phaseMirror_.store(playing
+                               ? static_cast<float>(playPos_ / static_cast<double>(loopLen_))
+                               : -1.0f,
+                           std::memory_order_release);
+        int gc = 16;
+        if (syncMode_ == kSyncSteps)
+            gc = std::clamp(loopSteps_, 1, 16);
+        else if (syncMode_ >= 2)
+            gc = std::clamp((1 << (syncMode_ - 2)) * 4, 1, 16);  // bars × 4 beats
+        gridMirror_.store(gc, std::memory_order_release);
     }
 }
