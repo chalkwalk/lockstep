@@ -1864,38 +1864,6 @@ namespace lockstep
                     c.level = static_cast<float>(cpos);
                 }
             }
-            else if (activeTrack >= 0 && activeTrack < static_cast<int>(kNumTracks)
-                     && proc.isLooperTrack(activeTrack))
-            {
-                // #26: a focused looper has no trig steps, so repurpose the grid as a
-                // quantize-aware loop position bar — `cells` segments (Steps → step
-                // count, N Bar → bars×4 beats, Free → 16), the playhead on the current
-                // segment, cell 0 marking the loop-start / downbeat anchor.
-                const float phase = proc.looperPhase(activeTrack);  // 0..1, or -1 idle
-                const int cells = std::clamp(proc.looperGridCells(activeTrack), 1, 16);
-                const int headCell = (phase >= 0.0f)
-                    ? std::min(cells - 1, static_cast<int>(phase * static_cast<float>(cells)))
-                    : -1;
-                for (int i = 0; i < 16; ++i)
-                {
-                    SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
-                    c.button = ControllerButton::Step;
-                    c.index = i;
-                    c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
-                    c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
-                    if (i >= cells)
-                    {
-                        c.base = CellState::StepOutOfRange;
-                        c.baseColour = kStepOutRange;
-                        continue;
-                    }
-                    c.base = (i == headCell) ? CellState::LooperPhaseHead
-                           : (i == 0)        ? CellState::LooperPhaseStart
-                                             : CellState::LooperPhaseSeg;
-                    c.baseColour = compatColour(c.base);
-                }
-                model.playheadPhase = phase;  // whole-loop phase drives the pulse
-            }
             else
             {
 

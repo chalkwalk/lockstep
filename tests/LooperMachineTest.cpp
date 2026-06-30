@@ -199,6 +199,44 @@ namespace lockstep
                   "Sync: loop length follows the track grid (8 steps = 512)");
         }
 
+        // S2: loop-position chrome for the mini-seq. A playing loop publishes a phase
+        // 0..1 (continuous playhead); idle/stopped publishes -1.
+        {
+            SamplePool p; const int idx = p.addVolatile(); (void) idx;
+            p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LooperMachine lp(p); lp.prepare(kSr, n);
+            TransportInfo tr; tr.samplesPerBar = 1024.0; tr.barPpq = 4.0; tr.running = false;
+            lp.setTransport(tr);
+            lp.setLoopGrid(16, 0.25);
+            ParamFrame fr{ 1.0f, 0.0f, 0.0f };  // Free (no quantize) for a stopped-transport take
+            CHECK(lp.phase01() < 0.0f, "S2: idle looper publishes phase -1");
+            runP(lp, 256, 0.5f, Cmd::RecordCycle, fr);  // record
+            runP(lp, 256, 0.5f, Cmd::RecordCycle, fr);  // close → Playing
+            runP(lp, 128, 0.0f, Cmd::None, fr);         // advance playback
+            const float ph = lp.phase01();
+            CHECK(ph >= 0.0f && ph <= 1.0f, "S2: playing looper publishes phase in [0,1]");
+        }
+
+        // S2: pendingEdge is true while a quantized record is Armed (drives the
+        // mini-seq landing pip), and false once it has fired.
+        {
+            SamplePool p; p.addVolatile();
+            p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LooperMachine lp(p); lp.prepare(kSr, n);
+            TransportInfo tr; tr.samplesPerBar = 1024.0; tr.barPpq = 4.0; tr.running = true;
+            tr.transportPhaseSamples = 200.0; lp.setTransport(tr);
+            lp.setLoopGrid(16, 0.25);
+            ParamFrame fr{ 1.0f, 0.0f, 2.0f };  // Sync (quantized)
+            CHECK(!lp.pendingEdge(), "S2: no pending edge before arming");
+            lp.postCommand(Cmd::RecordCycle);
+            runP(lp, 256, 0.5f, Cmd::None, fr);         // arms, no boundary
+            CHECK(lp.state() == State::Armed && lp.pendingEdge(),
+                  "S2: armed record reports a pending edge");
+            tr.transportPhaseSamples = 900.0; lp.setTransport(tr);
+            runP(lp, 256, 0.5f, Cmd::None, fr);         // crosses 1024 → fires
+            CHECK(!lp.pendingEdge(), "S2: pending edge clears once the take starts");
+        }
+
         // #2: a quantized Record press mid-bar ARMS — it does not start recording
         // until the transport phase crosses the next bar-grid boundary.
         {

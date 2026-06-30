@@ -512,18 +512,16 @@ namespace lockstep
 
         stateMirror_.store(static_cast<int>(state_), std::memory_order_release);
 
-        // #26: publish loop-phase chrome for the step-grid view. Phase 0..1 while
-        // playing (-1 otherwise); grid cell count is quantize-aware (Steps → step
-        // count, N Bar → bars×4 beats, Free/Free-Len → 16 continuous segments).
+        // S2: publish loop-position chrome for the mini-seq. Phase 0..1 while playing
+        // (-1 otherwise) drives the continuous playhead; pendingEdge drives the
+        // landing pip at the loop-start anchor (Armed or a scheduled stop/re-play).
         const bool playing = (state_ == State::Playing || state_ == State::Overdubbing)
                              && loopLen_ > 0;
         phaseMirror_.store(playing
                                ? static_cast<float>(playPos_ / static_cast<double>(loopLen_))
                                : -1.0f,
                            std::memory_order_release);
-        int gc = 16;
-        if (syncMode_ >= kSyncGrid)
-            gc = std::clamp(loopGridSteps_, 1, 16);  // track length, capped to the grid
-        gridMirror_.store(gc, std::memory_order_release);
+        pendingMirror_.store(state_ == State::Armed || pendingAction_ != 0,
+                             std::memory_order_release);
     }
 }

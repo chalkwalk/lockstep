@@ -5386,12 +5386,12 @@ namespace lockstep
         return -1.0f;
     }
 
-    int LockstepProcessor::looperGridCells(int track) const
+    bool LockstepProcessor::looperPending(int track) const
     {
-        if (track < 0 || track >= static_cast<int>(kNumTracks)) return 16;
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
         if (auto* lm = dynamic_cast<LooperMachine*>(machines_[static_cast<std::size_t>(track)].get()))
-            return lm->gridCells();
-        return 16;
+            return lm->pendingEdge();
+        return false;
     }
 
     bool LockstepProcessor::isStaticTrack(int track) const

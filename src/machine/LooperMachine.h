@@ -99,16 +99,17 @@ namespace lockstep
         [[nodiscard]] static const char* stateLabel(State s) noexcept;
 
         // Message thread (chrome): current playback phase 0..1, or -1 when not
-        // playing. Drives the loop-phase view on the step grid (#26).
+        // playing. Drives the continuous loop-position playhead on the mini-seq (S2).
         [[nodiscard]] float phase01() const noexcept
         {
             return phaseMirror_.load(std::memory_order_acquire);
         }
-        // Message thread (chrome): number of grid cells to show for the loop, quantize
-        // aware (Steps → step count; N Bar → bars×4 beats; Free → 16 continuous), 1..16.
-        [[nodiscard]] int gridCells() const noexcept
+        // Message thread (chrome): true when a quantized edge is pending (Armed, or a
+        // scheduled stop/re-play waiting for the bar grid) — drives the mini-seq's
+        // landing pip at the loop-start anchor (S2).
+        [[nodiscard]] bool pendingEdge() const noexcept
         {
-            return gridMirror_.load(std::memory_order_acquire);
+            return pendingMirror_.load(std::memory_order_acquire);
         }
 
         // Resolve whether live input passes through to the output this block, given
@@ -201,8 +202,8 @@ namespace lockstep
 
         std::atomic<int> pendingCmd_{ 0 };
         std::atomic<int> stateMirror_{ 0 };
-        std::atomic<float> phaseMirror_{ -1.0f };  // playback phase 0..1 (-1 = not playing), #26
-        std::atomic<int> gridMirror_{ 16 };        // loop-phase grid cell count, #26
+        std::atomic<float> phaseMirror_{ -1.0f };  // playback phase 0..1 (-1 = not playing), S2
+        std::atomic<bool> pendingMirror_{ false }; // a quantized edge is pending (S2)
 
         TransportInfo transport_{};  // last block transport (C2)
 

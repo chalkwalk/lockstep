@@ -2042,6 +2042,38 @@ namespace lockstep
                                               static_cast<float>(navArea.getHeight())),
                        1.0f);
         }
+
+        // S2: loop-position overlay. A focused looper turns the mini-seq into its
+        // loop display: a *continuous* playhead (sub-cell, smooth) swept by the
+        // machine's own phase 0..1 across the loop (= the track grid in Sync), plus
+        // a landing pip at the loop-start anchor while a quantized edge is pending
+        // (Armed / scheduled stop / re-play). The cell playhead above stays as a
+        // coarse marker; this line is the precise position.
+        if (processor_.isLooperTrack(uiState_.activeTrack))
+        {
+            const float phase = processor_.looperPhase(uiState_.activeTrack);  // 0..1 or -1
+            if (phase >= 0.0f)
+            {
+                const float hx = navArea.getX()
+                    + juce::jlimit(0.0f, 1.0f, phase) * static_cast<float>(trackLen) * cellW;
+                g.setColour(juce::Colour(0xFF40D0D0u));  // bright cyan — loop playhead
+                g.fillRect(juce::Rectangle<float>(hx - 0.75f,
+                                                  static_cast<float>(navArea.getY()),
+                                                  1.5f,
+                                                  static_cast<float>(navArea.getHeight())));
+            }
+            if (processor_.looperPending(uiState_.activeTrack))
+            {
+                // Landing pip: an amber triangle at the loop-start (cell 0), where the
+                // armed/pending edge will fire on the next grid boundary.
+                const float px = navArea.getX();
+                const float py = static_cast<float>(navArea.getY());
+                juce::Path pip;
+                pip.addTriangle(px, py, px + 7.0f, py, px, py + 7.0f);
+                g.setColour(juce::Colour(kStepPlayhead));  // amber
+                g.fillPath(pip);
+            }
+        }
     }
 
     // -------------------------------------------------------------------------
