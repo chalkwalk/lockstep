@@ -480,58 +480,57 @@ namespace lockstep
     // loop controls (REC/PLAY/ERASE), state-aware, instead of COPY/PASTE/CLEAR.
     // A non-looper track keeps the clipboard verbs. functionRow[6]=U, [7]=I, [8]=O.
     // -------------------------------------------------------------------------
-    static void testLooperVerbRelabel()
+    static void testLooperConsole()
     {
         EngineHarness h;
         auto& proc = h.processor();
         EditContext ec;
 
-        // Non-looper track under Track scope: clipboard verbs survive.
+        // S3: the looper transport verbs (Track+U/I/O) are RETIRED. Under Track
+        // scope on a looper the verbs revert to the ordinary clipboard grammar
+        // (the layer is the scope selector, not a looper relabel).
         proc.setTrackMachine(0, VAMachine::kMachineId);
-        {
-            UiState ui; ui.trackHeld = true;
-            const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
-                                             GridDisplayMode::Ortholinear);
-            CHECK(m.functionRow[6].primary == "COPY",  "non-looper U stays COPY");
-            CHECK(m.functionRow[7].primary == "PASTE", "non-looper I stays PASTE");
-            CHECK(m.functionRow[8].primary == "CLEAR", "non-looper O stays CLEAR");
-        }
-
-        // Looper track, Idle, under Track scope: U=REC, I=PLAY, O=ERASE.
         proc.setTrackMachine(1, LooperMachine::kMachineId);
         proc.setFocusTrack(1);
         {
             UiState ui; ui.trackHeld = true;
             const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 1, 0,
                                              GridDisplayMode::Ortholinear);
-            CHECK(m.functionRow[6].primary == "REC",   "looper Idle: U = REC");
-            CHECK(m.functionRow[7].primary == "PLAY",  "looper Idle: I = PLAY");
-            CHECK(m.functionRow[8].primary == "ERASE", "looper Track-scope: O = ERASE");
-            // #3: the verb cells carry distinct looper CellState tokens (not the
-            // generic clipboard colours), so they read as their own family.
-            CHECK(m.functionRow[6].base == CellState::LooperRecReady,
-                  "looper Idle: U cell = LooperRecReady token");
-            CHECK(m.functionRow[7].base == CellState::LooperPlayReady,
-                  "looper Idle: I cell = LooperPlayReady token");
-            CHECK(m.functionRow[8].base == CellState::LooperErase,
-                  "looper: O cell = LooperErase token");
+            CHECK(m.functionRow[6].primary == "COPY",  "S3: looper Track+U reverts to COPY");
+            CHECK(m.functionRow[7].primary == "PASTE", "S3: looper Track+I reverts to PASTE");
+            CHECK(m.functionRow[8].primary == "CLEAR", "S3: looper Track+O reverts to CLEAR");
         }
 
-        // Without Track scope held, the relabel does not apply: O is the bare CLEAR
-        // verb, not ERASE (bare U is legitimately "REC", so O is the discriminator).
+        // S3: a focused looper with nothing held shows the always-on console on the
+        // step grid — transport on the top row, performance on the bottom.
         {
             UiState ui;  // nothing held
             const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 1, 0,
                                              GridDisplayMode::Ortholinear);
-            CHECK(m.functionRow[8].primary != "ERASE",
-                  "looper relabel requires Track scope held");
-            // S2: the loop-phase view moved OFF the step grid (it was the wrong
-            // surface) onto the mini-seq (KeyboardArea::paintTimeline, driven by
-            // looperPhase/looperPending). The step grid no longer carries phase
-            // tokens — a focused looper falls through to the default grid here
-            // (the always-on console lands in S3).
-            CHECK(m.step[0].base != CellState::LooperPhaseStart,
-                  "S2: step grid no longer shows the loop-phase bar");
+            CHECK(m.step[0].primary == "REC",   "S3: console cell 0 = REC");
+            CHECK(m.step[1].primary == "PLAY",  "S3: console cell 1 = PLAY");
+            CHECK(m.step[2].primary == "STOP",  "S3: console cell 2 = STOP");
+            CHECK(m.step[3].primary == "ERASE", "S3: console cell 3 = ERASE");
+            CHECK(m.step[4].primary == "UNDO",  "S3: console cell 4 = UNDO");
+            CHECK(m.step[7].primary == "DUB",   "S3: console cell 7 = DUB");
+            // Idle state → REC cell carries the resting record token (not active).
+            CHECK(m.step[0].base == CellState::LooperConRec,
+                  "S3: idle console REC = LooperConRec token");
+            // Bottom row = performance cells (beat-repeat / tape).
+            CHECK(m.step[8].base == CellState::LooperConRpt,
+                  "S3: console cell 8 = beat-repeat token");
+            CHECK(m.step[12].base == CellState::LooperConTape,
+                  "S3: console cell 12 = tape-FX token");
+        }
+
+        // A non-looper focused track is NOT a console — it shows the normal grid.
+        {
+            UiState ui;
+            proc.setFocusTrack(0);
+            const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                             GridDisplayMode::Ortholinear);
+            CHECK(m.step[0].primary != "REC",
+                  "S3: non-looper track does not show the console");
         }
     }
 
@@ -840,7 +839,7 @@ namespace lockstep
         testScopeTintBindings();
         testDensityStickyFuncInvariant();
         testHomeKeyAnchors();
-        testLooperVerbRelabel();
+        testLooperConsole();
         testGeneratorHubPrimary();
         testMachinePickerPrimary();
         testDeriveSlotEqualsGrammar();

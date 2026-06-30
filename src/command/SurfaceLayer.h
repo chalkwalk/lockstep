@@ -31,6 +31,7 @@ namespace lockstep
         LengthEdit,       // (phraseScopeHeld || morphHeld) && funcHeld && !funcTrackHeld
         MorphStepView,    // ui.morphHeld && !ui.funcHeld
         ScopeSelector,    // trackHeld || phraseScopeHeld || sceneHeld || songHeld
+        LooperConsole,    // focused track is a looper, no higher overlay (S3) — always-on
         Base,             // normal step grid
     };
 
@@ -39,6 +40,7 @@ namespace lockstep
     {
         TrackInputMode inputMode = TrackInputMode::Play;  // active track's input mode
         int activeTrack = 0;                     // index of the focused track
+        bool activeTrackIsLooper = false;        // focused track runs a LooperMachine (S3)
     };
 
   // The one function that decides which overlay is active.

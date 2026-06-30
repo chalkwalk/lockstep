@@ -81,6 +81,23 @@ namespace lockstep
             case CellState::LooperPhaseSeg:     return 0xFF1E4A4Au;  // dim teal — loop segment
             case CellState::LooperPhaseHead:    return 0xFF40D0D0u;  // bright cyan — playhead
             case CellState::LooperPhaseStart:   return 0xFF2E6A6Au;  // teal — loop-start anchor
+            case CellState::LooperConRec:       return 0xFF5A2424u;  // dim red — ready to record
+            case CellState::LooperConRecActive: return 0xFFE03030u;  // bright red — recording
+            case CellState::LooperConArm:       return 0xFFE0A030u;  // amber — armed/waiting
+            case CellState::LooperConPlay:      return 0xFF246B3Eu;  // dim green — ready to play
+            case CellState::LooperConPlayActive:return 0xFF40C060u;  // bright green — playing
+            case CellState::LooperConStop:      return 0xFF4A4A52u;  // grey — stop
+            case CellState::LooperConErase:     return 0xFF6B2A2Au;  // muted red — erase
+            case CellState::LooperConUndo:      return 0xFF394A6Au;  // slate blue — undo
+            case CellState::LooperConDub:       return 0xFF6A5A2Eu;  // dim amber — dub ready
+            case CellState::LooperConDubActive: return kVerbODActive; // amber — overdubbing
+            case CellState::LooperConHalf:      return 0xFF3A4E66u;  // blue — halve
+            case CellState::LooperConDouble:    return 0xFF3A4E66u;  // blue — double
+            case CellState::LooperConRpt:       return 0xFF433A66u;  // dim violet — beat-repeat
+            case CellState::LooperConRptActive: return 0xFF8060D0u;  // bright violet — repeat held
+            case CellState::LooperConTape:      return 0xFF504030u;  // dim bronze — tape FX
+            case CellState::LooperConTapeActive:return 0xFFC08040u;  // bright bronze — tape held
+            case CellState::LooperConIdle:      return 0xFF20262Eu;  // near-off — inert cell
             case CellState::ChromaticWhite:     return kScopeTrack;
             case CellState::ChromaticBlack:     return kScopeTrack;
             case CellState::LevelsCell:         return 0xFF204060u;
@@ -637,7 +654,8 @@ namespace lockstep
         const TrackInputMode activeTrackMode = validStepTrackMode
                                                    ? ui.trackInputMode[static_cast<std::size_t>(activeTrack)]
                                                    : TrackInputMode::Play;
-        const LayerFacts layerFacts{ activeTrackMode, activeTrack };
+        const bool activeTrackIsLooper = validStepTrackMode && proc.isLooperTrack(activeTrack);
+        const LayerFacts layerFacts{ activeTrackMode, activeTrack, activeTrackIsLooper };
         const SurfaceLayer activeLayer = resolveActiveLayer(ui, ec, layerFacts);
 
         // =====================================================================
@@ -711,15 +729,6 @@ namespace lockstep
                 displayHint = {};
             }
 
-            // #1 Looper verbs: when Track scope is held on a focused Looper, U/I/O
-            // drive the loop state machine (DESIGN §29.2). The labels are applied in
-            // a post-pass after deriveSlots (the label authority, which would restore
-            // COPY/PASTE/CLEAR); here we only glow the cell whose function is live.
-            // (Looper state: 0 Idle, 1 Rec, 2 Play, 3 Overdub, 4 Stop.)
-            const bool looperVerbCell = ui.trackHeld && proc.isLooperTrack(activeTrack)
-                && (def.keyCode == 'U' || def.keyCode == 'I' || def.keyCode == 'O');
-            const int looperSt = looperVerbCell ? proc.looperState(activeTrack) : -1;
-
             c.primary = displayPrimary;
             c.funcHint = displayHint;
 
@@ -739,15 +748,9 @@ namespace lockstep
                 c.pip.colour = kScopeScene;
             }
 
-            // #1: glow the looper verb whose function is live (U while Rec/Overdub,
-            // I while Play/Overdub) so the loop state reads off the surface.
-            const bool looperActive = looperVerbCell
-                && ((def.keyCode == 'U' && (looperSt == 1 || looperSt == 3))
-                 || (def.keyCode == 'I' && (looperSt == 2 || looperSt == 3)));
-
             // Cell state
             if (c.pressed) c.base = CellState::Pressed;
-            else if (isModeActive || looperActive) c.base = CellState::ModeActive;
+            else if (isModeActive) c.base = CellState::ModeActive;
             else c.base = CellState::Resting;
 
             // baseColour for controller feedback and groupForCell()
@@ -1110,6 +1113,48 @@ namespace lockstep
                         c.base = CellState::StepEmpty;
                         c.baseColour = kStepOutRange;
                     }
+                }
+            }
+            else if (activeLayer == SurfaceLayer::LooperConsole)
+            {
+                // S3: the always-on looper console. The step grid is the transport +
+                // performance surface (a looper does not sequence). Top row 0-7 =
+                // transport/length, bottom row 8-15 = performance (beat-repeat S5,
+                // tape FX S6). State-keyed off LockstepProcessor::looperState():
+                // 0 Idle, 1 Recording, 2 Playing, 3 Overdubbing, 4 Stopped, 5 Armed.
+                const int st = proc.looperState(activeTrack);
+                const bool rec = (st == 1), playing = (st == 2), overdub = (st == 3),
+                           armed = (st == 5);
+
+                static constexpr const char* kConLabels[16] = {
+                    "REC", "PLAY", "STOP", "ERASE", "UNDO", "HALF", "DBL", "DUB",
+                    "1/16", "1/8", "1/4", "1/2", "TSTOP", "DIP", "x1/2", "REV"
+                };
+                std::array<CellState, 16> tok = {
+                    CellState::LooperConRec, CellState::LooperConPlay, CellState::LooperConStop,
+                    CellState::LooperConErase, CellState::LooperConUndo, CellState::LooperConHalf,
+                    CellState::LooperConDouble, CellState::LooperConDub,
+                    CellState::LooperConRpt, CellState::LooperConRpt, CellState::LooperConRpt,
+                    CellState::LooperConRpt, CellState::LooperConTape, CellState::LooperConTape,
+                    CellState::LooperConTape, CellState::LooperConTape,
+                };
+                // State-aware highlights on the transport cells.
+                tok[0] = armed ? CellState::LooperConArm
+                       : rec   ? CellState::LooperConRecActive : CellState::LooperConRec;
+                tok[1] = (playing || overdub) ? CellState::LooperConPlayActive
+                                              : CellState::LooperConPlay;
+                tok[7] = overdub ? CellState::LooperConDubActive : CellState::LooperConDub;
+
+                for (int i = 0; i < 16; ++i)
+                {
+                    SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                    c.button = ControllerButton::Step;
+                    c.index = i;
+                    c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                    c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+                    c.base = c.pressed ? CellState::Pressed : tok[static_cast<std::size_t>(i)];
+                    c.baseColour = compatColour(tok[static_cast<std::size_t>(i)]);
+                    c.primary = juce::String(kConLabels[i]);
                 }
             }
             else if (activeLayer == SurfaceLayer::TrackFxPicker)
@@ -2276,46 +2321,10 @@ namespace lockstep
             for (auto& c : model.step)
                 deriveSlots(c);
 
-            // #1/#3: re-apply the Looper verb relabel AFTER deriveSlots (which would
-            // otherwise restore the grammar table's COPY/PASTE/CLEAR). With Track
-            // scope held on a focused Looper, U/I/O (functionRow 6/7/8) are loop
-            // controls, state-aware so each shows what it does next, AND carry a
-            // distinct looper CellState/colour so they read as their own family.
-            // (Looper state: 0 Idle, 1 Rec, 2 Play, 3 Overdub, 4 Stop, 5 Armed.)
-            if (ui.trackHeld && activeTrack >= 0 && proc.isLooperTrack(activeTrack))
-            {
-                const int st = proc.looperState(activeTrack);
-                model.functionRow[6].primary =
-                    (st == 5) ? "ARM" : (st == 1) ? "END"
-                    : (st == 2 || st == 3) ? "DUB" : "REC";
-                model.functionRow[7].primary = (st == 2 || st == 3) ? "STOP" : "PLAY";
-                model.functionRow[8].primary = "ERASE";
-
-                // #3: distinct per-verb / per-state colour (screen + controller).
-                const CellState recTok = (st == 5) ? CellState::LooperRecArmed
-                    : (st == 1) ? CellState::LooperRecActive
-                    : (st == 3) ? CellState::LooperOverdub
-                    : CellState::LooperRecReady;
-                const CellState playTok = (st == 2 || st == 3) ? CellState::LooperPlaying
-                    : CellState::LooperPlayReady;
-                const std::array<CellState, 3> toks{ recTok, playTok, CellState::LooperErase };
-
-                int ti = 0;
-                for (int k : { 6, 7, 8 })
-                {
-                    auto& c = model.functionRow[static_cast<std::size_t>(k)];
-                    c.funcHint = juce::String();        // no Func variant on a loop verb
-                    c.tapLabel = juce::String();
-                    c.holdLabel = juce::String();
-                    c.doubleTapLabel = juce::String();
-                    if (c.base != CellState::Pressed)   // keep physical-press feedback
-                    {
-                        c.base = toks[static_cast<std::size_t>(ti)];
-                        c.baseColour = compatColour(c.base);
-                    }
-                    ++ti;
-                }
-            }
+            // S3: the looper verb relabel (Track+U/I/O → REC/PLAY/ERASE) is retired.
+            // The looper transport now lives on the always-on console (the step grid,
+            // SurfaceLayer::LooperConsole); U/I/O on a focused looper are the ordinary
+            // clipboard verbs again.
         }
 
         return model;

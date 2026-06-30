@@ -69,6 +69,10 @@ namespace lockstep
             return SurfaceLayer::ScopeSelector;
         }
 
+        // S3: a focused looper has no trig steps, so the step grid is its always-on
+        // transport + performance console — shown whenever nothing higher is active.
+        if (f.activeTrackIsLooper) { return SurfaceLayer::LooperConsole; }
+
         return SurfaceLayer::Base;
     }
 
@@ -95,6 +99,9 @@ namespace lockstep
 
             case SurfaceLayer::GeneratorHub:
                 return "SELECT GENERATOR";
+
+            case SurfaceLayer::LooperConsole:
+                return "LOOPER";
 
             case SurfaceLayer::KeyPanel:
                 return "KEY MODIFIERS";

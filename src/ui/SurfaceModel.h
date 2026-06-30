@@ -151,6 +151,28 @@ namespace lockstep
         LooperPhaseSeg = 187,   // a loop segment (not the playhead) — dim teal
         LooperPhaseHead = 188,  // the segment the playhead is in — bright cyan
         LooperPhaseStart = 189, // the loop-start / downbeat anchor segment
+
+        // Looper console (S3): the always-on transport + performance grid for a
+        // focused looper (the step grid is free real estate — a looper does not
+        // sequence). Add-only; each is a distinct hue (PRINCIPLES §19 dual-target).
+        // The *Active variants light when that function is engaged this block.
+        LooperConRec = 190,        // REC — start / punch-out record
+        LooperConRecActive = 191,  // recording now (bright red)
+        LooperConArm = 192,        // armed — quantized record waiting for the bar
+        LooperConPlay = 193,       // PLAY
+        LooperConPlayActive = 194, // playing (bright green)
+        LooperConStop = 195,       // STOP
+        LooperConErase = 196,      // ERASE — clear the loop
+        LooperConUndo = 197,       // UNDO — undo the last overdub
+        LooperConDub = 198,        // DUB — explicit overdub toggle
+        LooperConDubActive = 199,  // overdubbing (amber)
+        LooperConHalf = 200,       // HALF — halve the loop window (S4)
+        LooperConDouble = 201,     // DBL — double the loop window (S4)
+        LooperConRpt = 202,        // beat-repeat rate cell, idle (S5)
+        LooperConRptActive = 203,  // beat-repeat held (S5)
+        LooperConTape = 204,       // tape-FX cell, idle (S6)
+        LooperConTapeActive = 205, // tape-FX held (S6)
+        LooperConIdle = 206,       // a console cell with no live function right now
     };
 
     // Pure mapping for the §34.4 length-edit re-skin: classify an absolute step

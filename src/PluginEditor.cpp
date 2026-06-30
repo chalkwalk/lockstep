@@ -3412,7 +3412,8 @@ namespace lockstep
                     const auto layerMode = (layerAt >= 0)
                                                ? uiState_.trackInputMode[static_cast<std::size_t>(layerAt)]
                                                : TrackInputMode::Play;
-                    const LayerFacts stepFacts{ layerMode, layerAt };
+                    const LayerFacts stepFacts{ layerMode, layerAt,
+                                                layerAt >= 0 && processor_.isLooperTrack(layerAt) };
                     const SurfaceLayer layer = resolveActiveLayer(
                         uiState_, processor_.editContext(), stepFacts);
 
@@ -3434,6 +3435,44 @@ namespace lockstep
                             }
                         }
                         repaint();
+                        return true;
+                    }
+
+                    // --------------------------------------------------------
+                    // S3: Looper console — the step grid is the always-on transport +
+                    // performance surface for a focused looper. Top row 0-7 =
+                    // transport/length; bottom row 8-15 = performance (beat-repeat S5,
+                    // tape FX S6). PLAY/STOP/DUB disambiguate off the loop state since
+                    // the underlying Cmd::PlayStop / RecordCycle are toggles.
+                    if (layer == SurfaceLayer::LooperConsole)
+                    {
+                        const int trk = processor_.focusTrack();
+                        const int st = processor_.looperState(trk);  // 0 Idle..5 Armed
+                        const double nowMs = juce::Time::getMillisecondCounterHiRes();
+                        switch (ev.index)
+                        {
+                            case 0:  // REC — start / punch-out / overdub cycle (2-tap=now)
+                                routeLooperVerb(1 /*RecordCycle*/,
+                                                gesture_.doubleTap(kLooperRecordToken, nowMs));
+                                break;
+                            case 1:  // PLAY — only from Stopped (toggle is state-aware)
+                                if (st == 4)
+                                    routeLooperVerb(2 /*PlayStop*/,
+                                                    gesture_.doubleTap(kLooperPlayToken, nowMs));
+                                break;
+                            case 2:  // STOP — only while Playing/Overdubbing
+                                if (st == 2 || st == 3)
+                                    routeLooperVerb(2 /*PlayStop*/,
+                                                    gesture_.doubleTap(kLooperPlayToken, nowMs));
+                                break;
+                            case 3:  routeLooperVerb(3 /*Clear*/); break;   // ERASE
+                            case 4:  routeLooperVerb(4 /*Undo*/);  break;   // UNDO
+                            case 7:  // DUB — explicit overdub toggle while a loop plays
+                                if (st == 2 || st == 3) routeLooperVerb(1 /*RecordCycle*/);
+                                break;
+                            default: break;  // HALF/DBL (S4), beat-repeat (S5), tape (S6)
+                        }
+                        refreshSurface();
                         return true;
                     }
 
@@ -4372,17 +4411,9 @@ namespace lockstep
 
             case ControllerButton::VerbPlay: {
                 using PS = EditMode::PrimaryScope;
-                // Track + Play on a focused Looper track drives its state machine
-                // (play / stop toggle), shadowing the track clipboard (DESIGN §29.2).
-                if (editMode_.primaryScope() == PS::Track
-                    && processor_.isLooperTrack(processor_.focusTrack()))
-                {
-                    // Double-tap forces the play/stop edge now (overrides quantize, #2).
-                    const bool immediate = gesture_.doubleTap(
-                        kLooperPlayToken, juce::Time::getMillisecondCounterHiRes());
-                    routeLooperVerb(2 /*PlayStop*/, immediate);
-                    return true;
-                }
+                // S3: the looper transport moved OFF the Track+U/I/O verbs onto the
+                // always-on console (the step grid). U/I/O on a focused looper are now
+                // the ordinary clipboard verbs again (freed for other uses).
                 // Scope held → grammar verb (Paste).
                 if (editMode_.primaryScope() != PS::None && editMode_.primaryScope() != PS::Func)
                 {
@@ -4451,14 +4482,8 @@ namespace lockstep
 
             case ControllerButton::VerbClear: {
                 using PS = EditMode::PrimaryScope;
-                // Track + Clear on a focused Looper track empties its loop, shadowing
-                // the track clipboard clear (DESIGN §29.2).
-                if (editMode_.primaryScope() == PS::Track
-                    && processor_.isLooperTrack(processor_.focusTrack()))
-                {
-                    routeLooperVerb(3 /*Clear*/);
-                    return true;
-                }
+                // S3: looper ERASE moved to the always-on console; Track+Clear is the
+                // ordinary clipboard/scope verb again.
                 // Hold scope + Clear reverts that scope's hierarchical override to inherit
                 // (§13 hold-scope+Clear convention). Intercept before cancel-queued-scene
                 // and PANIC so that Clear is contextual while a band is open.
@@ -4522,18 +4547,8 @@ namespace lockstep
 
             case ControllerButton::VerbRecord: {
                 using PS = EditMode::PrimaryScope;
-                // Track + Record on a focused Looper track cycles its state machine
-                // (Idle→Record→Play→Overdub), shadowing the track clipboard copy
-                // (DESIGN §29.2).
-                if (editMode_.primaryScope() == PS::Track
-                    && processor_.isLooperTrack(processor_.focusTrack()))
-                {
-                    // Double-tap forces the record edge now (overrides quantize, #2).
-                    const bool immediate = gesture_.doubleTap(
-                        kLooperRecordToken, juce::Time::getMillisecondCounterHiRes());
-                    routeLooperVerb(1 /*RecordCycle*/, immediate);
-                    return true;
-                }
+                // S3: looper REC moved to the always-on console; Track+Record is the
+                // ordinary clipboard/scope verb again.
                 // Func+Song+Record = CAPTURE (the tape-deck cell, global scope).
                 // All capture gestures live on this cell's own timeline: arm the
                 // long-press and defer tap/double-tap/long-press resolution to
@@ -4826,7 +4841,8 @@ namespace lockstep
                 const auto inputMode = (at >= 0)
                                            ? uiState_.trackInputMode[static_cast<std::size_t>(at)]
                                            : TrackInputMode::Play;
-                const LayerFacts facts{ inputMode, at };
+                const LayerFacts facts{ inputMode, at,
+                                        at >= 0 && processor_.isLooperTrack(at) };
                 const auto layer = resolveActiveLayer(uiState_, processor_.editContext(), facts);
                 const auto heldMods = heldModsFromUiState(uiState_);
                 const auto& binding = resolveBinding(ev.button, trackIdx, heldMods, layer);
