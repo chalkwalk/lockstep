@@ -5349,11 +5349,11 @@ namespace lockstep
                != nullptr;
     }
 
-    void LockstepProcessor::sendLooperCommand(int track, int cmd)
+    void LockstepProcessor::sendLooperCommand(int track, int cmd, bool immediate)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
         if (auto* lm = dynamic_cast<LooperMachine*>(machines_[static_cast<std::size_t>(track)].get()))
-            lm->postCommand(static_cast<LooperMachine::Cmd>(cmd));
+            lm->postCommand(static_cast<LooperMachine::Cmd>(cmd), immediate);
     }
 
     int LockstepProcessor::looperState(int track) const

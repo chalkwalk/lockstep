@@ -422,7 +422,7 @@ namespace lockstep
         void setStatus(const juce::String& msg);
         // Route a Track+verb to the focused Looper's state machine (DESIGN §29.2).
         // cmd matches LooperMachine::Cmd (1=RecordCycle, 2=PlayStop, 3=Clear).
-        void routeLooperVerb(int cmd);
+        void routeLooperVerb(int cmd, bool immediate = false);
         void paintStatus(juce::Graphics& g, juce::Rectangle<int> area);
 
         // Capture the current live scene (effective floor + track phrases) into

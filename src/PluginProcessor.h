@@ -200,7 +200,7 @@ namespace lockstep
         // §29.2) instead of the track clipboard. cmd matches LooperMachine::Cmd;
         // looperState returns LooperMachine::State (or -1 if not a looper).
         [[nodiscard]] bool isLooperTrack(int track) const;
-        void sendLooperCommand(int track, int cmd);
+        void sendLooperCommand(int track, int cmd, bool immediate = false);
         [[nodiscard]] int looperState(int track) const;
         // True when the track's machine is a StaticMachine (disk-stream sampler).
         // setStaticFile assigns its streamed source path (held per-Kit, streamed

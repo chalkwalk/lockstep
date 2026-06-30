@@ -4377,7 +4377,10 @@ namespace lockstep
                 if (editMode_.primaryScope() == PS::Track
                     && processor_.isLooperTrack(processor_.focusTrack()))
                 {
-                    routeLooperVerb(2 /*PlayStop*/);
+                    // Double-tap forces the play/stop edge now (overrides quantize, #2).
+                    const bool immediate = gesture_.doubleTap(
+                        kLooperPlayToken, juce::Time::getMillisecondCounterHiRes());
+                    routeLooperVerb(2 /*PlayStop*/, immediate);
                     return true;
                 }
                 // Scope held → grammar verb (Paste).
@@ -4525,7 +4528,10 @@ namespace lockstep
                 if (editMode_.primaryScope() == PS::Track
                     && processor_.isLooperTrack(processor_.focusTrack()))
                 {
-                    routeLooperVerb(1 /*RecordCycle*/);
+                    // Double-tap forces the record edge now (overrides quantize, #2).
+                    const bool immediate = gesture_.doubleTap(
+                        kLooperRecordToken, juce::Time::getMillisecondCounterHiRes());
+                    routeLooperVerb(1 /*RecordCycle*/, immediate);
                     return true;
                 }
                 // Func+Song+Record = CAPTURE (the tape-deck cell, global scope).
@@ -5643,16 +5649,16 @@ namespace lockstep
         repaint();
     }
 
-    void LockstepEditor::routeLooperVerb(int cmd)
+    void LockstepEditor::routeLooperVerb(int cmd, bool immediate)
     {
         const int track = processor_.focusTrack();
-        processor_.sendLooperCommand(track, cmd);
+        processor_.sendLooperCommand(track, cmd, immediate);
         // Echo the action; the command applies on the next audio block, so the
         // precise resolved state is shown by the surface refresh that follows.
         const char* verb = (cmd == 1) ? "Rec/Overdub"
                           : (cmd == 2) ? "Play/Stop"
                           : (cmd == 3) ? "Clear" : "Undo";
-        setStatus(juce::String("Loop: ") + verb);
+        setStatus(juce::String("Loop: ") + verb + (immediate ? " (now)" : ""));
         refreshSurface();
     }
 

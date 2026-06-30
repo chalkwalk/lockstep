@@ -94,4 +94,9 @@ namespace lockstep
     // in GestureRecognizer, so sharing the token is safe).
     static constexpr int kCaptureToken = 7000;
 
+    // Tokens for the looper verbs (Track+Record / Track+Play on a focused looper):
+    // a double-tap forces the edge instantly, overriding the sync-mode quantize (#2).
+    static constexpr int kLooperRecordToken = 7100;
+    static constexpr int kLooperPlayToken   = 7200;
+
 } // namespace lockstep
