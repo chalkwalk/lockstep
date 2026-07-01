@@ -1114,7 +1114,7 @@ namespace lockstep
                         setStatus("Out: would feed back — routing refused");
                         break;
                     case RR::NoAudioInput:
-                        setStatus("Out: " + trkName + " has no audio input — route into a Thru");
+                        setStatus("Out: " + trkName + " has no audio input — route into a Route track");
                         break;
                     case RR::Self:
                         setStatus("Out: a track can't route to itself");

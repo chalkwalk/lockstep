@@ -1182,7 +1182,7 @@ namespace lockstep
         std::atomic<std::uint32_t> routeRejectSeq_{ 0 };
         // D: should track `t` produce a stem? Non-MIDI-out, non-stub, routed to
         // Master (feeders fold into their bus; Off goes nowhere), and — for a
-        // router/Thru — not an empty bus (no outside source and no inbound feeder).
+        // router/Route — not an empty bus (no outside source and no inbound feeder).
         [[nodiscard]] bool shouldStemTrack(int track) const;
 
         // Project-file state — message thread only.

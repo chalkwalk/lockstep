@@ -11,7 +11,7 @@
 #include "core/RoutingGraph.h"
 #include "dsp/SoftClip.h"
 #include "machine/InputSource.h"
-#include "machine/ThruMachine.h"
+#include "machine/RouteMachine.h"
 #include "machine/RecorderMachine.h"
 #include "machine/LooperMachine.h"
 #include "machine/StreamMachine.h"
@@ -40,7 +40,7 @@ namespace lockstep
             static BusesProperties make()
             {
                 // 6.1: a stereo audio input on the main bus feeds the External
-                // source (Thru / resampling, DESIGN §27). In standalone JUCE wires
+                // source (Route / resampling, DESIGN §27). In standalone JUCE wires
                 // the device input here; in a host it is the plugin's audio input.
                 return BusesProperties()
                     .withInput("In", juce::AudioChannelSet::stereo(), true)
@@ -4423,8 +4423,8 @@ namespace lockstep
             return std::make_unique<AnalogMachine>();
         if (id == SlicerMachine::kMachineId)
             return std::make_unique<SlicerMachine>(pool);
-        if (id == ThruMachine::kMachineId)
-            return std::make_unique<ThruMachine>();
+        if (id == RouteMachine::kMachineId)
+            return std::make_unique<RouteMachine>();
         if (id == RecorderMachine::kMachineId)
             return std::make_unique<RecorderMachine>(pool);
         if (id == LooperMachine::kMachineId)
@@ -4449,7 +4449,7 @@ namespace lockstep
         { FMMachine::kMachineId, "FM Synth" },
         { AnalogMachine::kMachineId, "Analog Synth" },
         { DrumSynthMachine::kMachineId, "Drum Synth" },
-        { ThruMachine::kMachineId, "Thru" },
+        { RouteMachine::kMachineId, "Route" },
         { RecorderMachine::kMachineId, "Recorder" },
         { LooperMachine::kMachineId, "Looper" },
         { StreamMachine::kMachineId, "Stream" },
@@ -5802,7 +5802,7 @@ namespace lockstep
         // Only terminal (Master-routed) tracks are stems; feeders fold into their
         // bus, Off contributes nothing.
         if (routeForTrack(track).route != Route::Master) return false;
-        // A router (Thru) with no outside source and no inbound feeder is an empty
+        // A router (Route) with no outside source and no inbound feeder is an empty
         // bus — skip it rather than write a silent file.
         const int srcSlot = slotForId(track, kInputSourceSlotId);
         if (srcSlot >= 0)

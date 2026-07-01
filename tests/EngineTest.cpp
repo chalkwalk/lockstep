@@ -22,7 +22,7 @@
 #include "../src/machine/SamplerMachine.h"
 #include "../src/machine/StubMachine.h"
 #include "../src/machine/MidiOutMachine.h"
-#include "../src/machine/ThruMachine.h"
+#include "../src/machine/RouteMachine.h"
 #include "../src/machine/RecorderMachine.h"
 #include "../src/machine/LooperMachine.h"
 #include "../src/machine/StreamMachine.h"
@@ -1145,13 +1145,13 @@ namespace lockstep
     }
 
     // -----------------------------------------------------------------------
-    // 6.1: install a ThruMachine on a track with a given input_source value.
-    static void installThru(LockstepProcessor& proc, int track, float sourceValue)
+    // 6.1: install a RouteMachine on a track with a given input_source value.
+    static void installRoute(LockstepProcessor& proc, int track, float sourceValue)
     {
-        ThruMachine tmp;
+        RouteMachine tmp;
         const int np = tmp.numParams();
         auto& k = proc.kit(track);
-        k.machineId = ThruMachine::kMachineId;
+        k.machineId = RouteMachine::kMachineId;
         k.baseParams.resize(static_cast<std::size_t>(np));
         for (int i = 0; i < np; ++i)
             k.baseParams[static_cast<std::size_t>(i)] = tmp.paramSpec(i).defaultValue;
@@ -1176,35 +1176,35 @@ namespace lockstep
         return buf.getMagnitude(0, buf.getNumSamples());
     }
 
-    static void testThruPassesExternalInput()
+    static void testRoutePassesExternalInput()
     {
         // Every other track is a default sampler/stub with no trig, so the only
-        // audio reaching the master sum is the Thru track's passed-through input.
+        // audio reaching the master sum is the Route track's passed-through input.
         {
             EngineHarness h;
-            installThru(h.processor(), 0,
+            installRoute(h.processor(), 0,
                         static_cast<float>(static_cast<int>(InputSourceKind::External)));
             const float out = renderBlockWithInput(h, 0.5f);
-            CHECK(out > 0.05f, "Thru/External passes the input bus to the output");
+            CHECK(out > 0.05f, "Route/External passes the input bus to the output");
         }
         // A fresh engine with None must stay silent even with input on the bus.
         {
             EngineHarness h;
-            installThru(h.processor(), 0,
+            installRoute(h.processor(), 0,
                         static_cast<float>(static_cast<int>(InputSourceKind::None)));
             const float out = renderBlockWithInput(h, 0.5f);
-            CHECK(out < 1e-3f, "Thru/None synthesises silence, ignoring the input bus");
+            CHECK(out < 1e-3f, "Route/None synthesises silence, ignoring the input bus");
         }
     }
 
-    static void testThruMasterTap()
+    static void testRouteMasterTap()
     {
         EngineHarness h;
         auto& p = h.processor();
         // Track 1 brings the input in; track 0 taps the prior-block master.
-        installThru(p, 1,
+        installRoute(p, 1,
                     static_cast<float>(static_cast<int>(InputSourceKind::External)));
-        installThru(p, 0,
+        installRoute(p, 0,
                     static_cast<float>(static_cast<int>(InputSourceKind::Master)));
 
         // #3 feedback guard: track 0 routes to Master by default, so tapping Master
@@ -1213,7 +1213,7 @@ namespace lockstep
         // any path back to Master is an echo of it). Track 1's contribution still
         // makes block 1 non-silent; block 2 (no input) must be silent, proving the
         // tap added nothing rather than replaying the prior master.
-        CHECK(p.outputReachesMaster(0), "Master-tapping Thru also routes to Master");
+        CHECK(p.outputReachesMaster(0), "Master-tapping Route also routes to Master");
         const float b1 = renderBlockWithInput(h, 0.5f);
         CHECK(b1 > 0.05f, "input reaches master via the non-tapping track");
         const float b2 = renderBlockWithInput(h, 0.0f);
@@ -1257,15 +1257,15 @@ namespace lockstep
 
     // -----------------------------------------------------------------------
     // 5.6: a lock-only (trigless) step applies its P-Locks to the running voice
-    // as the playhead crosses it, with no note emitted. A Thru track makes this
+    // as the playhead crosses it, with no note emitted. A Route track makes this
     // observable with no notes at all: a lock-only step that overrides
     // input_source = None must silence the continuous pass-through.
     static void testLockOnlyRidesOverrideOntoVoice()
     {
         EngineHarness h;
-        installThru(h.processor(), 0,
+        installRoute(h.processor(), 0,
                     static_cast<float>(static_cast<int>(InputSourceKind::External)));
-        // Step 4 = lock-only; override Thru slot 0 (input_source) to None.
+        // Step 4 = lock-only; override Route slot 0 (input_source) to None.
         auto& trk = h.processor().sequence().tracks[0];
         trk.steps[4].lockOnly = true;
         trk.steps[4].overrides.set(0, static_cast<float>(static_cast<int>(InputSourceKind::None)));
@@ -1277,7 +1277,7 @@ namespace lockstep
             if (b < 3)   early = std::max(early, rms);
             if (b >= 100) late = std::max(late, rms);
         }
-        CHECK(early > 0.05f, "lock-only: Thru passes input before the lock-only step");
+        CHECK(early > 0.05f, "lock-only: Route passes input before the lock-only step");
         CHECK(late < 1e-3f,
               "lock-only: crossing the step rides input_source=None onto the voice");
     }
@@ -1348,8 +1348,8 @@ namespace lockstep
     {
         EngineHarness h;
         auto& proc = h.processor();
-        installThru(proc, 0, static_cast<float>(static_cast<int>(InputSourceKind::External)));
-        installThru(proc, 1, static_cast<float>(static_cast<int>(InputSourceKind::None)));
+        installRoute(proc, 0, static_cast<float>(static_cast<int>(InputSourceKind::External)));
+        installRoute(proc, 1, static_cast<float>(static_cast<int>(InputSourceKind::None)));
 
         // Baseline: feeder (track 0) routes to Master by default → audible.
         proc.kit(0).channelState.out = encodeOutputDest(OutputDestKind::Master);
@@ -1377,8 +1377,8 @@ namespace lockstep
     {
         EngineHarness h;
         auto& proc = h.processor();
-        installThru(proc, 0, static_cast<float>(static_cast<int>(InputSourceKind::External)));
-        installThru(proc, 1, static_cast<float>(static_cast<int>(InputSourceKind::None)));
+        installRoute(proc, 0, static_cast<float>(static_cast<int>(InputSourceKind::External)));
+        installRoute(proc, 1, static_cast<float>(static_cast<int>(InputSourceKind::None)));
 
         // Establish edge 0 → 1, then check the reverse would cycle.
         proc.kit(0).channelState.out = encodeOutputDest(OutputDestKind::Track, 1);
@@ -1397,8 +1397,8 @@ namespace lockstep
     {
         EngineHarness h;
         auto& proc = h.processor();
-        installThru(proc, 0, static_cast<float>(static_cast<int>(InputSourceKind::External)));  // feeder
-        installThru(proc, 1, static_cast<float>(static_cast<int>(InputSourceKind::None)));       // bus
+        installRoute(proc, 0, static_cast<float>(static_cast<int>(InputSourceKind::External)));  // feeder
+        installRoute(proc, 1, static_cast<float>(static_cast<int>(InputSourceKind::None)));       // bus
         proc.kit(0).channelState.out = encodeOutputDest(OutputDestKind::Track, 1);
 
         proc.toggleSolo(1);                       // solo the bus
@@ -1421,8 +1421,8 @@ namespace lockstep
     {
         EngineHarness h;
         auto& proc = h.processor();
-        installThru(proc, 0, static_cast<float>(static_cast<int>(InputSourceKind::External)));  // feeder
-        installThru(proc, 1, static_cast<float>(static_cast<int>(InputSourceKind::None)));       // bus
+        installRoute(proc, 0, static_cast<float>(static_cast<int>(InputSourceKind::External)));  // feeder
+        installRoute(proc, 1, static_cast<float>(static_cast<int>(InputSourceKind::None)));       // bus
         proc.kit(0).channelState.out = encodeOutputDest(OutputDestKind::Track, 1);
 
         // Solo the bus → its feeder must stay audible so the bus carries audio.
@@ -1447,7 +1447,7 @@ namespace lockstep
     {
         EngineHarness h;
         auto& proc = h.processor();
-        installThru(proc, 1, static_cast<float>(static_cast<int>(InputSourceKind::None)));  // bus
+        installRoute(proc, 1, static_cast<float>(static_cast<int>(InputSourceKind::None)));  // bus
         installMachine(proc, 2, AnalogMachine::kMachineId);                                     // synth
 
         const auto cands = proc.validOutTargets(0);
@@ -1456,7 +1456,7 @@ namespace lockstep
         CHECK(std::lround(cands[1]) == 1, "Master offered second");
         CHECK(decodeOutputDest(cands[2]).kind == OutputDestKind::Track
                   && decodeOutputDest(cands[2]).track == 1,
-              "the Thru bus (Trk2) is the only track target");
+              "the Route bus (Trk2) is the only track target");
         for (const float c : cands)
         {
             const auto sel = decodeOutputDest(c);
@@ -1473,7 +1473,7 @@ namespace lockstep
         using RR = LockstepProcessor::RouteReject;
         EngineHarness h;
         auto& proc = h.processor();
-        installThru(proc, 1, static_cast<float>(static_cast<int>(InputSourceKind::None)));   // a bus
+        installRoute(proc, 1, static_cast<float>(static_cast<int>(InputSourceKind::None)));   // a bus
         installMachine(proc, 2, AnalogMachine::kMachineId);                                      // a synth
 
         // Master / Off / self / non-bus / valid bus.
@@ -1486,10 +1486,10 @@ namespace lockstep
         CHECK(proc.validateOutEdit(0, encodeOutputDest(OutputDestKind::Track, 2)) == RR::NoAudioInput,
               "routing to a synth (no input) rejected");
         CHECK(proc.validateOutEdit(0, encodeOutputDest(OutputDestKind::Track, 1)) == RR::None,
-              "routing to a Thru bus validates");
+              "routing to a Route bus validates");
 
-        // Cycle: establish 0 → 1 (both Thru), then 1 → 0 would close it.
-        installThru(proc, 0, static_cast<float>(static_cast<int>(InputSourceKind::None)));
+        // Cycle: establish 0 → 1 (both Route), then 1 → 0 would close it.
+        installRoute(proc, 0, static_cast<float>(static_cast<int>(InputSourceKind::None)));
         proc.kit(0).channelState.out = encodeOutputDest(OutputDestKind::Track, 1);
         CHECK(proc.validateOutEdit(1, encodeOutputDest(OutputDestKind::Track, 0)) == RR::Cycle,
               "edit that would form a cycle rejected");
@@ -1503,11 +1503,11 @@ namespace lockstep
         using Route = LockstepProcessor::Route;
         EngineHarness h;
         auto& proc = h.processor();
-        installThru(proc, 0, static_cast<float>(static_cast<int>(InputSourceKind::External)));
-        installThru(proc, 1, static_cast<float>(static_cast<int>(InputSourceKind::None)));
+        installRoute(proc, 0, static_cast<float>(static_cast<int>(InputSourceKind::External)));
+        installRoute(proc, 1, static_cast<float>(static_cast<int>(InputSourceKind::None)));
         proc.kit(0).channelState.out = encodeOutputDest(OutputDestKind::Track, 1);
 
-        CHECK(proc.routeForTrack(0).route == Route::Bus, "edge active while target is a Thru");
+        CHECK(proc.routeForTrack(0).route == Route::Bus, "edge active while target is a Route");
 
         // Swap the bus target to a synth — edge goes dormant (read-time fallback).
         proc.setTrackMachine(1, AnalogMachine::kMachineId);
@@ -1516,25 +1516,25 @@ namespace lockstep
         CHECK(decodeOutputDest(proc.kit(0).channelState.out).track == 1,
               "stored Out value is left intact (dormant, not erased)");
 
-        // Swap back to a Thru — the edge revives.
-        proc.setTrackMachine(1, ThruMachine::kMachineId);
+        // Swap back to a Route — the edge revives.
+        proc.setTrackMachine(1, RouteMachine::kMachineId);
         CHECK(proc.routeForTrack(0).route == Route::Bus, "edge revives when target is a bus again");
     }
 
     // -----------------------------------------------------------------------
     // D: stem export. A stem is written for each non-empty Master-routed track;
-    // feeders fold into their bus (no own stem) and an empty/None Thru bus is
+    // feeders fold into their bus (no own stem) and an empty/None Route bus is
     // skipped (DESIGN §27). Routing IS the stem-grouping UI. Targets a temp dir.
     static void testStemCaptureRouteDefined()
     {
         EngineHarness h;
         auto& proc = h.processor();
-        // Track 0 = External Thru (feeder) routed into the bus on track 1.
-        installThru(proc, 0, static_cast<float>(static_cast<int>(InputSourceKind::External)));
-        // Track 1 = None Thru acting as a sub-bus (Out = Master by default).
-        installThru(proc, 1, static_cast<float>(static_cast<int>(InputSourceKind::None)));
-        // Track 2 = None Thru with no feeder and no source: an empty bus.
-        installThru(proc, 2, static_cast<float>(static_cast<int>(InputSourceKind::None)));
+        // Track 0 = External Route (feeder) routed into the bus on track 1.
+        installRoute(proc, 0, static_cast<float>(static_cast<int>(InputSourceKind::External)));
+        // Track 1 = None Route acting as a sub-bus (Out = Master by default).
+        installRoute(proc, 1, static_cast<float>(static_cast<int>(InputSourceKind::None)));
+        // Track 2 = None Route with no feeder and no source: an empty bus.
+        installRoute(proc, 2, static_cast<float>(static_cast<int>(InputSourceKind::None)));
         proc.kit(0).channelState.out = encodeOutputDest(OutputDestKind::Track, 1);
 
         const juce::File tmpDir = juce::File::getSpecialLocation(juce::File::tempDirectory)
@@ -1559,7 +1559,7 @@ namespace lockstep
         CHECK(proc.stemSamplesWritten(0) == 0, "feeder routed to a bus has no own stem");
         CHECK(!stemFileFor(master, 0).existsAsFile(), "no feeder stem file written");
         // Empty None bus (track 2) → skipped.
-        CHECK(!stemFileFor(master, 2).existsAsFile(), "empty Thru bus writes no stem");
+        CHECK(!stemFileFor(master, 2).existsAsFile(), "empty Route bus writes no stem");
 
         // Naming + take-directory layout.
         CHECK(stemFileFor(master, 1).getFileName() == juce::String("track-02.wav"),
@@ -1937,7 +1937,7 @@ namespace lockstep
 
     // -----------------------------------------------------------------------
     // A1 tap-fork (DESIGN §27): track 0 = DrumSynth routed OFF (no direct path to
-    // master); track 1 = Thru tapping track 0, routed to Master. The ONLY way audio
+    // master); track 1 = Route tapping track 0, routed to Master. The ONLY way audio
     // reaches master is the same-block tap, so non-silent output proves the tap
     // copies track 0's post-chain audio this block. With no tap (input_source=None)
     // the Off-routed source is silent — the control.
@@ -1947,9 +1947,9 @@ namespace lockstep
             installMachine(h.processor(), 0, DrumSynthMachine::kMachineId);
             h.processor().kit(0).channelState.out = encodeOutputDest(OutputDestKind::Off);
 
-            ThruMachine tmp;
+            RouteMachine tmp;
             auto& k1 = h.processor().kit(1);
-            k1.machineId = ThruMachine::kMachineId;
+            k1.machineId = RouteMachine::kMachineId;
             const int np = tmp.numParams();
             k1.baseParams.resize(static_cast<std::size_t>(np));
             for (int i = 0; i < np; ++i)
@@ -2000,19 +2000,19 @@ namespace lockstep
         EngineHarness h;
         auto& proc = h.processor();
 
-        auto setThru = [&proc](int t) {
-            ThruMachine tmp;
+        auto setRoute = [&proc](int t) {
+            RouteMachine tmp;
             auto& k = proc.kit(t);
-            k.machineId = ThruMachine::kMachineId;
+            k.machineId = RouteMachine::kMachineId;
             const int np = tmp.numParams();
             k.baseParams.resize(static_cast<std::size_t>(np));
             for (int i = 0; i < np; ++i)
                 k.baseParams[static_cast<std::size_t>(i)] = tmp.paramSpec(i).defaultValue;
         };
-        setThru(0); setThru(1); setThru(2);
+        setRoute(0); setRoute(1); setRoute(2);
         proc.reinstallMachinesFromActiveKit();
 
-        ThruMachine tmp;
+        RouteMachine tmp;
         const int slot = tmp.slotForId(kInputSourceSlotId);
         const auto trackSel = [&proc, slot](int t) {
             return decodeInputSource(proc.sequence().tracks[static_cast<std::size_t>(t)]
@@ -2303,8 +2303,8 @@ namespace lockstep
         testTrackFilterLPOnVA();
         testTrackPanLaw();
         testSwapStepsCarriesData();
-        testThruPassesExternalInput();
-        testThruMasterTap();
+        testRoutePassesExternalInput();
+        testRouteMasterTap();
         testAuditionLiveNote();
         testLockOnlyRidesOverrideOntoVoice();
         testOneShotFiresOnce();

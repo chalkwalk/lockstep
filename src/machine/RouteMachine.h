@@ -6,28 +6,28 @@
 
 namespace lockstep
 {
-    // ThruMachine — routes audio from an input_source into the track's signal
+    // RouteMachine — routes audio from an input_source into the track's signal
     // path (DESIGN §27 / §29). It synthesises nothing: the sequencer fills the
     // track buffer from the chosen source before process(), so process() is a
     // pure pass-through. The universal FILTER / AMP / FX chain colours it, and
-    // the track ENVELOPE gate defaults to held-open, so a Thru track passes
-    // audio continuously (the basis of continuous Thru and drones, §14).
+    // the track ENVELOPE gate defaults to held-open, so a Route track passes
+    // audio continuously (the basis of continuous Route and drones, §14).
     //
-    // Subsumes the Octatrack Thru + Neighbour split: External = classic Thru;
+    // Subsumes the Octatrack Route + Neighbour split: External = classic Route;
     // neighbour-style inter-track routing is now output-directed (route other
     // tracks' CHANNEL "Out" here — this track reads their sum, DESIGN §27), so
     // input_source is just the outside-world tap {None, External, Master}. A
-    // fresh Thru defaults to None: silent until you route audio in or pick a
+    // fresh Route defaults to None: silent until you route audio in or pick a
     // source, which is the natural default for using it as a sub-bus. It is the
     // only stock machine declaring input_source for now; Recorder / Looper
     // follow at 6.2 / 6.3.
-    class ThruMachine : public IMachine
+    class RouteMachine : public IMachine
     {
     public:
-        static constexpr const char* kMachineId = "lockstep.thru.v1";
+        static constexpr const char* kMachineId = "lockstep.route.v1";
 
         [[nodiscard]] const char* machineId() const noexcept override { return kMachineId; }
-        [[nodiscard]] const char* badge() const noexcept override { return "THRU"; }
+        [[nodiscard]] const char* badge() const noexcept override { return "ROUT"; }
 
         void prepare(double, int) override {}
         void reset() override {}

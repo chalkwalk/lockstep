@@ -10,7 +10,7 @@ namespace lockstep
 {
     // Audio-input source selection for input-consuming machines (DESIGN §27).
     //
-    // A machine that consumes audio (Thru now; Recorder / Looper later) declares
+    // A machine that consumes audio (Route now; Recorder / Looper later) declares
     // a single stepped slot with this canonical id. The sequencer reads the
     // resolved value each block and fills the track's buffer from the chosen
     // source *before* calling process():
@@ -41,7 +41,7 @@ namespace lockstep
 
     // Full label set for a tap-fork-capable input_source: None, Ext, Master,
     // then T1..T16 (index i>=3 decodes to Track i-3). Machines that support
-    // tap-forking (Thru / Recorder / Looper) declare their input_source slot with
+    // tap-forking (Route / Recorder / Looper) declare their input_source slot with
     // these labels and maxValue = kInputSourceMaxValue, so the stepped param
     // surface renders the track picker directly. Cyclic / self selections are
     // refused at write time (LockstepProcessor::writeParam), not here.
