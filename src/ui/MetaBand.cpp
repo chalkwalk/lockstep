@@ -120,6 +120,19 @@ namespace lockstep
         return ui.timeEntryScope;                  // entry scope — never silently target scope 0
     }
 
+    int resolveTapTempoScope(const UiState& ui, bool songHasTempo, bool sceneHasTempo)
+    {
+        // A held scope modifier is explicit intent and wins.
+        if (ui.funcHeld && ui.songHeld) return 1;  // Set/global
+        if (ui.songHeld) return 2;                 // Song
+        if (ui.sceneHeld) return 3;                // Scene
+        // No modifier: land on the deepest scope already overriding tempo, so a
+        // bare tap re-times the level the performer is actually hearing.
+        if (sceneHasTempo) return 3;
+        if (songHasTempo)  return 2;
+        return 1;                                  // global
+    }
+
     bool isTimeEntryChord(EditMode::PrimaryScope scope, int sectionIndex) noexcept
     {
         using PS = EditMode::PrimaryScope;

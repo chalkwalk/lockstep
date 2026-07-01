@@ -696,6 +696,39 @@ namespace lockstep
     }
 
     // -------------------------------------------------------------------------
+    // resolveTapTempoScope (item 10): held modifier wins; else deepest override.
+
+    static void testResolveTapTempoScope()
+    {
+        // Held scope modifiers behave exactly like timeScopeFor's 1/2/3.
+        {
+            UiState ui; ui.funcHeld = true; ui.songHeld = true;
+            CHECK(resolveTapTempoScope(ui, false, false) == 1, "Func+Song → Set (1)");
+        }
+        {
+            UiState ui; ui.songHeld = true;
+            CHECK(resolveTapTempoScope(ui, true, true) == 2,
+                  "Song held → Song (2), overriding deeper-override fallback");
+        }
+        {
+            UiState ui; ui.sceneHeld = true;
+            CHECK(resolveTapTempoScope(ui, false, false) == 3, "Scene held → Scene (3)");
+        }
+        // No modifier: land on the deepest scope that already overrides tempo.
+        {
+            UiState ui;
+            CHECK(resolveTapTempoScope(ui, false, false) == 1,
+                  "no override anywhere → global (1)");
+            CHECK(resolveTapTempoScope(ui, true, false) == 2,
+                  "only Song overrides → Song (2)");
+            CHECK(resolveTapTempoScope(ui, false, true) == 3,
+                  "only Scene overrides → Scene (3)");
+            CHECK(resolveTapTempoScope(ui, true, true) == 3,
+                  "both override → deepest (Scene, 3)");
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // buildMetaBand Time: two active fields (tempo + time-sig)
 
     static void testTimeBandFields()
@@ -1394,6 +1427,7 @@ namespace lockstep
         // TIME sticky mode precedence + scope routing
         testResolveMetaBandTime();
         testTimeScopeFor();
+        testResolveTapTempoScope();
 
         // TIME band: three active fields (tempo + time-sig + click)
         testTimeBandFields();

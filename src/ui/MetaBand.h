@@ -98,6 +98,13 @@ namespace lockstep
     // timeScopeFor — 1=Set (Func+Song), 2=Song, 3=Scene, else timeEntryScope (never 0).
     int timeScopeFor(const UiState& ui);
 
+    // resolveTapTempoScope — where a tap-tempo write should land (item 10).
+    // A held scope modifier wins (Func+Song=1/Set, Song=2, Scene=3); with no
+    // modifier held, target the deepest scope that already overrides tempo
+    // (Scene, else Song, else 1=Set/global). Pure: pass the current hasTempo
+    // flags so it stays unit-testable. Returns 1, 2, or 3.
+    int resolveTapTempoScope(const UiState& ui, bool songHasTempo, bool sceneHasTempo);
+
     // -------------------------------------------------------------------------
     // Pure TIME-mode transition functions (DESIGN §4.8 + CLAUDE.md single-sticky invariant).
     // All side effects on UiState live here; PluginEditor just calls these.

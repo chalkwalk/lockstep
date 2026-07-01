@@ -5525,7 +5525,31 @@ namespace lockstep
             const double bpm = (60000.0 * intervals) / spanMs;
             if (bpm >= kTapMinBpm && bpm <= kTapMaxBpm)
             {
-                processor_.clock().setLocalBpm(bpm);
+                // Item 10: land the tap at the scope the performer is hearing.
+                // A held scope modifier wins; otherwise the deepest scope that
+                // already overrides tempo (else global).
+                const int scope = resolveTapTempoScope(
+                    uiState_, processor_.song().hasTempo, processor_.section().hasTempo);
+                const double globalBpm = processor_.clock().bpm();
+                if (scope == 2 && globalBpm > 0.0)  // Song
+                {
+                    processor_.song().hasTempo = true;
+                    processor_.song().tempoRatio = bpm / globalBpm;
+                }
+                else if (scope == 3)  // Scene
+                {
+                    const auto& sg = processor_.song();
+                    const double songBpm = globalBpm * (sg.hasTempo ? sg.tempoRatio : 1.0);
+                    if (songBpm > 0.0)
+                    {
+                        processor_.section().hasTempo = true;
+                        processor_.section().tempoRatio = bpm / songBpm;
+                    }
+                }
+                else  // scope == 1 — global/Set
+                {
+                    processor_.clock().setLocalBpm(bpm);
+                }
                 repaint();
             }
         }
