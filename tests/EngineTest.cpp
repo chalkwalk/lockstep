@@ -1495,6 +1495,26 @@ namespace lockstep
               "edit that would form a cycle rejected");
     }
 
+    // Regression: a Route assigned via the real picker path (setTrackMachine)
+    // must appear in validOutTargets(from) — the filtered candidate list that
+    // BOTH the ManipulationZone rotary and the editor's encoder step through.
+    // The encoder used to walk the raw encoding range and could never land on a
+    // bus (only Off/Master resolved); it now maps its delta over this same list.
+    static void testRouteIsValidOutDestination()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        proc.setTrackMachine(1, RouteMachine::kMachineId);  // the real assignment path
+        const auto cands = proc.validOutTargets(0);
+        const float routeEnc = encodeOutputDest(OutputDestKind::Track, 1);
+        const bool hasRoute =
+            std::find_if(cands.begin(), cands.end(), [&](float c) {
+                return std::lround(c) == std::lround(routeEnc);
+            }) != cands.end();
+        CHECK(hasRoute, "a Route assigned via setTrackMachine is offered as an Out destination");
+        CHECK(cands.size() >= 3, "Off + Master + the Route bus are all candidates");
+    }
+
     // A2: a valid edge goes dormant (falls back to Master, no black hole) when the
     // target's machine is swapped to a non-bus, and revives when it becomes a bus
     // again. The stored Out value is never mutated.
@@ -2314,6 +2334,7 @@ namespace lockstep
         testMuteWinsOverSoloedBus();
         testValidOutTargets();
         testOutEditValidation();
+        testRouteIsValidOutDestination();
         testRoutingDormantOnMachineSwap();
         testStemCaptureRouteDefined();
     }

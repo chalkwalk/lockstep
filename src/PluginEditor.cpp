@@ -7,7 +7,9 @@
 #include "core/MelodyGen.h"
 #include "core/HarmonyGen.h"
 #include "core/MetricGrid.h"
+#include "core/OutputDest.h"
 #include "core/TrackInputMode.h"
+#include "machine/InputSource.h"
 #include "io/TrigGridMode.h"
 #include "machine/IMachine.h"
 #include "machine/ISliceable.h"
@@ -5925,6 +5927,39 @@ namespace lockstep
             if (absSlot >= processor_.numParams(track)) return;
 
             const auto spec = processor_.paramSpec(track, absSlot);
+
+            // Out / input_source are FILTERED candidate rotaries: the mouse path
+            // (ManipulationZone) maps a rotary index onto validOutTargets /
+            // validInputSources. The encoder must step the SAME candidate list,
+            // not the raw encoding range — otherwise valid bus targets / tap
+            // sources are unreachable by encoder (only Off/Master resolve). This
+            // is the encoder-side mirror of the ManipulationZone special-case.
+            // Routing is not morphable, so it precedes the morph handling below.
+            {
+                const juce::String sid { spec.id };
+                const bool isOut   = (sid == kOutSlotId);
+                const bool isInSrc = (sid == kInputSourceSlotId);
+                if (isOut || isInSrc)
+                {
+                    const auto cands = isOut ? processor_.validOutTargets(track)
+                                             : processor_.validInputSources(track);
+                    if (!cands.empty())
+                    {
+                        const float curEnc = processor_.baseParamValue(track, absSlot);
+                        int idx = 0;
+                        for (std::size_t c = 0; c < cands.size(); ++c)
+                            if (std::lround(cands[c]) == std::lround(curEnc))
+                            { idx = static_cast<int>(c); break; }
+                        idx = juce::jlimit(0, static_cast<int>(cands.size()) - 1,
+                                           idx + rawDelta);
+                        processor_.writeParam(track, absSlot,
+                                              cands[static_cast<std::size_t>(idx)]);
+                        processor_.editContext().markParamWritten();
+                        return;
+                    }
+                }
+            }
+
             const float range = spec.maxValue - spec.minValue;
             if (range <= 0.0f) return;
 

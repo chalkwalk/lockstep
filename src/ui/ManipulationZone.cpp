@@ -10,10 +10,10 @@
 
 namespace lockstep
 {
-    // WS4: the stable id of the CHANNEL "Out" routing slot. The slot is driven
-    // by a filtered candidate-index rotary (only valid bus targets) rather than
-    // the raw 0..17 encoding — see refreshSliders / onValueChange.
-    static constexpr const char* kOutSlotId = "lockstep.amp.out";
+    // WS4: the CHANNEL "Out" routing slot id lives in OutputDest.h (kOutSlotId) —
+    // shared with the editor's encoder path so both drive Out as a filtered
+    // candidate-index rotary (valid bus targets only) rather than the raw
+    // encoding. See refreshSliders / onValueChange.
 
     // Label for an encoded OutputDest value (matches the kOutDestLabels scheme).
     static juce::String outDestLabelText(float enc)

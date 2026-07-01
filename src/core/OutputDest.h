@@ -14,6 +14,11 @@ namespace lockstep
     //   0      -> Off     (silent at master; feeds no bus)
     //   1      -> Master  (default; contributes to the master sum, as today)
     //   2 + N  -> Track N  (0-based track index; removed from master, fed to N)
+    // The CHANNEL-block "Out" slot's stable param id (single source of truth —
+    // both the ManipulationZone rotary and the editor's encoder path key off it
+    // to treat Out as a filtered candidate rotary over validOutTargets()).
+    inline constexpr const char* kOutSlotId = "lockstep.amp.out";
+
     enum class OutputDestKind : std::uint8_t { Off = 0, Master = 1, Track = 2 };
 
     struct OutputDestSel
