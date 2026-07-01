@@ -1,9 +1,9 @@
-#include "PlayerMachine.h"
+#include "StretchMachine.h"
 #include <cmath>
 
 namespace lockstep
 {
-    ParamSpec PlayerMachine::paramSpec(int index) const
+    ParamSpec StretchMachine::paramSpec(int index) const
     {
         ParamSpec s;
         s.sectionIndex = kSrcSecIdx;
@@ -48,7 +48,7 @@ namespace lockstep
         }
     }
 
-    void PlayerMachine::prepare(double sampleRate, int /*maxBlockSize*/)
+    void StretchMachine::prepare(double sampleRate, int /*maxBlockSize*/)
     {
         sampleRate_ = sampleRate > 0.0 ? sampleRate : 44100.0;
         ts_.prepare(sampleRate_, 2);
@@ -57,7 +57,7 @@ namespace lockstep
         reset();
     }
 
-    void PlayerMachine::reset()
+    void StretchMachine::reset()
     {
         ts_.reset();
         playing_ = false;
@@ -67,7 +67,7 @@ namespace lockstep
         gain_ = 0.0f;
     }
 
-    double PlayerMachine::timeRatioFor(int playedLen) const
+    double StretchMachine::timeRatioFor(int playedLen) const
     {
         if (tsMode_ < 1) return 1.0;  // Off — native duration
         const double spb = transport_.samplesPerBar;
@@ -94,7 +94,7 @@ namespace lockstep
         return (bars * spb) / static_cast<double>(playedLen);
     }
 
-    void PlayerMachine::startNote(int midiNote, const ParamFrame& params)
+    void StretchMachine::startNote(int midiNote, const ParamFrame& params)
     {
         const int sampleId = (params.size() > kSlotSampleId)
             ? static_cast<int>(std::lround(params[kSlotSampleId])) : 0;
@@ -124,7 +124,7 @@ namespace lockstep
         playing_ = true;
     }
 
-    void PlayerMachine::process(const juce::MidiBuffer& events,
+    void StretchMachine::process(const juce::MidiBuffer& events,
                                 const ParamFrame& params,
                                 juce::AudioBuffer<float>& buffer)
     {

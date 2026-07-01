@@ -8,10 +8,10 @@ add_executable(lockstep_tests
     SamplePoolTest.cpp
     TempoEstimateTest.cpp
     TimeStretchTest.cpp
-    PlayerMachineTest.cpp
+    StretchMachineTest.cpp
     RecorderMachineTest.cpp
     LooperMachineTest.cpp
-    StaticMachineTest.cpp
+    StreamMachineTest.cpp
     MetricGridTest.cpp
     SurfaceModelTest.cpp
     StateResolverTest.cpp

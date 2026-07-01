@@ -44,7 +44,7 @@ namespace lockstep
     }
 
     // Estimate the loop tempo from the cached RMS envelope, gated by length:
-    // material longer than kMaxLoopSeconds is long-form (StaticMachine's domain)
+    // material longer than kMaxLoopSeconds is long-form (StreamMachine's domain)
     // and pays no analysis cost. 0 = unknown (short/non-rhythmic/too long).
     double SamplePool::detectBpmFor(const Sample& s)
     {

@@ -32,10 +32,10 @@ namespace lockstep
         // Stable MIDI output device identifier (empty = none).
         std::string destinationId;
 
-        // Disk-streamed source file path for StaticMachine (DESIGN §29.2). Held as
+        // Disk-streamed source file path for StreamMachine (DESIGN §29.2). Held as
         // a per-Kit path rather than a SamplePool entry because Static streams from
         // disk and never decodes the audio into RAM (PRINCIPLES §12). Empty = none.
-        std::string staticPath;
+        std::string streamPath;
 
         // Machine parameter defaults — one float per slot.
         ParamFrame baseParams{};

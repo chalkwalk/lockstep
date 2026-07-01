@@ -22,7 +22,7 @@ add_library(lockstep_core STATIC
     machine/FMMachine.cpp
     machine/SamplePlayingMachineBase.cpp
     machine/SamplePlayer.cpp
-    machine/VAMachine.cpp
+    machine/AnalogMachine.cpp
     machine/MidiDevicePresets.cpp
     machine/MidiOutMachine.cpp
     machine/EffectFactory.cpp
@@ -30,8 +30,8 @@ add_library(lockstep_core STATIC
     machine/SlicerMachine.cpp
     machine/RecorderMachine.cpp
     machine/LooperMachine.cpp
-    machine/StaticMachine.cpp
-    machine/PlayerMachine.cpp
+    machine/StreamMachine.cpp
+    machine/StretchMachine.cpp
     dsp/TimeStretch.cpp
     machine/SamplePool.cpp
     machine/MachineParamTable.cpp

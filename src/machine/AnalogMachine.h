@@ -9,11 +9,11 @@
 
 namespace lockstep
 {
-    class VAMachine : public IMachine
+    class AnalogMachine : public IMachine
     {
     public:
-        VAMachine();
-        ~VAMachine() override;
+        AnalogMachine();
+        ~AnalogMachine() override;
 
         void prepare(double sampleRate, int maxBlockSize) override;
         void reset() override;
@@ -22,8 +22,8 @@ namespace lockstep
                      juce::AudioBuffer<float>& buffer) override;
 
         [[nodiscard]] const char* machineId() const noexcept override { return kMachineId; }
-        [[nodiscard]] const char* badge() const noexcept override { return "VA"; }
-        static constexpr const char* kMachineId = "lockstep.va.v1";
+        [[nodiscard]] const char* badge() const noexcept override { return "ANLG"; }
+        static constexpr const char* kMachineId = "lockstep.analog.v1";
 
         static constexpr int kNumSlots = 37;
 

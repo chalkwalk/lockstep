@@ -1,12 +1,12 @@
-// StaticMachineTest -- disk-streaming sampler (4.5, DESIGN §29.2).
+// StreamMachineTest -- disk-streaming sampler (4.5, DESIGN §29.2).
 //
-// Writes a short temp WAV, then verifies StaticMachine opens it, streams it on a
+// Writes a short temp WAV, then verifies StreamMachine opens it, streams it on a
 // note-on (non-silent output), stops on note-off, and rejects a bad path. The
 // audio is streamed from disk via a background BufferingAudioReader and never
 // decoded into a SamplePool.
 
 #include "TestHarness.h"
-#include "../src/machine/StaticMachine.h"
+#include "../src/machine/StreamMachine.h"
 #include <juce_audio_formats/juce_audio_formats.h>
 
 namespace lockstep
@@ -38,7 +38,7 @@ namespace lockstep
         juce::MidiBuffer noteOff() { juce::MidiBuffer m; m.addEvent(juce::MidiMessage::noteOff(1, 60), 0); return m; }
     }
 
-    void runStaticMachineTests()
+    void runStreamMachineTests()
     {
         constexpr double kSr = 48000.0;
 
@@ -46,7 +46,7 @@ namespace lockstep
         const juce::File wav = writeTestWav(tmp, kSr);
         CHECK(wav.existsAsFile(), "test WAV written");
 
-        StaticMachine sm;
+        StreamMachine sm;
         sm.prepare(kSr, 512);
         CHECK(sm.setFilePath(wav.getFullPathName()), "Static opens the file");
         CHECK(sm.filePath() == wav.getFullPathName(), "path is stored");

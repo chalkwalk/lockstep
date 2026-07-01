@@ -2111,12 +2111,12 @@ namespace lockstep
 
         // A drop onto a focused Static track assigns its streamed source (disk
         // stream, no RAM decode — DESIGN §29.2) rather than loading into the pool.
-        if (processor_.isStaticTrack(processor_.focusTrack()))
+        if (processor_.isStreamTrack(processor_.focusTrack()))
         {
             for (const auto& path : files)
             {
                 if (!isAudioFile(path)) continue;
-                const bool ok = processor_.setStaticFile(processor_.focusTrack(), path);
+                const bool ok = processor_.setStreamFile(processor_.focusTrack(), path);
                 setStatus(ok ? juce::String("Static: ") + juce::File(path).getFileName()
                              : juce::String("Static: could not open file"));
                 refreshSurface();

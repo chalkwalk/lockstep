@@ -1,4 +1,4 @@
-#include "VAMachine.h"
+#include "AnalogMachine.h"
 #include "MachineParamTable.h"
 #include <algorithm>
 #include <cmath>
@@ -12,10 +12,10 @@ namespace lockstep
     // =========================================================================
     // Construction
 
-    VAMachine::VAMachine() = default;
-    VAMachine::~VAMachine() = default;
+    AnalogMachine::AnalogMachine() = default;
+    AnalogMachine::~AnalogMachine() = default;
 
-    void VAMachine::prepare(double sampleRate, int /*maxBlockSize*/)
+    void AnalogMachine::prepare(double sampleRate, int /*maxBlockSize*/)
     {
         sampleRate_ = sampleRate;
         reset();
@@ -26,7 +26,7 @@ namespace lockstep
             sv.ar.prepare(sampleRate);
     }
 
-    void VAMachine::reset()
+    void AnalogMachine::reset()
     {
         for (auto& sv : subVoices_) sv = SubVoice{};
         voiceCounter_ = 0;
@@ -125,16 +125,16 @@ namespace lockstep
         // --- FILTER continued (section 2): cutoff key-tracking amount ---
         { "va_keytrack", "Key Trk", 0.f, 1.f, 1.f, 1.f, 0, va_u::Pct, va_r::None, 0, 2, 0, nullptr }, // 36
     };
-    static_assert(std::size(kVAParams) == VAMachine::kNumSlots,
+    static_assert(std::size(kVAParams) == AnalogMachine::kNumSlots,
                   "kVAParams row count must equal kNumSlots");
 
-    ParamSpec VAMachine::paramSpec(int index) const
+    ParamSpec AnalogMachine::paramSpec(int index) const
     {
         if (index < 0 || index >= kNumSlots) return {};
         return toParamSpec(kVAParams[static_cast<std::size_t>(index)]);
     }
 
-    SectionInfo VAMachine::section(int index) const
+    SectionInfo AnalogMachine::section(int index) const
     {
         switch (index)
         {
@@ -149,7 +149,7 @@ namespace lockstep
     // =========================================================================
     // currentVoices
 
-    IMachine::Polyphony VAMachine::currentVoices(const ParamFrame& baseParams) const
+    IMachine::Polyphony AnalogMachine::currentVoices(const ParamFrame& baseParams) const
     {
         if (static_cast<int>(baseParams.size()) > kSlotVoiceMode && baseParams[static_cast<std::size_t>(kSlotVoiceMode)] >= 0.5f)
             return Polyphony::V4;
@@ -159,7 +159,7 @@ namespace lockstep
     // =========================================================================
     // isVoiceActive
 
-    bool VAMachine::isVoiceActive() const
+    bool AnalogMachine::isVoiceActive() const
     {
         if (monoGhostFade_ > 0) return true;
         for (const auto& sv : subVoices_)
@@ -172,7 +172,7 @@ namespace lockstep
     // =========================================================================
     // DSP helpers
 
-    float VAMachine::polyBlep(double t, double dt) noexcept
+    float AnalogMachine::polyBlep(double t, double dt) noexcept
     {
         if (t < dt)
         {
@@ -187,7 +187,7 @@ namespace lockstep
         return 0.0f;
     }
 
-    float VAMachine::oscillatorSample(SubVoice& sv, int osc1Wave, float osc1PW,
+    float AnalogMachine::oscillatorSample(SubVoice& sv, int osc1Wave, float osc1PW,
                                       int osc2Wave, float osc2PW,
                                       float subLevel,
                                       double osc2FreqRatio,
@@ -297,7 +297,7 @@ namespace lockstep
         return out;
     }
 
-    float VAMachine::filterSample(float in, float f, float q, int filterType) noexcept
+    float AnalogMachine::filterSample(float in, float f, float q, int filterType) noexcept
     {
         auto runSVF = [](SVFState& s, float x, float fc, float res) -> std::tuple<float, float, float> {
             s.hp = x - res * s.bp - s.lp;
@@ -329,7 +329,7 @@ namespace lockstep
     // =========================================================================
     // Envelope helpers
 
-    void VAMachine::triggerEnvs(const ParamFrame& params)
+    void AnalogMachine::triggerEnvs(const ParamFrame& params)
     {
         const auto p = [&](int s) { return params[static_cast<std::size_t>(s)]; };
         ampEnv_.setADSR(p(kSlotAmpA), p(kSlotAmpD), p(kSlotAmpS), p(kSlotAmpR));
@@ -338,7 +338,7 @@ namespace lockstep
         filterEnv_.gateOn();
     }
 
-    void VAMachine::releaseEnvs()
+    void AnalogMachine::releaseEnvs()
     {
         ampEnv_.gateOff();
         filterEnv_.gateOff();
@@ -347,7 +347,7 @@ namespace lockstep
     // =========================================================================
     // Mono voice
 
-    void VAMachine::startMonoVoice(int midiNote, const ParamFrame& params)
+    void AnalogMachine::startMonoVoice(int midiNote, const ParamFrame& params)
     {
         const auto p = [&](int s) { return params[static_cast<std::size_t>(s)]; };
 
@@ -380,7 +380,7 @@ namespace lockstep
             lfoPhase_ = 0.0;
     }
 
-    void VAMachine::legatoMonoVoice(int midiNote, const ParamFrame& params)
+    void AnalogMachine::legatoMonoVoice(int midiNote, const ParamFrame& params)
     {
         auto& sv = subVoices_[0];
         const auto p = [&](int s) { return params[static_cast<std::size_t>(s)]; };
@@ -393,7 +393,7 @@ namespace lockstep
         // Envelope continues; oscillator phases and SVF state unchanged.
     }
 
-    void VAMachine::releaseMonoVoice()
+    void AnalogMachine::releaseMonoVoice()
     {
         releaseEnvs();
     }
@@ -401,7 +401,7 @@ namespace lockstep
     // =========================================================================
     // Para voice
 
-    int VAMachine::allocSubVoice()
+    int AnalogMachine::allocSubVoice()
     {
         // Prefer the slot matching the current chord-note index.
         const int preferred = paraChordNoteIdx_ % kMaxSubVoices;
@@ -427,7 +427,7 @@ namespace lockstep
         return oldest;
     }
 
-    void VAMachine::startParaVoice(int midiNote, const ParamFrame& params)
+    void AnalogMachine::startParaVoice(int midiNote, const ParamFrame& params)
     {
         const auto p = [&](int s) { return params[static_cast<std::size_t>(s)]; };
 
@@ -490,7 +490,7 @@ namespace lockstep
             lfoPhase_ = 0.0;
     }
 
-    void VAMachine::releaseParaVoice(int midiNote)
+    void AnalogMachine::releaseParaVoice(int midiNote)
     {
         for (auto& sv : subVoices_)
         {
@@ -526,7 +526,7 @@ namespace lockstep
     // =========================================================================
     // process()
 
-    void VAMachine::process(const juce::MidiBuffer& events,
+    void AnalogMachine::process(const juce::MidiBuffer& events,
                             const ParamFrame& params,
                             juce::AudioBuffer<float>& buffer)
     {

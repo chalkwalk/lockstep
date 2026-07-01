@@ -17,7 +17,7 @@
 #include "TestHarness.h"
 #include "EngineHarness.h"
 #include "../src/machine/DrumSynthMachine.h"
-#include "../src/machine/VAMachine.h"
+#include "../src/machine/AnalogMachine.h"
 #include "../src/machine/FMMachine.h"
 #include "../src/machine/SamplerMachine.h"
 #include "../src/machine/StubMachine.h"
@@ -25,7 +25,7 @@
 #include "../src/machine/ThruMachine.h"
 #include "../src/machine/RecorderMachine.h"
 #include "../src/machine/LooperMachine.h"
-#include "../src/machine/StaticMachine.h"
+#include "../src/machine/StreamMachine.h"
 #include "../src/machine/InputSource.h"
 #include "../src/core/OutputDest.h"
 #include "../src/core/Subdivision.h"
@@ -717,15 +717,15 @@ namespace lockstep
     }
 
     // -----------------------------------------------------------------------
-    // Helper: install a VA machine on a track. Creates a temporary VAMachine to
+    // Helper: install a VA machine on a track. Creates a temporary AnalogMachine to
     // query the correct param count and defaults (the generic installMachine helper
     // hard-codes DrumSynthMachine for its schema query).
     static void installVA(LockstepProcessor& proc, int track)
     {
-        VAMachine tmp;
+        AnalogMachine tmp;
         const int np = tmp.numParams();
         auto& k = proc.kit(track);
-        k.machineId = VAMachine::kMachineId;
+        k.machineId = AnalogMachine::kMachineId;
         k.baseParams.resize(static_cast<std::size_t>(np));
         for (int i = 0; i < np; ++i)
             k.baseParams[static_cast<std::size_t>(i)] = tmp.paramSpec(i).defaultValue;
@@ -1448,7 +1448,7 @@ namespace lockstep
         EngineHarness h;
         auto& proc = h.processor();
         installThru(proc, 1, static_cast<float>(static_cast<int>(InputSourceKind::None)));  // bus
-        installMachine(proc, 2, VAMachine::kMachineId);                                     // synth
+        installMachine(proc, 2, AnalogMachine::kMachineId);                                     // synth
 
         const auto cands = proc.validOutTargets(0);
         CHECK(cands.size() == 3, "Off + Master + the one valid bus");
@@ -1474,7 +1474,7 @@ namespace lockstep
         EngineHarness h;
         auto& proc = h.processor();
         installThru(proc, 1, static_cast<float>(static_cast<int>(InputSourceKind::None)));   // a bus
-        installMachine(proc, 2, VAMachine::kMachineId);                                      // a synth
+        installMachine(proc, 2, AnalogMachine::kMachineId);                                      // a synth
 
         // Master / Off / self / non-bus / valid bus.
         CHECK(proc.validateOutEdit(0, encodeOutputDest(OutputDestKind::Master)) == RR::None,
@@ -1510,7 +1510,7 @@ namespace lockstep
         CHECK(proc.routeForTrack(0).route == Route::Bus, "edge active while target is a Thru");
 
         // Swap the bus target to a synth — edge goes dormant (read-time fallback).
-        proc.setTrackMachine(1, VAMachine::kMachineId);
+        proc.setTrackMachine(1, AnalogMachine::kMachineId);
         CHECK(proc.routeForTrack(0).route == Route::Master,
               "edge dormant -> Master when target is no longer a bus (no black hole)");
         CHECK(decodeOutputDest(proc.kit(0).channelState.out).track == 1,
@@ -1574,7 +1574,7 @@ namespace lockstep
     // private; the id is the public contract).
     static int vaSlotById(const char* id)
     {
-        VAMachine tmp;
+        AnalogMachine tmp;
         for (int i = 0; i < tmp.numParams(); ++i)
             if (tmp.paramSpec(i).id == juce::String(id))
                 return i;
@@ -1617,7 +1617,7 @@ namespace lockstep
 
         // Energy of a high note (C5) through a lowered cutoff, keytrack on vs off.
         auto highNoteRms = [&](float keytrack) {
-            VAMachine m;
+            AnalogMachine m;
             m.prepare(48000.0, 512);
             ParamFrame f(static_cast<std::size_t>(m.numParams()));
             for (int i = 0; i < m.numParams(); ++i)
@@ -1748,7 +1748,7 @@ namespace lockstep
                   + " outside [" + juce::String(kLo, 2) + "," + juce::String(kHi, 2) + "]");
         };
         { DrumSynthMachine m; inWindow("drum", peakOf(m, 36)); }
-        { VAMachine m;        inWindow("va",   peakOf(m, 60)); }
+        { AnalogMachine m;        inWindow("va",   peakOf(m, 60)); }
         { FMMachine m;        inWindow("fm",   peakOf(m, 60)); }
     }
 
@@ -1892,7 +1892,7 @@ namespace lockstep
 
     // Phase D: paraphonic loudness compensation. A 4-note chord must be thicker
     // than a single note but nowhere near 4x as loud (the old abrasive linear
-    // stacking). Drives a standalone VAMachine and compares peak magnitudes.
+    // stacking). Drives a standalone AnalogMachine and compares peak magnitudes.
     static void testVAParaLoudnessCompensation()
     {
         const int voiceModeSlot = vaSlotById("va_voice_mode");
@@ -1900,7 +1900,7 @@ namespace lockstep
         const int ageSlot = vaSlotById("va_age");
 
         auto peakForChord = [&](const std::vector<int>& notes) {
-            VAMachine m;
+            AnalogMachine m;
             m.prepare(44100.0, 512);
             ParamFrame frame(static_cast<std::size_t>(m.numParams()));
             for (int i = 0; i < m.numParams(); ++i)
@@ -2112,7 +2112,7 @@ namespace lockstep
         const std::array<Case, 3> cases {{
             { LooperMachine::kMachineId,   true  },
             { RecorderMachine::kMachineId, true  },
-            { StaticMachine::kMachineId,   false },  // disk stream — no input_source
+            { StreamMachine::kMachineId,   false },  // disk stream — no input_source
         }};
         int t = 0;
         for (const auto& c : cases)
@@ -2136,7 +2136,7 @@ namespace lockstep
     {
         EngineHarness h;
         auto& p = h.processor();
-        p.setTrackMachine(0, VAMachine::kMachineId);
+        p.setTrackMachine(0, AnalogMachine::kMachineId);
         p.setTrackMachine(1, LooperMachine::kMachineId);
 
         const auto has = [](const std::vector<float>& v, float enc) {

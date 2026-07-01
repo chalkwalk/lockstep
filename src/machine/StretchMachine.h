@@ -8,7 +8,7 @@
 
 namespace lockstep
 {
-    // PlayerMachine — the Flex analog (DESIGN §29.2): independent pitch + tempo
+    // StretchMachine — the Flex analog (DESIGN §29.2): independent pitch + tempo
     // playback of a pool buffer via the WSOLA TimeStretch voice (C1/C3). Unlike the
     // rate-based SamplerMachine (pitch=speed, the turntable), the Player decouples
     // them: `pitch` transposes without changing duration, and `timestretch=Tempo`
@@ -19,15 +19,15 @@ namespace lockstep
     // Monophonic v1 (one stretch voice), gated like the Static machine
     // (hasInternalAmp suppresses the track ENVELOPE; level/pan come from CHANNEL).
     // A short anti-click fade gates note-on/off. Polyphony + AHDSR are future work.
-    class PlayerMachine : public IMachine, public ITempoAware
+    class StretchMachine : public IMachine, public ITempoAware
     {
     public:
-        explicit PlayerMachine(SamplePool& pool) : pool_(pool) {}
+        explicit StretchMachine(SamplePool& pool) : pool_(pool) {}
 
-        static constexpr const char* kMachineId = "lockstep.player.v1";
+        static constexpr const char* kMachineId = "lockstep.stretch.v1";
 
         [[nodiscard]] const char* machineId() const noexcept override { return kMachineId; }
-        [[nodiscard]] const char* badge() const noexcept override { return "PLAY"; }
+        [[nodiscard]] const char* badge() const noexcept override { return "STCH"; }
 
         void setTransport(const TransportInfo& t) noexcept override { transport_ = t; }
 

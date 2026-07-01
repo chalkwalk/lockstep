@@ -1,21 +1,21 @@
-#include "StaticMachine.h"
+#include "StreamMachine.h"
 #include <algorithm>
 
 namespace lockstep
 {
-    StaticMachine::StaticMachine()
+    StreamMachine::StreamMachine()
     {
         formatManager_.registerBasicFormats();
         streamThread_.startThread();
     }
 
-    StaticMachine::~StaticMachine()
+    StreamMachine::~StreamMachine()
     {
         reader_.reset();  // release the buffering reader before stopping its thread
         streamThread_.stopThread(1000);
     }
 
-    ParamSpec StaticMachine::paramSpec(int index) const
+    ParamSpec StreamMachine::paramSpec(int index) const
     {
         if (index != kSlotStart) return {};
         ParamSpec s;
@@ -29,7 +29,7 @@ namespace lockstep
         return s;
     }
 
-    bool StaticMachine::setFilePath(const juce::String& path)
+    bool StreamMachine::setFilePath(const juce::String& path)
     {
         // Caller must have quiesced the engine: this swaps the reader the audio
         // thread reads from.
@@ -55,20 +55,20 @@ namespace lockstep
         return true;
     }
 
-    void StaticMachine::prepare(double /*sampleRate*/, int /*maxBlockSize*/)
+    void StreamMachine::prepare(double /*sampleRate*/, int /*maxBlockSize*/)
     {
         if (!streamThread_.isThreadRunning())
             streamThread_.startThread();
         reset();
     }
 
-    void StaticMachine::reset()
+    void StreamMachine::reset()
     {
         playing_ = false;
         readPos_ = 0;
     }
 
-    void StaticMachine::process(const juce::MidiBuffer& events,
+    void StreamMachine::process(const juce::MidiBuffer& events,
                                 const ParamFrame& params,
                                 juce::AudioBuffer<float>& buffer)
     {

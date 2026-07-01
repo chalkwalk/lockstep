@@ -10,7 +10,7 @@
 // For IEffect: drive with a non-zero input, assert no NaN/Inf.
 
 #include "TestHarness.h"
-#include "../src/machine/VAMachine.h"
+#include "../src/machine/AnalogMachine.h"
 #include "../src/machine/FMMachine.h"
 #include "../src/machine/DrumSynthMachine.h"
 #include "../src/machine/SamplerMachine.h"
@@ -254,13 +254,13 @@ namespace lockstep
     }
 
     // -----------------------------------------------------------------------
-    // VAMachine envelope golden.
+    // AnalogMachine envelope golden.
     // Sets A=10ms, D=50ms, S=0.5, R=20ms at 48 kHz and verifies:
     //   - after attack (>=10ms): peak is non-trivial
     //   - after release tail (>=60ms): near silence
     static void vaEnvelopeGolden()
     {
-        VAMachine va;
+        AnalogMachine va;
         va.prepare(48000.0, 64);
 
         ParamFrame frame = defaultFrame(va);
@@ -472,9 +472,9 @@ namespace lockstep
                   "(ratio=" + juce::String(ratio, 3) + ") -- ghost-fade not working");
         };
 
-        // VA in RETRIG mode: 1.5 ms ghost-fade (VAMachine.cpp ~:695).
+        // VA in RETRIG mode: 1.5 ms ghost-fade (AnalogMachine.cpp ~:695).
         {
-            VAMachine va;
+            AnalogMachine va;
             ParamFrame frame = defaultFrame(va);
             setSlot(va, frame, "va_voice_mode", 0.0f);  // MONO
             setSlot(va, frame, "va_retrig", 1.0f);       // RETRIG
@@ -512,7 +512,7 @@ namespace lockstep
     // notes are released.
     static void vaLegatoGolden()
     {
-        VAMachine va;
+        AnalogMachine va;
         va.prepare(48000.0, 64);
 
         ParamFrame frame = defaultFrame(va);
@@ -696,15 +696,15 @@ namespace lockstep
 
     void runMachineDspTests()
     {
-        // --- VAMachine ---
+        // --- AnalogMachine ---
         {
-            VAMachine va;
+            AnalogMachine va;
             smokeTestSynth(va, 60, /*activeBlocks=*/20, /*releaseBlocks=*/20,
-                           /*silenceThreshold=*/1e-3f, "va_amp_r", "VAMachine");
+                           /*silenceThreshold=*/1e-3f, "va_amp_r", "AnalogMachine");
         }
         {
-            VAMachine va;
-            blockSizeInvariance(va, 60, /*activeBlocks=*/10, "VAMachine");
+            AnalogMachine va;
+            blockSizeInvariance(va, 60, /*activeBlocks=*/10, "AnalogMachine");
         }
         vaEnvelopeGolden();
         vaLegatoGolden();

@@ -14,8 +14,8 @@
 #include "machine/ThruMachine.h"
 #include "machine/RecorderMachine.h"
 #include "machine/LooperMachine.h"
-#include "machine/StaticMachine.h"
-#include "machine/PlayerMachine.h"
+#include "machine/StreamMachine.h"
+#include "machine/StretchMachine.h"
 #include "machine/MidiDevicePresets.h"
 #include "machine/DrumSynthMachine.h"
 #include "machine/FMMachine.h"
@@ -23,7 +23,7 @@
 #include "machine/SamplerMachine.h"
 #include "machine/SlicerMachine.h"
 #include "machine/SamplePlayingMachineBase.h"
-#include "machine/VAMachine.h"
+#include "machine/AnalogMachine.h"
 #include "machine/StubMachine.h"
 #include "state/Hash.h"
 #include "state/PluginState.h"
@@ -4419,8 +4419,8 @@ namespace lockstep
             return std::make_unique<DrumSynthMachine>();
         if (id == FMMachine::kMachineId)
             return std::make_unique<FMMachine>();
-        if (id == VAMachine::kMachineId)
-            return std::make_unique<VAMachine>();
+        if (id == AnalogMachine::kMachineId)
+            return std::make_unique<AnalogMachine>();
         if (id == SlicerMachine::kMachineId)
             return std::make_unique<SlicerMachine>(pool);
         if (id == ThruMachine::kMachineId)
@@ -4429,10 +4429,10 @@ namespace lockstep
             return std::make_unique<RecorderMachine>(pool);
         if (id == LooperMachine::kMachineId)
             return std::make_unique<LooperMachine>(pool);
-        if (id == StaticMachine::kMachineId)
-            return std::make_unique<StaticMachine>();
-        if (id == PlayerMachine::kMachineId)
-            return std::make_unique<PlayerMachine>(pool);
+        if (id == StreamMachine::kMachineId)
+            return std::make_unique<StreamMachine>();
+        if (id == StretchMachine::kMachineId)
+            return std::make_unique<StretchMachine>(pool);
         // "lockstep.stub" is an explicitly-empty track (unknownId = "").
         // Any other unrecognised ID keeps its original id as the unknownId.
         if (id == StubMachine::kMachineId)
@@ -4447,13 +4447,13 @@ namespace lockstep
         { SamplerMachine::kMachineId, "Sampler" },
         { SlicerMachine::kMachineId, "Slicer" },
         { FMMachine::kMachineId, "FM Synth" },
-        { VAMachine::kMachineId, "VA Synth" },
+        { AnalogMachine::kMachineId, "Analog Synth" },
         { DrumSynthMachine::kMachineId, "Drum Synth" },
         { ThruMachine::kMachineId, "Thru" },
         { RecorderMachine::kMachineId, "Recorder" },
         { LooperMachine::kMachineId, "Looper" },
-        { StaticMachine::kMachineId, "Static" },
-        { PlayerMachine::kMachineId, "Player" },
+        { StreamMachine::kMachineId, "Stream" },
+        { StretchMachine::kMachineId, "Stretch" },
         { MidiOutMachine::kMachineId, "MIDI Out" },
     };
 
@@ -5293,7 +5293,7 @@ namespace lockstep
         // VA Machine has a non-zero default sustain (0.8), so it sustains indefinitely
         // without a gate. Seed 1/8-note gate (≈250 ms at 120 BPM) on first install.
         auto& trigDef = sequence().tracks[ti].trigDefaults;
-        if (machineId == VAMachine::kMachineId && trigDef.gateValue == MusicalGate::None)
+        if (machineId == AnalogMachine::kMachineId && trigDef.gateValue == MusicalGate::None)
             trigDef.gateValue = MusicalGate::G1_8;
 
         // A2: if the new machine can't be a bus, any tracks that route their Out
@@ -5417,10 +5417,10 @@ namespace lockstep
         return false;
     }
 
-    bool LockstepProcessor::isStaticTrack(int track) const
+    bool LockstepProcessor::isStreamTrack(int track) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
-        return dynamic_cast<StaticMachine*>(machines_[static_cast<std::size_t>(track)].get())
+        return dynamic_cast<StreamMachine*>(machines_[static_cast<std::size_t>(track)].get())
                != nullptr;
     }
 
@@ -5464,16 +5464,16 @@ namespace lockstep
         return false;
     }
 
-    bool LockstepProcessor::setStaticFile(int track, const juce::String& path)
+    bool LockstepProcessor::setStreamFile(int track, const juce::String& path)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
         bool ok = false;
         withQuiescedEngine([&] {
-            auto* sm = dynamic_cast<StaticMachine*>(machines_[static_cast<std::size_t>(track)].get());
+            auto* sm = dynamic_cast<StreamMachine*>(machines_[static_cast<std::size_t>(track)].get());
             if (sm == nullptr) return;
             ok = sm->setFilePath(path);
             // Mirror the path into the Kit so it persists and survives a reload.
-            kit(track).staticPath = ok ? path.toStdString() : std::string{};
+            kit(track).streamPath = ok ? path.toStdString() : std::string{};
         });
         return ok;
     }
@@ -5527,12 +5527,12 @@ namespace lockstep
                 mom->clearCCNameTable();
         };
 
-        // Re-open a StaticMachine's streamed source from the Kit's saved path
+        // Re-open a StreamMachine's streamed source from the Kit's saved path
         // (held per-Kit, not in the SamplePool — DESIGN §29.2). The engine is
         // quiesced here, so swapping the reader is safe.
-        auto pushStaticPath = [](IMachine* m, const TrackKit& k) {
-            if (auto* sm = dynamic_cast<StaticMachine*>(m))
-                sm->setFilePath(juce::String(k.staticPath));
+        auto pushStreamPath = [](IMachine* m, const TrackKit& k) {
+            if (auto* sm = dynamic_cast<StreamMachine*>(m))
+                sm->setFilePath(juce::String(k.streamPath));
         };
 
         // Reinstall machines from the active Kit so that any Kit loaded from disk
@@ -5544,7 +5544,7 @@ namespace lockstep
             {
                 if (machines_[t]->isMidiOut())
                     pushMidiOutConfig(static_cast<MidiOutMachine*>(machines_[t].get()), k);
-                pushStaticPath(machines_[t].get(), k);
+                pushStreamPath(machines_[t].get(), k);
                 continue;
             }
             machines_[t] = makeMachineForId(k.machineId, samplePool_);
@@ -5552,7 +5552,7 @@ namespace lockstep
                 pushMidiOutConfig(static_cast<MidiOutMachine*>(machines_[t].get()), k);
             if (preparedSampleRate_ > 0.0)
                 machines_[t]->prepare(preparedSampleRate_, preparedBlockSize_);
-            pushStaticPath(machines_[t].get(), k);
+            pushStreamPath(machines_[t].get(), k);
         }
 
         // v13: reinstall insert effects from the loaded Kit state. setTrackInsert
@@ -5621,7 +5621,7 @@ namespace lockstep
         {
             // NOTE: machineId() returns const char*; compare via std::string to
             // avoid a pointer-equality check that is always false.
-            if (machines_[t] && std::string(machines_[t]->machineId()) == VAMachine::kMachineId)
+            if (machines_[t] && std::string(machines_[t]->machineId()) == AnalogMachine::kMachineId)
             {
                 auto& trigDef = sequence().tracks[t].trigDefaults;
                 if (trigDef.gateValue == MusicalGate::None)

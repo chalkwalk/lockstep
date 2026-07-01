@@ -5,7 +5,7 @@
 
 namespace lockstep
 {
-    // Real-time WSOLA time-stretch + resample voice for the PlayerMachine (C1).
+    // Real-time WSOLA time-stretch + resample voice for the StretchMachine (C1).
     //
     // Independent time and pitch: given a fixed source buffer, it plays back with a
     // time ratio (output duration / input duration) and a pitch ratio (output

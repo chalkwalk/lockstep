@@ -213,12 +213,12 @@ namespace lockstep
         // playing) and the quantize-aware grid cell count (1..16).
         [[nodiscard]] float looperPhase(int track) const;
         [[nodiscard]] bool looperPending(int track) const;
-        // True when the track's machine is a StaticMachine (disk-stream sampler).
-        // setStaticFile assigns its streamed source path (held per-Kit, streamed
+        // True when the track's machine is a StreamMachine (disk-stream sampler).
+        // setStreamFile assigns its streamed source path (held per-Kit, streamed
         // from disk, never decoded into the SamplePool — DESIGN §29.2); it quiesces
         // the engine to swap the reader. Returns true if the file opened.
-        [[nodiscard]] bool isStaticTrack(int track) const;
-        bool setStaticFile(int track, const juce::String& path);
+        [[nodiscard]] bool isStreamTrack(int track) const;
+        bool setStreamFile(int track, const juce::String& path);
 
         // D1 multi-capture: capture machines (Recorder/Looper) share the 8-slot
         // volatile REC bank via their "target_buffer" slot. captureTargetSlot

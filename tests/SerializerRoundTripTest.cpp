@@ -698,7 +698,7 @@ namespace lockstep
         juce::ValueTree sp("SoundPool");
         juce::ValueTree se("SE");
         se.setProperty("nm", "Test Sound", nullptr);
-        se.setProperty("mId", "lockstep.va.v1", nullptr);
+        se.setProperty("mId", "lockstep.analog.v1", nullptr);
         se.setProperty("spi", -1, nullptr);
         sp.appendChild(se, nullptr);
         root.appendChild(sp, nullptr);

@@ -1,11 +1,11 @@
-// PlayerMachineTest -- the Flex-analog Player (C3): independent pitch + tempo via
+// StretchMachineTest -- the Flex-analog Player (C3): independent pitch + tempo via
 // the WSOLA TimeStretch voice. Verifies the decoupling that distinguishes it from
 // the rate-based Sampler:
 //   - transposing (note up an octave) does NOT shorten the output (pitch != speed).
 //   - timestretch=Tempo stretches the buffer to the project tempo (duration tracks).
 
 #include "TestHarness.h"
-#include "../src/machine/PlayerMachine.h"
+#include "../src/machine/StretchMachine.h"
 #include "../src/machine/SamplePool.h"
 #include <cmath>
 
@@ -30,7 +30,7 @@ namespace lockstep
         }
 
         // Count non-silent output samples while holding `note`, over up to maxLen.
-        int activeSamples(PlayerMachine& p, const ParamFrame& params, int note, int maxLen)
+        int activeSamples(StretchMachine& p, const ParamFrame& params, int note, int maxLen)
         {
             juce::AudioBuffer<float> blk(1, 256);
             juce::MidiBuffer on;
@@ -61,7 +61,7 @@ namespace lockstep
         }
     }
 
-    void runPlayerMachineTests()
+    void runStretchMachineTests()
     {
         const int srcLen = 24000;  // 0.5 s
         const int cap = srcLen * 4;
@@ -72,7 +72,7 @@ namespace lockstep
 
         int activeRoot = 0;
         {
-            PlayerMachine p(pool);
+            StretchMachine p(pool);
             p.prepare(kSr, 256);
             auto fr = playerFrame(idx, 0.0f, 0.0f);  // Off
             activeRoot = activeSamples(p, fr, 60, cap);
@@ -82,7 +82,7 @@ namespace lockstep
 
         // Off mode, octave up: duration must NOT shrink (pitch decoupled from speed).
         {
-            PlayerMachine p(pool);
+            StretchMachine p(pool);
             p.prepare(kSr, 256);
             auto fr = playerFrame(idx, 0.0f, 0.0f);  // Off
             const int activeOct = activeSamples(p, fr, 72, cap);
@@ -93,7 +93,7 @@ namespace lockstep
 
         // Tempo mode with a doubled bar length: output stretched ~2x.
         {
-            PlayerMachine p(pool);
+            StretchMachine p(pool);
             p.prepare(kSr, 256);
             TransportInfo tr;
             tr.samplesPerBar = 2.0 * static_cast<double>(srcLen);  // project bar = 2x the capture bar

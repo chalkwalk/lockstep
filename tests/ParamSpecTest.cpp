@@ -13,7 +13,7 @@
 //   - skew > 0.0f (positive, never zero or negative)
 
 #include "TestHarness.h"
-#include "../src/machine/VAMachine.h"
+#include "../src/machine/AnalogMachine.h"
 #include "../src/machine/FMMachine.h"
 #include "../src/machine/DrumSynthMachine.h"
 #include "../src/machine/SamplerMachine.h"
@@ -78,9 +78,9 @@ namespace lockstep
 
     // -------------------------------------------------------------------------
 
-    static void testVAMachineParams()
+    static void testAnalogMachineParams()
     {
-        VAMachine m;
+        AnalogMachine m;
         const std::vector<const char*> golden = {
             "va_osc1_coarse",   //  0
             "va_osc1_fine",     //  1
@@ -120,8 +120,8 @@ namespace lockstep
             "va_age",           // 35
             "va_keytrack",      // 36
         };
-        checkGoldenIds(m, "VAMachine", golden);
-        checkInvariants(m, "VAMachine");
+        checkGoldenIds(m, "AnalogMachine", golden);
+        checkInvariants(m, "AnalogMachine");
     }
 
     static void testFMMachineParams()
@@ -490,7 +490,7 @@ namespace lockstep
 
     void runParamSpecTests()
     {
-        testVAMachineParams();
+        testAnalogMachineParams();
         testFMMachineParams();
         testDrumSynthMachineParams();
         testSamplerMachineParams();

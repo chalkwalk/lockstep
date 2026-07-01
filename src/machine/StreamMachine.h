@@ -6,7 +6,7 @@
 
 namespace lockstep
 {
-    // StaticMachine — disk-streaming sampler for long-form material (full songs,
+    // StreamMachine — disk-streaming sampler for long-form material (full songs,
     // long field recordings) that should not be decoded into RAM (DESIGN §29.2,
     // PRINCIPLES §12). Unlike the Flex SamplerMachine (which plays decoded PCM from
     // the SamplePool), Static streams its source from disk via a BufferingAudioReader
@@ -18,16 +18,16 @@ namespace lockstep
     // block (hasInternalAmp suppresses the track ENVELOPE — Static is a gated stream,
     // not an enveloped one-shot). Resampling on a file/engine rate mismatch is a
     // later refinement; v1 streams at the engine rate.
-    class StaticMachine : public IMachine
+    class StreamMachine : public IMachine
     {
     public:
-        StaticMachine();
-        ~StaticMachine() override;
+        StreamMachine();
+        ~StreamMachine() override;
 
-        static constexpr const char* kMachineId = "lockstep.static.v1";
+        static constexpr const char* kMachineId = "lockstep.stream.v1";
 
         [[nodiscard]] const char* machineId() const noexcept override { return kMachineId; }
-        [[nodiscard]] const char* badge() const noexcept override { return "STAT"; }
+        [[nodiscard]] const char* badge() const noexcept override { return "STRM"; }
 
         // Open (or clear, if empty) the streamed source file. Message-thread only,
         // and must be called with the engine quiesced (it swaps the reader the audio
@@ -66,7 +66,7 @@ namespace lockstep
         static constexpr int kNumSlots = 1;
 
         juce::AudioFormatManager formatManager_;
-        juce::TimeSliceThread streamThread_{ "lockstep.static.stream" };
+        juce::TimeSliceThread streamThread_{ "lockstep.stream.io" };
         std::unique_ptr<juce::BufferingAudioReader> reader_;
         juce::String path_;
         juce::int64 lengthSamples_ = 0;

@@ -13,7 +13,7 @@
 #include "../src/ui/GridDisplayMode.h"
 #include "../src/machine/IMachine.h"
 #include "../src/machine/LooperMachine.h"
-#include "../src/machine/VAMachine.h"
+#include "../src/machine/AnalogMachine.h"
 #include "../src/command/KeyBindings.h"
 
 namespace lockstep
@@ -489,7 +489,7 @@ namespace lockstep
         // S3: the looper transport verbs (Track+U/I/O) are RETIRED. Under Track
         // scope on a looper the verbs revert to the ordinary clipboard grammar
         // (the layer is the scope selector, not a looper relabel).
-        proc.setTrackMachine(0, VAMachine::kMachineId);
+        proc.setTrackMachine(0, AnalogMachine::kMachineId);
         proc.setTrackMachine(1, LooperMachine::kMachineId);
         proc.setFocusTrack(1);
         {

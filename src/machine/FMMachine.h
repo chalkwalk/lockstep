@@ -190,7 +190,7 @@ namespace lockstep
         dsp::MonoGate monoGate_{};
         // Polyphony loudness compensation: the voice sum is scaled by ~1/sqrt(N)
         // so a chord thickens without N-times the level. Smoothed per sample to
-        // avoid a step when a voice starts/stops (mirrors VAMachine's para comp).
+        // avoid a step when a voice starts/stops (mirrors AnalogMachine's para comp).
         float voiceNorm_ = 1.0f;
     };
 }
