@@ -1843,6 +1843,20 @@ namespace lockstep
             if (divPpq <= 0.0 || samplesPerPpq <= 0.0 || trackLen <= 0 || silent)
                 continue;
 
+            // Re-quantise the grid cursor when the step size changes live
+            // (division change, or a Song×Scene tempo-ratio change). The cursor
+            // advances by += divPpq and stays on-grid only while divPpq is
+            // constant; a mid-play change would otherwise strand it on the old
+            // grid's phase, firing every trig off the beat until the next reload
+            // (item 1 "steps play late"). floor() snaps to the on-grid boundary
+            // at/before blockStart. Skip the very first block (lastDivPpq_==0).
+            if (lastDivPpq_[i] != divPpq)
+            {
+                if (lastDivPpq_[i] > 0.0)
+                    nextTriggerPpq_[i] = std::floor(blockStart / divPpq) * divPpq;
+                lastDivPpq_[i] = divPpq;
+            }
+
             // If the cursor has fallen far behind (cold start, late join),
             // snap it to the step boundary at/before blockStart so we don't
             // burn CPU catching up sample-by-sample.
@@ -2245,6 +2259,30 @@ namespace lockstep
                             const float swingDelta = isOdd ? effSwing : 0.0f;
                             const float shift = totalStepShift(swingDelta, step.microOffset);
                             const double firePpq = nextTriggerPpq_[i] + static_cast<double>(shift) * divPpq;
+
+                            // Resident on-grid guard (item 1): with no timing shift
+                            // a trig must land on the musical grid. Any deviation
+                            // means the cursor drifted off-phase (a live division/
+                            // tempo change the re-quantise above failed to catch, or
+                            // a future regression). Cheap + RT-safe: bump an atomic
+                            // and rate-limit a debug log. Stays resident so a
+                            // recurrence is caught without repro steps.
+                            if (shift == 0.0f && divPpq > 0.0)
+                            {
+                                const double nearest =
+                                    std::round(firePpq / divPpq) * divPpq;
+                                if (std::abs(firePpq - nearest) > divPpq * 1.0e-3)
+                                {
+                                    const auto n = offGridTrigCount_.fetch_add(
+                                        1, std::memory_order_relaxed) + 1;
+                                    if ((n & (n - 1)) == 0)  // powers of two only
+                                        DBG("[timing] off-grid trig #" << (long) n
+                                            << " track=" << (int) i
+                                            << " ppq=" << firePpq
+                                            << " nearest=" << nearest
+                                            << " divPpq=" << divPpq);
+                                }
+                            }
 
                             firedStepIdx_[i] = stepIdx;  // ME.4: for FLTR P-Locks
                             lastScheduledStepNum_[i] = stepNum;

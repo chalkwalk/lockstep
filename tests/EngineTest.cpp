@@ -798,6 +798,40 @@ namespace lockstep
     }
 
     // -----------------------------------------------------------------------
+    // Item 1: changing a track's division live must re-quantise the grid cursor
+    // onto the new grid. Before the fix the cursor kept its old-grid phase, so
+    // every trig fired off the beat until reload ("steps play late"). The
+    // resident on-grid guard (offGridTrigCount) counts any trig that lands off
+    // the musical grid with no swing/microOffset; after the fix it must stay 0
+    // across a live 1/16 -> 1/4 division change. Subdiv 18 = 1/16, 12 = 1/4.
+    static void testLiveDivisionChangeStaysOnGrid()
+    {
+        EngineHarness h;
+        installVA(h.processor(), 0);
+        for (auto& st : h.processor().sequence().tracks[0].steps)
+        {
+            st.trig = true;
+            st.trigOverride.hasGate = true;
+            st.trigOverride.gateValue = MusicalGate::G1_8;
+        }
+
+        // Run a while at 1/16 so the cursor advances to a non-1/4 grid phase.
+        h.renderBlocks(20);
+        CHECK(h.processor().offGridTrigCount() == 0,
+              "item1: off-grid trig at steady 1/16 division (baseline)");
+
+        // Switch division live to 1/4 (coarser: strands the cursor off-grid
+        // unless re-quantised) and keep rendering across several 1/4 steps.
+        h.processor().setTrackSubdivision(0, 12);
+        h.renderBlocks(160);
+
+        CHECK(h.processor().offGridTrigCount() == 0,
+              "item1: live division change left the grid cursor off-phase "
+              "(off-grid trig count = "
+              + juce::String((long) h.processor().offGridTrigCount()) + ")");
+    }
+
+    // -----------------------------------------------------------------------
     // B6a: Channel-level P-Lock on a VA track (hasInternalAmp=true) audibly
     // scales the output. Step 0 with lockstep.amp.level P-Lock=0.0 must be
     // silent; the same step at default level must produce audio.
@@ -2287,6 +2321,7 @@ namespace lockstep
         testLoopSyncMigration();
         testTapForkSameBlock();
         testTapCycleRefusal();
+        testLiveDivisionChangeStaysOnGrid();
         testTempoSeamReachesMachine();
         testCaptureSrcSectionReachable();
         testInputSourceFeedbackGuard();

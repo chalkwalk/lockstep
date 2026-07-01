@@ -653,6 +653,14 @@ namespace lockstep
         //   authoring; mirrors to the APVTS trackDivider param and Track.subdivIndex
         //   so the engine, DIV band, and Kit write-back stay single-sourced.
         void setTrackSubdivision(int track, int idx);
+        // offGridTrigCount: number of trigs that fired off the musical grid with
+        //   no swing/microOffset since load (item 1 resident guard). Expected 0;
+        //   a non-zero value flags a cursor-quantisation regression. Read from any
+        //   thread (relaxed atomic).
+        [[nodiscard]] std::int64_t offGridTrigCount() const noexcept
+        {
+            return offGridTrigCount_.load(std::memory_order_relaxed);
+        }
         // doubleTrackLength: copy steps [0,len) into [len, 2*len), up to kMaxStepsPerTrack.
         //   No-op if already at max. APVTS trackLength param is updated.
         void doubleTrackLength(int track);
@@ -1115,6 +1123,15 @@ namespace lockstep
         std::array<std::array<RealtimeNoteEntry, 128>, kNumTracks> realtimeNotes_{};
         int64_t totalSamplesProcessed_ = 0;  // [AUDIO]
         std::array<double, kNumTracks> nextTriggerPpq_{};  // [AUDIO]
+        // Step size (host PPQ) used to advance the grid cursor last block, per
+        // track. When it changes live (division or Song×Scene tempo-ratio change)
+        // the cursor must be re-quantised onto the new grid, else every trig
+        // fires off-phase until reload (the "steps play late" bug — item 1).
+        std::array<double, kNumTracks> lastDivPpq_{};  // [AUDIO]
+        // Resident on-grid guard (item 1). Bumped when a trig with no swing/
+        // microOffset lands off the musical grid — a light, RT-safe tripwire that
+        // stays in the build so a recurrence is caught even without repro steps.
+        std::atomic<std::int64_t> offGridTrigCount_{ 0 };  // [AUDIO write / any read]
         std::array<bool, kNumTracks> lastStepFired_{};   // [AUDIO]
         double anchorPpq_ = 0.0;  // [AUDIO]
         // When true, the next transport rising edge re-anchors the pattern to the
