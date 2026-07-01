@@ -1,12 +1,12 @@
-// RecorderMachineTest -- live-resampler capture into volatile REC buffers (6.2).
+// RecordMachineTest -- live-resampler capture into volatile REC buffers (6.2).
 //
 // Machine-level coverage (no processor): a note-on (the recorder trig) starts an
 // overwrite capture of the input buffer into the target volatile pool entry for
-// rec_length; a Sampler pointed at the same entry plays it back.
+// rec_length; a Sample pointed at the same entry plays it back.
 
 #include "TestHarness.h"
-#include "../src/machine/RecorderMachine.h"
-#include "../src/machine/SamplerMachine.h"
+#include "../src/machine/RecordMachine.h"
+#include "../src/machine/SampleMachine.h"
 #include "../src/machine/SamplePool.h"
 #include <cmath>
 
@@ -45,7 +45,7 @@ namespace lockstep
         }
     }
 
-    void runRecorderMachineTests()
+    void runRecordMachineTests()
     {
         constexpr double kSr = 48000.0;
 
@@ -55,7 +55,7 @@ namespace lockstep
             const int idx = pool.addVolatile();
             pool.prepareVolatile(kSr, 2, static_cast<int>(kSr));  // 1 s capacity
 
-            RecorderMachine rec(pool);
+            RecordMachine rec(pool);
             rec.prepare(kSr, 512);
 
             auto params = recFrame(0.01f);  // 480 samples
@@ -77,7 +77,7 @@ namespace lockstep
             SamplePool pool;
             const int idx = pool.addVolatile();
             pool.prepareVolatile(kSr, 2, static_cast<int>(kSr));
-            RecorderMachine rec(pool);
+            RecordMachine rec(pool);
             rec.prepare(kSr, 512);
 
             auto params = recFrame(0.01f);
@@ -99,7 +99,7 @@ namespace lockstep
             SamplePool pool;
             const int idx = pool.addVolatile();
             pool.prepareVolatile(kSr, 2, 1000);  // tiny 1000-sample capacity
-            RecorderMachine rec(pool);
+            RecordMachine rec(pool);
             rec.prepare(kSr, 2048);
 
             auto params = recFrame(1.0f);  // wants 48000 samples
@@ -117,7 +117,7 @@ namespace lockstep
             SamplePool pool;
             const int idx = pool.addVolatile();
             pool.prepareVolatile(kSr, 2, static_cast<int>(kSr));
-            RecorderMachine rec(pool);
+            RecordMachine rec(pool);
             rec.prepare(kSr, 512);
 
             auto params = recFrame(0.02f);  // 960 samples > one 512 block
@@ -137,20 +137,20 @@ namespace lockstep
                   "second block's input captured");
         }
 
-        // Live-resample round-trip: a Sampler plays the captured buffer --------
+        // Live-resample round-trip: a Sample plays the captured buffer --------
         {
             SamplePool pool;
             const int idx = pool.addVolatile();
             pool.prepareVolatile(kSr, 2, static_cast<int>(kSr));
-            RecorderMachine rec(pool);
+            RecordMachine rec(pool);
             rec.prepare(kSr, 512);
             // Capture a non-trivial 0.1 s tone-ish constant into REC slot 0.
             auto params = recFrame(0.1f);
             auto src = filledBlock(512, 0.6f);
             rec.process(noteOnAt(0), params, src);
 
-            // Sampler pointed at the same pool index plays it.
-            SamplerMachine samp(pool);
+            // Sample pointed at the same pool index plays it.
+            SampleMachine samp(pool);
             samp.prepare(kSr, 512);
             ParamFrame sp(static_cast<std::size_t>(samp.numParams()), 0.0f);
             for (int i = 0; i < samp.numParams(); ++i)
@@ -162,7 +162,7 @@ namespace lockstep
             samp.process(noteOnAt(0), sp, out);
 
             CHECK(out.getMagnitude(0, 512) > 0.01f,
-                  "Sampler plays back the captured REC buffer (non-silent)");
+                  "Sample plays back the captured REC buffer (non-silent)");
         }
 
         // sourceBars stamp from the transport snapshot (B1/B2) ------------------
@@ -170,7 +170,7 @@ namespace lockstep
             SamplePool pool;
             const int idx = pool.addVolatile();
             pool.prepareVolatile(kSr, 2, static_cast<int>(kSr));
-            RecorderMachine rec(pool);
+            RecordMachine rec(pool);
             rec.prepare(kSr, 512);
 
             TransportInfo tr;
@@ -191,7 +191,7 @@ namespace lockstep
             SamplePool pool;
             pool.addVolatile();
             pool.prepareVolatile(kSr, 2, static_cast<int>(kSr));
-            RecorderMachine rec(pool);
+            RecordMachine rec(pool);
             rec.prepare(kSr, 512);
 
             // 4-element frame: input_source, target_buffer, rec_length, monitor.

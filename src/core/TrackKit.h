@@ -20,7 +20,7 @@ namespace lockstep
     // between Songs.  Replaces PartTrack (Phase 7 / DESIGN §4.7).
     struct TrackKit
     {
-        // Stable machine string id (e.g. "lockstep.sampler.v1").
+        // Stable machine string id (e.g. "lockstep.sample.v1").
         // Unknown ids on load fall back to StubMachine.
         // Default is StubMachine (empty/unmaterialised track): the serializer
         // skips writing default-stub tracks (PluginState §songTrack), so the

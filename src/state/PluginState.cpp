@@ -11,7 +11,7 @@
 #include "../machine/StubMachine.h"
 #include "../machine/MidiDevicePresets.h"
 #include "../machine/MidiOutMachine.h"
-#include "../machine/SamplerMachine.h"
+#include "../machine/SampleMachine.h"
 #include "../machine/EffectFactory.h"
 #include <cstdint>
 #include <cstdio>
@@ -455,7 +455,7 @@ namespace lockstep::PluginState
 
     static void readKitFromNode(const juce::ValueTree& node, TrackKit& kit, LockstepProcessor& proc)
     {
-        kit.machineId = node.getProperty(keys::kMId, juce::String(SamplerMachine::kMachineId)).toString().toStdString();
+        kit.machineId = node.getProperty(keys::kMId, juce::String(SampleMachine::kMachineId)).toString().toStdString();
         kit.destinationId = node.getProperty(keys::kDId, "").toString().toStdString();
         kit.streamPath = node.getProperty(keys::kStreamPath, "").toString().toStdString();
         kit.midiPresetName = node.getProperty(keys::kMPreset, "").toString().toStdString();
@@ -497,7 +497,7 @@ namespace lockstep::PluginState
                     // S1 migration: loop_sync collapsed to Free|Free Len|Sync (0..2).
                     // Old 1/2/4 Bar (2..4) + Steps (5) all map to Sync (2); dropped
                     // loop_div/loop_steps ids resolve to slot<0 above and are skipped.
-                    if (kit.machineId == "lockstep.looper.v1" && id == "loop_sync" && v > 2.0f)
+                    if (kit.machineId == "lockstep.loop.v1" && id == "loop_sync" && v > 2.0f)
                         v = 2.0f;
                     kit.baseParams[static_cast<std::size_t>(slot)] = v;
                 }
@@ -1117,7 +1117,7 @@ namespace lockstep::PluginState
 
             SoundEntry e;
             e.name = entryNode.getProperty(keys::kSeName, "Sound").toString().toStdString();
-            e.machineId = entryNode.getProperty(keys::kMId, juce::String(SamplerMachine::kMachineId))
+            e.machineId = entryNode.getProperty(keys::kMId, juce::String(SampleMachine::kMachineId))
                               .toString()
                               .toStdString();
             e.samplePoolIndex = static_cast<int>(entryNode.getProperty(keys::kSeSampleIdx, -1));
@@ -1327,7 +1327,7 @@ namespace lockstep::PluginState
                 // Part track: machineId + BaseParams.
                 juce::ValueTree ptNode(keys::kPartTrack);
                 ptNode.setProperty("i", trackIdx, nullptr);
-                ptNode.setProperty(keys::kMachineId, SamplerMachine::kMachineId, nullptr);
+                ptNode.setProperty(keys::kMachineId, SampleMachine::kMachineId, nullptr);
 
                 for (int j = 0; j < trackNode.getNumChildren(); ++j)
                 {
@@ -2057,7 +2057,7 @@ namespace
                 auto song = juce::ValueTree(keys::kSong);
                 auto songTrack = juce::ValueTree(keys::kSongTrack);
                 auto kitNode = juce::ValueTree(keys::kKit);
-                kitNode.setProperty(keys::kMId, juce::String(SamplerMachine::kMachineId), nullptr);
+                kitNode.setProperty(keys::kMId, juce::String(SampleMachine::kMachineId), nullptr);
                 songTrack.appendChild(kitNode, nullptr);
                 song.appendChild(songTrack, nullptr);
                 nh.appendChild(song, nullptr);

@@ -1,10 +1,10 @@
 // MachineDspTest -- smoke tests for every IMachine and IEffect concrete type.
 //
-// For synthesis machines (VA, FM, DrumSynth): construct, prepare, fire a
+// For synthesis machines (VA, FM, Drum): construct, prepare, fire a
 // note-on, render N blocks, assert non-silence + no NaN/Inf; then note-off
 // with a short release time set, render release tail, assert silence.
 //
-// For sample-playing machines (Sampler, Slicer): no sample is loaded so audio
+// For sample-playing machines (Sample, Slice): no sample is loaded so audio
 // is silent -- we just assert no crash and no NaN.
 //
 // For IEffect: drive with a non-zero input, assert no NaN/Inf.
@@ -12,9 +12,9 @@
 #include "TestHarness.h"
 #include "../src/machine/AnalogMachine.h"
 #include "../src/machine/FMMachine.h"
-#include "../src/machine/DrumSynthMachine.h"
-#include "../src/machine/SamplerMachine.h"
-#include "../src/machine/SlicerMachine.h"
+#include "../src/machine/DrumMachine.h"
+#include "../src/machine/SampleMachine.h"
+#include "../src/machine/SliceMachine.h"
 #include "../src/machine/SamplePool.h"
 #include "../src/machine/IEffect.h"
 #include "../src/machine/EffectFactory.h"
@@ -492,16 +492,16 @@ namespace lockstep
             runRetrigRatioTest(fm, frame, "FM");
         }
 
-        // DrumSynth: AHD always-retrig.
+        // Drum: AHD always-retrig.
         {
-            DrumSynthMachine ds;
+            DrumMachine ds;
             ParamFrame frame = defaultFrame(ds);
             setSlot(ds, frame, "drum_level", 1.0f);
-            runRetrigRatioTest(ds, frame, "DrumSynth");
+            runRetrigRatioTest(ds, frame, "Drum");
         }
 
         // Sample-playing machines have no sample loaded → silence; skip.
-        juce::Logger::writeToLog("retrig click: Sampler/Slicer skipped (no sample loaded)");
+        juce::Logger::writeToLog("retrig click: Sample/Slice skipped (no sample loaded)");
     }
 
     // -----------------------------------------------------------------------
@@ -722,28 +722,28 @@ namespace lockstep
         fmEnvelopeGolden();
         fmLegatoGolden();
 
-        // --- DrumSynthMachine ---
+        // --- DrumMachine ---
         // Drums are AHD; after note-off they just complete the decay naturally.
         // Use the decay id so smokeTestSynth sets a short decay.
         {
-            DrumSynthMachine ds;
-            smokeTestSynth(ds, 60, 20, 20, 1e-3f, "drum_decay", "DrumSynthMachine");
+            DrumMachine ds;
+            smokeTestSynth(ds, 60, 20, 20, 1e-3f, "drum_decay", "DrumMachine");
         }
         {
-            DrumSynthMachine ds;
-            blockSizeInvariance(ds, 60, 10, "DrumSynthMachine");
+            DrumMachine ds;
+            blockSizeInvariance(ds, 60, 10, "DrumMachine");
         }
 
         // --- Sample-playing machines (no sample loaded -- smoke only) ---
         {
             SamplePool pool;
-            SamplerMachine sampler(pool);
-            smokeTestSampleMachine(sampler, "SamplerMachine");
+            SampleMachine sampler(pool);
+            smokeTestSampleMachine(sampler, "SampleMachine");
         }
         {
             SamplePool pool;
-            SlicerMachine slicer(pool);
-            smokeTestSampleMachine(slicer, "SlicerMachine");
+            SliceMachine slicer(pool);
+            smokeTestSampleMachine(slicer, "SliceMachine");
         }
 
         // --- IEffect catalogue — all 13 effects ---

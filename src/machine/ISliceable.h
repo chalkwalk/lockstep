@@ -3,7 +3,7 @@
 namespace lockstep
 {
     // Mixin for machines that carry slice data (MG.3 Slice trig mode).
-    // Both SamplerMachine and SlicerMachine implement this so the
+    // Both SampleMachine and SliceMachine implement this so the
     // processor can handle both polymorphically via dynamic_cast.
     struct ISliceable
     {

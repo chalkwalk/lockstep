@@ -420,8 +420,8 @@ namespace lockstep
         juce::uint32 lastRouteRejectSeq_ = 0;
         static constexpr juce::uint32 kStatusDurationMs = 1500;
         void setStatus(const juce::String& msg);
-        // Route a Track+verb to the focused Looper's state machine (DESIGN §29.2).
-        // cmd matches LooperMachine::Cmd (1=RecordCycle, 2=PlayStop, 3=Clear).
+        // Route a Track+verb to the focused Loop's state machine (DESIGN §29.2).
+        // cmd matches LoopMachine::Cmd (1=RecordCycle, 2=PlayStop, 3=Clear).
         void routeLooperVerb(int cmd, bool immediate = false);
         void paintStatus(juce::Graphics& g, juce::Rectangle<int> area);
 

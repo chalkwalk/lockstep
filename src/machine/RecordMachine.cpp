@@ -1,10 +1,10 @@
-#include "RecorderMachine.h"
+#include "RecordMachine.h"
 #include <algorithm>
 #include <cmath>
 
 namespace lockstep
 {
-    ParamSpec RecorderMachine::paramSpec(int index) const
+    ParamSpec RecordMachine::paramSpec(int index) const
     {
         ParamSpec s;
         s.sectionIndex = kSrcSecIdx;
@@ -56,7 +56,7 @@ namespace lockstep
         }
     }
 
-    void RecorderMachine::startCapture(int targetSlot, float recSeconds)
+    void RecordMachine::startCapture(int targetSlot, float recSeconds)
     {
         const int poolIdx = pool_.nthVolatileIndex(targetSlot);
         target_ = pool_.mutableVolatilePcm(poolIdx);
@@ -88,7 +88,7 @@ namespace lockstep
         capturing_ = true;
     }
 
-    void RecorderMachine::writeInput(const juce::AudioBuffer<float>& input,
+    void RecordMachine::writeInput(const juce::AudioBuffer<float>& input,
                                      int startSample, int numSamples)
     {
         if (!capturing_ || target_ == nullptr || samplesRemaining_ <= 0 || numSamples <= 0)
@@ -105,7 +105,7 @@ namespace lockstep
             capturing_ = false;
     }
 
-    void RecorderMachine::process(const juce::MidiBuffer& events,
+    void RecordMachine::process(const juce::MidiBuffer& events,
                                   const ParamFrame& params,
                                   juce::AudioBuffer<float>& buffer)
     {

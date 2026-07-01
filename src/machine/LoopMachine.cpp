@@ -1,10 +1,10 @@
-#include "LooperMachine.h"
+#include "LoopMachine.h"
 #include <algorithm>
 #include <cmath>
 
 namespace lockstep
 {
-    ParamSpec LooperMachine::paramSpec(int index) const
+    ParamSpec LoopMachine::paramSpec(int index) const
     {
         ParamSpec s;
         s.sectionIndex = kSrcSecIdx;
@@ -72,7 +72,7 @@ namespace lockstep
         }
     }
 
-    const char* LooperMachine::stateLabel(State s) noexcept
+    const char* LoopMachine::stateLabel(State s) noexcept
     {
         switch (s)
         {
@@ -86,7 +86,7 @@ namespace lockstep
         return "--";
     }
 
-    void LooperMachine::prepare(double sampleRate, int /*maxBlockSize*/)
+    void LoopMachine::prepare(double sampleRate, int /*maxBlockSize*/)
     {
         sampleRate_ = sampleRate > 0.0 ? sampleRate : 44100.0;
         const int cap = static_cast<int>(sampleRate_ * kLoopMaxSeconds);
@@ -95,7 +95,7 @@ namespace lockstep
         reset();
     }
 
-    void LooperMachine::reset()
+    void LoopMachine::reset()
     {
         state_ = State::Idle;
         loopLen_ = 0;
@@ -115,7 +115,7 @@ namespace lockstep
         stateMirror_.store(static_cast<int>(state_), std::memory_order_release);
     }
 
-    void LooperMachine::snapshotForUndo()
+    void LoopMachine::snapshotForUndo()
     {
         if (target_ == nullptr || loopLen_ <= 0)
         {
@@ -129,7 +129,7 @@ namespace lockstep
         haveBackup_ = true;
     }
 
-    float LooperMachine::loopSample(int ch, double pos) const
+    float LoopMachine::loopSample(int ch, double pos) const
     {
         if (target_ == nullptr || loopLen_ <= 0) return 0.0f;
         double p = std::fmod(pos, static_cast<double>(loopLen_));
@@ -161,7 +161,7 @@ namespace lockstep
         return base;
     }
 
-    double LooperMachine::syncedLengthSamples() const
+    double LoopMachine::syncedLengthSamples() const
     {
         // Sync (S1): loop length = track length (steps) × step PPQ, in samples.
         // samples-per-quarter = samplesPerBar / barPpq (consistent with the rest of
@@ -175,7 +175,7 @@ namespace lockstep
         return static_cast<double>(loopGridSteps_) * loopStepPpq_ * spq;
     }
 
-    double LooperMachine::targetOutputSamples() const
+    double LoopMachine::targetOutputSamples() const
     {
         if (syncMode_ >= kSyncGrid)  // Sync — grid-locked length
             return syncedLengthSamples();
@@ -188,7 +188,7 @@ namespace lockstep
         return 0.0;  // Free — native
     }
 
-    double LooperMachine::quantPeriodSamples() const
+    double LoopMachine::quantPeriodSamples() const
     {
         const double spb = transport_.samplesPerBar;
         if (spb <= 0.0) return 0.0;
@@ -197,7 +197,7 @@ namespace lockstep
         return 0.0;  // Free — no quantise
     }
 
-    void LooperMachine::scaleLoop(float g)
+    void LoopMachine::scaleLoop(float g)
     {
         if (target_ == nullptr || loopLen_ <= 0) return;
         const int tch = std::min(2, target_->getNumChannels());
@@ -205,7 +205,7 @@ namespace lockstep
             juce::FloatVectorOperations::multiply(target_->getWritePointer(ch), g, loopLen_);
     }
 
-    void LooperMachine::startRecording()
+    void LoopMachine::startRecording()
     {
         if (target_ == nullptr || capacity_ <= 0)
         {
@@ -229,7 +229,7 @@ namespace lockstep
         state_ = State::Recording;
     }
 
-    void LooperMachine::firePending()
+    void LoopMachine::firePending()
     {
         switch (pendingAction_)
         {
@@ -242,7 +242,7 @@ namespace lockstep
         pendingAction_ = 0;
     }
 
-    void LooperMachine::applyCommand(Cmd c, bool immediate)
+    void LoopMachine::applyCommand(Cmd c, bool immediate)
     {
         // Quantize is implied by the sync mode (#2): Free = instant; Free Len /
         // N Bar = snap the edge to the bar grid. A double-tap (immediate) forces the
@@ -381,7 +381,7 @@ namespace lockstep
         }
     }
 
-    void LooperMachine::pushPerf(const PerfCmd& c) noexcept
+    void LoopMachine::pushPerf(const PerfCmd& c) noexcept
     {
         int s1 = 0, sz1 = 0, s2 = 0, sz2 = 0;
         perfFifo_.prepareToWrite(1, s1, sz1, s2, sz2);
@@ -390,7 +390,7 @@ namespace lockstep
         perfFifo_.finishedWrite(sz1 + sz2);
     }
 
-    void LooperMachine::handlePerf(const PerfCmd& c)
+    void LoopMachine::handlePerf(const PerfCmd& c)
     {
         switch (c.action)
         {
@@ -418,7 +418,7 @@ namespace lockstep
         }
     }
 
-    void LooperMachine::startBeatRepeat(int rateIdx)
+    void LoopMachine::startBeatRepeat(int rateIdx)
     {
         if (loopLen_ <= 0) return;
         brRateIdx_ = juce::jlimit(0, 3, rateIdx);
@@ -439,14 +439,14 @@ namespace lockstep
         brActive_ = true;
     }
 
-    void LooperMachine::stopBeatRepeat()
+    void LoopMachine::stopBeatRepeat()
     {
         if (!brActive_) return;
         brActive_ = false;
         playPos_ = brShadow_;  // resync to the free-running position (non-phase-locked)
     }
 
-    void LooperMachine::startTapeFx(Cmd fx)
+    void LoopMachine::startTapeFx(Cmd fx)
     {
         if (loopLen_ <= 0) return;
         tapeAction_ = fx;
@@ -455,14 +455,14 @@ namespace lockstep
         // tapeMult_ keeps its current value and slews to the effect target in-DSP.
     }
 
-    void LooperMachine::stopTapeFx(Cmd fx)
+    void LoopMachine::stopTapeFx(Cmd fx)
     {
         if (tapeAction_ != fx) return;  // not the held effect (e.g. tape-stop already braked)
         tapeAction_ = Cmd::None;
         tapeResync_ = true;             // accelerate back + catch the grid on release
     }
 
-    void LooperMachine::closeRecording()
+    void LoopMachine::closeRecording()
     {
         loopLen_ = std::max(0, recPos_);
         playPos_ = 0.0;
@@ -481,7 +481,7 @@ namespace lockstep
         }
     }
 
-    void LooperMachine::process(const juce::MidiBuffer& /*events*/,
+    void LoopMachine::process(const juce::MidiBuffer& /*events*/,
                                 const ParamFrame& params,
                                 juce::AudioBuffer<float>& buffer)
     {

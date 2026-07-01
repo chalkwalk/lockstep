@@ -11,7 +11,7 @@ namespace lockstep
     struct SoundEntry
     {
         std::string name = "Sound";
-        std::string machineId = "lockstep.sampler.v1";
+        std::string machineId = "lockstep.sample.v1";
         ParamFrame baseParams{};
         int samplePoolIndex = -1;  // -1 = no sample (or MIDI-out destination)
         std::string destinationId = "";  // for MIDI-out entries

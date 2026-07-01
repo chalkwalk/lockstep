@@ -2,8 +2,8 @@
 
 namespace lockstep
 {
-    // Per-block transport snapshot pushed to tempo-aware machines (Player, Looper,
-    // Recorder) before process(). This keeps the (MidiBuffer, ParamFrame,
+    // Per-block transport snapshot pushed to tempo-aware machines (Player, Loop,
+    // Record) before process(). This keeps the (MidiBuffer, ParamFrame,
     // AudioBuffer) machine boundary unchanged — the processor (which owns the
     // Clock) computes this once per block and delivers it through the optional
     // ITempoAware seam, reached by dynamic_cast (the same pattern as
@@ -19,7 +19,7 @@ namespace lockstep
     };
 
     // Optional mix-in for machines that need project tempo (stretch-tracking
-    // Player, varispeed Looper, bar-stamping Recorder). The processor dynamic_casts
+    // Player, varispeed Loop, bar-stamping Record). The processor dynamic_casts
     // each machine once per block and, if it implements this, calls setTransport()
     // before process(). Audio thread; the implementation must be a cheap store.
     class ITempoAware

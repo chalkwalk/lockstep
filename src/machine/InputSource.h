@@ -10,7 +10,7 @@ namespace lockstep
 {
     // Audio-input source selection for input-consuming machines (DESIGN §27).
     //
-    // A machine that consumes audio (Route now; Recorder / Looper later) declares
+    // A machine that consumes audio (Route now; Record / Loop later) declares
     // a single stepped slot with this canonical id. The sequencer reads the
     // resolved value each block and fills the track's buffer from the chosen
     // source *before* calling process():
@@ -41,7 +41,7 @@ namespace lockstep
 
     // Full label set for a tap-fork-capable input_source: None, Ext, Master,
     // then T1..T16 (index i>=3 decodes to Track i-3). Machines that support
-    // tap-forking (Route / Recorder / Looper) declare their input_source slot with
+    // tap-forking (Route / Record / Loop) declare their input_source slot with
     // these labels and maxValue = kInputSourceMaxValue, so the stepped param
     // surface renders the track picker directly. Cyclic / self selections are
     // refused at write time (LockstepProcessor::writeParam), not here.
@@ -54,8 +54,8 @@ namespace lockstep
     inline constexpr float kInputSourceMaxValue =
         static_cast<float>(kInputSourceLabels.size() - 1);
 
-    // Labels for the shared volatile REC-slot bank (target_buffer on Recorder and
-    // Looper). One per reserved slot; the count matches kNumVolatileSlots in the
+    // Labels for the shared volatile REC-slot bank (target_buffer on Record and
+    // Loop). One per reserved slot; the count matches kNumVolatileSlots in the
     // processor. The capture machine's target_buffer is a stepped 0..N-1 ordinal
     // into pool.nthVolatileIndex().
     inline constexpr std::array<const char* const, 8> kVolatileBufferLabels = {

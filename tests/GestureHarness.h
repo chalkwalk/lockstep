@@ -87,7 +87,7 @@ namespace lockstep::test
         [[nodiscard]] int numParams(int) const override { return 0; }
         [[nodiscard]] ParamSpec paramSpec(int, int) const override { return {}; }
         [[nodiscard]] SectionInfo section(int, int) const override { return {}; }
-        [[nodiscard]] const char* machineId(int) const override { return "lockstep.sampler.v1"; }
+        [[nodiscard]] const char* machineId(int) const override { return "lockstep.sample.v1"; }
     };
 
     // GestureFixture: wires real core model objects + FakeMachineCatalog into

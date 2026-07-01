@@ -12,7 +12,7 @@
 #include "../src/ui/ScopedSectionMatrix.h"
 #include "../src/ui/GridDisplayMode.h"
 #include "../src/machine/IMachine.h"
-#include "../src/machine/LooperMachine.h"
+#include "../src/machine/LoopMachine.h"
 #include "../src/machine/AnalogMachine.h"
 #include "../src/command/KeyBindings.h"
 
@@ -476,7 +476,7 @@ namespace lockstep
     }
 
     // -------------------------------------------------------------------------
-    // Test (#1): Track scope held on a Looper relabels the U/I/O verb cells to
+    // Test (#1): Track scope held on a Loop relabels the U/I/O verb cells to
     // loop controls (REC/PLAY/ERASE), state-aware, instead of COPY/PASTE/CLEAR.
     // A non-looper track keeps the clipboard verbs. functionRow[6]=U, [7]=I, [8]=O.
     // -------------------------------------------------------------------------
@@ -490,7 +490,7 @@ namespace lockstep
         // scope on a looper the verbs revert to the ordinary clipboard grammar
         // (the layer is the scope selector, not a looper relabel).
         proc.setTrackMachine(0, AnalogMachine::kMachineId);
-        proc.setTrackMachine(1, LooperMachine::kMachineId);
+        proc.setTrackMachine(1, LoopMachine::kMachineId);
         proc.setFocusTrack(1);
         {
             UiState ui; ui.trackHeld = true;

@@ -1,11 +1,11 @@
-// LooperMachineTest -- overdub looper state machine (6.3, DESIGN §29.2).
+// LoopMachineTest -- overdub looper state machine (6.3, DESIGN §29.2).
 //
 // Drives the machine through Idle → Record → Play → Overdub → Undo → Clear via the
 // command mailbox (one command drained per block) and checks the loop audio.
 
 #include "TestHarness.h"
-#include "../src/machine/LooperMachine.h"
-#include "../src/machine/SamplerMachine.h"
+#include "../src/machine/LoopMachine.h"
+#include "../src/machine/SampleMachine.h"
 #include "../src/machine/SamplePool.h"
 #include <cmath>
 
@@ -13,11 +13,11 @@ namespace lockstep
 {
     namespace
     {
-        using Cmd = LooperMachine::Cmd;
-        using State = LooperMachine::State;
+        using Cmd = LoopMachine::Cmd;
+        using State = LoopMachine::State;
 
         // Run one block with a constant input value; returns the output buffer.
-        juce::AudioBuffer<float> runBlock(LooperMachine& m, int n, float inValue,
+        juce::AudioBuffer<float> runBlock(LoopMachine& m, int n, float inValue,
                                           Cmd cmd = Cmd::None)
         {
             if (cmd != Cmd::None) m.postCommand(cmd);
@@ -33,7 +33,7 @@ namespace lockstep
 
     }
 
-    void runLooperMachineTests()
+    void runLoopMachineTests()
     {
         constexpr double kSr = 48000.0;
         constexpr int n = 512;
@@ -43,7 +43,7 @@ namespace lockstep
         pool.addVolatile();
         pool.prepareVolatile(kSr, 2, static_cast<int>(kSr));  // 1 s capacity
 
-        LooperMachine loop(pool);
+        LoopMachine loop(pool);
         loop.prepare(kSr, n);
         CHECK(loop.state() == State::Idle, "starts Idle");
 
@@ -102,13 +102,13 @@ namespace lockstep
             CHECK(feq(out.getSample(0, 0), 0.0f), "cleared output is silent");
         }
 
-        // B3: the loop lives in the pool slot — a Sampler plays it, and an overdub
+        // B3: the loop lives in the pool slot — a Sample plays it, and an overdub
         // sums in place (still one volatile sample). sourceBars is stamped on close.
         {
             SamplePool p2;
             const int idx = p2.addVolatile();
             p2.prepareVolatile(kSr, 2, static_cast<int>(kSr));
-            LooperMachine lp(p2);
+            LoopMachine lp(p2);
             lp.prepare(kSr, n);
 
             // 1 bar = 2 blocks of 512 = 1024 samples, for the stamp check.
@@ -124,8 +124,8 @@ namespace lockstep
             CHECK(feq(static_cast<float>(p2.sourceBars(idx)), 1.0f),
                   "B3: sourceBars stamped = loopLen / samplesPerBar (1 bar)");
 
-            // A Sampler pointed at the same slot plays the loop back (non-silent).
-            SamplerMachine samp(p2);
+            // A Sample pointed at the same slot plays the loop back (non-silent).
+            SampleMachine samp(p2);
             samp.prepare(kSr, n);
             ParamFrame sp(static_cast<std::size_t>(samp.numParams()), 0.0f);
             for (int i = 0; i < samp.numParams(); ++i)
@@ -137,7 +137,7 @@ namespace lockstep
             m.addEvent(juce::MidiMessage::noteOn(1, 60, 1.0f), 0);
             samp.process(m, sp, out);
             CHECK(out.getMagnitude(0, n) > 0.01f,
-                  "B3: a Sampler plays the looper's pool slot (non-silent)");
+                  "B3: a Sample plays the looper's pool slot (non-silent)");
 
             // Overdub onto the playing loop sums in place; still one volatile sample.
             const int before = p2.size();
@@ -146,7 +146,7 @@ namespace lockstep
         }
 
         // Helper: run a block with explicit params (loop_sync etc.).
-        auto runP = [](LooperMachine& m, int len, float inVal, Cmd cmd,
+        auto runP = [](LoopMachine& m, int len, float inVal, Cmd cmd,
                        const ParamFrame& pr, int impulseAt = -1, bool immediate = false) {
             if (cmd != Cmd::None) m.postCommand(cmd, immediate);
             juce::AudioBuffer<float> b(2, len);
@@ -166,7 +166,7 @@ namespace lockstep
             SamplePool p3;
             const int idx = p3.addVolatile();
             p3.prepareVolatile(kSr, 2, static_cast<int>(kSr));
-            LooperMachine lp(p3);
+            LoopMachine lp(p3);
             lp.prepare(kSr, n);
             TransportInfo tr; tr.samplesPerBar = 1024.0; tr.barPpq = 4.0; tr.running = true;
             lp.setTransport(tr);
@@ -188,7 +188,7 @@ namespace lockstep
             SamplePool p;
             const int idx = p.addVolatile();
             p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
-            LooperMachine lp(p); lp.prepare(kSr, n);
+            LoopMachine lp(p); lp.prepare(kSr, n);
             TransportInfo tr; tr.samplesPerBar = 1024.0; tr.barPpq = 4.0; tr.running = true;
             lp.setTransport(tr);
             lp.setLoopGrid(8, 0.25);  // 8 steps × 1/16 = half a bar
@@ -204,7 +204,7 @@ namespace lockstep
         {
             SamplePool p; const int idx = p.addVolatile(); (void) idx;
             p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
-            LooperMachine lp(p); lp.prepare(kSr, n);
+            LoopMachine lp(p); lp.prepare(kSr, n);
             TransportInfo tr; tr.samplesPerBar = 1024.0; tr.barPpq = 4.0; tr.running = false;
             lp.setTransport(tr);
             lp.setLoopGrid(16, 0.25);
@@ -222,7 +222,7 @@ namespace lockstep
         {
             SamplePool p; p.addVolatile();
             p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
-            LooperMachine lp(p); lp.prepare(kSr, n);
+            LoopMachine lp(p); lp.prepare(kSr, n);
             TransportInfo tr; tr.samplesPerBar = 1024.0; tr.barPpq = 4.0; tr.running = true;
             tr.transportPhaseSamples = 200.0; lp.setTransport(tr);
             lp.setLoopGrid(16, 0.25);
@@ -242,7 +242,7 @@ namespace lockstep
         {
             SamplePool p; p.addVolatile();
             p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
-            LooperMachine lp(p); lp.prepare(kSr, n);
+            LoopMachine lp(p); lp.prepare(kSr, n);
             TransportInfo tr; tr.samplesPerBar = 1024.0; tr.barPpq = 4.0; tr.running = true;
             tr.transportPhaseSamples = 200.0;  // mid-bar, away from a boundary
             lp.setTransport(tr);
@@ -264,7 +264,7 @@ namespace lockstep
         {
             SamplePool p; p.addVolatile();
             p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
-            LooperMachine lp(p); lp.prepare(kSr, n);
+            LoopMachine lp(p); lp.prepare(kSr, n);
             TransportInfo tr; tr.samplesPerBar = 1024.0; tr.barPpq = 4.0; tr.running = true;
             tr.transportPhaseSamples = 200.0; lp.setTransport(tr);
             lp.setLoopGrid(16, 0.25);
@@ -281,7 +281,7 @@ namespace lockstep
             SamplePool p;
             p.addVolatile();
             p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
-            LooperMachine lp(p);
+            LoopMachine lp(p);
             lp.prepare(kSr, 512);
             TransportInfo tr; tr.samplesPerBar = 1000.0; tr.running = false;  // free-run
             lp.setTransport(tr);
@@ -333,7 +333,7 @@ namespace lockstep
             const int L = 1024;
             p.addVolatile();
             p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
-            LooperMachine lp(p);
+            LoopMachine lp(p);
             lp.prepare(kSr, 512);
 
             ParamFrame fr{ 1.0f, 0.0f, 0.0f };  // Free
@@ -384,7 +384,7 @@ namespace lockstep
             SamplePool p;
             p.addVolatile();
             p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
-            LooperMachine lp(p);
+            LoopMachine lp(p);
             lp.prepare(kSr, n);
 
             constexpr float kMonOn = 1.0f, kMonOff = 2.0f;
@@ -414,12 +414,12 @@ namespace lockstep
         // tap (the tapped source is already audible). Pure predicate check.
         {
             using K = InputSourceKind;
-            CHECK(LooperMachine::resolveMonitor(0, K::None),     "Auto: None monitors (insert)");
-            CHECK(LooperMachine::resolveMonitor(0, K::External), "Auto: External monitors");
-            CHECK(!LooperMachine::resolveMonitor(0, K::Track),   "Auto: Track tap is loop-only");
-            CHECK(!LooperMachine::resolveMonitor(0, K::Master),  "Auto: Master tap is loop-only");
-            CHECK(LooperMachine::resolveMonitor(1, K::Track),    "On overrides Auto (Track)");
-            CHECK(!LooperMachine::resolveMonitor(2, K::None),    "Off overrides Auto (None)");
+            CHECK(LoopMachine::resolveMonitor(0, K::None),     "Auto: None monitors (insert)");
+            CHECK(LoopMachine::resolveMonitor(0, K::External), "Auto: External monitors");
+            CHECK(!LoopMachine::resolveMonitor(0, K::Track),   "Auto: Track tap is loop-only");
+            CHECK(!LoopMachine::resolveMonitor(0, K::Master),  "Auto: Master tap is loop-only");
+            CHECK(LoopMachine::resolveMonitor(1, K::Track),    "On overrides Auto (Track)");
+            CHECK(!LoopMachine::resolveMonitor(2, K::None),    "Off overrides Auto (None)");
         }
 
         // #4 Overdub decay: overdubbing a full loop with decay=1 (full fade) and
@@ -427,7 +427,7 @@ namespace lockstep
         {
             SamplePool p; p.addVolatile();
             p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
-            LooperMachine lp(p); lp.prepare(kSr, 512);
+            LoopMachine lp(p); lp.prepare(kSr, 512);
 
             // input=Ext, target=0, sync=Free, monitor=Off, decay, decay_mode.
             ParamFrame rec{ 1.0f, 0.0f, 0.0f, 2.0f, 0.0f, 0.0f };  // decay 0 while recording
@@ -449,7 +449,7 @@ namespace lockstep
         {
             SamplePool p; p.addVolatile();
             p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
-            LooperMachine lp(p); lp.prepare(kSr, 512);
+            LoopMachine lp(p); lp.prepare(kSr, 512);
 
             ParamFrame rec{ 1.0f, 0.0f, 0.0f, 2.0f, 0.0f, 1.0f };  // Always mode, decay 0 to record
             runP(lp, 512, 0.5f, Cmd::RecordCycle, rec);
@@ -470,7 +470,7 @@ namespace lockstep
         {
             SamplePool p; p.addVolatile();
             p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
-            LooperMachine lp(p); lp.prepare(kSr, 512);
+            LoopMachine lp(p); lp.prepare(kSr, 512);
 
             // Record a two-block loop: first 512 = 0.5, second 512 = 0.25 → loopLen 1024.
             runBlock(lp, 512, 0.5f, Cmd::RecordCycle);
@@ -500,7 +500,7 @@ namespace lockstep
         {
             SamplePool p; p.addVolatile();
             p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
-            LooperMachine lp(p); lp.prepare(kSr, 512);
+            LoopMachine lp(p); lp.prepare(kSr, 512);
             TransportInfo tr; tr.samplesPerBar = 512.0; tr.running = true;
             lp.setTransport(tr);
 
@@ -532,7 +532,7 @@ namespace lockstep
         {
             SamplePool p; p.addVolatile();
             p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
-            LooperMachine lp(p); lp.prepare(kSr, 512);
+            LoopMachine lp(p); lp.prepare(kSr, 512);
             runBlock(lp, 512, 0.5f, Cmd::RecordCycle);  // record a uniform 1024 loop
             runBlock(lp, 512, 0.5f);
             runBlock(lp, 1, 0.0f, Cmd::RecordCycle);     // close → Playing
@@ -563,7 +563,7 @@ namespace lockstep
             // Tape-stop: a fresh loop, held to a standstill → graceful Stopped.
             SamplePool p2; p2.addVolatile();
             p2.prepareVolatile(kSr, 2, static_cast<int>(kSr));
-            LooperMachine ls(p2); ls.prepare(kSr, 512);
+            LoopMachine ls(p2); ls.prepare(kSr, 512);
             runBlock(ls, 512, 0.5f, Cmd::RecordCycle);
             runBlock(ls, 512, 0.5f);
             runBlock(ls, 1, 0.0f, Cmd::RecordCycle);     // close → Playing
@@ -580,7 +580,7 @@ namespace lockstep
         {
             SamplePool p; p.addVolatile();
             p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
-            LooperMachine lp(p); lp.prepare(kSr, 512);
+            LoopMachine lp(p); lp.prepare(kSr, 512);
             ParamFrame fr{ 1.0f, 0.0f, 0.0f };  // External insert, Free, Auto monitor
 
             auto idle = runP(lp, 512, 0.4f, Cmd::None, fr);
@@ -607,7 +607,7 @@ namespace lockstep
         {
             SamplePool p; p.addVolatile();
             p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
-            LooperMachine lp(p); lp.prepare(kSr, n);
+            LoopMachine lp(p); lp.prepare(kSr, n);
             TransportInfo tr; tr.samplesPerBar = 1024.0; tr.barPpq = 4.0; tr.running = true;
             tr.transportPhaseSamples = 200.0; lp.setTransport(tr);
             ParamFrame fr{ 1.0f, 0.0f, 1.0f };  // Free Len (quantize starts/stops to the bar)

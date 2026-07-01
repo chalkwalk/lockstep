@@ -191,18 +191,18 @@ namespace lockstep
 
         // True when the installed machine on the given track is a stub (empty track).
         [[nodiscard]] bool isTrackEmpty(int track) const;
-        // True when the track's machine is a RecorderMachine. A trig on such a
+        // True when the track's machine is a RecordMachine. A trig on such a
         // track is a recorder trig (capture), so the lock-only (trigless) state is
         // disallowed — the off→note→lock-only cycle becomes off→note (DESIGN §30).
         [[nodiscard]] bool isRecorderTrack(int track) const;
-        // True when the track's machine is a LooperMachine. When such a track is
+        // True when the track's machine is a LoopMachine. When such a track is
         // focused, Track+Record/Play/Clear drive the looper state machine (DESIGN
-        // §29.2) instead of the track clipboard. cmd matches LooperMachine::Cmd;
-        // looperState returns LooperMachine::State (or -1 if not a looper).
+        // §29.2) instead of the track clipboard. cmd matches LoopMachine::Cmd;
+        // looperState returns LoopMachine::State (or -1 if not a looper).
         [[nodiscard]] bool isLooperTrack(int track) const;
         void sendLooperCommand(int track, int cmd, bool immediate = false);
         // Momentary performance edge (S5 beat-repeat / S6 tape FX). action matches
-        // LooperMachine::Cmd; pressed drives the effect on/off; value = rate index.
+        // LoopMachine::Cmd; pressed drives the effect on/off; value = rate index.
         void sendLooperPerf(int track, int action, bool pressed, int value = 0);
         // Active beat-repeat rate index (0=1/16 … 3=1/2), or -1 when not held (S5).
         [[nodiscard]] int looperBeatRepeat(int track) const;
@@ -220,7 +220,7 @@ namespace lockstep
         [[nodiscard]] bool isStreamTrack(int track) const;
         bool setStreamFile(int track, const juce::String& path);
 
-        // D1 multi-capture: capture machines (Recorder/Looper) share the 8-slot
+        // D1 multi-capture: capture machines (Record/Loop) share the 8-slot
         // volatile REC bank via their "target_buffer" slot. captureTargetSlot
         // returns that 0..7 ordinal (or -1 for a non-capture track);
         // nextFreeCaptureSlot picks the lowest slot no other capture track uses (so
@@ -683,7 +683,7 @@ namespace lockstep
         // State-loading helpers: create a fresh machine for a given ID and compute
         // slot indices using an explicit machine rather than machines_[t].
         // Used by PluginState so that round-trip works when a non-default machine
-        // was saved (e.g. FM track deserialised while Sampler is still installed).
+        // was saved (e.g. FM track deserialised while Sample is still installed).
         [[nodiscard]] std::unique_ptr<IMachine> createMachineForId(const std::string& id);
         [[nodiscard]] int slotForIdWithMachine(const IMachine& m, const juce::String& id) const;
         [[nodiscard]] int numSlotsWithMachine(const IMachine& m) const;
@@ -1124,7 +1124,7 @@ namespace lockstep
         bool wasInPluginPlaying_ = false;
         bool wasSequencerRunning_ = false;  // MF.6: falling-edge transport stop detection
         // C2: per-block transport snapshot pushed to ITempoAware machines (Player /
-        // Looper / Recorder) before process(). Computed once per block from Clock +
+        // Loop / Record) before process(). Computed once per block from Clock +
         // effectiveTimeSig(); read in processTrackChain.
         TransportInfo blockTransport_{};
         std::array<bool, kNumTracks> wasSilent_{};  // MF.7: per-track mute rising-edge detection

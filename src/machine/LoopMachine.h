@@ -9,8 +9,8 @@
 
 namespace lockstep
 {
-    // LooperMachine — overdub looper (Octatrack pickup machine, DESIGN §29.2).
-    // Unlike the Recorder (overwrite, trig-driven), the Looper is a verb-driven
+    // LoopMachine — overdub looper (Octatrack pickup machine, DESIGN §29.2).
+    // Unlike the Record (overwrite, trig-driven), the Loop is a verb-driven
     // *state machine* encapsulated in the machine: Idle → Record → Play → Overdub,
     // plus Clear and Undo. It consumes input_source (records/overdubs it) and
     // produces audio (plays the loop back), so process() writes the loop into the
@@ -24,15 +24,15 @@ namespace lockstep
     // (S5 beat-repeat / S6 tape FX), so the FIFO replaced it (plan S3).
     //
     // The loop lives in a shared volatile pool slot (target_buffer, B3) — the same
-    // RAM-only REC bank the Recorder writes — so the captured loop is also playable
-    // by a Sampler/Player pointed at that slot (the OT recording-buffer model). The
+    // RAM-only REC bank the Record writes — so the captured loop is also playable
+    // by a Sample/Player pointed at that slot (the OT recording-buffer model). The
     // looper self-plays it too. Loop length is free-running here (the span recorded
     // before the first close); transport-quantize + varispeed sync land in C4. The
     // one-level undo backup stays machine-internal (not a playable slot).
-    class LooperMachine : public IMachine, public ITempoAware, public ILoopGridAware
+    class LoopMachine : public IMachine, public ITempoAware, public ILoopGridAware
     {
     public:
-        explicit LooperMachine(SamplePool& pool) : pool_(pool) {}
+        explicit LoopMachine(SamplePool& pool) : pool_(pool) {}
 
         // Discrete transport verbs (RecordCycle..Double) fire on the press edge.
         // Halve/Double (S4) resize the loop *window* with no resample / no pitch
@@ -56,7 +56,7 @@ namespace lockstep
         // mode) with no loop output yet.
         enum class State : int { Idle = 0, Recording, Playing, Overdubbing, Stopped, Armed };
 
-        static constexpr const char* kMachineId = "lockstep.looper.v1";
+        static constexpr const char* kMachineId = "lockstep.loop.v1";
 
         [[nodiscard]] const char* machineId() const noexcept override { return kMachineId; }
         [[nodiscard]] const char* badge() const noexcept override { return "LOOP"; }

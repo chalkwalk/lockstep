@@ -1,9 +1,9 @@
 // SamplePoolTest -- volatile (RAM-only) REC buffer support (Part A, DESIGN §28).
 //
-// Covers the pool-level capability the RecorderMachine (6.2) builds on:
+// Covers the pool-level capability the RecordMachine (6.2) builds on:
 //   - addVolatile() appends an entry flagged isVolatile, no file backing.
 //   - prepareVolatile() sizes volatile buffers to a capacity; a writer can then
-//     shrink the reported length with avoidReallocating (so a Sampler reading the
+//     shrink the reported length with avoidReallocating (so a Sample reading the
 //     entry plays exactly the captured region) without reallocating.
 //   - mutableVolatilePcm() returns a writable handle for volatile entries only.
 

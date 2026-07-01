@@ -1,4 +1,4 @@
-#include "DrumSynthMachine.h"
+#include "DrumMachine.h"
 #include "MachineParamTable.h"
 #include <algorithm>
 #include <cmath>
@@ -6,19 +6,19 @@
 
 namespace lockstep
 {
-    DrumSynthMachine::DrumSynthMachine() = default;
-    DrumSynthMachine::~DrumSynthMachine() = default;
+    DrumMachine::DrumMachine() = default;
+    DrumMachine::~DrumMachine() = default;
 
   // ---------------------------------------------------------------------------
   // Lifecycle
 
-    void DrumSynthMachine::prepare(double sampleRate, int /*maxBlockSize*/)
+    void DrumMachine::prepare(double sampleRate, int /*maxBlockSize*/)
     {
         sampleRate_ = sampleRate;
         reset();
     }
 
-    void DrumSynthMachine::reset()
+    void DrumMachine::reset()
     {
         voice_ = DrumVoice{};
         voice_.ampEnv.prepare(sampleRate_);
@@ -65,7 +65,7 @@ namespace lockstep
         { "drum_retrig", "Retrig", 0.f, 1.f, 0.f, 1.f, 1, ds_u::None, ds_r::None, 0, 3, 0, kDSRetrigLabels }, // 13
         { "drum_vel_sens", "Vel Sens", 0.f, 1.f, 0.f, 1.f, 0, ds_u::Pct, ds_r::None, 0, 3, 0, nullptr }, // 14
     };
-    static_assert(std::size(kDSParams) == DrumSynthMachine::kNumSlots,
+    static_assert(std::size(kDSParams) == DrumMachine::kNumSlots,
                   "kDSParams row count must equal kNumSlots");
 
     // §6.10 contextLabel helpers — per-slot, per-type alias tables.
@@ -159,7 +159,7 @@ namespace lockstep
         }
     }
 
-    ParamSpec DrumSynthMachine::paramSpec(int index) const
+    ParamSpec DrumMachine::paramSpec(int index) const
     {
         if (index < 0 || index >= kNumSlots) return {};
         auto spec = toParamSpec(kDSParams[static_cast<std::size_t>(index)]);
@@ -177,7 +177,7 @@ namespace lockstep
         return spec;
     }
 
-    SectionInfo DrumSynthMachine::section(int index) const
+    SectionInfo DrumMachine::section(int index) const
     {
         switch (index)
         {
@@ -190,7 +190,7 @@ namespace lockstep
   // ---------------------------------------------------------------------------
   // Voice active
 
-    bool DrumSynthMachine::isVoiceActive() const
+    bool DrumMachine::isVoiceActive() const
     {
         return voice_.active;
     }
@@ -207,9 +207,9 @@ namespace lockstep
         }
 
     // Advance noise decay envelope; returns current level.
-        float advanceNoise(DrumSynthMachine::DrumVoice& v)
+        float advanceNoise(DrumMachine::DrumVoice& v)
         {
-            using P = DrumSynthMachine::NoisePhase;
+            using P = DrumMachine::NoisePhase;
             if (v.noisePhase != P::Decay) return 0.f;
             if (v.noiseDecaySamples > 0.f)
                 v.noiseLevel -= 1.f / v.noiseDecaySamples;
@@ -220,7 +220,7 @@ namespace lockstep
         }
 
     // Advance click/snap transient; returns current level before decay.
-        float advanceClick(DrumSynthMachine::DrumVoice& v)
+        float advanceClick(DrumMachine::DrumVoice& v)
         {
             if (v.clickLevel <= 0.f) return 0.f;
             const float out = v.clickLevel;
@@ -230,7 +230,7 @@ namespace lockstep
         }
 
     // TPT SVF — returns bandpass output.
-        float svfBand(DrumSynthMachine::DrumVoice& v, float x)
+        float svfBand(DrumMachine::DrumVoice& v, float x)
         {
             const float hp = (x - v.svfK * v.svfBand - v.svfLow) / (1.f + v.svfG * (v.svfG + v.svfK));
             const float bp = v.svfG * hp + v.svfBand;
@@ -241,7 +241,7 @@ namespace lockstep
         }
 
     // TPT SVF — returns highpass output.
-        float svfHigh(DrumSynthMachine::DrumVoice& v, float x)
+        float svfHigh(DrumMachine::DrumVoice& v, float x)
         {
             const float hp = (x - v.svfK * v.svfBand - v.svfLow) / (1.f + v.svfG * (v.svfG + v.svfK));
             const float bp = v.svfG * hp + v.svfBand;
@@ -256,7 +256,7 @@ namespace lockstep
   // ---------------------------------------------------------------------------
   // Note handling
 
-    void DrumSynthMachine::noteOn(int midiNote, float vel, const ParamFrame& params)
+    void DrumMachine::noteOn(int midiNote, float vel, const ParamFrame& params)
     {
         const float sr = static_cast<float>(sampleRate_);
         auto& v = voice_;
@@ -411,7 +411,7 @@ namespace lockstep
         }
     }
 
-    void DrumSynthMachine::noteOff()
+    void DrumMachine::noteOff()
     {
         voice_.gateOpen = false;
     // Hat: note-off triggers the 1 ms Release set in setADSR at noteOn.
@@ -424,7 +424,7 @@ namespace lockstep
   // ---------------------------------------------------------------------------
   // Process
 
-    void DrumSynthMachine::process(const juce::MidiBuffer& events,
+    void DrumMachine::process(const juce::MidiBuffer& events,
                                    const ParamFrame& params,
                                    juce::AudioBuffer<float>& buffer)
     {

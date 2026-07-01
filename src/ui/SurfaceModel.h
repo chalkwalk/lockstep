@@ -135,7 +135,7 @@ namespace lockstep
         KeySymOn = 174,  // a symmetric scale, selected
         KeySymOff = 175,  // a symmetric scale, available
 
-        // Looper verb cells (Track+Record/Play/Clear on a focused looper, #3). Each
+        // Loop verb cells (Track+Record/Play/Clear on a focused looper, #3). Each
         // is a distinct hue so the looper controls read as their own family on
         // screen and on a controller (PRINCIPLES §19 dual-target), instead of riding
         // the generic scope glow. State-keyed by LockstepProcessor::looperState().
@@ -153,7 +153,7 @@ namespace lockstep
         LooperPhaseHead = 188,  // the segment the playhead is in — bright cyan
         LooperPhaseStart = 189, // the loop-start / downbeat anchor segment
 
-        // Looper console (S3): the always-on transport + performance grid for a
+        // Loop console (S3): the always-on transport + performance grid for a
         // focused looper (the step grid is free real estate — a looper does not
         // sequence). Add-only; each is a distinct hue (PRINCIPLES §19 dual-target).
         // The *Active variants light when that function is engaged this block.

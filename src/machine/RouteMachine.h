@@ -19,7 +19,7 @@ namespace lockstep
     // input_source is just the outside-world tap {None, External, Master}. A
     // fresh Route defaults to None: silent until you route audio in or pick a
     // source, which is the natural default for using it as a sub-bus. It is the
-    // only stock machine declaring input_source for now; Recorder / Looper
+    // only stock machine declaring input_source for now; Record / Loop
     // follow at 6.2 / 6.3.
     class RouteMachine : public IMachine
     {

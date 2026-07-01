@@ -67,7 +67,7 @@ namespace lockstep
         CHECK(status::soundDeleted("FM T2") == "Deleted: FM T2", "soundDeleted content");
         CHECK(status::soundRenamed("My Sound").isNotEmpty(), "soundRenamed non-empty");
         CHECK(status::soundRenamed("My Sound") == "Renamed: My Sound", "soundRenamed content");
-        CHECK(status::soundMachineMismatch("lockstep.analog.v1", "lockstep.sampler.v1").isNotEmpty(),
+        CHECK(status::soundMachineMismatch("lockstep.analog.v1", "lockstep.sample.v1").isNotEmpty(),
               "soundMachineMismatch non-empty");
         CHECK(status::soundBankHint().isNotEmpty(), "soundBankHint non-empty");
     }

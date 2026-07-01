@@ -1,18 +1,18 @@
-#include "SamplerMachine.h"
+#include "SampleMachine.h"
 #include "MachineParamTable.h"
 #include <algorithm>
 #include <cmath>
 
 namespace lockstep
 {
-    SamplerMachine::SamplerMachine(SamplePool& pool)
+    SampleMachine::SampleMachine(SamplePool& pool)
         : SamplePlayingMachineBase(pool) {}
 
-    SamplerMachine::~SamplerMachine() = default;
+    SampleMachine::~SampleMachine() = default;
 
     // -------------------------------------------------------------------------
 
-    SamplePlayer::Spec SamplerMachine::buildSpec(int midiNote, float velocity,
+    SamplePlayer::Spec SampleMachine::buildSpec(int midiNote, float velocity,
                                                  const ParamFrame& params) const
     {
         const auto p = [&](int s) {
@@ -91,7 +91,7 @@ namespace lockstep
         return spec;
     }
 
-    void SamplerMachine::startVoiceAtSlice(int sliceIndex, float velocity,
+    void SampleMachine::startVoiceAtSlice(int sliceIndex, float velocity,
                                              const ParamFrame& params)
     {
         if (sliceIndex < 0 || sliceIndex >= numSlices_)
@@ -114,7 +114,7 @@ namespace lockstep
         voices_[0].player.trigger(spec);
     }
 
-    void SamplerMachine::triggerVoice(int midiNote, float velocity, const ParamFrame& params)
+    void SampleMachine::triggerVoice(int midiNote, float velocity, const ParamFrame& params)
     {
         auto& vs = voices_[0];
 
@@ -147,7 +147,7 @@ namespace lockstep
 
     // -------------------------------------------------------------------------
 
-    void SamplerMachine::process(const juce::MidiBuffer& events,
+    void SampleMachine::process(const juce::MidiBuffer& events,
                                  const ParamFrame& params,
                                  juce::AudioBuffer<float>& buffer)
     {
@@ -289,7 +289,7 @@ namespace lockstep
         { "samp_retrig", "Retrig", 0.f, 1.f, 0.f, 1.f, 1, sa_u::None, sa_r::None, 0, 3, 0, kSARetrigLabels }, // 13
         { "samp_velsens", "Vel>Amp", 0.f, 1.f, 0.f, 1.f, 0, sa_u::Pct, sa_r::None, 0, 3, 0, nullptr }, // 14
     };
-    static_assert(std::size(kSAParams) == SamplerMachine::kNumSlots,
+    static_assert(std::size(kSAParams) == SampleMachine::kNumSlots,
                   "kSAParams row count must equal kNumSlots");
 
     namespace
@@ -327,7 +327,7 @@ namespace lockstep
         }
     }
 
-    ParamSpec SamplerMachine::paramSpec(int index) const
+    ParamSpec SampleMachine::paramSpec(int index) const
     {
         if (index < 0 || index >= kNumSlots) return {};
         auto spec = toParamSpec(kSAParams[static_cast<std::size_t>(index)]);
@@ -336,7 +336,7 @@ namespace lockstep
         return spec;
     }
 
-    SectionInfo SamplerMachine::section(int index) const
+    SectionInfo SampleMachine::section(int index) const
     {
         switch (index)
         {

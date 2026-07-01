@@ -1,6 +1,6 @@
 // StretchMachineTest -- the Flex-analog Player (C3): independent pitch + tempo via
 // the WSOLA TimeStretch voice. Verifies the decoupling that distinguishes it from
-// the rate-based Sampler:
+// the rate-based Sample:
 //   - transposing (note up an octave) does NOT shorten the output (pitch != speed).
 //   - timestretch=Tempo stretches the buffer to the project tempo (duration tracks).
 

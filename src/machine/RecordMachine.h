@@ -8,30 +8,30 @@
 
 namespace lockstep
 {
-    // RecorderMachine — live resampler (Octatrack track recorder, DESIGN §29.2 /
+    // RecordMachine — live resampler (Octatrack track recorder, DESIGN §29.2 /
     // §30). It captures `input_source` audio into a volatile REC buffer (§28),
     // overwriting it each time a trig fires. It synthesises nothing: the sequencer
     // fills the track buffer from the chosen source before process(), and the
     // recorder copies that input into the target buffer for `rec_length`.
     //
-    // "Recorder trig" is contextual, not a stored step field: any trig on a
-    // Recorder track is a capture trigger (a note-on on these tracks is meaningless
+    // "Record trig" is contextual, not a stored step field: any trig on a
+    // Record track is a capture trigger (a note-on on these tracks is meaningless
     // as a pitch). A plain trig re-captures every loop; a one-shot trig captures
     // once (the existing TrigCondition::oneShot composes — no machine work). The
-    // captured buffer is immediately playable from a Sampler/Slicer track pointed
+    // captured buffer is immediately playable from a Sample/Slice track pointed
     // at the same pool index; freeze-to-disk (§22) is a later milestone.
     //
     // currentVoices() = V1 so the sequencer emits exactly one note-on per trig;
     // the recorder treats any incoming note-on as the capture-start edge.
-    class RecorderMachine : public IMachine, public ITempoAware
+    class RecordMachine : public IMachine, public ITempoAware
     {
     public:
-        explicit RecorderMachine(SamplePool& pool) : pool_(pool) {}
+        explicit RecordMachine(SamplePool& pool) : pool_(pool) {}
 
         // ITempoAware — bar length for the sourceBars stamp at capture close.
         void setTransport(const TransportInfo& t) noexcept override { transport_ = t; }
 
-        static constexpr const char* kMachineId = "lockstep.recorder.v1";
+        static constexpr const char* kMachineId = "lockstep.record.v1";
 
         [[nodiscard]] const char* machineId() const noexcept override { return kMachineId; }
         [[nodiscard]] const char* badge() const noexcept override { return "REC"; }

@@ -4,7 +4,7 @@
 //  - No NaN/Inf over extended runs with default state
 //  - Clock PPQ advances correctly with the stub playhead
 //  - State round-trip byte stability (save->load->save yields identical bytes)
-//  - Trig emission: installing a DrumSynth on track 0, activating step 0,
+//  - Trig emission: installing a Drum on track 0, activating step 0,
 //    and verifying audio is non-zero within one 16th-note window
 //  - Mute suppresses audio
 //  - Block-size invariance: the first trig produces audio within the same
@@ -16,15 +16,15 @@
 
 #include "TestHarness.h"
 #include "EngineHarness.h"
-#include "../src/machine/DrumSynthMachine.h"
+#include "../src/machine/DrumMachine.h"
 #include "../src/machine/AnalogMachine.h"
 #include "../src/machine/FMMachine.h"
-#include "../src/machine/SamplerMachine.h"
+#include "../src/machine/SampleMachine.h"
 #include "../src/machine/StubMachine.h"
 #include "../src/machine/MidiOutMachine.h"
 #include "../src/machine/RouteMachine.h"
-#include "../src/machine/RecorderMachine.h"
-#include "../src/machine/LooperMachine.h"
+#include "../src/machine/RecordMachine.h"
+#include "../src/machine/LoopMachine.h"
 #include "../src/machine/StreamMachine.h"
 #include "../src/machine/InputSource.h"
 #include "../src/core/OutputDest.h"
@@ -98,7 +98,7 @@ namespace lockstep
                                const char* machineId)
     {
         // Temporarily construct the machine to query its schema.
-        DrumSynthMachine tmp;
+        DrumMachine tmp;
         const int np = tmp.numParams();
         auto& k = proc.kit(track);
         k.machineId = machineId;
@@ -109,16 +109,16 @@ namespace lockstep
     }
 
     // -----------------------------------------------------------------------
-    // Isolated check: DrumSynth produces no NaN with a direct note-on
+    // Isolated check: Drum produces no NaN with a direct note-on
     // using the same frame that processBlock would pass.
     static void testDrumDirectNaN()
     {
         EngineHarness h;
-        installMachine(h.processor(), 0, DrumSynthMachine::kMachineId);
+        installMachine(h.processor(), 0, DrumMachine::kMachineId);
         const auto frame = h.processor().sequence().tracks[0].baseParams;
         juce::Logger::writeToLog("  drum direct: frame.size=" + juce::String((int)frame.size()));
 
-        DrumSynthMachine ds;
+        DrumMachine ds;
         ds.prepare(48000.0, 256);
         ds.reset();
         juce::AudioBuffer<float> buf(2, 256);
@@ -143,24 +143,24 @@ namespace lockstep
             }
         const float rms = static_cast<float>(std::sqrt(sumSq / (256.0 * 2)));
         juce::Logger::writeToLog("  drum direct: NaN=" + juce::String((int)hasNan) + " RMS=" + juce::String(rms, 6));
-        CHECK(!hasNan, "drum direct: NaN from standalone DrumSynth");
-        CHECK(rms > 1e-4f, "drum direct: no audio from standalone DrumSynth (RMS=" + juce::String(rms) + ")");
+        CHECK(!hasNan, "drum direct: NaN from standalone Drum");
+        CHECK(rms > 1e-4f, "drum direct: no audio from standalone Drum (RMS=" + juce::String(rms) + ")");
     }
 
     // -----------------------------------------------------------------------
-    // Install a DrumSynth on track 0, activate step 0, and verify audio is
+    // Install a Drum on track 0, activate step 0, and verify audio is
     // produced within one 16th-note window (~6000 samples at 48 kHz / 120 BPM).
     // At block size 256, that is ceil(6000/256) = 24 blocks.
     static void testTrigProducesAudio()
     {
         EngineHarness h;
 
-        installMachine(h.processor(), 0, DrumSynthMachine::kMachineId);
+        installMachine(h.processor(), 0, DrumMachine::kMachineId);
 
         // Activate step 0 on track 0 (the sequencer will fire it at PPQ 0).
         auto& step0 = h.processor().sequence().tracks[0].steps[0];
         step0.trig = true;
-        // Set a fixed gate so the DrumSynth gets a note-on.
+        // Set a fixed gate so the Drum gets a note-on.
         step0.trigOverride.hasGate = true;
         step0.trigOverride.gateValue = MusicalGate::G1_8;
 
@@ -184,7 +184,7 @@ namespace lockstep
         CHECK(!h.lastBufferHasNaN(),
               "trig emission: NaN/Inf in audio buffer after drum trig");
         CHECK(maxRms > 1e-4f,
-              "trig emission: DrumSynth step-0 produced no audio (RMS=" + juce::String(maxRms) + ")");
+              "trig emission: Drum step-0 produced no audio (RMS=" + juce::String(maxRms) + ")");
     }
 
     // -----------------------------------------------------------------------
@@ -193,7 +193,7 @@ namespace lockstep
     {
         EngineHarness h;
 
-        installMachine(h.processor(), 0, DrumSynthMachine::kMachineId);
+        installMachine(h.processor(), 0, DrumMachine::kMachineId);
 
         auto& trk0 = h.processor().sequence().tracks[0];
         trk0.steps[0].trig = true;
@@ -254,14 +254,14 @@ namespace lockstep
         // We verify this with two separate EngineHarness instances.
         // (EngineHarness uses 256 samples; wrap it manually for the 64-sample case.)
 
-        // Use a PPQ-based check: DrumSynth step 0 fires at PPQ 0.
+        // Use a PPQ-based check: Drum step 0 fires at PPQ 0.
         // After playhead PPQ >= 0.25 (one 16th note) we've either seen audio or not.
 
         constexpr double kOneStep = 0.25;  // one 16th note in PPQ
 
         auto firstTrigAudio = [&](int /*blockSize*/) -> bool {
             EngineHarness h;
-            installMachine(h.processor(), 0, DrumSynthMachine::kMachineId);
+            installMachine(h.processor(), 0, DrumMachine::kMachineId);
             auto& step0 = h.processor().sequence().tracks[0].steps[0];
             step0.trig = true;
             step0.trigOverride.hasGate = true;
@@ -343,10 +343,10 @@ namespace lockstep
     static void testEngineCmdAppliedAfterBlock()
     {
         EngineHarness h;
-        installMachine(h.processor(), 0, DrumSynthMachine::kMachineId);
+        installMachine(h.processor(), 0, DrumMachine::kMachineId);
 
         // Record the default level value, then write a distinctly different value.
-        // kSlotLevel = 12 (AMP section, DrumSynthMachine private constant).
+        // kSlotLevel = 12 (AMP section, DrumMachine private constant).
         constexpr int slot = 12;
         const float before = h.processor().baseParamValue(0, slot);
         const float target = (before > 0.5f) ? 0.1f : 0.9f;
@@ -368,9 +368,9 @@ namespace lockstep
     static void testEngineCmdQueueFullDrop()
     {
         EngineHarness h;
-        installMachine(h.processor(), 0, DrumSynthMachine::kMachineId);
+        installMachine(h.processor(), 0, DrumMachine::kMachineId);
 
-        constexpr int slot = 12;  // kSlotLevel, private in DrumSynthMachine
+        constexpr int slot = 12;  // kSlotLevel, private in DrumMachine
         // Enqueue well over kEngineCmdQueueSize entries (1024 + 200 = 1224).
         // The last write before the queue fills is what we care about — the test
         // simply verifies no crash/hang and the result is a finite float.
@@ -394,7 +394,7 @@ namespace lockstep
     static void testSurfaceDirtyOnParamApply()
     {
         EngineHarness h;
-        installMachine(h.processor(), 0, DrumSynthMachine::kMachineId);
+        installMachine(h.processor(), 0, DrumMachine::kMachineId);
 
         // Flush startup, then clear the flag to a known baseline.
         h.renderBlocks(2);
@@ -425,7 +425,7 @@ namespace lockstep
     static void testFocusStepAdvances()
     {
         EngineHarness h;
-        installMachine(h.processor(), 0, DrumSynthMachine::kMachineId);
+        installMachine(h.processor(), 0, DrumMachine::kMachineId);
         h.processor().setFocusTrack(0);
 
         h.renderBlocks(1);
@@ -462,7 +462,7 @@ namespace lockstep
     // is playing. Before the A0 fix, the master chain was only invoked on the
     // non-playing (preview) path; this test pins the playing path.
     //
-    // Two parallel harnesses are set up identically (DrumSynth on track 0,
+    // Two parallel harnesses are set up identically (Drum on track 0,
     // step 0 trig, 120 BPM). One runs with a high-drive distortion insert on
     // master slot 0; the other has it bypassed. We render 40 blocks each and
     // assert (a) both are non-silent, (b) no NaN/Inf in either, and (c) the
@@ -470,7 +470,7 @@ namespace lockstep
     static void testMasterInsertRunsWhilePlaying()
     {
         auto setupHarness = [](EngineHarness& h) {
-            installMachine(h.processor(), 0, DrumSynthMachine::kMachineId);
+            installMachine(h.processor(), 0, DrumMachine::kMachineId);
             auto& step0 = h.processor().sequence().tracks[0].steps[0];
             step0.trig = true;
             step0.trigOverride.hasGate = true;
@@ -560,8 +560,8 @@ namespace lockstep
         hA.processor().kit(0).channelState.sendA = 0.7f;
         hA.processor().kit(0).channelState.sendB = 0.3f;
 
-        // Install a DrumSynth on track 0 so the kit has a machine with valid params.
-        installMachine(hA.processor(), 0, DrumSynthMachine::kMachineId);
+        // Install a Drum on track 0 so the kit has a machine with valid params.
+        installMachine(hA.processor(), 0, DrumMachine::kMachineId);
 
         // Save.
         juce::MemoryBlock state;
@@ -651,7 +651,7 @@ namespace lockstep
     {
         // Harness A: active send (no bypass).
         EngineHarness hOn;
-        installMachine(hOn.processor(), 0, DrumSynthMachine::kMachineId);
+        installMachine(hOn.processor(), 0, DrumMachine::kMachineId);
         auto& step0on = hOn.processor().sequence().tracks[0].steps[0];
         step0on.trig = true;
         step0on.trigOverride.hasGate = true;
@@ -663,7 +663,7 @@ namespace lockstep
 
         // Harness B: send bypassed from the start.
         EngineHarness hOff;
-        installMachine(hOff.processor(), 0, DrumSynthMachine::kMachineId);
+        installMachine(hOff.processor(), 0, DrumMachine::kMachineId);
         auto& step0off = hOff.processor().sequence().tracks[0].steps[0];
         step0off.trig = true;
         step0off.trigOverride.hasGate = true;
@@ -719,7 +719,7 @@ namespace lockstep
     // -----------------------------------------------------------------------
     // Helper: install a VA machine on a track. Creates a temporary AnalogMachine to
     // query the correct param count and defaults (the generic installMachine helper
-    // hard-codes DrumSynthMachine for its schema query).
+    // hard-codes DrumMachine for its schema query).
     static void installVA(LockstepProcessor& proc, int track)
     {
         AnalogMachine tmp;
@@ -1039,7 +1039,7 @@ namespace lockstep
         auto& p = h.processor();
 
         // Sanity: fresh construction is sampler-on-0, stub elsewhere.
-        CHECK(juce::String(p.getMachineIdRaw(0)) == SamplerMachine::kMachineId,
+        CHECK(juce::String(p.getMachineIdRaw(0)) == SampleMachine::kMachineId,
               "A1b: fresh track 0 is not a sampler");
         for (int t = 1; t < static_cast<int>(kNumTracks); ++t)
             CHECK(juce::String(p.getMachineIdRaw(t)) == StubMachine::kMachineId,
@@ -1047,7 +1047,7 @@ namespace lockstep
 
         // newProject must round-trip to the same identities.
         p.newProject();
-        CHECK(juce::String(p.getMachineIdRaw(0)) == SamplerMachine::kMachineId,
+        CHECK(juce::String(p.getMachineIdRaw(0)) == SampleMachine::kMachineId,
               "A1b: newProject track 0 is not a sampler");
         for (int t = 1; t < static_cast<int>(kNumTracks); ++t)
             CHECK(juce::String(p.getMachineIdRaw(t)) == StubMachine::kMachineId,
@@ -1233,7 +1233,7 @@ namespace lockstep
     static void testAuditionLiveNote()
     {
         EngineHarness h;
-        installMachine(h.processor(), 0, DrumSynthMachine::kMachineId);
+        installMachine(h.processor(), 0, DrumMachine::kMachineId);
 
         // No trigs anywhere: without audition the engine is silent.
         h.renderBlocks(2);
@@ -1284,11 +1284,11 @@ namespace lockstep
 
     // -----------------------------------------------------------------------
     // 5.6: a one-shot trig fires once, then is spent until re-armed (DESIGN §30).
-    // A length-1 DrumSynth track re-fires step 0 every loop; one-shot suppresses
+    // A length-1 Drum track re-fires step 0 every loop; one-shot suppresses
     // all but the first pass, and rearmOneShots() re-enables it.
     static void setLen1Hat(EngineHarness& h, bool oneShot)
     {
-        installMachine(h.processor(), 0, DrumSynthMachine::kMachineId);
+        installMachine(h.processor(), 0, DrumMachine::kMachineId);
         // HAT (type slot 0 = 2): a short hit that is fully silent between the
         // length-1 loop's re-fire points, so the late window cleanly separates a
         // single one-shot from a re-firing trig (no long decay tail).
@@ -1767,7 +1767,7 @@ namespace lockstep
                   juce::String("level calibration: ") + name + " peak " + juce::String(pk, 3)
                   + " outside [" + juce::String(kLo, 2) + "," + juce::String(kHi, 2) + "]");
         };
-        { DrumSynthMachine m; inWindow("drum", peakOf(m, 36)); }
+        { DrumMachine m; inWindow("drum", peakOf(m, 36)); }
         { AnalogMachine m;        inWindow("va",   peakOf(m, 60)); }
         { FMMachine m;        inWindow("fm",   peakOf(m, 60)); }
     }
@@ -1956,7 +1956,7 @@ namespace lockstep
     }
 
     // -----------------------------------------------------------------------
-    // A1 tap-fork (DESIGN §27): track 0 = DrumSynth routed OFF (no direct path to
+    // A1 tap-fork (DESIGN §27): track 0 = Drum routed OFF (no direct path to
     // master); track 1 = Route tapping track 0, routed to Master. The ONLY way audio
     // reaches master is the same-block tap, so non-silent output proves the tap
     // copies track 0's post-chain audio this block. With no tap (input_source=None)
@@ -1964,7 +1964,7 @@ namespace lockstep
     static void testTapForkSameBlock()
     {
         auto setup = [](EngineHarness& h, float track1Source) {
-            installMachine(h.processor(), 0, DrumSynthMachine::kMachineId);
+            installMachine(h.processor(), 0, DrumMachine::kMachineId);
             h.processor().kit(0).channelState.out = encodeOutputDest(OutputDestKind::Off);
 
             RouteMachine tmp;
@@ -2061,7 +2061,7 @@ namespace lockstep
 
     // -----------------------------------------------------------------------
     // C2 tempo seam: the processor pushes a per-block TransportInfo to ITempoAware
-    // machines before process(). Install a Recorder (tempo-aware) and verify it
+    // machines before process(). Install a Record (tempo-aware) and verify it
     // receives running=true and samplesPerBar = 4 beats at 120 BPM / 48 kHz.
     static void testTempoSeamReachesMachine()
     {
@@ -2069,9 +2069,9 @@ namespace lockstep
         auto& proc = h.processor();
 
         SamplePool schemaPool;
-        RecorderMachine schema(schemaPool);
+        RecordMachine schema(schemaPool);
         auto& k = proc.kit(0);
-        k.machineId = RecorderMachine::kMachineId;
+        k.machineId = RecordMachine::kMachineId;
         const int np = schema.numParams();
         k.baseParams.resize(static_cast<std::size_t>(np));
         for (int i = 0; i < np; ++i)
@@ -2080,7 +2080,7 @@ namespace lockstep
 
         h.renderBlocks(4);
 
-        const auto* rec = dynamic_cast<const RecorderMachine*>(proc.machineForTrack(0));
+        const auto* rec = dynamic_cast<const RecordMachine*>(proc.machineForTrack(0));
         CHECK(rec != nullptr, "tempo seam: recorder installed");
         if (rec != nullptr)
         {
@@ -2101,11 +2101,11 @@ namespace lockstep
         EngineHarness h;
         auto& p = h.processor();
 
-        p.setTrackMachine(0, RecorderMachine::kMachineId);
+        p.setTrackMachine(0, RecordMachine::kMachineId);
         CHECK(p.captureTargetSlot(0) == 0, "first capture machine defaults to slot 0");
-        p.setTrackMachine(1, LooperMachine::kMachineId);
+        p.setTrackMachine(1, LoopMachine::kMachineId);
         CHECK(p.captureTargetSlot(1) == 1, "second capture machine defaults to next free slot 1");
-        p.setTrackMachine(2, RecorderMachine::kMachineId);
+        p.setTrackMachine(2, RecordMachine::kMachineId);
         CHECK(p.captureTargetSlot(2) == 2, "third capture machine defaults to slot 2");
         CHECK(!p.captureSlotShared(0) && !p.captureSlotShared(1) && !p.captureSlotShared(2),
               "distinct default slots are not flagged as shared");
@@ -2130,8 +2130,8 @@ namespace lockstep
         auto& p = h.processor();
         struct Case { const char* id; bool inputAware; };
         const std::array<Case, 3> cases {{
-            { LooperMachine::kMachineId,   true  },
-            { RecorderMachine::kMachineId, true  },
+            { LoopMachine::kMachineId,   true  },
+            { RecordMachine::kMachineId, true  },
             { StreamMachine::kMachineId,   false },  // disk stream — no input_source
         }};
         int t = 0;
@@ -2157,7 +2157,7 @@ namespace lockstep
         EngineHarness h;
         auto& p = h.processor();
         p.setTrackMachine(0, AnalogMachine::kMachineId);
-        p.setTrackMachine(1, LooperMachine::kMachineId);
+        p.setTrackMachine(1, LoopMachine::kMachineId);
 
         const auto has = [](const std::vector<float>& v, float enc) {
             return std::any_of(v.begin(), v.end(), [&](float x) {
@@ -2167,7 +2167,7 @@ namespace lockstep
         const float ext    = encodeInputSource(InputSourceKind::External);
         const float master = encodeInputSource(InputSourceKind::Master);
 
-        // Looper defaults to CHANNEL Out = Master, so a Master tap feeds back and
+        // Loop defaults to CHANNEL Out = Master, so a Master tap feeds back and
         // must be omitted; None/Ext are always offered.
         p.kit(1).channelState.out = encodeOutputDest(OutputDestKind::Master);
         {
@@ -2190,7 +2190,7 @@ namespace lockstep
         }
     }
 
-    // S1: the Looper's Sync-mode loop length is the *track's own* grid (length ×
+    // S1: the Loop's Sync-mode loop length is the *track's own* grid (length ×
     // step subdivision), pushed through ILoopGridAware by the processor — not a
     // machine-owned param. A 4-step / 1/64 track at 120 bpm / 48k → 4 × 0.0625 ×
     // 24000 = 6000 samples. Recording auto-closes at that grid length.
@@ -2198,20 +2198,20 @@ namespace lockstep
     {
         EngineHarness h;
         auto& p = h.processor();
-        p.setTrackMachine(0, LooperMachine::kMachineId);
+        p.setTrackMachine(0, LoopMachine::kMachineId);
         p.setTrackLength(0, 4);
         p.setTrackSubdivision(0, indexFromParts(DivBase::D1_64, DivFlavour::Straight));
         p.writeParam(0, 2 /*loop_sync*/, 2.0f);   // Sync
 
         // Immediate record (bypass the bar-arm) so the take starts on block 0.
         h.renderBlocks(1);
-        p.sendLooperCommand(0, static_cast<int>(LooperMachine::Cmd::RecordCycle),
+        p.sendLooperCommand(0, static_cast<int>(LoopMachine::Cmd::RecordCycle),
                             /*immediate*/ true);
         // 6000 samples / 512 ≈ 12 blocks; render generously, then confirm it closed.
-        for (int b = 0; b < 30 && p.looperState(0) != static_cast<int>(LooperMachine::State::Playing); ++b)
+        for (int b = 0; b < 30 && p.looperState(0) != static_cast<int>(LoopMachine::State::Playing); ++b)
             h.renderBlocks(1);
 
-        CHECK(p.looperState(0) == static_cast<int>(LooperMachine::State::Playing),
+        CHECK(p.looperState(0) == static_cast<int>(LoopMachine::State::Playing),
               "loop-grid seam: Sync record auto-closes (reached Playing)");
         const int slot = p.captureTargetSlot(0);
         const auto* s = p.samplePool().get(slot);
@@ -2234,7 +2234,7 @@ namespace lockstep
     {
         EngineHarness hA;
         auto& pA = hA.processor();
-        pA.setTrackMachine(0, LooperMachine::kMachineId);
+        pA.setTrackMachine(0, LoopMachine::kMachineId);
         // Set loop_sync on the kit directly to a non-default value so the writer
         // emits a loop_sync node (defaults are skipped); the forge then ages it.
         if (pA.kit(0).baseParams.size() > 2) pA.kit(0).baseParams[2] = 2.0f;
@@ -2272,7 +2272,7 @@ namespace lockstep
         auto& pB = hB.processor();
         PluginState::applyStateTree(tree, pB);
 
-        CHECK(pB.kit(0).machineId == LooperMachine::kMachineId,
+        CHECK(pB.kit(0).machineId == LoopMachine::kMachineId,
               "migration: looper machine restored on load");
         const float loaded = pB.kit(0).baseParams.size() > 2 ? pB.kit(0).baseParams[2] : -1.0f;
         CHECK(feq(loaded, 2.0f),

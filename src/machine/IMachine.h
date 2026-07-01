@@ -168,7 +168,7 @@ namespace lockstep
         virtual SectionInfo section(int /*index*/) const { return {}; }
 
         // Stable string ID used for serialization and factory dispatch.
-        // Format: "lockstep.<engine>.<version>", e.g. "lockstep.sampler.v1".
+        // Format: "lockstep.<engine>.<version>", e.g. "lockstep.sample.v1".
         [[nodiscard]] virtual const char* machineId() const = 0;
 
         // Short display badge (1-4 chars) shown in the track VU area.

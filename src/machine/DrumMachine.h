@@ -7,11 +7,11 @@
 
 namespace lockstep
 {
-    class DrumSynthMachine : public IMachine
+    class DrumMachine : public IMachine
     {
     public:
-        DrumSynthMachine();
-        ~DrumSynthMachine() override;
+        DrumMachine();
+        ~DrumMachine() override;
 
         void prepare(double sampleRate, int maxBlockSize) override;
         void reset() override;
@@ -20,7 +20,7 @@ namespace lockstep
                      juce::AudioBuffer<float>& buffer) override;
 
         [[nodiscard]] const char* machineId() const noexcept override { return kMachineId; }
-        [[nodiscard]] const char* badge() const noexcept override { return "DS"; }
+        [[nodiscard]] const char* badge() const noexcept override { return "DRUM"; }
         static constexpr const char* kMachineId = "lockstep.drum.v1";
 
         static constexpr int kNumSlots = 15;

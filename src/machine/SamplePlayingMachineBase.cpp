@@ -97,7 +97,7 @@ namespace lockstep
     {
         juce::ignoreUnused(slot);
 
-        // Slot 0 is the sample_id in both SamplerMachine and SlicerMachine.
+        // Slot 0 is the sample_id in both SampleMachine and SliceMachine.
         if (baseParams.empty())
             return v;
 

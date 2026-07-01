@@ -9,8 +9,8 @@ add_executable(lockstep_tests
     TempoEstimateTest.cpp
     TimeStretchTest.cpp
     StretchMachineTest.cpp
-    RecorderMachineTest.cpp
-    LooperMachineTest.cpp
+    RecordMachineTest.cpp
+    LoopMachineTest.cpp
     StreamMachineTest.cpp
     MetricGridTest.cpp
     SurfaceModelTest.cpp

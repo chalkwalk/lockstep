@@ -5,7 +5,7 @@
 
 namespace lockstep
 {
-    // Per-voice DSP core for sample-based machines (Sampler, Slicer).
+    // Per-voice DSP core for sample-based machines (Sample, Slice).
     // Holds playback position, window bounds, loop bounds, and AHDSR envelope.
     // The caller owns VoiceChoke and multiplies its gain into the value returned
     // by step(). One SamplePlayer per voice slot in the machine's voice array.

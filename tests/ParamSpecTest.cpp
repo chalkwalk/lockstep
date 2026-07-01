@@ -15,9 +15,9 @@
 #include "TestHarness.h"
 #include "../src/machine/AnalogMachine.h"
 #include "../src/machine/FMMachine.h"
-#include "../src/machine/DrumSynthMachine.h"
-#include "../src/machine/SamplerMachine.h"
-#include "../src/machine/SlicerMachine.h"
+#include "../src/machine/DrumMachine.h"
+#include "../src/machine/SampleMachine.h"
+#include "../src/machine/SliceMachine.h"
 #include "../src/machine/MidiOutMachine.h"
 #include "../src/machine/SamplePool.h"
 #include "../src/ui/ParamFormat.h"
@@ -188,9 +188,9 @@ namespace lockstep
         checkInvariants(m, "FMMachine");
     }
 
-    static void testDrumSynthMachineParams()
+    static void testDrumMachineParams()
     {
-        DrumSynthMachine m;
+        DrumMachine m;
         const std::vector<const char*> golden = {
             "drum_type",        //  0
             "drum_tune",        //  1
@@ -208,14 +208,14 @@ namespace lockstep
             "drum_retrig",      // 13
             "drum_vel_sens",    // 14
         };
-        checkGoldenIds(m, "DrumSynthMachine", golden);
-        checkInvariants(m, "DrumSynthMachine");
+        checkGoldenIds(m, "DrumMachine", golden);
+        checkInvariants(m, "DrumMachine");
     }
 
-    static void testSamplerMachineParams()
+    static void testSampleMachineParams()
     {
         SamplePool pool;
-        SamplerMachine m{ pool };
+        SampleMachine m{ pool };
         const std::vector<const char*> golden = {
             "sample_id",       //  0
             "pitch",           //  1
@@ -233,14 +233,14 @@ namespace lockstep
             "samp_retrig",     // 13
             "samp_velsens",    // 14
         };
-        checkGoldenIds(m, "SamplerMachine", golden);
-        checkInvariants(m, "SamplerMachine");
+        checkGoldenIds(m, "SampleMachine", golden);
+        checkInvariants(m, "SampleMachine");
     }
 
-    static void testSlicerMachineParams()
+    static void testSliceMachineParams()
     {
         SamplePool pool;
-        SlicerMachine m{ pool };
+        SliceMachine m{ pool };
         const std::vector<const char*> golden = {
             "slicer_sample_id",   //  0
             "slicer_mode",        //  1
@@ -256,8 +256,8 @@ namespace lockstep
             "slicer_voice_mode",  // 11
             "slicer_fade",        // 12
         };
-        checkGoldenIds(m, "SlicerMachine", golden);
-        checkInvariants(m, "SlicerMachine");
+        checkGoldenIds(m, "SliceMachine", golden);
+        checkInvariants(m, "SliceMachine");
     }
 
     static void testMidiOutMachineParams()
@@ -295,12 +295,12 @@ namespace lockstep
 
     static void testContextLabels()
     {
-        // ── DrumSynth ─────────────────────────────────────────────────────────
+        // ── Drum ─────────────────────────────────────────────────────────
         // contextLabel is set on SRC slots 2-7 (Sweep/SwpDec/Punch/Tone/Body/Snap).
         // Slot 1 (Tune) carries no contextLabel.  Slot indices are private; using
         // literals with comments matching the header.
         {
-            DrumSynthMachine m;
+            DrumMachine m;
             const int n = m.numParams();
 
             // Frame helper: set TYPE at index 0 (kSlotType), rest 0.0f.
@@ -312,79 +312,79 @@ namespace lockstep
 
             // Tune (slot 1): no contextLabel.
             CHECK(m.paramSpec(1).contextLabel == nullptr,
-                  "DrumSynth slot 1 (Tune): contextLabel must be nullptr");
+                  "Drum slot 1 (Tune): contextLabel must be nullptr");
 
             // Sweep (slot 2 = kSlotSweep): KICK/TOM/etc → "Sweep";
             //   CLAP(4) → "Taps"; COWBELL(5) → "Interval"; CYMBAL(6) → "Spread".
             {
                 const auto spec = m.paramSpec(2);
                 CHECK(spec.contextLabel != nullptr,
-                      "DrumSynth slot 2 (Sweep): contextLabel must be set");
+                      "Drum slot 2 (Sweep): contextLabel must be set");
                 CHECK(spec.contextLabel(frame(0.0f)) == "Sweep",
-                      "DrumSynth Sweep: TYPE=KICK(0) → Sweep");
+                      "Drum Sweep: TYPE=KICK(0) → Sweep");
                 CHECK(spec.contextLabel(frame(4.0f)) == "Taps",
-                      "DrumSynth Sweep: TYPE=CLAP(4) → Taps");
+                      "Drum Sweep: TYPE=CLAP(4) → Taps");
                 CHECK(spec.contextLabel(frame(5.0f)) == "Interval",
-                      "DrumSynth Sweep: TYPE=COWBELL(5) → Interval");
+                      "Drum Sweep: TYPE=COWBELL(5) → Interval");
                 CHECK(spec.contextLabel(frame(6.0f)) == "Spread",
-                      "DrumSynth Sweep: TYPE=CYMBAL(6) → Spread");
+                      "Drum Sweep: TYPE=CYMBAL(6) → Spread");
             }
 
             // SwpDec (slot 3 = kSlotSweepDecay): CLAP(4) → "Tap Spac"; others → "Swp Dec".
             {
                 const auto spec = m.paramSpec(3);
                 CHECK(spec.contextLabel != nullptr,
-                      "DrumSynth slot 3 (SwpDec): contextLabel must be set");
+                      "Drum slot 3 (SwpDec): contextLabel must be set");
                 CHECK(spec.contextLabel(frame(0.0f)) == "Swp Dec",
-                      "DrumSynth SwpDec: TYPE=KICK(0) → Swp Dec");
+                      "Drum SwpDec: TYPE=KICK(0) → Swp Dec");
                 CHECK(spec.contextLabel(frame(4.0f)) == "Tap Spac",
-                      "DrumSynth SwpDec: TYPE=CLAP(4) → Tap Spac");
+                      "Drum SwpDec: TYPE=CLAP(4) → Tap Spac");
             }
 
             // Punch (slot 4 = kSlotPunch): KICK(0) → "Punch"; SNARE(1) → "—".
             {
                 const auto spec = m.paramSpec(4);
                 CHECK(spec.contextLabel != nullptr,
-                      "DrumSynth slot 4 (Punch): contextLabel must be set");
+                      "Drum slot 4 (Punch): contextLabel must be set");
                 CHECK(spec.contextLabel(frame(0.0f)) == "Punch",
-                      "DrumSynth Punch: TYPE=KICK(0) → Punch");
+                      "Drum Punch: TYPE=KICK(0) → Punch");
                 CHECK(spec.contextLabel(frame(1.0f)) == juce::String(juce::CharPointer_UTF8("\xe2\x80\x94")),
-                      "DrumSynth Punch: TYPE=SNARE(1) → em-dash (unused slot)");
+                      "Drum Punch: TYPE=SNARE(1) → em-dash (unused slot)");
             }
 
             // Tone (slot 5 = kSlotTone): KICK(0) → "Drive"; SNARE(1) → "BP Freq"; HAT(2) → "Reso".
             {
                 const auto spec = m.paramSpec(5);
                 CHECK(spec.contextLabel != nullptr,
-                      "DrumSynth slot 5 (Tone): contextLabel must be set");
+                      "Drum slot 5 (Tone): contextLabel must be set");
                 CHECK(spec.contextLabel(frame(0.0f)) == "Drive",
-                      "DrumSynth Tone: TYPE=KICK(0) → Drive");
+                      "Drum Tone: TYPE=KICK(0) → Drive");
                 CHECK(spec.contextLabel(frame(1.0f)) == "BP Freq",
-                      "DrumSynth Tone: TYPE=SNARE(1) → BP Freq");
+                      "Drum Tone: TYPE=SNARE(1) → BP Freq");
                 CHECK(spec.contextLabel(frame(2.0f)) == "Reso",
-                      "DrumSynth Tone: TYPE=HAT(2) → Reso");
+                      "Drum Tone: TYPE=HAT(2) → Reso");
             }
 
             // Snap (slot 7 = kSlotSnap): SNARE(1) → "Snap"; CYMBAL(6) → "Sizzle"; KICK(0) → "—".
             {
                 const auto spec = m.paramSpec(7);
                 CHECK(spec.contextLabel != nullptr,
-                      "DrumSynth slot 7 (Snap): contextLabel must be set");
+                      "Drum slot 7 (Snap): contextLabel must be set");
                 CHECK(spec.contextLabel(frame(1.0f)) == "Snap",
-                      "DrumSynth Snap: TYPE=SNARE(1) → Snap");
+                      "Drum Snap: TYPE=SNARE(1) → Snap");
                 CHECK(spec.contextLabel(frame(6.0f)) == "Sizzle",
-                      "DrumSynth Snap: TYPE=CYMBAL(6) → Sizzle");
+                      "Drum Snap: TYPE=CYMBAL(6) → Sizzle");
                 CHECK(spec.contextLabel(frame(0.0f)) == juce::String(juce::CharPointer_UTF8("\xe2\x80\x94")),
-                      "DrumSynth Snap: TYPE=KICK(0) → em-dash (unused slot)");
+                      "Drum Snap: TYPE=KICK(0) → em-dash (unused slot)");
             }
         }
 
-        // ── SamplerMachine ────────────────────────────────────────────────────
+        // ── SampleMachine ────────────────────────────────────────────────────
         // LpStart (slot 5) and LpLen (slot 6) have contextLabel.
         // kSlotLoopMode = 4 (private); use literal with comment.
         {
             SamplePool pool;
-            SamplerMachine m{ pool };
+            SampleMachine m{ pool };
             const int n = m.numParams();
 
             // Frame helper: set loop mode at index 4 (kSlotLoopMode).
@@ -397,38 +397,38 @@ namespace lockstep
             const auto startSpec = m.paramSpec(5);  // kSlotLoopStart
             const auto lenSpec   = m.paramSpec(6);  // kSlotLoopLen
             CHECK(startSpec.contextLabel != nullptr,
-                  "SamplerMachine slot 5 (LpStart): contextLabel must be set");
+                  "SampleMachine slot 5 (LpStart): contextLabel must be set");
             CHECK(lenSpec.contextLabel != nullptr,
-                  "SamplerMachine slot 6 (LpLen): contextLabel must be set");
+                  "SampleMachine slot 6 (LpLen): contextLabel must be set");
 
             // Mode 0 (Off) and 1 (Sust): both slots use plain labels.
             CHECK(startSpec.contextLabel(frame(0.0f)) == "LpStart",
-                  "Sampler LpStart: mode=Off(0) → LpStart");
+                  "Sample LpStart: mode=Off(0) → LpStart");
             CHECK(startSpec.contextLabel(frame(1.0f)) == "LpStart",
-                  "Sampler LpStart: mode=Sust(1) → LpStart");
+                  "Sample LpStart: mode=Sust(1) → LpStart");
             CHECK(lenSpec.contextLabel(frame(0.0f)) == "LpLen",
-                  "Sampler LpLen: mode=Off(0) → LpLen");
+                  "Sample LpLen: mode=Off(0) → LpLen");
             CHECK(lenSpec.contextLabel(frame(1.0f)) == "LpLen",
-                  "Sampler LpLen: mode=Sust(1) → LpLen");
+                  "Sample LpLen: mode=Sust(1) → LpLen");
 
             // Mode 2 (SustRel): len auto; start still plain.
             CHECK(startSpec.contextLabel(frame(2.0f)) == "LpStart",
-                  "Sampler LpStart: mode=SustRel(2) → LpStart");
+                  "Sample LpStart: mode=SustRel(2) → LpStart");
             CHECK(lenSpec.contextLabel(frame(2.0f)) == "LpLen (auto)",
-                  "Sampler LpLen: mode=SustRel(2) → LpLen (auto)");
+                  "Sample LpLen: mode=SustRel(2) → LpLen (auto)");
 
             // Mode 3 (All): both auto.
             CHECK(startSpec.contextLabel(frame(3.0f)) == "LpStart (auto)",
-                  "Sampler LpStart: mode=All(3) → LpStart (auto)");
+                  "Sample LpStart: mode=All(3) → LpStart (auto)");
             CHECK(lenSpec.contextLabel(frame(3.0f)) == "LpLen (auto)",
-                  "Sampler LpLen: mode=All(3) → LpLen (auto)");
+                  "Sample LpLen: mode=All(3) → LpLen (auto)");
         }
 
-        // ── SlicerMachine ─────────────────────────────────────────────────────
+        // ── SliceMachine ─────────────────────────────────────────────────────
         // LpStart (slot 8) and LpLen (slot 9); kSlotLoopMode = 7 (private).
         {
             SamplePool pool;
-            SlicerMachine m{ pool };
+            SliceMachine m{ pool };
             const int n = m.numParams();
 
             // Frame helper: set loop mode at index 7 (kSlotLoopMode).
@@ -441,23 +441,23 @@ namespace lockstep
             const auto startSpec = m.paramSpec(8);  // kSlotLoopStart
             const auto lenSpec   = m.paramSpec(9);  // kSlotLoopLen
             CHECK(startSpec.contextLabel != nullptr,
-                  "SlicerMachine slot 8 (LpStart): contextLabel must be set");
+                  "SliceMachine slot 8 (LpStart): contextLabel must be set");
             CHECK(lenSpec.contextLabel != nullptr,
-                  "SlicerMachine slot 9 (LpLen): contextLabel must be set");
+                  "SliceMachine slot 9 (LpLen): contextLabel must be set");
 
             // Mode 0-2: start = plain; mode 3 (All): auto.
             CHECK(startSpec.contextLabel(frame(0.0f)) == "LpStart",
-                  "Slicer LpStart: mode=Off(0) → LpStart");
+                  "Slice LpStart: mode=Off(0) → LpStart");
             CHECK(startSpec.contextLabel(frame(3.0f)) == "LpStart (auto)",
-                  "Slicer LpStart: mode=All(3) → LpStart (auto)");
+                  "Slice LpStart: mode=All(3) → LpStart (auto)");
 
             // Mode 0-1: len = plain; mode 2-3: auto.
             CHECK(lenSpec.contextLabel(frame(1.0f)) == "LpLen",
-                  "Slicer LpLen: mode=Sust(1) → LpLen");
+                  "Slice LpLen: mode=Sust(1) → LpLen");
             CHECK(lenSpec.contextLabel(frame(2.0f)) == "LpLen (auto)",
-                  "Slicer LpLen: mode=SustRel(2) → LpLen (auto)");
+                  "Slice LpLen: mode=SustRel(2) → LpLen (auto)");
             CHECK(lenSpec.contextLabel(frame(3.0f)) == "LpLen (auto)",
-                  "Slicer LpLen: mode=All(3) → LpLen (auto)");
+                  "Slice LpLen: mode=All(3) → LpLen (auto)");
         }
     }
 
@@ -492,10 +492,10 @@ namespace lockstep
     {
         testAnalogMachineParams();
         testFMMachineParams();
-        testDrumSynthMachineParams();
-        testSamplerMachineParams();
+        testDrumMachineParams();
+        testSampleMachineParams();
         testMidiOutMachineParams();
-        testSlicerMachineParams();
+        testSliceMachineParams();
         testContextLabels();
         testEdgeLabelFormatting();
     }

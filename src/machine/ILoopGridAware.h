@@ -3,7 +3,7 @@
 namespace lockstep
 {
     // Optional mix-in for machines whose musical length is the *track's own* grid
-    // (the Looper: its loop length = track length × step subdivision, not a
+    // (the Loop: its loop length = track length × step subdivision, not a
     // machine-owned param). The processor pushes the focused track's grid each
     // block right beside the ITempoAware seam, so the machine never reads the
     // sequencer's length params directly and the (MidiBuffer, ParamFrame,

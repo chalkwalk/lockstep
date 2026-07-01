@@ -4,19 +4,19 @@
 
 namespace lockstep
 {
-    class SamplerMachine : public SamplePlayingMachineBase
+    class SampleMachine : public SamplePlayingMachineBase
     {
     public:
-        explicit SamplerMachine(SamplePool& pool);
-        ~SamplerMachine() override;
+        explicit SampleMachine(SamplePool& pool);
+        ~SampleMachine() override;
 
         void process(const juce::MidiBuffer& events,
                      const ParamFrame& params,
                      juce::AudioBuffer<float>& buffer) override;
 
         [[nodiscard]] const char* machineId() const noexcept override { return kMachineId; }
-        [[nodiscard]] const char* badge() const noexcept override { return "SP"; }
-        static constexpr const char* kMachineId = "lockstep.sampler.v1";
+        [[nodiscard]] const char* badge() const noexcept override { return "SMPL"; }
+        static constexpr const char* kMachineId = "lockstep.sample.v1";
 
         static constexpr int kNumSlots = 15;
 

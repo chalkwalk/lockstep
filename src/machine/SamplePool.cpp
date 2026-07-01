@@ -69,7 +69,7 @@ namespace lockstep
         auto sample = std::make_unique<Sample>();
         sample->ref = ref;
         sample->missing = true;
-        // pcm left empty; SamplerMachine produces silence for zero-length buffers.
+        // pcm left empty; SampleMachine produces silence for zero-length buffers.
         const int index = static_cast<int>(samples_.size());
         samples_.push_back(std::move(sample));
         return index;

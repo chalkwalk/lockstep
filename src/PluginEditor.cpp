@@ -13,7 +13,7 @@
 #include "io/TrigGridMode.h"
 #include "machine/IMachine.h"
 #include "machine/ISliceable.h"
-#include "machine/SamplerMachine.h"
+#include "machine/SampleMachine.h"
 #include "ui/KeyLabel.h"
 #include "ui/MetaBand.h"
 #include "ui/ScopedSectionMatrix.h"
@@ -3441,7 +3441,7 @@ namespace lockstep
                     }
 
                     // --------------------------------------------------------
-                    // S3: Looper console — the step grid is the always-on transport +
+                    // S3: Loop console — the step grid is the always-on transport +
                     // performance surface for a focused looper. Top row 0-7 =
                     // transport/length; bottom row 8-15 = performance (beat-repeat S5,
                     // tape FX S6). PLAY/STOP/DUB disambiguate off the loop state since
@@ -5325,7 +5325,7 @@ namespace lockstep
                             {
                                 // 5.6 Trig+step: cycle the tri-state off → note →
                                 // lock-only → off (DESIGN §30). lock-only keeps the
-                                // step's P-Locks but emits no note. On a Recorder
+                                // step's P-Locks but emits no note. On a Record
                                 // track a trig is a capture trigger, so lock-only is
                                 // meaningless and skipped: off → note → off.
                                 if (processor_.isRecorderTrack(track))

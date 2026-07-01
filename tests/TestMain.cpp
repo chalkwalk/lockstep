@@ -14,8 +14,8 @@ int main()
     lockstep::runTempoEstimateTests();
     lockstep::runTimeStretchTests();
     lockstep::runStretchMachineTests();
-    lockstep::runRecorderMachineTests();
-    lockstep::runLooperMachineTests();
+    lockstep::runRecordMachineTests();
+    lockstep::runLoopMachineTests();
     lockstep::runStreamMachineTests();
     lockstep::runStateResolverTests();
     lockstep::runHierarchyNavTests();

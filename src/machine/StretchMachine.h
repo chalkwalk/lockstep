@@ -10,11 +10,11 @@ namespace lockstep
 {
     // StretchMachine — the Flex analog (DESIGN §29.2): independent pitch + tempo
     // playback of a pool buffer via the WSOLA TimeStretch voice (C1/C3). Unlike the
-    // rate-based SamplerMachine (pitch=speed, the turntable), the Player decouples
+    // rate-based SampleMachine (pitch=speed, the turntable), the Player decouples
     // them: `pitch` transposes without changing duration, and `timestretch=Tempo`
     // stretches the buffer to the project tempo using its stamped sourceBars — so a
     // captured loop stays in time as the BPM changes (what the looper's varispeed
-    // self-play and the rate Sampler cannot do).
+    // self-play and the rate Sample cannot do).
     //
     // Monophonic v1 (one stretch voice), gated like the Static machine
     // (hasInternalAmp suppresses the track ENVELOPE; level/pan come from CHANNEL).

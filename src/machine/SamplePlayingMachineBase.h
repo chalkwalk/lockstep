@@ -11,7 +11,7 @@
 
 namespace lockstep
 {
-    // Shared base for sample-based machines (SamplerMachine, SlicerMachine).
+    // Shared base for sample-based machines (SampleMachine, SliceMachine).
     // Owns: sample pool reference, 4-slot voice array (SamplePlayer + VoiceChoke
     // + pending-trigger state per slot), ISliceable implementation, and the
     // common prepare/reset/isVoiceActive helpers.
@@ -51,7 +51,7 @@ namespace lockstep
         // currently-loaded sample (uses Sample::analysis cached at load time).
         // count is the number of slices to place; capped by kMinSliceMs.
         void detectTransientSlices() override;
-        // Variant that also accepts an explicit count (used by SlicerMachine).
+        // Variant that also accepts an explicit count (used by SliceMachine).
         void detectTransientSlices(int count) override;
 
     protected:

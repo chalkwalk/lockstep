@@ -8,7 +8,7 @@ namespace lockstep
 {
     // StreamMachine — disk-streaming sampler for long-form material (full songs,
     // long field recordings) that should not be decoded into RAM (DESIGN §29.2,
-    // PRINCIPLES §12). Unlike the Flex SamplerMachine (which plays decoded PCM from
+    // PRINCIPLES §12). Unlike the Flex SampleMachine (which plays decoded PCM from
     // the SamplePool), Static streams its source from disk via a BufferingAudioReader
     // on a background thread, so the audio never enters RAM wholesale or the project
     // state — only the file path persists (held per-Kit, not in the SamplePool).

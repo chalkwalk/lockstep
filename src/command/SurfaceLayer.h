@@ -40,7 +40,7 @@ namespace lockstep
     {
         TrackInputMode inputMode = TrackInputMode::Play;  // active track's input mode
         int activeTrack = 0;                     // index of the focused track
-        bool activeTrackIsLooper = false;        // focused track runs a LooperMachine (S3)
+        bool activeTrackIsLooper = false;        // focused track runs a LoopMachine (S3)
     };
 
   // The one function that decides which overlay is active.

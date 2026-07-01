@@ -18,7 +18,7 @@ add_library(lockstep_core STATIC
     core/Clock.cpp
     core/Metronome.cpp
     core/StateResolver.cpp
-    machine/DrumSynthMachine.cpp
+    machine/DrumMachine.cpp
     machine/FMMachine.cpp
     machine/SamplePlayingMachineBase.cpp
     machine/SamplePlayer.cpp
@@ -26,10 +26,10 @@ add_library(lockstep_core STATIC
     machine/MidiDevicePresets.cpp
     machine/MidiOutMachine.cpp
     machine/EffectFactory.cpp
-    machine/SamplerMachine.cpp
-    machine/SlicerMachine.cpp
-    machine/RecorderMachine.cpp
-    machine/LooperMachine.cpp
+    machine/SampleMachine.cpp
+    machine/SliceMachine.cpp
+    machine/RecordMachine.cpp
+    machine/LoopMachine.cpp
     machine/StreamMachine.cpp
     machine/StretchMachine.cpp
     dsp/TimeStretch.cpp

@@ -1,18 +1,18 @@
-#include "SlicerMachine.h"
+#include "SliceMachine.h"
 #include "MachineParamTable.h"
 #include <algorithm>
 #include <cmath>
 
 namespace lockstep
 {
-    SlicerMachine::SlicerMachine(SamplePool& pool)
+    SliceMachine::SliceMachine(SamplePool& pool)
         : SamplePlayingMachineBase(pool) {}
 
-    SlicerMachine::~SlicerMachine() = default;
+    SliceMachine::~SliceMachine() = default;
 
     // -------------------------------------------------------------------------
 
-    SlicerMachine::Polyphony SlicerMachine::currentVoices(const ParamFrame& params) const
+    SliceMachine::Polyphony SliceMachine::currentVoices(const ParamFrame& params) const
     {
         if (params.size() > static_cast<std::size_t>(kSlotVoiceMode))
         {
@@ -25,7 +25,7 @@ namespace lockstep
 
     // -------------------------------------------------------------------------
 
-    SamplePlayer::Spec SlicerMachine::buildSpec(int midiNote,
+    SamplePlayer::Spec SliceMachine::buildSpec(int midiNote,
                                                 const ParamFrame& params) const
     {
         const auto p = [&](int s) {
@@ -131,7 +131,7 @@ namespace lockstep
         return spec;
     }
 
-    void SlicerMachine::triggerVoice(int midiNote, const ParamFrame& params)
+    void SliceMachine::triggerVoice(int midiNote, const ParamFrame& params)
     {
         // Lazy-seed slices if not yet initialised (e.g. after state load).
         if (numSlices_ == 0)
@@ -179,7 +179,7 @@ namespace lockstep
 
     // -------------------------------------------------------------------------
 
-    void SlicerMachine::process(const juce::MidiBuffer& events,
+    void SliceMachine::process(const juce::MidiBuffer& events,
                                 const ParamFrame& params,
                                 juce::AudioBuffer<float>& buffer)
     {
@@ -316,7 +316,7 @@ namespace lockstep
         { "slicer_voice_mode", "Voice", 0.f, 1.f, 0.f, 1.f, 1, sl_u::None, sl_r::None, 0, 6, 0, kSLVoiceLabels }, // 11
         { "slicer_fade", "Fade", 0.f, 20.f, 1.f, 1.f, 0, sl_u::Ms, sl_r::None, 0, 6, 0, nullptr }, // 12
     };
-    static_assert(std::size(kSLParams) == SlicerMachine::kNumSlots,
+    static_assert(std::size(kSLParams) == SliceMachine::kNumSlots,
                   "kSLParams row count must equal kNumSlots");
 
     namespace
@@ -341,7 +341,7 @@ namespace lockstep
         }
     }
 
-    ParamSpec SlicerMachine::paramSpec(int index) const
+    ParamSpec SliceMachine::paramSpec(int index) const
     {
         if (index < 0 || index >= kNumSlots) return {};
         auto spec = toParamSpec(kSLParams[static_cast<std::size_t>(index)]);
@@ -350,7 +350,7 @@ namespace lockstep
         return spec;
     }
 
-    SectionInfo SlicerMachine::section(int index) const
+    SectionInfo SliceMachine::section(int index) const
     {
         switch (index)
         {

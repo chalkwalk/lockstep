@@ -12,16 +12,16 @@
 #include "dsp/SoftClip.h"
 #include "machine/InputSource.h"
 #include "machine/RouteMachine.h"
-#include "machine/RecorderMachine.h"
-#include "machine/LooperMachine.h"
+#include "machine/RecordMachine.h"
+#include "machine/LoopMachine.h"
 #include "machine/StreamMachine.h"
 #include "machine/StretchMachine.h"
 #include "machine/MidiDevicePresets.h"
-#include "machine/DrumSynthMachine.h"
+#include "machine/DrumMachine.h"
 #include "machine/FMMachine.h"
 #include "machine/MidiOutMachine.h"
-#include "machine/SamplerMachine.h"
-#include "machine/SlicerMachine.h"
+#include "machine/SampleMachine.h"
+#include "machine/SliceMachine.h"
 #include "machine/SamplePlayingMachineBase.h"
 #include "machine/AnalogMachine.h"
 #include "machine/StubMachine.h"
@@ -146,7 +146,7 @@ namespace lockstep
 
         // T0 starts as a sampler; T1–T15 are stub (empty) until materialised.
         // machines_ entries are set correctly here; Part[0] seed below confirms.
-        machines_[0] = std::make_unique<SamplerMachine>(samplePool_);
+        machines_[0] = std::make_unique<SampleMachine>(samplePool_);
         for (std::size_t t = 1; t < kNumTracks; ++t)
             machines_[t] = std::make_unique<StubMachine>("");
 
@@ -163,7 +163,7 @@ namespace lockstep
         {
             auto& p0 = arrangement_.songs[0];
 
-            p0.tracks[0].kit.machineId = SamplerMachine::kMachineId;
+            p0.tracks[0].kit.machineId = SampleMachine::kMachineId;
             {
                 const int np = machines_[0]->numParams();
                 auto& kbp = p0.tracks[0].kit.baseParams;
@@ -437,7 +437,7 @@ namespace lockstep
         if (auto* ta = dynamic_cast<ITempoAware*>(mi))
             ta->setTransport(blockTransport_);
         // S1: deliver this track's own grid (length × step subdivision) to the
-        // Looper, whose loop length IS the track grid — not a machine-owned param.
+        // Loop, whose loop length IS the track grid — not a machine-owned param.
         if (auto* lg = dynamic_cast<ILoopGridAware*>(mi))
         {
             const auto* lenP = trackLengthParams_[i];
@@ -1026,8 +1026,8 @@ namespace lockstep
         const double blockEnd = clock_.ppqAtBlockEnd() - ppqOffset;
         const double samplesPerPpq = clock_.samplesPerPpq();
 
-        // C2: snapshot the transport for ITempoAware machines (Player/Looper/
-        // Recorder). samplesPerBar = barPpq × samplesPerPpq; phase = absolute song
+        // C2: snapshot the transport for ITempoAware machines (Player/Loop/
+        // Record). samplesPerBar = barPpq × samplesPerPpq; phase = absolute song
         // position in samples at block start (for looper grid phase-lock).
         blockTransport_.bpm = clock_.bpm();
         blockTransport_.sampleRate = getSampleRate();
@@ -4157,7 +4157,7 @@ namespace lockstep
     }
 
     // Derive a short display name from a dot-separated machineId string.
-    // "lockstep.sampler.v1" → "Sampler", "lockstep.fm.v1" → "FM", etc.
+    // "lockstep.sample.v1" → "Sample", "lockstep.fm.v1" → "FM", etc.
     static juce::String machineShortName(const std::string& machineId)
     {
         const auto s = juce::String(machineId);
@@ -4411,24 +4411,24 @@ namespace lockstep
     static std::unique_ptr<IMachine> makeMachineForId(const std::string& id,
                                                       SamplePool& pool)
     {
-        if (id == SamplerMachine::kMachineId || id.empty())
-            return std::make_unique<SamplerMachine>(pool);
+        if (id == SampleMachine::kMachineId || id.empty())
+            return std::make_unique<SampleMachine>(pool);
         if (id == MidiOutMachine::kMachineId)
             return std::make_unique<MidiOutMachine>();
-        if (id == DrumSynthMachine::kMachineId)
-            return std::make_unique<DrumSynthMachine>();
+        if (id == DrumMachine::kMachineId)
+            return std::make_unique<DrumMachine>();
         if (id == FMMachine::kMachineId)
             return std::make_unique<FMMachine>();
         if (id == AnalogMachine::kMachineId)
             return std::make_unique<AnalogMachine>();
-        if (id == SlicerMachine::kMachineId)
-            return std::make_unique<SlicerMachine>(pool);
+        if (id == SliceMachine::kMachineId)
+            return std::make_unique<SliceMachine>(pool);
         if (id == RouteMachine::kMachineId)
             return std::make_unique<RouteMachine>();
-        if (id == RecorderMachine::kMachineId)
-            return std::make_unique<RecorderMachine>(pool);
-        if (id == LooperMachine::kMachineId)
-            return std::make_unique<LooperMachine>(pool);
+        if (id == RecordMachine::kMachineId)
+            return std::make_unique<RecordMachine>(pool);
+        if (id == LoopMachine::kMachineId)
+            return std::make_unique<LoopMachine>(pool);
         if (id == StreamMachine::kMachineId)
             return std::make_unique<StreamMachine>();
         if (id == StretchMachine::kMachineId)
@@ -4444,14 +4444,14 @@ namespace lockstep
     // MGX.6 — machine selection
 
     static constexpr LockstepProcessor::MachineInfo kAvailableMachines[] = {
-        { SamplerMachine::kMachineId, "Sampler" },
-        { SlicerMachine::kMachineId, "Slicer" },
-        { FMMachine::kMachineId, "FM Synth" },
-        { AnalogMachine::kMachineId, "Analog Synth" },
-        { DrumSynthMachine::kMachineId, "Drum Synth" },
+        { SampleMachine::kMachineId, "Sample" },
+        { SliceMachine::kMachineId, "Slice" },
+        { FMMachine::kMachineId, "FM" },
+        { AnalogMachine::kMachineId, "Analog" },
+        { DrumMachine::kMachineId, "Drum" },
         { RouteMachine::kMachineId, "Route" },
-        { RecorderMachine::kMachineId, "Recorder" },
-        { LooperMachine::kMachineId, "Looper" },
+        { RecordMachine::kMachineId, "Record" },
+        { LoopMachine::kMachineId, "Loop" },
         { StreamMachine::kMachineId, "Stream" },
         { StretchMachine::kMachineId, "Stretch" },
         { MidiOutMachine::kMachineId, "MIDI Out" },
@@ -5272,7 +5272,7 @@ namespace lockstep
         for (int s = 0; s < np; ++s)
             k.baseParams[static_cast<std::size_t>(s)] = nm->paramSpec(s).defaultValue;
 
-        // D1: a freshly-assigned capture machine (Recorder/Looper) defaults its
+        // D1: a freshly-assigned capture machine (Record/Loop) defaults its
         // target_buffer to the next free REC slot, so multiple capture tracks don't
         // all pile onto slot 0. Deliberate sharing is still possible by reassigning.
         const int tbSlot = nm->slotForId("target_buffer");
@@ -5353,34 +5353,34 @@ namespace lockstep
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
         const auto ti = static_cast<std::size_t>(track);
         return machines_[ti]
-               && std::string(machines_[ti]->machineId()) == RecorderMachine::kMachineId;
+               && std::string(machines_[ti]->machineId()) == RecordMachine::kMachineId;
     }
 
     bool LockstepProcessor::isLooperTrack(int track) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
-        return dynamic_cast<LooperMachine*>(machines_[static_cast<std::size_t>(track)].get())
+        return dynamic_cast<LoopMachine*>(machines_[static_cast<std::size_t>(track)].get())
                != nullptr;
     }
 
     void LockstepProcessor::sendLooperCommand(int track, int cmd, bool immediate)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
-        if (auto* lm = dynamic_cast<LooperMachine*>(machines_[static_cast<std::size_t>(track)].get()))
-            lm->postCommand(static_cast<LooperMachine::Cmd>(cmd), immediate);
+        if (auto* lm = dynamic_cast<LoopMachine*>(machines_[static_cast<std::size_t>(track)].get()))
+            lm->postCommand(static_cast<LoopMachine::Cmd>(cmd), immediate);
     }
 
     void LockstepProcessor::sendLooperPerf(int track, int action, bool pressed, int value)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
-        if (auto* lm = dynamic_cast<LooperMachine*>(machines_[static_cast<std::size_t>(track)].get()))
-            lm->postPerf(static_cast<LooperMachine::Cmd>(action), pressed, value);
+        if (auto* lm = dynamic_cast<LoopMachine*>(machines_[static_cast<std::size_t>(track)].get()))
+            lm->postPerf(static_cast<LoopMachine::Cmd>(action), pressed, value);
     }
 
     int LockstepProcessor::looperBeatRepeat(int track) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1;
-        if (auto* lm = dynamic_cast<LooperMachine*>(machines_[static_cast<std::size_t>(track)].get()))
+        if (auto* lm = dynamic_cast<LoopMachine*>(machines_[static_cast<std::size_t>(track)].get()))
             return lm->beatRepeatRate();
         return -1;
     }
@@ -5388,7 +5388,7 @@ namespace lockstep
     int LockstepProcessor::looperTapeFx(int track) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1;
-        if (auto* lm = dynamic_cast<LooperMachine*>(machines_[static_cast<std::size_t>(track)].get()))
+        if (auto* lm = dynamic_cast<LoopMachine*>(machines_[static_cast<std::size_t>(track)].get()))
             return lm->tapeFx();
         return -1;
     }
@@ -5396,7 +5396,7 @@ namespace lockstep
     int LockstepProcessor::looperState(int track) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1;
-        if (auto* lm = dynamic_cast<LooperMachine*>(machines_[static_cast<std::size_t>(track)].get()))
+        if (auto* lm = dynamic_cast<LoopMachine*>(machines_[static_cast<std::size_t>(track)].get()))
             return static_cast<int>(lm->state());
         return -1;
     }
@@ -5404,7 +5404,7 @@ namespace lockstep
     float LockstepProcessor::looperPhase(int track) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1.0f;
-        if (auto* lm = dynamic_cast<LooperMachine*>(machines_[static_cast<std::size_t>(track)].get()))
+        if (auto* lm = dynamic_cast<LoopMachine*>(machines_[static_cast<std::size_t>(track)].get()))
             return lm->phase01();
         return -1.0f;
     }
@@ -5412,7 +5412,7 @@ namespace lockstep
     bool LockstepProcessor::looperPending(int track) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
-        if (auto* lm = dynamic_cast<LooperMachine*>(machines_[static_cast<std::size_t>(track)].get()))
+        if (auto* lm = dynamic_cast<LoopMachine*>(machines_[static_cast<std::size_t>(track)].get()))
             return lm->pendingEdge();
         return false;
     }
