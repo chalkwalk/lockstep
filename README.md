@@ -259,7 +259,7 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **P-Lock** (parameter lock) | A per-step override of one or more of a sound engine's parameters. Hold a step, turn a control. |
 | **Trig override** | A per-step override of a sequencer field — note, velocity, gate, or condition — as opposed to an engine parameter. |
 | **Override-ELSE-Base** | The one resolution rule: effective value = step override if present, else track base. |
-| **Machine** | A sound engine. Each track hosts one. Lockstep ships: `SamplerMachine` (monophonic sample playback with trim, loop region, ZC-snap), `SlicerMachine` (slice/scrub dual-mode with transient detection and poly), `FMMachine` (4-op FM synthesizer, mono/poly), `AnalogMachine` (virtual-analog dual-osc + SVF synth, mono/para), `DrumSynthMachine` (Rytm-style drum synth — eight voices via one stepped param), `RouteMachine` (audio router / sub-bus), `RecorderMachine` (live resampler into volatile REC buffers), `LooperMachine` (verb-driven overdub looper), `StreamMachine` (disk-streaming long-form sampler), `MidiOutMachine` (MIDI CC/note output to external gear), and `StubMachine` (silent fallback for unknown IDs). |
+| **Machine** | A sound engine. Each track hosts one. Lockstep ships: `SampleMachine` (monophonic sample playback with trim, loop region, ZC-snap), `SliceMachine` (slice/scrub dual-mode with transient detection and poly), `FMMachine` (4-op FM synthesizer, mono/poly), `AnalogMachine` (virtual-analog dual-osc + SVF synth, mono/para), `DrumMachine` (Rytm-style drum synth — eight voices via one stepped param), `RouteMachine` (audio router / sub-bus), `RecordMachine` (live resampler into volatile REC buffers), `LoopMachine` (verb-driven overdub looper), `StreamMachine` (disk-streaming long-form sampler), `MidiOutMachine` (MIDI CC/note output to external gear), and `StubMachine` (silent fallback for unknown IDs). |
 | **Machine module** *(planned, 6.7)* | A machine shipped as a loadable native module behind Lockstep's stable C ABI, rather than compiled into the core. First-party machines are statically linked; third-party machines are authored against the SDK and installed into a per-platform folder. Bespoke contract for purpose-built machines — not a VST3/CLAP host. See DESIGN §36. |
 | **Kit** | The per-(track, Song) sound: machine identity, base parameters, post-machine FILTER/AMP, sample refs. Recalled via `Func+Track`. |
 | **Phrase** | A track's pure note content — the trig grid and per-step data. Each track has a pool of 16; Scenes reference them by index. |
@@ -283,7 +283,7 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Density** | Live, subtractive trig-thinning overlay. Enter via the **generator hub** (`3` held → DENSITY cell). Sticky DENSITY mode: nav keys page between tracks 1-8 and 9-16; `Song`-held (encoder or on-screen drag) → master offset (visible as arc baseline shift); MOD key cycles Amount/Mode sub-page (Musicality + Selection). `Song`-alone = swing (unchanged). Only silences would-fire trigs. Ephemeral amounts; durable Musicality + Selection per track. Selection has three detents: **Scrub** (deterministic), **Re-roll** (stochastic), **Exempt** (track bypasses density entirely — amount and Musicality cells greyed). |
 | **Velocity overlay** | Per-track live velocity modulation computed at emit time, not baked. Enter via the **generator hub** (`3` held → VEL cell). Sticky VEL OVERLAY mode: AMP re-press cycles sub-pages (Depth → Center → Mode → Blend); press any other section key to exit; nav keys page between tracks 1-8 and 9-16. Mode: **Off** (no overlay) / **Bar** (metric weight against the effective time-sig bar) / **Phrase** (bar grid anchored to phrase start — accents follow phrase length, not global bar position). Blend: Replace (overlay supersedes authored velocity) / Mix (overlay delta added on top of authored velocity, or centred on `velCenter` for steps with no authored velocity — converges with Replace on flat material). Durable per-track, serialized (v20). |
 | **TIME page** | Tempo and time-sig share an identical scope ladder (Set → Song → Scene) and are edited on one page. **`Song+TRIG`** or **`Scene+TRIG`** opens the TIME sticky band (TRIG relabels to "TIME"); the held modifier at entry becomes the **entry scope** (the scope edits target when no modifier is held). Inside: `Func+Song` = Set, `Song` = Song, `Scene` = Scene. Three controls: **Tempo** — continuous knob, resolved BPM at current scope, scope-coloured parent arc tick, back-solved ratio on edit; dial to floor shows `INHERIT (<parent bpm>)` and clears the override. **Sig** — stepped knob, time-sig list ordered by ascending bar length (`3/8 → 2/4 → 5/8 → 3/4 → 6/8 → 7/8 → 4/4 → 9/8 → 5/4 → 11/8 → 12/8 → 7/4`), index 0 = `INHERIT`. 4/4 is the Set default. **CLICK** — stepped ON/OFF; toggles the metronome click. Controls revert independently — no chord needed. Global (standalone) tempo is editable; DAW global is read-only (host BPM). Header readout shows scope-coloured effective BPM + time-sig. Serialized as v21. |
-| **Retrig / ratchet** | Per-step re-triggering at a musical rate (`/4 … /32T`). Authored as a P-lockable parameter in the TRIG meta-band field 5 "RTG": hold a step and turn the RTG encoder to set the rate (0 = off; /4 … /32T). Slicer tracks: `Fill+TRIG` shows the slice-point picker (unchanged). |
+| **Retrig / ratchet** | Per-step re-triggering at a musical rate (`/4 … /32T`). Authored as a P-lockable parameter in the TRIG meta-band field 5 "RTG": hold a step and turn the RTG encoder to set the rate (0 = off; /4 … /32T). Slice tracks: `Fill+TRIG` shows the slice-point picker (unchanged). |
 | **Euclidean generator** | Enter via the **generator hub** (`3` held → EUCLID cell). Encoders shape `PULSE / OFSET / ACCNT` against the phrase length, audible live; the mode is latched until **P** (commit) or **Func+P** (cancel). Y is inert in this mode. |
 | **Melodic generator** | Enter via the **generator hub** (`3` held → MELODY cell). Deterministic, seeded line generator against the effective key; encoders `DENSE / CORE / CNTR / OCTS / LEAP / SEED / SRC`. Metric strength is the spine (strong beats → strong notes, longer; weak beats → colour notes, shorter; rests bridge into stronger beats). `SRC` = *Gen* (generate rhythm too) or *Keep* (lock to existing trigs, write pitch only). Live preview; **P** prints editable steps, **Func+P** / escape reverts. |
 | **Harmonic voice-mover** | Enter via the **generator hub** (`3` held → CHORD cell). A sticky in-key chord sculptor with no chord theory — voices are rungs on the diatonic ladder. The four voices are shown as **one chord view spanning four columns** (one per voice); the three rows are the **previous / current / next chord** so each column reads that voice's motion, and `CUR` scrolls the chords through the bright middle row. Each voice's knob sits on the current row: a bare turn steps that voice in-scale (across **octaves 2–7**), **`Func`+turn** (mouse *or* encoder) reaches a chromatic borrowed tone; off-detent drops **that** voice (the others shift down to fill), the first empty column adds one. **No two voices share a pitch** — an edit onto an occupied note skips to the next free one. Structure encoders: `LEN` (chord count — starts at **1**; growing **clones the previous chord**, shrinking is lossless), `CUR` (cursor), `MOVE` (slide the chord one scale degree; **`Func`+`MOVE`** slides the whole chord chromatically by a semitone) and `OCT` (octave-shift). A transpose that would push any voice past the ladder (octaves 2–7) is **refused** rather than clamped. `MOVE`/`OCT` are relative nudgers shown as **`+/-`**. Editing any voice / `MOVE` / `OCT` / cursor **re-strikes** the chord so you can preview by slow-turning. Commit prints **one chord per bar** of the in-scope time signature (even-spacing fallback when there are more chords than bars); **P** prints, **Func+P** / escape reverts. |
@@ -591,7 +591,7 @@ Lockstep has 16 tracks. The track header shows 8 at a time; the **"1–8" / "9�
 | `Track (2) + C–/` | Select / focus track 9–16 (`2 + C` = track 9, … `2 + /` = track 16). |
 | Page button (click) | Flip track header between tracks 1–8 and 9–16. |
 
-Tracks 1–8 default to `SamplerMachine` and tracks 9–16 to `MidiOutMachine` (Digitakt-style default split). Any track can be reassigned to any machine via **`Func + Track`** (hold `1`, tap `2` — the step grid re-skins to machine names; press a step to assign; replaces the retired `Func+R` gesture). A small **"M"** badge in the top-right corner of a track button identifies MIDI-out tracks at a glance.
+Tracks 1–8 default to `SampleMachine` and tracks 9–16 to `MidiOutMachine` (Digitakt-style default split). Any track can be reassigned to any machine via **`Func + Track`** (hold `1`, tap `2` — the step grid re-skins to machine names; press a step to assign; replaces the retired `Func+R` gesture). A small **"M"** badge in the top-right corner of a track button identifies MIDI-out tracks at a glance.
 
 #### The Machines — what each one is for
 
@@ -601,13 +601,13 @@ idea, each authored against the same boundary and snapping to the same canonical
 sections, so a skill you learn on one carries to the rest. This is the *why and
 when* of each; the [table below](#machine-catalogue) is the *what* (every
 parameter). Names are chosen to say what the machine does at a glance — the four
-sample-players in particular (**Sampler / Slicer / Stretch / Stream**) differ by
+sample-players in particular (**Sample / Slice / Stretch / Stream**) differ by
 one clear idea each.
 
-**Sampler** — *Your workhorse for turning any sound into a playable, lockable
+**Sample** — *Your workhorse for turning any sound into a playable, lockable
 instrument.*
-The Sampler plays one sample from RAM with pitch, a trim window, looping, and an
-amp envelope, all P-lockable per step. It is the first machine you reach for:
+The Sample machine plays one sample from RAM with pitch, a trim window, looping,
+and an amp envelope, all P-lockable per step. It is the first machine you reach for:
 drop in a one-shot and play it chromatically, or trim a longer sample to a hit
 and lock a different start point, pitch, or loop region on individual steps. Pitch
 is rate-based (higher note = faster = shorter), which is exactly what you want for
@@ -617,9 +617,9 @@ start point so each repeat bites a different consonant, then P-lock a pitch ramp
 across four steps for a riser — all without stopping the transport. It is the
 machine you improvise *with*, because everything it does is one lock away.
 
-**Slicer** — *Chop a loop or phrase into pieces you can replay, reorder, and
+**Slice** — *Chop a loop or phrase into pieces you can replay, reorder, and
 scrub live.*
-Point the Slicer at a break or vocal phrase and it divides it into slices — evenly,
+Point a Slice track at a break or vocal phrase and it divides it into slices — evenly,
 or on detected transients — that you trigger from the grid or a keyboard; SCRUB
 mode instead drives playback speed (and reverse) from the note. It turns a single
 loop into a whole kit of playable fragments without any pre-editing.
@@ -628,7 +628,7 @@ play the grid to rebuild the beat in a new order; a negative-rate P-lock throws 
 slice into reverse for a fill, and holding a note in SCRUB mode tape-warps the
 phrase down as a transition.
 
-**FM (Synth)** — *Metallic, glassy, and percussive tones that subtractive synths
+**FM** — *Metallic, glassy, and percussive tones that subtractive synths
 can't reach.*
 A 4-operator FM engine with a free modulation matrix and per-operator envelopes:
 the home of bells, electric pianos, clangs, hollow basses, and sharp digital
@@ -638,7 +638,7 @@ and inharmonic — the sound of DX-era and Digitone-era gear.
 bell blooms into a metallic stab, then drop an operator's ratio on the accent steps
 for a talking, evolving lead that never sits still.
 
-**Analog (Synth)** — *The warm, familiar subtractive voice for basses, pads, leads,
+**Analog** — *The warm, familiar subtractive voice for basses, pads, leads,
 and stabs.*
 A virtual-analog dual-oscillator synth with sub, a state-variable filter, two
 envelopes, an LFO, and mono/paraphonic modes — the bread-and-butter synth voice.
@@ -648,7 +648,7 @@ sterile.
 classic filter-open build, latch a paraphonic chord across four steps, and dial in
 Age so the stack detunes and breathes as the section runs.
 
-**Drum (Synth)** — *A full synthesized drum kit on a single track, every voice
+**Drum** — *A full synthesized drum kit on a single track, every voice
 tweakable and lockable.*
 One machine with a stepped **Type** (KICK, SNARE, HAT, TOM, CLAP, COWBELL, CYMBAL,
 RIMSHOT), each a dedicated Rytm-style synthesis model — no samples, so every drum
@@ -681,27 +681,27 @@ the heavy audio never touches memory.
 
 **Stretch** — *Play captured loops and pitched samples with pitch and tempo that
 move independently.*
-Where the Sampler ties pitch to speed, Stretch (the Flex engine) transposes without
+Where the Sample machine ties pitch to speed, Stretch (the Flex engine) transposes without
 changing duration and, in **Tempo** mode, time-stretches a buffer to the project
 tempo using its stamped bar-length — so a loop stays in time as you change the BPM.
-Point it at any pool slot, including a live Recorder/Looper capture.
+Point it at any pool slot, including a live Record/Loop capture.
 *In performance:* you resample a phrase into a REC slot, play it back on a Stretch
 track locked to the grid, then pull the master tempo down for a breakdown — the
 captured loop follows in time and in tune instead of chipmunking.
 
-**Recorder** — *Live resampling: capture the mix (or one track, or the input) into
+**Record** — *Live resampling: capture the mix (or one track, or the input) into
 a buffer you can immediately play.*
-A Recorder captures its `input_source` into a volatile REC buffer on a trig,
-**overwriting** each pass — continuous live resampling. It pairs with the Sampler,
-Slicer, or Stretch, which play the buffer it just filled; `monitor` lets you hear
+A Record track captures its `input_source` into a volatile REC buffer on a trig,
+**overwriting** each pass — continuous live resampling. It pairs with the Sample,
+Slice, or Stretch, which play the buffer it just filled; `monitor` lets you hear
 the source as it records.
-*In performance:* you drop a Recorder tapping the master, fire a one-shot to grab
+*In performance:* you drop a Record track tapping the master, fire a one-shot to grab
 the last bar of the jam, then Slice that capture on the next track and rebuild it
 into something new — sampling your own performance as it happens.
 
-**Looper** — *Hands-on overdub looping with a dedicated transport-and-FX console.*
-The Looper is the overdub counterpart to the Recorder, and because a looper doesn't
-sequence, a focused Looper turns its 16 step buttons into an **always-on console**:
+**Loop** — *Hands-on overdub looping with a dedicated transport-and-FX console.*
+The Loop machine is the overdub counterpart to Record, and because it doesn't
+sequence, a focused Loop turns its 16 step buttons into an **always-on console**:
 record/overdub/undo/halve/double on the top row, momentary beat-repeat and tape FX
 (tape-stop, dip, half-speed, reverse) on the bottom. It layers sound-on-sound and
 locks to the track's grid.
@@ -723,16 +723,16 @@ the outboard box together in one gesture.
 
 | Machine | Badge | Description |
 |---|---|---|
-| `SamplerMachine` | SP | Monophonic sample playback. SRC section: sample, pitch, trim window (`samp_start` / `samp_length`), loop mode (OFF / SUS / S+R / ALL), loop region (`samp_loop_start` / `samp_loop_len`). All position slots snap to zero-crossings on write. AMP section: level + AHDSR. |
-| `SlicerMachine` | SL | Slice/scrub sample playback. SLICE mode: incoming MIDI note selects slice 0–15; `slicer_start` / `slicer_length` are relative to the active slice. SCRUB mode: note drives playback rate vs. root 60 (identical to Sampler semantics). `slicer_rate` P-lockable for per-step rate; negative rate = reverse playback. `slicer_slice_src` (EQUAL / TRANS) and `slicer_slice_count` auto-recompute slices on change; transient detection uses 5 ms RMS blocks with fast/slow envelope ratio and centre-weighted search. VOICE section: MONO / POLY toggle (V4). |
+| `SampleMachine` | SMPL | Monophonic sample playback. SRC section: sample, pitch, trim window (`samp_start` / `samp_length`), loop mode (OFF / SUS / S+R / ALL), loop region (`samp_loop_start` / `samp_loop_len`). All position slots snap to zero-crossings on write. AMP section: level + AHDSR. |
+| `SliceMachine` | SLCE | Slice/scrub sample playback. SLICE mode: incoming MIDI note selects slice 0–15; `slicer_start` / `slicer_length` are relative to the active slice. SCRUB mode: note drives playback rate vs. root 60 (identical to Sample semantics). `slicer_rate` P-lockable for per-step rate; negative rate = reverse playback. `slicer_slice_src` (EQUAL / TRANS) and `slicer_slice_count` auto-recompute slices on change; transient detection uses 5 ms RMS blocks with fast/slow envelope ratio and centre-weighted search. VOICE section: MONO / POLY toggle (V4). |
 | `FMMachine` | FM | 4-operator FM synthesis. Free 4×4 modulation matrix (diagonal = smoothed self-feedback). Exponential per-operator ADSR, ratio, fine-tune, mix. Macro attack/release/sustain scalars. MONO / POLY voice modes (V4 pool). Operator core is 2× oversampled for clean high-index FM. Carrier mixer normalizes above unity (stacking operators won't blow up the level) and polyphony is loudness-compensated (a chord ≈ 1/√N), level-matched to the drum/Analog reference. |
 | `AnalogMachine` | ANLG | Virtual-analog dual-osc synth. PolyBLEP oscillators + sub + shared noise. State-variable filter (LP24/LP12/HP/BP + drive). Filter ADSR + amp ADSR. LFO (6 shapes). Mono / Paraphonic-4 voice modes. Para topology: chord notes 1 & 3 → osc1+sub; notes 2 & 4 → osc2+sub. Always-on gentle glue saturation + paraphonic loudness compensation; **Age** (MOD) macro dials in analog drift (detune/cutoff/PW wander). Filter **Key Trk** (FILTER) tracks the cutoff to pitch (default full; audible once the cutoff is below maximum). Output level-matched to the drum/FM reference. |
-| `DrumSynthMachine` | DR | Rytm-style per-track drum synthesis. One stepped `Type` param selects the variant; each has dedicated DSP. Eight types ship: KICK, SNARE, HAT, TOM, CLAP, COWBELL, CYMBAL, RIMSHOT. |
+| `DrumMachine` | DRUM | Rytm-style per-track drum synthesis. One stepped `Type` param selects the variant; each has dedicated DSP. Eight types ship: KICK, SNARE, HAT, TOM, CLAP, COWBELL, CYMBAL, RIMSHOT. |
 | `RouteMachine` | ROUT | Pure audio router. `input_source` `{None / Ext / Master / Track N}` feeds audio into the track's signal path at unity; the universal FILTER/AMP/FX do the work. Use it as an FX block, sub-bus, or **aux send**: selecting `Track N` taps a read-only copy of that track's post-FX output (same-block, zero latency) while it keeps flowing to its own destination — a parallel processing chain (DESIGN §27 tap-fork). |
-| `RecorderMachine` | REC | Live resampler. Captures `input_source` `{None / Ext / Master / Track N}` audio into a volatile REC buffer (`target_buffer`, 1 of 8) for `rec_length`, **overwriting** each time a trig fires. `Track N` taps one specific track post-FX (resample a single track, not just the whole mix). `monitor` `{Off / On}`: Off is a silent tap, On passes the input through so you hear the source while recording. On a Recorder track a trig **is** the recorder trig — a plain trig re-captures every loop, a one-shot captures once (lock-only is disabled). The captured buffer is immediately playable by a Sampler/Slicer/**Stretch** pointed at it; its musical bar-length is stamped for tempo-tracking playback. REC buffers are RAM-only and lost on quit (freeze-to-disk is a later milestone). |
-| `LooperMachine` | LOOP | Overdub looper (Octatrack pickup machine). A verb-driven state machine with an **always-on console**: with a looper track focused the 16-button step grid becomes the looper's transport + performance surface (a looper doesn't sequence). **Top row** — `REC` (record → overdub cycle; double-tap = record now / punch-out now), `PLAY`, `STOP`, `ERASE`, `UNDO`, `HALF`, `DBL`, `DUB` (explicit overdub toggle). **Bottom row** — momentary performance: beat-repeat `1/16 · 1/8 · 1/4 · 1/2`, then tape FX `TSTOP · DIP · x1/2 · REV`. Fed two ways: select an `input_source` on its **SRC** panel (a read-only tap/fork — the source still reaches its own destination), or route another track's `Out` **to** the looper track (it sums in). `monitor` `{Auto / On / Off}` governs live-thru: **Auto** monitors an `None`/`External` insert in every state **except while the take is Playing back** (the capture replaced the live source — dropped on the record→play transition, restored when stopped), and stays loop-only for a `Track`/`Master` tap (already audible); **On**/**Off** are absolute. Records/overdubs `input_source` and self-plays the loop, which lives in a shared volatile REC slot (`target_buffer`) — so a Sampler/Stretch can also play it (the OT recording-buffer model). `loop_sync` `{Free / Free Len / Sync}`: **Free** ignores tempo (native, instant record), **Free Len** varispeeds to the recorded musical duration, **Sync** grid-locks length to the track's own length × divider (phase-locked; the grid reflects the loop by construction — no looper-only length params). In Free Len / Sync the record-start and stop edges **quantize to the bar grid** (loops phase-lock; a quantized stop is a **punch-out** that lands on the bar and hands straight to Play); **double-tap** `REC` to fire instantly, overriding quantize. While a quantized edge waits, `REC` shows **ARM** and the mini-seq shows a landing pip. **HALF/DBL** (also `Func+↓`/`Func+↑` on a looper) resize the loop *window* with no resample / no pitch change. **Beat-repeat** (hold): captures the grid cell under the playhead and loops it — silent at the press instant, first audible repeat ≤ one interval later; release resyncs. **Tape FX** (hold): `TSTOP` decelerates to a graceful stop (release while moving = accelerate-back tease), `DIP` slows then catches up on release, `x1/2` half-speed (octave-down), `REV` reverse; releases resync to the grid. `loop_decay` (0 = hold forever … 1 = full) with `loop_decay_mode` `{Overdub / Always}` — Overdub fades the old layer only where you overdub (feedback knob); Always fades the whole loop each iteration (tape echo). The **mini-seq strip** shows the loop position: a continuous playhead over the whole loop plus a landing pip for a pending quantized edge. RAM-only (lost on quit). |
+| `RecordMachine` | REC | Live resampler. Captures `input_source` `{None / Ext / Master / Track N}` audio into a volatile REC buffer (`target_buffer`, 1 of 8) for `rec_length`, **overwriting** each time a trig fires. `Track N` taps one specific track post-FX (resample a single track, not just the whole mix). `monitor` `{Off / On}`: Off is a silent tap, On passes the input through so you hear the source while recording. On a Record track a trig **is** the recorder trig — a plain trig re-captures every loop, a one-shot captures once (lock-only is disabled). The captured buffer is immediately playable by a Sample/Slice/**Stretch** pointed at it; its musical bar-length is stamped for tempo-tracking playback. REC buffers are RAM-only and lost on quit (freeze-to-disk is a later milestone). |
+| `LoopMachine` | LOOP | Overdub looper (Octatrack pickup machine). A verb-driven state machine with an **always-on console**: with a looper track focused the 16-button step grid becomes the looper's transport + performance surface (a looper doesn't sequence). **Top row** — `REC` (record → overdub cycle; double-tap = record now / punch-out now), `PLAY`, `STOP`, `ERASE`, `UNDO`, `HALF`, `DBL`, `DUB` (explicit overdub toggle). **Bottom row** — momentary performance: beat-repeat `1/16 · 1/8 · 1/4 · 1/2`, then tape FX `TSTOP · DIP · x1/2 · REV`. Fed two ways: select an `input_source` on its **SRC** panel (a read-only tap/fork — the source still reaches its own destination), or route another track's `Out` **to** the looper track (it sums in). `monitor` `{Auto / On / Off}` governs live-thru: **Auto** monitors an `None`/`External` insert in every state **except while the take is Playing back** (the capture replaced the live source — dropped on the record→play transition, restored when stopped), and stays loop-only for a `Track`/`Master` tap (already audible); **On**/**Off** are absolute. Records/overdubs `input_source` and self-plays the loop, which lives in a shared volatile REC slot (`target_buffer`) — so a Sample/Stretch can also play it (the OT recording-buffer model). `loop_sync` `{Free / Free Len / Sync}`: **Free** ignores tempo (native, instant record), **Free Len** varispeeds to the recorded musical duration, **Sync** grid-locks length to the track's own length × divider (phase-locked; the grid reflects the loop by construction — no looper-only length params). In Free Len / Sync the record-start and stop edges **quantize to the bar grid** (loops phase-lock; a quantized stop is a **punch-out** that lands on the bar and hands straight to Play); **double-tap** `REC` to fire instantly, overriding quantize. While a quantized edge waits, `REC` shows **ARM** and the mini-seq shows a landing pip. **HALF/DBL** (also `Func+↓`/`Func+↑` on a looper) resize the loop *window* with no resample / no pitch change. **Beat-repeat** (hold): captures the grid cell under the playhead and loops it — silent at the press instant, first audible repeat ≤ one interval later; release resyncs. **Tape FX** (hold): `TSTOP` decelerates to a graceful stop (release while moving = accelerate-back tease), `DIP` slows then catches up on release, `x1/2` half-speed (octave-down), `REV` reverse; releases resync to the grid. `loop_decay` (0 = hold forever … 1 = full) with `loop_decay_mode` `{Overdub / Always}` — Overdub fades the old layer only where you overdub (feedback knob); Always fades the whole loop each iteration (tape echo). The **mini-seq strip** shows the loop position: a continuous playhead over the whole loop plus a landing pip for a pending quantized edge. RAM-only (lost on quit). |
 | `StreamMachine` | STRM | Disk-streaming sampler for long-form audio (full songs, long recordings). Streams from disk on a background thread and **never decodes into RAM** or project state — only the file path persists (per-Kit). Drop a file on a focused Stream track to assign its source. A trig plays from `start`; note-off stops (the track gate governs duration). Rate-based (no time-stretch); tempo-tracking long-form is a later milestone. |
-| `StretchMachine` | STCH | The **Flex** analog: plays a pool buffer with **independent pitch and tempo** (vs the rate-based Sampler where pitch = speed). `pitch` (±24 st) transposes without changing duration; `timestretch` `{Off / Tempo}` — **Tempo** stretches the buffer to the project tempo using its stamped bar-length, so a captured loop stays in time as the BPM changes (live-tracked, WSOLA). Point its `sample_id` at any pool slot — including a Recorder/Looper REC slot — to play captured audio pitch-locked and tempo-true. Monophonic v1 (poly + AHDSR are later). |
+| `StretchMachine` | STCH | The **Flex** analog: plays a pool buffer with **independent pitch and tempo** (vs the rate-based Sample where pitch = speed). `pitch` (±24 st) transposes without changing duration; `timestretch` `{Off / Tempo}` — **Tempo** stretches the buffer to the project tempo using its stamped bar-length, so a captured loop stays in time as the BPM changes (live-tracked, WSOLA). Point its `sample_id` at any pool slot — including a Record/Loop REC slot — to play captured audio pitch-locked and tempo-true. Monophonic v1 (poly + AHDSR are later). |
 | `MidiOutMachine` | M | MIDI CC / note output to external gear. Configurable destination, channel, program, 16 CC slots with user-assignable numbers and labels. |
 
 **Per-track DSP chain (universal, 8.28).** Every audio track runs the same
@@ -746,7 +746,7 @@ machine → FLTR (LP/HP/BP/Notch/OFF) → [ENVELOPE] → CHANNEL → inserts →
   Shared with the machine's FILTER section key on machines that don't own one natively;
   Analog/FM/DrumSynth (which have internal filters) get a second FLTR page appended.
 - **ENVELOPE** (AHDSR + gate source) — present only for machines that don't provide
-  their own amplitude envelope (`SamplerMachine`, `SlicerMachine`, `MidiOutMachine`).
+  their own amplitude envelope (`SampleMachine`, `SliceMachine`, `MidiOutMachine`).
   Analog/FM/DrumSynth handle amplitude internally and bypass this block.
 - **CHANNEL** (level, pan, sendA, sendB) — always present for all machines including
   Analog/FM/DrumSynth. P-locking `lockstep.amp.level` on any track audibly scales output.
@@ -762,10 +762,10 @@ Manipulation Zone shows as text instead of numbers (from each machine's
 | *(all audio tracks)* | FLTR mode | `LP` · `HP` · `BP` · `NO` · `OFF` |
 | | FLTR slope | `12dB` · `24dB` |
 | | ENV gate src | `Envelope` · `Held-open` |
-| `SamplerMachine` | Loop mode | `OFF` · `SUS` · `S+R` · `ALL` |
+| `SampleMachine` | Loop mode | `OFF` · `SUS` · `S+R` · `ALL` |
 | | Retrig | `LEGATO` · `RETRIG` |
 | | Vel>Amp | continuous 0–100 % (default 0 = velocity-independent; increase to scale level by note velocity) |
-| `SlicerMachine` | Mode | `SLICE` · `SCRUB` |
+| `SliceMachine` | Mode | `SLICE` · `SCRUB` |
 | | Slice source | `EQUAL` · `TRANS` |
 | | Loop mode | `OFF` · `SUS` · `S+R` · `ALL` |
 | | Voice | `MONO` · `POLY` |
@@ -779,7 +779,7 @@ Manipulation Zone shows as text instead of numbers (from each machine's
 | | LFO target | `CUT` · `PITCH` · `PW` · `AMP` |
 | | LFO sync | `FREE` · `SYNC` |
 | | Retrig | `LEGATO` · `RETRIG` |
-| `DrumSynthMachine` | Type | `KICK` · `SNARE` · `HAT` · `TOM` · `CLAP` · `COWBELL` · `CYMBAL` · `RIMSHOT` |
+| `DrumMachine` | Type | `KICK` · `SNARE` · `HAT` · `TOM` · `CLAP` · `COWBELL` · `CYMBAL` · `RIMSHOT` |
 
 Focus determines what the contextual encoders edit and what selected-track MIDI mappings drive.
 
@@ -1477,13 +1477,13 @@ shipped behaviour and the design intent. To avoid confusion:
 - **MIDI** CC ingestion (soft-takeover + scoped mappings), MIDI clock +
   sync modes; full **project serialization** (samples as `{path, hash}`
   refs).
-- **Machines:** `SamplerMachine` (trim + four loop modes + ZC-snap),
-  `SlicerMachine` (SLICE / SCRUB, transient detection, MONO/POLY, reverse),
+- **Machines:** `SampleMachine` (trim + four loop modes + ZC-snap),
+  `SliceMachine` (SLICE / SCRUB, transient detection, MONO/POLY, reverse),
   `FMMachine` (4-op, free matrix, Mono/Poly), `AnalogMachine` (dual PolyBLEP +
-  SVF + LFO, Mono/Para-4), `DrumSynthMachine` (Rytm-style, eight voices —
+  SVF + LFO, Mono/Para-4), `DrumMachine` (Rytm-style, eight voices —
   KICK/SNARE/HAT/TOM/CLAP/COWBELL/CYMBAL/RIMSHOT, each with dedicated DSP),
-  `RouteMachine` (audio router / sub-bus), `RecorderMachine` (overwrite live
-  resampler into volatile REC buffers, contextual recorder trig), `LooperMachine`
+  `RouteMachine` (audio router / sub-bus), `RecordMachine` (overwrite live
+  resampler into volatile REC buffers, contextual recorder trig), `LoopMachine`
   (verb-driven overdub state machine, `Track + verb`), `StreamMachine` (disk-stream
   long-form sampler), `MidiOutMachine`, plus the `StubMachine` fallback. Shared
   post-machine FILTER (SVF) + AMP.

@@ -855,6 +855,38 @@ Euclid model (a deterministic print you then edit), not a dice roll.
 
 ---
 
+## 24. Machines are named by their role — one bare word
+
+A machine's name is the single, uninflected word that names its role: the
+material it plays or the way it makes sound. The name is a label for a role, not
+a description of a mechanism — a performer should be able to say *"put a ___ on
+this track."*
+
+Two rules keep the catalogue consistent:
+
+- **No agent suffix (`-er` / `-or`).** The machine *is* the role; it is not a job
+  title for an agent that performs it. A **Sample** track plays a sample — it does
+  not *make* samples, so it is not a "Sampler." **Loop**, **Slice**, **Record**
+  follow the same cut. This is what stops the eye reading "Looper" (agent noun) and
+  "Stretch" (bare stem) as different *kinds* of name.
+- **No generic category word (Synth / Machine / Engine).** Every entry is a
+  machine, so the suffix is noise; a synthesis engine takes its **synthesis type**
+  as the whole name (**Analog**, **FM**, **Drum**, **Digital**), never "X Synth."
+
+Consequences: every name is one scannable token (a picker cell, a hardware label);
+the false "agent" implication is gone; and the set reads as a menu of roles you
+*assign*, which is the same posture as "the gestures that edit are the gestures
+that perform" (§3). The bare stem is deliberate — a few words (Route, Record) read
+as both noun and verb, but the *form* is uniform, which is what the eye actually
+parses.
+
+The sole exception is an **I/O designation that is inherently directional**
+(**MIDI Out**): it names a port and a direction, not a sound engine, and the two
+words earn their place. This principle governs the stock catalogue and any
+contributed machine (DESIGN §29 / §36); the same instinct applies to effects.
+
+---
+
 ## Non-Goals — what Lockstep refuses to become
 
 The standing refusals. `NON-GOALS.md` is the **authoritative catalogue** — it

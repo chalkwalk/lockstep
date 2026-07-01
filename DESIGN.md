@@ -162,11 +162,11 @@ The boundary is deliberately narrow but deliberately *not* fixed-shape
   (`{None | External | Master}`, the outside-world tap); when set, the
   sequencer fills `buffer` with the chosen upstream signal before
   calling `process()`, and the machine reads-then-overwrites (Route) or
-  reads-and-captures (Recorder). Inter-track routing is the *other*
+  reads-and-captures (Record). Inter-track routing is the *other*
   half: a track's CHANNEL "Out" slot (`{Master | Track N | Off}`)
   directs its finished signal, and a bus track reads the sum of tracks
   routed into it. Together these are the capability behind Route,
-  sub-mix buses, Recorder, and Looper machines and the realtime
+  sub-mix buses, Record, and Loop machines and the realtime
   resampling chain — see §27. Ordering is forward-only by topological
   sort with cycles refused; `input_source = Master` is the one
   sanctioned prior-block tap (§27).
@@ -202,9 +202,9 @@ A machine occupies a track's sound-*source* slot. The boundary admits
 exactly three kinds of machine:
 
 - **Generators** — synths and samplers that *originate* sound from trig
-  events: `SamplerMachine`, `FMMachine`, `AnalogMachine`, `DrumSynthMachine`,
-  `SlicerMachine`, `StreamMachine`, `StretchMachine`, `PercussionMachine`,
-  `DigitalMachine`. The `SamplerMachine` is rate-based (pitch = speed, the
+  events: `SampleMachine`, `FMMachine`, `AnalogMachine`, `DrumMachine`,
+  `SliceMachine`, `StreamMachine`, `StretchMachine`, `PercussionMachine`,
+  `DigitalMachine`. The `SampleMachine` is rate-based (pitch = speed, the
   turntable); `StretchMachine` is its **Flex** counterpart with *independent
   pitch and tempo* — a WSOLA time-stretch voice and `timestretch=Tempo` that
   stretches a buffer to the project tempo via its stamped bar-length.
@@ -213,7 +213,7 @@ exactly three kinds of machine:
   (§29). It is near-empty by design — the actual shaping is done by the
   canonical post-machine FILTER / AMP / FX (§14), not by the machine.
 - **Capture engines** — machines whose value is *stateful audio
-  capture*: `RecorderMachine` (overwrite) and `LooperMachine` (overdub).
+  capture*: `RecordMachine` (overwrite) and `LoopMachine` (overdub).
   **Capture stamps, playback stretches:** a capture machine writes a
   volatile pool slot and stamps its musical bar-length (`sourceBars`); a
   tempo-tracking `StretchMachine` reads that stamp to stretch to tempo. The
@@ -222,7 +222,7 @@ exactly three kinds of machine:
   linear time-map composes with in-place overdub, where WSOLA's grain map
   does not). The same captured loop is therefore playable two ways: the
   looper's varispeed self-play, or the Stretch machine's pitch-locked playback.
-  **Looper monitoring** is a `monitor {Auto | On | Off}` switch governing
+  **Loop monitoring** is a `monitor {Auto | On | Off}` switch governing
   whether the live input passes through to the output (separate from
   recording, which always captures) — so an insert looper is audible *before*
   you record. **Auto** is **state-aware**: for an `None`/`External` insert it
@@ -272,14 +272,14 @@ the author maintains in their own separate repositories. "Would this be
 better as a separate download?" is a real question for every proposed
 machine, not a formality.
 
-## 3. The Baseline Sampler Machine
+## 3. The Baseline Sample Machine
 
 The first engine to inherit `IMachine` is a monophonic sampler
 designed for trip-hop / drum-machine workflows. It is the **Flex**
 archetype in the Octatrack lineage — samples are decoded into RAM and
 fully manipulable (pitch, slice, trim, loop). Its disk-streaming
 sibling (**Stream**) and the input-consuming machines (**Route**,
-**Recorder**, **Looper**) are described in §29:
+**Record**, **Loop**) are described in §29:
 
 - **Voice topology.** `currentVoices() = V1`. The sampler's own
   `VoiceChoke` applies the 1–2 ms micro-fade on retrigger; the sampler
@@ -1662,7 +1662,7 @@ cases:
   to drive/body/click/punch/sweep/decay/noise decay/tune; a SNARE maps them to
   band-pass frequency, resonance, etc. The raw slot name ("Tone") is actively
   misleading when TYPE = SNARE.
-- **Sampler/Slicer loop-mode-dependent slots.** LpStart and LpLen mean
+- **Sample/Slice loop-mode-dependent slots.** LpStart and LpLen mean
   different things in auto vs free vs active loop mode; a contextual label
   annotating the mode (`LpStart (auto)` vs `LpStart`) aids recall.
 
@@ -1822,7 +1822,7 @@ notes from a chord step survive, then emits those note-ons (and
 scheduled note-offs) as plain MIDI.
 
 - **Mono (`V1`).** The machine fades its active voice over a 1–2 ms
-  choke before starting a new voice for the next note-on. `SamplerMachine`,
+  choke before starting a new voice for the next note-on. `SampleMachine`,
   `FMMachine` (in Mono mode), and `AnalogMachine` (in Mono mode) all do this
   with a per-voice `VoiceChoke` helper.
 - **Poly (`V2..V4`).** The machine manages its own voice pool and steals
@@ -2185,7 +2185,7 @@ the canonical way to perform sweeping filter opens, drive ramps,
 or amp-decay tightens across a kit.
 
 The role-fallback half is what makes Control-All useful across
-heterogeneous machines (Sampler + FM synth + MIDI-out): only the
+heterogeneous machines (Sample + FM synth + MIDI-out): only the
 `role`-tagged slots participate. A machine author opts in by tagging.
 
 ### 13.2 Copy / Paste / Clear / Delete
@@ -2629,8 +2629,8 @@ owned by the track (not the machine):
 - **ENVELOPE.** The track's AHDSR amplitude envelope, driven by the
   sequencer-emitted note-on/off pair. Present only for machines where
   `IMachine::hasInternalAmp()` returns `false` (the default for all
-  machines that do not embed their own amplitude envelope — Sampler,
-  Slicer; absent for Analog, FM, DrumSynth which shape their own). When
+  machines that do not embed their own amplitude envelope — Sample,
+  Slice; absent for Analog, FM, DrumSynth which shape their own). When
   absent the envelope stage is skipped; the CHANNEL block still applies.
   - **Gate source** (`{Envelope | Held-open}`). Default `Envelope`:
     the amplitude stage follows the note-on/off envelope, so the track
@@ -3871,9 +3871,9 @@ controls together describe the routing graph:
    earlier in topo order), it is **same-block / zero latency** — strictly
    better than the `Master` tap, which is necessarily one block late. This
    is the foundation for aux sends (a Route tapping a track → parallel FX →
-   Master) and resample-a-single-track (a Recorder tapping one track
-   post-FX), available to every input-consuming machine (Route / Recorder /
-   Looper).
+   Master) and resample-a-single-track (a Record tapping one track
+   post-FX), available to every input-consuming machine (Route / Record /
+   Loop).
 
 2. **Output destination** — a per-track **"Out" slot in the CHANNEL
    block**, closed enum `{Master | Track N | Off}`, default **Master**.
@@ -3890,8 +3890,8 @@ Routing track A → track B is expressed on A's "Out" slot, not on B's
 input. There is no patch matrix and no neighbour chaining: a track has
 exactly one output destination, and a bus track reads the sum of its
 inbound tracks plus its own outside-world `input_source` (if any).
-This is the smallest model that supports Route, sub-mix buses, Recorder,
-Looper, and realtime resampling without turning the sequencer into a
+This is the smallest model that supports Route, sub-mix buses, Record,
+Loop, and realtime resampling without turning the sequencer into a
 modular host — and, unlike an input-select model, it can *remove* a
 track from the master mix (mute can't: muting zeroes the buffer before
 the sum, which would also starve any bus the track feeds).
@@ -3935,7 +3935,7 @@ still be *heard* via `Cue + track`. See §31 ("monitored master-resampling").
 
 **Only input-aware machines can be a bus.** A routing target must be a
 machine that *consumes* audio (declares `input_source` — Route today,
-Recorder/Looper later). Routing to a synth, sampler, or MIDI-out track
+Record/Loop later). Routing to a synth, sampler, or MIDI-out track
 is a type error, refused at the edit with a chrome reason
 (`NoAudioInput`); self-routing and cycles are likewise refused (`Self`,
 `Cycle`). A target's own `input_source` and its inbound bus sum do not
@@ -3953,7 +3953,7 @@ target becomes a bus again. The stored "Out" value is never mutated, so
 the routing is lossless and reversible across machine swaps; the engine
 just announces the dormancy so the user is not surprised.
 
-**Buffer read/write is not a routing edge.** A Recorder or Looper
+**Buffer read/write is not a routing edge.** A Record or Loop
 that writes a buffer while another track's Flex machine reads that
 buffer is *not* a cycle — the buffer (§28) is a decoupled resource,
 not a live audio edge. This is what lets loopers work under the
@@ -3985,7 +3985,7 @@ underline channel, plus a background tint in the plain audible state, so
 routing groups read at a glance without competing with the mute/solo
 state colours.
 
-## 28. Recorder Buffers and the Unified Audio-Source Pool
+## 28. Record Buffers and the Unified Audio-Source Pool
 
 Live sampling needs a place to put captured audio. Rather than a
 second, parallel resource type, recorder buffers are **volatile
@@ -4023,18 +4023,18 @@ lineage drives which machines ship stock:
 
 | Reference box        | Lockstep machine(s)                         | Kind        |
 |----------------------|---------------------------------------------|-------------|
-| Digitakt             | `SamplerMachine` + `SlicerMachine`          | generator   |
+| Digitakt             | `SampleMachine` + `SliceMachine`          | generator   |
 | Digitone             | `FMMachine` (4-op)                           | generator   |
 | Analog Four          | `AnalogMachine` (virtual-analog)                 | generator   |
-| Analog Rytm          | `DrumSynthMachine` (analog/FM drum)          | generator   |
+| Analog Rytm          | `DrumMachine` (analog/FM drum)          | generator   |
 | **Monomachine**      | **`DigitalMachine`** (digital multi-model)   | generator   |
-| Machinedrum          | `DrumSynthMachine` + `PercussionMachine`     | generator   |
+| Machinedrum          | `DrumMachine` + `PercussionMachine`     | generator   |
 | (modal / Volca Drum) | `PercussionMachine` (physical model)         | generator   |
-| Octatrack — Flex     | `SamplerMachine`                             | generator   |
+| Octatrack — Flex     | `SampleMachine`                             | generator   |
 | Octatrack — Static   | `StreamMachine` (disk-stream)                | generator   |
 | Octatrack — Thru / Neighbour | `RouteMachine` (`input_source`)       | router      |
-| Octatrack — track Recorder   | `RecorderMachine` (overwrite)        | capture     |
-| Octatrack — Pickup           | `LooperMachine` (overdub)            | capture     |
+| Octatrack — track Recorder   | `RecordMachine` (overwrite)        | capture     |
+| Octatrack — Pickup           | `LoopMachine` (overdub)            | capture     |
 
 Two lineage entries are deliberately **recipes, not machines**, because
 their character is already reachable by composing what the catalogue and
@@ -4046,7 +4046,7 @@ the foundation provide:
   inter-track passthrough), and gated-vs-open is the general AMP gate
   source (§14). One machine, one knob.
 - **Syntakt → existing voices + master drive.** The Syntakt is its drum
-  and digital voices (covered by `DrumSynthMachine` / `FMMachine` /
+  and digital voices (covered by `DrumMachine` / `FMMachine` /
   `AnalogMachine`) plus a *master analog overdrive/filter*. The drive and
   filter are an `IEffect` (§32) and the canonical FILTER (§14), not a new
   machine. There is no `SyntaktMachine`; the box is a Sound-Pool +
@@ -4062,7 +4062,7 @@ first examples of what the module ABI is *for*.
 
 ### 29.1 `DigitalMachine` — the Monomachine archetype
 
-A **model-based digital monosynth** (built the way `DrumSynthMachine` is:
+A **model-based digital monosynth** (built the way `DrumMachine` is:
 a stepped `model` slot reshapes the engine, with `valueLabels`). It
 covers the digital timbres that `AnalogMachine` (analog) and `FMMachine`
 (4-op FM) cannot reach. Stock models:
@@ -4088,9 +4088,9 @@ Neighbour and Syntakt hygiene above — they are not re-implemented inside
 
 - **GND** (ground / utility) → **Route** (`input_source`, §27).
 - **FM** → **`FMMachine`** (the dedicated 4-op engine).
-- **Drum / FMdrum models** → **`DrumSynthMachine`** / **`PercussionMachine`**.
+- **Drum / FMdrum models** → **`DrumMachine`** / **`PercussionMachine`**.
 
-### 29.2 Stream, Route, Recorder, Looper
+### 29.2 Stream, Route, Record, Loop
 
 These extend the catalogue beyond the baseline Flex sampler (§3). The
 first is an ordinary playback engine; the latter three consume audio via
@@ -4114,16 +4114,16 @@ first is an ordinary playback engine; the latter three consume audio via
   Trig-gated vs. always-open is the general AMP gate source (§14), not a
   machine type. Route is the only machine declaring `input_source` for
   now.
-- **Recorder.** Captures `input_source` audio into a volatile buffer
+- **Record.** Captures `input_source` audio into a volatile buffer
   (§28). Slots: `input_source` (what to record), `target_buffer`
   (where to write), `rec_length` (how long — see §30). Capture is
   triggered by **recorder trigs** (§30); the machine itself holds no
   loop state — it overwrites the target buffer each time it captures.
-- **Looper.** The overdub counterpart of Recorder, and Lockstep's
+- **Loop.** The overdub counterpart of Record, and Lockstep's
   equivalent of the Octatrack **pickup machine**. Overdub looping is
   a *state machine* (record → play → overdub → undo → clear), so it is
   encapsulated in a machine rather than smeared across trig flags.
-  Plain overwrite resampling stays with Recorder; sound-on-sound
+  Plain overwrite resampling stays with Record; sound-on-sound
   layering lives here. Because a looper doesn't sequence, a focused
   looper turns its 16-button step grid into an **always-on console**
   (no mode to enter): top row = transport + length
@@ -4140,7 +4140,7 @@ first is an ordinary playback engine; the latter three consume audio via
   half-speed/reverse resync to the grid on release. The mini-seq strip is
   the loop-position display (playhead + pending-edge landing pip).
 
-This split — overwrite in Recorder, overdub in Looper — mirrors the
+This split — overwrite in Record, overdub in Loop — mirrors the
 Octatrack (track recorders vs. pickup machine) and keeps the recorder
 trig path simple and stateless.
 
@@ -4166,7 +4166,7 @@ three live within the existing trig model and the OEB resolver.
   **arm-all / disarm-all** command on the Func layer for re-arming a
   continuously looping pattern without restarting it. Armed vs. spent
   is announced in chrome (`PRINCIPLES.md` §10).
-- **Recorder trig.** Only meaningful on a Recorder track (§29):
+- **Record trig.** Only meaningful on a Record track (§29):
   "capture `input_source` into `target_buffer` for `rec_length`,
   starting now." `rec_length` (the Octatrack RLEN) is a P-lockable
   slot defaulting to the track's loop length. A *plain* recorder trig
@@ -4202,7 +4202,7 @@ the grammar as a single new scope, `Cue`, with no bespoke buttons.
   mode. A true solo, if wanted, is a separate future gesture.)
 
 **The killer use — monitored master-resampling.** The cue bus earns its
-keep on a workflow the main mix cannot express. A Recorder or Looper that
+keep on a workflow the main mix cannot express. A Record or Loop that
 taps `input_source = Master` (§27) to resample the whole mix is, by the
 feedback guard, only *legal* when its own output does **not** reach master
 (`Out = Off`) — which leaves the resample **inaudible while it is being
@@ -5530,7 +5530,7 @@ it cannot satisfy it, and the host checks `desc->abiVersion` and
 fields are never renumbered, reordered, or repurposed. Optional surface
 is negotiated through `capabilityFlags`
 (`LSM_CAP_MIDI_OUT | INTERNAL_FILTER | INTERNAL_AMP | AUDIO_INPUT`; the
-last is forward-compat for the §2 `input_source` Route/Recorder idea).
+last is forward-compat for the §2 `input_source` Route/Record idea).
 CI carries a frozen golden-header test: a module built against ABI v1
 must still load under a vN host.
 
@@ -5582,7 +5582,7 @@ repository.
 
 The ABI's job is **generators and effects** (§29: "granular, physical-model
 specialities are the first examples of what the module ABI is *for*").
-**Capture and console machines — `RecorderMachine`, `LooperMachine`, and any
+**Capture and console machines — `RecordMachine`, `LoopMachine`, and any
 machine that owns an always-on console — are first-party, statically linked,
 and out of ABI scope.** This is a deliberate boundary, not a missing feature,
 and it is drawn where it is for two structural reasons:
@@ -5600,7 +5600,7 @@ and it is drawn where it is for two structural reasons:
   the commitment we must not make. When the surface model lands, revisiting
   this is a clean, additive decision; pre-committing is not.
 - **Capture machines are infrastructure that reaches into host-owned graph
-  and pool.** A Recorder/Looper is defined by the routing graph it drives —
+  and pool.** A Record/Loop is defined by the routing graph it drives —
   `input_source` resolution, the §27 feedback guard, the union-of-mix+tap
   topological sort — and by *writing* RAM-only volatile pool slots (§28). The
   host owns all of it. `LsmHostVTable` exposes only *read-only, resolve-by-ref*
@@ -5610,7 +5610,7 @@ and it is drawn where it is for two structural reasons:
 
 What a module *does* get from the loop context is the two pull-based seams in
 §36.4 — `transport` and `loopGrid` — which are all a generator needs. The net
-effect: the "the ABI can't express the Looper" observation is true and
+effect: the "the ABI can't express the Loop" observation is true and
 **intended**. A third party authors engines and effects; loopers, recorders,
 and bespoke consoles stay in the core. If a genuinely module-shaped capture
 need appears later, it is an add-only extension negotiated behind a new
@@ -5955,7 +5955,7 @@ first `prepareToPlay` call.
 ### §38.3 currentSampleIndex_ in SamplePlayingMachineBase
 
 `currentSampleIndex_` is written from `process()` (const audio-thread
-path, via `SamplerMachine` and `SlicerMachine`) and read from the
+path, via `SampleMachine` and `SliceMachine`) and read from the
 message-thread `detectTransientSlices()`. It is `mutable std::atomic<int>`
 with relaxed semantics — we only need the most-recently-set index, not
 strict ordering.

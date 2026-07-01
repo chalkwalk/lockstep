@@ -35,8 +35,8 @@ master) and unified Delay/Reverb (HQ ids folded in + migrated); `dsp/Oversampler
 glue, `Age` drift macro); FM clean (exponential op envelopes, smoothed diagonal
 self-feedback, 2× operator oversampling).
 **Capture-machine catalogue shipped (`6.2` + `6.3` + `4.5`):** volatile (RAM-only)
-REC buffers in the unified pool; RecorderMachine (overwrite live-resampler, contextual
-recorder trig); LooperMachine (verb-driven overdub state machine, `Track+verb`);
+REC buffers in the unified pool; RecordMachine (overwrite live-resampler, contextual
+recorder trig); LoopMachine (verb-driven overdub state machine, `Track+verb`);
 StreamMachine (disk-streaming long-form sampler, per-Kit path). Freeze-to-disk (§22)
 deferred.
 **Flex-parity audio shipped (tap-fork + Stretch + time-stretch + looper unify):**
@@ -45,9 +45,9 @@ tap; topo-sort + cycle refusal extended over mix+tap edges) enables aux sends an
 resample-a-single-track; pool `sourceBars` metadata (capture stamps, playback
 stretches); `ITempoAware`/`TransportInfo` seam (no machine-boundary change);
 **StretchMachine** (`lockstep.stretch.v1`, the Flex analog — WSOLA `TimeStretch` voice,
-independent pitch + tempo-tracking); Recorder opt-in `monitor`; **Looper unified into
+independent pitch + tempo-tracking); Record opt-in `monitor`; **Loop unified into
 the volatile pool** + `loop_sync` varispeed (Free / Free Len / N-Bar phase-lock) +
-loop-wrap crossfade; multi-capture default-distinct slots + collision query. Looper
+loop-wrap crossfade; multi-capture default-distinct slots + collision query. Loop
 self-play = varispeed (tape); WSOLA stretch lives only in the Stretch. **Deferred
 (Milestone C):** Stream/streaming time-stretch; looper stop-fade; Stretch poly + AHDSR;
 the on-surface shared-slot indicator (query `captureSlotShared` is wired).
@@ -64,8 +64,8 @@ chip + `Master` band label). Mute-over-soloed-bus verified correct (regression t
 **Octatrack-parity arc shipped (6.1 + 5.5 + 5.6):** audio-input boundary,
 output-directed track buses (CHANNEL "Out", topo sort, cycle refusal), RouteMachine,
 per-take stem export; Cue-scope audition (`Func+3`); lock-only + one-shot trigs.
-Remaining from the arc: A2 topo-sort/B/C all done; `6.2` RecorderMachine + `6.3`
-LooperMachine shipped (the recorder-trig follow-on).
+Remaining from the arc: A2 topo-sort/B/C all done; `6.2` RecordMachine + `6.3`
+LoopMachine shipped (the recorder-trig follow-on).
 
 Phases 1–3 took Lockstep from an empty plugin to a frozen, playable performance
 surface; Phase 4 fills the machine catalogue; Phases 5–6 are the depth and
@@ -99,9 +99,9 @@ are sequencing decisions with no other home.
 - **Machines generate or capture; effects process.** Sources/routers/capture
   engines are machines; pure timbre processing is an `IEffect`. → PRINCIPLES
   "Machines generate; effects process"; DESIGN §29, §32.
-- **Stock catalogue = the iconic set keyed to the lineage.** Sampler/Slicer (DT),
+- **Stock catalogue = the iconic set keyed to the lineage.** Sample/Slice (DT),
   FM (DN), Analog (A4), DrumSynth (RYTM), Digital (Monomachine), Percussion (modal),
-  Static/Thru/Recorder/Looper (OT). Neighbour folds into Route; Syntakt = voices +
+  Static/Thru/Record/Loop (OT). Neighbour folds into Route; Syntakt = voices +
   a master-drive `IEffect`. Anything more specialised is a third-party module
   (e.g. granular — Aira P-6 / Tonverk — is a module, not stock). → DESIGN §29.
 - **Variable parameter schema, declared per machine.** No fixed slot count; MZ
@@ -173,9 +173,9 @@ are sequencing decisions with no other home.
 - **State-colour taxonomy is canonical; specific colours are not.** → DESIGN §24.
 - **Audio routing = explicit source-select, topo-sorted, cycles refused;**
   `input_source = Master` is the one sanctioned prior-block tap. → DESIGN §27.
-- **Recorder buffers = volatile entries in the unified sample pool**, RAM-only,
+- **Record buffers = volatile entries in the unified sample pool**, RAM-only,
   `REC`-badged; the §22 naming flow doubles as freeze-to-disk. → DESIGN §28.
-- **Overwrite in Recorder, overdub in Looper.** No overdub state on the trig
+- **Overwrite in Record, overdub in Loop.** No overdub state on the trig
   path. → DESIGN §29.
 - **Three special trig types:** trigless/lock-only, one-shot, recorder trig.
   → DESIGN §30.
@@ -228,7 +228,7 @@ state serialization.
       +AU on Apple) over a shared `lockstep_core` static lib.
 - [x] All `core/ machine/ io/ state/ ui/` headers + stub `.cpp` compile under
       strict warnings.
-- [x] `IMachine`, `SamplerMachine` stub, `Clock`, `Sequence`, `Track`, `Step`,
+- [x] `IMachine`, `SampleMachine` stub, `Clock`, `Sequence`, `Track`, `Step`,
       `PLock`, `StateResolver` in place.
 - [x] `processBlock` exercises the full pipeline every block; output is silence,
       no NaNs, no crashes. APVTS round-trips through host save/load.
@@ -284,7 +284,7 @@ The refactor that retired the 48-slot fixed `IMachine` for per-machine schema.
       + per-step overrides; resolver applies OEB.
 - [x] Dropped `noteMode`; pitch-record writes `step.noteOverride`.
 - [x] SectionBar + ManipulationZone re-wired to read schema; meta sections
-      re-laid-out. Sampler cleanup (gate now sequencer-scope).
+      re-laid-out. Sample cleanup (gate now sequencer-scope).
 - [x] 1.1–1.5 features verified end-to-end through the new boundary.
 
 ### 1.7 — QWERTY overlay + Manipulation Zone  *[shipped]*  *(was M6)*
@@ -365,7 +365,7 @@ starting point for the refactor.
 
 ### 2.6 — 16-track expansion + header pagination  *[shipped]*  *(was MGX)*
 - [x] `kNumTracks = 16`; arrays scale off the constant.
-- [x] Default split: tracks 1–8 Sampler, 9–16 MIDI-out; old 8-track saves load
+- [x] Default split: tracks 1–8 Sample, 9–16 MIDI-out; old 8-track saves load
       cleanly.
 - [x] Track + Mute layers extended to 16; track-header pagination (`1–8` / `9–16`
       page toggle, keyboard auto-flip); MIDI-out `M` badge.
@@ -433,7 +433,7 @@ DESIGN §6, §13, §33.
 - [x] NoteSelection (TOP/BOT bias) in the TRIG meta-section.
 
 ### 3.7 — Engine hygiene (first-trig, envelopes, RETRIG, skew)  *[shipped]*  *(was MHZ.5)*
-- [x] First-trig loudness fix across FM / Analog / DrumSynth / Sampler.
+- [x] First-trig loudness fix across FM / Analog / DrumSynth / Sample.
 - [x] `ParamSpec::skew` (non-linear encoder mapping; raw on disk); envelopes
       re-authored.
 - [x] Per-track RETRIG mode (`LEGATO / RETRIG / FREE`).
@@ -837,14 +837,14 @@ the Machine Module ABI (6.7), so they ship as loadable modules.
 - [x] Polyphonic-trig infrastructure (≤4 notes/step, chord capture, gate
       auto-write), backward-compatible serialization.
 
-### 4.3 — DrumSynthMachine  *[shipped]*  *(was MH.3)*
+### 4.3 — DrumMachine  *[shipped]*  *(was MH.3)*
 - [x] Rytm-style per-track drum synthesis; `type` stepped slot selects KICK /
       SNARE / HAT / TOM, each with dedicated DSP.
 
-### 4.4 — Sampler depth + SlicerMachine  *[shipped]*  *(was MH.4; absorbs the old MK)*
-- [x] Sampler trim window (`samp_start/length`), four loop modes, loop region,
+### 4.4 — Sample depth + SliceMachine  *[shipped]*  *(was MH.4; absorbs the old MK)*
+- [x] Sample trim window (`samp_start/length`), four loop modes, loop region,
       edit-time zero-crossing snap; shared `SamplePlayingMachineBase`.
-- [x] `SlicerMachine` (SLICE / SCRUB dual mode, 16-slice cap, transient
+- [x] `SliceMachine` (SLICE / SCRUB dual mode, 16-slice cap, transient
       detection, MONO/POLY, anti-click fade, reverse at rate < 0).
 
 ### 4.5 — StreamMachine (disk-stream)  *[shipped]*  *(was MH.6)*
@@ -963,7 +963,7 @@ DESIGN §30.
       arm-all. COND meta-band "1Shot" field. (Manual arm-all key binding deferred.)
 - [x] Step-state preview integration for lock-only (one-shot armed/spent chrome
       pending a follow-up).
-- [x] Recorder trig (6.2) — contextual: a trig on a RecorderMachine track is a
+- [x] Record trig (6.2) — contextual: a trig on a RecordMachine track is a
       recorder trig (capture); one-shot composes; lock-only disallowed there.
 
 ### 5.7 — Alternate trig modes: Retrig/ratchet + Sound Pool  *[shipped]*  *(was MG remainder + MM generic-role)*
@@ -1123,29 +1123,29 @@ Route, then A2 output-directed track buses.
       fold in their feeders; routing IS the stem-grouping UI). Always-on. Reuses
       the 9.16 tape-deck infra; tap is post-fader/post-FX in `processTrackChain`.
 
-### 6.2 — Recorder buffers + recorder trigs  *[shipped, freeze-to-disk deferred]*  *(was MS)*
+### 6.2 — Record buffers + recorder trigs  *[shipped, freeze-to-disk deferred]*  *(was MS)*
 DESIGN §28, §29, §30. Depends on 6.1.
 - [x] Volatile pool entries (RAM-only, `REC`-badged, unified address space):
       `SamplePool::addVolatile/prepareVolatile/nthVolatileIndex`; skipped on save.
 - [x] Fixed set of volatile buffer slots (8) reserved at the top of the pool,
       re-seeded on load (`seedVolatileSlots`).
-- [x] RecorderMachine (`input_source`, `target_buffer`, `rec_length`,
+- [x] RecordMachine (`input_source`, `target_buffer`, `rec_length`,
       overwrite-only); V1 note-on capture edge; captured buffer immediately
-      playable from a Sampler (live-resample round-trip test).
-- [x] Recorder trig is **contextual** (a trig on a Recorder track), not a stored
+      playable from a Sample (live-resample round-trip test).
+- [x] Record trig is **contextual** (a trig on a Record track), not a stored
       step field; lock-only disallowed there (`isRecorderTrack` guard).
 - [ ] Freeze-to-disk via the §22 naming flow — **deferred** to a later milestone
       (captures are RAM-only / lost on quit, Octatrack parity).
 
-### 6.3 — Looper machine (overdub)  *[shipped]*  *(was MT)*
+### 6.3 — Loop machine (overdub)  *[shipped]*  *(was MT)*
 DESIGN §29. Depends on 6.2.
-- [x] LooperMachine state machine (Idle→Record→Play→Overdub + Clear + one-level
+- [x] LoopMachine state machine (Idle→Record→Play→Overdub + Clear + one-level
       Undo); internal RAM loop (kept machine-internal by design — the deliberate
       path into the volatile pool is the post-FX resample flow, not auto-capture).
 - [x] Verb-driven while focused with no new grammar: `Track+Record` cycles
       record→overdub, `Track+Play` toggles play/stop, `Track+Clear` empties
-      (shadowing the track clipboard on Looper tracks); lock-free command mailbox;
-      `LooperMachineTest` drives the full state machine.
+      (shadowing the track clipboard on Loop tracks); lock-free command mailbox;
+      `LoopMachineTest` drives the full state machine.
 - [ ] Click-free overdub seams + transport-synced loop-length option — later
       refinement (loop length is free-running for now).
 
@@ -1238,7 +1238,7 @@ Not a CLAP/VST3 sub-host; in-process, no IPC/sandbox.
       directory scan + manifest, `abiVersion` gating, the CI template module, the
       missing-module `StubMachine` opaque round-trip).
 - [ ] **6.7.3** Template repo + install flow + ABI freeze (drag-drop install +
-      rescan, MIDI-out emit-only validation, port SamplerMachine to host-services
+      rescan, MIDI-out emit-only validation, port SampleMachine to host-services
       sample access, freeze ABI v1 with a golden-header CI test). Author 4.5 / 4.6
       against the SDK thereafter.
 
@@ -1317,8 +1317,8 @@ DESIGN §37/§35.8.7/§37.4/§37.5 added; ROADMAP Phase 8 entry; CLAUDE.md statu
 - [x] **8.8a** `tests/ParamSpecTest.cpp` — golden ids + invariants per machine.
 - [x] **8.8b** `src/machine/MachineParamTable.h` (`ParamRow` + `toParamSpec`).
 - [x] **8.8c** Convert `AnalogMachine`.
-- [x] **8.8d** Convert `DrumSynthMachine` + `SamplerMachine`.
-- [x] **8.8e** Convert `SlicerMachine` + `MidiOutMachine`.
+- [x] **8.8d** Convert `DrumMachine` + `SampleMachine`.
+- [x] **8.8e** Convert `SliceMachine` + `MidiOutMachine`.
 - [x] **8.8f** Convert `FMMachine` + deduplicate parallel operator arrays.
 
 ### 8.9 — Serializer hardening
@@ -1422,7 +1422,7 @@ cycle; asserts non-silence after trigger, no NaN/Inf throughout, envelope decays
 to silence after short release. Block-size invariance (64 vs 512 samples).
 IEffect catalogue smoke. Envelope goldens for Analog and FM with explicit ADSR values.
 - [x] **8.13** `MachineDspTest.cpp`: smoke + envelope goldens for Analog/FM/DrumSynth/
-      Sampler/Slicer + 4 IEffects; ASan/UBSan clean.
+      Sample/Slice + 4 IEffects; ASan/UBSan clean.
 
 ### 8.14 — Engine testability: headless processBlock harness
 `lockstep_engine` static lib; `EngineHarness.h` + `EngineTest.cpp` drive
@@ -1587,7 +1587,7 @@ Phase C: WAV capture.
       retrig click-metric tests; effect smoke + specific assertions for all 13 effects;
       serializer v17 round-trip + v16 upgrade tests; Animate for the 4 master units
       (DESIGN §32.5 + Song+FX quadrant mapping; test pins `setMasterSendBypass`);
-      bugfix: internal-amp machines (DrumSynth/Analog/FM/Sampler) never routed sendA/sendB
+      bugfix: internal-amp machines (DrumSynth/Analog/FM/Sample) never routed sendA/sendB
       to master send buses (both transport paths fixed).
 
 ### 8.27 — Smoothing policy  *[shipped as part of 8.26-A]*
@@ -1742,7 +1742,7 @@ mode, and enable UX improvements. Serializer v21.
       overlay exit), so "no durable enabled content" has no meaningful state to read.
 
 ### 9.6 — Contextual parameter-name aliasing  *[active]*
-`ParamSpec` hook for mode-dependent labels; applied to DrumSynth + Sampler/Slicer.
+`ParamSpec` hook for mode-dependent labels; applied to DrumSynth + Sample/Slice.
 See DESIGN §6.10.
 
 - [x] **D1 — Mechanism.** Add `juce::String (*contextLabel)(const ParamFrame&) = nullptr`
@@ -1750,7 +1750,7 @@ See DESIGN §6.10.
       label-draw site: call `spec.contextLabel(frame)` when non-null.
 - [x] **D2 — DrumSynth.** Per-TYPE `contextLabel` for Tone/Body/Snap/Punch/Sweep/
       SwpDec/NoiseDec slots (7 type-dependent slots × 8 types).
-- [x] **D2 — Sampler/Slicer.** `contextLabel` for LpStart/LpLen annotating active/auto/free
+- [x] **D2 — Sample/Slice.** `contextLabel` for LpStart/LpLen annotating active/auto/free
       loop mode.
 - [x] **Tests.** Unit test: `contextLabel` returns expected string for representative
       TYPE/loop-mode values. Also fixed latent bug: DrumSynth `punchLabel`/`bodyLabel`/
