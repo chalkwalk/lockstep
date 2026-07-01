@@ -1149,6 +1149,10 @@ namespace lockstep
                 const int brRate = proc.looperBeatRepeat(activeTrack);
                 if (brRate >= 0 && brRate < 4)
                     tok[static_cast<std::size_t>(8 + brRate)] = CellState::LooperConRptActive;
+                // S6: light the held tape-fx cell (12-15 → cell idx 0-3).
+                const int tapeCell = proc.looperTapeFx(activeTrack);
+                if (tapeCell >= 0 && tapeCell < 4)
+                    tok[static_cast<std::size_t>(12 + tapeCell)] = CellState::LooperConTapeActive;
 
                 for (int i = 0; i < 16; ++i)
                 {

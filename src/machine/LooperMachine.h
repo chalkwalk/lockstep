@@ -133,6 +133,13 @@ namespace lockstep
             return brRateMirror_.load(std::memory_order_acquire);
         }
 
+        // Message thread (chrome): the held tape-fx cell index (0=TapeStop, 1=Dip,
+        // 2=HalfSpeed, 3=Reverse), or -1 when no tape fx is held (S6).
+        [[nodiscard]] int tapeFx() const noexcept
+        {
+            return tapeMirror_.load(std::memory_order_acquire);
+        }
+
         // Message thread (chrome): current playback phase 0..1, or -1 when not
         // playing. Drives the continuous loop-position playhead on the mini-seq (S2).
         [[nodiscard]] float phase01() const noexcept
@@ -177,6 +184,7 @@ namespace lockstep
         static constexpr double kLoopMaxSeconds = 12.0;
         static constexpr int kDecayOverdub = 0;      // decay only where you overdub
         static constexpr int kDecayAlways  = 1;      // whole loop fades every iteration
+        static constexpr double kDipRate   = 0.5;    // tape DIP slows to half speed (S6)
 
         void applyCommand(Cmd c, bool immediate);
         // Audio thread: dispatch one drained FIFO edge — discrete verbs to
@@ -188,6 +196,11 @@ namespace lockstep
         // held; release resyncs to the free-running position. No sound jump at press.
         void startBeatRepeat(int rateIdx);
         void stopBeatRepeat();
+        // Tape FX (S6): a momentary playback-rate envelope. Press engages the effect;
+        // release resyncs (accelerates to catch the grid) unless tape-stop already
+        // braked to a graceful Stopped.
+        void startTapeFx(Cmd fx);
+        void stopTapeFx(Cmd fx);
         // Begin a fresh recording take: (re)size + clear the slot, reset positions,
         // arm the N-bar auto-close. Shared by the immediate and boundary-fired paths.
         void startRecording();
@@ -261,9 +274,18 @@ namespace lockstep
         bool brCaptured_ = false;   // have we hit the first boundary and started looping?
         double brShadow_ = 0.0;
 
+        // Tape FX (S6): a momentary playback-rate envelope. tapeAction_ is the held
+        // effect (None = idle); tapeMult_ is the slewed rate multiplier; tapeGridPos_
+        // tracks where the loop would be so a release can catch up (tapeResync_).
+        Cmd tapeAction_ = Cmd::None;
+        bool tapeResync_ = false;
+        double tapeMult_ = 1.0;
+        double tapeGridPos_ = 0.0;
+
         std::atomic<int> stateMirror_{ 0 };
         std::atomic<int> loopLenMirror_{ 0 };      // loop-window length in samples (S4)
         std::atomic<int> brRateMirror_{ -1 };      // active beat-repeat rate index / -1 (S5)
+        std::atomic<int> tapeMirror_{ -1 };        // active tape-fx cell index / -1 (S6)
         std::atomic<float> phaseMirror_{ -1.0f };  // playback phase 0..1 (-1 = not playing), S2
         std::atomic<bool> pendingMirror_{ false }; // a quantized edge is pending (S2)
 

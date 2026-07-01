@@ -206,6 +206,8 @@ namespace lockstep
         void sendLooperPerf(int track, int action, bool pressed, int value = 0);
         // Active beat-repeat rate index (0=1/16 … 3=1/2), or -1 when not held (S5).
         [[nodiscard]] int looperBeatRepeat(int track) const;
+        // Held tape-fx cell (0=TapeStop, 1=Dip, 2=HalfSpeed, 3=Reverse), or -1 (S6).
+        [[nodiscard]] int looperTapeFx(int track) const;
         [[nodiscard]] int looperState(int track) const;
         // Loop-phase chrome for the step-grid view (#26): phase 0..1 (-1 = not
         // playing) and the quantize-aware grid cell count (1..16).

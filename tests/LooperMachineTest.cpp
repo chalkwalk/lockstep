@@ -525,5 +525,53 @@ namespace lockstep
             CHECK(r.findMinMax(0, 0, 512).getStart() < 0.3f,
                   "S5: after release the loop resyncs and plays the second half (0.2)");
         }
+
+        // S6: tape FX — momentary playback-rate envelopes. Chrome cell tracks the held
+        // effect; half-speed advances the loop slower than native; tape-stop braked to
+        // a standstill lands in a graceful Stopped.
+        {
+            SamplePool p; p.addVolatile();
+            p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LooperMachine lp(p); lp.prepare(kSr, 512);
+            runBlock(lp, 512, 0.5f, Cmd::RecordCycle);  // record a uniform 1024 loop
+            runBlock(lp, 512, 0.5f);
+            runBlock(lp, 1, 0.0f, Cmd::RecordCycle);     // close → Playing
+
+            // Reverse lights its cell (idx 3) while held; release clears it.
+            lp.postPerf(Cmd::Reverse, /*pressed*/ true);
+            runBlock(lp, 256, 0.0f);
+            CHECK(lp.tapeFx() == 3, "S6: held Reverse lights its tape cell");
+            lp.postPerf(Cmd::Reverse, /*pressed*/ false);
+            runBlock(lp, 256, 0.0f);   // resync
+            runBlock(lp, 256, 0.0f);
+            CHECK(lp.tapeFx() == -1, "S6: releasing a tape fx clears the tape cell");
+
+            // Half-speed advances the loop ~half as fast as native. Warm up until the
+            // rate multiplier has settled to 0.5, then compare one block's phase delta.
+            lp.postPerf(Cmd::HalfSpeed, /*pressed*/ true);
+            runBlock(lp, 512, 0.0f);
+            runBlock(lp, 512, 0.0f);            // multiplier settled to ~0.5
+            const float pA = lp.phase01();
+            runBlock(lp, 256, 0.0f);
+            const float pB = lp.phase01();
+            const float delta = pB - pA;        // native would be 256/1024 = 0.25
+            CHECK(delta > 0.08f && delta < 0.18f,
+                  "S6: half-speed advances the loop at ~half rate (delta="
+                      + juce::String(delta) + ")");
+            lp.postPerf(Cmd::HalfSpeed, /*pressed*/ false);
+
+            // Tape-stop: a fresh loop, held to a standstill → graceful Stopped.
+            SamplePool p2; p2.addVolatile();
+            p2.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LooperMachine ls(p2); ls.prepare(kSr, 512);
+            runBlock(ls, 512, 0.5f, Cmd::RecordCycle);
+            runBlock(ls, 512, 0.5f);
+            runBlock(ls, 1, 0.0f, Cmd::RecordCycle);     // close → Playing
+            ls.postPerf(Cmd::TapeStop, /*pressed*/ true);
+            for (int k = 0; k < 80; ++k) runBlock(ls, 512, 0.0f);  // ~0.85 s of braking
+            CHECK(ls.state() == State::Stopped,
+                  "S6: tape-stop braked to a standstill lands in Stopped");
+            CHECK(ls.tapeFx() == -1, "S6: tape-stop clears its cell once stopped");
+        }
     }
 }

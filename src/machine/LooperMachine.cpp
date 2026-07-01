@@ -109,6 +109,9 @@ namespace lockstep
         manualLen_ = false;
         brActive_ = false;
         brCaptured_ = false;
+        tapeAction_ = Cmd::None;
+        tapeResync_ = false;
+        tapeMult_ = 1.0;
         stateMirror_.store(static_cast<int>(state_), std::memory_order_release);
     }
 
@@ -403,7 +406,9 @@ namespace lockstep
             case Cmd::Dip:
             case Cmd::HalfSpeed:
             case Cmd::Reverse:
-                break;  // tape FX (S6)
+                if (c.pressed) startTapeFx(c.action);
+                else stopTapeFx(c.action);
+                break;
         }
     }
 
@@ -433,6 +438,22 @@ namespace lockstep
         if (!brActive_) return;
         brActive_ = false;
         playPos_ = brShadow_;  // resync to the free-running position (non-phase-locked)
+    }
+
+    void LooperMachine::startTapeFx(Cmd fx)
+    {
+        if (loopLen_ <= 0) return;
+        tapeAction_ = fx;
+        tapeResync_ = false;
+        tapeGridPos_ = playPos_;   // anchor the grid-truth to the current position
+        // tapeMult_ keeps its current value and slews to the effect target in-DSP.
+    }
+
+    void LooperMachine::stopTapeFx(Cmd fx)
+    {
+        if (tapeAction_ != fx) return;  // not the held effect (e.g. tape-stop already braked)
+        tapeAction_ = Cmd::None;
+        tapeResync_ = true;             // accelerate back + catch the grid on release
     }
 
     void LooperMachine::closeRecording()
@@ -533,6 +554,16 @@ namespace lockstep
         const bool brNow = brActive_ && loopLen_ > 0 && brCellLen_ > 0.0
                            && (state_ == State::Playing || state_ == State::Overdubbing);
 
+        // S6: tape FX drive the playback rate through a slewed envelope (and, after
+        // release, a one-pole catch-up to the grid). Like beat-repeat they override
+        // phase-lock/free-run while engaged. Slew times: fast for the FX engage/catch,
+        // slower for the tape-stop deceleration ramp.
+        const bool tapeNow = (tapeAction_ != Cmd::None || tapeResync_) && loopLen_ > 0
+                             && (state_ == State::Playing || state_ == State::Overdubbing);
+        const double tapeSlewFast = 1.0 - std::exp(-1.0 / (0.006 * sampleRate_));
+        const double tapeStopSlew = 1.0 - std::exp(-1.0 / (0.080 * sampleRate_));
+        const double resyncCoeff  = 1.0 - std::exp(-1.0 / (0.040 * sampleRate_));
+
         // #2: quantize period for a pending edge (record-start / stop / re-play).
         const double quantPeriod = quantPeriodSamples();
 
@@ -551,7 +582,7 @@ namespace lockstep
             }
 
             double pos = playPos_;
-            if (phaseLock && !brNow && loopLen_ > 0
+            if (phaseLock && !brNow && !tapeNow && loopLen_ > 0
                 && (state_ == State::Playing || state_ == State::Overdubbing))
             {
                 double frac = (transport_.transportPhaseSamples + static_cast<double>(i)) / tOut;
@@ -610,7 +641,8 @@ namespace lockstep
 
             // #4 Always-decay: the read position wrapping (pos drops below the last)
             // marks one completed iteration — fade the whole stored loop by decayGain.
-            if (decayMode == kDecayAlways && decayAmt > 0.0f && loopLen_ > 0 && !brNow
+            if (decayMode == kDecayAlways && decayAmt > 0.0f && loopLen_ > 0
+                && !brNow && !tapeNow
                 && (state_ == State::Playing || state_ == State::Overdubbing)
                 && pos < lastPos_)
                 scaleLoop(decayGain);
@@ -650,13 +682,63 @@ namespace lockstep
                         playPos_ -= brCellLen_;
                     }
                 }
+                else if (tapeNow)
+                {
+                    // Grid-truth position advances at the base rate regardless of the FX,
+                    // so a release can catch up to where the loop would have been.
+                    tapeGridPos_ += rate_;
+                    if (tapeGridPos_ >= static_cast<double>(loopLen_))
+                        tapeGridPos_ -= static_cast<double>(loopLen_);
+
+                    if (tapeAction_ != Cmd::None)
+                    {
+                        double target = 1.0;
+                        double tSlew = tapeSlewFast;
+                        switch (tapeAction_)
+                        {
+                            case Cmd::TapeStop:  target = 0.0;  tSlew = tapeStopSlew; break;
+                            case Cmd::Dip:       target = kDipRate;                   break;
+                            case Cmd::HalfSpeed: target = 0.5;                        break;
+                            case Cmd::Reverse:   target = -1.0;                       break;
+                            default: break;
+                        }
+                        tapeMult_ += (target - tapeMult_) * tSlew;
+                        playPos_ += rate_ * tapeMult_;
+                        if (playPos_ >= static_cast<double>(loopLen_)) playPos_ -= static_cast<double>(loopLen_);
+                        else if (playPos_ < 0.0) playPos_ += static_cast<double>(loopLen_);
+                        // Tape-stop braked to a standstill → graceful Stopped (pairs with
+                        // the instant STOP button). Reset the envelope for the next play.
+                        if (tapeAction_ == Cmd::TapeStop && tapeMult_ < 0.01)
+                        {
+                            state_ = State::Stopped;
+                            tapeAction_ = Cmd::None;
+                            tapeResync_ = false;
+                            tapeMult_ = 1.0;
+                        }
+                    }
+                    else  // tapeResync_: slew the rate back to 1 and one-pole the gap to grid
+                    {
+                        tapeMult_ += (1.0 - tapeMult_) * tapeSlewFast;
+                        double gap = std::fmod(tapeGridPos_ - playPos_, static_cast<double>(loopLen_));
+                        if (gap > static_cast<double>(loopLen_) * 0.5) gap -= static_cast<double>(loopLen_);
+                        else if (gap < static_cast<double>(loopLen_) * -0.5) gap += static_cast<double>(loopLen_);
+                        playPos_ += rate_ + gap * resyncCoeff;
+                        if (playPos_ >= static_cast<double>(loopLen_)) playPos_ -= static_cast<double>(loopLen_);
+                        else if (playPos_ < 0.0) playPos_ += static_cast<double>(loopLen_);
+                        if (std::abs(gap) < 1.0 && std::abs(tapeMult_ - 1.0) < 0.01)
+                        {
+                            tapeResync_ = false;      // caught up — hand back to normal/phase-lock
+                            playPos_ = tapeGridPos_;
+                        }
+                    }
+                }
                 else if (!phaseLock)
                 {
                     playPos_ += rate_;
                     if (playPos_ >= static_cast<double>(loopLen_))
                         playPos_ -= static_cast<double>(loopLen_);
                 }
-                // phase-lock (non-beat-repeat): playPos_ was set from the transport above.
+                // phase-lock (non-beat-repeat / non-tape): playPos_ set from transport above.
             }
         }
 
@@ -666,6 +748,18 @@ namespace lockstep
         stateMirror_.store(static_cast<int>(state_), std::memory_order_release);
         loopLenMirror_.store(loopLen_, std::memory_order_release);  // S4 chrome/tests
         brRateMirror_.store(brNow ? brRateIdx_ : -1, std::memory_order_release);  // S5
+        // S6: light the held tape-fx cell (TapeStop=0, Dip=1, HalfSpeed=2, Reverse=3);
+        // -1 while idle or merely resyncing after release.
+        int tapeCell = -1;
+        switch (tapeAction_)
+        {
+            case Cmd::TapeStop:  tapeCell = 0; break;
+            case Cmd::Dip:       tapeCell = 1; break;
+            case Cmd::HalfSpeed: tapeCell = 2; break;
+            case Cmd::Reverse:   tapeCell = 3; break;
+            default: break;
+        }
+        tapeMirror_.store(tapeCell, std::memory_order_release);
 
         // S2: publish loop-position chrome for the mini-seq. Phase 0..1 while playing
         // (-1 otherwise) drives the continuous playhead; pendingEdge drives the

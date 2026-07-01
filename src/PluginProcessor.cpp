@@ -5385,6 +5385,14 @@ namespace lockstep
         return -1;
     }
 
+    int LockstepProcessor::looperTapeFx(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1;
+        if (auto* lm = dynamic_cast<LooperMachine*>(machines_[static_cast<std::size_t>(track)].get()))
+            return lm->tapeFx();
+        return -1;
+    }
+
     int LockstepProcessor::looperState(int track) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1;

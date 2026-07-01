@@ -3478,7 +3478,12 @@ namespace lockstep
                                 processor_.sendLooperPerf(trk, 7 /*BeatRepeat*/, true,
                                                           ev.index - 8);
                                 break;
-                            default: break;  // tape FX (S6)
+                            case 12: case 13: case 14: case 15:  // tape FX (S6)
+                                // Momentary tape FX: cell 12→TapeStop(8) .. 15→Reverse(11).
+                                // Release (dispatchUp) resyncs / finalises the graceful stop.
+                                processor_.sendLooperPerf(trk, 8 + (ev.index - 12), true);
+                                break;
+                            default: break;
                         }
                         refreshSurface();
                         return true;
@@ -5140,14 +5145,19 @@ namespace lockstep
                 break;
 
             case CB::Step: {
-                // S5: looper beat-repeat is momentary — a step-release on a console
-                // performance cell (8-11) must always end the effect, even if an
-                // overlay opened while held, so the repeat can never stick.
-                if (ev.index >= 8 && ev.index <= 11)
+                // S5/S6: looper performance cells are momentary — a step-release on a
+                // console cell (8-11 beat-repeat, 12-15 tape FX) must always end the
+                // effect, even if an overlay opened while held, so it can never stick.
+                if (ev.index >= 8 && ev.index <= 15)
                 {
                     const int trk = processor_.focusTrack();
                     if (processor_.isLooperTrack(trk))
-                        processor_.sendLooperPerf(trk, 7 /*BeatRepeat*/, false, ev.index - 8);
+                    {
+                        if (ev.index <= 11)
+                            processor_.sendLooperPerf(trk, 7 /*BeatRepeat*/, false, ev.index - 8);
+                        else
+                            processor_.sendLooperPerf(trk, 8 + (ev.index - 12), false);
+                    }
                 }
 
                 // CHROMATIC gate: a pad-release always ends the note it sounded —
