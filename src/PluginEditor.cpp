@@ -2214,12 +2214,12 @@ namespace lockstep
 
     void LockstepEditor::openFxSectionPicker(bool master)
     {
+        // Slot selection now lives on a *tap* of the FX key while the picker is
+        // open (cycleFxPickerSlot). Opening only targets slot 0 on a fresh open;
+        // a re-hold while already open leaves the current slot untouched.
         if (master)
         {
-            // Re-holding while open cycles to the next master unit (0-3).
-            if (uiState_.masterFxPickerOpen)
-                uiState_.masterFxInsertSlot = (uiState_.masterFxInsertSlot + 1) % 4;
-            else
+            if (!uiState_.masterFxPickerOpen)
                 uiState_.masterFxInsertSlot = 0;
             uiState_.masterFxPickerOpen = true;
             keyboardArea_.selectMetaSection(LockstepProcessor::kFxSecIdx, /*toggle=*/false);
@@ -2227,10 +2227,28 @@ namespace lockstep
         }
         else
         {
-            // Re-holding while open toggles between the two track insert slots.
-            uiState_.funcFxInsertSlot = uiState_.funcFxHeld
-                ? 1 - uiState_.funcFxInsertSlot : 0;
+            if (!uiState_.funcFxHeld)
+                uiState_.funcFxInsertSlot = 0;
             uiState_.funcFxHeld = true;
+        }
+        refreshSurface();
+    }
+
+    // Tap-to-cycle the FX picker's target slot while the picker is open. Master:
+    // units 0-3 (inserts 0-1, sends 2-3). Track: two insert slots (0/1). Keeps
+    // the picker open — the caller is responsible for the funcFxHeld survival on
+    // the track path (suppressFxPickerClose).
+    void LockstepEditor::cycleFxPickerSlot(bool master)
+    {
+        if (master)
+        {
+            uiState_.masterFxInsertSlot = (uiState_.masterFxInsertSlot + 1) % 4;
+            keyboardArea_.selectMetaSection(LockstepProcessor::kFxSecIdx, /*toggle=*/false);
+            refreshMetaBand();
+        }
+        else
+        {
+            uiState_.funcFxInsertSlot = 1 - uiState_.funcFxInsertSlot;
         }
         refreshSurface();
     }
@@ -5102,8 +5120,19 @@ namespace lockstep
                     else switch (gesture_.checkLongPress(kFxSectionLongPressToken, now))
                     {
                         case LPR::ShortHold:
-                            // Tap: navigate to FX params (track or master).
-                            if (fxSectionPickerWantsMaster_)
+                            // Tap while the picker is already open: cycle the target
+                            // slot (no re-hold needed — the old re-hold-to-cycle was
+                            // the pain point). Otherwise navigate to FX params.
+                            if (fxSectionPickerWantsMaster_ && uiState_.masterFxPickerOpen)
+                            {
+                                cycleFxPickerSlot(/*master=*/true);
+                            }
+                            else if (!fxSectionPickerWantsMaster_ && uiState_.funcFxHeld)
+                            {
+                                cycleFxPickerSlot(/*master=*/false);
+                                suppressFxPickerClose = true;  // keep picker open past cleanup
+                            }
+                            else if (fxSectionPickerWantsMaster_)
                             {
                                 if (uiState_.masterSection == 5)
                                     uiState_.masterFxInsertSlot =
