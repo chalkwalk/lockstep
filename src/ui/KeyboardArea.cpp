@@ -1101,7 +1101,8 @@ namespace lockstep
                 }
             }
 
-            const juce::String slotLabel = "INSERT " + juce::String(uiState_.funcFxInsertSlot + 1) + "  (re-press to toggle slot)";
+            const juce::String slotLabel = "INSERT " + juce::String(uiState_.funcFxInsertSlot + 1)
+                + "  (tap FX = slot · reselect = bypass · hold = remove)";
             g.setColour(juce::Colour::fromRGB(80, 95, 115));
             g.setFont(juce::Font(juce::FontOptions(10.0f)));
             g.drawText(slotLabel, navArea, juce::Justification::centred);
@@ -1160,7 +1161,7 @@ namespace lockstep
             static const char* kUnitNames[4] = { "INSERT 1", "INSERT 2", "SEND A", "SEND B" };
             const juce::String slotLabel = juce::String("MASTER ")
                 + juce::String(kUnitNames[uiState_.masterFxInsertSlot])
-                + "  (re-press Func+Song+FX to cycle)";
+                + "  (tap FX = unit · reselect = bypass · hold = remove)";
             g.setColour(juce::Colour::fromRGB(80, 95, 115));
             g.setFont(juce::Font(juce::FontOptions(10.0f)));
             g.drawText(slotLabel, navArea, juce::Justification::centred);

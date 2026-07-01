@@ -229,6 +229,8 @@ namespace lockstep
         int heldSectionIndex_ = -1;  // section index (0-5) while key held; -1 = none
         bool fxSectionPickerWantsMaster_ = false; // captured at Section-5 key-down
         bool fxPickerFiredMidHold_ = false;       // picker opened during the hold (not on key-up)
+        bool fxPickerRemoveArmed_ = false;        // loaded-cell press deferred to key-up
+        bool fxPickerRemoveMaster_ = false;       // which picker the armed press targets
 
         // ── Performance capture (tape deck) ──────────────────────────────────
         // CaptureController is the pure state machine; the editor owns the IO
@@ -312,6 +314,12 @@ namespace lockstep
         // latter while Track is held, so the picker must be reachable from both).
         bool applyMasterFxPick(int index);
         bool applyTrackFxPick(int index);
+        // Long-press-remove on the loaded catalogue cell: down arms + defers,
+        // up resolves (tap = bypass via apply*FxPick, long-press = remove).
+        [[nodiscard]] bool fxPickerCellIsLoaded(int index, bool master) const;
+        void removeFxPickerSlot(bool master);
+        bool fxPickerStepDown(int index, bool master);
+        bool fxPickerStepUp(int index);
 
         // Returns true when the active track is a stub/empty track — content edits
         // are blocked and only machine-pick is allowed.

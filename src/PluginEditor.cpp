@@ -2212,6 +2212,83 @@ namespace lockstep
         return true;
     }
 
+    // True when the picker catalogue cell at `index` holds the effect currently
+    // loaded in the picker's target slot (the "reselect" cell). A tap on it
+    // toggles bypass; a long-press removes the effect (see fxPickerStepDown).
+    bool LockstepEditor::fxPickerCellIsLoaded(int index, bool master) const
+    {
+        if (index < 0 || index >= processor_.numAvailableEffects()) return false;
+        const auto info = processor_.availableEffectInfo(index);
+        if (master)
+        {
+            const int mUnit = uiState_.masterFxInsertSlot;
+            const bool isSend = (mUnit >= 2);
+            const int mSlot = isSend ? mUnit - 2 : mUnit;
+            const std::string curId = isSend ? processor_.masterSendId(mSlot)
+                                             : processor_.masterInsertId(mSlot);
+            return !curId.empty() && info.id == curId;
+        }
+        const int at = keyboardArea_.getActiveTrack();
+        if (at < 0 || at >= static_cast<int>(kNumTracks)) return false;
+        const std::string curId = processor_.trackInsertId(at, uiState_.funcFxInsertSlot);
+        return !curId.empty() && info.id == curId;
+    }
+
+    // Remove (clear) the effect in the picker's currently targeted slot. Used by
+    // the long-press-remove gesture on the loaded catalogue cell.
+    void LockstepEditor::removeFxPickerSlot(bool master)
+    {
+        if (master)
+        {
+            const int mUnit = uiState_.masterFxInsertSlot;
+            const bool isSend = (mUnit >= 2);
+            const int mSlot = isSend ? mUnit - 2 : mUnit;
+            if (isSend) processor_.clearMasterSend(mSlot);
+            else        processor_.clearMasterInsert(mSlot);
+        }
+        else
+        {
+            const int at = keyboardArea_.getActiveTrack();
+            if (at < 0 || at >= static_cast<int>(kNumTracks)) return;
+            processor_.clearTrackInsert(at, uiState_.funcFxInsertSlot);
+        }
+        refreshMetaBand();
+        repaint();
+    }
+
+    // Step-down entry for the FX picker. On the loaded cell we arm a long-press
+    // and defer to key-up (tap = bypass, long-press = remove); every other cell
+    // selects its effect immediately. Returns true when the event is consumed.
+    bool LockstepEditor::fxPickerStepDown(int index, bool master)
+    {
+        if (fxPickerCellIsLoaded(index, master))
+        {
+            gesture_.armLongPress(kFxPickerCellLongPressToken,
+                                  juce::Time::getMillisecondCounterHiRes());
+            fxPickerRemoveArmed_  = true;
+            fxPickerRemoveMaster_ = master;
+            return true;  // resolved on key-up in fxPickerStepUp
+        }
+        return master ? applyMasterFxPick(index) : applyTrackFxPick(index);
+    }
+
+    // Step-up resolution for a deferred loaded-cell press. Long-press removes the
+    // effect; a tap falls through to the normal reselect (bypass toggle). Returns
+    // true when it handled an armed press.
+    bool LockstepEditor::fxPickerStepUp(int index)
+    {
+        if (!fxPickerRemoveArmed_) return false;
+        fxPickerRemoveArmed_ = false;
+        const bool master = fxPickerRemoveMaster_;
+        using LPR = GestureRecognizer::LongPressResult;
+        const double now = juce::Time::getMillisecondCounterHiRes();
+        if (gesture_.checkLongPress(kFxPickerCellLongPressToken, now) == LPR::LongHold)
+            removeFxPickerSlot(master);
+        else
+            (void) (master ? applyMasterFxPick(index) : applyTrackFxPick(index));
+        return true;
+    }
+
     void LockstepEditor::openFxSectionPicker(bool master)
     {
         // Slot selection now lives on a *tap* of the FX key while the picker is
@@ -3607,10 +3684,10 @@ namespace lockstep
                     // from the Track-held SelectTrack case — see applyTrackFxPick).
                     // --------------------------------------------------------
                     if (layer == SurfaceLayer::MasterFxPicker)
-                        return applyMasterFxPick(ev.index);
+                        return fxPickerStepDown(ev.index, /*master=*/true);
 
                     if (layer == SurfaceLayer::TrackFxPicker)
-                        return applyTrackFxPick(ev.index);
+                        return fxPickerStepDown(ev.index, /*master=*/false);
 
                     // --------------------------------------------------------
                     // Machine picker (Func+Track held; §4.7.2)
@@ -4139,9 +4216,9 @@ namespace lockstep
                 // track-select and switched the active track instead of picking the
                 // effect (edits then landed on the wrong track).
                 if (uiState_.masterFxPickerOpen)
-                    return applyMasterFxPick(ev.index);
+                    return fxPickerStepDown(ev.index, /*master=*/true);
                 if (uiState_.funcFxHeld)
-                    return applyTrackFxPick(ev.index);
+                    return fxPickerStepDown(ev.index, /*master=*/false);
 
                 // Func+Track (machine/Kit picker) + step = assign the indexed
                 // machine to the focused track (§4.7.2).
@@ -5176,6 +5253,11 @@ namespace lockstep
                 break;
 
             case CB::Step: {
+                // FX picker: resolve a deferred loaded-cell press (tap = bypass,
+                // long-press = remove). Sticky picker path (funcFxHeld / master).
+                if (fxPickerStepUp(ev.index))
+                    break;
+
                 // S5/S6: looper performance cells are momentary — a step-release on a
                 // console cell (8-11 beat-repeat, 12-15 tape FX) must always end the
                 // effect, even if an overlay opened while held, so it can never stick.
@@ -5464,6 +5546,11 @@ namespace lockstep
             case CB::NavLeft:
             case CB::NavRight:
             case CB::SelectTrack:
+                // FX picker: resolve a deferred loaded-cell press when the whole
+                // gesture ran with Track held (step keys route here, not to Step).
+                fxPickerStepUp(ev.index);
+                break;
+
             case CB::ToggleMute:
             case CB::ForkPart:
             case CB::RecordArm:
