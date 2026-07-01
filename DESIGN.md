@@ -161,11 +161,11 @@ The boundary is deliberately narrow but deliberately *not* fixed-shape
   *consume* audio by declaring an `input_source` slot
   (`{None | External | Master}`, the outside-world tap); when set, the
   sequencer fills `buffer` with the chosen upstream signal before
-  calling `process()`, and the machine reads-then-overwrites (Thru) or
+  calling `process()`, and the machine reads-then-overwrites (Route) or
   reads-and-captures (Recorder). Inter-track routing is the *other*
   half: a track's CHANNEL "Out" slot (`{Master | Track N | Off}`)
   directs its finished signal, and a bus track reads the sum of tracks
-  routed into it. Together these are the capability behind Thru,
+  routed into it. Together these are the capability behind Route,
   sub-mix buses, Recorder, and Looper machines and the realtime
   resampling chain — see §27. Ordering is forward-only by topological
   sort with cycles refused; `input_source = Master` is the one
@@ -173,7 +173,7 @@ The boundary is deliberately narrow but deliberately *not* fixed-shape
 - **Per-machine voice topology, pulled live.** A machine returns
   `currentVoices(baseParams) -> Polyphony { V0..V4 }`. The sequencer
   calls this for each fired trig (so a parameter-driven mode flip such
-  as VA Mono↔Para or FM Mono↔Poly takes effect on the next trig). `V1`
+  as Analog Mono↔Para or FM Mono↔Poly takes effect on the next trig). `V1`
   = monophonic, `V2..V4` = self-managed polyphony, `V0` = unbounded /
   MIDI-out style. Track monophony is therefore a property of the chosen
   machine *in its current configuration*, not a universal sequencer
@@ -202,26 +202,26 @@ A machine occupies a track's sound-*source* slot. The boundary admits
 exactly three kinds of machine:
 
 - **Generators** — synths and samplers that *originate* sound from trig
-  events: `SamplerMachine`, `FMMachine`, `VAMachine`, `DrumSynthMachine`,
-  `SlicerMachine`, `StaticMachine`, `PlayerMachine`, `PercussionMachine`,
+  events: `SamplerMachine`, `FMMachine`, `AnalogMachine`, `DrumSynthMachine`,
+  `SlicerMachine`, `StreamMachine`, `StretchMachine`, `PercussionMachine`,
   `DigitalMachine`. The `SamplerMachine` is rate-based (pitch = speed, the
-  turntable); `PlayerMachine` is its **Flex** counterpart with *independent
+  turntable); `StretchMachine` is its **Flex** counterpart with *independent
   pitch and tempo* — a WSOLA time-stretch voice and `timestretch=Tempo` that
   stretches a buffer to the project tempo via its stamped bar-length.
 - **Routers** — a machine that *carries* audio from an `input_source`
-  into the track's own signal path. There is exactly one: `ThruMachine`
+  into the track's own signal path. There is exactly one: `RouteMachine`
   (§29). It is near-empty by design — the actual shaping is done by the
   canonical post-machine FILTER / AMP / FX (§14), not by the machine.
 - **Capture engines** — machines whose value is *stateful audio
   capture*: `RecorderMachine` (overwrite) and `LooperMachine` (overdub).
   **Capture stamps, playback stretches:** a capture machine writes a
   volatile pool slot and stamps its musical bar-length (`sourceBars`); a
-  tempo-tracking `PlayerMachine` reads that stamp to stretch to tempo. The
+  tempo-tracking `StretchMachine` reads that stamp to stretch to tempo. The
   looper additionally *self-plays* its slot **varispeed** (tape: time-locked,
   pitch glides on tempo change — chosen over stretch because varispeed's
   linear time-map composes with in-place overdub, where WSOLA's grain map
   does not). The same captured loop is therefore playable two ways: the
-  looper's varispeed self-play, or a Player's pitch-locked stretch.
+  looper's varispeed self-play, or the Stretch machine's pitch-locked playback.
   **Looper monitoring** is a `monitor {Auto | On | Off}` switch governing
   whether the live input passes through to the output (separate from
   recording, which always captures) — so an insert looper is audible *before*
@@ -260,7 +260,7 @@ infrastructure. Building such a processor as a machine would waste a
 generator slot, duplicate the FX system, and break the §6.1 promise that
 FILTER / AMP / FX mean the same thing on every track (`PRINCIPLES.md` §8).
 The litmus test: *does it originate or capture sound, or merely colour an
-existing signal?* Originate/capture → machine; colour → `IEffect`. Thru
+existing signal?* Originate/capture → machine; colour → `IEffect`. Route
 is the single deliberate exception, and it earns it by doing no colouring
 of its own.
 
@@ -278,7 +278,7 @@ The first engine to inherit `IMachine` is a monophonic sampler
 designed for trip-hop / drum-machine workflows. It is the **Flex**
 archetype in the Octatrack lineage — samples are decoded into RAM and
 fully manipulable (pitch, slice, trim, loop). Its disk-streaming
-sibling (**Static**) and the input-consuming machines (**Thru**,
+sibling (**Stream**) and the input-consuming machines (**Route**,
 **Recorder**, **Looper**) are described in §29:
 
 - **Voice topology.** `currentVoices() = V1`. The sampler's own
@@ -1277,7 +1277,7 @@ reactivation).
   |-----------|--------|-------|--------|-------|-------|------|
   | *(none)*  | machine trig | machine SRC | machine FILTER (if present) | machine AMP (if `hasInternalAmp()`) | machine MOD | machine FX (drive/bit) |
   | `Func`    | COND (conditions) | NOTE (step entry) | (dim — reserved) | (dim — reserved) | (dim — reserved) | (dim — reserved) |
-  | `Track`   | kit divider (DIV) | input_source / Thru | track FILTER (always; OFF mode available) | CHANNEL (level/pan/sends) + ENVELOPE (if !hasInternalAmp) | per-track LFO (if any) | IEffect insert 1+2 |
+  | `Track`   | kit divider (DIV) | input_source / Route | track FILTER (always; OFF mode available) | CHANNEL (level/pan/sends) + ENVELOPE (if !hasInternalAmp) | per-track LFO (if any) | IEffect insert 1+2 |
   | `Phrase`  | phrase length (LEN) | (dim) | (dim) | (dim) | (dim) | (dim) |
   | `Scene`   | launch / commit · coreTime | global + deviations | (dim) | active-mask | Morph snapshot | (dim) |
   | `Morph`   | (renamed `CXFD`) | morph-assign SRC | morph-assign FILTER | morph-assign AMP | morph-assign MOD | morph-assign FX |
@@ -1823,11 +1823,11 @@ scheduled note-offs) as plain MIDI.
 
 - **Mono (`V1`).** The machine fades its active voice over a 1–2 ms
   choke before starting a new voice for the next note-on. `SamplerMachine`,
-  `FMMachine` (in Mono mode), and `VAMachine` (in Mono mode) all do this
+  `FMMachine` (in Mono mode), and `AnalogMachine` (in Mono mode) all do this
   with a per-voice `VoiceChoke` helper.
 - **Poly (`V2..V4`).** The machine manages its own voice pool and steals
   the oldest voice when note-ons exceed the live voice count (with a
-  brief fade on the stolen voice). `FMMachine` (Poly) and `VAMachine`
+  brief fade on the stolen voice). `FMMachine` (Poly) and `AnalogMachine`
   (Para) use this path.
 - **MIDI-out (`V0`).** The sequencer passes chord notes through unclamped.
 - Cross-track triggers do not interact; each track is its own choke
@@ -2630,12 +2630,12 @@ owned by the track (not the machine):
   sequencer-emitted note-on/off pair. Present only for machines where
   `IMachine::hasInternalAmp()` returns `false` (the default for all
   machines that do not embed their own amplitude envelope — Sampler,
-  Slicer; absent for VA, FM, DrumSynth which shape their own). When
+  Slicer; absent for Analog, FM, DrumSynth which shape their own). When
   absent the envelope stage is skipped; the CHANNEL block still applies.
   - **Gate source** (`{Envelope | Held-open}`). Default `Envelope`:
     the amplitude stage follows the note-on/off envelope, so the track
     needs trigs to sound. `Held-open` keeps the amplitude stage open
-    continuously — the basis of a continuous **Thru** and of **drones**
+    continuously — the basis of a continuous **Route** and of **drones**
     on synth tracks. Composes with trigless/lock-only trigs (§30).
 - **CHANNEL.** Level, Pan, Send A, and Send B — the track's output mix.
   Present on **every** audio track regardless of machine type (including
@@ -2665,7 +2665,7 @@ This is the Elektron model: a machine focuses on producing raw audio;
 the surrounding FILTER + CHANNEL (+ optional ENVELOPE) + FX is uniform.
 The canonical FILTER (key 7) and AMP (key 8) section buttons drive these
 blocks regardless of which machine the track hosts. For machines with
-internal amp (VA, FM, DrumSynth) the AMP section button exposes the
+internal amp (Analog, FM, DrumSynth) the AMP section button exposes the
 machine's own amp pages first, followed by the CHANNEL page as a virtual
 section (parentCanonical = kAmpSecIdx) so level/pan/sends remain
 accessible.
@@ -2673,7 +2673,7 @@ accessible.
 `IMachine::hasInternalAmp()` returning `true` suppresses only the
 ENVELOPE block; the CHANNEL block is always present. The
 `IMachine::hasInternalFilter()` virtual is **deleted** — the track filter
-is now universal; machines that previously returned `true` (VA) simply
+is now universal; machines that previously returned `true` (Analog) simply
 present their internal filter slots before the track FILTER page, which
 the user can engage or leave at OFF.
 
@@ -3870,9 +3870,9 @@ controls together describe the routing graph:
    assignment. Because the tap reads the *current* block (the source ran
    earlier in topo order), it is **same-block / zero latency** — strictly
    better than the `Master` tap, which is necessarily one block late. This
-   is the foundation for aux sends (a Thru tapping a track → parallel FX →
+   is the foundation for aux sends (a Route tapping a track → parallel FX →
    Master) and resample-a-single-track (a Recorder tapping one track
-   post-FX), available to every input-consuming machine (Thru / Recorder /
+   post-FX), available to every input-consuming machine (Route / Recorder /
    Looper).
 
 2. **Output destination** — a per-track **"Out" slot in the CHANNEL
@@ -3883,14 +3883,14 @@ controls together describe the routing graph:
    | Destination | Meaning |
    |---|---|
    | **Master** | Default. The track contributes to the master sum, as today. |
-   | **Track N** | The track is removed from the master sum and added into track `N`'s input buffer; `N` (a Thru/bus) reads the **sum of all tracks routed into it** and processes them as one signal. |
+   | **Track N** | The track is removed from the master sum and added into track `N`'s input buffer; `N` (a Route/bus) reads the **sum of all tracks routed into it** and processes them as one signal. |
    | **Off** | The track's output goes nowhere (silent at master; useful for a track whose only product is a recorder/send tap). |
 
 Routing track A → track B is expressed on A's "Out" slot, not on B's
 input. There is no patch matrix and no neighbour chaining: a track has
 exactly one output destination, and a bus track reads the sum of its
 inbound tracks plus its own outside-world `input_source` (if any).
-This is the smallest model that supports Thru, sub-mix buses, Recorder,
+This is the smallest model that supports Route, sub-mix buses, Recorder,
 Looper, and realtime resampling without turning the sequencer into a
 modular host — and, unlike an input-select model, it can *remove* a
 track from the master mix (mute can't: muting zeroes the buffer before
@@ -3934,14 +3934,14 @@ sum. This is what lets cue and this guard compose: a capture track can tap
 still be *heard* via `Cue + track`. See §31 ("monitored master-resampling").
 
 **Only input-aware machines can be a bus.** A routing target must be a
-machine that *consumes* audio (declares `input_source` — Thru today,
+machine that *consumes* audio (declares `input_source` — Route today,
 Recorder/Looper later). Routing to a synth, sampler, or MIDI-out track
 is a type error, refused at the edit with a chrome reason
 (`NoAudioInput`); self-routing and cycles are likewise refused (`Self`,
 `Cycle`). A target's own `input_source` and its inbound bus sum do not
 conflict — they **mix**: the bus reads its outside-world tap (if any)
 *plus* the sum of tracks routed in. A pure sub-bus therefore uses
-`input_source = None` (the Thru default) so it hears only its feeders.
+`input_source = None` (the Route default) so it hears only its feeders.
 
 **Edges validate at read time, not just at edit time.** Because the
 "Out" slot lives in the CHANNEL block (sequencer-owned foundation, like
@@ -4025,14 +4025,14 @@ lineage drives which machines ship stock:
 |----------------------|---------------------------------------------|-------------|
 | Digitakt             | `SamplerMachine` + `SlicerMachine`          | generator   |
 | Digitone             | `FMMachine` (4-op)                           | generator   |
-| Analog Four          | `VAMachine` (virtual-analog)                 | generator   |
+| Analog Four          | `AnalogMachine` (virtual-analog)                 | generator   |
 | Analog Rytm          | `DrumSynthMachine` (analog/FM drum)          | generator   |
 | **Monomachine**      | **`DigitalMachine`** (digital multi-model)   | generator   |
 | Machinedrum          | `DrumSynthMachine` + `PercussionMachine`     | generator   |
 | (modal / Volca Drum) | `PercussionMachine` (physical model)         | generator   |
 | Octatrack — Flex     | `SamplerMachine`                             | generator   |
-| Octatrack — Static   | `StaticMachine` (disk-stream)                | generator   |
-| Octatrack — Thru / Neighbour | `ThruMachine` (`input_source`)       | router      |
+| Octatrack — Static   | `StreamMachine` (disk-stream)                | generator   |
+| Octatrack — Thru / Neighbour | `RouteMachine` (`input_source`)       | router      |
 | Octatrack — track Recorder   | `RecorderMachine` (overwrite)        | capture     |
 | Octatrack — Pickup           | `LooperMachine` (overdub)            | capture     |
 
@@ -4040,14 +4040,14 @@ Two lineage entries are deliberately **recipes, not machines**, because
 their character is already reachable by composing what the catalogue and
 the foundation provide:
 
-- **Neighbour → Thru.** The Octatrack's separate Neighbour machine is
-  folded into Thru: source is chosen by `input_source`
-  (`External bus` = classic Thru, `Track N` = neighbour-style
+- **Neighbour → Route.** The Octatrack's separate Neighbour machine is
+  folded into Route: source is chosen by `input_source`
+  (`External bus` = classic pass-through, `Track N` = neighbour-style
   inter-track passthrough), and gated-vs-open is the general AMP gate
   source (§14). One machine, one knob.
 - **Syntakt → existing voices + master drive.** The Syntakt is its drum
   and digital voices (covered by `DrumSynthMachine` / `FMMachine` /
-  `VAMachine`) plus a *master analog overdrive/filter*. The drive and
+  `AnalogMachine`) plus a *master analog overdrive/filter*. The drive and
   filter are an `IEffect` (§32) and the canonical FILTER (§14), not a new
   machine. There is no `SyntaktMachine`; the box is a Sound-Pool +
   master-FX preset.
@@ -4064,7 +4064,7 @@ first examples of what the module ABI is *for*.
 
 A **model-based digital monosynth** (built the way `DrumSynthMachine` is:
 a stepped `model` slot reshapes the engine, with `valueLabels`). It
-covers the digital timbres that `VAMachine` (analog) and `FMMachine`
+covers the digital timbres that `AnalogMachine` (analog) and `FMMachine`
 (4-op FM) cannot reach. Stock models:
 
 - **SWAVE** — SuperWave: stacked detuned saw/pulse with width / detune /
@@ -4086,33 +4086,33 @@ Three of the original Monomachine engines are **subsumed**, mirroring the
 Neighbour and Syntakt hygiene above — they are not re-implemented inside
 `DigitalMachine`:
 
-- **GND** (ground / utility) → **Thru** (`input_source`, §27).
+- **GND** (ground / utility) → **Route** (`input_source`, §27).
 - **FM** → **`FMMachine`** (the dedicated 4-op engine).
 - **Drum / FMdrum models** → **`DrumSynthMachine`** / **`PercussionMachine`**.
 
-### 29.2 Static, Thru, Recorder, Looper
+### 29.2 Stream, Route, Recorder, Looper
 
 These extend the catalogue beyond the baseline Flex sampler (§3). The
 first is an ordinary playback engine; the latter three consume audio via
 `input_source` (§27).
 
-- **Static.** A disk-streaming sampler for long-form material
+- **Stream.** A disk-streaming sampler for long-form material
   (full songs, long field recordings) that should not be decoded
   into RAM. Same slot vocabulary as Flex where it overlaps
   (start/end, level), minus the RAM-only manipulations that streaming
   cannot cheaply support. Reinforces `PRINCIPLES.md` §12: the audio
   never enters RAM wholesale, let alone the project state.
-- **Thru.** Turns a track into a processing block: `input_source`
+- **Route.** Turns a track into a processing block: `input_source`
   feeds audio into the track's signal path, the machine passes it
   through at unity, and the canonical post-machine FILTER/AMP/FX (§14)
   do the work. The machine itself is nearly empty — its value is
   routing audio *into* the uniform per-track processing the sequencer
-  already provides. Thru subsumes the Octatrack's separate Thru vs.
-  Neighbour split: `input_source = External` = classic Thru, and
+  already provides. Route subsumes the Octatrack's separate Route vs.
+  Neighbour split: `input_source = External` = classic pass-through, and
   neighbour-style inter-track passthrough is achieved by routing other
   tracks' CHANNEL "Out" at this track (the bus reads their sum, §27).
   Trig-gated vs. always-open is the general AMP gate source (§14), not a
-  machine type. Thru is the only machine declaring `input_source` for
+  machine type. Route is the only machine declaring `input_source` for
   now.
 - **Recorder.** Captures `input_source` audio into a volatile buffer
   (§28). Slots: `input_source` (what to record), `target_buffer`
@@ -4234,7 +4234,7 @@ Effects are owned and managed by the sequencer foundation, not left
 entirely to machines. This is what makes the canonical **FX section
 (key 8)** mean the same thing on every track — exactly as FILTER (key 5)
 and AMP (key 6) do — and it is what lets Lockstep double as a small
-performance mixer (Thru tracks in, effects, cue out) without becoming
+performance mixer (Route tracks in, effects, cue out) without becoming
 a mixer that happens to sequence (`PRINCIPLES.md` §3).
 
 ### 32.1 The `IEffect` unit
@@ -4292,7 +4292,7 @@ soft-knee clipper* (`dsp::SoftClip.h`) that is exactly unity below ≈−3 dBFS
 and only engages above it, smoothly bounding peaks just under 0 dBFS. This
 keeps a clean machine (e.g. the oversampled FM) uncoloured all the way to
 the master and makes overall level predictable. Character saturation that
-*belongs* to a sound — VA glue/drive, drum-kick drive, the Saturation /
+*belongs* to a sound — Analog glue/drive, drum-kick drive, the Saturation /
 Distortion inserts — is a deliberate machine/effect choice and is separate
 from this structural clip.
 
@@ -4355,7 +4355,7 @@ the effect catalogue restricts certain HQ effects to master/send pickers only
 
 **CHANNEL block (Send A/B):** `lockstep.amp.sendA` / `lockstep.amp.sendB`,
 both 0..1, default 0 (dry). The CHANNEL block is present on every audio
-track — including machines with internal amp (VA/FM/DrumSynth) — so sends
+track — including machines with internal amp (Analog/FM/DrumSynth) — so sends
 are always patchable via P-Lock or Morph. When both sends are zero the send
 buses are not processed. The AMP section key (key 8) cycles pages to expose
 all four CHANNEL params (level, pan, sendA, sendB).
@@ -5530,7 +5530,7 @@ it cannot satisfy it, and the host checks `desc->abiVersion` and
 fields are never renumbered, reordered, or repurposed. Optional surface
 is negotiated through `capabilityFlags`
 (`LSM_CAP_MIDI_OUT | INTERNAL_FILTER | INTERNAL_AMP | AUDIO_INPUT`; the
-last is forward-compat for the §2 `input_source` Thru/Recorder idea).
+last is forward-compat for the §2 `input_source` Route/Recorder idea).
 CI carries a frozen golden-header test: a module built against ABI v1
 must still load under a vN host.
 

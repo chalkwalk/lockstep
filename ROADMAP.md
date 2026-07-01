@@ -31,25 +31,25 @@ tests (9.8). **Audio-quality foundation shipped:** master-only gain staging
 `dsp/SoftClip.h`); tape-style `Saturation` effect with placement-aware quality
 tiers (`EffectTier`, one catalogue entry → LQ on track / oversampled HQ on
 master) and unified Delay/Reverb (HQ ids folded in + migrated); `dsp/Oversampler2x.h`
-(polyphase halfband); VA character (paraphonic loudness compensation, always-on
+(polyphase halfband); Analog character (paraphonic loudness compensation, always-on
 glue, `Age` drift macro); FM clean (exponential op envelopes, smoothed diagonal
 self-feedback, 2× operator oversampling).
 **Capture-machine catalogue shipped (`6.2` + `6.3` + `4.5`):** volatile (RAM-only)
 REC buffers in the unified pool; RecorderMachine (overwrite live-resampler, contextual
 recorder trig); LooperMachine (verb-driven overdub state machine, `Track+verb`);
-StaticMachine (disk-streaming long-form sampler, per-Kit path). Freeze-to-disk (§22)
+StreamMachine (disk-streaming long-form sampler, per-Kit path). Freeze-to-disk (§22)
 deferred.
-**Flex-parity audio shipped (tap-fork + Player + time-stretch + looper unify):**
+**Flex-parity audio shipped (tap-fork + Stretch + time-stretch + looper unify):**
 tap-forking (revived `input_source = Track N` as a same-block read-only post-chain
 tap; topo-sort + cycle refusal extended over mix+tap edges) enables aux sends and
 resample-a-single-track; pool `sourceBars` metadata (capture stamps, playback
 stretches); `ITempoAware`/`TransportInfo` seam (no machine-boundary change);
-**PlayerMachine** (`lockstep.player.v1`, the Flex analog — WSOLA `TimeStretch` voice,
+**StretchMachine** (`lockstep.stretch.v1`, the Flex analog — WSOLA `TimeStretch` voice,
 independent pitch + tempo-tracking); Recorder opt-in `monitor`; **Looper unified into
 the volatile pool** + `loop_sync` varispeed (Free / Free Len / N-Bar phase-lock) +
 loop-wrap crossfade; multi-capture default-distinct slots + collision query. Looper
-self-play = varispeed (tape); WSOLA stretch lives only in the Player. **Deferred
-(Milestone C):** Static/streaming time-stretch; looper stop-fade; Player poly + AHDSR;
+self-play = varispeed (tape); WSOLA stretch lives only in the Stretch. **Deferred
+(Milestone C):** Stream/streaming time-stretch; looper stop-fade; Stretch poly + AHDSR;
 the on-surface shared-slot indicator (query `captureSlotShared` is wired).
 **Next:** `6.7` Machine Module ABI; `4.6`/`4.7` Percussion/Digital synths.
 **Playback-correctness + gain-staging pass shipped (post-audio-quality):** metronome
@@ -57,12 +57,12 @@ downbeat-skip fix + fresh-start trig anchor frame (trigs were on-grid; the
 "half-step-late" feel traced to a *stale Delay left on a new project*); project load
 now tears down effect instances on empty slots and reinstalls master sends (phantom
 effects fix); on-screen playhead advances with no focused track; FX picker reachable
-with Track held (no more wrong-track edits); all-machine loudness calibration (VA was
-~5× hot → matched to drum/FM); FM carrier-mixer normalization + polyphony comp; VA
+with Track held (no more wrong-track edits); all-machine loudness calibration (Analog was
+~5× hot → matched to drum/FM); FM carrier-mixer normalization + polyphony comp; Analog
 filter cutoff key-tracking (`va_keytrack`); master output level surfaced (meter VOL
 chip + `Master` band label). Mute-over-soloed-bus verified correct (regression test).
 **Octatrack-parity arc shipped (6.1 + 5.5 + 5.6):** audio-input boundary,
-output-directed track buses (CHANNEL "Out", topo sort, cycle refusal), ThruMachine,
+output-directed track buses (CHANNEL "Out", topo sort, cycle refusal), RouteMachine,
 per-take stem export; Cue-scope audition (`Func+3`); lock-only + one-shot trigs.
 Remaining from the arc: A2 topo-sort/B/C all done; `6.2` RecorderMachine + `6.3`
 LooperMachine shipped (the recorder-trig follow-on).
@@ -100,8 +100,8 @@ are sequencing decisions with no other home.
   engines are machines; pure timbre processing is an `IEffect`. → PRINCIPLES
   "Machines generate; effects process"; DESIGN §29, §32.
 - **Stock catalogue = the iconic set keyed to the lineage.** Sampler/Slicer (DT),
-  FM (DN), VA (A4), DrumSynth (RYTM), Digital (Monomachine), Percussion (modal),
-  Static/Thru/Recorder/Looper (OT). Neighbour folds into Thru; Syntakt = voices +
+  FM (DN), Analog (A4), DrumSynth (RYTM), Digital (Monomachine), Percussion (modal),
+  Static/Thru/Recorder/Looper (OT). Neighbour folds into Route; Syntakt = voices +
   a master-drive `IEffect`. Anything more specialised is a third-party module
   (e.g. granular — Aira P-6 / Tonverk — is a module, not stock). → DESIGN §29.
 - **Variable parameter schema, declared per machine.** No fixed slot count; MZ
@@ -183,7 +183,7 @@ are sequencing decisions with no other home.
   snaps stepped slots. "Fluid mute" = morph-assigning AMP `Level`. → DESIGN §17.
 - **Modifier-gated sculpting**: hold/latch `Morph` + encoder writes morph overlay at 1:1 normalised fader split; bare encoder writes kit base. `Morph + ^/v` forces pure A/B. → DESIGN §17.3/§17.6.
 - **Cue = additive monitor send, never solo.** No cue output = no-op. → DESIGN §31.
-- **AMP gate source `{Envelope | Held-open}`** — the basis of continuous Thru and
+- **AMP gate source `{Envelope | Held-open}`** — the basis of continuous Route and
   drones; subsumes the Thru/Neighbour split. → DESIGN §14, §29.
 - **Foundation-owned effects: `IEffect`, 2 inserts/track + 2 master**, reuse the
   `ParamSpec`/`role`/P-Lock infrastructure, fill the canonical FX section. → DESIGN
@@ -423,17 +423,17 @@ DESIGN §6, §13, §33.
 - [x] Machine picker migrated to `Func+Part` (Part relabels `MACH`); this also
       delivers runtime machine reassignment (2.6's deferred item).
 
-### 3.6 — Polyphonic step authoring + VA para topology  *[shipped]*  *(was MHZ.4)*
+### 3.6 — Polyphonic step authoring + Analog para topology  *[shipped]*  *(was MHZ.4)*
 - [x] Realtime chord record (aggregate notes on the same step, cap 4).
 - [x] Step-hold snapshot-currently-held capture; multi-step parallel.
 - [x] Note-count badge (1–4 ticks) on step cells.
 - [x] P-Lock clear mode packed + toggle-until-commit.
-- [x] VA paraphonic osc-by-slot routing + shared noise.
+- [x] Analog paraphonic osc-by-slot routing + shared noise.
 - [x] Keyboardless note-edit mode (1-octave chromatic overlay, octave shift).
 - [x] NoteSelection (TOP/BOT bias) in the TRIG meta-section.
 
 ### 3.7 — Engine hygiene (first-trig, envelopes, RETRIG, skew)  *[shipped]*  *(was MHZ.5)*
-- [x] First-trig loudness fix across FM / VA / DrumSynth / Sampler.
+- [x] First-trig loudness fix across FM / Analog / DrumSynth / Sampler.
 - [x] `ParamSpec::skew` (non-linear encoder mapping; raw on disk); envelopes
       re-authored.
 - [x] Per-track RETRIG mode (`LEGATO / RETRIG / FREE`).
@@ -831,7 +831,7 @@ the Machine Module ABI (6.7), so they ship as loadable modules.
 - [x] 4-op FM, free 4×4 matrix, per-op ADSR/ratio/fine/mix, macro scalars,
       Mono/Poly (4-voice pool, oldest-steal).
 
-### 4.2 — VAMachine  *[shipped]*  *(was MH.2)*
+### 4.2 — AnalogMachine  *[shipped]*  *(was MH.2)*
 - [x] Dual PolyBLEP oscs + sub + noise, SVF (LP4/LP2/HP/BP + drive), filter +
       amp ADSR, LFO (6 shapes, 4 targets), portamento, Mono/Para-4.
 - [x] Polyphonic-trig infrastructure (≤4 notes/step, chord capture, gate
@@ -847,14 +847,14 @@ the Machine Module ABI (6.7), so they ship as loadable modules.
 - [x] `SlicerMachine` (SLICE / SCRUB dual mode, 16-slice cap, transient
       detection, MONO/POLY, anti-click fade, reverse at rate < 0).
 
-### 4.5 — StaticMachine (disk-stream)  *[shipped]*  *(was MH.6)*
+### 4.5 — StreamMachine (disk-stream)  *[shipped]*  *(was MH.6)*
 - [x] Disk-streaming sampler for long-form audio (DESIGN §29). Streams via a
       background `BufferingAudioReader`; audio never decoded wholesale into RAM.
       Source file path held per-Kit (`TrackKit::staticPath`, serializer key
       `staticPath`, additive — no version bump), not a SamplePool entry; assigned
-      by dropping a file on a focused Static track. `start` slot; gated stream
+      by dropping a file on a focused Stream track. `start` slot; gated stream
       (`hasInternalAmp`, level/pan via CHANNEL). Resampling on rate mismatch is a
-      later refinement. `StaticMachineTest` covers open/stream/stop/bad-path.
+      later refinement. `StreamMachineTest` covers open/stream/stop/bad-path.
 
 ### 4.6 — PercussionMachine (physical model)  *[planned]*  *(was MH.7)*
 - [ ] Volca-Drum-style two-layer percussion: excitation osc (+FM/ring + pitch
@@ -866,7 +866,7 @@ the Machine Module ABI (6.7), so they ship as loadable modules.
 - [ ] Model-based digital monosynth (`model` stepped slot): SWAVE (supersaw),
       SID (PWM+ring+sync), WAVE (single-cycle wavetable/PWM), VO (formant).
       `V1` + live Mono/Poly; canonical FLTR/AMP (no opt-out). Monomachine
-      GND/FM/drum engines subsumed (Thru / FMMachine / DrumSynth). Authored
+      GND/FM/drum engines subsumed (Route / FMMachine / DrumSynth). Authored
       against the 6.7 SDK + post-3.11 contract.
 
 ### 4.8 — DrumSynth voice expansion  *[shipped]*  *(was MH.9)*
@@ -1102,9 +1102,9 @@ context.)
 The audio-input boundary and the machines it unlocks, the effects system, the cue
 bus, external controller surfaces, the machine-module ABI, and the beta polish.
 
-### 6.1 — Audio-input boundary + routing + Thru machine  *[shipped]*  *(was MR)*
+### 6.1 — Audio-input boundary + routing + Route machine  *[shipped]*  *(was MR)*
 DESIGN §27, §29. Gates 6.2 / 6.3. Shipped phased: A1 outside-world sources +
-Thru, then A2 output-directed track buses.
+Route, then A2 output-directed track buses.
 - [x] Optional audio-input path at the machine boundary (sequencer fills `buffer`
       from `input_source` before `process()`).
 - [x] `input_source` slot — outside-world tap `{None | External | Master}`
@@ -1115,8 +1115,8 @@ Thru, then A2 output-directed track buses.
 - [x] Per-block topological sort (`core/RoutingGraph.h`, pure/tested); cyclic
       routing refused at the "Out" write (best-effort + authoritative engine guard).
 - [x] Master prior-block tap (`input_source = Master`).
-- [x] ThruMachine (unity pass-through; canonical FLTR/AMP/FX process it; defaults
-      to `None` so a fresh Thru is a silent sub-bus).
+- [x] RouteMachine (unity pass-through; canonical FLTR/AMP/FX process it; defaults
+      to `None` so a fresh Route is a silent sub-bus).
 - [x] MIDI-out parity (no input source; no audible route).
 - [x] **Stem export (Workstream D):** capture is now a take directory —
       `master.wav` + one `track-NN.wav` per non-empty Master-routed track (buses
@@ -1316,7 +1316,7 @@ DESIGN §37/§35.8.7/§37.4/§37.5 added; ROADMAP Phase 8 entry; CLAUDE.md statu
 ### 8.8 — ParamSpec constexpr tables (LsmParamSpec-shaped)
 - [x] **8.8a** `tests/ParamSpecTest.cpp` — golden ids + invariants per machine.
 - [x] **8.8b** `src/machine/MachineParamTable.h` (`ParamRow` + `toParamSpec`).
-- [x] **8.8c** Convert `VAMachine`.
+- [x] **8.8c** Convert `AnalogMachine`.
 - [x] **8.8d** Convert `DrumSynthMachine` + `SamplerMachine`.
 - [x] **8.8e** Convert `SlicerMachine` + `MidiOutMachine`.
 - [x] **8.8f** Convert `FMMachine` + deduplicate parallel operator arrays.
@@ -1420,8 +1420,8 @@ that builds clean and passes tests.
 `tests/MachineDspTest.cpp`: per-machine construct/prepare/note-on/render/note-off
 cycle; asserts non-silence after trigger, no NaN/Inf throughout, envelope decays
 to silence after short release. Block-size invariance (64 vs 512 samples).
-IEffect catalogue smoke. Envelope goldens for VA and FM with explicit ADSR values.
-- [x] **8.13** `MachineDspTest.cpp`: smoke + envelope goldens for VA/FM/DrumSynth/
+IEffect catalogue smoke. Envelope goldens for Analog and FM with explicit ADSR values.
+- [x] **8.13** `MachineDspTest.cpp`: smoke + envelope goldens for Analog/FM/DrumSynth/
       Sampler/Slicer + 4 IEffects; ASan/UBSan clean.
 
 ### 8.14 — Engine testability: headless processBlock harness
@@ -1569,7 +1569,7 @@ Phase C: WAV capture.
 - [x] **A0** Fix master-insert chain silent while sequencer running (`processMasterChain`
       helper called from both transport paths; test added).
 - [x] **A1/A2** FM legato timbral-param updates; DrumSynth time-param skew 1.0→0.3;
-      VA/FM envelope `[SUSPECTED-BUGGY]` markers removed (goldens pass); per-sample
+      Analog/FM envelope `[SUSPECTED-BUGGY]` markers removed (goldens pass); per-sample
       param smoothing on Delay/Distortion/Chorus effects; FM ratio `valueLabels` added.
 - [x] **B1** Data model: `masterSends`, AMP slots 8–9 (sendA/B), serializer v17;
       send-bus accumulation in both transport paths; `setTimeInfo` broadcast;
@@ -1583,11 +1583,11 @@ Phase C: WAV capture.
       at the end of `processBlock` in both transport paths.
 - [x] **C2** `Func+Song+Record` gesture; arm/disarm status chrome.
 - [x] **C3** Docs: DESIGN §32.6 capture subsection; README §5.20 + shortcut table.
-- [x] **A3/gap closure** (post-audit): A0 regression test; legato goldens for VA/FM;
+- [x] **A3/gap closure** (post-audit): A0 regression test; legato goldens for Analog/FM;
       retrig click-metric tests; effect smoke + specific assertions for all 13 effects;
       serializer v17 round-trip + v16 upgrade tests; Animate for the 4 master units
       (DESIGN §32.5 + Song+FX quadrant mapping; test pins `setMasterSendBypass`);
-      bugfix: internal-amp machines (DrumSynth/VA/FM/Sampler) never routed sendA/sendB
+      bugfix: internal-amp machines (DrumSynth/Analog/FM/Sampler) never routed sendA/sendB
       to master send buses (both transport paths fixed).
 
 ### 8.27 — Smoothing policy  *[shipped as part of 8.26-A]*
@@ -1599,7 +1599,7 @@ DESIGN §14 rewritten. Separates the conflated AMP block into a **CHANNEL** bloc
 (always-on: level/pan/sendA/sendB) and an optional **ENVELOPE** block (AHDSR +
 gate source; only for machines without `hasInternalAmp()`). Adds **OFF mode** to
 the track filter (always-present, defaults to OFF on new tracks). Deletes
-`hasInternalFilter()`; VA and other machines with internal filters get the track
+`hasInternalFilter()`; Analog and other machines with internal filters get the track
 filter as an additional page rather than bypassing it. Serializer bumped to v18
 (trivial stamp; string-keyed ids resolve unchanged).
 
@@ -1615,8 +1615,8 @@ filter as an additional page rather than bypassing it. Serializer bumped to v18
       internal-amp/filter machines via `parentCanonical`.
 - [x] **B5** Serializer v18; delete send special cases in write + load paths;
       v17-fixture upgrade tests.
-- [x] **B6** Behavioural tests: channel P-Lock on VA, filter-OFF passthrough,
-      filter-on-VA attenuates.
+- [x] **B6** Behavioural tests: channel P-Lock on Analog, filter-OFF passthrough,
+      filter-on-Analog attenuates.
 - [x] **B7** README + ROADMAP closeout.
 
 ---
@@ -2119,7 +2119,7 @@ DAW export.
       directory `Captures/capture-<stamp>/` holding `master.wav` + one
       `track-NN.wav` per non-empty Master-routed track. No per-track arm surface
       needed: routing (CHANNEL "Out") *is* the stem grouping — buses fold in their
-      feeders, feeders/Off/empty-Thru-buses are skipped. Always-on; same
+      feeders, feeders/Off/empty-Route-buses are skipped. Always-on; same
       arm/level/tail lifecycle as the master. (DESIGN §27.)
 - [ ] **Crash-partial header refresh** *(deferred)* — a partial WAV's RIFF size
       fields are patched only on clean close; periodic header refresh would make

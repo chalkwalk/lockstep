@@ -263,7 +263,7 @@ rather than replacing it.
 Section-bar keys 5–0 carry a fixed canonical taxonomy
 (TRIG / SRC / FILTER / AMP / MOD / FX). The same key means the same
 *concept* on every track. A machine that has nothing for a canonical
-section leaves it empty. A machine that wants its own filter (e.g. a VA
+section leaves it empty. A machine that wants its own filter (e.g. an Analog
 emulation) re-implements *behind* the canonical FILTER section, so the
 user-facing UI for "the filter" is identical across machines even when
 the DSP under the hood is not. A machine may relabel a section under its
@@ -288,11 +288,11 @@ section we already ship.
 ## 9. Machines generate or capture; effects process
 
 A machine *originates* sound (a synth or sampler) or *routes/captures*
-it (Thru, Recorder, Looper). Pure timbre processing — filter, EQ,
+it (Route, Recorder, Looper). Pure timbre processing — filter, EQ,
 distortion, bitcrush, reverb, delay, compression — is an `IEffect`, not
 a machine, so that the canonical FILTER / AMP / FX stay uniform across
 every track. The litmus test: originate or capture → machine; merely
-colour an existing signal → `IEffect`. Thru is the single exception, and
+colour an existing signal → `IEffect`. Route is the single exception, and
 it earns it by doing no colouring of its own — the foundation
 FILTER/AMP/FX do the work.
 
