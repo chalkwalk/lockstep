@@ -118,12 +118,15 @@ namespace lockstep
         { "va_lfo_shape", "LFO Shape", 0.f, 5.f, 0.f, 1.f, 1, va_u::None, va_r::LfoShp, 0, 4, 0, kVALfoShapeLabels }, // 31
         { "va_lfo_target", "LFO Target", 0.f, 3.f, 0.f, 1.f, 1, va_u::None, va_r::None, 0, 4, 0, kVALfoTargetLabels }, // 32
         { "va_lfo_sync", "LFO Sync", 0.f, 1.f, 0.f, 1.f, 1, va_u::None, va_r::None, 0, 4, 0, kVALfoSyncLabels }, // 33
-        // --- SRC continued (section 1) ---
-        { "va_osc_mix", "Osc Mix", 0.f, 1.f, 0.5f, 1.f, 0, va_u::None, va_r::None, 0, 1, 0, nullptr }, // 34
+        // --- SRC continued (section 1): per-osc levels + mixer drive ---
+        { "va_osc1_level", "Osc1 Lvl", 0.f, 1.f, 0.85f, 1.f, 0, va_u::None, va_r::None, 0, 1, 0, nullptr }, // 34
         // --- MOD continued (section 4): vintage character macro ---
         { "va_age", "Age", 0.f, 1.f, 0.2f, 1.f, 0, va_u::None, va_r::None, 0, 4, 0, nullptr }, // 35
         // --- FILTER continued (section 2): cutoff key-tracking amount ---
         { "va_keytrack", "Key Trk", 0.f, 1.f, 1.f, 1.f, 0, va_u::Pct, va_r::None, 0, 2, 0, nullptr }, // 36
+        // --- SRC continued (section 1): osc2 level + summing-amp drive ---
+        { "va_osc2_level", "Osc2 Lvl", 0.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::None, 0, 1, 0, nullptr }, // 37
+        { "va_mixer_drive", "Mix Drive", 0.f, 1.f, 0.15f, 1.f, 0, va_u::None, va_r::None, 0, 1, 0, nullptr }, // 38
     };
     static_assert(std::size(kVAParams) == AnalogMachine::kNumSlots,
                   "kVAParams row count must equal kNumSlots");
@@ -192,10 +195,10 @@ namespace lockstep
                                       float subLevel,
                                       double osc2FreqRatio,
                                       bool paraMode,
-                                      float osc1Gain, float osc2Gain) noexcept
+                                      float osc1Level, float osc2Level) noexcept
     {
         // In para mode: sv.oscType 0 → render osc1+sub only; sv.oscType 1 → render osc2+sub only.
-        // In mono mode (paraMode=false): render both osc1 and osc2 weighted by osc1Gain/osc2Gain.
+        // In mono mode (paraMode=false): render both osc1 and osc2 weighted by osc1Level/osc2Level.
         const bool renderOsc1 = !paraMode || sv.oscType == 0;
         const bool renderOsc2 = !paraMode || sv.oscType == 1;
 
@@ -234,7 +237,7 @@ namespace lockstep
                         break;
                     default: break;
                 }
-                out += s * osc1Gain;
+                out += s * osc1Level;
             }
             sv.osc1Phase += inc;
             if (sv.osc1Phase >= 1.0) sv.osc1Phase -= 1.0;
@@ -273,7 +276,7 @@ namespace lockstep
                     break;
                 default: break;
             }
-            out += s * osc2Gain;
+            out += s * osc2Level;
             sv.osc2Phase += inc;
             if (sv.osc2Phase >= 1.0) sv.osc2Phase -= 1.0;
         }
@@ -284,12 +287,15 @@ namespace lockstep
             if (sv.osc2Phase >= 1.0) sv.osc2Phase -= 1.0;
         }
 
-        // Sub (one octave below osc1; scaled by osc1Gain so it follows the mix).
-        if (subLevel > 0.0f)
+        // Sub (one octave below osc1): its own independent level in the summing
+        // bus. In para mode it renders only on the osc1-type sub-voice so a chord
+        // doesn't double the sub.
+        const bool renderSub = !paraMode || sv.oscType == 0;
+        if (subLevel > 0.0f && renderSub)
         {
             const double ph = sv.subPhase;
             const float subSample = static_cast<float>(2.0 * ph - 1.0) + polyBlep(ph, subInc);
-            out += subSample * subLevel * osc1Gain;
+            out += subSample * subLevel;
             sv.subPhase += subInc;
             if (sv.subPhase >= 1.0) sv.subPhase -= 1.0;
         }
@@ -297,16 +303,48 @@ namespace lockstep
         return out;
     }
 
-    float AnalogMachine::filterSample(float in, float f, float q, int filterType) noexcept
+    float AnalogMachine::filterSample(float in, float f, float q, int filterType,
+                                      float drive) noexcept
     {
-        auto runSVF = [](SVFState& s, float x, float fc, float res) -> std::tuple<float, float, float> {
-            s.hp = x - res * s.bp - s.lp;
+        // Filter drive — deliberately a DIFFERENT colour from the mixer stage:
+        //  - the mixer clip is asymmetric (even harmonics, "warm/thick");
+        //  - this is a SYMMETRIC soft-clip at the filter input (odd harmonics,
+        //    "buzzy/aggressive"), full-scale preserving so it dirties without
+        //    boosting level or going unstable;
+        //  - plus a saturation in the resonant feedback so driving a high-Q
+        //    filter squelches (frequency-selective — can't be got from a flat
+        //    waveshaper).
+        // At drive == 0 both branches are skipped: exactly the old linear SVF.
+        float x = in;
+        if (drive > 0.0f)
+        {
+            const float g = 1.0f + drive * 5.0f;
+            x = std::tanh(g * in) / std::tanh(g);
+        }
+
+        auto runSVF = [drive](SVFState& s, float xx, float fc,
+                              float res) -> std::tuple<float, float, float> {
+            float bpFb = s.bp;
+            if (drive > 0.0f)
+            {
+                const float rg = 1.0f + drive * 3.0f;
+                bpFb = std::tanh(rg * s.bp) / rg;  // saturate resonance feedback
+            }
+            s.hp = xx - res * bpFb - s.lp;
             s.bp += fc * s.hp;
             s.lp += fc * s.bp;
+            // Bound the resonant states so self-oscillation at extreme res + open
+            // cutoff settles at a finite amplitude (like a real filter) instead of
+            // the Chamberlin SVF's numerical runaway (a pre-existing corner the hot
+            // summing bus now drives harder). Unity small-signal — 4*tanh(s/4) ~= s
+            // for |s|<1 — so normal-range signals pass untouched; only runaway is
+            // clamped.
+            s.bp = 4.0f * std::tanh(0.25f * s.bp);
+            s.lp = 4.0f * std::tanh(0.25f * s.lp);
             return { s.lp, s.hp, s.bp };
         };
 
-        auto [lp1, hp1, bp1] = runSVF(svf1_, in, f, q);
+        auto [lp1, hp1, bp1] = runSVF(svf1_, x, f, q);
 
         switch (filterType)
         {
@@ -620,8 +658,8 @@ namespace lockstep
 
         // ---- "Age" vintage drift ------------------------------------------
         // Four free-running sub-Hz drifters give analog wander on osc pitch,
-        // filter cutoff and pulse width; Age also adds a touch of glue
-        // saturation (driveGain below). Advanced once per block.
+        // filter cutoff and pulse width; Age also adds a touch of mixer + filter
+        // drive (see mixDriveAmt / filterDrive below). Advanced once per block.
         const float age = std::clamp(p(kSlotAge), 0.0f, 1.0f);
         static constexpr std::array<double, 4> kDriftRatesHz{ 0.11, 0.17, 0.07, 0.23 };
         std::array<float, 4> driftVal{};
@@ -650,10 +688,13 @@ namespace lockstep
         const float keytrackOffset = p(kSlotKeytrack)
             * (static_cast<float>(filterTrackNote_) - 60.0f) / 120.0f;
         const int filterType = static_cast<int>(p(kSlotFilterType));
-        // Always-on gentle glue saturation (baseline 1.4) so default patches
-        // have analog character without the level knob switching drive on from
-        // nothing; user Drive and Age add harmonics on top.
-        const float driveGain = 1.4f + 4.0f * p(kSlotDrive) + age * 1.5f;
+        // Filter-core drive: 0..~1. Age nudges it so the vintage macro still adds
+        // grit. Feeds the nonlinear SVF (frequency-selective, resonance-coupled).
+        const float filterDrive = std::clamp(p(kSlotDrive) + age * 0.3f, 0.0f, 1.5f);
+        // Loudness makeup: the symmetric filter-input clip boosts RMS as it dirties
+        // (small-signal gain ~= g), so pull level back down to hold it roughly
+        // constant — character in/out without a volume jump. Tuned by measurement.
+        const float filterMakeup = 1.0f / (1.0f + filterDrive * 1.3f);
         const float fEnvDepth = p(kSlotFEnvDepth);
         const float subLevel = p(kSlotSub);
         const float noiseLevel = p(kSlotNoise);
@@ -671,11 +712,27 @@ namespace lockstep
         const float osc2FineCent = p(kSlotOsc2Fine);
         const double osc2FreqRatio = std::pow(2.0, static_cast<double>(osc2CoarseST) / 12.0 + (static_cast<double>(osc2FineCent) + static_cast<double>(ageDetune2)) / 1200.0);
 
-        // Osc mix: constant-power crossfade between osc1 (0) and osc2 (1).
-        // Default 0.5 gives equal loudness; 0.0 = osc1 only, 1.0 = osc2 only.
-        const float oscMixAngle = std::clamp(p(kSlotOscMix), 0.0f, 1.0f) * kPiF * 0.5f;
-        const float osc1Gain = std::cos(oscMixAngle);
-        const float osc2Gain = std::sin(oscMixAngle);
+        // Per-oscillator levels feed a HOT summing bus (linear, no equal-power
+        // normalization) so stacking osc1 + osc2 + sub + noise pushes the mixer
+        // summing-amp harder — the Peak "50% clean, everything up = drives" feel.
+        const float osc1Level = std::clamp(p(kSlotOsc1Level), 0.0f, 1.0f);
+        const float osc2Level = std::clamp(p(kSlotOsc2Level), 0.0f, 1.0f);
+
+        // Mixer / summing-amp saturation. Asymmetric soft-clip (a small bias adds
+        // even harmonics -> warm/thick, distinct from the filter's odd-harmonic,
+        // resonance-coupled grit). tanh(g*x+bias) with 1/g makeup holds level so
+        // character can be dialled in and out without a volume jump. Age adds a
+        // touch of drive so default patches have gentle glue.
+        const float mixDriveAmt = std::clamp(p(kSlotMixerDrive) + age * 0.25f,
+                                             0.0f, 1.25f);
+        const float mixG = 0.7f + mixDriveAmt * 7.0f;
+        const float mixBias = 0.7f * mixDriveAmt;
+        // Full-scale-preserving normalization: f(0)=0 via mixNorm, f(±1)=±1 via
+        // mixScale. Peaks stay near full scale as drive rises (harmonics grow but
+        // level is held — the "tame the level while keeping the drive" behaviour),
+        // instead of the 1/g collapse a bare tanh(g*x)/g makeup would give.
+        const float mixNorm = std::tanh(mixBias);
+        const float mixScale = std::max(1e-3f, std::tanh(mixG + mixBias) - mixNorm);
 
         const float osc1CoarseST = p(kSlotOsc1Coarse);
         const float osc1FineCent = p(kSlotOsc1Fine);
@@ -836,7 +893,7 @@ namespace lockstep
                                                         osc2Wave, osc2PW,
                                                         subLevel, osc2FreqRatio,
                                                         paraMode,
-                                                        osc1Gain, osc2Gain);
+                                                        osc1Level, osc2Level);
                 sv.currentFreq = savedFreq;
 
                 // In mono mode the master ampEnv controls volume (combinedGain
@@ -876,35 +933,35 @@ namespace lockstep
                 if (monoGhostFade_ <= 0) monoGhostGain_ = 0.0f;
             }
 
-            // Apply envelope + level BEFORE drive so the level knob sets headroom,
-            // not just the volume of already-saturated signal.
-            const float combinedGain = aEnvLevel + (paraMode ? 0.0f : monoGhostGain_);
-            const float preDrive = oscSum * combinedGain * outputLevel;
+            // ---- Stage 1: mixer / summing-amp saturation (pre-filter) ----
+            // Asymmetric soft-clip on the raw summed sources. This is where "how
+            // hot each oscillator is" turns into warmth/thickness.
+            const float mixed = (std::tanh(mixG * oscSum + mixBias) - mixNorm) / mixScale;
 
-            // ---- Drive (always-on glue) ----
-            // tanh(driveGain*x)/tanh(driveGain) normalises DC gain to 1.0 so the
-            // drive/Age knobs add harmonics without boosting level. driveGain is
-            // baselined at 1.4 (see above) so there is gentle glue even at
-            // Drive=Age=0 — only audible as signals approach full scale.
-            const float shaped = std::tanh(driveGain * preDrive) / std::tanh(driveGain);
-
-            // ---- Filter ----
-            float filtered = filterSample(shaped, svfF, svfQ, filterType);
+            // ---- Stage 2: nonlinear filter (drive lives inside the core) ----
+            const float filtered =
+                filterSample(mixed, svfF, svfQ, filterType, filterDrive) * filterMakeup;
 
             // ---- DC blocker (kills note-on thump from filter / envelope transients) ----
             const float blocked = filtered - dcX1_ + 0.999f * dcY1_;
             dcX1_ = filtered;
             dcY1_ = blocked;
 
+            // ---- Amp VCA (post-filter): amp envelope + Level + velocity/LFO ----
+            // Moved after the filter so it's a clean output VCA; the per-stage
+            // auto-makeup above means Level no longer sets drive headroom — the
+            // Mixer/Filter drives own the character, Level owns loudness.
+            const float combinedGain = aEnvLevel + (paraMode ? 0.0f : monoGhostGain_);
+            const float vca = blocked * combinedGain * outputLevel;
+
             // ---- Output — write dual-mono; pan is owned by the track CHANNEL block ----
-            // Loudness calibration (C2): at default params a single note measured
-            // ~2.4 peak — ~5x the drum/FM reference (~0.5) and into the master
-            // clipper. kOutputTrim brings the VA in line so every machine sits at a
-            // sensible level with internal level ~0.5 / track 1.0. Applied post-drive
-            // so the glue character is unchanged — only the level is tamed.
-            constexpr float kOutputTrim = 0.21f;
+            // Loudness calibration (EngineTest testMachineLevelCalibration): the
+            // drive stages auto-make-up, so this trim just parks the DEFAULT patch
+            // (Level 0.5) near the ~0.5 drum/FM reference [0.32,0.80]. Because the
+            // drives hold level, the whole [clean..dirty] range stays in the mix.
+            constexpr float kOutputTrim = 0.39f;
             for (int ch = 0; ch < numOut; ++ch)
-                buffer.addSample(ch, i, blocked * kOutputTrim);
+                buffer.addSample(ch, i, vca * kOutputTrim);
         }
     }
 

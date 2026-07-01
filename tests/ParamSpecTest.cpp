@@ -116,9 +116,11 @@ namespace lockstep
             "va_lfo_shape",     // 31
             "va_lfo_target",    // 32
             "va_lfo_sync",      // 33
-            "va_osc_mix",       // 34
+            "va_osc1_level",    // 34
             "va_age",           // 35
             "va_keytrack",      // 36
+            "va_osc2_level",    // 37
+            "va_mixer_drive",   // 38
         };
         checkGoldenIds(m, "AnalogMachine", golden);
         checkInvariants(m, "AnalogMachine");

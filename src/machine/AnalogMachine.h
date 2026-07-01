@@ -25,7 +25,7 @@ namespace lockstep
         [[nodiscard]] const char* badge() const noexcept override { return "ANLG"; }
         static constexpr const char* kMachineId = "lockstep.analog.v1";
 
-        static constexpr int kNumSlots = 37;
+        static constexpr int kNumSlots = 39;
 
         int numParams() const override { return kNumSlots; }
         ParamSpec paramSpec(int index) const override;
@@ -82,12 +82,18 @@ namespace lockstep
         static constexpr int kSlotLfoShape = 31;
         static constexpr int kSlotLfoTarget = 32;
         static constexpr int kSlotLfoSync = 33;
-    // Section 1 — SRC (continued; osc level balance)
-        static constexpr int kSlotOscMix = 34;  // 0=all osc1, 1=all osc2, 0.5=equal power
+    // Section 1 — SRC (continued): independent per-oscillator level into the
+    // summing bus (osc1 at slot 34, osc2 at slot 37). Sources sum HOT — no
+    // equal-power normalization — so stacking them drives the mixer stage.
+        static constexpr int kSlotOsc1Level = 34;
     // Section 4 — MOD: vintage "Age" macro (analog drift + glue saturation)
         static constexpr int kSlotAge = 35;
     // Section 2 — FILTER: cutoff key-tracking amount (0=none, 1=full octave-per-octave)
         static constexpr int kSlotKeytrack = 36;
+    // Section 1 — SRC (continued): osc2 level + mixer/summing-amp drive.
+        static constexpr int kSlotOsc2Level = 37;
+    // Mixer summing-amp saturation amount (asymmetric soft-clip, pre-filter).
+        static constexpr int kSlotMixerDrive = 38;
 
         static constexpr int kNumSections = 5;
         static constexpr int kMaxSubVoices = 4;
@@ -131,9 +137,10 @@ namespace lockstep
                                float subLevel,
                                double osc2FreqRatio,
                                bool paraMode,
-                               float osc1Gain, float osc2Gain) noexcept;
+                               float osc1Level, float osc2Level) noexcept;
 
-        float filterSample(float in, float f, float q, int filterType) noexcept;
+        float filterSample(float in, float f, float q, int filterType,
+                           float drive) noexcept;
 
         void triggerEnvs(const ParamFrame& params);
         void releaseEnvs();
