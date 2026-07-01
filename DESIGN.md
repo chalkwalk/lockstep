@@ -3927,6 +3927,12 @@ muted at run time (the second layer, mirroring `Out` dormancy). Master is
 a node in this feedback check even though it is not a node in the mix
 graph's topological sort.
 
+A §31 **cue send is deliberately *not* a mix edge** and does not count
+toward `outputReachesMaster()` — it is a monitor tap, not a route to the
+sum. This is what lets cue and this guard compose: a capture track can tap
+`Master` with `Out = Off` (silent at master, so the guard permits it) and
+still be *heard* via `Cue + track`. See §31 ("monitored master-resampling").
+
 **Only input-aware machines can be a bus.** A routing target must be a
 machine that *consumes* audio (declares `input_source` — Thru today,
 Recorder/Looper later). Routing to a synth, sampler, or MIDI-out track
@@ -4194,6 +4200,27 @@ the grammar as a single new scope, `Cue`, with no bespoke buttons.
   reinterpreted as solo when no cue output exists: that would make one
   scope mean two things and let cue alter the main output — a silent
   mode. A true solo, if wanted, is a separate future gesture.)
+
+**The killer use — monitored master-resampling.** The cue bus earns its
+keep on a workflow the main mix cannot express. A Recorder or Looper that
+taps `input_source = Master` (§27) to resample the whole mix is, by the
+feedback guard, only *legal* when its own output does **not** reach master
+(`Out = Off`) — which leaves the resample **inaudible while it is being
+made**. A `Cue + track` send restores monitoring of that capture track
+*without* putting it back into the master sum, so the performer hears what
+they are resampling as they resample it. This is the concrete answer to
+"what is the cue *for*" on a live instrument (as opposed to a DAW, where
+the host monitors): **no cue = capture-blind; cue = monitor the master
+resample and still capture master.** The same shape covers auditioning a
+send-effect track or a bus without committing it to the front-of-house
+mix.
+
+**Composition invariant — a cue send is not a mix edge.** Because the cue
+tap is additive and post-FILTER/AMP/Level, it is deliberately **excluded
+from `outputReachesMaster()`** (§27): cueing a track never adds a path to
+the master sum, so it can never invalidate a `Master` tap or form a
+feedback loop. Cue and the §27 feedback guard therefore compose with no
+special case — the whole reason the workflow above is safe.
 
 **Outputs.** Standalone routes the cue bus to audio device channels
 3–4 and the cue MIDI to a chosen output port; as a plugin it exposes
