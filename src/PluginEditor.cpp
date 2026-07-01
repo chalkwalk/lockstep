@@ -5811,13 +5811,23 @@ namespace lockstep
     // fast flick = device-accelerated delta, capped at ±7).
     // intervals = number of discrete steps (value-count - 1).
     static float applyDiscreteEncoderDelta(float minV, float maxV, int intervals,
-                                           float cur, int rawDelta)
+                                           float cur, int rawDelta, bool wrap = false)
     {
         if (intervals <= 0 || rawDelta == 0) return cur;
         const int unit = juce::jlimit(-7, 7, rawDelta);
         const float quantum = (maxV - minV) / static_cast<float>(intervals);
         const int curIdx = juce::roundToInt((cur - minV) / quantum);
-        const int newIdx = juce::jlimit(0, intervals, curIdx + unit);
+        int newIdx;
+        if (wrap)
+        {
+            // intervals steps span (intervals + 1) discrete positions; wrap the
+            // index across that inclusive range so turning past either end cycles
+            // (item 9: CUR advances from the last chord back to the first).
+            const int span = intervals + 1;
+            newIdx = (((curIdx + unit) % span) + span) % span;
+        }
+        else
+            newIdx = juce::jlimit(0, intervals, curIdx + unit);
         return minV + static_cast<float>(newIdx) * quantum;
     }
 
@@ -5911,7 +5921,7 @@ namespace lockstep
                 {
                     const int intervals = juce::roundToInt(v.maxValue - v.minValue);
                     newVal = applyDiscreteEncoderDelta(v.minValue, v.maxValue, intervals,
-                                                      v.value, rawDelta);
+                                                      v.value, rawDelta, v.wrap);
                 }
                 else
                 {

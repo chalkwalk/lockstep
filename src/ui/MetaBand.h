@@ -66,6 +66,9 @@ namespace lockstep
         float value = 0.0f;
         bool stepped = false;
         bool writable = false;
+        // Encoder wraps past the ends instead of clamping (item 9: cyclic CUR).
+        // Opt-in per field so ordinary stepped params (mode, LEN, ...) still clamp.
+        bool wrap = false;
         bool hasOverride = false;
         RingMode ringMode = RingMode::UnipolarFill;
         std::array<ReferenceMark, 2> marks{};  // scope-coloured reference ticks
@@ -84,6 +87,11 @@ namespace lockstep
         bool harmonyVoiceOff = false;       // absent voice → blank "+" reel
         bool harmonyChromatic = false;      // Func held → chromatic neighbours + tint
         juce::String reelPrev, reelNow, reelNext;
+        // Cyclic reel (item 9): the progression wraps, so the last chord shows
+        // above the first and the first below the last. A wrapped neighbour is
+        // drawn dimmer than a real (in-sequence) one so the seam stays legible.
+        bool reelPrevWrapped = false;
+        bool reelNextWrapped = false;
     };
 
     // -------------------------------------------------------------------------

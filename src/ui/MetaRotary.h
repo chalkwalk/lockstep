@@ -41,6 +41,8 @@ namespace lockstep
             bool harmonyVoiceOff = false;
             bool harmonyChromatic = false;
             juce::String reelPrev, reelNow, reelNext;
+            bool reelPrevWrapped = false;
+            bool reelNextWrapped = false;
         };
 
         void applyView(const View& v);
@@ -74,6 +76,8 @@ namespace lockstep
         bool harmonyVoiceOff = false;
         bool harmonyChromatic = false;
         juce::String reelPrev, reelNow, reelNext;
+        bool reelPrevWrapped = false;
+        bool reelNextWrapped = false;
     };
 
     // MetaRotaryLookAndFeel — custom rotary renderer.

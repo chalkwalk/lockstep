@@ -1144,13 +1144,24 @@ namespace lockstep
         // Each voice column reads the SAME voice across the prev / current / next
         // chord of the progression — the reel rows are chords, not note neighbours,
         // so a column shows that voice's motion (and CUR scrolls the chords).
+        // Cyclic reel (item 9): the progression wraps, so cur-1 at the first chord
+        // resolves to the last and cur+1 at the last resolves to the first. K>=1
+        // always (clamped above), so this resolves any index; neighbour suppression
+        // for a single-chord progression is handled at the call sites.
         auto chordVoiceName = [&](int chordIdx, int voice) -> juce::String {
-            if (chordIdx < 0 || chordIdx >= K) return {};
-            const auto& c = prog.chords[static_cast<std::size_t>(chordIdx)];
+            const int wi = ((chordIdx % K) + K) % K;
+            const auto& c = prog.chords[static_cast<std::size_t>(wi)];
             if (voice >= c.voiceCount) return {};
             return nameOf(resolveVoice(ladder, c.voice[static_cast<std::size_t>(voice)],
                                        c.chroma[static_cast<std::size_t>(voice)]));
         };
+        // With a single chord there is no neighbour (a self-echo in all three rows
+        // would just be noise), so only show neighbours when K>1.
+        const bool hasNeighbours = (K > 1);
+        // A neighbour is "wrapped" when its unclamped index leaves [0, K): that is
+        // the seam at the ends of the progression, drawn dimmer than a real one.
+        const bool prevWrapped = (cur == 0);
+        const bool nextWrapped = (cur == K - 1);
 
         for (int v = 0; v < kHarmonyVoices; ++v)
         {
@@ -1165,9 +1176,11 @@ namespace lockstep
                 f.harmonyVoiceCell = true;
                 f.harmonyKnobTop = (v % 2 == 1);   // stagger the half-knobs behind
                 f.harmonyChromatic = chromatic;
-                f.reelPrev = chordVoiceName(cur - 1, v);
+                f.reelPrev = hasNeighbours ? chordVoiceName(cur - 1, v) : juce::String{};
                 f.reelNow  = chordVoiceName(cur, v);
-                f.reelNext = chordVoiceName(cur + 1, v);
+                f.reelNext = hasNeighbours ? chordVoiceName(cur + 1, v) : juce::String{};
+                f.reelPrevWrapped = prevWrapped;
+                f.reelNextWrapped = nextWrapped;
             }
             else if (v == vc && vc < kHarmonyVoices)
             {
@@ -1179,8 +1192,10 @@ namespace lockstep
                 f.harmonyVoiceCell = true;
                 f.harmonyKnobTop = (v % 2 == 1);   // stagger the half-knobs behind
                 f.harmonyVoiceOff = true;
-                f.reelPrev = chordVoiceName(cur - 1, v);
-                f.reelNext = chordVoiceName(cur + 1, v);
+                f.reelPrev = hasNeighbours ? chordVoiceName(cur - 1, v) : juce::String{};
+                f.reelNext = hasNeighbours ? chordVoiceName(cur + 1, v) : juce::String{};
+                f.reelPrevWrapped = prevWrapped;
+                f.reelNextWrapped = nextWrapped;
             }
             else
             {
@@ -1195,6 +1210,7 @@ namespace lockstep
                               static_cast<float>(K), juce::String(K), true);
         result[5] = makeField("CUR", 1.0f, static_cast<float>(K),
                               static_cast<float>(cur + 1), juce::String(cur + 1), true);
+        result[5].wrap = true;  // item 9: advancing past the last chord wraps to the first
         // MOVE / OCT are relative: they reset to a neutral 0 each frame and each
         // detent nudges, so a live readout is impossible — show "+/-" as a static
         // bidirectional affordance instead of a misleading "0".

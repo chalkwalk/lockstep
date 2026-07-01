@@ -23,6 +23,8 @@ namespace lockstep
         reelPrev = v.reelPrev;
         reelNow = v.reelNow;
         reelNext = v.reelNext;
+        reelPrevWrapped = v.reelPrevWrapped;
+        reelNextWrapped = v.reelNextWrapped;
     }
 
     void MetaRotaryLookAndFeel::drawRotarySlider(juce::Graphics& g,
@@ -72,12 +74,20 @@ namespace lockstep
                 g.strokePath(arc, juce::PathStrokeType(juce::jmax(1.5f, r * 0.10f)));
             }
 
-            // prev / next neighbour chord rows (dim), with a placeholder dash when
-            // there is no neighbour so the 3-row structure is always discoverable.
+            // prev / next neighbour chord rows, with a placeholder dash when there
+            // is no neighbour so the 3-row structure is always discoverable. The
+            // reel is cyclic (item 9): a *wrapped* neighbour (last-above-first /
+            // first-below-last) is drawn dimmer than a real in-sequence one so the
+            // seam between the ends of the progression stays legible.
+            const auto realCol = bright.withAlpha(0.70f);
+            const auto wrapCol = bright.withAlpha(0.28f);
             g.setFont(juce::Font(juce::FontOptions(9.0f)));
-            g.setColour(dim);
+            g.setColour(mr->reelPrev.isNotEmpty()
+                            ? (mr->reelPrevWrapped ? wrapCol : realCol) : dim);
             g.drawText(mr->reelPrev.isNotEmpty() ? mr->reelPrev : juce::String("-"),
                        rowRect(0), juce::Justification::centred);
+            g.setColour(mr->reelNext.isNotEmpty()
+                            ? (mr->reelNextWrapped ? wrapCol : realCol) : dim);
             g.drawText(mr->reelNext.isNotEmpty() ? mr->reelNext : juce::String("-"),
                        rowRect(2), juce::Justification::centred);
 

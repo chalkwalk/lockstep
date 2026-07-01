@@ -242,6 +242,50 @@ namespace lockstep
               "a bare diatonic write sets the rung and clears the offset");
     }
 
+    // Item 9: the chord reel is cyclic — the last chord shows above the first and
+    // the first below the last, with real (in-sequence) neighbours flagged apart
+    // from wrapped ones so the renderer can dim the seam. CUR opts into wrap.
+    static void testHarmonyCyclicReel()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        EditContext ctx;
+        UiState ui;
+        ui.harmonyHeld = true;
+        ui.harmonyProg = HarmonyProgression{};
+        // Three distinct chords so wrapped vs real neighbours are unambiguous.
+        ui.harmonyProg.length = 3;
+        ui.harmonyProg.reach = 3;
+        for (int k = 0; k < 3; ++k)
+        {
+            ui.harmonyProg.chords[static_cast<std::size_t>(k)] = ui.harmonyProg.chords[0];
+            ui.harmonyProg.chords[static_cast<std::size_t>(k)].voice[0] = k;  // differ per chord
+        }
+
+        // Cursor on the FIRST chord: prev wraps to the last (wrapped), next is real.
+        ui.harmonyProg.cursor = 0;
+        auto f = buildMetaBand(MetaBand::Harmony, 0, proc, 0, ctx, ui);
+        CHECK(!f[0].reelPrev.isEmpty(), "first chord shows the last chord above (cyclic)");
+        CHECK(f[0].reelPrevWrapped, "prev at the first chord is flagged wrapped");
+        CHECK(!f[0].reelNextWrapped, "next at the first chord is a real neighbour");
+
+        // Cursor on the LAST chord: next wraps to the first (wrapped), prev is real.
+        ui.harmonyProg.cursor = 2;
+        f = buildMetaBand(MetaBand::Harmony, 0, proc, 0, ctx, ui);
+        CHECK(!f[0].reelNext.isEmpty(), "last chord shows the first chord below (cyclic)");
+        CHECK(f[0].reelNextWrapped, "next at the last chord is flagged wrapped");
+        CHECK(!f[0].reelPrevWrapped, "prev at the last chord is a real neighbour");
+
+        // Interior cursor: both neighbours are real (unwrapped).
+        ui.harmonyProg.cursor = 1;
+        f = buildMetaBand(MetaBand::Harmony, 0, proc, 0, ctx, ui);
+        CHECK(!f[0].reelPrevWrapped && !f[0].reelNextWrapped,
+              "interior cursor has two real neighbours");
+
+        // CUR opts into encoder wrap (the cyclic-advance affordance).
+        CHECK(f[5].wrap, "CUR field enables cyclic encoder wrap");
+    }
+
     static void testHarmonySingleVoiceRemoval()
     {
         EngineHarness h;
@@ -1414,6 +1458,7 @@ namespace lockstep
         testHarmonyBand();
         testHarmonyLosslessGrow();
         testHarmonyReelAndChroma();
+        testHarmonyCyclicReel();
         testHarmonySingleVoiceRemoval();
         testHarmonyChromaAll();
         testHarmonyNoRepeatedNotes();
