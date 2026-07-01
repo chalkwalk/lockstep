@@ -1194,6 +1194,33 @@ namespace lockstep
             return;
         }
 
+        // S3: always-on looper console. Cells (fill/state token/press) + labels are
+        // fully model-driven (SurfaceModel LooperConsole branch); this branch just
+        // renders each cell's primary label (REC/PLAY/STOP/... , 1/16.. , TSTOP..).
+        // Gated on the resolved layer (SSOT) so higher overlays still take priority.
+        if (model.activeLayer == SurfaceLayer::LooperConsole)
+        {
+            for (int row = 0; row < kRows; ++row)
+            {
+                for (int col2 = 0; col2 < kCols; ++col2)
+                {
+                    const int idx = row * kCols + col2;
+                    const SurfaceCell& sc = model.step[static_cast<std::size_t>(idx)];
+                    const int x = colX(row, col2 + 2);
+                    const int y = rowY(row);
+                    const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+
+                    paintGridCellFill(g, cell, sc);
+                    paintGridCellText(g, cell, sc, 0.90f);
+                    if (showKeyLetters)
+                        paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(idx)], 0.55f);
+                }
+            }
+            // Mini-seq (S2) occupies the nav row — the loop position display.
+            paintTimeline(g, navArea);
+            return;
+        }
+
         // NoteEdit mode: 1-octave chromatic keyboard overlay.
         // Cells 0-11 = C through B; cells 12-15 = unused.
         // Fill + press feedback from model; outlines, note names, cross-octave badges inline.

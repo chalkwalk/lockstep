@@ -8,6 +8,7 @@
 #include "../machine/IMachine.h"  // kMaxSections
 #include "GridDisplayMode.h"
 #include "../command/Gesture.h"
+#include "../command/SurfaceLayer.h"
 
 namespace lockstep
 {
@@ -336,6 +337,11 @@ namespace lockstep
         // Contextual banner shown above the step grid when a picker/selector is active.
         // nullptr = no banner. Static string lifetimes (literals or kCanonicalSectionNames).
         const char* gridBanner = nullptr;
+
+        // The resolved active layer (SSOT: resolveActiveLayer). Hoisted onto the model so
+        // step-grid renderers can key off it without re-deriving precedence — e.g. the
+        // LooperConsole layer needs a dedicated label-drawing branch in paintStepRows.
+        SurfaceLayer activeLayer = SurfaceLayer::Base;
 
         // Per-section page dots for the section bar (screen + controller visible).
         struct PageDots

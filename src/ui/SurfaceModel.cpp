@@ -657,6 +657,7 @@ namespace lockstep
         const bool activeTrackIsLooper = validStepTrackMode && proc.isLooperTrack(activeTrack);
         const LayerFacts layerFacts{ activeTrackMode, activeTrack, activeTrackIsLooper };
         const SurfaceLayer activeLayer = resolveActiveLayer(ui, ec, layerFacts);
+        model.activeLayer = activeLayer;
 
         // =====================================================================
         // functionRow[0..9] — Q-row: Q/W/E/R/T/Y/U/I/O/P
