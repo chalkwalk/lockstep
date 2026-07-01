@@ -236,6 +236,7 @@ namespace lockstep
             case 1: startRecording(); break;                              // Armed → Recording
             case 2: state_ = State::Stopped; break;                       // quantized stop
             case 3: playPos_ = 0.0; lastPos_ = 0.0; state_ = State::Playing; break;  // quantized re-play
+            case 4: closeRecording(); break;                              // S7 quantized punch-out → Playing
             default: break;
         }
         pendingAction_ = 0;
@@ -268,7 +269,11 @@ namespace lockstep
                                pendingAction_ = 0; }                          // single tap: cancel arm
                         break;
                     case State::Recording:
-                        closeRecording();
+                        // S7: quantized punch-out — arm the close for the next bar
+                        // boundary (→ Playing) instead of cutting instantly. A
+                        // double-tap (immediate) or Free mode closes now.
+                        if (quantPlay) pendingAction_ = 4;
+                        else closeRecording();
                         break;
                     case State::Playing:
                         if (loopLen_ > 0)
@@ -286,7 +291,8 @@ namespace lockstep
                 switch (state_)
                 {
                     case State::Recording:
-                        closeRecording();
+                        if (quantPlay) pendingAction_ = 4;  // S7: quantized punch-out
+                        else closeRecording();
                         break;
                     case State::Playing:
                     case State::Overdubbing:
@@ -490,14 +496,14 @@ namespace lockstep
         syncMode_ = (params.size() > kSlotLoopSync)
             ? static_cast<int>(std::lround(params[kSlotLoopSync])) : 0;
 
-        // #4: resolve live-thru. Auto monitors only when the looper is the source's
-        // sole path out (None/External insert); a Track/Master tap is loop-only
-        // (the tapped source is already audible — passing it through double-monitors).
+        // #4 / S7: resolve live-thru. Auto monitors an insert source (None/External)
+        // in every state except while the captured loop plays back (state-aware —
+        // computed per-sample below, since the record→play transition can happen
+        // mid-block); a Track/Master tap is loop-only. On/Off are absolute.
         const int monMode = (params.size() > kSlotMonitor)
             ? static_cast<int>(std::lround(params[kSlotMonitor])) : 0;
         const InputSourceKind srcKind = (params.size() > kSlotInputSource)
             ? decodeInputSource(params[kSlotInputSource]).kind : InputSourceKind::None;
-        const bool monitorOn = resolveMonitor(monMode, srcKind);
 
         // #4: decay. `decay` 0 = hold forever … 1 = full fade. Overdub mode applies
         // it only at the overdub write (a feedback knob); Always mode fades the whole
@@ -631,11 +637,12 @@ namespace lockstep
                     case State::Stopped:
                         break;  // no loop output (silent loop; live-thru still governed below)
                 }
-                // #1: live-thru is governed by monitor alone, in EVERY state — an
-                // insert looper (Auto→On) must pass input through even while Idle/
-                // Armed/Stopped (you hear what you're about to record). A parallel
-                // tap (Auto→Off) stays loop-only. Monitor never touches recording.
-                const float live = monitorOn ? in : 0.0f;
+                // #1 / S7: live-thru is governed by monitor alone (never touches
+                // recording), resolved per-sample from the current state — an insert
+                // looper monitors while Idle/Armed/Recording/Overdubbing/Stopped and
+                // drops to loop-only once the take is Playing back. A parallel tap
+                // stays loop-only. On/Off are absolute.
+                const float live = resolveMonitor(monMode, srcKind, state_) ? in : 0.0f;
                 buffer.setSample(ch, i, loopOut + live);
             }
 

@@ -154,19 +154,25 @@ namespace lockstep
             return pendingMirror_.load(std::memory_order_acquire);
         }
 
-        // Resolve whether live input passes through to the output this block, given
-        // the monitor mode and the input source (Auto = the looper monitors only
-        // when it is the source's sole path out — None/External insert use — and
-        // stays loop-only for a Track/Master tap whose source is already audible).
-        // Public + pure so the editor/controller can label it consistently.
-        [[nodiscard]] static bool resolveMonitor(int monMode, InputSourceKind src) noexcept
+        // Resolve whether live input passes through to the output, given the monitor
+        // mode, input source, and loop state. Auto (S7) is state-aware for an insert
+        // source (None/External): monitor in every state EXCEPT while the captured
+        // loop plays back (Playing) — the take replaced the live source; monitoring is
+        // restored in Idle/Armed/Recording/Overdubbing/Stopped. A Track/Master tap is
+        // always loop-only under Auto (its source is already audible). Manual On/Off
+        // are absolute, state-independent. Public + pure so the editor/controller can
+        // label it consistently.
+        [[nodiscard]] static bool resolveMonitor(int monMode, InputSourceKind src,
+                                                 State state = State::Idle) noexcept
         {
             switch (monMode)
             {
                 case 1: return true;   // On  — always pass live input through
                 case 2: return false;  // Off — loop-only output (never monitor)
                 default:               // Auto
-                    return src == InputSourceKind::None || src == InputSourceKind::External;
+                    if (src != InputSourceKind::None && src != InputSourceKind::External)
+                        return false;  // tap source is already audible → loop-only
+                    return state != State::Playing;  // insert: drop live-thru once the loop plays
             }
         }
 

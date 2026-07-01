@@ -573,5 +573,61 @@ namespace lockstep
                   "S6: tape-stop braked to a standstill lands in Stopped");
             CHECK(ls.tapeFx() == -1, "S6: tape-stop clears its cell once stopped");
         }
+
+        // S7: state-aware Auto monitor. An insert looper monitors live input while
+        // Idle/Recording, drops to loop-only once the take is Playing (the capture
+        // replaced the live source), and restores monitoring when Stopped.
+        {
+            SamplePool p; p.addVolatile();
+            p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LooperMachine lp(p); lp.prepare(kSr, 512);
+            ParamFrame fr{ 1.0f, 0.0f, 0.0f };  // External insert, Free, Auto monitor
+
+            auto idle = runP(lp, 512, 0.4f, Cmd::None, fr);
+            CHECK(feq(idle.getSample(0, 0), 0.4f), "S7: Auto insert monitors while Idle");
+
+            runP(lp, 512, 0.5f, Cmd::RecordCycle, fr);          // Idle → Recording (Free)
+            auto rec = runP(lp, 512, 0.5f, Cmd::None, fr);
+            CHECK(feq(rec.getSample(0, 0), 0.5f), "S7: Auto monitors while Recording");
+
+            runP(lp, 512, 0.0f, Cmd::RecordCycle, fr);          // close → Playing (loop 0.5)
+            auto play = runP(lp, 512, 0.3f, Cmd::None, fr);
+            CHECK(feq(play.getSample(0, 0), 0.5f),
+                  "S7: Auto drops live-thru on record->play (loop only, 0.5 not 0.8)");
+
+            runP(lp, 512, 0.0f, Cmd::PlayStop, fr);             // Playing → Stopped
+            auto stop = runP(lp, 512, 0.35f, Cmd::None, fr);
+            CHECK(feq(stop.getSample(0, 0), 0.35f),
+                  "S7: Auto restores monitoring when Stopped");
+        }
+
+        // S7: quantized punch-out. Stopping a quantized recording arms the close for
+        // the next bar boundary (stays Recording, pending edge shown) and lands on the
+        // bar → Playing, rather than cutting instantly.
+        {
+            SamplePool p; p.addVolatile();
+            p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LooperMachine lp(p); lp.prepare(kSr, n);
+            TransportInfo tr; tr.samplesPerBar = 1024.0; tr.barPpq = 4.0; tr.running = true;
+            tr.transportPhaseSamples = 200.0; lp.setTransport(tr);
+            ParamFrame fr{ 1.0f, 0.0f, 1.0f };  // Free Len (quantize starts/stops to the bar)
+
+            lp.postCommand(Cmd::RecordCycle);
+            runP(lp, 256, 0.5f, Cmd::None, fr);        // 200..456: arms record
+            CHECK(lp.state() == State::Armed, "S7: Free-Len record arms to the bar");
+            tr.transportPhaseSamples = 900.0; lp.setTransport(tr);
+            runP(lp, 256, 0.5f, Cmd::None, fr);        // 900..1156 crosses 1024 → Recording
+            CHECK(lp.state() == State::Recording, "S7: record starts on the bar");
+
+            tr.transportPhaseSamples = 1200.0; lp.setTransport(tr);
+            lp.postCommand(Cmd::RecordCycle);          // punch-out
+            runP(lp, 256, 0.5f, Cmd::None, fr);        // 1200..1456: no boundary yet
+            CHECK(lp.state() == State::Recording && lp.pendingEdge(),
+                  "S7: quantized punch-out stays Recording until the bar (pending edge)");
+            tr.transportPhaseSamples = 1900.0; lp.setTransport(tr);
+            runP(lp, 256, 0.5f, Cmd::None, fr);        // 1900..2156 crosses 2048 → close
+            CHECK(lp.state() == State::Playing,
+                  "S7: punch-out lands on the bar boundary → Playing");
+        }
     }
 }
