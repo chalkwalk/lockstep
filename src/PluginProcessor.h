@@ -201,6 +201,11 @@ namespace lockstep
         // looperState returns LooperMachine::State (or -1 if not a looper).
         [[nodiscard]] bool isLooperTrack(int track) const;
         void sendLooperCommand(int track, int cmd, bool immediate = false);
+        // Momentary performance edge (S5 beat-repeat / S6 tape FX). action matches
+        // LooperMachine::Cmd; pressed drives the effect on/off; value = rate index.
+        void sendLooperPerf(int track, int action, bool pressed, int value = 0);
+        // Active beat-repeat rate index (0=1/16 … 3=1/2), or -1 when not held (S5).
+        [[nodiscard]] int looperBeatRepeat(int track) const;
         [[nodiscard]] int looperState(int track) const;
         // Loop-phase chrome for the step-grid view (#26): phase 0..1 (-1 = not
         // playing) and the quantize-aware grid cell count (1..16).

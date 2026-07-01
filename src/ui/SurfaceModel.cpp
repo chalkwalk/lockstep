@@ -1145,6 +1145,10 @@ namespace lockstep
                 tok[1] = (playing || overdub) ? CellState::LooperConPlayActive
                                               : CellState::LooperConPlay;
                 tok[7] = overdub ? CellState::LooperConDubActive : CellState::LooperConDub;
+                // S5: light the held beat-repeat rate cell (8-11 → rate idx 0-3).
+                const int brRate = proc.looperBeatRepeat(activeTrack);
+                if (brRate >= 0 && brRate < 4)
+                    tok[static_cast<std::size_t>(8 + brRate)] = CellState::LooperConRptActive;
 
                 for (int i = 0; i < 16; ++i)
                 {

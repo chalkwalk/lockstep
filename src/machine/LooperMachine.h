@@ -16,11 +16,12 @@ namespace lockstep
     // produces audio (plays the loop back), so process() writes the loop into the
     // track buffer.
     //
-    // Control is message-thread → audio-thread via a single-slot lock-free command
-    // mailbox: the editor routes Track+Record / Track+Play / Track+Clear (when a
-    // Looper track is focused) to postCommand(); process() drains it. No new
-    // grammar, no new keys (the loop's RAM content shadows the track clipboard,
-    // which is meaningless for a looper).
+    // Control is message-thread → audio-thread via a lock-free SPSC command FIFO
+    // (LooperPerfCmd): the always-on looper console routes discrete transport verbs
+    // (postCommand → pressed edge) and momentary performance actions (postPerf →
+    // press/release edges + a rate value) onto the same queue; process() drains it.
+    // A single-slot mailbox couldn't carry momentary press/release + a rate index
+    // (S5 beat-repeat / S6 tape FX), so the FIFO replaced it (plan S3).
     //
     // The loop lives in a shared volatile pool slot (target_buffer, B3) — the same
     // RAM-only REC bank the Recorder writes — so the captured loop is also playable
@@ -33,9 +34,23 @@ namespace lockstep
     public:
         explicit LooperMachine(SamplePool& pool) : pool_(pool) {}
 
+        // Discrete transport verbs (RecordCycle..Double) fire on the press edge.
         // Halve/Double (S4) resize the loop *window* with no resample / no pitch
-        // change — they detach the loop from grid-lock (manualLen_) and play native.
-        enum class Cmd : int { None = 0, RecordCycle, PlayStop, Clear, Undo, Halve, Double };
+        // change. Momentary performance actions (BeatRepeat..Reverse) toggle on the
+        // press/release edges: BeatRepeat (S5) loops a grid cell while held; the tape
+        // family (S6) drives the playback rate envelope while held. ABI: add-only.
+        enum class Cmd : int { None = 0, RecordCycle, PlayStop, Clear, Undo, Halve, Double,
+                               BeatRepeat, TapeStop, Dip, HalfSpeed, Reverse };
+
+        // One control edge crossing the message→audio boundary. Discrete verbs use
+        // pressed=true (a single edge); momentary actions carry both press and release.
+        struct PerfCmd
+        {
+            Cmd action = Cmd::None;
+            std::uint8_t value = 0;   // beat-repeat rate index (0=1/16 … 3=1/2)
+            bool pressed = true;      // momentary on/off; discrete verbs are pressed=true
+            bool immediate = false;   // double-tap: bypass quantize (discrete only)
+        };
         // Armed (appended) — a quantized Record press waits here for the next bar
         // boundary (#2). It is a monitoring state (live-thru passes per the monitor
         // mode) with no loop output yet.
@@ -85,13 +100,17 @@ namespace lockstep
             return Polyphony::V0;
         }
 
-        // Message thread: post a control command (single-slot mailbox). `immediate`
-        // (double-tap, #2) forces the edge now, overriding quantize — encoded as a
-        // high bit so the mailbox stays a single atomic int.
+        // Message thread: post a discrete transport verb (fires on the press edge).
+        // `immediate` (double-tap, #2) forces the edge now, overriding quantize.
         void postCommand(Cmd c, bool immediate = false) noexcept
         {
-            pendingCmd_.store(static_cast<int>(c) | (immediate ? kImmediateBit : 0),
-                              std::memory_order_release);
+            pushPerf({ c, 0, /*pressed*/ true, immediate });
+        }
+        // Message thread: post a momentary performance edge (BeatRepeat / tape FX).
+        // `value` = beat-repeat rate index; `pressed` drives the effect on/off.
+        void postPerf(Cmd action, bool pressed, int value = 0) noexcept
+        {
+            pushPerf({ action, static_cast<std::uint8_t>(value), pressed, false });
         }
         // Message thread: current state, for chrome (advisory; updated each block).
         [[nodiscard]] State state() const noexcept
@@ -105,6 +124,13 @@ namespace lockstep
         [[nodiscard]] int loopLengthSamples() const noexcept
         {
             return loopLenMirror_.load(std::memory_order_acquire);
+        }
+
+        // Message thread (chrome): the active beat-repeat rate index (0=1/16 … 3=1/2),
+        // or -1 when beat-repeat is not held (S5). Lights the held console rate cell.
+        [[nodiscard]] int beatRepeatRate() const noexcept
+        {
+            return brRateMirror_.load(std::memory_order_acquire);
         }
 
         // Message thread (chrome): current playback phase 0..1, or -1 when not
@@ -151,11 +177,17 @@ namespace lockstep
         static constexpr double kLoopMaxSeconds = 12.0;
         static constexpr int kDecayOverdub = 0;      // decay only where you overdub
         static constexpr int kDecayAlways  = 1;      // whole loop fades every iteration
-        // Mailbox high bit: a posted command with this bit set is "immediate"
-        // (double-tap) — it bypasses quantize. Cmd values are small (0..4).
-        static constexpr int kImmediateBit = 0x100;
 
         void applyCommand(Cmd c, bool immediate);
+        // Audio thread: dispatch one drained FIFO edge — discrete verbs to
+        // applyCommand (press only), momentary actions to the effect state.
+        void handlePerf(const PerfCmd& c);
+        // Message thread: enqueue one control edge onto the lock-free FIFO.
+        void pushPerf(const PerfCmd& c) noexcept;
+        // Beat-repeat (S5): capture the grid cell under the playhead and loop it while
+        // held; release resyncs to the free-running position. No sound jump at press.
+        void startBeatRepeat(int rateIdx);
+        void stopBeatRepeat();
         // Begin a fresh recording take: (re)size + clear the slot, reset positions,
         // arm the N-bar auto-close. Shared by the immediate and boundary-fired paths.
         void startRecording();
@@ -213,9 +245,25 @@ namespace lockstep
         juce::AudioBuffer<float> backup_;
         juce::AudioBuffer<float> inScratch_;
 
-        std::atomic<int> pendingCmd_{ 0 };
+        // Lock-free SPSC command FIFO (message → audio). Capacity is generous: at most
+        // a handful of edges per block (one gesture), drained fully each process().
+        static constexpr int kPerfFifoCap = 64;
+        juce::AbstractFifo perfFifo_{ kPerfFifoCap };
+        std::array<PerfCmd, kPerfFifoCap> perfSlots_{};
+
+        // Beat-repeat (S5) state. brCellStart_/brCellLen_ define the captured grid
+        // cell (loop-relative samples); brShadow_ is the free-running position tracked
+        // in parallel so release resyncs to where the loop would be.
+        bool brActive_ = false;
+        int brRateIdx_ = 0;
+        double brCellStart_ = 0.0;
+        double brCellLen_ = 0.0;
+        bool brCaptured_ = false;   // have we hit the first boundary and started looping?
+        double brShadow_ = 0.0;
+
         std::atomic<int> stateMirror_{ 0 };
         std::atomic<int> loopLenMirror_{ 0 };      // loop-window length in samples (S4)
+        std::atomic<int> brRateMirror_{ -1 };      // active beat-repeat rate index / -1 (S5)
         std::atomic<float> phaseMirror_{ -1.0f };  // playback phase 0..1 (-1 = not playing), S2
         std::atomic<bool> pendingMirror_{ false }; // a quantized edge is pending (S2)
 

@@ -3472,7 +3472,13 @@ namespace lockstep
                             case 7:  // DUB — explicit overdub toggle while a loop plays
                                 if (st == 2 || st == 3) routeLooperVerb(1 /*RecordCycle*/);
                                 break;
-                            default: break;  // beat-repeat (S5), tape (S6)
+                            case 8: case 9: case 10: case 11:  // beat-repeat 1/16..1/2 (S5)
+                                // Momentary: press captures the grid cell and loops it;
+                                // the release (dispatchUp) resyncs. Cell i → rate i-8.
+                                processor_.sendLooperPerf(trk, 7 /*BeatRepeat*/, true,
+                                                          ev.index - 8);
+                                break;
+                            default: break;  // tape FX (S6)
                         }
                         refreshSurface();
                         return true;
@@ -5134,6 +5140,16 @@ namespace lockstep
                 break;
 
             case CB::Step: {
+                // S5: looper beat-repeat is momentary — a step-release on a console
+                // performance cell (8-11) must always end the effect, even if an
+                // overlay opened while held, so the repeat can never stick.
+                if (ev.index >= 8 && ev.index <= 11)
+                {
+                    const int trk = processor_.focusTrack();
+                    if (processor_.isLooperTrack(trk))
+                        processor_.sendLooperPerf(trk, 7 /*BeatRepeat*/, false, ev.index - 8);
+                }
+
                 // CHROMATIC gate: a pad-release always ends the note it sounded —
                 // before any mode-specific handling, and regardless of the current
                 // mode/octave/track (we release the exact note we stored on press),

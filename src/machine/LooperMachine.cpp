@@ -107,6 +107,8 @@ namespace lockstep
         rate_ = 1.0;
         haveBackup_ = false;
         manualLen_ = false;
+        brActive_ = false;
+        brCaptured_ = false;
         stateMirror_.store(static_cast<int>(state_), std::memory_order_release);
     }
 
@@ -361,7 +363,76 @@ namespace lockstep
                     }
                 }
                 break;
+            case Cmd::BeatRepeat:
+            case Cmd::TapeStop:
+            case Cmd::Dip:
+            case Cmd::HalfSpeed:
+            case Cmd::Reverse:
+                break;  // momentary — driven by handlePerf, never the discrete path
         }
+    }
+
+    void LooperMachine::pushPerf(const PerfCmd& c) noexcept
+    {
+        int s1 = 0, sz1 = 0, s2 = 0, sz2 = 0;
+        perfFifo_.prepareToWrite(1, s1, sz1, s2, sz2);
+        if (sz1 > 0) perfSlots_[static_cast<std::size_t>(s1)] = c;
+        else if (sz2 > 0) perfSlots_[static_cast<std::size_t>(s2)] = c;
+        perfFifo_.finishedWrite(sz1 + sz2);
+    }
+
+    void LooperMachine::handlePerf(const PerfCmd& c)
+    {
+        switch (c.action)
+        {
+            case Cmd::None:
+                break;
+            case Cmd::RecordCycle:
+            case Cmd::PlayStop:
+            case Cmd::Clear:
+            case Cmd::Undo:
+            case Cmd::Halve:
+            case Cmd::Double:
+                if (c.pressed) applyCommand(c.action, c.immediate);  // discrete: press edge only
+                break;
+            case Cmd::BeatRepeat:
+                if (c.pressed) startBeatRepeat(c.value);
+                else stopBeatRepeat();
+                break;
+            case Cmd::TapeStop:
+            case Cmd::Dip:
+            case Cmd::HalfSpeed:
+            case Cmd::Reverse:
+                break;  // tape FX (S6)
+        }
+    }
+
+    void LooperMachine::startBeatRepeat(int rateIdx)
+    {
+        if (loopLen_ <= 0) return;
+        brRateIdx_ = juce::jlimit(0, 3, rateIdx);
+        // Cell length = a musical fraction of the bar (1/16, 1/8, 1/4, 1/2). With no
+        // known tempo (Free, no transport) the loop itself is the bar. Clamp to the
+        // loop so a cell can't exceed the buffer.
+        static constexpr double kFrac[4] = { 1.0 / 16, 1.0 / 8, 1.0 / 4, 1.0 / 2 };
+        const double barLen = transport_.samplesPerBar > 0.0
+            ? transport_.samplesPerBar : static_cast<double>(loopLen_);
+        double cell = barLen * kFrac[static_cast<std::size_t>(brRateIdx_)];
+        cell = juce::jlimit(std::max(4.0, 0.002 * sampleRate_),
+                            static_cast<double>(loopLen_), cell);
+        brCellLen_ = cell;
+        brShadow_ = playPos_;
+        // Capture the cell currently under the playhead (grid-aligned to loop start).
+        brCellStart_ = std::floor(playPos_ / cell) * cell;
+        brCaptured_ = false;   // no jump at press; run to the boundary first
+        brActive_ = true;
+    }
+
+    void LooperMachine::stopBeatRepeat()
+    {
+        if (!brActive_) return;
+        brActive_ = false;
+        playPos_ = brShadow_;  // resync to the free-running position (non-phase-locked)
     }
 
     void LooperMachine::closeRecording()
@@ -416,11 +487,16 @@ namespace lockstep
         const int decayMode = (params.size() > kSlotDecayMode)
             ? static_cast<int>(std::lround(params[kSlotDecayMode])) : kDecayOverdub;
 
-        const int raw = pendingCmd_.exchange(0, std::memory_order_acq_rel);
-        if (raw != 0)
+        // Drain the command FIFO: apply every queued edge (discrete verbs + momentary
+        // press/release) in order before the DSP runs this block.
         {
-            const bool immediate = (raw & kImmediateBit) != 0;   // double-tap override (#2)
-            applyCommand(static_cast<Cmd>(raw & ~kImmediateBit), immediate);
+            int s1 = 0, sz1 = 0, s2 = 0, sz2 = 0;
+            perfFifo_.prepareToRead(perfFifo_.getNumReady(), s1, sz1, s2, sz2);
+            for (int k = 0; k < sz1; ++k)
+                handlePerf(perfSlots_[static_cast<std::size_t>(s1 + k)]);
+            for (int k = 0; k < sz2; ++k)
+                handlePerf(perfSlots_[static_cast<std::size_t>(s2 + k)]);
+            perfFifo_.finishedRead(sz1 + sz2);
         }
 
         if (target_ == nullptr)
@@ -451,6 +527,12 @@ namespace lockstep
         // Sync mode phase-locks the read position to the transport grid.
         const bool phaseLock = (syncMode_ >= kSyncGrid) && transport_.running && tOut > 0.0;
 
+        // S5: beat-repeat overrides both phase-lock and free-running advance while held
+        // (the playhead loops the captured cell instead). Constant for the block — the
+        // FIFO that toggles brActive_ is drained above, before the sample loop.
+        const bool brNow = brActive_ && loopLen_ > 0 && brCellLen_ > 0.0
+                           && (state_ == State::Playing || state_ == State::Overdubbing);
+
         // #2: quantize period for a pending edge (record-start / stop / re-play).
         const double quantPeriod = quantPeriodSamples();
 
@@ -469,7 +551,7 @@ namespace lockstep
             }
 
             double pos = playPos_;
-            if (phaseLock && loopLen_ > 0
+            if (phaseLock && !brNow && loopLen_ > 0
                 && (state_ == State::Playing || state_ == State::Overdubbing))
             {
                 double frac = (transport_.transportPhaseSamples + static_cast<double>(i)) / tOut;
@@ -528,7 +610,7 @@ namespace lockstep
 
             // #4 Always-decay: the read position wrapping (pos drops below the last)
             // marks one completed iteration — fade the whole stored loop by decayGain.
-            if (decayMode == kDecayAlways && decayAmt > 0.0f && loopLen_ > 0
+            if (decayMode == kDecayAlways && decayAmt > 0.0f && loopLen_ > 0 && !brNow
                 && (state_ == State::Playing || state_ == State::Overdubbing)
                 && pos < lastPos_)
                 scaleLoop(decayGain);
@@ -540,12 +622,41 @@ namespace lockstep
                     || (recLenTarget_ > 0 && recPos_ >= recLenTarget_))
                     closeRecording();
             }
-            else if (!phaseLock && (state_ == State::Playing || state_ == State::Overdubbing)
-                     && loopLen_ > 0)
+            else if ((state_ == State::Playing || state_ == State::Overdubbing) && loopLen_ > 0)
             {
-                playPos_ += rate_;
-                if (playPos_ >= static_cast<double>(loopLen_))
-                    playPos_ -= static_cast<double>(loopLen_);
+                if (brNow)
+                {
+                    // Advance the free-running shadow in parallel (release resyncs to it),
+                    // and the play position inside the captured cell. Before the first
+                    // boundary the playhead runs on to it (no jump at press); after, it
+                    // loops [cellStart, cellStart+cellLen).
+                    brShadow_ += rate_;
+                    if (brShadow_ >= static_cast<double>(loopLen_))
+                        brShadow_ -= static_cast<double>(loopLen_);
+                    playPos_ += rate_;
+                    const double cellEnd = brCellStart_ + brCellLen_;
+                    if (!brCaptured_)
+                    {
+                        if (playPos_ >= cellEnd)
+                        {
+                            playPos_ = brCellStart_ + (playPos_ - cellEnd);
+                            brCaptured_ = true;
+                        }
+                        else if (playPos_ >= static_cast<double>(loopLen_))
+                            playPos_ -= static_cast<double>(loopLen_);
+                    }
+                    else if (playPos_ >= cellEnd)
+                    {
+                        playPos_ -= brCellLen_;
+                    }
+                }
+                else if (!phaseLock)
+                {
+                    playPos_ += rate_;
+                    if (playPos_ >= static_cast<double>(loopLen_))
+                        playPos_ -= static_cast<double>(loopLen_);
+                }
+                // phase-lock (non-beat-repeat): playPos_ was set from the transport above.
             }
         }
 
@@ -554,6 +665,7 @@ namespace lockstep
 
         stateMirror_.store(static_cast<int>(state_), std::memory_order_release);
         loopLenMirror_.store(loopLen_, std::memory_order_release);  // S4 chrome/tests
+        brRateMirror_.store(brNow ? brRateIdx_ : -1, std::memory_order_release);  // S5
 
         // S2: publish loop-position chrome for the mini-seq. Phase 0..1 while playing
         // (-1 otherwise) drives the continuous playhead; pendingEdge drives the

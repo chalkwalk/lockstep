@@ -491,5 +491,39 @@ namespace lockstep
             CHECK(feq(d.getSample(0, 0), 0.5f) && feq(d.getSample(0, 256), 0.5f),
                   "S4: doubled loop duplicates content into the second half (0.5, no pitch)");
         }
+
+        // S5: beat-repeat captures the grid cell under the playhead and loops it while
+        // held (no jump at press), then resyncs on release. Loop = 512 samples of two
+        // 256 halves (0.8 | 0.2). Close on a 1-sample block so the playhead sits at ~0;
+        // with samplesPerBar=512 a 1/2-bar cell = 256, so the captured first cell is
+        // all 0.8 — while held the 0.2 half is never heard.
+        {
+            SamplePool p; p.addVolatile();
+            p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LooperMachine lp(p); lp.prepare(kSr, 512);
+            TransportInfo tr; tr.samplesPerBar = 512.0; tr.running = true;
+            lp.setTransport(tr);
+
+            runBlock(lp, 256, 0.8f, Cmd::RecordCycle);  // [0,256) = 0.8
+            runBlock(lp, 256, 0.2f);                     // [256,512) = 0.2
+            runBlock(lp, 1, 0.0f, Cmd::RecordCycle);     // close → Playing, playhead ~0
+
+            // Engage 1/2 beat-repeat (rate idx 3): cell = 512 * 1/2 = 256 = first half.
+            lp.postPerf(Cmd::BeatRepeat, /*pressed*/ true, 3);
+            auto b0 = runBlock(lp, 512, 0.0f);   // runs to the cell boundary, jumps back
+            auto b1 = runBlock(lp, 512, 0.0f);   // now looping [0,256) = 0.8
+            CHECK(lp.beatRepeatRate() == 3, "S5: beat-repeat rate mirror reflects the held cell");
+            CHECK(feq(b0.getMagnitude(0, 512), 0.8f)
+                      && b1.findMinMax(0, 0, 512).getStart() > 0.7f,
+                  "S5: held beat-repeat loops the captured cell (0.8), never the 0.2 half");
+
+            // Release resyncs to the free-running position; the loop resumes full
+            // traversal, so the quiet 0.2 half is reached again within the next block.
+            lp.postPerf(Cmd::BeatRepeat, /*pressed*/ false);
+            auto r = runBlock(lp, 512, 0.0f);
+            CHECK(lp.beatRepeatRate() == -1, "S5: release clears the beat-repeat rate mirror");
+            CHECK(r.findMinMax(0, 0, 512).getStart() < 0.3f,
+                  "S5: after release the loop resyncs and plays the second half (0.2)");
+        }
     }
 }

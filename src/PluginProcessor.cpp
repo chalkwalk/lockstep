@@ -5370,6 +5370,21 @@ namespace lockstep
             lm->postCommand(static_cast<LooperMachine::Cmd>(cmd), immediate);
     }
 
+    void LockstepProcessor::sendLooperPerf(int track, int action, bool pressed, int value)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        if (auto* lm = dynamic_cast<LooperMachine*>(machines_[static_cast<std::size_t>(track)].get()))
+            lm->postPerf(static_cast<LooperMachine::Cmd>(action), pressed, value);
+    }
+
+    int LockstepProcessor::looperBeatRepeat(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1;
+        if (auto* lm = dynamic_cast<LooperMachine*>(machines_[static_cast<std::size_t>(track)].get()))
+            return lm->beatRepeatRate();
+        return -1;
+    }
+
     int LockstepProcessor::looperState(int track) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1;
