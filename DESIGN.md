@@ -5474,6 +5474,9 @@ struct LsmHostVTable {
     /* transport / rate */
     double (*hostSampleRate)(void* ctx);
     void   (*transport)(void* ctx, double* ppqPosition, double* bpm, int32_t* isPlaying);
+    /* track loop grid — the ABI equivalent of ILoopGridAware; useful to any
+       tempo-synced generator (LFOs, arps), not just loopers. Add-only (§36.6). */
+    void   (*loopGrid)(void* ctx, int32_t* lengthSteps, double* stepPpq);
     /* sanctioned RNG (PRINCIPLES §11 — the only RNG a module may use) */
     uint32_t (*rngNext)(void* ctx);
     /* lock-free logging */
@@ -5488,8 +5491,13 @@ handles). A borrowed `const float*` is valid for the duration of one
 `process()` call; the pool is not mutated concurrently. Handles are
 resolved by ref, never raw pool index, so pool `remove`/`swap`
 index-shifts can't dangle a module. `transport` / `hostSampleRate` /
-`rngNext` / `log` must be audio-thread-safe (logging via a lock-free
-FIFO, not direct I/O).
+`loopGrid` / `rngNext` / `log` must be audio-thread-safe (logging via a
+lock-free FIFO, not direct I/O). `transport` already subsumes what a
+static machine gets from `ITempoAware`; `loopGrid` is the pull-based
+equivalent of `ILoopGridAware`. Note that these two seams are all a
+*generator* needs from the loop context — the deeper looper machinery
+(console command dispatch, live state readback) is deliberately **not**
+exposed here; see §36.9.
 
 ### 36.5 Registry and catalogue merge
 
@@ -5569,6 +5577,44 @@ subdirectories of the main repo, each a buildable unit linking that
 SDK; the template lives in one separate forkable repository that
 vendors the same SDK. No per-machine repositories, no separate SDK
 repository.
+
+### 36.9 Host-privileged machines — the ABI's scope line
+
+The ABI's job is **generators and effects** (§29: "granular, physical-model
+specialities are the first examples of what the module ABI is *for*").
+**Capture and console machines — `RecorderMachine`, `LooperMachine`, and any
+machine that owns an always-on console — are first-party, statically linked,
+and out of ABI scope.** This is a deliberate boundary, not a missing feature,
+and it is drawn where it is for two structural reasons:
+
+- **The console is host-owned UI, and generalising it means generalising the
+  surface.** A looper's console is not DSP: it is a command-in FIFO
+  (`postCommand` / `postPerf` — discrete transport verbs plus momentary
+  press/release perf actions with a rate value), six live state mirrors
+  (loop state, playhead phase, pending-edge, loop length, beat-repeat rate,
+  tape-FX cell), and a 16-cell always-on grid painted from those mirrors. To
+  let a *module* provide this, the C ABI would need a generic control-in ring
+  **and** a generic state-token readback — which is exactly the
+  `SurfaceModel` / `CellState` system (§35.8), *itself unbuilt*. Baking a
+  half-designed surface into an **add-only-forever** ABI (§36.6) is precisely
+  the commitment we must not make. When the surface model lands, revisiting
+  this is a clean, additive decision; pre-committing is not.
+- **Capture machines are infrastructure that reaches into host-owned graph
+  and pool.** A Recorder/Looper is defined by the routing graph it drives —
+  `input_source` resolution, the §27 feedback guard, the union-of-mix+tap
+  topological sort — and by *writing* RAM-only volatile pool slots (§28). The
+  host owns all of it. `LsmHostVTable` exposes only *read-only, resolve-by-ref*
+  PCM (`{path, xxHash32}`), never a writable transient buffer, precisely
+  because handing a module a mutable pool slot would also hand it a slice of
+  the graph it cannot safely own.
+
+What a module *does* get from the loop context is the two pull-based seams in
+§36.4 — `transport` and `loopGrid` — which are all a generator needs. The net
+effect: the "the ABI can't express the Looper" observation is true and
+**intended**. A third party authors engines and effects; loopers, recorders,
+and bespoke consoles stay in the core. If a genuinely module-shaped capture
+need appears later, it is an add-only extension negotiated behind a new
+`capabilityFlags` bit, taken up deliberately rather than by default.
 
 ## 37. Command Core (8.3–8.5)
 

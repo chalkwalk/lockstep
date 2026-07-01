@@ -303,6 +303,16 @@ is a third-party module (DESIGN §36), not a reason to grow the in-box
 catalogue. This keeps both the catalogue and the section taxonomy
 (*"Canonical sections are reserved"*) from sprawling.
 
+**Boundary — the module ABI is for generators and effects, not capture.**
+The "one authoring model, two link paths" contract (DESIGN §2/§36) has a
+deliberate scope line: **capture and console machines (Recorder, Looper,
+anything owning an always-on console) stay first-party and statically
+linked.** They are infrastructure — they drive the routing graph and write
+the volatile pool (host-owned), and their console is host-owned UI whose
+generalisation would mean baking the still-unbuilt surface model into an
+add-only ABI. A third party authors engines and effects; the core keeps
+capture. See DESIGN §36.9.
+
 ## 10. Ergonomics first; chrome must announce state
 
 When live ergonomics conflict with explicit visibility, ergonomics wins
