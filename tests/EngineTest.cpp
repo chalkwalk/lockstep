@@ -1192,6 +1192,12 @@ namespace lockstep
         const int slot = tmp.slotForId(kInputSourceSlotId);
         if (slot >= 0)
             k.baseParams[static_cast<std::size_t>(slot)] = sourceValue;
+        // Routing tests use a Nyquist-rate AC probe tone (renderBlockWithInput)
+        // to defeat the master DC blocker. The new-track default filter is an
+        // active LP (item 3), which both attenuates that pathological tone and
+        // carries integrator state across blocks — neither is relevant to routing.
+        // Force OFF (bit-exact passthrough) so these tests measure routing alone.
+        k.fltrState.mode = 4.0f;
         proc.reinstallMachinesFromActiveKit();
     }
 

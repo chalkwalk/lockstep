@@ -9,9 +9,13 @@ namespace lockstep
         static constexpr int kNumSlots = 6;
 
         // stepped: 0=LP, 1=HP, 2=BP, 3=Notch, 4=OFF (bit-exact passthrough, no DSP).
-        // 4=OFF is the new-track default (DESIGN §14). Values 0-3 are unchanged for
-        // v17 compatibility — stored floats in old saves resolve to the correct mode.
-        float mode = 4.0f;
+        // 0=LP is the new-track default (item 3): the mode a performer reaches for
+        // first, and at the default open cutoff (1.0 = ~20 kHz, resonance 0) it is
+        // audibly transparent, so it behaves like OFF until swept. Values 0-3 are
+        // unchanged for v17 compatibility. NB: mode is default-skipped by the
+        // serializer, so old saves that omitted OFF (the former default) now resolve
+        // to LP-open — inaudible, but they will read "LP" rather than "Off".
+        float mode = 0.0f;
         float slope = 1.0f;  // stepped: 0=12dB, 1=24dB; default 24dB
         float cutoff = 1.0f;  // 0..1 -> 20Hz..20kHz (log)
         float resonance = 0.0f;  // 0..1

@@ -3480,6 +3480,13 @@ namespace lockstep
         "lockstep.amp.gate", "lockstep.amp.att", "lockstep.amp.hld",
         "lockstep.amp.dec",  "lockstep.amp.sus", "lockstep.amp.rel"
     };
+    // Stepped value labels for the track FLTR/ENV blocks (item 3/4/5). Without
+    // these the MZ rendered raw numbers, so "Mode" read as 0..4 and "Gate" as
+    // 0/1 with no meaning. Order matches the enum encoding.
+    static const char* const kFltrModeLabels[]  = { "LP", "HP", "BP", "Notch", "Off" };
+    static const char* const kFltrSlopeLabels[] = { "12dB", "24dB" };
+    // ENV Gate: 0 = envelope follows the note gate, 1 = held open (continuous).
+    static const char* const kEnvGateLabels[]   = { "Note", "Held" };
 
     ParamSpec LockstepProcessor::paramSpec(int track, int index) const
     {
@@ -3523,14 +3530,16 @@ namespace lockstep
                 case 0:
                     p.label = "Mode";
                     p.isStepped = true;
-                    p.maxValue = 4.0f;  // 0=LP 1=HP 2=BP 3=NO 4=OFF
-                    p.defaultValue = 4.0f;
+                    p.maxValue = 4.0f;  // 0=LP 1=HP 2=BP 3=Notch 4=Off
+                    p.defaultValue = 0.0f;  // LP by default (open cutoff = transparent)
+                    p.valueLabels = kFltrModeLabels;
                     break;
                 case 1:
                     p.label = "Slope";
                     p.isStepped = true;
                     p.maxValue = 1.0f;
                     p.defaultValue = 1.0f;
+                    p.valueLabels = kFltrSlopeLabels;
                     break;
                 case 2:
                     p.label = "Cutoff";
@@ -3546,7 +3555,9 @@ namespace lockstep
                     p.maxValue = 1.0f;
                     break;
                 case 5:
-                    p.label = "Env>Ct";
+                    // Bipolar amount by which the per-note gate envelope (a fixed
+                    // A1ms/R200ms follower, NOT an ADSR) modulates cutoff.
+                    p.label = "NoteEnv";
                     p.minValue = -1.0f;
                     p.maxValue = 1.0f;
                     break;
@@ -3608,9 +3619,11 @@ namespace lockstep
             switch (es)
             {
                 case 0:
+                    // 0 = envelope follows the note gate, 1 = held open.
                     p.label = "Gate";
                     p.isStepped = true;
                     p.maxValue = 1.0f;
+                    p.valueLabels = kEnvGateLabels;
                     break;
                 case 1:
                     p.label = "Attack";
@@ -4965,13 +4978,15 @@ namespace lockstep
                     p.label = "Mode";
                     p.isStepped = true;
                     p.maxValue = 4.0f;
-                    p.defaultValue = 4.0f;
+                    p.defaultValue = 0.0f;  // LP by default (matches paramSpec)
+                    p.valueLabels = kFltrModeLabels;
                     break;
                 case 1:
                     p.label = "Slope";
                     p.isStepped = true;
                     p.maxValue = 1.0f;
                     p.defaultValue = 1.0f;
+                    p.valueLabels = kFltrSlopeLabels;
                     break;
                 case 2:
                     p.label = "Cutoff";
@@ -4987,7 +5002,7 @@ namespace lockstep
                     p.maxValue = 1.0f;
                     break;
                 case 5:
-                    p.label = "Env>Ct";
+                    p.label = "NoteEnv";
                     p.minValue = -1.0f;
                     p.maxValue = 1.0f;
                     break;
@@ -5038,9 +5053,11 @@ namespace lockstep
             switch (es)
             {
                 case 0:
+                    // 0 = envelope follows the note gate, 1 = held open.
                     p.label = "Gate";
                     p.isStepped = true;
                     p.maxValue = 1.0f;
+                    p.valueLabels = kEnvGateLabels;
                     break;
                 case 1:
                     p.label = "Attack";
