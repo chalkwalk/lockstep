@@ -106,6 +106,7 @@ namespace lockstep
         pendingAction_ = 0;
         rate_ = 1.0;
         haveBackup_ = false;
+        manualLen_ = false;
         stateMirror_.store(static_cast<int>(state_), std::memory_order_release);
     }
 
@@ -211,6 +212,7 @@ namespace lockstep
         loopLen_ = 0;
         recPos_ = 0;
         haveBackup_ = false;
+        manualLen_ = false;   // a fresh take re-attaches to grid-lock (S4)
         // Grid-locked modes (N Bar / Steps) auto-close after the synced length (at
         // the record tempo); Free/Free-Len close on the gesture.
         recLenTarget_ = 0;
@@ -321,6 +323,44 @@ namespace lockstep
                     state_ = State::Playing;
                 }
                 break;
+            case Cmd::Halve:
+                // S4: play only the first half of the loop window — a clean cut, no
+                // resample. The buffer keeps its full content (a later Double recovers
+                // it). Detach from grid-lock so it plays native (no pitch change).
+                if (loopLen_ >= 2 && (state_ == State::Playing
+                                      || state_ == State::Overdubbing
+                                      || state_ == State::Stopped))
+                {
+                    loopLen_ /= 2;
+                    if (playPos_ >= static_cast<double>(loopLen_))
+                        playPos_ = std::fmod(playPos_, static_cast<double>(loopLen_));
+                    lastPos_ = playPos_;
+                    manualLen_ = true;
+                    haveBackup_ = false;
+                    pool_.setSourceBars(targetSlot_, 0.0);
+                }
+                break;
+            case Cmd::Double:
+                // S4: double the loop window — duplicate the content into the second
+                // half (no resample, no pitch change). Capped at the slot capacity.
+                if (loopLen_ > 0 && target_ != nullptr
+                    && (state_ == State::Playing || state_ == State::Overdubbing
+                        || state_ == State::Stopped))
+                {
+                    const int newLen = loopLen_ * 2;
+                    if (newLen <= capacity_)
+                    {
+                        target_->setSize(target_->getNumChannels(), newLen, true, false, true);
+                        const int tch = std::min(2, target_->getNumChannels());
+                        for (int ch = 0; ch < tch; ++ch)
+                            target_->copyFrom(ch, loopLen_, *target_, ch, 0, loopLen_);
+                        loopLen_ = newLen;
+                        manualLen_ = true;
+                        haveBackup_ = false;
+                        pool_.setSourceBars(targetSlot_, 0.0);
+                    }
+                }
+                break;
         }
     }
 
@@ -397,7 +437,9 @@ namespace lockstep
 
         // Varispeed: target playback rate = loopLen / target output duration. Free
         // (or unknown tempo) → 1.0. Continuously tracked, one-pole slewed (~20 ms).
-        const double tOut = targetOutputSamples();
+        // S4: a manual HALF/DBL length edit plays native (tOut=0 → rate 1, no
+        // phase-lock) so the cut/double has no pitch change.
+        const double tOut = manualLen_ ? 0.0 : targetOutputSamples();
         const double rateTarget = (loopLen_ > 0 && tOut > 0.0)
             ? static_cast<double>(loopLen_) / tOut : 1.0;
         const double slew = 1.0 - std::exp(-1.0 / (0.02 * sampleRate_));
@@ -511,6 +553,7 @@ namespace lockstep
             buffer.clear(ch, 0, numSamples);
 
         stateMirror_.store(static_cast<int>(state_), std::memory_order_release);
+        loopLenMirror_.store(loopLen_, std::memory_order_release);  // S4 chrome/tests
 
         // S2: publish loop-position chrome for the mini-seq. Phase 0..1 while playing
         // (-1 otherwise) drives the continuous playhead; pendingEdge drives the

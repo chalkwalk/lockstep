@@ -3467,10 +3467,12 @@ namespace lockstep
                                 break;
                             case 3:  routeLooperVerb(3 /*Clear*/); break;   // ERASE
                             case 4:  routeLooperVerb(4 /*Undo*/);  break;   // UNDO
+                            case 5:  routeLooperVerb(5 /*Halve*/);  break;  // HALF
+                            case 6:  routeLooperVerb(6 /*Double*/); break;  // DBL
                             case 7:  // DUB — explicit overdub toggle while a loop plays
                                 if (st == 2 || st == 3) routeLooperVerb(1 /*RecordCycle*/);
                                 break;
-                            default: break;  // HALF/DBL (S4), beat-repeat (S5), tape (S6)
+                            default: break;  // beat-repeat (S5), tape (S6)
                         }
                         refreshSurface();
                         return true;
@@ -4179,11 +4181,18 @@ namespace lockstep
                     refreshSurface();
                     return true;
                 }
-                // Func+↑ = double the focused track's pattern length.
+                // Func+↑ = double the focused track's pattern length. S4: on a looper
+                // this is the loop-window Double (parity with the console DBL cell) —
+                // a looper has no editable pattern length (it IS the track grid).
                 if (uiState_.funcHeld && !uiState_.trackHeld)
                 {
                     if (t >= 0 && t < static_cast<int>(kNumTracks))
-                        processor_.doubleTrackLength(t);
+                    {
+                        if (processor_.isLooperTrack(t))
+                            routeLooperVerb(6 /*Double*/);
+                        else
+                            processor_.doubleTrackLength(t);
+                    }
                     refreshSurface();
                     return true;
                 }
@@ -4241,11 +4250,18 @@ namespace lockstep
                     refreshSurface();
                     return true;
                 }
-                // Func+↓ = halve the focused track's pattern length.
+                // Func+↓ = halve the focused track's pattern length. On a looper this
+                // is the loop-window Halve (parity with the console HALF cell) — a
+                // looper has no editable pattern length (it IS the track grid).
                 if (uiState_.funcHeld && !uiState_.trackHeld)
                 {
                     if (t >= 0 && t < static_cast<int>(kNumTracks))
-                        processor_.halveTrackLength(t);
+                    {
+                        if (processor_.isLooperTrack(t))
+                            routeLooperVerb(5 /*Halve*/);
+                        else
+                            processor_.halveTrackLength(t);
+                    }
                     refreshSurface();
                     return true;
                 }
@@ -5673,7 +5689,9 @@ namespace lockstep
         // precise resolved state is shown by the surface refresh that follows.
         const char* verb = (cmd == 1) ? "Rec/Overdub"
                           : (cmd == 2) ? "Play/Stop"
-                          : (cmd == 3) ? "Clear" : "Undo";
+                          : (cmd == 3) ? "Clear"
+                          : (cmd == 5) ? "Halve"
+                          : (cmd == 6) ? "Double" : "Undo";
         setStatus(juce::String("Loop: ") + verb + (immediate ? " (now)" : ""));
         refreshSurface();
     }

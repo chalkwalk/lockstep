@@ -33,7 +33,9 @@ namespace lockstep
     public:
         explicit LooperMachine(SamplePool& pool) : pool_(pool) {}
 
-        enum class Cmd : int { None = 0, RecordCycle, PlayStop, Clear, Undo };
+        // Halve/Double (S4) resize the loop *window* with no resample / no pitch
+        // change — they detach the loop from grid-lock (manualLen_) and play native.
+        enum class Cmd : int { None = 0, RecordCycle, PlayStop, Clear, Undo, Halve, Double };
         // Armed (appended) — a quantized Record press waits here for the next bar
         // boundary (#2). It is a monitoring state (live-thru passes per the monitor
         // mode) with no loop output yet.
@@ -97,6 +99,13 @@ namespace lockstep
             return static_cast<State>(stateMirror_.load(std::memory_order_acquire));
         }
         [[nodiscard]] static const char* stateLabel(State s) noexcept;
+
+        // Message thread (chrome/tests): current loop-window length in samples (0 when
+        // empty). Halve/Double (S4) resize this window without resampling.
+        [[nodiscard]] int loopLengthSamples() const noexcept
+        {
+            return loopLenMirror_.load(std::memory_order_acquire);
+        }
 
         // Message thread (chrome): current playback phase 0..1, or -1 when not
         // playing. Drives the continuous loop-position playhead on the mini-seq (S2).
@@ -193,6 +202,10 @@ namespace lockstep
         double rate_ = 1.0;       // current (slewed) varispeed rate
         int xfadeLen_ = 0;        // loop-wrap crossfade length (samples), C5
         bool haveBackup_ = false;
+        // S4: a HALF/DBL length edit detaches the loop from grid-lock — it then plays
+        // native (rate 1, no phase-lock, no varispeed) so the cut/double has no pitch
+        // change. Cleared on the next record (startRecording) or Clear.
+        bool manualLen_ = false;
 
         // The loop lives in pool slot `targetSlot_` (resolved each block); backup_
         // is the internal one-level overdub undo; inScratch_ copies the input before
@@ -202,6 +215,7 @@ namespace lockstep
 
         std::atomic<int> pendingCmd_{ 0 };
         std::atomic<int> stateMirror_{ 0 };
+        std::atomic<int> loopLenMirror_{ 0 };      // loop-window length in samples (S4)
         std::atomic<float> phaseMirror_{ -1.0f };  // playback phase 0..1 (-1 = not playing), S2
         std::atomic<bool> pendingMirror_{ false }; // a quantized edge is pending (S2)
 

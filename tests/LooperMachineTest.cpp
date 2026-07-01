@@ -463,5 +463,33 @@ namespace lockstep
                   "#4: Always decay fades the loop each iteration (m1=" + juce::String(m1)
                       + " m3=" + juce::String(m3) + ")");
         }
+
+        // S4: Halve/Double resize the loop *window* with no resample (no pitch change).
+        // A manual length edit detaches from grid-lock (manualLen_) so it plays native
+        // at rate 1 — the constant loop value is reproduced exactly, not interpolated.
+        {
+            SamplePool p; p.addVolatile();
+            p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LooperMachine lp(p); lp.prepare(kSr, 512);
+
+            // Record a two-block loop: first 512 = 0.5, second 512 = 0.25 → loopLen 1024.
+            runBlock(lp, 512, 0.5f, Cmd::RecordCycle);
+            runBlock(lp, 512, 0.25f);
+            runBlock(lp, 512, 0.0f, Cmd::RecordCycle);   // close → Playing
+            CHECK(lp.loopLengthSamples() == 1024, "S4: recorded loop is 1024 samples");
+
+            // Halve: window → 512; playback now only sees the first half (all 0.5).
+            auto h = runBlock(lp, 512, 0.0f, Cmd::Halve);
+            CHECK(lp.loopLengthSamples() == 512, "S4: Halve halves the loop window");
+            CHECK(feq(h.getSample(0, 0), 0.5f) && feq(h.getSample(0, 256), 0.5f),
+                  "S4: halved loop plays the first half unresampled (0.5, no pitch change)");
+
+            // Double: window → 1024; the second half is a copy of the first (both 0.5).
+            runBlock(lp, 512, 0.0f, Cmd::Double);
+            CHECK(lp.loopLengthSamples() == 1024, "S4: Double doubles the loop window");
+            auto d = runBlock(lp, 512, 0.0f);
+            CHECK(feq(d.getSample(0, 0), 0.5f) && feq(d.getSample(0, 256), 0.5f),
+                  "S4: doubled loop duplicates content into the second half (0.5, no pitch)");
+        }
     }
 }
