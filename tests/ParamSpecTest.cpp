@@ -90,37 +90,37 @@ namespace lockstep
             "va_osc2_fine",     //  5
             "va_osc2_wave",     //  6
             "va_osc2_pw",       //  7
-            "va_sub",           //  8
-            "va_noise",         //  9
-            "va_porta",         // 10
-            "va_voice_mode",    // 11
-            "va_cutoff",        // 12
-            "va_res",           // 13
-            "va_filter_type",   // 14
-            "va_drive",         // 15
-            "va_fenv_depth",    // 16
-            "va_fenv_a",        // 17
-            "va_fenv_d",        // 18
-            "va_fenv_s",        // 19
-            "va_fenv_r",        // 20
-            "va_amp_a",         // 21
-            "va_amp_d",         // 22
-            "va_amp_s",         // 23
-            "va_amp_r",         // 24
-            "va_level",         // 25
-            "va_pan",           // 26
-            "va_retrig",        // 27
-            "va_vel_sens",      // 28
-            "va_lfo_rate",      // 29
-            "va_lfo_depth",     // 30
-            "va_lfo_shape",     // 31
-            "va_lfo_target",    // 32
-            "va_lfo_sync",      // 33
-            "va_osc1_level",    // 34
-            "va_age",           // 35
-            "va_keytrack",      // 36
-            "va_osc2_level",    // 37
-            "va_mixer_drive",   // 38
+            "va_osc1_level",    //  8
+            "va_osc2_level",    //  9
+            "va_sub",           // 10
+            "va_noise",         // 11
+            "va_mixer_drive",   // 12
+            "va_porta",         // 13
+            "va_voice_mode",    // 14
+            "va_cutoff",        // 15
+            "va_res",           // 16
+            "va_filter_type",   // 17
+            "va_drive",         // 18
+            "va_fenv_depth",    // 19
+            "va_fenv_a",        // 20
+            "va_fenv_d",        // 21
+            "va_fenv_s",        // 22
+            "va_fenv_r",        // 23
+            "va_keytrack",      // 24
+            "va_amp_a",         // 25
+            "va_amp_d",         // 26
+            "va_amp_s",         // 27
+            "va_amp_r",         // 28
+            "va_level",         // 29
+            "va_pan",           // 30
+            "va_retrig",        // 31
+            "va_vel_sens",      // 32
+            "va_lfo_rate",      // 33
+            "va_lfo_depth",     // 34
+            "va_lfo_shape",     // 35
+            "va_lfo_target",    // 36
+            "va_lfo_sync",      // 37
+            "va_age",           // 38
         };
         checkGoldenIds(m, "AnalogMachine", golden);
         checkInvariants(m, "AnalogMachine");

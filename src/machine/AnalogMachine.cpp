@@ -80,7 +80,8 @@ namespace lockstep
 
     // { id, label, min, max, def, skew, stepped, unit, role, variant, section, zcSnap, labels }
     static constexpr ParamRow kVAParams[] = {
-        // --- SRC (section 1, 12 slots) ---
+        // --- SRC (section 1, 15 slots, 2 pages) ---
+        // page 1: the two oscillators
         { "va_osc1_coarse", "Osc1 Coarse", -24.f, 24.f, 0.f, 1.f, 1, va_u::Semi, va_r::Pitch, 0, 1, 0, nullptr }, //  0
         { "va_osc1_fine", "Osc1 Fine", -50.f, 50.f, 0.f, 1.f, 0, va_u::None, va_r::None, 0, 1, 0, nullptr }, //  1
         { "va_osc1_wave", "Osc1 Wave", 0.f, 3.f, 0.f, 1.f, 1, va_u::None, va_r::None, 0, 1, 0, kVAOscWaveLabels }, //  2
@@ -89,44 +90,41 @@ namespace lockstep
         { "va_osc2_fine", "Osc2 Fine", -50.f, 50.f, 0.f, 1.f, 0, va_u::None, va_r::None, 0, 1, 0, nullptr }, //  5
         { "va_osc2_wave", "Osc2 Wave", 0.f, 4.f, 0.f, 1.f, 1, va_u::None, va_r::None, 0, 1, 0, kVAOsc2WaveLabels }, //  6
         { "va_osc2_pw", "Osc2 PW", 0.f, 1.f, 0.5f, 1.f, 0, va_u::None, va_r::None, 0, 1, 0, nullptr }, //  7
-        { "va_sub", "Sub", 0.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::None, 0, 1, 0, nullptr }, //  8
-        { "va_noise", "Noise", 0.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::None, 0, 1, 0, nullptr }, //  9
-        { "va_porta", "Portamento", 0.f, 500.f, 0.f, 1.f, 0, va_u::Ms, va_r::None, 0, 1, 0, nullptr }, // 10
-        { "va_voice_mode", "Voice Mode", 0.f, 1.f, 0.f, 1.f, 1, va_u::None, va_r::None, 0, 1, 0, kVAVoiceModeLabels }, // 11
-        // --- FLTR (section 2, 9 slots) ---
-        { "va_cutoff", "Cutoff", 0.f, 1.f, 1.f, 1.f, 0, va_u::None, va_r::Cut, 0, 2, 0, nullptr }, // 12
-        { "va_res", "Resonance", 0.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::Res, 0, 2, 0, nullptr }, // 13
-        { "va_filter_type", "Filter", 0.f, 3.f, 0.f, 1.f, 1, va_u::None, va_r::None, 0, 2, 0, kVAFilterTypeLabels },// 14
-        { "va_drive", "Drive", 0.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::Drive, 0, 2, 0, nullptr }, // 15
-        { "va_fenv_depth", "Env Depth", -1.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::None, 0, 2, 0, nullptr }, // 16
-        { "va_fenv_a", "F Atk", 0.f, 5000.f, 1.f, 0.3f, 0, va_u::Ms, va_r::None, 0, 2, 0, nullptr }, // 17
-        { "va_fenv_d", "F Dec", 1.f, 10000.f, 100.f, 0.3f, 0, va_u::Ms, va_r::None, 0, 2, 0, nullptr }, // 18
-        { "va_fenv_s", "F Sus", 0.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::None, 0, 2, 0, nullptr }, // 19
-        { "va_fenv_r", "F Rel", 1.f, 10000.f, 100.f, 0.3f, 0, va_u::Ms, va_r::None, 0, 2, 0, nullptr }, // 20
-        // --- AMP (section 3, 8 slots) ---
-        { "va_amp_a", "Attack", 0.f, 5000.f, 1.f, 0.3f, 0, va_u::Ms, va_r::Atk, 0, 3, 0, nullptr }, // 21
-        { "va_amp_d", "Decay", 1.f, 10000.f, 100.f, 0.3f, 0, va_u::Ms, va_r::Dcy, 0, 3, 0, nullptr }, // 22
-        { "va_amp_s", "Sustain", 0.f, 1.f, 0.8f, 1.f, 0, va_u::None, va_r::Sus, 0, 3, 0, nullptr }, // 23
-        { "va_amp_r", "Release", 1.f, 10000.f, 500.f, 0.3f, 0, va_u::Ms, va_r::Rel, 0, 3, 0, nullptr }, // 24
-        { "va_level", "Level", 0.f, 1.f, 0.5f, 1.f, 0, va_u::None, va_r::Level, 0, 3, 0, nullptr }, // 25
-        { "va_pan", "Pan", -1.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::Pan, 0, 3, 0, nullptr }, // 26
-        { "va_retrig", "Retrig", 0.f, 1.f, 0.f, 1.f, 1, va_u::None, va_r::None, 0, 3, 0, kVARetrigLabels }, // 27
-        { "va_vel_sens", "Vel Sens", 0.f, 1.f, 0.f, 1.f, 0, va_u::Pct, va_r::None, 0, 3, 0, nullptr }, // 28
-        // --- LFO (section 4, 5 slots) ---
-        { "va_lfo_rate", "LFO Rate", 0.01f, 40.f, 3.f, 1.f, 0, va_u::None, va_r::LfoRat, 0, 4, 0, nullptr }, // 29
-        { "va_lfo_depth", "LFO Depth", 0.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::LfoDep, 0, 4, 0, nullptr }, // 30
-        { "va_lfo_shape", "LFO Shape", 0.f, 5.f, 0.f, 1.f, 1, va_u::None, va_r::LfoShp, 0, 4, 0, kVALfoShapeLabels }, // 31
-        { "va_lfo_target", "LFO Target", 0.f, 3.f, 0.f, 1.f, 1, va_u::None, va_r::None, 0, 4, 0, kVALfoTargetLabels }, // 32
-        { "va_lfo_sync", "LFO Sync", 0.f, 1.f, 0.f, 1.f, 1, va_u::None, va_r::None, 0, 4, 0, kVALfoSyncLabels }, // 33
-        // --- SRC continued (section 1): per-osc levels + mixer drive ---
-        { "va_osc1_level", "Osc1 Lvl", 0.f, 1.f, 0.85f, 1.f, 0, va_u::None, va_r::None, 0, 1, 0, nullptr }, // 34
-        // --- MOD continued (section 4): vintage character macro ---
-        { "va_age", "Age", 0.f, 1.f, 0.2f, 1.f, 0, va_u::None, va_r::None, 0, 4, 0, nullptr }, // 35
-        // --- FILTER continued (section 2): cutoff key-tracking amount ---
-        { "va_keytrack", "Key Trk", 0.f, 1.f, 1.f, 1.f, 0, va_u::Pct, va_r::None, 0, 2, 0, nullptr }, // 36
-        // --- SRC continued (section 1): osc2 level + summing-amp drive ---
-        { "va_osc2_level", "Osc2 Lvl", 0.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::None, 0, 1, 0, nullptr }, // 37
-        { "va_mixer_drive", "Mix Drive", 0.f, 1.f, 0.15f, 1.f, 0, va_u::None, va_r::None, 0, 1, 0, nullptr }, // 38
+        // page 2: the mixer — per-source levels + summing-amp drive
+        { "va_osc1_level", "Osc1 Lvl", 0.f, 1.f, 0.85f, 1.f, 0, va_u::None, va_r::None, 0, 1, 0, nullptr }, //  8
+        { "va_osc2_level", "Osc2 Lvl", 0.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::None, 0, 1, 0, nullptr }, //  9
+        { "va_sub", "Sub", 0.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::None, 0, 1, 0, nullptr }, // 10
+        { "va_noise", "Noise", 0.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::None, 0, 1, 0, nullptr }, // 11
+        { "va_mixer_drive", "Mix Drive", 0.f, 1.f, 0.15f, 1.f, 0, va_u::None, va_r::None, 0, 1, 0, nullptr }, // 12
+        { "va_porta", "Portamento", 0.f, 500.f, 0.f, 1.f, 0, va_u::Ms, va_r::None, 0, 1, 0, nullptr }, // 13
+        { "va_voice_mode", "Voice Mode", 0.f, 1.f, 0.f, 1.f, 1, va_u::None, va_r::None, 0, 1, 0, kVAVoiceModeLabels }, // 14
+        // --- FLTR (section 2, 10 slots, 2 pages) ---
+        { "va_cutoff", "Cutoff", 0.f, 1.f, 1.f, 1.f, 0, va_u::None, va_r::Cut, 0, 2, 0, nullptr }, // 15
+        { "va_res", "Resonance", 0.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::Res, 0, 2, 0, nullptr }, // 16
+        { "va_filter_type", "Filter", 0.f, 3.f, 0.f, 1.f, 1, va_u::None, va_r::None, 0, 2, 0, kVAFilterTypeLabels },// 17
+        { "va_drive", "Drive", 0.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::Drive, 0, 2, 0, nullptr }, // 18
+        { "va_fenv_depth", "Env Depth", -1.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::None, 0, 2, 0, nullptr }, // 19
+        { "va_fenv_a", "F Atk", 0.f, 5000.f, 1.f, 0.3f, 0, va_u::Ms, va_r::None, 0, 2, 0, nullptr }, // 20
+        { "va_fenv_d", "F Dec", 1.f, 10000.f, 100.f, 0.3f, 0, va_u::Ms, va_r::None, 0, 2, 0, nullptr }, // 21
+        { "va_fenv_s", "F Sus", 0.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::None, 0, 2, 0, nullptr }, // 22
+        { "va_fenv_r", "F Rel", 1.f, 10000.f, 100.f, 0.3f, 0, va_u::Ms, va_r::None, 0, 2, 0, nullptr }, // 23
+        { "va_keytrack", "Key Trk", 0.f, 1.f, 1.f, 1.f, 0, va_u::Pct, va_r::None, 0, 2, 0, nullptr }, // 24
+        // --- AMP (section 3, 8 slots, 1 page) ---
+        { "va_amp_a", "Attack", 0.f, 5000.f, 1.f, 0.3f, 0, va_u::Ms, va_r::Atk, 0, 3, 0, nullptr }, // 25
+        { "va_amp_d", "Decay", 1.f, 10000.f, 100.f, 0.3f, 0, va_u::Ms, va_r::Dcy, 0, 3, 0, nullptr }, // 26
+        { "va_amp_s", "Sustain", 0.f, 1.f, 0.8f, 1.f, 0, va_u::None, va_r::Sus, 0, 3, 0, nullptr }, // 27
+        { "va_amp_r", "Release", 1.f, 10000.f, 500.f, 0.3f, 0, va_u::Ms, va_r::Rel, 0, 3, 0, nullptr }, // 28
+        { "va_level", "Level", 0.f, 1.f, 0.5f, 1.f, 0, va_u::None, va_r::Level, 0, 3, 0, nullptr }, // 29
+        { "va_pan", "Pan", -1.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::Pan, 0, 3, 0, nullptr }, // 30
+        { "va_retrig", "Retrig", 0.f, 1.f, 0.f, 1.f, 1, va_u::None, va_r::None, 0, 3, 0, kVARetrigLabels }, // 31
+        { "va_vel_sens", "Vel Sens", 0.f, 1.f, 0.f, 1.f, 0, va_u::Pct, va_r::None, 0, 3, 0, nullptr }, // 32
+        // --- MOD/LFO (section 4, 6 slots, 1 page) ---
+        { "va_lfo_rate", "LFO Rate", 0.01f, 40.f, 3.f, 1.f, 0, va_u::None, va_r::LfoRat, 0, 4, 0, nullptr }, // 33
+        { "va_lfo_depth", "LFO Depth", 0.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::LfoDep, 0, 4, 0, nullptr }, // 34
+        { "va_lfo_shape", "LFO Shape", 0.f, 5.f, 0.f, 1.f, 1, va_u::None, va_r::LfoShp, 0, 4, 0, kVALfoShapeLabels }, // 35
+        { "va_lfo_target", "LFO Target", 0.f, 3.f, 0.f, 1.f, 1, va_u::None, va_r::None, 0, 4, 0, kVALfoTargetLabels }, // 36
+        { "va_lfo_sync", "LFO Sync", 0.f, 1.f, 0.f, 1.f, 1, va_u::None, va_r::None, 0, 4, 0, kVALfoSyncLabels }, // 37
+        { "va_age", "Age", 0.f, 1.f, 0.2f, 1.f, 0, va_u::None, va_r::None, 0, 4, 0, nullptr }, // 38
     };
     static_assert(std::size(kVAParams) == AnalogMachine::kNumSlots,
                   "kVAParams row count must equal kNumSlots");

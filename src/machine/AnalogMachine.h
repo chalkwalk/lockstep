@@ -39,9 +39,17 @@ namespace lockstep
 
     private:
     // -----------------------------------------------------------------------
-    // Slot index constants
+    // Slot index constants.
+    //
+    // IMPORTANT: each section MUST be a contiguous run of slot indices. The
+    // editor paginates a section as a contiguous window (firstSlot + 8*page)
+    // and blanks any cell whose sectionIndex differs — so a slot tacked onto a
+    // section out of index order is simply never rendered. (This is why the
+    // per-osc levels / mixer drive / Key Trk were invisible when appended at
+    // the end.) Keep new params inside their section's range.
 
-    // Section 1 — SRC (12 slots, 2 pages)
+    // Section 1 — SRC (15 slots, 2 pages)
+    //   page 1: the two oscillators (pitch / wave / PW)
         static constexpr int kSlotOsc1Coarse = 0;
         static constexpr int kSlotOsc1Fine = 1;
         static constexpr int kSlotOsc1Wave = 2;
@@ -50,50 +58,44 @@ namespace lockstep
         static constexpr int kSlotOsc2Fine = 5;
         static constexpr int kSlotOsc2Wave = 6;
         static constexpr int kSlotOsc2PW = 7;
-        static constexpr int kSlotSub = 8;
-        static constexpr int kSlotNoise = 9;
-        static constexpr int kSlotPorta = 10;
-        static constexpr int kSlotVoiceMode = 11;
+    //   page 2: the mixer — per-source levels feeding the summing-amp drive
+        static constexpr int kSlotOsc1Level = 8;
+        static constexpr int kSlotOsc2Level = 9;
+        static constexpr int kSlotSub = 10;
+        static constexpr int kSlotNoise = 11;
+        static constexpr int kSlotMixerDrive = 12;  // asymmetric summing-amp sat
+        static constexpr int kSlotPorta = 13;
+        static constexpr int kSlotVoiceMode = 14;
 
-    // Section 2 — FLTR (9 slots, 2 pages)
-        static constexpr int kSlotCutoff = 12;
-        static constexpr int kSlotRes = 13;
-        static constexpr int kSlotFilterType = 14;
-        static constexpr int kSlotDrive = 15;
-        static constexpr int kSlotFEnvDepth = 16;
-        static constexpr int kSlotFEnvA = 17;
-        static constexpr int kSlotFEnvD = 18;
-        static constexpr int kSlotFEnvS = 19;
-        static constexpr int kSlotFEnvR = 20;
+    // Section 2 — FLTR (10 slots, 2 pages)
+        static constexpr int kSlotCutoff = 15;
+        static constexpr int kSlotRes = 16;
+        static constexpr int kSlotFilterType = 17;
+        static constexpr int kSlotDrive = 18;
+        static constexpr int kSlotFEnvDepth = 19;
+        static constexpr int kSlotFEnvA = 20;
+        static constexpr int kSlotFEnvD = 21;
+        static constexpr int kSlotFEnvS = 22;
+        static constexpr int kSlotFEnvR = 23;
+        static constexpr int kSlotKeytrack = 24;  // cutoff key-tracking amount
 
     // Section 3 — AMP (8 slots, 1 page)
-        static constexpr int kSlotAmpA = 21;
-        static constexpr int kSlotAmpD = 22;
-        static constexpr int kSlotAmpS = 23;
-        static constexpr int kSlotAmpR = 24;
-        static constexpr int kSlotLevel = 25;
-        static constexpr int kSlotPan = 26;
-        static constexpr int kSlotRetrig = 27;  // 0=LEGATO 1=RETRIG
-        static constexpr int kSlotVelSens = 28;
+        static constexpr int kSlotAmpA = 25;
+        static constexpr int kSlotAmpD = 26;
+        static constexpr int kSlotAmpS = 27;
+        static constexpr int kSlotAmpR = 28;
+        static constexpr int kSlotLevel = 29;
+        static constexpr int kSlotPan = 30;
+        static constexpr int kSlotRetrig = 31;  // 0=LEGATO 1=RETRIG
+        static constexpr int kSlotVelSens = 32;
 
-    // Section 4 — LFO (5 slots, 1 page)
-        static constexpr int kSlotLfoRate = 29;
-        static constexpr int kSlotLfoDepth = 30;
-        static constexpr int kSlotLfoShape = 31;
-        static constexpr int kSlotLfoTarget = 32;
-        static constexpr int kSlotLfoSync = 33;
-    // Section 1 — SRC (continued): independent per-oscillator level into the
-    // summing bus (osc1 at slot 34, osc2 at slot 37). Sources sum HOT — no
-    // equal-power normalization — so stacking them drives the mixer stage.
-        static constexpr int kSlotOsc1Level = 34;
-    // Section 4 — MOD: vintage "Age" macro (analog drift + glue saturation)
-        static constexpr int kSlotAge = 35;
-    // Section 2 — FILTER: cutoff key-tracking amount (0=none, 1=full octave-per-octave)
-        static constexpr int kSlotKeytrack = 36;
-    // Section 1 — SRC (continued): osc2 level + mixer/summing-amp drive.
-        static constexpr int kSlotOsc2Level = 37;
-    // Mixer summing-amp saturation amount (asymmetric soft-clip, pre-filter).
-        static constexpr int kSlotMixerDrive = 38;
+    // Section 4 — MOD/LFO (6 slots, 1 page)
+        static constexpr int kSlotLfoRate = 33;
+        static constexpr int kSlotLfoDepth = 34;
+        static constexpr int kSlotLfoShape = 35;
+        static constexpr int kSlotLfoTarget = 36;
+        static constexpr int kSlotLfoSync = 37;
+        static constexpr int kSlotAge = 38;  // vintage drift + glue macro
 
         static constexpr int kNumSections = 5;
         static constexpr int kMaxSubVoices = 4;
