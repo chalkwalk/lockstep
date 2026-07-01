@@ -223,30 +223,34 @@ exactly three kinds of machine:
   does not). The same captured loop is therefore playable two ways: the
   looper's varispeed self-play, or a Player's pitch-locked stretch.
   **Looper monitoring** is a `monitor {Auto | On | Off}` switch governing
-  whether the live input passes through to the output **in every state**
-  (separate from recording, which always captures) — so an insert looper is
-  audible *before* you record, not just while running. **Auto** resolves from
-  the source: On for `None`/`External` (the looper is the source's sole path
-  out — insert / external-input use), Off for a `Track`/`Master` tap (the
-  tapped source is already audible on its own path, so passing it through
-  would double-monitor). On/Off force it. This makes the looper "work as
-  expected" whether you feed it by routing a track's `Out` into it (it
-  passes through + layers) or by tapping a source on its SRC panel (it adds
-  the loop layer without re-monitoring the live source).
+  whether the live input passes through to the output (separate from
+  recording, which always captures) — so an insert looper is audible *before*
+  you record. **Auto** is **state-aware**: for an `None`/`External` insert it
+  monitors in every state **except while the take is Playing back** — the
+  capture has replaced the live source, so live-thru drops on the record→play
+  transition and is restored when Idle/Stopped; for a `Track`/`Master` tap it
+  is always loop-only (the tapped source is already audible on its own path,
+  so passing it through would double-monitor). On/Off are absolute. This makes
+  the looper "work as expected" whether you feed it by routing a track's `Out`
+  into it (it passes through + layers) or by tapping a source on its SRC panel
+  (it adds the loop layer without re-monitoring the live source).
 
-  **Quantize is implied by `loop_sync`** (the Octatrack QREC/QPL analog):
-  Free records instantly; every other mode arms the record-start *and* the
-  stop / re-play edges to the bar grid, so loops phase-lock. Bar-locked modes
-  are `1 / 2 / 4 Bar` (fixed) plus **`Steps`**, whose length is fully
-  user-set as `loop_div` (clock division) × `loop_steps` (count) for
-  arbitrary musical lengths. **Double-tapping** a verb fires it instantly,
-  overriding quantize (a held-armed record shows **ARM** until the boundary).
-  **Decay** (`loop_decay` 0…1, `loop_decay_mode {Overdub | Always}`) makes
-  the loop quieter over iterations — Overdub fades the old layer only at the
-  overdub write (feedback knob), Always fades the whole loop each pass (tape
-  echo). With a looper focused the step grid is repurposed as a quantize-aware
-  **loop-phase bar** (segments = beats/steps, a playhead, cell 0 = downbeat),
-  and the `Track + Record/Play/Clear` verbs render in distinct looper colours.
+  **Quantize is implied by `loop_sync {Free | Free Len | Sync}`** (the
+  Octatrack QREC/QPL analog): **Free** records instantly (native, ignores
+  tempo); **Free Len** varispeeds to the recorded musical duration; **Sync**
+  grid-locks the loop length to the track's own length × divider and
+  phase-locks it — the loop *is* the track grid by construction (no
+  looper-only length params). In Free Len / Sync the record-start *and* the
+  stop edges arm to the bar grid, so loops phase-lock; a quantized stop is a
+  **punch-out** that lands on the bar and hands straight to Play.
+  **Double-tapping** `REC` fires instantly, overriding quantize (a held-armed
+  record shows **ARM** until the boundary). **Decay** (`loop_decay` 0…1,
+  `loop_decay_mode {Overdub | Always}`) makes the loop quieter over iterations
+  — Overdub fades the old layer only at the overdub write (feedback knob),
+  Always fades the whole loop each pass (tape echo). With a looper focused the
+  16-button step grid is repurposed as an **always-on console** (transport +
+  length + beat-repeat + tape FX, §29.2); the mini-seq strip shows the loop
+  position (a continuous playhead + a landing pip for a pending edge).
 
 Pure timbre *processing* is **not** a machine. A filter, EQ, distortion,
 bitcrusher, reverb, delay, compressor, or any other "audio in → audio
@@ -4112,12 +4116,23 @@ first is an ordinary playback engine; the latter three consume audio via
 - **Looper.** The overdub counterpart of Recorder, and Lockstep's
   equivalent of the Octatrack **pickup machine**. Overdub looping is
   a *state machine* (record → play → overdub → undo → clear), so it is
-  encapsulated in a machine rather than smeared across trig flags. It
-  is driven by the existing verbs while the track is focused
-  (`Record` cycles record → overdub, `Play` plays, `Stop` stops,
-  and a clear gesture empties the loop) — no new grammar, one new
-  machine. Plain overwrite resampling stays with Recorder; sound-on-
-  sound layering lives here.
+  encapsulated in a machine rather than smeared across trig flags.
+  Plain overwrite resampling stays with Recorder; sound-on-sound
+  layering lives here. Because a looper doesn't sequence, a focused
+  looper turns its 16-button step grid into an **always-on console**
+  (no mode to enter): top row = transport + length
+  (`REC · PLAY · STOP · ERASE · UNDO · HALF · DBL · DUB`), bottom row =
+  momentary performance (beat-repeat `1/16..1/2`, tape FX
+  `TSTOP · DIP · x1/2 · REV`). Transport verbs cross the message→audio
+  boundary on a lock-free command FIFO (discrete press edges + momentary
+  press/release with a rate value); the boundary
+  `(MidiBuffer, ParamFrame, AudioBuffer)` is unchanged. **HALF/DBL**
+  resize the loop window with no resample. **Beat-repeat** captures the
+  grid cell under the playhead and loops it while held (silent at the
+  press instant), resyncing on release. **Tape FX** drive a playback-rate
+  envelope while held — tape-stop brakes to a graceful Stopped, dip/
+  half-speed/reverse resync to the grid on release. The mini-seq strip is
+  the loop-position display (playhead + pending-edge landing pip).
 
 This split — overwrite in Recorder, overdub in Looper — mirrors the
 Octatrack (track recorders vs. pickup machine) and keeps the recorder
