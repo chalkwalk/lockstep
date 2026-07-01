@@ -1,4 +1,5 @@
 #include "SamplePool.h"
+#include "dsp/TempoEstimate.h"
 #include "state/Hash.h"
 
 namespace lockstep
@@ -35,10 +36,32 @@ namespace lockstep
             static_cast<std::size_t>(numSamples) * sizeof(float));
 
         sample->analysis = analyseSample(sample->pcm, sample->sampleRate);
+        sample->detectedBpm = detectBpmFor(*sample);
 
         const int index = static_cast<int>(samples_.size());
         samples_.push_back(std::move(sample));
         return index;
+    }
+
+    // Estimate the loop tempo from the cached RMS envelope, gated by length:
+    // material longer than kMaxLoopSeconds is long-form (StaticMachine's domain)
+    // and pays no analysis cost. 0 = unknown (short/non-rhythmic/too long).
+    double SamplePool::detectBpmFor(const Sample& s)
+    {
+        if (s.sampleRate <= 0.0 || s.pcm.getNumSamples() <= 0)
+            return 0.0;
+        constexpr double kMaxLoopSeconds = 30.0;
+        const double seconds = static_cast<double>(s.pcm.getNumSamples()) / s.sampleRate;
+        if (seconds > kMaxLoopSeconds)
+            return 0.0;
+        return estimateBpm(s.analysis);
+    }
+
+    double SamplePool::detectedBpm(int index) const
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size()))
+            return 0.0;
+        return samples_[static_cast<std::size_t>(index)]->detectedBpm;
     }
 
     int SamplePool::addMissing(const SampleRef& ref)
@@ -155,6 +178,8 @@ namespace lockstep
         s->ref.hashXX32 = Hash::xx32(
             s->pcm.getReadPointer(0),
             static_cast<std::size_t>(numSamples) * sizeof(float));
+        s->analysis = analyseSample(s->pcm, s->sampleRate);
+        s->detectedBpm = detectBpmFor(*s);
         s->missing = false;
         return true;
     }

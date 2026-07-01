@@ -40,6 +40,15 @@ namespace lockstep
         // project tempo. Volatile-only; not serialised.
         double sourceBars = 0.0;
 
+        // Auto-detected tempo (BPM) of a file-loaded loop, estimated from the
+        // RMS envelope at load (message thread; see dsp/TempoEstimate.h). 0 =
+        // unknown / not rhythmic / too long to be a loop. A tempo-tracking
+        // Player uses this to derive sourceBars when a disk loop carries no
+        // explicit musical length. Recomputed on every load (not serialised).
+        // (Key/root-note detection is deferred — a detectedRootNote field would
+        // sit alongside this.)
+        double detectedBpm = 0.0;
+
         // Cached per-block analysis for transient detection (message thread only).
         // Populated by SamplePool::load(); empty for missing entries.
         BlockAnalysis analysis;
@@ -106,6 +115,12 @@ namespace lockstep
         void setSourceBars(int index, double bars);
         double sourceBars(int index) const;
 
+        // Auto-detected loop tempo (BPM) of the file-loaded entry at index, or 0
+        // if unknown / not yet detected. Recomputed at load()/relink(); see
+        // dsp/TempoEstimate.h. A tempo-tracking Player reads this as a fallback
+        // when sourceBars is absent.
+        double detectedBpm(int index) const;
+
         int size() const { return static_cast<int>(samples_.size()); }
         bool isMissing(int index) const;
         const Sample* get(int index) const;
@@ -118,6 +133,10 @@ namespace lockstep
         bool swap(int a, int b);
 
     private:
+        // Length-gated tempo estimate for a freshly decoded entry (uses its
+        // cached analysis). Returns 0 for long-form / non-rhythmic material.
+        static double detectBpmFor(const Sample& s);
+
         juce::AudioFormatManager formatManager_;
         std::vector<std::unique_ptr<Sample>> samples_;
     };
