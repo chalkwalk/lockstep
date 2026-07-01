@@ -3531,7 +3531,7 @@ namespace lockstep
                     p.label = "Mode";
                     p.isStepped = true;
                     p.maxValue = 4.0f;  // 0=LP 1=HP 2=BP 3=Notch 4=Off
-                    p.defaultValue = 0.0f;  // LP by default (open cutoff = transparent)
+                    p.defaultValue = 4.0f;  // OFF by default (bit-exact passthrough)
                     p.valueLabels = kFltrModeLabels;
                     break;
                 case 1:
@@ -4978,7 +4978,7 @@ namespace lockstep
                     p.label = "Mode";
                     p.isStepped = true;
                     p.maxValue = 4.0f;
-                    p.defaultValue = 0.0f;  // LP by default (matches paramSpec)
+                    p.defaultValue = 4.0f;  // OFF by default (matches paramSpec)
                     p.valueLabels = kFltrModeLabels;
                     break;
                 case 1:
