@@ -1262,6 +1262,14 @@ namespace lockstep
         // to step 0 at B, clear the dedup sentinel, and re-arm one-shots. If
         // alsoUnmute, ride an unmute (relaunch). Audio-thread only.
         void applyPhaseReset(std::size_t i, double boundaryPpq, bool alsoUnmute);
+
+        // Per-track launch-boundary test. Bar-family grids resolve against the
+        // absolute bar/beat grid; PhraseEnd resolves against the track's own
+        // phrase cycle (trackLen × divPpq) anchored at trackAnchorPpq_. Returns
+        // true (with outB set) when the boundary falls in [blockStart, blockEnd).
+        [[nodiscard]] bool trackBoundaryInBlock(std::size_t i, double blockStart,
+                                                double blockEnd, const TimeSig& ts,
+                                                double& outB) const;
         // Step size (host PPQ) used to advance the grid cursor last block, per
         // track. When it changes live (division or Song×Scene tempo-ratio change)
         // the cursor must be re-quantised onto the new grid, else every trig

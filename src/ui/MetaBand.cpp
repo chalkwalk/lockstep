@@ -534,6 +534,18 @@ namespace lockstep
         return kNames[static_cast<std::size_t>(i)];
     }
 
+    // Per-track override labels: display value = override + 1, so 0 = Follow
+    // (kFollowGlobal), 1 = Now (Instant), ... 7 = Phrase (PhraseEnd only reachable
+    // here, never at the Set level).
+    static const char* launchQuantTrackLabel(int displayValue)
+    {
+        static constexpr std::array<const char*, 8> kNames = {
+            { "Follow", "Now", "Beat", "Bar", "2 Bar", "4 Bar", "8 Bar", "Phrase" }
+        };
+        const int i = std::clamp(displayValue, 0, 7);
+        return kNames[static_cast<std::size_t>(i)];
+    }
+
     // Func+7 (masterSection==2): master gain / sync / channel / scale / LaunchQ.
     static std::array<MetaFieldView, 8> buildTransportBand(LockstepProcessor& proc, int track)
     {
@@ -544,6 +556,9 @@ namespace lockstep
         const float scl = static_cast<float>(static_cast<int>(proc.kit(track).scaleMode));
         // Set-level launch-quantize grid (DESIGN §4.8) — the one launch authority.
         const float lq = static_cast<float>(proc.project().launchQuant);
+        // Per-track launch-quantize override (9.17). Display value = override + 1
+        // so Follow (kFollowGlobal = -1) reads as 0.
+        const float tlq = static_cast<float>(proc.kit(track).launchQuant + 1);
 
         struct GlobalDef
         {
@@ -558,11 +573,11 @@ namespace lockstep
             { "Chan", 0.0f, 1.0f, true, true },
             { "Scale", 0.0f, 2.0f, true, true },
             { "LaunchQ", 0.0f, 5.0f, true, true },
-            { "", 0.0f, 1.0f, false, false },
+            { "T-LnchQ", 0.0f, 7.0f, true, true },
             { "", 0.0f, 1.0f, false, false },
             { "", 0.0f, 1.0f, false, false },
         } };
-        const std::array<float, 8> vals = { gain, sync, chan, scl, lq, 0.0f, 0.0f, 0.0f };
+        const std::array<float, 8> vals = { gain, sync, chan, scl, lq, tlq, 0.0f, 0.0f };
 
         std::array<MetaFieldView, 8> result{};
         for (int i = 0; i < 8; ++i)
@@ -589,6 +604,8 @@ namespace lockstep
                 f.valueText = scaleModeName(static_cast<ScaleMode>(static_cast<int>(vals[si])));
             else if (i == 4)
                 f.valueText = launchQuantSetLabel(static_cast<int>(vals[si]));
+            else if (i == 5)
+                f.valueText = launchQuantTrackLabel(static_cast<int>(vals[si]));
         }
         return result;
     }
@@ -2082,6 +2099,10 @@ namespace lockstep
                         break;
                     case 4:  // Set-level launch-quantize grid (Now..8 Bar); PhraseEnd is per-track only
                         proc.project().launchQuant = std::clamp(juce::roundToInt(value), 0, 5);
+                        break;
+                    case 5:  // Per-track override: display 0..7 → launchQuant -1..6 (Follow..Phrase)
+                        if (track >= 0)
+                            proc.kit(track).launchQuant = std::clamp(juce::roundToInt(value), 0, 7) - 1;
                         break;
                     default: break;
                 }

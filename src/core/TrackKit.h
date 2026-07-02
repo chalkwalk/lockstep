@@ -7,6 +7,7 @@
 #include "../machine/StubMachine.h"
 #include "AccentVel.h"
 #include "Density.h"
+#include "LaunchQuant.h"
 #include "Scale.h"
 #include "Subdivision.h"
 #include "TrackFltrState.h"
@@ -75,6 +76,11 @@ namespace lockstep
         // Per-track Scale stage (DESIGN §4.10): conform the track's output notes
         // (live + sequenced) to the effective key. Off / Snap / Filter. v23+.
         ScaleMode scaleMode = ScaleMode::Off;
+
+        // 9.17: per-track launch-quantize override. kFollowGlobal (-1) = follow the
+        // Set-level grid; any concrete LaunchQuant value (incl. PhraseEnd) overrides
+        // it for this track alone. Song-scoped, serialized per-Kit. v25+.
+        int launchQuant = kFollowGlobal;
 
         // 6.5: per-track insert slots (post-AMP).  effectId empty = no effect.
         struct InsertSlot

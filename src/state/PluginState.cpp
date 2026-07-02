@@ -379,6 +379,8 @@ namespace lockstep::PluginState
             node.setProperty(keys::kVelCenter, kit.velCenter, nullptr);
         if (kit.scaleMode != ScaleMode::Off)
             node.setProperty(keys::kScaleMode, static_cast<int>(kit.scaleMode), nullptr);
+        if (kit.launchQuant != kFollowGlobal)
+            node.setProperty(keys::kLaunchQ, kit.launchQuant, nullptr);
 
         // Base params + post-machine FLTR/AMP via temp machine to get correct
         // slot IDs. The slot range covers machine params, then the foundation
@@ -475,6 +477,7 @@ namespace lockstep::PluginState
         kit.velCenter = static_cast<int>(node.getProperty(keys::kVelCenter, 90));
         kit.scaleMode = static_cast<ScaleMode>(
             static_cast<int>(node.getProperty(keys::kScaleMode, static_cast<int>(ScaleMode::Off))));
+        kit.launchQuant = static_cast<int>(node.getProperty(keys::kLaunchQ, kFollowGlobal));
 
         auto tempMachine = proc.createMachineForId(kit.machineId);
         const int machinNp = tempMachine->numParams();

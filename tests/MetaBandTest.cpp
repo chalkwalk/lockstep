@@ -97,6 +97,24 @@ namespace lockstep
         writeMetaField(MetaBand::Transport, 0, 4, 9.0f, proc, 0, ctx, ui);
         CHECK(proc.project().launchQuant == static_cast<int>(LaunchQuant::Bars8),
               "writeMetaField slot 4 clamps to Bars8 (max Set grid)");
+
+        // 9.17: slot 5 = per-track override (display value = kit.launchQuant + 1).
+        f = buildMetaBand(MetaBand::Transport, 0, proc, 0, ctx, ui);
+        CHECK(f[5].active && juce::String(f[5].label) == "T-LnchQ", "slot 5 = T-LnchQ");
+        CHECK(feq(f[5].minValue, 0.0f) && feq(f[5].maxValue, 7.0f),
+              "T-LnchQ range 0..7 (Follow..Phrase, PhraseEnd reachable here)");
+        // Default kit override = kFollowGlobal (-1) → display 0 "Follow".
+        CHECK(feq(f[5].value, 0.0f), "T-LnchQ default display = 0 (Follow)");
+        CHECK(juce::String(f[5].valueText) == "Follow", "T-LnchQ default value-text = Follow");
+
+        // Write Phrase (display 7 → override 6 = PhraseEnd) into the focused kit.
+        writeMetaField(MetaBand::Transport, 0, 5, 7.0f, proc, 0, ctx, ui);
+        CHECK(proc.kit(0).launchQuant == static_cast<int>(LaunchQuant::PhraseEnd),
+              "slot 5 writes PhraseEnd into kit.launchQuant (per-track only value)");
+        // Write Follow (display 0 → override -1) restores follow-global.
+        writeMetaField(MetaBand::Transport, 0, 5, 0.0f, proc, 0, ctx, ui);
+        CHECK(proc.kit(0).launchQuant == kFollowGlobal,
+              "slot 5 display 0 → kFollowGlobal");
     }
 
     // 10.7: Melodic generator band — resolution, field layout, write round-trip.

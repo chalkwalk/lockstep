@@ -268,8 +268,11 @@ namespace lockstep
     // (commit 6) every track follows the Set grid.
     LaunchQuant LockstepProcessor::trackLaunchGrid(int track) const
     {
-        juce::ignoreUnused(track);
-        return resolveTrackQuant(setLaunchGrid(), kFollowGlobal);
+        if (track < 0 || track >= static_cast<int>(kNumTracks))
+            return setLaunchGrid();
+        return resolveTrackQuant(setLaunchGrid(),
+                                 arrangement_.songs[static_cast<std::size_t>(arrangement_.songIdx)]
+                                     .tracks[static_cast<std::size_t>(track)].kit.launchQuant);
     }
 
     void LockstepProcessor::queueSongSwitch(int songIdx, bool forceInstant)
@@ -415,6 +418,33 @@ namespace lockstep
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
         return pendingMuteLane_[static_cast<std::size_t>(track)].load(std::memory_order_acquire)
                != static_cast<int>(MuteLane::None);
+    }
+
+    bool LockstepProcessor::trackBoundaryInBlock(std::size_t i, double blockStart,
+                                                 double blockEnd, const TimeSig& ts,
+                                                 double& outB) const
+    {
+        const auto grid = trackLaunchGrid(static_cast<int>(i));
+        if (grid != LaunchQuant::PhraseEnd)
+            return boundaryInBlock(blockStart, blockEnd, grid, ts, outB);
+
+        // PhraseEnd: the boundary is the end of this track's current phrase cycle,
+        // measured from its own anchor (trackLen × divPpq). A zero-length cycle
+        // degrades to Instant.
+        const int subdivIdx = std::clamp(static_cast<int>(trackDividerParams_[i]->load()),
+                                          kSubdivMin, kSubdivMax);
+        const double divPpq = subdivisionPpqFromIndex(subdivIdx);
+        const int len = static_cast<int>(trackLengthParams_[i]->load());
+        const double cycle = static_cast<double>(len) * divPpq;
+        if (cycle <= 0.0)
+        {
+            outB = blockStart;
+            return blockStart < blockEnd;
+        }
+        const double anchor = trackAnchorPpq_[i];
+        const double b = anchor + std::ceil((blockStart - anchor) / cycle) * cycle;
+        outB = b;
+        return b < blockEnd;
     }
 
     // ── 9.17 phase-reset primitive ───────────────────────────────────────────
@@ -2091,8 +2121,7 @@ namespace lockstep
                 const int qp = queuedDeviationPhrase_[t].load(std::memory_order_acquire);
                 if (qp < 0) continue;
                 double devBoundary = 0.0;
-                if (boundaryInBlock(blockStart, blockEnd, trackLaunchGrid(static_cast<int>(t)),
-                                    ct, devBoundary))
+                if (trackBoundaryInBlock(t, blockStart, blockEnd, ct, devBoundary))
                 {
                     pendingDeviationPhraseIdx_[t] = qp;
                     queuedDeviationPhrase_[t].store(-1, std::memory_order_release);
@@ -2108,8 +2137,7 @@ namespace lockstep
                 const int lane = pendingMuteLane_[t].load(std::memory_order_acquire);
                 if (lane == static_cast<int>(MuteLane::None)) continue;
                 double muteBoundary = 0.0;
-                if (!boundaryInBlock(blockStart, blockEnd, trackLaunchGrid(static_cast<int>(t)),
-                                     ct, muteBoundary))
+                if (!trackBoundaryInBlock(t, blockStart, blockEnd, ct, muteBoundary))
                     continue;
                 const bool target = pendingMuteTarget_[t].load(std::memory_order_acquire);
                 pendingMuteLane_[t].store(static_cast<int>(MuteLane::None), std::memory_order_release);
@@ -2152,8 +2180,7 @@ namespace lockstep
                 }
                 if (!pendingRelaunchQuant_[t].load(std::memory_order_acquire)) continue;
                 double relBoundary = 0.0;
-                if (boundaryInBlock(blockStart, blockEnd, trackLaunchGrid(static_cast<int>(t)),
-                                    ct, relBoundary))
+                if (trackBoundaryInBlock(t, blockStart, blockEnd, ct, relBoundary))
                 {
                     pendingRelaunchQuant_[t].store(false, std::memory_order_release);
                     applyPhaseReset(t, relBoundary,

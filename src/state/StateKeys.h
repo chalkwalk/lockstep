@@ -130,6 +130,7 @@ namespace lockstep::keys
     inline constexpr const char* kVelDepth = "vDp";  // float [0,1]
     inline constexpr const char* kVelCenter = "vCt"; // int [1,127]
     inline constexpr const char* kScaleMode = "scMd"; // v23: ScaleMode (uint8): Off/Snap/Filter
+    inline constexpr const char* kLaunchQ = "launchQ"; // v25: per-track LaunchQuant override (-1 = follow)
 
   // ── Base params container (BP) ───────────────────────────────────────────────
     inline constexpr const char* kBaseParams = "BP";

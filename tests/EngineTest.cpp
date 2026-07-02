@@ -933,6 +933,31 @@ namespace lockstep
               "launchQuant Beat survived save/load round-trip");
     }
 
+    // 9.17: the per-track launchQuant override resolves through trackLaunchGrid
+    // (concrete value wins over the Set grid; kFollowGlobal inherits it) and
+    // round-trips through save/load, defaulting to Follow when absent.
+    static void testPerTrackLaunchQuantOverride()
+    {
+        EngineHarness h;
+        // Set grid = Bar; track 0 defaults to follow-global.
+        h.processor().project().launchQuant = static_cast<int>(LaunchQuant::Bar);
+        CHECK(h.processor().kit(0).launchQuant == kFollowGlobal,
+              "override: fresh kit follows global");
+
+        // A concrete override wins; Beat != the Set Bar.
+        h.processor().kit(0).launchQuant = static_cast<int>(LaunchQuant::Beat);
+        h.processor().kit(1).launchQuant = kFollowGlobal;
+
+        juce::MemoryBlock state;
+        h.processor().getStateInformation(state);
+        EngineHarness hB;
+        hB.processor().setStateInformation(state.getData(), static_cast<int>(state.getSize()));
+        CHECK(hB.processor().kit(0).launchQuant == static_cast<int>(LaunchQuant::Beat),
+              "override: per-track Beat survived save/load");
+        CHECK(hB.processor().kit(1).launchQuant == kFollowGlobal,
+              "override: follow-global survived (absent → Follow)");
+    }
+
     // -----------------------------------------------------------------------
     // v16 → v17 upgrade: a state saved without masterSends (simulated by loading
     // a v17 state from a fresh default processor — which has no masterSends set)
@@ -2831,6 +2856,7 @@ namespace lockstep
         testMasterInsertRunsWhilePlaying();
         testV17StateRoundTrip();
         testLaunchQuantRoundTrip();
+        testPerTrackLaunchQuantOverride();
         testV16UpgradeToV17();
         testMasterSendBypassSilences();
         testNewProjectDuringPlayback();
