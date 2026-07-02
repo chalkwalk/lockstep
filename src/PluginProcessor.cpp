@@ -679,7 +679,26 @@ namespace lockstep
         fillTrackInput(static_cast<int>(i), frame, numBlockSamples);
         // C2: deliver the block transport to tempo-aware machines before process().
         if (auto* ta = dynamic_cast<ITempoAware*>(mi))
+        {
+            // 9.17: per-track launch-quantize edge timing (the looper arms its
+            // record/play/overdub edges to the shared grid, not a private one).
+            const double spp = (blockTransport_.barPpq > 0.0)
+                ? blockTransport_.samplesPerBar / blockTransport_.barPpq : 0.0;
+            const auto grid = trackLaunchGrid(static_cast<int>(i));
+            double cyclePpq = 0.0;
+            if (grid == LaunchQuant::PhraseEnd)
+            {
+                const int subdivIdx = std::clamp(static_cast<int>(trackDividerParams_[i]->load()),
+                                                 kSubdivMin, kSubdivMax);
+                const double divPpq = subdivisionPpqFromIndex(subdivIdx);
+                const int len = static_cast<int>(trackLengthParams_[i]->load());
+                cyclePpq = static_cast<double>(len) * divPpq;
+            }
+            blockTransport_.launchQuantPeriodSamples =
+                gridPpq(grid, effectiveTimeSig(), cyclePpq) * spp;
+            blockTransport_.launchQuantPhaseOffsetSamples = trackAnchorPpq_[i] * spp;
             ta->setTransport(blockTransport_);
+        }
         // S1: deliver this track's own grid (length × step subdivision) to the
         // Loop, whose loop length IS the track grid — not a machine-owned param.
         if (auto* lg = dynamic_cast<ILoopGridAware*>(mi))

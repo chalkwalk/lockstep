@@ -224,6 +224,8 @@ namespace lockstep
             p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
             LoopMachine lp(p); lp.prepare(kSr, n);
             TransportInfo tr; tr.samplesPerBar = 1024.0; tr.barPpq = 4.0; tr.running = true;
+            // 9.17: the processor delivers the launch-quantize edge period (one bar here).
+            tr.launchQuantPeriodSamples = 1024.0;
             tr.transportPhaseSamples = 200.0; lp.setTransport(tr);
             lp.setLoopGrid(16, 0.25);
             ParamFrame fr{ 1.0f, 0.0f, 2.0f };  // Sync (quantized)
@@ -244,6 +246,7 @@ namespace lockstep
             p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
             LoopMachine lp(p); lp.prepare(kSr, n);
             TransportInfo tr; tr.samplesPerBar = 1024.0; tr.barPpq = 4.0; tr.running = true;
+            tr.launchQuantPeriodSamples = 1024.0;   // 9.17: one-bar launch grid
             tr.transportPhaseSamples = 200.0;  // mid-bar, away from a boundary
             lp.setTransport(tr);
             lp.setLoopGrid(16, 0.25);          // 1-bar grid
@@ -610,6 +613,7 @@ namespace lockstep
             p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
             LoopMachine lp(p); lp.prepare(kSr, n);
             TransportInfo tr; tr.samplesPerBar = 1024.0; tr.barPpq = 4.0; tr.running = true;
+            tr.launchQuantPeriodSamples = 1024.0;   // 9.17: edges arm to the one-bar launch grid
             tr.transportPhaseSamples = 200.0; lp.setTransport(tr);
             ParamFrame fr{ 1.0f, 0.0f, 1.0f };  // Free Len (quantize starts/stops to the bar)
 
@@ -629,6 +633,56 @@ namespace lockstep
             runP(lp, 256, 0.5f, Cmd::None, fr);        // 1900..2156 crosses 2048 → close
             CHECK(lp.state() == State::Playing,
                   "S7: punch-out lands on the bar boundary → Playing");
+        }
+
+        // 9.17: the REC edge arms to the delivered launch-quantize period,
+        // independent of loop_sync (length only). A 2-bar period (2048) arms
+        // mid-bar and fires when the transport phase crosses 2048.
+        {
+            SamplePool p; p.addVolatile();
+            p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LoopMachine lp(p); lp.prepare(kSr, n);
+            TransportInfo tr; tr.samplesPerBar = 1024.0; tr.barPpq = 4.0; tr.running = true;
+            tr.launchQuantPeriodSamples = 2048.0;      // 2-bar launch grid
+            tr.transportPhaseSamples = 200.0; lp.setTransport(tr);
+            ParamFrame fr{ 1.0f, 0.0f, 2.0f };  // Sync (length only)
+            lp.postCommand(Cmd::RecordCycle);
+            runP(lp, 256, 0.5f, Cmd::None, fr);        // 200..456: arms, no 2048 boundary
+            CHECK(lp.state() == State::Armed, "9.17: REC arms to the delivered 2-bar period");
+            tr.transportPhaseSamples = 1900.0; lp.setTransport(tr);
+            runP(lp, 256, 0.5f, Cmd::None, fr);        // 1900..2156 crosses 2048 → fires
+            CHECK(lp.state() == State::Recording, "9.17: REC fires at the 2-bar period");
+        }
+
+        // 9.17: period 0 (Instant grid) → the edge fires immediately, no arm.
+        {
+            SamplePool p; p.addVolatile();
+            p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LoopMachine lp(p); lp.prepare(kSr, n);
+            TransportInfo tr; tr.samplesPerBar = 1024.0; tr.barPpq = 4.0; tr.running = true;
+            tr.launchQuantPeriodSamples = 0.0;         // Instant grid
+            tr.transportPhaseSamples = 200.0; lp.setTransport(tr);
+            ParamFrame fr{ 1.0f, 0.0f, 2.0f };
+            runP(lp, 256, 0.5f, Cmd::RecordCycle, fr);
+            CHECK(lp.state() == State::Recording, "9.17: period 0 fires the REC edge instantly");
+        }
+
+        // 9.17: loop_sync still governs LENGTH — a Sync loop auto-closes at the
+        // track-grid length (16 × 0.25 × 256 spq = 1024) regardless of the edge
+        // period delivered by the authority.
+        {
+            SamplePool p; p.addVolatile();
+            p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LoopMachine lp(p); lp.prepare(kSr, n);
+            TransportInfo tr; tr.samplesPerBar = 1024.0; tr.barPpq = 4.0; tr.running = true;
+            tr.launchQuantPeriodSamples = 4096.0;      // a wildly different edge period
+            lp.setTransport(tr);
+            lp.setLoopGrid(16, 0.25);
+            ParamFrame fr{ 1.0f, 0.0f, 2.0f };
+            runP(lp, n, 0.5f, Cmd::RecordCycle, fr, -1, /*immediate*/ true);  // 512 recorded
+            runP(lp, n, 0.5f, Cmd::None, fr);                                 // reaches 1024 → close
+            CHECK(lp.state() == State::Playing,
+                  "9.17: Sync length stays steps×stepPpq (1024), edge period independent");
         }
     }
 }

@@ -188,15 +188,6 @@ namespace lockstep
         return 0.0;  // Free — native
     }
 
-    double LoopMachine::quantPeriodSamples() const
-    {
-        const double spb = transport_.samplesPerBar;
-        if (spb <= 0.0) return 0.0;
-        if (syncMode_ >= kSyncGrid) return syncedLengthSamples();  // Sync — period = loop length
-        if (syncMode_ == 1) return spb;  // Free Len → quantise the start to the bar grid
-        return 0.0;  // Free — no quantise
-    }
-
     void LoopMachine::scaleLoop(float g)
     {
         if (target_ == nullptr || loopLen_ <= 0) return;
@@ -244,10 +235,11 @@ namespace lockstep
 
     void LoopMachine::applyCommand(Cmd c, bool immediate)
     {
-        // Quantize is implied by the sync mode (#2): Free = instant; Free Len /
-        // N Bar = snap the edge to the bar grid. A double-tap (immediate) forces the
-        // edge now, overriding quantize and cancelling any pending action.
-        const double period = quantPeriodSamples();
+        // 9.17: edge timing follows the one shared launch-quantize grid delivered
+        // by the processor (loop_sync now selects loop *length* only). Free/Instant
+        // grid → period 0 → fire now. A double-tap (immediate) forces the edge now,
+        // overriding quantize and cancelling any pending action.
+        const double period = transport_.launchQuantPeriodSamples;
         const bool quantStart = !immediate && period > 0.0;                  // can arm even when stopped (fires on transport roll/boundary)
         const bool quantPlay  = !immediate && period > 0.0 && transport_.running;
 
@@ -588,8 +580,11 @@ namespace lockstep
         const double tapeStopSlew = 1.0 - std::exp(-1.0 / (kTapeStopSec   * sampleRate_));
         const double resyncCoeff  = 1.0 - std::exp(-1.0 / (kTapeResyncSec * sampleRate_));
 
-        // #2: quantize period for a pending edge (record-start / stop / re-play).
-        const double quantPeriod = quantPeriodSamples();
+        // #2/9.17: quantize period for a pending edge (record-start / stop /
+        // re-play) comes from the shared launch-quantize authority; the phase
+        // offset aligns PhraseEnd edges to the track anchor after a relaunch.
+        const double quantPeriod = transport_.launchQuantPeriodSamples;
+        const double quantPhaseOffset = transport_.launchQuantPhaseOffsetSamples;
 
         for (int i = 0; i < numSamples; ++i)
         {
@@ -600,7 +595,8 @@ namespace lockstep
             // an N-bar period so multiple loopers land on the same grid line.
             if (pendingAction_ != 0 && transport_.running && quantPeriod > 0.0)
             {
-                const double phaseI = transport_.transportPhaseSamples + static_cast<double>(i);
+                const double phaseI = transport_.transportPhaseSamples
+                                      + static_cast<double>(i) - quantPhaseOffset;
                 if (std::floor(phaseI / quantPeriod) != std::floor((phaseI - 1.0) / quantPeriod))
                     firePending();
             }

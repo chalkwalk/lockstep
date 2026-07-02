@@ -218,9 +218,9 @@ namespace lockstep
         // Begin a fresh recording take: (re)size + clear the slot, reset positions,
         // arm the N-bar auto-close. Shared by the immediate and boundary-fired paths.
         void startRecording();
-        // Quantize period (samples) for a pending edge in the current sync mode:
-        // N-bar for N Bar, one bar for Free Len, 0 for Free / unknown tempo.
-        [[nodiscard]] double quantPeriodSamples() const;
+        // 9.17: the per-edge quantize period now comes from the shared launch grid
+        // (TransportInfo::launchQuantPeriodSamples), not a private looper grid.
+        // syncedLengthSamples()/targetOutputSamples() still own loop *length*.
         // #4 Always-decay: scale the whole stored loop by `g` once per iteration.
         void scaleLoop(float g);
         // Apply the scheduled quantized edge (record-start / stop / re-play) and clear it.
