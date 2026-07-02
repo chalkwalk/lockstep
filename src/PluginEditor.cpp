@@ -114,19 +114,27 @@ namespace lockstep
         {
             ed.processor_.removeAllMorph(track);
         }
+        // 9.17: mute/solo/scene-mute arm to the launch grid; a step double-tap
+        // (per-lane token so lanes don't cross-trigger) is the instant override.
         void globalMuteToggle(int track) override
         {
-            ed.processor_.toggleGlobalMute(track);
+            const double now = juce::Time::getMillisecondCounterHiRes();
+            const bool dbl = ed.gesture_.doubleTap(kMuteStepTokenBase + track, now);
+            ed.processor_.queueGlobalMuteToggle(track, dbl);
             ed.refreshSurface();
         }
         void soloToggle(int track) override
         {
-            ed.processor_.toggleSolo(track);
+            const double now = juce::Time::getMillisecondCounterHiRes();
+            const bool dbl = ed.gesture_.doubleTap(kMuteStepTokenBase + 16 + track, now);
+            ed.processor_.queueSolo(track, dbl);
             ed.refreshSurface();
         }
         void sceneMuteToggle(int track) override
         {
-            ed.processor_.togglePatternMute(track);
+            const double now = juce::Time::getMillisecondCounterHiRes();
+            const bool dbl = ed.gesture_.doubleTap(kMuteStepTokenBase + 32 + track, now);
+            ed.processor_.queueSceneMute(track, dbl);
             ed.refreshSurface();
         }
         void fluidMuteToggle(int track) override

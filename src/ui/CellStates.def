@@ -102,6 +102,11 @@ LS_CELLSTATE(RouteConMaster,   211,  0xFF2E6A6Au, 0x00000000u,  37, 127)
 LS_CELLSTATE(RouteConBus,      212,  0xFF2E5E46u, 0x00000000u,  18, 127)
 LS_CELLSTATE(RouteConChanged,  213,  0xFFE0A030u, 0x00000000u,   9, 127)
 
+// ---- quantized mute pending (9.17) ------------------------------------
+// A mute/unmute armed to the launch grid, not yet fired. Append-only.
+LS_CELLSTATE(MutePendingMute,   214,  0xFFE0A030u, 0x00000000u,   9, 127)
+LS_CELLSTATE(MutePendingUnmute, 215,  0xFF30C860u, 0x00000000u,  21, 127)
+
 // ---- confirm overlay (8.24) -------------------------------------------
 LS_CELLSTATE(ConfirmYes,       150,  0xFF30C860u, 0x00000000u,  21, 127)
 LS_CELLSTATE(ConfirmNo,        151,  0xFFC03030u, 0x00000000u,   5, 127)

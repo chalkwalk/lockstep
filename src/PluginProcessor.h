@@ -271,6 +271,16 @@ namespace lockstep
         }
         [[nodiscard]] LaunchQuant trackLaunchGrid(int track) const;
 
+        // 9.17: quantized mute / solo / scene-mute. Each arms to the track's
+        // launch grid; stopped / Instant grid / double-tap (forceInstant) fall
+        // through to the immediate toggle. Re-tapping the same lane before the
+        // boundary cancels ("change your mind"). Safe from the message thread.
+        void queueGlobalMuteToggle(int track, bool forceInstant = false);
+        void queueSolo(int track, bool forceInstant = false);
+        void queueSceneMute(int track, bool forceInstant = false);
+        void cancelPendingMute(int track);
+        [[nodiscard]] bool hasPendingMute(int track) const;
+
         Clock& clock() { return clock_; }
         const Clock& clock() const { return clock_; }
 
@@ -954,6 +964,51 @@ namespace lockstep
         std::array<std::atomic<int>, kNumTracks> queuedDeviationPhrase_{};      // [ATOMIC] -1 = none
         std::array<std::atomic<bool>, kNumTracks> pendingDeviationApply_{};     // [ATOMIC]
         std::array<int, kNumTracks> pendingDeviationPhraseIdx_{};               // [AUDIO]
+
+        // 9.17: quantized mute lanes. A pending toggle arms a lane; at the track's
+        // launch boundary the audio thread applies it. Scene-mute flips the plain
+        // activeMask bit directly (audio-safe). Global-mute / solo cannot flip an
+        // APVTS param on the audio thread, so the audio thread carries an override
+        // (target value folded into the silent / solo computation) and posts the
+        // real param write via callAsync; the override self-clears once the param
+        // catches up. MuteLane::None == 0, so value-init is correct here.
+        enum class MuteLane : int { None = 0, Global, Solo, Scene };
+        std::array<std::atomic<int>, kNumTracks> pendingMuteLane_{};    // [ATOMIC] MuteLane
+        std::array<std::atomic<bool>, kNumTracks> pendingMuteTarget_{}; // [ATOMIC] desired ON state
+        std::array<std::atomic<bool>, kNumTracks> muteOverrideActive_{};// [ATOMIC]
+        std::array<std::atomic<bool>, kNumTracks> muteOverrideVal_{};   // [ATOMIC]
+        std::array<std::atomic<bool>, kNumTracks> soloOverrideActive_{};// [ATOMIC]
+        std::array<std::atomic<bool>, kNumTracks> soloOverrideVal_{};   // [ATOMIC]
+
+        // Effective mute/solo for track i, folding in any in-flight override
+        // (the audio thread reads these in the silent / solo computations).
+        [[nodiscard]] bool effectiveGlobalMuted(std::size_t i) const
+        {
+            if (muteOverrideActive_[i].load(std::memory_order_acquire))
+                return muteOverrideVal_[i].load(std::memory_order_acquire);
+            return trackMuteParams_[i]->load() >= 0.5f;
+        }
+        [[nodiscard]] bool effectiveSoloed(std::size_t i) const
+        {
+            if (soloOverrideActive_[i].load(std::memory_order_acquire))
+                return soloOverrideVal_[i].load(std::memory_order_acquire);
+            return trackSoloParams_[i]->load() >= 0.5f;
+        }
+        // Clear any override whose real APVTS param has caught up to the target.
+        void reconcileMuteOverrides()
+        {
+            for (std::size_t i = 0; i < kNumTracks; ++i)
+            {
+                if (muteOverrideActive_[i].load(std::memory_order_acquire)
+                    && (trackMuteParams_[i]->load() >= 0.5f)
+                           == muteOverrideVal_[i].load(std::memory_order_acquire))
+                    muteOverrideActive_[i].store(false, std::memory_order_release);
+                if (soloOverrideActive_[i].load(std::memory_order_acquire)
+                    && (trackSoloParams_[i]->load() >= 0.5f)
+                           == soloOverrideVal_[i].load(std::memory_order_acquire))
+                    soloOverrideActive_[i].store(false, std::memory_order_release);
+            }
+        }
         // Legacy: queued pattern switch. -1/-1 means no switch pending.
         std::atomic<int> previewPoolIndex_{ -1 };  // [ATOMIC]
         std::atomic<int> previewReqTrack_{ 0 };   // [ATOMIC]

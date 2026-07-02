@@ -180,6 +180,10 @@ namespace lockstep
         RouteConMaster = 211,      // track routed to the Master sum
         RouteConBus = 212,         // track routed into another track's bus input
         RouteConChanged = 213,     // staged edit differs from the committed dest
+
+        // ---- quantized mute pending (9.17) — armed, not yet fired ------------
+        MutePendingMute = 214,     // a track armed to mute at the launch boundary
+        MutePendingUnmute = 215,   // a track armed to unmute at the launch boundary
     };
 
     // Pure mapping for the §34.4 length-edit re-skin: classify an absolute step

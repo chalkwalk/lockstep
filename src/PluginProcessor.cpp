@@ -349,6 +349,73 @@ namespace lockstep
         return queuedDeviationPhrase_[static_cast<std::size_t>(track)].load(std::memory_order_acquire);
     }
 
+    // ── 9.17 quantized mute lanes ────────────────────────────────────────────
+    // Common arming helper: on a re-tap of the same lane cancel it ("change your
+    // mind"); otherwise record the desired target. The immediate-vs-defer choice
+    // is made by the caller.
+    void LockstepProcessor::queueGlobalMuteToggle(int track, bool forceInstant)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        const auto t = static_cast<std::size_t>(track);
+        const bool defer = clock_.inPluginPlaying() && !forceInstant
+                           && trackLaunchGrid(track) != LaunchQuant::Instant;
+        if (!defer) { toggleGlobalMute(track); return; }
+        if (pendingMuteLane_[t].load(std::memory_order_acquire) == static_cast<int>(MuteLane::Global))
+        {
+            pendingMuteLane_[t].store(static_cast<int>(MuteLane::None), std::memory_order_release);
+            return;
+        }
+        pendingMuteTarget_[t].store(!getGlobalMute(track), std::memory_order_release);
+        pendingMuteLane_[t].store(static_cast<int>(MuteLane::Global), std::memory_order_release);
+    }
+
+    void LockstepProcessor::queueSolo(int track, bool forceInstant)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        const auto t = static_cast<std::size_t>(track);
+        const bool defer = clock_.inPluginPlaying() && !forceInstant
+                           && trackLaunchGrid(track) != LaunchQuant::Instant;
+        if (!defer) { toggleSolo(track); return; }
+        if (pendingMuteLane_[t].load(std::memory_order_acquire) == static_cast<int>(MuteLane::Solo))
+        {
+            pendingMuteLane_[t].store(static_cast<int>(MuteLane::None), std::memory_order_release);
+            return;
+        }
+        const bool nowSoloed = trackSoloParams_[t]->load() >= 0.5f;
+        pendingMuteTarget_[t].store(!nowSoloed, std::memory_order_release);
+        pendingMuteLane_[t].store(static_cast<int>(MuteLane::Solo), std::memory_order_release);
+    }
+
+    void LockstepProcessor::queueSceneMute(int track, bool forceInstant)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        const auto t = static_cast<std::size_t>(track);
+        const bool defer = clock_.inPluginPlaying() && !forceInstant
+                           && trackLaunchGrid(track) != LaunchQuant::Instant;
+        if (!defer) { togglePatternMute(track); return; }
+        if (pendingMuteLane_[t].load(std::memory_order_acquire) == static_cast<int>(MuteLane::Scene))
+        {
+            pendingMuteLane_[t].store(static_cast<int>(MuteLane::None), std::memory_order_release);
+            return;
+        }
+        pendingMuteTarget_[t].store(!getPatternMute(track), std::memory_order_release);
+        pendingMuteLane_[t].store(static_cast<int>(MuteLane::Scene), std::memory_order_release);
+    }
+
+    void LockstepProcessor::cancelPendingMute(int track)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        pendingMuteLane_[static_cast<std::size_t>(track)].store(
+            static_cast<int>(MuteLane::None), std::memory_order_release);
+    }
+
+    bool LockstepProcessor::hasPendingMute(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
+        return pendingMuteLane_[static_cast<std::size_t>(track)].load(std::memory_order_acquire)
+               != static_cast<int>(MuteLane::None);
+    }
+
 
     WidgetMappingInfo LockstepProcessor::queryWidgetMapping(int slot, int mzPosition) const
     {
@@ -1784,11 +1851,14 @@ namespace lockstep
         // is routing-aware — soloing a bus keeps its feeders audible (so you hear
         // what flows in), and soloing a feeder keeps its downstream bus chain
         // audible (so it still reaches master). The audibleMask encodes both.
+        // 9.17: clear any quantized-mute override whose real param has caught up,
+        // then read effective (override-folded) mute/solo below.
+        reconcileMuteOverrides();
         std::array<bool, kNumTracks> soloedFlags{};
         bool anySoloed = false;
         for (std::size_t i = 0; i < kNumTracks; ++i)
         {
-            soloedFlags[i] = trackSoloParams_[i]->load() >= 0.5f;
+            soloedFlags[i] = effectiveSoloed(i);
             anySoloed = anySoloed || soloedFlags[i];
         }
         const auto soloAudible = routing::soloAudibleMask(routingEdges(), soloedFlags);
@@ -1837,7 +1907,7 @@ namespace lockstep
             for (std::size_t oi = 0; oi < kNumTracks; ++oi)
             {
                 const std::size_t i = static_cast<std::size_t>(routeOrderIdle[oi]);
-                const bool muted = (trackMuteParams_[i]->load() >= 0.5f) || !section().activeMask[i];
+                const bool muted = effectiveGlobalMuted(i) || !section().activeMask[i];
                 const bool silent = muted || (anySoloed && !soloAudible[i]);
                 // W5: same declick as the running path — an audio track keeps
                 // rendering its tail while the mute ramp falls, then is skipped.
@@ -1981,6 +2051,45 @@ namespace lockstep
                     pendingDeviationApply_[t].store(true, std::memory_order_release);
                 }
             }
+
+            // Per-track quantized mute / solo / scene-mute (9.17). Scene-mute
+            // flips the plain activeMask bit here (audio-safe); global-mute / solo
+            // engage an override + post the real APVTS write via callAsync.
+            for (std::size_t t = 0; t < kNumTracks; ++t)
+            {
+                const int lane = pendingMuteLane_[t].load(std::memory_order_acquire);
+                if (lane == static_cast<int>(MuteLane::None)) continue;
+                double muteBoundary = 0.0;
+                if (!boundaryInBlock(blockStart, blockEnd, trackLaunchGrid(static_cast<int>(t)),
+                                     ct, muteBoundary))
+                    continue;
+                const bool target = pendingMuteTarget_[t].load(std::memory_order_acquire);
+                pendingMuteLane_[t].store(static_cast<int>(MuteLane::None), std::memory_order_release);
+                const int track = static_cast<int>(t);
+                if (lane == static_cast<int>(MuteLane::Scene))
+                {
+                    // activeMask is the inverse of "scene-muted".
+                    section().activeMask[t] = !target;
+                    section().initialised = true;
+                }
+                else if (lane == static_cast<int>(MuteLane::Global))
+                {
+                    muteOverrideVal_[t].store(target, std::memory_order_release);
+                    muteOverrideActive_[t].store(true, std::memory_order_release);
+                    juce::MessageManager::callAsync(
+                        [this, track, target] { setGlobalMute(track, target); });
+                }
+                else // Solo
+                {
+                    soloOverrideVal_[t].store(target, std::memory_order_release);
+                    soloOverrideActive_[t].store(true, std::memory_order_release);
+                    juce::MessageManager::callAsync(
+                        [this, track, target] {
+                            if (auto* p = apvts_.getParameter(ParamIDs::trackSolo(track)))
+                                p->setValueNotifyingHost(target ? 1.0f : 0.0f);
+                        });
+                }
+            }
         }
 
 
@@ -1998,7 +2107,9 @@ namespace lockstep
             const int trackSubdiv = std::clamp(static_cast<int>(trackDividerParams_[i]->load()),
                                                kSubdivMin, kSubdivMax);
             // MD.6/MD.7: combined mute = global (APVTS) || section active-mask.
-            const bool globalMuted = trackMuteParams_[i]->load() >= 0.5f;
+            // 9.17: effectiveGlobalMuted folds in any in-flight quantized-mute
+            // override so the declick ramp + note-offs engage at the boundary.
+            const bool globalMuted = effectiveGlobalMuted(i);
             const bool sectionMuted = !section().activeMask[i];
             const bool muted = globalMuted || sectionMuted;
             const bool silent = muted || (anySoloed && !soloAudible[i]);

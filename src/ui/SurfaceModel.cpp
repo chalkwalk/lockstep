@@ -1719,6 +1719,18 @@ namespace lockstep
                                            ? proc.getPatternMute(i)
                                            : proc.getGlobalMute(i);
 
+                    // 9.17: a quantized mute/unmute armed but not yet fired shows a
+                    // pending badge (which way it will flip = inverse of current).
+                    if (proc.hasPendingMute(i))
+                    {
+                        // Amber = will mute; green = will unmute. Pulse-worthy but
+                        // static here; paintStepRows can animate off the token.
+                        c.base = muted ? CellState::MutePendingUnmute
+                                       : CellState::MutePendingMute;
+                        c.baseColour = muted ? 0xFF30C860u : 0xFFE0A030u;
+                        continue;
+                    }
+
                     c.base = muted ? CellState::MuteMuted : CellState::MuteAudible;
                     const juce::Colour muteJCol{ muteCol };
                     const juce::Colour audibleCol = juce::Colour(kStepInactive)

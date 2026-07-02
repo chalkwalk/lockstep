@@ -504,6 +504,90 @@ namespace lockstep
         }
     }
 
+    // 9.17: a global mute armed to the Bar grid stays audible until the boundary,
+    // then silences (the audio-side override engages; the real APVTS flip would
+    // ride a callAsync, which does not fire headless — the override holds it).
+    static void testQuantizedMuteEngagesAtBoundary()
+    {
+        EngineHarness h;
+        installMachine(h.processor(), 0, DrumMachine::kMachineId);
+        auto& trk0 = h.processor().sequence().tracks[0];
+        for (std::size_t s = 0; s < 16; ++s)
+        {
+            trk0.steps[s].trig = true;
+            trk0.steps[s].trigOverride.hasGate = true;
+            trk0.steps[s].trigOverride.gateValue = MusicalGate::G1_8;
+        }
+
+        float rmsBefore = 0.0f;
+        for (int b = 0; b < 28; ++b) { h.renderBlocks(1); rmsBefore = std::max(rmsBefore, h.lastBufferRms()); }
+        CHECK(rmsBefore > 1e-4f, "quant mute: audible precondition");
+
+        h.processor().queueGlobalMuteToggle(0, /*forceInstant=*/false);
+        CHECK(h.processor().hasPendingMute(0), "quant mute: queued");
+
+        for (int b = 0; b < 450; ++b) h.renderBlocks(1);   // cross a bar + let the tail decay
+        CHECK(!h.processor().hasPendingMute(0), "quant mute: lane consumed at boundary");
+
+        float rmsAfter = 0.0f;
+        for (int b = 0; b < 28; ++b) { h.renderBlocks(1); rmsAfter = std::max(rmsAfter, h.lastBufferRms()); }
+        CHECK(!h.lastBufferHasNaN(), "quant mute: no NaN after boundary");
+        CHECK(rmsAfter < 1e-3f, "quant mute: silenced after boundary (RMS=" + juce::String(rmsAfter) + ")");
+    }
+
+    // 9.17: re-tapping the same lane before the boundary cancels ("change your mind").
+    static void testQuantizedMuteCancelOnRetap()
+    {
+        EngineHarness h;
+        h.renderBlocks(5);
+        h.processor().queueGlobalMuteToggle(0, false);
+        CHECK(h.processor().hasPendingMute(0), "cancel: queued after first tap");
+        h.processor().queueGlobalMuteToggle(0, false);
+        CHECK(!h.processor().hasPendingMute(0), "cancel: re-tap clears the pending mute");
+    }
+
+    // 9.17: double-tap (forceInstant) mutes now, bypassing the grid.
+    static void testDoubleTapMuteInstant()
+    {
+        EngineHarness h;
+        h.renderBlocks(5);
+        CHECK(!h.processor().getGlobalMute(0), "instant mute: unmuted precondition");
+        h.processor().queueGlobalMuteToggle(0, /*forceInstant=*/true);
+        CHECK(h.processor().getGlobalMute(0), "instant mute: applied immediately");
+        CHECK(!h.processor().hasPendingMute(0), "instant mute: leaves no pending lane");
+    }
+
+    // 9.17: scene-mute flips the plain activeMask bit directly at the boundary
+    // (audio-safe), observable via getPatternMute.
+    static void testQuantizedSceneMuteAtBoundary()
+    {
+        EngineHarness h;
+        CHECK(!h.processor().getPatternMute(0), "scene mute: unmuted precondition");
+        h.renderBlocks(5);
+        h.processor().queueSceneMute(0, false);
+        CHECK(h.processor().hasPendingMute(0), "scene mute: queued");
+
+        bool applied = false;
+        for (int b = 0; b < 450; ++b)
+        {
+            h.renderBlocks(1);
+            if (h.processor().getPatternMute(0)) { applied = true; break; }
+        }
+        CHECK(applied, "scene mute: activeMask flipped at boundary");
+        CHECK(!h.processor().hasPendingMute(0), "scene mute: pending cleared after apply");
+    }
+
+    // 9.17: the solo lane arms and cancels through the same pending machinery.
+    static void testQuantizedSoloQueueAndCancel()
+    {
+        EngineHarness h;
+        h.renderBlocks(5);
+        h.processor().queueSolo(0, false);
+        CHECK(h.processor().hasPendingMute(0), "solo: queued");
+        h.processor().queueSolo(0, false);
+        CHECK(!h.processor().hasPendingMute(0), "solo: re-tap cancels");
+    }
+
     // -----------------------------------------------------------------------
     // EngineCmd queue: enqueue a base-param write, render one block, verify
     // the value has been applied (i.e. the audio thread drained the queue).
@@ -2676,6 +2760,11 @@ namespace lockstep
         testQueuedSongSwitchAtBoundary();
         testDoubleTapSongSwitchInstant();
         testQueuedDeviationAtBoundary();
+        testQuantizedMuteEngagesAtBoundary();
+        testQuantizedMuteCancelOnRetap();
+        testDoubleTapMuteInstant();
+        testQuantizedSceneMuteAtBoundary();
+        testQuantizedSoloQueueAndCancel();
         testEngineCmdAppliedAfterBlock();
         testEngineCmdQueueFullDrop();
         testSurfaceDirtyOnParamApply();

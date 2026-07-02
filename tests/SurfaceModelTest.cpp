@@ -826,9 +826,30 @@ namespace lockstep
         }
     }
 
+    // 9.17: a mute armed to the launch grid (not yet fired) shows the pending
+    // badge in the Mute view; unarmed tracks keep their normal audible/muted cell.
+    static void testQuantizedMutePendingChrome()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        EditContext ec;
+        // Running + default Bar grid → the toggle defers and arms a pending lane.
+        proc.queueGlobalMuteToggle(0, /*forceInstant=*/false);
+        CHECK(proc.hasPendingMute(0), "pending chrome: mute armed");
+
+        UiState ui; ui.muteHeld = true;
+        const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                         GridDisplayMode::Ortholinear);
+        CHECK(m.step[0].base == CellState::MutePendingMute,
+              "pending chrome: armed track shows MutePendingMute");
+        CHECK(m.step[1].base == CellState::MuteAudible,
+              "pending chrome: unarmed track shows normal audible cell");
+    }
+
     void runSurfaceModelTests()
     {
         testPanicKeyLabel();
+        testQuantizedMutePendingChrome();
         testNavKeyFuncPromotion();
         testSectionKeyLabel();
         testLengthEditCellState();
