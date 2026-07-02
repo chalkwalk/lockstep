@@ -2,6 +2,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
+#include <vector>
 
 namespace lockstep
 {
@@ -39,6 +40,18 @@ namespace lockstep
 
     private:
         LockstepProcessor& processor_;
+
+        // W3a: the browser groups the flat pool under non-selectable headers —
+        // SAMPLES (files), then RECORD / LOOP (captured volatile slots, empties
+        // hidden). Display rows map back to absolute pool indices for click/preview
+        // and the edit buttons.
+        struct DisplayRow { bool isHeader = false; juce::String label; int poolIndex = -1; };
+        std::vector<DisplayRow> rows_;
+        void rebuildRows();
+        // Absolute pool index of the currently-selected display row, or -1 if a
+        // header / nothing is selected.
+        int selectedPoolIndex() const;
+
         juce::ListBox list_{ "pool", this };
         juce::TextButton loadBtn_{ "Load..." };
         juce::TextButton relinkBtn_{ "Relink..." };

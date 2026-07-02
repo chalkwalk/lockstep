@@ -34,7 +34,7 @@ namespace lockstep
         relinkBtn_.setWantsKeyboardFocus(false);
         relinkBtn_.setEnabled(false);
         relinkBtn_.onClick = [this] {
-            const int row = list_.getSelectedRow();
+            const int row = selectedPoolIndex();
             if (row < 0 || !processor_.samplePool().isMissing(row))
                 return;
             const auto* s = processor_.samplePool().get(row);
@@ -60,34 +60,35 @@ namespace lockstep
 
         removeBtn_.setWantsKeyboardFocus(false);
         removeBtn_.onClick = [this] {
-            const int row = list_.getSelectedRow();
+            const int row = selectedPoolIndex();
             if (row < 0 || row >= processor_.samplePool().size())
                 return;
             processor_.removeSample(row);
             list_.updateContent();
-            list_.selectRow(std::max(0, row - 1));
         };
         addAndMakeVisible(removeBtn_);
 
+        // Up/Down reorder file samples only (volatile REC slots have fixed ordinals).
         upBtn_.setWantsKeyboardFocus(false);
         upBtn_.onClick = [this] {
-            const int row = list_.getSelectedRow();
-            if (row <= 0 || row >= processor_.samplePool().size())
+            const int row = selectedPoolIndex();
+            if (row <= 0 || processor_.samplePool().isVolatileIndex(row)
+                || processor_.samplePool().isVolatileIndex(row - 1))
                 return;
             processor_.swapSamples(row, row - 1);
             list_.updateContent();
-            list_.selectRow(row - 1);
         };
         addAndMakeVisible(upBtn_);
 
         downBtn_.setWantsKeyboardFocus(false);
         downBtn_.onClick = [this] {
-            const int row = list_.getSelectedRow();
-            if (row < 0 || row >= processor_.samplePool().size() - 1)
+            const int row = selectedPoolIndex();
+            if (row < 0 || row >= processor_.samplePool().size() - 1
+                || processor_.samplePool().isVolatileIndex(row)
+                || processor_.samplePool().isVolatileIndex(row + 1))
                 return;
             processor_.swapSamples(row, row + 1);
             list_.updateContent();
-            list_.selectRow(row + 1);
         };
         addAndMakeVisible(downBtn_);
 
@@ -123,82 +124,175 @@ namespace lockstep
 
     void SamplePoolOverlay::timerCallback()
     {
+        rebuildRows();
         list_.updateContent();
         updateButtonStates();
     }
 
-    void SamplePoolOverlay::updateButtonStates()
+    void SamplePoolOverlay::rebuildRows()
+    {
+        rows_.clear();
+        auto& pool = processor_.samplePool();
+        const int n = pool.size();
+
+        // SAMPLES — every disk-backed (non-volatile) entry, in pool order.
+        bool anyFile = false;
+        for (int i = 0; i < n; ++i)
+            if (!pool.isVolatileIndex(i)) { anyFile = true; break; }
+        if (anyFile)
+        {
+            rows_.push_back({ true, "SAMPLES", -1 });
+            for (int i = 0; i < n; ++i)
+                if (!pool.isVolatileIndex(i))
+                    rows_.push_back({ false, {}, i });
+        }
+
+        // RECORD / LOOP — captured volatile slots only (empties hidden).
+        auto addGroup = [&](SampleOrigin o, const char* label) {
+            bool any = false;
+            for (int i = 0; i < n; ++i)
+                if (pool.isVolatileIndex(i) && pool.origin(i) == o) { any = true; break; }
+            if (!any) return;
+            rows_.push_back({ true, label, -1 });
+            for (int i = 0; i < n; ++i)
+                if (pool.isVolatileIndex(i) && pool.origin(i) == o)
+                    rows_.push_back({ false, {}, i });
+        };
+        addGroup(SampleOrigin::Record, "RECORD");
+        addGroup(SampleOrigin::Loop, "LOOP");
+    }
+
+    int SamplePoolOverlay::selectedPoolIndex() const
     {
         const int row = list_.getSelectedRow();
-        const bool hasSel = (row >= 0 && row < processor_.samplePool().size());
-        const bool missing = hasSel && processor_.samplePool().isMissing(row);
+        if (row < 0 || row >= static_cast<int>(rows_.size()))
+            return -1;
+        return rows_[static_cast<std::size_t>(row)].isHeader
+                   ? -1 : rows_[static_cast<std::size_t>(row)].poolIndex;
+    }
+
+    void SamplePoolOverlay::updateButtonStates()
+    {
+        auto& pool = processor_.samplePool();
+        const int row = selectedPoolIndex();  // absolute pool index, or -1 for a header
+        const bool hasSel = (row >= 0 && row < pool.size());
+        const bool isFile = hasSel && !pool.isVolatileIndex(row);
+        const bool missing = hasSel && pool.isMissing(row);
         relinkBtn_.setEnabled(missing);
-        removeBtn_.setEnabled(hasSel);
-        upBtn_.setEnabled(hasSel && row > 0);
-        downBtn_.setEnabled(hasSel && row < processor_.samplePool().size() - 1);
+        removeBtn_.setEnabled(isFile);   // volatile REC slots aren't removable
+        upBtn_.setEnabled(isFile && row > 0 && !pool.isVolatileIndex(row - 1));
+        downBtn_.setEnabled(isFile && row < pool.size() - 1
+                            && !pool.isVolatileIndex(row + 1));
     }
 
     int SamplePoolOverlay::getNumRows()
     {
-        return processor_.samplePool().size();
+        // getNumRows is called during updateContent(); keep the row model in sync.
+        rebuildRows();
+        return static_cast<int>(rows_.size());
     }
 
     void SamplePoolOverlay::paintListBoxItem(int rowNumber, juce::Graphics& g,
                                              int width, int height, bool rowIsSelected)
     {
+        if (rowNumber < 0 || rowNumber >= static_cast<int>(rows_.size()))
+            return;
+        const auto& row = rows_[static_cast<std::size_t>(rowNumber)];
+        const int textY = (height - 13) / 2;
+
+        if (row.isHeader)
+        {
+            g.setColour(juce::Colour::fromRGB(30, 36, 44));
+            g.fillAll();
+            g.setFont(juce::Font(juce::FontOptions(10.0f)).boldened());
+            g.setColour(juce::Colour::fromRGB(130, 150, 175));
+            g.drawText(row.label,
+                       juce::Rectangle<int>(6, textY, width - 12, 14),
+                       juce::Justification::centredLeft);
+            return;
+        }
+
         if (rowIsSelected)
         {
             g.setColour(juce::Colour::fromRGB(50, 80, 120));
             g.fillAll();
         }
 
-        const auto* sample = processor_.samplePool().get(rowNumber);
+        auto& pool = processor_.samplePool();
+        const auto* sample = pool.get(row.poolIndex);
         if (sample == nullptr)
             return;
 
         const bool isMissing = sample->missing;
-        const juce::File f(juce::String(sample->ref.path));
-        const juce::String indexStr = juce::String(rowNumber) + ".  ";
-        const juce::String name = f.getFileNameWithoutExtension();
-        const juce::String dirHint = isMissing ? "MISSING" : f.getParentDirectory().getFileName();
+        const bool isVol = pool.isVolatileIndex(row.poolIndex);
 
-        const int textY = (height - 13) / 2;
+        // Volatile capture slots have no file name — synthesise "Record N"/"Loop N"
+        // by their ordinal within the group. Files show name + directory hint.
+        juce::String name, hint;
+        if (isVol)
+        {
+            const char* kind = (sample->origin == SampleOrigin::Loop) ? "Loop" : "Record";
+            int ord = 0;
+            for (int i = 0; i <= row.poolIndex; ++i)
+                if (pool.isVolatileIndex(i) && pool.origin(i) == sample->origin)
+                    ++ord;
+            name = juce::String(kind) + " " + juce::String(ord);
+            // Prefer the captured musical length (bars); fall back to a bpm estimate.
+            hint = sample->sourceBars > 0.0
+                       ? juce::String(sample->sourceBars, 2) + " bars"
+                       : (sample->detectedBpm > 0.0
+                              ? juce::String(juce::roundToInt(sample->detectedBpm)) + " bpm"
+                              : "");
+        }
+        else
+        {
+            const juce::File f(juce::String(sample->ref.path));
+            name = f.getFileNameWithoutExtension();
+            if (isMissing)
+                hint = "MISSING";
+            else if (sample->detectedBpm > 0.0)
+                hint = juce::String(juce::roundToInt(sample->detectedBpm)) + " bpm";
+            else
+                hint = f.getParentDirectory().getFileName();
+        }
 
         g.setFont(juce::Font(juce::FontOptions(12.0f)).boldened());
         g.setColour(isMissing ? juce::Colour::fromRGB(255, 160, 50)
                               : juce::Colours::white);
-        g.drawText(indexStr + name,
+        g.drawText("  " + name,
                    juce::Rectangle<int>(6, textY, width - 12, 14),
                    juce::Justification::centredLeft);
 
         g.setFont(juce::Font(juce::FontOptions(10.0f)));
         g.setColour(isMissing ? juce::Colour::fromRGB(200, 100, 30)
                               : juce::Colour::fromRGB(120, 140, 160));
-        g.drawText(dirHint,
+        g.drawText(hint,
                    juce::Rectangle<int>(6, textY, width - 12, 14),
                    juce::Justification::centredRight);
     }
 
-    void SamplePoolOverlay::listBoxItemClicked(int rowNumber, const juce::MouseEvent& /*e*/)
+    void SamplePoolOverlay::listBoxItemClicked(int /*rowNumber*/, const juce::MouseEvent& /*e*/)
     {
         updateButtonStates();
-        if (rowNumber < 0 || rowNumber >= processor_.samplePool().size())
-            return;
-        if (processor_.samplePool().isMissing(rowNumber))
+        const int poolIdx = selectedPoolIndex();
+        if (poolIdx < 0)
+            return;  // header row — nothing to preview
+        if (processor_.samplePool().isMissing(poolIdx))
             return;  // no preview for missing samples
         const int track = getActiveTrack ? getActiveTrack() : 0;
-        processor_.triggerPreview(rowNumber, std::max(0, track));
+        processor_.triggerPreview(poolIdx, std::max(0, track));
     }
 
-    void SamplePoolOverlay::listBoxItemDoubleClicked(int rowNumber, const juce::MouseEvent& /*e*/)
+    void SamplePoolOverlay::listBoxItemDoubleClicked(int /*rowNumber*/, const juce::MouseEvent& /*e*/)
     {
-        if (rowNumber < 0 || rowNumber >= processor_.samplePool().size())
+        const int poolIdx = selectedPoolIndex();
+        if (poolIdx < 0)
             return;
         const int track = getActiveTrack ? getActiveTrack() : 0;
         if (track < 0) return;
         const int sampleSlot = processor_.slotForId(track, "sample_id");
         if (sampleSlot < 0) return;
-        processor_.writeParam(track, sampleSlot, static_cast<float>(rowNumber));
+        processor_.writeParam(track, sampleSlot, static_cast<float>(poolIdx));
     }
 
     void SamplePoolOverlay::paint(juce::Graphics& g)

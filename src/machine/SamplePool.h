@@ -15,9 +15,15 @@ namespace lockstep
         std::uint32_t hashXX32 = 0;
     };
 
+    // Where a pool entry came from — drives the pool browser's grouping (W3a).
+    // File entries are disk-backed; volatile entries start Empty and become
+    // Record / Loop when a capture writes into them (a Clear reverts to Empty).
+    enum class SampleOrigin : std::uint8_t { File = 0, Empty, Record, Loop };
+
     struct Sample
     {
         SampleRef ref;
+        SampleOrigin origin = SampleOrigin::File;
         juce::AudioBuffer<float> pcm;
         double sampleRate = 0.0;
         bool missing = false;  // true when the file could not be found on load
@@ -114,6 +120,13 @@ namespace lockstep
         // tracking Player reads it. Out-of-range / non-volatile reads return 0.
         void setSourceBars(int index, double bars);
         double sourceBars(int index) const;
+
+        // W3a: tag a volatile entry with the capture kind that wrote it (Record /
+        // Loop), or Empty when cleared. Audio thread writes at capture close; the
+        // pool browser reads it (message thread) to group and label REC/LOOP rows.
+        // Out-of-range / non-volatile calls are ignored / return File.
+        void setVolatileOrigin(int index, SampleOrigin o);
+        SampleOrigin origin(int index) const;
 
         // Auto-detected loop tempo (BPM) of the file-loaded entry at index, or 0
         // if unknown / not yet detected. Recomputed at load()/relink(); see

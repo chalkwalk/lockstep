@@ -29,6 +29,16 @@ namespace lockstep
             CHECK(s != nullptr && s->isVolatile, "Sample flagged volatile");
             CHECK(s != nullptr && s->ref.path.empty() && s->ref.hashXX32 == 0,
                   "volatile entry has no file backing");
+
+            // W3a: origin tagging drives the pool browser's RECORD/LOOP grouping.
+            CHECK(pool.origin(v0) == SampleOrigin::Empty,
+                  "fresh volatile slot starts Empty (hidden in the browser)");
+            pool.setVolatileOrigin(v0, SampleOrigin::Record);
+            pool.setVolatileOrigin(v1, SampleOrigin::Loop);
+            CHECK(pool.origin(v0) == SampleOrigin::Record, "origin set to Record");
+            CHECK(pool.origin(v1) == SampleOrigin::Loop, "origin set to Loop");
+            pool.setVolatileOrigin(v0, SampleOrigin::Empty);  // a Clear reverts it
+            CHECK(pool.origin(v0) == SampleOrigin::Empty, "Clear reverts origin to Empty");
         }
 
         // prepareVolatile sizes to capacity; mutable handle works -------------

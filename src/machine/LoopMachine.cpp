@@ -319,6 +319,7 @@ namespace lockstep
                 {
                     target_->setSize(target_->getNumChannels(), 0, false, false, true);
                     pool_.setSourceBars(targetSlot_, 0.0);
+                    pool_.setVolatileOrigin(targetSlot_, SampleOrigin::Empty);  // W3a
                 }
                 reset();
                 break;
@@ -473,6 +474,7 @@ namespace lockstep
             const double spb = transport_.samplesPerBar;
             pool_.setSourceBars(targetSlot_,
                                 spb > 0.0 ? static_cast<double>(loopLen_) / spb : 0.0);
+            pool_.setVolatileOrigin(targetSlot_, SampleOrigin::Loop);  // W3a: tag origin
             state_ = State::Playing;
         }
         else

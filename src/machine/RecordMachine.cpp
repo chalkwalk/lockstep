@@ -82,6 +82,7 @@ namespace lockstep
         // stretch the buffer to the project tempo (B1/B2). 0 when tempo is unknown.
         const double spb = transport_.samplesPerBar;
         pool_.setSourceBars(poolIdx, spb > 0.0 ? static_cast<double>(recLen) / spb : 0.0);
+        pool_.setVolatileOrigin(poolIdx, SampleOrigin::Record);  // W3a: tag origin
 
         writePos_ = 0;
         samplesRemaining_ = recLen;

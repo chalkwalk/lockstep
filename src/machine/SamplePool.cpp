@@ -79,6 +79,7 @@ namespace lockstep
     {
         auto sample = std::make_unique<Sample>();
         sample->isVolatile = true;
+        sample->origin = SampleOrigin::Empty;  // no capture written yet (W3a)
         // ref left empty (no file backing); pcm sized later by prepareVolatile().
         const int index = static_cast<int>(samples_.size());
         samples_.push_back(std::move(sample));
@@ -125,6 +126,22 @@ namespace lockstep
             return 0.0;
         const auto& s = samples_[static_cast<std::size_t>(index)];
         return s->isVolatile ? s->sourceBars : 0.0;
+    }
+
+    void SamplePool::setVolatileOrigin(int index, SampleOrigin o)
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size()))
+            return;
+        auto& s = samples_[static_cast<std::size_t>(index)];
+        if (s->isVolatile)
+            s->origin = o;
+    }
+
+    SampleOrigin SamplePool::origin(int index) const
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size()))
+            return SampleOrigin::File;
+        return samples_[static_cast<std::size_t>(index)]->origin;
     }
 
     bool SamplePool::isVolatileIndex(int index) const
