@@ -74,6 +74,8 @@ int main()
     lockstep::runSurfaceDispatcherTests();
     lockstep::runInputSourceTests();
     lockstep::runRoutingGraphTests();
+    // P6: scope-aware section page-list selection (grab-bag items 6+7)
+    lockstep::runScopeSectionSelectTests();
 
     // Also drive the JUCE UnitTests registered in lockstep_core (the serializer
     // upgrade chain, "PluginState" category) so they run headlessly in CI rather

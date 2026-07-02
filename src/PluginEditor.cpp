@@ -3548,8 +3548,10 @@ namespace lockstep
                     return true;
                 }
 
-                // KeyboardArea gates on machine slot availability.
-                keyboardArea_.selectSection(ev.index);
+                // KeyboardArea gates on machine slot availability. Track scope routes
+                // the page list to track-level params only (P6); every other scope
+                // (and unqualified) uses the machine-preferring view.
+                keyboardArea_.selectSection(ev.index, sectionScope == PS::Track);
                 // Track section key hold for Section-scope verb dispatch (MD.3).
                 if (heldSectionRawCode_ < 0)
                 {

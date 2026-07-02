@@ -44,7 +44,9 @@ namespace lockstep
         GridDisplayMode displayMode() const { return displayMode_; }
 
         // Section API (was in SectionBar)
-        bool selectSection(int sectionIndex);
+        // trackScope=true routes the page list to track-level params only (P6);
+        // false (default) is the unqualified machine-preferring view.
+        bool selectSection(int sectionIndex, bool trackScope = false);
         void selectMetaSection(int sectionIndex, bool toggle = true);
         // True if the section key carries a Func-row secondary (COND/NOTE only).
         static bool isReservedMeta(int sectionIndex);
@@ -126,7 +128,7 @@ namespace lockstep
         juce::Rectangle<int> sectionCellBounds(int cellIndex,
                                                juce::Rectangle<int> area) const;
         static int cellToSection(int cellIndex);
-        void notifySectionChanged(int sectionIndex, int track);
+        void notifySectionChanged(int sectionIndex, int track, bool trackScope = false);
 
         // One entry per section in the cycling order for a canonical key:
         // canonical section first, then any extension sections in index order.
@@ -138,7 +140,8 @@ namespace lockstep
         // Returns the ordered SecGroup list (canonical + extensions) for the given
         // canonical key on the given track. Empty if the canonical section has no slots
         // AND there are no extension sections.
-        std::vector<SecGroup> sectionsForKey(int track, int canonicalIdx) const;
+        std::vector<SecGroup> sectionsForKey(int track, int canonicalIdx,
+                                             bool trackScope = false) const;
 
         // Hit-testing for non-step, non-section-5-0 buttons.
         // Returns a ButtonDown event for the hit button, or {ButtonDown, None} if no hit.

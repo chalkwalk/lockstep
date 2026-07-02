@@ -102,4 +102,6 @@ namespace lockstep
     void runInputSourceTests();
     // A2: output-routing topological order + cycle refusal (DESIGN §27)
     void runRoutingGraphTests();
+    // P6: scope-aware section page-list selection (grab-bag items 6+7)
+    void runScopeSectionSelectTests();
 }

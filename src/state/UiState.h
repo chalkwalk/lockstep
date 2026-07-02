@@ -113,6 +113,11 @@ namespace lockstep
         // Per-track, per-section active page index (0 .. pageCount-1).
         std::array<std::array<int, IMachine::kMaxSections>, kNumTracks> trackPage{};
 
+        // P6: which scope resolved the page currently stored in trackPage — true if
+        // the last press of this section key was Track-scoped. A scope change on the
+        // same key resets the page (the two views have different page lists).
+        std::array<std::array<bool, IMachine::kMaxSections>, kNumTracks> trackPageTrackScope{};
+
         // Modifier key states (updated by PluginEditor key events).
         // Cluster:
         //   Col 1 (1/Q/A/Z): Func / Phrase / Morph / Mute.

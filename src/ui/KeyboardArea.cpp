@@ -4,6 +4,7 @@
 #include "KeyLabel.h"
 #include "PageNav.h"
 #include "ScopedSectionMatrix.h"
+#include "ScopeSectionSelect.h"
 #include "UITheme.h"
 #include "../command/ButtonLayers.h"
 #include "../PluginProcessor.h"
@@ -322,12 +323,12 @@ namespace lockstep
         return contentIndex == 0 || contentIndex == 1 || contentIndex == 2 || contentIndex == 3 || contentIndex == 4 || contentIndex == 5;
     }
 
-    void KeyboardArea::notifySectionChanged(int sectionIndex, int track)
+    void KeyboardArea::notifySectionChanged(int sectionIndex, int track, bool trackScope)
     {
         if (!onSectionChanged)
             return;
 
-        const auto groups = sectionsForKey(track, sectionIndex);
+        const auto groups = sectionsForKey(track, sectionIndex, trackScope);
         if (groups.empty())
             return;
 
@@ -359,15 +360,26 @@ namespace lockstep
     }
 
     std::vector<KeyboardArea::SecGroup>
-    KeyboardArea::sectionsForKey(int track, int canonicalIdx) const
+    KeyboardArea::sectionsForKey(int track, int canonicalIdx, bool trackScope) const
     {
-        std::vector<SecGroup> groups;
+        // Build classified candidates (machine-owned vs track-level), in display
+        // order (canonical first, then extensions), then let the pure scope filter
+        // pick the visible list. A group is machine-owned iff its first slot lives
+        // inside the machine's param range; track blocks (FLTR/AMP/FX inserts) and
+        // virtual extensions always live past numParams().
+        const int mnp = processor_.numParams(track);
+        std::vector<SecCandidate> candidates;
+
+        const auto classify = [mnp](const SectionInfo& info) {
+            return info.firstSlot >= 0 && info.firstSlot < mnp;
+        };
 
         // Canonical section first.
         {
             const auto info = processor_.section(track, canonicalIdx);
             if (info.firstSlot >= 0)
-                groups.push_back({ canonicalIdx, std::max(1, info.pageCount) });
+                candidates.push_back({ canonicalIdx, std::max(1, info.pageCount),
+                                       classify(info) });
         }
 
         // Extension sections: indices >= kMaxSections whose parentCanonical matches.
@@ -376,21 +388,24 @@ namespace lockstep
         {
             const auto info = processor_.section(track, s);
             if (info.parentCanonical == canonicalIdx && info.firstSlot >= 0)
-                groups.push_back({ s, std::max(1, info.pageCount) });
+                candidates.push_back({ s, std::max(1, info.pageCount), classify(info) });
         }
 
+        std::vector<SecGroup> groups;
+        for (const auto& c : selectScopeSections(candidates, trackScope))
+            groups.push_back({ c.sectionIdx, c.pageCount });
         return groups;
     }
 
-    bool KeyboardArea::selectSection(int sectionIndex)
+    bool KeyboardArea::selectSection(int sectionIndex, bool trackScope)
     {
         if (uiState_.activeTrack < 0 || uiState_.activeTrack >= static_cast<int>(kNumTracks))
             return false;
         if (sectionIndex < 0 || sectionIndex >= IMachine::kMaxSections)
             return false;
 
-        const auto groups = sectionsForKey(uiState_.activeTrack, sectionIndex);
-        if (groups.empty())  // no machine slots in this canonical section or its extensions
+        const auto groups = sectionsForKey(uiState_.activeTrack, sectionIndex, trackScope);
+        if (groups.empty())  // no slots in this canonical section (this scope) or extensions
             return false;
 
         int totalPages = 0;
@@ -402,7 +417,14 @@ namespace lockstep
         const bool wasInMasterMode = (uiState_.masterSection != -1);
         uiState_.masterSection = -1;
 
-        if (!wasInMasterMode && uiState_.trackSection[ti] == sectionIndex)
+        // A re-press cycles pages only when both the section AND the resolving scope
+        // are unchanged — the two scopes have different page lists, so a scope flip
+        // starts fresh at page 0.
+        const bool sameSectionSameScope =
+            !wasInMasterMode && uiState_.trackSection[ti] == sectionIndex
+            && uiState_.trackPageTrackScope[ti][si] == trackScope;
+
+        if (sameSectionSameScope)
         {
             uiState_.trackPage[ti][si] = (uiState_.trackPage[ti][si] + 1) % totalPages;
         }
@@ -411,9 +433,10 @@ namespace lockstep
             uiState_.trackSection[ti] = sectionIndex;
             uiState_.trackPage[ti][si] = 0;
         }
+        uiState_.trackPageTrackScope[ti][si] = trackScope;
 
         repaint();
-        notifySectionChanged(sectionIndex, uiState_.activeTrack);
+        notifySectionChanged(sectionIndex, uiState_.activeTrack, trackScope);
         return true;
     }
 
@@ -458,7 +481,8 @@ namespace lockstep
             }
         }
 
-        notifySectionChanged(sec, uiState_.activeTrack);
+        notifySectionChanged(sec, uiState_.activeTrack,
+                             uiState_.trackPageTrackScope[ti][static_cast<std::size_t>(sec)]);
     }
 
     // -------------------------------------------------------------------------
