@@ -2366,6 +2366,63 @@ namespace lockstep
         }
     }
 
+    // W1: a Sync-mode loop's record length must track the LIVE tempo/grid, not the
+    // tempo captured once at record-start. Start a take at tempo A, double the tempo
+    // mid-record (grid halves), and confirm the take closes at the new grid length.
+    static void testLoopRecordLengthTracksTempo()
+    {
+        SamplePool pool;
+        pool.addVolatile();                           // slot must exist before sizing
+        pool.prepareVolatile(48000.0, 2, 48000 * 4);  // 4 s capacity
+
+        LoopMachine loop(pool);
+        loop.prepare(48000.0, 256);
+        loop.reset();
+        loop.setLoopGrid(4, 1.0);  // 4 steps × 1 quarter/step = one 4/4 bar
+
+        const int np = loop.numParams();
+        ParamFrame frame(static_cast<std::size_t>(np));
+        for (int i = 0; i < np; ++i)
+            frame[static_cast<std::size_t>(i)] = loop.paramSpec(i).defaultValue;
+        frame[2] = 2.0f;   // loop_sync = Sync
+        frame[1] = 0.0f;   // target_buffer = first volatile slot
+
+        auto makeT = [](double samplesPerBar) {
+            TransportInfo t;
+            t.running = true;
+            t.samplesPerBar = samplesPerBar;
+            t.barPpq = 4.0;
+            return t;
+        };
+        // Bar = 96000 samples → grid 4 × (96000/4) = 96000. Double tempo → 48000.
+        const double barA = 96000.0, barB = 48000.0;
+
+        juce::AudioBuffer<float> buf(2, 256);
+        auto block = [&]() {
+            juce::MidiBuffer m;
+            buf.clear();
+            loop.process(m, frame, buf);
+        };
+
+        loop.setTransport(makeT(barA));
+        loop.postCommand(LoopMachine::Cmd::RecordCycle, /*immediate*/ true);
+        block();  // drains FIFO → startRecording under tempo A
+        CHECK(loop.state() == LoopMachine::State::Recording,
+              "loop tempo: recording started immediately");
+
+        // Tempo doubles mid-take — the grid (and thus the record target) halves.
+        loop.setTransport(makeT(barB));
+        for (int b = 0; b < 260 && loop.state() == LoopMachine::State::Recording; ++b)
+            block();
+
+        CHECK(loop.state() == LoopMachine::State::Playing,
+              "loop tempo: take auto-closed after the live grid length");
+        const int len = loop.loopLengthSamples();
+        CHECK(len > barB - 600 && len < barB + 600,
+              "loop tempo: record length tracked the live grid (~48000, got "
+              + juce::String(len) + ")");
+    }
+
     // S1: an OLD project with loop_sync = Steps (5) / N Bar (2..4) migrates to the
     // new collapsed Sync (2) on load — the dropped loop_div/loop_steps ids are
     // silently ignored (slotForId returns -1). Behaviourally any value >= Sync is
@@ -2425,6 +2482,7 @@ namespace lockstep
     {
         testTransposeTrack();
         testLoopGridSeamFeedsTrackLength();
+        testLoopRecordLengthTracksTempo();
         testLoopSyncMigration();
         testTapForkSameBlock();
         testTapCycleRefusal();

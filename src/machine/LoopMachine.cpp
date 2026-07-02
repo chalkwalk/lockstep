@@ -526,6 +526,20 @@ namespace lockstep
             perfFifo_.finishedRead(sz1 + sz2);
         }
 
+        // W1: keep the grid-locked record length in step with the LIVE tempo/grid.
+        // recLenTarget_ was fixed once at startRecording(); if the BPM or the pushed
+        // loop grid changes mid-take — or wasn't yet valid at record-start — the
+        // captured length would no longer match the loop the sequencer plays back
+        // (targetOutputSamples() is recomputed live every block), yielding a take
+        // that's short (or long) relative to the musical loop. Re-derive it here so
+        // record length and playback length stay the same musical duration.
+        if (state_ == State::Recording && syncMode_ >= kSyncGrid)
+        {
+            const double len = syncedLengthSamples();
+            if (len > 0.0)
+                recLenTarget_ = static_cast<int>(std::lround(len));
+        }
+
         if (target_ == nullptr)
         {
             buffer.clear();
