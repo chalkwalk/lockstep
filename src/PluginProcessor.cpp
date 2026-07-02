@@ -1802,28 +1802,26 @@ namespace lockstep
             if (qSecIdx >= 0 && samplesPerPpq > 0.0)
             {
                 const auto ct = effectiveTimeSig();
-                const double barPpq = ct.barPpq() * static_cast<double>(project_.launchQuantizeBars);
-                if (barPpq > 0.0)
+                const auto setGrid = static_cast<LaunchQuant>(project_.launchQuant);
+                double boundary = 0.0;
+                // Scene launch resolves against the one shared launch-quantize
+                // grid (LaunchQuant, DESIGN §4.8). PhraseEnd is never a Set-grid
+                // value, so the band-wide boundary is always well-defined.
+                if (boundaryInBlock(blockStart, blockEnd, setGrid, ct, boundary))
                 {
-                    // Next bar boundary at or after blockStart.
-                    const double boundary =
-                        std::ceil(blockStart / barPpq) * barPpq;
-                    if (boundary < blockEnd)
-                    {
-                        queuedSceneIdx_.store(-1, std::memory_order_release);
-                        // Signal top-of-next-block to apply the pre-staged swap.
-                        // The message thread prepared the new Sequence in queueScene;
-                        // the audio thread swaps it in at the next block boundary
-                        // without allocation (DESIGN §38.4 / 8.17).
-                        pendingSceneApply_.store(true, std::memory_order_release);
-                        // Reinstall machines on the message thread. queueScene already
-                        // flushed kit data via writeBackWorkingToActive, so this is safe
-                        // to run before the audio-thread swap commits.
-                        juce::MessageManager::callAsync(
-                            [this] {
-                                reinstallMachinesFromActiveKit();
-                            });
-                    }
+                    queuedSceneIdx_.store(-1, std::memory_order_release);
+                    // Signal top-of-next-block to apply the pre-staged swap.
+                    // The message thread prepared the new Sequence in queueScene;
+                    // the audio thread swaps it in at the next block boundary
+                    // without allocation (DESIGN §38.4 / 8.17).
+                    pendingSceneApply_.store(true, std::memory_order_release);
+                    // Reinstall machines on the message thread. queueScene already
+                    // flushed kit data via writeBackWorkingToActive, so this is safe
+                    // to run before the audio-thread swap commits.
+                    juce::MessageManager::callAsync(
+                        [this] {
+                            reinstallMachinesFromActiveKit();
+                        });
                 }
             }
         }

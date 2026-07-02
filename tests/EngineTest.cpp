@@ -390,6 +390,49 @@ namespace lockstep
         }
     }
 
+    // 9.17: the scene launch resolves against the shared LaunchQuant grid
+    // (DESIGN §4.8). A Beat grid lands the scene sooner (mid-bar) than the
+    // default Bar grid — proving the grid value actually routes the timing —
+    // and the Bar-grid switch lands near a bar boundary.
+    static void testSceneLaunchGridRouting()
+    {
+        // Returns {blocks-until-switch, playhead ppq at switch} after queueing
+        // scene 1 from mid-first-beat under the given Set grid.
+        auto run = [](LaunchQuant grid, int& outBlocks, double& outPpq) {
+            EngineHarness h;
+            h.processor().songAt(0).tracks[0].phrases[1].steps[0].trig = true;
+            h.processor().project().launchQuant = static_cast<int>(grid);
+            // Advance off the ppq==0 line (which sits on every boundary) to
+            // ~mid-first-beat so the grid choice actually matters.
+            h.renderBlocks(60);
+            const int startIdx = h.processor().activeSectionIdx();
+            h.processor().queueScene(1, false);
+            int n = 0;
+            for (; n < 800; ++n)
+            {
+                h.renderBlocks(1);
+                if (h.processor().activeSectionIdx() != startIdx)
+                    break;
+            }
+            outBlocks = n;
+            outPpq = h.playHead().ppqPosition();
+        };
+
+        int nBeat = 0, nBar = 0;
+        double ppqBeat = 0.0, ppqBar = 0.0;
+        run(LaunchQuant::Beat, nBeat, ppqBeat);
+        run(LaunchQuant::Bar, nBar, ppqBar);
+
+        CHECK(nBeat < nBar,
+              "Beat-grid scene lands sooner than Bar-grid (grid routes timing)");
+        // Bar-grid switch lands near a bar boundary (barPpq 4.0 at default 4/4);
+        // detection is one block after the boundary, so allow a small window.
+        const double barPpq = 4.0;
+        const double frac = std::fmod(ppqBar, barPpq);
+        const double dist = std::min(frac, barPpq - frac);
+        CHECK(dist < 0.2, "Bar-grid scene lands within a fraction of a bar boundary");
+    }
+
     // -----------------------------------------------------------------------
     // EngineCmd queue: enqueue a base-param write, render one block, verify
     // the value has been applied (i.e. the audio thread drained the queue).
@@ -2539,6 +2582,7 @@ namespace lockstep
         testReleaseAllVoicesReleasesHeldSynth();
         testBlockSizeInvariance();
         testSceneSwitchAtBoundary();
+        testSceneLaunchGridRouting();
         testEngineCmdAppliedAfterBlock();
         testEngineCmdQueueFullDrop();
         testSurfaceDirtyOnParamApply();

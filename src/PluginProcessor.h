@@ -857,11 +857,8 @@ namespace lockstep
 
         juce::AudioProcessorValueTreeState apvts_;
         SamplePool samplePool_;          // [SUSPEND] structural; audio reads only
-        Project project_;                // [SUSPEND] soundPool + launchQuantizeBars
+        Project project_;                // [SUSPEND] soundPool + launchQuant
         Arrangement arrangement_;        // [SUSPEND] for full load; audio owns working seq
-        // Per-track launch mode: false = fire at global bar boundary,
-        // true = fire at end of current phrase cycle.
-        std::array<bool, kNumTracks> phraseEndMode_{};  // [QUEUE] target state
         Clock clock_;                    // [AUDIO] (internal BPM/PPQ state)
         EditContext editContext_;        // message thread only
         CCMappingTable ccMappingTable_;  // [SUSPEND] (learn writes via atomic gate)

@@ -3,6 +3,7 @@
 #include "SoundPool.h"
 #include "TimeSig.h"
 #include "Scale.h"
+#include "LaunchQuant.h"
 
 namespace lockstep
 {
@@ -14,8 +15,10 @@ namespace lockstep
     // LockstepProcessor::arrangement_ (src/core/Arrangement.h).
     struct Project
     {
-        // Global launch-quantize amount in core-time bars (default 1 bar).
-        int launchQuantizeBars = 1;
+        // Global launch-quantize grid — the single authority for every
+        // deferrable action (PRINCIPLES §25, DESIGN §4.8). Enum-valued int so
+        // it serializes as a plain property; default Bar.
+        int launchQuant = static_cast<int>(LaunchQuant::Bar);
 
         // Set-level default time signature (DESIGN §4.8 hierarchy: Set → Song → Scene).
         // Song/Scene overrides inherit from this when their hasTimeSig flag is false.

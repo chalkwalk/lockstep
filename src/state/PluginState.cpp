@@ -555,7 +555,12 @@ namespace lockstep::PluginState
         juce::ValueTree nhNode(keys::kNewHierarchy);
         nhNode.setProperty(keys::kActivePiece, proc.activePieceIdx(), nullptr);
         nhNode.setProperty(keys::kActiveSect, proc.activeSectionIdx(), nullptr);
-        nhNode.setProperty(keys::kLaunchQuant, proc.project().launchQuantizeBars, nullptr);
+        // Behaviour-identical with pre-9.17 files: on disk launchQuant is still
+        // a legacy bar count here (1/2/4/8). Commit 2 (v25) switches this to the
+        // raw enum with a v24→v25 upgrade. See LaunchQuant.h.
+        nhNode.setProperty(keys::kLaunchQuant,
+                           quantToLegacyBars(static_cast<LaunchQuant>(proc.project().launchQuant)),
+                           nullptr);
         // v21: Set-level default time signature (only write if non-default).
         const auto& setTs = proc.project().defaultTimeSig;
         if (!(setTs == TimeSig{}))
@@ -774,7 +779,9 @@ namespace lockstep::PluginState
 
         const int activePiece = static_cast<int>(nhNode.getProperty(keys::kActivePiece, 0));
         const int activeSect = static_cast<int>(nhNode.getProperty(keys::kActiveSect, 0));
-        proc.project().launchQuantizeBars = static_cast<int>(nhNode.getProperty(keys::kLaunchQuant, 1));
+        // Pre-v25 disk shape stores a legacy bar count; map to the enum.
+        proc.project().launchQuant = static_cast<int>(
+            legacyBarsToQuant(static_cast<int>(nhNode.getProperty(keys::kLaunchQuant, 1))));
         // v21: Set-level default time signature.
         if (nhNode.hasProperty(keys::kSetTsN))
         {

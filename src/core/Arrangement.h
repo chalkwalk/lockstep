@@ -42,7 +42,6 @@ namespace lockstep
 
         // ── Model ────────────────────────────────────────────────────────────
         std::array<Song, kNumSongs> songs{};
-        int launchQuantizeBars = 1;
 
         // ── Playhead position ────────────────────────────────────────────────
         int songIdx = 0;
