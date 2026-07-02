@@ -235,16 +235,19 @@ exactly three kinds of machine:
   into it (it passes through + layers) or by tapping a source on its SRC panel
   (it adds the loop layer without re-monitoring the live source).
 
-  **Quantize is implied by `loop_sync {Free | Free Len | Sync}`** (the
-  Octatrack QREC/QPL analog): **Free** records instantly (native, ignores
-  tempo); **Free Len** varispeeds to the recorded musical duration; **Sync**
-  grid-locks the loop length to the track's own length × divider and
-  phase-locks it — the loop *is* the track grid by construction (no
-  looper-only length params). In Free Len / Sync the record-start *and* the
-  stop edges arm to the bar grid, so loops phase-lock; a quantized stop is a
-  **punch-out** that lands on the bar and hands straight to Play.
-  **Double-tapping** `REC` fires instantly, overriding quantize (a held-armed
-  record shows **ARM** until the boundary). **Decay** (`loop_decay` 0…1,
+  **`loop_sync {Free | Free Len | Sync}` selects the loop's *length*** (the
+  Octatrack QREC/QPL analog): **Free** records at native length (ignores tempo);
+  **Free Len** varispeeds to the recorded musical duration; **Sync** grid-locks
+  the loop length to the track's own length × divider and phase-locks it — the
+  loop *is* the track grid by construction (no looper-only length params).
+  **Edge *timing* is not a looper concept** — record-start, punch-out, play,
+  stop, and overdub enter/exit all arm to the one shared `launchQuant` grid
+  (§4.8, PRINCIPLES §25), exactly like a Scene launch. A quantized stop is a
+  **punch-out** that lands on the boundary and hands straight to Play; a
+  Free-length take simply records with no armed edge (equivalent to
+  `launchQuant = Instant` for that gesture). **Double-tapping** `REC` (or
+  `PLAY`) fires instantly, the universal instant override (a held-armed record
+  shows **ARM** until the boundary). **Decay** (`loop_decay` 0…1,
   `loop_decay_mode {Overdub | Always}`) makes the loop quieter over iterations
   — Overdub fades the old layer only at the overdub write (feedback knob),
   Always fades the whole loop each pass (tape echo). With a looper focused the
@@ -558,8 +561,8 @@ see §4.7.1 for what that costs and how it is recovered.
 - **Set.** Top-level container; one Set = one plugin-instance state blob.
   Owns: all Songs, the project-global sample pool, MIDI CC mappings,
   focus state, channel mode, clock settings, the global Sound Pool
-  (§13.5), and `launchQuantizeBars` (global launch-quantize amount in
-  core-time bars; default 1). Matches Ableton's "Live Set" and the
+  (§13.5), and `launchQuant` (the single launch-quantize grid governing every
+  deferrable action; §4.8, default `Bar`). Matches Ableton's "Live Set" and the
   product's "perform a live set" framing.
 - **Song.** Holds, for each of the 16 tracks, a **Kit** and a 16-entry
   **Phrase** pool; plus 16 **Scenes**. All the musical content of one
@@ -836,18 +839,51 @@ Song → Scene → Track (per-track, no Set); it stays on its own page.
 
 **Core time roles:**
 
-1. **Launch-quantize grid.** `launchQuantizeBars` (Set-level; default 1)
-   measures in core-time bars. A bar = `numerator × (4.0 / denominator)`
-   quarter-note PPQ. A Scene or Song launch fires at the next multiple of
-   `launchQuantizeBars × barPpq`.
+1. **Launch-quantize grid.** `launchQuant` (Set-level; default `Bar`) is the
+   **single quantize authority** for *every* launch-like action (PRINCIPLES
+   §25): Scene launch, Song switch, Phrase deviation, mute/unmute, per-track
+   phase-reset, and the looper's record / play / overdub edges. There is no
+   second grid. The Set-level grid selects one of
+   `{Instant, Beat, Bar, Bars2, Bars4, Bars8}`. A bar =
+   `numerator × (4.0 / denominator)` quarter-note PPQ; a beat =
+   `4.0 / denominator` PPQ. The boundary is the next multiple of the selected
+   grid at or after the block start:
+   - `Instant` — fire now (no deferral).
+   - `Beat / Bar / Bars2 / Bars4 / Bars8` — fire at the next multiple of
+     `grid × (beatPpq | barPpq)`. This is the generalisation of the old
+     `launchQuantizeBars × barPpq` maths (which only ever expressed
+     `Bar/Bars2/Bars4/Bars8`).
+
+   The `LaunchQuant` enum carries a seventh value, `PhraseEnd`, that is
+   **only reachable as a per-track override** (below), never as the Set-level
+   grid: whole-band actions (Scene, Song) stay atomic on one shared boundary,
+   so a band-wide `PhraseEnd` — where coprime-length tracks would each fire at a
+   different time — is deliberately not offered. `PhraseEnd` fires at the end of
+   *that track's* current phrase cycle (`trackLen × divPpq`; a zero-length cycle
+   degrades to `Instant`), letting an individual track re-align to its own
+   material rather than the shared bar.
+
+   **Double-tap = instant override.** Any launch-like gesture, double-tapped,
+   fires *now* regardless of `launchQuant` (PRINCIPLES §17 verb family). Instant
+   fires are **phase-preserving**; a phase-reset is a separate explicit rider
+   (§13.4), never a side-effect of firing now.
 2. **Metronome downbeat.** The "1" fires at `barPpq` intervals.
 3. **Default phrase length.** New Phrase seeded from `numerator × (4 /
    denominator)` steps (a default only — freely editable afterward).
 
-**Per-track phrase-end override.** Each track has a `launchMode` flag
-(`GlobalBar` default | `PhraseEnd`). Tracks set to `PhraseEnd` switch to
-a new Scene assignment at the *end of their current phrase cycle* rather than
-at the shared core-time boundary.
+**Per-track override.** Each track carries a `launchQuant` field defaulting to
+`FollowGlobal`; set to any concrete `LaunchQuant` value — including `PhraseEnd`,
+which lives here only — it overrides the Set grid for that track alone. The old
+per-track `launchMode {GlobalBar | PhraseEnd}` flag folds into this: `PhraseEnd`
+is now just `launchQuant = PhraseEnd`, and `GlobalBar` is `FollowGlobal` with a
+`Bar`-family Set grid. The per-track value is edited on the track params page
+(cyan Track scope, TRIG key); the Set-level grid value is edited on the
+transport-globals page (`Func + 7`).
+
+**Serializer v25** fields: `Project.launchQuant` (enum, replaces the pre-v25
+`launchQuantizeBars` int — legacy int `n` maps to the nearest bar-family value:
+1→`Bar`, 2→`Bars2`, 4→`Bars4`, 8→`Bars8`), per-track `launchQuant`
+(default `FollowGlobal`).
 
 **Serializer v21** fields: `Project.defaultTimeSig` (numerator/denominator),
 `Song.hasTimeSig`/`Song.timeSig`, `Scene.hasTimeSig`, `Song.hasTempo`/
@@ -2299,13 +2335,13 @@ Two mute layers, both first-class:
 - **Global mute (per-track).** Lives in the Set (APVTS
   `trackMute` param), not in any Scene or Phrase. Surviving across
   scene changes makes it the natural target for live "drop the
-  drums" performance gestures. Entered by `Z + step` (MuteScope +
-  step key), toggles immediately.
+  drums" performance gestures. Entered by `Mute + step` (MuteScope +
+  step key), quantized to `launchQuant` (§4.8); double-tap the step to
+  toggle instantly.
 - **Scene mute (per-track).** The inverse of the Scene's `activeMask`
   (§4.7), serialised as a bitfield. Saved with the Scene and recalled on
   Scene launch — useful for arrangement-style scene variants without
-  duplicating notes. Entered by `Func + Z + step`; toggles are deferred
-  and applied atomically on `Func` release (see multi-select below).
+  duplicating notes. Entered by `Scene + Mute + step`.
 
 Mute mask resolution: a track is muted at runtime iff
 `global.muted[i] || !scene.activeMask[i]`. Muting is non-destructive (no
@@ -2314,14 +2350,44 @@ suppressed at the sequencer→machine MIDI boundary, after condition
 evaluation but before machine dispatch. External MIDI input bypasses
 the mute (the user can still play a muted track manually).
 
-**Multi-select on release.** Inside either mute mode, holding `Func`
-defers the mute toggle: every track key pressed while `Func` is held
-is collected, and on `Func` release every selected track is toggled
-atomically. This is the live-performance "kill four tracks at once"
-gesture. Without `Func`, each track key toggles immediately.
+**Quantized mute is the per-track "clip" transport.** Mute and unmute now arm
+to the shared `launchQuant` grid (§4.8), which turns the per-track mute into a
+Session-View clip stop/start: mute on the grid = "stop this track on the bar,"
+unmute on the grid = "bring it back on the bar." A pending mute/unmute shows
+the same landing chrome as a pending Scene. Because a muted track's **cursor
+still advances** (only emission is suppressed; the audio path is skipped after
+the ~100 ms declick, so there is no ongoing DSP cost), the clock *is* the
+track's phase and un-muting rejoins the band already in phase — no held-phase
+bookkeeping. This is deliberately *not* a separate `Stopped` state
+(PRINCIPLES §25): "stopped" = muted, and nothing new stores a paused phase.
 
-A **solo** layer is deliberately not added: solo equals "mute
-everything else," which the multi-select gesture already encodes.
+**Phase-reset (relaunch / retrigger).** Bare unmute resumes **in phase**. To
+restart a track from the top of its pattern instead, use the phase-reset rider:
+
+- `Mute + Play + step` — **relaunch**: unmute *and* reset phase if the track is
+  muted; a pure **retrigger** (phase-reset only) if it is already playing. Reads
+  as "Play/relaunch this track." Quantized to `launchQuant` (double-tap =
+  instant relaunch). At the boundary the track's cursor is snapped to its
+  step-0 grid position and its one-shots are re-armed, so "from the top" means
+  from the top — useful to re-anchor a coprime-length track (e.g. length 7) back
+  onto the bar without waiting for its natural cycle. `Play` (a verb) is the
+  qualifier, so this never collides with the existing mute chords
+  (`Scene + Mute` = scene mute, `Func + Mute` = solo).
+- The phase-reset is a **decoupled primitive**: it can ride an unmute
+  (relaunch) or stand alone on an unmuted track (retrigger). It is RAM-only
+  live state, not serialised.
+
+**Atomic multi-mute** *(planned; gesture TBD — it cannot reuse `Func + Mute`,
+which is solo, below).* Flag several tracks under a held qualifier and commit
+them together on release; because the batch is deferred it **arms and fires
+together** at the next `launchQuant` boundary — a whole group drops in or out on
+the same beat. Today the immediate, one-track-at-a-time equivalent is plain
+`Mute + step` hold-and-tap-many.
+
+**Solo** (`Func + Mute + step`) is the secondary layer — "mute everything
+else." It is **routing-aware** (§27): soloing a bus keeps its feeders audible;
+soloing a feeder keeps its downstream bus chain audible. It composes with the
+quantize grid like any mute.
 
 ### 13.5 Alternate Trig Modes
 
@@ -2572,6 +2638,9 @@ principle, not a silent exception here.
 | Double-tap a latched step | Remove that operand |
 | Double-tap `Func` | Universal escape — clear all latches |
 | Double-press a verb | Amplified action (e.g. Play = stop + reset) |
+| `Mute + step` | Quantized per-track mute/unmute (double-tap step = instant); unmute resumes **in phase** |
+| `Mute + Play + step` | Quantized **relaunch** (unmute + phase-reset) / **retrigger** (phase-reset only) — restart the track from step 0 |
+| Double-tap any launch gesture | Fire now, **phase-preserving** (the §4.8 instant override) |
 
 ### 13.8 Held-step inspector (planned, 9.x)
 
@@ -2756,17 +2825,27 @@ At the launch boundary the band takes the Scene's effective phrases
 pending Scene shows as a badge in the top bar; a second `Scene + step`
 before the boundary replaces the queue ("change your mind").
 
-**Song switch.** `Song + step` queues a Song change, quantized by the
-*currently playing* Scene's core time. At the boundary, the incoming
-Song's first Scene establishes the new meter and phrase assignments, and
-all tracks' kits update. **Deviations are cleared on a Song switch** — a
-song change is a full performer reset; the musician steps up with fresh
-assignments.
+**Song switch.** `Song + step` queues a Song change, quantized by the same
+`launchQuant` grid as every other launch (§4.8; the *currently playing* Scene's
+core time supplies the bar/beat length). At the boundary, the incoming Song's
+first Scene establishes the new meter and phrase assignments, and all tracks'
+kits update. **Deviations are cleared on a Song switch** — a song change is a
+full performer reset; the musician steps up with fresh assignments.
+
+**One authority, one instant override.** Scene launch, Song switch, and Phrase
+deviation (below) all defer to `launchQuant` (PRINCIPLES §25); none has a
+private timer. **Double-tapping** any of these gestures fires *now*, and an
+instant fire is **phase-preserving** — the change lands where the music already
+is, cursors untouched. `Scene + Play` (below) is exactly the instant case of
+Scene launch. Restarting a track's pattern from the top is never a byproduct of
+firing instantly; it is the separate phase-reset rider (§13.4).
 
 **Phrase swaps and deviation** (the live overlay; full grammar in §4.7):
 
 - `Phrase + step` (or `Track + Phrase + step`) — **deviate** the focused
-  musician to the picked phrase.
+  musician to the picked phrase, quantized to `launchQuant` (double-tap =
+  instant, phase-preserving). *(Formerly immediate; deviation now arms to the
+  shared grid so a live phrase swap lands musically, matching Scene launch.)*
 - `Scene + Phrase + step` — **deviate the whole band** to the picked phrase.
   Landing on the diagonal row (`sceneIdx`) clears all deviations.
 
@@ -2789,9 +2868,10 @@ meanings are `Func`-qualified, §13.2):
   **prompts a confirmation** (CONFIRM/CANCEL). *Scratch-pad workflow:* park on one Scene,
   audition ideas into high phrase slots via `Phrase + step` deviations, then
   `Scene + Record` → `CONFIRM` bakes the keepers onto the diagonal.
-- `Scene + Play` — **launch now**: an unquantized re-fire of the active
+- `Scene + Play` — **launch now**: an instant re-fire of the active
   Scene immediately (apply its phrases + active mask now, not at the next
-  core-time boundary).
+  `launchQuant` boundary). This is the instant case of the one launch
+  authority (§4.8), and like every instant fire it is phase-preserving.
 - `Scene + Clear` — **revert**: discard the live overlay, return to the
   Scene's saved floor. Same behaviour as `Scene + active-step` (re-tap the
   active Scene), and the same restore the §13.6 Checkpoint floor reaches via
@@ -2809,6 +2889,33 @@ Checkpoint stack (§13.6) provides the last-second undo layer.
 > model as **automation that drives the global pattern / deviations over
 > time** — not a return of the fixed pattern chain. It changes nothing in
 > the floor/overlay model; it just scripts the same live gestures.
+
+### 16.1 Launch CUJs (the Session-View surface)
+
+The one launch authority (§4.8) plus the mute + phase-reset "clip" model
+(§13.4) cover the core Session-View critical user journeys without a per-track
+transport state:
+
+- **Drop the drums, bring them back on the 1.** `Mute + step` (drums) to stop
+  on the bar; `Mute + step` again to unmute — the track rejoins **in phase**
+  with the band, because its cursor never stopped advancing.
+- **Relaunch a track from the top on the next bar.** `Mute + Play + step` on a
+  coprime-length track (e.g. length 7) snaps it to step 0 at the boundary and
+  re-arms its one-shots — re-anchoring it to the bar without waiting a full
+  7-step cycle.
+- **Retrigger a *playing* track.** The same `Mute + Play + step` on an unmuted
+  track is a pure phase-reset — a live "stutter it back to the top."
+- **Queue a Scene on a 4-bar phrase.** Set `launchQuant = Bars4`; `Scene +
+  step` lands the new Scene on the four-bar boundary.
+- **Change your mind instantly mid-fill.** Double-tap any launch gesture
+  (Scene / Phrase / mute) to fire *now*, phase-preserving, without disturbing
+  the groove.
+- **Loop record armed to the band.** The looper's REC/PLAY arm to the *same*
+  grid as Scene launches (§3); punch-out lands on the boundary and hands to
+  Play/overdub. Double-tap REC to override.
+- **A track that switches on its own phrase end.** Set that track's
+  `launchQuant = PhraseEnd`; its launches wait for the end of its current
+  phrase cycle rather than the shared bar.
 
 ## 17. Morph and the Crossfader
 

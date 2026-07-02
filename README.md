@@ -1059,6 +1059,16 @@ so a group drops in on the same beat. Its gesture is TBD: it cannot reuse
 `Func + Mute` (now solo). Today, plain `Mute + step` hold-tap-many is the
 immediate, one-track-at-a-time equivalent.
 
+*Planned (ROADMAP 9.17 — unified launch-quantize):* mute and unmute will
+**arm to the shared launch-quantize grid** (the one `LaunchQuant` value that
+also governs Scene/Song/Phrase launches), so "drop the drums on the bar" and
+"bring them back on the 1" are one gesture — double-tap the step to fire now.
+A new **`Mute + Play + step`** will *relaunch* a track (unmute **and** restart
+its pattern from step 0) or, on an already-playing track, *retrigger* it
+(phase-reset only); bare unmute still resumes **in phase**. There is
+deliberately no separate per-track "stopped" state — "stopped" is just muted.
+See DESIGN §13.4 / §16.1, PRINCIPLES §25.
+
 ### 5.12 Fills
 
 - Hold **Fill** (`X`): while held, every step's condition treats "fill"

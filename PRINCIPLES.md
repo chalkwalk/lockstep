@@ -885,6 +885,40 @@ The sole exception is an **I/O designation that is inherently directional**
 words earn their place. This principle governs the stock catalogue and any
 contributed machine (DESIGN §29 / §36); the same instinct applies to effects.
 
+## 25. Launch timing is one authority
+
+Every action that can be *deferred to a musical boundary* — launching a Scene,
+switching a Song, swapping a Phrase, muting or un-muting a track, re-anchoring a
+track's phase, arming a looper's record / play / overdub edge — resolves against
+**one** quantize grid, not a private timer per subsystem. A single
+`LaunchQuant` value (Set grid `Instant / Beat / Bar / 2 / 4 / 8 Bar`, plus
+`Phrase` as a per-track override only, since a band-wide phrase-end has no single
+boundary) is the sole authority; there is no second grid a looper or a mute can
+drift onto. When two subsystems both defer, they land
+together — the reliability that makes quantize worth having.
+
+Two invariants ride on top of it:
+
+- **Double-tap is the universal instant override.** Any launch-like gesture,
+  double-tapped, fires *now* instead of at the boundary. This is the same
+  reserved family as §17's verb double-press — not a new exception.
+- **Instant transitions preserve phase; a phase-reset is always an explicit
+  rider.** Firing *now* never silently re-zeros a track's cursor — an instant
+  Scene/Phrase/mute change lands the performer exactly where the music already
+  is. Restarting a track from the top of its pattern is a *separate*, opted-in
+  signal (the mute + phase-reset "clip" model, DESIGN §13.4), never a
+  side-effect of the timing choice. The natural pairings are *quantized + reset*
+  ("relaunch on the bar") and *instant + preserve* ("do it now, hold the
+  groove"); the off-diagonal combinations are reachable but never the default.
+
+The corollary is architectural: **do not add a per-track `Stopped` transport
+state.** Tracks always advance their phase (the clock *is* the phase); "stopped"
+is expressed as *muted* (silent, phase free-running, audio skipped after the
+declick) and "restarted" as *unmute + phase-reset*. A distinct stopped state
+would force held-phase/resume bookkeeping the proxy avoids, and it would break
+the "tracks always advance" invariant every launch path relies on. DESIGN §4.8
+(the grid), §13.4 (mutes + phase-reset), §16 (live launch).
+
 ---
 
 ## Non-Goals — what Lockstep refuses to become
