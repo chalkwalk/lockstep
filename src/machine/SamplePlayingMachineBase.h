@@ -32,6 +32,7 @@ namespace lockstep
         // IMachine
         void prepare(double sampleRate, int maxBlockSize) override;
         void reset() override;
+        void releaseAllVoices() override;
         bool isVoiceActive() const override;
 
         // Snap a normalised [0..1] position value to the nearest zero-crossing

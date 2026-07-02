@@ -990,6 +990,11 @@ namespace lockstep
                     auto& pnf = pendingNoteOffs_[i];
                     if (pnf.samplesRemaining > 0 || pnf.openEnded)
                         pnf.samplesRemaining = 0;
+                    // Belt-and-suspenders: force the machine's own voices into their
+                    // release stage. The pending-note-off dispatch only covers notes
+                    // the sequencer is tracking; a held/open-ended internal voice it
+                    // missed would otherwise freeze mid-note on a DAW transport stop.
+                    machines_[i]->releaseAllVoices();
                 }
             }
         }

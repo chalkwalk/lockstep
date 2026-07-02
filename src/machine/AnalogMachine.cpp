@@ -380,6 +380,20 @@ namespace lockstep
         filterEnv_.gateOff();
     }
 
+    void AnalogMachine::releaseAllVoices()
+    {
+        // Transport stop: gate off the master amp/filter envelopes so any held
+        // (mono or paraphonic) voice rings through its release stage and dies
+        // rather than freezing mid-note. Individual para AR followers also gate off.
+        releaseEnvs();
+        for (auto& sv : subVoices_)
+            if (sv.active || sv.ar.isActive())
+            {
+                sv.ar.gateOff();
+                sv.keepForRelease = true;
+            }
+    }
+
     // =========================================================================
     // Mono voice
 

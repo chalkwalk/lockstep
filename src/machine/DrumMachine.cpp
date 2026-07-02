@@ -411,6 +411,14 @@ namespace lockstep
         }
     }
 
+    void DrumMachine::releaseAllVoices()
+    {
+        // Transport stop: release a gate-held voice (only the Hat sustains on an
+        // open gate; other drum types are one-shot and decay on their own). The
+        // sample-ticked envelope finishes naturally on subsequent tail blocks.
+        noteOff();
+    }
+
     void DrumMachine::noteOff()
     {
         voice_.gateOpen = false;

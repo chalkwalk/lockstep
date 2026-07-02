@@ -220,6 +220,15 @@ namespace lockstep
         }
     }
 
+    void FMMachine::releaseAllVoices()
+    {
+        // Transport stop: send every active voice's operators into their release
+        // stage so held notes ring out and decay instead of freezing mid-note.
+        for (int i = 0; i < kMaxVoices; ++i)
+            if (voices_[static_cast<std::size_t>(i)].active)
+                releaseVoice(i);
+    }
+
     void FMMachine::releaseVoice(int voiceIdx)
     {
         auto& voice = voices_[static_cast<std::size_t>(voiceIdx)];

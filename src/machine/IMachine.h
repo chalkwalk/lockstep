@@ -133,6 +133,16 @@ namespace lockstep
         virtual void prepare(double sampleRate, int maxBlockSize) = 0;
         virtual void reset() = 0;
 
+        // Gently release every currently-sounding internal voice: move amp/voice
+        // envelopes into their RELEASE stage so a transport stop lets held notes
+        // ring out and die naturally instead of freezing mid-note. This is NOT the
+        // hard reset() — it preserves tails. Default no-op for machines with no
+        // sustained internal voices (Stub/Route/MIDI-out/capture). Voiced synth
+        // machines override it. Called on the transport-stop edge; the sequencer's
+        // own note-off dispatch handles gated trigs, this catches whatever it misses
+        // (open-ended / held voices the pending-note-off bookkeeping doesn't track).
+        virtual void releaseAllVoices() {}
+
         // The sequencer resolves Override-ELSE-Base into a single ParamFrame
         // per block and hands it across the boundary. The machine writes
         // additively into `buffer`. `events` carries note-on/off from the

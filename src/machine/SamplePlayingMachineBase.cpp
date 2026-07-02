@@ -31,6 +31,16 @@ namespace lockstep
         voiceCounter_ = 0;
     }
 
+    void SamplePlayingMachineBase::releaseAllVoices()
+    {
+        // Move every sounding voice into its envelope release stage so a transport
+        // stop lets held/looping samples ring out and die rather than freeze. Loops
+        // with a release-aware mode exit into release; one-shots are unaffected.
+        for (auto& v : voices_)
+            if (v.player.isActive())
+                v.player.release();
+    }
+
     bool SamplePlayingMachineBase::isVoiceActive() const
     {
         for (const auto& v : voices_)

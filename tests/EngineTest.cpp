@@ -230,6 +230,59 @@ namespace lockstep
     }
 
     // -----------------------------------------------------------------------
+    // W8: transport-stop must release held internal-synth voices. A held note
+    // (note-on, no note-off) sustains forever; releaseAllVoices() — the hook the
+    // stop edge calls — must move it into release so it decays instead of freezing.
+    static void testReleaseAllVoicesReleasesHeldSynth()
+    {
+        AnalogMachine synth;
+        synth.prepare(48000.0, 256);
+        synth.reset();
+
+        const int np = synth.numParams();
+        ParamFrame frame(static_cast<std::size_t>(np));
+        for (int i = 0; i < np; ++i)
+            frame[static_cast<std::size_t>(i)] = synth.paramSpec(i).defaultValue;
+
+        juce::AudioBuffer<float> buf(2, 256);
+        auto renderRms = [&](const juce::MidiBuffer& m) {
+            buf.clear();
+            synth.process(m, frame, buf);
+            double s = 0.0;
+            for (int ch = 0; ch < buf.getNumChannels(); ++ch)
+                for (int i = 0; i < buf.getNumSamples(); ++i)
+                    s += static_cast<double>(buf.getSample(ch, i)) * buf.getSample(ch, i);
+            return static_cast<float>(std::sqrt(s / (256.0 * 2)));
+        };
+
+        // Held note-on (no note-off) → the voice stays gated open.
+        juce::MidiBuffer on;
+        on.addEvent(juce::MidiMessage::noteOn(1, 60, (juce::uint8)110), 0);
+        (void)renderRms(on);
+
+        // Settle into sustain.
+        juce::MidiBuffer empty;
+        float sustainRms = 0.0f;
+        for (int b = 0; b < 60; ++b)
+            sustainRms = renderRms(empty);
+        CHECK(sustainRms > 1e-3f,
+              "release test: synth not sounding before release (RMS=" + juce::String(sustainRms) + ")");
+
+        // The transport-stop path.
+        synth.releaseAllVoices();
+
+        // Without the release the voice would hold at sustainRms forever; after it
+        // the amp env decays. Render ~2 s of tail so the default release completes.
+        float tailRms = sustainRms;
+        for (int b = 0; b < 400; ++b)
+            tailRms = renderRms(empty);
+        CHECK(!std::isnan(tailRms), "release test: NaN in released tail");
+        CHECK(tailRms < sustainRms * 0.1f,
+              "release test: held synth voice did not decay after releaseAllVoices (sustain="
+              + juce::String(sustainRms) + " tail=" + juce::String(tailRms) + ")");
+    }
+
+    // -----------------------------------------------------------------------
     // Block-size invariance: the first drum trig produces audio within the same
     // PPQ window regardless of block size.
     static void testBlockSizeInvariance()
@@ -2395,6 +2448,7 @@ namespace lockstep
         testStateRoundTrip();
         testTrigProducesAudio();
         testMuteSuppressesAudio();
+        testReleaseAllVoicesReleasesHeldSynth();
         testBlockSizeInvariance();
         testSceneSwitchAtBoundary();
         testEngineCmdAppliedAfterBlock();

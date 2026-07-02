@@ -17,6 +17,7 @@ namespace lockstep
 
         void prepare(double sampleRate, int maxBlockSize) override;
         void reset() override;
+        void releaseAllVoices() override;
         void process(const juce::MidiBuffer& events,
                      const ParamFrame& params,
                      juce::AudioBuffer<float>& buffer) override;
