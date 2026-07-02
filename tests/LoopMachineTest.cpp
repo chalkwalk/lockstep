@@ -548,9 +548,10 @@ namespace lockstep
 
             // Half-speed advances the loop ~half as fast as native. Warm up until the
             // rate multiplier has settled to 0.5, then compare one block's phase delta.
+            // The tape-FX glide is a ~100 ms one-pole (W4), so settle several tau
+            // (~40 × 512 ≈ 0.43 s) before sampling.
             lp.postPerf(Cmd::HalfSpeed, /*pressed*/ true);
-            runBlock(lp, 512, 0.0f);
-            runBlock(lp, 512, 0.0f);            // multiplier settled to ~0.5
+            for (int k = 0; k < 40; ++k) runBlock(lp, 512, 0.0f);  // multiplier settled to ~0.5
             const float pA = lp.phase01();
             runBlock(lp, 256, 0.0f);
             const float pB = lp.phase01();

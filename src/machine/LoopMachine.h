@@ -192,6 +192,14 @@ namespace lockstep
         static constexpr int kDecayAlways  = 1;      // whole loop fades every iteration
         static constexpr double kDipRate   = 0.5;    // tape DIP slows to half speed (S6)
 
+        // S6 tape-FX glide time-constants, in SECONDS (one-pole; larger = slower
+        // glide). W4: the engage/return glide was ~6 ms — near-instant, so half-speed
+        // and reverse snapped instead of sweeping. These are deliberately tape-like so
+        // the pitch slur is audible; tune here to taste.
+        static constexpr double kTapeGlideSec  = 0.10;  // half/reverse/dip engage + return-to-1
+        static constexpr double kTapeStopSec   = 0.14;  // tape-stop brake to standstill
+        static constexpr double kTapeResyncSec = 0.06;  // post-release catch-up to the grid
+
         void applyCommand(Cmd c, bool immediate);
         // Audio thread: dispatch one drained FIFO edge — discrete verbs to
         // applyCommand (press only), momentary actions to the effect state.

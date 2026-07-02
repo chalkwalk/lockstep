@@ -580,9 +580,11 @@ namespace lockstep
         // slower for the tape-stop deceleration ramp.
         const bool tapeNow = (tapeAction_ != Cmd::None || tapeResync_) && loopLen_ > 0
                              && (state_ == State::Playing || state_ == State::Overdubbing);
-        const double tapeSlewFast = 1.0 - std::exp(-1.0 / (0.006 * sampleRate_));
-        const double tapeStopSlew = 1.0 - std::exp(-1.0 / (0.080 * sampleRate_));
-        const double resyncCoeff  = 1.0 - std::exp(-1.0 / (0.040 * sampleRate_));
+        // W4: tape-like glide — see kTape*Sec in the header. The engage/return glide
+        // (tapeSlewFast) was ~6 ms and snapped; it now sweeps audibly on half/reverse.
+        const double tapeSlewFast = 1.0 - std::exp(-1.0 / (kTapeGlideSec  * sampleRate_));
+        const double tapeStopSlew = 1.0 - std::exp(-1.0 / (kTapeStopSec   * sampleRate_));
+        const double resyncCoeff  = 1.0 - std::exp(-1.0 / (kTapeResyncSec * sampleRate_));
 
         // #2: quantize period for a pending edge (record-start / stop / re-play).
         const double quantPeriod = quantPeriodSamples();
