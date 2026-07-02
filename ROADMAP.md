@@ -2127,38 +2127,42 @@ DAW export.
 - *Deferred:* metronome count-in (double-click immediate-roll is the pre-roll);
   configurable silence threshold / tail (constants in `CaptureController`).
 
-### 9.17 — Unified launch-quantize + per-track "clip" transport  *[planned]*
+### 9.17 — Unified launch-quantize + per-track "clip" transport  *[shipped]*
 One quantize authority for every deferrable action, and a Session-View
 stop/restart built from mute + a phase-reset primitive (no per-track `Stopped`
 state). Docs shipped first: PRINCIPLES §25, DESIGN §4.8 / §13.4 / §16.1.
-- [ ] **`LaunchQuant` enum** `{Instant, Beat, Bar, Bars2, Bars4, Bars8,
+- [x] **`LaunchQuant` enum** `{Instant, Beat, Bar, Bars2, Bars4, Bars8,
       PhraseEnd}` replacing `Project.launchQuantizeBars`; generalise the
       scene-launch bar engine (`PluginProcessor.cpp` `queueScene` /
       `prepareSceneLaunch` / `stagedSwap_`, `boundary = ceil(blockStart/grid)*
       grid` at ~L1798, applied at top-of-next-block ~L1541) into one shared
       boundary helper covering beat / bar-multiple / phrase-end.
-- [ ] **Route Song switch + Phrase deviation through the authority** — fixes the
+- [x] **Route Song switch + Phrase deviation through the authority** — fixes the
       §16 drift (`setActiveSong` is currently immediate; phrase deviation is
       currently immediate). Double-tap = instant, phase-preserving.
-- [ ] **Quantized mute/unmute** — arm `trackMute` toggles to the grid (reuse the
+- [x] **Quantized mute/unmute** — arm `trackMute` toggles to the grid (reuse the
       declick `muteGain_` path); **phase-reset primitive** (snap
       `nextTriggerPpq_[t]` to the boundary + `rearmOneShots(track)`, mirroring
       the transport-start `freshStartPending_ → nextTriggerPpq_.fill(0)`
       pattern); **`Mute + Play + step`** relaunch/retrigger gesture. Bare unmute
       resumes in phase.
-- [ ] **Looper edge-arming onto the shared grid** — `loop_sync` becomes
+- [x] **Looper edge-arming onto the shared grid** — `loop_sync` becomes
       *length-only* (`Free | Free Len | Sync`); REC/PLAY/overdub edges arm via
       the shared authority (retire `quantPeriodSamples()` as the timing source,
       keep it for synced *length*). Double-tap REC/PLAY = instant (unchanged).
-- [ ] **Per-track `launchQuant` override** (`FollowGlobal` default; folds in the
+- [x] **Per-track `launchQuant` override** (`FollowGlobal` default; folds in the
       old `launchMode PhraseEnd`) + Set-level grid value on the transport-globals
       page (`Func + 7`). `PhraseEnd` is a **per-track-override-only** value —
       the Set grid offers only `{Instant, Beat, Bar, Bars2, Bars4, Bars8}`, so
       whole-band Scene/Song launches stay atomic on one shared boundary.
-- [ ] **Serializer v24 → v25:** `Project.launchQuant` (enum; legacy int
+      *Shipped:* both grids live on `Func + 7` — slot 4 = Set grid (`LaunchQ`),
+      slot 5 = focused-track override (`T-LnchQ`, Follow…Phrase), mirroring the
+      per-track Scale slot already there. A Track-scope TRIG tail-slot is a
+      possible later refinement.
+- [x] **Serializer v24 → v25:** `Project.launchQuant` (enum; legacy int
       1/2/4/8 → `Bar/Bars2/Bars4/Bars8`), per-track `launchQuant`, `loop_sync`
       re-interpretation. Round-trip test for legacy load.
-- [ ] **Unit tests per modality** (CLAUDE.md rule): boundary resolution (right
+- [x] **Unit tests per modality** (CLAUDE.md rule): boundary resolution (right
       grid → right instant), scope routing (held modifier lands in the right
       scope), and a write→serialise→reload round-trip. Cover the phase-reset
       relaunch and the instant-override double-tap.

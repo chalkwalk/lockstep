@@ -1041,9 +1041,10 @@ sweeping a filter or tightening every decay across the kit at once.
 
 | Gesture | Action |
 |---|---|
-| `Mute (Z) + step key` | Toggle **global** mute on that track (survives scene/song changes); hold Mute and tap many. |
-| `Scene (W) + Mute (Z) + step key` | Toggle **scene** mute (this track's active-mask in the current scene). |
-| `Func (1) + Mute (Z) + step key` | **Solo** that track (additive toggle). Solo is the secondary/advanced layer of mute; `Func` is the cheapest qualifier (PRINCIPLES §15). |
+| `Mute (Z) + step key` | Toggle **global** mute on that track (survives scene/song changes); hold Mute and tap many. **Quantized to the launch grid** (see Launch quantize, below) while playing — double-tap the step to fire now. Un-mute rejoins **in phase**. |
+| `Scene (W) + Mute (Z) + step key` | Toggle **scene** mute (this track's active-mask in the current scene). Also quantized. |
+| `Func (1) + Mute (Z) + step key` | **Solo** that track (additive toggle). Solo is the secondary/advanced layer of mute; `Func` is the cheapest qualifier (PRINCIPLES §15). Also quantized. |
+| `Mute (Z) + Play + step key` | **Relaunch** (unmute + restart the track's pattern from step 1) if muted, or **retrigger** (phase-reset only) if already playing. Quantized to the launch grid; double-tap the step = instant. |
 
 Mutes are non-destructive: trigs are suppressed at the output, no
 note-offs are forced.
@@ -1059,15 +1060,17 @@ so a group drops in on the same beat. Its gesture is TBD: it cannot reuse
 `Func + Mute` (now solo). Today, plain `Mute + step` hold-tap-many is the
 immediate, one-track-at-a-time equivalent.
 
-*Planned (ROADMAP 9.17 — unified launch-quantize):* mute and unmute will
-**arm to the shared launch-quantize grid** (the one `LaunchQuant` value that
-also governs Scene/Song/Phrase launches), so "drop the drums on the bar" and
-"bring them back on the 1" are one gesture — double-tap the step to fire now.
-A new **`Mute + Play + step`** will *relaunch* a track (unmute **and** restart
-its pattern from step 0) or, on an already-playing track, *retrigger* it
-(phase-reset only); bare unmute still resumes **in phase**. There is
-deliberately no separate per-track "stopped" state — "stopped" is just muted.
-See DESIGN §13.4 / §16.1, PRINCIPLES §25.
+**Launch quantize (9.17).** Mute and unmute **arm to the shared
+launch-quantize grid** — the one `LaunchQuant` value (set on `Func + 7`,
+slot 4) that also governs Scene / Song / Phrase launches and the looper's
+record/play edges. So "drop the drums on the bar" and "bring them back on the
+1" are one gesture; double-tap the step to fire *now*. **`Mute + Play + step`**
+*relaunches* a track (unmute **and** restart its pattern from step 1) or, on an
+already-playing track, *retriggers* it (phase-reset only); bare unmute resumes
+**in phase**. Each track can override the Set grid on `Func + 7` slot 5
+(`T-LnchQ`), including a `Phrase`-end option that waits for that track's own
+cycle. There is deliberately no separate per-track "stopped" state — "stopped"
+is just muted. See DESIGN §4.8 / §13.4 / §16.1, PRINCIPLES §25.
 
 ### 5.12 Fills
 
