@@ -14,6 +14,7 @@
 #include "../PluginProcessor.h"
 #include "../ParameterIDs.h"
 #include "../core/TrackInputMode.h"
+#include "../core/OutputDest.h"
 #include "../machine/ISliceable.h"
 #include <algorithm>
 #include <bit>
@@ -98,6 +99,10 @@ namespace lockstep
             case CellState::LooperConTape:      return 0xFF504030u;  // dim bronze — tape FX
             case CellState::LooperConTapeActive:return 0xFFC08040u;  // bright bronze — tape held
             case CellState::LooperConIdle:      return 0xFF20262Eu;  // near-off — inert cell
+            case CellState::RouteConOff:        return 0xFF20262Eu;  // near-off — routed to Off
+            case CellState::RouteConMaster:     return 0xFF2E6A6Au;  // teal — routed to Master
+            case CellState::RouteConBus:        return 0xFF2E5E46u;  // green — routed into a bus
+            case CellState::RouteConChanged:    return 0xFFE0A030u;  // amber — staged, uncommitted
             case CellState::ChromaticWhite:     return kScopeTrack;
             case CellState::ChromaticBlack:     return kScopeTrack;
             case CellState::LevelsCell:         return 0xFF204060u;
@@ -1165,6 +1170,50 @@ namespace lockstep
                     c.base = c.pressed ? CellState::Pressed : tok[static_cast<std::size_t>(i)];
                     c.baseColour = compatColour(tok[static_cast<std::size_t>(i)]);
                     c.primary = juce::String(kConLabels[i]);
+                }
+            }
+            else if (activeLayer == SurfaceLayer::MachineConsole)
+            {
+                // 7c: the Route routing matrix — one cell per track showing where its
+                // audio goes. Staged edits live in ui.routeScratch (snapshotted on
+                // open); committed dests read from the kit. A cell whose staged dest
+                // differs from the committed one shows RouteConChanged (amber). Confirm
+                // commits, Cancel/close reverts (editor-owned).
+                for (int i = 0; i < 16; ++i)
+                {
+                    SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                    c.button = ControllerButton::Step;
+                    c.index = i;
+                    c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                    c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+
+                    if (i >= static_cast<int>(kNumTracks))
+                    {
+                        c.base = CellState::StepOutOfRange;
+                        c.baseColour = kStepOutRange;
+                        continue;
+                    }
+
+                    const float committed = proc.kit(i).channelState.out;
+                    const float staged = ui.routeConsoleActive ? ui.routeScratch[static_cast<std::size_t>(i)]
+                                                               : committed;
+                    const auto sel = decodeOutputDest(staged);
+                    CellState tok = sel.kind == OutputDestKind::Off    ? CellState::RouteConOff
+                                  : sel.kind == OutputDestKind::Master ? CellState::RouteConMaster
+                                                                       : CellState::RouteConBus;
+                    const bool changed = ui.routeConsoleActive
+                                       && std::abs(staged - committed) > 0.5f;
+                    if (changed) tok = CellState::RouteConChanged;
+
+                    // Destination label: OFF / MST / T<n>.
+                    juce::String dest = (sel.kind == OutputDestKind::Off)    ? juce::String("OFF")
+                                      : (sel.kind == OutputDestKind::Master) ? juce::String("MST")
+                                      : ("T" + juce::String(sel.track + 1));
+
+                    c.base = c.pressed ? CellState::Pressed : tok;
+                    c.baseColour = compatColour(tok);
+                    c.primary = dest;
+                    c.funcHint = "T" + juce::String(i + 1);  // which track this cell routes
                 }
             }
             else if (activeLayer == SurfaceLayer::TrackFxPicker)

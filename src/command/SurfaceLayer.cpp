@@ -113,7 +113,9 @@ namespace lockstep
                 return "LOOPER";
 
             case SurfaceLayer::MachineConsole:
-                return "CONSOLE";
+                return ui.routeConsoleActive
+                           ? "ROUTING  (tap cell = cycle dest · P = commit · Func+P = cancel)"
+                           : "CONSOLE";
 
             case SurfaceLayer::KeyPanel:
                 return "KEY MODIFIERS";

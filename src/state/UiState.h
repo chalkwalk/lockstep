@@ -215,6 +215,14 @@ namespace lockstep
         // ignore this flag. Ephemeral — never serialised.
         bool machineConsoleOpen = false;
 
+        // 7c: Route routing-matrix scratch session. Live while the Route console is
+        // open. routeScratch[t] holds the staged output destination for track t
+        // (encoded, matching decodeOutputDest). SurfaceModel renders from it; Confirm
+        // commits each cell to the track's channelState.out, Cancel/close discards.
+        // Ephemeral — never serialised.
+        bool routeConsoleActive = false;
+        std::array<float, static_cast<std::size_t>(kNumTracks)> routeScratch{};
+
         // Active sticky overlay (Overlay::None when no overlay is active).
         // Replaces the former timeStickyMode / densityStickyMode / velStickyMode booleans.
         // ModeReducer::activeOverlay() checks euclidHeld first, then this field.

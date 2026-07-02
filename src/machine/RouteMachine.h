@@ -74,5 +74,11 @@ namespace lockstep
         // Control-only: a step press places a lock-only P-Lock anchor, never a
         // note trig (there is no voice to fire). See IMachine::sequencesTrigs.
         [[nodiscard]] bool sequencesTrigs() const override { return false; }
+
+        // 7c: the Route console is the all-tracks output routing matrix. OnDemand,
+        // opened by long-pressing SRC (the routing domain). See LockstepEditor's
+        // routeScratch session + SurfaceLayer::MachineConsole rendering.
+        [[nodiscard]] ConsoleMode consoleMode() const override { return ConsoleMode::OnDemand; }
+        [[nodiscard]] int consoleSectionIndex() const override { return kSrcSecIdx; }
     };
 }

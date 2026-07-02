@@ -174,6 +174,12 @@ namespace lockstep
         LooperConTape = 204,       // tape-FX cell, idle (S6)
         LooperConTapeActive = 205, // tape-FX held (S6)
         LooperConIdle = 206,       // a console cell with no live function right now
+
+        // ---- Route routing-matrix console (7c) — one cell per track ----------
+        RouteConOff = 210,         // track routed to Off (silent)
+        RouteConMaster = 211,      // track routed to the Master sum
+        RouteConBus = 212,         // track routed into another track's bus input
+        RouteConChanged = 213,     // staged edit differs from the committed dest
     };
 
     // Pure mapping for the §34.4 length-edit re-skin: classify an absolute step

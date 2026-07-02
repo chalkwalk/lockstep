@@ -2643,6 +2643,13 @@ namespace lockstep
         c.value = value;
         p.pushEngineCmd(c);
     }
+    void LockstepProcessor::applyTrackOut(int track, float encodedDest)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        // The Out slot is the last CHANNEL slot; enqueueChanSlot validates it.
+        enqueueChanSlot(*this, track, TrackChannelState::kNumSlots - 1, encodedDest);
+    }
+
     static void enqueueEnvSlot(LockstepProcessor& p, int track, int envSlot, float value)
     {
         EngineCmd c;

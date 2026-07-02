@@ -307,9 +307,14 @@ namespace lockstep
         // mid-hold timer path and the key-up long-hold fallback. Sets the durable
         // picker state and refreshes the surface so it appears while held.
         void openFxSectionPicker(bool master);
-        // 7b: close an open OnDemand machine console (the Cancel/close path). 7c
-        // reverts the Route scratch buffer via the console before this clears the flag.
+        // 7b/7c: OnDemand machine console open/close. openMachineConsole snapshots the
+        // Route output-dest scratch; closeMachineConsole discards it (revert);
+        // commitRouteConsole applies each staged dest then closes; cycleRouteConsoleCell
+        // advances one track's staged dest to the next valid target.
+        void openMachineConsole();
         void closeMachineConsole();
+        void commitRouteConsole();
+        void cycleRouteConsoleCell(int track);
         // Tap-to-cycle the target slot while the FX picker is open (replaces the
         // old re-hold-to-cycle gesture). Master: units 0-3; Track: slots 0/1.
         void cycleFxPickerSlot(bool master);

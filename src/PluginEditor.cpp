@@ -14,6 +14,7 @@
 #include "machine/IMachine.h"
 #include "machine/ISliceable.h"
 #include "machine/SampleMachine.h"
+#include "machine/RouteMachine.h"
 #include "ui/KeyLabel.h"
 #include "ui/MetaBand.h"
 #include "ui/ScopedSectionMatrix.h"
@@ -2289,11 +2290,62 @@ namespace lockstep
         return true;
     }
 
+    void LockstepEditor::openMachineConsole()
+    {
+        uiState_.machineConsoleOpen = true;
+        // 7c: for a Route track, snapshot every track's committed output dest into
+        // the scratch buffer so edits can be staged and reverted.
+        const int at = keyboardArea_.getActiveTrack();
+        if (processor_.machineForTrack(at) != nullptr
+            && std::string(processor_.machineForTrack(at)->machineId()) == RouteMachine::kMachineId)
+        {
+            for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+                uiState_.routeScratch[static_cast<std::size_t>(t)] =
+                    processor_.kit(t).channelState.out;
+            uiState_.routeConsoleActive = true;
+        }
+    }
+
     void LockstepEditor::closeMachineConsole()
     {
-        // 7b base close: clear the open flag. 7c (Route) reverts its scratch
-        // buffer before calling this; other consoles have no pending state.
+        // 7c revert: discard the routing scratch (Confirm applies it separately
+        // before closing). 7b base close: clear the open flag.
+        uiState_.routeConsoleActive = false;
         uiState_.machineConsoleOpen = false;
+    }
+
+    void LockstepEditor::commitRouteConsole()
+    {
+        // 7c Confirm: apply each staged dest that differs from the committed value
+        // through the validated CHANNEL-Out path, then close (scratch discarded).
+        if (uiState_.routeConsoleActive)
+        {
+            for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+            {
+                const float staged = uiState_.routeScratch[static_cast<std::size_t>(t)];
+                if (std::abs(staged - processor_.kit(t).channelState.out) > 0.5f)
+                    processor_.applyTrackOut(t, staged);
+            }
+        }
+        closeMachineConsole();
+    }
+
+    void LockstepEditor::cycleRouteConsoleCell(int track)
+    {
+        // 7c: advance one track's staged dest to the next valid target, wrapping.
+        if (!uiState_.routeConsoleActive
+            || track < 0 || track >= static_cast<int>(kNumTracks))
+            return;
+        const auto targets = processor_.validOutTargets(track);
+        if (targets.empty()) return;
+        const float cur = uiState_.routeScratch[static_cast<std::size_t>(track)];
+        int idx = 0;
+        for (int k = 0; k < static_cast<int>(targets.size()); ++k)
+            if (std::abs(targets[static_cast<std::size_t>(k)] - cur) < 0.5f) { idx = k; break; }
+        const int next = (idx + 1) % static_cast<int>(targets.size());
+        uiState_.routeScratch[static_cast<std::size_t>(track)] =
+            targets[static_cast<std::size_t>(next)];
+        refreshSurface();
     }
 
     void LockstepEditor::openFxSectionPicker(bool master)
@@ -3727,6 +3779,14 @@ namespace lockstep
                     if (layer == SurfaceLayer::TrackFxPicker)
                         return fxPickerStepDown(ev.index, /*master=*/false);
 
+                    // 7c: Route routing-matrix console — a cell is one track; a press
+                    // cycles that track's staged output destination.
+                    if (layer == SurfaceLayer::MachineConsole)
+                    {
+                        cycleRouteConsoleCell(ev.index);
+                        return true;
+                    }
+
                     // --------------------------------------------------------
                     // Machine picker (Func+Track held; §4.7.2)
                     // --------------------------------------------------------
@@ -4814,6 +4874,16 @@ namespace lockstep
                 using PS = EditMode::PrimaryScope;
                 const bool funcHeld = editMode_.scopeState().func;
 
+                // 7c: Route routing console open → bare P = commit staged routes;
+                // Func+P = cancel (revert). Both close the console.
+                if (uiState_.routeConsoleActive)
+                {
+                    if (funcHeld) { closeMachineConsole(); setStatus("ROUTING cancelled"); }
+                    else          { commitRouteConsole();  setStatus("ROUTING committed"); }
+                    refreshSurface();
+                    return true;
+                }
+
                 // 5.5: Euclid modal armed → bare P = commit; Func+P = cancel.
                 if (uiState_.euclidHeld)
                 {
@@ -5281,7 +5351,10 @@ namespace lockstep
                     const double now = juce::Time::getMillisecondCounterHiRes();
                     if (gesture_.checkLongPress(kMachineConsoleLongPressToken, now) == LPR::LongHold)
                     {
-                        uiState_.machineConsoleOpen = !uiState_.machineConsoleOpen;
+                        if (uiState_.machineConsoleOpen)
+                            closeMachineConsole();            // re-hold closes (revert)
+                        else
+                            openMachineConsole();             // snapshot scratch + open
                         refreshSurface();
                     }
                     else if (heldSectionIndex_ >= 0)

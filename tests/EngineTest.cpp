@@ -1249,6 +1249,42 @@ namespace lockstep
         CHECK(p.trackSequencesTrigs(-1), "out-of-range track defaults to trigged");
     }
 
+    // 7c: the Route routing-matrix console commits staged output-dest edits through
+    // applyTrackOut (the single validated commit path). A valid edit lands on the
+    // track's channelState.out; a self-route is refused (no change).
+    static void testRouteConsoleApplyOut()
+    {
+        EngineHarness h;
+        auto& p = h.processor();
+        installRoute(p, 0, static_cast<float>(static_cast<int>(InputSourceKind::External)));
+        installRoute(p, 1, static_cast<float>(static_cast<int>(InputSourceKind::External)));
+        renderBlockWithInput(h, 0.0f);  // drain any setup commands first
+
+        // Stage + commit: route track 1 to Off.
+        const float off = encodeOutputDest(OutputDestKind::Off);
+        p.applyTrackOut(1, off);
+        renderBlockWithInput(h, 0.0f);  // drain the engine command
+        CHECK(std::abs(p.kit(1).channelState.out - off) < 0.5f,
+              "applyTrackOut commits a valid Off route");
+
+        // A self-route is refused: dest is unchanged.
+        const float before = p.kit(0).channelState.out;
+        p.applyTrackOut(0, encodeOutputDest(OutputDestKind::Track, 0));
+        renderBlockWithInput(h, 0.0f);
+        CHECK(std::abs(p.kit(0).channelState.out - before) < 0.5f,
+              "self-route is refused (dest unchanged)");
+
+        // validOutTargets — the console's cycle source — always offers Off + Master
+        // and never a self-route, so cycling can't stage an illegal dest.
+        const auto targets = p.validOutTargets(0);
+        CHECK(targets.size() >= 2, "validOutTargets offers at least Off + Master");
+        const float self = encodeOutputDest(OutputDestKind::Track, 0);
+        bool hasSelf = false;
+        for (const float v : targets)
+            if (std::abs(v - self) < 0.5f) hasSelf = true;
+        CHECK(!hasSelf, "validOutTargets never includes a self-route");
+    }
+
     static void testRouteMasterTap()
     {
         EngineHarness h;
@@ -2378,6 +2414,7 @@ namespace lockstep
         testSwapStepsCarriesData();
         testRoutePassesExternalInput();
         testRouteIsTrigless();
+        testRouteConsoleApplyOut();
         testRouteMasterTap();
         testAuditionLiveNote();
         testLockOnlyRidesOverrideOntoVoice();

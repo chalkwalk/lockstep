@@ -510,6 +510,11 @@ namespace lockstep
         // them (e.g. dormant after a machine swap) it is appended so the control
         // can still display and leave it. Message-thread query (reads working kit).
         [[nodiscard]] std::vector<float> validOutTargets(int fromTrack) const;
+        // 7c: apply a track's output destination (encoded, matching decodeOutputDest)
+        // through the validated CHANNEL-Out engine path. Invalid edits (cycle / self /
+        // non-bus target) are refused and recorded via noteRouteReject, exactly like a
+        // rotary edit. The single commit path used by the Route routing-matrix console.
+        void applyTrackOut(int track, float encodedDest);
         // #3 feedback guard (input/tap side, mirror of validOutTargets): the
         // ordered set of currently feedback-safe input_source values for a track,
         // as encoded InputSource floats — {None, Ext, Master if safe, then every
