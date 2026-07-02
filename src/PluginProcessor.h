@@ -1178,6 +1178,12 @@ namespace lockstep
         int preparedBlockSize_ = 512;
 
         juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> gainSmoothed_;
+        // W5: per-track audio mute declick. A muted (global or Scene) audio track
+        // fades over ~kMuteRampSec instead of cutting to silence; unmute ramps back.
+        // MIDI-out tracks are event-muted (skip + note-offs, MF.7) and ignore this.
+        static constexpr double kMuteRampSec = 0.10;  // ~100 ms declick
+        std::array<juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear>,
+                   kNumTracks> muteGain_{};
         std::array<float, 2> dcX1_{};
         std::array<float, 2> dcY1_{};
 

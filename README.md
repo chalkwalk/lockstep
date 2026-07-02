@@ -404,8 +404,10 @@ Press `U` again to disarm.
 ### Step 8 — Perform variations
 
 - **Mute a track live:** hold **Mute** (`Z`) and press a track's step
-  key (`Z + D` = mute track 1). It drops out instantly and
-  non-destructively. Toggle again to bring it back.
+  key (`Z + D` = mute track 1). Non-destructive. Audio tracks fade out over a
+  short (~100 ms) declick ramp rather than cutting hard; MIDI-out tracks stop
+  emitting and send note-offs so nothing hangs. Toggle again to bring it back
+  (audio ramps back in). Scene mutes use the same fade.
 - **Fill:** hold **Fill** (`X`). Any steps you've marked as fill-only
   fire only while you hold it — instant live variation.
 - **Copy a phrase and mutate it:** hold **Phrase** (`Q`) and press

@@ -344,6 +344,15 @@ namespace lockstep
         gainSmoothed_.setCurrentAndTargetValue(
             juce::Decibels::decibelsToGain(initGainDb, -60.0f));
 
+        // W5: per-track mute declick. Start at each track's current mute state so a
+        // load into a muted track is silent immediately (no fade-in on open).
+        for (std::size_t i = 0; i < kNumTracks; ++i)
+        {
+            muteGain_[i].reset(sampleRate, kMuteRampSec);
+            const bool mutedNow = trackMuteParams_[i] && trackMuteParams_[i]->load() >= 0.5f;
+            muteGain_[i].setCurrentAndTargetValue(mutedNow ? 0.0f : 1.0f);
+        }
+
         dcX1_.fill(0.0f);
         dcY1_.fill(0.0f);
     }
@@ -1699,7 +1708,16 @@ namespace lockstep
             {
                 const std::size_t i = static_cast<std::size_t>(routeOrderIdle[oi]);
                 const bool muted = (trackMuteParams_[i]->load() >= 0.5f) || !section().activeMask[i];
-                if (muted || (anySoloed && !soloAudible[i])) continue;
+                const bool silent = muted || (anySoloed && !soloAudible[i]);
+                // W5: same declick as the running path — an audio track keeps
+                // rendering its tail while the mute ramp falls, then is skipped.
+                muteGain_[i].setTargetValue(silent ? 0.0f : 1.0f);
+                const bool audioTrack = !machines_[i]->isMidiOut();
+                if (silent && (!audioTrack || muteGain_[i].getCurrentValue() <= 1.0e-4f))
+                {
+                    muteGain_[i].skip(numBlockSamples);
+                    continue;
+                }
                 // Resolve against the held step so P-Locks written by the note-on
                 // are included in the frame, falling back to -1 (base only).
                 int resolveStep = -1;
@@ -1727,6 +1745,7 @@ namespace lockstep
                 {
                     processTrackChain(i, frame, resolveStep, fillNow, faderNow,
                                       numBlockSamples, trackMidi[i]);
+                    muteGain_[i].applyGain(trackBuffers_[i], numBlockSamples);
                     depositToBus(i, numBlockSamples);
                 }
             }
@@ -1840,13 +1859,28 @@ namespace lockstep
             }
             wasSilent_[i] = silent;
 
+            // W5: drive the per-track mute declick. A muted (global or Scene) audio
+            // track fades to silence over kMuteRampSec rather than cutting; unmute
+            // ramps back. MIDI-out tracks are event-muted (skip + MF.7 note-offs).
+            muteGain_[i].setTargetValue(silent ? 0.0f : 1.0f);
+            const bool audioTrack = !machines_[i]->isMidiOut();
+
             const double divPpqMusical = subdivisionPpqFromIndex(trackSubdiv);
             // DESIGN §4.9: scale step grid by the Song × Scene tempo ratio.
             const double tempoRatio = effectiveTempoRatio();
             const double divPpq = (tempoRatio > 0.0) ? (divPpqMusical / tempoRatio) : divPpqMusical;
 
-            if (divPpq <= 0.0 || samplesPerPpq <= 0.0 || trackLen <= 0 || silent)
+            if (divPpq <= 0.0 || samplesPerPpq <= 0.0 || trackLen <= 0)
                 continue;
+            // MIDI-out mute = event mute (no notes emitted). A muted audio track keeps
+            // rendering until it has faded out, so voices ring down click-free; once
+            // the ramp reaches 0 we skip it (advancing the smoother clock). Trig
+            // emission itself is suppressed while silent (see emitTrig's guard).
+            if (silent && (!audioTrack || muteGain_[i].getCurrentValue() <= 1.0e-4f))
+            {
+                muteGain_[i].skip(numBlockSamples);
+                continue;
+            }
 
             // Re-quantise the grid cursor when the step size changes live
             // (division change, or a Song×Scene tempo-ratio change). The cursor
@@ -1882,6 +1916,9 @@ namespace lockstep
             // Emit a sequencer trig: note-on(s) + gate scheduling.
             // fireAt is a sample offset within this block, clamped to [0, numBlockSamples−1].
             auto emitTrig = [&](int stepIdx, int fireAt) {
+                // W5: a muted track's cursor still advances (so it stays in sync and
+                // its voices fade via the mute ramp), but it emits no NEW notes.
+                if (silent) return;
                 trigPulse_[i].store(1.0f, std::memory_order_relaxed);
                 const auto trig = StateResolver::resolveTrig(track, stepIdx, curFillActive);
 
@@ -2546,6 +2583,10 @@ namespace lockstep
                 // the master output stage (master-only gain-staging).
                 processTrackChain(i, frame, firedStepIdx_[i], curFillActive, faderNow,
                                   numBlockSamples, trackMidi[i]);
+                // W5: apply the per-track mute declick before the track's audio is
+                // summed anywhere (master + any downstream tap), so a mute fades the
+                // track out everywhere. gain==1 when unmuted → a no-op.
+                muteGain_[i].applyGain(trackBuffers_[i], numBlockSamples);
                 depositToBus(i, numBlockSamples);
             }
         }

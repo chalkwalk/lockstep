@@ -1548,14 +1548,44 @@ namespace lockstep
         CHECK(beforeMute > 0.05f, "mute/solo precondition: soloed bus carries its feeder");
 
         proc.setGlobalMute(0, true);              // mute the feeder
-        renderBlockWithInput(h, 0.5f);
-        const float afterMute = renderBlockWithInput(h, 0.5f);
+        // W5: mute is now a ~100 ms declick ramp, so let it settle before asserting
+        // silence (render ~0.5 s of blocks).
+        float afterMute = 0.5f;
+        for (int b = 0; b < 100; ++b)
+            afterMute = renderBlockWithInput(h, 0.5f);
         CHECK(afterMute < 0.01f,
               "mute over soloed bus: muted feeder still reaches the bus (mag="
               + juce::String(afterMute, 4) + ")");
 
         proc.setGlobalMute(0, false);
         proc.toggleSolo(1);
+    }
+
+    // W5: muting an audio track fades over a ~100 ms declick ramp rather than
+    // cutting instantly (which clicks). The first post-mute block must still be
+    // clearly audible (proving a ramp, not a hard cut), then settle to silence.
+    static void testMuteAudioDeclickRamp()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        installRoute(proc, 0, static_cast<float>(static_cast<int>(InputSourceKind::External)));
+
+        renderBlockWithInput(h, 0.5f);
+        const float sounding = renderBlockWithInput(h, 0.5f);
+        CHECK(sounding > 0.05f, "declick precondition: routed track is audible");
+
+        proc.setGlobalMute(0, true);
+        // A hard cut would drop to ~0 on the next block; a 100 ms ramp barely moves
+        // in one 256-sample block (~5 ms), so the track stays clearly audible.
+        const float firstAfter = renderBlockWithInput(h, 0.5f);
+        CHECK(firstAfter > sounding * 0.5f,
+              "mute declick: first post-mute block is a ramp, not an instant cut (mag="
+              + juce::String(firstAfter, 4) + ")");
+
+        float settled = firstAfter;
+        for (int b = 0; b < 100; ++b)
+            settled = renderBlockWithInput(h, 0.5f);
+        CHECK(settled < 0.01f, "mute declick: silent once the ramp completes");
     }
 
     static void testSoloBusPlaysFeeders()
@@ -2535,6 +2565,7 @@ namespace lockstep
         testBusCycleRefused();
         testSoloBusPlaysFeeders();
         testMuteWinsOverSoloedBus();
+        testMuteAudioDeclickRamp();
         testValidOutTargets();
         testOutEditValidation();
         testRouteIsValidOutDestination();
