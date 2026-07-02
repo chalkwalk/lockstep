@@ -41,7 +41,12 @@ namespace lockstep
         [[nodiscard]] int numParams() const override { return kNumSlots; }
         [[nodiscard]] ParamSpec paramSpec(int index) const override;
 
-        [[nodiscard]] int numSections() const override { return 1; }
+        // kSrcSecIdx + 1, NOT a count: section() is gated on
+        // `sectionIndex < numSections()`, so this must exceed the highest section
+        // index used. All slots live at kSrcSecIdx (=1); returning 1 made `1 < 1`
+        // false and hid the whole SRC panel (sample-id + pitch unreachable — the
+        // "no source panel" trap in CLAUDE.md). Cf. StreamMachine, which got this right.
+        [[nodiscard]] int numSections() const override { return kSrcSecIdx + 1; }
         [[nodiscard]] SectionInfo section(int index) const override
         {
             if (index == kSrcSecIdx) return { "SRC" };
