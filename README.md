@@ -306,7 +306,7 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Step-hold capture window** | The canonical chord-edit path: hold a step → play MIDI → each note-on snapshots all currently-held notes; release commits velocity (highest) and gate. Empty capture = no change. Independent of record-arm and transport. Multi-step: all held steps receive the same chord. |
 | **Note-count badge** | 1–4 stacked tick marks on the left edge of each step cell showing `trigOverride.noteCount` — immediately visible without entering any edit mode. |
 | **Note-edit mode** | **Hold a step, then tap SRC** — the inspector opens; SRC key relabels to NOTE. This enters a 1-octave chromatic keyboard on the step grid: cells 0–11 = C through B, 12–15 unused. Press a cell to toggle that pitch in the current view octave. Cross-octave instances show small octave-number badges. NavUp/NavDown shift the octave. Staged removals commit on step release. (Legacy `Func+Src+step` retired.) |
-| **Step inspector** | **Hold a step** — the grid re-skins showing the step's P-Locks (packed, orange cells = set slots). Tap a cell to stage it for removal; tap again to cancel; release the held step to commit. Tap **SRC** while holding to enter note-edit for that step. `←`/`→` while holding **bubble-swaps** the step with its neighbour (the held focus follows, so repeated presses keep moving it). `Func+←`/`Func+→` while holding **nudges micro-time** ±5% of step length. Release all to commit; the trig toggle is suppressed when any edit occurred. |
+| **Step inspector** | **Hold a step** — the grid re-skins showing the step's P-Locks (packed, orange cells = set slots). Tap a cell to stage it for removal; tap again to cancel; release the held step to commit. To reach the held step's *own* cell (which sits under your finger), press **Func** while holding to **latch** the inspector hands-free, then tap freely and **double-tap Func** to apply. Tap **SRC** while holding to enter note-edit for that step. `←`/`→` while holding **bubble-swaps** the step with its neighbour (the held focus follows, so repeated presses keep moving it). `Func+←`/`Func+→` while holding **nudges micro-time** ±5% of step length. Release all to commit; the trig toggle is suppressed when any edit occurred. |
 | **P-Lock clear gestures** | `Trig + Func + Clear` (`Trig + 1 + O`) clears every P-Lock on the held step(s), leaving trig and condition intact. `Trig + (active MZ slot) + Clear` clears only that one slot. `Trig + (section key) + Clear` clears just that section's overrides on the held step(s); since **SRC** owns the note payload, `Trig + SRC + Clear` clears note / velocity / gate overrides only, leaving trig and P-Locks intact. The hint band shows these gestures automatically when a step with P-Locks or note overrides is held. |
 | **NoteSelection bias** | Per-track bias for chord-note spread when the machine voice count is smaller than the step's note count. `TopBias` (default) includes top + bottom and fills from the top; `BottomBias` fills from the bottom. Set in the TRIG meta-section, slot 3 (Bias = TOP / BOT). |
 | **Func+Track machine/Kit picker** | Hold Func (1) + Track (2) — the Track key relabels to KIT; step cells show available machine names. Press a step to assign that machine to the focused track. |
@@ -1210,10 +1210,12 @@ Stage E / 7.5 and has shipped — see *Phrase-length authoring* below.)
   editing** — latch one of the pair and physically hold the other; keyboards
   without N-key rollover may not register step keys when both are physically
   held simultaneously.
-- **Latched step operands.** Double-tapping a step virtual-holds it into the
-  edit context, so encoder edits land on it hands-free. A single tap on any
-  step still toggles its trig as normal. Net trig change on latch-in is zero
-  (the first-tap trig toggle is reverted on double-tap detection).
+- **Latched step operands.** While a step is held (its P-Lock inspector open),
+  press `Func` to virtual-hold it into the edit context — the finger is freed so
+  encoder edits, and taps on the step's *own* cell, land hands-free. A single tap
+  on any step still toggles its trig as normal. The latch never touches the trig
+  (unlike the retired double-tap latch, which transiently flipped it — a live
+  hazard). Apply the inspector's staged edits and exit with a `Func` double-tap.
 - **Func double-tap = universal escape.** When any latch is active, double-tap
   `Func` (key `1`) clears every latched modifier and every latched step in one
   gesture. When no latches are active, Func double-tap is a no-op.
@@ -1600,7 +1602,7 @@ Legends in parentheses are the on-screen key labels (see
 ```
 (nothing held)
 ├─ step (tap)        → toggle a trig on the focused track — §5.6
-├─ step (double-tap) → latch the step into the edit context (hands-free) — §5.17
+├─ step (hold)       → open the step's P-Lock inspector; +Func latches it (hands-free) — §5.17
 ├─ Y (SNAP)          → push a checkpoint on the held scope (Song if none) — §5.15
 ├─ U (REC)           → toggle record-arm; double-tap = overdub — §5.4
 ├─ I (PLAY)          → play / stop transport; double-tap = stop-to-top — §5.4

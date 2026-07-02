@@ -2865,6 +2865,7 @@ namespace lockstep
 
         // Release latched steps (keep them in heldStepKeys_ if still physically held).
         auto& ctx = processor_.editContext();
+        const bool hadLatchedSteps = ctx.hasAnyLatchedStep();
         for (const int s : ctx.latchedSteps())
         {
             // Only release from EditContext if the physical key is not held.
@@ -2879,6 +2880,26 @@ namespace lockstep
                 ctx.release(s);
         }
         ctx.clearAllLatched();
+
+        // W7: a latched P-Lock inspector commits its staged removals here — a latched
+        // step's own key-up no longer commits (it keeps the inspector open), so the
+        // latch-escape (double-tap Func, or entering a new modality) is the commit
+        // point. A bare (unlatched) hold still commits on its own step release, so gate
+        // this on there having been latched steps.
+        if (hadLatchedSteps && uiState_.pLockClearMode
+            && uiState_.pLockClearTrack >= 0 && uiState_.pLockClearStep >= 0)
+        {
+            for (const int slot : uiState_.pLockClearStaged)
+            {
+                if (slot < 0)
+                    processor_.clearTrigOverrideField(uiState_.pLockClearTrack,
+                                                      uiState_.pLockClearStep, slot);
+                else
+                    processor_.clearParam(uiState_.pLockClearTrack,
+                                          uiState_.pLockClearStep, slot);
+            }
+            uiState_.resetPLockClear();
+        }
 
         if (ctx.heldSteps().empty())
         {
@@ -3249,6 +3270,21 @@ namespace lockstep
         switch (ev.button)
         {
             case CB::Func:
+                // W7: hold-step + Func latches the P-Lock inspector so the finger is
+                // free to tap the held step's OWN cell (otherwise releasing to tap it
+                // exits the mode). No trig mutation — the latch is purely a virtual
+                // hold. Only fires while a step is PHYSICALLY held in the inspector and
+                // nothing is latched yet, so a later double-tap-Func still escapes.
+                if (uiState_.pLockClearMode && !heldStepKeys_.empty()
+                    && !processor_.editContext().hasAnyLatchedStep())
+                {
+                    auto& ctx = processor_.editContext();
+                    for (const auto& [code, idx] : heldStepKeys_)
+                        ctx.setLatched(idx);
+                    setStatus("P-LOCK LATCHED — tap cells to clear, double-tap Func to apply");
+                    refreshSurface();
+                    return true;   // consume: no funcHeld, no Chance band
+                }
                 uiState_.funcHeld = true;
                 // Func+Track is the machine/Kit picker gesture (§4.7.2) — entering
                 // the compound re-skins the step grid to machine names directly.
@@ -4242,45 +4278,13 @@ namespace lockstep
                     // page / scrolled-past-end position) — that indexes steps[] OOB.
                     if (absStep < 0 || absStep >= static_cast<int>(kMaxStepsPerTrack))
                         return true;
-                    const double now = juce::Time::getMillisecondCounterHiRes();
-                    const bool isDouble = gesture_.doubleTap(absStep, now);
 
-                    // MHZ.9.5: double-tap on a step = virtual-hold (latch operand).
-                    // On the 2nd key-down, re-hold the step and mark it latched; also
-                    // revert the first key-up's trig toggle (if it happened) so the
-                    // net effect is zero trig changes.
-                    if (isDouble)
-                    {
-                        auto& ctx = processor_.editContext();
-                        ctx.hold(keyboardArea_.getActiveTrack(), absStep);
-                        ctx.setLatched(absStep);
-                        heldStepKeys_.push_back({ rawCode, absStep });
-                        uiState_.stepHeld = true;
-                        editMode_.setTrigHeld(true);
-                        // Arm the inspector for the latched step (a plain hold sets
-                        // this; the latch path must too, or StepInspector renders an
-                        // unset step index).
-                        uiState_.pLockClearStaged.clear();
-                        uiState_.pLockClearMode = true;
-                        uiState_.pLockClearTrack = ctx.heldTrackIndex();
-                        uiState_.pLockClearStep = absStep;
-                        uiState_.stepMoveAnchor = absStep;
-                        uiState_.stepMoveActive = false;
-
-                        // Revert the first key-up trig flip if it happened on this step.
-                        if (lastTrigToggleApplied_ && lastTrigToggleStep_ == absStep && lastTrigToggleTrack_ == ctx.heldTrackIndex())
-                        {
-                            auto& s = processor_.sequence()
-                                          .tracks[static_cast<std::size_t>(lastTrigToggleTrack_)]
-                                          .steps[static_cast<std::size_t>(lastTrigToggleStep_)];
-                            s.trig = !s.trig;  // undo the first-tap's toggle
-                        }
-                        lastTrigToggleApplied_ = false;
-                        lastTrigToggleStep_ = -1;
-                        lastTrigToggleTrack_ = -1;
-                        repaint();
-                        return true;
-                    }
+                    // W7: step latching is now done with hold-step + Func (handled in
+                    // the Func key-down case), NOT double-tap. The old double-tap latch
+                    // transiently flipped the trig on the first tap's key-up and reverted
+                    // it on the second key-down — a live-performance hazard (a stray or
+                    // dropped trig if the playhead landed in that window). A plain single
+                    // tap now always just toggles the trig, instantly.
 
                     // Normal (first) press: hold the step.
                     heldStepKeys_.push_back({ rawCode, absStep });
