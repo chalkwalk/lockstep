@@ -134,10 +134,21 @@ namespace lockstep
         CHECK(f[6].active && juce::String(f[6].label) == "MOVE", "field 6 = MOVE");
         CHECK(f[7].active && juce::String(f[7].label) == "OCT",  "field 7 = OCT");
 
-        // Add a 4th voice via the OFF slot (V4 := ladder index 6).
+        // Add a 4th voice via the OFF slot. W6b: a newly-added voice ignores the
+        // written knob index and instead starts near the chord's current register
+        // (the ladder rung nearest the mean of the present voices), nudged off any
+        // collision — so it must NOT land on the written index 6, and must be unique.
         writeMetaField(MetaBand::Harmony, 0, 3, 6.0f, proc, 0, ctx, ui);
         CHECK(ui.harmonyProg.chords[0].voiceCount == 4, "writing the OFF slot adds a voice");
-        CHECK(ui.harmonyProg.chords[0].voice[3] == 6, "added voice takes the written index");
+        {
+            const auto& ch = ui.harmonyProg.chords[0];
+            CHECK(ch.voice[3] != 6,
+                  "added voice ignores the written index (starts at chord's average register)");
+            bool uniqueAdd = true;
+            for (int j = 0; j < 3; ++j)
+                if (ch.voice[static_cast<std::size_t>(j)] == ch.voice[3]) uniqueAdd = false;
+            CHECK(uniqueAdd, "added voice does not collide with an existing voice");
+        }
 
         // Off-detent removes the top voice again.
         writeMetaField(MetaBand::Harmony, 0, 3, -1.0f, proc, 0, ctx, ui);

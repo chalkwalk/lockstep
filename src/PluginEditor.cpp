@@ -2709,11 +2709,19 @@ namespace lockstep
                 int bass = 0;
                 for (int i = 0; i <= ladderMax; ++i)
                     if (ladder[static_cast<std::size_t>(i)] <= 60) bass = i;
+                // 1-3-5 triad by LADDER RUNG. In a diatonic scale every-other rung
+                // (bass+2/bass+4) is the third/fifth. On the chromatic scale a rung
+                // is one semitone, so bass+2/bass+4 would give a whole-tone cluster
+                // (C-D-E) — seed a real major triad by semitone (+4 major third,
+                // +7 perfect fifth) instead.
+                const bool chromatic = harmonyScaleSize(key) >= 12;
+                const int third = chromatic ? 4 : 2;
+                const int fifth = chromatic ? 7 : 4;
                 auto& c = uiState_.harmonyProg.chords[0];
                 c.voiceCount = 3;
                 c.voice = { std::clamp(bass, 0, ladderMax),
-                            std::clamp(bass + 2, 0, ladderMax),
-                            std::clamp(bass + 4, 0, ladderMax), 0 };
+                            std::clamp(bass + third, 0, ladderMax),
+                            std::clamp(bass + fifth, 0, ladderMax), 0 };
                 c.chroma = {};
             }
         }

@@ -1782,7 +1782,34 @@ namespace lockstep
                         const bool adding = (vi == ch.voiceCount && ch.voiceCount < kHarmonyVoices);
                         if (vi >= ch.voiceCount && !adding)
                             break;
-                        int idx = std::clamp(v, 0, ladderMax);
+                        int idx;
+                        if (adding)
+                        {
+                            // A newly-added voice starts near the chord's current
+                            // register rather than wherever the knob points: snap to
+                            // the ladder rung nearest the mean MIDI of the present
+                            // voices (middle C when the chord is empty). The
+                            // taken-rung walk below then nudges off any collision.
+                            double sum = 0.0;
+                            for (int j = 0; j < ch.voiceCount; ++j)
+                                sum += resolveVoice(ladder,
+                                                    ch.voice[static_cast<std::size_t>(j)],
+                                                    ch.chroma[static_cast<std::size_t>(j)]);
+                            const int meanMidi = ch.voiceCount > 0
+                                ? static_cast<int>(std::lround(sum / ch.voiceCount)) : 60;
+                            int best = 0, bestDist = 1 << 20;
+                            for (int r = 0; r <= ladderMax; ++r)
+                            {
+                                const int d = std::abs(
+                                    ladder[static_cast<std::size_t>(r)] - meanMidi);
+                                if (d < bestDist) { bestDist = d; best = r; }
+                            }
+                            idx = best;
+                        }
+                        else
+                        {
+                            idx = std::clamp(v, 0, ladderMax);
+                        }
                         const int from = (vi < ch.voiceCount)
                                              ? ch.voice[static_cast<std::size_t>(vi)] : idx;
                         const int dir = (idx >= from) ? 1 : -1;
@@ -1807,13 +1834,21 @@ namespace lockstep
                 case 4:  // LEN — lossless grow. A genuinely-new slot (beyond the
                 {        // high-water `reach`) clones the previous chord to nudge
                          // from; a slot re-grown within `reach` is restored as-is.
+                    const int oldLen = prog.length;
+                    const int oldCursor = prog.cursor;
                     const int newLen = std::clamp(v, 1, kMaxHarmonyChords);
                     for (int k = prog.reach; k < newLen; ++k)
                         prog.chords[static_cast<std::size_t>(k)] =
                             prog.chords[static_cast<std::size_t>(std::max(0, k - 1))];
                     prog.reach  = std::max(prog.reach, newLen);
                     prog.length = newLen;
-                    prog.cursor = std::clamp(prog.cursor, 0, newLen - 1);
+                    // If we grew while sitting on the (old) last slot, follow the
+                    // cursor onto the freshly-cloned chord so it can be edited
+                    // straight away without a manual CUR move.
+                    if (newLen > oldLen && oldCursor == oldLen - 1)
+                        prog.cursor = newLen - 1;
+                    else
+                        prog.cursor = std::clamp(prog.cursor, 0, newLen - 1);
                     break;
                 }
                 case 5:  // CUR — display is 1-based.
