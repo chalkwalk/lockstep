@@ -201,6 +201,14 @@ namespace lockstep
             return Polyphony::V1;
         }
 
+        // sequencesTrigs(): false for control-only machines (Route, and future
+        // pure-control engines) that produce no note voices and derive nothing
+        // from note-on. When false, a step press places a *lock-only* anchor
+        // (Step.lockOnly) instead of a note trig: the grid becomes a bank of
+        // per-step P-Lock carriers, never emitting notes. P-Locks still ride.
+        // Default true — ordinary note-driven machines are unaffected.
+        virtual bool sequencesTrigs() const { return true; }
+
         // hasInternalAmp(): return true if the machine shapes its own amplitude
         // envelope. When true, the ENVELOPE block (AHDSR + gate source) is omitted
         // from the track's slot space — the CHANNEL block (level/pan/sendA/sendB)

@@ -5432,7 +5432,16 @@ namespace lockstep
                             auto& s = processor_.sequence()
                                           .tracks[static_cast<std::size_t>(track)]
                                           .steps[static_cast<std::size_t>(stepIdx)];
-                            if (heldSectionIndex_ == IMachine::kTrigSecIdx)
+                            if (!processor_.trackSequencesTrigs(track))
+                            {
+                                // 7a: control-only machine (Route). The grid is a
+                                // bank of lock-only P-Lock anchors — a step press
+                                // toggles lock-only, never a note trig. Trig+step
+                                // and plain press behave identically here.
+                                s.lockOnly = !s.lockOnly;
+                                if (s.lockOnly) s.trig = false;
+                            }
+                            else if (heldSectionIndex_ == IMachine::kTrigSecIdx)
                             {
                                 // 5.6 Trig+step: cycle the tri-state off → note →
                                 // lock-only → off (DESIGN §30). lock-only keeps the

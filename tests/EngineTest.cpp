@@ -1231,6 +1231,24 @@ namespace lockstep
         }
     }
 
+    // 7a: Route is control-only, so trackSequencesTrigs() is false and a step
+    // press must place a lock-only anchor rather than a note trig. Note-driven
+    // machines stay true. The processor helper is the seam the editor reads.
+    static void testRouteIsTrigless()
+    {
+        EngineHarness h;
+        auto& p = h.processor();
+        installRoute(p, 0,
+                    static_cast<float>(static_cast<int>(InputSourceKind::External)));
+        CHECK(!p.trackSequencesTrigs(0), "Route track is control-only (trigless)");
+
+        p.setTrackMachine(1, "lockstep.analog.v1");
+        CHECK(p.trackSequencesTrigs(1), "a note-driven machine still sequences trigs");
+
+        // Out-of-range / empty tracks default to sequencing (safe fallback).
+        CHECK(p.trackSequencesTrigs(-1), "out-of-range track defaults to trigged");
+    }
+
     static void testRouteMasterTap()
     {
         EngineHarness h;
@@ -2359,6 +2377,7 @@ namespace lockstep
         testTrackPanLaw();
         testSwapStepsCarriesData();
         testRoutePassesExternalInput();
+        testRouteIsTrigless();
         testRouteMasterTap();
         testAuditionLiveNote();
         testLockOnlyRidesOverrideOntoVoice();

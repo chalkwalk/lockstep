@@ -70,5 +70,9 @@ namespace lockstep
         {
             return Polyphony::V0;
         }
+
+        // Control-only: a step press places a lock-only P-Lock anchor, never a
+        // note trig (there is no voice to fire). See IMachine::sequencesTrigs.
+        [[nodiscard]] bool sequencesTrigs() const override { return false; }
     };
 }

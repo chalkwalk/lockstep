@@ -195,6 +195,10 @@ namespace lockstep
         // track is a recorder trig (capture), so the lock-only (trigless) state is
         // disallowed — the off→note→lock-only cycle becomes off→note (DESIGN §30).
         [[nodiscard]] bool isRecorderTrack(int track) const;
+        // False when the track's machine is control-only (Route): a step press
+        // places a lock-only P-Lock anchor rather than a note trig (7a / DESIGN
+        // §30). Empty / out-of-range tracks sequence trigs normally.
+        [[nodiscard]] bool trackSequencesTrigs(int track) const;
         // True when the track's machine is a LoopMachine. When such a track is
         // focused, Track+Record/Play/Clear drive the looper state machine (DESIGN
         // §29.2) instead of the track clipboard. cmd matches LoopMachine::Cmd;

@@ -5411,6 +5411,13 @@ namespace lockstep
                && std::string(machines_[ti]->machineId()) == RecordMachine::kMachineId;
     }
 
+    bool LockstepProcessor::trackSequencesTrigs(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return true;
+        const auto* m = machines_[static_cast<std::size_t>(track)].get();
+        return m == nullptr || m->sequencesTrigs();
+    }
+
     bool LockstepProcessor::isLooperTrack(int track) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
