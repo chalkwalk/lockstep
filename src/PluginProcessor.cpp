@@ -5418,6 +5418,20 @@ namespace lockstep
         return m == nullptr || m->sequencesTrigs();
     }
 
+    ConsoleMode LockstepProcessor::trackConsoleMode(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return ConsoleMode::None;
+        const auto* m = machines_[static_cast<std::size_t>(track)].get();
+        return m ? m->consoleMode() : ConsoleMode::None;
+    }
+
+    int LockstepProcessor::trackConsoleSection(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return IMachine::kSrcSecIdx;
+        const auto* m = machines_[static_cast<std::size_t>(track)].get();
+        return m ? m->consoleSectionIndex() : IMachine::kSrcSecIdx;
+    }
+
     bool LockstepProcessor::isLooperTrack(int track) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;

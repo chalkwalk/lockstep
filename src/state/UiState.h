@@ -209,6 +209,12 @@ namespace lockstep
         bool masterFxPickerOpen = false;
         int masterFxInsertSlot = 0;
 
+        // 7b: an OnDemand machine console is open (opened/closed by long-pressing
+        // the focused machine's consoleSectionIndex() key). Drives
+        // SurfaceLayer::MachineConsole via resolveActiveLayer. AlwaysOn consoles
+        // ignore this flag. Ephemeral — never serialised.
+        bool machineConsoleOpen = false;
+
         // Active sticky overlay (Overlay::None when no overlay is active).
         // Replaces the former timeStickyMode / densityStickyMode / velStickyMode booleans.
         // ModeReducer::activeOverlay() checks euclidHeld first, then this field.

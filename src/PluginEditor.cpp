@@ -2289,6 +2289,13 @@ namespace lockstep
         return true;
     }
 
+    void LockstepEditor::closeMachineConsole()
+    {
+        // 7b base close: clear the open flag. 7c (Route) reverts its scratch
+        // buffer before calling this; other consoles have no pending state.
+        uiState_.machineConsoleOpen = false;
+    }
+
     void LockstepEditor::openFxSectionPicker(bool master)
     {
         // Slot selection now lives on a *tap* of the FX key while the picker is
@@ -3199,6 +3206,14 @@ namespace lockstep
                         if (uiState_.latch.any() || processor_.editContext().hasAnyLatchedStep())
                             escapeAllLatches();
 
+                        // 7b: double-tap Func also closes an open machine console
+                        // (the confirmed Cancel/close path). 7c hooks revert here.
+                        if (uiState_.machineConsoleOpen)
+                        {
+                            closeMachineConsole();
+                            refreshSurface();
+                        }
+
                         // Route through the overlay reducer.  Guard: sticky modes
                         // require no latches (they shouldn't be co-active, but
                         // double-tap can arrive mid-gesture).  Euclid always exits.
@@ -3407,6 +3422,28 @@ namespace lockstep
                     return true;  // action deferred to key-up
                 }
 
+                // 7b: OnDemand machine console. A bare long-press of the machine's
+                // console-owning section key opens/closes the console; a tap still
+                // pages that section's params. Armed here, resolved on key-up.
+                if (sectionScope == PS::None)
+                {
+                    const int at = keyboardArea_.getActiveTrack();
+                    if (processor_.trackConsoleMode(at) == ConsoleMode::OnDemand
+                        && ev.index == processor_.trackConsoleSection(at))
+                    {
+                        gesture_.armLongPress(kMachineConsoleLongPressToken,
+                                              juce::Time::getMillisecondCounterHiRes());
+                        machineConsoleArmed_ = true;
+                        if (heldSectionRawCode_ < 0)
+                        {
+                            heldSectionRawCode_ = rawCode;
+                            heldSectionIndex_ = ev.index;
+                            editMode_.setSectionHeld(true);
+                        }
+                        return true;  // action deferred to key-up
+                    }
+                }
+
                 if (sectionScope != PS::None)
                 {
                     // Dim under this scope — no content, block entirely.
@@ -3510,7 +3547,8 @@ namespace lockstep
                                                ? uiState_.trackInputMode[static_cast<std::size_t>(layerAt)]
                                                : TrackInputMode::Play;
                     const LayerFacts stepFacts{ layerMode, layerAt,
-                                                layerAt >= 0 && processor_.isLooperTrack(layerAt) };
+                                                layerAt >= 0 && processor_.isLooperTrack(layerAt),
+                                                processor_.trackConsoleMode(layerAt) };
                     const SurfaceLayer layer = resolveActiveLayer(
                         uiState_, processor_.editContext(), stepFacts);
 
@@ -4966,7 +5004,8 @@ namespace lockstep
                                            ? uiState_.trackInputMode[static_cast<std::size_t>(at)]
                                            : TrackInputMode::Play;
                 const LayerFacts facts{ inputMode, at,
-                                        at >= 0 && processor_.isLooperTrack(at) };
+                                        at >= 0 && processor_.isLooperTrack(at),
+                                        processor_.trackConsoleMode(at) };
                 const auto layer = resolveActiveLayer(uiState_, processor_.editContext(), facts);
                 const auto heldMods = heldModsFromUiState(uiState_);
                 const auto& binding = resolveBinding(ev.button, trackIdx, heldMods, layer);
@@ -5234,6 +5273,22 @@ namespace lockstep
                         case LPR::NotArmed:
                             break;
                     }
+                }
+                // 7b: resolve a deferred machine-console section press.
+                if (machineConsoleArmed_)
+                {
+                    using LPR = GestureRecognizer::LongPressResult;
+                    const double now = juce::Time::getMillisecondCounterHiRes();
+                    if (gesture_.checkLongPress(kMachineConsoleLongPressToken, now) == LPR::LongHold)
+                    {
+                        uiState_.machineConsoleOpen = !uiState_.machineConsoleOpen;
+                        refreshSurface();
+                    }
+                    else if (heldSectionIndex_ >= 0)
+                    {
+                        keyboardArea_.selectSection(heldSectionIndex_);  // tap → page params
+                    }
+                    machineConsoleArmed_ = false;
                 }
                 heldSectionRawCode_ = -1;
                 heldSectionIndex_ = -1;

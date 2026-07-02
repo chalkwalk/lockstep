@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <juce_audio_basics/juce_audio_basics.h>
+#include "ConsoleMode.h"
 
 namespace lockstep
 {
@@ -208,6 +209,18 @@ namespace lockstep
         // per-step P-Lock carriers, never emitting notes. P-Locks still ride.
         // Default true — ordinary note-driven machines are unaffected.
         virtual bool sequencesTrigs() const { return true; }
+
+        // Machine console (7b). A console repurposes the step grid as a
+        // machine-specific control surface (rendered on SurfaceLayer::MachineConsole,
+        // generalising the hard-coded looper console). Default None.
+        //   AlwaysOn  — shown whenever the track is focused (like the looper).
+        //   OnDemand  — opened/closed by long-pressing consoleSectionIndex()'s key.
+        virtual ConsoleMode consoleMode() const { return ConsoleMode::None; }
+
+        // For an OnDemand console, the canonical section key (0..kMaxSections-1)
+        // whose long-press opens/closes it. Ignored when consoleMode() != OnDemand.
+        // Defaults to SRC — the note/source domain most consoles belong to.
+        virtual int consoleSectionIndex() const { return kSrcSecIdx; }
 
         // hasInternalAmp(): return true if the machine shapes its own amplitude
         // envelope. When true, the ENVELOPE block (AHDSR + gate source) is omitted

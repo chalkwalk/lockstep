@@ -231,6 +231,7 @@ namespace lockstep
         bool fxPickerFiredMidHold_ = false;       // picker opened during the hold (not on key-up)
         bool fxPickerRemoveArmed_ = false;        // loaded-cell press deferred to key-up
         bool fxPickerRemoveMaster_ = false;       // which picker the armed press targets
+        bool machineConsoleArmed_ = false;        // 7b: console-section press deferred to key-up
 
         // ── Performance capture (tape deck) ──────────────────────────────────
         // CaptureController is the pure state machine; the editor owns the IO
@@ -306,6 +307,9 @@ namespace lockstep
         // mid-hold timer path and the key-up long-hold fallback. Sets the durable
         // picker state and refreshes the surface so it appears while held.
         void openFxSectionPicker(bool master);
+        // 7b: close an open OnDemand machine console (the Cancel/close path). 7c
+        // reverts the Route scratch buffer via the console before this clears the flag.
+        void closeMachineConsole();
         // Tap-to-cycle the target slot while the FX picker is open (replaces the
         // old re-hold-to-cycle gesture). Master: units 0-3; Track: slots 0/1.
         void cycleFxPickerSlot(bool master);

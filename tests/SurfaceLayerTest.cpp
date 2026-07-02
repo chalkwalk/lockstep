@@ -427,6 +427,52 @@ namespace lockstep
         }
     }
 
+    // ── MachineConsole (7b) ──────────────────────────────────────────────────
+
+    static LayerFacts factsConsole(ConsoleMode m)
+    {
+        LayerFacts f{ TrackInputMode::Play, 0, false };
+        f.activeTrackConsoleMode = m;
+        return f;
+    }
+
+    static void testMachineConsoleLayer()
+    {
+        // AlwaysOn console shows whenever nothing higher is active (like looper).
+        {
+            UiState ui;
+            CHECK(resolveActiveLayer(ui, ec(), factsConsole(ConsoleMode::AlwaysOn))
+                      == SL::MachineConsole,
+                  "AlwaysOn console → MachineConsole");
+        }
+        // OnDemand shows only while the open flag is set.
+        {
+            UiState ui;
+            CHECK(resolveActiveLayer(ui, ec(), factsConsole(ConsoleMode::OnDemand))
+                      == SL::Base,
+                  "OnDemand console closed → Base");
+            ui.machineConsoleOpen = true;
+            CHECK(resolveActiveLayer(ui, ec(), factsConsole(ConsoleMode::OnDemand))
+                      == SL::MachineConsole,
+                  "OnDemand console open → MachineConsole");
+        }
+        // None never shows a console even with the flag set.
+        {
+            UiState ui;
+            ui.machineConsoleOpen = true;
+            CHECK(resolveActiveLayer(ui, ec(), factsConsole(ConsoleMode::None)) == SL::Base,
+                  "None console mode → Base regardless of open flag");
+        }
+        // A held scope chord still outranks the console (it sits below every modal).
+        {
+            UiState ui;
+            ui.trackHeld = true;
+            CHECK(resolveActiveLayer(ui, ec(), factsConsole(ConsoleMode::AlwaysOn))
+                      == SL::ScopeSelector,
+                  "ScopeSelector beats MachineConsole");
+        }
+    }
+
     void runSurfaceLayerTests()
     {
         testBaseLayer();
@@ -444,5 +490,6 @@ namespace lockstep
         testPendingConfirmLayer();
         testDeletePickerLayer();
         testStepInspectorLayer();
+        testMachineConsoleLayer();
     }
 }

@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include "../core/TrackInputMode.h"
+#include "../machine/ConsoleMode.h"
 
 namespace lockstep
 {
@@ -32,6 +33,7 @@ namespace lockstep
         MorphStepView,    // ui.morphHeld && !ui.funcHeld
         ScopeSelector,    // trackHeld || phraseScopeHeld || sceneHeld || songHeld
         LooperConsole,    // focused track is a looper, no higher overlay (S3) — always-on
+        MachineConsole,   // machine consoleMode() AlwaysOn, or OnDemand && machineConsoleOpen (7b)
         Base,             // normal step grid
     };
 
@@ -41,6 +43,7 @@ namespace lockstep
         TrackInputMode inputMode = TrackInputMode::Play;  // active track's input mode
         int activeTrack = 0;                     // index of the focused track
         bool activeTrackIsLooper = false;        // focused track runs a LoopMachine (S3)
+        ConsoleMode activeTrackConsoleMode = ConsoleMode::None;  // focused machine's console (7b)
     };
 
   // The one function that decides which overlay is active.

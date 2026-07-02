@@ -93,6 +93,10 @@ namespace lockstep
     // bypass, long-press = remove the effect from the targeted slot).
     static constexpr int kFxPickerCellLongPressToken = 6001;
 
+    // Token for a long-press on a machine's console-owning section key (tap =
+    // page that section's params, long-press = open/close the OnDemand console, 7b).
+    static constexpr int kMachineConsoleLongPressToken = 6002;
+
     // Token for the CAPTURE cell (tape deck): tap / double-tap / long-press all
     // resolve on this one token (double-tap and long-press use independent state
     // in GestureRecognizer, so sharing the token is safe).

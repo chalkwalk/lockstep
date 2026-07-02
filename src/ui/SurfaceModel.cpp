@@ -655,7 +655,8 @@ namespace lockstep
                                                    ? ui.trackInputMode[static_cast<std::size_t>(activeTrack)]
                                                    : TrackInputMode::Play;
         const bool activeTrackIsLooper = validStepTrackMode && proc.isLooperTrack(activeTrack);
-        const LayerFacts layerFacts{ activeTrackMode, activeTrack, activeTrackIsLooper };
+        const LayerFacts layerFacts{ activeTrackMode, activeTrack, activeTrackIsLooper,
+                                     proc.trackConsoleMode(activeTrack) };
         const SurfaceLayer activeLayer = resolveActiveLayer(ui, ec, layerFacts);
         model.activeLayer = activeLayer;
 

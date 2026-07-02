@@ -73,6 +73,15 @@ namespace lockstep
         // transport + performance console — shown whenever nothing higher is active.
         if (f.activeTrackIsLooper) { return SurfaceLayer::LooperConsole; }
 
+        // 7b: a machine may repurpose the grid as its own console. AlwaysOn shows
+        // like the looper; OnDemand only while the user has it open. Both sit below
+        // every held modal above so a scope/mute chord still wins.
+        if (f.activeTrackConsoleMode == ConsoleMode::AlwaysOn) { return SurfaceLayer::MachineConsole; }
+        if (f.activeTrackConsoleMode == ConsoleMode::OnDemand && ui.machineConsoleOpen)
+        {
+            return SurfaceLayer::MachineConsole;
+        }
+
         return SurfaceLayer::Base;
     }
 
@@ -102,6 +111,9 @@ namespace lockstep
 
             case SurfaceLayer::LooperConsole:
                 return "LOOPER";
+
+            case SurfaceLayer::MachineConsole:
+                return "CONSOLE";
 
             case SurfaceLayer::KeyPanel:
                 return "KEY MODIFIERS";

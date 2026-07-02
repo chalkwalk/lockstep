@@ -199,6 +199,10 @@ namespace lockstep
         // places a lock-only P-Lock anchor rather than a note trig (7a / DESIGN
         // §30). Empty / out-of-range tracks sequence trigs normally.
         [[nodiscard]] bool trackSequencesTrigs(int track) const;
+        // The focused machine's console mode (7b), or None for empty/out-of-range.
+        [[nodiscard]] ConsoleMode trackConsoleMode(int track) const;
+        // The canonical section key whose long-press opens the OnDemand console.
+        [[nodiscard]] int trackConsoleSection(int track) const;
         // True when the track's machine is a LoopMachine. When such a track is
         // focused, Track+Record/Play/Clear drive the looper state machine (DESIGN
         // §29.2) instead of the track clipboard. cmd matches LoopMachine::Cmd;
