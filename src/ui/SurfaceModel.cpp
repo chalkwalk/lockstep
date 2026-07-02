@@ -1871,6 +1871,7 @@ namespace lockstep
                 }
 
                 // Phase 7: Section queue indicator (replaces old pattern chain).
+                // 9.17: a queued Song switch reuses the same "next" badge.
                 std::array<int, 16> sectionQueuePos{};
                 if (ui.sceneHeld && proc.hasQueuedScene())
                 {
@@ -1878,9 +1879,18 @@ namespace lockstep
                     if (qi >= 0 && qi < kScenesPerSong)
                         sectionQueuePos[static_cast<std::size_t>(qi)] = 1;
                 }
+                else if (ui.songHeld && proc.hasQueuedSong())
+                {
+                    const int qs = proc.queuedSongTarget();
+                    if (qs >= 0 && qs < kNumSongs)
+                        sectionQueuePos[static_cast<std::size_t>(qs)] = 1;
+                }
 
                 // Phase 7: per-phrase deviation badge for patternScope view.
                 const int devTrack = (activeTrack >= 0 && ui.phraseScopeHeld) ? activeTrack : -1;
+                // 9.17: a queued (not-yet-fired) deviation shows the "next" badge.
+                const int devQueuedPhrase =
+                    (devTrack >= 0) ? proc.queuedDeviationPhraseForTrack(devTrack) : -1;
                 // Dual-marker selector (DESIGN §4.7): the scene's diagonal home row.
                 const int globalIdx = ui.phraseScopeHeld ? proc.activeSectionIdx() : -1;
 
@@ -1910,11 +1920,14 @@ namespace lockstep
                     const bool isEmpty = avail && slotEmpty[static_cast<std::size_t>(i)];
                     const bool isCurrent = avail && !isEmpty && (i == activeIdx);
                     // Phase 7: section queue badge (Part scope) or deviation badge (Pattern scope).
-                    const int cpos = (ui.sceneHeld && avail)
+                    const int cpos = ((ui.sceneHeld || ui.songHeld) && avail)
                                          ? sectionQueuePos[static_cast<std::size_t>(i)]
                                          : 0;
                     const bool isDeviated = ui.phraseScopeHeld && avail && devTrack >= 0 && proc.isTrackDeviated(devTrack) && i == proc.deviationPhraseIdxForTrack(devTrack);
-                    const bool isNext = cpos == 1;
+                    // 9.17: a queued deviation shows "next" until it fires at the boundary.
+                    const bool isQueuedDeviation =
+                        ui.phraseScopeHeld && avail && devQueuedPhrase >= 0 && i == devQueuedPhrase;
+                    const bool isNext = cpos == 1 || isQueuedDeviation;
                     const bool isChain = cpos >= 2;
 
                     // CellState token + fill colour

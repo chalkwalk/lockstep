@@ -128,6 +128,9 @@ namespace lockstep
         lastRecordedStepNum_.fill(std::numeric_limits<int64_t>::min());
         for (auto& d : trackDensity_) d.store(1.0f, std::memory_order_relaxed);
         masterDensity_.store(0.0f, std::memory_order_relaxed);
+        // 9.17: -1 == no queued deviation (a value-initialised atomic is 0, which
+        // would spuriously read as "queued to phrase 0" on every track).
+        for (auto& q : queuedDeviationPhrase_) q.store(-1, std::memory_order_relaxed);
 
         for (auto& s : mzSlots_)
             s.store(-1, std::memory_order_relaxed);
@@ -237,8 +240,11 @@ namespace lockstep
                                         stagedSwap_.masterDensity);
         stagedSwap_.sceneIdx = sectionIdx;
         stagedSwap_.toFloor = toFloor;
+        stagedSwap_.kind = SwapKind::Scene;
         stagedSwapReady_.store(true, std::memory_order_release);
         queuedSceneToFloor_.store(toFloor, std::memory_order_release);
+        // Scene and Song share the staged buffer; queuing a scene cancels a song.
+        queuedSongIdx_.store(-1, std::memory_order_release);
         queuedSceneIdx_.store(sectionIdx, std::memory_order_release);
     }
 
@@ -255,6 +261,92 @@ namespace lockstep
     int LockstepProcessor::queuedSectionIdx() const
     {
         return queuedSceneIdx_.load(std::memory_order_acquire);
+    }
+
+    // 9.17: resolved per-track launch grid. Until the per-track override lands
+    // (commit 6) every track follows the Set grid.
+    LaunchQuant LockstepProcessor::trackLaunchGrid(int track) const
+    {
+        juce::ignoreUnused(track);
+        return resolveTrackQuant(setLaunchGrid(), kFollowGlobal);
+    }
+
+    void LockstepProcessor::queueSongSwitch(int songIdx, bool forceInstant)
+    {
+        if (songIdx < 0 || songIdx >= kNumSongs || songIdx == arrangement_.songIdx)
+            return;
+        const bool defer = clock_.inPluginPlaying() && !forceInstant
+                           && setLaunchGrid() != LaunchQuant::Instant;
+        if (!defer)
+        {
+            setActiveSong(songIdx);
+            return;
+        }
+        // Pre-stage on the message thread (mirrors queueScene). Building the new
+        // song's scene-0 working buffer here keeps the audio-thread apply to a
+        // bounded swap; reinstallMachinesFromActiveKit + seedFloor run via
+        // callAsync after the swap commits (both allocate).
+        stagedSwapReady_.store(false, std::memory_order_release);
+        arrangement_.prepareSongSwitch(songIdx,
+                                       stagedSwap_.working,
+                                       stagedSwap_.deviated,
+                                       stagedSwap_.deviationPhraseIdx,
+                                       stagedSwap_.density,
+                                       stagedSwap_.masterDensity);
+        stagedSwap_.kind = SwapKind::Song;
+        stagedSwap_.songTarget = songIdx;
+        stagedSwap_.sceneIdx = 0;
+        stagedSwapReady_.store(true, std::memory_order_release);
+        // Song outranks / replaces a queued scene.
+        queuedSceneIdx_.store(-1, std::memory_order_release);
+        queuedSongIdx_.store(songIdx, std::memory_order_release);
+    }
+
+    void LockstepProcessor::cancelQueuedSong()
+    {
+        queuedSongIdx_.store(-1, std::memory_order_release);
+    }
+
+    bool LockstepProcessor::hasQueuedSong() const
+    {
+        return queuedSongIdx_.load(std::memory_order_acquire) >= 0;
+    }
+
+    int LockstepProcessor::queuedSongTarget() const
+    {
+        return queuedSongIdx_.load(std::memory_order_acquire);
+    }
+
+    void LockstepProcessor::queuePhraseDeviation(int track, int phraseIdx, bool forceInstant)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks))
+            return;
+        const bool defer = clock_.inPluginPlaying() && !forceInstant
+                           && trackLaunchGrid(track) != LaunchQuant::Instant;
+        if (!defer)
+        {
+            swapPhraseForTrack(track, phraseIdx);
+            return;
+        }
+        const auto t = static_cast<std::size_t>(track);
+        arrangement_.prepareDeviation(track, phraseIdx, stagedDeviation_[t]);
+        queuedDeviationPhrase_[t].store(phraseIdx, std::memory_order_release);
+    }
+
+    bool LockstepProcessor::hasPendingDeviation(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks))
+            return false;
+        const auto t = static_cast<std::size_t>(track);
+        return queuedDeviationPhrase_[t].load(std::memory_order_acquire) >= 0
+               || pendingDeviationApply_[t].load(std::memory_order_acquire);
+    }
+
+    int LockstepProcessor::queuedDeviationPhraseForTrack(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks))
+            return -1;
+        return queuedDeviationPhrase_[static_cast<std::size_t>(track)].load(std::memory_order_acquire);
     }
 
 
@@ -1545,18 +1637,56 @@ namespace lockstep
             if (pendingSceneApply_.load(std::memory_order_acquire) && stagedSwapReady_.load(std::memory_order_acquire))
             {
                 pendingSceneApply_.store(false, std::memory_order_relaxed);
-                arrangement_.applySceneLaunch(stagedSwap_.sceneIdx,
-                                              stagedSwap_.working,
-                                              stagedSwap_.deviated,
-                                              stagedSwap_.deviationPhraseIdx);
-                // Sync density atomics from the staged overlay values.
-                for (std::size_t t = 0; t < kNumTracks; ++t)
-                    trackDensity_[t].store(stagedSwap_.density[t], std::memory_order_relaxed);
-                masterDensity_.store(stagedSwap_.masterDensity, std::memory_order_relaxed);
-                sceneSwitchApplied_.store(true, std::memory_order_release);
-                // 5.6: a scene launch is pattern (re)entry — re-arm one-shots so the
-                // arriving scene's accents fire (spent state is per stepIdx, DESIGN §30).
-                rearmOneShots(-1);
+                if (stagedSwap_.kind == SwapKind::Song)
+                {
+                    // 9.17: Song switch. Bounded swap + playhead reset on the audio
+                    // thread; the heavy reinstall/seedFloor runs on the message
+                    // thread (both allocate) after songIdx has moved.
+                    arrangement_.applySongSwitch(stagedSwap_.songTarget, stagedSwap_.working);
+                    // A song switch is a full reset — drop any pending deviations.
+                    for (std::size_t t = 0; t < kNumTracks; ++t)
+                    {
+                        queuedDeviationPhrase_[t].store(-1, std::memory_order_relaxed);
+                        pendingDeviationApply_[t].store(false, std::memory_order_relaxed);
+                    }
+                    for (std::size_t t = 0; t < kNumTracks; ++t)
+                        trackDensity_[t].store(1.0f, std::memory_order_relaxed);
+                    masterDensity_.store(0.0f, std::memory_order_relaxed);
+                    sceneSwitchApplied_.store(true, std::memory_order_release);
+                    rearmOneShots(-1);
+                    juce::MessageManager::callAsync(
+                        [this] {
+                            reinstallMachinesFromActiveKit();
+                            arrangement_.seedFloor();
+                        });
+                }
+                else
+                {
+                    arrangement_.applySceneLaunch(stagedSwap_.sceneIdx,
+                                                  stagedSwap_.working,
+                                                  stagedSwap_.deviated,
+                                                  stagedSwap_.deviationPhraseIdx);
+                    // Sync density atomics from the staged overlay values.
+                    for (std::size_t t = 0; t < kNumTracks; ++t)
+                        trackDensity_[t].store(stagedSwap_.density[t], std::memory_order_relaxed);
+                    masterDensity_.store(stagedSwap_.masterDensity, std::memory_order_relaxed);
+                    sceneSwitchApplied_.store(true, std::memory_order_release);
+                    // 5.6: a scene launch is pattern (re)entry — re-arm one-shots so the
+                    // arriving scene's accents fire (spent state is per stepIdx, DESIGN §30).
+                    rearmOneShots(-1);
+                }
+            }
+
+            // 9.17: apply any per-track Phrase deviations that reached their
+            // launch boundary (bounded per-track swap, staged off the audio thread).
+            for (std::size_t t = 0; t < kNumTracks; ++t)
+            {
+                if (!pendingDeviationApply_[t].load(std::memory_order_acquire))
+                    continue;
+                pendingDeviationApply_[t].store(false, std::memory_order_relaxed);
+                arrangement_.applyDeviation(static_cast<int>(t),
+                                            pendingDeviationPhraseIdx_[t],
+                                            stagedDeviation_[t]);
             }
 
             // Advance fixed-duration voices; emit their note-off when expired.
@@ -1795,19 +1925,30 @@ namespace lockstep
             return;
         }
 
-        // ── Section launch engine (Phase 7 / DESIGN §4.8, §16) ───────────────
-        // A queued Section fires at the next core-time bar boundary.
+        // ── Launch engine (Phase 7 / 9.17 / DESIGN §4.8, §16) ────────────────
+        // Scene launch, Song switch, and per-track Phrase deviation all fire at
+        // their next launch-quantize boundary (one authority, PRINCIPLES §25).
+        if (samplesPerPpq > 0.0)
         {
+            const auto ct = effectiveTimeSig();
+            const auto setGrid = static_cast<LaunchQuant>(project_.launchQuant);
+            double boundary = 0.0;
+
+            // Scene / Song share the Set grid and the pre-staged swap buffer.
             const int qSecIdx = queuedSceneIdx_.load(std::memory_order_acquire);
-            if (qSecIdx >= 0 && samplesPerPpq > 0.0)
+            const int qSongIdx = queuedSongIdx_.load(std::memory_order_acquire);
+            if ((qSecIdx >= 0 || qSongIdx >= 0)
+                && boundaryInBlock(blockStart, blockEnd, setGrid, ct, boundary))
             {
-                const auto ct = effectiveTimeSig();
-                const auto setGrid = static_cast<LaunchQuant>(project_.launchQuant);
-                double boundary = 0.0;
-                // Scene launch resolves against the one shared launch-quantize
-                // grid (LaunchQuant, DESIGN §4.8). PhraseEnd is never a Set-grid
-                // value, so the band-wide boundary is always well-defined.
-                if (boundaryInBlock(blockStart, blockEnd, setGrid, ct, boundary))
+                if (qSongIdx >= 0)
+                {
+                    // Song switch: defer reinstall/seedFloor to the apply site,
+                    // after applySongSwitch moves songIdx (its kit is the new
+                    // song's — reinstalling before the swap would read the old).
+                    queuedSongIdx_.store(-1, std::memory_order_release);
+                    pendingSceneApply_.store(true, std::memory_order_release);
+                }
+                else
                 {
                     queuedSceneIdx_.store(-1, std::memory_order_release);
                     // Signal top-of-next-block to apply the pre-staged swap.
@@ -1822,6 +1963,22 @@ namespace lockstep
                         [this] {
                             reinstallMachinesFromActiveKit();
                         });
+                }
+            }
+
+            // Per-track Phrase deviation: each track fires at its own grid
+            // boundary (per-track override folds in at commit 6; for now == Set).
+            for (std::size_t t = 0; t < kNumTracks; ++t)
+            {
+                const int qp = queuedDeviationPhrase_[t].load(std::memory_order_acquire);
+                if (qp < 0) continue;
+                double devBoundary = 0.0;
+                if (boundaryInBlock(blockStart, blockEnd, trackLaunchGrid(static_cast<int>(t)),
+                                    ct, devBoundary))
+                {
+                    pendingDeviationPhraseIdx_[t] = qp;
+                    queuedDeviationPhrase_[t].store(-1, std::memory_order_release);
+                    pendingDeviationApply_[t].store(true, std::memory_order_release);
                 }
             }
         }

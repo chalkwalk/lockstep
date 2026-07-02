@@ -3991,10 +3991,15 @@ namespace lockstep
                 }
 
                 // Master + step: Song (song) select (Phase 7 / DESIGN §16).
+                // 9.17: quantized to the launch authority; double-tap = instant.
                 if (uiState_.songHeld && !uiState_.morphHeld)
                 {
                     if (ev.index >= 0 && ev.index < kNumSongs)
-                        processor_.setActiveSong(ev.index);
+                    {
+                        const double now = juce::Time::getMillisecondCounterHiRes();
+                        const bool dbl = gesture_.doubleTap(kSongStepTokenBase + ev.index, now);
+                        processor_.queueSongSwitch(ev.index, dbl);
+                    }
                     refreshSurface();
                     return true;
                 }
@@ -4037,11 +4042,16 @@ namespace lockstep
                 }
 
                 // Phrase + step (DESIGN §4.7/§16). Track+Phrase and bare Phrase both
-                // deviate the focused track only.
+                // deviate the focused track only. 9.17: quantized to the track's
+                // launch grid; double-tap = instant.
                 if (uiState_.phraseScopeHeld)
                 {
                     if (ev.index >= 0 && ev.index < kPhrasesPerTrack)
-                        processor_.swapPhraseForTrack(keyboardArea_.getActiveTrack(), ev.index);
+                    {
+                        const double now = juce::Time::getMillisecondCounterHiRes();
+                        const bool dbl = gesture_.doubleTap(kPhraseStepTokenBase + ev.index, now);
+                        processor_.queuePhraseDeviation(keyboardArea_.getActiveTrack(), ev.index, dbl);
+                    }
                     uiState_.phraseScopeUsed = true;
                     refreshSurface();
                     return true;
@@ -4347,10 +4357,15 @@ namespace lockstep
                 }
                 // Track+Phrase+step = sticky per-track deviation for the focused
                 // musician (Phrase-alone = unison swap, handled in the Step case).
+                // 9.17: quantized to the track's launch grid; double-tap = instant.
                 if (uiState_.phraseScopeHeld)
                 {
                     if (ev.index >= 0 && ev.index < kPhrasesPerTrack)
-                        processor_.swapPhraseForTrack(keyboardArea_.getActiveTrack(), ev.index);
+                    {
+                        const double now = juce::Time::getMillisecondCounterHiRes();
+                        const bool dbl = gesture_.doubleTap(kPhraseStepTokenBase + ev.index, now);
+                        processor_.queuePhraseDeviation(keyboardArea_.getActiveTrack(), ev.index, dbl);
+                    }
                     uiState_.phraseScopeUsed = true;
                     refreshSurface();
                     return true;

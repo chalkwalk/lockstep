@@ -86,6 +86,56 @@ namespace lockstep
               "re-deviate: phrase-2 edit survived (per-track write-back works)");
     }
 
+    // 9.17: the pre-staged Song switch builds the target song's scene-0 working
+    // buffer WITHOUT moving songIdx (message-thread prepare); the audio-thread
+    // apply then swaps it in and moves the playhead. Full reset (no deviations).
+    static void testPrepareAndApplySongSwitch()
+    {
+        auto arr = makeSeededArrangement();
+        arr->songs[1].tracks[0].kit.baseParams[0] = 0.55f;  // song 1 distinct kit
+        arr->swapPhraseForTrack(0, 3);
+        CHECK(arr->deviated[0], "pre: track 0 deviated in song 0");
+
+        // Prepare into staging buffers — songIdx/sceneIdx must NOT move yet.
+        auto staged = std::make_unique<Sequence>();
+        std::array<bool, kNumTracks> dev{};
+        std::array<int, kNumTracks> devIdx{};
+        std::array<float, kNumTracks> dens{};
+        float mdens = 0.0f;
+        arr->prepareSongSwitch(1, *staged, dev, devIdx, dens, mdens);
+        CHECK(arr->songIdx == 0, "prepare: songIdx not moved by prepare");
+        CHECK(!dev[0], "prepare: staged deviations cleared (full reset)");
+        CHECK(feq(dens[0], 1.0f) && feq(mdens, 0.0f), "prepare: density floored");
+        CHECK(feq(staged->tracks[0].baseParams[0], 0.55f),
+              "prepare: staged working uses song 1's kit");
+
+        // Apply — swaps the buffer in and moves the playhead to scene 0.
+        arr->applySongSwitch(1, *staged);
+        CHECK(arr->songIdx == 1, "apply: songIdx moved to 1");
+        CHECK(arr->sceneIdx == 0, "apply: scene reset to 0");
+        CHECK(!arr->deviated[0], "apply: deviations cleared");
+        CHECK(feq(arr->workingTrack(0).baseParams[0], 0.55f),
+              "apply: working reflects song 1's kit");
+    }
+
+    // 9.17: pre-staged per-track deviation projects the picked phrase off the
+    // audio thread; applyDeviation swaps it in and marks the deviation.
+    static void testPrepareAndApplyDeviation()
+    {
+        auto arr = makeSeededArrangement();
+        arr->songs[0].tracks[0].phrases[2].length = 5;  // distinguishable phrase 2
+
+        Track staged;
+        arr->prepareDeviation(0, 2, staged);
+        CHECK(!arr->deviated[0], "prepare: deviation not applied by prepare");
+        CHECK(staged.length == 5, "prepare: staged track is phrase 2's projection");
+
+        arr->applyDeviation(0, 2, staged);
+        CHECK(arr->deviated[0], "apply: track 0 marked deviated");
+        CHECK(arr->deviationPhraseIdx[0] == 2, "apply: deviation index is 2");
+        CHECK(arr->workingTrack(0).length == 5, "apply: working swapped to phrase 2");
+    }
+
     static void testSongSwitchClearsDeviationAndSwapsKit()
     {
         auto arr = makeSeededArrangement();
@@ -413,6 +463,8 @@ namespace lockstep
         testCreateBakedWithDeviation();
         testBaseParamEditSurvivesViaKit();
         testDeviationSwapAndResync();
+        testPrepareAndApplySongSwitch();
+        testPrepareAndApplyDeviation();
         testSongSwitchClearsDeviationAndSwapsKit();
         testLoadPositionDoesNotClobber();
         testDiagonalRouting();

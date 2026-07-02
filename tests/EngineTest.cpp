@@ -433,6 +433,77 @@ namespace lockstep
         CHECK(dist < 0.2, "Bar-grid scene lands within a fraction of a bar boundary");
     }
 
+    // 9.17: a queued Song switch fires at the next launch boundary (Set grid),
+    // resets to scene 0, and swaps in the target song's working content. The
+    // machine reinstall runs via callAsync (does not fire headless), so we verify
+    // the swap/state rather than audio, mirroring testSceneSwitchAtBoundary.
+    static void testQueuedSongSwitchAtBoundary()
+    {
+        EngineHarness h;
+        // Distinguish song 1: a trig on its scene-0 (phrase 0) track-0 step 0.
+        h.processor().songAt(1).tracks[0].phrases[0].steps[0].trig = true;
+        CHECK(h.processor().activePieceIdx() == 0, "song switch: start on song 0");
+        const bool trigSong0 = h.processor().sequence().tracks[0].steps[0].trig;
+
+        h.renderBlocks(30);            // move off the ppq==0 line
+        h.processor().queueSongSwitch(1, false);
+        CHECK(h.processor().hasQueuedSong(), "song switch: song queued");
+
+        bool switched = false;
+        for (int b = 0; b < 500; ++b)
+        {
+            h.renderBlocks(1);
+            CHECK(!h.lastBufferHasNaN(), "song switch: NaN during switch");
+            if (h.processor().activePieceIdx() == 1) { switched = true; break; }
+        }
+        CHECK(switched, "song switch: songIdx reached 1 within a bar");
+        if (switched)
+        {
+            CHECK(h.processor().activeSectionIdx() == 0, "song switch: scene reset to 0");
+            const bool trigSong1 = h.processor().sequence().tracks[0].steps[0].trig;
+            CHECK(trigSong1 && !trigSong0, "song switch: working reflects song 1 content");
+            CHECK(!h.processor().hasQueuedSong(), "song switch: queue cleared after apply");
+        }
+    }
+
+    // 9.17: double-tap Song switch (forceInstant) is immediate — no boundary wait.
+    static void testDoubleTapSongSwitchInstant()
+    {
+        EngineHarness h;
+        h.renderBlocks(5);
+        h.processor().queueSongSwitch(2, /*forceInstant=*/true);
+        CHECK(h.processor().activePieceIdx() == 2, "double-tap song switch is instant");
+        CHECK(!h.processor().hasQueuedSong(), "double-tap song switch leaves no queue");
+    }
+
+    // 9.17: a queued per-track Phrase deviation swaps that track at its boundary.
+    static void testQueuedDeviationAtBoundary()
+    {
+        EngineHarness h;
+        // Phrase 1 for track 0 has a distinguishing trig at step 0; phrase 0 does not.
+        h.processor().songAt(0).tracks[0].phrases[1].steps[0].trig = true;
+        CHECK(!h.processor().isTrackDeviated(0), "deviation: track starts undeviated");
+
+        h.renderBlocks(30);
+        h.processor().queuePhraseDeviation(0, 1, false);
+        CHECK(h.processor().hasPendingDeviation(0), "deviation: queued");
+
+        bool deviated = false;
+        for (int b = 0; b < 500; ++b)
+        {
+            h.renderBlocks(1);
+            if (h.processor().isTrackDeviated(0)) { deviated = true; break; }
+        }
+        CHECK(deviated, "deviation: applied at boundary");
+        if (deviated)
+        {
+            CHECK(h.processor().deviationPhraseIdxForTrack(0) == 1, "deviation: to phrase 1");
+            CHECK(h.processor().sequence().tracks[0].steps[0].trig,
+                  "deviation: working reflects phrase 1 content");
+            CHECK(!h.processor().hasPendingDeviation(0), "deviation: pending cleared after apply");
+        }
+    }
+
     // -----------------------------------------------------------------------
     // EngineCmd queue: enqueue a base-param write, render one block, verify
     // the value has been applied (i.e. the audio thread drained the queue).
@@ -2602,6 +2673,9 @@ namespace lockstep
         testBlockSizeInvariance();
         testSceneSwitchAtBoundary();
         testSceneLaunchGridRouting();
+        testQueuedSongSwitchAtBoundary();
+        testDoubleTapSongSwitchInstant();
+        testQueuedDeviationAtBoundary();
         testEngineCmdAppliedAfterBlock();
         testEngineCmdQueueFullDrop();
         testSurfaceDirtyOnParamApply();

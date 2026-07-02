@@ -248,6 +248,29 @@ namespace lockstep
         bool hasQueuedScene() const;
         int queuedSectionIdx() const;
 
+        // 9.17: Song switch + per-track Phrase deviation resolve against the same
+        // launch-quantize authority as Scene launch. Each routes to the immediate
+        // path (setActiveSong / swapPhraseForTrack) when stopped, when the resolved
+        // grid is Instant, or when forceInstant (double-tap) is set; otherwise it
+        // arms to the boundary. Safe to call from the message thread.
+        void queueSongSwitch(int songIdx, bool forceInstant = false);
+        void cancelQueuedSong();
+        [[nodiscard]] bool hasQueuedSong() const;
+        [[nodiscard]] int queuedSongTarget() const;
+
+        void queuePhraseDeviation(int track, int phraseIdx, bool forceInstant = false);
+        [[nodiscard]] bool hasPendingDeviation(int track) const;
+        // Phrase index a track is armed to deviate to (badge chrome); -1 if none.
+        [[nodiscard]] int queuedDeviationPhraseForTrack(int track) const;
+
+        // Resolved launch grids (Set-level, and per-track after its override folds
+        // in at 9.17 commit 6). Exposed for the editor's route-or-fire decision.
+        [[nodiscard]] LaunchQuant setLaunchGrid() const
+        {
+            return static_cast<LaunchQuant>(project_.launchQuant);
+        }
+        [[nodiscard]] LaunchQuant trackLaunchGrid(int track) const;
+
         Clock& clock() { return clock_; }
         const Clock& clock() const { return clock_; }
 
@@ -891,17 +914,26 @@ namespace lockstep
         // -1 = none pending.
         std::atomic<int> queuedSceneIdx_{ -1 };    // [ATOMIC]
         std::atomic<bool> queuedSceneToFloor_{ false };  // [ATOMIC] pairs with queuedSceneIdx_
+        // 9.17: a queued Song switch shares the pre-staged swap machinery (the
+        // StagedSceneSwap kind distinguishes them; scene & song are mutually
+        // exclusive — queuing one cancels the other). -1 = none pending.
+        std::atomic<int> queuedSongIdx_{ -1 };     // [ATOMIC]
 
         // [QUEUE] Pre-staged scene switch (8.17 / DESIGN §38.4). Message thread calls
         // prepareSceneLaunch into stagedSwap_ then sets stagedSwapReady_. At the bar
         // boundary the audio thread sets pendingSceneApply_. Top-of-next-block applies
         // the swap via applySceneLaunch (bounded O(N), no allocation on audio thread).
         // After the swap sceneSwitchApplied_ fires; message thread reinstalls machines.
+        // 9.17: the same staged buffer carries a Scene launch or a Song switch;
+        // kind picks the apply path (they are mutually exclusive per block).
+        enum class SwapKind { Scene, Song };
         struct StagedSceneSwap
         {
             Sequence working{};
             int sceneIdx = -1;
             bool toFloor = false;
+            SwapKind kind = SwapKind::Scene;
+            int songTarget = -1;                      // valid when kind == Song
             std::array<bool, kNumTracks> deviated{};
             std::array<int, kNumTracks> deviationPhraseIdx{};
             // §39 Density state for the target scene.
@@ -912,6 +944,16 @@ namespace lockstep
         std::atomic<bool> stagedSwapReady_{ false };        // [ATOMIC]
         std::atomic<bool> pendingSceneApply_{ false };        // [ATOMIC]
         std::atomic<bool> sceneSwitchApplied_{ false };        // [ATOMIC]
+
+        // 9.17: per-track Phrase deviation lane. Message thread pre-stages the
+        // projected Track into stagedDeviation_[t] and publishes the phrase index
+        // via queuedDeviationPhrase_[t]; the audio thread moves it to a pending
+        // apply at the track's launch boundary. pendingDeviationPhraseIdx_ is
+        // audio-thread-owned once pendingDeviationApply_ is set.
+        std::array<Track, kNumTracks> stagedDeviation_{};                       // [QUEUE]
+        std::array<std::atomic<int>, kNumTracks> queuedDeviationPhrase_{};      // [ATOMIC] -1 = none
+        std::array<std::atomic<bool>, kNumTracks> pendingDeviationApply_{};     // [ATOMIC]
+        std::array<int, kNumTracks> pendingDeviationPhraseIdx_{};               // [AUDIO]
         // Legacy: queued pattern switch. -1/-1 means no switch pending.
         std::atomic<int> previewPoolIndex_{ -1 };  // [ATOMIC]
         std::atomic<int> previewReqTrack_{ 0 };   // [ATOMIC]

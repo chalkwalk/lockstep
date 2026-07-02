@@ -213,6 +213,50 @@ namespace lockstep
             deviationPhraseIdx = newDeviationPhraseIdx;
         }
 
+        // ── Pre-staged Song switch (9.17 — launch-quantize authority) ──────────
+        // Message-thread prepare: flush live edits, stash the departing scene's
+        // overlay, and project the TARGET song's scene 0 into the output working
+        // buffer. Does NOT move songIdx/sceneIdx — applySongSwitch does that on
+        // the audio thread at the launch boundary. A song switch is a full
+        // performer reset (DESIGN §16): no deviations, density floored.
+        void prepareSongSwitch(int targetSong,
+                               Sequence& outWorking,
+                               std::array<bool, kNumTracks>& outDeviated,
+                               std::array<int, kNumTracks>& outDeviationPhraseIdx,
+                               std::array<float, kNumTracks>& outDensity,
+                               float& outMasterDensity)
+        {
+            writeBackWorkingToActive();
+            stashCurrentOverlay();
+            outDeviated.fill(false);
+            outDeviationPhraseIdx.fill(0);
+            outDensity.fill(1.0f);
+            outMasterDensity = 0.0f;
+            const int ts = std::clamp(targetSong, 0, kNumSongs - 1);
+            for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+            {
+                const int pi = resolveActivePhraseIdx(0, false, 0, t);
+                outWorking.tracks[idx(t)] = projectPhraseToTrack(
+                    songs[idx(ts)].tracks[idx(t)].phrases[idx(pi)],
+                    songs[idx(ts)].tracks[idx(t)].kit);
+            }
+        }
+
+        // Audio-thread apply at the boundary: swap the pre-built working buffer
+        // in and move the playhead to the target song's scene 0. Bounded swaps +
+        // fills, no allocation. The caller (processor) resets density atomics and
+        // schedules reinstallMachinesFromActiveKit + seedFloor via callAsync.
+        void applySongSwitch(int targetSong, Sequence& stagedWorking)
+        {
+            std::swap(working, stagedWorking);
+            songIdx = std::clamp(targetSong, 0, kNumSongs - 1);
+            sceneIdx = 0;
+            deviated.fill(false);
+            deviationPhraseIdx.fill(0);
+            liveDensity.fill(1.0f);
+            liveMasterDensity = 0.0f;
+        }
+
         void setActiveSong(int s)
         {
             if (s < 0 || s >= kNumSongs || s == songIdx) return;
@@ -253,6 +297,29 @@ namespace lockstep
             deviated[idx(t)] = true;
             deviationPhraseIdx[idx(t)] = std::clamp(phraseIdx, 0, kPhrasesPerTrack - 1);
             syncWorkingTrackFromActive(t);
+        }
+
+        // ── Pre-staged per-track Phrase deviation (9.17 launch-quantize) ────────
+        // Message-thread prepare: flush the track's live edits, then project the
+        // picked phrase into the caller's staged Track buffer (allocates PLock
+        // vectors here, off the audio thread). Does NOT touch working/deviated —
+        // applyDeviation swaps it in at the per-track launch boundary.
+        void prepareDeviation(int t, int phraseIdx, Track& outStaged)
+        {
+            if (t < 0 || t >= static_cast<int>(kNumTracks)) return;
+            writeBackWorkingTrack(t);
+            const int pi = std::clamp(phraseIdx, 0, kPhrasesPerTrack - 1);
+            outStaged = projectPhraseToTrack(song().tracks[idx(t)].phrases[idx(pi)], kit(t));
+        }
+
+        // Audio-thread apply at the boundary: swap the pre-built track in and mark
+        // the deviation. Bounded non-allocating swap (mirrors applySceneLaunch).
+        void applyDeviation(int t, int phraseIdx, Track& stagedTrack)
+        {
+            if (t < 0 || t >= static_cast<int>(kNumTracks)) return;
+            std::swap(working.tracks[idx(t)], stagedTrack);
+            deviated[idx(t)] = true;
+            deviationPhraseIdx[idx(t)] = std::clamp(phraseIdx, 0, kPhrasesPerTrack - 1);
         }
 
         // Scene+Phrase+step: deviate every track to phraseIdx.
