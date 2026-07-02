@@ -16,18 +16,34 @@ namespace lockstep
 
         loadBtn_.setWantsKeyboardFocus(false);
         loadBtn_.onClick = [this] {
+            // W3b: when the focused track is a Stream (disk-stream) machine, the
+            // Load button assigns its streamed source file instead of decoding into
+            // the pool — the discoverable keyboard path to pick a Stream file (the
+            // only prior way was drag-and-drop onto the track).
+            const int track = getActiveTrack ? getActiveTrack() : -1;
+            const bool streamTrack = track >= 0 && processor_.isStreamTrack(track);
             fileChooser_ = std::make_unique<juce::FileChooser>(
-                "Load Sample(s)",
+                streamTrack ? "Choose Stream Source" : "Load Sample(s)",
                 juce::File::getSpecialLocation(juce::File::userMusicDirectory),
                 "*.wav;*.aiff;*.aif;*.flac;*.ogg");
-            fileChooser_->launchAsync(
-                juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles | juce::FileBrowserComponent::canSelectMultipleItems,
-                [this](const juce::FileChooser& fc) {
+            const int flags = juce::FileBrowserComponent::openMode
+                | juce::FileBrowserComponent::canSelectFiles
+                | (streamTrack ? 0 : juce::FileBrowserComponent::canSelectMultipleItems);
+            fileChooser_->launchAsync(flags, [this, track, streamTrack](const juce::FileChooser& fc) {
+                if (streamTrack)
+                {
+                    const auto results = fc.getResults();
+                    if (!results.isEmpty())
+                        processor_.setStreamFile(track, results[0].getFullPathName());
+                }
+                else
+                {
                     for (const auto& f : fc.getResults())
                         processor_.samplePool().load(f.getFullPathName());
-                    list_.updateContent();
-                    updateButtonStates();
-                });
+                }
+                list_.updateContent();
+                updateButtonStates();
+            });
         };
         addAndMakeVisible(loadBtn_);
 
@@ -173,6 +189,11 @@ namespace lockstep
 
     void SamplePoolOverlay::updateButtonStates()
     {
+        // W3b: on a Stream track the Load button picks the disk-stream source.
+        const int activeTrack = getActiveTrack ? getActiveTrack() : -1;
+        const bool streamTrack = activeTrack >= 0 && processor_.isStreamTrack(activeTrack);
+        loadBtn_.setButtonText(streamTrack ? "Stream..." : "Load...");
+
         auto& pool = processor_.samplePool();
         const int row = selectedPoolIndex();  // absolute pool index, or -1 for a header
         const bool hasSel = (row >= 0 && row < pool.size());
