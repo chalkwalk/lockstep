@@ -834,7 +834,17 @@ a mapped MIDI CC, or a QWERTY action.
 | `0` | **FX** — per-track effects (2 insert slots per track) |
 
 Press a section key repeatedly to page through its parameters (the MZ
-shows eight at a time, in two rows of four — `kMZSlots`). Holding
+shows eight at a time, in two rows of four — `kMZSlots`). The unqualified
+view shows the **machine's** params; where a machine owns no params at a
+section (e.g. a bare sampler under FILTER), the key falls back to the
+track-level page. Holding **Track** flips the same key to the
+**track-level** params only (post-machine FILTER, AMP/CHANNEL+ENV, track
+FX). The two views never stack — a machine that owns FILTER no longer
+appends the track FILTER as an extra page (that used to bury the track
+AMP behind every machine section on deep machines like FM); reach it via
+`Track+AMP`. Track-level pages read in **cyan** (the Track scope colour)
+in both the MZ header and the active section-key highlight, so a track
+page is never mistaken for a machine page. Holding
 `Func` flips to each machine's **secondary** page (deep-dive
 parameters like FM mod matrices); holding any other scope opens that
 scope's row in the **scope-section matrix**. Like a scope-hold, holding
