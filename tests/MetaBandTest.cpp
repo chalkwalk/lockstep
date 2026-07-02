@@ -68,6 +68,37 @@ namespace lockstep
         CHECK(resolveMetaBand(ui) == MetaBand::Euclidean, "euclidHeld → Euclidean");
     }
 
+    // 9.17: Func+7 Transport band exposes the Set-level launch-quantize grid in
+    // slot 4 — value resolution + write routing into project().launchQuant.
+    static void testTransportLaunchQuantField()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        EditContext ctx;
+        UiState ui;
+
+        // Default project grid is Bar (== index 2); the field renders "Bar".
+        auto f = buildMetaBand(MetaBand::Transport, 0, proc, 0, ctx, ui);
+        CHECK(f[4].active && juce::String(f[4].label) == "LaunchQ", "slot 4 = LaunchQ");
+        CHECK(f[4].stepped, "LaunchQ is stepped");
+        CHECK(feq(f[4].minValue, 0.0f) && feq(f[4].maxValue, 5.0f),
+              "LaunchQ range 0..5 (Set grid excludes PhraseEnd)");
+        CHECK(feq(f[4].value, static_cast<float>(LaunchQuant::Bar)), "LaunchQ default value = Bar");
+        CHECK(juce::String(f[4].valueText) == "Bar", "LaunchQ default value-text = Bar");
+
+        // Write Beat (index 1) → project().launchQuant updated, value-text tracks.
+        writeMetaField(MetaBand::Transport, 0, 4, 1.0f, proc, 0, ctx, ui);
+        CHECK(proc.project().launchQuant == static_cast<int>(LaunchQuant::Beat),
+              "writeMetaField slot 4 sets launchQuant to Beat");
+        f = buildMetaBand(MetaBand::Transport, 0, proc, 0, ctx, ui);
+        CHECK(juce::String(f[4].valueText) == "Beat", "LaunchQ value-text = Beat after write");
+
+        // Out-of-range write clamps into the Set grid (never PhraseEnd=6).
+        writeMetaField(MetaBand::Transport, 0, 4, 9.0f, proc, 0, ctx, ui);
+        CHECK(proc.project().launchQuant == static_cast<int>(LaunchQuant::Bars8),
+              "writeMetaField slot 4 clamps to Bars8 (max Set grid)");
+    }
+
     // 10.7: Melodic generator band — resolution, field layout, write round-trip.
     static void testMelodicBand()
     {
@@ -1465,6 +1496,7 @@ namespace lockstep
         testResolveMetaBandMasterSection();
         testResolveMetaBandTransientOutranksMasterSection();
         testResolveMetaBandEuclid();
+        testTransportLaunchQuantField();
         testMelodicBand();
         testHarmonyBand();
         testHarmonyLosslessGrow();

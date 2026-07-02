@@ -555,12 +555,10 @@ namespace lockstep::PluginState
         juce::ValueTree nhNode(keys::kNewHierarchy);
         nhNode.setProperty(keys::kActivePiece, proc.activePieceIdx(), nullptr);
         nhNode.setProperty(keys::kActiveSect, proc.activeSectionIdx(), nullptr);
-        // Behaviour-identical with pre-9.17 files: on disk launchQuant is still
-        // a legacy bar count here (1/2/4/8). Commit 2 (v25) switches this to the
-        // raw enum with a v24→v25 upgrade. See LaunchQuant.h.
-        nhNode.setProperty(keys::kLaunchQuant,
-                           quantToLegacyBars(static_cast<LaunchQuant>(proc.project().launchQuant)),
-                           nullptr);
+        // v25: launchQuant is the raw LaunchQuant enum on disk (pre-v25 files
+        // stored a legacy bar count; upgrade_v24_to_v25 remaps them). See
+        // LaunchQuant.h.
+        nhNode.setProperty(keys::kLaunchQuant, proc.project().launchQuant, nullptr);
         // v21: Set-level default time signature (only write if non-default).
         const auto& setTs = proc.project().defaultTimeSig;
         if (!(setTs == TimeSig{}))
@@ -779,9 +777,10 @@ namespace lockstep::PluginState
 
         const int activePiece = static_cast<int>(nhNode.getProperty(keys::kActivePiece, 0));
         const int activeSect = static_cast<int>(nhNode.getProperty(keys::kActiveSect, 0));
-        // Pre-v25 disk shape stores a legacy bar count; map to the enum.
+        // v25: launchQuant is the raw LaunchQuant enum on disk (pre-v25 files are
+        // remapped from a legacy bar count by upgrade_v24_to_v25). Missing → Bar.
         proc.project().launchQuant = static_cast<int>(
-            legacyBarsToQuant(static_cast<int>(nhNode.getProperty(keys::kLaunchQuant, 1))));
+            nhNode.getProperty(keys::kLaunchQuant, static_cast<int>(LaunchQuant::Bar)));
         // v21: Set-level default time signature.
         if (nhNode.hasProperty(keys::kSetTsN))
         {
@@ -1744,6 +1743,26 @@ namespace lockstep::PluginState
         return v24;
     }
 
+    static juce::ValueTree upgrade_v24_to_v25(const juce::ValueTree& v24)
+    {
+        // v25 (9.17): Project.launchQuant is now the raw LaunchQuant enum on disk
+        // (Instant/Beat/Bar/Bars2/Bars4/Bars8/PhraseEnd). Pre-v25 it was stored
+        // as a legacy bar count (1/2/4/8). Remap the stored value in place so old
+        // grids survive as the equivalent enum. Per-track launchQuant and the
+        // loop_sync re-interpretation are default-on-missing, so no further
+        // migration is needed here.
+        juce::ValueTree v25 = v24.createCopy();
+        auto nh = v25.getChildWithName(keys::kNewHierarchy);
+        if (nh.isValid() && nh.hasProperty(keys::kLaunchQuant))
+        {
+            const int legacyBars = static_cast<int>(nh.getProperty(keys::kLaunchQuant, 1));
+            nh.setProperty(keys::kLaunchQuant,
+                           static_cast<int>(legacyBarsToQuant(legacyBars)), nullptr);
+        }
+        v25.setProperty(keys::kVersion, 25, nullptr);
+        return v25;
+    }
+
     juce::ValueTree applyUpgrades(juce::ValueTree tree)
     {
         // Determine the version. v0 has root type "Lockstep" and no version attribute.
@@ -1776,6 +1795,7 @@ namespace lockstep::PluginState
         if (version < 22) tree = upgrade_v21_to_v22(tree);
         if (version < 23) tree = upgrade_v22_to_v23(tree);
         if (version < 24) tree = upgrade_v23_to_v24(tree);
+        if (version < 25) tree = upgrade_v24_to_v25(tree);
 
         return tree;
     }
@@ -2195,6 +2215,38 @@ namespace
                              -4, "v22: Song key brightness round-trips as Aeolian(-4)");
                 expectEquals(static_cast<int>(songResult.getProperty(keys::kSongKsMod, 0)),
                              1, "v22: Song key modifier bitmask round-trips as 1 (Harmonic)");
+            }
+
+            beginTest("v24 -> v25: legacy launchQuant bar count remapped to LaunchQuant enum");
+            {
+                // A v24 tree whose NewHierarchy node stores launchQuant as the
+                // legacy bar count 4 (== 4-bar quantize). After upgrade it must
+                // be the LaunchQuant::Bars4 enum value.
+                juce::ValueTree v24(keys::kLockstepState);
+                v24.setProperty(keys::kVersion, 24, nullptr);
+                auto nh = juce::ValueTree(keys::kNewHierarchy);
+                nh.setProperty(keys::kLaunchQuant, 4, nullptr);  // legacy: 4 bars
+                v24.appendChild(nh, nullptr);
+                v24.appendChild(juce::ValueTree(keys::kLockstep), nullptr);
+                v24.appendChild(juce::ValueTree(keys::kSamplePool), nullptr);
+                v24.appendChild(juce::ValueTree(keys::kMisc), nullptr);
+
+                const auto result = lockstep::PluginState::applyUpgrades(v24);
+                const auto nhResult = result.getChildWithName(keys::kNewHierarchy);
+                expectEquals(static_cast<int>(nhResult.getProperty(keys::kLaunchQuant, -1)),
+                             static_cast<int>(lockstep::LaunchQuant::Bars4),
+                             "v24->v25: legacy launchQuant 4 remaps to Bars4 enum");
+
+                // A missing launchQuant stays absent (read path defaults to Bar).
+                juce::ValueTree v24b(keys::kLockstepState);
+                v24b.setProperty(keys::kVersion, 24, nullptr);
+                v24b.appendChild(juce::ValueTree(keys::kNewHierarchy), nullptr);
+                v24b.appendChild(juce::ValueTree(keys::kLockstep), nullptr);
+                v24b.appendChild(juce::ValueTree(keys::kSamplePool), nullptr);
+                v24b.appendChild(juce::ValueTree(keys::kMisc), nullptr);
+                const auto resultB = lockstep::PluginState::applyUpgrades(v24b);
+                expect(!resultB.getChildWithName(keys::kNewHierarchy).hasProperty(keys::kLaunchQuant),
+                       "v24->v25: absent launchQuant stays absent (read defaults to Bar)");
             }
 
             beginTest("future version: valid tree returned without crash");

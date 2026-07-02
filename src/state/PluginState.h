@@ -58,7 +58,7 @@ namespace lockstep
         //      fields → D Dorian, no overrides; trivial stamp upgrade from v21.
         // v23: per-track Scale stage (DESIGN §4.10) — TrackKit::scaleMode
         //      (Off/Snap/Filter) in the Kit node. Missing → Off; trivial upgrade.
-        inline constexpr int kCurrentVersion = 24;
+        inline constexpr int kCurrentVersion = 25;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);

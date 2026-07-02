@@ -702,6 +702,25 @@ namespace lockstep
               "v17 round-trip: re-serialised bytes are identical (idempotent)");
     }
 
+    // 9.17: the Set-level launchQuant grid round-trips through save/load, and a
+    // fresh processor defaults to Bar.
+    static void testLaunchQuantRoundTrip()
+    {
+        EngineHarness hDefault;
+        CHECK(hDefault.processor().project().launchQuant == static_cast<int>(LaunchQuant::Bar),
+              "launchQuant defaults to Bar on a fresh processor");
+
+        EngineHarness hA;
+        hA.processor().project().launchQuant = static_cast<int>(LaunchQuant::Beat);
+        juce::MemoryBlock state;
+        hA.processor().getStateInformation(state);
+
+        EngineHarness hB;
+        hB.processor().setStateInformation(state.getData(), static_cast<int>(state.getSize()));
+        CHECK(hB.processor().project().launchQuant == static_cast<int>(LaunchQuant::Beat),
+              "launchQuant Beat survived save/load round-trip");
+    }
+
     // -----------------------------------------------------------------------
     // v16 → v17 upgrade: a state saved without masterSends (simulated by loading
     // a v17 state from a fresh default processor — which has no masterSends set)
@@ -2589,6 +2608,7 @@ namespace lockstep
         testFocusStepAdvances();
         testMasterInsertRunsWhilePlaying();
         testV17StateRoundTrip();
+        testLaunchQuantRoundTrip();
         testV16UpgradeToV17();
         testMasterSendBypassSilences();
         testNewProjectDuringPlayback();

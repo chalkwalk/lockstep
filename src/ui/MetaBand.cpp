@@ -523,7 +523,18 @@ namespace lockstep
         return buildMasterFxBand(proc, ui);
     }
 
-    // Func+7 (masterSection==2): output gain / sync / channel mode.
+    // Set-level launch-quantize grid labels (DESIGN §4.8). PhraseEnd is a
+    // per-track-override-only value, so the Set grid offers just these six.
+    static const char* launchQuantSetLabel(int q)
+    {
+        static constexpr std::array<const char*, 6> kNames = {
+            { "Now", "Beat", "Bar", "2 Bar", "4 Bar", "8 Bar" }
+        };
+        const int i = std::clamp(q, 0, 5);
+        return kNames[static_cast<std::size_t>(i)];
+    }
+
+    // Func+7 (masterSection==2): master gain / sync / channel / scale / LaunchQ.
     static std::array<MetaFieldView, 8> buildTransportBand(LockstepProcessor& proc, int track)
     {
         const float gain = proc.apvts().getRawParameterValue(ParamIDs::outputGain)->load();
@@ -531,6 +542,8 @@ namespace lockstep
         const float chan = proc.apvts().getRawParameterValue(ParamIDs::channelMode)->load();
         // Per-track Scale stage (DESIGN §4.10) — Off/Snap/Filter for the focused track.
         const float scl = static_cast<float>(static_cast<int>(proc.kit(track).scaleMode));
+        // Set-level launch-quantize grid (DESIGN §4.8) — the one launch authority.
+        const float lq = static_cast<float>(proc.project().launchQuant);
 
         struct GlobalDef
         {
@@ -544,12 +557,12 @@ namespace lockstep
             { "Sync", 0.0f, 1.0f, true, true },
             { "Chan", 0.0f, 1.0f, true, true },
             { "Scale", 0.0f, 2.0f, true, true },
-            { "", 0.0f, 1.0f, false, false },
+            { "LaunchQ", 0.0f, 5.0f, true, true },
             { "", 0.0f, 1.0f, false, false },
             { "", 0.0f, 1.0f, false, false },
             { "", 0.0f, 1.0f, false, false },
         } };
-        const std::array<float, 8> vals = { gain, sync, chan, scl, 0.0f, 0.0f, 0.0f, 0.0f };
+        const std::array<float, 8> vals = { gain, sync, chan, scl, lq, 0.0f, 0.0f, 0.0f };
 
         std::array<MetaFieldView, 8> result{};
         for (int i = 0; i < 8; ++i)
@@ -574,6 +587,8 @@ namespace lockstep
                 f.valueText = (static_cast<int>(vals[si]) == 0) ? "Omni" : "Per-Trk";
             else if (i == 3)
                 f.valueText = scaleModeName(static_cast<ScaleMode>(static_cast<int>(vals[si])));
+            else if (i == 4)
+                f.valueText = launchQuantSetLabel(static_cast<int>(vals[si]));
         }
         return result;
     }
@@ -2064,6 +2079,9 @@ namespace lockstep
                         if (track >= 0)
                             proc.kit(track).scaleMode = static_cast<ScaleMode>(
                                 std::clamp(juce::roundToInt(value), 0, 2));
+                        break;
+                    case 4:  // Set-level launch-quantize grid (Now..8 Bar); PhraseEnd is per-track only
+                        proc.project().launchQuant = std::clamp(juce::roundToInt(value), 0, 5);
                         break;
                     default: break;
                 }
