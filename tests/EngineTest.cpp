@@ -588,6 +588,63 @@ namespace lockstep
         CHECK(!h.processor().hasPendingMute(0), "solo: re-tap cancels");
     }
 
+    // 9.17: an instant relaunch re-anchors a length-7 track, re-firing step 0 off
+    // its natural 7-step cycle. A trig only on step 0 fires at grid steps 0, 7,
+    // 14, ...; a mid-cycle relaunch pulls step 0's note forward to the re-anchor.
+    static void testRelaunchInstantRefiresStepZero()
+    {
+        EngineHarness h;
+        installMachine(h.processor(), 0, MidiOutMachine::kMachineId);
+        h.processor().setTrackLength(0, 7);
+        auto& s0 = h.processor().sequence().tracks[0].steps[0];
+        s0.trig = true;
+        s0.trigOverride.noteCount = 1;
+        s0.trigOverride.notes[0] = 60;
+        s0.trigOverride.hasGate = true;
+        s0.trigOverride.gateValue = MusicalGate::G1_16;
+
+        auto countOns = [&](int blocks) {
+            int n = 0;
+            for (int b = 0; b < blocks; ++b)
+            {
+                h.renderBlocks(1);
+                for (const auto meta : h.midiOut())
+                    if (meta.getMessage().isNoteOn()) ++n;
+            }
+            return n;
+        };
+
+        // Past step 0, before step 7 (~161 blocks): only the initial step-0 note.
+        const int initialOns = countOns(100);
+        CHECK(initialOns == 1, "relaunch: exactly the initial step-0 note before relaunch");
+
+        h.processor().queueRelaunch(0, /*forceInstant=*/true);
+        // Within ~40 blocks (< the natural step-7 at ~161), a fresh step-0 note
+        // proves the phase re-anchored.
+        const int afterOns = countOns(40);
+        CHECK(afterOns >= 1, "relaunch: instant relaunch re-fires step 0 off the 7-cycle");
+        CHECK(!h.processor().hasPendingRelaunch(0), "relaunch: pending cleared after apply");
+        CHECK(!h.lastBufferHasNaN(), "relaunch: no NaN");
+    }
+
+    // 9.17: a quantized relaunch stays armed until its boundary, then clears.
+    static void testRelaunchQuantizedClearsAtBoundary()
+    {
+        EngineHarness h;
+        installMachine(h.processor(), 0, MidiOutMachine::kMachineId);
+        h.processor().setTrackLength(0, 7);
+        h.renderBlocks(5);
+        h.processor().queueRelaunch(0, /*forceInstant=*/false);
+        CHECK(h.processor().hasPendingRelaunch(0), "relaunch(quant): armed");
+        bool cleared = false;
+        for (int b = 0; b < 500; ++b)
+        {
+            h.renderBlocks(1);
+            if (!h.processor().hasPendingRelaunch(0)) { cleared = true; break; }
+        }
+        CHECK(cleared, "relaunch(quant): applied at the launch boundary");
+    }
+
     // -----------------------------------------------------------------------
     // EngineCmd queue: enqueue a base-param write, render one block, verify
     // the value has been applied (i.e. the audio thread drained the queue).
@@ -2765,6 +2822,8 @@ namespace lockstep
         testDoubleTapMuteInstant();
         testQuantizedSceneMuteAtBoundary();
         testQuantizedSoloQueueAndCancel();
+        testRelaunchInstantRefiresStepZero();
+        testRelaunchQuantizedClearsAtBoundary();
         testEngineCmdAppliedAfterBlock();
         testEngineCmdQueueFullDrop();
         testSurfaceDirtyOnParamApply();

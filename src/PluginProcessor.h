@@ -281,6 +281,13 @@ namespace lockstep
         void cancelPendingMute(int track);
         [[nodiscard]] bool hasPendingMute(int track) const;
 
+        // 9.17: per-track phase-reset (relaunch / retrigger). Mute+Play+step. If
+        // the track is muted the reset rides an unmute (relaunch); on a playing
+        // track it is a pure phase-reset (retrigger). Quantized to the track grid;
+        // forceInstant (double-tap) / stopped / Instant grid reset immediately.
+        void queueRelaunch(int track, bool forceInstant = false);
+        [[nodiscard]] bool hasPendingRelaunch(int track) const;
+
         Clock& clock() { return clock_; }
         const Clock& clock() const { return clock_; }
 
@@ -1230,6 +1237,31 @@ namespace lockstep
         std::array<std::array<RealtimeNoteEntry, 128>, kNumTracks> realtimeNotes_{};
         int64_t totalSamplesProcessed_ = 0;  // [AUDIO]
         std::array<double, kNumTracks> nextTriggerPpq_{};  // [AUDIO]
+        // 9.17: per-track phase origin. The pattern step number is
+        // (nextTriggerPpq - trackAnchorPpq) / divPpq, so a relaunch that sets the
+        // anchor to a launch boundary re-zeros the track's cursor at that point
+        // without disturbing the global playhead. 0 == the transport-start frame
+        // (default). Grid re-quantise snaps floor within this per-track frame.
+        std::array<double, kNumTracks> trackAnchorPpq_{};  // [AUDIO]
+        // Per-track relaunch (phase-reset) lanes. Now = immediate (double-tap /
+        // stopped / Instant grid); Quant = at the next track boundary. AlsoUnmute
+        // records whether the reset rides an unmute (relaunch vs retrigger).
+        std::array<std::atomic<bool>, kNumTracks> pendingRelaunchNow_{};   // [ATOMIC]
+        std::array<std::atomic<bool>, kNumTracks> pendingRelaunchQuant_{}; // [ATOMIC]
+        std::array<std::atomic<bool>, kNumTracks> relaunchAlsoUnmute_{};   // [ATOMIC]
+
+        // Floor a PPQ onto the track's own grid frame (anchored at
+        // trackAnchorPpq_). Used by every cursor re-quantise snap so a relaunched
+        // track stays phase-aligned to its anchor rather than the 0 frame.
+        [[nodiscard]] double trackGridFloor(std::size_t i, double ppq, double divPpq) const
+        {
+            const double a = trackAnchorPpq_[i];
+            return a + std::floor((ppq - a) / divPpq) * divPpq;
+        }
+        // Apply a phase-reset at boundary B: re-anchor the track, snap its cursor
+        // to step 0 at B, clear the dedup sentinel, and re-arm one-shots. If
+        // alsoUnmute, ride an unmute (relaunch). Audio-thread only.
+        void applyPhaseReset(std::size_t i, double boundaryPpq, bool alsoUnmute);
         // Step size (host PPQ) used to advance the grid cursor last block, per
         // track. When it changes live (division or Song×Scene tempo-ratio change)
         // the cursor must be re-quantised onto the new grid, else every trig

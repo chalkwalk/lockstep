@@ -129,6 +129,10 @@ namespace lockstep
         bool morphHeld = false;  // key A (MHY: moved from S)
         int morphNavQualifier = 0;    // 0=none 1=A-pole(^) 2=B-pole(v); held while Morph active
         bool muteHeld = false;  // key Z
+        // 9.17: transient Mute+Play chord — arms the per-track relaunch/retrigger
+        // view (Mute+Play+step). Set while Play is held under Mute; suppresses the
+        // normal Play transport toggle. Precedent: euclidHeld.
+        bool relaunchHeld = false;
         // Col 2:
         bool trackHeld = false;  // key 2 (MHY: moved from Q)
         bool sceneHeld = false;  // key W (MHY new — §4.7)

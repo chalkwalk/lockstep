@@ -131,6 +131,15 @@ namespace lockstep
         // GeneratorHub DOES have a banner ("SELECT GENERATOR") — verified in testGeneratorHubBanner.
     }
 
+    // 9.17: the Mute+Play relaunch view carries a RELAUNCH banner.
+    static void testMuteRelaunchBanner()
+    {
+        UiState ui;
+        CHECK(bannerEq(layerBanner(SL::MuteRelaunchView, ui),
+                       "RELAUNCH — tap a track to restart it from step 1"),
+              "MuteRelaunchView → RELAUNCH banner");
+    }
+
     // ── Priority: Track beats Song when both held ──────────────────────────────
 
     static void testScopeSelectorPriority()
@@ -152,6 +161,7 @@ namespace lockstep
         testDeletePickerBanners();
         testScopeSelectorBanners();
         testNoBannerLayers();
+        testMuteRelaunchBanner();
         testScopeSelectorPriority();
     }
 

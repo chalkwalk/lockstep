@@ -110,8 +110,9 @@ namespace lockstep
     // 9.17: per-view step-token bases for the launch-quantize instant override.
     // Each launch view double-taps `base + stepIndex` so a step double-tap in one
     // view never collides with the same step in another (Song / Mute / Phrase).
-    static constexpr int kSongStepTokenBase   = 6000;   // Song + step
-    static constexpr int kMuteStepTokenBase   = 6100;   // Mute + step (commit 4)
-    static constexpr int kPhraseStepTokenBase = 6200;   // Phrase + step
+    static constexpr int kSongStepTokenBase     = 6000;   // Song + step
+    static constexpr int kMuteStepTokenBase     = 6100;   // Mute + step (commit 4)
+    static constexpr int kPhraseStepTokenBase   = 6200;   // Phrase + step
+    static constexpr int kRelaunchStepTokenBase = 6300;   // Mute+Play + step (relaunch)
 
 } // namespace lockstep

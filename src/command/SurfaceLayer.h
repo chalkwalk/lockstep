@@ -28,6 +28,7 @@ namespace lockstep
         ChromaticInput,   // active track input mode == Chromatic
         LevelsInput,      // active track input mode == Levels
         MorphMuteView,    // ui.morphHeld && ui.muteHeld
+        MuteRelaunchView, // ui.muteHeld && ui.relaunchHeld (Mute+Play: relaunch/retrigger)
         MuteView,         // ui.muteHeld (bare, after MorphMuteView)
         LengthEdit,       // (phraseScopeHeld || morphHeld) && funcHeld && !funcTrackHeld
         MorphStepView,    // ui.morphHeld && !ui.funcHeld

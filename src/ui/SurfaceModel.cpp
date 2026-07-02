@@ -1690,13 +1690,17 @@ namespace lockstep
                     }
                 }
             }
-            else if (activeLayer == SurfaceLayer::MuteView)
+            else if (activeLayer == SurfaceLayer::MuteView
+                     || activeLayer == SurfaceLayer::MuteRelaunchView)
             {
                 // Mute re-skin (Slice 3): cells encode per-track mute state so
                 // paintStepRows can consume a single model path and add press feedback.
                 // Bare Mute = global mute view; Scene+Mute = scene-mute view (the
-                // scene's active-mask), in a distinct colour.
-                const bool sceneMute = ui.sceneHeld;
+                // scene's active-mask), in a distinct colour. 9.17: Mute+Play
+                // (MuteRelaunchView) reuses the same track-state grid — every cell
+                // is a relaunch target; a pending relaunch shows the pending badge.
+                const bool relaunchView = (activeLayer == SurfaceLayer::MuteRelaunchView);
+                const bool sceneMute = ui.sceneHeld && !relaunchView;
                 const uint32_t muteCol = sceneMute ? kScopePMute : kScopeMute;
 
                 for (int i = 0; i < 16; ++i)
@@ -1719,15 +1723,15 @@ namespace lockstep
                                            ? proc.getPatternMute(i)
                                            : proc.getGlobalMute(i);
 
-                    // 9.17: a quantized mute/unmute armed but not yet fired shows a
-                    // pending badge (which way it will flip = inverse of current).
-                    if (proc.hasPendingMute(i))
+                    // 9.17: a quantized mute/unmute (or a pending relaunch) armed
+                    // but not yet fired shows a pending badge.
+                    if ((relaunchView && proc.hasPendingRelaunch(i)) || proc.hasPendingMute(i))
                     {
-                        // Amber = will mute; green = will unmute. Pulse-worthy but
-                        // static here; paintStepRows can animate off the token.
-                        c.base = muted ? CellState::MutePendingUnmute
-                                       : CellState::MutePendingMute;
-                        c.baseColour = muted ? 0xFF30C860u : 0xFFE0A030u;
+                        // Amber = will mute / relaunch; green = will unmute.
+                        const bool willUnmute = muted && !relaunchView;
+                        c.base = willUnmute ? CellState::MutePendingUnmute
+                                            : CellState::MutePendingMute;
+                        c.baseColour = willUnmute ? 0xFF30C860u : 0xFFE0A030u;
                         continue;
                     }
 

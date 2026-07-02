@@ -3631,6 +3631,20 @@ namespace lockstep
                 return true;
 
             case ControllerButton::Step: {
+                // 9.17: Mute + Play + step = relaunch (unmute + phase-reset) on a
+                // muted track, or retrigger (phase-reset only) on a playing one.
+                // Quantized to the track grid; step double-tap = instant. Handled
+                // ahead of the normal mute dispatch.
+                if (uiState_.muteHeld && uiState_.relaunchHeld
+                    && ev.index >= 0 && ev.index < static_cast<int>(kNumTracks))
+                {
+                    const double now = juce::Time::getMillisecondCounterHiRes();
+                    const bool dbl = gesture_.doubleTap(kRelaunchStepTokenBase + ev.index, now);
+                    processor_.queueRelaunch(ev.index, dbl);
+                    refreshSurface();
+                    return true;
+                }
+
                 // 9.10: kRetrigRates used only by slicer preview (live stutter removed).
                 // Kept as default-rate lookup; index 4 = /16 default.
                 static constexpr std::array<double, 8> kRetrigRates = { {
@@ -4670,6 +4684,16 @@ namespace lockstep
 
             case ControllerButton::VerbPlay: {
                 using PS = EditMode::PrimaryScope;
+                // 9.17: Mute + Play arms the per-track relaunch/retrigger view
+                // (Mute+Play+step). Suppress the normal transport toggle while the
+                // chord is held; the step press applies the phase-reset.
+                if (uiState_.muteHeld)
+                {
+                    uiState_.relaunchHeld = true;
+                    playKeyHeld_ = true;
+                    refreshSurface();
+                    return true;
+                }
                 // S3: the looper transport moved OFF the Track+U/I/O verbs onto the
                 // always-on console (the step grid). U/I/O on a focused looper are now
                 // the ordinary clipboard verbs again (freed for other uses).
@@ -5415,6 +5439,12 @@ namespace lockstep
 
             case CB::VerbPlay:
                 playKeyHeld_ = false;
+                // 9.17: releasing Play exits the Mute+Play relaunch chord.
+                if (uiState_.relaunchHeld)
+                {
+                    uiState_.relaunchHeld = false;
+                    refreshSurface();
+                }
                 break;
 
             case CB::Step: {

@@ -120,6 +120,15 @@ namespace lockstep
                   "muteHeld alone → MuteView");
         }
         {
+            // 9.17: Mute + Play (relaunchHeld) → the relaunch/retrigger view,
+            // which outranks bare MuteView.
+            UiState ui;
+            ui.muteHeld = true;
+            ui.relaunchHeld = true;
+            CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::MuteRelaunchView,
+                  "muteHeld+relaunchHeld → MuteRelaunchView");
+        }
+        {
             UiState ui;
             ui.phraseScopeHeld = true;
             ui.funcHeld = true;

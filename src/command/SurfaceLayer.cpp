@@ -52,6 +52,7 @@ namespace lockstep
         if (f.inputMode == TrackInputMode::Levels) { return SurfaceLayer::LevelsInput; }
 
         if (ui.morphHeld && ui.muteHeld) { return SurfaceLayer::MorphMuteView; }
+        if (ui.muteHeld && ui.relaunchHeld) { return SurfaceLayer::MuteRelaunchView; }
         if (ui.muteHeld) { return SurfaceLayer::MuteView; }
 
         if ((ui.phraseScopeHeld || ui.morphHeld) && ui.funcHeld && !ui.funcTrackHeld)
@@ -139,6 +140,9 @@ namespace lockstep
             case SurfaceLayer::LevelsInput:
             case SurfaceLayer::MorphMuteView:
             case SurfaceLayer::MuteView:
+                return nullptr;
+            case SurfaceLayer::MuteRelaunchView:
+                return "RELAUNCH — tap a track to restart it from step 1";
             case SurfaceLayer::LengthEdit:
             case SurfaceLayer::MorphStepView:
             case SurfaceLayer::Base:

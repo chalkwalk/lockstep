@@ -124,6 +124,7 @@ namespace lockstep
           apvts_(*this, nullptr, "Lockstep", createParameterLayout())
     {
         nextTriggerPpq_.fill(0.0);
+        trackAnchorPpq_.fill(0.0);
         firedStepIdx_.fill(-1);
         lastRecordedStepNum_.fill(std::numeric_limits<int64_t>::min());
         for (auto& d : trackDensity_) d.store(1.0f, std::memory_order_relaxed);
@@ -416,6 +417,50 @@ namespace lockstep
                != static_cast<int>(MuteLane::None);
     }
 
+    // ── 9.17 phase-reset primitive ───────────────────────────────────────────
+    void LockstepProcessor::applyPhaseReset(std::size_t i, double boundaryPpq, bool alsoUnmute)
+    {
+        // Re-anchor the track: step 0 now sits at boundaryPpq. Clearing the dedup
+        // sentinel guarantees the arriving step 0 is not skipped as a duplicate.
+        // pendingTrigs_ is intentionally left alone — late-shifted old-phase trigs
+        // drain naturally (preserves the 8d7c3c3 late-trig fix).
+        trackAnchorPpq_[i] = boundaryPpq;
+        nextTriggerPpq_[i] = boundaryPpq;
+        lastScheduledStepNum_[i] = std::numeric_limits<int64_t>::min();
+        rearmOneShots(static_cast<int>(i));
+        if (alsoUnmute)
+        {
+            // Ride an unmute through the same override path as a quantized unmute.
+            muteOverrideVal_[i].store(false, std::memory_order_release);
+            muteOverrideActive_[i].store(true, std::memory_order_release);
+            const int track = static_cast<int>(i);
+            juce::MessageManager::callAsync([this, track] { setGlobalMute(track, false); });
+        }
+    }
+
+    void LockstepProcessor::queueRelaunch(int track, bool forceInstant)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        const auto t = static_cast<std::size_t>(track);
+        // Relaunch of a muted track rides an unmute; a playing track is a pure
+        // retrigger. The decision is taken now (message thread reads mute state).
+        relaunchAlsoUnmute_[t].store(getGlobalMute(track), std::memory_order_release);
+        const bool instant = forceInstant || !clock_.inPluginPlaying()
+                             || trackLaunchGrid(track) == LaunchQuant::Instant;
+        if (instant)
+            pendingRelaunchNow_[t].store(true, std::memory_order_release);
+        else
+            pendingRelaunchQuant_[t].store(true, std::memory_order_release);
+    }
+
+    bool LockstepProcessor::hasPendingRelaunch(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
+        const auto t = static_cast<std::size_t>(track);
+        return pendingRelaunchNow_[t].load(std::memory_order_acquire)
+               || pendingRelaunchQuant_[t].load(std::memory_order_acquire);
+    }
+
 
     WidgetMappingInfo LockstepProcessor::queryWidgetMapping(int slot, int mzPosition) const
     {
@@ -492,6 +537,7 @@ namespace lockstep
         firedStepIdx_.fill(-1);
         lastScheduledStepNum_.fill(-1);
         nextTriggerPpq_.fill(0.0);
+        trackAnchorPpq_.fill(0.0);
         for (auto& pt : pendingTrigs_) pt.pending = false;
 
         morphFaderSmoothed_.reset(sampleRate, 0.05);  // 50 ms ramp
@@ -1044,6 +1090,7 @@ namespace lockstep
                 clock_.setInPluginPlaying(true);
                 anchorPpq_ = 0.0;
                 nextTriggerPpq_.fill(0.0);
+                trackAnchorPpq_.fill(0.0);
                 lastStepFired_.fill(false);
             }
             if (mcBlock.didStop)
@@ -1101,6 +1148,7 @@ namespace lockstep
                 // replay without a phase reset) left every cursor past blockEnd and
                 // dropped trigs entirely.
                 nextTriggerPpq_.fill(0.0);
+                trackAnchorPpq_.fill(0.0);   // 9.17: reset the per-track phase frame too
             }
         }
         wasInPluginPlaying_ = clock_.inPluginPlaying();
@@ -1219,7 +1267,7 @@ namespace lockstep
                                                   kSubdivMin, kSubdivMax);
                 const double divPpq = subdivisionPpqFromIndex(subdivIdx);
                 if (divPpq > 0.0)
-                    nextTriggerPpq_[i] = std::floor(blockStart / divPpq) * divPpq;
+                    nextTriggerPpq_[i] = trackGridFloor(i, blockStart, divPpq);
                 lastStepFired_[i] = false;
             }
             for (auto& pnf : pendingNoteOffs_)
@@ -2090,6 +2138,28 @@ namespace lockstep
                         });
                 }
             }
+
+            // Per-track relaunch / retrigger (9.17 phase-reset). Now = immediate
+            // (double-tap / stopped / Instant grid), applied at this block start;
+            // Quant = at the next track boundary.
+            for (std::size_t t = 0; t < kNumTracks; ++t)
+            {
+                if (pendingRelaunchNow_[t].exchange(false, std::memory_order_acq_rel))
+                {
+                    applyPhaseReset(t, blockStart,
+                                    relaunchAlsoUnmute_[t].load(std::memory_order_acquire));
+                    continue;
+                }
+                if (!pendingRelaunchQuant_[t].load(std::memory_order_acquire)) continue;
+                double relBoundary = 0.0;
+                if (boundaryInBlock(blockStart, blockEnd, trackLaunchGrid(static_cast<int>(t)),
+                                    ct, relBoundary))
+                {
+                    pendingRelaunchQuant_[t].store(false, std::memory_order_release);
+                    applyPhaseReset(t, relBoundary,
+                                    relaunchAlsoUnmute_[t].load(std::memory_order_acquire));
+                }
+            }
         }
 
 
@@ -2158,15 +2228,16 @@ namespace lockstep
             if (lastDivPpq_[i] != divPpq)
             {
                 if (lastDivPpq_[i] > 0.0)
-                    nextTriggerPpq_[i] = std::floor(blockStart / divPpq) * divPpq;
+                    nextTriggerPpq_[i] = trackGridFloor(i, blockStart, divPpq);
                 lastDivPpq_[i] = divPpq;
             }
 
             // If the cursor has fallen far behind (cold start, late join),
             // snap it to the step boundary at/before blockStart so we don't
-            // burn CPU catching up sample-by-sample.
+            // burn CPU catching up sample-by-sample. 9.17: floor within the
+            // track's own grid frame so a relaunched cursor keeps its phase.
             if (nextTriggerPpq_[i] < blockStart - divPpq)
-                nextTriggerPpq_[i] = std::floor(blockStart / divPpq) * divPpq;
+                nextTriggerPpq_[i] = trackGridFloor(i, blockStart, divPpq);
 
             const bool curFillActive = fillActiveForTrack(static_cast<int>(i));
 
@@ -2442,8 +2513,12 @@ namespace lockstep
             {
                 if (nextTriggerPpq_[i] >= blockStart)
                 {
+                    // 9.17: pattern step number is measured from the track's own
+                    // anchor (a relaunch re-zeros it here). Density/velocity bar
+                    // maths stays absolute (band-level metric position) — see
+                    // absStepNum in the density gate below.
                     const auto stepNum = static_cast<std::int64_t>(
-                        nextTriggerPpq_[i] / divPpq);
+                        (nextTriggerPpq_[i] - trackAnchorPpq_[i]) / divPpq);
                     const int stepIdx = static_cast<int>(
                         stepNum % static_cast<std::int64_t>(trackLen));
 
@@ -2486,10 +2561,14 @@ namespace lockstep
                                 : std::int64_t{ 1 };
                             const auto barIndex  = (barPpq > 0.0)
                                 ? static_cast<std::int64_t>(musicalPpq / barPpq) : std::int64_t{ 0 };
-                            const auto stepInBar = stepNum % stepsPerBar;
+                            // Absolute (anchor-independent) step number: density is
+                            // a metric-position concept, not re-anchored on relaunch.
+                            const auto absStepNum = static_cast<std::int64_t>(
+                                nextTriggerPpq_[i] / divPpq);
+                            const auto stepInBar = absStepNum % stepsPerBar;
                             const float rerollR =
                                 (kit.densityMusicality == Density::Musicality::Uniform)
-                                    ? Density::rerollPerStep(i, stepNum)
+                                    ? Density::rerollPerStep(i, absStepNum)
                                     : Density::rerollPerBar(i, barIndex, stepInBar);
                             if (kit.densitySelection == Density::DensitySelection::Scrub)
                             {
@@ -2654,7 +2733,8 @@ namespace lockstep
                 const double nextGridPpq = nextTriggerPpq_[i];
                 if (nextGridPpq < blockEnd + halfDiv)
                 {
-                    const auto stepNum = static_cast<std::int64_t>(nextGridPpq / divPpq);
+                    const auto stepNum = static_cast<std::int64_t>(
+                        (nextGridPpq - trackAnchorPpq_[i]) / divPpq);
                     if (stepNum != lastScheduledStepNum_[i])
                     {
                         const int stepIdx = static_cast<int>(
@@ -2685,10 +2765,12 @@ namespace lockstep
                                 : std::int64_t{ 1 };
                             const auto barIndex  = (barPpq > 0.0)
                                 ? static_cast<std::int64_t>(musicalGridPpq / barPpq) : std::int64_t{ 0 };
-                            const auto stepInBar = stepNum % stepsPerBar;
+                            const auto absStepNum = static_cast<std::int64_t>(
+                                nextGridPpq / divPpq);
+                            const auto stepInBar = absStepNum % stepsPerBar;
                             const float rerollR =
                                 (kit.densityMusicality == Density::Musicality::Uniform)
-                                    ? Density::rerollPerStep(i, stepNum)
+                                    ? Density::rerollPerStep(i, absStepNum)
                                     : Density::rerollPerBar(i, barIndex, stepInBar);
                             if (kit.densitySelection == Density::DensitySelection::Scrub)
                             {
