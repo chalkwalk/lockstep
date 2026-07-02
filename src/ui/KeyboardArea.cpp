@@ -798,9 +798,33 @@ namespace lockstep
 
             // §26.4.3 — Section-key fill highlight: active section gets a tinted
             // background overlay so the user sees which section's params are showing.
+            // P6: if the active page resolves to a track-level DSP block (slot past
+            // numParams), tint it cyan (Track scope colour) to match the MZ header,
+            // so a track page is never mistaken for a machine page.
             if ((isMasterActive || isTrackActive) && !isScopedMode)
             {
-                g.setColour(kColourTrackActive.withAlpha(0.18f));
+                bool activePageIsTrack = false;
+                if (isTrackActive)
+                {
+                    const int at = uiState_.activeTrack;
+                    const auto ti = static_cast<std::size_t>(at);
+                    const auto groups =
+                        sectionsForKey(at, s, uiState_.trackPageTrackScope[ti][static_cast<std::size_t>(s)]);
+                    int remaining = uiState_.trackPage[ti][static_cast<std::size_t>(s)];
+                    for (const auto& gg : groups)
+                    {
+                        if (remaining < gg.pageCount)
+                        {
+                            const auto info = processor_.section(at, gg.sectionIdx);
+                            activePageIsTrack = info.firstSlot >= processor_.numParams(at);
+                            break;
+                        }
+                        remaining -= gg.pageCount;
+                    }
+                }
+                const juce::Colour hi = activePageIsTrack ? juce::Colour{ 0xFF30A0C0u }  // kScopeTrack
+                                                          : kColourTrackActive;
+                g.setColour(hi.withAlpha(0.18f));
                 g.fillRect(cell);
             }
             const auto& dots = model.pageDots[static_cast<std::size_t>(s)];

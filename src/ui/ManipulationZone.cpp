@@ -777,6 +777,17 @@ namespace lockstep
         g.setColour(juce::Colour::fromRGB(60, 70, 85));
         g.drawRect(getLocalBounds(), 1);
 
+        // P6: when a normal (machine-param) page is actually showing a track-level
+        // DSP block (FLTR/AMP/CHANNEL+ENV/FX inserts live at slot >= numParams),
+        // tint the header cyan (the Track scope colour, kScopeTrack) so a track
+        // page is never mistaken for a machine page — the FLTR-vs-FLTR confusion.
+        const int scopeTrk = area_.getActiveTrack();
+        const bool trackScopePage =
+            scopeTrk >= 0 && band_ == MetaBand::None
+            && !processor_.editContext().isActiveForEditing()
+            && slotOffset_ >= processor_.numParams(scopeTrk);
+        const juce::Colour kTrackScopeCol{ 0xFF30A0C0u };  // theme::kScopeTrack
+
         // §26.4.1 — Persistent header strip: always visible, shows active band / section.
         {
             const auto headerRect = getLocalBounds().withHeight(4 + kHeaderH);
@@ -821,9 +832,10 @@ namespace lockstep
                        static_cast<float>(getWidth()), static_cast<float>(headerRect.getBottom()), 1.0f);
 
             // Title text and optional page indicator.
-            const juce::Colour headerFg = isStepEdit ? juce::Colour::fromRGB(255, 180, 50)
-                                        : isMeta     ? juce::Colour::fromRGB(160, 120, 240)
-                                                     : juce::Colour::fromRGB(180, 195, 210);
+            const juce::Colour headerFg = isStepEdit    ? juce::Colour::fromRGB(255, 180, 50)
+                                        : isMeta        ? juce::Colour::fromRGB(160, 120, 240)
+                                        : trackScopePage ? kTrackScopeCol
+                                                         : juce::Colour::fromRGB(180, 195, 210);
             g.setColour(headerFg);
             g.setFont(juce::Font(juce::FontOptions(10.0f)));
             const auto textArea = headerRect.reduced(6, 2);
@@ -848,6 +860,12 @@ namespace lockstep
         {
             // Cool/violet tint distinguishes meta-modal bands from P-Lock (amber) at a glance.
             g.setColour(juce::Colour::fromRGB(120, 80, 200).withAlpha(0.07f));
+            g.fillAll();
+        }
+        else if (trackScopePage)
+        {
+            // P6: faint cyan wash marks a track-level DSP page (Track scope colour).
+            g.setColour(kTrackScopeCol.withAlpha(0.06f));
             g.fillAll();
         }
     }
