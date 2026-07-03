@@ -1366,6 +1366,55 @@ Three rules govern the matrix:
    the labels change, with no colour transition, hides which
    secondaries are actually reachable and is the failure §10 forbids.
 
+#### 6.1.1 Uniform scope overlay + origin colour (Part 4)
+
+The scope×section matrix above is resolved by one **ordered layer
+stack**: `Machine > Track > Phrase > Scene > Song > Global` (highest
+precedence first). A section key resolves **top-down** — the
+highest-precedence layer that owns params at that section wins; a
+section with no owner there falls through to the next layer down.
+Holding a scope **peels** every layer of higher precedence than it, so
+you see that scope's layer *and everything below it*, never the layers
+above:
+
+- **Unqualified** (no scope held): fill top-down. `Machine` wins each
+  section; a section the machine owns nothing at falls through to the
+  `Track` layer (e.g. `FILTER` on a bare sampler shows the track FLTR).
+  The machine owning a section **suppresses** the track page as an extra
+  page — no double-append (the historical "buried track AMP" bug).
+- **Hold `Track`**: the `Machine` layer is peeled. You see **track
+  sections only, not combined with machine params**; a section with no
+  track block (`SRC`/`MOD` on a synth) is **dim** and inert — strict,
+  not a fall-back to the machine page.
+
+Each resolved page carries the **origin scope** it came from, and that
+drives colour on both surfaces (`ScopeSectionSelect.h::SecOrigin`,
+`selectScopeSections`):
+
+- **Section keys** are tinted by origin: machine-owned reads neutral
+  steel; track-owned reads **cyan** (`scope.colour.track`) — even at
+  rest, and even for a section that only *fell through* to the track
+  layer. Under `Track` hold, machine-only sections dim.
+- **The ManipulationZone reflects the scope it is associated with**
+  (`scope.colour.<origin>`): a track-level DSP page washes cyan; the
+  principle generalizes to every suite scope as those layers grow
+  section params.
+
+**Reality note.** Only `Machine` and `Track` own per-section parameters
+today; `Phrase`/`Scene`/`Song`/`Global` are wired into the stack but
+produce no section candidates yet, so holding them yields dim sections
+until those layers grow params (master FX keeps its own `Song+FX`
+access, §32.3 — it is *not* folded into this six-section overlay).
+
+**`Func` is a separate layer, not interleaved.** `Func+section` stays
+its own bespoke set (machine picker / FX picker / note-edit / density /
+transport globals / the Restore-Copy-Paste-Delete-Cancel secondaries).
+Interleaving `Func` as a silent per-scope param fall-through would
+collide with those bindings, double the stack depth, and dissolve
+"`Func` = universal qualifier" (Rule 1 below). If a `Func` param layer
+is ever wanted it is a **parallel** stack tinting orange
+(`scope.colour.func`), not a rung in this one.
+
 ### 6.2 Track-meta content: `COND`/`NOTE` on `Func`, the rest relocated (3.2 / 5.3)
 
 Pre-3.2, the section bar had a separate "track meta" layer reached

@@ -194,6 +194,14 @@ Phrase ──trigs──▶ Machine ──▶ Foundation (FILTER → AMP) ──
   machine has none of its own. A machine's *own* filter, if it has one,
   still lives behind the canonical FILTER key — the foundation filter
   is in addition, downstream.
+- **Scope overlay / colour** — section params resolve through an ordered
+  layer stack (machine → track → …). Unqualified, each key shows the
+  machine's page, falling through to the track page where the machine
+  owns nothing; **hold `Track`** to peel the machine layer and see the
+  track pages only (machine-only sections go dim). Section keys **and**
+  the MZ are coloured by the scope a page comes from — machine pages read
+  neutral, track pages read **cyan** — so you always know which layer you
+  are editing.
 - **Inserts** — two per-track `IEffect` slots after the foundation.
   Loaded via the `hold FX` picker (or `Song + hold FX` for master), edited on the FX section,
   momentarily bypassed with the Animate gesture (`FX` + step).

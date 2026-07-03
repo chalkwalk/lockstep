@@ -7,6 +7,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "../core/Sequence.h"
+#include "ScopeSectionSelect.h"
 #include "../io/ControllerEvent.h"
 #include "../io/PressTracker.h"
 #include "../state/UiState.h"
@@ -136,6 +137,7 @@ namespace lockstep
         {
             int sectionIdx = 0;
             int pageCount = 0;
+            SecOrigin origin = SecOrigin::Machine;  // scope layer this page comes from
         };
         // Returns the ordered SecGroup list (canonical + extensions) for the given
         // canonical key on the given track. Empty if the canonical section has no slots

@@ -370,8 +370,11 @@ namespace lockstep
         const int mnp = processor_.numParams(track);
         std::vector<SecCandidate> candidates;
 
-        const auto classify = [mnp](const SectionInfo& info) {
-            return info.firstSlot >= 0 && info.firstSlot < mnp;
+        // A group inside the machine's param range is Machine-owned; track DSP
+        // blocks (FLTR/AMP/FX inserts) and virtual extensions live past numParams.
+        const auto originOf = [mnp](const SectionInfo& info) {
+            return (info.firstSlot >= 0 && info.firstSlot < mnp) ? SecOrigin::Machine
+                                                                 : SecOrigin::Track;
         };
 
         // Canonical section first.
@@ -379,7 +382,7 @@ namespace lockstep
             const auto info = processor_.section(track, canonicalIdx);
             if (info.firstSlot >= 0)
                 candidates.push_back({ canonicalIdx, std::max(1, info.pageCount),
-                                       classify(info) });
+                                       originOf(info) });
         }
 
         // Extension sections: indices >= kMaxSections whose parentCanonical matches.
@@ -388,12 +391,14 @@ namespace lockstep
         {
             const auto info = processor_.section(track, s);
             if (info.parentCanonical == canonicalIdx && info.firstSlot >= 0)
-                candidates.push_back({ s, std::max(1, info.pageCount), classify(info) });
+                candidates.push_back({ s, std::max(1, info.pageCount), originOf(info) });
         }
 
+        // heldFloor: unqualified fills top-down (Machine); Track hold peels Machine.
+        const SecOrigin heldFloor = trackScope ? SecOrigin::Track : SecOrigin::Machine;
         std::vector<SecGroup> groups;
-        for (const auto& c : selectScopeSections(candidates, trackScope))
-            groups.push_back({ c.sectionIdx, c.pageCount });
+        for (const auto& c : selectScopeSections(candidates, heldFloor))
+            groups.push_back({ c.sectionIdx, c.pageCount, c.origin });
         return groups;
     }
 
@@ -796,36 +801,58 @@ namespace lockstep
             const bool isMasterActive = !isScopedMode && (uiState_.masterSection == s);
             const bool isTrackActive = !isScopedMode && (uiState_.masterSection == -1 && uiState_.trackSection[static_cast<std::size_t>(uiState_.activeTrack)] == s);
 
-            // §26.4.3 — Section-key fill highlight: active section gets a tinted
-            // background overlay so the user sees which section's params are showing.
-            // P6: if the active page resolves to a track-level DSP block (slot past
-            // numParams), tint it cyan (Track scope colour) to match the MZ header,
-            // so a track page is never mistaken for a machine page.
-            if ((isMasterActive || isTrackActive) && !isScopedMode)
+            // §26.4.3 / Part 4 — Section-key fill by scope origin. Every key is
+            // coloured by the scope its resolved page comes from: machine-owned →
+            // neutral, track-owned → cyan (kScopeTrack). The active key gets a
+            // stronger highlight; resting track-origin keys get a faint cyan wash
+            // so origin reads at a glance. Holding Track peels the machine layer:
+            // sections with no track params render dim (strict track-only view).
+            const int at = uiState_.activeTrack;
+            const bool haveTrack = at >= 0 && at < static_cast<int>(kNumTracks);
+            const juce::Colour kCyan{ 0xFF30A0C0u };  // kScopeTrack
+            if (haveTrack && !isScopedMode)
             {
-                bool activePageIsTrack = false;
-                if (isTrackActive)
+                const auto ti = static_cast<std::size_t>(at);
+                const bool keyScope =
+                    uiState_.trackPageTrackScope[ti][static_cast<std::size_t>(s)];
+                const auto groups = sectionsForKey(at, s, keyScope);
+                const bool trackOrigin =
+                    !groups.empty() && groups.front().origin == SecOrigin::Track;
+
+                if (isMasterActive || isTrackActive)
                 {
-                    const int at = uiState_.activeTrack;
-                    const auto ti = static_cast<std::size_t>(at);
-                    const auto groups =
-                        sectionsForKey(at, s, uiState_.trackPageTrackScope[ti][static_cast<std::size_t>(s)]);
-                    int remaining = uiState_.trackPage[ti][static_cast<std::size_t>(s)];
-                    for (const auto& gg : groups)
+                    // Resolve the origin of the page actually shown (multi-page).
+                    bool activePageIsTrack = trackOrigin;
+                    if (isTrackActive)
                     {
-                        if (remaining < gg.pageCount)
+                        int remaining = uiState_.trackPage[ti][static_cast<std::size_t>(s)];
+                        for (const auto& gg : groups)
                         {
-                            const auto info = processor_.section(at, gg.sectionIdx);
-                            activePageIsTrack = info.firstSlot >= processor_.numParams(at);
-                            break;
+                            if (remaining < gg.pageCount)
+                            {
+                                activePageIsTrack = (gg.origin == SecOrigin::Track);
+                                break;
+                            }
+                            remaining -= gg.pageCount;
                         }
-                        remaining -= gg.pageCount;
                     }
+                    const juce::Colour hi = activePageIsTrack ? kCyan : kColourTrackActive;
+                    g.setColour(hi.withAlpha(0.18f));
+                    g.fillRect(cell);
                 }
-                const juce::Colour hi = activePageIsTrack ? juce::Colour{ 0xFF30A0C0u }  // kScopeTrack
-                                                          : kColourTrackActive;
-                g.setColour(hi.withAlpha(0.18f));
-                g.fillRect(cell);
+                else if (trackOrigin)
+                {
+                    g.setColour(kCyan.withAlpha(0.07f));
+                    g.fillRect(cell);
+                }
+            }
+            else if (haveTrack && isScopedMode && sectionScope == PS::Track)
+            {
+                if (sectionsForKey(at, s, /*trackScope*/ true).empty())
+                {
+                    g.setColour(juce::Colours::black.withAlpha(0.38f));
+                    g.fillRect(cell);
+                }
             }
             const auto& dots = model.pageDots[static_cast<std::size_t>(s)];
 
