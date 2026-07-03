@@ -7,6 +7,7 @@
 #include "core/MelodyGen.h"
 #include "core/HarmonyGen.h"
 #include "core/MetricGrid.h"
+#include "core/StepBlockMove.h"
 #include "core/OutputDest.h"
 #include "core/TrackInputMode.h"
 #include "machine/InputSource.h"
@@ -2956,7 +2957,7 @@ namespace lockstep
         uiState_.pLockClearTrack = track;
         uiState_.pLockClearStep = step;
         uiState_.stepMoveActive = false;   // inspector, never the move panel
-        setStatus("STEP " + juce::String(step + 1) + " — P-LOCK INSPECTOR");
+        setStatus("STEP " + juce::String(step + 1) + " - P-LOCK INSPECTOR");
         refreshMetaBand();
         refreshSurface();
     }
@@ -2984,27 +2985,16 @@ namespace lockstep
             return true;
         }
 
-        // Block move: shift the whole held set by one, clamped so the leading edge stops
-        // at the boundary (no wrap, no collision). Direction-sorted swaps keep adjacent
-        // held steps from double-moving: descending for +1, ascending for -1.
-        std::vector<int> order = held;
-        if (dir > 0)
+        // Block move: shift the whole held set by one as a rigid block, clamped at
+        // the boundary. computeBlockMoveSwaps returns the direction-sorted swap
+        // order (no adjacent collision) or empty when the block can't move.
+        const auto swaps = computeBlockMoveSwaps(held, dir, len);
+        if (swaps.empty()) return false;
+        for (const auto& [from, to] : swaps)
         {
-            int maxS = *std::max_element(order.begin(), order.end());
-            if (maxS + dir >= len) return false;
-            std::sort(order.begin(), order.end(), std::greater<int>());
-        }
-        else
-        {
-            int minS = *std::min_element(order.begin(), order.end());
-            if (minS + dir < 0) return false;
-            std::sort(order.begin(), order.end(), std::less<int>());
-        }
-        for (const int s : order)
-        {
-            processor_.swapSteps(track, s, s + dir);
-            ctx.remapHeldStep(s, s + dir);
-            remapHeldKey(heldStepKeys_, s, s + dir);
+            processor_.swapSteps(track, from, to);
+            ctx.remapHeldStep(from, to);
+            remapHeldKey(heldStepKeys_, from, to);
         }
         return true;
     }
@@ -3399,8 +3389,8 @@ namespace lockstep
                     for (const auto& [code, idx] : heldStepKeys_)
                         ctx.setLatched(idx);
                     setStatus(uiState_.pLockClearMode
-                        ? "P-LOCK LATCHED — tap cells to clear, double-tap Func to apply"
-                        : "STEPS LATCHED — edit hands-free, double-tap Func to release");
+                        ? "P-LOCK LATCHED - tap cells to clear, double-tap Func to apply"
+                        : "STEPS LATCHED - edit hands-free, double-tap Func to release");
                     refreshSurface();
                     return true;   // consume: no funcHeld, no Chance band
                 }
