@@ -15,6 +15,15 @@ namespace lockstep
     inline constexpr double kSlowReleaseMs = 200.0;  // slow envelope release
     inline constexpr float kTransAbsThreshold = 1.5f; // minimum fast/slow ratio
 
+    // 4.9 SYNC slicing: beat-grid divisions, coarsest -> finest. A division's
+    // value is beats-per-slice at the detected tempo (4/4 assumed, the same
+    // assumption StretchMachine::timeRatioFor already makes). Only these seven
+    // are meaningful — finer than a 16th over a musical loop exceeds the 16-slice
+    // cap almost immediately.
+    inline constexpr int kNumSyncDivisions = 7;
+    inline constexpr double kSyncBeatsPerSlice[kNumSyncDivisions] =
+        { 16.0, 8.0, 4.0, 2.0, 1.0, 0.5, 0.25 };  // 4bar 2bar 1bar 1/2 1/4 1/8 1/16
+
     // Per-block analysis cached on Sample at load time (message thread only).
     struct BlockAnalysis
     {
@@ -139,6 +148,83 @@ namespace lockstep
         {
             const int target = static_cast<int>(static_cast<double>(k) * stepF);
             out.push_back(nearestZeroCrossing(ch0, numSamples, target, zcWindow));
+        }
+        return out;
+    }
+
+    // Find the sample position of the first onset (attack) in `ba`, searching
+    // only up to `searchLimitSamples`. An onset block has real energy AND a
+    // fast/slow envelope ratio above the transient threshold — the same test the
+    // transient placer uses. Returns the block-mid sample position, or 0 when no
+    // onset is found in range (material that starts on the 1, or is a wash).
+    inline int findFirstOnsetSample(const BlockAnalysis& ba, int searchLimitSamples)
+    {
+        if (ba.numBlocks < 1 || ba.blockSize < 1)
+            return 0;
+        for (int b = 0; b < ba.numBlocks; ++b)
+        {
+            const int blockMid = static_cast<int>(
+                (static_cast<double>(b) + 0.5) * static_cast<double>(ba.blockSize));
+            if (blockMid >= searchLimitSamples)
+                break;
+            const float rms = ba.rms[static_cast<std::size_t>(b)];
+            const float slow = ba.slowEnv[static_cast<std::size_t>(b)];
+            const float fast = ba.fastEnv[static_cast<std::size_t>(b)];
+            if (rms > 1e-4f && slow > 1e-6f && fast > kTransAbsThreshold * slow)
+                return blockMid;
+        }
+        return 0;
+    }
+
+    // Place slices on a beat grid at the detected tempo (4.9 SYNC mode). The grid
+    // is anchored on the first onset — a loop may not start exactly on the 1, so
+    // the slices track where the audio actually begins — with every boundary
+    // snapped to the nearest zero crossing. `divisionIndex` selects the spacing
+    // from kSyncBeatsPerSlice. Returns absolute sample positions (first is 0).
+    // Callers handle bpm <= 0 (fall back to EQUAL) before calling; the guard here
+    // is belt-and-braces.
+    inline std::vector<int> placeSyncSlices(const juce::AudioBuffer<float>& pcm,
+                                            double sampleRate, double bpm,
+                                            int divisionIndex,
+                                            const BlockAnalysis& ba)
+    {
+        std::vector<int> out;
+        out.push_back(0);   // slice 0 always at position 0
+
+        const int numSamples = pcm.getNumSamples();
+        if (numSamples < 2 || sampleRate <= 0.0 || bpm <= 0.0)
+            return out;
+
+        divisionIndex = std::clamp(divisionIndex, 0, kNumSyncDivisions - 1);
+        const double spacing = (60.0 / bpm) * sampleRate
+                               * kSyncBeatsPerSlice[static_cast<std::size_t>(divisionIndex)];
+        if (spacing < 1.0)
+            return out;
+
+        const int minGap = static_cast<int>(kMinSliceMs * 0.001 * sampleRate);
+        const float* ch0 = pcm.getReadPointer(0);
+        const int zcWindow = (ba.blockSize > 0) ? ba.blockSize
+                                                : static_cast<int>(kBlockMs * 0.001 * sampleRate + 0.5);
+
+        // Anchor the grid on the first onset (ZC-snapped). An onset within one
+        // minimum-slice of the start is treated as "starts on the 1" -> anchor 0,
+        // so a clean loop yields a plain grid with no duplicate boundary at 0.
+        int anchor = findFirstOnsetSample(ba, std::min(numSamples, static_cast<int>(spacing)));
+        anchor = nearestZeroCrossing(ch0, numSamples, anchor, zcWindow);
+        if (anchor < minGap)
+            anchor = 0;
+
+        for (int k = 0; ; ++k)
+        {
+            const double pos = static_cast<double>(anchor) + static_cast<double>(k) * spacing;
+            if (pos <= static_cast<double>(minGap))
+                continue;   // skip boundaries too close to the start
+            if (pos > static_cast<double>(numSamples - minGap))
+                break;      // past the usable tail
+            out.push_back(nearestZeroCrossing(ch0, numSamples,
+                                              static_cast<int>(pos), zcWindow));
+            if (static_cast<int>(out.size()) >= 16)
+                break;      // 16-slice cap: head is gridded, tail lands in the last slice
         }
         return out;
     }

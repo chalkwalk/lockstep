@@ -9,6 +9,7 @@ add_executable(lockstep_tests
     TempoEstimateTest.cpp
     KeyEstimateTest.cpp
     SampleHintsTest.cpp
+    SyncSliceTest.cpp
     TimeStretchTest.cpp
     StretchMachineTest.cpp
     RecordMachineTest.cpp

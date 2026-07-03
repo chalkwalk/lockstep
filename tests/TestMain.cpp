@@ -14,6 +14,7 @@ int main()
     lockstep::runTempoEstimateTests();
     lockstep::runKeyEstimateTests();
     lockstep::runSampleHintsTests();
+    lockstep::runSyncSliceTests();
     lockstep::runTimeStretchTests();
     lockstep::runStretchMachineTests();
     lockstep::runRecordMachineTests();
