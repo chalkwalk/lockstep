@@ -1228,12 +1228,19 @@ Stage E / 7.5 and has shipped — see *Phrase-length authoring* below.)
   editing** — latch one of the pair and physically hold the other; keyboards
   without N-key rollover may not register step keys when both are physically
   held simultaneously.
-- **Latched step operands.** While a step is held (its P-Lock inspector open),
-  press `Func` to virtual-hold it into the edit context — the finger is freed so
-  encoder edits, and taps on the step's *own* cell, land hands-free. A single tap
-  on any step still toggles its trig as normal. The latch never touches the trig
-  (unlike the retired double-tap latch, which transiently flipped it — a live
-  hazard). Apply the inspector's staged edits and exit with a `Func` double-tap.
+- **Multi-step holds.** Holding a step builds a multi-step edit context — hold
+  as many steps as you like on the same track (Elektron flow) and every encoder
+  turn, note key, condition, or clear acts on all of them at once. Continuous
+  parameters nudge *relative* (each held step keeps its own offset, shifted by
+  the amount you turn); stepped/enum parameters write the same absolute value to
+  all. A bare hold no longer opens the P-Lock inspector; **long-press a single
+  held step** to open it (two-plus held steps never do).
+- **Latched step operands.** While one or more steps are held, press `Func` to
+  virtual-hold them into the edit context — the finger is freed so encoder edits,
+  and taps on a step's *own* cell, land hands-free. A single tap on any step still
+  toggles its trig as normal. The latch never touches the trig (unlike the retired
+  double-tap latch, which transiently flipped it — a live hazard). Apply staged
+  edits and exit with a `Func` double-tap.
 - **Func double-tap = universal escape.** When any latch is active, double-tap
   `Func` (key `1`) clears every latched modifier and every latched step in one
   gesture. When no latches are active, Func double-tap is a no-op.
@@ -1620,7 +1627,8 @@ Legends in parentheses are the on-screen key labels (see
 ```
 (nothing held)
 ├─ step (tap)        → toggle a trig on the focused track — §5.6
-├─ step (hold)       → open the step's P-Lock inspector; +Func latches it (hands-free) — §5.17
+├─ step (hold)       → multi-step edit context (hold several; relative P-Locks); +Func latches — §5.17
+├─ step (long-press) → open that step's P-Lock inspector (single held step only) — §5.17
 ├─ Y (SNAP)          → push a checkpoint on the held scope (Song if none) — §5.15
 ├─ U (REC)           → toggle record-arm; double-tap = overdub — §5.4
 ├─ I (PLAY)          → play / stop transport; double-tap = stop-to-top — §5.4

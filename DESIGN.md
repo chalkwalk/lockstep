@@ -2259,7 +2259,7 @@ Func + Clear`) routes through the deletion picker (§16); it removes the slot
 | `Trig` + `Func + Clear` | Clear **all** P-Locks on the held step(s), leaving the trig itself intact. The `Func` qualifier narrows `Clear`'s scope from "clear the step" to "clear locks only". |
 | `Trig` + `(MZ slot)` + Clear | Clear **only that slot's** P-Lock on the held step. Targeted by the held slot (the same slot the MZ would write). |
 | `Trig` + `(section key)` + Clear | **Domain-scoped clear** on the held step(s): wipe every override owned by the held section, leaving other sections, the trig, and the condition intact. **SRC** owns the note payload, so `Trig + SRC + Clear` clears the **note / velocity / gate** overrides (and keeps P-Locks). Same "hold the thing, press Clear" idiom as the MZ-slot row, one level coarser. (This is the home of "clear notes" — it replaced the old `Func + P` overload, which is now purely Cancel everywhere.) |
-| hold step (held-step inspector) | Holding a step reveals its **inspector** (§13.8): its P-Locks show as bright (locked) / dim (empty) cells — tap a locked cell to clear that slot's P-Lock; the MZ shows the section's params with lock badges (twist still writes a lock). This is the discoverable home of single-lock surgery; it absorbs the former `Func + step` P-Lock-clear mode. |
+| long-press one held step (held-step inspector) | Long-pressing a single held step reveals its **inspector** (§13.8): its P-Locks show as bright (locked) / dim (empty) cells — tap a locked cell to clear that slot's P-Lock; the MZ shows the section's params with lock badges (twist still writes a lock). This is the discoverable home of single-lock surgery; it absorbs the former `Func + step` P-Lock-clear mode. (A bare hold — one or many steps — is the multi-step edit context, §19.1; it does not open the inspector.) |
 | `Section` key + Record | Copy all of that section's params (base + P-Locks across all steps). |
 | `Section` key + Play | Paste section onto current track. |
 | `Section` key + Clear | Reset section to default (clears that section's P-Locks across the track). **SRC** additionally clears the note / velocity / gate overrides track-wide — the whole-track mirror of `Trig + SRC + Clear`. *Immediate tier* (auto-snapshots). |
@@ -2642,16 +2642,22 @@ principle, not a silent exception here.
 | `Mute + Play + step` | Quantized **relaunch** (unmute + phase-reset) / **retrigger** (phase-reset only) — restart the track from step 0 |
 | Double-tap any launch gesture | Fire now, **phase-preserving** (the §4.8 instant override) |
 
-### 13.8 Held-step inspector (planned, 9.x)
+### 13.8 Held-step inspector
 
-Holding a step on its own reveals that step's **inspector** — the visible face
-of the edit context the hold already enters (PRINCIPLES §5, §21). It is the
-single discoverable home for per-step surgery that today is buried behind
-deep modal chords (the old `Func + Src + step` note edit and `Func + step`
-P-Lock-clear mode are **absorbed** into it). The reveal lasts exactly as long
-as the hold.
+Holding a step enters that step's **edit context** (PRINCIPLES §5, §21) — and a
+**long-press of a single held step** promotes it to the step's **inspector**, the
+visible face of that context. It is the single discoverable home for per-step
+surgery that used to be buried behind deep modal chords (the old `Func + Src +
+step` note edit and `Func + step` P-Lock-clear mode are **absorbed** into it).
 
-While a step is held:
+A bare hold does **not** open the inspector: holding several steps at once is a
+first-class flow (multi-step edit context, §19.1), so the inspector — which is
+inherently single-step — is reserved for the deliberate long-press, and only when
+exactly one step is held. `Func + Src + step` note editing and encoder writes
+still work directly from a bare (multi-)hold without the inspector. The reveal
+lasts as long as the hold.
+
+While the inspector is open (single held step):
 
 - **MZ = the step's params, with lock state.** The Manipulation Zone shows the
   current section's params as usual, but each slot carries a **lock badge** for
@@ -3144,17 +3150,27 @@ P-lockable per step via the usual EditContext gestures (held step +
 encoder turn on the appropriate slot — the TRIG meta section gains
 a `MicroTime` column when extended).
 
-**Move-step and the Step-Position panel (planned, 9.x).** While a step is held
-(the inspector, §13.8), two key gestures act on it, and both flip the MZ to a
-**Step-Position panel** that *follows the moved step*:
+**Move-step and the Step-Position panel.** While a step is held, two key
+gestures act on it, and both flip the MZ to a **Step-Position panel** that
+*follows the moved step(s)*:
 
-- **hold step + `←/→`** = **move** by a sticky bubble-swap: the held step swaps
-  content with its neighbour and **keeps focus**, so a repeat swaps it onward —
-  sequential swaps that read as a move/insert. The whole `Step` travels
-  (notes, P-Locks, condition, `microOffset`).
-- **hold step + `Func + ←/→`** = nudge the step's `microOffset` (the same field
-  above). (`Func + ←/→` with **no** step held keeps its existing whole-track
-  rotate role; `Func + ↑/↓` stays length ×2/÷2.)
+- **hold step + `←/→`** = **move**. A *single* held step moves by a sticky
+  bubble-swap: it swaps content with its neighbour and **keeps focus**, so a
+  repeat swaps it onward — sequential swaps that read as a move/insert. *Multiple*
+  held steps **block-move together** by one position, clamped at the track
+  boundary (the whole block stops rather than colliding or wrapping). In both
+  cases the whole `Step` travels (notes, P-Locks, condition, `microOffset`), and
+  the held set follows the moved positions so a repeat keeps moving it.
+- **hold step + `Func + ←/→`** = nudge the `microOffset` of **every** held step
+  (the same field above). (`Func + ←/→` with **no** step held keeps its existing
+  whole-track rotate role; `Func + ↑/↓` stays length ×2/÷2.)
+
+The held set is a **multi-step edit context**: hold any number of steps on one
+track and encoder turns, note keys, conditions, and clears all fan across them
+(continuous parameters *relative*, keeping each step's offset; stepped/enum
+*absolute*). A bare hold does **not** open the P-Lock inspector (§13.8) — that
+opens on a **long-press of a single held step**; two-plus held steps never open
+it. Hold-step + `Func` latches the held set (hands-free), unchanged.
 
 Once flipped, the Step-Position panel's encoders do both jobs continuously —
 encoder 0 = position (drives the swaps), encoder 1 = `microOffset` — and
