@@ -3193,6 +3193,54 @@ namespace lockstep
         }
     }
 
+    void LockstepProcessor::writeHeldStepOverrides(int track, int slot, float value)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        const auto& held = editContext_.heldSteps();
+        if (held.empty()) return;
+
+        // Stepped/enum machine params: a relative nudge is meaningless, so write the
+        // absolute value to every held step. (Only machine params carry a stepped
+        // flag; post-machine FLTR/AMP/insert slots are continuous.)
+        bool stepped = false;
+        {
+            const auto ti = static_cast<std::size_t>(track);
+            auto* m = machines_[ti].get();
+            if (m != nullptr && slot < m->numParams())
+                stepped = m->paramSpec(slot).isStepped;
+        }
+
+        auto effectiveAt = [this, track, slot](int step) {
+            const auto& st = sequence().tracks[static_cast<std::size_t>(track)]
+                                 .steps[static_cast<std::size_t>(step)];
+            return st.overrides.get(slot, baseParamValue(track, slot));
+        };
+        auto clampToSpec = [this, track, slot](float v) {
+            const auto ti = static_cast<std::size_t>(track);
+            auto* m = machines_[ti].get();
+            if (m != nullptr && slot < m->numParams())
+            {
+                const auto sp = m->paramSpec(slot);
+                return std::clamp(v, sp.minValue, sp.maxValue);
+            }
+            return v;
+        };
+
+        const int primary = editContext_.heldStepIndex();
+        const float delta = (!stepped && primary >= 0 && primary < kMaxStepsPerTrack)
+                                ? value - effectiveAt(primary) : 0.0f;
+
+        for (const int step : held)
+        {
+            if (step < 0 || step >= kMaxStepsPerTrack) continue;
+            const float v = (stepped || step == primary)
+                                ? value                                  // absolute
+                                : clampToSpec(effectiveAt(step) + delta); // relative nudge
+            enqueueStepOverride(*this, track, step, slot, v);
+        }
+        editContext_.markParamWritten();
+    }
+
     void LockstepProcessor::writeParam(int track, int slot, float value)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks))
@@ -3268,12 +3316,7 @@ namespace lockstep
                 const auto ti = static_cast<std::size_t>(t);
                 if (editContext_.isActiveForEditing() && editContext_.heldTrackIndex() == t)
                 {
-                    const int step = editContext_.heldStepIndex();
-                    if (step >= 0 && step < kMaxStepsPerTrack)
-                    {
-                        enqueueStepOverride(*this, t, step, dstSlot, value);
-                        editContext_.markParamWritten();
-                    }
+                    writeHeldStepOverrides(t, dstSlot, value);  // fan across all held steps
                 }
                 else
                 {
@@ -3288,12 +3331,7 @@ namespace lockstep
 
         if (editContext_.isActiveForEditing() && editContext_.heldTrackIndex() == track)
         {
-            const int step = editContext_.heldStepIndex();
-            if (step >= 0 && step < kMaxStepsPerTrack)
-            {
-                enqueueStepOverride(*this, track, step, slot, value);
-                editContext_.markParamWritten();
-            }
+            writeHeldStepOverrides(track, slot, value);  // fan across all held steps
         }
         else
         {

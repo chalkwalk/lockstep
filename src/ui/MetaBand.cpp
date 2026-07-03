@@ -1952,69 +1952,81 @@ namespace lockstep
         {
             case MetaBand::Cond: {
                 const bool held = ctx.isActiveForEditing() && ctx.heldTrackIndex() == track;
-                const int step = ctx.heldStepIndex();
-
                 auto& t = proc.sequence().tracks[static_cast<std::size_t>(track)];
-                TrigCondition& target = (held && step >= 0)
-                                            ? t.steps[static_cast<std::size_t>(step)].condition
-                                            : t.baseCond;
 
-                if (held && step >= 0)
-                    ctx.markParamWritten();
+                auto applyCond = [&](TrigCondition& target) {
+                    switch (field)
+                    {
+                        case 0:  target.probabilityPercent = u8clamp(value); break;
+                        case 1:  target.iterNumerator = u8clamp(value); break;
+                        case 2:  target.iterDenominator = u8clamp(value); break;
+                        case 3:  target.prevDependency = u8clamp(value); break;
+                        case 4:  target.oneShot = (value >= 0.5f); break;  // 5.6 one-shot
+                        default: break;
+                    }
+                };
 
-                switch (field)
+                // Part 2 multi-step holds: stamp the condition on EVERY held step,
+                // otherwise edit the track's base condition.
+                if (held && !ctx.heldSteps().empty())
                 {
-                    case 0:  target.probabilityPercent = u8clamp(value); break;
-                    case 1:  target.iterNumerator = u8clamp(value); break;
-                    case 2:  target.iterDenominator = u8clamp(value); break;
-                    case 3:  target.prevDependency = u8clamp(value); break;
-                    case 4:  target.oneShot = (value >= 0.5f); break;  // 5.6 one-shot
-                    default: break;
+                    for (const int s : ctx.heldSteps())
+                        if (s >= 0 && s < kMaxStepsPerTrack)
+                            applyCond(t.steps[static_cast<std::size_t>(s)].condition);
+                    ctx.markParamWritten();
+                }
+                else
+                {
+                    applyCond(t.baseCond);
                 }
                 break;
             }
 
             case MetaBand::Trig: {
                 const bool held = ctx.isActiveForEditing() && ctx.heldTrackIndex() == track;
-                const int step = ctx.heldStepIndex();
-                const bool sv = held && step >= 0 && step < kMaxStepsPerTrack;
+                const bool sv = held && !ctx.heldSteps().empty();
                 auto& t = proc.sequence().tracks[static_cast<std::size_t>(track)];
 
                 if (sv)
                 {
-                    auto& stepRef = t.steps[static_cast<std::size_t>(step)];
-                    auto& trig = stepRef.trigOverride;
-                    switch (field)
-                    {
-                        case 0:
-                            if (trig.noteCount == 0) trig.noteCount = 1;
-                            trig.notes[0] = std::clamp(static_cast<int>(value), 0, 127);
-                            break;
-                        case 1:
-                            trig.hasVelocity = true;
-                            trig.velocity = std::clamp(static_cast<int>(value), 1, 127);
-                            break;
-                        case 2:
-                            trig.hasGate = true;
-                            trig.gateValue = static_cast<MusicalGate>(
-                                std::clamp(static_cast<int>(value), 0, kMusicalGateCount - 1));
-                            break;
-                        case 4:  stepRef.microOffset = std::clamp(value, -0.5f, 0.5f); break;
-                        case 5: {  // RTG — authored ratchet rate (9.10)
-                            const int ri = std::clamp(static_cast<int>(value), 0, 8);
-                            if (ri == 0)
-                            {
-                                trig.hasRetrig = false;
+                    // Part 2 multi-step holds: stamp the trig override on EVERY held step.
+                    auto applyTrig = [&](Step& stepRef) {
+                        auto& trig = stepRef.trigOverride;
+                        switch (field)
+                        {
+                            case 0:
+                                if (trig.noteCount == 0) trig.noteCount = 1;
+                                trig.notes[0] = std::clamp(static_cast<int>(value), 0, 127);
+                                break;
+                            case 1:
+                                trig.hasVelocity = true;
+                                trig.velocity = std::clamp(static_cast<int>(value), 1, 127);
+                                break;
+                            case 2:
+                                trig.hasGate = true;
+                                trig.gateValue = static_cast<MusicalGate>(
+                                    std::clamp(static_cast<int>(value), 0, kMusicalGateCount - 1));
+                                break;
+                            case 4:  stepRef.microOffset = std::clamp(value, -0.5f, 0.5f); break;
+                            case 5: {  // RTG — authored ratchet rate (9.10)
+                                const int ri = std::clamp(static_cast<int>(value), 0, 8);
+                                if (ri == 0)
+                                {
+                                    trig.hasRetrig = false;
+                                }
+                                else
+                                {
+                                    trig.hasRetrig = true;
+                                    trig.retrigRate = kRetrigRates[static_cast<std::size_t>(ri - 1)];
+                                }
+                                break;
                             }
-                            else
-                            {
-                                trig.hasRetrig = true;
-                                trig.retrigRate = kRetrigRates[static_cast<std::size_t>(ri - 1)];
-                            }
-                            break;
+                            default: break;
                         }
-                        default: break;
-                    }
+                    };
+                    for (const int s : ctx.heldSteps())
+                        if (s >= 0 && s < kMaxStepsPerTrack)
+                            applyTrig(t.steps[static_cast<std::size_t>(s)]);
                     ctx.markParamWritten();
                 }
                 else

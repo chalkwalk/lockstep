@@ -423,6 +423,12 @@ namespace lockstep
         // P-Lock; otherwise it updates the track's base params.
         void writeParam(int track, int slot, float value);
 
+        // Part 2 multi-step holds: fan a P-Lock write across every held step on
+        // `track`. Continuous slots nudge relative (each step keeps its own offset,
+        // shifted by the primary's delta); stepped/enum slots write absolute to all.
+        // The primary held step always lands the exact `value`. Marks paramWritten.
+        void writeHeldStepOverrides(int track, int slot, float value);
+
         // 5.2: Morph overlay write paths (message thread; DESIGN §17.3).
         // writeMorph: normalised proportional split at fader position f.
         // writeMorphPole: pole-forced write (pole 0=A, 1=B; for ^/v qualifiers).

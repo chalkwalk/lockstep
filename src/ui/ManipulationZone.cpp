@@ -238,15 +238,18 @@ namespace lockstep
             clearBtns_[si].onClick = [this, i] {
                 auto& ctx = processor_.editContext();
                 if (!ctx.isActiveForEditing()) return;
-                if (band_ == MetaBand::Trig)
-                    processor_.clearTrigOverrideField(ctx.heldTrackIndex(),
-                                                      ctx.heldStepIndex(), i);
-                else if (processor_.fillActive())
-                    processor_.clearFillParam(ctx.heldTrackIndex(), ctx.heldStepIndex(),
-                                              slotOffset_ + i);
-                else
-                    processor_.clearParam(ctx.heldTrackIndex(), ctx.heldStepIndex(),
-                                          slotOffset_ + i);
+                const int track = ctx.heldTrackIndex();
+                // Part 2 multi-step holds: clear the slot on EVERY held step, not just
+                // the primary, so a clear mirrors the multi-step write fan-out.
+                for (const int step : ctx.heldSteps())
+                {
+                    if (band_ == MetaBand::Trig)
+                        processor_.clearTrigOverrideField(track, step, i);
+                    else if (processor_.fillActive())
+                        processor_.clearFillParam(track, step, slotOffset_ + i);
+                    else
+                        processor_.clearParam(track, step, slotOffset_ + i);
+                }
                 // Removing a P-Lock is an edit, like writing one — mark it so the
                 // held-step release does not also toggle the step's trig.
                 ctx.markParamWritten();
