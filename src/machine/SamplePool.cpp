@@ -151,6 +151,50 @@ namespace lockstep
         return samples_[static_cast<std::size_t>(index)]->isVolatile;
     }
 
+    juce::String SamplePool::displayName(int index) const
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size()))
+            return "(none)";
+        const auto& s = *samples_[static_cast<std::size_t>(index)];
+        if (s.isVolatile)
+        {
+            // Empty (never-captured) volatile slots have no meaningful name.
+            if (s.origin != SampleOrigin::Record && s.origin != SampleOrigin::Loop)
+                return "(empty)";
+            const char* kind = (s.origin == SampleOrigin::Loop) ? "Loop" : "Record";
+            // Ordinal within this origin group (1-based), matching the browser.
+            int ord = 0;
+            for (int i = 0; i <= index; ++i)
+                if (samples_[static_cast<std::size_t>(i)]->isVolatile
+                    && samples_[static_cast<std::size_t>(i)]->origin == s.origin)
+                    ++ord;
+            return juce::String(kind) + " " + juce::String(ord);
+        }
+        const juce::File f(juce::String(s.ref.path));
+        return f.getFileNameWithoutExtension();
+    }
+
+    juce::String SamplePool::displayHint(int index) const
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size()))
+            return {};
+        const auto& s = *samples_[static_cast<std::size_t>(index)];
+        if (s.isVolatile)
+        {
+            // Prefer the captured musical length (bars); fall back to a bpm estimate.
+            if (s.sourceBars > 0.0)
+                return juce::String(s.sourceBars, 2) + " bars";
+            if (s.detectedBpm > 0.0)
+                return juce::String(juce::roundToInt(s.detectedBpm)) + " bpm";
+            return {};
+        }
+        if (s.missing)
+            return "MISSING";
+        if (s.detectedBpm > 0.0)
+            return juce::String(juce::roundToInt(s.detectedBpm)) + " bpm";
+        return juce::File(juce::String(s.ref.path)).getParentDirectory().getFileName();
+    }
+
     int SamplePool::nthVolatileIndex(int n) const
     {
         if (n < 0) return -1;

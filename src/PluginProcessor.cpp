@@ -4908,9 +4908,9 @@ namespace lockstep
 
     juce::String LockstepProcessor::sampleShortName(int poolIndex) const
     {
-        const auto* s = samplePool_.get(poolIndex);
-        if (s == nullptr) return "(none)";
-        return juce::File(juce::String(s->ref.path)).getFileNameWithoutExtension();
+        // Shared display model (W3a): volatile captures render as "Record N" /
+        // "Loop N", files as the filename stem. See SamplePool::displayName.
+        return samplePool_.displayName(poolIndex);
     }
 
     void LockstepProcessor::removeSample(int idx)

@@ -138,6 +138,16 @@ namespace lockstep
         bool isMissing(int index) const;
         const Sample* get(int index) const;
 
+        // W3a display model — the single source of truth for how a pool entry is
+        // named/hinted, shared by the pool browser (SamplePoolOverlay) and every
+        // in-machine sample picker (SampleMachine/SliceMachine/StretchMachine via
+        // sampleShortName). Volatile captures have no file name, so they are
+        // labelled "Record N" / "Loop N" by ordinal within their origin group;
+        // file entries show the filename stem. Out-of-range → "(none)".
+        //   displayHint: captured bars / detected bpm / parent dir / "MISSING".
+        juce::String displayName(int index) const;
+        juce::String displayHint(int index) const;
+
         // Remove the entry at index, shifting higher entries down.
         // Callers must remap all references before calling. Message-thread only.
         bool remove(int index);

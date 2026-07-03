@@ -245,37 +245,11 @@ namespace lockstep
             return;
 
         const bool isMissing = sample->missing;
-        const bool isVol = pool.isVolatileIndex(row.poolIndex);
 
-        // Volatile capture slots have no file name — synthesise "Record N"/"Loop N"
-        // by their ordinal within the group. Files show name + directory hint.
-        juce::String name, hint;
-        if (isVol)
-        {
-            const char* kind = (sample->origin == SampleOrigin::Loop) ? "Loop" : "Record";
-            int ord = 0;
-            for (int i = 0; i <= row.poolIndex; ++i)
-                if (pool.isVolatileIndex(i) && pool.origin(i) == sample->origin)
-                    ++ord;
-            name = juce::String(kind) + " " + juce::String(ord);
-            // Prefer the captured musical length (bars); fall back to a bpm estimate.
-            hint = sample->sourceBars > 0.0
-                       ? juce::String(sample->sourceBars, 2) + " bars"
-                       : (sample->detectedBpm > 0.0
-                              ? juce::String(juce::roundToInt(sample->detectedBpm)) + " bpm"
-                              : "");
-        }
-        else
-        {
-            const juce::File f(juce::String(sample->ref.path));
-            name = f.getFileNameWithoutExtension();
-            if (isMissing)
-                hint = "MISSING";
-            else if (sample->detectedBpm > 0.0)
-                hint = juce::String(juce::roundToInt(sample->detectedBpm)) + " bpm";
-            else
-                hint = f.getParentDirectory().getFileName();
-        }
+        // Name + hint come from the shared pool display model so the browser and
+        // the in-machine pickers can never drift (W3a).
+        const juce::String name = pool.displayName(row.poolIndex);
+        const juce::String hint = pool.displayHint(row.poolIndex);
 
         g.setFont(juce::Font(juce::FontOptions(12.0f)).boldened());
         g.setColour(isMissing ? juce::Colour::fromRGB(255, 160, 50)

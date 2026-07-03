@@ -92,6 +92,35 @@ namespace lockstep
             CHECK(pool.mutableVolatilePcm(99) == nullptr, "no handle out of range hi");
         }
 
+        // displayName/displayHint — shared model for browser + pickers (W3a) --
+        {
+            SamplePool pool;
+            // Two volatile slots: one Record, one Loop; plus an untouched Empty.
+            const int rec = pool.addVolatile();
+            const int loop = pool.addVolatile();
+            const int empty = pool.addVolatile();
+            pool.setVolatileOrigin(rec, SampleOrigin::Record);
+            pool.setVolatileOrigin(loop, SampleOrigin::Loop);
+
+            // The picker used to render these blank (filename stem of an empty
+            // path); the shared model synthesises a name from origin + ordinal.
+            CHECK(pool.displayName(rec) == "Record 1",
+                  "first Record volatile names as Record 1");
+            CHECK(pool.displayName(loop) == "Loop 1",
+                  "first Loop volatile names as Loop 1");
+            CHECK(pool.displayName(rec).isNotEmpty() && pool.displayName(loop).isNotEmpty(),
+                  "volatile display names are never blank");
+            CHECK(pool.displayName(empty) == "(empty)",
+                  "un-captured volatile slot reads (empty)");
+            CHECK(pool.displayName(-1) == "(none)" && pool.displayName(99) == "(none)",
+                  "out-of-range display name is (none)");
+
+            // Bars hint takes priority over a bpm estimate for volatiles.
+            pool.setSourceBars(loop, 4.0);
+            CHECK(pool.displayHint(loop) == "4.00 bars",
+                  "volatile hint shows captured bars when known");
+        }
+
         // sourceBars stamp/read on volatile entries --------------------------
         {
             SamplePool pool;
