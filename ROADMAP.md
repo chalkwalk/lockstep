@@ -1151,18 +1151,22 @@ DESIGN §29. Depends on 6.2.
 
 ### 6.4 — Cue + Aux output buses + monitoring  *[in progress]*  *(was MU)*
 DESIGN §31 / §31.1. Static output complement + the `Cue` scope (key TBD).
-- [ ] Static output complement: **Master + Cue + 6 Aux** stereo buses, non-main
-      declared disabled-by-default; `isBusesLayoutSupported` accepts each extra
-      bus stereo-or-disabled. No dynamic port rescan (host lottery — rejected).
-- [ ] **Aux mix routing**: the CHANNEL "Out" slot destination set grows to
-      `Off | Master | Bus(track) | Aux 1–6`; an Aux route whose host bus is
-      disabled **folds to Master** (never silent data loss). Serializer v26
-      (Out-destination encoding + cue-send flags round-trip; old files → Master).
+- [x] Static output complement: **Master + Cue + 6 Aux** stereo buses, non-main
+      declared disabled-by-default (`BusesPropertiesAccessor::make`). No dynamic
+      port rescan (host lottery — rejected). **CLAP/VST3 port exposure in a real
+      host (Bitwig/Reaper) is unverified in this environment — verify before UI.**
+- [x] **Aux mix routing**: the CHANNEL "Out" slot destination set grows to
+      `Off | Master | Bus(track) | Aux 1–6` (`OutputDest.h`); an Aux route whose
+      host bus is disabled **folds to Master** (never silent data loss). Master
+      processing confined to a main-bus view so aux buses never get master FX.
+      No serializer bump needed — the Aux encoding rides the existing v25
+      `channelState.out` float (old files decode as Master/Track unchanged).
 - [ ] Cue/monitor output bus DSP (standalone ch 3–4 / plugin Cue bus), additive
-      post-FLTR/AMP/Level send; excluded from `outputReachesMaster()`.
+      post-FLTR/AMP/Level send; excluded from `outputReachesMaster()`. (Cue bus is
+      *declared* but not yet fed — awaits the send tap + Cue-scope key.)
 - [ ] `Cue + track` / `Cue + Scene` / `Cue + MIDI-out` **gestures** — await the
-      `Cue`-scope key allocation (DSP + Out-slot routing ship first).
-- [ ] Live stem capture via Aux outs documented as the blessed stem-export path
+      `Cue`-scope key allocation (Aux DSP + Out-slot routing shipped first).
+- [x] Live stem capture via Aux outs documented as the blessed stem-export path
       (DESIGN §31.1) — the offline per-take stem-export item is demoted.
 
 ### 6.5 — Insert + master effects (FX system)  *[shipped]*  *(was MV)*

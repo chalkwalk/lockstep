@@ -1160,9 +1160,11 @@ namespace lockstep
                                int resolveStep, bool fillActive, float faderNow,
                                int numBlockSamples, juce::MidiBuffer& trackMidiI);
 
-        // A2: where a track's finished signal goes (DESIGN §27).
-        enum class Route { Master, Bus, Off };
-        struct TrackRoute { Route route; int busTrack; };  // busTrack valid iff Bus
+        // A2: where a track's finished signal goes (DESIGN §27 / §31.1).
+        enum class Route { Master, Bus, Off, Aux };
+        // busTrack valid iff Bus (destination track); reused as the 0-based Aux
+        // index when route == Aux (§31.1).
+        struct TrackRoute { Route route; int busTrack; };
         // Validated per-track routing decision from the CHANNEL "Out" base value.
         // An invalid bus target (out of range / self / MIDI-out) falls back to
         // Master defensively. MIDI-out source tracks route nowhere audible.
@@ -1186,6 +1188,11 @@ namespace lockstep
         // A2: sum every Master-routed track into the main output (the dest-aware
         // replacement for the old "sum all tracks" combine pass).
         void sumRoutedToMaster(juce::AudioBuffer<float>& buffer, int numBlockSamples);
+        // §31.1: deposit each Aux-routed track into its host Aux output bus (raw,
+        // bypassing master gain/FX — a direct output tap), or fold to the main
+        // output when the host has that bus disabled (never silent data loss).
+        void depositRoutedToAux(juce::AudioBuffer<float>& fullBuffer,
+                                juce::AudioBuffer<float>& mainOut, int numBlockSamples);
         // 6.1: cache the final master output into prevMasterBuf_ (Master tap).
         void cachePrevMaster(const juce::AudioBuffer<float>& buf, int numSamples);
         std::array<VoiceChoke, kNumTracks> trackChokes_;

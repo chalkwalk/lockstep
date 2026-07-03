@@ -2807,6 +2807,66 @@ namespace lockstep
               juce::String(loaded));
     }
 
+    // Part 4 §31.1: a track routed to an enabled host Aux bus lands its audio on
+    // that bus (and leaves Master), while a route to a disabled Aux folds to Master.
+    static void testAuxRoutingAndFold()
+    {
+        // Heap-allocate: LockstepProcessor embeds the ~47 MB Arrangement and
+        // overflows the stack if constructed as a local (see EngineHarness).
+        auto procPtr = std::make_unique<LockstepProcessor>();
+        auto& proc = *procPtr;
+        // Enable Aux 1 (host output bus index 2: 0=Master, 1=Cue, 2=Aux1).
+        auto layout = proc.getBusesLayout();
+        layout.outputBuses.set(2, juce::AudioChannelSet::stereo());
+        CHECK(proc.setBusesLayout(layout), "aux: host can enable the Aux 1 bus");
+
+        StubPlayHead ph(120.0, 48000.0, 256);
+        proc.setPlayHead(&ph);
+        proc.setRateAndBufferSizeDetails(48000.0, 256);
+        proc.prepareToPlay(48000.0, 256);
+        proc.clock().setInPluginPlaying(true);
+
+        installMachine(proc, 0, DrumMachine::kMachineId);
+        auto& s0 = proc.sequence().tracks[0].steps[0];
+        s0.trig = true;
+        s0.trigOverride.hasGate = true;
+        s0.trigOverride.gateValue = MusicalGate::G1_8;
+
+        const int totalOut = proc.getTotalNumOutputChannels();  // main 2 + Aux1 2
+        CHECK(totalOut >= 4, "aux: main + Aux1 expose >= 4 output channels");
+        juce::AudioBuffer<float> buf(totalOut, 256);
+        juce::MidiBuffer midi;
+
+        auto renderPeaks = [&](int masterCh, int auxCh, float& masterMag, float& auxMag) {
+            masterMag = 0.0f; auxMag = 0.0f;
+            for (int b = 0; b < 30; ++b)
+            {
+                buf.clear(); midi.clear();
+                proc.processBlock(buf, midi);
+                masterMag = std::max(masterMag, buf.getMagnitude(masterCh, 0, 256));
+                if (auxCh >= 0)
+                    auxMag = std::max(auxMag, buf.getMagnitude(auxCh, 0, 256));
+                ph.advance();
+            }
+        };
+
+        // Route track 0 → Aux 1 (enabled): audio on the Aux bus, silent at Master.
+        proc.kit(0).channelState.out = encodeOutputDest(OutputDestKind::Aux, 0);
+        float masterMag = 0.0f, auxMag = 0.0f;
+        renderPeaks(0, 2, masterMag, auxMag);
+        CHECK(auxMag > 1e-4f, "aux: a track routed to Aux 1 lands on the Aux bus");
+        CHECK(masterMag < 1e-4f, "aux: an Aux-routed track is absent from Master");
+
+        // Route track 0 → Aux 4 (bus index 5, disabled): folds to Master.
+        proc.reset();
+        proc.kit(0).channelState.out = encodeOutputDest(OutputDestKind::Aux, 3);
+        float masterMag2 = 0.0f, ignore = 0.0f;
+        renderPeaks(0, -1, masterMag2, ignore);
+        CHECK(masterMag2 > 1e-4f, "aux: a disabled-Aux route folds to Master");
+
+        proc.releaseResources();
+    }
+
     // Part 3 MIDI-out VU: note-ons sent to a MIDI-out track accumulate a
     // velocity-proportional loudness, and a CC send trips the dot pulse.
     static void testMidiOutVuVelocityAndCc()
@@ -2856,6 +2916,7 @@ namespace lockstep
     void runEngineTests()
     {
         testMidiOutVuVelocityAndCc();
+        testAuxRoutingAndFold();
         testTransposeTrack();
         testLoopGridSeamFeedsTrackLength();
         testLoopRecordLengthTracksTempo();

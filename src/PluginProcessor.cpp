@@ -42,9 +42,19 @@ namespace lockstep
                 // 6.1: a stereo audio input on the main bus feeds the External
                 // source (Route / resampling, DESIGN §27). In standalone JUCE wires
                 // the device input here; in a host it is the plugin's audio input.
-                return BusesProperties()
+                //
+                // §31.1 static output complement: Master (always on) + Cue + 6 Aux
+                // stereo buses, non-main declared DISABLED by default so the host
+                // opts in. The port list is fixed at build time — JUCE builds the
+                // CLAP/VST3 ports from these, and dynamic rescan is a host lottery.
+                auto props = BusesProperties()
                     .withInput("In", juce::AudioChannelSet::stereo(), true)
-                    .withOutput("Out", juce::AudioChannelSet::stereo(), true);
+                    .withOutput("Master", juce::AudioChannelSet::stereo(), true)
+                    .withOutput("Cue", juce::AudioChannelSet::stereo(), false);
+                for (int a = 0; a < kNumAuxBuses; ++a)
+                    props = props.withOutput("Aux " + juce::String(a + 1),
+                                             juce::AudioChannelSet::stereo(), false);
+                return props;
             }
         };
 
@@ -862,6 +872,13 @@ namespace lockstep
         {
             case OutputDestKind::Off:    return { Route::Off, -1 };
             case OutputDestKind::Master: return { Route::Master, -1 };
+            case OutputDestKind::Aux:
+                // §31.1: route to host Aux bus `sel.track` (0-based). The
+                // fold-to-Master fallback when the host has that bus disabled is
+                // applied at mix time (processBlock has the bus-enable state).
+                if (sel.track >= 0 && sel.track < kNumAuxBuses)
+                    return { Route::Aux, sel.track };
+                return { Route::Master, -1 };
             case OutputDestKind::Track:
                 // Bus target must currently be an input-aware pass-through machine
                 // (declares input_source). If not — e.g. the target was swapped to
@@ -906,6 +923,16 @@ namespace lockstep
             if (validateOutEdit(fromTrack, enc) == RouteReject::None)
                 targets.push_back(enc);
         }
+        // §31.1: offer the host Aux buses the host has ENABLED. A disabled Aux is
+        // not a selectable destination (it would silently fold to Master); the
+        // host enables what it wants to patch. In standalone none are enabled, so
+        // Aux is naturally absent there.
+        for (int a = 0; a < kNumAuxBuses; ++a)
+        {
+            const auto* bus = getBus(false, 2 + a);   // 0=Master, 1=Cue, 2+=Aux
+            if (bus != nullptr && bus->isEnabled())
+                targets.push_back(encodeOutputDest(OutputDestKind::Aux, a));
+        }
         // Keep the current stored dest representable even if it is no longer a
         // valid target (dormant after a machine swap).
         if (fromTrack >= 0 && fromTrack < static_cast<int>(kNumTracks))
@@ -933,6 +960,10 @@ namespace lockstep
             {
                 case Route::Master: return true;
                 case Route::Off:    return false;
+                // Aux is a terminal host output branch (like Off for master-
+                // reachability); it does not feed the master sum, so it can never
+                // form a master-tap feedback path.
+                case Route::Aux:    return false;
                 case Route::Bus:    cur = r.busTrack; break;
             }
         }
@@ -1035,8 +1066,42 @@ namespace lockstep
         for (std::size_t ti = 0; ti < kNumTracks; ++ti)
         {
             if (routeForTrack(static_cast<int>(ti)).route != Route::Master) continue;
-            for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+            const int chans = std::min(buffer.getNumChannels(),
+                                       trackBuffers_[ti].getNumChannels());
+            for (int ch = 0; ch < chans; ++ch)
                 buffer.addFrom(ch, 0, trackBuffers_[ti], ch, 0, numBlockSamples);
+        }
+    }
+
+    void LockstepProcessor::depositRoutedToAux(juce::AudioBuffer<float>& fullBuffer,
+                                               juce::AudioBuffer<float>& mainOut,
+                                               int numBlockSamples)
+    {
+        for (std::size_t ti = 0; ti < kNumTracks; ++ti)
+        {
+            const auto r = routeForTrack(static_cast<int>(ti));
+            if (r.route != Route::Aux) continue;
+            // Host output bus index: 0 = Master, 1 = Cue, 2 + auxIdx = Aux N.
+            const int busIndex = 2 + r.busTrack;
+            auto* bus = getBus(false, busIndex);
+            if (bus != nullptr && bus->isEnabled())
+            {
+                auto auxBuf = getBusBuffer(fullBuffer, false, busIndex);
+                const int chans = std::min(auxBuf.getNumChannels(),
+                                           trackBuffers_[ti].getNumChannels());
+                for (int ch = 0; ch < chans; ++ch)
+                    auxBuf.addFrom(ch, 0, trackBuffers_[ti], ch, 0, numBlockSamples);
+            }
+            else
+            {
+                // Fold-to-Master: the host has that Aux bus disabled — never drop
+                // the audio. Deposited into mainOut before the master chain so the
+                // folded signal is gained/FX'd exactly like a Master route.
+                const int chans = std::min(mainOut.getNumChannels(),
+                                           trackBuffers_[ti].getNumChannels());
+                for (int ch = 0; ch < chans; ++ch)
+                    mainOut.addFrom(ch, 0, trackBuffers_[ti], ch, 0, numBlockSamples);
+            }
         }
     }
 
@@ -1099,6 +1164,14 @@ namespace lockstep
         for (int ch = totalIn; ch < totalOut; ++ch)
             buffer.clear(ch, 0, buffer.getNumSamples());
         buffer.clear();
+
+        // §31.1: master processing (sum, master FX, gain, softclip, metering)
+        // operates on the MAIN output bus only. When the host enables Cue/Aux
+        // output buses, `buffer` widens to include their channels; this view keeps
+        // all the existing master-path code confined to Master so it never bleeds
+        // into an aux bus. With every extra bus disabled (the default) this is
+        // exactly the whole `buffer`, so the common path is unchanged.
+        auto mainOut = getBusBuffer(buffer, false, 0);
 
         // Clear per-track scratch buffers once per block.
         for (auto& tb : trackBuffers_)
@@ -2052,18 +2125,20 @@ namespace lockstep
 
             // A2: sum only Master-routed tracks (bus-routed audio reaches master
             // through its bus track's chain).
-            sumRoutedToMaster(buffer, numBlockSamples);
+            sumRoutedToMaster(mainOut, numBlockSamples);
+            // §31.1: Aux-routed tracks → host Aux buses (or fold to main).
+            depositRoutedToAux(buffer, mainOut, numBlockSamples);
 
             // Master insert chain — shared helper used by both transport paths.
-            processMasterChain(buffer, numBlockSamples);
+            processMasterChain(mainOut, numBlockSamples);
 
             // Keep audio path (gain smoothing, DC blocker) running so it doesn't freeze.
             const float targetGainDb = apvts_.getRawParameterValue(ParamIDs::outputGain)->load();
             gainSmoothed_.setTargetValue(
                 juce::Decibels::decibelsToGain(targetGainDb, -60.0f));
 
-            const int numOut = buffer.getNumChannels();
-            const int numSamples = buffer.getNumSamples();
+            const int numOut = mainOut.getNumChannels();
+            const int numSamples = mainOut.getNumSamples();
             const int numDcChans = std::min(numOut, static_cast<int>(dcX1_.size()));
 
             for (int i = 0; i < numSamples; ++i)
@@ -2071,7 +2146,7 @@ namespace lockstep
                 const float gain = gainSmoothed_.getNextValue();
                 for (int ch = 0; ch < numOut; ++ch)
                 {
-                    float s = buffer.getSample(ch, i) * gain;
+                    float s = mainOut.getSample(ch, i) * gain;
                     if (ch < numDcChans)
                     {
                         const float x1 = dcX1_[static_cast<std::size_t>(ch)];
@@ -2081,17 +2156,17 @@ namespace lockstep
                         dcY1_[static_cast<std::size_t>(ch)] = y;
                         s = y;
                     }
-                    buffer.setSample(ch, i, dsp::softClip(s));
+                    mainOut.setSample(ch, i, dsp::softClip(s));
                 }
             }
-            masterPeak_.store(buffer.getMagnitude(0, 0, numSamples),
+            masterPeak_.store(mainOut.getMagnitude(0, 0, numSamples),
                               std::memory_order_relaxed);
-            masterPeakR_.store(buffer.getNumChannels() > 1
-                                   ? buffer.getMagnitude(1, 0, numSamples)
+            masterPeakR_.store(mainOut.getNumChannels() > 1
+                                   ? mainOut.getMagnitude(1, 0, numSamples)
                                    : masterPeak_.load(std::memory_order_relaxed),
                                std::memory_order_relaxed);
-            captureRecorder_.writeBlock(buffer, numBlockSamples);
-            cachePrevMaster(buffer, numBlockSamples);
+            captureRecorder_.writeBlock(mainOut, numBlockSamples);
+            cachePrevMaster(mainOut, numBlockSamples);
             return;
         }
 
@@ -2991,15 +3066,17 @@ namespace lockstep
 
         // A2: sum only Master-routed tracks (bus-routed audio reaches master
         // through its bus track's chain).
-        sumRoutedToMaster(buffer, numBlockSamples);
+        sumRoutedToMaster(mainOut, numBlockSamples);
+        // §31.1: Aux-routed tracks → host Aux buses (or fold to main).
+        depositRoutedToAux(buffer, mainOut, numBlockSamples);
 
         // Master insert chain — before metronome so the click is not sent through FX.
-        processMasterChain(buffer, numBlockSamples);
+        processMasterChain(mainOut, numBlockSamples);
 
         if (clock_.isMetronomeEnabled())
         {
             const auto metroCt = effectiveTimeSig();
-            metronome_.process(blockStart, blockEnd, samplesPerPpq, buffer,
+            metronome_.process(blockStart, blockEnd, samplesPerPpq, mainOut,
                                metroCt.numerator, metroCt.denominator);
         }
 
@@ -3008,8 +3085,8 @@ namespace lockstep
         gainSmoothed_.setTargetValue(
             juce::Decibels::decibelsToGain(targetGainDb, -60.0f));
 
-        const int numOut = buffer.getNumChannels();
-        const int numSamples = buffer.getNumSamples();
+        const int numOut = mainOut.getNumChannels();
+        const int numSamples = mainOut.getNumSamples();
         const int numDcChans = std::min(numOut, static_cast<int>(dcX1_.size()));
 
         for (int i = 0; i < numSamples; ++i)
@@ -3017,7 +3094,7 @@ namespace lockstep
             const float gain = gainSmoothed_.getNextValue();
             for (int ch = 0; ch < numOut; ++ch)
             {
-                float s = buffer.getSample(ch, i) * gain;
+                float s = mainOut.getSample(ch, i) * gain;
 
                 if (ch < numDcChans)
                 {
@@ -3029,17 +3106,17 @@ namespace lockstep
                     s = y;
                 }
 
-                buffer.setSample(ch, i, dsp::softClip(s));
+                mainOut.setSample(ch, i, dsp::softClip(s));
             }
         }
-        masterPeak_.store(buffer.getMagnitude(0, 0, numSamples),
+        masterPeak_.store(mainOut.getMagnitude(0, 0, numSamples),
                           std::memory_order_relaxed);
-        masterPeakR_.store(buffer.getNumChannels() > 1
-                               ? buffer.getMagnitude(1, 0, numSamples)
+        masterPeakR_.store(mainOut.getNumChannels() > 1
+                               ? mainOut.getMagnitude(1, 0, numSamples)
                                : masterPeak_.load(std::memory_order_relaxed),
                            std::memory_order_relaxed);
-        captureRecorder_.writeBlock(buffer, numBlockSamples);
-        cachePrevMaster(buffer, numBlockSamples);
+        captureRecorder_.writeBlock(mainOut, numBlockSamples);
+        cachePrevMaster(mainOut, numBlockSamples);
 
         totalSamplesProcessed_ += numBlockSamples;
     }

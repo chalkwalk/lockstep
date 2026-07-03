@@ -24,6 +24,7 @@ namespace lockstep
             case OutputDestKind::Off:    return "Off";
             case OutputDestKind::Master: return "Master";
             case OutputDestKind::Track:  return "Trk" + juce::String(sel.track + 1);
+            case OutputDestKind::Aux:    return "Aux" + juce::String(sel.track + 1);
         }
         return "Master";
     }

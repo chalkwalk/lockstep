@@ -1205,9 +1205,10 @@ namespace lockstep
                                        && std::abs(staged - committed) > 0.5f;
                     if (changed) tok = CellState::RouteConChanged;
 
-                    // Destination label: OFF / MST / T<n>.
+                    // Destination label: OFF / MST / A<n> (Aux) / T<n> (bus track).
                     juce::String dest = (sel.kind == OutputDestKind::Off)    ? juce::String("OFF")
                                       : (sel.kind == OutputDestKind::Master) ? juce::String("MST")
+                                      : (sel.kind == OutputDestKind::Aux)    ? ("A" + juce::String(sel.track + 1))
                                       : ("T" + juce::String(sel.track + 1));
 
                     c.base = c.pressed ? CellState::Pressed : tok;
