@@ -30,6 +30,7 @@
 
 #include "TestHarness.h"
 #include "../src/core/Phrase.h"
+#include "../src/core/Song.h"
 #include "../src/core/TrigCondition.h"
 #include <juce_data_structures/juce_data_structures.h>
 
@@ -728,9 +729,59 @@ namespace lockstep
         tmpFile.deleteFile();
     }
 
+    // ── Scene-occupancy derivation (Part 1 scene save/load data-loss fix) ──────
+    // A scene whose only content is its diagonal phrase row used to get no scene
+    // node on save (sceneHasContent() ignores phrase data), so Scene::initialised
+    // was never set on reload → sceneSlotOccupied() reported the scene empty and
+    // the Scene+step handler ran the destructive create-on-empty path, clobbering
+    // the loaded phrases. These pin the two shared Song.h helpers that fix both
+    // sides: sceneDiagonalOccupied() (widened save gate) and
+    // deriveSceneOccupancyFromPhrases() (load-side rescue for pre-fix files).
+
+    static void testSceneOccupancyDerivation()
+    {
+        Song song;
+
+        // Scenes 0–2: trigs on their diagonal phrase rows, NO scene-level attrs.
+        for (int si = 0; si <= 2; ++si)
+            for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+            {
+                auto& ph = song.tracks[static_cast<std::size_t>(t)]
+                               .phrases[static_cast<std::size_t>(si)];
+                ph.initialised = true;
+                ph.steps[static_cast<std::size_t>(si)].trig = true;  // a distinct trig per scene
+            }
+
+        // Save-gate helper: diagonal occupancy detected for 0–2, not for 5.
+        CHECK(sceneDiagonalOccupied(song, 0), "diagonal 0 occupied");
+        CHECK(sceneDiagonalOccupied(song, 2), "diagonal 2 occupied");
+        CHECK(!sceneDiagonalOccupied(song, 5), "untouched diagonal 5 unoccupied");
+
+        // Pre-fix load state: no scene node existed, so initialised is false.
+        for (const auto& sc : song.scenes)
+            CHECK(!sc.initialised, "scenes start un-initialised (pre-fix load state)");
+
+        // Load-side rescue derives occupancy from the diagonal phrases.
+        deriveSceneOccupancyFromPhrases(song);
+
+        CHECK(song.scenes[0].initialised, "scene 0 rescued as occupied");
+        CHECK(song.scenes[1].initialised, "scene 1 rescued as occupied");
+        CHECK(song.scenes[2].initialised, "scene 2 rescued as occupied");
+        CHECK(!song.scenes[5].initialised, "genuinely-empty scene 5 stays unoccupied");
+
+        // Trigs survived untouched (the data the bug was destroying).
+        CHECK(song.tracks[0].phrases[1].steps[1].trig, "scene 1 diagonal trig survives");
+        CHECK(song.tracks[0].phrases[2].steps[2].trig, "scene 2 diagonal trig survives");
+
+        // Idempotent: a second derivation pass changes nothing.
+        deriveSceneOccupancyFromPhrases(song);
+        CHECK(!song.scenes[5].initialised, "derivation stays a no-op on empty scenes");
+    }
+
     void runSerializerRoundTripTests()
     {
         testCondRoundTrip();
+        testSceneOccupancyDerivation();
         testStepRoundTrip();
         testPhrasePropertyNames();
         testFillFieldRoundTrip();

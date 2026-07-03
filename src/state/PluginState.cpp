@@ -643,11 +643,14 @@ namespace lockstep::PluginState
                 }
             }
 
-            // Write non-default sections.
+            // Write non-default sections. The gate ORs in sceneDiagonalOccupied()
+            // (Song.h) so a scene whose only content is its diagonal phrase row
+            // still gets a node — otherwise it reloads unmarked and the Scene+step
+            // handler takes the destructive create-on-empty path.
             for (int si = 0; si < kScenesPerSong; ++si)
             {
                 const auto& sec = song.scenes[static_cast<std::size_t>(si)];
-                if (!sceneHasContent(sec)) continue;
+                if (!sceneHasContent(sec) && !sceneDiagonalOccupied(song, si)) continue;
                 juce::ValueTree sceneNode(keys::kScene);
                 sceneNode.setProperty("i", si, nullptr);
                 // v21: only write coreTime when explicitly set via hasTimeSig.
@@ -992,6 +995,14 @@ namespace lockstep::PluginState
                         trk.phrases[static_cast<std::size_t>(si)] = trk.phrases[static_cast<std::size_t>(gp)];
                 }
             }
+
+            // Rescue pre-fix projects: a scene whose only content was its diagonal
+            // phrase row got no scene node (the old sceneHasContent() save gate), so
+            // Scene::initialised was never set on load. Derive it from the diagonal
+            // (Song.h) so sceneSlotOccupied() reports correctly and the Scene+step
+            // handler does not take the destructive create-on-empty path. New saves
+            // write the node directly (widened save gate); this only helps old files.
+            deriveSceneOccupancyFromPhrases(song);
         }
 
         // Apply active indices after all data is loaded.

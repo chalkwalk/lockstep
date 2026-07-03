@@ -65,6 +65,7 @@ namespace lockstep
             if (!m) return true;
         if (s.hasTimeSig) return true;
         if (s.hasKeySig) return true;
+        if (s.hasTempo) return true;
         if (s.swing != 0.0f) return true;
         return !s.morphA.empty() || !s.morphB.empty();
     }
