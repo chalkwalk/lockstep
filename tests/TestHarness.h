@@ -58,6 +58,8 @@ namespace lockstep
     void runSurfaceLayerTests();
     void runKeyBindingTests();
     void runSerializerRoundTripTests();
+    // Part 2 multi-step holds (block move, EditContext, relative P-Lock fan-out)
+    void runMultiStepHoldTests();
     // Phase 8 gesture tests (grows with 8.4b–h)
     void runGestureTests();
     // Phase 8 status text SSOT
