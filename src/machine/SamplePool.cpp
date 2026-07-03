@@ -1,5 +1,7 @@
 #include "SamplePool.h"
 #include "dsp/TempoEstimate.h"
+#include "dsp/KeyEstimate.h"
+#include "dsp/SampleHints.h"
 #include "state/Hash.h"
 
 namespace lockstep
@@ -11,7 +13,7 @@ namespace lockstep
 
     SamplePool::~SamplePool() = default;
 
-    int SamplePool::load(const juce::String& path)
+    int SamplePool::load(const juce::String& path, const CachedAnalysis* cached)
     {
         juce::File file(path);
         std::unique_ptr<juce::AudioFormatReader> reader(
@@ -35,12 +37,69 @@ namespace lockstep
             sample->pcm.getReadPointer(0),
             static_cast<std::size_t>(numSamples) * sizeof(float));
 
+        // Cheap per-block RMS analysis always runs — the slicer needs it even
+        // for cached entries, and it is a single envelope pass.
         sample->analysis = analyseSample(sample->pcm, sample->sampleRate);
-        sample->detectedBpm = detectBpmFor(*sample);
+
+        if (cached != nullptr && cached->hashXX32 == sample->ref.hashXX32)
+        {
+            // Cache hit: adopt the stored analysis, skip re-detection.
+            sample->detectedBpm    = cached->bpm;
+            sample->keyRoot        = cached->keyRoot;
+            sample->keyBrightness  = cached->keyBrightness;
+            sample->tuningCents    = cached->tuningCents;
+            sample->analysed       = true;
+        }
+        else
+        {
+            if (cached != nullptr)
+                DBG("SamplePool: cached analysis hash mismatch for "
+                    + path + " — re-analysing");
+            // Collect hints while the reader (and its metadata) is still alive.
+            const SampleHints hints = mergeHints(
+                parseMetadataHints(reader->metadataValues),
+                parseFilenameHints(file.getFileNameWithoutExtension().toStdString()));
+            analyseNewPcm(*sample, hints);
+        }
 
         const int index = static_cast<int>(samples_.size());
         samples_.push_back(std::move(sample));
         return index;
+    }
+
+    void SamplePool::analyseNewPcm(Sample& s, const SampleHints& hints)
+    {
+        const double bpm = detectBpmFor(s);
+
+        // Key detection under the same length gate as tempo: long-form / empty
+        // material yields the default (unknown) KeyEstimate.
+        KeyEstimate ke;
+        if (s.sampleRate > 0.0 && s.pcm.getNumSamples() > 0)
+        {
+            const double seconds =
+                static_cast<double>(s.pcm.getNumSamples()) / s.sampleRate;
+            if (seconds <= kMaxAnalysisSeconds)
+                ke = estimateKey(s.pcm, s.sampleRate);
+        }
+
+        const FusedAnalysis fa = fuseAnalysis(bpm, ke, hints);
+        s.detectedBpm   = fa.bpm;
+        s.keyRoot       = fa.keyRoot;
+        s.keyBrightness = fa.keyBrightness;
+        s.tuningCents   = fa.tuningCents;
+        s.analysed      = true;
+    }
+
+    void SamplePool::adoptCachedAnalysis(int index, const CachedAnalysis& ca)
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size()))
+            return;
+        auto& s = *samples_[static_cast<std::size_t>(index)];
+        s.detectedBpm   = ca.bpm;
+        s.keyRoot       = ca.keyRoot;
+        s.keyBrightness = ca.keyBrightness;
+        s.tuningCents   = ca.tuningCents;
+        s.analysed      = true;
     }
 
     // Estimate the loop tempo from the cached RMS envelope, gated by length:
@@ -61,6 +120,27 @@ namespace lockstep
         if (index < 0 || index >= static_cast<int>(samples_.size()))
             return 0.0;
         return samples_[static_cast<std::size_t>(index)]->detectedBpm;
+    }
+
+    int SamplePool::keyRoot(int index) const
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size()))
+            return -1;
+        return samples_[static_cast<std::size_t>(index)]->keyRoot;
+    }
+
+    int SamplePool::keyBrightness(int index) const
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size()))
+            return kAeolian;
+        return samples_[static_cast<std::size_t>(index)]->keyBrightness;
+    }
+
+    double SamplePool::tuningCents(int index) const
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size()))
+            return 0.0;
+        return samples_[static_cast<std::size_t>(index)]->tuningCents;
     }
 
     int SamplePool::addMissing(const SampleRef& ref)
@@ -189,9 +269,37 @@ namespace lockstep
         }
         if (s.missing)
             return "MISSING";
+
+        // Musical hint: "128 bpm  Amin" — either part may be absent. Key suffix
+        // is maj (Ionian) / min (Aeolian) / a 3-letter mode tag otherwise. All
+        // ASCII (juce::String asserts on non-ASCII char* literals).
+        juce::String bpmLabel;
         if (s.detectedBpm > 0.0)
-            return juce::String(juce::roundToInt(s.detectedBpm)) + " bpm";
-        return juce::File(juce::String(s.ref.path)).getParentDirectory().getFileName();
+            bpmLabel = juce::String(juce::roundToInt(s.detectedBpm)) + " bpm";
+
+        juce::String keyLabel;
+        if (s.keyRoot >= 0)
+        {
+            juce::String suffix;
+            if (s.keyBrightness == kIonian)       suffix = "maj";
+            else if (s.keyBrightness == kAeolian) suffix = "min";
+            else suffix = juce::String(modeName(s.keyBrightness)).substring(0, 3).toLowerCase();
+            keyLabel = juce::String(pitchClassName(s.keyRoot)) + suffix;
+        }
+
+        if (bpmLabel.isNotEmpty() && keyLabel.isNotEmpty())
+            return bpmLabel + "  " + keyLabel;
+        if (bpmLabel.isNotEmpty())
+            return bpmLabel;
+        if (keyLabel.isNotEmpty())
+            return keyLabel;
+
+        // No tempo, no key. An analysed entry with neither is a one-shot (or
+        // long-form); flag it so the pool browser distinguishes it from an
+        // entry that simply has not been analysed yet.
+        const juce::String parent =
+            juce::File(juce::String(s.ref.path)).getParentDirectory().getFileName();
+        return s.analysed ? parent + "  one-shot" : parent;
     }
 
     int SamplePool::nthVolatileIndex(int n) const
@@ -239,7 +347,11 @@ namespace lockstep
             s->pcm.getReadPointer(0),
             static_cast<std::size_t>(numSamples) * sizeof(float));
         s->analysis = analyseSample(s->pcm, s->sampleRate);
-        s->detectedBpm = detectBpmFor(*s);
+        // A relink means the bytes changed by definition — always re-analyse.
+        const SampleHints hints = mergeHints(
+            parseMetadataHints(reader->metadataValues),
+            parseFilenameHints(file.getFileNameWithoutExtension().toStdString()));
+        analyseNewPcm(*s, hints);
         s->missing = false;
         return true;
     }

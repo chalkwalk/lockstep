@@ -9,9 +9,59 @@
 
 #include "TestHarness.h"
 #include "../src/machine/SamplePool.h"
+#include <cmath>
+#include <memory>
+#include <random>
+#include <vector>
 
 namespace lockstep
 {
+    namespace
+    {
+        // Render scale-tone partials (octave 4, pc 0 == C4) into a mono buffer.
+        juce::AudioBuffer<float> poolTones(const std::vector<int>& pcs,
+                                           const std::vector<double>& w,
+                                           double sr, double seconds)
+        {
+            const int n = static_cast<int>(sr * seconds);
+            juce::AudioBuffer<float> buf(1, n);
+            buf.clear();
+            float* d = buf.getWritePointer(0);
+            for (std::size_t k = 0; k < pcs.size(); ++k)
+            {
+                const int midi = 60 + pcs[k];
+                const double hz = 440.0 * std::pow(2.0, (midi - 69) / 12.0);
+                const double amp = 0.2 * w[k];
+                for (int i = 0; i < n; ++i)
+                    d[i] += static_cast<float>(amp * std::sin(2.0 * juce::MathConstants<double>::pi
+                                                              * hz * i / sr));
+            }
+            return buf;
+        }
+
+        // Write a buffer to a fresh temp WAV; returns the file (caller deletes).
+        juce::File writeTempWav(const juce::AudioBuffer<float>& buf, double sr,
+                                const juce::String& stem)
+        {
+            juce::File f = juce::File::getSpecialLocation(juce::File::tempDirectory)
+                               .getChildFile(stem + ".wav");
+            f.deleteFile();
+            juce::WavAudioFormat fmt;
+            std::unique_ptr<juce::OutputStream> os(f.createOutputStream());
+            if (os == nullptr) return f;
+            const auto options = juce::AudioFormatWriterOptions{}
+                                     .withSampleRate(sr)
+                                     .withNumChannels(buf.getNumChannels())
+                                     .withBitsPerSample(32)
+                                     .withSampleFormat(
+                                         juce::AudioFormatWriterOptions::SampleFormat::floatingPoint);
+            auto w = fmt.createWriterFor(os, options);   // moves the stream on success
+            if (w != nullptr)
+                w->writeFromAudioSampleBuffer(buf, 0, buf.getNumSamples());
+            return f;
+        }
+    }
+
     void runSamplePoolTests()
     {
         // addVolatile + flags ------------------------------------------------
@@ -139,6 +189,95 @@ namespace lockstep
                   "sourceBars is volatile-only (non-volatile stays 0)");
             CHECK(feq(static_cast<float>(pool.sourceBars(99)), 0.0f),
                   "sourceBars out of range returns 0");
+        }
+
+        // 4.9: key detection at load + one-shot hint --------------------------
+        {
+            // A sustained C-major chord/scale -> detected key C, hint shows Cmaj.
+            const double sr = 44100.0;
+            auto buf = poolTones({ 0, 2, 4, 5, 7, 9, 11 },
+                                 { 3.0, 1.0, 2.0, 1.0, 2.0, 1.0, 1.0 }, sr, 3.0);
+            juce::File wav = writeTempWav(buf, sr, "lockstep_pooltest_cmaj");
+
+            SamplePool pool;
+            const int idx = pool.load(wav.getFullPathName());
+            CHECK(idx >= 0, "tonal WAV loads");
+            CHECK(pool.keyRoot(idx) == 0, "C-major WAV detects root C (0)");
+            CHECK(pool.displayHint(idx).contains("maj"),
+                  "tonal hint carries the major key label");
+
+            const Sample* s = pool.get(idx);
+            CHECK(s != nullptr && s->analysed, "loaded file entry is marked analysed");
+            wav.deleteFile();
+        }
+        {
+            // A short noise burst: no rhythm, no key -> analysed one-shot.
+            const double sr = 44100.0;
+            const int n = static_cast<int>(sr * 0.4);
+            juce::AudioBuffer<float> nb(1, n);
+            std::mt19937 rng(99);
+            std::uniform_real_distribution<float> dist(-0.3f, 0.3f);
+            for (int i = 0; i < n; ++i)
+                nb.getWritePointer(0)[i] = dist(rng);
+            juce::File wav = writeTempWav(nb, sr, "lockstep_pooltest_oneshot");
+
+            SamplePool pool;
+            const int idx = pool.load(wav.getFullPathName());
+            CHECK(idx >= 0, "one-shot WAV loads");
+            CHECK(pool.keyRoot(idx) == -1, "noise one-shot has no key");
+            CHECK(feq(static_cast<float>(pool.detectedBpm(idx)), 0.0f),
+                  "noise one-shot has no tempo");
+            CHECK(pool.displayHint(idx).endsWith("one-shot"),
+                  "analysed rhythm-less entry reads one-shot");
+            wav.deleteFile();
+        }
+
+        // 4.9: cache adoption on hash match; re-analysis on mismatch ----------
+        {
+            const double sr = 44100.0;
+            auto buf = poolTones({ 0, 2, 4, 5, 7, 9, 11 },
+                                 { 3.0, 1.0, 2.0, 1.0, 2.0, 1.0, 1.0 }, sr, 3.0);
+            juce::File wav = writeTempWav(buf, sr, "lockstep_pooltest_cache");
+
+            // First load computes the real hash + a real (root-0) analysis.
+            std::uint32_t hash = 0;
+            {
+                SamplePool pool;
+                const int idx = pool.load(wav.getFullPathName());
+                const Sample* s = pool.get(idx);
+                CHECK(s != nullptr, "cache probe load ok");
+                hash = s->ref.hashXX32;
+            }
+
+            // A deliberately wrong-but-valid cache with the MATCHING hash must be
+            // adopted verbatim (proves detection is skipped).
+            {
+                SamplePool pool;
+                SamplePool::CachedAnalysis ca;
+                ca.hashXX32 = hash;
+                ca.bpm = 77.0;
+                ca.keyRoot = 3;   // != detected 0
+                ca.keyBrightness = kDorian;
+                ca.tuningCents = 5.0;
+                const int idx = pool.load(wav.getFullPathName(), &ca);
+                CHECK(feq(static_cast<float>(pool.detectedBpm(idx)), 77.0f),
+                      "matching-hash cache is adopted (bpm 77 survives)");
+                CHECK(pool.keyRoot(idx) == 3, "matching-hash cache adopts key root");
+            }
+
+            // A mismatching hash must be ignored -> fresh analysis (root 0 back).
+            {
+                SamplePool pool;
+                SamplePool::CachedAnalysis ca;
+                ca.hashXX32 = hash ^ 0x1u;   // wrong hash
+                ca.bpm = 77.0;
+                ca.keyRoot = 3;
+                const int idx = pool.load(wav.getFullPathName(), &ca);
+                CHECK(pool.keyRoot(idx) == 0, "hash mismatch re-analyses (root 0)");
+                CHECK(!feq(static_cast<float>(pool.detectedBpm(idx)), 77.0f),
+                      "hash mismatch discards poisoned bpm");
+            }
+            wav.deleteFile();
         }
     }
 }
