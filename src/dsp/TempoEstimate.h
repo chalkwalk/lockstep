@@ -20,6 +20,11 @@ namespace lockstep
     // sourceBars <= 0 (DESIGN §28).
     inline constexpr double kMinBpm = 60.0;
     inline constexpr double kMaxBpm = 200.0;
+    // Length gate shared by every load-time analysis (tempo AND key): material
+    // longer than this is long-form (StreamMachine's domain) and pays no
+    // analysis cost — bpm/key both come back "unknown". One gate so tempo and
+    // key detection agree on what "too long to analyse" means.
+    inline constexpr double kMaxAnalysisSeconds = 30.0;
     // Octave-fold target: only correct a raw peak that lands outside the range
     // of common musical tempos by halving/doubling. Kept wide (covers half-time
     // hip-hop up through drum'n'bass) so genuine tempos are never folded away.

@@ -50,9 +50,8 @@ namespace lockstep
     {
         if (s.sampleRate <= 0.0 || s.pcm.getNumSamples() <= 0)
             return 0.0;
-        constexpr double kMaxLoopSeconds = 30.0;
         const double seconds = static_cast<double>(s.pcm.getNumSamples()) / s.sampleRate;
-        if (seconds > kMaxLoopSeconds)
+        if (seconds > kMaxAnalysisSeconds)
             return 0.0;
         return estimateBpm(s.analysis);
     }

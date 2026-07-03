@@ -32,6 +32,7 @@ namespace lockstep
     void runSurfaceModelTests();
     void runSamplePoolTests();   // 6.2 volatile REC buffers (DESIGN §28)
     void runTempoEstimateTests(); // WI-4 energy-based BPM detection (DESIGN §28)
+    void runKeyEstimateTests();   // 4.9 key + tuning detection (DESIGN §28)
     void runTimeStretchTests();  // C1 WSOLA time-stretch + resample
     void runStretchMachineTests(); // C3 Flex-analog Player (independent pitch+tempo)
     void runRecordMachineTests();  // 6.2 RecordMachine capture (DESIGN §29.2/§30)
