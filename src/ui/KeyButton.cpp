@@ -19,9 +19,13 @@ namespace lockstep
         if (c.scopeTint != 0u && !c.disabled)
         {
             const juce::Colour tint{ c.scopeTint };
+            // A Func border decoration overrides the accent so a Func+scope cell
+            // reads scope-colour fill + Func-colour border (DESIGN §6.1.1).
+            const uint32_t acc = c.border.present ? c.border.colour
+                                                  : tint.brighter(0.35f).getARGB();
             return { tint.withMultipliedBrightness(0.55f).getARGB(),  // resting in-scope fill
                      tint.getARGB(),                                  // pressed/active fill
-                     tint.brighter(0.35f).getARGB() };                // border accent
+                     acc };                                           // border accent
         }
 
         switch (c.button)
@@ -105,6 +109,7 @@ namespace lockstep
 
             // --- Section keys (canonical TRIG/SRC/FILTER/AMP/MOD/FX) ---
             case ControllerButton::Section:
+            {
                 // baseColour distinguishes special visual modes
                 if (c.baseColour == kScopeMachine)
                     return { kSecInactive, kScopeMachine, kScopeMachine };
@@ -112,7 +117,11 @@ namespace lockstep
                     return { kSecInactive, kScopeNoteEdit, kScopeNoteEdit };
                 if (c.baseColour == 0xFF404010u)            // master-active golden
                     return { kSecInactive, 0xFF404010u, 0xFFFFB432u };
-                return { kSecInactive, kSecActive, kSecAccent };
+                // A Func border decoration (§6.1.1) recolours only the border,
+                // leaving the neutral section fill — the Func-stack marker.
+                const uint32_t acc = c.border.present ? c.border.colour : kSecAccent;
+                return { kSecInactive, kSecActive, acc };
+            }
 
             case ControllerButton::Step: {
                 // Step-grid cells: table drives base fill/accent; baseColour

@@ -886,6 +886,37 @@ namespace lockstep
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Part 4 (Func parallel stack): a Func-qualified section cell keeps its
+    // origin fill and is marked by a Func-coloured *border*, not an all-orange
+    // fill. Empty Func cells stay dim (strict) with no border.
+    // -------------------------------------------------------------------------
+    static void testFuncStackBorderNotOrangeFill()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        EditContext ec;
+
+        UiState ui;
+        ui.funcHeld = true;
+        const SurfaceModel m = buildSurfaceModel(
+            ui, ec, nullptr, proc, 0, 0, GridDisplayMode::Ortholinear);
+
+        // TRIG (0) carries a Func secondary (COND): Func border present + orange,
+        // and the fill is NOT the old all-orange kScopeFunc.
+        const auto& trig = m.section[0];
+        CHECK(!trig.disabled, "Func+TRIG (COND) is a wired Func cell, not dim");
+        CHECK(trig.border.present && trig.border.colour == theme::kScopeFunc,
+              "Func+TRIG carries a Func-coloured border (the Func-stack marker)");
+        CHECK(trig.baseColour != theme::kScopeFunc,
+              "Func+TRIG fill is the origin/section colour, not all-orange");
+
+        // A reserved section with no Func secondary stays dim with no border.
+        const auto& mod = m.section[4];  // MOD — no Func-layer action
+        CHECK(mod.disabled, "Func+MOD has no secondary → dim (strict)");
+        CHECK(!mod.border.present, "dim Func cell carries no border");
+    }
+
     void runSurfaceModelTests()
     {
         testPanicKeyLabel();
@@ -907,6 +938,7 @@ namespace lockstep
         testSectionFuncHintsMatchDispatch();
         testFxSectionPrimaryNotPicker();
         testFxPickerBypassCell();
+        testFuncStackBorderNotOrangeFill();
         testSrcAnnouncesNoteEditWhenStepHeld();
     }
 

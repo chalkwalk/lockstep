@@ -1375,7 +1375,13 @@ highest-precedence layer that owns params at that section wins; a
 section with no owner there falls through to the next layer down.
 Holding a scope **peels** every layer of higher precedence than it, so
 you see that scope's layer *and everything below it*, never the layers
-above:
+above. This is **one rule for every scope** — unqualified is simply the
+`Machine` floor (nothing above to peel), `Track` is the `Track` floor,
+and so on. The stack deliberately contains only the *hierarchy* scopes;
+**`Morph` is excluded** (it is a parameter-assignment mechanic, not a
+param-owning layer — it keeps its bespoke morph-assign row), and `Mute`/
+`Fill` are **not** members either (there is no principled position for
+them in the hierarchy, so adding them would be dogmatic).
 
 - **Unqualified** (no scope held): fill top-down. `Machine` wins each
   section; a section the machine owns nothing at falls through to the
@@ -1406,14 +1412,29 @@ produce no section candidates yet, so holding them yields dim sections
 until those layers grow params (master FX keeps its own `Song+FX`
 access, §32.3 — it is *not* folded into this six-section overlay).
 
-**`Func` is a separate layer, not interleaved.** `Func+section` stays
-its own bespoke set (machine picker / FX picker / note-edit / density /
-transport globals / the Restore-Copy-Paste-Delete-Cancel secondaries).
-Interleaving `Func` as a silent per-scope param fall-through would
-collide with those bindings, double the stack depth, and dissolve
-"`Func` = universal qualifier" (Rule 1 below). If a `Func` param layer
-is ever wanted it is a **parallel** stack tinting orange
-(`scope.colour.func`), not a rung in this one.
+**`Func` is a parallel stack, not a rung.** Holding `Func` does not
+insert a layer into the primary stack — it switches you to a **second
+copy of the whole stack**, entered by the `Func` modifier, with the
+*identical* layer order and the *identical* resolution rule. The
+scope modifier still selects the floor within it: `Func` alone = the
+Func stack at the `Machine` floor; `Func+Track` = the Func stack at the
+`Track` floor; and so on. Each Func layer owns that scope+section's
+*secondary* content — today `Func`-`Machine` owns `COND` (on `TRIG`),
+`NOTE` (on `SRC`), and the pickers/reskins where bound; the other Func
+layers are mostly empty and fall through / dim, exactly like the sparse
+primary stack. Pickers are terminal (an owned action, not a page, so
+they do not fall through). The two stacks are **independent**: a section
+that no Func layer owns is **dim** (strict) — it does *not* borrow the
+primary page. This keeps "`Func` = universal qualifier" intact (Rule 1
+below) while making section-button handling read the same in both
+stacks.
+
+**Func-stack colour.** A Func-qualified cell keeps its **origin fill**
+(machine-secondary reads neutral, `Func+scope` reads that scope's
+colour) and is marked by a **Func-coloured border** (`scope.colour.func`)
+— not an all-orange fill. So the only visual difference between the
+primary and Func stacks is the border; everything else about section-
+button handling is identical. Empty Func cells stay dim with no border.
 
 ### 6.2 Track-meta content: `COND`/`NOTE` on `Func`, the rest relocated (3.2 / 5.3)
 

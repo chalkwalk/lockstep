@@ -625,8 +625,6 @@ namespace lockstep
             // baseColour distinguishes special visual modes for groupForCell()
             if (isVelInert)
                 c.baseColour = 0xFF3A2400u;     // dim amber — inert modal entry
-            else if (funcLayerActive && hasFuncSecondary)
-                c.baseColour = kScopeFunc;      // Func-secondary glow (COND / NOTE / FX)
             else if (isFillArmed)
                 c.baseColour = kScopeFill;      // Fill-secondary glow (TRIG / SRC)
             else if (isMasterActive)
@@ -642,10 +640,20 @@ namespace lockstep
             // Func+Part, not section[1], so SRC reads as part-base SRC under Part.)
             if (isScopedMode && !c.disabled)
                 c.scopeTint = scopeColour(sectionScope).getARGB();
-            else if (funcLayerActive && hasFuncSecondary)
-                c.scopeTint = scopeColour(EditMode::PrimaryScope::Func).getARGB();
             else if (isFillArmed)
                 c.scopeTint = scopeColour(EditMode::PrimaryScope::Fill).getARGB();
+
+            // Func parallel stack (DESIGN §6.1.1): a Func-qualified cell keeps its
+            // origin fill — machine-secondary reads neutral (above), Func+scope
+            // reads that scope's colour (scopeTint) — and is marked by a Func-
+            // coloured *border*, not an all-orange fill. So section-button handling
+            // reads the same in the primary and Func stacks, differing only by the
+            // border. Empty Func cells are already disabled (strict dim) and skip it.
+            if (ui.funcHeld && !c.disabled && !isVelInert)
+            {
+                c.border.present = true;
+                c.border.colour = kScopeFunc;
+            }
 
             // Invariant: non-disabled section keys always resolve to a non-empty primary.
             jassert(c.disabled || !c.primary.isEmpty());
