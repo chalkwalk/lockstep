@@ -1402,9 +1402,13 @@ drives colour on both surfaces (`ScopeSectionSelect.h::SecOrigin`,
   rest, and even for a section that only *fell through* to the track
   layer. Under `Track` hold, machine-only sections dim.
 - **The ManipulationZone reflects the scope it is associated with**
-  (`scope.colour.<origin>`): a track-level DSP page washes cyan; the
-  principle generalizes to every suite scope as those layers grow
-  section params.
+  (`scope.colour.<origin>`): a track-level DSP page washes cyan, and the
+  **banner always names the scope in text** — `MACHINE` / `TRACK` (and
+  `FUNC` in the Func stack) prefixes the page title, coloured by origin.
+  Colour is a learned shorthand; the word is the durable signal, so a
+  new user is never reliant on the palette alone. In the Func stack a
+  Func-coloured border wraps the whole MZ, mirroring the section-key
+  marker.
 
 **Reality note.** Only `Machine` and `Track` own per-section parameters
 today; `Phrase`/`Scene`/`Song`/`Global` are wired into the stack but

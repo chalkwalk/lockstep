@@ -803,6 +803,8 @@ namespace lockstep
         const bool bypassedFxPage =
             fxSlot >= 0 && processor_.trackInsertBypass(scopeTrk, fxSlot);
         const juce::Colour kBypassCol{ 0xFFFFB432u };  // amber (aligns with picker)
+        const juce::Colour kFuncCol{ 0xFFD07820u };    // theme::kScopeFunc
+        const bool funcHeld = (uiState_ != nullptr && uiState_->funcHeld);
 
         // §26.4.1 — Persistent header strip: always visible, shows active band / section.
         {
@@ -835,7 +837,12 @@ namespace lockstep
             }
             else
             {
-                title = normalTitle_;
+                // Banner always names the scope the params belong to. Colour is a
+                // learned shorthand; the word is the durable signal (DESIGN §6.1.1).
+                const char* scopeWord = funcHeld       ? "FUNC"
+                                      : trackScopePage ? "TRACK"
+                                                       : "MACHINE";
+                title = juce::String(scopeWord) + "  " + normalTitle_;
                 if (bypassedFxPage)
                     title += " (BYP)";
                 if (normalPageCount_ > 1)
@@ -852,6 +859,7 @@ namespace lockstep
             // Title text and optional page indicator.
             const juce::Colour headerFg = isStepEdit    ? juce::Colour::fromRGB(255, 180, 50)
                                         : isMeta        ? juce::Colour::fromRGB(160, 120, 240)
+                                        : funcHeld       ? kFuncCol
                                         : bypassedFxPage ? kBypassCol
                                         : trackScopePage ? kTrackScopeCol
                                                          : juce::Colour::fromRGB(180, 195, 210);
@@ -893,6 +901,15 @@ namespace lockstep
             // P6: faint cyan wash marks a track-level DSP page (Track scope colour).
             g.setColour(kTrackScopeCol.withAlpha(0.06f));
             g.fillAll();
+        }
+
+        // Func parallel stack (DESIGN §6.1.1): a Func-coloured border wraps the
+        // whole MZ whenever Func is held, mirroring the section-key marker — the
+        // page keeps its origin fill/wash, the border says "this is the Func stack".
+        if (funcHeld)
+        {
+            g.setColour(kFuncCol.withAlpha(0.9f));
+            g.drawRect(getLocalBounds(), 2);
         }
     }
 
