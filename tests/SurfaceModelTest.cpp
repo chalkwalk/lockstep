@@ -846,6 +846,46 @@ namespace lockstep
               "pending chrome: unarmed track shows normal audible cell");
     }
 
+    // -------------------------------------------------------------------------
+    // Part 3: a bypassed FX in the track picker gets a distinct CellState token
+    // (EffectLoadedBypassed) so it never looks identical to an active effect.
+    // -------------------------------------------------------------------------
+    static void testFxPickerBypassCell()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        EditContext ec;
+
+        // Load the first track-usable effect into track 0, insert slot 0.
+        int effIdx = -1;
+        for (int i = 0; i < proc.numAvailableEffects() && i < 16; ++i)
+            if (!proc.availableEffectInfo(i).masterOnly) { effIdx = i; break; }
+        CHECK(effIdx >= 0, "there is at least one track-usable effect");
+        const auto eff = proc.availableEffectInfo(effIdx);
+        proc.setTrackInsert(0, 0, eff.id);
+
+        UiState ui;
+        ui.funcFxHeld = true;         // enter TrackFxPicker
+        ui.funcFxInsertSlot = 0;
+
+        // Not bypassed → EffectLoaded.
+        proc.setTrackInsertBypass(0, 0, false);
+        {
+            const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                             GridDisplayMode::Ortholinear);
+            CHECK(m.step[static_cast<std::size_t>(effIdx)].base == CellState::EffectLoaded,
+                  "loaded, non-bypassed effect cell = EffectLoaded");
+        }
+        // Bypassed → EffectLoadedBypassed (distinct visual, not 'active').
+        proc.setTrackInsertBypass(0, 0, true);
+        {
+            const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                             GridDisplayMode::Ortholinear);
+            CHECK(m.step[static_cast<std::size_t>(effIdx)].base == CellState::EffectLoadedBypassed,
+                  "loaded, bypassed effect cell = EffectLoadedBypassed");
+        }
+    }
+
     void runSurfaceModelTests()
     {
         testPanicKeyLabel();
@@ -866,6 +906,7 @@ namespace lockstep
         testDeriveSlotEqualsGrammar();
         testSectionFuncHintsMatchDispatch();
         testFxSectionPrimaryNotPicker();
+        testFxPickerBypassCell();
         testSrcAnnouncesNoteEditWhenStepHeld();
     }
 

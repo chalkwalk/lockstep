@@ -5117,6 +5117,21 @@ namespace lockstep
     // 6.5 — FX insert management
     // =========================================================================
 
+    int LockstepProcessor::insertSlotForParamOffset(int track, int firstSlot) const noexcept
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1;
+        const auto ti = static_cast<std::size_t>(track);
+        for (int s = 0; s < 2; ++s)
+        {
+            auto* eff = trackInserts_[ti][static_cast<std::size_t>(s)].get();
+            if (eff == nullptr) continue;
+            const int off = insertParamOffset(track, s);
+            if (firstSlot >= off && firstSlot < off + eff->numParams())
+                return s;
+        }
+        return -1;
+    }
+
     int LockstepProcessor::insertParamOffset(int track, int insSlot) const noexcept
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return 0;

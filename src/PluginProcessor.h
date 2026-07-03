@@ -772,6 +772,12 @@ namespace lockstep
         [[nodiscard]] std::string trackInsertId(int track, int slot) const;
         [[nodiscard]] bool trackInsertBypass(int track, int slot) const;
 
+        // UI: which track insert slot (0/1) owns the param page beginning at the
+        // absolute slot `firstSlot`, or -1 if that page is not a track FX-insert
+        // page. Lets the MZ mark a bypassed FX page without duplicating the
+        // private slot-layout math (insertParamOffset).
+        [[nodiscard]] int insertSlotForParamOffset(int track, int firstSlot) const noexcept;
+
         // 6.5 master FX bus — 2 post-sum insert slots at Song scope.
         void setMasterInsert(int slot, const std::string& effectId);
         void clearMasterInsert(int slot);

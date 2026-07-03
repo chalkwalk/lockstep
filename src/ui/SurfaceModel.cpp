@@ -125,6 +125,7 @@ namespace lockstep
             case CellState::EffectAvailable:    return 0xFF30A030u;  // lime-green — available effect slot
             case CellState::EffectLoaded:       return 0xFFFFFFFFu;  // white — loaded/selected effect
             case CellState::EffectLoadedOther:  return 0xFF6E8E6Eu;  // muted green — cross-slot hint
+            case CellState::EffectLoadedBypassed: return 0xFFB4823Cu;  // amber/ochre — loaded but bypassed
             case CellState::GeneratorEuclid:    return 0xFF7050C8u;  // purple — Euclidean
             case CellState::GeneratorDensity:   return 0xFF50B478u;  // green — Density
             case CellState::GeneratorVel:       return 0xFF8898A8u;  // slate — Velocity
@@ -1247,13 +1248,20 @@ namespace lockstep
                         const auto info = proc.availableEffectInfo(i);
                         const bool isCur = (info.id == loadedId);
                         const bool isOther = !isCur && !otherSlotId.empty() && (info.id == otherSlotId);
-                        c.base = isCur   ? CellState::EffectLoaded
-                               : isOther ? CellState::EffectLoadedOther
-                                         : CellState::EffectAvailable;
+                        // Re-picking a loaded effect toggles bypass; a bypassed
+                        // loaded slot reads amber (intentionally-off), not active.
+                        const bool isBypassed = isCur
+                            && proc.trackInsertBypass(activeTrack, ui.funcFxInsertSlot);
+                        const juce::Colour bypTint{ compatColour(CellState::EffectLoadedBypassed) };
+                        c.base = isBypassed ? CellState::EffectLoadedBypassed
+                               : isCur      ? CellState::EffectLoaded
+                               : isOther    ? CellState::EffectLoadedOther
+                                            : CellState::EffectAvailable;
                         c.primary = juce::String(info.name.c_str());
-                        c.baseColour = isCur   ? juce::Colours::white.withAlpha(0.20f).getARGB()
-                                     : isOther ? otherTint.withAlpha(0.14f).getARGB()
-                                               : fxTint.withAlpha(0.12f).getARGB();
+                        c.baseColour = isBypassed ? bypTint.withAlpha(0.24f).getARGB()
+                                     : isCur      ? juce::Colours::white.withAlpha(0.20f).getARGB()
+                                     : isOther    ? otherTint.withAlpha(0.14f).getARGB()
+                                                  : fxTint.withAlpha(0.12f).getARGB();
                     }
                 }
             }
@@ -1304,13 +1312,21 @@ namespace lockstep
                                 }
                             }
                         }
-                        c.base = isCur   ? CellState::EffectLoaded
-                               : isOther ? CellState::EffectLoadedOther
-                                         : CellState::EffectAvailable;
+                        // Re-picking a loaded effect toggles bypass; a bypassed
+                        // loaded unit reads amber (intentionally-off), not active.
+                        const bool isBypassed = isCur
+                            && (mIsSend ? proc.masterSendBypass(mSlot)
+                                        : proc.masterInsertBypass(mSlot));
+                        const juce::Colour bypTint{ compatColour(CellState::EffectLoadedBypassed) };
+                        c.base = isBypassed ? CellState::EffectLoadedBypassed
+                               : isCur      ? CellState::EffectLoaded
+                               : isOther    ? CellState::EffectLoadedOther
+                                            : CellState::EffectAvailable;
                         c.primary = juce::String(info.name.c_str());
-                        c.baseColour = isCur   ? juce::Colours::white.withAlpha(0.20f).getARGB()
-                                     : isOther ? otherTint.withAlpha(0.14f).getARGB()
-                                               : fxTint.withAlpha(0.12f).getARGB();
+                        c.baseColour = isBypassed ? bypTint.withAlpha(0.24f).getARGB()
+                                     : isCur      ? juce::Colours::white.withAlpha(0.20f).getARGB()
+                                     : isOther    ? otherTint.withAlpha(0.14f).getARGB()
+                                                  : fxTint.withAlpha(0.12f).getARGB();
                     }
                 }
             }

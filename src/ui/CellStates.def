@@ -95,6 +95,7 @@ LS_CELLSTATE(SliceEmpty,       132,  0xFF12151Au, 0x00000000u,   0,   0)
 // ---- FX insert picker (6.5) -------------------------------------------
 LS_CELLSTATE(EffectAvailable,  140,  0xFF30A030u, 0x00000000u,  18, 127)
 LS_CELLSTATE(EffectLoaded,     141,  0xFFFFFFFFu, 0x00000000u, 119,   1)
+LS_CELLSTATE(EffectLoadedBypassed, 143, 0xFFB4823Cu, 0x00000000u,   9, 127)
 
 // ---- Route routing-matrix console (7c) --------------------------------
 LS_CELLSTATE(RouteConOff,      210,  0xFF20262Eu, 0x00000000u,   0,   0)

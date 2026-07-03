@@ -792,6 +792,18 @@ namespace lockstep
             && slotOffset_ >= processor_.numParams(scopeTrk);
         const juce::Colour kTrackScopeCol{ 0xFF30A0C0u };  // theme::kScopeTrack
 
+        // Part 3: when the current page is a track FX-insert whose slot is
+        // bypassed, wash it amber + tag BYP so a bypassed effect never looks like
+        // an active one. Params stay interactive (dim, not disabled).
+        const int fxSlot =
+            (scopeTrk >= 0 && band_ == MetaBand::None
+             && !processor_.editContext().isActiveForEditing())
+                ? processor_.insertSlotForParamOffset(scopeTrk, slotOffset_)
+                : -1;
+        const bool bypassedFxPage =
+            fxSlot >= 0 && processor_.trackInsertBypass(scopeTrk, fxSlot);
+        const juce::Colour kBypassCol{ 0xFFFFB432u };  // amber (aligns with picker)
+
         // §26.4.1 — Persistent header strip: always visible, shows active band / section.
         {
             const auto headerRect = getLocalBounds().withHeight(4 + kHeaderH);
@@ -824,6 +836,8 @@ namespace lockstep
             else
             {
                 title = normalTitle_;
+                if (bypassedFxPage)
+                    title += " (BYP)";
                 if (normalPageCount_ > 1)
                     pageStr = juce::String(normalPage_ + 1) + "/" + juce::String(normalPageCount_);
             }
@@ -838,6 +852,7 @@ namespace lockstep
             // Title text and optional page indicator.
             const juce::Colour headerFg = isStepEdit    ? juce::Colour::fromRGB(255, 180, 50)
                                         : isMeta        ? juce::Colour::fromRGB(160, 120, 240)
+                                        : bypassedFxPage ? kBypassCol
                                         : trackScopePage ? kTrackScopeCol
                                                          : juce::Colour::fromRGB(180, 195, 210);
             g.setColour(headerFg);
@@ -864,6 +879,13 @@ namespace lockstep
         {
             // Cool/violet tint distinguishes meta-modal bands from P-Lock (amber) at a glance.
             g.setColour(juce::Colour::fromRGB(120, 80, 200).withAlpha(0.07f));
+            g.fillAll();
+        }
+        else if (bypassedFxPage)
+        {
+            // Part 3: amber wash marks a bypassed FX page (intentionally-off, not
+            // a disabled/greyed UI element — the params stay editable).
+            g.setColour(kBypassCol.withAlpha(0.10f));
             g.fillAll();
         }
         else if (trackScopePage)

@@ -112,6 +112,7 @@ namespace lockstep
         EffectAvailable = 140,  // an available effect type (not loaded)
         EffectLoaded = 141,  // this effect is currently loaded in the focused insert slot
         EffectLoadedOther = 142,  // this effect is loaded in a different slot (dim cross-slot hint)
+        EffectLoadedBypassed = 143,  // loaded in the focused slot but bypassed (re-picked to toggle off)
 
         // Confirm overlay (8.24): P key in PendingConfirm layer shows CONFIRM/CANCEL.
         ConfirmYes = 150,  // P without Func — green affirm state
